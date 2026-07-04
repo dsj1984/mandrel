@@ -91,21 +91,13 @@ export const STATUS_LABELS = {
  */
 export const PERSONA_LABEL_PREFIX = 'persona::';
 
-export const CONTEXT_LABELS = {
-  TECH_SPEC: 'context::tech-spec',
-  ACCEPTANCE_SPEC: 'context::acceptance-spec',
-};
-
-/** Convenience aliases so callers can reach the new constants by name without
- * indexing into CONTEXT_LABELS. Mirrors the export ergonomics used by other
- * consumers that import named constants (e.g. PERSONA_LABEL_PREFIX). */
-export const CONTEXT_ACCEPTANCE_SPEC = CONTEXT_LABELS.ACCEPTANCE_SPEC;
-
 /**
- * Acceptance-axis labels for opt-out signalling on Stories that
- * intentionally have no acceptance-spec coverage. Separate namespace from
- * `context::` because it expresses absence rather than a linked context
- * ticket.
+ * Acceptance-axis labels for opt-out signalling on Epics that
+ * intentionally have no acceptance-table coverage. (Story #4324 retired
+ * the `context::tech-spec` / `context::acceptance-spec` label classes —
+ * planning content now lives as managed sections of the Epic body. This
+ * waiver survives with unchanged meaning: it waives the Epic body's
+ * `## Acceptance Table` section instead of a ticket.)
  */
 export const ACCEPTANCE_LABELS = {
   N_A: 'acceptance::n-a',
@@ -148,7 +140,7 @@ export const PLANNING_LABELS = {
 /**
  * Convenience named export so callers can reach the constant without
  * indexing into PLANNING_LABELS — mirrors the ergonomics used by
- * ACCEPTANCE_NA / CONTEXT_ACCEPTANCE_SPEC. The literal value is
+ * ACCEPTANCE_NA. The literal value is
  * duplicated here (rather than aliased through PLANNING_LABELS) so a
  * grep for `PLANNING_HEALTHCHECK_WAIVED.*planning::healthcheck-waived`
  * matches a single line — see Story #2921 Task #2933 AC #1.
@@ -161,7 +153,6 @@ export const LABEL_COLORS = {
   AGENT: '#0E8A16',
   STATUS_BLOCKED: '#D93F0B',
   PERSONA: '#C5DEF5',
-  CONTEXT: '#D4C5F9',
   ACCEPTANCE: '#FBCA04',
   PLANNING: '#FEF2C0',
 };

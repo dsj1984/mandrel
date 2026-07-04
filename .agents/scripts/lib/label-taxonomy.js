@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 import {
   ACCEPTANCE_LABELS,
   AGENT_LABELS,
-  CONTEXT_LABELS,
   LABEL_COLORS,
   PERSONA_LABEL_PREFIX,
   PLANNING_LABELS,
@@ -98,20 +97,9 @@ export const LABEL_TAXONOMY = [
   // Persona — dynamically derived from .agents/personas/*.md
   ...buildPersonaLabels(),
 
-  // Context
-  {
-    name: CONTEXT_LABELS.TECH_SPEC,
-    color: LABEL_COLORS.CONTEXT,
-    description: 'Technical Specification',
-  },
-  {
-    name: CONTEXT_LABELS.ACCEPTANCE_SPEC,
-    color: LABEL_COLORS.CONTEXT,
-    description: 'Acceptance Specification (Gherkin scenarios)',
-  },
-
-  // Acceptance axis — explicit opt-out signal for Stories that
-  // intentionally have no acceptance-spec coverage.
+  // Acceptance axis — explicit opt-out signal for Epics that
+  // intentionally have no acceptance-table coverage (waives the Epic
+  // body's ## Acceptance Table section — Story #4324).
   {
     name: ACCEPTANCE_LABELS.N_A,
     color: LABEL_COLORS.ACCEPTANCE,

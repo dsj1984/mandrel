@@ -183,7 +183,7 @@ export async function buildDefaultListenerChain(opts = {}) {
   // 3. Finalizer — opens the PR on acceptance.reconcile.ok or .waived
   //    (Story #2893 split waiver out of .skipped) via the bus-owned
   //    default (`composeBusOwnedFinalize`, Story #2894), which chains
-  //    openOrLocatePr → closePlanningTickets → postHandoffComment and
+  //    openOrLocatePr → postHandoffComment and
   //    emits `epic.merge.ready` on success. The legacy
   //    `d1-default-no-op` blocker is gone; the listener constructed
   //    with no `runFinalizeFn` override always runs the real flow.

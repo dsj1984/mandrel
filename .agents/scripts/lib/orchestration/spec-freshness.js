@@ -12,7 +12,7 @@
  * probes each against `baseBranchRef` (via `git cat-file -e`), and returns a
  * `{ stale, fresh, ambiguous }` envelope. The caller (epic-plan-spec.js)
  * uses the result to write a JSON report and post an advisory structured
- * comment on the Tech Spec issue. The check is intentionally non-blocking —
+ * comment on the Epic. The check is intentionally non-blocking —
  * planning continues even when stale references are present, because the
  * operator may legitimately be planning to create the path the Tech Spec
  * cites.
@@ -274,7 +274,7 @@ export function validateSpecFreshness(specBody, opts = {}) {
  * exact rendering contract.
  *
  * @param {{ stale: Array, ambiguous: Array, fresh: Array }} report
- * @param {{ baseBranchRef: string, techSpecId?: number, epicId?: number }} ctx
+ * @param {{ baseBranchRef: string, epicId?: number }} ctx
  * @returns {string}
  */
 export function renderSpecFreshnessComment(report, ctx) {

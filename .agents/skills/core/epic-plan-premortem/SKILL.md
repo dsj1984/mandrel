@@ -5,7 +5,7 @@ description: >-
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write
   `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js`
-  validates and persists it. Reads the PRD / Tech Spec AND the actual cited
+  validates and persists it. Reads the sectioned Epic body AND the cited
   code surfaces, then emits predicted-rework findings before any GitHub write.
 allowed_tools:
   - Read
@@ -18,7 +18,7 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only after a draft `temp/epic-<Epic_ID>/tickets.json` exists (authored by `epic-plan-decompose-author`, and consolidated by `epic-plan-consolidate` if that pass ran); fail loudly if the draft array is missing. Read the PRD / Tech Spec from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
+- Run only after a draft `temp/epic-<Epic_ID>/tickets.json` exists (authored by `epic-plan-decompose-author`, and consolidated by `epic-plan-consolidate` if that pass ran); fail loudly if the draft array is missing. Read the sectioned Epic body from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
 - **You MUST read the actual cited code surfaces.** For every Story, open the files named in its `changes[]` / `references[]` (resolve each path against the repo root; use `Read` / `Grep`) and read enough of each to judge whether the Story's `acceptance[]` is verifiable against the real code and whether its `changes[]` assumptions hold. This is the load-bearing difference between this critic and the structural file-assumption gate: that gate proves a path **exists** (or does not); this critic reads what the file actually **contains**. A pre-mortem that did not open the cited files has not run.
 - Emit exactly one artifact: a human-readable `temp/epic-<Epic_ID>/premortem-report.md` — the predicted-rework findings the operator reviews at the Phase 8 HITL diff. It MUST exist before returning.
 - **This critic never writes to GitHub and never persists `tickets.json`.** It is read-and-report only: it does NOT mutate the draft array, does NOT create issues, and does NOT flip any label. Re-authoring on its findings is the author skill's job (the workflow re-runs `epic-plan-decompose-author` on the report before the persist call).
@@ -32,7 +32,7 @@ Senior Engineer + Architect, acting as a **fresh-context pre-mortem critic**.
 This Skill is deliberately *separate* from `epic-plan-decompose-author` (the
 generator) and from `epic-plan-consolidate` (the scope-preserving merge critic):
 a same-pass self-critique is the weak mode this is built to escape. The
-generator maps PRD capabilities to Stories against the spec text; this critic
+generator maps Epic capabilities to Stories against the spec text; this critic
 opens the **actual cited code** and asks "if I tried to deliver this exact
 backlog, where would it rework?" — before any GitHub write makes the rework
 expensive.
@@ -56,8 +56,9 @@ The workflow passes the Epic ID as the Skill argument. The Skill itself reads:
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** (or consolidated) Story
   array. This is the pre-mortem subject.
 - `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope emitted
-  by `epic-plan-decompose.js --emit-context`. Read `prd.body` / `prd` and
-  `techSpec.body` / `techSpec` from it.
+  by `epic-plan-decompose.js --emit-context`. Read `epicBody` from it —
+  the sectioned Epic body carrying the folded Tech Spec sections
+  (there is no separate `techSpec` key — Story #4324).
 - **The repository working tree** — the actual files each Story's `changes[]` /
   `references[]` name. Resolve each path against the repo root and read it.
 
@@ -78,7 +79,7 @@ artifact and mutates **no** GitHub state.
 ### Step 1 — Load the draft and the spec
 
 Read `temp/epic-<Epic_ID>/tickets.json` (the Story array) and
-`temp/epic-<Epic_ID>/decomposer-context.json` (for the PRD / Tech Spec). If the
+`temp/epic-<Epic_ID>/decomposer-context.json` (for the `epicBody`). If the
 draft array is missing, fail loudly and instruct the caller to run the
 `epic-plan-decompose-author` Skill first.
 

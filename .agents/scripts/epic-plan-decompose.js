@@ -9,8 +9,7 @@
  * have been split into phase modules under
  * `lib/orchestration/epic-plan-decompose/phases/`:
  *
- *   1. planning-artifacts — `ensurePlanningArtifacts`,
- *                            `resolveConflictPolicy`.
+ *   1. planning-artifacts — `resolveConflictPolicy`.
  *   2. dag                — `resolveDependencies`,
  *                            `orderTicketsForCreation`.
  *   3. context            — `buildDecomposerSystemPrompt`,
@@ -60,7 +59,6 @@ import {
   resolveDependencies,
 } from './lib/orchestration/epic-plan-decompose/phases/dag.js';
 import { runDecomposePhase } from './lib/orchestration/epic-plan-decompose/phases/persist.js';
-import { ensurePlanningArtifacts } from './lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js';
 
 // Named exports preserved for the existing test surface. The pre-refactor
 // module published these and the consumers (`tests/ticket-decomposer.test.js`,
@@ -70,7 +68,6 @@ import { ensurePlanningArtifacts } from './lib/orchestration/epic-plan-decompose
 export {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
-  ensurePlanningArtifacts,
   orderTicketsForCreation,
   resolveDependencies,
   runDecomposePhase,

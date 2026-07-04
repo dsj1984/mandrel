@@ -23,8 +23,10 @@
  *   - Per-instance `Set<string>` of `${event}:${seqId}` keys. A repeat
  *     `(event, seqId)` short-circuits without re-running reconciliation
  *     and emits no events.
- *   - The reconciler helper itself is read-only with respect to runtime
- *     state, so the seqId guard is the only defence the listener needs.
+ *   - The reconciler helper's only write is the section-scoped
+ *     disposition record inside the Epic body's ## Acceptance Table
+ *     region (Story #4324) — itself idempotent — so the seqId guard is
+ *     the only defence the listener needs.
  *
  * Side-effect firewall: the listener owns the reconciliation call and
  * the four outcome emits. It does NOT mutate labels, post comments, or
@@ -233,10 +235,14 @@ export class AcceptanceReconciler {
         loggerImpl: this.logger,
         // Honour `acceptance::n-a` — the helper already returns
         // `status: 'waived'` for that label, but `skipWhenWaived: true`
-        // additionally tolerates a missing spec link under the waiver
-        // (we want the same forgiving stance the inline finalize call
-        // had).
+        // additionally tolerates a missing acceptance-table section under
+        // the waiver (we want the same forgiving stance the inline
+        // finalize call had).
         skipWhenWaived: true,
+        // Close time is the one place the verification outcome is
+        // recorded into the Epic body's ## Acceptance Table section
+        // (section-scoped write, Story #4324).
+        writeDispositions: true,
       });
     } catch (err) {
       thrown = err;

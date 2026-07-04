@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-03T22:14:27.900Z",
+  "generatedAt": "2026-07-04T00:29:42.907Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -147,7 +147,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
-      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reads the PRD / Tech Spec AND the actual cited code surfaces, then emits predicted-rework findings before any GitHub write.",
+      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Write", "Bash", "Grep"],
       "vendor": null
@@ -157,7 +157,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
-      "description": "Author the Tech Spec, Acceptance Spec markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
+      "description": "Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` folds them into the Epic body's managed sections.",
       "policyCapsuleBullets": 13,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -187,7 +187,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/hydrate-context/SKILL.md",
-      "description": "Hydrate a Task or Story ticket into a structured ContextEnvelope (or the legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles named sections with provenance and section-aware elision. Successor to the retired mandrel MCP `context.hydrate` tool.",
+      "description": "Hydrate a Story ticket into a structured ContextEnvelope (or the legacy `{ prompt }` stdout wrapper). Reads the ticket body, resolves the parent Epic, embeds the sectioned Epic body (acceptance-table section stripped), and assembles named sections with provenance and section-aware elision. Successor to the retired mandrel MCP `context.hydrate` tool.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Bash"],
       "vendor": null

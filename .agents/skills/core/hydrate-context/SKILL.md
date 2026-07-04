@@ -1,9 +1,10 @@
 ---
 name: hydrate-context
 description: >-
-  Hydrate a Task or Story ticket into a structured ContextEnvelope (or the
-  legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses
-  Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles
+  Hydrate a Story ticket into a structured ContextEnvelope (or the
+  legacy `{ prompt }` stdout wrapper). Reads the ticket body, resolves the
+  parent Epic, embeds the sectioned Epic body (acceptance-table section
+  stripped), and assembles
   named sections with provenance and section-aware elision. Successor to
   the retired mandrel MCP `context.hydrate` tool.
 allowed_tools:
@@ -26,8 +27,12 @@ allowed_tools:
 ## Role
 
 Context aggregator. Resolves a ticket's hierarchy (Story → Epic)
-and stitches the linked planning artifacts into a
-single prompt the executor consumes.
+and stitches the Epic body — the single planning document, carrying the
+folded Tech Spec sections — plus the Story body into a
+single prompt the executor consumes. The Epic body is embedded with its
+`## Acceptance Table` managed section stripped (close-time reconciliation
+detail the executor does not need); there is no separate Tech Spec fetch
+(Story #4324).
 
 ## When to use
 

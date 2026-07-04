@@ -215,35 +215,36 @@ new Epic is genuinely distinct).
 
 3. **Continue to Phase 5**: The captured Epic ID becomes the new
    `[Epic_ID]` for the rest of the planning pipeline. Re-Plan Detection
-   (Phase 5) will short-circuit because no Tech Spec is linked yet,
-   so the run flows naturally into Phase 6 (Epic Clarity Gate) and then
-   Phase 7.
+   (Phase 5) will short-circuit because the fresh Epic body carries no
+   Tech Spec sections yet, so the run flows naturally into Phase 6
+   (Epic Clarity Gate) and then Phase 7.
 
 ## Phase 5: Re-Plan Detection
 
 Before generating any artifacts, check whether the Epic has already been
 planned.
 
-1. **Fetch Epic**: Read the Epic issue body and check for a
-   `## Planning Artifacts` section containing a Tech Spec reference. The
-   Tech Spec link alone is the already-planned signal (Story #4314 retired
-   the PRD artifact class — a historical Epic may still carry a `PRD: #XX`
-   line, but it is ignored). Both new-style Epics (no PRD) and historical
-   Epics (PRD present but ignored) are recognized as planned via the Tech
-   Spec link.
-2. **If already planned**: Inform the user that this Epic already has planning
-   artifacts. Ask:
+1. **Fetch Epic**: Read the Epic issue body and check for Tech Spec
+   content — the managed `<!-- mandrel:tech-spec:start/end -->` section or
+   a bare `## Delivery Slicing` heading (`hasTechSpecContent` in
+   [`lib/epic-body-sections.js`](../../scripts/lib/epic-body-sections.js)).
+   The Tech Spec sections alone are the already-planned signal. Historical
+   Epics may still carry a legacy `## Planning Artifacts` section linking
+   retired `context::*` tickets — those links are **ignored** (never
+   fetched); only the body sections count.
+2. **If already planned**: Inform the user that this Epic already carries
+   planning sections. Ask:
 
-   > "Epic #[ID] already has a Tech Spec (#XX) with YY decomposed
-   > tickets. Do you want to **re-plan**? This will **overwrite the
-   > Tech Spec and Acceptance Spec in place** (same issue numbers, refreshed
-   > bodies, comment history preserved) and **close-and-recreate** all
-   > child Story tickets."
+   > "Epic #[ID] already carries a Tech Spec (`## Delivery Slicing`) with
+   > YY decomposed tickets. Do you want to **re-plan**? This will
+   > **overwrite the Tech Spec and Acceptance Table sections of the Epic
+   > body in place** (comment history preserved) and **close-and-recreate**
+   > all child Story tickets."
 
 3. **If user confirms re-plan**: Pass `--force` to all subsequent script
-   invocations. Under `--force`, the context tickets (Tech Spec,
-   Acceptance Spec) are overwritten in place — their issue numbers, Epic
-   sub-issue links, and prior discussion are preserved, and each receives a
+   invocations. Under `--force`, the Epic body's managed sections (Tech
+   Spec, Acceptance Table) are overwritten in place — the Epic's issue
+   number and prior discussion are preserved, and the Epic receives a
    one-line regeneration audit comment. Child Story tickets are still
    closed and recreated, because a re-decomposition can legitimately produce a
    different ticket set.
@@ -262,16 +263,16 @@ clarity gate does not make.
 
 The advisory runs **only** when **both** hold:
 
-1. **Phase 5 found no planning artifacts** — the Epic body has no
-   `## Planning Artifacts` section linking a Tech Spec (i.e. Phase 5
-   did **not** enter its re-plan branch).
+1. **Phase 5 found no planning sections** — the Epic body carries no Tech
+   Spec content (no managed section, no `## Delivery Slicing` heading —
+   i.e. Phase 5 did **not** enter its re-plan branch).
 2. **The Epic has no open Story children** — no open `type::story`
    sub-issues are linked to this Epic.
 
 If **either** condition fails, **skip this phase silently** and continue to
 Phase 6. It must **never** fire on the re-plan path: recommending a "downgrade
-to a Story" on an Epic that already carries a Tech Spec and a ticket tree is
-nonsense and would collide with the `--force` re-plan flow. The advisory also
+to a Story" on an Epic that already carries folded Tech Spec sections and a
+ticket tree is nonsense and would collide with the `--force` re-plan flow. The advisory also
 does not fire on the ideation path — that path already ran the Phase 1.5 scope
 triage on the one-pager before the Epic existed.
 
@@ -471,31 +472,36 @@ for the scoring logic.
 
 <!-- separator: adjacent blockquotes -->
 
-> **Idempotent context tickets.** The persist half is find-or-create keyed on
-> the Epic's `linkedIssues`: a re-run **reuses the already-linked Tech
-> Spec issue** (and Acceptance Spec, when present) instead of creating
-> duplicates. Pass `--force` to overwrite the canonical context tickets in
-> place (same issue numbers, refreshed bodies).
+> **Idempotent managed sections.** The persist half is section-scoped and
+> keyed on the Epic body: a re-run that finds the requested sections already
+> present (`<!-- mandrel:tech-spec:start/end -->` /
+> `<!-- mandrel:acceptance-table:start/end -->`) short-circuits as
+> `already-planned` instead of duplicating content. Pass `--force` to
+> overwrite the managed sections in place (same Epic issue, refreshed
+> section bodies).
 
 <!-- separator: adjacent blockquotes -->
 
-> **Two context tickets.** Every Epic carries two planning
-> artifacts as linked GitHub sub-issues: Tech Spec
-> (`context::tech-spec`) and Acceptance Spec
-> (`context::acceptance-spec`). The PRD artifact class was retired
-> (Story #4314) — its one novel section, **User Stories**, now lives
-> inline in the Epic body as a `## User Stories` section. The
-> Acceptance Spec captures the
-> stable-ID acceptance criteria table (`| AC ID | Outcome | Feature
-> File | Scenario | Disposition |`) that drives close-time
-> reconciliation during `/deliver` Phase 6. Operators may opt out
-> for refactor-only or docs-only Epics by applying the
-> `acceptance::n-a` label to the Epic ticket — when present, the
-> `epic-plan-spec-author` skill skips the Acceptance Spec output and
-> the runtime gates (start gate, finalize reconciler) honour the
-> waiver — the spec ticket itself need not be authored or approved when
-> the waiver is set. See [SDLC § Acceptance Spec — the second planning
-> context ticket](../../docs/SDLC.md#acceptance-spec--the-second-planning-context-ticket)
+> **One planning document.** A `/plan` Epic run creates exactly **one**
+> issue — the Epic. The planning artifacts land as marker-delimited
+> managed sections of the Epic body: the Tech Spec (opening with
+> `## Delivery Slicing`) inside `<!-- mandrel:tech-spec:start/end -->`,
+> and the Acceptance Spec's AC-ID table (headed `## Acceptance Table`)
+> inside `<!-- mandrel:acceptance-table:start/end -->`. The PRD artifact
+> class was retired (Story #4314) — its one novel section, **User
+> Stories**, lives inline in the Epic body as a `## User Stories`
+> section — and Story #4324 retired the `context::tech-spec` /
+> `context::acceptance-spec` ticket classes the same way. The
+> `## Acceptance Table` section captures the stable-ID acceptance
+> criteria table (`| AC ID | Outcome | Feature File | Scenario |
+> Disposition |`) that drives close-time reconciliation during
+> `/deliver` Phase 6. Operators may opt out for refactor-only or
+> docs-only Epics by applying the `acceptance::n-a` label to the Epic
+> ticket — when present, the `epic-plan-spec-author` skill skips the
+> Acceptance Table output and the runtime gates (start gate, finalize
+> reconciler) honour the waiver — the section need not be authored when
+> the waiver is set. See [SDLC § Acceptance Table — the second folded
+> planning section](../../docs/SDLC.md#acceptance-table--the-second-folded-planning-section)
 > for the full lifecycle.
 
 <!-- separator: adjacent blockquotes -->
@@ -556,56 +562,55 @@ for the scoring logic.
    (`deriveRiskEnvelope`), records a `risk-verdict` structured comment
    on the Epic, flips the Epic to `agent::review-spec`, and writes the
    `epic-plan-state` checkpoint (including the `riskVerdict` field).
-   The `--acceptance-spec` flag persists the Acceptance Spec ticket
-   (`context::acceptance-spec`) alongside the Tech Spec; the
-   persist half fails loudly if any file is missing or empty. Omit
-   `--acceptance-spec` only when the Epic carries the `acceptance::n-a`
-   waiver label.
+   The `--acceptance-table` flag persists the AC-ID table as the Epic
+   body's `## Acceptance Table` managed section alongside the Tech Spec
+   sections; the persist half fails loudly if any file is missing or
+   empty. Omit `--acceptance-table` only when the Epic carries the
+   `acceptance::n-a` waiver label.
 
    ```bash
-   # Normal planning (two context tickets)
+   # Normal planning (both managed sections)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --tech-spec temp/epic-[Epic_ID]/techspec.md \
      --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
-     --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md
+     --acceptance-table temp/epic-[Epic_ID]/acceptance-spec.md
 
-   # Re-planning (--force overwrites the context tickets IN PLACE —
-   # same Tech Spec / Acceptance Spec issue numbers, refreshed bodies,
-   # tickets kept open, one regeneration audit comment each. Child Story
-   # tickets are still close-and-recreate at decomposition time.)
+   # Re-planning (--force overwrites the Epic body's managed sections
+   # IN PLACE — same Epic issue, refreshed section bodies, one
+   # regeneration audit comment on the Epic. Child Story tickets are
+   # still close-and-recreate at decomposition time.)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --tech-spec temp/epic-[Epic_ID]/techspec.md \
      --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json \
-     --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md --force
+     --acceptance-table temp/epic-[Epic_ID]/acceptance-spec.md --force
 
-   # Waived (acceptance::n-a label on Epic — no acceptance spec authored)
+   # Waived (acceptance::n-a label on Epic — no acceptance table authored)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --tech-spec temp/epic-[Epic_ID]/techspec.md \
      --risk-verdict temp/epic-[Epic_ID]/risk-verdict.json
    ```
 
 4. **Verification and review routing**:
-   - Verify that the Technical Specification and (when not waived)
-     Acceptance Specification have been posted as linked issues under
-     the Epic.
+   - Verify that the Technical Specification sections and (when not
+     waived) the `## Acceptance Table` section have landed as managed
+     sections of the Epic body.
    - Read `planningRisk` from the persist stdout JSON (or the
      `epic-plan-state` checkpoint). Branch on
      `planningRisk.requiresReview` unless the operator passed
      `--force-review`:
      - **High risk** (`requiresReview === true`) or **operator override**
        (`--force-review`) — **gate #2**: **STOP**. Ask the USER to review the
-       generated Tech Spec and Acceptance Spec on GitHub. Approval is
-       the user's verbal OK in this session — the context tickets stay
-       **open** through delivery and are closed automatically by
-       `/deliver` when the Epic PR opens. Do NOT proceed
+       updated Epic body (its Tech Spec sections and `## Acceptance
+       Table`) on GitHub. Approval is the user's verbal OK in this
+       session — the sections live on the Epic itself, so there is
+       nothing to close at delivery time. Do NOT proceed
        to decomposition until the user confirms the plan is accurate.
 
        > **`--yes` (headless) auto-proceed.** When `/plan` was invoked with
        > `--yes`, this review gate does **not** STOP, even when
        > `requiresReview === true` or `--force-review` was also passed: the
        > review resolves as **approved** and the run **continues directly to
-       > Phase 8**, exactly as the low-risk auto-proceed branch below. The
-       > context tickets stay **open** through delivery as usual; only
+       > Phase 8**, exactly as the low-risk auto-proceed branch below; only
        > the operator *wait* is suppressed. This is `/plan`'s **gate #2** —
        > the second and last HITL STOP `--yes` suppresses. `--yes` does
        > **not** alter risk routing or the review criteria themselves; it
@@ -619,8 +624,8 @@ for the scoring logic.
        decision is recorded in the `epic-plan-state` checkpoint. (`--yes` is
        a no-op on this branch — there is no STOP to suppress.)
 
-5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
-   is created, `epic-plan-spec.js` runs
+5. **Tech Spec freshness check (advisory)**: After the Tech Spec sections
+   are persisted, `epic-plan-spec.js` runs
    [`validateSpecFreshness`](../../scripts/lib/orchestration/spec-freshness.js)
    against the authored Tech Spec body, probing every cited path-shape
    reference (backticked paths, `// header` lines in code blocks, and
@@ -635,14 +640,14 @@ for the scoring logic.
      reference the Architect inherited from drift-stale docs.
 
    When ≥1 stale reference is detected, a `spec-freshness` structured
-   comment is upserted on the Tech Spec issue listing each citation
+   comment is upserted on the **Epic** listing each citation
    with its line number. The full report is also written to
    `<tempRoot>/epic-<id>-spec-freshness.json` for downstream tooling.
    The check is **advisory and non-blocking** — Phase 7 completes even
    when stale references are present, so the operator retains final
    judgment on edge cases. If the run summary shows
-   `⚠️ Spec freshness: N stale / M ambiguous`, review the Tech Spec
-   issue's `spec-freshness` comment and correct the cited spec body
+   `⚠️ Spec freshness: N stale / M ambiguous`, review the Epic's
+   `spec-freshness` comment and correct the cited spec sections
    before approving the plan for Phase 8.
 
 6. **BDD scenario cross-reference (advisory)**: When the project has
@@ -723,8 +728,8 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
   **STOP** on a non-zero exit: do not advance to Phase 8. Re-author the Tech
   Spec (re-run the Phase 7 spec-author step) or add a `## Delivery Slicing`
-  section to the Tech Spec issue body by hand, then re-run the gate until it
-  exits 0.
+  section by hand (to the temp spec file and the Epic body's tech-spec
+  section), then re-run the gate until it exits 0.
 
 ## Phase 8: Work Breakdown Decomposition
 
@@ -742,7 +747,7 @@ node .agents/scripts/epic-plan-spec-validate.js \
 > **Hierarchy.** The decomposer emits a flat Story backlog under the Epic.
 > Acceptance criteria and verification steps are inlined on each Story
 > body (`acceptance[]` / `verify[]` fields) and resolved against the
-> Acceptance Spec context ticket at close time. See
+> Epic body's `## Acceptance Table` section at close time. See
 > [`.agents/instructions.md` § 5.D](../../instructions.md) for the full
 > contract.
 
@@ -757,8 +762,9 @@ node .agents/scripts/epic-plan-spec-validate.js \
    via the `Read` tool (resolve `<agentRoot>` from
    `project.paths.agentRoot` — default `.agents`) and execute its
    procedure with `[Epic_ID]` as input. The skill reads
-   `temp/epic-[Epic_ID]/decomposer-context.json` (Epic body, Tech Spec
-   body, risk heuristics, `maxTickets` cap, `contextMode`), applies its
+   `temp/epic-[Epic_ID]/decomposer-context.json` (`epicBody` — carrying
+   the folded Tech Spec sections and Acceptance Table — risk
+   heuristics, `maxTickets` cap, `contextMode`), applies its
    embedded decomposer system prompt + ticket schema, and writes the
    ticket array to `temp/epic-[Epic_ID]/tickets.json`. Do **not** inline
    the JSON authoring in the workflow body.
@@ -788,7 +794,8 @@ node .agents/scripts/epic-plan-spec-validate.js \
    [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
    skill with `[Epic_ID]` as input. This is a **separate critic pass with
    fresh context** (not a self-review appended to the author skill): it reads
-   the draft array plus the Epic body / Tech Spec, reconciles the draft against
+   the draft array plus the Epic body (which carries the Tech Spec
+   sections), reconciles the draft against
    the Tech Spec `## Delivery Slicing` target, and emits a **consolidated**
    `tickets.json` plus a human-readable
    `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are
@@ -846,7 +853,8 @@ node .agents/scripts/epic-plan-spec-validate.js \
    [`epic-plan-premortem`](../../skills/core/epic-plan-premortem/SKILL.md)
    skill with `[Epic_ID]` as input. This is a **fresh-context critic** sibling
    to `epic-plan-consolidate`: it reads the drafted `tickets.json`, the Epic
-   body / Tech Spec, **and the actual cited code surfaces** (the files each Story's
+   body (with its folded Tech Spec sections), **and the actual cited code
+   surfaces** (the files each Story's
    `changes[]` / `references[]` name), then emits predicted-rework findings —
    unverifiable acceptance criteria, over- or under-specified Stories, and
    semantically-wrong assumptions the structural file-assumption gate (step 7)
@@ -1039,8 +1047,8 @@ forcing the walkthrough.
 
 Activate the
 [`core/knowledge-transfer`](../../skills/core/knowledge-transfer/SKILL.md) skill
-with the **plan** as the subject — the Epic body, the linked Tech Spec
-context ticket, the decomposition (Stories with inline
+with the **plan** as the subject — the Epic body (whose managed sections
+carry the Tech Spec), the decomposition (Stories with inline
 `acceptance[]` / `verify[]`), and the Phase 9 wave roadmap. The skill owns the
 method (restate-first, the why-ladder, mastery gates, depth levels, optional
 quizzing, the persistent `temp/comprehension-*.md` checklist).

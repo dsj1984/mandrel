@@ -13,7 +13,8 @@ logic or UX decisions.
 
 ## 2. Interaction Protocol
 
-1. **Read Context:** Before writing a single line, read the relevant tech spec
+1. **Read Context:** Before writing a single line, read the parent Epic
+   body's Tech Spec sections
    and the project's architectural guidelines. Understand the page/component
    hierarchy.
 2. **Workspace Scope:** You operate exclusively within `@repo/web`. All commands

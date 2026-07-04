@@ -10,16 +10,16 @@
  *
  * The two gates catch different problems and are intentionally distinct:
  *   - The wave gate misses descendants that exist on GitHub but were never
- *     in the manifest — context::tech-spec tickets, mid-sprint
- *     additions, or recuts that bypassed the dispatcher.
+ *     in the manifest — mid-sprint additions, recuts that bypassed the
+ *     dispatcher, or legacy `context::*` artifacts on historical Epics.
  *   - The hierarchy gate misses parked follow-ons that live as separate
  *     top-level Stories outside the Epic's sub-issue graph.
  *
  * Per ticket type the rule is:
  *   - Stories   — must be closed.
- *   - Auxiliary (context::tech-spec) — ignored.
- *     These are closed by the operator after the Epic PR merges, so
- *     requiring them closed here would block every Epic.
+ *   - Auxiliary (legacy `context::*` artifacts) — ignored. Story #4324
+ *     folded planning content into the Epic body; historical Epics keep
+ *     their old context tickets, which are reference-only here.
  *
  * **2-tier hierarchy (Story #4041).** Mandrel ships only Epic / Story
  * tickets. `getSubTickets(<storyId>)` returns `[]`; the walk
@@ -39,7 +39,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { CONTEXT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
+import { TYPE_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
 
@@ -52,7 +52,10 @@ const SUB_TICKET_FETCH_CONCURRENCY = 4;
 function classify(ticket) {
   const labels = ticket.labels ?? [];
   if (labels.includes(TYPE_LABELS.STORY)) return 'story';
-  if (labels.includes(CONTEXT_LABELS.TECH_SPEC)) {
+  // Legacy planning artifacts (pre-#4324 `context::*` tickets on
+  // historical Epics) are ignored — they are reference artifacts, not
+  // deliverables. New Epics carry planning content on the body itself.
+  if (labels.some((l) => typeof l === 'string' && l.startsWith('context::'))) {
     return 'auxiliary';
   }
   return 'other';
@@ -162,7 +165,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
 
   const auxNote =
     auxiliaryDeferred > 0
-      ? ` (${auxiliaryDeferred} auxiliary ticket${auxiliaryDeferred === 1 ? '' : 's'} deferred to Phase 7)`
+      ? ` (${auxiliaryDeferred} legacy auxiliary ticket${auxiliaryDeferred === 1 ? '' : 's'} ignored)`
       : '';
   Logger.info(
     `[hierarchy-gate] ✅ All ${descendants.length - auxiliaryDeferred} planned descendant(s) under Epic #${epicId} are closed${auxNote}.`,

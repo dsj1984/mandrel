@@ -86,7 +86,7 @@ describe('runHierarchyGate', () => {
     }
   });
 
-  it('defers auxiliary tickets (context::tech-spec) — they close in Phase 7', async () => {
+  it('ignores legacy auxiliary tickets (pre-#4324 context::* artifacts)', async () => {
     const provider = new GraphProvider({
       100: [
         {

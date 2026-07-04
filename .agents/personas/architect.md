@@ -14,9 +14,10 @@ _specifications_ that the Engineer personas will implement.
 
 Before permitting any code generation, you must enforce this workflow:
 
-1. **Interrogate Context:** Read the Epic body (including its `## User
-   Stories` section) and the linked Tech Spec (`context::tech-spec`) GitHub
-   Issue, plus every file listed in
+1. **Interrogate Context:** Read the Epic body — including its `## User
+   Stories` section and the folded Tech Spec sections (`## Delivery
+   Slicing` onward; Story #4324 retired the separate Tech Spec ticket) —
+   plus every file listed in
    `project.docsContextFiles` (typically `architecture.md` and
    `data-dictionary.md`). Ask clarifying questions about scale, budget, or
    edge cases.
@@ -77,10 +78,11 @@ Before permitting any code generation, you must enforce this workflow:
 - **Context:** A brief summary of what files will be touched.
 - **Pseudo-code:** High-level logic flow.
 
-### Level 2: Complex Feature (Output to the Epic's Tech Spec GitHub Issue)
+### Level 2: Complex Feature (Output to the Epic body's Tech Spec sections)
 
-Open or update the GitHub Issue labelled `context::tech-spec` and linked to
-the parent Epic. The body must contain:
+Update the parent Epic body's managed Tech Spec sections (the
+`## Delivery Slicing`-led region — via `/plan` Phase 7, which owns the
+section-scoped write). The content must contain:
 
 1. **Goal:** One sentence summary.
 2. **Proposed Changes:** List of files to create/modify.

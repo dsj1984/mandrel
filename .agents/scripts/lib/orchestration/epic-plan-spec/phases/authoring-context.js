@@ -16,6 +16,7 @@ import {
 import { scanBddScenarios } from '../../../bdd-scenario-scanner.js';
 import { buildCodebaseSnapshot } from '../../../codebase-snapshot.js';
 import { getLimits, PROJECT_ROOT } from '../../../config-resolver.js';
+import { hasEpicSection } from '../../../epic-body-sections.js';
 import { scanMemoryFreshness } from '../../../feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from '../../../feedback-loop/prior-feedback-fetcher.js';
 import { Logger } from '../../../Logger.js';
@@ -204,7 +205,14 @@ export async function buildAuthoringContext(
       title: epic.title,
       body: epicBody.mode === 'full' ? epic.body : null,
       bodySummary: epicBody.mode === 'summary' ? epicBody.items[0] : null,
-      linkedIssues: epic.linkedIssues ?? { techSpec: null },
+      // Story #4324: the context-ticket classes are retired. A re-planned
+      // Epic's previous Tech Spec / Acceptance Table content rides along
+      // inside `body` (managed sections), which is how the author keeps
+      // AC IDs stable across re-plans.
+      planningSections: {
+        techSpec: hasEpicSection(epic.body ?? '', 'techSpec'),
+        acceptanceTable: hasEpicSection(epic.body ?? '', 'acceptanceTable'),
+      },
     },
     docsContext,
     codebaseSnapshot,

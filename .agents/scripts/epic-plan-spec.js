@@ -16,9 +16,11 @@
  *   2. (default)        Given author-provided Tech Spec and risk-verdict
  *                       files, validates the risk verdict against
  *                       `risk-verdict.schema.json`, derives the planningRisk
- *                       envelope, persists the artifact issues, records the
- *                       verdict as a `risk-verdict` structured comment, flips
- *                       the Epic to `agent::review-spec`, and upserts the
+ *                       envelope, folds the authored content into managed
+ *                       sections of the Epic body (Story #4324 — no separate
+ *                       context tickets), records the verdict as a
+ *                       `risk-verdict` structured comment, flips the Epic to
+ *                       `agent::review-spec`, and upserts the
  *                       `epic-plan-state` structured comment.
  *
  * --force regenerates the existing Tech Spec.
@@ -156,9 +158,9 @@ async function main() {
     return;
   }
 
-  if (!values.techspec || !values['risk-verdict']) {
+  if (!values['tech-spec'] || !values['risk-verdict']) {
     throw new Error(
-      'Missing --techspec and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
+      'Missing --tech-spec and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
     );
   }
 
@@ -166,9 +168,9 @@ async function main() {
   // GitHub mutation: a malformed verdict fails closed here (Epic #3865).
   const riskVerdict = loadRiskVerdict(values['risk-verdict']);
 
-  const readPromises = [readFile(values.techspec, 'utf8')];
-  if (values['acceptance-spec']) {
-    readPromises.push(readFile(values['acceptance-spec'], 'utf8'));
+  const readPromises = [readFile(values['tech-spec'], 'utf8')];
+  if (values['acceptance-table']) {
+    readPromises.push(readFile(values['acceptance-table'], 'utf8'));
   }
   const [techSpecContent, acceptanceSpecContent = null] =
     await Promise.all(readPromises);

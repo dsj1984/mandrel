@@ -3,8 +3,7 @@
     "id": 9999,
     "title": "Sample Epic for skill smoke tests"
   },
-  "epicBody": "## User Stories\n\nSample Epic body (User Stories inline) for decomposer smoke run.",
-  "techSpec": "## Tech Spec\n\nSample Tech Spec body for decomposer smoke run.",
+  "epicBody": "## User Stories\n\nSample Epic body (User Stories inline) for decomposer smoke run.\n\n<!-- mandrel:tech-spec:start -->\n\n## Delivery Slicing\n\n| Slice | What ships | Independent? |\n| --- | --- | --- |\n| Foundation | Sample folded Tech Spec slice for decomposer smoke run. | Yes |\n\n<!-- mandrel:tech-spec:end -->\n\n<!-- mandrel:acceptance-table:start -->\n\n## Acceptance Table\n\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| --- | --- | --- | --- | --- |\n| AC-1 | Sample outcome | tests/features/sample.feature | Sample scenario | new |\n\n<!-- mandrel:acceptance-table:end -->",
   "systemPrompts": {
     "decompose": "Author the ticket hierarchy using the standard template."
   }

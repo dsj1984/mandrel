@@ -6,10 +6,15 @@ import { beforeEach, describe, it } from 'node:test';
 // historical breadcrumb so a reader looking for the original module can
 // still find this file. The exercised behaviour is unchanged.
 //
-// Story #4314: the PRD artifact class is retired. `planEpic` no longer takes
-// `prdContent` and no longer creates a `context::prd` ticket; the Epic body
-// carries its `## User Stories` section inline. The Tech Spec is now the first
-// artifact `planEpic` creates.
+// Story #4314: the PRD artifact class is retired; the Epic body carries its
+// `## User Stories` section inline.
+//
+// Story #4324: the Tech Spec / Acceptance Spec context-ticket classes are
+// retired too. `planEpic` creates NO tickets — it folds the authored content
+// into marker-delimited managed sections of the Epic body (section-scoped
+// writes; see lib/epic-body-sections.js). These tests pin that contract,
+// including the sentinel oracle: operator-authored prose outside the managed
+// sections survives the persist byte-for-byte.
 import {
   ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
@@ -17,13 +22,23 @@ import {
   resolveReviewRouting,
   TECH_SPEC_SYSTEM_PROMPT,
 } from '../.agents/scripts/epic-plan-spec.js';
+import {
+  extractEpicSection,
+  hasEpicSection,
+  upsertEpicSection,
+} from '../.agents/scripts/lib/epic-body-sections.js';
 import { Logger } from '../.agents/scripts/lib/Logger.js';
 import {
-  getExistingArtifactIds,
-  hasAllRequestedArtifacts,
+  getExistingSections,
+  hasAllRequestedSections,
   validatePlanEpicInputs,
 } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js';
 import { deriveRiskEnvelope } from '../.agents/scripts/lib/orchestration/planning-risk.js';
+
+const TECH_SPEC_CONTENT =
+  '## Delivery Slicing\n| Slice | What ships | Independent? |\n| --- | --- | --- |\n| Foundation | core | Yes |';
+const ACCEPTANCE_TABLE_CONTENT =
+  '## Acceptance Table\n| AC ID | Outcome | Feature File | Scenario | Disposition |\n| --- | --- | --- | --- | --- |\n| AC-1 | x | f | s | new |';
 
 describe('epic-planner orchestration (v5.6+)', () => {
   let mockProvider;
@@ -41,7 +56,6 @@ describe('epic-planner orchestration (v5.6+)', () => {
           title: 'Implement V5 Core',
           body: 'This epic covers the v5 architectural overhaul.',
           labels: ['epic'],
-          linkedIssues: { techSpec: null },
         };
       },
 
@@ -96,90 +110,97 @@ describe('epic-planner orchestration (v5.6+)', () => {
     );
   });
 
-  it('exposes pure helpers for artifact preflight decisions', () => {
+  it('exposes pure helpers for section preflight decisions', () => {
     assert.doesNotThrow(() =>
       validatePlanEpicInputs({
         techSpecContent: 'tech',
         acceptanceSpecContent: null,
       }),
     );
-    assert.deepEqual(
-      getExistingArtifactIds({
-        linkedIssues: { techSpec: 11, acceptanceSpec: 12 },
-      }),
-      { techSpec: 11, acceptanceSpec: 12 },
+    const sectionedBody = upsertEpicSection(
+      'Epic prose.',
+      'techSpec',
+      TECH_SPEC_CONTENT,
     );
+    assert.deepEqual(getExistingSections({ body: sectionedBody }), {
+      techSpec: true,
+      acceptanceTable: false,
+    });
     assert.equal(
-      hasAllRequestedArtifacts({
-        existing: { techSpec: 11, acceptanceSpec: null },
+      hasAllRequestedSections({
+        existing: { techSpec: true, acceptanceTable: false },
         wantsAcceptanceSpec: false,
       }),
       true,
     );
     assert.equal(
-      hasAllRequestedArtifacts({
-        existing: { techSpec: 11, acceptanceSpec: null },
+      hasAllRequestedSections({
+        existing: { techSpec: true, acceptanceTable: false },
         wantsAcceptanceSpec: true,
       }),
       false,
     );
   });
 
-  it('aborts early if epic already has the linked Tech Spec', async () => {
+  it('aborts early if the Epic body already carries the Tech Spec section', async () => {
     mockProvider.getEpic = async () => ({
       id: 1,
-      title: 'Fully Linked Epic',
-      body: '',
-      linkedIssues: { techSpec: 43 },
+      title: 'Fully Planned Epic',
+      body: upsertEpicSection('Epic prose.', 'techSpec', TECH_SPEC_CONTENT),
     });
 
     await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\ny',
+      techSpecContent: TECH_SPEC_CONTENT,
+    });
+
+    assert.equal(
+      mockProvider.updatedTickets.length,
+      0,
+      'No body write when the Tech Spec section is already present.',
+    );
+  });
+
+  it('folds the authored Tech Spec into the Epic body — zero tickets created', async () => {
+    const result = await planEpic(1, mockProvider, {
+      techSpecContent: TECH_SPEC_CONTENT,
     });
 
     assert.equal(
       mockProvider.createdTickets.length,
       0,
-      'No tickets should be created if the Tech Spec is already linked.',
+      'A /plan Epic run creates no context tickets — the Epic is the only issue',
     );
-  });
-
-  it('runs the full planning pipeline with authored content', async () => {
-    await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
-    });
-
-    assert.equal(
-      mockProvider.createdTickets.length,
-      1,
-      'Should create exactly one ticket (the Tech Spec)',
-    );
-
-    const tsCreation = mockProvider.createdTickets[0];
-    assert.equal(tsCreation.epicId, 1);
-    assert.equal(tsCreation.ticketData.title, '[Tech Spec] Implement V5 Core');
-    assert.equal(
-      tsCreation.ticketData.body,
-      '## Technical Overview\nAuthored Tech Spec.',
-    );
-    assert.deepEqual(tsCreation.ticketData.labels, ['context::tech-spec']);
-    assert.deepEqual(tsCreation.ticketData.dependencies, []);
-
     assert.equal(mockProvider.updatedTickets.length, 1);
     const update = mockProvider.updatedTickets[0];
     assert.equal(update.id, 1);
-    assert.ok(
-      !update.mutations.body.includes('PRD'),
-      'No PRD line in Planning Artifacts',
+    assert.equal(
+      extractEpicSection(update.mutations.body, 'techSpec'),
+      TECH_SPEC_CONTENT,
     );
-    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
     assert.ok(
-      !update.mutations.body.includes('Acceptance Spec'),
-      'No acceptance-spec line when not requested',
+      update.mutations.body.startsWith(
+        'This epic covers the v5 architectural overhaul.',
+      ),
+      'the pre-existing Epic prose leads the body unchanged',
     );
+    assert.ok(
+      !update.mutations.body.includes('## Planning Artifacts'),
+      'the Planning Artifacts checklist is gone',
+    );
+    assert.equal(
+      hasEpicSection(update.mutations.body, 'acceptanceTable'),
+      false,
+      'No acceptance-table section when not requested',
+    );
+    assert.deepEqual(result, {
+      persisted: true,
+      reason: 'persisted',
+      techSpecPersisted: true,
+      acceptanceTable: 'none',
+    });
   });
 
-  it('creates a context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+  it('folds the Acceptance Table into its own managed section of the Epic body', async () => {
     mockProvider.getEpic = async (id) => {
       if (id !== 1) return null;
       return {
@@ -187,98 +208,181 @@ describe('epic-planner orchestration (v5.6+)', () => {
         title: 'Implement V5 Core',
         body: 'User-facing security changes and /plan gate routing.',
         labels: ['epic'],
-        linkedIssues: { techSpec: null },
       };
     };
 
-    await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
-      acceptanceSpecContent:
-        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    const result = await planEpic(1, mockProvider, {
+      techSpecContent: TECH_SPEC_CONTENT,
+      acceptanceSpecContent: ACCEPTANCE_TABLE_CONTENT,
     });
 
     assert.equal(
       mockProvider.createdTickets.length,
-      2,
-      'Should create exactly two tickets (Tech Spec + Acceptance Spec)',
+      0,
+      'No context tickets — both specs land as Epic-body sections',
     );
-
-    const acceptanceCreation = mockProvider.createdTickets[1];
-    assert.equal(acceptanceCreation.epicId, 1);
-    assert.equal(
-      acceptanceCreation.ticketData.title,
-      '[Acceptance Spec] Implement V5 Core',
-    );
-    assert.match(acceptanceCreation.ticketData.body, /^## Acceptance Criteria/);
-    assert.deepEqual(acceptanceCreation.ticketData.labels, [
-      'context::acceptance-spec',
-    ]);
-    // Acceptance Spec depends on Tech Spec (ID 100, the first-created ticket).
-    assert.deepEqual(acceptanceCreation.ticketData.dependencies, [100]);
-
     const update = mockProvider.updatedTickets[0];
-    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
-    assert.ok(
-      update.mutations.body.includes('- [ ] Acceptance Spec: #101'),
-      'Planning Artifacts must include the acceptance-spec link',
+    assert.equal(
+      extractEpicSection(update.mutations.body, 'techSpec'),
+      TECH_SPEC_CONTENT,
     );
+    assert.equal(
+      extractEpicSection(update.mutations.body, 'acceptanceTable'),
+      ACCEPTANCE_TABLE_CONTENT,
+    );
+    // Canonical order: Tech Spec section before the Acceptance Table.
+    assert.ok(
+      update.mutations.body.indexOf('mandrel:tech-spec:start') <
+        update.mutations.body.indexOf('mandrel:acceptance-table:start'),
+    );
+    assert.equal(result.acceptanceTable, 'persisted');
   });
 
-  it('does not duplicate Planning Artifacts on a partial-recovery rerun (Story #4019)', async () => {
-    // Tech Spec missing — and the Epic body already carries a stale
-    // `## Planning Artifacts` section from an earlier partial run.
+  // Story #4324 sentinel oracle (section-scoped writes guardrail): an
+  // unrelated operator edit elsewhere in the Epic body survives the spec
+  // persist byte-for-byte.
+  it('preserves operator prose outside the managed sections (sentinel oracle)', async () => {
+    const SENTINEL = 'Operator note SENTINEL-4324 — do not touch.';
+    const originalBody = [
+      '## Context',
+      'Prose.',
+      '',
+      SENTINEL,
+      '',
+      '## Acceptance Criteria',
+      '- [ ] bullet one',
+    ].join('\n');
     mockProvider.getEpic = async () => ({
       id: 1,
-      title: 'Partial Epic',
-      body: 'Epic body.\n\n## Planning Artifacts\n- [ ] Tech Spec: #42\n',
-      linkedIssues: { techSpec: null },
+      title: 'Sentinel Epic',
+      body: originalBody,
+      labels: ['epic'],
     });
-    mockProvider.getTicket = async (id) => ({ id, body: 'Tech Spec body' });
 
     await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\nauthored tech spec',
+      techSpecContent: TECH_SPEC_CONTENT,
+      acceptanceSpecContent: ACCEPTANCE_TABLE_CONTENT,
     });
 
-    const update = mockProvider.updatedTickets.find((u) =>
-      u.mutations?.body?.includes('## Planning Artifacts'),
+    const written = mockProvider.updatedTickets[0].mutations.body;
+    assert.ok(
+      written.startsWith(originalBody),
+      'every pre-existing byte (incl. the sentinel) leads the new body unchanged',
     );
-    assert.ok(update, 'Epic body update expected');
-    const sections =
-      update.mutations.body.match(/## Planning Artifacts/g) ?? [];
-    assert.equal(
-      sections.length,
-      1,
-      'rerun must not stack a duplicate Planning Artifacts section',
-    );
-    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #100'));
-    assert.ok(update.mutations.body.startsWith('Epic body.'));
+    assert.ok(written.includes(SENTINEL));
   });
 
-  it('returns persisted:false when all artifacts already exist (Story #4019)', async () => {
+  it('applies the acceptance::n-a waiver and strips a stale acceptance table', async () => {
+    const staleBody = upsertEpicSection(
+      upsertEpicSection('Epic prose.', 'techSpec', 'old spec'),
+      'acceptanceTable',
+      ACCEPTANCE_TABLE_CONTENT,
+    );
     mockProvider.getEpic = async () => ({
       id: 1,
-      title: 'Fully Linked Epic',
-      body: '',
-      linkedIssues: { techSpec: 43 },
+      title: 'Waived Epic',
+      body: staleBody,
+      labels: ['epic'],
+    });
+    const planningRisk = deriveRiskEnvelope({
+      axes: [
+        { axis: 'docs-only', level: 'low', rationale: 'docs only change.' },
+      ],
+      summary: 'Docs only.',
+    });
+    assert.equal(planningRisk.acceptanceDisposition, 'not-applicable');
+
+    const result = await planEpic(
+      1,
+      mockProvider,
+      { techSpecContent: TECH_SPEC_CONTENT },
+      {},
+      { force: true, planningRisk },
+    );
+
+    assert.equal(result.acceptanceTable, 'waived');
+    const update = mockProvider.updatedTickets[0];
+    assert.equal(
+      hasEpicSection(update.mutations.body, 'acceptanceTable'),
+      false,
+    );
+    assert.deepEqual(update.mutations.labels, { add: ['acceptance::n-a'] });
+  });
+
+  it('strips a legacy Planning Artifacts checklist on persist (Story #4019 → #4324)', async () => {
+    // A historical Epic body still carries the retired checklist pointing
+    // at old context tickets. Persist removes it (legacy links ignored,
+    // not fetched) and folds the authored content as sections.
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Historical Epic',
+      body: 'Epic body.\n\n## Planning Artifacts\n- [ ] Tech Spec: #42\n',
+    });
+
+    await planEpic(1, mockProvider, {
+      techSpecContent: TECH_SPEC_CONTENT,
+    });
+
+    const update = mockProvider.updatedTickets[0];
+    assert.ok(update, 'Epic body update expected');
+    assert.ok(
+      !update.mutations.body.includes('## Planning Artifacts'),
+      'the retired checklist is stripped',
+    );
+    assert.ok(!update.mutations.body.includes('#42'));
+    assert.ok(update.mutations.body.startsWith('Epic body.'));
+    assert.equal(
+      extractEpicSection(update.mutations.body, 'techSpec'),
+      TECH_SPEC_CONTENT,
+    );
+  });
+
+  it('returns persisted:false when all requested sections already exist (Story #4019)', async () => {
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Fully Planned Epic',
+      body: upsertEpicSection('Epic prose.', 'techSpec', TECH_SPEC_CONTENT),
     });
 
     const result = await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\ny',
+      techSpecContent: TECH_SPEC_CONTENT,
     });
 
     assert.equal(result.persisted, false);
     assert.equal(result.reason, 'already-planned');
-    assert.equal(result.techSpecId, 43);
-    assert.ok(!('prdId' in result), 'result must not carry a prdId');
+    assert.equal(result.techSpecPersisted, true);
+    assert.ok(!('techSpecId' in result), 'result carries no ticket ids');
   });
 
-  it('returns persisted:true when artifacts are created', async () => {
-    const result = await planEpic(1, mockProvider, {
-      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
+  it('overwrites the sections in place under force and posts a regeneration audit', async () => {
+    const comments = [];
+    mockProvider.getEpic = async () => ({
+      id: 1,
+      title: 'Force Epic',
+      body: upsertEpicSection('Epic prose.', 'techSpec', 'stale spec'),
+      labels: ['epic'],
     });
+    mockProvider.postComment = async (id, comment) => {
+      comments.push({ id, comment });
+    };
+
+    const result = await planEpic(
+      1,
+      mockProvider,
+      { techSpecContent: TECH_SPEC_CONTENT },
+      {},
+      { force: true },
+    );
+
     assert.equal(result.persisted, true);
-    assert.equal(result.techSpecId, 100);
-    assert.ok(!('prdId' in result), 'result must not carry a prdId');
+    assert.equal(result.reason, 'force-replan');
+    const update = mockProvider.updatedTickets[0];
+    assert.equal(
+      extractEpicSection(update.mutations.body, 'techSpec'),
+      TECH_SPEC_CONTENT,
+    );
+    assert.equal(comments.length, 1);
+    assert.match(comments[0].comment.body, /Regeneration Audit/);
   });
 
   it('rejects an empty acceptanceSpecContent string when the flag is supplied', async () => {
@@ -301,7 +405,6 @@ describe('epic-planner buildAuthoringContext', () => {
           id,
           title: 'Context Epic',
           body: 'Epic body text.',
-          linkedIssues: { techSpec: null },
         };
       },
     };
@@ -311,6 +414,13 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(ctx.epic.id, 7);
     assert.equal(ctx.epic.title, 'Context Epic');
     assert.equal(ctx.epic.body, 'Epic body text.');
+    // Story #4324 — no linkedIssues; the envelope reports which managed
+    // planning sections the body already carries (re-plan signal).
+    assert.ok(!('linkedIssues' in ctx.epic));
+    assert.deepEqual(ctx.epic.planningSections, {
+      techSpec: false,
+      acceptanceTable: false,
+    });
     assert.ok(
       !('prd' in ctx.systemPrompts),
       'systemPrompts must not carry a prd key',
@@ -390,7 +500,6 @@ describe('epic-planner buildAuthoringContext', () => {
           id,
           title: 'Trunc Epic',
           body: 'Epic body.',
-          linkedIssues: { techSpec: null },
         };
       },
     };

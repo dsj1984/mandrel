@@ -17,7 +17,7 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only after `epic-plan-decompose-author` has written `temp/epic-<Epic_ID>/tickets.json`; fail loudly if the draft array is missing. Read the PRD / Tech Spec from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
+- Run only after `epic-plan-decompose-author` has written `temp/epic-<Epic_ID>/tickets.json`; fail loudly if the draft array is missing. Read the sectioned Epic body (which carries the folded Tech Spec sections) from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
 - Emit exactly two artifacts inside `temp/epic-<Epic_ID>/`: the **consolidated** `tickets.json` (overwriting the draft array in place) and a human-readable `consolidation-report.md` (the rationale + before/after diff the operator reviews at the HITL gate). Both MUST exist before returning.
 - **Scope conservation is the load-bearing invariant.** You are a *critic*, not a second author: you MUST NOT add scope, invent tickets, or drop acceptance criteria. Every acceptance item and every `verify` entry present in the draft MUST survive into the consolidated array (possibly re-homed onto a merged Story). **This is your contract, not a machine guarantee:** there is **no runtime acceptance-union diff** on your output. The only deterministic runtime backstop the validator applies after you run is the standard ticket-structure validation — it does not re-derive the pre-consolidation acceptance/verify union, so a critic that silently dropped an acceptance item would **not** be caught downstream. (The repo's unit test exercises a *pure model* of the merge over an over-fragmented fixture to document the intended invariant; it does not inspect this Skill's actual output.) Conserve scope yourself, deliberately, on every merge.
 - Your operations are constrained to exactly two shapes: **(1) merge two or more Stories** into one (union their `changes`/`acceptance`/`verify`/`references`, keep one coherent `goal`); **(2) rewire `depends_on`** so the edges still reference surviving sibling-Story slugs. No other mutation is permitted.
@@ -32,7 +32,7 @@ allowed_tools:
 Senior Project Manager + Orchestrator, acting as a **holistic critic** with
 fresh context. This Skill is deliberately *separate* from
 `epic-plan-decompose-author` (the generator): a same-pass self-critique is the
-weak mode this is built to escape. The generator maps PRD capabilities to
+weak mode this is built to escape. The generator maps Epic capabilities to
 Stories ~1:1; this critic steps back and looks at the *whole* decomposition
 against the Tech Spec's intentional grouping before any GitHub write.
 
@@ -54,9 +54,11 @@ reads:
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** Story array the
   `epic-plan-decompose-author` Skill wrote. This is the consolidation input.
 - `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope
-  emitted by `epic-plan-decompose.js --emit-context`. Read `prd.body` /
-  `prd` and `techSpec.body` / `techSpec` from it. The **"Delivery Slicing"**
-  section (authored by `epic-plan-spec-author` in the Tech Spec) is the
+  emitted by `epic-plan-decompose.js --emit-context`. Read `epicBody`
+  from it — the sectioned Epic body carrying the folded Tech Spec
+  sections (there is no separate `techSpec` key — Story #4324). The
+  **"Delivery Slicing"**
+  section (authored by `epic-plan-spec-author`) is the
   grouping **ceiling** when present (you may merge below it, never split above
   it); degrade gracefully when it is absent.
 
@@ -78,8 +80,9 @@ Both files MUST exist before the Skill returns.
 ### Step 1 — Load the draft and the ceiling
 
 Read `temp/epic-<Epic_ID>/tickets.json` (the draft array) and
-`temp/epic-<Epic_ID>/decomposer-context.json` (for the PRD / Tech Spec). Locate
-the Tech Spec **"Delivery Slicing"** section. Pin two facts before mutating
+`temp/epic-<Epic_ID>/decomposer-context.json` (for the `epicBody`, which
+carries the Tech Spec sections). Locate
+the **"Delivery Slicing"** section. Pin two facts before mutating
 anything:
 
 1. The **grouping ceiling** — the N shippable Stories the Architect proposed in

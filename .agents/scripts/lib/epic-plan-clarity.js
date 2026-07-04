@@ -28,6 +28,15 @@
  *     `## Work Breakdown`
  *   - `## Acceptance Criteria`, `## Acceptance`, `## AC`
  *
+ * Story #4324 folded the Tech Spec and Acceptance Spec into the Epic body
+ * as managed sections (`## Delivery Slicing`-led spec sections and the
+ * `## Acceptance Table`). The gate *recognises* those planning sections —
+ * reporting their presence under `planningSections[]` so a post-fold Epic
+ * body scores exactly as its ideation content deserves — but they never
+ * count toward (or against) the five-ideation-section verdict: Phase 6
+ * runs before Phase 7 authors them, and a re-planned Epic that already
+ * carries them must not be penalised or auto-passed by their presence.
+ *
  * Pure ESM, no I/O.
  */
 
@@ -52,6 +61,26 @@ export const SECTION_NAMES = Object.freeze([
   'nonGoals',
   'scope',
   'acceptanceCriteria',
+]);
+
+/**
+ * Post-fold planning sections (Story #4324) — recognised and reported,
+ * never scored. `deliverySlicing` accepts the same heading variants as
+ * `spec-section-validator.js`.
+ */
+const PLANNING_SECTION_RE = {
+  deliverySlicing: /^##\s+(?:Delivery\s+)?Slicing\s*$/im,
+  acceptanceTable: /^##\s+Acceptance\s+Table\s*$/im,
+};
+
+/**
+ * Names of the recognised (unscored) planning sections, in document order.
+ * Module-private: consumers read the reported `planningSections[]` rows on
+ * the scoreEpicBody result rather than importing the name list.
+ */
+const PLANNING_SECTION_NAMES = Object.freeze([
+  'deliverySlicing',
+  'acceptanceTable',
 ]);
 
 const CLEAR_THRESHOLD = 4;
@@ -80,6 +109,7 @@ function classify(content) {
  *   verdict: 'clear' | 'needs-refinement',
  *   sections: Array<{ name: string, status: 'present' | 'placeholder' | 'missing' }>,
  *   missingOrPlaceholder: string[],
+ *   planningSections: Array<{ name: string, status: 'present' | 'missing' }>,
  * }}
  */
 const REQUIRED_SECTION = 'acceptanceCriteria';
@@ -138,5 +168,12 @@ export function scoreEpicBody({ body } = {}) {
       ? 'clear'
       : 'needs-refinement';
 
-  return { verdict, sections, missingOrPlaceholder };
+  // Informational only: presence of the post-fold planning sections
+  // (Story #4324). Never feeds the verdict.
+  const planningSections = PLANNING_SECTION_NAMES.map((name) => ({
+    name,
+    status: PLANNING_SECTION_RE[name].test(source) ? 'present' : 'missing',
+  }));
+
+  return { verdict, sections, missingOrPlaceholder, planningSections };
 }

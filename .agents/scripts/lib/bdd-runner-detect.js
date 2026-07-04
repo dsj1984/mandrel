@@ -3,7 +3,7 @@
  * Task #2103; workspace-aware extension from Story #2956).
  *
  * Used by `epic-plan-spec.js#buildAuthoringContext` to decide whether the
- * acceptance-spec body should plan **features-first** Story ordering (a real
+ * acceptance-table section should plan **features-first** Story ordering (a real
  * pending-tag is available, so the features-first Story can ship `.feature`
  * files marked `@pending` / `@skip` ahead of the implementation Stories) or
  * fall back to **dependencies-first** ordering (no pending tag → cannot

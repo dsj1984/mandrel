@@ -2,8 +2,8 @@
 description:
   Unified planning entry point. Routes a seed idea (via scope triage) or an
   existing Epic ID to the right planning path — the full Epic pipeline
-  (PRD, Tech Spec, Acceptance Spec, decomposition) or the standalone-Story
-  authoring path — and absorbs every planning flag.
+  (sectioned Epic body: Tech Spec + Acceptance Table, then decomposition)
+  or the standalone-Story authoring path — and absorbs every planning flag.
 ---
 
 # /plan [Epic ID] | --idea "<seed>" | --from-notes <path>
@@ -14,8 +14,8 @@ Router. `/plan` owns argument parsing and path selection only — all phase
 content lives in the two path helpers:
 
 - [`helpers/plan-epic.md`](helpers/plan-epic.md) — the full Epic planning
-  pipeline (PRD, Tech Spec, Acceptance Spec, work breakdown, healthcheck,
-  handoff).
+  pipeline (Tech Spec + Acceptance Table folded into the Epic body, work
+  breakdown, healthcheck, handoff).
 - [`helpers/plan-story.md`](helpers/plan-story.md) — the standalone-Story
   authoring path (context envelope → host-LLM draft → HITL → issue create).
 
@@ -93,10 +93,10 @@ without waiting for operator input:
    forces a review (`planningRisk.requiresReview === true`, or the operator
    also passed `--force-review`),
    [`helpers/plan-epic.md`](helpers/plan-epic.md) Phase 7 STOPs for operator
-   approval of the PRD / Tech Spec / Acceptance Spec before decomposition.
-   Under `--yes` this review auto-proceeds straight to Phase 8 — the three
-   context tickets stay **open** through delivery exactly as on the low-risk
-   auto-proceed path.
+   approval of the updated Epic body (its Tech Spec sections and
+   `## Acceptance Table`) before decomposition.
+   Under `--yes` this review auto-proceeds straight to Phase 8 exactly as
+   on the low-risk auto-proceed path.
 
 **Composition.** `--yes` is orthogonal to the other planning flags and
 composes cleanly:

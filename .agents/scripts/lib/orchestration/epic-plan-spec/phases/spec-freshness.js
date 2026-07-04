@@ -2,15 +2,16 @@
  * phases/spec-freshness.js — Tech Spec freshness check phase.
  *
  * Cross-validates the authored Tech Spec body against the base branch and
- * surfaces any stale path-shaped references on the Tech Spec issue. Two
- * side effects, both best-effort and non-blocking:
+ * surfaces any stale path-shaped references on the Epic (Story #4324: the
+ * Tech Spec is folded into the Epic body, so the Epic is the comment
+ * target). Two side effects, both best-effort and non-blocking:
  *
  *   1. Write the full `{ stale, fresh, ambiguous }` report to
  *      `<tempRoot>/epic-<id>-spec-freshness.json` so downstream tooling
  *      (the `--code-freshness` health check on the roadmap, or an
  *      operator inspecting the run) can read it without re-probing git.
  *   2. When `stale.length > 0`, upsert a `spec-freshness` structured
- *      comment on the Tech Spec issue listing each suspect citation.
+ *      comment on the Epic listing each suspect citation.
  *      The comment is upserted, so re-running spec re-renders the same
  *      comment in place rather than spamming the issue.
  *
@@ -32,7 +33,6 @@ import { upsertStructuredComment } from '../../ticketing.js';
 /**
  * @param {object} opts
  * @param {number} opts.epicId
- * @param {number|null} opts.techSpecId
  * @param {string} opts.techSpecContent
  * @param {string} opts.baseBranchRef
  * @param {string} opts.tempRoot
@@ -44,7 +44,6 @@ import { upsertStructuredComment } from '../../ticketing.js';
  */
 export async function runSpecFreshnessCheck({
   epicId,
-  techSpecId,
   techSpecContent,
   baseBranchRef,
   tempRoot,
@@ -64,7 +63,6 @@ export async function runSpecFreshnessCheck({
     );
     const payload = {
       epicId,
-      techSpecId,
       baseBranchRef,
       generatedAt: new Date().toISOString(),
       summary: {
@@ -77,13 +75,12 @@ export async function runSpecFreshnessCheck({
     await fileWriter(reportPath, `${JSON.stringify(payload, null, 2)}\n`);
 
     let commentPosted = false;
-    if (report.stale.length > 0 && Number.isFinite(techSpecId)) {
+    if (report.stale.length > 0 && Number.isFinite(epicId)) {
       const body = renderSpecFreshnessComment(report, {
         baseBranchRef,
-        techSpecId,
         epicId,
       });
-      await commentUpserter(provider, techSpecId, 'spec-freshness', body);
+      await commentUpserter(provider, epicId, 'spec-freshness', body);
       commentPosted = true;
     }
 

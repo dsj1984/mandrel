@@ -5,7 +5,7 @@
  * Exports:
  *   - `assertDecomposeInputs(epic, epicId, tickets)` — entry guards.
  *   - `buildEpicSpecInput(epic, epicId)` — projection used by
- *     `renderSpec`; runs `ensurePlanningArtifacts` defensively so the
+ *     `renderSpec`; the Epic body already carries the folded planning
  *     spec body carries the `## Planning Artifacts` section the
  *     cascade-close path depends on.
  *   - `validateTickets(tickets, config)` — runs the cross-link / freshness
@@ -19,6 +19,7 @@
  * @module lib/orchestration/epic-plan-decompose/phases/persist-helpers
  */
 
+import { hasTechSpecContent } from '../../../epic-body-sections.js';
 import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
@@ -29,10 +30,7 @@ import {
 } from '../../epic-plan-state-store.js';
 import { validateTaskBodies } from '../../task-body-validator.js';
 import { validateAndNormalizeTickets } from '../../ticket-validator.js';
-import {
-  ensurePlanningArtifacts,
-  resolveConflictPolicy,
-} from './planning-artifacts.js';
+import { resolveConflictPolicy } from './planning-artifacts.js';
 
 export function assertDecomposeInputs(epic, epicId, tickets) {
   if (!epic) {
@@ -43,9 +41,9 @@ export function assertDecomposeInputs(epic, epicId, tickets) {
       `[epic-plan-decompose] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
     );
   }
-  if (!epic.linkedIssues?.techSpec) {
+  if (!hasTechSpecContent(epic.body ?? '')) {
     throw new Error(
-      `[epic-plan-decompose] Epic #${epicId} is missing a linked Tech Spec. Run /epic-plan-spec first.`,
+      `[epic-plan-decompose] Epic #${epicId} body carries no Tech Spec sections (no ## Delivery Slicing). Run /plan Phase 7 first.`,
     );
   }
   if (!Array.isArray(tickets)) {
@@ -56,7 +54,7 @@ export function assertDecomposeInputs(epic, epicId, tickets) {
 }
 
 export function buildEpicSpecInput(epic, epicId) {
-  const epicBody = ensurePlanningArtifacts(epic.body ?? '', epic.linkedIssues);
+  const epicBody = epic.body ?? '';
   const epicSpecInput = { id: epicId, title: epic.title };
   if (epicBody.length > 0) epicSpecInput.body = epicBody;
   return epicSpecInput;
@@ -117,7 +115,7 @@ export async function seedPlanState(provider, epicId, epic) {
     epicId,
     seed: {
       spec: {
-        techSpecId: epic.linkedIssues.techSpec,
+        techSpecPersisted: hasTechSpecContent(epic.body ?? ''),
         completedAt: null,
       },
     },

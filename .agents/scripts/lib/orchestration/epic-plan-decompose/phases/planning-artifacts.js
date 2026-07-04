@@ -1,48 +1,16 @@
 /**
  * planning-artifacts.js — Phase 1 of the epic-plan-decompose pipeline
- * (Story #2466). Owns the `## Planning Artifacts` body shim and the
- * cross-Story conflict-policy resolver.
+ * (Story #2466). Owns the cross-Story conflict-policy resolver.
  *
- * Extracted verbatim from `epic-plan-decompose.js` so the named exports
- * the existing unit tests import (`ensurePlanningArtifacts`) keep their
- * public surface byte-identical.
+ * Story #4324 retired the `## Planning Artifacts` body shim
+ * (`ensurePlanningArtifacts`) with the context-ticket classes — the Epic
+ * body now carries the planning content itself as managed sections.
  *
  * @module lib/orchestration/epic-plan-decompose/phases/planning-artifacts
  */
 
 import { resolveListValue } from '../../../config/shared.js';
 import { DEFAULT_REGISTRY_PATTERNS } from '../../ticket-validator-conflicts.js';
-
-/**
- * Ensure the supplied Epic body carries a `## Planning Artifacts` section.
- * Idempotent — when the section already exists the body is returned
- * verbatim; when it's missing and `linkedIssues` carries resolved ids
- * the section is appended exactly once using the canonical
- * `Tech Spec: #N` / `Acceptance Spec: #N` lines that
- * `issue-link-parser.js` recognises (so cascade-close still resolves the
- * linked tickets).
- *
- * Story #2283. Story #4314 retired the PRD artifact class, so there is no
- * longer a `- [ ] PRD: #N` line.
- *
- * @param {string} body
- * @param {{ techSpec: number|null, acceptanceSpec: number|null } | undefined | null} linkedIssues
- * @returns {string}
- */
-export function ensurePlanningArtifacts(body, linkedIssues) {
-  const safeBody = typeof body === 'string' ? body : '';
-  if (safeBody.includes('## Planning Artifacts')) return safeBody;
-  if (!linkedIssues) return safeBody;
-  const lines = [];
-  if (Number.isInteger(linkedIssues.techSpec)) {
-    lines.push(`- [ ] Tech Spec: #${linkedIssues.techSpec}`);
-  }
-  if (Number.isInteger(linkedIssues.acceptanceSpec)) {
-    lines.push(`- [ ] Acceptance Spec: #${linkedIssues.acceptanceSpec}`);
-  }
-  if (lines.length === 0) return safeBody;
-  return `${safeBody}\n\n## Planning Artifacts\n${lines.join('\n')}\n`;
-}
 
 /**
  * Resolve the cross-Story conflict-finding policy from `_config.planning`.

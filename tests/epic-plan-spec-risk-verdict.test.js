@@ -24,6 +24,7 @@ import {
   runSpecPhase,
   validateRiskVerdict,
 } from '../.agents/scripts/epic-plan-spec.js';
+import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 
 const VALID_VERDICT = {
   axes: [
@@ -139,7 +140,6 @@ function buildSpecPhaseProvider() {
     title: 'Verdict Epic',
     body: 'Epic body.',
     labels: ['type::epic'],
-    linkedIssues: { techSpec: null, acceptanceSpec: null },
   };
   return {
     epic,
@@ -249,12 +249,16 @@ describe('runSpecPhase risk-verdict recording', () => {
 describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
   it('does not demote a fully-planned agent::ready Epic when the spec is unchanged', async () => {
     const provider = buildSpecPhaseProvider();
-    // Fully decomposed + planned: artifacts linked, Epic at agent::ready.
+    // Fully decomposed + planned: the Epic body already carries the managed
+    // Tech Spec section (Story #4324 — section presence, not linked tickets,
+    // is what the already-planned short-circuit keys on) and the Epic is at
+    // agent::ready.
     provider.epic.labels = ['type::epic', 'agent::ready'];
-    provider.epic.linkedIssues = {
-      techSpec: 802,
-      acceptanceSpec: null,
-    };
+    provider.epic.body = upsertEpicSection(
+      provider.epic.body,
+      'techSpec',
+      '## Delivery Slicing\nExisting TS.',
+    );
 
     const result = await runSpecPhase(
       provider.epic.id,

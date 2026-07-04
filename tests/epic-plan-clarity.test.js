@@ -334,3 +334,74 @@ m
     assert.equal(context.status, 'placeholder');
   });
 });
+
+// Story #4324 — the Tech Spec and Acceptance Table now fold into the Epic
+// body as managed sections. The clarity gate must recognise them
+// (reported informationally) WITHOUT letting them perturb the ideation
+// verdict: a post-fold Epic body scores exactly as its ideation content
+// deserves, never "needs-refinement" because of the folded sections.
+describe('scoreEpicBody — folded planning sections (Story #4324)', () => {
+  const IDEATION = `## Context
+Real context.
+## Goal
+Real goal.
+## Non-Goals
+- none
+## Scope
+Real scope.
+## Acceptance Criteria
+- [ ] bullet one
+`;
+  const FOLDED = `${IDEATION}
+<!-- mandrel:tech-spec:start -->
+
+## Delivery Slicing
+| Slice | What ships | Independent? |
+| --- | --- | --- |
+| Foundation | core | Yes |
+
+<!-- mandrel:tech-spec:end -->
+
+<!-- mandrel:acceptance-table:start -->
+
+## Acceptance Table
+| AC ID | Outcome | Feature File | Scenario | Disposition |
+| --- | --- | --- | --- | --- |
+| AC-1 | x | f.feature | s | new |
+
+<!-- mandrel:acceptance-table:end -->
+`;
+
+  it('a fully-planned post-fold Epic body still scores clear', () => {
+    const result = scoreEpicBody({ body: FOLDED });
+    assert.equal(result.verdict, 'clear');
+    assert.deepEqual(result.missingOrPlaceholder, []);
+  });
+
+  it('reports the folded planning sections informationally', () => {
+    const folded = scoreEpicBody({ body: FOLDED });
+    assert.deepEqual(folded.planningSections, [
+      { name: 'deliverySlicing', status: 'present' },
+      { name: 'acceptanceTable', status: 'present' },
+    ]);
+    const preSpec = scoreEpicBody({ body: IDEATION });
+    assert.deepEqual(preSpec.planningSections, [
+      { name: 'deliverySlicing', status: 'missing' },
+      { name: 'acceptanceTable', status: 'missing' },
+    ]);
+  });
+
+  it('planning-section presence never rescues a thin ideation body', () => {
+    const thin = `## Context
+Only context.
+
+## Delivery Slicing
+| Slice | What ships | Independent? |
+
+## Acceptance Table
+| AC ID | Outcome |
+`;
+    const result = scoreEpicBody({ body: thin });
+    assert.equal(result.verdict, 'needs-refinement');
+  });
+});

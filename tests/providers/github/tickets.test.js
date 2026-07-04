@@ -541,12 +541,13 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     assert.ok(posted.labels.includes('persona::backend'));
   });
 
-  it('createTicket: does NOT inject type::story onto context spec tickets (Story #4246)', async () => {
-    // Context tickets (Tech Spec / Acceptance Spec) are created through
-    // this same factory carrying only a context:: label. Stamping them
-    // type::story makes every story-counting consumer (the decompose
-    // open-children guard, the delivery wave builder) mis-classify them as
-    // deliverable Stories. The injection must be skipped for context tickets.
+  it('createTicket: always injects type::story — the context:: skip branch is retired (Story #4324)', async () => {
+    // Story #4324 folded the Tech Spec / Acceptance Spec into managed
+    // sections of the Epic body, so no ticket class is created with a
+    // `context::` label anymore. The Story #4246 skip branch is gone:
+    // every ticket created through this factory is a Story, and a stale
+    // legacy `context::` label in the caller's list no longer suppresses
+    // the type::story injection.
     const gh = makeFakeGh({
       'POST /repos/o/r/issues': {
         status: 201,
@@ -568,10 +569,10 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
     );
     assert.ok(
-      !posted.labels.includes('type::story'),
-      `context ticket must NOT carry type::story; got: ${JSON.stringify(posted.labels)}`,
+      posted.labels.includes('type::story'),
+      `type::story must be injected unconditionally; got: ${JSON.stringify(posted.labels)}`,
     );
-    assert.deepEqual(posted.labels, ['context::tech-spec']);
+    assert.deepEqual(posted.labels, ['type::story', 'context::tech-spec']);
   });
 
   it('updateTicket: additive label-only PATCH skips body PATCH and invalidates cache', async () => {

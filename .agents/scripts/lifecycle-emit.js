@@ -412,7 +412,7 @@ export async function runLifecycleEmit({
   // record `failed` classifications instead of throwing (the bus's
   // `onFailed` boundary already persists the originating event), so the
   // bus emit resolves cleanly even when a downstream side effect — e.g.
-  // an acceptance-reconcile gap or a `closePlanningTickets` throw inside
+  // an acceptance-reconcile gap or an `openOrLocatePr` throw inside
   // the Finalizer — failed. Without surfacing these, the CLI would exit 0
   // with success-shaped JSON despite a partial finalize (Story #3904).
   const outcomes = collectOutcomes(chain);

@@ -69,8 +69,9 @@ differs (a plan vs. a diff); the *method* is identical.
 
 Before starting, identify the comprehension subject and gather it:
 
-- **A plan** — the Epic body, the linked PRD / Tech Spec context tickets, the
-  decomposition (Features/Stories with inline `acceptance[]` / `verify[]`),
+- **A plan** — the Epic body (whose managed sections carry the folded Tech
+  Spec and Acceptance Table), the
+  decomposition (Stories with inline `acceptance[]` / `verify[]`),
   and the dispatch/wave roadmap.
 - **A change** — a PR, a branch, or a working-tree diff. Read the diff, the
   PR/issue description, and the surrounding code the change touches.

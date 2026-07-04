@@ -93,7 +93,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // a sharpened body rewrite, recording the persistence event for audit.
   'clarity-gate-update',
   // Story #2635 — Phase 7 Tech Spec freshness check. `epic-plan-spec.js`
-  // upserts a `spec-freshness` comment on the Tech Spec issue listing any
+  // upserts a `spec-freshness` comment on the Epic listing any
   // path-shaped references that don't exist at the base branch, so the
   // operator can correct drift before Phase 8 decomposes from a stale
   // spec. Advisory: the run continues regardless of the report contents.
@@ -118,7 +118,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'model-attribution',
   // Story #2894 — `finalize/post-handoff-comment.js` upserts an
   // `epic-handoff` comment on the Epic at the end of the bus-owned
-  // finalize flow (after `open-or-locate-pr` and `close-planning-tickets`
+  // finalize flow (after `open-or-locate-pr`
   // succeed). The marker carries the freshly opened/located PR URL and
   // its number so operators can jump straight to the PR from the Epic
   // ticket. Re-invocations upsert the same marker rather than appending

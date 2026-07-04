@@ -91,7 +91,12 @@ test('GitHubProvider: getTicket handles simple ticket', async () => {
   assert.ok(ticket.labels.includes('type::task'));
 });
 
-test('GitHubProvider: getEpic parses TechSpec links (ignoring legacy PRD)', async () => {
+test('GitHubProvider: getEpic returns the raw body without linked-issue parsing (Story #4324)', async () => {
+  // Story #4324 folded the planning artifacts into the Epic body itself:
+  // a historical `## Planning Artifacts` list (PRD / Tech Spec refs) is
+  // carried verbatim in `body` and no `linkedIssues` slot is derived.
+  const legacyBody =
+    '## Planning Artifacts\n- [ ] PRD: #2\n- [ ] Tech Spec: #3\n';
   const gh = makeFakeGh({
     'GET /issues/1': {
       status: 200,
@@ -100,7 +105,7 @@ test('GitHubProvider: getEpic parses TechSpec links (ignoring legacy PRD)', asyn
         id: 111,
         node_id: 'node_1',
         title: 'Epic Title',
-        body: '## Planning Artifacts\n- [ ] PRD: #2\n- [ ] Tech Spec: #3\n',
+        body: legacyBody,
         labels: [{ name: 'type::epic' }],
       },
     },
@@ -108,10 +113,8 @@ test('GitHubProvider: getEpic parses TechSpec links (ignoring legacy PRD)', asyn
   const provider = new GitHubProvider({ owner: 'owner', repo: 'repo' }, { gh });
   const epic = await provider.getEpic(1);
   assert.equal(epic.id, 1);
-  // Story #4314 — the PRD artifact class is retired; the historical
-  // `- [ ] PRD: #2` line is ignored and no `prd` slot is surfaced.
-  assert.ok(!('prd' in epic.linkedIssues));
-  assert.equal(epic.linkedIssues.techSpec, 3);
+  assert.equal(epic.body, legacyBody);
+  assert.ok(!('linkedIssues' in epic));
 });
 
 test('GitHubProvider: getTickets filters by labels', async () => {

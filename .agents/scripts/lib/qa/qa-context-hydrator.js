@@ -3,8 +3,9 @@
  *
  * Both QA front-ends (`/qa-explore` and `/qa-run`) need to load the
  * *grounded* surface context for an Epic before they reason about what to test:
- * the Epic body, its linked context tickets (Tech Spec / Acceptance
- * Spec), the project's `.feature` files, the implementation files the surface
+ * the Epic body (which carries the folded Tech Spec sections and
+ * Acceptance Table — Story #4324 retired the separate context tickets),
+ * the project's `.feature` files, the implementation files the surface
  * map points at, and a slice of recent git history. Today a front-end that
  * trusts in-code comments ("this handler lives at …") can be wrong — the path
  * may have moved, or never existed on the base branch at all. This hydrator
@@ -38,16 +39,6 @@ export const DEFAULT_BASE_REF = 'main';
 export const DEFAULT_LOG_MAX_COUNT = 20;
 
 /**
- * The GitHub label prefixes that mark a linked context ticket. The hydrator
- * resolves `context::tech-spec` and `context::acceptance-spec`
- * references off the Epic body and fetches each one through the port.
- */
-export const CONTEXT_TICKET_KINDS = Object.freeze([
-  'tech-spec',
-  'acceptance-spec',
-]);
-
-/**
  * @typedef {object} GithubPort
  * @property {(issueNumber: number) => Promise<{
  *   number: number,
@@ -71,56 +62,6 @@ export const CONTEXT_TICKET_KINDS = Object.freeze([
  * @property {string} path Repo-relative implementation file path.
  * @property {string} [note] Free-form provenance note (e.g. a code comment).
  */
-
-/**
- * Parse the linked context-ticket issue numbers out of an Epic body.
- *
- * Two reference shapes are recognized, both written by the planning workflows:
- *   - A labelled line: `context::tech-spec #3801`.
- *   - A "Planning Artifacts" link: `- Tech Spec: #3801`,
- *     `- Acceptance Spec: #3802`.
- *
- * Returns a map of kind → issue number for whichever kinds are present. A kind
- * that appears more than once keeps the first occurrence; an unparseable line
- * is skipped rather than thrown.
- *
- * @param {string} epicBody
- * @returns {Record<string, number>}
- */
-export function parseContextTicketRefs(epicBody) {
-  const refs = {};
-  const body = typeof epicBody === 'string' ? epicBody : '';
-
-  // Map the human-readable labels back to canonical kinds.
-  const labelToKind = {
-    'tech-spec': 'tech-spec',
-    'tech spec': 'tech-spec',
-    techspec: 'tech-spec',
-    'acceptance-spec': 'acceptance-spec',
-    'acceptance spec': 'acceptance-spec',
-    acceptancespec: 'acceptance-spec',
-  };
-
-  for (const rawLine of body.split('\n')) {
-    const line = rawLine.trim();
-    // Match `context::tech-spec #N`, `Tech Spec: #N`, `- Acceptance Spec: #N`, etc.
-    const match = line.match(
-      /(?:context::)?([A-Za-z][A-Za-z -]*?)\s*[:#]*\s*#(\d+)/,
-    );
-    if (!match) continue;
-    const key = match[1]
-      .trim()
-      .toLowerCase()
-      .replace(/^context::/, '');
-    const kind = labelToKind[key];
-    if (!kind) continue;
-    const issueNumber = Number(match[2]);
-    if (!Number.isInteger(issueNumber)) continue;
-    if (refs[kind] === undefined) refs[kind] = issueNumber;
-  }
-
-  return refs;
-}
 
 /**
  * Enumerate the `.feature` files under `featureRoot`, returning repo-relative
@@ -187,9 +128,9 @@ export async function verifySurfaceMap(surfaceMap, gitPort, baseRef) {
  * Hydrate the QA context object for an Epic.
  *
  * Assembles, in one object:
- *   - `epic`            — the Epic's `{ number, body, labels }`.
- *   - `contextTickets`  — the linked Tech Spec / Acceptance Spec tickets,
- *                         keyed by kind, each `{ number, body, labels }`.
+ *   - `epic`            — the Epic's `{ number, body, labels }`. The body is
+ *                         the single planning document (ideation sections +
+ *                         folded Tech Spec sections + Acceptance Table).
  *   - `featureFiles`    — repo-relative paths of the project's `.feature` files.
  *   - `implementation`  — the verified surface map (each entry carries
  *                         `verified` against the base ref).
@@ -212,9 +153,6 @@ export async function verifySurfaceMap(surfaceMap, gitPort, baseRef) {
  * }} opts
  * @returns {Promise<{
  *   epic: { number: number, body: string, labels: string[] },
- *   contextTickets: Record<string, {
- *     number: number, body: string, labels: string[],
- *   }>,
  *   featureFiles: string[],
  *   implementation: Array<{ path: string, note: string | null, verified: boolean }>,
  *   gitLog: Array<{ sha: string, subject: string }>,
@@ -261,20 +199,6 @@ export async function hydrateQaContext(opts) {
     labels: Array.isArray(epicIssue.labels) ? [...epicIssue.labels] : [],
   };
 
-  // Resolve and fetch the linked context tickets off the Epic body.
-  const refs = parseContextTicketRefs(epic.body);
-  const contextTickets = {};
-  for (const kind of CONTEXT_TICKET_KINDS) {
-    const number = refs[kind];
-    if (number === undefined) continue;
-    const issue = await githubPort.fetchIssue(number);
-    contextTickets[kind] = {
-      number: issue.number,
-      body: issue.body ?? '',
-      labels: Array.isArray(issue.labels) ? [...issue.labels] : [],
-    };
-  }
-
   const featureFiles = collectFeatureFiles(featureRoot, { fsImpl });
   const implementation = await verifySurfaceMap(surfaceMap, gitPort, baseRef);
   const gitLog = await gitPort.recentLog({ maxCount: logMaxCount });
@@ -284,7 +208,6 @@ export async function hydrateQaContext(opts) {
 
   return {
     epic,
-    contextTickets,
     featureFiles,
     implementation,
     gitLog: Array.isArray(gitLog) ? gitLog : [],

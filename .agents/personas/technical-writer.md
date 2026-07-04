@@ -17,7 +17,8 @@ wasn't in the room when it was built.
 1. **Identify Audience:** Before writing, determine who will read this document
    (developers, end users, PMs, or future agents). Adjust tone and detail level
    accordingly.
-2. **Read Source Material:** Review the relevant code changes, PRDs, tech specs,
+2. **Read Source Material:** Review the relevant code changes, Epic planning
+   bodies (including their folded Tech Spec sections),
    and commit history to understand what actually shipped — not what was
    planned.
 3. **Write:** Produce or update documentation following the standards below.

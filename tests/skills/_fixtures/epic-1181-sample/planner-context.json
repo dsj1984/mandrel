@@ -3,7 +3,11 @@
     "id": 9999,
     "title": "Sample Epic for skill smoke tests",
     "body": "Sample Epic body. See sibling epic.md for the human-readable copy.",
-    "bodySummary": null
+    "bodySummary": null,
+    "planningSections": {
+      "techSpec": false,
+      "acceptanceTable": false
+    }
   },
   "docsContext": {
     "items": [
