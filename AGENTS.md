@@ -82,10 +82,17 @@ mandrel/
 3. **Adopt a persona when instructed:** Persona files live in
    `.agents/personas/`. Default is `engineer.md`.
 
-4. **Activate skills as needed:** Read the relevant `SKILL.md` from
-   `.agents/skills/core/[name]/` (universal process skills) or
+4. **Activate skills and on-demand rules as needed:** Read the relevant
+   `SKILL.md` from `.agents/skills/core/[name]/` (universal process skills) or
    `.agents/skills/stack/[category]/[name]/` (tech-stack-specific) before
-   writing domain-specific code.
+   writing domain-specific code. The `.agents/rules/` set is likewise split
+   into an always-on core (`security-baseline.md`, `git-conventions.md`) and
+   an on-demand set (`shell-conventions.md`, `testing-standards.md`,
+   `orchestration-error-handling.md`, and the domain rules) read only when the
+   task engages them. See
+   [`.agents/README.md` § What to always-load vs read on-demand](.agents/README.md)
+   and [`.agents/instructions.md` § 1.F](.agents/instructions.md) for the full
+   split.
 
 ---
 

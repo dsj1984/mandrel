@@ -87,10 +87,39 @@ local copy is ignored with a `shadowed` warning).
 
 ### F. Modular Global Rules
 
-Before writing code or documentation, verify if any domain-agnostic rules
-apply by checking the `.agents/rules/` directory (e.g.,
-`security-baseline.md`, `testing-standards.md`, `api-conventions.md`,
-`git-conventions.md`, `shell-conventions.md`).
+The `.agents/rules/` directory is split into an **always-on core** and an
+**on-demand set** — the same read-when-relevant pattern skills use (§ 1.B).
+The core loads into every session; the on-demand rules are read only when the
+task actually engages them, so a generic task (and every subagent it spawns)
+does not re-pay their bytes on every turn.
+
+- **Always-on core** (loaded alongside this file):
+  - [`rules/security-baseline.md`](rules/security-baseline.md) — inviolable
+    security MUSTs; applies to every piece of code generated.
+  - [`rules/git-conventions.md`](rules/git-conventions.md) — every commit,
+    branch, and PR touches it.
+
+- **On-demand** — read the file **before** doing the matching work; each opens
+  with a one-line "this rule applies when…" scope header, so skimming its first
+  paragraph confirms whether it governs the task at hand:
+  - [`rules/shell-conventions.md`](rules/shell-conventions.md) — before
+    chaining shell commands or writing cross-platform command strings.
+  - [`rules/testing-standards.md`](rules/testing-standards.md) — before
+    authoring or restructuring tests (the three-tier pyramid, assertion
+    placement, mocking/isolation MUSTs).
+  - [`rules/orchestration-error-handling.md`](rules/orchestration-error-handling.md)
+    — before writing or modifying orchestration scripts under
+    `.agents/scripts/**`.
+  - [`rules/api-conventions.md`](rules/api-conventions.md),
+    [`rules/gherkin-standards.md`](rules/gherkin-standards.md),
+    [`rules/changelog-style.md`](rules/changelog-style.md),
+    [`rules/test-seams.md`](rules/test-seams.md) — when the task is in that
+    domain (API surface, Gherkin scenarios, changelog prose, test seams).
+
+When in doubt, read the rule — the read is cheap relative to shipping a
+MUST-violating change. Precedence between a rule and any other governance
+document is unchanged (§ 1.K): loading a rule on demand does not lower its
+authority.
 
 ### G. Structured Configuration
 
@@ -123,14 +152,9 @@ GitHub Story (or Epic) ticket:
 
 #### Log Level Control
 
-The orchestrator logger (`lib/Logger.js`) emits progress/trace output based
-on the `AGENT_LOG_LEVEL` environment variable:
-
-- `silent`  — only `fatal` emits; useful for script embedding where the
-  caller owns presentation.
-- `info`    — default. Emits `info` / `warn` / `error` / `fatal`.
-- `verbose` — adds `debug` trace output on top of the `info` set. `debug` is
-  accepted as a backward-compatible alias.
+The orchestrator logger honors `AGENT_LOG_LEVEL` (`silent` / `info` /
+`verbose`). The per-level emission table is reference detail — see
+[`docs/execution-reference.md` § Log-level control](docs/execution-reference.md#log-level-control).
 
 ### I. Anti-Thrashing Protocol
 
@@ -217,27 +241,14 @@ Two carve-outs refine the ordering:
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
-Mandrel does **not** enforce live LLM spend from response metadata. The
-framework limits **hydrated prompt size** and optional **pre-dispatch
-estimates**; your host runtime (editor / CLI) owns session quota and hard
-stops.
-
-### A. Token budget (hydration + pre-dispatch estimates)
-
-- **`delivery.maxTokenBudget`** (`.agentrc.json`, resolved via
-  `lib/config/limits.js`): caps the task prompt built by
-  `hydrate-context` / `hydrateContext`. The pipeline uses a rough token
-  estimate (≈4 characters per token) and applies section-aware elision
-  (`elideEnvelope`) so oversized envelopes drop or summarize
-  lower-priority sections before you receive the prompt.
-- **`delivery.preflight.*`** (optional): before `/deliver` fan-out,
-  `epic-deliver-preflight.js` compares **estimated** story count, waves,
-  install time, GitHub API volume, and Claude quota tokens against
-  configured ceilings (`maxClaudeQuotaTokens`, etc.). A breach surfaces
-  via `agent::blocked`; there is no per-tool-call metering.
-- **Host runtime**: session billing, quota exhaustion, and operator
-  overrides are enforced by your provider (e.g. Claude Code), not by
-  Mandrel scripts.
+Mandrel does **not** enforce live LLM spend from response metadata. It caps
+**hydrated prompt size** (`delivery.maxTokenBudget`, section-aware elision) and
+runs optional **pre-dispatch estimates** (`delivery.preflight.*`); your host
+runtime owns session quota and hard stops. The config keys, the ≈4-char/token
+estimate, and the elision behaviour are reference detail — see
+[`docs/execution-reference.md` § FinOps & token budgeting](docs/execution-reference.md#finops--token-budgeting-economic-guardrails).
+Consult it when a task prompt was elided or `/deliver` refused a fan-out on
+budget grounds.
 
 ---
 
