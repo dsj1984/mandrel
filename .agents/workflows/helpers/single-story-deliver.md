@@ -181,6 +181,17 @@ Story body.
 Operator/agent responsibilities while in the worktree:
 
 1. Read the Story body. Treat its acceptance criteria as the contract.
+
+   **Docs context — digest-first.** A standalone Story has no parent Epic,
+   so there is usually no per-Epic docs digest to read. If the caller
+   provides a `docsDigestPath` (the per-Epic docs digest at
+   `temp/epic-<epicId>/docs-digest.md`), read that compact outline instead
+   of re-reading the full `project.docsContextFiles` set, and pull
+   individual docs files on demand (jump to the section at the line number
+   the digest names). When no digest path is provided, read a full doc
+   only when the Story's own context points you at one — do not ingest the
+   whole docs set up front. See
+   [`.agents/instructions.md` § 3](../../instructions.md).
 2. Implement the changes.
 3. Commit on the Story branch. Conventional-commit format is encouraged
    but not enforced — the PR title carries the canonical summary.

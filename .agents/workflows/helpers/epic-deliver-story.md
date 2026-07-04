@@ -162,6 +162,20 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    `context.verify`). Treat the acceptance items as the contract and
    the verify items as the canonical at-keyboard checks.
 
+   **Docs context — read the digest, not the full set.** Do **not**
+   re-read every file in `project.docsContextFiles`. The parent prompt
+   passes a `docsDigestPath` (the per-Epic docs digest at
+   `temp/epic-<epicId>/docs-digest.md`, written by
+   `epic-deliver-prepare.js`). Read that digest — a compact per-file
+   outline (path, size, heading outline with line numbers, first
+   paragraph under each `##`) — to decide which docs bear on this Story,
+   then **pull the full file on demand** (jump to the section at the line
+   number the digest names) only when relevant. When `docsDigestPath` is
+   null (the project configured no `docsContextFiles`), there is no
+   digest and no per-Story docs mandate — read a full doc only if the
+   Story's own context points you at one. See
+   [`.agents/instructions.md` § 3](../../instructions.md).
+
 3. Implement the work as one or more commits on `story-<storyId>`.
    Author commits directly with the project's editor / `git commit`,
    following
