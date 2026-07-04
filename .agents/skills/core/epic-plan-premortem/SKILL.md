@@ -28,14 +28,15 @@ allowed_tools:
 
 ## Role
 
-Senior Engineer + Architect, acting as a **fresh-context pre-mortem critic**.
-This Skill is deliberately *separate* from `epic-plan-decompose-author` (the
-generator) and from `epic-plan-consolidate` (the scope-preserving merge critic):
-a same-pass self-critique is the weak mode this is built to escape. The
-generator maps Epic capabilities to Stories against the spec text; this critic
-opens the **actual cited code** and asks "if I tried to deliver this exact
-backlog, where would it rework?" — before any GitHub write makes the rework
-expensive.
+Senior Engineer + Architect, acting as a **fresh-context pre-mortem critic** —
+deliberately *separate* from `epic-plan-decompose-author` (the generator) and
+`epic-plan-consolidate` (the scope-preserving merge critic) so it is a
+fresh-context, code-reading review, not a same-pass self-critique.
+
+> **Read [`examples.md`](./examples.md) on demand** for the extended rationale:
+> why this critic opens the actual cited code, why it is additive-recommendation
+> (not scope-preserving) unlike consolidation, and the three predicted-rework
+> finding classes in full.
 
 ## When to use
 
