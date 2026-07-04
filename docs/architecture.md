@@ -1446,9 +1446,14 @@ scopes the sweep to a concrete, deterministic scenario set:
 5. **Instrument & inspect** per surface: capture console and network, filter
    console through the `consoleAllowlist`, and spot-check against
    `designTokens` when set. Each surviving signal becomes one structured `F#`
-   finding.
-6. **Draft** follow-ups bundled by likely root cause for **operator
-   sign-off** — the harness never files tickets autonomously.
+   finding, recorded as a `QaLedgerItem` on the shared session ledger under
+   `temp/qa/` (`qa-session.js`).
+6. **Triage** the ledger through the shared classify/route/dedup/promote core
+   (`classify-finding.js` → `route-finding.js` fingerprint-footer dedup against
+   open **and** closed issues → `promote-finding.js`) after the preserved
+   **operator sign-off** gate — the harness never files tickets autonomously,
+   and re-run sweeps dedup previously-filed findings instead of re-drafting
+   them.
 
 **The `qa` contract block.** Binding the harness is opt-in: a consumer adds
 a top-level `qa` block to `.agentrc.json`. The block is *optional in the
@@ -1465,14 +1470,16 @@ in [`.agents/docs/agentrc-reference.json`](../.agents/docs/agentrc-reference.jso
 | `consoleAllowlist` | no       | Benign-console substring patterns to suppress (default `[]`). A noise filter, **not** a security control — never expand it to silence a genuine error.        |
 | `designTokens`     | no       | Pointer to the token/style source for visual spot-checks (default `null`). When `null`, the design-token check is skipped entirely.                            |
 
-**Findings — the `F#` shape.** Every captured problem is normalized into a
-structured finding validated against
-[`.agents/schemas/qa-finding.schema.json`](../.agents/schemas/qa-finding.schema.json):
-`{ id, classification, surface, symptom, likelyRootCause, disposition
-(blocker | follow-up), acceptance, foldsInto?, evidence: { console[],
-network[] } }`. Captured evidence is scrubbed of tokens, session cookies, and
-PII before any finding is rendered, because findings are posted to GitHub at
-approval time.
+**Findings — the shared ledger.** Every captured problem is normalized into an
+`F#` finding shape (`{ id, classification, surface, symptom, likelyRootCause,
+disposition, acceptance, evidence: { console[], network[] } }`, produced in its
+console-derived subset by `console-allowlist.js`) and recorded as a
+`QaLedgerItem` on the shared session ledger under `temp/qa/`, validated against
+[`.agents/schemas/qa-ledger.schema.json`](../.agents/schemas/qa-ledger.schema.json)
+— the same ledger `/qa-explore` and `/qa-assist` use (Story #4330 retired
+`/qa-run`'s separate finding schema and draft-bundle path). Captured evidence is
+scrubbed of tokens, session cookies, and PII before any finding is rendered,
+because findings are posted to GitHub at approval time.
 
 #### Exploratory QA: `/qa-assist` and `/qa-explore`
 

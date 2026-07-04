@@ -5,8 +5,8 @@
  * the shared findings core previously each declared their own severity list —
  * `classify-finding.js` (`[unknown, low, medium, high, critical]`),
  * `promote-finding.js` (`SEVERITY_RANK` over `[critical … info]`), and the
- * `qa-finding` / `qa-ledger` JSON schemas (`[critical, high, medium, low,
- * info]`). Because `severity` is a `fingerprintFinding` identity field
+ * `qa-ledger` JSON schema (`[critical, high, medium, low, info]`). Because
+ * `severity` is a `fingerprintFinding` identity field
  * (`route-finding.js`), the same finding could hash to different SHAs depending
  * on which path normalised its severity, silently weakening dedup. This module
  * collapses all three onto one enum + one normaliser so the fingerprint is
@@ -14,9 +14,8 @@
  *
  * The canonical order is `critical | high | medium | low | info`, highest →
  * lowest, and it MUST match the `severity` enum in
- * `.agents/schemas/qa-ledger.schema.json` (and the mirrored `qa-finding`
- * schema). Pure module: no I/O, no module-level state beyond the frozen
- * constants.
+ * `.agents/schemas/qa-ledger.schema.json`. Pure module: no I/O, no
+ * module-level state beyond the frozen constants.
  */
 
 /**
@@ -24,7 +23,7 @@
  * This is the ONLY definition of the severity vocabulary in the findings core;
  * `classify-finding.js` and `promote-finding.js` re-export / import it rather
  * than re-declaring their own list. Mirrors the `severity` enum in
- * `qa-ledger.schema.json` / `qa-finding.schema.json`.
+ * `qa-ledger.schema.json`.
  */
 export const SEVERITIES = Object.freeze([
   'critical',

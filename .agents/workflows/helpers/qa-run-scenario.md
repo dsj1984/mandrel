@@ -61,7 +61,7 @@ The helper returns **one structured per-scenario result**:
   "intent": "<one plain-English line of business intent>",
   "verdict": "pass" | "fail" | "blocked",
   "surface": "<the surface the scenario ended on>",
-  "findings": [ /* zero or more F# findings, qa-finding.schema.json shape */ ]
+  "findings": [ /* zero or more F# findings (the console/network-derived shape) */ ]
 }
 ```
 
@@ -73,13 +73,19 @@ The helper returns **one structured per-scenario result**:
   could not be driven to a verdict (session not authenticated, a required
   affordance missing, a mutating step excluded by the write guard).
 - **`surface`** — the surface the scenario ended on (for failure triage).
-- **`findings`** — zero or more `F#` findings in the
-  [`qa-finding.schema.json`](../../schemas/qa-finding.schema.json) shape, with
-  evidence already redacted (below).
+- **`findings`** — zero or more `F#` findings in the console/network-derived
+  shape (`{ id, classification, surface, symptom, likelyRootCause, disposition,
+  acceptance, evidence: { console[], network[] } }`, the subset
+  [`console-allowlist.js`](../../scripts/lib/qa/console-allowlist.js) emits),
+  with evidence already redacted (below). The caller (`/qa-run` Step 4) records
+  each finding as a `QaLedgerItem` on the shared session ledger before routing
+  it through the classify/route/dedup/promote core; this helper does not touch
+  the ledger.
 
 The caller aggregates these results into its sweep report (per-scenario
-`intent + verdict` lines, totals, failure triage) and its finding bundle. The
-helper never files tickets and never renders the sweep-level report.
+`intent + verdict` lines, totals, failure triage) and folds each scenario's
+findings onto the shared ledger. The helper never files tickets and never
+renders the sweep-level report.
 
 ## Driving rules (non-negotiable)
 
