@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.82.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.81.0...mandrel-v1.82.0) (2026-07-04)
+
+
+### Added
+
+* **decomposer:** add soft envelope-floor guidance to sizing prompt (refs [#4313](https://github.com/dsj1984/mandrel/issues/4313)) ([#4321](https://github.com/dsj1984/mandrel/issues/4321)) ([e95c9e4](https://github.com/dsj1984/mandrel/commit/e95c9e4b39b7549f2f83ee104e19a9824f9bab00))
+* **epic-plan-spec:** key Acceptance Spec Outcomes to Epic AC bullets (refs [#4315](https://github.com/dsj1984/mandrel/issues/4315)) ([#4323](https://github.com/dsj1984/mandrel/issues/4323)) ([4d4103c](https://github.com/dsj1984/mandrel/commit/4d4103c79500e5704b1fa79e70f6efb985e06994))
+* **plan:** recalibrate Delivery Slicing to a ceiling, not a target (refs [#4311](https://github.com/dsj1984/mandrel/issues/4311)) ([#4317](https://github.com/dsj1984/mandrel/issues/4317)) ([b37596b](https://github.com/dsj1984/mandrel/commit/b37596b8f739da52f568cb025b84ada84ce90355))
+* **ticket-validator-sizing:** add merge-candidate under-size soft finding (refs [#4312](https://github.com/dsj1984/mandrel/issues/4312)) ([#4319](https://github.com/dsj1984/mandrel/issues/4319)) ([2b84e49](https://github.com/dsj1984/mandrel/commit/2b84e49022f9745549cb02a1237d24ab194af92c))
+
+
+### Fixed
+
+* retire the context-ticket classes: fold Tech Spec and Acceptance Spec into the sectioned Epic body ([#4324](https://github.com/dsj1984/mandrel/issues/4324)) ([#4325](https://github.com/dsj1984/mandrel/issues/4325)) ([f8cfec7](https://github.com/dsj1984/mandrel/commit/f8cfec79f1aa59fc86c51e9ced6dda2bd06f2cb3))
+
+
+### Changed
+
+* **epic-plan-spec:** open Tech Spec with Delivery Slicing, drop Epic-context restatement (refs [#4316](https://github.com/dsj1984/mandrel/issues/4316)) ([#4320](https://github.com/dsj1984/mandrel/issues/4320)) ([b20d10a](https://github.com/dsj1984/mandrel/commit/b20d10a2e61b1940ebffe0bc595d3b6bfedec604))
+* fold the PRD into the Epic body and retire the context::prd artifact class ([#4314](https://github.com/dsj1984/mandrel/issues/4314)) ([#4322](https://github.com/dsj1984/mandrel/issues/4322)) ([9c9bc7d](https://github.com/dsj1984/mandrel/commit/9c9bc7deb19ce04de1aebcaefb2eeebf949f61d5))
+
 ## [1.81.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.80.0...mandrel-v1.81.0) (2026-07-01)
 
 
