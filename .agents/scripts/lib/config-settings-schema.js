@@ -406,12 +406,36 @@ const QA_PERSONAS_SCHEMA = {
   ],
 };
 
+// `environments` is the environment-keyed contract (Epic #4326, Story #4327).
+// It replaces the retired top-level single `signInSeam` shape: each named
+// environment carries its own `baseUrl`, its own per-environment `signInSeam`
+// (reusing the same url-template/skill union), and an optional `allowWrites`
+// gate. Downstream, `resolveQaEnvironment` selects one environment per
+// invocation by name or by raw-URL origin match against `baseUrl`. The map
+// must carry at least one environment. This is a hard cutover — there is no
+// top-level `signInSeam` acceptance branch (see
+// `.agents/rules/git-conventions.md` § Contract Cutovers).
+const QA_ENVIRONMENTS_SCHEMA = {
+  type: 'object',
+  minProperties: 1,
+  additionalProperties: {
+    type: 'object',
+    properties: {
+      baseUrl: { ...SAFE_STRING, minLength: 1 },
+      signInSeam: QA_SIGN_IN_SEAM_SCHEMA,
+      allowWrites: { type: 'boolean' },
+    },
+    required: ['baseUrl', 'signInSeam'],
+    additionalProperties: false,
+  },
+};
+
 export const QA_SCHEMA = {
   type: 'object',
   properties: {
     featureRoot: { ...SAFE_STRING, minLength: 1 },
     fixturesManifest: { ...SAFE_STRING, minLength: 1 },
-    signInSeam: QA_SIGN_IN_SEAM_SCHEMA,
+    environments: QA_ENVIRONMENTS_SCHEMA,
     personas: QA_PERSONAS_SCHEMA,
     consoleAllowlist: {
       type: 'array',

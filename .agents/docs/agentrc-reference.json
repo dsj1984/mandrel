@@ -264,8 +264,16 @@
   "qa": {
     "featureRoot": "tests/features",
     "fixturesManifest": "tests/fixtures/personas.json",
-    "signInSeam": {
-      "skill": "stack/qa/sign-in"
+    "environments": {
+      "local": {
+        "baseUrl": "http://localhost:3000",
+        "signInSeam": { "urlTemplate": "/dev/sign-in-as/{persona}" }
+      },
+      "staging": {
+        "baseUrl": "https://staging.example.test",
+        "signInSeam": { "skill": "stack/qa/sign-in" },
+        "allowWrites": false
+      }
     },
     "personas": {
       "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" },

@@ -124,13 +124,18 @@ describe('config-resolver — qa block round-trip (Story #3312)', () => {
   let vol;
 
   // A complete, schema-valid `qa` contract for a bound consumer: the four
-  // harness-required fields plus a url-template sign-in seam and a
-  // name-only persona list.
+  // harness-required fields plus a single `local` environment (baseUrl +
+  // url-template sign-in seam) and a name-only persona list.
   const BOUND_QA = Object.freeze({
     featureRoot: 'tests/features',
     fixturesManifest: 'tests/fixtures/manifest.json',
-    signInSeam: {
-      urlTemplate: 'https://app.example.test/impersonate/{persona}',
+    environments: {
+      local: {
+        baseUrl: 'https://app.example.test',
+        signInSeam: {
+          urlTemplate: 'https://app.example.test/impersonate/{persona}',
+        },
+      },
     },
     personas: ['coach', 'admin'],
   });
@@ -171,7 +176,8 @@ describe('config-resolver — qa block round-trip (Story #3312)', () => {
     const contract = resolveQaContract(config);
     assert.equal(contract.featureRoot, BOUND_QA.featureRoot);
     assert.equal(contract.fixturesManifest, BOUND_QA.fixturesManifest);
-    assert.deepEqual(contract.signInSeam, BOUND_QA.signInSeam);
+    assert.deepEqual(contract.environments, BOUND_QA.environments);
+    assert.equal(contract.defaultEnvironment, 'local');
     assert.deepEqual(contract.personaNames, ['coach', 'admin']);
   });
 });
