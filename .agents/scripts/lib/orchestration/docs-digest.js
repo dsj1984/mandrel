@@ -14,7 +14,6 @@
  * `doc-reader.js` (`readDocFiles`), keeping a single home for the fs read path.
  */
 
-import path from 'node:path';
 import { readDocFiles } from './doc-reader.js';
 
 /**
