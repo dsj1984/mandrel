@@ -167,10 +167,15 @@ Validates `type::epic`, enumerates `type::story` descendants, parses
 (to enumerate the open Story set), and upserts the `epic-run-state`
 checkpoint in the per-Story-status shape (a flat `stories` map seeded at
 `pending`, plus the global `concurrencyCap`). Treat the printed JSON as
-`state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt }`.
+`state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt, docsDigestPath }`.
 `stories` is the flat dispatch hint (`{ storyId, worktree, title }` per open
 Story); the ready-set `tick` (Phase 2) decides which to dispatch on each
-beat. Flip the Epic to `agent::executing` (idempotent) after the CLI returns.
+beat. `docsDigestPath` is the repo-relative path to the per-Epic docs digest
+(`temp/epic-<epicId>/docs-digest.md`) that prepare writes from
+`project.docsContextFiles` — thread it into every child prompt (§ 2b, item 6).
+It is `null` when the project configured no `docsContextFiles` (no digest is
+written). Flip the Epic to `agent::executing` (idempotent) after the CLI
+returns.
 
 **No spec-ticket linkage to resolve (Story #4324).** The Tech Spec lives
 as managed sections of the Epic body itself — there is no separate
@@ -346,11 +351,19 @@ instruct the child to invoke `helpers/epic-deliver-story <storyId>`
 (whose Step 4 defines the child's return shape), (3) remind the child
 of the **non-interactive contract** (no clarifying questions;
 transition to `agent::blocked` and exit if stuck), (4) ask the child to
-suppress per-Story chat relay, and (5) require the child to emit a
+suppress per-Story chat relay, (5) require the child to emit a
 `story.heartbeat` lifecycle event at least once per Story-level phase
 transition via `node .agents/scripts/story-phase.js` (or whenever it
 stalls on a long-running step), and if it cannot make progress to
-transition to `agent::blocked` rather than fall silent. The pairing of
+transition to `agent::blocked` rather than fall silent, and (6) pass the
+**docs digest path** — the `docsDigestPath` field from the
+`epic-deliver-prepare.js` envelope (§ Phase 1 main), which points at
+`temp/epic-<epicId>/docs-digest.md`. Instruct the child to read that
+digest instead of re-reading the full `project.docsContextFiles` set,
+and to pull individual docs files on demand (per
+[`.agents/instructions.md` § 3](../../instructions.md)). When
+`docsDigestPath` is null (the project configured no `docsContextFiles`),
+say so — the child then has no per-Story docs mandate. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the §2e Idle
 Watchdog distinguish a working child from a dead one; a silent child
 with no recent heartbeat and no blocker label is the failure mode the
