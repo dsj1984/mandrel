@@ -232,7 +232,10 @@ const PREFIX_MEANINGS = Object.freeze([
     'planning.taskSizing',
     'Story-sizing threshold for the decompose validator.',
   ],
-  ['qa.signInSeam', 'QA harness sign-in seam configuration.'],
+  [
+    'qa.environments',
+    'QA harness deployment target (baseUrl, per-environment sign-in seam, allowWrites gate).',
+  ],
   ['qa.personas', 'QA harness persona / credential mapping.'],
 ]);
 

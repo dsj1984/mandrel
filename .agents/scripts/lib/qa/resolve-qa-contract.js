@@ -1,9 +1,11 @@
 /**
- * `qa` contract resolver — Epic #3214, Story #3294.
+ * `qa` contract resolver — Epic #3214, Story #3294; environment-keyed
+ * contract added by Epic #4326, Story #4327.
  *
  * The agent-driven QA harness (`/qa-run`) needs the
  * consumer's `.agentrc.json` `qa` block to know where the `.feature` root
- * lives, how to sign in, and which personas the seam accepts. The block is
+ * lives, which deployment targets (`environments`) exist and how to sign in
+ * to each, and which personas the seam accepts. The block is
  * *optional in the schema* (most repos never bind the harness, so config
  * validation must not break them — see Tech Spec #3285 § "qa contract
  * block"), which means presence is enforced at run time by this resolver
@@ -16,8 +18,14 @@
  *     exists.
  *   - Malformed block → throw an error naming the offending field so the
  *     operator can fix `.agentrc.json` without spelunking the schema.
- *   - Well-formed block → return the normalized contract object with the
- *     two optional fields (`consoleAllowlist`, `designTokens`) defaulted.
+ *   - Well-formed block → return the normalized contract object with
+ *     `environments` + `defaultEnvironment` and the two optional fields
+ *     (`consoleAllowlist`, `designTokens`) defaulted.
+ *
+ * `resolveQaEnvironment(contract, target)` selects one environment per
+ * harness invocation — by exact name or by raw-URL origin match against each
+ * environment's `baseUrl` — and throws loudly (naming the known environments)
+ * on an unknown name or unmatched URL.
  */
 
 import Ajv from 'ajv';
@@ -36,9 +44,18 @@ import { QA_SCHEMA } from '../config-settings-schema.js';
 export const QA_REQUIRED_FIELDS = Object.freeze([
   'featureRoot',
   'fixturesManifest',
-  'signInSeam',
+  'environments',
   'personas',
 ]);
+
+/**
+ * The environment name whose `allowWrites` defaults to `true` when the
+ * consumer omits the flag. Every other environment defaults to read-only
+ * (`allowWrites: false`) so an unguarded remote target cannot accept writes
+ * by accident — only the conventional `local` environment is write-enabled
+ * by default.
+ */
+const WRITE_ENABLED_DEFAULT_ENVIRONMENT = 'local';
 
 /** Defaults applied to the optional fields of a well-formed contract. */
 export const QA_CONTRACT_DEFAULTS = Object.freeze({
@@ -48,7 +65,7 @@ export const QA_CONTRACT_DEFAULTS = Object.freeze({
 
 const ABSENT_MESSAGE =
   'qa: this project has not bound the QA harness — add a `qa` block to ' +
-  '.agentrc.json (featureRoot, fixturesManifest, signInSeam, personas) ' +
+  '.agentrc.json (featureRoot, fixturesManifest, environments, personas) ' +
   'before invoking the QA harness. See .agents/docs/agentrc-reference.json for the ' +
   'full contract shape.';
 
@@ -127,7 +144,8 @@ function describeError(err) {
  * @returns {{
  *   featureRoot: string,
  *   fixturesManifest: string,
- *   signInSeam: object,
+ *   environments: Record<string, { baseUrl: string, signInSeam: object, allowWrites?: boolean }>,
+ *   defaultEnvironment: string,
  *   personas: Record<string, object>,
  *   personaNames: string[],
  *   consoleAllowlist: string[],
@@ -173,10 +191,28 @@ export function resolveQaContract(config) {
 
   const { personas, personaNames } = normalizePersonas(qa.personas);
 
+  // Clone each environment so callers cannot mutate the resolver's input.
+  const environments = {};
+  for (const [name, env] of Object.entries(qa.environments)) {
+    environments[name] = { ...env };
+  }
+
+  // The default environment is the conventional `local` target when present,
+  // otherwise the first-declared environment. `resolveQaEnvironment(contract)`
+  // (no target) resolves to this one.
+  const environmentNames = Object.keys(environments);
+  const defaultEnvironment = Object.hasOwn(
+    environments,
+    WRITE_ENABLED_DEFAULT_ENVIRONMENT,
+  )
+    ? WRITE_ENABLED_DEFAULT_ENVIRONMENT
+    : environmentNames[0];
+
   return {
     featureRoot: qa.featureRoot,
     fixturesManifest: qa.fixturesManifest,
-    signInSeam: qa.signInSeam,
+    environments,
+    defaultEnvironment,
     personas,
     personaNames,
     consoleAllowlist: Array.isArray(qa.consoleAllowlist)
@@ -186,5 +222,105 @@ export function resolveQaContract(config) {
       qa.designTokens === undefined
         ? QA_CONTRACT_DEFAULTS.designTokens
         : qa.designTokens,
+  };
+}
+
+/**
+ * Normalize a value to its URL origin (`protocol//host:port`), or `null` when
+ * it is not a parseable absolute URL. Used to match a raw-URL `target` against
+ * each environment's `baseUrl` by origin, so a target carrying a path,
+ * query-string, or trailing slash still resolves to the right environment.
+ *
+ * @param {string} value
+ * @returns {string | null}
+ */
+function toOrigin(value) {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve a single QA environment for one harness invocation.
+ *
+ * `target` selects which of the contract's `environments` to run against:
+ *   - **Omitted / falsy** → the contract's `defaultEnvironment`.
+ *   - **Exact environment name** → that environment.
+ *   - **Raw URL** → the environment whose `baseUrl` shares the same origin
+ *     (`protocol//host:port`), so a target with a path or query still matches.
+ *
+ * Resolution is name-first: a `target` that exactly names an environment wins
+ * even if it also happens to parse as a URL.
+ *
+ * `allowWrites` is resolved to an explicit boolean on the returned object: the
+ * environment's own value when set, otherwise `true` only for the conventional
+ * `local` environment and `false` for every other target — an unguarded remote
+ * environment is read-only unless the consumer opts in.
+ *
+ * Fails **loudly**: an unknown name or an unmatched URL throws an error that
+ * names the known environments so the operator can correct the invocation.
+ *
+ * @param {{ environments: Record<string, { baseUrl: string, signInSeam: object, allowWrites?: boolean }>, defaultEnvironment: string }} contract
+ *   A contract returned by `resolveQaContract`.
+ * @param {string} [target] Environment name or raw URL. Omit for the default.
+ * @returns {{ name: string, baseUrl: string, signInSeam: object, allowWrites: boolean }}
+ * @throws {Error} on an unknown name or unmatched URL.
+ */
+export function resolveQaEnvironment(contract, target) {
+  const environments = contract?.environments;
+  if (
+    environments == null ||
+    typeof environments !== 'object' ||
+    Object.keys(environments).length === 0
+  ) {
+    throw new Error(
+      'qa: cannot resolve an environment — the contract carries no ' +
+        '`environments`. Call resolveQaContract first.',
+    );
+  }
+
+  const known = Object.keys(environments);
+  const knownList = known.map((name) => `\`${name}\``).join(', ');
+
+  // No target → the default environment.
+  const name =
+    target == null || target === '' ? contract.defaultEnvironment : target;
+
+  // Exact-name match wins first (a name that also parses as a URL still
+  // resolves by name).
+  let resolvedName = Object.hasOwn(environments, name) ? name : null;
+
+  // Otherwise try to match the target as a raw URL against each baseUrl origin.
+  if (resolvedName === null) {
+    const targetOrigin = toOrigin(name);
+    if (targetOrigin !== null) {
+      resolvedName =
+        known.find(
+          (envName) => toOrigin(environments[envName].baseUrl) === targetOrigin,
+        ) ?? null;
+    }
+  }
+
+  if (resolvedName === null) {
+    throw new Error(
+      `qa: unknown environment \`${name}\` — the contract declares ${knownList}. ` +
+        'Pass an exact environment name or a URL whose origin matches one of ' +
+        'their baseUrl values.',
+    );
+  }
+
+  const env = environments[resolvedName];
+  const allowWrites =
+    typeof env.allowWrites === 'boolean'
+      ? env.allowWrites
+      : resolvedName === WRITE_ENABLED_DEFAULT_ENVIRONMENT;
+
+  return {
+    name: resolvedName,
+    baseUrl: env.baseUrl,
+    signInSeam: env.signInSeam,
+    allowWrites,
   };
 }

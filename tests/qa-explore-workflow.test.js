@@ -28,6 +28,10 @@
  *      redact-evidence, qa-session, and resolve-qa-contract helpers, the
  *      ledger schema, and the core/qa-coverage-mapping skill by path.
  *   8. It writes its ledger under temp/qa/.
+ *   9. Plan resolves the target environment via resolveQaEnvironment
+ *      (prompting when ambiguous) and records the environment name on the
+ *      ledger; static is re-scoped to the no-seam case and authenticated
+ *      driving follows the per-environment signInSeam (Epic #4326 / #4329).
  */
 
 import assert from 'node:assert/strict';
@@ -189,13 +193,67 @@ describe('qa-explore workflow contract', () => {
     );
     assert.match(
       source,
-      /Never enter real credentials/i,
-      'driving must never enter real credentials for an authenticated surface',
+      /Never type real credentials inline/i,
+      'driving must never type real credentials inline for an authenticated surface',
     );
     assert.match(
       source,
       /finding, not a workaround/i,
       'broken navigation must be recorded as a finding, not routed around',
+    );
+  });
+
+  it('resolves the target environment via resolveQaEnvironment at Plan time', () => {
+    const planSection =
+      source.match(/##\s+Phase 1 — Plan([\s\S]*?)(?:\r?\n---\r?\n)/)?.[1] ?? '';
+    assert.match(
+      planSection,
+      /resolveQaEnvironment/,
+      'Plan phase must resolve the target environment via resolveQaEnvironment',
+    );
+    assert.match(
+      planSection,
+      /prompt/i,
+      'Plan phase must prompt the operator when the target environment is ambiguous',
+    );
+    assert.match(
+      planSection,
+      /record the resolved\s+\*\*environment name\*\*/i,
+      'Plan phase must record the resolved environment name on the ledger alongside the driving method',
+    );
+  });
+
+  it('re-scopes static as the interim only where no seam resolves, not a forced authenticated fallback', () => {
+    // The retired forced-fallback wording must be gone: exploratory QA can now
+    // drive authenticated deployed surfaces through the per-environment seam.
+    assert.doesNotMatch(
+      source,
+      /does not deliver/i,
+      'the forced authenticated-driving fallback wording must be retired',
+    );
+    // Authenticated driving is now seam-based, including deployed hosts.
+    assert.match(
+      source,
+      /signInSeam/,
+      'authenticated driving must reference the per-environment signInSeam',
+    );
+    assert.match(
+      source,
+      /credentialRef/,
+      'the skill seam must reference credentialRef-indirected sign-in',
+    );
+    // Static is now scoped to the no-seam case, not the authenticated case.
+    assert.match(
+      source,
+      /no seam resolves/i,
+      'static must be documented as the interim only where no seam resolves',
+    );
+  });
+
+  it('references the resolve-qa-contract environment resolver by path', () => {
+    assert.ok(
+      source.includes('scripts/lib/qa/resolve-qa-contract.js'),
+      'qa-explore.md must reference resolve-qa-contract.js (resolveQaEnvironment home)',
     );
   });
 

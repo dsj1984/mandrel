@@ -19,10 +19,11 @@
  *
  * The emitted finding aligns with the `F#` finding shape from Tech Spec #3285
  * (`{ id, classification, surface, symptom, likelyRootCause, disposition,
- * acceptance, evidence: { console[], network[] } }`). Finding-shape *schema*
- * validation (`qa-finding.schema.json`) is a sibling Story; this module only
- * produces the console-derived subset and leaves richer enrichment
- * (likely-root-cause heuristics, drafting) to later layers.
+ * acceptance, evidence: { console[], network[] } }`). This module produces the
+ * console-derived subset; `/qa-run` (Story #4330) maps each such finding onto a
+ * `QaLedgerItem` (`qa-ledger.schema.json`) before routing it through the shared
+ * classify/route/dedup/promote core, leaving richer enrichment
+ * (likely-root-cause heuristics, drafting) to those later layers.
  */
 
 /**

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-24T15:18:24.654Z",
+  "generatedAt": "2026-07-04T19:11:52.671Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.988,
+      "p50": 97.996,
       "p95": 127.336
     }
   },
@@ -656,7 +656,7 @@
     },
     {
       "path": ".agents/scripts/lib/findings/promote-finding.js",
-      "mi": 95.354
+      "mi": 98.091
     },
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
@@ -665,6 +665,10 @@
     {
       "path": ".agents/scripts/lib/findings/semantic-issue-search.js",
       "mi": 107.762
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "mi": 110.425
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",

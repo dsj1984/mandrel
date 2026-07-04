@@ -196,8 +196,8 @@ function clusterToFinding(cluster) {
 /**
  * Build the `routedTo` link the schema stamps onto a promoted ledger item.
  *
- * The `routedTo.url` field is `minLength: 1` in both `qa-finding.schema.json`
- * and `qa-ledger.schema.json`, and the search/create port contract requires a
+ * The `routedTo.url` field is `minLength: 1` in `qa-ledger.schema.json`,
+ * and the search/create port contract requires a
  * routed issue to carry its canonical URL. So rather than silently stamp an
  * empty string (which would persist a schema-invalid ledger item), this guards
  * the url and throws when it is absent or blank (Story #3816, AC #4).
@@ -213,7 +213,7 @@ function routedToLink(issue, kind) {
     throw new Error(
       `promoteFindings: routed issue #${issue?.number ?? '?'} is missing a url; ` +
         'the search/create port contract requires a non-empty url ' +
-        '(routedTo.url is minLength:1 in the qa-finding/qa-ledger schemas)',
+        '(routedTo.url is minLength:1 in the qa-ledger schema)',
     );
   }
   return {
