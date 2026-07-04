@@ -289,9 +289,18 @@ stops.
 
 - **Re-Plan on Failure:** If a strategy fails, **STOP** and re-plan
   immediately. Do not repeat a broken approach.
-- **Subagent Strategy:** Use subagents liberally for research, exploration,
-  or parallel analysis to keep the main context window focused. One
-  objective per subagent.
+- **Subagent Strategy:** Spawning a subagent is not free — each spawn
+  re-pays the full always-loaded context, so treat it as a cost decision,
+  not a reflex. Prefer an **inline search** (grep, a targeted read) for
+  small or localized lookups where you already know roughly where to look;
+  reach for a subagent **only when the work is large enough to justify
+  replicating context** — a broad multi-file investigation, a parallel
+  exploration front, or an isolated task that would otherwise crowd the main
+  context window. One objective per subagent. When the host exposes a
+  cheaper or faster capability, prefer it for **mechanical or read-only**
+  spawns (search, doc regeneration, lint, log triage) and keep
+  **implementation and design** work on the default capability; name no
+  specific model — let the host and operator own the concrete mapping.
 - **Anti-Laziness:** NEVER use placeholder comments like
   `// ... existing code ...`, `/* rest of file */`, or
   `// implementation here`. You MUST output the ENTIRE file or the ENTIRE
