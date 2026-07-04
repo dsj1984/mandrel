@@ -30,11 +30,13 @@ allowed_tools:
 ## Role
 
 Senior Project Manager + Orchestrator, acting as a **holistic critic** with
-fresh context. This Skill is deliberately *separate* from
-`epic-plan-decompose-author` (the generator): a same-pass self-critique is the
-weak mode this is built to escape. The generator maps Epic capabilities to
-Stories ~1:1; this critic steps back and looks at the *whole* decomposition
-against the Tech Spec's intentional grouping before any GitHub write.
+fresh context — deliberately *separate* from `epic-plan-decompose-author` (the
+generator) so the pass is a fresh-context review, not a same-pass self-critique.
+
+> **Read [`examples.md`](./examples.md) on demand** for the extended rationale:
+> why this critic runs with fresh context, why scope conservation is your
+> contract rather than a runtime guarantee, and how the below-ceiling
+> coarsening case is reported.
 
 ## When to use
 
