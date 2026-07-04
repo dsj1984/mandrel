@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-24T15:18:24.654Z",
+  "generatedAt": "2026-07-04T18:37:40.064Z",
   "rollup": {
     "*": {
-      "min": 70.566,
-      "p50": 97.988,
+      "min": 48.787,
+      "p50": 97.964,
       "p95": 127.336
     }
   },
@@ -451,6 +451,10 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/config-settings-schema.js",
+      "mi": 48.787
+    },
+    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "mi": 105.406
     },
@@ -468,7 +472,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
-      "mi": 90.25
+      "mi": 90.381
     },
     {
       "path": ".agents/scripts/lib/config/gates/bundle-size.schema.js",
@@ -1468,7 +1472,7 @@
     },
     {
       "path": ".agents/scripts/lib/qa/resolve-qa-contract.js",
-      "mi": 97.891
+      "mi": 96.59
     },
     {
       "path": ".agents/scripts/lib/qa/resolve-selection.js",
