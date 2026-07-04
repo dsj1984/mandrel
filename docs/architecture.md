@@ -1430,14 +1430,24 @@ scopes the sweep to a concrete, deterministic scenario set:
 
 **Run pipeline.** Each sweep runs the same fixed sequence:
 
-1. **Resolve** the consumer's `qa` contract via `resolveQaContract(config)`.
-   The resolver **fails loudly** — there is no auto-detection fallback — when
-   the block is absent, malformed, or missing a required field.
+1. **Resolve** the consumer's `qa` contract via `resolveQaContract(config)`,
+   then select the target environment with `resolveQaEnvironment(contract,
+   target)` — by environment name or raw-URL origin match against each
+   environment's `baseUrl`. The resolver **fails loudly** — there is no
+   auto-detection fallback — when the block is absent, malformed, missing a
+   required field, or the target names an unknown environment.
 2. **Select** the scenario set deterministically (`(file, line)`-sorted) so
    re-running the same selector scopes the identical set and evidence stays
    diffable.
-3. **Sign in** once per persona via the contract's `signInSeam` — a dev-only
-   seam; real credentials are never entered.
+3. **Sign in** once per persona via the resolved environment's `signInSeam`
+   (each entry in the `environments` map carries its own seam). Under a
+   `{ urlTemplate }` dev seam no real credentials are entered; under a
+   `{ skill }` seam against a deployed environment, real auth uses only
+   `credentialRef`-indirected material — secrets are never inlined, echoed, or
+   persisted, and captured evidence passes `redact-evidence.js`. When the
+   resolved environment sets `allowWrites: false` (the default for every
+   environment except `local`), mutating scenarios are excluded unless the
+   operator overrides in-session.
 4. **Drive** each scenario **navigation-first**: start at a root and reach
    the surface under test only via UI affordances (never URL-jump to a deep
    link), and assert every `Then` **semantically** against the accessibility
@@ -1465,7 +1475,7 @@ in [`.agents/docs/agentrc-reference.json`](../.agents/docs/agentrc-reference.jso
 | ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `featureRoot`      | yes      | Filesystem root the selector resolves `.feature` files against.                                                                                               |
 | `fixturesManifest` | yes      | Path to the persona → seed-data manifest loaded before sign-in.                                                                                               |
-| `signInSeam`       | yes      | Discriminated union: `{ urlTemplate }` (substitute `{persona}` into a dev sign-in URL) **or** `{ skill }` (invoke a named consumer skill for procedural sign-in). |
+| `environments`     | yes      | Map keyed by environment name (`local`, `staging`, `production`, …); each entry is `{ baseUrl, signInSeam, allowWrites? }`. `signInSeam` is the per-environment discriminated union `{ urlTemplate }` (substitute `{persona}` into a dev sign-in URL) **or** `{ skill }` (invoke a named consumer skill for procedural real sign-in). `allowWrites` defaults to `true` only for `local`, `false` otherwise. Selected per invocation via `resolveQaEnvironment` (by name or `baseUrl` origin). |
 | `personas`         | yes      | Either a name-only `string[]` (the honest shape under a `{ urlTemplate }` seam, where the persona name is the sole input) **or** a map of persona name → `{ credentialRef }` / `{ signInSkill }` (per-persona auth material, consulted only under a `{ skill }` or credential seam). Never an inline secret. The resolver normalizes both to one canonical map keyed by persona name. |
 | `consoleAllowlist` | no       | Benign-console substring patterns to suppress (default `[]`). A noise filter, **not** a security control — never expand it to silence a genuine error.        |
 | `designTokens`     | no       | Pointer to the token/style source for visual spot-checks (default `null`). When `null`, the design-token check is skipped entirely.                            |

@@ -1172,8 +1172,10 @@ non-QA consumer) but enforced at run time: the resolver fails **loudly** with
 "this project has not bound the QA harness" when no `qa` block is present —
 there is no silent fallback. The contract's four required keys are
 `qa.featureRoot` (the `.feature` discovery root), `qa.fixturesManifest`
-(persona → seed-data binding), `qa.signInSeam` (the dev-only sign-in seam,
-either `{ urlTemplate }` or `{ skill }`), and `qa.personas` (the persona set,
+(persona → seed-data binding), `qa.environments` (the environment-keyed map —
+each entry `{ baseUrl, signInSeam, allowWrites? }`, selected per invocation by
+`resolveQaEnvironment`; the per-environment `signInSeam` is either
+`{ urlTemplate }` or `{ skill }`), and `qa.personas` (the persona set,
 authored as a name-only array under a url-template seam or as a per-persona
 credential/skill map under a skill seam); the two optional keys
 `qa.consoleAllowlist` and `qa.designTokens` default to `[]` and `null`.

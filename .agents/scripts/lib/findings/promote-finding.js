@@ -213,7 +213,7 @@ function routedToLink(issue, kind) {
     throw new Error(
       `promoteFindings: routed issue #${issue?.number ?? '?'} is missing a url; ` +
         'the search/create port contract requires a non-empty url ' +
-        '(routedTo.url is minLength:1 in the qa-finding/qa-ledger schemas)',
+        '(routedTo.url is minLength:1 in the qa-ledger schema)',
     );
   }
   return {
