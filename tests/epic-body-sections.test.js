@@ -17,6 +17,7 @@ import {
   extractEpicSection,
   hasEpicSection,
   hasTechSpecContent,
+  sliceEpicBodyForDelivery,
   stripEpicSection,
   stripPlanningArtifactsSection,
   upsertEpicSection,
@@ -201,6 +202,109 @@ describe('epic-body-sections', () => {
     it('passes bodies without the section through untouched', () => {
       assert.equal(stripPlanningArtifactsSection(IDEATION_BODY), IDEATION_BODY);
       assert.equal(stripPlanningArtifactsSection(''), '');
+    });
+  });
+
+  describe('sliceEpicBodyForDelivery', () => {
+    // A full Epic body with the keep/drop matrix, the techSpec managed
+    // region (inner ## Delivery Slicing heading), the acceptanceTable
+    // managed region, and an unknown operator-authored section.
+    const FULL_BODY = [
+      'Epic #1 — Deliver the widget',
+      '',
+      '## Context',
+      'Ideation context that a story agent never acts on.',
+      '',
+      '## Goal',
+      'Ship the widget.',
+      '',
+      '## Non-Goals',
+      'Not the gadget.',
+      '',
+      '## Scope',
+      'Only the widget module.',
+      '',
+      '## User Stories',
+      '- As a user I want a widget.',
+      '',
+      '## Acceptance Criteria',
+      '- [ ] widget renders',
+      '',
+      '## Operator Notes',
+      'Hand-authored content that must survive.',
+      '',
+      EPIC_BODY_SECTIONS.techSpec.start,
+      '',
+      '## Delivery Slicing',
+      '| Slice | What ships | Independent? |',
+      '| --- | --- | --- |',
+      '| S1 | the widget | yes |',
+      '',
+      EPIC_BODY_SECTIONS.techSpec.end,
+      '',
+      EPIC_BODY_SECTIONS.acceptanceTable.start,
+      '',
+      ACCEPTANCE_TABLE,
+      '',
+      EPIC_BODY_SECTIONS.acceptanceTable.end,
+    ].join('\n');
+
+    it('keeps title/Goal/Non-Goals/User Stories and drops Context/Scope/Acceptance Criteria', () => {
+      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      // KEEP
+      assert.ok(out.includes('Epic #1 — Deliver the widget'));
+      assert.ok(out.includes('## Goal'));
+      assert.ok(out.includes('Ship the widget.'));
+      assert.ok(out.includes('## Non-Goals'));
+      assert.ok(out.includes('Not the gadget.'));
+      assert.ok(out.includes('## User Stories'));
+      assert.ok(out.includes('As a user I want a widget.'));
+      // DROP
+      assert.ok(!out.includes('## Context'));
+      assert.ok(!out.includes('Ideation context'));
+      assert.ok(!out.includes('## Scope'));
+      assert.ok(!out.includes('Only the widget module.'));
+      assert.ok(!out.includes('## Acceptance Criteria'));
+      assert.ok(!out.includes('widget renders'));
+    });
+
+    it('keeps the techSpec managed region (inner Delivery Slicing heading) and drops the acceptanceTable region', () => {
+      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      assert.ok(out.includes('## Delivery Slicing'));
+      assert.ok(out.includes('| S1 | the widget | yes |'));
+      // acceptanceTable region and its AC-ID rows are gone.
+      assert.ok(!out.includes('## Acceptance Table'));
+      assert.ok(!/\|\s*AC-\d+\s*\|/.test(out));
+    });
+
+    it('preserves unknown / operator-authored sections (fail-open)', () => {
+      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      assert.ok(out.includes('## Operator Notes'));
+      assert.ok(out.includes('Hand-authored content that must survive.'));
+    });
+
+    it('handles a body with no managed regions (plain heading slice only)', () => {
+      const plain = [
+        '## Goal',
+        'do it',
+        '',
+        '## Context',
+        'drop me',
+        '',
+        '## User Stories',
+        '- story',
+      ].join('\n');
+      const out = sliceEpicBodyForDelivery(plain);
+      assert.ok(out.includes('## Goal'));
+      assert.ok(out.includes('## User Stories'));
+      assert.ok(!out.includes('## Context'));
+      assert.ok(!out.includes('drop me'));
+    });
+
+    it('returns empty string for empty / non-string input', () => {
+      assert.equal(sliceEpicBodyForDelivery(''), '');
+      assert.equal(sliceEpicBodyForDelivery(null), '');
+      assert.equal(sliceEpicBodyForDelivery(undefined), '');
     });
   });
 });

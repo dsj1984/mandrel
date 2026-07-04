@@ -133,11 +133,15 @@ in-process (retrying the install command when
 `dependenciesInstalled === 'false'`, default `npm ci`) and rendered the
 initial snapshot (`phase: "init"`). There is no separate command to run.
 
-The Step 0 result envelope carries a `prepare.renderedBody` field — the
-markdown body for the initial Story-phase table. **Relay it verbatim to
-chat** so operators see the initial progress block before the first commit
-lands. Do the same after every transition in Step 1 / Step 3 (the body is
-the Story-level rollup the parent `/deliver` aggregator reads).
+Step 0's init run already upserted the initial `story-run-progress`
+snapshot (`phase: "init"`) as a structured comment on the Story — that
+comment, refreshed by `story-phase.js` at each transition, is the
+authoritative Story-level rollup the parent `/deliver` aggregator reads.
+You do **not** relay `prepare.renderedBody` verbatim to chat. Instead,
+relay **one line per phase transition** (e.g. `Story #<id>: init →
+implementing`), and do the same after every transition in Step 1 / Step 3.
+The snapshot CLI carries the full body; the chat line is a terse progress
+delta, not a body dump.
 
 ---
 
@@ -161,6 +165,20 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    from the `story-init` structured comment (`context.acceptance`,
    `context.verify`). Treat the acceptance items as the contract and
    the verify items as the canonical at-keyboard checks.
+
+   **Docs context — read the digest, not the full set.** Do **not**
+   re-read every file in `project.docsContextFiles`. The parent prompt
+   passes a `docsDigestPath` (the per-Epic docs digest at
+   `temp/epic-<epicId>/docs-digest.md`, written by
+   `epic-deliver-prepare.js`). Read that digest — a compact per-file
+   outline (path, size, heading outline with line numbers, first
+   paragraph under each `##`) — to decide which docs bear on this Story,
+   then **pull the full file on demand** (jump to the section at the line
+   number the digest names) only when relevant. When `docsDigestPath` is
+   null (the project configured no `docsContextFiles`), there is no
+   digest and no per-Story docs mandate — read a full doc only if the
+   Story's own context points you at one. See
+   [`.agents/instructions.md` § 3](../../instructions.md).
 
 3. Implement the work as one or more commits on `story-<storyId>`.
    Author commits directly with the project's editor / `git commit`,
@@ -240,10 +258,14 @@ partially-implemented Story picks up from whatever commits are already
 on `story-<storyId>`; the agent inspects `git log` to decide what work
 remains.
 
-After each `story-phase.js` call, **relay the envelope's
-`renderedBody` to chat** as the Story's progress update. Skip chat
-relay only when running in a non-interactive sub-agent context where
-the parent will aggregate.
+After each `story-phase.js` call, relay **one line naming the phase
+transition** (e.g. `Story #<id>: implementing → closing`) as the Story's
+progress update — not the envelope's `renderedBody` verbatim. The
+`story-phase.js` CLI has already upserted the full body into the
+`story-run-progress` snapshot; that comment is the authoritative rollup
+the parent `/deliver` aggregator reads. Skip chat relay entirely when
+running in a non-interactive sub-agent context where the parent will
+aggregate.
 
 > Rebase pauses on conflicts → follow
 > [`_merge-conflict-template.md`](_merge-conflict-template.md).
@@ -338,8 +360,10 @@ regardless of the reap status.
 `story-phase.js` (typically the `phase: 'done'` snapshot at close,
 or the `phase: 'blocked'` snapshot on a blocker). The parent
 `/deliver` may inline a digest of this in its wave-level Notable
-section. When run interactively (no parent), omit it — the chat already
-has the latest body relayed during Step 1 / Step 3.
+section. When run interactively (no parent), omit it — the authoritative
+body lives in the `story-run-progress` snapshot the phase CLI upserted,
+and the chat already carries the per-transition progress lines from
+Step 1 / Step 3.
 
 ---
 
