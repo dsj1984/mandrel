@@ -4,18 +4,16 @@
  * Story #3716 (Feature #3710 "f3-qa-explore-core", Epic #3686). The
  * exploratory-QA ledger turns observations captured while exploring a consumer
  * surface into structured ledger items; this schema is the contract those
- * items are validated against before Triage parses a session. The ledger is
- * deliberately a distinct artifact from the browser-sweep `qa-finding`, so it
- * carries its own title and `$id`.
+ * items are validated against before Triage parses a session. Since Story
+ * #4330 folded `/qa-run` onto this same ledger, it is the sole QA finding
+ * artifact — the browser-sweep `qa-finding` schema was retired.
  *
  * Verifies:
  *   1. The schema exists, parses, declares draft-07, and compiles under AJV.
  *   2. A valid ledger item carrying id, class, severity, evidence, coverage,
  *      missingTest, disposition, and relates round-trips cleanly.
  *   3. A ledger item whose class is outside the enum is rejected.
- *   4. The schema is distinct from qa-finding.schema.json (different title and
- *      $id).
- *   5. (Story #3738) The two-phase item lifecycle: a captured-but-untriaged
+ *   4. (Story #3738) The two-phase item lifecycle: a captured-but-untriaged
  *      item — Capture-phase fields present, `disposition` absent / null /
  *      `pending` / `untriaged` — validates, while a fully-triaged item
  *      (resolved `disposition`) validates exactly as before, and genuinely
@@ -38,7 +36,6 @@ import addFormats from 'ajv-formats';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.resolve(__dirname, '..', '.agents', 'schemas');
 const LEDGER_SCHEMA_PATH = path.join(SCHEMA_DIR, 'qa-ledger.schema.json');
-const FINDING_SCHEMA_PATH = path.join(SCHEMA_DIR, 'qa-finding.schema.json');
 
 const schema = JSON.parse(readFileSync(LEDGER_SCHEMA_PATH, 'utf8'));
 
@@ -317,17 +314,13 @@ describe('qa-ledger.schema.json — routedTo finding-to-issue link (Story #3808)
   });
 });
 
-describe('qa-ledger.schema.json — distinct from qa-finding.schema.json', () => {
-  const findingSchema = JSON.parse(readFileSync(FINDING_SCHEMA_PATH, 'utf8'));
-
-  it('has a different title from the finding schema', () => {
+describe('qa-ledger.schema.json — identity', () => {
+  it('declares the QaLedgerItem title', () => {
     assert.equal(schema.title, 'QaLedgerItem');
-    assert.notEqual(schema.title, findingSchema.title);
   });
 
-  it('has a distinct, non-empty $id', () => {
+  it('declares a non-empty $id', () => {
     assert.equal(typeof schema.$id, 'string');
     assert.ok(schema.$id.length > 0, 'ledger schema declares a non-empty $id');
-    assert.notEqual(schema.$id, findingSchema.$id);
   });
 });

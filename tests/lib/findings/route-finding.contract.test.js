@@ -63,8 +63,9 @@ function fromAuditFinding(f) {
 }
 
 /**
- * Map a qa-explore `F#` finding (`qa-finding.schema.json` shape) onto the
- * same canonical identity. The QA harness names its fields differently
+ * Map a QA-harness `F#` finding (the console/network-derived shape produced by
+ * `console-allowlist.js`) onto the same canonical identity. The QA harness
+ * names its fields differently
  * (`classification`/`surface`/`symptom`/`disposition`), so the adapter
  * projects them onto {title, area, primaryFile, severity, labels} before
  * routing — proving a structurally different producer resolves through the

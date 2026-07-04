@@ -12,15 +12,21 @@ via the environment's configured seam, then delegates each scenario to
 [`helpers/qa-run-scenario.md`](helpers/qa-run-scenario.md) — which navigates
 **from a root** to drive each `Given/When/Then` and asserts `Then` outcomes
 **semantically** against the accessibility snapshot. Per-surface console and
-network are instrumented into structured findings; findings are bundled into a
-follow-up **draft** for operator sign-off — the harness never files tickets
-autonomously.
+network are instrumented into structured findings; those findings are recorded
+as `QaLedgerItem`s on the shared session ledger under `temp/qa/` and routed —
+after the operator sign-off gate — through the same
+classify/route/dedup/promote core `/qa-explore` and `/qa-assist` use, so re-run
+sweeps dedup previously-filed findings instead of re-drafting them. The harness
+never files tickets autonomously.
 
 This workflow is the agent-driven successor to the framework's earlier
 headless BDD runner. It is a **prose workflow**, not a Node orchestrator: the host LLM
 executes the procedure; deterministic Node helpers under
-`.agents/scripts/lib/qa/` do only contract resolution, environment resolution,
-scenario selection, and console filtering.
+`.agents/scripts/lib/qa/` do contract resolution, environment resolution,
+scenario selection, console filtering, evidence redaction, and session/ledger
+resolution, and the shared findings core under `.agents/scripts/lib/findings/`
+owns classification, dedup/route, and cluster/size/promote. The agent never
+invents those decisions in prose.
 
 > **When to run**: During sprint testing to exercise a targeted slice of the
 > acceptance suite (a feature, a tag expression, or a domain), for regression
@@ -137,6 +143,33 @@ dependency, not in-repo code. If the host does not expose it, degrade with a
 clear error ("the chrome-devtools MCP server is unavailable; the QA harness
 requires a live browser surface") and stop. Do not attempt a headless
 fallback.
+
+### Session & ledger (temp/qa/)
+
+Resolve the session and its ledger path **once**, up front, via
+[`qa-session.js`](../scripts/lib/qa/qa-session.js) — the same seam
+`/qa-explore` and `/qa-assist` use:
+
+```js
+import { resolveQaSession } from '../scripts/lib/qa/qa-session.js';
+const { sessionId, ledgerPath, reused, untriaged } = resolveQaSession({ config });
+```
+
+- The ledger is always written under **`temp/qa/<sessionId>.ndjson`**
+  (`<tempRoot>/qa/`, resolved from `project.paths.tempRoot`). It is one
+  `QaLedgerItem` per line (ndjson) validated against
+  [`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json). **Never** write
+  the ledger anywhere else, and never commit it — `temp/` is gitignored per
+  [`.agents/instructions.md` § 6](../instructions.md).
+- When `reused` is `true`, a prior session of the same id exists: **append**,
+  never overwrite, and carry the `untriaged` items forward as the rolling
+  backlog. Pass `--session-id <id>` (or `QA_SESSION_ID`) to resume a named
+  session.
+
+The sweep's `F#` findings (Step 4) are recorded as `QaLedgerItem`s on this
+ledger, and Step 5 routes the ledger through the shared
+classify/route/dedup/promote core — there is no separate `/qa-run` finding
+schema or draft-bundle path.
 
 ## Step 0.5 — Resolve the environment, then the scope (interactive when unargued)
 
@@ -283,7 +316,7 @@ blocked), surface, findings[] }`. Collect one result per scenario; the sweep
 report shape (per-scenario `intent + verdict` lines plus totals, Step 6) is
 unchanged from the inlined procedure.
 
-## Step 4 — Instrument & inspect (findings)
+## Step 4 — Instrument & record findings onto the ledger
 
 The per-scenario helper captures console and network per surface and turns
 genuine problems into structured findings, applying the contract's
@@ -295,26 +328,68 @@ spot-checking the surface against the token source. The allowlist is a **noise
 filter, not a security control** — never expand it to silence a genuine error
 signal.
 
-Findings use the structured `F#` shape: `{ id, classification, surface,
-symptom, likelyRootCause, disposition (blocker | follow-up), acceptance,
-foldsInto?, evidence: { console[], network[] } }`, validated against
-[`qa-finding.schema.json`](../schemas/qa-finding.schema.json). Before any
-finding evidence leaves the helper, captured console/network is scrubbed of
-tokens, session cookies, and PII via
+Each returned `F#` finding — the console/network-derived shape
+`{ id, classification, surface, symptom, likelyRootCause, disposition,
+acceptance, evidence: { console[], network[] } }`, with evidence already
+scrubbed of tokens, session cookies, and PII via
 [`redact-evidence.js`](../scripts/lib/qa/redact-evidence.js) per
-`.agents/rules/security-baseline.md` — findings are posted to GitHub at
-approval time.
+`.agents/rules/security-baseline.md` — is **recorded as a `QaLedgerItem`** on
+the session ledger resolved in Step 0 (`temp/qa/<sessionId>.ndjson`,
+[`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json)). Map the finding
+onto the ledger shape: a stable `id` (`L1`, `L2`, … in append order), the
+finding's `symptom` as the scrubbed `evidence`, the finding's `surface` as
+`coverage`, a `class` (map the finding's classification onto the
+ledger `class` enum — a product defect is `product-bug`, a tooling gap is
+`tooling-dx`, etc.) and `severity`, `missingTest` (`null` when no test gap
+applies), and `disposition` left untriaged. **Append** to the ledger, never
+overwrite; a re-run appends to the same session. This is the single findings
+channel — there is no separate `/qa-run` finding schema or draft bundle.
 
-## Step 5 — Draft follow-ups (operator sign-off required)
+## Step 5 — Triage the ledger (operator sign-off required)
 
-Validate each finding against
-[`qa-finding.schema.json`](../schemas/qa-finding.schema.json) first, then
-bundle findings **by likely root cause** into proposed follow-up tickets with
-`Depends-on` / `Blocks` relationships, and present the draft to the operator
-for approval. The harness **MUST NOT** create tickets autonomously — it stops
-at a draft. The operator-approval gate is the safety boundary against spurious
-filing. If the run was triggered from an Epic-testing context, hand the
-approved findings to the Epic-testing helper for attachment to the Epic's QA
+After the sweep completes, route the ledger through the same
+classify/route/dedup/promote core `/qa-explore` Triage and `/qa-assist` use.
+The **operator sign-off gate is preserved**: the harness MUST NOT create
+tickets autonomously — present the routed dispositions and confirm each
+`file` / `defer` / `dismiss` with the operator before any write.
+
+For each untriaged ledger item:
+
+1. **Classify** it via
+   [`classify-finding.js`](../scripts/lib/findings/classify-finding.js). The
+   item's `class` resolves to the focus/meta label set Triage applies when
+   promoting it. The helper **throws** on an absent/unknown class — fix the
+   ledger item's class rather than defaulting.
+2. **Dedup / route** it against existing GitHub Issues via
+   [`route-finding.js`](../scripts/lib/findings/route-finding.js):
+
+   ```js
+   import { routeFinding, fingerprintFooter } from '../scripts/lib/findings/route-finding.js';
+   const { decision, matchedIssue, fingerprint } =
+     await routeFinding(finding, { searchIssues });
+   ```
+
+   `decision` is one of `new` / `update-existing` / `duplicate` /
+   `regression-of-closed`. Wire the `searchIssues` port to the GitHub provider,
+   querying **both open and closed** Issues, and stamp the
+   `fingerprintFooter(sha)` marker into any Issue body so future sweeps dedup
+   against it. This is the **single** dedup implementation shared with
+   `/qa-explore`, `/qa-assist`, and `audit-to-stories`.
+3. **Decide the disposition** with the operator (`file` / `defer` / `dismiss`)
+   and record it back onto the ledger item.
+4. **Promote the `file`-dispositioned findings through `/plan`** via
+   [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) — the
+   same cluster/size/route/file path `/qa-explore` and `/audit-to-stories`
+   consume (`clusterLedgerItems` + `targetForCluster`: a cluster spanning ≤2
+   coverage surfaces routes to `createStory` via `/plan --from-notes`, >2 to
+   `createEpic` via `/plan --idea`, with the cluster's `fingerprintFooter(sha)`
+   stamped verbatim into the seed). A `file` disposition never opens a raw
+   GitHub Issue; only `defer` and `dismiss` skip the `/plan` handoff.
+5. **Gate:** any ticket-filing, seed write, `/plan` invocation, or label
+   mutation is a write — confirm each with the operator before it happens.
+
+If the run was triggered from an Epic-testing context, hand the approved,
+promoted findings to the Epic-testing helper for attachment to the Epic's QA
 evidence ticket.
 
 ## Step 6 — Report
@@ -326,13 +401,15 @@ Summarize the sweep in chat with:
 - The resolved scenario count, plus the **`allowWrites` exclusion count** when
   mutating scenarios were skipped on a read-only environment.
 - Scenario totals: passed / failed / blocked.
-- Findings totals by classification and disposition (blocker vs follow-up).
+- Findings totals by classification, and the ledger routes
+  (`new` / `update-existing` / `duplicate` / `regression-of-closed`).
 - A per-scenario line pairing each scenario's plain-English intent with its
   verdict (pass / fail / blocked), grouped by feature file or domain — so the
   digest reads as "what was checked → what happened", not a tag list.
 - For each failure, the scenario name, file path, the surface it ended on, and
   a one-line user-visible symptom.
-- A pointer to the drafted follow-up bundle awaiting sign-off (if any).
+- The ledger path (under `temp/qa/`) and a pointer to the routed dispositions
+  awaiting operator sign-off (if any).
 
 ## Constraints
 
@@ -353,8 +430,20 @@ Summarize the sweep in chat with:
 - **Under a skill seam**, real sign-in uses only `credentialRef`-indirected
   material; secrets are never echoed into chat, findings, or the ledger; and
   captured evidence passes `redact-evidence.js` before persistence.
-- **Never** file follow-up tickets autonomously; stop at a draft for operator
-  sign-off.
+- **Always** record findings as `QaLedgerItem`s on the shared session ledger
+  under `temp/qa/` ([`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json))
+  and route them through the shared classify/route/dedup/promote core — there
+  is no separate `/qa-run` finding schema or draft-bundle path. Never commit
+  the ledger.
+- **Delegate Triage decisions to the helpers.** Classification
+  ([`classify-finding.js`](../scripts/lib/findings/classify-finding.js)),
+  dedup/route ([`route-finding.js`](../scripts/lib/findings/route-finding.js),
+  fingerprint-footer against open + closed issues), and cluster/size/promote
+  ([`promote-finding.js`](../scripts/lib/findings/promote-finding.js)) are
+  deterministic — never re-derive them in prose.
+- **Never** file follow-up tickets autonomously; promote `file` findings
+  through `/plan` only after operator sign-off, and never open a raw GitHub
+  Issue for a `file` finding.
 - **Never** expand `consoleAllowlist` to suppress genuine error signal — it is
   a benign-noise filter, not a security control.
 - **Always** scrub captured evidence of secrets and PII before rendering a

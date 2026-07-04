@@ -119,7 +119,7 @@ test('classifyFinding resolves severity case- and whitespace-insensitively', () 
 
 test('classifyFinding defaults an absent/unrecognised severity to the canonical floor (info)', () => {
   // Story #3816: the canonical vocabulary is `critical|high|medium|low|info`
-  // (matching the qa-ledger/qa-finding schemas); the non-canonical `unknown`
+  // (matching the qa-ledger schema); the non-canonical `unknown`
   // sentinel is gone. An absent or unrecognised severity resolves to `info`,
   // the canonical floor, identically on the classify and promote paths.
   assert.equal(classifyFinding({ class: 'product-bug' }).severity, 'info');
