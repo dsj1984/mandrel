@@ -269,14 +269,32 @@ function stripSection(body, heading) {
  * content appears exactly once in the hydrated envelope rather than being
  * duplicated between the dedicated sections and the full task body.
  *
+ * Each heading group is stripped only when its own dedicated section was
+ * emitted (`acceptance` gates `## Acceptance Criteria` + `## Acceptance`;
+ * `verify` gates `## Verify`). This keeps the strip symmetric with what was
+ * reproduced elsewhere in the envelope: a `## Verify` section that carried no
+ * bullets (so no dedicated `verificationCommands` section fired) is left
+ * intact in `taskInstructions` rather than being silently dropped. Both flags
+ * default to `true` so a no-argument call preserves the original
+ * strip-everything behaviour.
+ *
  * @param {string} body
+ * @param {{ acceptance?: boolean, verify?: boolean }} [opts]
  * @returns {string}
  */
-export function stripStorySectionsForTaskInstructions(body) {
+export function stripStorySectionsForTaskInstructions(
+  body,
+  { acceptance = true, verify = true } = {},
+) {
   if (typeof body !== 'string' || body.length === 0) return body ?? '';
-  let out = stripSection(body, 'Acceptance Criteria');
-  out = stripSection(out, 'Acceptance');
-  out = stripSection(out, 'Verify');
+  let out = body;
+  if (acceptance) {
+    out = stripSection(out, 'Acceptance Criteria');
+    out = stripSection(out, 'Acceptance');
+  }
+  if (verify) {
+    out = stripSection(out, 'Verify');
+  }
   return out;
 }
 
@@ -531,14 +549,16 @@ function buildStaticSections(
     }
   }
 
-  // Track whether either dedicated acceptance/verify section was emitted so
-  // taskInstructions can drop the duplicated inline sections from the body —
-  // keeping each binding acceptance/verify item in the envelope exactly once.
-  let dedicatedSectionsEmitted = false;
+  // Track which dedicated section(s) were emitted so taskInstructions drops
+  // only the inline sections that were actually reproduced elsewhere in the
+  // envelope — keeping each binding acceptance/verify item present exactly
+  // once, without dropping a bulletless section that has no dedicated twin.
+  let acceptanceEmitted = false;
+  let verifyEmitted = false;
   if (isTwoTierStoryTask(task)) {
     const { acceptance, verify } = extractStorySections(task.body ?? '');
     if (acceptance.length > 0) {
-      dedicatedSectionsEmitted = true;
+      acceptanceEmitted = true;
       sections.push({
         name: 'acceptanceCriteria',
         priority: DEFAULT_SECTION_PRIORITIES.acceptanceCriteria,
@@ -550,7 +570,7 @@ function buildStaticSections(
       });
     }
     if (verify.length > 0) {
-      dedicatedSectionsEmitted = true;
+      verifyEmitted = true;
       sections.push({
         name: 'verificationCommands',
         priority: DEFAULT_SECTION_PRIORITIES.verificationCommands,
@@ -563,12 +583,19 @@ function buildStaticSections(
     }
   }
 
-  // When the dedicated acceptance/verify sections carry those lists, strip
-  // them from the task body so they are not duplicated in taskInstructions.
-  // When absent, taskInstructions is byte-identical to the full body.
-  const taskBody = dedicatedSectionsEmitted
-    ? stripStorySectionsForTaskInstructions(task.body ?? '')
-    : task.body;
+  // When a dedicated acceptance/verify section carries that list, strip the
+  // matching inline heading(s) from the task body so they are not duplicated
+  // in taskInstructions. Each group is gated on its own section: an inline
+  // section with no dedicated twin (e.g. a bulletless `## Verify`) is left
+  // intact. When neither fired, taskInstructions is byte-identical to the
+  // full body.
+  const taskBody =
+    acceptanceEmitted || verifyEmitted
+      ? stripStorySectionsForTaskInstructions(task.body ?? '', {
+          acceptance: acceptanceEmitted,
+          verify: verifyEmitted,
+        })
+      : task.body;
   sections.push({
     name: 'taskInstructions',
     priority: DEFAULT_SECTION_PRIORITIES.taskInstructions,
