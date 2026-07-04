@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-04T00:29:42.907Z",
+  "generatedAt": "2026-07-04T18:46:19.810Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -567,8 +567,8 @@
       "tier": "stack",
       "category": "qa",
       "path": ".agents/skills/stack/qa/qa-explore-driving/SKILL.md",
-      "description": "Conventions for agent-driven exploratory QA driving — how the agent itself drives a surface during `/qa-explore` (agent-led), as opposed to the human-led `/qa-assist`. Use when the agent explores a running app via the browser MCP (navigation-first, the default) or walks a static surface (the documented interim until consumer persona-seeding lands), under a strictly read-only capture invariant. The exploration procedure lives in `.agents/workflows/qa-explore.md`; this skill is the driving-conventions reference it leans on.",
-      "policyCapsuleBullets": 8,
+      "description": "Conventions for agent-driven exploratory QA driving — how the agent itself drives a surface during `/qa-explore` (agent-led), as opposed to the human-led `/qa-assist`. Use when the agent explores a running app via the browser MCP (navigation-first, the default) — including authenticated deployed surfaces reached through the resolved environment's sign-in seam — or walks a static surface (the documented interim where no seam resolves), under a strictly read-only capture invariant. The exploration procedure lives in `.agents/workflows/qa-explore.md`; this skill is the driving-conventions reference it leans on.",
+      "policyCapsuleBullets": 9,
       "allowedTools": null,
       "vendor": null
     },
