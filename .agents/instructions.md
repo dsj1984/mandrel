@@ -256,8 +256,9 @@ budget grounds.
 
 1. **Context First:** Before proposing any solution, understand the
    repository's tech stack, historical context, and structure.
-   - **Mandatory Reading**: Before starting ANY task, you MUST read every
-     file listed in `project.docsContextFiles` in `.agentrc.json`.
+   - **Mandatory Reading (planning & interactive tasks)**: For planning
+     (`/plan`) and interactive tasks, before starting ANY work you MUST read
+     every file listed in `project.docsContextFiles` in `.agentrc.json`.
      This list is the project's authoritative reference set (architecture,
      data dictionary, decisions log, patterns, etc.) and replaces any
      hardcoded filename list. Resolve each entry against
@@ -269,6 +270,23 @@ budget grounds.
      When it is an index, only the index is the mandatory-read; the
      per-ADR bodies under `decisions/` are link-followed on demand
      (index-only by default), not auto-loaded into every task's context.
+   - **Digest-first Reading (`/deliver` story sub-agents)**: A `/deliver`
+     Story delivery sub-agent (dispatched via `helpers/epic-deliver-story` or
+     `helpers/single-story-deliver`) does **not** re-read the full
+     `project.docsContextFiles` set per Story. Instead it reads the **per-Epic
+     docs digest** — a single compact outline (path, byte size, heading
+     outline with line numbers, and the first paragraph under each `##`) that
+     `epic-deliver-prepare.js` writes to
+     `temp/epic-<epicId>/docs-digest.md` and the parent threads into the
+     child prompt as `docsDigestPath`. Use the digest to decide which docs are
+     relevant to the Story at hand, then **pull the full file on demand**
+     (reading the section at the line number the digest names) when a section
+     bears on the change. When `docsDigestPath` is null (the project has no
+     `project.docsContextFiles` configured) there is no digest to read and no
+     per-Story docs mandate — read a full doc only if the Story's own context
+     points you at one. This is the hard cutover from the former
+     read-every-file-per-Story rule: delivery children no longer ingest the
+     whole docs set up front.
    - **Conditional Reads**: When the task touches UI copy, layout, or
      routing and the corresponding file is present in the project, also
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when

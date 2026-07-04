@@ -32,13 +32,16 @@
  *   node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
-import { getRunners, resolveConfig } from './lib/config-resolver.js';
+import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
 import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
 import { getEpicBranch, gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { buildDocsDigest } from './lib/orchestration/docs-digest.js';
 import {
   resolveOperator,
   runPrepareGuards,
@@ -286,6 +289,40 @@ function evaluatePrepareConcurrencyGate({
   return gate;
 }
 
+/**
+ * Build the per-Epic docs digest and write it to
+ * `<tempRoot>/epic-<id>/docs-digest.md`, returning its repo-relative path.
+ * Story #4338 — the parent threads this path into every child prompt so
+ * delivery sub-agents read one compact outline instead of re-ingesting the
+ * full `project.docsContextFiles` set per Story.
+ *
+ * Keyed off the **un-defaulted** config (`config.raw`): when the operator has
+ * not configured `project.docsContextFiles`, this returns `null` (no file
+ * written) rather than digesting the resolver's built-in default set — the
+ * digest is an opt-in surface for projects that curate their docs context.
+ *
+ * @param {{ epicId: number, cwd?: string, config: object }} args
+ * @returns {Promise<string|null>} repo-relative digest path, or null when
+ *   `project.docsContextFiles` is empty/unset (or every file is missing).
+ */
+async function writeDocsDigest({ epicId, cwd, config }) {
+  const rawFiles = config?.raw?.project?.docsContextFiles;
+  const docsContextFiles = Array.isArray(rawFiles) ? rawFiles : [];
+  if (docsContextFiles.length === 0) return null;
+
+  const paths = getPaths(config);
+  const root = path.resolve(cwd ?? process.cwd());
+  const docsRoot = path.resolve(root, paths.docsRoot);
+  const digest = await buildDocsDigest({ docsContextFiles, docsRoot });
+  if (digest == null) return null;
+
+  const relPath = path.join(paths.tempRoot, `epic-${epicId}`, 'docs-digest.md');
+  const absPath = path.resolve(root, relPath);
+  await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+  await fs.promises.writeFile(absPath, digest, 'utf-8');
+  return relPath;
+}
+
 export async function runEpicDeliverPrepare({
   epicId,
   cwd,
@@ -374,6 +411,8 @@ export async function runEpicDeliverPrepare({
     });
   }
 
+  const docsDigestPath = await writeDocsDigest({ epicId, cwd, config });
+
   return {
     epicId,
     storyCount: openStories.length,
@@ -385,6 +424,7 @@ export async function runEpicDeliverPrepare({
       new Date().toISOString(),
     concurrencyHazardsBypassed: gate.bypassed,
     preflightCache: cacheStatus,
+    docsDigestPath,
   };
 }
 

@@ -302,28 +302,10 @@ When the Acceptance Table contains **one or more `Disposition: new` rows**, you 
 
 When the Acceptance Table contains **zero `new`-disposition rows** (every row is `updated` or `unchanged`), do NOT emit a scaffold Story — there is nothing to create.
 
-**Worked example.** Epic #42, Acceptance Table with two `new` rows (`AC-1` -> `tests/features/billing/invoice.feature`, `AC-2` -> `tests/features/billing/refund.feature`). The scaffold Story below uses a serialized string `body`, top-level `acceptance`/`verify` arrays, an empty `depends_on`, and tags each scenario with both `@skip` and its namespaced `@epic-42-ac-N` tag:
-
-    {
-      "slug": "scaffold-billing-feature-files",
-      "type": "story",
-      "title": "Scaffold @skip-tagged billing feature files",
-      "depends_on": [],
-      "labels": ["type::story", "persona::qa-engineer"],
-      "acceptance": [
-        "tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch",
-        "every Scenario in the two new feature files is preceded by an @skip tag (grep for un-skipped scenarios returns zero matches)",
-        "the invoice.feature scenario carries @epic-42-ac-1 and the refund.feature scenario carries @epic-42-ac-2"
-      ],
-      "verify": [
-        "test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)",
-        "test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)",
-        "grep -q '@epic-42-ac-1' tests/features/billing/invoice.feature && grep -q '@epic-42-ac-2' tests/features/billing/refund.feature (validate)"
-      ],
-      "body": "## Goal\nbdd-scaffold: create the @skip-tagged, @epic-42-ac-N-tagged feature files the billing-flows implementation Stories verify against, so wave-0 lands them before any implementation Story runs.\n\n## Changes\n- {\"path\": \"tests/features/billing/invoice.feature\", \"assumption\": \"creates\"}\n- {\"path\": \"tests/features/billing/refund.feature\", \"assumption\": \"creates\"}\n\n## Acceptance\n- [ ] tests/features/billing/invoice.feature and tests/features/billing/refund.feature both exist on the branch\n- [ ] every Scenario in the two new feature files is preceded by an @skip tag\n- [ ] the invoice.feature scenario carries @epic-42-ac-1 and the refund.feature scenario carries @epic-42-ac-2\n\n## Verify\n- test -f tests/features/billing/invoice.feature && test -f tests/features/billing/refund.feature (validate)\n- test -z \"$(grep -rL '@skip' tests/features/billing/*.feature)\" (validate)\n- grep -q '@epic-42-ac-1' tests/features/billing/invoice.feature && grep -q '@epic-42-ac-2' tests/features/billing/refund.feature (validate)\n"
-    }
-
-The implementation Stories that later un-skip and flesh out these scenarios each carry `depends_on: ["scaffold-billing-feature-files"]`, placing them in a later wave than the scaffold. They MUST NOT add the `@epic-42-ac-N` tag themselves — it is already present from the scaffold pass; their job is to remove `@skip` once the scenario passes.
+> **Read [`examples.md`](./examples.md) on demand** for a fully worked wave-0
+> scaffold Story (Epic #42, two `new` rows) showing the serialized string
+> `body`, the top-level `acceptance`/`verify` arrays, the empty `depends_on`,
+> and the paired `@skip` + `@epic-<id>-ac-N` tagging.
 
 ### SCOPE-OVERLAP FLAGGING (docs/runbook downstream of config work)
 
