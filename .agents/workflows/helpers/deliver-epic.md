@@ -72,9 +72,11 @@ spawned.
 - `--skip-retro` — skip Phase 6 (use sparingly).
 - `--full-retro` — force the six-section retro regardless of manifest
   cleanliness. `--skip-retro` wins over `--full-retro`.
-- `--skip-integration-gate` — skip Phase 6.5 (log the override). Skipping
-  the gate is recorded as a manual intervention and disqualifies auto-merge,
-  exactly like the other `--skip-*` overrides.
+- `--skip-integration-gate` — skip Phase 6.5 (log the override). The
+  explicit operator override for the post-wave integration gate,
+  consistent with `--skip-epic-audit`. Skipping the gate is recorded as a
+  manual intervention and disqualifies auto-merge, exactly like the other
+  `--skip-*` overrides.
 
 Every other runtime modifier is sourced from the Epic's labels or from
 `delivery.deliverRunner` in `.agentrc.json`.
@@ -530,19 +532,24 @@ unconfigured** (no `routeGlobs` / `navRegistry` / `journeySuite` in
 Sub-steps and hard-failure semantics:
 
 - **6.5a — Whole-product navigability**: run the `navigability` lens in
-  whole-route mode over the `epic/<epicId>` tip. An orphaned route or dead
-  nav href is a hard failure.
+  whole-route mode over the `epic/<epicId>` tip. An **orphaned** route (no
+  nav door for any entitled persona) or a dead nav href is a hard failure
+  that **blocks finalize** and names the surface.
 - **6.5b — Consumer journey suite**: run
   `delivery.quality.navigability.journeySuite` over the tip. A failing
-  persona journey is a hard failure.
+  persona journey is a hard failure that **blocks finalize** and names the
+  broken journey.
 - **6.5c — `@pending` ≠ green for surface-adding Epics (F4)**: for a
-  surface-adding Epic, an AC covered **only** by `@pending` scenarios is
-  treated as unsatisfied and fails the close gate.
+  **surface-adding** Epic, an AC covered **only** by `@pending` scenarios is
+  treated as unsatisfied and **fails the close gate** instead of passing
+  green. This is **purely additive** and scoped to surface-adding Epics —
+  refactor-only and docs-only Epics are **unaffected** and the existing
+  `satisfied` / `missing` reconciliation is **not de-scoped** for any Epic.
 
 On any hard failure, post a friction structured comment naming the surface
 (route / nav-door identifier only — never route bodies or persona PII per
 `security-baseline.md`), flip the Epic to `agent::blocked`, and **do not**
-open the PR. See
+open the PR — the gate fails safe and loud. See
 [`deliver-epic-reference.md` § Phase 6.5](deliver-epic-reference.md#phase-65--post-wave-integration-gate-epic-4131-f1f4)
 for the full lens config, the surface-adding-signal derivation, the no-op
 degradation contract, and the fail-safe-and-loud security note.
