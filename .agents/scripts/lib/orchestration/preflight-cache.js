@@ -22,7 +22,7 @@
  *     call (`getTicket(epicId)`) used to walk the hierarchy. The hash
  *     covers the Epic's id, body, labels (sorted), and (when present)
  *     `updatedAt` — the same fields that drive Story discovery and the
- *     acceptance-spec gate.
+ *     acceptance start gate (the Epic body's ## Acceptance Table).
  *   - Cache miss is signalled by `readCache` returning `null`. Callers
  *     MUST fall back to a fresh snapshot/DAG pass.
  *   - `writeCache` creates the parent directory recursively and writes

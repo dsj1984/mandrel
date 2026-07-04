@@ -11,8 +11,6 @@
  * Extracted from `../github.js` in Story #1846 / Task #1859.
  */
 
-import { parseLinkedIssues } from '../../lib/issue-link-parser.js';
-
 function normalizeLabels(issue) {
   const raw = issue?.labels;
   if (!raw) return [];
@@ -50,7 +48,6 @@ export function issueToEpic(issue) {
     body: issue.body ?? '',
     labels,
     labelSet: new Set(labels),
-    linkedIssues: parseLinkedIssues(issue.body),
   };
 }
 

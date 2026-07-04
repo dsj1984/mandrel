@@ -2,21 +2,22 @@
 /**
  * acceptance-spec-reconciler.js — Story #2106 / Task #2113 (Epic #2001).
  *
- * Diffs the AC IDs declared in an Epic's linked `context::acceptance-spec`
- * body against the **per-Epic-namespaced** `@epic-<id>-ac-*` / `@pending`
- * tags emitted by scenarios under `tests/features/**`. The namespace is
- * load-bearing (Story #3362): `tests/features` is a single global tree
- * shared by every Epic, so a bare `@ac-N` tag authored under an unrelated
- * Epic's scenarios must not count as coverage for this Epic. Surfaces three
- * categories:
+ * Diffs the AC IDs declared in the Epic body's `## Acceptance Table`
+ * managed section (Story #4324 retired the `context::acceptance-spec`
+ * ticket class — the table now lives on the Epic body itself) against the
+ * **per-Epic-namespaced** `@epic-<id>-ac-*` / `@pending` tags emitted by
+ * scenarios under `tests/features/**`. The namespace is load-bearing
+ * (Story #3362): `tests/features` is a single global tree shared by every
+ * Epic, so a bare `@ac-N` tag authored under an unrelated Epic's scenarios
+ * must not count as coverage for this Epic. Surfaces three categories:
  *
  *   - `satisfied[]` — AC IDs covered by at least one non-pending scenario.
  *   - `pending[]`   — AC IDs covered only by scenarios tagged `@pending`.
  *   - `missing[]`   — AC IDs declared in the spec with no matching scenario.
  *
  * Used by `epic-deliver-finalize.js` (Task #2111) as a close-time gate: a
- * non-OK result aborts finalize before `closePlanningArtifacts` fires, so
- * planning artifacts stay open until the AC coverage gap is fixed.
+ * non-OK result aborts finalize before the PR opens, so the Epic stays
+ * blocked until the AC coverage gap is fixed.
  *
  * Per `.agents/rules/orchestration-error-handling.md`, this module
  * **throws `Error`** for unrecoverable conditions (rather than calling
@@ -27,16 +28,25 @@
  * Usage:
  *   node .agents/scripts/acceptance-spec-reconciler.js --epic <epicId>
  *
+ * When invoked with `writeDispositions: true` (the close-time lifecycle
+ * listener path), the reconciler records the verification outcome of each
+ * AC row — `satisfied` / `pending` / `missing` — into the Disposition
+ * column of the `## Acceptance Table` section. The write is
+ * **section-scoped**: only the managed acceptance-table region of the Epic
+ * body is rewritten; everything outside it is byte-preserved (Story #4324
+ * guardrail, extending the single-writer discipline of #4303).
+ *
  * Stdout: a single JSON envelope:
  *   {
  *     "epicId": <number>,
- *     "acceptanceSpecId": <number|null>,
  *     "ok": <boolean>,
- *     "ackIds": ["AC-1", "AC-2", ...],
+ *     "status": "ok"|"waived"|"empty-spec"|"gap",
+ *     "acIds": ["AC-1", "AC-2", ...],
  *     "satisfied": ["AC-1", ...],
  *     "pending":   ["AC-2", ...],
  *     "missing":   ["AC-3", ...],
- *     "featureFilesScanned": <number>
+ *     "featureFilesScanned": <number>,
+ *     "dispositionsUpdated": <boolean>
  *   }
  */
 
@@ -47,34 +57,40 @@ import { parseArgs } from 'node:util';
 import { PENDING_TAGS } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
-import { parseLinkedIssues } from './lib/issue-link-parser.js';
+import {
+  extractEpicSection,
+  upsertEpicSection,
+} from './lib/epic-body-sections.js';
 import { Logger } from './lib/Logger.js';
 import { ACCEPTANCE_NA } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/acceptance-spec-reconciler.js --epic <epicId>
 
-Diffs the AC IDs in the Epic's linked acceptance-spec body against the
-@ac-*/@pending tags in tests/features/**. Emits a JSON envelope on stdout.
-Throws (exit 1) when missing or pending ACs are detected, or when the Epic
-has no linked acceptance-spec and the acceptance::n-a waiver label is
-absent.
+Diffs the AC IDs in the Epic body's ## Acceptance Table section against the
+@epic-<id>-ac-*/@pending tags in tests/features/**. Emits a JSON envelope on
+stdout. Throws (exit 1) when missing or pending ACs are detected, or when
+the Epic body has no acceptance-table section and the acceptance::n-a
+waiver label is absent.
 
 Options:
   --epic <id>            Epic ticket id (required)
   --features-dir <path>  Override features directory (default: tests/features)
   --skip-when-waived     Exit 0 with status='waived' when acceptance::n-a is
-                         set instead of throwing on the missing spec.
+                         set instead of throwing on the missing section.
+  --write-dispositions   Record each AC's verification outcome into the
+                         Disposition column of the ## Acceptance Table
+                         section (section-scoped write).
   -h, --help             Show this message and exit.
 `;
 
 /**
- * Pure: parse stable AC IDs (AC-<n>) out of an acceptance-spec body. AC
- * authoring style is "Acceptance Criteria — Markdown table whose first
+ * Pure: parse stable AC IDs (AC-<n>) out of an acceptance-table section.
+ * AC authoring style is "Acceptance Table — Markdown table whose first
  * column is the AC ID" — see ACCEPTANCE_SPEC_SYSTEM_PROMPT in
- * epic-plan-spec.js. We scan the entire body with a permissive regex
- * because operators are free to format the body however they wish around
- * the canonical table.
+ * epic-plan-spec.js. We scan the entire section with a permissive regex
+ * because operators are free to format the content however they wish
+ * around the canonical table.
  *
  * Returns IDs **in document order**, deduplicated, normalised to
  * upper-case (`AC-7`, not `ac-7`).
@@ -282,15 +298,10 @@ export function classifyCoverage({ acIds, tagSets, epicId = null }) {
  * Pure: render the operator-visible blocker message for a non-OK
  * reconciliation result. Exported so finalize can surface the same text.
  */
-export function renderBlockerMessage({
-  epicId,
-  acceptanceSpecId,
-  missing,
-  pending,
-}) {
+export function renderBlockerMessage({ epicId, missing, pending }) {
   const lines = [
     `[acceptance-spec-reconciler] Epic #${epicId} cannot finalize:`,
-    `linked acceptance-spec #${acceptanceSpecId ?? '(none)'} has uncovered AC IDs.`,
+    `the Epic body's ## Acceptance Table section has uncovered AC IDs.`,
   ];
   if (missing.length > 0) {
     lines.push(
@@ -307,24 +318,68 @@ export function renderBlockerMessage({
 }
 
 /**
+ * Pure: rewrite the Disposition column of the acceptance-table section so
+ * each AC row records its close-time verification outcome. Only table rows
+ * whose first data cell is an `AC-<n>` id are touched; header/divider rows,
+ * prose, and rows for unclassified ACs pass through verbatim.
+ *
+ * @param {string} sectionContent The `## Acceptance Table` section content.
+ * @param {{ satisfied: string[], pending: string[], missing: string[] }} classification
+ * @returns {string}
+ */
+export function renderDispositions(sectionContent, classification) {
+  const outcomeById = new Map();
+  for (const id of classification.satisfied ?? []) {
+    outcomeById.set(id.toUpperCase(), 'satisfied');
+  }
+  for (const id of classification.pending ?? []) {
+    outcomeById.set(id.toUpperCase(), 'pending');
+  }
+  for (const id of classification.missing ?? []) {
+    outcomeById.set(id.toUpperCase(), 'missing');
+  }
+  const lines = String(sectionContent ?? '').split('\n');
+  const out = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) return line;
+    const cells = trimmed.split('|');
+    // `| a | b |` splits into ['', ' a ', ' b ', ''] — data cells are 1..-2.
+    if (cells.length < 4) return line;
+    const idMatch = cells[1].trim().match(/^AC-(\d+)$/i);
+    if (!idMatch) return line;
+    const outcome = outcomeById.get(`AC-${idMatch[1]}`.toUpperCase());
+    if (!outcome) return line;
+    cells[cells.length - 2] = ` ${outcome} `;
+    return cells.join('|');
+  });
+  return out.join('\n');
+}
+
+/**
  * End-to-end reconcile. DI-friendly for tests.
  *
  * Behaviour:
  *   - If the Epic carries the `acceptance::n-a` waiver label, returns
  *     `{ ok: true, status: 'waived', ... }` without scanning features.
- *   - If no acceptance-spec is linked and the waiver is absent, **throws**
- *     a clear `Error` — this should never happen in practice because
- *     `epic-deliver-finalize` runs after `runSnapshotPhase`'s start gate,
- *     but we defend against direct CLI invocation.
- *   - If the linked acceptance-spec body declares zero AC IDs, returns
+ *   - If the Epic body has no `## Acceptance Table` managed section and
+ *     the waiver is absent, **throws** a clear `Error` — this should never
+ *     happen in practice because `/deliver` runs after `runSnapshotPhase`'s
+ *     start gate, but we defend against direct CLI invocation.
+ *   - If the acceptance-table section declares zero AC IDs, returns
  *     `{ ok: true, status: 'empty-spec', ... }`.
  *   - Otherwise classifies coverage and returns `{ ok, status, ... }`.
+ *     With `writeDispositions: true`, the classification is also recorded
+ *     into the Disposition column of the acceptance-table section — a
+ *     section-scoped write that preserves every byte outside the managed
+ *     region (best-effort: a write failure downgrades to a warning and
+ *     never changes the verdict).
  *
  * @param {{
  *   epicId: number,
  *   cwd?: string,
  *   featuresDir?: string,
  *   skipWhenWaived?: boolean,
+ *   writeDispositions?: boolean,
  *   injectedProvider?: object,
  *   injectedConfig?: object,
  *   loggerImpl?: { info?: Function, warn?: Function, error?: Function },
@@ -333,7 +388,6 @@ export function renderBlockerMessage({
  * }} args
  * @returns {Promise<{
  *   epicId: number,
- *   acceptanceSpecId: number|null,
  *   status: 'ok'|'waived'|'empty-spec'|'gap',
  *   ok: boolean,
  *   acIds: string[],
@@ -341,6 +395,7 @@ export function renderBlockerMessage({
  *   pending: string[],
  *   missing: string[],
  *   featureFilesScanned: number,
+ *   dispositionsUpdated: boolean,
  * }>}
  */
 export async function reconcileAcceptanceSpec({
@@ -348,6 +403,7 @@ export async function reconcileAcceptanceSpec({
   cwd,
   featuresDir,
   skipWhenWaived = false,
+  writeDispositions = false,
   injectedProvider,
   injectedConfig,
   loggerImpl,
@@ -367,9 +423,9 @@ export async function reconcileAcceptanceSpec({
     ? path.resolve(repoCwd, featuresDir)
     : path.resolve(repoCwd, 'tests', 'features');
 
-  // 1. Load the Epic; prefer getEpic for the linkedIssues hydration but
-  //    fall back to getTicket + body parsing for providers that don't
-  //    expose the Epic-shaped reader (test doubles, primarily).
+  // 1. Load the Epic. `getEpic` is preferred; fall back to `getTicket`
+  //    for providers that don't expose the Epic-shaped reader (test
+  //    doubles, primarily). Only `body` and `labels` are consumed.
   let epic;
   if (typeof provider.getEpic === 'function') {
     epic = await provider.getEpic(epicId);
@@ -387,7 +443,6 @@ export async function reconcileAcceptanceSpec({
     );
     return {
       epicId,
-      acceptanceSpecId: null,
       status: 'waived',
       ok: true,
       acIds: [],
@@ -395,20 +450,22 @@ export async function reconcileAcceptanceSpec({
       pending: [],
       missing: [],
       featureFilesScanned: 0,
+      dispositionsUpdated: false,
     };
   }
 
-  const linkedIssues = epic.linkedIssues ?? parseLinkedIssues(epic.body ?? '');
-  const acceptanceSpecId = linkedIssues?.acceptanceSpec ?? null;
+  const acceptanceSection = extractEpicSection(
+    epic.body ?? '',
+    'acceptanceTable',
+  );
 
-  if (!acceptanceSpecId) {
+  if (acceptanceSection === null) {
     if (skipWhenWaived) {
       logger.info?.(
-        `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket; --skip-when-waived set, returning status='waived'.`,
+        `[acceptance-spec-reconciler] Epic #${epicId} body has no ## Acceptance Table section; --skip-when-waived set, returning status='waived'.`,
       );
       return {
         epicId,
-        acceptanceSpecId: null,
         status: 'waived',
         ok: true,
         acIds: [],
@@ -416,22 +473,16 @@ export async function reconcileAcceptanceSpec({
         pending: [],
         missing: [],
         featureFilesScanned: 0,
+        dispositionsUpdated: false,
       };
     }
     // Defence in depth — the start gate would normally catch this.
     throw new Error(
-      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /plan Phase 7 or apply the waiver.`,
+      `[acceptance-spec-reconciler] Epic #${epicId} body has no ## Acceptance Table section and no acceptance::n-a waiver label. Re-run /plan Phase 7 or apply the waiver.`,
     );
   }
 
-  const spec = await provider.getTicket(acceptanceSpecId);
-  if (!spec) {
-    throw new Error(
-      `[acceptance-spec-reconciler] Linked acceptance-spec #${acceptanceSpecId} not found.`,
-    );
-  }
-
-  const acIds = parseAcIds(spec.body ?? '');
+  const acIds = parseAcIds(acceptanceSection);
 
   // 2. Scan feature files.
   const featureFiles = listFeatureFiles(dir);
@@ -453,11 +504,10 @@ export async function reconcileAcceptanceSpec({
 
   if (acIds.length === 0) {
     logger.warn?.(
-      `[acceptance-spec-reconciler] Acceptance-spec #${acceptanceSpecId} declares zero AC IDs — treating as empty spec.`,
+      `[acceptance-spec-reconciler] Epic #${epicId} acceptance-table section declares zero AC IDs — treating as empty spec.`,
     );
     return {
       epicId,
-      acceptanceSpecId,
       status: 'empty-spec',
       ok: true,
       acIds: [],
@@ -465,6 +515,7 @@ export async function reconcileAcceptanceSpec({
       pending: [],
       missing: [],
       featureFilesScanned: featureFiles.length,
+      dispositionsUpdated: false,
     };
   }
 
@@ -475,9 +526,39 @@ export async function reconcileAcceptanceSpec({
   });
   const ok = missing.length === 0 && pending.length === 0;
 
+  // 3. Optional close-time disposition write-back. Section-scoped: the
+  //    upsert replaces only the managed acceptance-table region; every
+  //    byte outside it is preserved. Best-effort — a failed write is a
+  //    warning, never a verdict change.
+  let dispositionsUpdated = false;
+  if (writeDispositions && typeof provider.updateTicket === 'function') {
+    try {
+      const rewrittenSection = renderDispositions(acceptanceSection, {
+        satisfied,
+        pending,
+        missing,
+      });
+      if (rewrittenSection !== acceptanceSection) {
+        const newBody = upsertEpicSection(
+          epic.body ?? '',
+          'acceptanceTable',
+          rewrittenSection,
+        );
+        await provider.updateTicket(epicId, { body: newBody });
+        dispositionsUpdated = true;
+        logger.info?.(
+          `[acceptance-spec-reconciler] Recorded verification dispositions for ${acIds.length} AC row(s) in Epic #${epicId}'s ## Acceptance Table section.`,
+        );
+      }
+    } catch (err) {
+      logger.warn?.(
+        `[acceptance-spec-reconciler] disposition write-back failed (verdict unaffected): ${err?.message ?? err}`,
+      );
+    }
+  }
+
   return {
     epicId,
-    acceptanceSpecId,
     status: ok ? 'ok' : 'gap',
     ok,
     acIds,
@@ -485,6 +566,7 @@ export async function reconcileAcceptanceSpec({
     pending,
     missing,
     featureFilesScanned: featureFiles.length,
+    dispositionsUpdated,
   };
 }
 
@@ -510,6 +592,7 @@ export function classifyReconcilerInvocation(values) {
     epicId,
     featuresDir: values['features-dir'] ?? null,
     skipWhenWaived: values['skip-when-waived'] === true,
+    writeDispositions: values['write-dispositions'] === true,
   };
 }
 
@@ -519,6 +602,7 @@ async function main() {
       epic: { type: 'string' },
       'features-dir': { type: 'string' },
       'skip-when-waived': { type: 'boolean' },
+      'write-dispositions': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
@@ -536,6 +620,7 @@ async function main() {
     epicId: intent.epicId,
     featuresDir: intent.featuresDir ?? undefined,
     skipWhenWaived: intent.skipWhenWaived,
+    writeDispositions: intent.writeDispositions,
   });
   // Always emit the structured envelope to stdout, even on non-OK, so a
   // caller capturing stdout can read the diff payload before reacting to
@@ -545,7 +630,6 @@ async function main() {
     throw new Error(
       renderBlockerMessage({
         epicId: result.epicId,
-        acceptanceSpecId: result.acceptanceSpecId,
         missing: result.missing,
         pending: result.pending,
       }),

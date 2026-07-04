@@ -295,15 +295,12 @@ async function processCascadeParentLocked(
     // PR-driven `Closes #N` auto-close, and a recovery transition in
     // `epic-deliver-finalize.js`).
     //
-    // Planning tickets (context::tech-spec) DO close via
-    // cascade now (Story #1951). Previously they were excluded under
-    // the assumption that the operator would close them manually
-    // post-merge — but that step never reliably happened and leaving
+    // Legacy planning tickets (pre-#4324 `context::*` artifacts on
+    // historical Epics) DO close via cascade (Story #1951): leaving
     // them open as native sub-issues of the Epic blocks GitHub from
-    // honoring the Epic's `Closes #N` footer. The Epic finalize phase
-    // also closes them explicitly; this cascade branch is the
-    // defense-in-depth path when a Story's tasklist references a
-    // planning ticket directly.
+    // honoring the Epic's `Closes #N` footer. New Epics carry their
+    // planning content on the Epic body itself, so this branch is
+    // purely a legacy-hygiene path.
     //
     // Reuse the parentSnapshot from the idempotency check above — it is
     // a fresh read (cache was invalidated before the getTicket call) and

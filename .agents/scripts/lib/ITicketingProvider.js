@@ -33,15 +33,16 @@ export class ITicketingProvider {
   }
 
   /**
-   * Fetch the Epic issue with body and linked context issues (Tech Spec).
+   * Fetch the Epic issue with its body — the single planning document
+   * (ideation sections plus the folded Tech Spec / Acceptance Table
+   * managed sections, Story #4324).
    *
    * @param {number} epicId - GitHub Issue number of the Epic.
    * @returns {Promise<{
    *   id: number,
    *   title: string,
    *   body: string,
-   *   labels: string[],
-   *   linkedIssues: { techSpec: number|null }
+   *   labels: string[]
    * }>}
    */
   async getEpic(_epicId) {

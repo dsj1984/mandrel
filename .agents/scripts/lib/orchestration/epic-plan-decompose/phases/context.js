@@ -1,9 +1,11 @@
 /**
  * context.js — Phase 3 of the epic-plan-decompose pipeline (Story #2466).
  *
- * Builds the authoring context (Epic body + Tech Spec bodies, heuristics,
- * system prompt, ticket cap) the host LLM / `epic-plan-decompose-author` Skill
- * consumes when producing the ticket JSON array.
+ * Builds the authoring context (the Epic body — which carries the folded
+ * Tech Spec sections and Acceptance Table per Story #4324 — plus
+ * heuristics, system prompt, ticket cap) the host LLM /
+ * `epic-plan-decompose-author` Skill consumes when producing the ticket
+ * JSON array.
  *
  * Extracted verbatim from `epic-plan-decompose.js`; both
  * `buildDecomposerSystemPrompt` and `buildDecompositionContext` retain
@@ -16,6 +18,7 @@ import {
   getLimits,
   resolvePreflightCeilings,
 } from '../../../config-resolver.js';
+import { hasTechSpecContent } from '../../../epic-body-sections.js';
 import { renderDecomposerSystemPrompt } from '../../../templates/decomposer-prompts.js';
 import { read as readPlanState } from '../../epic-plan-state-store.js';
 import { applyBudget } from '../../planning-context-budget.js';
@@ -83,24 +86,25 @@ async function readPlanningDecision(provider, epicId) {
   };
 }
 
-async function fetchPlanningTickets(provider, epicId) {
+async function fetchPlanningEpic(provider, epicId) {
   const epic = await provider.getEpic(epicId);
-  if (!epic?.linkedIssues?.techSpec) {
+  if (!epic || !hasTechSpecContent(epic.body ?? '')) {
     throw new Error(
-      `[Decomposer] Epic #${epicId} is missing a linked Tech Spec. Run the Epic Planner first.`,
+      `[Decomposer] Epic #${epicId} body carries no Tech Spec sections (no ## Delivery Slicing). Run the Epic Planner (Phase 7) first.`,
     );
   }
-  const techSpec = await provider.getTicket(epic.linkedIssues.techSpec);
-  return { epic, techSpec };
+  return { epic };
 }
 
 /**
  * Build the authoring context the host LLM (or the
  * `epic-plan-decompose-author` Skill) needs to produce the ticket JSON.
  *
- * Epic body and Tech Spec bodies are bounded by the planning-context budget
- * (Epic #817 Story 9). Pass `{ fullContext: true }` (CLI: `--full-context`)
- * to restore the unbounded full bodies.
+ * The Epic body (ideation sections + folded Tech Spec sections +
+ * Acceptance Table — the AC-ID source for wave-0 BDD scaffold tags) is
+ * bounded by the planning-context budget (Epic #817 Story 9). Pass
+ * `{ fullContext: true }` (CLI: `--full-context`) to restore the
+ * unbounded full body.
  */
 export async function buildDecompositionContext(
   epicId,
@@ -108,7 +112,7 @@ export async function buildDecompositionContext(
   config = {},
   opts = {},
 ) {
-  const { epic, techSpec } = await fetchPlanningTickets(provider, epicId);
+  const { epic } = await fetchPlanningEpic(provider, epicId);
   const { planningRisk, reviewRouting } = await readPlanningDecision(
     provider,
     epicId,
@@ -126,21 +130,18 @@ export async function buildDecompositionContext(
   });
 
   const budgeted = applyBudget(
-    [
-      { path: `epic-${epic.id}.md`, content: epic.body ?? '' },
-      { path: `tech-spec-${techSpec.id}.md`, content: techSpec.body ?? '' },
-    ],
+    [{ path: `epic-${epic.id}.md`, content: epic.body ?? '' }],
     planningLimits,
     { fullContext },
   );
-  const [epicItem, techSpecItem] = budgeted.items;
+  const [epicItem] = budgeted.items;
   return {
     epic: { id: epic.id, title: epic.title },
-    // Story #4314 — the PRD artifact class is retired; the Epic body (which
-    // now carries its `## User Stories` section inline) is the budgeted
-    // authoring input the decomposer reads in the PRD's place.
+    // Story #4324 — the Epic body is the single planning document: it
+    // carries the ideation sections, the folded Tech Spec sections
+    // (## Delivery Slicing first), and the ## Acceptance Table the wave-0
+    // BDD scaffold reads its AC IDs from.
     epicBody: projectBudgetedEntry(epicItem, epic, budgeted.mode),
-    techSpec: projectBudgetedEntry(techSpecItem, techSpec, budgeted.mode),
     heuristics,
     systemPrompt,
     maxTickets,

@@ -5,20 +5,19 @@
  * Auto-close is now the default for `/deliver` (the human PR-merge is
  * the gate); no per-Epic label snapshot is required.
  *
- * Acceptance-spec start gate (relaxed): an Epic may be delivered when
- * *either* the operator has explicitly waived the acceptance-spec
- * requirement via the `acceptance::n-a` label, *or* a
- * `context::acceptance-spec` ticket is linked to the Epic. The ticket's
- * GitHub state (open / closed) is **not** checked — presence is
- * sufficient, matching the Tech Spec contract. The reviewer's
- * OK during /plan Phase 7 is the approval signal, not a manual
- * ticket-close action. This still refuses to launch Epics that skipped
- * the /plan Phase 7 acceptance-spec authoring step (or didn't
- * waive), surfacing the gap at delivery time rather than letting Story
- * dispatch race ahead without a spec at all.
+ * Acceptance-spec start gate (Story #4324): an Epic may be delivered when
+ * *either* the operator has explicitly waived the acceptance requirement
+ * via the `acceptance::n-a` label, *or* the Epic body carries the
+ * `## Acceptance Table` managed section (the folded home of the retired
+ * `context::acceptance-spec` ticket's AC-ID table). Presence is
+ * sufficient — the reviewer's OK during /plan Phase 7 is the approval
+ * signal. This still refuses to launch Epics that skipped the /plan
+ * Phase 7 acceptance authoring step (or didn't waive), surfacing the gap
+ * at delivery time rather than letting Story dispatch race ahead without
+ * a spec at all.
  */
 
-import { parseLinkedIssues } from '../../../issue-link-parser.js';
+import { hasEpicSection } from '../../../epic-body-sections.js';
 import { ACCEPTANCE_NA } from '../../../label-constants.js';
 import { discoverOpenStories } from './build-wave-dag.js';
 
@@ -82,29 +81,23 @@ async function discoverStoryIds({ epicId, provider }) {
 }
 
 /**
- * Refuse to launch /deliver when the acceptance-spec precondition has
- * not been satisfied. Throws a clear `Error` (per
- * orchestration-error-handling rule) so the `runAsCli` boundary maps it to
- * `process.exit(1)` with the operator-visible message intact.
+ * Refuse to launch /deliver when the acceptance precondition has not been
+ * satisfied. Throws a clear `Error` (per orchestration-error-handling
+ * rule) so the `runAsCli` boundary maps it to `process.exit(1)` with the
+ * operator-visible message intact.
  *
- * The gate now only checks presence (or waiver). Ticket state is
- * deliberately ignored — closure is no longer required as the approval
- * signal.
+ * The gate checks section presence (or the waiver label) only.
  *
- * @param {{ epic: { labels?: string[], linkedIssues?: { acceptanceSpec?: number|null }|null, body?: string }, epicId: number }} args
+ * @param {{ epic: { labels?: string[], body?: string }, epicId: number }} args
  */
 function assertAcceptanceSpecGate({ epic, epicId }) {
   const labels = epic?.labels ?? [];
   if (labels.includes(ACCEPTANCE_NA)) return;
 
-  const linkedIssues =
-    epic?.linkedIssues ?? parseLinkedIssues(epic?.body ?? '');
-  const acceptanceSpecId = linkedIssues?.acceptanceSpec ?? null;
-
-  if (!acceptanceSpecId) {
+  if (!hasEpicSection(epic?.body ?? '', 'acceptanceTable')) {
     throw new Error(
-      `[epic-deliver] Epic #${epicId} cannot launch: no context::acceptance-spec is linked and the acceptance::n-a waiver label is absent. ` +
-        'Run /plan Phase 7 to author an acceptance-spec, or apply the acceptance::n-a label to the Epic to opt out.',
+      `[epic-deliver] Epic #${epicId} cannot launch: the Epic body has no ## Acceptance Table section and the acceptance::n-a waiver label is absent. ` +
+        'Run /plan Phase 7 to author the acceptance table, or apply the acceptance::n-a label to the Epic to opt out.',
     );
   }
 }

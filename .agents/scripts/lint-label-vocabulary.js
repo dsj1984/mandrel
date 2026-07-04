@@ -66,7 +66,6 @@ export const KNOWN_AXES = Object.freeze([
   'type',
   'status',
   'persona',
-  'context',
   'acceptance',
   'meta',
   'planning',
@@ -156,11 +155,11 @@ export function findVocabularyViolations(src, axes = KNOWN_AXES) {
   //   - value is a lowercase identifier (`[a-z][a-z0-9-]*`)
   //
   // The whole-body anchor avoids false positives on:
-  //   - `context::acceptance-spec` — canonical label, value contains a
+  //   - `acceptance::n-a` — canonical label, value contains a
   //     hyphen but is not at axis position.
   //   - `<type>/<slug>` — template placeholders.
   //   - `delivery.maxTokenBudget` — config-key paths with `.`.
-  //   - `context.{techSpecId}` — JS destructure shapes.
+  //   - `delivery.{maxTickets}` — JS destructure shapes.
   //   - `agent-protocol.md` — filenames / concept slugs.
   //
   // Real drift like `type/epic` matches because the WHOLE body is

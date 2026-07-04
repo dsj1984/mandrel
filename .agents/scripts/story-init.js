@@ -9,7 +9,6 @@
  * pipeline stages from `lib/story-init/`:
  *
  *   1. context-resolver     — fetch the Story + optionally mark as recut.
- *   2. hierarchy-tracer     — resolve Epic → Tech Spec.
  *   3. blocker-validator    — refuse to proceed while dependencies are open.
  *   4. task-graph-builder   — fetch + topologically sort child Tasks.
  *   5. branch-initializer   — materialise the story branch (single-tree
@@ -53,7 +52,6 @@ import {
   planStoryBranchSeed,
 } from './lib/story-init/branch-initializer.js';
 import { resolveContext } from './lib/story-init/context-resolver.js';
-import { traceHierarchy } from './lib/story-init/hierarchy-tracer.js';
 import { transitionStoryToExecuting } from './lib/story-init/state-transitioner.js';
 import { buildTaskGraph } from './lib/story-init/task-graph-builder.js';
 import { createPhaseTimer } from './lib/util/phase-timer.js';
@@ -88,7 +86,6 @@ export async function runStoryInit({
   dryRun: dryRunParam,
   cwd: cwdParam,
   recutOf: recutOfParam,
-  techSpecId: techSpecIdParam,
   injectedProvider,
   injectedConfig,
 } = {}) {
@@ -99,16 +96,10 @@ export async function runStoryInit({
           dryRun: !!dryRunParam,
           cwd: cwdParam ?? null,
           recutOf: recutOfParam ?? null,
-          techSpecId: techSpecIdParam ?? null,
         }
       : parseSprintArgs();
   const { storyId, dryRun } = parsed;
   const recutOf = recutOfParam ?? parsed.recutOf ?? null;
-  // Story #4253: pre-resolved Epic linkage (from the /deliver fan-out's
-  // one-time Epic resolution). When present, hierarchy-tracer skips the
-  // per-Story getEpic round-trip; when absent it resolves it itself.
-  // Story #4314 retired the PRD linkage; only the Tech Spec is threaded.
-  const threadedTechSpecId = techSpecIdParam ?? parsed.techSpecId ?? null;
   // Worktree-aware cwd resolution: explicit param > --cwd flag > env > PROJECT_ROOT.
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
@@ -153,17 +144,7 @@ export async function runStoryInit({
     input: { storyId, recutOf, dryRun },
   });
 
-  // Stage 2 — hierarchy. When the /deliver fan-out threaded --tech-spec
-  // (resolved once by the parent), this short-circuits the per-Story
-  // getEpic. Absent flag falls back to the legacy getEpic resolution.
-  const { techSpecId } = await traceHierarchy({
-    provider,
-    logger: stageLogger,
-    input: { epicId, techSpecId: threadedTechSpecId },
-  });
-
   progress('CONTEXT', `Epic: #${epicId}, Parent: #${parentId ?? 'none'}`);
-  progress('CONTEXT', `Tech Spec: #${techSpecId ?? 'none'}`);
 
   // Stage 3 — blockers.
   const { openBlockers } = await validateBlockers({
@@ -330,7 +311,6 @@ export async function runStoryInit({
     installStatus,
     sortedTasks,
     parentId,
-    techSpecId,
     dryRun,
     recutOf,
     hierarchy: hierarchyMode,
@@ -467,7 +447,6 @@ function buildStoryInitResult({
   installStatus,
   sortedTasks,
   parentId,
-  techSpecId,
   dryRun,
   recutOf,
   hierarchy,
@@ -499,7 +478,7 @@ function buildStoryInitResult({
       labels: t.labels,
       dependencies: t.dependsOn ?? parseBlockedBy(t.body ?? ''),
     })),
-    context: { parentId, techSpecId },
+    context: { parentId },
     dryRun,
   };
 }

@@ -27,7 +27,7 @@ import {
   PROJECT_ROOT,
   resolveConfig,
 } from '../config-resolver.js';
-
+import { stripEpicSection } from '../epic-body-sections.js';
 import { Logger } from '../Logger.js';
 import {
   buildEnvelope,
@@ -163,7 +163,7 @@ function getVersion() {
 /**
  * Parse the work-breakdown hierarchy from a Task ticket body.
  *
- * Looks for patterns like: `Epic: #1`, `Story: #3`, `Tech Spec: #5`.
+ * Looks for patterns like: `Epic: #1`, `Story: #3`.
  *
  * @param {string} body
  * @returns {Record<string, number>}
@@ -176,7 +176,7 @@ export function parseHierarchy(body) {
   for (const match of matches) {
     const key = match[1].trim().toLowerCase().replace(/\s+/g, '');
     const val = Number.parseInt(match[2], 10);
-    result[key] = val; // e.g. { epic: 1, story: 3, techspec: 5 }
+    result[key] = val; // e.g. { epic: 1, story: 3 }
   }
   return result;
 }
@@ -350,17 +350,16 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
   const depth = agentSettings?.contextDepth ?? 'standard';
   const idsToFetch = [];
 
-  // Story #4314 — with the PRD artifact class retired, `full` and `standard`
-  // fetch the identical Epic / Tech Spec / Story set (there is no longer a PRD
-  // body to add at the deeper depth). Both branches are kept so the
-  // `contextDepth` setting stays a stable API surface.
+  // Story #4324 — the context-ticket classes are retired: the Epic body IS
+  // the planning document (ideation sections + folded Tech Spec sections).
+  // `full` and `standard` fetch the identical Epic / Story pair; both
+  // branches are kept so the `contextDepth` setting stays a stable API
+  // surface.
   if (depth === 'full') {
     idsToFetch.push({ key: 'Epic', id: epicId || hierarchyKeys.epic });
-    idsToFetch.push({ key: 'Tech Spec', id: hierarchyKeys.techspec });
     idsToFetch.push({ key: 'Story', id: hierarchyKeys.story });
   } else if (depth === 'standard') {
     idsToFetch.push({ key: 'Epic', id: epicId || hierarchyKeys.epic });
-    idsToFetch.push({ key: 'Tech Spec', id: hierarchyKeys.techspec });
     idsToFetch.push({ key: 'Story', id: hierarchyKeys.story });
   } else if (depth === 'minimal') {
     idsToFetch.push({ key: 'Story', id: hierarchyKeys.story });
@@ -372,7 +371,17 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
       try {
         const t = await provider.getTicket(item.id);
         provenance.push(ticketSnapshot(t, retrievedAt));
-        return `### ${item.key}: ${t.title} (#${t.id})\n\n${t.body}\n`;
+        // Hydration section-elision guardrail (Story #4324): the Epic
+        // body's ## Acceptance Table managed section is authoring/close
+        // machinery — never delivery context. Strip it before it reaches
+        // a story agent's prompt so per-story prompt size stays flat
+        // versus the pre-fold baseline (the old acceptance-spec ticket
+        // was never hydrated either).
+        const body =
+          item.key === 'Epic'
+            ? stripEpicSection(t.body ?? '', 'acceptanceTable')
+            : t.body;
+        return `### ${item.key}: ${t.title} (#${t.id})\n\n${body}\n`;
       } catch (err) {
         const detail = err?.message ? `: ${err.message}` : '';
         Logger.warn(

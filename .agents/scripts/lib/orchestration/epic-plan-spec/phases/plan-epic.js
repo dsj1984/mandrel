@@ -1,29 +1,39 @@
 /**
- * phases/plan-epic.js — Tech Spec / Acceptance Spec persistence phase.
+ * phases/plan-epic.js — Tech Spec / Acceptance Table persistence phase.
  *
- * Heals any prior planning artifacts (Tech Spec issue, "Planning Artifacts"
- * body section, lifecycle labels) before writing the new issues. Idempotent
- * against partial state: when the Epic already has a Tech Spec it is reused.
- * Pass `force: true` to re-plan: the canonical context tickets
- * (Tech Spec / Acceptance Spec) are **overwritten in place** — same issue
- * numbers, refreshed bodies, kept open, with a one-line regeneration audit
- * comment on each. Only redundant duplicate artifacts are closed;
- * Feature/Story child tickets retain close-and-recreate behaviour (handled by
- * the decomposer, not here).
+ * Story #4324: the `context::tech-spec` / `context::acceptance-spec` ticket
+ * classes are retired. The Epic body is the single planning document: this
+ * phase upserts the authored Tech Spec (opening with `## Delivery Slicing`)
+ * and the Acceptance Spec's AC-ID table (`## Acceptance Table`) as
+ * marker-delimited managed sections of the Epic body — see
+ * `lib/epic-body-sections.js`. Each write is **section-scoped**: only the
+ * managed region is replaced; the rest of the body is byte-preserved.
  *
- * Story #4314: the PRD artifact class is retired — the Epic body carries its
- * `## User Stories` section inline, so this phase persists only the Tech Spec
- * and (optionally) the Acceptance Spec.
+ * Idempotent against partial state: when the Epic body already carries all
+ * requested sections, the phase short-circuits with `already-planned`.
+ * Pass `force: true` to re-plan: the managed sections are overwritten in
+ * place and a one-line regeneration audit comment lands on the Epic.
+ *
+ * The retired machine-managed `## Planning Artifacts` checklist (which
+ * linked the old context tickets) is stripped on every persist so a
+ * re-planned historical Epic stops advertising stale ticket links; the
+ * legacy tickets themselves are ignored (forward-only cutover — no
+ * backfill, no fetch).
  */
 
+import {
+  hasEpicSection,
+  stripEpicSection,
+  stripPlanningArtifactsSection,
+  upsertEpicSection,
+} from '../../../epic-body-sections.js';
 import { Logger } from '../../../Logger.js';
 import { ACCEPTANCE_NA } from '../../../label-constants.js';
-import { PlanningStateManager } from '../../planning-state-manager.js';
 
 /**
- * Resolve whether Phase 7 should persist an acceptance-spec ticket or apply
- * the `acceptance::n-a` waiver, from the planningRisk envelope derived off
- * the planner-authored risk verdict (`deriveRiskEnvelope`, Epic #3865).
+ * Resolve whether Phase 7 should persist an acceptance-table section or
+ * apply the `acceptance::n-a` waiver, from the planningRisk envelope derived
+ * off the planner-authored risk verdict (`deriveRiskEnvelope`, Epic #3865).
  *
  * @param {import('../../planning-risk.js').PlanningRiskEnvelope|null} planningRisk
  *   Derived envelope; `null` (direct invocations without a verdict) never
@@ -54,42 +64,6 @@ export function resolveAcceptancePersistence(
   };
 }
 
-/**
- * Overwrite an existing context ticket (Tech Spec / Acceptance Spec)
- * in place: push the freshly-authored body and refresh the title prefix so a
- * clarity-gate Epic rename does not strand a stale spec title, then post a
- * single one-line regeneration audit comment so the preserved discussion
- * history stays self-explanatory.
- *
- * The ticket keeps its issue number, its sub-issue link to the Epic, and all
- * pre-existing comments — only the body, title, and a new audit comment are
- * added.
- *
- * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
- * @param {number} ticketId           Existing context-ticket issue number.
- * @param {{ title: string, body: string, artifact: string }} fields
- *   `title` is the refreshed `[Tech Spec] <epic title>`-style prefix; `body`
- *   is the regenerated content; `artifact` is the human label used in the
- *   audit comment (`Tech Spec`, `Acceptance Spec`).
- * @returns {Promise<void>}
- */
-export async function overwriteContextTicket(
-  provider,
-  ticketId,
-  { title, body, artifact },
-) {
-  await provider.updateTicket(ticketId, { title, body });
-  try {
-    await provider.postComment(ticketId, {
-      type: 'notification',
-      body: `♻️ **Regeneration Audit**: This ${artifact} body was regenerated in place by a \`/plan --force\` re-plan. The issue number and prior discussion history are preserved.`,
-    });
-  } catch (_err) {
-    // Audit comment is best-effort — never fail the overwrite on a comment
-    // post error.
-  }
-}
-
 export function validatePlanEpicInputs({
   techSpecContent,
   acceptanceSpecContent,
@@ -110,130 +84,37 @@ export function validatePlanEpicInputs({
   }
 }
 
-export function getExistingArtifactIds(epic) {
+/**
+ * Snapshot which managed planning sections the Epic body already carries.
+ *
+ * @param {{ body?: string }} epic
+ * @returns {{ techSpec: boolean, acceptanceTable: boolean }}
+ */
+export function getExistingSections(epic) {
+  const body = epic?.body ?? '';
   return {
-    techSpec: epic.linkedIssues?.techSpec ?? null,
-    acceptanceSpec: epic.linkedIssues?.acceptanceSpec ?? null,
+    techSpec: hasEpicSection(body, 'techSpec'),
+    acceptanceTable: hasEpicSection(body, 'acceptanceTable'),
   };
 }
 
-export function hasAllRequestedArtifacts({ existing, wantsAcceptanceSpec }) {
+export function hasAllRequestedSections({ existing, wantsAcceptanceSpec }) {
   return Boolean(
-    existing.techSpec && (wantsAcceptanceSpec ? existing.acceptanceSpec : true),
+    existing.techSpec &&
+      (wantsAcceptanceSpec ? existing.acceptanceTable : true),
   );
-}
-
-async function persistTechSpec({
-  provider,
-  epicId,
-  epic,
-  techSpecContent,
-  existingId,
-  force,
-}) {
-  if (existingId) {
-    if (force) {
-      Logger.info(
-        `[Epic Planner] --force: Overwriting Tech Spec #${existingId} in place.`,
-      );
-      await overwriteContextTicket(provider, existingId, {
-        title: `[Tech Spec] ${epic.title}`,
-        body: techSpecContent,
-        artifact: 'Tech Spec',
-      });
-    } else {
-      Logger.info(
-        `[Epic Planner] Reusing existing Tech Spec #${existingId}. Skipping Tech Spec creation.`,
-      );
-    }
-    return existingId;
-  }
-
-  Logger.info(`[Epic Planner] Creating Tech Spec issue for "${epic.title}"...`);
-  const techSpecTicket = await provider.createTicket(epicId, {
-    title: `[Tech Spec] ${epic.title}`,
-    body: techSpecContent,
-    labels: ['context::tech-spec'],
-    dependencies: [],
-  });
-  Logger.info(
-    `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
-  );
-  return techSpecTicket.id;
-}
-
-async function persistAcceptanceSpec({
-  provider,
-  epicId,
-  epic,
-  acceptanceSpecContent,
-  techSpecId,
-  existingId,
-  force,
-}) {
-  if (existingId) {
-    if (force) {
-      Logger.info(
-        `[Epic Planner] --force: Overwriting Acceptance Spec #${existingId} in place.`,
-      );
-      await overwriteContextTicket(provider, existingId, {
-        title: `[Acceptance Spec] ${epic.title}`,
-        body: acceptanceSpecContent,
-        artifact: 'Acceptance Spec',
-      });
-    } else {
-      Logger.info(
-        `[Epic Planner] Reusing existing Acceptance Spec #${existingId}. Skipping Acceptance Spec creation.`,
-      );
-    }
-    return existingId;
-  }
-
-  Logger.info(
-    `[Epic Planner] Creating Acceptance Spec issue linking to Tech Spec #${techSpecId}...`,
-  );
-  const acceptanceTicket = await provider.createTicket(epicId, {
-    title: `[Acceptance Spec] ${epic.title}`,
-    body: acceptanceSpecContent,
-    labels: ['context::acceptance-spec'],
-    dependencies: [techSpecId],
-  });
-  Logger.info(
-    `[Epic Planner] Created Acceptance Spec Issue #${acceptanceTicket.id} (${acceptanceTicket.url})`,
-  );
-  return acceptanceTicket.id;
-}
-
-async function closeWaivedAcceptanceSpec({
-  provider,
-  epicId,
-  epic,
-  existingAcceptanceSpecId,
-}) {
-  Logger.info(
-    `[Epic Planner] Acceptance disposition now waived — closing existing Acceptance Spec #${existingAcceptanceSpecId}.`,
-  );
-  try {
-    await provider.updateTicket(existingAcceptanceSpecId, {
-      state: 'closed',
-      state_reason: 'not_planned',
-    });
-  } catch (err) {
-    if (!err.message.includes('404') && !err.message.includes('410')) {
-      throw err;
-    }
-  }
-  try {
-    await provider.removeSubIssue(epicId, existingAcceptanceSpecId);
-  } catch (_err) {
-    // Already detached or unsupported — safe to ignore.
-  }
-  if (epic.linkedIssues) epic.linkedIssues.acceptanceSpec = null;
 }
 
 /**
- * Persist the host-authored Tech Spec (and optional Acceptance Spec) under the
- * Epic.
+ * Persist the host-authored Tech Spec (and optional Acceptance Table) as
+ * managed sections of the Epic body.
+ *
+ * @returns {Promise<{
+ *   persisted: boolean,
+ *   reason: 'already-planned'|'persisted'|'force-replan',
+ *   techSpecPersisted: boolean,
+ *   acceptanceTable: 'persisted'|'waived'|'none',
+ * }>}
  */
 export async function planEpic(
   epicId,
@@ -254,98 +135,59 @@ export async function planEpic(
     throw new Error(`Epic #${epicId} not found.`);
   }
 
-  const stateManager = new PlanningStateManager(provider);
-  await stateManager.healAndCleanupArtifacts(epic, force);
-
   const { wantsAcceptanceSpec, applyAcceptanceWaiver } =
     resolveAcceptancePersistence(planningRisk, acceptanceSpecContent);
 
   Logger.info(
     `[Epic Planner] Acceptance disposition: ${planningRisk?.acceptanceDisposition ?? 'unspecified'}` +
       (applyAcceptanceWaiver
-        ? ` — applying ${ACCEPTANCE_NA} waiver (no acceptance-spec ticket).`
+        ? ` — applying ${ACCEPTANCE_NA} waiver (no acceptance-table section).`
         : wantsAcceptanceSpec
-          ? ' — persisting context::acceptance-spec.'
+          ? ' — persisting the ## Acceptance Table section.'
           : ' — no acceptance-spec content supplied.'),
   );
 
-  const existing = getExistingArtifactIds(epic);
-  if (!force && hasAllRequestedArtifacts({ existing, wantsAcceptanceSpec })) {
+  const existing = getExistingSections(epic);
+  if (!force && hasAllRequestedSections({ existing, wantsAcceptanceSpec })) {
     Logger.warn(
-      `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
+      `[Epic Planner] Epic #${epicId} body already carries all requested planning sections. Aborting to prevent an unintended overwrite. Use --force to re-plan.`,
     );
     return {
       persisted: false,
       reason: 'already-planned',
-      techSpecId: existing.techSpec,
-      acceptanceSpecId: existing.acceptanceSpec,
+      techSpecPersisted: existing.techSpec,
+      acceptanceTable: existing.acceptanceTable ? 'persisted' : 'none',
     };
   }
-  // Under --force we now OVERWRITE the canonical context tickets in place
-  // (same issue numbers, refreshed bodies) rather than closing + recreating
-  // them. `healAndCleanupArtifacts(epic, force=true)` preserved the canonical
-  // IDs on `epic.linkedIssues`, so reuse them in both the force and non-force
-  // paths. The difference: under force we push the freshly-authored body via
-  // `provider.updateTicket`, whereas the non-force partial-state reuse keeps
-  // the existing body untouched.
-  const techSpecId = await persistTechSpec({
-    provider,
-    epicId,
-    epic,
-    techSpecContent,
-    existingId: existing.techSpec,
-    force,
-  });
 
-  let acceptanceSpecId = null;
+  // Section-scoped writes: each upsert replaces only its own managed
+  // region; the ideation sections and any operator-authored prose are
+  // byte-preserved. The retired `## Planning Artifacts` checklist is
+  // stripped so re-planned historical Epics stop advertising the old
+  // context-ticket links (the legacy tickets themselves are ignored).
+  let newBody = stripPlanningArtifactsSection(epic.body ?? '');
+  newBody = upsertEpicSection(newBody, 'techSpec', techSpecContent);
+
+  let acceptanceTable = 'none';
   if (wantsAcceptanceSpec) {
-    acceptanceSpecId = await persistAcceptanceSpec({
-      provider,
-      epicId,
-      epic,
+    newBody = upsertEpicSection(
+      newBody,
+      'acceptanceTable',
       acceptanceSpecContent,
-      techSpecId,
-      existingId: existing.acceptanceSpec,
-      force,
-    });
-  } else if (applyAcceptanceWaiver && existing.acceptanceSpec) {
-    // Acceptance-spec transition: was present, now waived (acceptance::n-a).
-    // This is a genuine close — there is no longer an acceptance spec to
-    // overwrite — and the stale ticket must be detached so the Epic body's
-    // Planning Artifacts section stops referencing it.
-    await closeWaivedAcceptanceSpec({
-      provider,
-      epicId,
-      epic,
-      existingAcceptanceSpecId: existing.acceptanceSpec,
-    });
+    );
+    acceptanceTable = 'persisted';
+  } else if (applyAcceptanceWaiver) {
+    // Acceptance transition: was present, now waived (acceptance::n-a).
+    // Strip the stale table so the close-time reconciler cannot read a
+    // section the planner no longer stands behind.
+    if (existing.acceptanceTable) {
+      Logger.info(
+        `[Epic Planner] Acceptance disposition now waived — removing the stale ## Acceptance Table section from Epic #${epicId}.`,
+      );
+      newBody = stripEpicSection(newBody, 'acceptanceTable');
+    }
+    acceptanceTable = 'waived';
   }
-
-  Logger.info(
-    `[Epic Planner] Updating Epic #${epicId} with linked documents...`,
-  );
-
-  // Format exactly so the issue-link-parser regexes still catch each line.
-  // The parser is the source of truth for which prefixes are accepted; we
-  // emit the canonical "Tech Spec: #N" / "Acceptance Spec: #N" shape so the
-  // epic-deliver finalize/cascade-close call shape and the Phase 2
-  // decomposer-context picker both see the links.
-  const artifactLines = [`- [ ] Tech Spec: #${techSpecId}`];
-  if (acceptanceSpecId !== null) {
-    artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
-  }
-  // Idempotent append (Story #4019): strip any pre-existing
-  // `## Planning Artifacts` section before re-appending. The `--force`
-  // path already stripped it in `healAndCleanupArtifacts`, but the
-  // partial-recovery rerun (e.g. Tech Spec missing) reaches here with a
-  // body that may still carry a stale section — without the strip, every
-  // rerun stacked a duplicate section onto the Epic body.
-  const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
-  const strippedBody = epic.body.replace(
-    /\n*## Planning Artifacts[\s\S]*$/,
-    '',
-  );
-  const newBody = strippedBody + appendBody;
 
   /** @type {{ add?: string[], remove?: string[] }} */
   const labelMutations = {};
@@ -358,6 +200,9 @@ export async function planEpic(
     labelMutations.remove = [ACCEPTANCE_NA];
   }
 
+  Logger.info(
+    `[Epic Planner] Updating Epic #${epicId} body with the planning sections...`,
+  );
   await provider.updateTicket(epicId, {
     body: newBody,
     ...(labelMutations.add || labelMutations.remove
@@ -365,13 +210,27 @@ export async function planEpic(
       : {}),
   });
 
+  if (force) {
+    // Preserve the regeneration audit trail the retired per-ticket
+    // overwrite used to leave. Best-effort — never fail the persist on a
+    // comment post error.
+    try {
+      await provider.postComment(epicId, {
+        type: 'notification',
+        body: '♻️ **Regeneration Audit**: the Tech Spec / Acceptance Table sections of this Epic body were regenerated in place by a `/plan --force` re-plan. Content outside the managed sections was preserved.',
+      });
+    } catch (_err) {
+      // Swallow: audit comment is advisory.
+    }
+  }
+
   Logger.info(`[Epic Planner] Epic #${epicId} updated successfully.`);
   Logger.info(`[Epic Planner] Planning pipeline complete!`);
 
   return {
     persisted: true,
     reason: force ? 'force-replan' : 'persisted',
-    techSpecId,
-    acceptanceSpecId,
+    techSpecPersisted: true,
+    acceptanceTable,
   };
 }

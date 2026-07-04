@@ -60,7 +60,6 @@ export function parseSprintArgs(args = process.argv) {
       'no-full-scope-crap': { type: 'boolean', default: false },
       executor: { type: 'string' },
       cwd: { type: 'string' },
-      'tech-spec': { type: 'string' },
       'recut-of': { type: 'string' },
       resume: { type: 'boolean', default: false },
       restart: { type: 'boolean', default: false },
@@ -89,8 +88,6 @@ export function parseSprintArgs(args = process.argv) {
     recutOf: parseTicketId(values['recut-of']),
     // Story #4253: pre-resolved Epic linkage threaded by the /deliver
     // fan-out so `story-init.js` can skip the per-Story `getEpic` round-trip.
-    // Story #4314 retired the PRD linkage; only --tech-spec is threaded.
-    techSpecId: parseTicketId(values['tech-spec']),
     resume: values.resume ?? false,
     restart: values.restart ?? false,
     noEvidence: values['no-evidence'] ?? false,
