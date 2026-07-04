@@ -365,9 +365,14 @@ from the Story's live labels and comments.
 **Sub-agent dispatch.** `Agent` calls emit no `model:` argument by
 default — children inherit from the `general-purpose` sub-agent
 definition and the parent's worktree context. No
-`--dangerously-skip-permissions` (no subprocess is spawned). If a
-specific call needs to override the inherited model, pass `model:` as a
-per-call literal at the `Agent(...)` site.
+`--dangerously-skip-permissions` (no subprocess is spawned). Per
+[`.agents/instructions.md` § 4](../../instructions.md)'s cost-aware
+spawning heuristic, this optional per-call `model:` is the escape hatch:
+if a specific call would run better on a cheaper or faster capability the
+host exposes (a mechanical or read-only Story), pass `model:` as a
+per-call literal at the `Agent(...)` site. This is **guidance only** — it
+adds no config key, requires no model argument, and names no specific
+model; the host and operator own the concrete choice.
 
 ### 2c. Record the Story outcomes
 
