@@ -4,7 +4,10 @@
 //
 // Pins the post-trim contract from Story #2614 so future helper edits cannot
 // silently re-broaden the pillar roster or drop the per-finding "Agent Prompt"
-// field. The helper is read straight off disk; we don't import a parser
+// field. Story #4350 intentionally added a fourth pillar (Anti-Gaming /
+// Shortcut Detection), so the pinned roster count is now four — the test
+// guards against *accidental* roster drift, not the deliberate #4350
+// expansion. The helper is read straight off disk; we don't import a parser
 // because the helper *is* the source of truth — anything we'd parse from it
 // is what we want to assert against.
 
@@ -28,18 +31,19 @@ function loadHelper() {
   return readFileSync(HELPER_PATH, 'utf8');
 }
 
-test('code-review.md declares exactly three pillar headings', () => {
+test('code-review.md declares exactly four pillar headings', () => {
   // Arrange
   const body = loadHelper();
 
   // Act — match all "### Pillar N: <name>" headings.
   const matches = body.match(/^### Pillar \d+: .+$/gm) ?? [];
 
-  // Assert
+  // Assert — three trimmed pillars (Story #2614) plus the Anti-Gaming /
+  // Shortcut Detection pillar added by Story #4350.
   assert.equal(
     matches.length,
-    3,
-    `expected exactly 3 pillar headings after trim, got ${matches.length}: ${JSON.stringify(matches)}`,
+    4,
+    `expected exactly 4 pillar headings, got ${matches.length}: ${JSON.stringify(matches)}`,
   );
 });
 
@@ -56,6 +60,32 @@ test('code-review.md renumbers the merged middle pillar to Pillar 2: Integration
 test('code-review.md keeps Pillar 6 content, renumbered to Pillar 3: Documentation Integrity', () => {
   const body = loadHelper();
   assert.match(body, /^### Pillar 3: Documentation Integrity$/m);
+});
+
+test('code-review.md adds Pillar 4 (Anti-Gaming / Shortcut Detection) enumerating the shortcut taxonomy', () => {
+  const body = loadHelper();
+  assert.match(body, /^### Pillar 4: Anti-Gaming \/ Shortcut Detection$/m);
+  // Slice the Pillar 4 section so taxonomy assertions don't match prose
+  // elsewhere in the helper.
+  const pillar4Match = body.match(
+    /^### Pillar 4: Anti-Gaming \/ Shortcut Detection\b([\s\S]*?)(?=^## Step )/m,
+  );
+  assert.ok(pillar4Match, 'Pillar 4 section not found');
+  const section = pillar4Match[1];
+  for (const term of [
+    /relaxed tests/i,
+    /skipped tests/i,
+    /swallowed errors/i,
+    /stub returns/i,
+    /fake renames/i,
+    /comment-deletion-as-fix/i,
+  ]) {
+    assert.match(
+      section,
+      term,
+      `Pillar 4 must enumerate the ${term} taxonomy item`,
+    );
+  }
 });
 
 test('Pillar 2 body references the audit-results structured comment', () => {
