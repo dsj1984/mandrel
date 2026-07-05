@@ -145,3 +145,95 @@ describe('check-baselines — maintainability min floor (Story #2193 AC-5)', () 
     assert.equal(res.report.gates[0].breaches[0].value, 75);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Epic #4326 incident — floor-path defence against an ignoreGlobs-poisoned
+// baseline. Even if a baseline (from stale tooling, a hand-edit, or a future
+// generation bug) records an `ignoreGlobs`-matched file in its rows and drags
+// `rollup["*"].min` below the floor, the floor check must recompute the `*`
+// aggregate over non-ignored rows and NOT trip.
+// ---------------------------------------------------------------------------
+
+function setupRepoWithIgnoreGlobs({ floors, ignoreGlobs } = {}) {
+  const root = mkdtempSync(path.join(tmpdir(), 'check-baselines-mi-ignore-'));
+  mkdirSync(path.join(root, 'baselines'), { recursive: true });
+  const gate = {
+    enabled: true,
+    baselinePath: 'baselines/maintainability.json',
+    tolerance: { kind: 'absolute', value: 0.5 },
+  };
+  if (floors !== undefined) gate.floors = floors;
+  if (ignoreGlobs !== undefined) gate.ignoreGlobs = ignoreGlobs;
+  const agentrc = {
+    project: {
+      baseBranch: 'main',
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      docsContextFiles: [],
+      commands: { lintBaseline: 'echo', test: 'echo', typecheck: 'echo' },
+    },
+    github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
+    delivery: { quality: { gates: { maintainability: gate } } },
+  };
+  writeJson(path.join(root, '.agentrc.json'), agentrc);
+  return root;
+}
+
+// A poisoned envelope: an ignored file leaked into rows with a below-floor MI,
+// dragging the stored rollup min to that value; a second, healthy file sits at
+// 72 (above the 70 floor). With the ignored row excluded, the effective min is
+// 72 and the gate passes.
+function poisonedEnvelope() {
+  return {
+    $schema: 'maintainability.schema.json',
+    kernelVersion: currentKernelVersion('maintainability'),
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    rollup: { '*': { min: 48.787, p50: 88, p95: 95 } },
+    rows: [
+      { path: '.agents/scripts/lib/config-settings-schema.js', mi: 48.787 },
+      { path: '.agents/scripts/lib/healthy.js', mi: 72 },
+    ],
+  };
+}
+
+describe('check-baselines — maintainability floor ignores ignoreGlobs-matched rows (Epic #4326)', () => {
+  let root;
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+    root = undefined;
+  });
+
+  it('passes: a poisoned baseline clears the floor once the ignored row is excluded', async () => {
+    root = setupRepoWithIgnoreGlobs({
+      floors: { '*': { min: 70 } },
+      ignoreGlobs: ['.agents/scripts/lib/config-settings-schema*.js'],
+    });
+    writeJson(
+      path.join(root, 'baselines', 'maintainability.json'),
+      poisonedEnvelope(),
+    );
+    const res = await runCheckBaselines({
+      argv: ['--no-friction', '--gate', 'maintainability'],
+      cwd: root,
+    });
+    assert.equal(
+      res.exitCode,
+      0,
+      'ignored row excluded → effective min 72 clears the 70 floor',
+    );
+    assert.equal(res.report.totalBreaches, 0);
+  });
+
+  it('control: the same poisoned baseline trips the floor when no ignoreGlobs is configured', async () => {
+    root = setupRepoWithIgnoreGlobs({ floors: { '*': { min: 70 } } });
+    writeJson(
+      path.join(root, 'baselines', 'maintainability.json'),
+      poisonedEnvelope(),
+    );
+    const res = await runCheckBaselines({
+      argv: ['--no-friction', '--gate', 'maintainability'],
+      cwd: root,
+    });
+    assert.equal(res.exitCode, 1, 'no ignoreGlobs → stored poisoned min trips');
+    assert.equal(res.report.gates[0].breaches[0].value, 48.787);
+  });
+});

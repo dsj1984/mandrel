@@ -32,6 +32,7 @@ import { Logger as DefaultLogger } from '../../../../Logger.js';
 import {
   calculateAll as defaultCalculateAll,
   scanDirectory as defaultScanDirectory,
+  isIgnoredByGlobs as isIgnoredByGlobsMi,
 } from '../../../../maintainability-utils.js';
 
 /**
@@ -101,7 +102,20 @@ export function buildKindScorer({
           const underTarget = targetAbsDirs.some(
             (root) => abs === root || abs.startsWith(`${root}${path.sep}`),
           );
-          if (underTarget) sourceList.push(abs);
+          // Apply `ignoreGlobs` here too — the full-scope walk drops
+          // ignore-matched files via `scanDirectory`, so the diff-scope path
+          // must do the same or an ignored-but-changed file (e.g. one matched
+          // by `config-settings-schema*.js`) enters `rows` and drags the
+          // `rollup["*"].min` below the maintainability floor. This mirrors the
+          // canonical `buildDefaultMaintainabilityScorer` (refresh-service.js,
+          // Story #4293); the story-close auto-refresh routes through this
+          // scorer, not that one, so the fix has to live here too.
+          if (
+            underTarget &&
+            !isIgnoredByGlobsMi(abs, miIgnoreGlobs, effectiveCwd)
+          ) {
+            sourceList.push(abs);
+          }
         }
       }
       const scores = await calculateAll(sourceList);

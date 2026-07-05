@@ -97,6 +97,58 @@ describe('buildKindScorer — maintainability — diff-scope path (Story #3647)'
     assert.equal(rows.length, 1);
   });
 
+  it('excludes ignoreGlobs-matched files in diff-scope mode (Epic #4326 poison regression)', async () => {
+    // The story-close auto-refresh routes through this scorer, NOT the
+    // canonical `buildDefaultMaintainabilityScorer` that Story #4293 fixed.
+    // An ignored-but-changed file (matched by `config-settings-schema*.js`)
+    // must never reach `calculateAll`, or its low MI enters `rows` and drags
+    // `rollup["*"].min` below the maintainability floor — the exact poison
+    // that blocked every downstream Story close during Epic #4326 delivery.
+    const scanned = [];
+    const calculateAll = async (absPaths) => {
+      scanned.push(...absPaths);
+      return Object.fromEntries(absPaths.map((p) => [p, 80]));
+    };
+    const scanDirectory = () => {
+      throw new Error('scanDirectory must not be called in diff-scope mode');
+    };
+
+    const scorer = buildKindScorer({
+      kind: 'maintainability',
+      cwd: FAKE_CWD,
+      config: null,
+      getQuality: () => ({
+        maintainability: {
+          targetDirs: ['.agents/scripts'],
+          ignoreGlobs: ['.agents/scripts/lib/config-settings-schema*.js'],
+        },
+      }),
+      scanDirectory,
+      calculateAll,
+    });
+
+    const rows = await scorer(
+      [
+        '.agents/scripts/lib/config-settings-schema.js', // ignored + under target
+        '.agents/scripts/lib/foo.js', // scored
+      ],
+      { fullScope: false, cwd: FAKE_CWD },
+    );
+
+    assert.ok(
+      !scanned.includes(
+        path.resolve(FAKE_CWD, '.agents/scripts/lib/config-settings-schema.js'),
+      ),
+      'ignoreGlobs-matched file must not be scored',
+    );
+    assert.equal(scanned.length, 1, 'only the non-ignored file is scored');
+    assert.equal(rows.length, 1);
+    assert.ok(
+      !rows.some((r) => /config-settings-schema/.test(r.path)),
+      'ignored file must not appear in rows',
+    );
+  });
+
   it('returns empty rows when files list is empty in diff-scope mode', async () => {
     const calculateAll = async (absPaths) =>
       Object.fromEntries(absPaths.map((p) => [p, 80]));
