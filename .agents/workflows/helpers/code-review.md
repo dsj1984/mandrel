@@ -119,18 +119,21 @@ The pipeline will:
 
 ## Step 2 — Review Pillars
 
-For each changed file, execute a strict review against three pillars. The
-middle pillar (**Integration Review**) deliberately defers the security /
+For each changed file, execute a strict review against four pillars. The
+second pillar (**Integration Review**) deliberately defers the security /
 performance / quality / coverage sweeps to the change-set-scoped audits
 that already ran upstream — re-walking them here is duplication, not
 defense-in-depth.
 
 **Apply the `depth` lever** (see **Review depth** above) to how hard you walk
 these pillars: at `light`, focus on Pillar 1 and reduce Pillars 2–3 to a quick
-scan for obvious breakage; at `standard`, cover all three at today's depth; at
-`deep`, cover all three at full depth and then make a second adversarial pass
+scan for obvious breakage; at `standard`, cover all four at today's depth; at
+`deep`, cover all four at full depth and then make a second adversarial pass
 over the diff hunting for integration regressions and security-relevant edges
-before finalizing findings.
+before finalizing findings. Pillar 4 (**Anti-Gaming / Shortcut Detection**)
+is walked at **every** depth, including `light` — it targets the class of
+correctness failure the deterministic gates structurally cannot see, so it is
+never reduced to a scan.
 
 ### Pillar 1: Spec Adherence
 
@@ -193,6 +196,56 @@ Verify documentation stays synchronized with code:
 - Updated interfaces have updated documentation.
 - README and CHANGELOG reflect the changes if applicable.
 - Inline comments explain *why*, not *what*.
+
+### Pillar 4: Anti-Gaming / Shortcut Detection
+
+Does the change reach "done" by *fixing the code*, or by *weakening the check
+that would have caught it broken?* This is the class of correctness failure the
+deterministic `verify[]` commands and the ratchet gates structurally cannot
+see: a green suite, a passing lint, and an unchanged maintainability score all
+report success whether the code got correct or the test got quieter. Walk the
+diff for the shortcut taxonomy below and flag every instance — a plausible-but-
+unjustified match is a 🟠 finding, an unambiguous one (test deletion without a
+spec decision, a swallowed error on a real failure path) is a 🔴.
+
+- **Relaxed tests** — an assertion loosened to pass rather than the code fixed
+  to satisfy it: a tightened matcher swapped for a looser one
+  (`toEqual` → `toBeTruthy`, an exact value → `expect.anything()`), a
+  narrowed expected value widened, a strict schema check softened, or a
+  threshold moved to admit the current (wrong) output.
+- **Skipped tests** — a failing test quarantined instead of fixed:
+  `it.skip` / `test.skip` / `xit` / `describe.skip`, a `return` early in the
+  test body, a `--test-name-pattern` / grep exclusion, an `@skip`/`@ignore`
+  tag, or a test commented out wholesale. Deleting a test outright is the
+  most severe form — treat unexplained coverage removal as `test-deletion`
+  (Step 4.5) and never auto-fix it.
+- **Swallowed errors** — a failure path silently absorbed: an empty
+  `catch {}`, `catch (e) {}` with no rethrow/log/handle, a bare
+  `.catch(() => {})` on a promise, a `try` wrapped solely to suppress a
+  throw the caller needs, or an error downgraded to a no-op return so the
+  happy path "passes".
+- **Stub returns** — a hardcoded value standing in for real logic: a function
+  that `return true` / `return []` / `return null` / `return {}` regardless of
+  input, a mock left wired into production code, a `TODO`/`FIXME` guarding an
+  unimplemented branch that the acceptance criteria required, or a constant
+  substituted for a computation the Story asked for.
+- **Fake renames** — a change dressed up as a rename that is actually a
+  deletion or a behavior change: content dropped under cover of a
+  move/rename, a "rename" whose diff quietly alters logic, or a re-export
+  shim that orphans the real implementation while the symbol name survives.
+- **Comment-deletion-as-fix** — a warning silenced by removing its evidence
+  rather than its cause: a failing assertion turned into a comment, a
+  `// TODO: this is broken` note deleted while the breakage remains, a
+  disabled-code block removed to make a diff look clean, or a lint-suppression
+  comment (`biome-ignore`, `eslint-disable`, `@ts-expect-error`) added to mute
+  a real diagnostic instead of fixing it.
+
+For every hit, name the file and line, the taxonomy category, and *why the
+code — not the check — should have changed*. A finding here is legitimate only
+when the diff itself lacks a recorded rationale (a commit-body or Story-comment
+note explaining a deliberate, spec-sanctioned relaxation clears it — per the
+engineer persona's Implementation Latitude, unlogged reshaping is the
+anti-pattern this pillar surfaces).
 
 ## Step 3 — Maintainability Ratchet
 

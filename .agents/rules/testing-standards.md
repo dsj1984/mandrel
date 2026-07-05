@@ -161,6 +161,20 @@ assertions into a single "kitchen sink" test — split them.
 - Coverage targets apply to production code. Test helpers, fixtures, and
   generated code are excluded per the project's coverage config.
 
+## Anti-Gaming (review-side complement)
+
+These standards define what a *correct* test looks like; they cannot, on
+their own, catch a change that reaches green by **weakening the check rather
+than fixing the code** — a relaxed assertion, a skipped or deleted test, a
+swallowed error, a stub return, a fake rename, or a warning silenced by
+comment deletion. That shortcut taxonomy is enumerated, and the reviewer-facing
+detection lens for it lives, in the **Anti-Gaming / Shortcut Detection** pillar
+(Pillar 4) of
+[`../workflows/helpers/code-review.md`](../workflows/helpers/code-review.md#pillar-4-anti-gaming--shortcut-detection).
+When you loosen a matcher, quarantine a test, or remove coverage, record the
+spec-sanctioned rationale in the commit body or Story comment so that pillar
+reads it as a deliberate decision rather than gaming.
+
 ## Property-Based Testing (a technique, not a tier)
 
 Property-based testing is a **technique** — generating a domain of inputs and
