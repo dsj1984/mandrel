@@ -19,6 +19,18 @@ is merged upstream. It runs in two scopes:
 - **Epic scope** — reviews the cumulative diff between an Epic branch and
   `main`, before `/deliver` opens the integration pull request.
 
+**Invariant — Story-scope review runs outside the maker's LLM context.**
+The Story-scope review executes inside the `story-close.js` /
+`single-story-close.js` close subprocess, **not** in the delivering
+child's (maker agent's) LLM context. The close pipeline invokes it after
+the delivering child has exited, so the change set is reviewed by a
+process the maker cannot influence. The enforcing code path is
+[`.agents/scripts/lib/orchestration/story-close/phases/code-review.js`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
+(invoked from `runStoryCloseLocked`; both close entry points reach it
+through the shared `runStoryReviewCore` spine). A future refactor MUST
+preserve this isolation: do not move Story-scope review into the maker's
+context or run it as a step of the delivering child.
+
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
 > `core/security-and-hardening`
 
