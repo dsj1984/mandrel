@@ -40,10 +40,14 @@ import { applyFloors, flattenBreaches } from './floors.js';
  * input. All three `ignoreGlobs`-configured gates (maintainability, crap,
  * duplication) are `path`-keyed, so the shared path matcher applies uniformly.
  *
+ * Kept module-local (not exported): the poison-exclusion behaviour is covered
+ * end-to-end through `evaluateKind` by the `check-baselines.min-floor` suite,
+ * so there is no external consumer to justify widening the surface.
+ *
  * @param {{ kind: string, baseline: { rollup?: object, rows?: object[] }, ignoreGlobs?: string[], cwd?: string }} args
  * @returns {object} the effective rollup to feed the floor check
  */
-export function rollupExcludingIgnored({ kind, baseline, ignoreGlobs, cwd }) {
+function rollupExcludingIgnored({ kind, baseline, ignoreGlobs, cwd }) {
   const rollup = baseline?.rollup;
   if (!Array.isArray(ignoreGlobs) || ignoreGlobs.length === 0) return rollup;
   const rows = baseline?.rows;
