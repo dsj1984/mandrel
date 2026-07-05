@@ -1512,6 +1512,34 @@
         }
       ]
     },
+    "qaEnvironments": {
+      "description": "Deployment targets the QA harness can run against (Epic #4326). A map keyed by environment name (e.g. `local`, `staging`), each carrying its own `baseUrl`, its own per-environment sign-in seam (the same url-template/skill union as `qaSignInSeam`), and an optional `allowWrites` gate. resolveQaEnvironment selects one environment per invocation by name or by raw-URL origin match against `baseUrl`; `allowWrites` defaults to true only for the `local` environment. Replaces the retired top-level single `signInSeam`.",
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["baseUrl", "signInSeam"],
+        "additionalProperties": false,
+        "properties": {
+          "baseUrl": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/safeString"
+              },
+              {
+                "minLength": 1
+              }
+            ]
+          },
+          "signInSeam": {
+            "$ref": "#/$defs/qaSignInSeam"
+          },
+          "allowWrites": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
     "qaPersonas": {
       "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names \u2014 the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
       "oneOf": [
@@ -1575,7 +1603,7 @@
     },
     "qa": {
       "type": "object",
-      "description": "Agent-driven QA harness contract (Epic #3214). Optional top-level block. All filesystem-pointer fields (featureRoot, fixturesManifest, designTokens) carry safeString guards rejecting shell-injection metacharacters. signInSeam is a url-template/skill union; personas resolve to a stored credential reference or a sign-in skill, never an inline secret.",
+      "description": "Agent-driven QA harness contract (Epic #3214; environment-keyed by Epic #4326). Optional top-level block. All filesystem-pointer fields (featureRoot, fixturesManifest, designTokens) carry safeString guards rejecting shell-injection metacharacters. environments is a map of named deployment targets (each with a baseUrl, a per-environment url-template/skill sign-in seam, and an optional allowWrites gate); personas resolve to a stored credential reference or a sign-in skill, never an inline secret.",
       "additionalProperties": false,
       "properties": {
         "featureRoot": {
@@ -1598,8 +1626,8 @@
             }
           ]
         },
-        "signInSeam": {
-          "$ref": "#/$defs/qaSignInSeam"
+        "environments": {
+          "$ref": "#/$defs/qaEnvironments"
         },
         "personas": {
           "$ref": "#/$defs/qaPersonas"

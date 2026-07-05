@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.83.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.82.0...mandrel-v1.83.0) (2026-07-05)
+
+
+### Added
+
+* Epic [#4326](https://github.com/dsj1984/mandrel/issues/4326) ([#4343](https://github.com/dsj1984/mandrel/issues/4343)) ([b2c0d84](https://github.com/dsj1984/mandrel/commit/b2c0d8475615f92f1a4e52debe9cd38d7c4dc27c))
+* Epic [#4337](https://github.com/dsj1984/mandrel/issues/4337) ([#4344](https://github.com/dsj1984/mandrel/issues/4344)) ([a9e1180](https://github.com/dsj1984/mandrel/commit/a9e11808634a8b03f889654e80da97f6efbe3939))
+
+
+### Fixed
+
+* **baselines:** honor maintainability ignoreGlobs in story-close auto-refresh + floor check ([#4347](https://github.com/dsj1984/mandrel/issues/4347)) ([10a4bd8](https://github.com/dsj1984/mandrel/commit/10a4bd86f182fc4aa22800f09173dcd0ebd2ebaa))
+* **hydration:** gate AC/verify strip on each dedicated section separately ([#4346](https://github.com/dsj1984/mandrel/issues/4346)) ([9896588](https://github.com/dsj1984/mandrel/commit/9896588c3b8c5808d2fbd74c695138c9fb657b0c))
+
 ## [1.82.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.81.0...mandrel-v1.82.0) (2026-07-04)
 
 

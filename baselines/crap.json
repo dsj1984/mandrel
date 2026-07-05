@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-06-24T15:37:15.914Z",
+  "generatedAt": "2026-07-04T19:11:52.975Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4960,6 +4960,66 @@
       "method": "fetchPriorFeedback",
       "startLine": 235,
       "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "isPromotable",
+      "startLine": 58,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "clusterKeyFor",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "highestSeverity",
+      "startLine": 97,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "clusterLedgerItems",
+      "startLine": 119,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "targetForCluster",
+      "startLine": 168,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "clusterToFinding",
+      "startLine": 186,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "routedToLink",
+      "startLine": 210,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/findings/promote-finding.js",
+      "method": "promoteFindings",
+      "startLine": 270,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "normalizeSeverity",
+      "startLine": 74,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/findings/severity.js",
+      "method": "highestSeverity",
+      "startLine": 89,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -12332,25 +12392,25 @@
     {
       "path": ".agents/scripts/lib/qa/console-allowlist.js",
       "method": "normaliseMessage",
-      "startLine": 47,
+      "startLine": 48,
       "crap": 4.074074074074074
     },
     {
       "path": ".agents/scripts/lib/qa/console-allowlist.js",
       "method": "isAllowlisted",
-      "startLine": 74,
+      "startLine": 75,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/qa/console-allowlist.js",
       "method": "buildFinding",
-      "startLine": 96,
+      "startLine": 97,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/qa/console-allowlist.js",
       "method": "filterConsoleMessages",
-      "startLine": 130,
+      "startLine": 131,
       "crap": 4
     },
     {

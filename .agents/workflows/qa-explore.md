@@ -59,13 +59,17 @@ skill. It is the conventions reference this procedure depends on for the
   browser MCP, starting at a root and reaching each surface only via UI
   affordances — never URL-jump to a deep link. Browser instrumentation lives in
   [`core/browser-testing-with-devtools`](../skills/core/browser-testing-with-devtools/SKILL.md).
-- **Static driving (the documented interim).** When a live runtime is not
-  reachable, walk the surface from source, route definitions, and rendered
-  markup — chosen explicitly at Plan time, never as a silent fallback.
-- **Authenticated driving depends on consumer persona-seeding infrastructure
-  this framework does not deliver.** Without it, drive only the unauthenticated
-  surface or fall back to static, never enter real credentials, and record the
-  gap.
+- **Static driving (the documented interim).** When **no seam resolves** for the
+  target environment, walk the surface from source, route definitions, and
+  rendered markup — chosen explicitly at Plan time, never as a silent fallback.
+- **Authenticated driving follows the per-environment seam.** When the resolved
+  target environment carries a `signInSeam` — a dev `url` seam or a `skill` seam
+  with `credentialRef`-indirected sign-in — drive the authenticated surface via
+  that seam, including authenticated deployed hosts. Real credentials are never
+  typed inline: the seam consumes a persona **name** (`url`) or a stored
+  `credentialRef` (`skill`), and every evidence string passes through mandatory
+  redaction. Static is the interim **only** where the target environment
+  resolves no seam.
 - **Broken navigation is a finding, not a workaround.** A missing affordance, a
   nav 404, or a guard redirect loop is recorded and you move on — you do not
   route around it with a direct URL.
@@ -160,31 +164,54 @@ before touching the surface.
 1. Re-read the `qa-engineer` persona and the
    [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)
    skill, and resolve the `qa` contract and session (above).
-2. **Choose the driving method explicitly** for the named `surface`:
-   - **Drive (default):** the live runtime is reachable, so the agent will
-     drive it through the browser MCP, navigation-first (start at a root, reach
-     the surface via UI affordances, never URL-jump).
-   - **Static (documented interim):** the live runtime is *not* reachable —
-     most commonly because authenticated driving needs consumer persona-seeding
-     infrastructure that does not exist — so the agent will walk the surface
-     from source, routes, and rendered markup. This is a deliberate Plan-time
-     decision with a recorded reason, never a silent fallback when the browser
-     MCP hiccups.
+2. **Resolve the target environment** via
+   [`resolveQaEnvironment`](../scripts/lib/qa/resolve-qa-contract.js). The
+   contract's `environments` map keys each deployment target (`local`, a
+   staging host, an authenticated deployed host) to its `baseUrl`, `signInSeam`,
+   and resolved `allowWrites`:
 
-   Record the chosen method and reason on the ledger (e.g.
-   `method: static, reason: no reachable authenticated runtime`).
-3. Draft an **exploration plan** for the named `surface`:
+   ```js
+   import { resolveQaEnvironment } from '../scripts/lib/qa/resolve-qa-contract.js';
+   // `target` is an environment name or a raw URL; omit for the default.
+   const environment = resolveQaEnvironment(contract, target);
+   // → { name, baseUrl, signInSeam, allowWrites }
+   ```
+
+   When the operator's `surface` does not pin an unambiguous target and the
+   contract declares more than one environment, **prompt** the operator to name
+   the environment (or accept the `defaultEnvironment`) — never silently pick
+   one. The resolver throws loudly (naming the known environments) on an unknown
+   name or an unmatched URL; surface that verbatim and stop. Record the resolved
+   **environment name** on the ledger alongside the driving method.
+3. **Choose the driving method explicitly** for the named `surface` on the
+   resolved environment:
+   - **Drive (default):** a seam resolves for the target environment, so the
+     agent will drive it through the browser MCP, navigation-first (start at a
+     root, reach the surface via UI affordances, never URL-jump). Drive is
+     available for **any** environment whose `signInSeam` resolves — including
+     authenticated deployed hosts reached via a `skill` seam.
+   - **Static (documented interim):** **no seam resolves** for the target
+     environment, so the agent will walk the surface from source, routes, and
+     rendered markup. This is a deliberate Plan-time decision with a recorded
+     reason, never a silent fallback when the browser MCP hiccups.
+
+   Record the resolved environment name, the chosen method, and the reason on
+   the ledger (e.g.
+   `environment: staging, method: drive, seam: skill` or
+   `environment: preview, method: static, reason: no seam resolves`).
+4. Draft an **exploration plan** for the named `surface`:
+   - the resolved target environment (name + `baseUrl`),
    - the sub-surfaces / flows / states the agent intends to drive,
    - the classes of signal it is hunting (product bug, environment-setup,
      tooling-dx, test-gap, enhancement — the
      [ledger `class` enum](../schemas/qa-ledger.schema.json)),
    - the chosen driving method and its rationale,
    - any rolling backlog (`untriaged`) carried forward from a resumed session.
-4. Present the plan, the chosen driving method, and the resolved `ledgerPath`
-   (under `temp/qa/`) to the operator.
-5. **Gate:** ask the operator to confirm the plan and the driving method (or
-   amend the surface/scope/method). Do **not** proceed to Capture until they
-   confirm.
+5. Present the plan, the resolved target environment, the chosen driving
+   method, and the resolved `ledgerPath` (under `temp/qa/`) to the operator.
+6. **Gate:** ask the operator to confirm the plan, the target environment, and
+   the driving method (or amend the surface/scope/environment/method). Do
+   **not** proceed to Capture until they confirm.
 
 ---
 
@@ -212,10 +239,12 @@ observations. **This phase is strictly read-only.**
   MCP — start at a root, click the affordances a real user would, and observe
   the rendered state, console, and network signal. Never URL-jump to establish
   a starting state; a broken affordance, nav 404, or guard redirect loop is
-  itself a **finding**, not a workaround. Never enter real credentials to reach
-  an authenticated surface and never fabricate a session — drive only the
-  unauthenticated surface (or capture the authenticated surface statically) and
-  record the persona-seeding gap.
+  itself a **finding**, not a workaround. To reach an authenticated surface,
+  sign in through the resolved environment's `signInSeam` — a dev `url` seam
+  (substitute the persona name into the template) or a `skill` seam (invoke the
+  named sign-in skill, which reads a stored `credentialRef`). Never type real
+  credentials inline and never fabricate a session; the seam is the only path
+  to a logged-in surface, and all captured evidence is redacted (§ 1 below).
 - **Static (documented interim):** walk the surface from source, route
   definitions, and rendered markup. Treat its coverage as partial and say so in
   the ledger — a static pass does not close the same coverage a driven pass
@@ -368,8 +397,10 @@ deferred rolling backlog that a resumed session will pick up.
   [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md).
 - **Capture is read-only.** The only Capture write is appending ledger lines
   under `temp/qa/`. No source edits, no ticket mutations, no product writes,
-  no destructive form submissions. Never enter real credentials or fabricate a
-  session; record the persona-seeding gap instead.
+  no destructive form submissions. Never type real credentials inline or
+  fabricate a session; reach an authenticated surface only through the resolved
+  environment's `signInSeam`, and where no seam resolves, record the gap and
+  fall back to static.
 - **Broken navigation is a finding, not a workaround.** Never URL-jump around a
   missing affordance, a nav 404, or a guard redirect loop — record it and move
   on.
