@@ -139,6 +139,7 @@ function makeDefaultGhAutoMergeRunner(gh) {
  *   prNumber: number|null,
  *   prUrl: string,
  *   noAutoMerge: boolean,
+ *   autoMergePolicy?: 'trust-ci'|'strict',
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   progress: (tag: string, msg: string) => void,
  * }} args
@@ -149,12 +150,30 @@ export async function runAutoMergePhase({
   prNumber,
   prUrl,
   noAutoMerge,
+  autoMergePolicy = 'trust-ci',
   gh,
   progress,
 }) {
   if (noAutoMerge) {
     progress('PR', '⏭  Auto-merge disabled (--no-auto-merge).');
     return { autoMergeEnabled: false, autoMergeReason: 'disabled-by-flag' };
+  }
+  // `delivery.ci.autoMerge: "strict"` opts standalone Stories out of
+  // auto-merge (parallel to the Epic path's strict predicate): the PR opens
+  // and waits for an operator merge instead of arming native auto-merge.
+  // The default `"trust-ci"` keeps arming on green required CI — GitHub's
+  // native `--auto` is the required-check gate, so no client-side predicate
+  // is needed here (unlike the Epic path, which gates on local
+  // audit/review/retro signals a standalone Story does not produce).
+  if (autoMergePolicy === 'strict') {
+    progress(
+      'PR',
+      '⏭  Auto-merge skipped (delivery.ci.autoMerge="strict") — operator merges.',
+    );
+    return {
+      autoMergeEnabled: false,
+      autoMergeReason: 'disabled-by-policy-strict',
+    };
   }
   if (prNumber == null) {
     progress(

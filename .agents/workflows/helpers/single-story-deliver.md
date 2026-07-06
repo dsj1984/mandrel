@@ -223,9 +223,22 @@ The script runs the close-validation gates against `baseBranch`, syncs the
 Story branch from `origin/<baseBranch>` (Story #2580 — the parallel-race
 defence), pushes `story-<id>`, opens (or reuses) a PR against `baseBranch`
 with a `Closes #<storyId>` footer, enables GitHub native auto-merge
-(`--auto --squash --delete-branch`), flips the Story to **`agent::closing`**
+(`--auto --squash --delete-branch`) **when `delivery.ci.autoMerge` is
+`"trust-ci"` (the default)**, flips the Story to **`agent::closing`**
 (NOT `agent::done` — the issue stays OPEN until Step 5 confirms the merge,
 Story #3385), reaps the worktree, and releases the Story lease.
+
+> **`delivery.ci.autoMerge` policy (shared with the Epic path).** The
+> standalone close honours the same config knob the Epic Phase 8.5 gate
+> reads. Under the default `"trust-ci"`, GitHub native auto-merge is armed
+> and the PR squash-merges once its **required** checks pass (GitHub's
+> `--auto` is the required-check gate — no client-side predicate is needed
+> here, unlike the Epic path, because a standalone Story runs no
+> audit/review/retro phase to gate on). Under `"strict"`, the close **does
+> not arm auto-merge** — the PR opens and waits for an **operator merge**,
+> exactly as `--no-auto-merge` does per-run. This lets a consumer who tightens
+> Epic merges with `"strict"` get the same operator-in-the-loop behaviour for
+> standalone Stories.
 
 Flags:
 
