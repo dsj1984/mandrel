@@ -342,14 +342,28 @@ just fires the emit and reads the resulting ledger.
    refusing to run when the body has no `## Acceptance Table` section
    and no waiver is set (the
    start gate in Phase 1 would normally catch that first).
-2. **PR open — bus-driven (Story #2894).** On
-   `acceptance.reconcile.ok` the `Finalizer` listener invokes
-   [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
-   with `{ epicId, headBranch: 'epic/<id>', baseBranch: 'main' }`.
-   The helper probes for an existing open PR on the head branch
-   first (idempotent locate path — a re-run of `/deliver`
-   on the same branch short-circuits without opening a duplicate)
-   and only opens a new PR when none exists. The listener then
+2. **PR open / ready — bus-driven (Story #2894; earlyPr split Story
+   #4359).** On `acceptance.reconcile.ok` the `Finalizer` listener
+   resolves `delivery.ci.earlyPr` via
+   [`getCiDelivery`](../../scripts/lib/config/ci.js) (default `true`) and
+   branches:
+   - **`earlyPr` on (default)** — the Epic PR already exists as a draft
+     (Phase 2 opened it at wave 1 with
+     [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+     `{ draft: true }`). Finalize locates it and flips it ready-for-review
+     via
+     [`markPrReady`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+     rather than creating a PR. `gh pr ready` on an already-ready PR is a
+     no-op, so replay is idempotent.
+   - **`earlyPr` off** — finalize invokes `openOrLocatePr` with
+     `{ epicId, headBranch: 'epic/<id>', baseBranch: 'main' }` (no
+     `draft`). The helper probes for an existing open PR on the head branch
+     first (idempotent locate path — a re-run of `/deliver` on the same
+     branch short-circuits without opening a duplicate) and only opens a
+     new PR when none exists.
+
+   In both modes the PR title/body contract (`feat: Epic #<id>` /
+   `Closes #<id>`) is identical. The listener then
    emits `pr.created` → `epic.finalize.end` and **stops** (Story
    #3367). It does **not** emit `epic.merge.ready`: that event is
    the sole `AutomergeArmer` trigger, and emitting it from finalize
