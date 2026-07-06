@@ -17,10 +17,12 @@
  * `.agents/scripts/lib/config-settings-schema.js`.
  *
  * Sizing model (Story #3760 — profile-matrix collapse; Story #3874 — one
- * uniform relaxed profile):
- *   - Flat knobs: `softFiles` (~15), `hardFiles` (~30), `maxAcceptance` (~14),
+ * uniform relaxed profile; the hard acceptance ceiling was removed after the
+ * Epic #4355 decomposition experiment showed it forced fragmentation):
+ *   - Flat knobs: `softFiles` (~15), `hardFiles` (~30),
  *     `softAcceptanceCount` (~10). No per-profile ceiling map, no parallel
- *     `testSurface` axis, no selector and no second profile.
+ *     `testSurface` axis, no selector and no second profile. Acceptance
+ *     mass is advisory-only.
  *   - The four-profile `sizingProfile` enum is replaced by a single optional
  *     `wide` declaration carrying a one-line human-readable reason. Declaring
  *     `wide` with a reason lifts the `hardFiles` rejection; no Story is
@@ -119,9 +121,12 @@ export const DEFAULT_TASK_SIZING = Object.freeze({
   // The hard `hardFiles` rejection (30) is unchanged.
   softFiles: 15,
   softAcceptanceCount: 10,
-  // Hard ceilings (rejection unless lifted).
+  // Hard ceiling (rejection unless lifted via `wide`). Acceptance mass has
+  // no hard ceiling: the former `maxAcceptance` rejection forced careful,
+  // fine-grained specs to fragment one coherent capability into dependent
+  // slices (observed on Epic #4355), so it was removed — the delivery-
+  // schedule simulation in the decomposer prompt owns that judgment now.
   hardFiles: 30,
-  maxAcceptance: 14,
   // Under-size (merge-candidate) thresholds (Story #4312). A Story with a
   // footprint at or below BOTH ceilings that also carries at least one
   // `depends_on` edge to a sibling looks like a dependent fragment rather than
@@ -528,17 +533,13 @@ function computeStorySizingFindings(story, sizing) {
     ),
   );
 
-  // Acceptance ceiling + soft warn.
-  if (acceptance.length > sizing.maxAcceptance) {
-    out.push(
-      makeOversized(
-        story.slug,
-        'acceptance',
-        acceptance.length,
-        sizing.maxAcceptance,
-      ),
-    );
-  } else if (acceptance.length > sizing.softAcceptanceCount) {
+  // Acceptance mass is advisory-only (Story #4312's under-size heuristic is
+  // the merge signal; the former hard `maxAcceptance` rejection is removed).
+  // A long binding contract is a re-check-cohesion nudge, never by itself a
+  // decomposition error — cohesion and the delivery envelope govern Story
+  // size, and the delivery-schedule simulation in the decomposer prompt owns
+  // the fragmentation/consolidation judgment.
+  if (acceptance.length > sizing.softAcceptanceCount) {
     out.push(
       makeSoftWidth(
         story.slug,

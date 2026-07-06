@@ -150,8 +150,10 @@ guardrails and Part 3 and are recorded here as the current baseline:
 - **One uniform sizing profile — sizing decoupled from risk.** Every Epic, at
   any risk level, plans under one relaxed `DEFAULT_TASK_SIZING`
   ([`ticket-validator-sizing.js`](../.agents/scripts/lib/orchestration/ticket-validator-sizing.js)):
-  `softFiles: 15`, `hardFiles: 30`, `softAcceptanceCount: 10`,
-  `maxAcceptance: 14`. There is **no** per-Feature fan-out cap — the Feature
+  `softFiles: 15`, `hardFiles: 30`, `softAcceptanceCount: 10` (acceptance
+  mass is advisory-only — the hard `maxAcceptance` ceiling was removed after
+  the Epic #4355 decomposition experiment). There is **no** per-Feature
+  fan-out cap — the Feature
   tier itself was removed by the 2-tier hard cutover (Story #4041). `wide`
   (with a reason) is the only beyond-ceiling path. Story size measures uniform
   delivery capacity; risk routes *rigor*, not scope.

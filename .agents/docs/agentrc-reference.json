@@ -92,7 +92,6 @@
     "taskSizing": {
       "softFiles": 15,
       "hardFiles": 30,
-      "maxAcceptance": 14,
       "softAcceptanceCount": 10
     }
   },
