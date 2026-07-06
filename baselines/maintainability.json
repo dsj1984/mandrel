@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-04T19:11:52.671Z",
+  "generatedAt": "2026-07-06T20:31:34.849Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -996,7 +996,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
-      "mi": 82.177
+      "mi": 82.703
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
@@ -1073,6 +1073,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
       "mi": 108.444
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
+      "mi": 82.431
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
