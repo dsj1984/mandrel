@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-04T19:11:52.975Z",
+  "generatedAt": "2026-07-06T19:56:31.297Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -14996,13 +14996,13 @@
     {
       "path": ".agents/scripts/run-verify.js",
       "method": "runVerifySteps",
-      "startLine": 24,
+      "startLine": 39,
       "crap": 3.006761833208114
     },
     {
       "path": ".agents/scripts/run-verify.js",
       "method": "<anon method-1>",
-      "startLine": 49,
+      "startLine": 64,
       "crap": 3.1851851851851856
     },
     {
