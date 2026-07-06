@@ -96,11 +96,15 @@ describe('runPrWatch — green path', () => {
 describe('runPrWatch — red path', () => {
   it('exits 1 and names the failing check in the printed map', async () => {
     const { print, lines } = collectPrint();
-    let errorLine = '';
+    const errorLines = [];
     const code = await runPrWatch({
       prNumber: 7,
+      config: null,
       pollIntervalMs: 0,
+      maxResumes: 0,
       sleepFn: async () => {},
+      // No epicId → no digest is written (Epic-scoped by filename), so
+      // this test never touches the filesystem.
       ghPrChecksFn: () => ({
         status: 0,
         stdout: JSON.stringify([
@@ -112,7 +116,7 @@ describe('runPrWatch — red path', () => {
       logger: {
         ...quietLogger(),
         error: (m) => {
-          errorLine = m;
+          errorLines.push(m);
         },
       },
       print,
@@ -122,8 +126,18 @@ describe('runPrWatch — red path', () => {
     const out = JSON.parse(lines[0]);
     assert.equal(out.green, false);
     assert.equal(out.terminal, true);
+    assert.equal(out.stillRunning, false);
     assert.equal(out.checkOutcomes.baselines, 'failure');
-    assert.match(errorLine, /baselines=failure/);
+    // The failing check is named on one of the error lines (Story #4358
+    // added the `/loop /loops:fix-failing-tests` handoff line after it).
+    assert.ok(
+      errorLines.some((l) => /baselines=failure/.test(l)),
+      'failing check named in error output',
+    );
+    assert.ok(
+      errorLines.some((l) => /fix-failing-tests/.test(l)),
+      'fix-loop handoff surfaced on red',
+    );
   });
 });
 

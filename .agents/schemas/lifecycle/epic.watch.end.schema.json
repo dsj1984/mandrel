@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.watch.end.schema.json",
   "title": "epic.watch.end",
-  "description": "Emitted by Watcher when required checks settle. checkOutcomes maps check-name → terminal state (success | failure | timed_out | skipped). AutomergePredicate subscribes to this event (test-only Watcher path; the production Phase 8.5 boundary is epic.automerge.start).",
+  "description": "Emitted by Watcher when required checks settle. checkOutcomes maps check-name → terminal state (success | failure | timed_out | skipped) or the slow-but-not-failed sentinel `still-running` (Story #4358: the poll cap fired with the check still pending after the resume budget was exhausted — distinct from a genuine `failure`). AutomergePredicate subscribes to this event (test-only Watcher path; the production Phase 8.5 boundary is epic.automerge.start).",
   "type": "object",
   "required": ["prUrl", "checkOutcomes"],
   "properties": {
@@ -17,6 +17,7 @@
           "neutral",
           "cancelled",
           "timed_out",
+          "still-running",
           "action_required",
           "stale",
           "skipped"
