@@ -148,6 +148,16 @@ const KEY_MEANINGS = Object.freeze({
     'Time-to-live for the Epic lease before a stale claim is reclaimable.',
   'delivery.ci.skipForStoryPushes':
     'Whether Story-branch pushes carry a [skip ci] trailer.',
+  'delivery.ci.earlyPr':
+    'Whether /deliver opens the Epic PR early so CI warms during later waves.',
+  'delivery.ci.watch.pollIntervalMs':
+    'Poll cadence (ms) for the merge/CI watch loop.',
+  'delivery.ci.watch.maxPolls':
+    'Maximum number of poll probes before the CI watch gives up.',
+  'delivery.ci.watch.maxResumes':
+    'Maximum times the CI watch may resume after a transient stall.',
+  'delivery.ci.autoMerge':
+    'Merge posture: trust-ci merges on green checks; strict also requires a clean review gate.',
   'delivery.preflight.maxStories':
     'Pre-dispatch ceiling on estimated Story count (no cap when unset).',
   'delivery.preflight.maxWaves':

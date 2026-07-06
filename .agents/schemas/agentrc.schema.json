@@ -1421,6 +1421,34 @@
             "skipForStoryPushes": {
               "type": "boolean",
               "description": "Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
+            },
+            "earlyPr": {
+              "type": "boolean",
+              "description": "Story #4356 (Epic #4355). When true (default), /deliver opens the Epic PR early — before every Story merges — so CI starts warming while later waves run. Set false to defer PR creation until the Epic branch is complete."
+            },
+            "watch": {
+              "type": "object",
+              "description": "Story #4356 (Epic #4355). Poll-loop tuning for the merge/CI watch. pollIntervalMs is the cadence between check probes; maxPolls caps total probes before the watcher gives up; maxResumes caps how many times the watcher may resume after a transient stall.",
+              "properties": {
+                "pollIntervalMs": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "maxPolls": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "maxResumes": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "autoMerge": {
+              "type": "string",
+              "enum": ["trust-ci", "strict"],
+              "description": "Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate."
             }
           },
           "additionalProperties": false

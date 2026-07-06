@@ -226,10 +226,31 @@ const EPIC_AUDIT_SCHEMA = {
 // commit subjects so intermediate pushes do not stampede the CI fleet.
 // The Epic-branch merge commit produced by story-close.js's merge
 // runner never carries the marker, regardless of this flag.
+//
+// Story #4356 (Epic #4355) — CI-aware delivery namespace. `earlyPr` gates
+// whether /deliver opens the Epic PR early (before every Story merges) so CI
+// starts warming while later waves run; defaults to `true` via getCiDelivery.
+// `watch.*` tunes the merge/CI watch poll loop (poll cadence, poll cap, and
+// how many times the watcher may resume after a transient stall).
+// `autoMerge` selects the merge posture: `"trust-ci"` (default) merges once
+// required checks pass, `"strict"` additionally requires a clean review gate.
+const CI_WATCH_SCHEMA = {
+  type: 'object',
+  properties: {
+    pollIntervalMs: { type: 'integer', minimum: 1 },
+    maxPolls: { type: 'integer', minimum: 1 },
+    maxResumes: { type: 'integer', minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
     skipForStoryPushes: { type: 'boolean' },
+    earlyPr: { type: 'boolean' },
+    watch: CI_WATCH_SCHEMA,
+    autoMerge: { type: 'string', enum: ['trust-ci', 'strict'] },
   },
   additionalProperties: false,
 };
