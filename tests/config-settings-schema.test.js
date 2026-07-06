@@ -230,12 +230,26 @@ describe('planning.* shape', () => {
           taskSizing: {
             softFiles: 5,
             hardFiles: 15,
-            maxAcceptance: 8,
             softAcceptanceCount: 6,
           },
         },
       }),
       true,
+    );
+  });
+
+  it('rejects the removed maxAcceptance knob — acceptance mass is advisory-only', () => {
+    // The hard acceptance ceiling was removed after the Epic #4355
+    // decomposition experiment; `additionalProperties: false` on the
+    // taskSizing block now rejects the retired key.
+    expectErrors(
+      {
+        ...REQ,
+        planning: {
+          taskSizing: { maxAcceptance: 14 },
+        },
+      },
+      /additional propert/i,
     );
   });
 

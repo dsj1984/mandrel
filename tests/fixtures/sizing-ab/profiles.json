@@ -11,7 +11,6 @@
     "softFiles": 15,
     "softAcceptanceCount": 10,
     "hardFiles": 30,
-    "maxAcceptance": 14,
     "softStoriesPerFeature": 7
   },
   "totalFiles": 58

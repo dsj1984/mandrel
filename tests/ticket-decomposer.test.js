@@ -353,18 +353,43 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
-  it('advertises the maxAcceptance and hardFiles ceilings from the single sizing constant (Story #3760, relaxed by Story #3874)', () => {
+  it('advertises the hardFiles ceiling and advisory-only acceptance mass from the single sizing constant (Story #3760, relaxed by Story #3874; hard acceptance ceiling removed)', () => {
     // The prompt sources its threshold sentence from DEFAULT_TASK_SIZING so
-    // the two surfaces cannot drift. The relaxed default ceilings are
-    // maxAcceptance=14 and hardFiles=30.
+    // the two surfaces cannot drift. The only remaining hard ceiling is
+    // hardFiles=30; acceptance mass is advisory-only (softAcceptanceCount=10).
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      /maxAcceptance/.test(prompt) && /\b14\b/.test(prompt),
-      'prompt must advertise the maxAcceptance ceiling of 14',
+      !/maxAcceptance/.test(prompt),
+      'prompt must not reference the removed maxAcceptance ceiling',
+    );
+    assert.ok(
+      /Acceptance mass is \*\*advisory only\*\*/.test(prompt) &&
+        /NO hard acceptance ceiling/.test(prompt),
+      'prompt must state that acceptance mass is advisory-only with no hard ceiling',
     );
     assert.ok(
       /hardFiles/.test(prompt) && /\b30\b/.test(prompt),
       'prompt must advertise the hardFiles ceiling of 30',
+    );
+  });
+
+  it('carries the delivery-schedule simulation section (story count must earn itself)', () => {
+    const prompt = buildDecomposerSystemPrompt([]);
+    assert.ok(
+      /DELIVERY-SCHEDULE SIMULATION/.test(prompt),
+      'prompt must carry the delivery-schedule simulation section',
+    );
+    assert.ok(
+      /parallelism yield/i.test(prompt),
+      'prompt must ask the author to compute the parallelism yield',
+    );
+    assert.ok(
+      /Hot-file rule/.test(prompt),
+      'prompt must state the hot-file re-slicing rule',
+    );
+    assert.ok(
+      /risk isolation/.test(prompt) && /envelope pressure/.test(prompt),
+      'prompt must enumerate the per-Story slot justifications',
     );
   });
 

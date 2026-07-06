@@ -250,18 +250,18 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
  * `planning.taskSizing` — Story-sizing thresholds consumed by
  * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
  * `DEFAULT_TASK_SIZING` defaults (softFiles 15, hardFiles 30,
- * maxAcceptance 14, softAcceptanceCount 10 — the uniform relaxed profile
- * from Story #3874). Story #3760 collapsed the per-profile matrix and the
- * parallel `testSurface` axis into a flat set of knobs; the `sizingProfile`
- * enum was replaced by an optional body-level `wide` declaration that lifts
- * the `hardFiles` rejection.
+ * softAcceptanceCount 10 — the uniform relaxed profile from Story #3874).
+ * Story #3760 collapsed the per-profile matrix and the parallel
+ * `testSurface` axis into a flat set of knobs; the `sizingProfile` enum was
+ * replaced by an optional body-level `wide` declaration that lifts the
+ * `hardFiles` rejection. The hard `maxAcceptance` ceiling was removed after
+ * the Epic #4355 decomposition experiment — acceptance mass is advisory-only.
  */
 const TASK_SIZING_SCHEMA = {
   type: 'object',
   properties: {
     softFiles: { type: 'integer', minimum: 1 },
     hardFiles: { type: 'integer', minimum: 1 },
-    maxAcceptance: { type: 'integer', minimum: 1 },
     softAcceptanceCount: { type: 'integer', minimum: 1 },
     // Under-size (merge-candidate) thresholds (Story #4312). A Story whose
     // footprint is at or below BOTH ceilings and that carries a `depends_on`

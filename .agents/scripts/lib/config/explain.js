@@ -126,10 +126,8 @@ const KEY_MEANINGS = Object.freeze({
     'How many recent commits the snapshot summarizes.',
   'planning.riskHeuristics':
     'Phrases that flag a Story as high-risk for HITL escalation.',
-  'planning.taskSizing.maxAcceptance':
-    'Hard ceiling on acceptance criteria per Story.',
   'planning.taskSizing.softAcceptanceCount':
-    'Acceptance-criteria count above which a Story is flagged as large.',
+    'Acceptance-criteria count above which a Story is flagged as large (advisory-only — there is no hard acceptance ceiling).',
   'planning.taskSizing.softFiles':
     'Touched-file count above which a Story is flagged as large.',
   'planning.taskSizing.hardFiles':

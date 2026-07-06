@@ -98,9 +98,9 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
         }
         // Story #2798 — the maxTickets section MUST not call the budget a
         // "hard cap" or "hard ceiling". The unrelated task-sizing
-        // validator phrasing ("validator's hard ceilings (default
-        // maxAcceptance ...") stays legitimate, so the check is scoped
-        // to lines that mention maxTickets in the same sentence.
+        // validator phrasing (the hardFiles ceiling) stays legitimate, so
+        // the check is scoped to lines that mention maxTickets in the same
+        // sentence.
         const maxTicketsLines = body
           .split('\n')
           .filter((l) => /maxTickets/.test(l));
@@ -112,12 +112,24 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
           }
         }
         // Story #3760 — sizing thresholds have exactly one definition
-        // (DEFAULT_TASK_SIZING). The Skill body must advertise the relaxed
-        // ceilings (maxAcceptance=14, hardFiles=30 — Story #3874) and name
-        // the single constant.
-        if (!(/maxAcceptance/.test(body) && /\b14\b/.test(body))) {
+        // (DEFAULT_TASK_SIZING). The Skill body must advertise the remaining
+        // hard ceiling (hardFiles=30 — Story #3874), state that acceptance
+        // mass is advisory-only (the hard maxAcceptance ceiling was removed
+        // after the Epic #4355 decomposition experiment), and name the
+        // single constant.
+        if (/maxAcceptance/.test(body)) {
           errors.push(
-            'Skill body must advertise the maxAcceptance ceiling of 14 (Story #3874)',
+            'Skill body must not reference the removed maxAcceptance ceiling',
+          );
+        }
+        if (!/advisory only/i.test(body)) {
+          errors.push(
+            'Skill body must state that acceptance mass is advisory-only',
+          );
+        }
+        if (!/DELIVERY-SCHEDULE SIMULATION/i.test(body)) {
+          errors.push(
+            'Skill body must mirror the delivery-schedule simulation section',
           );
         }
         if (!(/hardFiles/.test(body) && /\b30\b/.test(body))) {

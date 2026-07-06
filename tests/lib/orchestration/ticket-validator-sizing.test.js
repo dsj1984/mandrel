@@ -12,15 +12,17 @@ import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/st
  * are gone. The model is now:
  *
  *   - Flat knobs (DEFAULT_TASK_SIZING): softFiles=15, hardFiles=30,
- *     maxAcceptance=14, softAcceptanceCount=10.
+ *     softAcceptanceCount=10. The former hard `maxAcceptance` ceiling was
+ *     removed (Epic #4355 decomposition experiment) — acceptance mass is
+ *     advisory-only.
  *   - A single optional `body.wide = { reason }` declaration. Declaring `wide`
  *     with a non-empty reason lifts the hardFiles rejection — no Story is
  *     rejected for width when `wide` is declared.
  *   - Cohesion is the primary heuristic; the numeric ceiling is a backstop.
  *
  * Findings:
- *   - oversized-task (hard) — acceptance > maxAcceptance, or fileCount >
- *     hardFiles when `wide` is not declared.
+ *   - oversized-task (hard) — fileCount > hardFiles when `wide` is not
+ *     declared.
  *   - soft-task-width (soft) — acceptance > softAcceptanceCount, or fileCount >
  *     softFiles (when `wide` IS declared — declared-wide Stories still surface
  *     the width as advisory signal).
@@ -110,13 +112,13 @@ test('narrow Story with no wide declaration produces no findings', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Acceptance ceiling — maxAcceptance=14, softAcceptanceCount=10
+// Acceptance mass — advisory-only (softAcceptanceCount=10; no hard ceiling)
 // ---------------------------------------------------------------------------
 
-test('Story with 14 acceptance items validates clean (maxAcceptance=14)', () => {
+test('Story with 10 acceptance items (at softAcceptanceCount) validates clean', () => {
   const result = validateStory(
-    makeStory('t-14ac', {
-      acceptance: Array.from({ length: 14 }, (_, i) => `criterion ${i}`),
+    makeStory('t-10ac', {
+      acceptance: Array.from({ length: 10 }, (_, i) => `criterion ${i}`),
     }),
   );
   const hard = result.findings.filter((f) => f.severity === 'hard');
@@ -124,22 +126,27 @@ test('Story with 14 acceptance items validates clean (maxAcceptance=14)', () => 
   assert.deepEqual(result.errors, []);
 });
 
-test('Story with 15 acceptance items trips hard oversized-task (ceiling=14)', () => {
+test('Story with 20 acceptance items emits only the soft advisory — no hard finding at any acceptance count', () => {
+  // The former hard maxAcceptance ceiling forced careful, fine-grained specs
+  // to fragment one coherent capability into dependent slices (observed on
+  // Epic #4355), so it was removed. A long binding contract is advisory
+  // signal, never a rejection.
   const result = validateStory(
-    makeStory('t-15ac', {
-      acceptance: Array.from({ length: 15 }, (_, i) => `criterion ${i}`),
+    makeStory('t-20ac', {
+      acceptance: Array.from({ length: 20 }, (_, i) => `criterion ${i}`),
     }),
   );
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
   );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 15);
-  assert.equal(hard[0].ceiling, 14);
-  assert.equal(
-    result.errors.filter((e) => e.includes('acceptance ceiling')).length,
-    1,
+  assert.deepEqual(hard, []);
+  assert.deepEqual(result.errors, []);
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'acceptance',
   );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 20);
+  assert.equal(soft[0].soft, 10);
 });
 
 test('Story with 11 acceptance items emits soft-task-width on acceptance field', () => {
@@ -160,7 +167,7 @@ test('Story with 11 acceptance items emits soft-task-width on acceptance field',
   assert.equal(soft[0].soft, 10);
 });
 
-test('wide lifts only the file ceiling — 15 acceptance items still hard-reject with wide declared', () => {
+test('wide is orthogonal to acceptance mass — 15 acceptance items with wide declared stay advisory-only', () => {
   const result = validateStory(
     makeStory('t-15ac-wide', {
       acceptance: Array.from({ length: 15 }, (_, i) => `criterion ${i}`),
@@ -170,13 +177,12 @@ test('wide lifts only the file ceiling — 15 acceptance items still hard-reject
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
   );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 15);
-  assert.equal(hard[0].ceiling, 14);
-  assert.equal(
-    result.errors.filter((e) => e.includes('acceptance ceiling')).length,
-    1,
+  assert.deepEqual(hard, []);
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'acceptance',
   );
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 15);
 });
 
 // ---------------------------------------------------------------------------
@@ -390,8 +396,8 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
 //
 // The decomposer mandates `body` as a serialized markdown string, but the
 // sizing layers historically read `story.body` only when it was already an
-// object — so on the production string shape `hardFiles`, `maxAcceptance`,
-// and the `unanchored-constant` nudge all emitted nothing. These fixtures
+// object — so on the production string shape `hardFiles`, the acceptance
+// advisory, and the `unanchored-constant` nudge all emitted nothing. These fixtures
 // exercise the canonical string shape at parity with the object-body cases
 // above. The freshness gate already string-aware via parseStoryBody;
 // `computeStorySizingFindings` now mirrors that.
@@ -449,7 +455,7 @@ test('string body: >hardFiles distinct changes paths trips hard oversized-task o
   );
 });
 
-test('string body: >maxAcceptance acceptance items trips hard oversized-task on acceptance', () => {
+test('string body: >softAcceptanceCount acceptance items emits the soft advisory, never a hard finding', () => {
   const result = validateStory(
     makeStringStory('t-str-15ac', {
       acceptance: Array.from({ length: 15 }, (_, i) => `criterion ${i}`),
@@ -458,13 +464,17 @@ test('string body: >maxAcceptance acceptance items trips hard oversized-task on 
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
   );
-  assert.equal(
-    hard.length,
-    1,
-    'expected the acceptance hard finding on a string body',
+  assert.deepEqual(hard, [], 'acceptance mass must never hard-reject');
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'acceptance',
   );
-  assert.equal(hard[0].observed, 15);
-  assert.equal(hard[0].ceiling, 14);
+  assert.equal(
+    soft.length,
+    1,
+    'expected the acceptance soft advisory on a string body',
+  );
+  assert.equal(soft[0].observed, 15);
+  assert.equal(soft[0].soft, 10);
 });
 
 test('string body: unanchored-constant fires identically to the object case', () => {
@@ -494,10 +504,10 @@ test('string body: a declared wide reason lifts the hard file ceiling', () => {
   assert.equal(soft[0].observed, 31);
 });
 
-test('acceptance ceiling reads the authoritative top-level story.acceptance, not body.acceptance', () => {
-  // Top-level acceptance carries 15 items (> ceiling 14); the structured
-  // body's acceptance carries only 2. The ceiling MUST read the top-level
-  // binding contract regardless of what the body says.
+test('acceptance advisory reads the authoritative top-level story.acceptance, not body.acceptance', () => {
+  // Top-level acceptance carries 15 items (> softAcceptanceCount 10); the
+  // structured body's acceptance carries only 2. The advisory MUST read the
+  // top-level binding contract regardless of what the body says.
   const result = validateStory({
     type: 'story',
     slug: 't-toplevel-ac',
@@ -511,11 +521,11 @@ test('acceptance ceiling reads the authoritative top-level story.acceptance, not
       verify: ['npm test (unit)'],
     },
   });
-  const hard = result.findings.filter(
-    (f) => f.kind === 'oversized-task' && f.field === 'acceptance',
+  const soft = result.findings.filter(
+    (f) => f.kind === 'soft-task-width' && f.field === 'acceptance',
   );
-  assert.equal(hard.length, 1);
-  assert.equal(hard[0].observed, 15);
+  assert.equal(soft.length, 1);
+  assert.equal(soft[0].observed, 15);
 });
 
 // ---------------------------------------------------------------------------

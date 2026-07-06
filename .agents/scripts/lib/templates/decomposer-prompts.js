@@ -50,8 +50,7 @@ export function renderDecomposerSystemPrompt({
 function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
   // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
   // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
-  const { softFiles, hardFiles, maxAcceptance, softAcceptanceCount } =
-    DEFAULT_TASK_SIZING;
+  const { softFiles, hardFiles, softAcceptanceCount } = DEFAULT_TASK_SIZING;
   // Deliverable-granularity definition + single-consumer merge rule + the
   // soft envelope-floor heuristic are sourced from the single
   // DELIVERABLE_GRANULARITY_GUIDANCE constant (ticket-validator-sizing.js) so
@@ -177,7 +176,22 @@ ${envelopeFloor}
 
 - A Story touching more than **${softFiles} files** (\`softFiles\`) emits an advisory width finding — a nudge to check cohesion or declare \`wide\`.
 - A Story touching more than **${hardFiles} files** (\`hardFiles\`) is **rejected** unless it declares \`wide\` with a reason.
-- A Story with more than **${maxAcceptance} acceptance items** (\`maxAcceptance\`) is **rejected**; more than ${softAcceptanceCount} (\`softAcceptanceCount\`) emits an advisory warning.
+- Acceptance mass is **advisory only**: more than **${softAcceptanceCount} acceptance items** (\`softAcceptanceCount\`) emits an advisory warning. There is NO hard acceptance ceiling — a long binding contract is a signal to re-check cohesion, never a reason to fragment one coherent capability into dependent slices.
+
+#### DELIVERY-SCHEDULE SIMULATION — the story count must earn itself:
+
+Before emitting, simulate the delivery schedule your plan implies, and judge the plan by its schedule — not by how tidy the taxonomy looks:
+
+1. **Build the wave schedule.** A Story runs only after every \`depends_on\` completes, and two Stories that name the same file in \`changes[]\` cannot run in the same wave (the scheduler serializes file-overlapping Stories even when no \`depends_on\` edge links them).
+2. **Compute the parallelism yield**: story count ÷ critical-path length in waves. A yield near 1.0 means the plan is a serial chain — N Stories that deliver no faster than one Story while paying N delivery sessions (hydration, branch, PR, review, CI).
+3. **Every Story must earn its slot** by at least one of:
+   - **(a) parallelism** — it actually runs concurrently with a sibling in the schedule you just built ("logically independent" does not count; *schedule*-independent does);
+   - **(b) risk isolation** — it isolates a consumer-facing behavior change or high-risk cutover into its own reviewable, revertable unit;
+   - **(c) envelope pressure** — merged into its neighbor it would exceed the one-pass delivery envelope (\`maxTokenBudget\`).
+4. **A dependent link with none of those justifications merges into its consumer.** This generalizes the single-consumer merge rule from pairs to chains.
+5. **Hot-file rule.** When one file appears in the \`changes[]\` of more than a third of your Stories, the slicing axis cuts across a shared seam — merge the Stories that co-edit it, or re-slice along the seam so each Story owns its files.
+
+End each Story's \`reason_to_exist\` with its justification letter and one clause, e.g. "… (a: runs in wave 1 alongside <slug>)" or "(b: isolates the auto-merge default change)". A reason that names only a topic ("config work", "docs") with no justification is a merge signal.
 
 #### \`wide\` DECLARATION (optional — for legitimately broad changes):
 
