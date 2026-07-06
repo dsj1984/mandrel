@@ -595,24 +595,41 @@ sweep).
 ## Phase 8 — Watch-and-iterate until CI is green
 
 The host LLM owns the green-bar loop until the operator merges. Use
-the shared watch-and-recover helper, which wraps `gh pr checks --watch`
-and additionally auto-recovers from `mergeStateStatus: BEHIND` by
-calling `gh pr update-branch` once every required check is green
-(branch-protection rules requiring "up to date before merging"
-otherwise park the PR until the operator clicks **Update branch**
-manually):
+`pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
+the standalone single-Story Step 4 path (Story #4358). It polls the PR's
+required checks to a terminal state and additionally auto-recovers from
+`mergeStateStatus: BEHIND` by calling `gh pr update-branch` once every
+required check is green (branch-protection rules requiring "up to date
+before merging" otherwise park the PR until the operator clicks **Update
+branch** manually):
 
 ```bash
-node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --epic <epicId>
 ```
 
-`<agentRoot>` resolves from `project.paths.agentRoot` (default
-`.agents`). Pass `--max-updates N` (default 3) to cap update-branch
-calls per session and `--poll-interval-ms MS` (default 10000) to
-override the polling cadence.
+`<agentRoot>` resolves from `project.paths.agentRoot` (default `.agents`).
+Poll cadence and caps come from `delivery.ci.watch.*`
+(`pollIntervalMs`, `maxPolls`, `maxResumes`); pass `--poll-interval-ms`,
+`--max-polls`, `--max-resumes`, or `--max-updates` to override for one
+run. Passing `--epic <epicId>` scopes the red-path failure digest to
+`temp/epic-<epicId>-ci-digest.{json,md}`.
 
-Exit 0 → proceed to Phase 8.5. Non-zero → remediate and re-run the helper
-(push fixes to `epic/<epicId>`; auto-merge stays armed across retries).
+**Three-way exit (slow-vs-failed semantics):**
+
+- **Exit 0** — every required check is green → proceed to Phase 8.5.
+- **Exit 1** — a required check genuinely failed (red). The CLI writes
+  `temp/epic-<epicId>-ci-digest.{json,md}` (failing check, run id,
+  `gh run view --log-failed` tail, coarse classification) and surfaces
+  the fix-loop handoff. Remediate on `epic/<epicId>` and re-run the
+  helper (auto-merge stays armed across retries). If the same failure
+  class recurs, hand the convergence off to the host loop:
+  `/loop /loops:fix-failing-tests`.
+- **Exit 2** — **still-running** (slow CI, not red): the poll cap fired
+  with checks still pending and the watcher exhausted its
+  `delivery.ci.watch.maxResumes` re-arm budget with nothing red. This is
+  **never** a failure and **never** `timed_out`. Hand the wait off to the
+  host's interval loop rather than blocking the delivery turn:
+  `/loop 5m /loops:watch-ci`.
 
 > **Remediation + hard prohibitions.** For the per-check fix table (lint,
 > baseline drift, test, coverage), the three-strikes halt rule, and the

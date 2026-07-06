@@ -255,30 +255,45 @@ timing-sensitive tests routinely drift between the two. The agent owns the
 green-CI outcome, not just the push.
 
 > **The auto-merge wait is an internally-blocking step, not a reason to end
-> your turn.** `gh pr checks <prNumber> --watch` blocks the current turn
-> until CI resolves — that IS how you wait. Keep the turn alive: watch →
-> (fix + push + re-watch on red) → confirm the merge (Step 5) → flip
+> your turn.** `pr-watch-with-update.js` blocks the current turn until CI
+> resolves — that IS how you wait. Keep the turn alive: watch → (fix +
+> push + re-watch on red) → confirm the merge (Step 5) → flip
 > `agent::done` → post-merge steps → return the terminal JSON contract.
 > Ending the turn with prose and an unconfirmed merge is a contract
 > violation (the Story #1553 / PR #1554 failure mode). See
 > [`single-story-deliver-reference.md` § The auto-merge wait is an internally-blocking step](single-story-deliver-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
 
-After `single-story-close.js` succeeds, enter the watch + fix loop:
+After `single-story-close.js` succeeds, enter the watch + fix loop. Drive
+`pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
+the Epic Phase 8 path (Story #4358). It polls the required checks to a
+terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do
+**not** fall back to a bare `gh pr checks` watch invocation:
 
 ```bash
-gh pr checks <prNumber> --watch
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
 ```
 
-When the watch exits:
+Poll cadence and caps come from `delivery.ci.watch.*`
+(`pollIntervalMs`, `maxPolls`, `maxResumes`); pass `--poll-interval-ms`,
+`--max-polls`, or `--max-resumes` to override for one run.
 
-- **All checks ✓** — auto-merge will fire (or has already). The Story is
-  still at `agent::closing` with its issue OPEN. **Proceed to Step 5 within
-  the same turn** — green CI is the *start* of the merge-confirm sequence,
-  not a terminal state.
-- **Any check ✗** — diagnose, fix, and push a new commit on
-  `story-<storyId>`, then re-watch. Auto-merge stays enabled across
-  retries; no need to re-arm it. The Story stays at `agent::closing`
-  throughout, so a failed/abandoned PR never strands a CLOSED issue.
+When the watch exits, branch on the exit code:
+
+- **Exit 0 (all checks ✓)** — auto-merge will fire (or has already). The
+  Story is still at `agent::closing` with its issue OPEN. **Proceed to
+  Step 5 within the same turn** — green CI is the *start* of the
+  merge-confirm sequence, not a terminal state.
+- **Exit 1 (a check genuinely failed)** — diagnose, fix, and push a new
+  commit on `story-<storyId>`, then re-watch. Auto-merge stays enabled
+  across retries; no need to re-arm it. The Story stays at
+  `agent::closing` throughout, so a failed/abandoned PR never strands a
+  CLOSED issue. If the same failure class recurs, hand convergence off to
+  the host loop: `/loop /loops:fix-failing-tests`.
+- **Exit 2 (still-running — slow CI, not red)** — the poll cap fired with
+  checks still pending and the watcher exhausted its resume budget with
+  nothing red. This is **never** a failure. Hand the wait off to the
+  host's interval loop rather than ending your turn:
+  `/loop 5m /loops:watch-ci`.
 
 > **CI recovery procedures.** For resurrecting the worktree after
 > `reapOnSuccess`, pulling the failing job log, fixing coverage/CRAP
@@ -401,8 +416,8 @@ worker so the contract is self-contained when this workflow is the entry
 point.
 
 There is **no fourth "pending" status** — the CI/auto-merge wait is handled
-internally by blocking on `gh pr checks --watch` (Step 4) and confirming the
-merge (Step 5). Return **only** on a confirmed `MERGED` PR (`status: "done"`),
+internally by blocking on `pr-watch-with-update.js` (Step 4) and confirming
+the merge (Step 5). Return **only** on a confirmed `MERGED` PR (`status: "done"`),
 an `agent::blocked` transition (`status: "blocked"`), or an unrecoverable
 failure (`status: "failed"`).
 
