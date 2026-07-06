@@ -55,6 +55,35 @@ import { parsePrNumberFromUrl } from '../../../github-url.js';
  * Unknown / non-pending unrecognized values collapse to `'skipped'`
  * so any future GitHub state we haven't enumerated still validates.
  */
+/**
+ * The raw check-state tokens `normalizeCheckState` recognizes (lowercased).
+ * A token absent from this set is one we have NOT enumerated — the watch
+ * path collapses it to `'skipped'` (validate-anything), but a fail-closed
+ * consumer (the auto-merge arming probe) must treat it as unknown-therefore-
+ * blocking rather than trust the `'skipped'` collapse. Exported so that
+ * stricter consumer lives here as the single vocabulary owner.
+ */
+export const RECOGNIZED_CHECK_STATES = Object.freeze(
+  new Set([
+    '',
+    'pending',
+    'queued',
+    'in_progress',
+    'requested',
+    'waiting',
+    'success',
+    'completed',
+    'failure',
+    'startup_failure',
+    'neutral',
+    'cancelled',
+    'timed_out',
+    'action_required',
+    'stale',
+    'skipped',
+  ]),
+);
+
 export function normalizeCheckState(raw) {
   const v = String(raw ?? '')
     .trim()
@@ -266,17 +295,43 @@ export function allTerminal(outcomes) {
 }
 
 /**
- * Promote any `'pending'` outcomes to the schema-valid `'timed_out'`
- * sentinel before emit. Pure — exported for tests so the cap-fire
- * behaviour is reviewable. Called only when the poll loop exits via
- * the iteration cap.
+ * Sentinel outcome for a required check that never went terminal within
+ * the poll cap AND the resume budget — the CI job is genuinely slow, not
+ * red. Story #4358 made this a first-class outcome distinct from
+ * `'timed_out'` (a GitHub-reported terminal timeout) and `'failure'` (a
+ * red check): a `'still-running'` map means "re-arm the watch / hand off
+ * to `/loop`," never "the change is broken."
  */
-function promotePendingToTimedOut(outcomes) {
+export const STILL_RUNNING = 'still-running';
+
+/**
+ * Promote any leftover `'pending'` outcomes to the schema-valid
+ * `'still-running'` sentinel before emit. Pure — exported for tests so
+ * the cap-fire behaviour is reviewable. Called only when the poll loop
+ * (and its resume budget) exits with checks still pending and none
+ * failed — the slow-but-not-red terminal state.
+ */
+export function promotePendingToStillRunning(outcomes) {
   const out = {};
   for (const [k, v] of Object.entries(outcomes)) {
-    out[k] = v === 'pending' ? 'timed_out' : v;
+    out[k] = v === 'pending' ? STILL_RUNNING : v;
   }
   return out;
+}
+
+/**
+ * True when at least one required check has genuinely failed — the hard
+ * stop that consumes NO resume budget and exits 1 immediately. A
+ * `'pending'` check is not a failure (it is still running); anything
+ * outside the non-failing set AND outside `'pending'` is a red block.
+ * Pure — exported for tests.
+ */
+export function hasFailingCheck(outcomes) {
+  for (const v of Object.values(outcomes)) {
+    if (v === 'pending') continue;
+    if (!GREEN_CHECK_OUTCOMES.has(v)) return true;
+  }
+  return false;
 }
 
 /**
@@ -355,8 +410,13 @@ export async function pollUntilTerminal({
  * @param {object} opts
  * @param {string} opts.prUrl              PR URL or number (passed to `gh` verbatim).
  * @param {string} opts.cwd
- * @param {number} opts.maxPolls           Hard cap on total poll iterations.
+ * @param {number} opts.maxPolls           Hard cap on total poll iterations per arm.
  * @param {number} opts.maxUpdates         Cap on `gh pr update-branch` recovery calls.
+ * @param {number} [opts.maxResumes]       Story #4358: after the poll cap fires with
+ *   one or more required checks still pending (and NONE failed), re-arm the poll
+ *   loop up to this many times before giving up with a `still-running` verdict.
+ *   A genuinely red check short-circuits immediately and consumes no resume
+ *   budget. Defaults to 0 (no resume) so existing callers are unchanged.
  * @param {number} opts.pollIntervalMs     Delay between poll ticks.
  * @param {Function} [opts.ghPrChecksFn]   `gh pr checks` invoker. Defaults
  *   to the real `gh pr checks` spawn so the CLI path (which injects no
@@ -379,19 +439,24 @@ export async function pollUntilTerminal({
  *   requiredChecks: string[],
  *   polls: number,
  *   updatesApplied: number,
+ *   resumesApplied: number,
  *   terminal: boolean,
  *   green: boolean,
+ *   stillRunning: boolean,
  *   error?: string,
  * }>}
  *   `outcomes` is schema-valid (no `'pending'` — leftover pending is
- *   promoted to `'timed_out'` when the cap fires). `error` is set only
- *   when the first probe could not resolve the required-check set.
+ *   promoted to `'still-running'` when the cap and resume budget are both
+ *   exhausted with no failed check). `stillRunning` is true in exactly
+ *   that case (slow CI, not red). `error` is set only when the first
+ *   probe could not resolve the required-check set.
  */
 export async function watchPrToTerminal({
   prUrl,
   cwd,
   maxPolls,
   maxUpdates,
+  maxResumes = 0,
   pollIntervalMs,
   ghPrChecksFn = ghPrChecks,
   ghPrViewFn = ghPrView,
@@ -417,8 +482,10 @@ export async function watchPrToTerminal({
       requiredChecks: [],
       polls: 0,
       updatesApplied: 0,
+      resumesApplied: 0,
       terminal: false,
       green: false,
+      stillRunning: false,
       error: `gh-checks-failed:status=${first.status}`,
     };
   }
@@ -433,68 +500,95 @@ export async function watchPrToTerminal({
   let outcomes = reduceOutcomes(firstEntries);
   let polls = 0;
   let updatesApplied = 0;
-  while (polls < maxPolls) {
-    ({ outcomes, polls } = await pollUntilTerminal({
-      prUrl,
-      cwd,
-      outcomes,
-      polls,
-      maxPolls,
-      ghPrChecksFn,
-      pollIntervalMs,
-      sleepFn,
-      logger,
-    }));
-    // Checks have either all gone terminal or we hit the iteration cap.
-    // BEHIND-recovery (Story #2327): when every required check is green
-    // AND the PR is BEHIND its base, issue ONE `gh pr update-branch`
-    // call and re-poll the checks against the freshly-rebased commit. A
-    // red check is a hard block — stop here regardless of merge state.
-    // Bounded by `maxUpdates` so a racing base branch can't ping-pong
-    // indefinitely.
-    if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
-    if (updatesApplied >= maxUpdates) break;
-    const view = ghPrViewFn({ prUrl, cwd });
-    if (view.status !== 0) {
-      logger.warn?.(
-        `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
+  let resumesApplied = 0;
+  // Outer resume loop (Story #4358). Each iteration runs one full
+  // poll-to-cap + BEHIND-recovery arm. When the arm ends with checks
+  // still pending but NONE failed, we re-arm (reset the poll counter)
+  // up to `maxResumes` times before declaring `still-running`. A red
+  // check breaks out immediately without consuming resume budget.
+  for (;;) {
+    while (polls < maxPolls) {
+      ({ outcomes, polls } = await pollUntilTerminal({
+        prUrl,
+        cwd,
+        outcomes,
+        polls,
+        maxPolls,
+        ghPrChecksFn,
+        pollIntervalMs,
+        sleepFn,
+        logger,
+      }));
+      // Checks have either all gone terminal or we hit the iteration cap.
+      // BEHIND-recovery (Story #2327): when every required check is green
+      // AND the PR is BEHIND its base, issue ONE `gh pr update-branch`
+      // call and re-poll the checks against the freshly-rebased commit. A
+      // red check is a hard block — stop here regardless of merge state.
+      // Bounded by `maxUpdates` so a racing base branch can't ping-pong
+      // indefinitely.
+      if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
+      if (updatesApplied >= maxUpdates) break;
+      const view = ghPrViewFn({ prUrl, cwd });
+      if (view.status !== 0) {
+        logger.warn?.(
+          `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
+        );
+        break;
+      }
+      const mergeStateStatus = parseMergeStateStatus(view.stdout);
+      if (mergeStateStatus !== 'BEHIND') break;
+      const update = ghPrUpdateBranchFn({ prUrl, cwd });
+      if (update.status !== 0) {
+        logger.warn?.(
+          `[Watcher] gh pr update-branch failed (status=${update.status}): ${update.stderr}`,
+        );
+        break;
+      }
+      updatesApplied += 1;
+      logger.info?.(
+        `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${maxUpdates}); re-polling required checks.`,
       );
-      break;
+      await sleepFn(pollIntervalMs);
+      // After update-branch, the freshly-rebased commit invalidates the
+      // previous terminal outcomes. Reset to force the inner poll loop to
+      // re-evaluate the new CI cycle.
+      outcomes = {};
+      for (const name of requiredChecks) outcomes[name] = 'pending';
     }
-    const mergeStateStatus = parseMergeStateStatus(view.stdout);
-    if (mergeStateStatus !== 'BEHIND') break;
-    const update = ghPrUpdateBranchFn({ prUrl, cwd });
-    if (update.status !== 0) {
-      logger.warn?.(
-        `[Watcher] gh pr update-branch failed (status=${update.status}): ${update.stderr}`,
-      );
-      break;
-    }
-    updatesApplied += 1;
+
+    // Arm complete. Decide whether to re-arm. A genuinely red check is a
+    // hard stop that consumes NO resume budget — the change is broken,
+    // resuming would only burn wall-clock. Only re-arm when the arm timed
+    // out with pending-but-not-failed checks and resume budget remains.
+    if (allTerminal(outcomes) || hasFailingCheck(outcomes)) break;
+    if (resumesApplied >= maxResumes) break;
+    resumesApplied += 1;
+    polls = 0;
     logger.info?.(
-      `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${maxUpdates}); re-polling required checks.`,
+      `[Watcher] poll cap reached with checks still pending; re-arming watch (resume #${resumesApplied}/${maxResumes}).`,
     );
-    await sleepFn(pollIntervalMs);
-    // After update-branch, the freshly-rebased commit invalidates the
-    // previous terminal outcomes. Reset to force the inner poll loop to
-    // re-evaluate the new CI cycle.
-    outcomes = {};
-    for (const name of requiredChecks) outcomes[name] = 'pending';
   }
 
   const terminal = allTerminal(outcomes);
-  // The schema enum forbids `'pending'`; promote any leftover pending
-  // entries (cap-fire path) to `'timed_out'` for the returned map.
+  const failing = hasFailingCheck(outcomes);
+  // Slow-but-not-red: the poll cap AND resume budget are exhausted with
+  // one or more checks still pending and NONE failed. The schema enum
+  // forbids `'pending'`; promote leftover pending entries to the
+  // `'still-running'` sentinel (never `'timed_out'` — that would read as
+  // a genuine terminal failure to the auto-merge predicate).
+  const stillRunning = !terminal && !failing;
   const finalOutcomes = terminal
     ? outcomes
-    : promotePendingToTimedOut(outcomes);
+    : promotePendingToStillRunning(outcomes);
   return {
     outcomes: finalOutcomes,
     requiredChecks,
     polls,
     updatesApplied,
+    resumesApplied,
     terminal,
     green: terminal && allGreen(finalOutcomes),
+    stillRunning,
   };
 }
 
@@ -513,6 +607,9 @@ export class Watcher {
    *   recovery calls per `pr.created` event; default 3. Mirrors the
    *   legacy `pr-watch-with-update` cap so a racing base branch
    *   can't induce an infinite update-branch ping-pong.
+   * @param {number} [opts.maxResumes] Story #4358: how many times to
+   *   re-arm the poll loop after the cap fires with checks still pending
+   *   (and none failed) before declaring `still-running`; default 0.
    * @param {Function} [opts.ghPrChecksFn] override for tests.
    * @param {Function} [opts.ghPrViewFn] override for tests; resolves
    *   `mergeStateStatus` for the BEHIND-recovery gate.
@@ -539,6 +636,10 @@ export class Watcher {
       Number.isInteger(opts.maxUpdates) && opts.maxUpdates >= 0
         ? opts.maxUpdates
         : 3;
+    this.maxResumes =
+      Number.isInteger(opts.maxResumes) && opts.maxResumes >= 0
+        ? opts.maxResumes
+        : 0;
     this.ghPrChecksFn = opts.ghPrChecksFn ?? ghPrChecks;
     this.ghPrViewFn = opts.ghPrViewFn ?? ghPrView;
     this.ghPrUpdateBranchFn = opts.ghPrUpdateBranchFn ?? ghPrUpdateBranch;
@@ -549,8 +650,8 @@ export class Watcher {
     /**
      * Classification log — every `pr.created` we observe lands here
      * with the outcome (`watched`, `failed`, `skipped-duplicate`,
-     * `timed-out`). Mirrors the Finalizer / Reconciler "no silent skip"
-     * surface.
+     * `still-running`, `timed-out`). Mirrors the Finalizer / Reconciler
+     * "no silent skip" surface.
      */
     this.classifications = [];
     this.events = Object.freeze(['pr.created']);
@@ -631,12 +732,15 @@ export class Watcher {
       outcomes: emitOutcomes,
       polls,
       updatesApplied,
+      resumesApplied,
       terminal,
+      stillRunning,
     } = await watchPrToTerminal({
       prUrl,
       cwd: this.cwd,
       maxPolls: this.maxPolls,
       maxUpdates: this.maxUpdates,
+      maxResumes: this.maxResumes,
       pollIntervalMs: this.pollIntervalMs,
       ghPrChecksFn: this.ghPrChecksFn,
       ghPrViewFn: this.ghPrViewFn,
@@ -646,12 +750,22 @@ export class Watcher {
       firstProbe: first,
     });
 
+    // `still-running` (slow CI, not red) is a distinct classification from
+    // a genuine `timed-out` — reserved for a check that never went
+    // terminal within the poll cap AND the resume budget while none
+    // failed. `watched` covers every terminal arm (green or red).
+    const outcome = terminal
+      ? 'watched'
+      : stillRunning
+        ? 'still-running'
+        : 'timed-out';
     this.classifications.push({
       event,
       seqId,
-      outcome: terminal ? 'watched' : 'timed-out',
+      outcome,
       polls,
       updatesApplied,
+      resumesApplied,
       requiredChecks: requiredChecks.length,
     });
     try {

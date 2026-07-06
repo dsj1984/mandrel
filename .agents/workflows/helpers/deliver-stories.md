@@ -235,7 +235,7 @@ Each Agent call:
    child MUST drive the close → CI-watch → merge-confirm → `agent::done`
    sequence to a terminal state *within its own turn* and end **only** by
    returning the § 2c JSON object. The auto-merge wait is an
-   internally-blocking step (`gh pr checks --watch` blocks the turn), **not**
+   internally-blocking step (`pr-watch-with-update.js` blocks the turn), **not**
    a reason to suspend and hand back. A child that ends its turn with
    free-form prose and an unconfirmed merge (e.g. "I'll wait for the
    background watch task…") has violated the contract — the loop cannot
@@ -279,7 +279,7 @@ free-form prose:
 
 The status enum is **closed** — `done`, `blocked`, or `failed`. There is no
 "pending" / "waiting" status, because the close-phase auto-merge wait is
-**not** a returnable suspension: the child blocks on `gh pr checks --watch`
+**not** a returnable suspension: the child blocks on `pr-watch-with-update.js`
 *inside its own turn*, confirms the merge, flips `agent::done`, and only then
 returns `status: "done"`. A child that returns prose instead — parking on the
 CI wait with an unconfirmed merge — breaks the loop's ability to advance

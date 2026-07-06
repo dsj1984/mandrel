@@ -111,12 +111,26 @@ describe('AutomergePredicate activation (epic.watch.end → ready|blocked)', () 
       bus,
       epicId: 2306,
       provider: STUB_PROVIDER,
+      // Pin strict so every dirty reason blocks in order (the trust-ci
+      // default records the intervention as non-blocking — Story #4361).
+      config: { delivery: { ci: { autoMerge: 'strict' } } },
       evaluatePredicateFn: async () => ({
         clean: false,
         reasons: [
           'manual intervention required (1 entry)',
           'story #1234 still blocked',
           'code-review: 2 critical blockers',
+        ],
+        categorizedReasons: [
+          {
+            category: 'intervention',
+            message: 'manual intervention required (1 entry)',
+          },
+          { category: 'blockedState', message: 'story #1234 still blocked' },
+          {
+            category: 'criticalReview',
+            message: 'code-review: 2 critical blockers',
+          },
         ],
         signals: {
           manualInterventions: 1,

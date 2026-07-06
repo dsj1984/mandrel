@@ -27,6 +27,20 @@
  * does not attempt to create a duplicate PR. This is the AC-10
  * idempotency contract the Finalizer relies on for cross-process
  * re-runs of `/deliver`.
+ *
+ * Early-PR draft mode — Story #4359 (Epic #4355).
+ *
+ *   When `delivery.ci.earlyPr` is on (the default), `/deliver` opens the
+ *   Epic PR as a **draft** at wave 1 (`openOrLocatePr({ draft: true })`)
+ *   so every subsequent per-wave push runs CI attributed to its own wave.
+ *   The `draft` flag only appends `--draft` to the `gh pr create` shell —
+ *   the probe/locate path is unchanged, so a re-run on the same head
+ *   branch still short-circuits without opening a duplicate. Phase 7 then
+ *   flips that existing draft to ready-for-review via `markPrReady` rather
+ *   than creating the PR. When `earlyPr` is off, no draft is opened at
+ *   wave 1 and Phase 7 opens the PR at close time exactly as before
+ *   (`openOrLocatePr` with no `draft`). The title/body contract
+ *   (`feat: Epic #<id>` / `Closes #<id>`) is identical in both modes.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -119,6 +133,12 @@ export function parsePrViewResult(stdout) {
  *   or changelog entry).
  * @param {string} [args.body] — explicit PR body override; defaults to
  *   `Closes #<epicId>`.
+ * @param {boolean} [args.draft] — when `true`, open the new PR as a draft
+ *   (`gh pr create --draft`). Story #4359: the early-PR path opens the
+ *   Epic PR as a draft at wave 1 so per-wave pushes warm CI; Phase 7 later
+ *   flips it ready via `markPrReady`. Only affects the create path — the
+ *   locate short-circuit never inspects draft state, so a re-run stays
+ *   idempotent. Default `false`.
  * @param {string} [args.cwd] — working directory for the gh shells.
  *   Default `process.cwd()`.
  * @param {Function} [args.ghSpawn] — override the gh invocation for
@@ -131,6 +151,7 @@ export async function openOrLocatePr({
   baseBranch = 'main',
   title,
   body,
+  draft = false,
   cwd = process.cwd(),
   ghSpawn = defaultGhSpawn,
 } = {}) {
@@ -206,6 +227,11 @@ export async function openOrLocatePr({
       finalTitle,
       '--body',
       finalBody,
+      // Story #4359: open as a draft when the early-PR path requests it.
+      // The flag is elided entirely when `draft` is false so the
+      // close-time (earlyPr=false) create path is byte-identical to the
+      // pre-Story behaviour.
+      ...(draft ? ['--draft'] : []),
     ],
     cwd,
   });
@@ -238,4 +264,43 @@ export async function openOrLocatePr({
     );
   }
   return { prNumber: parsed.number, url: parsed.url, created: true };
+}
+
+/**
+ * Mark an existing draft PR as ready-for-review — Story #4359 (Epic
+ * #4355). This is the Phase-7 counterpart to the wave-1 draft open: when
+ * `delivery.ci.earlyPr` is on, the Epic PR already exists as a draft, so
+ * finalize flips it ready rather than creating a PR.
+ *
+ * Idempotent: `gh pr ready` on an already-ready PR is a no-op that exits
+ * 0, so re-running finalize (or replaying after a crash) is safe. When the
+ * PR reference does not resolve, `gh` exits non-zero and this helper
+ * throws with the stderr detail.
+ *
+ * @param {object} args
+ * @param {string} args.pr — a PR reference `gh pr ready` accepts: the
+ *   numeric id, the branch name, or the html URL. `openOrLocatePr`
+ *   returns both `prNumber` and `url`; either is a valid input.
+ * @param {string} [args.cwd] — working directory for the gh shell.
+ *   Default `process.cwd()`.
+ * @param {Function} [args.ghSpawn] — override the gh invocation for
+ *   tests. Same shape as `defaultGhSpawn`.
+ * @returns {Promise<{ pr: string, ready: true }>}
+ */
+export async function markPrReady({
+  pr,
+  cwd = process.cwd(),
+  ghSpawn = defaultGhSpawn,
+} = {}) {
+  const ref = pr == null ? '' : String(pr).trim();
+  if (ref.length === 0) {
+    throw new TypeError('markPrReady: pr must be a non-empty reference');
+  }
+  const ready = ghSpawn({ args: ['pr', 'ready', ref], cwd });
+  if (ready.status !== 0) {
+    throw new Error(
+      `markPrReady: gh pr ready failed (status=${ready.status}): ${ready.stderr.trim()}`,
+    );
+  }
+  return { pr: ref, ready: true };
 }

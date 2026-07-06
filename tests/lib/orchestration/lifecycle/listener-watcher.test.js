@@ -410,8 +410,10 @@ describe('Watcher (bus integration)', () => {
     assert.equal(cls.polls, 2);
   });
 
-  it('hits the iteration cap and classifies as timed-out', async () => {
+  it('hits the iteration cap with checks still pending and classifies still-running (Story #4358)', async () => {
     const { bus, emits } = recordingBus();
+    // maxResumes defaults to 0, so the cap fires once with the check
+    // still pending and none failed → the slow-but-not-red sentinel.
     const watcher = new Watcher({
       bus,
       pollIntervalMs: 0,
@@ -432,10 +434,37 @@ describe('Watcher (bus integration)', () => {
       base: 'main',
     });
     const end = emits.find((e) => e.event === 'epic.watch.end');
-    assert.ok(end, 'watch.end emitted even on timeout');
-    assert.equal(end.payload.checkOutcomes.slow, 'timed_out');
+    assert.ok(end, 'watch.end emitted even when checks are still running');
+    assert.equal(end.payload.checkOutcomes.slow, 'still-running');
     const cls = watcher.classifications[0];
-    assert.equal(cls.outcome, 'timed-out');
+    assert.equal(cls.outcome, 'still-running');
+  });
+
+  it('re-arms up to maxResumes before declaring still-running (Story #4358)', async () => {
+    const { bus, emits } = recordingBus();
+    const watcher = new Watcher({
+      bus,
+      pollIntervalMs: 0,
+      maxPolls: 2,
+      maxResumes: 2,
+      sleepFn: async () => {},
+      ghPrChecksFn: () => ({
+        status: 8,
+        stdout: '[{"name":"slow","state":"","bucket":"pending"}]',
+        stderr: '',
+      }),
+      logger: quietLogger(),
+    });
+    watcher.register();
+
+    await bus.emit('pr.created', {
+      prUrl: 'https://github.com/o/r/pull/6',
+      head: 'epic/2172',
+      base: 'main',
+    });
+    const cls = watcher.classifications[0];
+    assert.equal(cls.outcome, 'still-running');
+    assert.equal(cls.resumesApplied, 2, 'resume budget fully spent');
   });
 
   it('genuine gh failure (status != 0/8 with empty stdout) classifies failed; no emits', async () => {

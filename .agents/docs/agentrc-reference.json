@@ -100,7 +100,14 @@
     "maxTokenBudget": 300000,
     "lease": { "ttlMs": 900000 },
     "ci": {
-      "skipForStoryPushes": true
+      "skipForStoryPushes": true,
+      "earlyPr": true,
+      "watch": {
+        "pollIntervalMs": 30000,
+        "maxPolls": 120,
+        "maxResumes": 3
+      },
+      "autoMerge": "trust-ci"
     },
     "preflight": {
       "maxStories": 50,

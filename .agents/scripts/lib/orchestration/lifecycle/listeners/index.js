@@ -229,13 +229,18 @@ export async function buildDefaultListenerChain(opts = {}) {
   // 5. AutomergePredicate — emits epic.merge.{ready,blocked} based on
   //    the runtime predicate evaluation. Requires a truthy `provider`;
   //    skip cleanly when the caller omitted one (lifecycle-emit CLI
-  //    has no provider wired in by default).
+  //    has no provider wired in by default). `config` selects the
+  //    `delivery.ci.autoMerge` posture (trust-ci default vs strict) and
+  //    `cwd` (repoRoot) is where the live `gh pr checks --required`
+  //    probe shells out (Story #4361).
   let automergePredicate = null;
   if (provider) {
     automergePredicate = new AutomergePredicate({
       bus,
       epicId,
       provider,
+      config,
+      cwd: repoRoot,
       logger,
     });
     automergePredicate.register();

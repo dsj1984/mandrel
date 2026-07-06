@@ -2,7 +2,7 @@
 /* node:coverage ignore file -- top-level CLI gate; spawns lint/format/test and asserts exit codes — heavy mocking would assert only mock structure */
 
 /**
- * git-pr-quality-gate.js — Lint / format / test gate for `/git-merge-pr`.
+ * git-pr-quality-gate.js — Lint / test / baselines gate for `/git-merge-pr`.
  *
  * `/git-merge-pr` Steps 3–4 previously hardcoded the command sequence
  * (`npm run lint`, `npm run format:check`, `npm test`) in the workflow
@@ -11,10 +11,12 @@
  * skill every time.
  *
  * This script runs the gate and emits a structured result so the .md routes
- * on outcome rather than re-implementing the command sequence. The three
- * checks it runs are read from
+ * on outcome rather than re-implementing the command sequence. The checks it
+ * runs are read from
  * `.agentrc.json → github.branchProtection.requiredChecks` when present,
- * falling back to the hardcoded default trio.
+ * falling back to the hardcoded default trio, which mirrors the live required
+ * check set (`lint`, `test`, `baselines` — Story #4356, Epic #4355; the stale
+ * `lifecycle-doc-drift` check was pruned in the same slice).
  *
  * Usage:
  *   node .agents/scripts/git-pr-quality-gate.js [--json] [--skip <name>[,<name>]]
@@ -48,8 +50,8 @@ import { Logger } from './lib/Logger.js';
  */
 export const DEFAULT_CHECKS = Object.freeze([
   { name: 'lint', cmd: ['npm', 'run', 'lint'] },
-  { name: 'format:check', cmd: ['npm', 'run', 'format:check'] },
   { name: 'test', cmd: ['npm', 'test'] },
+  { name: 'baselines', cmd: ['node', '.agents/scripts/check-baselines.js'] },
 ]);
 
 function resolveChecks(config) {

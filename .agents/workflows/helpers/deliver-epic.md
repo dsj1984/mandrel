@@ -220,6 +220,41 @@ returned Story's terminal status, and re-tick until terminal. There is no
 `record-wave` / `currentWave` step — the checkpoint carries only a flat
 per-Story status map (for resume + the operator rollup) and the global cap.
 
+### 2.0. Open the Epic PR as a draft at wave 1 (Story #4359)
+
+When `delivery.ci.earlyPr` is on (the default), open the Epic PR as a
+**draft** once, before the first `tick`, so every subsequent per-wave push
+to `epic/<epicId>` runs CI attributed to its own wave. (CI is keyed on the PR
+ref with `cancel-in-progress`, so each new wave push **supersedes** the prior
+wave's in-flight run rather than queuing behind it — the latest wave always
+gets the verdict, and CI-minute use stays bounded; intermediate wave runs are
+cancelled, not completed.) Resolve the flag through the
+[`getCiDelivery`](../../scripts/lib/config/ci.js) accessor (default `true`);
+do not read `delivery.ci.earlyPr` directly.
+
+> **This step is host-LLM-driven, with no runtime enforcement seam** — unlike
+> the Phase 7 ready-flip, which the `Finalizer` listener wires in
+> deterministically (`finalizer.js` resolves `earlyPr` and calls
+> `markPrReady`). The asymmetry is intentional and safe: if this wave-1
+> draft-open is skipped, the `earlyPr`-on Phase 7 `markPrReady` call degrades
+> to a no-op on the PR that finalize opens at close time (`gh pr ready` is a
+> no-op on an already-ready PR), so the merge gate is never stranded — the run
+> only loses the per-wave CI attribution this step buys.
+
+- **`earlyPr` on** — call
+  [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+  with `{ epicId, headBranch: 'epic/<epicId>', baseBranch: 'main', draft: true }`.
+  The helper probes for an existing open PR first, so this is idempotent — a
+  resumed `/deliver` run re-locates the same draft and opens no duplicate.
+  Phase 7 later flips this draft to ready-for-review (it does **not**
+  re-create the PR).
+- **`earlyPr` off** — skip this step entirely. No draft is opened at wave 1;
+  Phase 7 opens the PR at close time on the pre-Story timing.
+
+The draft carries the same title/body contract Phase 7 uses
+(`feat: Epic #<epicId>` / `Closes #<epicId>`), so no title/body reconciliation
+is needed when it is marked ready.
+
 ### 2a. Tick — plan the next action
 
 ```bash
@@ -556,7 +591,7 @@ degradation contract, and the fail-safe-and-loud security note.
 
 ---
 
-## Phase 7 — Finalize (open PR to main)
+## Phase 7 — Finalize (ready the PR / open PR to main)
 
 Before the close-tail emit, sync the Epic branch with `origin/main` so the
 PR opens with the latest base commits already integrated (a stale base
@@ -577,11 +612,27 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 
 `epic.close.end` drives the bus-owned `Finalizer` chain: acceptance-table
 reconciliation (throws and aborts finalize on a coverage gap, `waived` under
-`acceptance::n-a`), idempotent PR open/locate against `main`, and the
+`acceptance::n-a`), the PR-open/ready step (below), and the
 `epic-handoff` comment naming the PR URL. The chain emits `pr.created` →
 `epic.finalize.end` and **stops** — it never emits `epic.merge.ready` (the
 auto-merge arm is driven later from the Phase 8.5 gated watch path). The
 operator shells nothing beyond the sync and the single emit.
+
+**PR-open/ready is gated by `delivery.ci.earlyPr` (Story #4359).** Resolve
+the flag through the [`getCiDelivery`](../../scripts/lib/config/ci.js)
+accessor (default `true`); do not read `delivery.ci.earlyPr` directly.
+
+- **`earlyPr` on (default)** — the Epic PR already exists as a draft (Phase
+  2 opened it at wave 1). Finalize **locates** the existing PR and flips it
+  ready-for-review via
+  [`markPrReady`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+  rather than creating a PR. `gh pr ready` on an already-ready PR is a
+  no-op, so a re-run is idempotent.
+- **`earlyPr` off** — no draft was opened at wave 1; finalize opens the PR
+  now via `openOrLocatePr` (no `draft`), exactly as the pre-Story timing.
+
+In both modes the PR title/body contract (`feat: Epic #<epicId>` /
+`Closes #<epicId>`) is identical.
 
 See
 [`deliver-epic-reference.md` § Phase 7 — Finalize](deliver-epic-reference.md#phase-7--finalize-close-tail-listener-chain)
@@ -595,25 +646,51 @@ sweep).
 ## Phase 8 — Watch-and-iterate until CI is green
 
 The host LLM owns the green-bar loop until the operator merges. Use
-the shared watch-and-recover helper, which wraps `gh pr checks --watch`
-and additionally auto-recovers from `mergeStateStatus: BEHIND` by
-calling `gh pr update-branch` once every required check is green
-(branch-protection rules requiring "up to date before merging"
-otherwise park the PR until the operator clicks **Update branch**
-manually):
+`pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
+the standalone single-Story Step 4 path (Story #4358). It polls the PR's
+required checks to a terminal state and additionally auto-recovers from
+`mergeStateStatus: BEHIND` by calling `gh pr update-branch` once every
+required check is green (branch-protection rules requiring "up to date
+before merging" otherwise park the PR until the operator clicks **Update
+branch** manually):
 
 ```bash
-node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --epic <epicId>
 ```
 
-`<agentRoot>` resolves from `project.paths.agentRoot` (default
-`.agents`). Pass `--max-updates N` (default 3) to cap update-branch
-calls per session and `--poll-interval-ms MS` (default 10000) to
-override the polling cadence.
+`<agentRoot>` resolves from `project.paths.agentRoot` (default `.agents`).
+Poll cadence and caps come from `delivery.ci.watch.*`
+(`pollIntervalMs`, `maxPolls`, `maxResumes`); pass `--poll-interval-ms`,
+`--max-polls`, `--max-resumes`, or `--max-updates` to override for one
+run. Passing `--epic <epicId>` scopes the red-path failure digest to
+`temp/epic-<epicId>-ci-digest.{json,md}`.
 
-Exit 0 → proceed to Phase 8.5. Non-zero → remediate and re-run the helper
-(push fixes to `epic/<epicId>`; auto-merge stays armed across retries).
+**Three-way exit (slow-vs-failed semantics):**
 
+- **Exit 0** — every required check is green → proceed to Phase 8.5.
+- **Exit 1** — a required check genuinely failed (red). The CLI writes
+  `temp/epic-<epicId>-ci-digest.{json,md}` (failing check, run id,
+  `gh run view --log-failed` tail, coarse classification) and surfaces
+  the fix-loop handoff. Remediate on `epic/<epicId>` and re-run the
+  helper (auto-merge stays armed across retries). If the same failure
+  class recurs, hand the convergence off to the host loop:
+  `/loop /loops:fix-failing-tests`.
+- **Exit 2** — **still-running** (slow CI, not red): the poll cap fired
+  with checks still pending and the watcher exhausted its
+  `delivery.ci.watch.maxResumes` re-arm budget with nothing red. This is
+  **never** a failure and **never** `timed_out`. Hand the wait off to the
+  host's interval loop rather than blocking the delivery turn:
+  `/loop 5m /loops:watch-ci`.
+
+> **Triage authority.** How to classify and remediate a red (or repeatedly
+> slow) check — the root-cause-only decision tree for infra/transient and
+> flaky failures (reproduce → check `main` → bisect env vs code → fix in-scope
+> or file a `meta::framework-gap` issue), the never-rerun / never-quarantine
+> prohibitions, and the escalation criteria (three-strikes, the 30-minute
+> wall-clock timebox, and the clearly-environmental fast path) — is defined
+> once in [`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md).
+> Read it before remediating.
+>
 > **Remediation + hard prohibitions.** For the per-check fix table (lint,
 > baseline drift, test, coverage), the three-strikes halt rule, and the
 > never-merge / never-force-push / never-dodge prohibitions, see
@@ -631,14 +708,31 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
   --event epic.automerge.start --pr-url <prUrl>
 ```
 
-`AutomergePredicate` evaluates the structured-signal verdict and emits
-`epic.merge.ready` on a clean verdict or `epic.merge.blocked` otherwise. The
-downstream `AutomergeArmer` fires `gh pr merge --auto --squash
---delete-branch` **only** when `clean: true` (empty manual-interventions,
-every wave complete, no story blocked, `0` 🔴 + `0` 🟠 review findings, and
-the retro's `automerge-verdict` trailer reports `cleanSprint: true`).
-Otherwise it records disqualifying reasons and exits without merging — the
-operator merges manually.
+`AutomergePredicate` first runs a **live `gh pr checks --required` probe**
+(Story #4361): green required CI is the arming signal, so if any required
+check is red, pending, or the probe is unreadable it emits
+`epic.merge.blocked` immediately — even if the Phase 8 watch was interrupted
+before it observed green (closing the Story #3901 interrupted-watch hole).
+When the probe is green it evaluates the structured-signal verdict under the
+`delivery.ci.autoMerge` policy (default `"trust-ci"`; see
+[`configuration.md`](../../docs/configuration.md)):
+
+- **`trust-ci`** (default) — the ONLY structured conditions that block
+  arming are an unresolved 🔴 critical (red) code-review finding or an
+  `agent::blocked` state (a story-level blocker recorded in run-state, a
+  non-done story, or a missing run-state checkpoint). Manual interventions,
+  🟠 warning-level findings, and a non-clean retro are **recorded for audit**
+  (surfaced on the classification log and the arm-reason) but no longer block.
+- **`strict`** — restores the prior clean-sprint predicate exactly: empty
+  manual-interventions, every story done, no story blocked, `0` 🔴 + `0` 🟠
+  review findings, and the retro's `automerge-verdict` trailer reporting
+  `cleanSprint: true`. Any dirty signal blocks.
+
+On an arming decision the predicate emits `epic.merge.ready`; the downstream
+`AutomergeArmer` (the sole authorized `gh pr merge` call site) fires
+`gh pr merge --auto --squash --delete-branch`. Otherwise the predicate emits
+`epic.merge.blocked` with the disqualifying reasons and exits without merging
+— the operator merges manually.
 
 Close the phase wrapper by emitting `epic.automerge.end` (records the arm
 outcome on the ledger; `merged: true` once GitHub completes the squash,
@@ -650,9 +744,10 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
 ```
 
 > **Predicate wiring + manual-intervention recording.** For the full
-> `clean: true` predicate contract (Story #3901 — the trailer read, the
-> CI-freshness skip) and the `epic-deliver-note-intervention.js` command +
-> its trigger list, see
+> predicate contract (the trailer read, the `delivery.ci.autoMerge` policy
+> split, and the Story #4361 live `gh pr checks --required` probe that
+> replaced the former CI-freshness skip) and the
+> `epic-deliver-note-intervention.js` command + its trigger list, see
 > [`deliver-epic-reference.md` § Phase 8.5 — Auto-merge predicate detail](deliver-epic-reference.md#phase-85--auto-merge-predicate-detail).
 
 ---

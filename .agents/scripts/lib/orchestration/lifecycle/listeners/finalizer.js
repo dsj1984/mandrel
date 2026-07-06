@@ -24,7 +24,11 @@
  *   4. Otherwise, invoke `runFinalizeFn`. The production default
  *      (`composeBusOwnedFinalize`) chains
  *        a. `openOrLocatePr({ epicId, headBranch, baseBranch })`
- *        b. `postHandoffComment({ epicId, prNumber, prUrl, provider })`
+ *        b. `markPrReady({ pr })` when `delivery.ci.earlyPr` is on
+ *           (Story #4359) — the wave-1 draft is flipped ready-for-review;
+ *           skipped when `earlyPr` is off (the PR was opened here, never a
+ *           draft).
+ *        c. `postHandoffComment({ epicId, prNumber, prUrl, provider })`
  *      and returns `{ prNumber, prUrl, handoff }`. (Story #4324 retired
  *      the `closePlanningTickets` sweep with the context-ticket classes —
  *      there are no planning tickets to close.)
@@ -60,13 +64,17 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { getCiDelivery } from '../../../config/ci.js';
 import {
   graduateAuditResults as defaultGraduateAuditResults,
   isAutoFileEnabled as isAuditResultsAutoFileEnabled,
 } from '../../../feedback-loop/audit-results-graduator.js';
 import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
 import { parsePrNumberFromUrl } from '../../../github-url.js';
-import { openOrLocatePr as defaultOpenOrLocatePr } from '../../finalize/open-or-locate-pr.js';
+import {
+  markPrReady as defaultMarkPrReady,
+  openOrLocatePr as defaultOpenOrLocatePr,
+} from '../../finalize/open-or-locate-pr.js';
 import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/post-handoff-comment.js';
 
 /**
@@ -79,17 +87,31 @@ import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/
  * `{ blocker: { reason, detail } }` when a step fails with an
  * unrecoverable error that should keep the Epic at `agent::blocked`.
  *
+ * Story #4359 (Epic #4355) — early-PR draft mode. When `earlyPr` is on
+ * (the default resolved via `getCiDelivery`), the Epic PR already exists
+ * as a draft (opened at wave 1). Finalize then **locates** it (the
+ * `openOrLocatePr` probe short-circuits to `created: false`) and flips it
+ * ready-for-review via `markPrReady` rather than opening the draft as a
+ * `--draft`. When `earlyPr` is off, finalize opens the PR here with no
+ * draft — the pre-Story close-time timing. In both modes the title/body
+ * contract is identical and `markPrReady` is a no-op on an already-ready
+ * PR, so replay stays idempotent.
+ *
  * @param {{
  *   provider?: object|null,
+ *   earlyPr?: boolean,
  *   openOrLocatePrFn?: typeof defaultOpenOrLocatePr,
+ *   markPrReadyFn?: typeof defaultMarkPrReady,
  *   postHandoffCommentFn?: typeof defaultPostHandoffComment,
  * }} deps
  */
 export function composeBusOwnedFinalize(deps = {}) {
   const openOrLocatePrFn = deps.openOrLocatePrFn ?? defaultOpenOrLocatePr;
+  const markPrReadyFn = deps.markPrReadyFn ?? defaultMarkPrReady;
   const postHandoffCommentFn =
     deps.postHandoffCommentFn ?? defaultPostHandoffComment;
   const provider = deps.provider ?? null;
+  const earlyPr = deps.earlyPr !== false;
 
   return async function runBusOwnedFinalize({ epicId, cwd } = {}) {
     if (!Number.isInteger(epicId) || epicId < 1) {
@@ -127,6 +149,24 @@ export function composeBusOwnedFinalize(deps = {}) {
           detail: 'openOrLocatePr returned no { prNumber, url } envelope',
         },
       };
+    }
+
+    // Story #4359: when earlyPr is on, the located PR is the wave-1 draft —
+    // flip it ready-for-review. `gh pr ready` on an already-ready PR is a
+    // no-op, so a replay (or an earlyPr-off PR that was never a draft) is
+    // safe. A failure here is a hard blocker: leaving the PR a draft would
+    // silently park the merge gate.
+    if (earlyPr) {
+      try {
+        await markPrReadyFn({ pr: openResult.url, cwd });
+      } catch (err) {
+        return {
+          blocker: {
+            reason: 'mark-pr-ready-failed',
+            detail: err?.message ?? String(err),
+          },
+        };
+      }
     }
 
     // The handoff comment requires a provider. The lifecycle-emit CLI
@@ -256,9 +296,14 @@ export class Finalizer {
     this.cwd = opts.cwd ?? process.cwd();
     this.fullScope = opts.fullScope === true;
     this.provider = opts.provider ?? null;
+    // Story #4359: gate the finalize PR-open/ready branch on
+    // `delivery.ci.earlyPr` (default true) resolved via getCiDelivery.
+    // On → the wave-1 draft is located and marked ready; off → the PR is
+    // opened here at close time (pre-Story timing).
+    const earlyPr = getCiDelivery(opts.config ?? null).earlyPr;
     this.runFinalizeFn =
       opts.runFinalizeFn ??
-      composeBusOwnedFinalize({ provider: this.provider });
+      composeBusOwnedFinalize({ provider: this.provider, earlyPr });
     this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
     // ultrareview bug_007: the existing-PR short-circuit must run the
     // handoff-comment upsert (idempotent) so crash-recovery replays

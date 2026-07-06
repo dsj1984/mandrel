@@ -110,6 +110,10 @@ does not re-pay their bytes on every turn.
   - [`rules/orchestration-error-handling.md`](rules/orchestration-error-handling.md)
     — before writing or modifying orchestration scripts under
     `.agents/scripts/**`.
+  - [`rules/ci-remediation.md`](rules/ci-remediation.md) — before remediating
+    a red (or repeatedly slow) CI check during delivery (the root-cause-only
+    triage decision tree, the never-rerun / never-quarantine prohibitions,
+    and the escalation criteria).
   - [`rules/api-conventions.md`](rules/api-conventions.md),
     [`rules/gherkin-standards.md`](rules/gherkin-standards.md),
     [`rules/changelog-style.md`](rules/changelog-style.md),
