@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-06T19:56:31.297Z",
+  "generatedAt": "2026-07-06T20:31:35.088Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -8072,26 +8072,32 @@
     {
       "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
       "method": "defaultGhSpawn",
-      "startLine": 43,
+      "startLine": 57,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
       "method": "parsePrListResult",
-      "startLine": 67,
+      "startLine": 81,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
       "method": "parsePrViewResult",
-      "startLine": 89,
+      "startLine": 103,
       "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
       "method": "openOrLocatePr",
-      "startLine": 128,
-      "crap": 17.79899348247504
+      "startLine": 148,
+      "crap": 18.768
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/finalize/open-or-locate-pr.js",
+      "method": "markPrReady",
+      "startLine": 290,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
@@ -8810,25 +8816,25 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "method": "composeBusOwnedFinalize",
-      "startLine": 89,
-      "crap": 1.00035349928218
+      "startLine": 108,
+      "crap": 1.0003644314868805
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "method": "runBusOwnedFinalize",
-      "startLine": 97,
-      "crap": 8.030112482853223
+      "startLine": 116,
+      "crap": 8.031138957883254
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "method": "extractPrUrl",
-      "startLine": 199,
+      "startLine": 217,
       "crap": 9.010125
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "method": "ghPrListHead",
-      "startLine": 226,
+      "startLine": 244,
       "crap": 1
     },
     {
