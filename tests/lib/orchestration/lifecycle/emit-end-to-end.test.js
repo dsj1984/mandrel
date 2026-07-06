@@ -171,14 +171,20 @@ describe('lifecycle-emit end-to-end — AutomergePredicate blocked path', () => 
       // through the injected evaluator. The bus runs listeners in
       // registration order; both fire, and the spy captures whichever
       // verdict the additional predicate emits.
+      const blockedMsg =
+        'manual interventions recorded (1): #2453 — host crashed mid-wave';
       const blockingPredicate = new AutomergePredicate({
         bus,
         epicId,
         provider: fakeProvider,
+        // Manual interventions block only under strict (trust-ci records
+        // them as non-blocking — Story #4361); pin strict here.
+        config: { delivery: { ci: { autoMerge: 'strict' } } },
         evaluatePredicateFn: async () => ({
           clean: false,
-          reasons: [
-            'manual interventions recorded (1): #2453 — host crashed mid-wave',
+          reasons: [blockedMsg],
+          categorizedReasons: [
+            { category: 'intervention', message: blockedMsg },
           ],
           signals: {
             interventionCount: 1,
@@ -356,25 +362,32 @@ describe('lifecycle-emit end-to-end — full-roster PR-open fixture (Story #2531
           },
         ],
       };
+      // Under the strict policy a manual intervention blocks arming (the
+      // trust-ci default records it as non-blocking, Story #4361) — pin
+      // strict so this fixture's manual-interventions[] deterministically
+      // disqualifies the merge.
+      const interventionMessage = `manual interventions recorded (${fixtureState.manualInterventions.length}): #${fixtureState.manualInterventions[0].ticketId} — ${fixtureState.manualInterventions[0].reason}`;
       const blockingPredicate = new AutomergePredicate({
         bus,
         epicId,
         provider: fakeProvider,
-        evaluatePredicateFn: async () => ({
-          clean: fixtureState.manualInterventions.length === 0,
-          reasons:
-            fixtureState.manualInterventions.length > 0
-              ? [
-                  `manual interventions recorded (${fixtureState.manualInterventions.length}): #${fixtureState.manualInterventions[0].ticketId} — ${fixtureState.manualInterventions[0].reason}`,
-                ]
+        config: { delivery: { ci: { autoMerge: 'strict' } } },
+        evaluatePredicateFn: async () => {
+          const dirty = fixtureState.manualInterventions.length > 0;
+          return {
+            clean: !dirty,
+            reasons: dirty ? [interventionMessage] : [],
+            categorizedReasons: dirty
+              ? [{ category: 'intervention', message: interventionMessage }]
               : [],
-          signals: {
-            interventionCount: fixtureState.manualInterventions.length,
-            blockerEvents: 0,
-            blockerEventTypes: [],
-            blockerCorrelationIds: [],
-          },
-        }),
+            signals: {
+              interventionCount: fixtureState.manualInterventions.length,
+              blockerEvents: 0,
+              blockerEventTypes: [],
+              blockerCorrelationIds: [],
+            },
+          };
+        },
         logger: quietLogger(),
       });
       blockingPredicate.register();
