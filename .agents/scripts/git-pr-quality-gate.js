@@ -2,7 +2,7 @@
 /* node:coverage ignore file -- top-level CLI gate; spawns lint/format/test and asserts exit codes — heavy mocking would assert only mock structure */
 
 /**
- * git-pr-quality-gate.js — Lint / format / test gate for `/git-merge-pr`.
+ * git-pr-quality-gate.js — Lint / test / baselines gate for `/git-merge-pr`.
  *
  * `/git-merge-pr` Steps 3–4 previously hardcoded the command sequence
  * (`npm run lint`, `npm run format:check`, `npm test`) in the workflow

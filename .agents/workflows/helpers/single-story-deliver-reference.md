@@ -197,8 +197,8 @@ then ends its turn with **free-form prose** — e.g. "I'll wait for the
 background watch task to complete" or "the next event will be its completion
 notification" — leaving the merge unconfirmed and the Story stranded at
 `agent::closing` (observed on Story #1553 / PR #1554). **Do not do this.**
-`gh pr checks <prNumber> --watch` *blocks the current turn* until CI resolves
-— that is the mechanism by which you wait. You MUST keep your turn alive
+`pr-watch-with-update.js --pr <prNumber>` *blocks the current turn* until CI
+resolves — that is the mechanism by which you wait. You MUST keep your turn alive
 across the wait: watch → (fix + push + re-watch on red) → confirm the merge
 (Step 5) → flip `agent::done` → run the post-merge steps → and only then
 return the terminal JSON status contract. The CI wait NEVER terminates your
@@ -389,7 +389,7 @@ up").
 
 **The auto-merge wait does not produce a fourth status.** There is no
 "pending" or "waiting" terminal — the CI/auto-merge wait is handled
-*internally* by blocking on `gh pr checks --watch` (Step 4) and confirming
+*internally* by blocking on `pr-watch-with-update.js` (Step 4) and confirming
 the merge (Step 5). You return **only** when you have reached a genuinely
 terminal state:
 

@@ -224,10 +224,22 @@ per-Story status map (for resume + the operator rollup) and the global cap.
 
 When `delivery.ci.earlyPr` is on (the default), open the Epic PR as a
 **draft** once, before the first `tick`, so every subsequent per-wave push
-to `epic/<epicId>` runs CI attributed to its own wave (CI keeps warming
-while later waves land). Resolve the flag through the
+to `epic/<epicId>` runs CI attributed to its own wave. (CI is keyed on the PR
+ref with `cancel-in-progress`, so each new wave push **supersedes** the prior
+wave's in-flight run rather than queuing behind it — the latest wave always
+gets the verdict, and CI-minute use stays bounded; intermediate wave runs are
+cancelled, not completed.) Resolve the flag through the
 [`getCiDelivery`](../../scripts/lib/config/ci.js) accessor (default `true`);
 do not read `delivery.ci.earlyPr` directly.
+
+> **This step is host-LLM-driven, with no runtime enforcement seam** — unlike
+> the Phase 7 ready-flip, which the `Finalizer` listener wires in
+> deterministically (`finalizer.js` resolves `earlyPr` and calls
+> `markPrReady`). The asymmetry is intentional and safe: if this wave-1
+> draft-open is skipped, the `earlyPr`-on Phase 7 `markPrReady` call degrades
+> to a no-op on the PR that finalize opens at close time (`gh pr ready` is a
+> no-op on an already-ready PR), so the merge gate is never stranded — the run
+> only loses the per-wave CI attribution this step buys.
 
 - **`earlyPr` on** — call
   [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
