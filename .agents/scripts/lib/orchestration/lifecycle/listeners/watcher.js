@@ -55,6 +55,35 @@ import { parsePrNumberFromUrl } from '../../../github-url.js';
  * Unknown / non-pending unrecognized values collapse to `'skipped'`
  * so any future GitHub state we haven't enumerated still validates.
  */
+/**
+ * The raw check-state tokens `normalizeCheckState` recognizes (lowercased).
+ * A token absent from this set is one we have NOT enumerated — the watch
+ * path collapses it to `'skipped'` (validate-anything), but a fail-closed
+ * consumer (the auto-merge arming probe) must treat it as unknown-therefore-
+ * blocking rather than trust the `'skipped'` collapse. Exported so that
+ * stricter consumer lives here as the single vocabulary owner.
+ */
+export const RECOGNIZED_CHECK_STATES = Object.freeze(
+  new Set([
+    '',
+    'pending',
+    'queued',
+    'in_progress',
+    'requested',
+    'waiting',
+    'success',
+    'completed',
+    'failure',
+    'startup_failure',
+    'neutral',
+    'cancelled',
+    'timed_out',
+    'action_required',
+    'stale',
+    'skipped',
+  ]),
+);
+
 export function normalizeCheckState(raw) {
   const v = String(raw ?? '')
     .trim()

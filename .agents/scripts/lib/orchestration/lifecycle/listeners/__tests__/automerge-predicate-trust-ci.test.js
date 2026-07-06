@@ -132,6 +132,23 @@ describe('classifyRequiredChecksProbe', () => {
     assert.match(v.reason, /test=pending/);
   });
 
+  it('ok:false (fail closed) when a required check reports an unrecognized state', () => {
+    // A future/renamed gh conclusion we have not enumerated must block the
+    // arming probe rather than collapse to the non-failing 'skipped' bucket
+    // (normalizeCheckState's watch-path default).
+    const v = classifyRequiredChecksProbe({
+      status: 8,
+      stdout: JSON.stringify([
+        { name: 'lint', state: 'SUCCESS' },
+        { name: 'test', state: 'SOME_FUTURE_STATE' },
+      ]),
+      stderr: '',
+    });
+    assert.equal(v.ok, false);
+    assert.equal(v.outcomes.test, 'unknown');
+    assert.match(v.reason, /test=unknown/);
+  });
+
   it('ok:false (fail closed) when stdout is empty and status non-zero', () => {
     const v = classifyRequiredChecksProbe({
       status: 1,

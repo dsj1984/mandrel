@@ -358,8 +358,19 @@ export async function runPrWatch({
 
   // Genuine red check — exit 1 immediately, write the digest, and surface
   // the fix-loop handoff.
+  // Exclude 'still-running' as well as the non-failing states: when the cap
+  // fires with a mixed failed+pending map, promotePendingToStillRunning has
+  // rewritten the pending entries, and a still-running check is slow, not
+  // red — including it here would let it become the digest's "primary"
+  // failing check and mispoint the diagnosis at a slow check.
   const failures = Object.entries(result.outcomes)
-    .filter(([, v]) => v !== 'success' && v !== 'neutral' && v !== 'skipped')
+    .filter(
+      ([, v]) =>
+        v !== 'success' &&
+        v !== 'neutral' &&
+        v !== 'skipped' &&
+        v !== 'still-running',
+    )
     .map(([name, outcome]) => ({ name, outcome }));
   const red = failures.map((f) => `${f.name}=${f.outcome}`).join(', ');
   logger.error?.(`[pr-watch] required check(s) not green: ${red}`);

@@ -69,7 +69,7 @@ import { spawnSync } from 'node:child_process';
 import { getCiDelivery } from '../../../config/ci.js';
 import * as epicRunStateStore from '../../epic-run-state-store.js';
 import { findStructuredComment } from '../../ticketing.js';
-import { normalizeCheckState } from './watcher.js';
+import { normalizeCheckState, RECOGNIZED_CHECK_STATES } from './watcher.js';
 
 /**
  * Outcomes that count as "this required check did not block the merge".
@@ -256,7 +256,17 @@ export function classifyRequiredChecksProbe(probe) {
   const outcomes = {};
   for (const e of entries) {
     if (e && typeof e === 'object' && typeof e.name === 'string') {
-      outcomes[e.name] = normalizeCheckState(e.state || e.bucket || '');
+      const raw = String(e.state || e.bucket || '')
+        .trim()
+        .toLowerCase();
+      // Fail closed on the arming probe: a token we have not enumerated
+      // could be a genuinely-failing GitHub conclusion. normalizeCheckState
+      // collapses unknowns to 'skipped' (safe for the watch path, unsafe
+      // here), so map an unrecognized token to 'unknown' — which is not in
+      // NON_FAILING_CHECK_OUTCOMES and therefore blocks arming.
+      outcomes[e.name] = RECOGNIZED_CHECK_STATES.has(raw)
+        ? normalizeCheckState(raw)
+        : 'unknown';
     }
   }
   // An empty required set (no required checks configured) is treated as
