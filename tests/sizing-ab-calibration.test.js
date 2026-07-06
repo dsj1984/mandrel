@@ -147,6 +147,10 @@ describe('sizing A/B re-plan calibration (Story #3877)', () => {
       DEFAULT_TASK_SIZING.softAcceptanceCount,
     );
     assert.equal(profiles.new.hardFiles, DEFAULT_TASK_SIZING.hardFiles);
-    assert.equal(profiles.new.maxAcceptance, DEFAULT_TASK_SIZING.maxAcceptance);
+    // The hard maxAcceptance ceiling was removed (acceptance mass is
+    // advisory-only) — neither the live constant nor the recorded new
+    // profile carries it.
+    assert.equal(profiles.new.maxAcceptance, undefined);
+    assert.equal(DEFAULT_TASK_SIZING.maxAcceptance, undefined);
   });
 });

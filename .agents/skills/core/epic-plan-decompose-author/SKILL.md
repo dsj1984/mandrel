@@ -238,7 +238,38 @@ The envelope also has a **floor**, not just a ceiling: a Story that would plausi
 
 - A Story touching more than **`softFiles` (15)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
 - A Story touching more than **`hardFiles` (30)** files is **rejected** unless it declares `wide` with a reason.
-- A Story with more than **`maxAcceptance` (14)** acceptance items is **rejected**; more than **`softAcceptanceCount` (10)** emits an advisory warning.
+- Acceptance mass is **advisory only**: more than **`softAcceptanceCount` (10)** acceptance items emits an advisory warning. There is NO hard acceptance ceiling — a long binding contract is a signal to re-check cohesion, never a reason to fragment one coherent capability into dependent slices.
+
+#### DELIVERY-SCHEDULE SIMULATION (the story count must earn itself)
+
+Before emitting, simulate the delivery schedule the plan implies and judge the
+plan by its schedule, not by how tidy the taxonomy looks. The canonical rules
+live in the rendered decomposer prompt (`decomposer-prompts.js`) — in brief:
+
+1. **Build the wave schedule.** A Story runs only after every `depends_on`
+   completes, and two Stories that name the same file in `changes[]` cannot
+   run in the same wave (the scheduler serializes file-overlapping Stories
+   even when no `depends_on` edge links them).
+2. **Compute the parallelism yield** — story count ÷ critical-path length in
+   waves. A yield near 1.0 means the plan is a serial chain: N Stories that
+   deliver no faster than one Story while paying N delivery sessions.
+3. **Every Story must earn its slot** by at least one of **(a) parallelism**
+   (it runs concurrently with a sibling in the schedule just built — not
+   merely "logically independent"), **(b) risk isolation** (it isolates a
+   consumer-facing behavior change or high-risk cutover into its own
+   reviewable, revertable unit), or **(c) envelope pressure** (merged into its
+   neighbor it would exceed the one-pass delivery envelope).
+4. **A dependent link with none of those justifications merges into its
+   consumer** — the single-consumer merge rule generalized from pairs to
+   chains.
+5. **Hot-file rule.** When one file appears in the `changes[]` of more than a
+   third of the Stories, the slicing axis cuts across a shared seam — merge
+   the Stories that co-edit it, or re-slice along the seam.
+
+End each Story's `reason_to_exist` with its justification letter and one
+clause, e.g. "… (a: runs in wave 1 alongside <slug>)" or "(b: isolates the
+auto-merge default change)". A reason that names only a topic ("config work",
+"docs") with no justification is a merge signal.
 
 #### DELIVERY SLICING (consume the Tech Spec target grouping when present)
 

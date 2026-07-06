@@ -400,7 +400,6 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
           taskSizing: {
             softFiles: 6,
             hardFiles: 18,
-            maxAcceptance: 10,
             softAcceptanceCount: 6,
           },
         },

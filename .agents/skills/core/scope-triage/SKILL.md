@@ -50,10 +50,11 @@ The work is a single shippable capability. Signals:
 - **One capability, one reason to exist.** The artifact describes one coherent
   change a reviewer would accept as a single PR — the
   `DELIVERABLE_GRANULARITY_GUIDANCE.definition` notion of a Story.
-- **Acceptance fits one Story.** The acceptance-criteria list plausibly fits a
-  single Story's inline `acceptance[]` — i.e. it sits under the
-  `maxAcceptance` ceiling in `DEFAULT_TASK_SIZING` rather than spanning many
-  independent outcomes.
+- **Acceptance fits one Story.** The acceptance-criteria list reads as the
+  binding contract of one coherent capability rather than spanning many
+  independent outcomes. Acceptance mass is advisory-only (the
+  `softAcceptanceCount` nudge in `DEFAULT_TASK_SIZING` — there is no hard
+  ceiling), so the question is cohesion, not count.
 - **Footprint fits Story sizing.** The plausible file footprint fits the Story
   width described by `DEFAULT_TASK_SIZING` (the `softFiles` / `hardFiles`
   knobs); a legitimately broad-but-cohesive change would declare `wide` rather

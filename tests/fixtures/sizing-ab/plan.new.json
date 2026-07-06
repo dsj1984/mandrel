@@ -1,7 +1,7 @@
 {
   "profile": "new",
-  "epic": "#3865 — model-evolution recalibration (A/B fixture)",
-  "note": "The decomposition the NEW sizing profile (hardFiles=30, softFiles=15, maxAcceptance=14, softAcceptanceCount=10) accepts. Each wide capability is one Story; two of them exceed the OLD hardFiles=15 ceiling, so the old profile could not have accepted this slicing. The union of all changes[] paths equals plan.old.json (profiles.totalFiles=58).",
+  "epic": "#3865 \u2014 model-evolution recalibration (A/B fixture)",
+  "note": "The decomposition the NEW sizing profile (hardFiles=30, softFiles=15, softAcceptanceCount=10; acceptance mass advisory-only) accepts. Each wide capability is one Story; two of them exceed the OLD hardFiles=15 ceiling, so the old profile could not have accepted this slicing. The union of all changes[] paths equals plan.old.json (profiles.totalFiles=58).",
   "stories": [
     {
       "slug": "n1",
@@ -9,7 +9,7 @@
       "title": "Relax sizing constants and thread them through every SSOT surface",
       "body": {
         "acceptance": [
-          "DEFAULT_TASK_SIZING carries the relaxed profile (softFiles 15, hardFiles 30, maxAcceptance 14)",
+          "DEFAULT_TASK_SIZING carries the relaxed profile (softFiles 15, hardFiles 30; acceptance mass advisory-only)",
           "SOFT_STORIES_PER_FEATURE is 7 and rendered into the decomposer prompt",
           "agentrc schema + JS mirror match the relaxed constants",
           "the ticket-decomposer prompt test asserts the relaxed threshold sentence",
