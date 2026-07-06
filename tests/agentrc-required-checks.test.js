@@ -2,7 +2,7 @@
 //
 // Story #1990 / Task #1992 (Epic #1943) — pins the exact shape of
 // `github.branchProtection.requiredChecks` in the root `.agentrc.json`
-// to the canonical set: lint, test, baselines, lifecycle-doc-drift.
+// to the canonical set: lint, test, baselines.
 //
 // Story #1981 / Task #2005 deleted the four per-kind regression CLIs
 // (check-coverage-baseline, check-crap, check-maintainability,
@@ -10,8 +10,10 @@
 // resurrect those entries.
 //
 // Epic #2880 / Task #2916 added `lifecycle-doc-drift` as a fourth
-// required check so listener subscriptions and docs/LIFECYCLE.md stay
-// in sync. The snapshot grew from three to four entries to match.
+// required check; Story #4356 (Epic #4355) pruned it back out — the
+// lifecycle-doc-drift gate is exercised via `npm run lint`'s docs:check
+// chain, so listing it as a standalone branch-protection required check
+// was stale/redundant. The snapshot is back to the canonical three entries.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,10 +35,6 @@ const EXPECTED_CHECKS = [
     name: 'baselines',
     cmd: ['node', '.agents/scripts/check-baselines.js'],
   },
-  {
-    name: 'lifecycle-doc-drift',
-    cmd: ['node', '.agents/scripts/check-lifecycle-doc-drift.js'],
-  },
 ];
 
 const FORBIDDEN_NAMES = new Set([
@@ -44,26 +42,29 @@ const FORBIDDEN_NAMES = new Set([
   'crap',
   'maintainability',
   'mutation',
+  // Story #4356 (Epic #4355) — pruned the stale standalone lifecycle-doc-drift
+  // required check; guard against it resurfacing.
+  'lifecycle-doc-drift',
 ]);
 
 describe('.agentrc.json — collapsed requiredChecks snapshot (Task #1992)', () => {
-  it('requiredChecks contains exactly four entries', () => {
+  it('requiredChecks contains exactly three entries', () => {
     const checks = readAgentrc().github.branchProtection.requiredChecks;
     assert.equal(
       checks.length,
-      4,
-      `expected exactly 4 requiredChecks; got ${checks.length}: ${JSON.stringify(
+      3,
+      `expected exactly 3 requiredChecks; got ${checks.length}: ${JSON.stringify(
         checks.map((c) => c.name),
       )}`,
     );
   });
 
-  it('requiredChecks shape matches the canonical [lint, test, baselines, lifecycle-doc-drift] snapshot', () => {
+  it('requiredChecks shape matches the canonical [lint, test, baselines] snapshot', () => {
     const checks = readAgentrc().github.branchProtection.requiredChecks;
     assert.deepEqual(checks, EXPECTED_CHECKS);
   });
 
-  it('requiredChecks does not include any of the four deleted per-kind CLIs', () => {
+  it('requiredChecks does not include any deleted/pruned check names', () => {
     const names = readAgentrc().github.branchProtection.requiredChecks.map(
       (c) => c.name,
     );
@@ -71,7 +72,7 @@ describe('.agentrc.json — collapsed requiredChecks snapshot (Task #1992)', () 
     assert.deepEqual(
       leaks,
       [],
-      `forbidden per-kind check names resurfaced: ${JSON.stringify(leaks)}`,
+      `forbidden check names resurfaced: ${JSON.stringify(leaks)}`,
     );
   });
 });
