@@ -151,6 +151,7 @@ function fakeConfig({
   baseBranch = 'main',
   reapOnSuccess = false,
   worktreeRoot = '.no-such-worktree-root',
+  autoMerge,
 } = {}) {
   return {
     project: { baseBranch, commands: {} },
@@ -160,6 +161,7 @@ function fakeConfig({
         root: worktreeRoot,
         reapOnSuccess,
       },
+      ...(autoMerge ? { ci: { autoMerge } } : {}),
     },
   };
 }
@@ -518,6 +520,46 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.autoMergeEnabled, false);
     assert.equal(result.autoMergeReason, 'disabled-by-flag');
     assert.match(result.note, /Operator merges via GitHub UI/);
+    assert.equal(ghCalls.length, 2);
+  });
+
+  it('skips auto-merge under delivery.ci.autoMerge="strict" (operator merges)', async (t) => {
+    const ghCalls = [];
+    const gh = makeFakeGh((args) => {
+      ghCalls.push(args.slice());
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/77\n';
+      }
+      throw new Error('gh merge must not run under autoMerge=strict');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=strict-policy`);
+    const { result } = await runSingleStoryClose({
+      storyId: 77,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      // noAutoMerge NOT set — the skip is driven purely by the config policy.
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 77,
+          state: 'open',
+          title: 'Strict policy',
+          labels: [],
+        },
+      }),
+      injectedConfig: fakeConfig({ autoMerge: 'strict' }),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.equal(result.autoMergeEnabled, false);
+    assert.equal(result.autoMergeReason, 'disabled-by-policy-strict');
+    // The gh merge call is never made — only list + create ran.
     assert.equal(ghCalls.length, 2);
   });
 
