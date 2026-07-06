@@ -696,14 +696,31 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
   --event epic.automerge.start --pr-url <prUrl>
 ```
 
-`AutomergePredicate` evaluates the structured-signal verdict and emits
-`epic.merge.ready` on a clean verdict or `epic.merge.blocked` otherwise. The
-downstream `AutomergeArmer` fires `gh pr merge --auto --squash
---delete-branch` **only** when `clean: true` (empty manual-interventions,
-every wave complete, no story blocked, `0` 🔴 + `0` 🟠 review findings, and
-the retro's `automerge-verdict` trailer reports `cleanSprint: true`).
-Otherwise it records disqualifying reasons and exits without merging — the
-operator merges manually.
+`AutomergePredicate` first runs a **live `gh pr checks --required` probe**
+(Story #4361): green required CI is the arming signal, so if any required
+check is red, pending, or the probe is unreadable it emits
+`epic.merge.blocked` immediately — even if the Phase 8 watch was interrupted
+before it observed green (closing the Story #3901 interrupted-watch hole).
+When the probe is green it evaluates the structured-signal verdict under the
+`delivery.ci.autoMerge` policy (default `"trust-ci"`; see
+[`configuration.md`](../../docs/configuration.md)):
+
+- **`trust-ci`** (default) — the ONLY structured conditions that block
+  arming are an unresolved 🔴 critical (red) code-review finding or an
+  `agent::blocked` state (a story-level blocker recorded in run-state, a
+  non-done story, or a missing run-state checkpoint). Manual interventions,
+  🟠 warning-level findings, and a non-clean retro are **recorded for audit**
+  (surfaced on the classification log and the arm-reason) but no longer block.
+- **`strict`** — restores the prior clean-sprint predicate exactly: empty
+  manual-interventions, every story done, no story blocked, `0` 🔴 + `0` 🟠
+  review findings, and the retro's `automerge-verdict` trailer reporting
+  `cleanSprint: true`. Any dirty signal blocks.
+
+On an arming decision the predicate emits `epic.merge.ready`; the downstream
+`AutomergeArmer` (the sole authorized `gh pr merge` call site) fires
+`gh pr merge --auto --squash --delete-branch`. Otherwise the predicate emits
+`epic.merge.blocked` with the disqualifying reasons and exits without merging
+— the operator merges manually.
 
 Close the phase wrapper by emitting `epic.automerge.end` (records the arm
 outcome on the ledger; `merged: true` once GitHub completes the squash,
@@ -715,9 +732,10 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
 ```
 
 > **Predicate wiring + manual-intervention recording.** For the full
-> `clean: true` predicate contract (Story #3901 — the trailer read, the
-> CI-freshness skip) and the `epic-deliver-note-intervention.js` command +
-> its trigger list, see
+> predicate contract (the trailer read, the `delivery.ci.autoMerge` policy
+> split, and the Story #4361 live `gh pr checks --required` probe that
+> replaced the former CI-freshness skip) and the
+> `epic-deliver-note-intervention.js` command + its trigger list, see
 > [`deliver-epic-reference.md` § Phase 8.5 — Auto-merge predicate detail](deliver-epic-reference.md#phase-85--auto-merge-predicate-detail).
 
 ---

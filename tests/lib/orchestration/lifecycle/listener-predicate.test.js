@@ -11,11 +11,17 @@
  *     `evaluateAutoMergePredicate` output — the listener now owns that
  *     evaluator directly (inlined under Story #2415).
  *   - Required-check failures short-circuit to `epic.merge.blocked`
- *     BEFORE the structured-signal evaluator is consulted — but only on
- *     the `epic.watch.end` path, which carries `checkOutcomes`. The
- *     `epic.automerge.start` path has no `checkOutcomes` (CI is already
- *     green per Phase 8) and skips the freshness gate.
+ *     BEFORE the structured-signal evaluator is consulted. On the
+ *     `epic.watch.end` path this uses the pre-supplied `checkOutcomes`
+ *     map; on the `epic.automerge.start` path (Story #4361) a LIVE
+ *     `gh pr checks --required` probe is issued so an interrupted Phase 8
+ *     watch cannot arm merge on red/pending required checks. These tests
+ *     inject a `probeRequiredChecksFn` stub for the automerge.start path.
  *   - `epic.merge.blocked` always carries a non-empty `reason`.
+ *
+ * The trust-ci / strict policy split and the live-probe refusal are
+ * exercised in the sibling suite
+ * `listeners/__tests__/automerge-predicate-trust-ci.test.js` (Story #4361).
  */
 
 import assert from 'node:assert/strict';
@@ -45,6 +51,38 @@ function recordingBus() {
 }
 
 const fakeProvider = { __tag: 'fake-provider' };
+
+// A live-probe stub that reports every required check green — injected on
+// the `epic.automerge.start` path so these tests never shell out to `gh`
+// (Story #4361). `--json name,state,bucket` shape.
+function greenProbeFn() {
+  return {
+    status: 0,
+    stdout: JSON.stringify([
+      { name: 'lint', state: 'SUCCESS', bucket: 'pass' },
+      { name: 'test', state: 'SUCCESS', bucket: 'pass' },
+    ]),
+    stderr: '',
+  };
+}
+
+// Build a legacy-shaped verdict that also carries `categorizedReasons` so
+// the policy filter sees blocking reasons. Under the default trust-ci
+// policy only `criticalReview` / `blockedState` categories block, so the
+// helper tags each message accordingly (defaulting to blockedState, which
+// blocks under both policies) unless a category is supplied.
+function dirtyVerdict(messages, categories) {
+  const list = Array.isArray(messages) ? messages : [messages];
+  return {
+    clean: false,
+    reasons: list,
+    categorizedReasons: list.map((message, i) => ({
+      category: (categories && categories[i]) || 'blockedState',
+      message,
+    })),
+    signals: {},
+  };
+}
 
 describe('NON_FAILING_CHECK_OUTCOMES', () => {
   it('includes success, neutral, skipped', () => {
@@ -119,46 +157,56 @@ describe('AutomergePredicate (bus integration)', () => {
     );
   });
 
-  it('emits epic.merge.ready on epic.automerge.start (production path, no checkOutcomes)', async () => {
+  it('emits epic.merge.ready on epic.automerge.start (live probe green, clean verdict)', async () => {
     const { bus, emits } = recordingBus();
     let evalCalls = 0;
+    let probeCalls = 0;
     const predicate = new AutomergePredicate({
       bus,
       epicId: 2172,
       provider: fakeProvider,
+      probeRequiredChecksFn: () => {
+        probeCalls += 1;
+        return greenProbeFn();
+      },
       evaluatePredicateFn: async () => {
         evalCalls += 1;
-        return { clean: true, reasons: [], signals: {} };
+        return {
+          clean: true,
+          reasons: [],
+          categorizedReasons: [],
+          signals: {},
+        };
       },
       logger: quietLogger(),
     });
     predicate.register();
 
-    // The production Phase 8.5 payload carries prUrl but no checkOutcomes.
+    // The production Phase 8.5 payload carries prUrl but no checkOutcomes;
+    // Story #4361 runs a LIVE required-check probe here (stubbed green).
     await bus.emit('epic.automerge.start', {
       prUrl: 'https://github.com/owner/repo/pull/9',
       epicId: 2172,
     });
     assert.equal(emits.length, 1);
     assert.equal(emits[0].event, 'epic.merge.ready');
+    assert.equal(probeCalls, 1, 'live required-check probe issued once');
     assert.equal(
       evalCalls,
       1,
-      'structured-signal evaluator consulted (freshness gate skipped — no checkOutcomes)',
+      'structured-signal evaluator consulted after the probe came back green',
     );
   });
 
-  it('emits epic.merge.blocked on epic.automerge.start when the verdict is dirty', async () => {
+  it('emits epic.merge.blocked on epic.automerge.start when the verdict is dirty (blocked-state)', async () => {
     const { bus, emits } = recordingBus();
     const predicate = new AutomergePredicate({
       bus,
       epicId: 2172,
       provider: fakeProvider,
-      evaluatePredicateFn: async () => ({
-        clean: false,
-        reasons: ['manual interventions recorded (1): drift'],
-        signals: {},
-      }),
+      probeRequiredChecksFn: greenProbeFn,
+      evaluatePredicateFn: async () =>
+        dirtyVerdict('1 story-level blocker(s) recorded in run-state'),
       logger: quietLogger(),
     });
     predicate.register();
@@ -169,7 +217,7 @@ describe('AutomergePredicate (bus integration)', () => {
     });
     assert.equal(emits.length, 1);
     assert.equal(emits[0].event, 'epic.merge.blocked');
-    assert.match(emits[0].payload.reason, /manual interventions/);
+    assert.match(emits[0].payload.reason, /story-level blocker/);
   });
 
   it('emits epic.merge.ready when every check is green and verdict.clean', async () => {
@@ -232,14 +280,14 @@ describe('AutomergePredicate (bus integration)', () => {
       bus,
       epicId: 2172,
       provider: fakeProvider,
-      evaluatePredicateFn: async () => ({
-        clean: false,
-        reasons: [
-          'manual interventions recorded (2): foo; bar',
-          'code-review has 1 🔴 Critical Blocker(s)',
-        ],
-        signals: {},
-      }),
+      evaluatePredicateFn: async () =>
+        dirtyVerdict(
+          [
+            'manual interventions recorded (2): foo; bar',
+            'code-review has 1 🔴 Critical Blocker(s)',
+          ],
+          ['intervention', 'criticalReview'],
+        ),
       logger: quietLogger(),
     });
     predicate.register();
@@ -250,7 +298,9 @@ describe('AutomergePredicate (bus integration)', () => {
     });
     assert.equal(emits.length, 1);
     assert.equal(emits[0].event, 'epic.merge.blocked');
-    assert.match(emits[0].payload.reason, /manual interventions/);
+    // Under the default trust-ci policy only the criticalReview reason
+    // blocks (the intervention is recorded, non-blocking).
+    assert.match(emits[0].payload.reason, /Critical Blocker/);
   });
 
   it('verdict for clean inputs is IDENTICAL to legacy evaluator (parity)', async () => {
@@ -262,17 +312,16 @@ describe('AutomergePredicate (bus integration)', () => {
     const cleanVerdict = {
       clean: true,
       reasons: [],
+      categorizedReasons: [],
       signals: { manualInterventions: 0, retroCompact: true },
     };
-    const dirtyVerdict = {
-      clean: false,
-      reasons: ['retro is not compact'],
-      signals: { retroCompact: false },
-    };
+    const dirtyVerdictEnvelope = dirtyVerdict('1 story(ies) not done', [
+      'blockedState',
+    ]);
 
     for (const [verdict, expected] of [
       [cleanVerdict, 'epic.merge.ready'],
-      [dirtyVerdict, 'epic.merge.blocked'],
+      [dirtyVerdictEnvelope, 'epic.merge.blocked'],
     ]) {
       const { bus, emits } = recordingBus();
       const predicate = new AutomergePredicate({
