@@ -60,17 +60,22 @@ function makeBus() {
 }
 
 describe('composeBusOwnedFinalize', () => {
-  it('invokes openOrLocatePr then postHandoffComment in order', async () => {
+  it('invokes openOrLocatePr → markPrReady (earlyPr on) → postHandoffComment in order', async () => {
     const calls = [];
     const run = composeBusOwnedFinalize({
       provider: { sentinel: true },
+      // Default earlyPr (on): the wave-1 draft is located then marked ready.
       openOrLocatePrFn: async (args) => {
         calls.push({ step: 'openOrLocatePr', args });
         return {
           prNumber: 99,
           url: 'https://github.com/o/r/pull/99',
-          created: true,
+          created: false,
         };
+      },
+      markPrReadyFn: async (args) => {
+        calls.push({ step: 'markPrReady', args });
+        return { pr: args.pr, ready: true };
       },
       postHandoffCommentFn: async (args) => {
         calls.push({ step: 'postHandoffComment', args });
@@ -80,22 +85,25 @@ describe('composeBusOwnedFinalize', () => {
     const result = await run({ epicId: 2880, cwd: '/tmp' });
     assert.deepEqual(
       calls.map((c) => c.step),
-      ['openOrLocatePr', 'postHandoffComment'],
+      ['openOrLocatePr', 'markPrReady', 'postHandoffComment'],
     );
+    // markPrReady receives the located PR URL.
+    assert.equal(calls[1].args.pr, 'https://github.com/o/r/pull/99');
     // openOrLocatePr receives `epic/<id>` as headBranch with `main` base.
     assert.equal(calls[0].args.epicId, 2880);
     assert.equal(calls[0].args.headBranch, 'epic/2880');
     assert.equal(calls[0].args.baseBranch, 'main');
     // postHandoffComment receives the provider and the prNumber/prUrl
     // from openOrLocatePr.
-    assert.equal(calls[1].args.provider.sentinel, true);
-    assert.equal(calls[1].args.prNumber, 99);
-    assert.equal(calls[1].args.prUrl, 'https://github.com/o/r/pull/99');
+    assert.equal(calls[2].args.provider.sentinel, true);
+    assert.equal(calls[2].args.prNumber, 99);
+    assert.equal(calls[2].args.prUrl, 'https://github.com/o/r/pull/99');
     // Returns the canonical finalize envelope — no planningClose field
     // (Story #4324: there are no planning tickets to close).
     assert.equal(result.prNumber, 99);
     assert.equal(result.prUrl, 'https://github.com/o/r/pull/99');
-    assert.equal(result.created, true);
+    // earlyPr-on locates the wave-1 draft → created:false.
+    assert.equal(result.created, false);
     assert.ok(!('planningClose' in result));
     assert.equal(result.handoff.commentId, 12345);
   });
@@ -124,6 +132,7 @@ describe('composeBusOwnedFinalize', () => {
         url: 'https://github.com/o/r/pull/1',
         created: true,
       }),
+      markPrReadyFn: async () => ({ pr: '1', ready: true }),
       postHandoffCommentFn: async () => {
         throw new Error('comment posting failed');
       },
@@ -142,6 +151,7 @@ describe('composeBusOwnedFinalize', () => {
         url: 'https://github.com/o/r/pull/5',
         created: false,
       }),
+      markPrReadyFn: async () => ({ pr: '5', ready: true }),
     });
     const result = await run({ epicId: 1, cwd: '/tmp' });
     assert.equal(result.prNumber, 5);
@@ -152,6 +162,48 @@ describe('composeBusOwnedFinalize', () => {
     const run = composeBusOwnedFinalize({ provider: null });
     const result = await run({ epicId: 0 });
     assert.equal(result?.blocker?.reason, 'invalid-epicId');
+  });
+
+  it('skips markPrReady when earlyPr is off (Story #4359)', async () => {
+    const calls = [];
+    const run = composeBusOwnedFinalize({
+      provider: null,
+      earlyPr: false,
+      openOrLocatePrFn: async () => {
+        calls.push('openOrLocatePr');
+        return {
+          prNumber: 7,
+          url: 'https://github.com/o/r/pull/7',
+          created: true,
+        };
+      },
+      markPrReadyFn: async () => {
+        calls.push('markPrReady');
+        return { pr: '7', ready: true };
+      },
+    });
+    const result = await run({ epicId: 1, cwd: '/tmp' });
+    // earlyPr off → the PR is opened here at close time and never marked
+    // ready (it was never a draft).
+    assert.deepEqual(calls, ['openOrLocatePr']);
+    assert.equal(result.prNumber, 7);
+  });
+
+  it('routes a markPrReady failure to a blocker envelope (earlyPr on)', async () => {
+    const run = composeBusOwnedFinalize({
+      provider: null,
+      openOrLocatePrFn: async () => ({
+        prNumber: 8,
+        url: 'https://github.com/o/r/pull/8',
+        created: false,
+      }),
+      markPrReadyFn: async () => {
+        throw new Error('draft not found');
+      },
+    });
+    const result = await run({ epicId: 1, cwd: '/tmp' });
+    assert.equal(result?.blocker?.reason, 'mark-pr-ready-failed');
+    assert.match(result.blocker.detail, /draft not found/);
   });
 });
 
@@ -172,6 +224,7 @@ describe('Finalizer with the bus-owned default', () => {
           url: 'https://github.com/o/r/pull/99',
           created: true,
         }),
+        markPrReadyFn: async () => ({ pr: '99', ready: true }),
         postHandoffCommentFn: async () => ({
           marker: 'epic-handoff',
           commentId: 1,

@@ -220,6 +220,29 @@ returned Story's terminal status, and re-tick until terminal. There is no
 `record-wave` / `currentWave` step — the checkpoint carries only a flat
 per-Story status map (for resume + the operator rollup) and the global cap.
 
+### 2.0. Open the Epic PR as a draft at wave 1 (Story #4359)
+
+When `delivery.ci.earlyPr` is on (the default), open the Epic PR as a
+**draft** once, before the first `tick`, so every subsequent per-wave push
+to `epic/<epicId>` runs CI attributed to its own wave (CI keeps warming
+while later waves land). Resolve the flag through the
+[`getCiDelivery`](../../scripts/lib/config/ci.js) accessor (default `true`);
+do not read `delivery.ci.earlyPr` directly.
+
+- **`earlyPr` on** — call
+  [`openOrLocatePr`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+  with `{ epicId, headBranch: 'epic/<epicId>', baseBranch: 'main', draft: true }`.
+  The helper probes for an existing open PR first, so this is idempotent — a
+  resumed `/deliver` run re-locates the same draft and opens no duplicate.
+  Phase 7 later flips this draft to ready-for-review (it does **not**
+  re-create the PR).
+- **`earlyPr` off** — skip this step entirely. No draft is opened at wave 1;
+  Phase 7 opens the PR at close time on the pre-Story timing.
+
+The draft carries the same title/body contract Phase 7 uses
+(`feat: Epic #<epicId>` / `Closes #<epicId>`), so no title/body reconciliation
+is needed when it is marked ready.
+
 ### 2a. Tick — plan the next action
 
 ```bash
@@ -556,7 +579,7 @@ degradation contract, and the fail-safe-and-loud security note.
 
 ---
 
-## Phase 7 — Finalize (open PR to main)
+## Phase 7 — Finalize (ready the PR / open PR to main)
 
 Before the close-tail emit, sync the Epic branch with `origin/main` so the
 PR opens with the latest base commits already integrated (a stale base
@@ -577,11 +600,27 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 
 `epic.close.end` drives the bus-owned `Finalizer` chain: acceptance-table
 reconciliation (throws and aborts finalize on a coverage gap, `waived` under
-`acceptance::n-a`), idempotent PR open/locate against `main`, and the
+`acceptance::n-a`), the PR-open/ready step (below), and the
 `epic-handoff` comment naming the PR URL. The chain emits `pr.created` →
 `epic.finalize.end` and **stops** — it never emits `epic.merge.ready` (the
 auto-merge arm is driven later from the Phase 8.5 gated watch path). The
 operator shells nothing beyond the sync and the single emit.
+
+**PR-open/ready is gated by `delivery.ci.earlyPr` (Story #4359).** Resolve
+the flag through the [`getCiDelivery`](../../scripts/lib/config/ci.js)
+accessor (default `true`); do not read `delivery.ci.earlyPr` directly.
+
+- **`earlyPr` on (default)** — the Epic PR already exists as a draft (Phase
+  2 opened it at wave 1). Finalize **locates** the existing PR and flips it
+  ready-for-review via
+  [`markPrReady`](../../scripts/lib/orchestration/finalize/open-or-locate-pr.js)
+  rather than creating a PR. `gh pr ready` on an already-ready PR is a
+  no-op, so a re-run is idempotent.
+- **`earlyPr` off** — no draft was opened at wave 1; finalize opens the PR
+  now via `openOrLocatePr` (no `draft`), exactly as the pre-Story timing.
+
+In both modes the PR title/body contract (`feat: Epic #<epicId>` /
+`Closes #<epicId>`) is identical.
 
 See
 [`deliver-epic-reference.md` § Phase 7 — Finalize](deliver-epic-reference.md#phase-7--finalize-close-tail-listener-chain)
