@@ -122,14 +122,21 @@ npm run test:quick        # TDD loop — excludes slow integration-style suites
 npm run test:integration  # Real-git / hook-chain / long orchestration suites only
 npm test                  # Full suite (same as CI test gate)
 npm run test:profile      # Slow-test report → temp/test-profile.{tap,summary.txt}
-npm run verify            # Full local gate: lint + full tests + baselines
+npm run verify            # Full local gate: audit + lint + full tests + baselines
+                          #   (true CI mirror; CI-only gates in docs/ci-contract.md)
 ```
 
 Use `test:quick` while iterating, `test:integration` before pushing when you
 touched git/orchestration hooks, and `npm run verify` when you want pre-PR
-confidence (lint + full tests + baselines). Pre-push runs only diff-scoped
-quality preview plus coverage/CRAP ratchet; it does not run full lint or
-`npm test`. CI always runs the full `npm test` suite.
+confidence (audit + lint + full tests + baselines). `npm run verify` is a
+**true CI mirror** for the gates it can prove locally, but a small set of CI
+gates (action pinning, the TruffleHog secret scan, and the push-scoped
+`BASELINE_SCOPE=full` maintainability run) cannot be reproduced from a local
+working tree — those are catalogued in
+[`docs/ci-contract.md`](docs/ci-contract.md), so a local green is necessary but
+not sufficient. Pre-push runs only diff-scoped quality preview plus
+coverage/CRAP ratchet; it does not run full lint or `npm test`. CI always runs
+the full `npm test` suite.
 
 ### Slow-test profiling
 
