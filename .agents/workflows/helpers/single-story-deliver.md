@@ -295,6 +295,15 @@ When the watch exits, branch on the exit code:
   host's interval loop rather than ending your turn:
   `/loop 5m /loops:watch-ci`.
 
+> **Triage authority.** How to classify and remediate a red (or repeatedly
+> slow) check — the root-cause-only decision tree for infra/transient and
+> flaky failures (reproduce → check `main` → bisect env vs code → fix in-scope
+> or file a `meta::framework-gap` issue), the never-rerun / never-quarantine
+> prohibitions, and the escalation criteria (three-strikes, the 30-minute
+> wall-clock timebox, and the clearly-environmental fast path) — is defined
+> once in [`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md).
+> Read it before remediating a red check above.
+>
 > **CI recovery procedures.** For resurrecting the worktree after
 > `reapOnSuccess`, pulling the failing job log, fixing coverage/CRAP
 > baselines without re-running close-validation, and the when-to-stop
