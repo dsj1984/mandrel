@@ -670,6 +670,15 @@ run. Passing `--epic <epicId>` scopes the red-path failure digest to
   host's interval loop rather than blocking the delivery turn:
   `/loop 5m /loops:watch-ci`.
 
+> **Triage authority.** How to classify and remediate a red (or repeatedly
+> slow) check — the root-cause-only decision tree for infra/transient and
+> flaky failures (reproduce → check `main` → bisect env vs code → fix in-scope
+> or file a `meta::framework-gap` issue), the never-rerun / never-quarantine
+> prohibitions, and the escalation criteria (three-strikes, the 30-minute
+> wall-clock timebox, and the clearly-environmental fast path) — is defined
+> once in [`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md).
+> Read it before remediating.
+>
 > **Remediation + hard prohibitions.** For the per-check fix table (lint,
 > baseline drift, test, coverage), the three-strikes halt rule, and the
 > never-merge / never-force-push / never-dodge prohibitions, see
