@@ -70,7 +70,10 @@ describe('openOrLocatePr — draft mode (Story #4359)', () => {
     });
     const createArgs = calls[1];
     assert.equal(createArgs[1], 'create');
-    assert.ok(createArgs.includes('--draft'), 'expected --draft in create args');
+    assert.ok(
+      createArgs.includes('--draft'),
+      'expected --draft in create args',
+    );
     const titleIdx = createArgs.indexOf('--title');
     const bodyIdx = createArgs.indexOf('--body');
     assert.equal(createArgs[titleIdx + 1], 'feat: Epic #4355');
@@ -131,7 +134,9 @@ describe('openOrLocatePr — draft mode (Story #4359)', () => {
 
 describe('markPrReady (Story #4359)', () => {
   it('shells gh pr ready and returns { pr, ready:true }', async () => {
-    const { spawn, calls } = scriptedGh([{ status: 0, stdout: '', stderr: '' }]);
+    const { spawn, calls } = scriptedGh([
+      { status: 0, stdout: '', stderr: '' },
+    ]);
     const result = await markPrReady({
       pr: 'https://github.com/o/r/pull/12',
       cwd: '/tmp',
@@ -149,7 +154,9 @@ describe('markPrReady (Story #4359)', () => {
   });
 
   it('accepts a numeric PR id', async () => {
-    const { spawn, calls } = scriptedGh([{ status: 0, stdout: '', stderr: '' }]);
+    const { spawn, calls } = scriptedGh([
+      { status: 0, stdout: '', stderr: '' },
+    ]);
     await markPrReady({ pr: 12, cwd: '/tmp', ghSpawn: spawn });
     assert.deepEqual(calls[0], ['pr', 'ready', '12']);
   });
