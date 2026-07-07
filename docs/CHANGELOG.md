@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.85.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.84.0...mandrel-v1.85.0) (2026-07-06)
+
+
+### Added
+
+* **delivery:** honor delivery.ci.autoMerge policy in standalone Story close ([#4371](https://github.com/dsj1984/mandrel/issues/4371)) ([0938d6b](https://github.com/dsj1984/mandrel/commit/0938d6b45bc0357bdcbc3d3ae148f18ab7ee5627))
+* Epic [#4355](https://github.com/dsj1984/mandrel/issues/4355) ([#4368](https://github.com/dsj1984/mandrel/issues/4368)) ([585b823](https://github.com/dsj1984/mandrel/commit/585b82364190ea5676f96616e4c7a36a6d3468b5))
+* **planning:** remove hard acceptance ceiling and add delivery-schedule simulation to decomposer ([#4366](https://github.com/dsj1984/mandrel/issues/4366)) ([bfc3f12](https://github.com/dsj1984/mandrel/commit/bfc3f12812ea5bc6e4d9f599d130b6f53b1009c3))
+
 ## [1.84.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.83.0...mandrel-v1.84.0) (2026-07-05)
 
 

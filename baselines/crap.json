@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-06T20:31:35.088Z",
+  "generatedAt": "2026-07-06T23:32:37.118Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
+      "p95": 12.006059669598093,
       "max": 29.10003921033038,
-      "methodsAbove20": 20
+      "methodsAbove20": 21
     }
   },
   "rows": [
@@ -3680,8 +3680,8 @@
     {
       "path": ".agents/scripts/lib/config/ci.js",
       "method": "getCiDelivery",
-      "startLine": 22,
-      "crap": 2
+      "startLine": 33,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
@@ -3716,31 +3716,31 @@
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "isSecretKey",
-      "startLine": 274,
+      "startLine": 271,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "meaningFor",
-      "startLine": 288,
+      "startLine": 285,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "attribute",
-      "startLine": 318,
-      "crap": 3
+      "startLine": 314,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
       "method": "explainConfig",
-      "startLine": 348,
-      "crap": 4
+      "startLine": 337,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/github.js",
       "method": "getGitHub",
-      "startLine": 82,
+      "startLine": 86,
       "crap": 10
     },
     {
@@ -8713,62 +8713,98 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "parseAutomergeVerdictTrailer",
+      "startLine": 145,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "listFailingChecks",
-      "startLine": 70,
+      "startLine": 164,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "formatCheckFailureReason",
-      "startLine": 84,
+      "startLine": 178,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "probeRequiredChecks",
+      "startLine": 194,
+      "crap": 1.7702546296296295
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "classifyRequiredChecksProbe",
+      "startLine": 229,
+      "crap": 19.582951518899204
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "parseSeverityCounts",
-      "startLine": 97,
+      "startLine": 296,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "<anon method-2>",
-      "startLine": 101,
+      "startLine": 300,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "pushReason",
+      "startLine": 320,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "evaluateStateSignals",
-      "startLine": 115,
-      "crap": 8
+      "startLine": 324,
+      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "countStoryBlockers",
-      "startLine": 148,
-      "crap": 7
+      "startLine": 387,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "evaluateCodeReviewSignals",
-      "startLine": 168,
+      "startLine": 404,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "evaluateRetroSignals",
-      "startLine": 190,
+      "startLine": 461,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "deriveAutoMergeVerdict",
-      "startLine": 229,
+      "startLine": 527,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "applyAutoMergePolicy",
+      "startLine": 574,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "method": "formatReasons",
+      "startLine": 608,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "method": "evaluateAutoMergePredicate",
-      "startLine": 267,
+      "startLine": 631,
       "crap": 5
     },
     {
@@ -8840,14 +8876,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
       "method": "parseLedgerPath",
-      "startLine": 75,
+      "startLine": 76,
       "crap": 6.189364674940412
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
       "method": "buildDefaultListenerChain",
-      "startLine": 133,
-      "crap": 14.000681748615634
+      "startLine": 134,
+      "crap": 14.00063260369136
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
@@ -8894,80 +8930,86 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "normalizeCheckState",
-      "startLine": 58,
+      "startLine": 87,
       "crap": 17.47058823529412
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "ghPrChecks",
-      "startLine": 112,
-      "crap": 1.8502697186178745
+      "startLine": 141,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "ghPrView",
-      "startLine": 137,
+      "startLine": 166,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "parseMergeStateStatus",
-      "startLine": 157,
+      "startLine": 186,
       "crap": 3.0416666666666665
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "ghPrUpdateBranch",
-      "startLine": 175,
-      "crap": 1.7702546296296295
+      "startLine": 204,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "allGreen",
-      "startLine": 205,
+      "startLine": 234,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "parseGhPrChecks",
-      "startLine": 223,
+      "startLine": 252,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "reduceOutcomes",
-      "startLine": 245,
+      "startLine": 274,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "allTerminal",
-      "startLine": 261,
+      "startLine": 290,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "promotePendingToTimedOut",
-      "startLine": 274,
+      "method": "promotePendingToStillRunning",
+      "startLine": 314,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
+      "method": "hasFailingCheck",
+      "startLine": 329,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "defaultSleep",
-      "startLine": 285,
+      "startLine": 340,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "method": "pollUntilTerminal",
-      "startLine": 311,
+      "startLine": 366,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "method": "createWatcher",
-      "startLine": 559,
-      "crap": 1.2962962962962963
+      "method": "watchPrToTerminal",
+      "startLine": 454,
+      "crap": 17.013165087463555
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
@@ -14464,6 +14506,66 @@
       "method": "main",
       "startLine": 218,
       "crap": 2.2560000000000002
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "parsePositiveInt",
+      "startLine": 63,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "resolveWatchKnobs",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "<anon method-1>",
+      "startLine": 83,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "classifyFailure",
+      "startLine": 109,
+      "crap": 21.748046875
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "ghRunLogTail",
+      "startLine": 125,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "resolveRunId",
+      "startLine": 145,
+      "crap": 20
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "writeCiDigest",
+      "startLine": 180,
+      "crap": 6.0052485785099865
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "runPrWatch",
+      "startLine": 266,
+      "crap": 14.341240913919147
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "safeResolveConfig",
+      "startLine": 401,
+      "crap": 1.125
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "method": "main",
+      "startLine": 412,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github.js",

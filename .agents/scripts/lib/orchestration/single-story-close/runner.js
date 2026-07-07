@@ -2,6 +2,7 @@ import nodeFs from 'node:fs';
 import path from 'node:path';
 import { buildDefaultGates } from '../../close-validation/gates.js';
 import { runCloseValidation } from '../../close-validation/runner.js';
+import { getCiDelivery } from '../../config/ci.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
@@ -316,6 +317,7 @@ export async function runSingleStoryClose({
     prNumber,
     prUrl,
     noAutoMerge: options.noAutoMerge,
+    autoMergePolicy: getCiDelivery(config).autoMerge,
     gh: injectedGh,
     progress,
   });
