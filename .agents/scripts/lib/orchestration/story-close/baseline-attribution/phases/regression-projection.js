@@ -244,6 +244,24 @@ export const PROJECTORS = {
   'check-crap': projectCrapForGate,
 };
 
+/**
+ * Composite gates fan out to per-kind projectors. The baseline pipeline was
+ * unified behind a single `check-baselines` gate (per-kind pipeline: schema →
+ * floor → tolerance), but the attribution layer still keys on the original
+ * per-kind gate names. Without this map a `check-baselines` failure projects
+ * zero regressions, the gate-failure handler sees an empty list, and the
+ * auto-refresh path silently no-ops — so a legitimate MI/CRAP regression
+ * hard-fails the close instead of self-healing (framework-gap #4377).
+ */
+export const COMPOSITE_SUBGATES = {
+  'check-baselines': ['check-maintainability', 'check-crap'],
+};
+
+/** `check-maintainability` → `maintainability`. */
+function gateKind(gateName) {
+  return gateName.replace(/^check-/, '');
+}
+
 export function projectRegressionsForGate({
   gateName,
   cwd,
@@ -253,14 +271,27 @@ export function projectRegressionsForGate({
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
-  const project = PROJECTORS[gateName];
-  if (!project) return [];
-  return project({
+  const ctx = {
     cwd,
     epicBranch,
     storyBranch,
     config,
     projectMaintainability,
     getBaselines,
-  });
+  };
+  const subGates = COMPOSITE_SUBGATES[gateName];
+  if (subGates) {
+    // Union the per-kind regressions, tagging each row with its baseline
+    // kind so the gate-failure handler can refresh the right baseline (one
+    // kind per attribution cycle; the retry loop converges the rest).
+    return subGates.flatMap((sub) => {
+      const project = PROJECTORS[sub];
+      if (!project) return [];
+      const kind = gateKind(sub);
+      return project(ctx).map((row) => ({ _gateKind: kind, ...row }));
+    });
+  }
+  const project = PROJECTORS[gateName];
+  if (!project) return [];
+  return project(ctx);
 }
