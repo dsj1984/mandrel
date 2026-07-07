@@ -30,6 +30,10 @@
 
 import { spawnSync } from 'node:child_process';
 
+import {
+  executeFastForward,
+  planFastForward,
+} from './git-cleanup/phases/fast-forward.js';
 import { parseWorktreePorcelain } from '../worktree/inspector.js';
 
 const WT_SCRATCH_BRANCH = 'wt-branch';
@@ -329,6 +333,102 @@ export function deleteWtBranchIfPresent(opts) {
 }
 
 /**
+ * Build `gitSpawn`-bound probe adapters for the fast-forward phase. The
+ * shared `git-probes-ff` wrappers hardcode the module-level `gitSpawn`, so
+ * they cannot honour the injected-port test seam every other function in
+ * this module uses. These thin adapters replay the same git commands
+ * through the injected spawner, letting `fastForwardBaseBranch` REUSE the
+ * `planFastForward` / `executeFastForward` pair from the phase library while
+ * staying hermetic under unit tests.
+ *
+ * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} gitSpawn
+ */
+function makeFfProbes(gitSpawn) {
+  return {
+    isClean: (cwd) => {
+      const r = gitSpawn(cwd, 'status', '--porcelain');
+      return r.status === 0 && String(r.stdout ?? '').trim() === '';
+    },
+    currentBranch: (cwd) => {
+      const r = gitSpawn(cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD');
+      return r.status !== 0 ? null : String(r.stdout ?? '').trim() || null;
+    },
+    fetch: (cwd, remoteName, ref) => {
+      const r = gitSpawn(cwd, 'fetch', '--quiet', remoteName, ref);
+      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
+    },
+    canFastForward: (cwd, baseBranch, remoteName) => {
+      const ref = `${remoteName}/${baseBranch}`;
+      const r = gitSpawn(
+        cwd,
+        'rev-list',
+        '--left-right',
+        '--count',
+        `${baseBranch}...${ref}`,
+      );
+      if (r.status !== 0) return { ok: false, behind: 0, reason: 'rev-list-failed' };
+      const [ahead, behind] = String(r.stdout ?? '')
+        .trim()
+        .split(/\s+/);
+      const localAhead = Number(ahead) || 0;
+      const remoteAhead = Number(behind) || 0;
+      if (localAhead > 0) {
+        return { ok: false, behind: remoteAhead, reason: 'not-fast-forward' };
+      }
+      return { ok: true, behind: remoteAhead };
+    },
+    checkout: (cwd, branch) => {
+      const r = gitSpawn(cwd, 'checkout', branch);
+      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
+    },
+    merge: (cwd, ref) => {
+      const r = gitSpawn(cwd, 'merge', '--ff-only', ref);
+      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
+    },
+  };
+}
+
+/**
+ * Fast-forward the base branch to its remote after a confirmed merge, so a
+ * post-`/deliver` local checkout converges to `origin/<baseBranch>` without a
+ * manual `git pull`. Reuses `planFastForward` + `executeFastForward` from the
+ * git-cleanup phase library (the single source of the FF state machine),
+ * feeding them probes bound to the injected `gitSpawn`.
+ *
+ * @param {{
+ *   cwd: string,
+ *   baseBranch?: string,
+ *   remoteName?: string,
+ *   gitSpawn: (cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string },
+ *   logger?: { info?: Function, warn?: Function },
+ * }} opts
+ * @returns {{ ok: boolean, applied: boolean, skipped: boolean, reason?: string, behind?: number, stderr?: string }}
+ */
+export function fastForwardBaseBranch(opts) {
+  const { cwd, baseBranch = 'main', remoteName = 'origin', gitSpawn, logger } =
+    opts;
+  const probe = makeFfProbes(gitSpawn);
+  const plan = planFastForward({
+    cwd,
+    baseBranch,
+    remoteName,
+    isCleanFn: probe.isClean,
+    currentBranchFn: probe.currentBranch,
+    fetchFn: probe.fetch,
+    canFastForwardFn: probe.canFastForward,
+  });
+  return executeFastForward({
+    cwd,
+    baseBranch,
+    remoteName,
+    plan,
+    checkoutFn: probe.checkout,
+    mergeFn: probe.merge,
+    ...(logger ? { logger } : {}),
+  });
+}
+
+/**
  * Reap every branch owned by the Epic. Best-effort — failures aggregate into
  * the result rather than throwing.
  *
@@ -350,6 +450,7 @@ export function deleteWtBranchIfPresent(opts) {
  *   switched: { switched: boolean, from: string|null, to: string|null, stderr?: string } | null,
  *   pruned: { pruned: string[], stderr?: string } | null,
  *   wtBranch: { deleted: boolean, present: boolean, reason?: string, stderr?: string } | null,
+ *   fastForward: { ok: boolean, applied: boolean, skipped: boolean, reason?: string, behind?: number, stderr?: string } | null,
  *   epicBranchKept: boolean,
  *   ok: boolean,
  * }}
@@ -375,6 +476,7 @@ export function reapEpicBranches(opts) {
       switched: null,
       pruned: null,
       wtBranch: null,
+      fastForward: null,
       epicBranchKept: false,
       ok: true,
     };
@@ -463,6 +565,20 @@ export function reapEpicBranches(opts) {
     logger?.info?.(`[epic-cleanup] deleted stale ${WT_SCRATCH_BRANCH} ref`);
   }
 
+  // After a confirmed merge (epic branch NOT kept), fast-forward the base
+  // branch so the local checkout converges to `origin/<baseBranch>` with no
+  // manual `git pull`. When the epic branch is kept (open PR), the merge is
+  // not confirmed, so the FF is skipped with an explicit reason rather than
+  // moving `main` under an in-flight PR.
+  const fastForward = epicHasOpenPr
+    ? { ok: true, applied: false, skipped: true, reason: 'epic-branch-kept' }
+    : fastForwardBaseBranch({ cwd, baseBranch, remoteName: remote, gitSpawn, logger });
+  if (fastForward.applied) {
+    logger?.info?.(
+      `[epic-cleanup] fast-forwarded ${baseBranch} by ${fastForward.behind} commit(s) to ${remote}/${baseBranch}`,
+    );
+  }
+
   const failures = reaped.filter((r) => !r.branchDeleted);
   return {
     epicId: state?.epicId ?? null,
@@ -471,7 +587,219 @@ export function reapEpicBranches(opts) {
     switched,
     pruned,
     wtBranch,
+    fastForward,
     epicBranchKept: epicHasOpenPr,
     ok: failures.length === 0,
+  };
+}
+
+/**
+ * Does a local branch head ref exist? Thin `git rev-parse --verify` wrapper
+ * exported for the resume-detect path (and its tests).
+ *
+ * @param {{ cwd: string, gitSpawn: Function, branch: string }} opts
+ * @returns {boolean}
+ */
+export function localRefExists({ cwd, gitSpawn, branch }) {
+  const res = gitSpawn(
+    cwd,
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `refs/heads/${branch}`,
+  );
+  return res.status === 0;
+}
+
+/**
+ * Probe whether the Epic branch's PR is MERGED and, if so, its URL (needed
+ * for the `epic.merge.armed` payload). Fails CLOSED to
+ * `{ merged: false, prUrl: null }` on any probe error — an indeterminate
+ * probe must never auto-arm a destructive reap.
+ *
+ * @param {{
+ *   epicBranch: string,
+ *   cwd: string,
+ *   spawnFn?: typeof spawnSync,
+ *   logger?: { warn?: Function },
+ * }} opts
+ * @returns {{ merged: boolean, prUrl: string|null }}
+ */
+export function epicPrMergeState(opts) {
+  const { epicBranch, cwd, spawnFn = spawnSync, logger } = opts;
+  if (typeof epicBranch !== 'string' || epicBranch.length === 0) {
+    return { merged: false, prUrl: null };
+  }
+  let result;
+  try {
+    result = spawnFn(
+      'gh',
+      [
+        'pr',
+        'list',
+        '--head',
+        epicBranch,
+        '--state',
+        'merged',
+        '--json',
+        'number,url,mergedAt',
+        '--limit',
+        '1',
+      ],
+      { cwd, encoding: 'utf-8', shell: false },
+    );
+  } catch (err) {
+    logger?.warn?.(
+      `[epic-cleanup] merged-PR probe threw for ${epicBranch} (treating as unmerged): ${err?.message ?? err}`,
+    );
+    return { merged: false, prUrl: null };
+  }
+  if (!result || result.status !== 0) {
+    logger?.warn?.(
+      `[epic-cleanup] merged-PR probe failed for ${epicBranch} (status=${result?.status}): ${(result?.stderr ?? '').trim()}`,
+    );
+    return { merged: false, prUrl: null };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(String(result.stdout ?? '').trim() || '[]');
+  } catch {
+    return { merged: false, prUrl: null };
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return { merged: false, prUrl: null };
+  }
+  const row = parsed[0];
+  const prUrl =
+    typeof row?.url === 'string' && row.url.length > 0 ? row.url : null;
+  // A merged-state row with no usable URL cannot arm (the schema requires a
+  // `prUrl`), so treat it as not-armable.
+  return { merged: prUrl !== null, prUrl };
+}
+
+/**
+ * Detect a merged-but-uncleaned Epic: the PR merged but one or more local
+ * `epic/<id>` / `story-<id>` refs still linger. This is the signal `/deliver`
+ * idempotent resume uses to auto-fire `epic.merge.armed` so Phase 9 reaps
+ * without a manual command. Pure given its injected ports.
+ *
+ * @param {{
+ *   state: object|null,
+ *   cwd: string,
+ *   gitSpawn: Function,
+ *   spawnFn?: Function,
+ *   prMergeStateFn?: typeof epicPrMergeState,
+ *   logger?: { warn?: Function, info?: Function },
+ * }} opts
+ * @returns {{
+ *   epicId: number|null,
+ *   epicBranch: string|null,
+ *   presentRefs: string[],
+ *   localRefsPresent: boolean,
+ *   merged: boolean,
+ *   prUrl: string|null,
+ *   shouldArm: boolean,
+ *   reason: string,
+ * }}
+ */
+export function detectMergedUncleanedEpic(opts) {
+  const {
+    state,
+    cwd,
+    gitSpawn,
+    spawnFn,
+    prMergeStateFn = epicPrMergeState,
+    logger,
+  } = opts;
+  const { epicBranch, storyBranches } = listEpicBranchesFromState(state);
+  if (!epicBranch) {
+    return {
+      epicId: null,
+      epicBranch: null,
+      presentRefs: [],
+      localRefsPresent: false,
+      merged: false,
+      prUrl: null,
+      shouldArm: false,
+      reason: 'no-state',
+    };
+  }
+  const presentRefs = [epicBranch, ...storyBranches].filter((branch) =>
+    localRefExists({ cwd, gitSpawn, branch }),
+  );
+  if (presentRefs.length === 0) {
+    // Already clean — nothing to arm. This is the idempotent no-op that
+    // makes re-running `/deliver` on an already-reaped Epic safe.
+    return {
+      epicId: state.epicId,
+      epicBranch,
+      presentRefs,
+      localRefsPresent: false,
+      merged: false,
+      prUrl: null,
+      shouldArm: false,
+      reason: 'no-local-refs',
+    };
+  }
+  const { merged, prUrl } = prMergeStateFn({ epicBranch, cwd, spawnFn, logger });
+  const shouldArm = merged && prUrl !== null;
+  return {
+    epicId: state.epicId,
+    epicBranch,
+    presentRefs,
+    localRefsPresent: true,
+    merged,
+    prUrl,
+    shouldArm,
+    reason: shouldArm ? 'merged-uncleaned' : 'not-merged',
+  };
+}
+
+/**
+ * `/deliver` idempotent-resume auto-arm: detect a merged-but-uncleaned Epic
+ * and, when found, fire `epic.merge.armed` on the injected lifecycle `bus` so
+ * the Cleaner → BranchCleaner chain reaps Phase 9 without an operator command.
+ * A no-op (and never throws on a clean/unmerged Epic) so re-running resume is
+ * safe.
+ *
+ * @param {{
+ *   state: object|null,
+ *   cwd: string,
+ *   gitSpawn: Function,
+ *   spawnFn?: Function,
+ *   bus: { emit: (event: string, payload: object) => Promise<unknown> },
+ *   detectFn?: typeof detectMergedUncleanedEpic,
+ *   logger?: { warn?: Function, info?: Function },
+ * }} opts
+ * @returns {Promise<{ armed: boolean, reason: string, prUrl: string|null, detection: object }>}
+ */
+export async function armCleanupIfMerged(opts) {
+  const { state, cwd, gitSpawn, spawnFn, bus, detectFn, logger } = opts;
+  if (!bus || typeof bus.emit !== 'function') {
+    throw new TypeError('armCleanupIfMerged requires a bus exposing emit()');
+  }
+  const detect = detectFn ?? detectMergedUncleanedEpic;
+  const detection = detect({ state, cwd, gitSpawn, spawnFn, logger });
+  if (!detection.shouldArm) {
+    return {
+      armed: false,
+      reason: detection.reason,
+      prUrl: detection.prUrl,
+      detection,
+    };
+  }
+  const payload = { prUrl: detection.prUrl };
+  if (Number.isInteger(detection.epicId) && detection.epicId > 0) {
+    payload.epicId = detection.epicId;
+  }
+  await bus.emit('epic.merge.armed', payload);
+  logger?.info?.(
+    `[epic-cleanup] resume auto-arm: fired epic.merge.armed for ${detection.epicBranch} (${detection.prUrl})`,
+  );
+  return {
+    armed: true,
+    reason: 'merged-uncleaned',
+    prUrl: detection.prUrl,
+    detection,
   };
 }

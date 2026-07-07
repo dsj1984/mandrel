@@ -40,7 +40,11 @@
  *      - runs `git remote prune` to drop stale `<remote>/...` tracking
  *        refs left behind by `gh pr merge --delete-branch`;
  *      - deletes the `wt-branch` scratch ref left by `story-close.js`'s
- *        internal merge worktree when it is no longer checked out.
+ *        internal merge worktree when it is no longer checked out;
+ *      - fast-forwards the base branch to `<remote>/<baseBranch>` after the
+ *        confirmed merge so the local checkout converges to origin with no
+ *        manual `git pull` (skipped when the epic branch is kept for an
+ *        open PR).
  *   3. Record one classification entry per invocation (`reaped`,
  *      `no-state`, `failed`, or `skipped-duplicate`) so failures surface
  *      in the lifecycle ledger alongside Cleaner's archival outcome.
@@ -243,8 +247,8 @@ export class BranchCleaner {
  * Pure: condense a `reapEpicBranches()` result into the counts that the
  * classification log carries. Exported for tests.
  *
- * @param {{ reaped: Array<object>, pruned: { pruned: string[] }|null, wtBranch: { deleted: boolean }|null }} result
- * @returns {{ branchesDeleted: number, worktreesRemoved: number, tracksPruned: number, wtBranchDeleted: boolean }}
+ * @param {{ reaped: Array<object>, pruned: { pruned: string[] }|null, wtBranch: { deleted: boolean }|null, fastForward: { applied: boolean }|null }} result
+ * @returns {{ branchesDeleted: number, worktreesRemoved: number, tracksPruned: number, wtBranchDeleted: boolean, fastForwarded: boolean }}
  */
 export function summarizeReap(result) {
   const reaped = Array.isArray(result?.reaped) ? result.reaped : [];
@@ -255,5 +259,6 @@ export function summarizeReap(result) {
     ).length,
     tracksPruned: result?.pruned?.pruned?.length ?? 0,
     wtBranchDeleted: result?.wtBranch?.deleted === true,
+    fastForwarded: result?.fastForward?.applied === true,
   };
 }
