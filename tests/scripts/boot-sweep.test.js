@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { runBootSweep } from '../../.agents/scripts/boot-sweep.js';
@@ -42,7 +43,11 @@ describe('runBootSweep', () => {
     assert.equal(seen.fastForward, true);
     assert.equal(typeof seen.protectionCtx.getTicket, 'function');
     assert.equal(typeof seen.protectionCtx.ghRunner, 'function');
-    assert.equal(seen.protectionCtx.repoRoot, '/tmp/repo');
+    // runBootSweep resolves cwd via path.resolve, so the repoRoot it threads
+    // into the protection ctx is the platform-absolute form ('/tmp/repo' on
+    // POSIX, 'D:\\tmp\\repo' on Windows). Resolve the expected value the same
+    // way so the assertion holds cross-platform (Windows Smoke).
+    assert.equal(seen.protectionCtx.repoRoot, path.resolve('/tmp/repo'));
     assert.match(seen.lockPath, /boot-sweep\.lock$/);
     assert.equal(seen.lockTimeoutMs, 1234);
   });
