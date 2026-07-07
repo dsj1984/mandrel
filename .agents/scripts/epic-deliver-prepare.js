@@ -36,6 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { runBootSweep } from './boot-sweep.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
 import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
@@ -219,6 +220,49 @@ async function runPreflightGuardsForPrepare({
 }
 
 /**
+ * Route the Epic boot cleanup through the shared protected boot-sweep
+ * engine (Story #4373). Reaps merged, done `story-*` branches left over
+ * from prior runs — the protection partition skips any branch with
+ * unpushed work, a dirty worktree, or a still-open parent Story, so an
+ * in-flight Story is never touched. Fast-forward is off: the prepare may
+ * run on the Epic branch, and the fast-forward phase would otherwise
+ * check out the base branch.
+ *
+ * Best-effort — a sweep failure (lock contention, git/gh error) is
+ * swallowed and never blocks or fails the prepare. Skipped in the same
+ * injected-test shape the preflight guards use (a provider injected with
+ * no git seam) so unit tests never spawn real git/gh.
+ */
+async function runBootSweepForPrepare({
+  cwd,
+  config,
+  provider,
+  injectedProvider,
+  injectedGit,
+  injectedSweep,
+  skipPreflightGuards,
+}) {
+  const suppressed =
+    skipPreflightGuards || (Boolean(injectedProvider) && !injectedGit);
+  if (suppressed) return;
+  try {
+    await runBootSweep({
+      cwd,
+      include: ['story-*'],
+      fastForward: false,
+      injectedConfig: config,
+      injectedProvider: provider,
+      injectedSweep,
+      logger: Logger,
+    });
+  } catch (err) {
+    Logger.warn(
+      `[epic-deliver-prepare] ⚠️ boot sweep threw (prepare continues): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Resolve the Epic state, preferring the preflight cache (Story #3027) and
  * falling back to a fresh snapshot + wave-DAG pass on miss or baseSha
  * mismatch. Returns `{ state, cacheStatus }`. Story #4075 — extracted from
@@ -333,6 +377,7 @@ export async function runEpicDeliverPrepare({
   steal = false,
   asOperator,
   injectedGit,
+  injectedSweep,
   leaseHeartbeatAt,
   leaseNow,
   skipPreflightGuards = false,
@@ -362,6 +407,16 @@ export async function runEpicDeliverPrepare({
     steal,
     leaseHeartbeatAt,
     leaseNow,
+    skipPreflightGuards,
+  });
+
+  await runBootSweepForPrepare({
+    cwd,
+    config,
+    provider,
+    injectedProvider,
+    injectedGit,
+    injectedSweep,
     skipPreflightGuards,
   });
 

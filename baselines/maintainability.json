@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-06T20:31:34.849Z",
+  "generatedAt": "2026-07-07T15:22:18.875Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.996,
+      "p50": 97.988,
       "p95": 127.336
     }
   },
@@ -25,6 +25,10 @@
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "mi": 95.518
+    },
+    {
+      "path": ".agents/scripts/boot-sweep.js",
+      "mi": 86.339
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -100,7 +104,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 81.196
+      "mi": 84.816
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -1540,7 +1544,11 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep.js",
-      "mi": 90.161
+      "mi": 90.43
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/protection-ctx.js",
+      "mi": 121.916
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/protection.js",
@@ -1873,6 +1881,10 @@
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
       "mi": 82.803
+    },
+    {
+      "path": ".agents/scripts/single-story-init.js",
+      "mi": 95.984
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
