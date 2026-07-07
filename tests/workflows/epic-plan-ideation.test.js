@@ -22,7 +22,9 @@ import {
   openEpicFromOnePager,
   parseOnePager,
   renderEpicBody,
+  updateEpicFromOnePager,
 } from '../../.agents/scripts/lib/epic-plan-ideation.js';
+import { extractFrameworkStamp } from '../../.agents/scripts/lib/framework-version.js';
 import { createGh } from '../../.agents/scripts/lib/gh-exec.js';
 import { TicketGateway } from '../../.agents/scripts/providers/github/tickets.js';
 
@@ -141,6 +143,102 @@ describe('renderEpicBody', () => {
     assert.match(body, /## Scope\n\n_\(not specified\)_/);
     assert.match(body, /## Acceptance Criteria\n\n_\(not specified\)_/);
     assert.ok(!body.includes('{{'));
+  });
+});
+
+// Story #4382 — the rendered Epic body is stamped with the framework version +
+// authoring date (hidden meta field + visible marker), and the Epic edit path
+// preserves the originally-authored version instead of bumping it.
+describe('renderEpicBody — framework-version stamp (Story #4382)', () => {
+  it('appends the hidden meta field and the visible marker', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const { body } = renderEpicBody({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      stamp: { version: '5.1.0', authoredAt: '2026-07-07' },
+    });
+    assert.ok(
+      body.includes(
+        '<!-- meta: {"mandrel_version":"5.1.0","authored_at":"2026-07-07"} -->',
+      ),
+    );
+    assert.ok(body.includes('> 🏷️ Authored with Mandrel v5.1.0 · 2026-07-07'));
+    assert.deepEqual(extractFrameworkStamp(body), {
+      version: '5.1.0',
+      authoredAt: '2026-07-07',
+    });
+  });
+
+  it('defaults to the running package.json version when no stamp is passed', () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const pkgVersion = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '../../package.json'), 'utf8'),
+    ).version;
+    const { body } = renderEpicBody({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+    });
+    assert.equal(extractFrameworkStamp(body).version, pkgVersion);
+  });
+});
+
+describe('updateEpicFromOnePager — stamp preservation (Story #4382)', () => {
+  it('preserves the originally-authored version on edit (idempotent, no bump)', async () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    // A body originally authored under an OLD version.
+    const original = renderEpicBody({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      stamp: { version: '1.0.0', authoredAt: '2026-01-01' },
+    }).body;
+
+    let edited = null;
+    const result = await updateEpicFromOnePager({
+      epicId: 42,
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      currentBody: original,
+      editIssue: async ({ body }) => {
+        edited = body;
+      },
+    });
+
+    // Same onePager + preserved stamp → byte-identical → no write.
+    assert.equal(result.changed, false);
+    assert.equal(result.body, original);
+    assert.equal(edited, null);
+    assert.equal(extractFrameworkStamp(result.body).version, '1.0.0');
+  });
+
+  it('preserves the original version even when the body content changes', async () => {
+    const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    const original = renderEpicBody({
+      onePager: CANONICAL_ONE_PAGER,
+      template,
+      stamp: { version: '1.0.0', authoredAt: '2026-01-01' },
+    }).body;
+
+    const editedOnePager = CANONICAL_ONE_PAGER.replace(
+      'single-region MVP is enough.',
+      'now with cross-region support.',
+    );
+
+    let written = null;
+    const result = await updateEpicFromOnePager({
+      epicId: 42,
+      onePager: editedOnePager,
+      template,
+      currentBody: original,
+      editIssue: async ({ body }) => {
+        written = body;
+      },
+    });
+
+    assert.equal(result.changed, true);
+    assert.ok(written !== null);
+    // Content changed, but the authored version is preserved (not bumped).
+    assert.equal(extractFrameworkStamp(result.body).version, '1.0.0');
+    assert.ok(result.body.includes('cross-region support'));
   });
 });
 

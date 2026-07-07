@@ -22,6 +22,7 @@
  */
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
+import { stampFrameworkVersion } from '../../lib/framework-version.js';
 import { Logger } from '../../lib/Logger.js';
 import { TYPE_LABELS } from '../../lib/label-constants.js';
 import { addIssueToBoard } from './board-add.js';
@@ -56,11 +57,20 @@ const SEARCH_PAGE_CAP = 10;
  * arrays on the Story body authored by the decomposer; there is no
  * server-side rendering of a four-section payload at create time.
  *
+ * Story #4382 — this is also where a Story body is stamped, once, with the
+ * running Mandrel framework version and authoring date (hidden `mandrel_version`
+ * / `authored_at` meta field + a visible `> 🏷️ Authored with Mandrel …`
+ * marker) via {@link stampFrameworkVersion}. The stamp is immutable: a body
+ * that already carries a version (e.g. a reconciler re-create) is preserved
+ * verbatim. The `stamp` override exists for deterministic tests; production
+ * callers omit it so the running version and today's date are used.
+ *
  * @param {{
  *   body: string,
  *   parentId: number,
  *   epicId?: number,
  *   dependencies?: number[],
+ *   stamp?: { version?: string, authoredAt?: string } | false,
  * }} opts
  * @returns {string}
  *
@@ -75,8 +85,15 @@ export function composeStoryBody({
   parentId,
   epicId,
   dependencies = [],
+  stamp,
 }) {
-  const head = typeof body === 'string' ? body : '';
+  const rawHead = typeof body === 'string' ? body : '';
+  // `stamp === false` → footer-only recomposition: the caller (the reconciler
+  // UPDATE/diff path) owns stamp preservation itself and must NOT introduce a
+  // fresh authoring stamp, which would churn or bump the version on every
+  // reconcile. Every other call is a create — stamp once (immutably).
+  const head =
+    stamp === false ? rawHead : stampFrameworkVersion(rawHead, stamp ?? {});
   const lines = ['---', `parent: #${parentId}`];
   if (epicId !== undefined && epicId !== null) {
     lines.push(`Epic: #${epicId}`);

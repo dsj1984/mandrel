@@ -42,6 +42,10 @@
  * @module story-body
  */
 
+import {
+  AUTHORED_MARKER_LINE_RE,
+  authoredMarkerLine,
+} from '../framework-version.js';
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +79,8 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {string|null}   reason_to_exist     - One-sentence cohesion reason ("why this Story exists"), or null.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
  * @property {number|null}   estimated_test_files - Test surface count or null.
+ * @property {string|null}   mandrel_version     - Framework version stamped at authoring, or null.
+ * @property {string|null}   authored_at         - Authoring date (YYYY-MM-DD) stamped at authoring, or null.
  */
 
 /**
@@ -253,14 +259,21 @@ const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
  * otherwise-valid Story body. A parse failure degrades to the absent-meta
  * defaults instead of throwing.
  *
+ * The `mandrel_version` / `authored_at` provenance stamp (written once at
+ * authoring time by the ticket-creation path) is recovered here too so a later
+ * `parse → serialize` preserves the originally-authored version verbatim
+ * rather than dropping or re-deriving it.
+ *
  * @param {string} markdown
- * @returns {{ wide: { reason: string }|null, reason_to_exist: string|null, estimated_test_files: number|null }}
+ * @returns {{ wide: { reason: string }|null, reason_to_exist: string|null, estimated_test_files: number|null, mandrel_version: string|null, authored_at: string|null }}
  */
 function extractMeta(markdown) {
   const result = {
     wide: null,
     reason_to_exist: null,
     estimated_test_files: null,
+    mandrel_version: null,
+    authored_at: null,
   };
   const match = markdown.match(META_BLOCK_RE);
   if (!match) return result;
@@ -278,6 +291,15 @@ function extractMeta(markdown) {
   result.reason_to_exist = normalizeReasonToExist(parsed.reason_to_exist);
   if (typeof parsed.estimated_test_files === 'number') {
     result.estimated_test_files = parsed.estimated_test_files;
+  }
+  if (
+    typeof parsed.mandrel_version === 'string' &&
+    parsed.mandrel_version.trim()
+  ) {
+    result.mandrel_version = parsed.mandrel_version.trim();
+  }
+  if (typeof parsed.authored_at === 'string' && parsed.authored_at.trim()) {
+    result.authored_at = parsed.authored_at.trim();
   }
   return result;
 }
@@ -409,6 +431,14 @@ function splitSections(markdown) {
       continue;
     }
 
+    // The visible `> 🏷️ Authored with Mandrel …` provenance marker is
+    // machine-managed metadata too (emitted alongside the meta block by the
+    // authoring path). Skip it so it never bleeds into the trailing structured
+    // section (e.g. `## Verify`); the value round-trips via the meta block.
+    if (AUTHORED_MARKER_LINE_RE.test(line)) {
+      continue;
+    }
+
     if (inPreamble) {
       preambleLines.push(line);
     } else if (currentSection !== null) {
@@ -456,6 +486,8 @@ function parseLegacyStringBody(input, preamble, footer) {
     reason_to_exist: null,
     depends_on: extractBlockedBy(footer),
     estimated_test_files: null,
+    mandrel_version: null,
+    authored_at: null,
   };
   return {
     body,
@@ -602,6 +634,8 @@ export function parse(input) {
   const estimated_test_files = meta.estimated_test_files;
   const wide = meta.wide;
   const reason_to_exist = meta.reason_to_exist;
+  const mandrel_version = meta.mandrel_version;
+  const authored_at = meta.authored_at;
   if (estimated_test_files === null) {
     warnings.push(
       'test-surface-unestimated: estimated_test_files not present.',
@@ -619,6 +653,8 @@ export function parse(input) {
     reason_to_exist,
     depends_on: dependsOn,
     estimated_test_files,
+    mandrel_version,
+    authored_at,
   };
 
   return {
@@ -699,6 +735,16 @@ function parseStructuredObject(obj) {
     );
   }
 
+  // Provenance stamp (preserved verbatim; never re-derived here).
+  const mandrel_version =
+    typeof obj.mandrel_version === 'string' && obj.mandrel_version.trim()
+      ? obj.mandrel_version.trim()
+      : null;
+  const authored_at =
+    typeof obj.authored_at === 'string' && obj.authored_at.trim()
+      ? obj.authored_at.trim()
+      : null;
+
   const body = {
     goal,
     changes,
@@ -710,6 +756,8 @@ function parseStructuredObject(obj) {
     reason_to_exist,
     depends_on,
     estimated_test_files,
+    mandrel_version,
+    authored_at,
   };
 
   return {
@@ -812,9 +860,11 @@ const SERIALIZE_SECTIONS = [
  * `estimated_test_files`). Returns the empty string when no meta field is
  * present so {@link serialize} appends nothing.
  *
- * Key insertion order (`wide` → `reason_to_exist` → `estimated_test_files`)
- * is load-bearing: it fixes the serialized JSON byte sequence the parser's
- * meta round-trip and the unit suite assert against.
+ * Key insertion order (`wide` → `reason_to_exist` → `estimated_test_files` →
+ * `mandrel_version` → `authored_at`) is load-bearing: it fixes the serialized
+ * JSON byte sequence the parser's meta round-trip and the unit suite assert
+ * against. The provenance stamp keys are appended **last** so every
+ * pre-existing (stamp-less) body serialises byte-identically to before.
  *
  * @param {StoryBody} body
  * @returns {string}
@@ -832,8 +882,34 @@ function serializeMetaBlock(body) {
   if (typeof body.estimated_test_files === 'number') {
     metaFields.estimated_test_files = body.estimated_test_files;
   }
+  if (typeof body.mandrel_version === 'string' && body.mandrel_version.trim()) {
+    metaFields.mandrel_version = body.mandrel_version.trim();
+  }
+  if (typeof body.authored_at === 'string' && body.authored_at.trim()) {
+    metaFields.authored_at = body.authored_at.trim();
+  }
   if (Object.keys(metaFields).length === 0) return '';
   return `\n\n<!-- meta: ${JSON.stringify(metaFields)} -->`;
+}
+
+/**
+ * Build the visible `> 🏷️ Authored with Mandrel v<version> · <date>` marker
+ * line when the body carries a complete provenance stamp
+ * (`mandrel_version` + `authored_at`). Emitted just above the meta block so it
+ * round-trips with the hidden field. Returns the empty string when either
+ * field is absent, so every pre-existing (stamp-less) body serialises
+ * byte-identically to before.
+ *
+ * @param {StoryBody} body
+ * @returns {string}
+ */
+function serializeAuthoredMarker(body) {
+  const version =
+    typeof body.mandrel_version === 'string' ? body.mandrel_version.trim() : '';
+  const authoredAt =
+    typeof body.authored_at === 'string' ? body.authored_at.trim() : '';
+  if (!version || !authoredAt) return '';
+  return `\n\n${authoredMarkerLine({ version, authoredAt })}`;
 }
 
 /**
@@ -888,6 +964,7 @@ export function serialize(body, opts = {}) {
 
   return (
     sections.join('\n\n') +
+    serializeAuthoredMarker(body) +
     serializeMetaBlock(body) +
     serializeFooter(body, opts)
   );

@@ -34,6 +34,7 @@ import {
   isPlan,
   OP_KINDS,
 } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js';
+import { composeStoryBody } from '../../.agents/scripts/providers/github/tickets.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = path.resolve(__dirname, '..', 'fixtures', 'reconciler');
@@ -964,5 +965,101 @@ describe('reconciler diff — duplicate story slugs', () => {
         return true;
       },
     );
+  });
+});
+
+// Story #4382 — the create-time authoring stamp is provenance, not spec
+// content. The reconciler UPDATE/diff path MUST preserve the live body's stamp
+// (never mint/bump it — that would also break diff() purity by using a clock),
+// so a stamp on GH that the spec body lacks does not churn a spurious body
+// Update, and a real edit keeps the original version verbatim.
+describe('reconciler diff — framework-version stamp preservation (Story #4382)', () => {
+  const DESC =
+    '## Goal\nStamp preservation.\n\n## Acceptance\n- [ ] works\n\n## Verify\n- npm test (unit)';
+
+  function inputs(specBody, ghBody) {
+    return {
+      spec: {
+        epic: { id: 500, title: 'E', labels: ['type::epic'] },
+        stories: [
+          {
+            slug: 'story-a',
+            title: 'A',
+            wave: 0,
+            dependsOn: [],
+            labels: ['type::story'],
+            body: specBody,
+          },
+        ],
+      },
+      state: {
+        epicId: 500,
+        mapping: {
+          epic: { issueNumber: 500, entity: 'epic', parentSlug: null },
+          'story-a': {
+            issueNumber: 501,
+            entity: 'story',
+            parentSlug: 'epic',
+            dependsOn: [],
+            wave: 0,
+          },
+        },
+      },
+      ghState: {
+        500: { title: 'E', labels: ['type::epic'], state: 'open' },
+        501: {
+          title: 'A',
+          labels: ['type::story'],
+          state: 'open',
+          body: ghBody,
+        },
+      },
+    };
+  }
+
+  it('emits no body Update when only the stamp is present on GH (no churn)', () => {
+    // Live body created (once) under an OLD version; spec body is stamp-less.
+    const created = composeStoryBody({
+      body: DESC,
+      parentId: 500,
+      epicId: 500,
+      stamp: { version: '1.0.0', authoredAt: '2026-01-01' },
+    });
+    const { spec, state, ghState } = inputs(DESC, created);
+    const plan = diff({ spec, state, ghState });
+    const op = plan.updates.find((u) => u.slug === 'story-a');
+    assert.ok(!op || !('body' in op.changes), 'no spurious body Update');
+  });
+
+  it('preserves the original version verbatim on a real description edit', () => {
+    const created = composeStoryBody({
+      body: DESC,
+      parentId: 500,
+      epicId: 500,
+      stamp: { version: '1.0.0', authoredAt: '2026-01-01' },
+    });
+    const editedDesc = DESC.replace('Stamp preservation.', 'Edited goal.');
+    const { spec, state, ghState } = inputs(editedDesc, created);
+    const plan = diff({ spec, state, ghState });
+    const op = plan.updates.find((u) => u.slug === 'story-a');
+    assert.ok(op && op.changes.body, 'a real edit emits a body Update');
+    assert.ok(op.changes.body.after.includes('"mandrel_version":"1.0.0"'));
+    assert.ok(!op.changes.body.after.includes('mandrel_version":"unknown'));
+    assert.ok(op.changes.body.after.includes('Edited goal.'));
+  });
+
+  it('does not backfill a stamp onto a legacy (stamp-less) live body', () => {
+    // Legacy body: created before the stamp feature — no marker, no meta.
+    const legacy = composeStoryBody({
+      body: DESC,
+      parentId: 500,
+      epicId: 500,
+      stamp: false,
+    });
+    assert.ok(!legacy.includes('mandrel_version'));
+    const { spec, state, ghState } = inputs(DESC, legacy);
+    const plan = diff({ spec, state, ghState });
+    const op = plan.updates.find((u) => u.slug === 'story-a');
+    assert.ok(!op || !('body' in op.changes), 'no backfill churn');
   });
 });
