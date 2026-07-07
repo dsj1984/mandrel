@@ -120,6 +120,39 @@ rejected by `pre-push` hooks):
       (`--no-errors-on-unmatched` or equivalent) before escalating via
       `agent::blocked`.
 
+## Local checkout hygiene
+
+**Invariant: the delivering flow owns tidying the local checkout — reaping its
+own merged refs and fast-forwarding the base branch. `/git-cleanup` is a
+recovery tool, not a routine chore.**
+
+Every flow that lands work — `/deliver` (Epic and standalone-Story paths),
+`/git-deliver` — is responsible for leaving the local checkout tidy without
+operator intervention:
+
+- **Fast-forwarding the base branch is owned by the flow.** The standalone
+  multi-Story path fast-forwards `main` itself in its summary phase (via
+  `git-cleanup.js --fast-forward-main --execute --yes`); the Epic path
+  fast-forwards `epic/<id>` / `main` on its merge-and-reap beat. No workflow
+  ends by telling the operator to "run `/git-cleanup` afterwards to catch up".
+- **Reaping merged local refs is owned by the flow's next boot.** `/plan` and
+  `/git-deliver` open with a **protected boot sweep**
+  (`boot-sweep.js`) that fast-forwards `main`, prunes stale remote-tracking
+  refs, and reaps every local branch whose PR is already merged — skipping any
+  candidate with unpushed work, a dirty worktree, or a still-open parent
+  ticket. A branch a flow leaves behind (e.g. a `/git-deliver` feature branch
+  whose PR merges out of band) is therefore reaped automatically at the next
+  workflow boot, not left for the operator to sweep by hand.
+- **`/git-cleanup` is recovery, not routine.** Run it by hand only to recover
+  an unusual state the automated hygiene does not cover — triaging stashes,
+  reaping across non-standard branch namespaces, or `--remote` pruning after a
+  force-push diverged a tip. It is **not** the expected way to keep `main`
+  current or to clear merged branches after a normal delivery; the delivering
+  flows already own that. If you find yourself reaching for `/git-cleanup`
+  after every routine `/deliver` or `/git-deliver` run, that is a signal the
+  owning flow's hygiene step regressed — fix the flow, do not codify the manual
+  sweep.
+
 ## Meta Labels (Retrospective Signal Routing)
 
 Two `meta::*` labels route retrospective signals into durable substrates so
