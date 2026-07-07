@@ -87,24 +87,29 @@ export async function runBootSweep({
   logger = Logger,
 } = {}) {
   const root = path.resolve(cwd ?? PROJECT_ROOT);
-  const config = injectedConfig ?? resolveConfig({ cwd: root });
-  const provider = injectedProvider ?? createProvider(config);
-  const baseBranch = base ?? config.project?.baseBranch ?? 'main';
-
-  const includeGlobs =
-    Array.isArray(include) && include.length > 0 ? include : ['story-*'];
-  const excludeGlobs = Array.isArray(exclude) ? [...exclude] : [];
-  if (typeof current === 'string' && current.length > 0) {
-    excludeGlobs.push(current);
-  }
-
-  const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
-  const lockPath = path.resolve(root, tempRoot, 'boot-sweep.lock');
-  const lockTimeoutMs =
-    config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
-
-  const sweepFn = injectedSweep ?? sweepMergedBranches;
   try {
+    // Config/provider resolution is inside the try so a malformed
+    // `.agentrc.json` (or a provider-construction throw) degrades to the
+    // swallowed `ok:false` envelope below rather than propagating and
+    // exiting non-zero — the "host continues, exit 0" boot-sweep contract
+    // must hold even when config resolution is the thing that fails.
+    const config = injectedConfig ?? resolveConfig({ cwd: root });
+    const provider = injectedProvider ?? createProvider(config);
+    const baseBranch = base ?? config.project?.baseBranch ?? 'main';
+
+    const includeGlobs =
+      Array.isArray(include) && include.length > 0 ? include : ['story-*'];
+    const excludeGlobs = Array.isArray(exclude) ? [...exclude] : [];
+    if (typeof current === 'string' && current.length > 0) {
+      excludeGlobs.push(current);
+    }
+
+    const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
+    const lockPath = path.resolve(root, tempRoot, 'boot-sweep.lock');
+    const lockTimeoutMs =
+      config.delivery?.worktreeIsolation?.sweepLockMs ?? 60_000;
+
+    const sweepFn = injectedSweep ?? sweepMergedBranches;
     return await sweepFn({
       cwd: root,
       baseBranch,
