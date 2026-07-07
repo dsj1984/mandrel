@@ -70,6 +70,33 @@ it is about to run** before it acts.
 
 ---
 
+## Boot sweep
+
+Before detecting the git setup, run the **protected boot sweep** so
+`/git-deliver` starts from a tidy local checkout — a feature branch this
+command opened and pushed on a prior run, once its PR has merged, is reaped
+here rather than left to accumulate:
+
+```bash
+node .agents/scripts/boot-sweep.js \
+  --include 'feat/*' --include 'fix/*' --include 'chore/*' \
+  --include 'docs/*' --include 'refactor/*' \
+  --current "$(git rev-parse --abbrev-ref HEAD)"
+```
+
+This is the **safe subset** of the `/git-cleanup` phases: it fast-forwards the
+base branch (`main`), prunes stale remote-tracking refs, and reaps every local
+branch whose PR is **merged** and whose HEAD matches the merged `headRefOid`.
+It **never** touches the stash stack, and its `evaluateProtection` partition
+skips (never reaps) any candidate with unpushed work, a dirty worktree, or a
+still-open parent ticket; `--current` always excludes the branch you are on.
+The sweep is **silent on a no-op** — nothing merged, `main` already current →
+one summary line (`[boot-sweep] reaped 0 local + 0 remote; protected 0.`). Its
+exit code is always `0`; a failed sweep is reported in that summary, never
+allowed to fail the delivery run.
+
+---
+
 ## Step 0 — Detect Git Setup & Resolve Level
 
 1. Resolve `[BASE_BRANCH]` from `--base` or `.agentrc.json` →
@@ -247,6 +274,15 @@ Print a single block matched to the level that ran:
 Do **not** poll CI. That is the `/deliver` Phase 7 job and is overkill for
 ad-hoc changes. The operator (or GitHub's email notification) is the next
 watcher.
+
+> **Local ref left behind — reaped at the next boot.** At the **pr** level
+> this command leaves a local feature branch behind after the PR merges; it
+> does **not** reap it inline (the merge happens later, out of band). You do
+> not need to run `/git-cleanup` by hand: the next time `/git-deliver` (or
+> `/plan`) runs, its **Boot sweep** step reaps that merged ad-hoc branch and
+> fast-forwards `main` automatically. The delivering flow owns tidying its own
+> refs on the next boot — see
+> [`.agents/rules/git-conventions.md` § Local checkout hygiene](../rules/git-conventions.md).
 
 ---
 
