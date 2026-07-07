@@ -253,11 +253,13 @@ describe('summarizeReap', () => {
       ],
       pruned: { pruned: ['origin/foo', 'origin/bar'] },
       wtBranch: { deleted: true },
+      fastForward: { applied: true, behind: 3 },
     });
     assert.equal(sum.branchesDeleted, 2);
     assert.equal(sum.worktreesRemoved, 1);
     assert.equal(sum.tracksPruned, 2);
     assert.equal(sum.wtBranchDeleted, true);
+    assert.equal(sum.fastForwarded, true);
   });
 
   it('handles undefined fields safely', () => {
@@ -266,6 +268,7 @@ describe('summarizeReap', () => {
     assert.equal(sum.worktreesRemoved, 0);
     assert.equal(sum.tracksPruned, 0);
     assert.equal(sum.wtBranchDeleted, false);
+    assert.equal(sum.fastForwarded, false);
   });
 });
 

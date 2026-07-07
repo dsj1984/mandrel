@@ -509,20 +509,26 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
 
 If Phase 8.5 fell back to the operator-merges-button path (`gh pr
 merge --auto` was declined), the `epic.merge.armed` event never fires
-inside this run and Phase 9 will not run automatically. After the
-operator merges the PR, `epic/<epicId>` and each `story-<id>` ref can
-be reaped manually:
+inside this run and Phase 9 will not run automatically. **Do not** hand-reap
+the refs with a raw `git branch -D` sequence — drive the same
+`BranchCleaner`-backed reap the auto-merge path uses by firing
+`epic.merge.armed` after the operator merges the PR:
 
 ```bash
-git checkout main
-git pull --ff-only origin main
-git branch -D epic/<epicId>
-git branch -D story-<id1> story-<id2> ...
-git remote prune origin
+node .agents/scripts/lifecycle-emit.js --epic <epicId> \
+  --event epic.merge.armed --pr-url <prUrl>
 ```
 
-Note that `git-cleanup.js` alone will not catch `story-<id>` refs in
-this case because the epic PR squash-merges break the `git branch
---merged main` signal and the stories never had their own PRs. Wiring
-a CLI surface that drives the BranchCleaner listener for this
-fallback is tracked as follow-up to Story #2398.
+That single emit reaps `epic/<epicId>` and every `story-<id>` ref from the
+checkpoint, prunes stale tracking refs, and fast-forwards local `main` to
+`origin/main` — the whole Phase 9 reap, not a partial hand-roll. A plain
+`git-cleanup.js` sweep alone will **not** catch the `story-<id>` refs here,
+because the epic PR squash-merge breaks the `git branch --merged main` signal
+and the stories never had their own PRs; the lifecycle-emit surface above is
+the correct driver.
+
+Re-running `/deliver <epicId>` reaches the same outcome without the manual
+emit: the idempotent-resume auto-arm
+(`detectMergedUncleanedEpic` → `armCleanupIfMerged` in
+[`epic-cleanup.js`](../../scripts/lib/orchestration/epic-cleanup.js)) detects
+the merged-but-uncleaned Epic and fires `epic.merge.armed` for you.

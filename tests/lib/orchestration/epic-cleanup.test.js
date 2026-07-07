@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  armCleanupIfMerged,
   deleteWtBranchIfPresent,
+  detectMergedUncleanedEpic,
   epicBranchHasOpenPr,
+  epicPrMergeState,
+  fastForwardBaseBranch,
   findWorktreePathForBranch,
   getCheckedOutBranch,
   listEpicBranchesFromState,
+  localRefExists,
   pruneRemoteTrackingRefs,
   reapBranch,
   reapEpicBranches,
@@ -628,6 +633,376 @@ describe('epicBranchHasOpenPr (Story #3367 guard)', () => {
     assert.equal(
       epicBranchHasOpenPr({ epicBranch: '', cwd: '/repo', spawnFn }),
       false,
+    );
+  });
+});
+
+// Story #4374 — fast-forward-main step of the epic-cleanup runner.
+describe('fastForwardBaseBranch', () => {
+  // Deterministic gitSpawn keyed off the git subcommand so the FF planner
+  // (status/fetch/symbolic-ref/rev-list) and executor (checkout/merge) can
+  // be driven through the injected port without touching real git.
+  function ffGitSpawn({
+    status = '',
+    behind = '0 0',
+    merge = 0,
+    checkout = 0,
+  }) {
+    const calls = [];
+    return {
+      calls,
+      gitSpawn: (_cwd, ...args) => {
+        calls.push(args.join(' '));
+        if (args[0] === 'status')
+          return { status: 0, stdout: status, stderr: '' };
+        if (args[0] === 'fetch') return { status: 0, stdout: '', stderr: '' };
+        if (args[0] === 'symbolic-ref') {
+          return { status: 0, stdout: 'main', stderr: '' };
+        }
+        if (args[0] === 'rev-list') {
+          return { status: 0, stdout: behind, stderr: '' };
+        }
+        if (args[0] === 'checkout') {
+          return { status: checkout, stdout: '', stderr: 'co-fail' };
+        }
+        if (args[0] === 'merge') {
+          return { status: merge, stdout: '', stderr: 'merge-fail' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+  }
+
+  it('applies the merge --ff-only when the base is behind origin', () => {
+    const { gitSpawn, calls } = ffGitSpawn({ behind: '0 3' });
+    const out = fastForwardBaseBranch({ cwd: '/repo', gitSpawn });
+    assert.equal(out.ok, true);
+    assert.equal(out.applied, true);
+    assert.equal(out.skipped, false);
+    assert.equal(out.behind, 3);
+    assert.ok(calls.includes('merge --ff-only origin/main'));
+  });
+
+  it('skips when already up to date (behind 0)', () => {
+    const { gitSpawn, calls } = ffGitSpawn({ behind: '0 0' });
+    const out = fastForwardBaseBranch({ cwd: '/repo', gitSpawn });
+    assert.equal(out.applied, false);
+    assert.equal(out.skipped, true);
+    assert.equal(out.reason, 'already-up-to-date');
+    assert.ok(!calls.includes('merge --ff-only origin/main'));
+  });
+
+  it('skips a dirty working tree without fetching', () => {
+    const { gitSpawn, calls } = ffGitSpawn({ status: ' M file.js' });
+    const out = fastForwardBaseBranch({ cwd: '/repo', gitSpawn });
+    assert.equal(out.skipped, true);
+    assert.equal(out.reason, 'dirty-tree');
+    assert.ok(!calls.some((c) => c.startsWith('fetch')));
+  });
+
+  it('refuses a diverged (non-fast-forward) base', () => {
+    const { gitSpawn } = ffGitSpawn({ behind: '2 3' });
+    const out = fastForwardBaseBranch({ cwd: '/repo', gitSpawn });
+    assert.equal(out.skipped, true);
+    assert.equal(out.reason, 'not-fast-forward');
+  });
+
+  it('surfaces a merge failure on the envelope (ok:false)', () => {
+    const { gitSpawn } = ffGitSpawn({ behind: '0 2', merge: 1 });
+    const out = fastForwardBaseBranch({ cwd: '/repo', gitSpawn });
+    assert.equal(out.ok, false);
+    assert.equal(out.applied, false);
+    assert.equal(out.reason, 'merge-failed');
+  });
+
+  it('honours a non-default base + remote', () => {
+    const { gitSpawn, calls } = ffGitSpawn({ behind: '0 1' });
+    const out = fastForwardBaseBranch({
+      cwd: '/repo',
+      baseBranch: 'develop',
+      remoteName: 'upstream',
+      gitSpawn,
+    });
+    assert.equal(out.applied, true);
+    assert.ok(calls.includes('merge --ff-only upstream/develop'));
+  });
+});
+
+describe('reapEpicBranches — fast-forward surfacing (Story #4374)', () => {
+  it('surfaces a fast-forward outcome on the result envelope after a confirmed merge', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'main', stderr: '' };
+      }
+      if (args[0] === 'rev-list') {
+        return { status: 0, stdout: '0 4', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 100, stories: { 1: { status: 'done' } } },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
+    });
+    assert.equal(out.fastForward.applied, true);
+    assert.equal(out.fastForward.behind, 4);
+  });
+
+  it('skips the fast-forward when the epic branch is kept for an open PR', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 100, stories: { 1: { status: 'done' } } },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => true,
+    });
+    assert.equal(out.fastForward.applied, false);
+    assert.equal(out.fastForward.skipped, true);
+    assert.equal(out.fastForward.reason, 'epic-branch-kept');
+    // No merge --ff-only must run against an in-flight PR's base.
+    assert.ok(!calls.some((c) => c.startsWith('merge --ff-only')));
+  });
+
+  it('carries fastForward: null when there is no epic state', () => {
+    const out = reapEpicBranches({
+      state: null,
+      cwd: '/repo',
+      gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    assert.equal(out.fastForward, null);
+  });
+});
+
+describe('localRefExists', () => {
+  it('returns true when rev-parse --verify succeeds', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      assert.deepEqual(args, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        'refs/heads/epic/42',
+      ]);
+      return { status: 0, stdout: 'abc123', stderr: '' };
+    };
+    assert.equal(
+      localRefExists({ cwd: '/repo', gitSpawn, branch: 'epic/42' }),
+      true,
+    );
+  });
+
+  it('returns false when the ref is absent', () => {
+    const gitSpawn = () => ({ status: 1, stdout: '', stderr: '' });
+    assert.equal(
+      localRefExists({ cwd: '/repo', gitSpawn, branch: 'story-9' }),
+      false,
+    );
+  });
+});
+
+describe('epicPrMergeState', () => {
+  it('returns merged + prUrl from a merged-PR row', () => {
+    const spawnFn = () => ({
+      status: 0,
+      stdout: JSON.stringify([
+        {
+          number: 7,
+          url: 'https://github.com/o/r/pull/7',
+          mergedAt: '2026-07-07T00:00:00Z',
+        },
+      ]),
+      stderr: '',
+    });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
+    assert.equal(out.merged, true);
+    assert.equal(out.prUrl, 'https://github.com/o/r/pull/7');
+  });
+
+  it('reports not-merged on an empty result set', () => {
+    const spawnFn = () => ({ status: 0, stdout: '[]', stderr: '' });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
+    assert.equal(out.merged, false);
+    assert.equal(out.prUrl, null);
+  });
+
+  it('fails closed (not-merged) when the probe exits non-zero', () => {
+    const warnings = [];
+    const spawnFn = () => ({ status: 1, stdout: '', stderr: 'gh boom' });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    assert.equal(out.merged, false);
+    assert.ok(warnings.some((w) => /merged-PR probe failed/.test(w)));
+  });
+
+  it('fails closed when the spawn throws', () => {
+    const spawnFn = () => {
+      throw new Error('ENOENT');
+    };
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
+    assert.equal(out.merged, false);
+    assert.equal(out.prUrl, null);
+  });
+
+  it('is not armable when a merged row carries no url', () => {
+    const spawnFn = () => ({
+      status: 0,
+      stdout: JSON.stringify([{ number: 7, mergedAt: '2026-07-07T00:00:00Z' }]),
+      stderr: '',
+    });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
+    assert.equal(out.merged, false);
+    assert.equal(out.prUrl, null);
+  });
+});
+
+describe('detectMergedUncleanedEpic (Story #4374)', () => {
+  const state = { epicId: 42, stories: { 9: { status: 'done' } } };
+
+  it('flags shouldArm when the PR merged and local refs linger', () => {
+    const gitSpawn = () => ({ status: 0, stdout: 'sha', stderr: '' });
+    const out = detectMergedUncleanedEpic({
+      state,
+      cwd: '/repo',
+      gitSpawn,
+      prMergeStateFn: () => ({
+        merged: true,
+        prUrl: 'https://github.com/o/r/pull/7',
+      }),
+    });
+    assert.equal(out.shouldArm, true);
+    assert.equal(out.reason, 'merged-uncleaned');
+    assert.equal(out.prUrl, 'https://github.com/o/r/pull/7');
+    assert.deepEqual(out.presentRefs, ['epic/42', 'story-9']);
+  });
+
+  it('does not arm when no local refs remain (idempotent no-op)', () => {
+    const gitSpawn = () => ({ status: 1, stdout: '', stderr: '' });
+    let probed = false;
+    const out = detectMergedUncleanedEpic({
+      state,
+      cwd: '/repo',
+      gitSpawn,
+      prMergeStateFn: () => {
+        probed = true;
+        return { merged: true, prUrl: 'x' };
+      },
+    });
+    assert.equal(out.shouldArm, false);
+    assert.equal(out.reason, 'no-local-refs');
+    // The gh probe must be skipped once we know there is nothing to reap.
+    assert.equal(probed, false);
+  });
+
+  it('does not arm when the PR is not merged', () => {
+    const gitSpawn = () => ({ status: 0, stdout: 'sha', stderr: '' });
+    const out = detectMergedUncleanedEpic({
+      state,
+      cwd: '/repo',
+      gitSpawn,
+      prMergeStateFn: () => ({ merged: false, prUrl: null }),
+    });
+    assert.equal(out.shouldArm, false);
+    assert.equal(out.reason, 'not-merged');
+  });
+
+  it('returns no-state for an empty checkpoint', () => {
+    const out = detectMergedUncleanedEpic({
+      state: null,
+      cwd: '/repo',
+      gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    assert.equal(out.shouldArm, false);
+    assert.equal(out.reason, 'no-state');
+  });
+});
+
+describe('armCleanupIfMerged (Story #4374 resume auto-fire)', () => {
+  it('emits epic.merge.armed on the bus when merged-and-uncleaned', async () => {
+    const emitted = [];
+    const bus = {
+      emit: async (event, payload) => emitted.push({ event, payload }),
+    };
+    const out = await armCleanupIfMerged({
+      state: { epicId: 42, stories: { 9: { status: 'done' } } },
+      cwd: '/repo',
+      gitSpawn: () => ({ status: 0, stdout: 'sha', stderr: '' }),
+      bus,
+      detectFn: () => ({
+        epicId: 42,
+        epicBranch: 'epic/42',
+        prUrl: 'https://github.com/o/r/pull/7',
+        shouldArm: true,
+        reason: 'merged-uncleaned',
+      }),
+    });
+    assert.equal(out.armed, true);
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].event, 'epic.merge.armed');
+    assert.deepEqual(emitted[0].payload, {
+      prUrl: 'https://github.com/o/r/pull/7',
+      epicId: 42,
+    });
+  });
+
+  it('does not emit when detection says do not arm', async () => {
+    const emitted = [];
+    const bus = { emit: async (e, p) => emitted.push({ e, p }) };
+    const out = await armCleanupIfMerged({
+      state: { epicId: 42, stories: {} },
+      cwd: '/repo',
+      gitSpawn: () => ({ status: 1, stdout: '', stderr: '' }),
+      bus,
+      detectFn: () => ({
+        shouldArm: false,
+        reason: 'no-local-refs',
+        prUrl: null,
+      }),
+    });
+    assert.equal(out.armed, false);
+    assert.equal(out.reason, 'no-local-refs');
+    assert.equal(emitted.length, 0);
+  });
+
+  it('throws when no usable bus is supplied', async () => {
+    await assert.rejects(
+      () =>
+        armCleanupIfMerged({
+          state: { epicId: 1, stories: {} },
+          cwd: '/repo',
+          gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
+          bus: null,
+        }),
+      { name: 'TypeError', message: /bus/ },
     );
   });
 });
