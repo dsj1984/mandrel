@@ -642,13 +642,19 @@ describe('fastForwardBaseBranch', () => {
   // Deterministic gitSpawn keyed off the git subcommand so the FF planner
   // (status/fetch/symbolic-ref/rev-list) and executor (checkout/merge) can
   // be driven through the injected port without touching real git.
-  function ffGitSpawn({ status = '', behind = '0 0', merge = 0, checkout = 0 }) {
+  function ffGitSpawn({
+    status = '',
+    behind = '0 0',
+    merge = 0,
+    checkout = 0,
+  }) {
     const calls = [];
     return {
       calls,
       gitSpawn: (_cwd, ...args) => {
         calls.push(args.join(' '));
-        if (args[0] === 'status') return { status: 0, stdout: status, stderr: '' };
+        if (args[0] === 'status')
+          return { status: 0, stdout: status, stderr: '' };
         if (args[0] === 'fetch') return { status: 0, stdout: '', stderr: '' };
         if (args[0] === 'symbolic-ref') {
           return { status: 0, stdout: 'main', stderr: '' };
@@ -817,14 +823,22 @@ describe('epicPrMergeState', () => {
       ]),
       stderr: '',
     });
-    const out = epicPrMergeState({ epicBranch: 'epic/42', cwd: '/repo', spawnFn });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
     assert.equal(out.merged, true);
     assert.equal(out.prUrl, 'https://github.com/o/r/pull/7');
   });
 
   it('reports not-merged on an empty result set', () => {
     const spawnFn = () => ({ status: 0, stdout: '[]', stderr: '' });
-    const out = epicPrMergeState({ epicBranch: 'epic/42', cwd: '/repo', spawnFn });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
     assert.equal(out.merged, false);
     assert.equal(out.prUrl, null);
   });
@@ -846,7 +860,11 @@ describe('epicPrMergeState', () => {
     const spawnFn = () => {
       throw new Error('ENOENT');
     };
-    const out = epicPrMergeState({ epicBranch: 'epic/42', cwd: '/repo', spawnFn });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
     assert.equal(out.merged, false);
     assert.equal(out.prUrl, null);
   });
@@ -857,7 +875,11 @@ describe('epicPrMergeState', () => {
       stdout: JSON.stringify([{ number: 7, mergedAt: '2026-07-07T00:00:00Z' }]),
       stderr: '',
     });
-    const out = epicPrMergeState({ epicBranch: 'epic/42', cwd: '/repo', spawnFn });
+    const out = epicPrMergeState({
+      epicBranch: 'epic/42',
+      cwd: '/repo',
+      spawnFn,
+    });
     assert.equal(out.merged, false);
     assert.equal(out.prUrl, null);
   });

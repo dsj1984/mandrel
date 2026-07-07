@@ -29,12 +29,11 @@
  */
 
 import { spawnSync } from 'node:child_process';
-
+import { parseWorktreePorcelain } from '../worktree/inspector.js';
 import {
   executeFastForward,
   planFastForward,
 } from './git-cleanup/phases/fast-forward.js';
-import { parseWorktreePorcelain } from '../worktree/inspector.js';
 
 const WT_SCRATCH_BRANCH = 'wt-branch';
 
@@ -366,7 +365,8 @@ function makeFfProbes(gitSpawn) {
         '--count',
         `${baseBranch}...${ref}`,
       );
-      if (r.status !== 0) return { ok: false, behind: 0, reason: 'rev-list-failed' };
+      if (r.status !== 0)
+        return { ok: false, behind: 0, reason: 'rev-list-failed' };
       const [ahead, behind] = String(r.stdout ?? '')
         .trim()
         .split(/\s+/);
@@ -405,8 +405,13 @@ function makeFfProbes(gitSpawn) {
  * @returns {{ ok: boolean, applied: boolean, skipped: boolean, reason?: string, behind?: number, stderr?: string }}
  */
 export function fastForwardBaseBranch(opts) {
-  const { cwd, baseBranch = 'main', remoteName = 'origin', gitSpawn, logger } =
-    opts;
+  const {
+    cwd,
+    baseBranch = 'main',
+    remoteName = 'origin',
+    gitSpawn,
+    logger,
+  } = opts;
   const probe = makeFfProbes(gitSpawn);
   const plan = planFastForward({
     cwd,
@@ -572,7 +577,13 @@ export function reapEpicBranches(opts) {
   // moving `main` under an in-flight PR.
   const fastForward = epicHasOpenPr
     ? { ok: true, applied: false, skipped: true, reason: 'epic-branch-kept' }
-    : fastForwardBaseBranch({ cwd, baseBranch, remoteName: remote, gitSpawn, logger });
+    : fastForwardBaseBranch({
+        cwd,
+        baseBranch,
+        remoteName: remote,
+        gitSpawn,
+        logger,
+      });
   if (fastForward.applied) {
     logger?.info?.(
       `[epic-cleanup] fast-forwarded ${baseBranch} by ${fastForward.behind} commit(s) to ${remote}/${baseBranch}`,
@@ -741,7 +752,12 @@ export function detectMergedUncleanedEpic(opts) {
       reason: 'no-local-refs',
     };
   }
-  const { merged, prUrl } = prMergeStateFn({ epicBranch, cwd, spawnFn, logger });
+  const { merged, prUrl } = prMergeStateFn({
+    epicBranch,
+    cwd,
+    spawnFn,
+    logger,
+  });
   const shouldArm = merged && prUrl !== null;
   return {
     epicId: state.epicId,
