@@ -34,6 +34,7 @@ import {
   executeFastForward,
   planFastForward,
 } from './git-cleanup/phases/fast-forward.js';
+import { makeFfProbes } from './git-cleanup/phases/git-probes-ff.js';
 
 const WT_SCRATCH_BRANCH = 'wt-branch';
 
@@ -329,63 +330,6 @@ export function deleteWtBranchIfPresent(opts) {
     `[epic-cleanup] could not delete ${WT_SCRATCH_BRANCH}: ${stderr}`,
   );
   return { deleted: false, present: true, stderr };
-}
-
-/**
- * Build `gitSpawn`-bound probe adapters for the fast-forward phase. The
- * shared `git-probes-ff` wrappers hardcode the module-level `gitSpawn`, so
- * they cannot honour the injected-port test seam every other function in
- * this module uses. These thin adapters replay the same git commands
- * through the injected spawner, letting `fastForwardBaseBranch` REUSE the
- * `planFastForward` / `executeFastForward` pair from the phase library while
- * staying hermetic under unit tests.
- *
- * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} gitSpawn
- */
-function makeFfProbes(gitSpawn) {
-  return {
-    isClean: (cwd) => {
-      const r = gitSpawn(cwd, 'status', '--porcelain');
-      return r.status === 0 && String(r.stdout ?? '').trim() === '';
-    },
-    currentBranch: (cwd) => {
-      const r = gitSpawn(cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD');
-      return r.status !== 0 ? null : String(r.stdout ?? '').trim() || null;
-    },
-    fetch: (cwd, remoteName, ref) => {
-      const r = gitSpawn(cwd, 'fetch', '--quiet', remoteName, ref);
-      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
-    },
-    canFastForward: (cwd, baseBranch, remoteName) => {
-      const ref = `${remoteName}/${baseBranch}`;
-      const r = gitSpawn(
-        cwd,
-        'rev-list',
-        '--left-right',
-        '--count',
-        `${baseBranch}...${ref}`,
-      );
-      if (r.status !== 0)
-        return { ok: false, behind: 0, reason: 'rev-list-failed' };
-      const [ahead, behind] = String(r.stdout ?? '')
-        .trim()
-        .split(/\s+/);
-      const localAhead = Number(ahead) || 0;
-      const remoteAhead = Number(behind) || 0;
-      if (localAhead > 0) {
-        return { ok: false, behind: remoteAhead, reason: 'not-fast-forward' };
-      }
-      return { ok: true, behind: remoteAhead };
-    },
-    checkout: (cwd, branch) => {
-      const r = gitSpawn(cwd, 'checkout', branch);
-      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
-    },
-    merge: (cwd, ref) => {
-      const r = gitSpawn(cwd, 'merge', '--ff-only', ref);
-      return r.status === 0 ? { ok: true } : { ok: false, stderr: r.stderr };
-    },
-  };
 }
 
 /**

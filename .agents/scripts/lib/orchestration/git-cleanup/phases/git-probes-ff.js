@@ -34,53 +34,106 @@ export function isWorktreeLockFailure(stderr) {
 
 /* node:coverage ignore next */
 export function isWorkingTreeClean(cwd) {
-  const res = gitSpawn(cwd, 'status', '--porcelain');
-  if (res.status !== 0) return false;
-  return res.stdout.trim() === '';
+  return defaultFfProbes.isClean(cwd);
 }
 
 /* node:coverage ignore next */
 export function fetchRef(cwd, remoteName, ref) {
-  const res = gitSpawn(cwd, 'fetch', '--quiet', remoteName, ref);
-  if (res.status !== 0) return { ok: false, stderr: res.stderr };
-  return { ok: true };
+  return defaultFfProbes.fetch(cwd, remoteName, ref);
 }
 
 /* node:coverage ignore next */
 export function canFastForward(cwd, baseBranch, remoteName) {
-  const ref = `${remoteName}/${baseBranch}`;
-  const ahead = gitSpawn(
-    cwd,
-    'rev-list',
-    '--left-right',
-    '--count',
-    `${baseBranch}...${ref}`,
-  );
-  if (ahead.status !== 0) {
-    return { ok: false, behind: 0, reason: 'rev-list-failed' };
-  }
-  const parts = ahead.stdout.trim().split(/\s+/);
-  const localAhead = Number(parts[0]) || 0;
-  const remoteAhead = Number(parts[1]) || 0;
-  if (localAhead > 0) {
-    return { ok: false, behind: remoteAhead, reason: 'not-fast-forward' };
-  }
-  return { ok: true, behind: remoteAhead };
+  return defaultFfProbes.canFastForward(cwd, baseBranch, remoteName);
 }
 
 /* node:coverage ignore next */
 export function checkoutBranch(cwd, branch) {
-  const res = gitSpawn(cwd, 'checkout', branch);
-  if (res.status !== 0) return { ok: false, stderr: res.stderr };
-  return { ok: true };
+  return defaultFfProbes.checkout(cwd, branch);
 }
 
 /* node:coverage ignore next */
 export function mergeFastForward(cwd, ref) {
-  const res = gitSpawn(cwd, 'merge', '--ff-only', ref);
-  if (res.status !== 0) return { ok: false, stderr: res.stderr };
-  return { ok: true };
+  return defaultFfProbes.merge(cwd, ref);
 }
+
+/**
+ * Build the fast-forward probe bundle bound to a `gitSpawn`.
+ *
+ * This is the **single implementation** of the FF/base-sync git wrappers.
+ * The standalone exports above delegate to a default instance bound to the
+ * shared `gitSpawn`; callers that need to inject their own spawn for testing
+ * (e.g. the epic-cleanup runner) call this factory directly instead of
+ * hand-rolling a parallel copy (framework-gap #4379). The bundle also carries
+ * `currentBranch` so an injecting caller gets the whole FF surface from one
+ * place.
+ *
+ * @param {(cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string }} [spawn]
+ * @returns {{
+ *   isClean: (cwd: string) => boolean,
+ *   currentBranch: (cwd: string) => string|null,
+ *   fetch: (cwd: string, remoteName: string, ref: string) => { ok: boolean, stderr?: string },
+ *   canFastForward: (cwd: string, baseBranch: string, remoteName: string) => { ok: boolean, behind: number, reason?: string },
+ *   checkout: (cwd: string, branch: string) => { ok: boolean, stderr?: string },
+ *   merge: (cwd: string, ref: string) => { ok: boolean, stderr?: string },
+ * }}
+ */
+export function makeFfProbes(spawn = gitSpawn) {
+  return {
+    isClean: (cwd) => {
+      const res = spawn(cwd, 'status', '--porcelain');
+      return res.status === 0 && String(res.stdout ?? '').trim() === '';
+    },
+    currentBranch: (cwd) => {
+      const res = spawn(cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD');
+      return res.status !== 0 ? null : String(res.stdout ?? '').trim() || null;
+    },
+    fetch: (cwd, remoteName, ref) => {
+      const res = spawn(cwd, 'fetch', '--quiet', remoteName, ref);
+      return res.status === 0
+        ? { ok: true }
+        : { ok: false, stderr: res.stderr };
+    },
+    canFastForward: (cwd, baseBranch, remoteName) => {
+      const ref = `${remoteName}/${baseBranch}`;
+      const ahead = spawn(
+        cwd,
+        'rev-list',
+        '--left-right',
+        '--count',
+        `${baseBranch}...${ref}`,
+      );
+      if (ahead.status !== 0) {
+        return { ok: false, behind: 0, reason: 'rev-list-failed' };
+      }
+      const parts = String(ahead.stdout ?? '')
+        .trim()
+        .split(/\s+/);
+      const localAhead = Number(parts[0]) || 0;
+      const remoteAhead = Number(parts[1]) || 0;
+      if (localAhead > 0) {
+        return { ok: false, behind: remoteAhead, reason: 'not-fast-forward' };
+      }
+      return { ok: true, behind: remoteAhead };
+    },
+    checkout: (cwd, branch) => {
+      const res = spawn(cwd, 'checkout', branch);
+      return res.status === 0
+        ? { ok: true }
+        : { ok: false, stderr: res.stderr };
+    },
+    merge: (cwd, ref) => {
+      const res = spawn(cwd, 'merge', '--ff-only', ref);
+      return res.status === 0
+        ? { ok: true }
+        : { ok: false, stderr: res.stderr };
+    },
+  };
+}
+
+// Default instance bound to the shared gitSpawn; the standalone wrappers
+// above delegate to it so there is exactly one FF-probe implementation.
+const defaultFfProbes = makeFfProbes(gitSpawn);
 
 /* node:coverage ignore next */
 export function removeWorktree(worktreePath, cwd) {
