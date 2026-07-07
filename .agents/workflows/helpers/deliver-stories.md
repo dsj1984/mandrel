@@ -318,10 +318,23 @@ Print a final run summary listing every delivered Story in completion order:
 All Stories delivered. PRs opened, auto-merge armed. CI will merge each
 PR when checks pass; each child then confirms the merge and flips its
 Story to `agent::done` (Story #3385 — until the merge confirms, a Story
-rests at `agent::closing` with its issue OPEN). Run
-`git-cleanup --fast-forward-main` after the last merge to bring local
-main up to date.
+rests at `agent::closing` with its issue OPEN).
 ```
+
+Then **fast-forward `main` yourself** — do not instruct the operator to run it
+after the last merge. The delivering flow owns bringing the local base branch
+up to whatever has merged so far:
+
+```bash
+node .agents/scripts/git-cleanup.js --fast-forward-main --execute --yes
+```
+
+This runs only the fast-forward-main phase (`git fetch origin main` →
+`git merge --ff-only`); it is idempotent and a no-op when `main` is already
+current, so it is safe to run even while some PRs are still queued in
+auto-merge. Report its one-line result in the summary. Merged Story branches
+themselves are reaped by the boot sweep at the next `/plan` / `/deliver` boot —
+see [`.agents/rules/git-conventions.md` § Local checkout hygiene](../../rules/git-conventions.md).
 
 When some Stories are blocked or failed, list them explicitly with the
 `blockerCommentId` or failure detail so the operator knows where to look.
