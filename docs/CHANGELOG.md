@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.86.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.85.0...mandrel-v1.86.0) (2026-07-07)
+
+
+### Added
+
+* Epic [#4372](https://github.com/dsj1984/mandrel/issues/4372) ([#4376](https://github.com/dsj1984/mandrel/issues/4376)) ([98a82a4](https://github.com/dsj1984/mandrel/commit/98a82a4c27e5eafdfa2f1c54cfb42ed537a69a2e))
+
+
+### Fixed
+
+* **baselines:** repair check-baselines auto-refresh + dedupe FF probes ([#4380](https://github.com/dsj1984/mandrel/issues/4380)) ([20a4ecd](https://github.com/dsj1984/mandrel/commit/20a4ecd97f92cb6a88be474c321b139fed95db56)), closes [#4379](https://github.com/dsj1984/mandrel/issues/4379)
+
 ## [1.85.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.84.0...mandrel-v1.85.0) (2026-07-06)
 
 
