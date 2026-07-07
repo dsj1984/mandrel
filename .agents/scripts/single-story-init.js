@@ -35,7 +35,6 @@
  * @see .agents/workflows/helpers/single-story-deliver.md
  */
 
-import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
@@ -67,11 +66,17 @@ import {
   upsertStructuredComment,
 } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
 // `sweepMergedStoryBranches` is imported dynamically below — its transitive
 // graph reaches `picomatch` (via `git-cleanup.js`). Loading it statically
 // would crash module resolution before `assertDepsInstalled()` can emit a
 // friendly "run npm install" message.
 import { WorktreeManager } from './lib/worktree-manager.js';
+
+// `makeGhRunner` moved to the shared `single-story-sweep/protection-ctx.js`
+// module (Story #4373) so the three boot callers build an identical
+// protection ctx. Re-exported here to preserve its existing import path.
+export { makeGhRunner } from './lib/single-story-sweep/protection-ctx.js';
 
 /**
  * Fail fast with a clear, actionable message when project deps are missing.
@@ -96,50 +101,6 @@ function assertDepsInstalled(projectRoot) {
 }
 
 const progress = Logger.createProgress('single-story-init', { stderr: true });
-
-/**
- * Build the synchronous `gh` runner the single-story sweep uses for its
- * candidate-protection checks. Exported for testing.
- *
- * Story #2990: the sweep protection-ctx ghRunner stays on raw
- * `spawnSync('gh', …)` (not the `lib/gh-exec.js` async facade) because
- * `executeCleanup` invokes the protection checks inside a synchronous
- * candidate-filter loop. The runner contract is the legacy
- * `(args, opts) => stdout string` shape; converting it to async would
- * ripple into the single-story-sweep planner, which is intentionally out
- * of scope for the callers-only provider migration.
- *
- * Story #4073: the `spawnImpl` seam injects the `spawnSync` boundary so the
- * runner's success/error handling can be unit-tested without a live `gh`
- * binary. It defaults to `child_process.spawnSync` (mirroring the
- * `spawnImpl` seam in `lib/gh-exec.js` and the `runner` seam in
- * `lib/bootstrap/gh-preflight.js`), so the production CLI path is unchanged.
- * The synchronous `spawnSync` shape is preserved deliberately — the
- * candidate-filter loop in `executeCleanup` is synchronous, so converting
- * this to the async `lib/gh-exec.js` facade would ripple into the
- * single-story-sweep planner.
- *
- * @param {string} cwd Repo root used as the default spawn cwd.
- * @param {typeof defaultSpawnSync} [spawnImpl] Injectable spawn boundary —
- *   defaults to `child_process.spawnSync`. Tests pass a fake to assert the
- *   error/exit-code handling without spawning a real child process.
- * @returns {(args: string[], opts?: { cwd?: string }) => string}
- */
-export function makeGhRunner(cwd, spawnImpl = defaultSpawnSync) {
-  return (args, opts) => {
-    const result = spawnImpl('gh', args, {
-      cwd: opts?.cwd ?? cwd,
-      encoding: 'utf-8',
-      shell: false,
-    });
-    if (result.status !== 0) {
-      throw new Error(
-        `gh ${args.join(' ')} exit ${result.status}: ${result.stderr ?? ''}`,
-      );
-    }
-    return result.stdout ?? '';
-  };
-}
 
 /**
  * Validate that the fetched ticket is a standalone Story this script can
@@ -222,12 +183,7 @@ export async function reapMergedStoryBranches({
         info: (m) => progress('CLEANUP', m),
         warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
       },
-      protectionCtx: {
-        repoRoot: cwd,
-        gitSpawn,
-        ghRunner: makeGhRunner(cwd),
-        getTicket: (id) => provider.getTicket(id),
-      },
+      protectionCtx: buildProtectionCtx({ cwd, provider }),
       lockPath,
       lockTimeoutMs,
     });
