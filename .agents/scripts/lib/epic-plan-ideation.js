@@ -13,6 +13,10 @@
  * mock the provider call without touching the GitHub HTTP client.
  */
 
+import {
+  extractFrameworkStamp,
+  stampFrameworkVersion,
+} from './framework-version.js';
 import { TYPE_LABELS } from './label-constants.js';
 
 // Canonical section keys match the rendered template at
@@ -113,24 +117,33 @@ export function parseOnePager(onePager) {
  * sections are rendered as `_(not specified)_` so the operator can spot
  * gaps during the HITL review (Phase 3).
  *
+ * Story #4382 — the rendered body is stamped with the Mandrel framework
+ * version + authoring date (hidden `mandrel_version` / `authored_at` meta
+ * field + a visible `> 🏷️ Authored with Mandrel …` marker) via
+ * {@link stampFrameworkVersion}. Pass `stamp` to preserve a
+ * previously-authored version on re-render (the Epic edit path does this);
+ * omit it to stamp the running version and today's date.
+ *
  * @param {{
  *   onePager: string,
  *   template: string,
+ *   stamp?: { version?: string, authoredAt?: string },
  * }} args
  * @returns {{ title: string, body: string }}
  */
-export function renderEpicBody({ onePager, template }) {
+export function renderEpicBody({ onePager, template, stamp }) {
   if (!template || typeof template !== 'string') {
     throw new Error('renderEpicBody: template must be a non-empty string');
   }
   const parsed = parseOnePager(onePager);
 
-  const body = template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+  const rendered = template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
     if (key === 'title') return parsed.title;
     const value = parsed[key];
     return value && value.length > 0 ? value : '_(not specified)_';
   });
 
+  const body = stampFrameworkVersion(rendered, stamp ?? {});
   return { title: parsed.title, body };
 }
 
@@ -226,7 +239,15 @@ export async function updateEpicFromOnePager({
     );
   }
 
-  const { title, body } = renderEpicBody({ onePager, template });
+  // Story #4382 — preserve the originally-authored version stamp on edit
+  // rather than bumping it to whatever version is running now. When the
+  // current body carries no stamp (legacy Epic), a fresh stamp is applied.
+  const priorStamp = extractFrameworkStamp(currentBody ?? '');
+  const stamp = priorStamp
+    ? { version: priorStamp.version, authoredAt: priorStamp.authoredAt }
+    : undefined;
+
+  const { title, body } = renderEpicBody({ onePager, template, stamp });
 
   if (typeof currentBody === 'string' && currentBody === body) {
     return { epicId, title, body, changed: false };

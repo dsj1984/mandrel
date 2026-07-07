@@ -269,3 +269,68 @@ describe('round-trip: serialize → parse → serialize', () => {
     assert.ok(twice.includes('"estimated_test_files":3'));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Framework provenance stamp (Story #4382): mandrel_version + authored_at
+// round-trip through the meta block and the visible marker, and are IMMUTABLE
+// across a parse → serialize (never re-derived / bumped).
+// ---------------------------------------------------------------------------
+
+const STAMPED_BODY = {
+  ...BODY_WITH_META,
+  mandrel_version: '1.2.3',
+  authored_at: '2026-07-07',
+};
+
+describe('parse()/serialize() — framework-version stamp round-trip', () => {
+  it('emits the hidden mandrel_version + authored_at fields into the meta block', () => {
+    const md = serialize(STAMPED_BODY);
+    assert.ok(md.includes('"mandrel_version":"1.2.3"'));
+    assert.ok(md.includes('"authored_at":"2026-07-07"'));
+  });
+
+  it('emits the visible authoring marker line', () => {
+    const md = serialize(STAMPED_BODY);
+    assert.ok(md.includes('> 🏷️ Authored with Mandrel v1.2.3 · 2026-07-07'));
+  });
+
+  it('appends the stamp keys LAST in the meta block (stable key order)', () => {
+    const md = serialize(STAMPED_BODY);
+    assert.match(
+      md,
+      /"estimated_test_files":3,"mandrel_version":"1\.2\.3","authored_at":"2026-07-07"\}/,
+    );
+  });
+
+  it('recovers mandrel_version + authored_at on parse', () => {
+    const { body } = parse(serialize(STAMPED_BODY));
+    assert.equal(body.mandrel_version, '1.2.3');
+    assert.equal(body.authored_at, '2026-07-07');
+  });
+
+  it('the visible marker does not pollute the trailing structured section', () => {
+    // verify[] is the last structured section; the marker must not bleed in.
+    const { body } = parse(serialize(STAMPED_BODY));
+    assert.deepEqual(body.verify, STAMPED_BODY.verify);
+    assert.ok(!body.verify.some((v) => v.includes('Authored with Mandrel')));
+  });
+
+  it('is byte-stable and version-immutable across serialize → parse → serialize', () => {
+    const once = serialize(STAMPED_BODY);
+    const twice = serialize(parse(once).body);
+    assert.equal(twice, once);
+    assert.equal(extractVersion(twice), '1.2.3');
+  });
+
+  it('leaves a stamp-less body byte-identical to before (no marker, no keys)', () => {
+    const md = serialize(BODY_WITH_META);
+    assert.ok(!md.includes('mandrel_version'));
+    assert.ok(!md.includes('Authored with Mandrel'));
+  });
+});
+
+/** Pull the mandrel_version out of a serialized meta block for assertions. */
+function extractVersion(md) {
+  const m = md.match(/"mandrel_version":"([^"]+)"/);
+  return m ? m[1] : null;
+}

@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -827,6 +828,63 @@ describe('composeStoryBody — 2-tier Epic footer (Story #4102)', () => {
     });
     assert.match(out, /---\nparent: #23$/);
     assert.doesNotMatch(out, /Epic: #/);
+  });
+});
+
+// Story #4382 — composeStoryBody stamps a newly-created Story body with the
+// running Mandrel framework version + authoring date (hidden meta field +
+// visible marker), once. The footer stays canonical and the stamp lands in the
+// human body (before the `---` trailer).
+describe('composeStoryBody — framework-version stamp (Story #4382)', () => {
+  it('stamps the hidden meta field and the visible marker before the footer', () => {
+    const out = composeStoryBody({
+      body: '## Goal\nDo the thing.',
+      parentId: 10,
+      epicId: 10,
+      stamp: { version: '4.2.0', authoredAt: '2026-07-07' },
+    });
+    assert.ok(
+      out.includes(
+        '<!-- meta: {"mandrel_version":"4.2.0","authored_at":"2026-07-07"} -->',
+      ),
+    );
+    assert.ok(out.includes('> 🏷️ Authored with Mandrel v4.2.0 · 2026-07-07'));
+    // Stamp is inside the human body, above the `---` / `parent:` trailer.
+    const footerIdx = out.indexOf('\n---\nparent:');
+    assert.ok(footerIdx > out.indexOf('Authored with Mandrel'));
+    assert.match(out, /---\nparent: #10\nEpic: #10$/);
+  });
+
+  it('defaults to the running package.json version when no stamp is passed', () => {
+    const pkgVersion = JSON.parse(
+      fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'),
+    ).version;
+    const out = composeStoryBody({
+      body: '## Goal\nx',
+      parentId: 1,
+      epicId: 1,
+    });
+    assert.ok(out.includes(`"mandrel_version":"${pkgVersion}"`));
+  });
+
+  it('is immutable: an already-stamped body keeps its original version', () => {
+    const first = composeStoryBody({
+      body: '## Goal\nx',
+      parentId: 1,
+      epicId: 1,
+      stamp: { version: '1.0.0', authoredAt: '2026-01-01' },
+    });
+    // Feed the already-stamped head (minus the footer) back through with a
+    // newer running version — the original stamp must win.
+    const headOnly = first.split('\n\n---\n')[0];
+    const second = composeStoryBody({
+      body: headOnly,
+      parentId: 1,
+      epicId: 1,
+      stamp: { version: '9.9.9', authoredAt: '2026-12-31' },
+    });
+    assert.ok(second.includes('"mandrel_version":"1.0.0"'));
+    assert.ok(!second.includes('9.9.9'));
   });
 });
 

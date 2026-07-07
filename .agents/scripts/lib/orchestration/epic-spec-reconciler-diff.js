@@ -81,6 +81,10 @@
  */
 
 import { composeStoryBody } from '../../providers/github/tickets.js';
+import {
+  extractFrameworkStamp,
+  stampFrameworkVersion,
+} from '../framework-version.js';
 import { assertPlanLabelAllowList } from './epic-spec-reconciler-discriminator.js';
 import {
   closeOp,
@@ -233,12 +237,21 @@ function stripFooter(body) {
  * `composeStoryBody` directly makes that divergence structurally
  * impossible going forward.
  *
+ * Story #4382 — the create-time authoring stamp (`mandrel_version` /
+ * `authored_at` meta field + visible marker) is provenance, not spec-derived
+ * content, so this UPDATE path never mints or bumps it (which would also break
+ * this function's purity — the stamp uses a clock). Instead the stamp already
+ * present on the **live** GH body (`obsBody`) is preserved verbatim, and a
+ * legacy stamp-less body is left stamp-less (no backfill — see the Story's
+ * Out-of-Scope). Footer recomposition therefore runs in `stamp: false` mode.
+ *
  * @param {{entity: string, parentSlug?: string|null, dependsOn?: string[]}} specEntity
  * @param {string} specBody
  * @param {{state?: StateInput}} ctx
+ * @param {string} [obsBody] - The live GH body, source of the preserved stamp.
  * @returns {string}
  */
-function composeBodyWithFooter(specEntity, specBody, ctx) {
+function composeBodyWithFooter(specEntity, specBody, ctx, obsBody = '') {
   const state = ctx?.state ?? {};
   const mapping = state.mapping ?? {};
   const parentSlug = specEntity.parentSlug ?? null;
@@ -264,7 +277,25 @@ function composeBodyWithFooter(specEntity, specBody, ctx) {
   // included) or emits a canonical-form body. With the strip, the
   // function is idempotent against its own output.
   const head = stripFooter(specBody);
-  return composeStoryBody({ body: head, parentId, epicId, dependencies });
+  // Preserve the live body's create-time authoring stamp (Story #4382). When
+  // the spec head already carries it, `stampFrameworkVersion` is a no-op
+  // (immutable); when it doesn't, the stamp is restored from the live body so
+  // the recomposed form matches GH and no spurious body Update fires. A
+  // legacy body with no stamp stays stamp-less (no backfill).
+  const priorStamp = extractFrameworkStamp(obsBody);
+  const stampedHead = priorStamp
+    ? stampFrameworkVersion(head, {
+        version: priorStamp.version,
+        authoredAt: priorStamp.authoredAt,
+      })
+    : head;
+  return composeStoryBody({
+    body: stampedHead,
+    parentId,
+    epicId,
+    dependencies,
+    stamp: false,
+  });
 }
 
 /**
@@ -329,7 +360,7 @@ function fieldChanges(specEntity, obs, mapping, ctx = {}) {
       // Emit a body change only when the canonical form differs from
       // what is on GH today — and write the canonical form back, so the
       // footer cascade-readers depend on stays intact across resumes.
-      const after = composeBodyWithFooter(specEntity, specBody, ctx);
+      const after = composeBodyWithFooter(specEntity, specBody, ctx, obsBody);
       if (after !== obsBody) {
         changes.body = { before: obsBody, after };
       }
