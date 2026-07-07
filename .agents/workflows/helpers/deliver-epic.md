@@ -734,6 +734,18 @@ On an arming decision the predicate emits `epic.merge.ready`; the downstream
 `epic.merge.blocked` with the disqualifying reasons and exits without merging
 — the operator merges manually.
 
+**Blocked-path output (operator merges the button).** When arming is
+declined, `epic.merge.armed` never fires inside this run, so Phase 9 does not
+reap automatically. Surface the exact one-liner the operator runs **after**
+they merge the PR by hand so local refs are reaped and `main` is
+fast-forwarded (the idempotent-resume path below runs this automatically on
+the next `/deliver <epicId>`):
+
+```bash
+node .agents/scripts/lifecycle-emit.js --epic <epicId> \
+  --event epic.merge.armed --pr-url <prUrl>
+```
+
 Close the phase wrapper by emitting `epic.automerge.end` (records the arm
 outcome on the ledger; `merged: true` once GitHub completes the squash,
 `merged: false` with a reason otherwise):
@@ -783,6 +795,19 @@ Re-runs pick up at the next undispatched wave (in-flight Stories finish
 via `helpers/epic-deliver-story`'s own checkpointing). The PR from Phase 7 is
 updated in place on subsequent runs. The authoritative live view is
 the `epic-run-progress` structured comment.
+
+**Resume auto-arm for a merged-but-uncleaned Epic.** When `/deliver` resumes
+against an Epic whose PR already merged (operator merged the button in a prior
+session) but whose local `epic/<id>` / `story-<id>` refs still linger, the
+resume path detects the merged-but-uncleaned state
+(`detectMergedUncleanedEpic` in
+[`epic-cleanup.js`](../../scripts/lib/orchestration/epic-cleanup.js)) and fires
+`epic.merge.armed` automatically so Phase 9 reaps — no manual command. The
+detection is idempotent: an already-reaped Epic (no local refs) is a clean
+no-op, and an unmerged Epic never arms. It resolves the merged PR's URL for the
+required `epic.merge.armed` payload and fails closed (does **not** arm) on any
+indeterminate `gh` probe. The one-liner under Phase 8.5 / Phase 9 is the manual
+equivalent for the case where the operator does not re-run `/deliver`.
 
 ---
 
