@@ -47,6 +47,51 @@ export const DEFAULT_GATE_REGISTRY = {
   },
 };
 
+/** Gate names that fan out to per-kind refreshers via `_gateKind` tags. */
+const COMPOSITE_GATE_KINDS = new Set(['check-baselines']);
+
+/**
+ * Resolve the refresh metadata + the regression subset a single failure
+ * cycle should act on.
+ *
+ * A direct per-kind gate (`check-maintainability` / `check-crap`) maps
+ * straight through. The unified `check-baselines` gate is a **composite**:
+ * its projected regressions are tagged with `_gateKind`, and each attribution
+ * cycle picks the first regressed kind not already refreshed this cycle
+ * (`cycleState.refreshedKinds`), scoping classify + refresh to that one kind.
+ * The retry loop re-drives for any remaining kinds — so a close that regresses
+ * both maintainability and CRAP converges in two cycles instead of dead-ending
+ * on an unrecognised gate name (framework-gap #4377).
+ *
+ * @returns {{ meta: object, regressions: Array } | null}
+ */
+export function resolveGateMeta({
+  gateName,
+  regressions,
+  cycleState = null,
+  gateRegistry = DEFAULT_GATE_REGISTRY,
+}) {
+  if (!Array.isArray(regressions) || regressions.length === 0) return null;
+
+  const direct = gateRegistry[gateName];
+  if (direct) return { meta: direct, regressions };
+
+  if (COMPOSITE_GATE_KINDS.has(gateName)) {
+    const refreshed = cycleState?.refreshedKinds ?? new Set();
+    for (const row of regressions) {
+      const kind = row?._gateKind;
+      const subMeta = kind ? gateRegistry[`check-${kind}`] : null;
+      if (subMeta && !refreshed.has(subMeta.kind)) {
+        return {
+          meta: subMeta,
+          regressions: regressions.filter((r) => r?._gateKind === kind),
+        };
+      }
+    }
+  }
+  return null;
+}
+
 /**
  * Top-level: handle a baseline gate failure by classifying drift and
  * either auto-refreshing (attributable-only) or posting friction (any
@@ -88,11 +133,14 @@ export async function handleBaselineGateFailure({
   gateRegistry = DEFAULT_GATE_REGISTRY,
   deps = {},
 } = {}) {
-  const meta = gateRegistry[gateName];
-  if (!meta) return { action: 'rethrow' };
-  if (!Array.isArray(regressions) || regressions.length === 0) {
-    return { action: 'rethrow' };
-  }
+  const resolved = resolveGateMeta({
+    gateName,
+    regressions,
+    cycleState,
+    gateRegistry,
+  });
+  if (!resolved) return { action: 'rethrow' };
+  const { meta, regressions: scopedRegressions } = resolved;
 
   const classify = deps.classifyBaselineDrift ?? defaultClassifyBaselineDrift;
   const renderBody =
@@ -114,7 +162,7 @@ export async function handleBaselineGateFailure({
 
   const epicRef = `origin/${epicBranch}`;
   const { attributable, nonAttributable } = classify({
-    regressions,
+    regressions: scopedRegressions,
     storyDiffPaths,
     epicRef,
     cwd,
