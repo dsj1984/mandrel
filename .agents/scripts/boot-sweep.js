@@ -17,6 +17,17 @@
  * is swallowed and reported in the result envelope, never thrown, so a
  * caller can wire it into a boot path without risking the host run.
  *
+ * **Content-merged branches are report-only (Story #4396).** The planner
+ * also surfaces branches whose content already landed in the base branch
+ * by another route (a squash-merged Epic PR, a renamed head, a manual
+ * squash merge) via `detectedBy: 'content-merged'` (Story #4395's
+ * `git merge-tree --write-tree` probe) — a weaker signal than a merged PR
+ * or git ancestry, since no CI/GitHub merge check ever validated that
+ * branch's exact diff. This sweep never reaps on that signal alone; it
+ * surfaces the branches under `contentMerged` in the result envelope (and
+ * a routing hint in the human summary) so the operator can send them to
+ * `/git-cleanup` for a confirmed, eyeballed reap.
+ *
  * Usage:
  *   node .agents/scripts/boot-sweep.js [--include <glob>...] \
  *     [--exclude <glob>...] [--current <branch>] [--base <branch>] \
@@ -42,6 +53,10 @@ Runs the protected merged-branch boot sweep non-interactively: reaps every
 local branch whose PR is MERGED and whose HEAD matches the merged headRefOid,
 skipping any candidate the protection partition flags (unpushed work, dirty
 worktree, still-open parent Story), then fast-forwards the base branch.
+Branches detected only via the weaker content-equivalence signal
+(detectedBy: 'content-merged') are never reaped here — they are reported
+under "contentMerged" (and a routing hint in the summary line) for the
+operator to send to /git-cleanup.
 
 Options:
   --include <glob>     Branch glob to sweep (repeatable). Default: story-*
@@ -136,9 +151,29 @@ export async function runBootSweep({
       localDeleted: 0,
       remoteDeleted: 0,
       protected: [],
+      contentMerged: [],
       failures: [],
     };
   }
+}
+
+/**
+ * Build the human-readable one-line summary for a sweep result envelope.
+ * Exported for unit tests (Story #4396). A zero `contentMerged` count keeps
+ * the pre-Story #4396 line byte-identical (silent no-op summary); a nonzero
+ * count appends a routing hint pointing the operator at `/git-cleanup`.
+ *
+ * @param {{ localDeleted: number, remoteDeleted: number, protected?: Array, contentMerged?: Array }} result
+ * @returns {string}
+ */
+export function buildSummaryLine(result) {
+  const protectedCount = result.protected?.length ?? 0;
+  const contentMergedCount = result.contentMerged?.length ?? 0;
+  const contentMergedSuffix =
+    contentMergedCount > 0
+      ? `; ${contentMergedCount} content-merged branch(es) left for /git-cleanup`
+      : '';
+  return `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}${contentMergedSuffix}.`;
 }
 
 async function main() {
@@ -173,10 +208,7 @@ async function main() {
   if (values.json) {
     Logger.info(JSON.stringify(result, null, 2));
   } else {
-    const protectedCount = result.protected?.length ?? 0;
-    Logger.info(
-      `[boot-sweep] reaped ${result.localDeleted} local + ${result.remoteDeleted} remote; protected ${protectedCount}.`,
-    );
+    Logger.info(buildSummaryLine(result));
   }
 }
 

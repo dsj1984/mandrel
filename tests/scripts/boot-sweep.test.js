@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { runBootSweep } from '../../.agents/scripts/boot-sweep.js';
+import {
+  buildSummaryLine,
+  runBootSweep,
+} from '../../.agents/scripts/boot-sweep.js';
 
 const CONFIG = {
   project: { baseBranch: 'main', paths: { tempRoot: 'temp' } },
@@ -103,6 +106,7 @@ describe('runBootSweep', () => {
       warns.some((w) => /sweep threw/.test(w)),
       true,
     );
+    assert.deepEqual(result.contentMerged, []);
   });
 
   it('returns the engine envelope verbatim on success', async () => {
@@ -115,5 +119,53 @@ describe('runBootSweep', () => {
     });
     assert.equal(result.localDeleted, 3);
     assert.equal(result.remoteDeleted, 3);
+  });
+
+  it('passes the content-merged partition through verbatim (report-only, Story #4396)', async () => {
+    const envelope = okEnvelope({
+      contentMerged: [{ branch: 'story-42', worktreePath: null }],
+    });
+    const result = await runBootSweep({
+      cwd: '/tmp/repo',
+      injectedConfig: CONFIG,
+      injectedProvider: makeProvider(),
+      injectedSweep: () => envelope,
+    });
+    assert.deepEqual(result.contentMerged, [
+      { branch: 'story-42', worktreePath: null },
+    ]);
+  });
+});
+
+describe('buildSummaryLine (Story #4396)', () => {
+  it('keeps the pre-Story #4396 line byte-identical on a zero contentMerged count', () => {
+    const line = buildSummaryLine({
+      localDeleted: 0,
+      remoteDeleted: 0,
+      protected: [],
+      contentMerged: [],
+    });
+    assert.equal(line, '[boot-sweep] reaped 0 local + 0 remote; protected 0.');
+  });
+
+  it('omits the contentMerged clause when the field is absent entirely', () => {
+    const line = buildSummaryLine({ localDeleted: 2, remoteDeleted: 2 });
+    assert.equal(line, '[boot-sweep] reaped 2 local + 2 remote; protected 0.');
+  });
+
+  it('appends a routing hint with the count when contentMerged is nonzero', () => {
+    const line = buildSummaryLine({
+      localDeleted: 1,
+      remoteDeleted: 1,
+      protected: [],
+      contentMerged: [
+        { branch: 'story-42', worktreePath: null },
+        { branch: 'story-43', worktreePath: null },
+      ],
+    });
+    assert.equal(
+      line,
+      '[boot-sweep] reaped 1 local + 1 remote; protected 0; 2 content-merged branch(es) left for /git-cleanup.',
+    );
   });
 });

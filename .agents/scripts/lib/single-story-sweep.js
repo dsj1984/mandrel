@@ -28,6 +28,16 @@
  *            lockfile around plan + execute. On lock contention the
  *            sweep is skipped (the host continues — same contract as a
  *            plan failure).
+ *   - Content-merged (Story #4396, report-only): a plan candidate the
+ *            `git-cleanup` planner classified `detectedBy: 'content-merged'`
+ *            (Story #4395's `git merge-tree --write-tree` content-equivalence
+ *            probe) is a **weaker** signal than a merged PR or git ancestry —
+ *            no CI/GitHub merge check ever validated its exact diff. This
+ *            engine never reaps on that signal alone: content-merged
+ *            candidates are pulled out of the plan before protection +
+ *            execute and surfaced under `contentMerged` in the envelope so
+ *            the operator can route them to `/git-cleanup` for a confirmed,
+ *            eyeballed reap.
  *   - Never touches the stash stack.
  *   - Errors are caught and surfaced in the envelope. Callers MUST NOT
  *            propagate sweep failures — the host proceeds either way.
@@ -81,6 +91,7 @@ const STORY_BRANCH_INCLUDE = 'story-*';
  *   localDeleted: number,
  *   remoteDeleted: number,
  *   protected: Array<{ branch: string, reason: string, worktreePath?: string|null }>,
+ *   contentMerged: Array<{ branch: string, worktreePath: string|null }>,
  *   failures: Array<{ branch: string|null, scope: string, stderr?: string }>,
  *   fastForward?: object,
  *   error?: string,
@@ -137,6 +148,7 @@ export async function sweepMergedBranches({
         localDeleted: 0,
         remoteDeleted: 0,
         protected: [],
+        contentMerged: [],
         failures: [],
       };
     }
@@ -214,6 +226,31 @@ export function sweepMergedStoryBranches(args = {}) {
 }
 
 /**
+ * Split a plan's candidates into the reapable set and the report-only
+ * `content-merged` set (Story #4396). A candidate the `git-cleanup`
+ * planner classified `detectedBy: 'content-merged'` (Story #4395's
+ * `git merge-tree --write-tree` probe) never reaches protection or
+ * `executeCleanup` — it is a weaker signal than a merged PR or git
+ * ancestry, so the engine only reports it for the operator to route to
+ * `/git-cleanup`.
+ */
+function partitionContentMerged(candidates) {
+  const contentMerged = [];
+  const reapCandidates = [];
+  for (const candidate of candidates) {
+    if (candidate.detectedBy === 'content-merged') {
+      contentMerged.push({
+        branch: candidate.branch,
+        worktreePath: candidate.worktreePath ?? null,
+      });
+    } else {
+      reapCandidates.push(candidate);
+    }
+  }
+  return { contentMerged, reapCandidates };
+}
+
+/**
  * Inner: the plan + protect + execute pipeline. Kept separate so the
  * outer engine can stay focused on the lock and fast-forward wrappers.
  */
@@ -240,7 +277,18 @@ async function runSweepUnderLock({
     return zeroResult({ error: `plan: ${msg}` });
   }
 
-  if (plan.candidates.length === 0) {
+  const { contentMerged, reapCandidates } = partitionContentMerged(
+    plan.candidates,
+  );
+  if (contentMerged.length > 0) {
+    log.info(
+      `${logTag} ${contentMerged.length} content-merged branch(es) detected (report-only, not reaped): ${contentMerged
+        .map((c) => c.branch)
+        .join(', ')}.`,
+    );
+  }
+
+  if (reapCandidates.length === 0) {
     log.info(`${logTag} no merged branches to reap.`);
     return {
       ok: true,
@@ -249,12 +297,13 @@ async function runSweepUnderLock({
       localDeleted: 0,
       remoteDeleted: 0,
       protected: [],
+      contentMerged,
       failures: [],
     };
   }
 
   const { reapable, protectedList } = await partitionCandidates({
-    candidates: plan.candidates,
+    candidates: reapCandidates,
     protectionFn,
     protectionCtx,
     log,
@@ -263,15 +312,16 @@ async function runSweepUnderLock({
 
   if (reapable.length === 0) {
     log.info(
-      `${logTag} all ${plan.candidates.length} candidate(s) protected; no reap.`,
+      `${logTag} all ${reapCandidates.length} candidate(s) protected; no reap.`,
     );
     return {
       ok: true,
       skipped: false,
-      candidates: plan.candidates.length,
+      candidates: reapCandidates.length,
       localDeleted: 0,
       remoteDeleted: 0,
       protected: protectedList,
+      contentMerged,
       failures: [],
     };
   }
@@ -279,7 +329,8 @@ async function runSweepUnderLock({
   return executeReap({
     reapable,
     protectedList,
-    candidateCount: plan.candidates.length,
+    contentMerged,
+    candidateCount: reapCandidates.length,
     cwd,
     executeCleanupFn,
     log,
@@ -295,6 +346,7 @@ async function runSweepUnderLock({
 function executeReap({
   reapable,
   protectedList,
+  contentMerged,
   candidateCount,
   cwd,
   executeCleanupFn,
@@ -314,6 +366,7 @@ function executeReap({
       localDeleted: 0,
       remoteDeleted: 0,
       protected: protectedList,
+      contentMerged,
       failures: [{ branch: null, scope: 'execute', stderr: msg }],
       error: `execute: ${msg}`,
     };
@@ -346,6 +399,7 @@ function executeReap({
     localDeleted,
     remoteDeleted,
     protected: protectedList,
+    contentMerged,
     failures: result.failures,
   };
 }
@@ -450,6 +504,7 @@ function zeroResult({ error }) {
     localDeleted: 0,
     remoteDeleted: 0,
     protected: [],
+    contentMerged: [],
     failures: [],
     error,
   };
