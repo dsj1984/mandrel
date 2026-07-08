@@ -55,11 +55,14 @@ import {
   computeProtectedSet,
 } from './lib/orchestration/git-cleanup/phases/filters.js';
 import {
+  branchLastCommitAt,
   branchTipSha,
   classifyLatestPr,
   probeAllPrs,
+  probeContentEquivalent,
   probeLatestPr,
   probeMergedPr,
+  refExists,
 } from './lib/orchestration/git-cleanup/phases/git-probes.js';
 import { parseCleanupArgs } from './lib/orchestration/git-cleanup/phases/parse-args.js';
 import {
@@ -74,6 +77,7 @@ import {
   renderExecutionLine,
   renderExecutionSummary,
   renderLatestPrSkipLine,
+  renderNotMergedSkipLine,
   renderPruneLine,
 } from './lib/orchestration/git-cleanup/phases/render.js';
 import {
@@ -86,6 +90,7 @@ import {
 
 // Public surface preserved for tests + `single-story-sweep.js`.
 export {
+  branchLastCommitAt,
   branchTipSha,
   buildAllowlistDecider,
   buildGlobFilter,
@@ -105,13 +110,16 @@ export {
   planFastForward,
   planStashes,
   probeAllPrs,
+  probeContentEquivalent,
   probeLatestPr,
   probeMergedPr,
+  refExists,
   renderDeferredLine,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
   renderLatestPrSkipLine,
+  renderNotMergedSkipLine,
   renderPruneLine,
   stashRefIndex,
 };

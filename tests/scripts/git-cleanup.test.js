@@ -25,6 +25,7 @@ import {
   renderExecutionLine,
   renderExecutionSummary,
   renderLatestPrSkipLine,
+  renderNotMergedSkipLine,
   renderPruneLine,
   stashRefIndex,
 } from '../../.agents/scripts/git-cleanup.js';
@@ -417,6 +418,216 @@ describe('git-cleanup.planCleanup', () => {
       }),
     );
     assert.deepEqual(plan.candidates, []);
+  });
+});
+
+describe('git-cleanup.planCleanup content-merged detection (Story #4395)', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    localLister: () => ['story-4200'],
+    mergedLister: () => [],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    prProbe: () => null,
+    branchTipShaFn: () => null,
+    refExistsFn: () => false,
+    branchLastCommitFn: () => '2026-06-01T00:00:00Z',
+    filter: () => true,
+    ...overrides,
+  });
+
+  it('classifies a squash-orphaned branch as content-merged when the probe reports equivalent: true', () => {
+    const plan = planCleanup(
+      baseCtx({
+        contentEquivalentFn: () => ({ supported: true, equivalent: true }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].branch, 'story-4200');
+    assert.equal(plan.candidates[0].detectedBy, 'content-merged');
+    assert.equal(plan.candidates[0].prNumber, null);
+  });
+
+  it('keeps a genuinely-unmerged branch skipped as not-merged when the probe reports equivalent: false', () => {
+    const plan = planCleanup(
+      baseCtx({
+        contentEquivalentFn: () => ({ supported: true, equivalent: false }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find((s) => s.branch === 'story-4200');
+    assert.equal(skip.reason, 'not-merged');
+  });
+
+  it('keeps not-merged classification when the probe is unsupported (old git / conflict)', () => {
+    const plan = planCleanup(
+      baseCtx({
+        contentEquivalentFn: () => ({ supported: false }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find((s) => s.branch === 'story-4200');
+    assert.equal(skip.reason, 'not-merged');
+  });
+
+  it('records the last-commit timestamp on not-merged skips for the dry-run age line', () => {
+    const plan = planCleanup(
+      baseCtx({
+        contentEquivalentFn: () => ({ supported: false }),
+        branchLastCommitFn: () => '2026-05-01T00:00:00Z',
+      }),
+    );
+    const skip = plan.skipped.find((s) => s.branch === 'story-4200');
+    assert.equal(skip.lastCommitAt, '2026-05-01T00:00:00Z');
+  });
+
+  it('never probes content-equivalence when a gh or ancestry signal already matched', () => {
+    let probeCalls = 0;
+    const plan = planCleanup(
+      baseCtx({
+        prProbe: () => ({ number: 1, state: 'MERGED', headRefOid: null }),
+        contentEquivalentFn: () => {
+          probeCalls += 1;
+          return { supported: true, equivalent: true };
+        },
+      }),
+    );
+    assert.equal(plan.candidates[0].detectedBy, 'gh');
+    assert.equal(
+      probeCalls,
+      0,
+      'content probe should be skipped once gh already matched',
+    );
+  });
+});
+
+describe('git-cleanup.planCleanup ancestry anchor union (Story #4395)', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    localLister: () => ['story-4200'],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    prProbe: () => null,
+    branchTipShaFn: () => null,
+    contentEquivalentFn: () => ({ supported: false }),
+    filter: () => true,
+    ...overrides,
+  });
+
+  it('unions git-merged against origin/<base> when the remote-tracking ref exists', () => {
+    const mergedCalls = [];
+    const plan = planCleanup(
+      baseCtx({
+        mergedLister: (_cwd, base) => {
+          mergedCalls.push(base);
+          return base === 'origin/main' ? ['story-4200'] : [];
+        },
+        refExistsFn: (_cwd, ref) => ref === 'origin/main',
+      }),
+    );
+    assert.deepEqual(mergedCalls, ['main', 'origin/main']);
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].detectedBy, 'git-merged');
+  });
+
+  it('does not consult origin/<base> when the remote-tracking ref is absent', () => {
+    const mergedCalls = [];
+    const plan = planCleanup(
+      baseCtx({
+        mergedLister: (_cwd, base) => {
+          mergedCalls.push(base);
+          return [];
+        },
+        refExistsFn: () => false,
+      }),
+    );
+    assert.deepEqual(mergedCalls, ['main']);
+    assert.equal(plan.candidates.length, 0);
+  });
+});
+
+describe('git-cleanup.planCleanup gh degradation (Story #4395)', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    localLister: () => ['fix/a'],
+    mergedLister: () => [],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    branchTipShaFn: () => null,
+    refExistsFn: () => false,
+    contentEquivalentFn: () => ({ supported: false }),
+    filter: () => true,
+    ...overrides,
+  });
+
+  function quietLogger() {
+    const warnings = [];
+    return { warnings, logger: { warn: (m) => warnings.push(m) } };
+  }
+
+  it('a throwing bulk-index probe degrades to git-only signals instead of crashing', () => {
+    const { warnings, logger } = quietLogger();
+    const plan = planCleanup(
+      baseCtx({
+        logger,
+        prIndexFn: () => {
+          throw new Error('gh: authentication failed');
+        },
+      }),
+    );
+    assert.equal(plan.ghDegraded, true);
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find((s) => s.branch === 'fix/a');
+    assert.equal(skip.reason, 'not-merged');
+    assert.equal(warnings.length, 1, 'exactly one warning should be logged');
+    assert.match(warnings[0], /gh probe failed/);
+  });
+
+  it('a throwing per-branch fallback probe degrades without aborting the run', () => {
+    const { warnings, logger } = quietLogger();
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/a', 'fix/b'],
+        logger,
+        prIndexFn: () => new Map(),
+        prFallback: () => {
+          throw new Error('rate limited');
+        },
+      }),
+    );
+    assert.equal(plan.ghDegraded, true);
+    assert.equal(
+      warnings.length,
+      1,
+      'degradation warning fires once, not per branch',
+    );
+  });
+
+  it('does not degrade when the caller injects its own prProbe', () => {
+    const plan = planCleanup(
+      baseCtx({
+        prProbe: () => null,
+        prIndexFn: () => {
+          throw new Error('should never be called');
+        },
+      }),
+    );
+    assert.equal(plan.ghDegraded, false);
+  });
+
+  it('ghDegraded defaults to false on a clean run', () => {
+    const plan = planCleanup(
+      baseCtx({
+        prProbe: () => null,
+      }),
+    );
+    assert.equal(plan.ghDegraded, false);
   });
 });
 
@@ -871,6 +1082,20 @@ describe('git-cleanup.buildJsonEnvelope', () => {
     });
     assert.equal(env.ok, false);
     assert.equal(env.failures.length, 1);
+  });
+
+  it('defaults ghDegraded to false when the plan omits it', () => {
+    const env = buildJsonEnvelope({ dryRun: true, baseBranch: 'main', plan });
+    assert.equal(env.ghDegraded, false);
+  });
+
+  it('carries plan.ghDegraded through to the envelope (Story #4395)', () => {
+    const env = buildJsonEnvelope({
+      dryRun: true,
+      baseBranch: 'main',
+      plan: { ...plan, ghDegraded: true },
+    });
+    assert.equal(env.ghDegraded, true);
   });
 });
 
@@ -2117,5 +2342,140 @@ describe('git-cleanup.renderDryRun (latest-PR skip integration)', () => {
       lines.find((l) => /b skipped — PR #2 was closed without merging/.test(l)),
     );
     assert.ok(lines.find((l) => /c skipped — tip aaaaaaa/.test(l)));
+  });
+});
+
+describe('git-cleanup.renderLatestPrSkipLine tip-diverged remediation hint (Story #4395)', () => {
+  it('names both SHAs and a remediation path', () => {
+    const line = renderLatestPrSkipLine({
+      branch: 'release-please/foo',
+      reason: 'tip-diverged-from-merge',
+      prNumber: 2447,
+      tipSha: 'abcdef1234567890',
+      mergedSha: '1234567abcdef000',
+    });
+    assert.match(line, /branch -D release-please\/foo/);
+    assert.match(line, /pushing the follow-up commit/);
+  });
+});
+
+describe('git-cleanup.renderNotMergedSkipLine (Story #4395)', () => {
+  const NOW = Date.parse('2026-06-15T00:00:00Z');
+
+  it('returns null for a non-not-merged skip', () => {
+    assert.equal(
+      renderNotMergedSkipLine({ branch: 'main', reason: 'protected' }),
+      null,
+    );
+  });
+
+  it('returns null for a null/undefined skip', () => {
+    assert.equal(renderNotMergedSkipLine(null), null);
+  });
+
+  it('renders the branch name and a relative last-commit age', () => {
+    const line = renderNotMergedSkipLine(
+      {
+        branch: 'story-4200',
+        reason: 'not-merged',
+        lastCommitAt: '2026-06-01T00:00:00Z',
+      },
+      { now: NOW },
+    );
+    assert.match(line, /story-4200 skipped — not merged/);
+    assert.match(line, /14 days ago/);
+  });
+
+  it('renders "unknown" when lastCommitAt is missing', () => {
+    const line = renderNotMergedSkipLine(
+      { branch: 'story-4200', reason: 'not-merged', lastCommitAt: null },
+      { now: NOW },
+    );
+    assert.match(line, /last commit: unknown/);
+  });
+
+  it('renders "today" for a same-day commit', () => {
+    const line = renderNotMergedSkipLine(
+      {
+        branch: 'story-4200',
+        reason: 'not-merged',
+        lastCommitAt: '2026-06-15T00:00:00Z',
+      },
+      { now: NOW },
+    );
+    assert.match(line, /last commit: today/);
+  });
+});
+
+describe('git-cleanup.renderDryRun not-merged skip-visibility integration (Story #4395)', () => {
+  const NOW = Date.parse('2026-06-15T00:00:00Z');
+
+  it('lists not-merged survivors instead of staying silent', () => {
+    const lines = renderDryRun(
+      {
+        candidates: [],
+        skipped: [
+          {
+            branch: 'story-4200',
+            reason: 'not-merged',
+            lastCommitAt: '2026-06-01T00:00:00Z',
+          },
+        ],
+      },
+      { baseBranch: 'main', now: NOW },
+    );
+    assert.ok(lines.find((l) => /story-4200 skipped — not merged/.test(l)));
+  });
+
+  it('appends a gh-degraded warning line when the plan reports ghDegraded: true', () => {
+    const lines = renderDryRun({
+      candidates: [],
+      skipped: [],
+      ghDegraded: true,
+    });
+    assert.ok(lines.find((l) => /gh probe degraded/.test(l)));
+  });
+
+  it('omits the gh-degraded line on a clean run', () => {
+    const lines = renderDryRun({ candidates: [], skipped: [] });
+    assert.equal(
+      lines.find((l) => /gh probe degraded/.test(l)),
+      undefined,
+    );
+  });
+});
+
+describe('git-cleanup.renderDryRun content-merged distinctness (Story #4395)', () => {
+  it('annotates a content-merged candidate as a weaker signal', () => {
+    const lines = renderDryRun({
+      candidates: [
+        {
+          branch: 'story-4200',
+          prNumber: null,
+          hasWorktree: false,
+          localExists: true,
+          detectedBy: 'content-merged',
+        },
+      ],
+      skipped: [],
+    });
+    assert.match(lines[1], /story-4200 — content-merged/);
+    assert.match(lines[1], /weaker signal/);
+  });
+
+  it('does not annotate a gh or git-merged candidate', () => {
+    const lines = renderDryRun({
+      candidates: [
+        {
+          branch: 'fix/a',
+          prNumber: 42,
+          hasWorktree: false,
+          localExists: true,
+          detectedBy: 'gh',
+        },
+      ],
+      skipped: [],
+    });
+    assert.doesNotMatch(lines[1], /weaker signal/);
   });
 });

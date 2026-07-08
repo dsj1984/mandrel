@@ -191,6 +191,22 @@ export async function runPrunePhase(opts, cwd) {
 // =====================================================================
 
 /**
+ * Count of a plan's *actionable* candidates — the ones `executeCleanup`
+ * will actually delete given the current `--remote` setting. Story #4395
+ * always enumerates remote-only candidates in `plan.candidates` (so the
+ * operator sees them in the dry-run list), but their deletion still
+ * requires `--remote`; without it, `executeCleanup` no-ops on every
+ * `localExists: false` candidate. Counting only the actionable subset
+ * keeps the "no-candidates" short-circuit and the confirmation prompt's
+ * "Reap N" count honest about what will actually happen.
+ */
+function countActionableCandidates(candidates, remote) {
+  return remote
+    ? candidates.length
+    : candidates.filter((c) => c.localExists !== false).length;
+}
+
+/**
  * Pure: decide what the branch-reap phase should do given the plan.
  *
  * Returns an action record:
@@ -209,7 +225,11 @@ export function decideBranchPhase(state) {
   if (opts.dryRun) {
     return { kind: 'dry-run', plan, result: { plan, result: null } };
   }
-  if (plan.candidates.length === 0) {
+  const actionableCount = countActionableCandidates(
+    plan.candidates,
+    opts.remote,
+  );
+  if (actionableCount === 0) {
     return { kind: 'no-candidates', plan, result: { plan, result: null } };
   }
   const executeArgs = {
@@ -218,10 +238,17 @@ export function decideBranchPhase(state) {
     remote: opts.remote,
   };
   if (!opts.yes) {
+    const contentMergedCount = plan.candidates.filter(
+      (c) => c.detectedBy === 'content-merged',
+    ).length;
+    const weakSignalNote =
+      contentMergedCount > 0
+        ? ` (${contentMergedCount} content-merged — weaker signal, verify before confirming)`
+        : '';
     return {
       kind: 'prompt-then-execute',
       plan,
-      promptMessage: `${TAG} Reap ${plan.candidates.length} merged branch(es)${opts.remote ? ' (including origin)' : ''}?`,
+      promptMessage: `${TAG} Reap ${actionableCount} merged branch(es)${opts.remote ? ' (including origin)' : ''}${weakSignalNote}?`,
       declinedResult: { plan, result: null, declined: true },
       executeArgs,
     };
@@ -254,11 +281,15 @@ export async function runBranchPhase(opts, cwd, baseBranch) {
     include: opts.include,
     exclude: opts.exclude,
   });
+  // Story #4395: always enumerate remote-only merged branches so the
+  // dry-run / prompt shows them without requiring `--remote`. Deletion of
+  // a remote-only candidate still requires `--remote` — `executeCleanup`
+  // no-ops on `localExists: false` candidates otherwise (unchanged).
   const plan = planCleanup({
     cwd,
     baseBranch,
     filter,
-    includeRemoteOnly: opts.remote === true,
+    includeRemoteOnly: true,
   });
   emitDryRunHuman(plan, baseBranch);
   const action = decideBranchPhase({ plan, opts, cwd });

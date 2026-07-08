@@ -21,6 +21,7 @@ import {
 } from './branches-reap.js';
 import { computeProtectedReason } from './filters.js';
 import {
+  branchLastCommitAt,
   branchTipSha,
   classifyLatestPr,
   currentBranch as defaultCurrentBranch,
@@ -28,13 +29,17 @@ import {
   listMergedBranches,
   listRemoteBranches,
   probeAllPrs,
+  probeContentEquivalent,
   probeLatestPr,
   pruneRemoteTracking,
   readProtectedConfig,
+  refExists,
   removeWorktree,
   worktreesByBranch,
 } from './git-probes.js';
 import { parsePrunedRefs } from './prune.js';
+
+const TAG = '[git-cleanup]';
 
 function skipEntryFromVerdict(branch, verdict) {
   const entry = { branch, reason: verdict.reason };
@@ -44,8 +49,37 @@ function skipEntryFromVerdict(branch, verdict) {
   return entry;
 }
 
+/**
+ * Story #4395 — the third detection signal. Reached only when the branch
+ * has no reapable PR verdict and is not an ancestor of `<base>` (or
+ * `origin/<base>`). Probes content-equivalence via `git merge-tree
+ * --write-tree` and, when the probe is conclusive and the merge is a
+ * no-op, classifies the branch as `content-merged` instead of falling
+ * through to the `not-merged` skip.
+ */
+function evaluateContentEquivalence({
+  branch,
+  baseBranch,
+  cwd,
+  contentEquivalentFn,
+  branchLastCommitFn,
+}) {
+  const verdict = contentEquivalentFn({ cwd, base: baseBranch, branch });
+  if (verdict?.supported && verdict.equivalent) {
+    return { detectedBy: 'content-merged' };
+  }
+  return {
+    skip: {
+      branch,
+      reason: 'not-merged',
+      lastCommitAt: branchLastCommitFn(cwd, branch),
+    },
+  };
+}
+
 function evaluateLocalBranch({
   branch,
+  baseBranch,
   classify,
   filter,
   mergedByGit,
@@ -54,6 +88,8 @@ function evaluateLocalBranch({
   wtMap,
   remoteName,
   branchTipShaFn,
+  contentEquivalentFn,
+  branchLastCommitFn,
 }) {
   const protectedReason = classify(branch);
   if (protectedReason) return { skip: { branch, reason: protectedReason } };
@@ -78,7 +114,15 @@ function evaluateLocalBranch({
   } else if (mergedByGit.has(branch)) {
     detectedBy = 'git-merged';
   } else {
-    return { skip: { branch, reason: 'not-merged' } };
+    const out = evaluateContentEquivalence({
+      branch,
+      baseBranch,
+      cwd,
+      contentEquivalentFn,
+      branchLastCommitFn,
+    });
+    if (out.skip) return out;
+    detectedBy = out.detectedBy;
   }
   const wt = wtMap.get(branch);
   return {
@@ -156,7 +200,43 @@ function collectRemoteOnlyCandidates({
  * the per-branch fallback for head refs absent from the bulk page (a PR
  * that fell outside the fetch window), so correctness is preserved for
  * every branch. Injecting `prProbe` bypasses the bulk fetch entirely.
+ *
+ * Story #4395 adds three refinements:
+ *   - **Content-equivalence signal.** A local branch with no reapable PR
+ *     verdict and no ancestry match gets one more chance via
+ *     {@link probeContentEquivalent} (`git merge-tree --write-tree`):
+ *     when merging it into `baseBranch` would be a content no-op, it is
+ *     classified `detectedBy: 'content-merged'` instead of skipped.
+ *   - **Fresh ancestry anchor.** The ancestry signal (`git branch --merged`)
+ *     is unioned against `origin/<base>` (via `refExistsFn` + `mergedLister`)
+ *     whenever that remote-tracking ref exists, so a stale local `<base>`
+ *     no longer hides a branch already merged on the remote.
+ *   - **Graceful `gh` degradation.** A throwing `gh` runner (auth failure,
+ *     rate limit, missing binary) inside the bulk index fetch or the
+ *     per-branch fallback is caught, logged once, and degrades to
+ *     git-only signals (ancestry + content-equivalence) rather than
+ *     aborting the whole plan. The returned envelope's `ghDegraded` flag
+ *     records whether this happened.
  */
+function buildGuardedPrProbe({ cwd, prIndexFn, prFallback, onDegrade }) {
+  let prIndex;
+  try {
+    prIndex = prIndexFn(cwd);
+  } catch (err) {
+    onDegrade(err);
+    prIndex = new Map();
+  }
+  return (branch, c) => {
+    if (prIndex.has(branch)) return prIndex.get(branch);
+    try {
+      return prFallback(branch, c);
+    } catch (err) {
+      onDegrade(err);
+      return null;
+    }
+  };
+}
+
 export function planCleanup(ctx) {
   const {
     cwd,
@@ -170,18 +250,26 @@ export function planCleanup(ctx) {
     prIndexFn = probeAllPrs,
     prFallback = probeLatestPr,
     branchTipShaFn = branchTipSha,
+    contentEquivalentFn = probeContentEquivalent,
+    branchLastCommitFn = branchLastCommitAt,
+    refExistsFn = refExists,
     filter = () => true,
     includeRemoteOnly = false,
     remoteLister = listRemoteBranches,
     remoteName = 'origin',
+    logger = Logger,
   } = ctx;
+  let ghDegraded = false;
+  const onDegrade = (err) => {
+    if (ghDegraded) return;
+    ghDegraded = true;
+    logger.warn?.(
+      `${TAG} ⚠️ gh probe failed (${err?.message ?? err}); continuing with git-only signals`,
+    );
+  };
   const prProbe =
     injectedPrProbe ??
-    (() => {
-      const prIndex = prIndexFn(cwd);
-      return (branch, c) =>
-        prIndex.has(branch) ? prIndex.get(branch) : prFallback(branch, c);
-    })();
+    buildGuardedPrProbe({ cwd, prIndexFn, prFallback, onDegrade });
   const resolvedCurrent = currentBranchFn(cwd);
   const resolvedConfigured = protectedConfigFn(cwd);
   const classify = (branch) =>
@@ -193,6 +281,10 @@ export function planCleanup(ctx) {
     });
   const wtMap = worktreesFn(cwd);
   const mergedByGit = new Set(mergedLister(cwd, baseBranch));
+  const remoteBaseRef = `${remoteName}/${baseBranch}`;
+  if (refExistsFn(cwd, remoteBaseRef)) {
+    for (const b of mergedLister(cwd, remoteBaseRef)) mergedByGit.add(b);
+  }
   const localBranches = localLister(cwd);
   const localSet = new Set(localBranches);
   const candidates = [];
@@ -200,6 +292,7 @@ export function planCleanup(ctx) {
   for (const branch of localBranches) {
     const out = evaluateLocalBranch({
       branch,
+      baseBranch,
       classify,
       filter,
       mergedByGit,
@@ -208,6 +301,8 @@ export function planCleanup(ctx) {
       wtMap,
       remoteName,
       branchTipShaFn,
+      contentEquivalentFn,
+      branchLastCommitFn,
     });
     if (out.skip) skipped.push(out.skip);
     else candidates.push(out.candidate);
@@ -227,7 +322,7 @@ export function planCleanup(ctx) {
       }),
     );
   }
-  return { candidates, skipped };
+  return { candidates, skipped, ghDegraded };
 }
 
 /**
