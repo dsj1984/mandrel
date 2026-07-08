@@ -162,4 +162,93 @@ describe('sweepMergedBranches (scope-agnostic engine)', () => {
     });
     assert.equal(Object.hasOwn(result, 'stashes'), false);
   });
+
+  describe('content-merged candidates (Story #4396, report-only)', () => {
+    it('never reach executeCleanup and are reported under contentMerged', async () => {
+      const candidates = [
+        { branch: 'story-1', detectedBy: 'gh' },
+        {
+          branch: 'story-2',
+          detectedBy: 'content-merged',
+          worktreePath: '/tmp/repo/.worktrees/story-2',
+        },
+      ];
+      const executedAgainst = [];
+      const result = await sweepMergedBranches({
+        cwd: '/tmp/repo',
+        baseBranch: 'main',
+        include: ['story-*'],
+        planCleanupFn: makePlanFake(candidates),
+        executeCleanupFn: ({ candidates: c }) => {
+          executedAgainst.push(...c.map((x) => x.branch));
+          return makeExecuteFake()({ candidates: c });
+        },
+      });
+      assert.deepEqual(executedAgainst, ['story-1']);
+      assert.equal(
+        result.candidates,
+        1,
+        'content-merged excluded from the reap count',
+      );
+      assert.equal(result.localDeleted, 1);
+      assert.deepEqual(result.contentMerged, [
+        { branch: 'story-2', worktreePath: '/tmp/repo/.worktrees/story-2' },
+      ]);
+    });
+
+    it('defaults worktreePath to null when the candidate has none', async () => {
+      const candidates = [{ branch: 'story-9', detectedBy: 'content-merged' }];
+      const result = await sweepMergedBranches({
+        cwd: '/tmp/repo',
+        baseBranch: 'main',
+        include: ['story-*'],
+        planCleanupFn: makePlanFake(candidates),
+        executeCleanupFn: makeExecuteFake(),
+      });
+      assert.deepEqual(result.contentMerged, [
+        { branch: 'story-9', worktreePath: null },
+      ]);
+    });
+
+    it('surfaces contentMerged even when every other candidate is protected', async () => {
+      const candidates = [
+        { branch: 'story-1', detectedBy: 'gh' },
+        { branch: 'story-2', detectedBy: 'content-merged' },
+      ];
+      const result = await sweepMergedBranches({
+        cwd: '/tmp/repo',
+        baseBranch: 'main',
+        include: ['story-*'],
+        planCleanupFn: makePlanFake(candidates),
+        executeCleanupFn: makeExecuteFake(),
+        protectionFn: () => ({ protected: true, reason: 'ticket-not-done' }),
+        protectionCtx: { repoRoot: '/tmp/repo' },
+      });
+      assert.equal(result.localDeleted, 0);
+      assert.equal(result.protected.length, 1);
+      assert.equal(result.contentMerged.length, 1);
+      assert.equal(result.contentMerged[0].branch, 'story-2');
+    });
+
+    it('returns a zero envelope with an empty contentMerged when nothing is reapable', async () => {
+      const candidates = [{ branch: 'story-2', detectedBy: 'content-merged' }];
+      let executeCalled = false;
+      const result = await sweepMergedBranches({
+        cwd: '/tmp/repo',
+        baseBranch: 'main',
+        include: ['story-*'],
+        planCleanupFn: makePlanFake(candidates),
+        executeCleanupFn: () => {
+          executeCalled = true;
+          return makeExecuteFake()({ candidates: [] });
+        },
+      });
+      assert.equal(executeCalled, false);
+      assert.equal(result.candidates, 0);
+      assert.equal(result.localDeleted, 0);
+      assert.deepEqual(result.contentMerged, [
+        { branch: 'story-2', worktreePath: null },
+      ]);
+    });
+  });
 });

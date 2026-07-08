@@ -320,4 +320,27 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(noBase.ok, false);
     assert.match(noBase.error ?? '', /baseBranch is required/);
   });
+
+  it('never reaps a content-merged story branch — report-only (Story #4396)', async () => {
+    const candidates = [
+      { branch: 'story-100', detectedBy: 'gh' },
+      { branch: 'story-101', detectedBy: 'content-merged' },
+    ];
+    const executedAgainst = [];
+    const result = await sweepMergedStoryBranches({
+      cwd: '/tmp/repo',
+      baseBranch: 'main',
+      currentStoryBranch: 'story-200',
+      planCleanupFn: makePlanFake(candidates),
+      executeCleanupFn: ({ candidates: c }) => {
+        executedAgainst.push(...c.map((x) => x.branch));
+        return makeExecuteFake()({ candidates: c });
+      },
+    });
+    assert.deepEqual(executedAgainst, ['story-100']);
+    assert.equal(result.localDeleted, 1);
+    assert.deepEqual(result.contentMerged, [
+      { branch: 'story-101', worktreePath: null },
+    ]);
+  });
 });

@@ -142,7 +142,19 @@ operator intervention:
   candidate with unpushed work, a dirty worktree, or a still-open parent
   ticket. A branch a flow leaves behind (e.g. a `/git-deliver` feature branch
   whose PR merges out of band) is therefore reaped automatically at the next
-  workflow boot, not left for the operator to sweep by hand.
+  workflow boot, not left for the operator to sweep by hand. `boot-sweep.js`
+  defaults its `--include` glob to `story-*` — a bare invocation only sweeps
+  Story branches; `/plan` and `/git-deliver` widen the scope to their own
+  branch namespaces (`epic/*`, `feat/*`, `fix/*`, `chore/*`, `docs/*`,
+  `refactor/*`) by passing `--include` explicitly at their boot call site.
+  A branch the planner detects only via the weaker content-equivalence
+  signal (`detectedBy: 'content-merged'`, Story #4395's
+  `git merge-tree --write-tree` probe — content already landed in the base
+  branch by another route, such as a squash-merged Epic PR, with no merged
+  PR or git ancestry of its own) is **never** reaped by the boot sweep: it
+  is report-only, surfaced under `contentMerged` in the result envelope and
+  a routing hint in the summary line (Story #4396), so the operator can
+  send it to `/git-cleanup` for a confirmed, eyeballed reap.
 - **`/git-cleanup` is recovery, not routine.** Run it by hand only to recover
   an unusual state the automated hygiene does not cover — triaging stashes,
   reaping across non-standard branch namespaces, or `--remote` pruning after a
