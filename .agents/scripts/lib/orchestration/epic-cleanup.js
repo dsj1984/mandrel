@@ -153,6 +153,40 @@ export function findWorktreePathForBranch(branch, worktrees) {
 }
 
 /**
+ * Classify a `git branch -D <branch>` result. Pure — no IO. Exported as the
+ * clean unit-test seam for the not-found rule (this module carries a
+ * `node:coverage ignore file` header, so the git-side glue is not directly
+ * covered).
+ *
+ * Story #4393 — on the `/deliver` post-merge reap path a branch is routinely
+ * *already gone* (a prior sweep, a re-run, or GitHub's `--delete-branch`
+ * already dropped it). `git branch -D` then exits non-zero with a "not found"
+ * stderr. That is an **already-reaped success**, not a reap failure: counting
+ * it as a failure forces `reapEpicBranches().ok` false, which makes
+ * BranchCleaner classify `failed`, which flips the merged Epic to
+ * `agent::blocked` and reopens it. Only a not-found stderr is absorbed as
+ * success; every other non-zero exit stays a genuine failure.
+ *
+ * @param {{ status: number, stderr?: string }} branchDel
+ * @returns {{ branchDeleted: boolean, alreadyAbsent: boolean, stderr?: string }}
+ */
+export function classifyBranchDeletion(branchDel) {
+  if (branchDel?.status === 0) {
+    return { branchDeleted: true, alreadyAbsent: false };
+  }
+  const stderr = (branchDel?.stderr ?? '').trim();
+  // git's own message for a missing ref: "error: branch 'foo' not found."
+  if (/\bnot found\b/i.test(stderr)) {
+    return { branchDeleted: true, alreadyAbsent: true };
+  }
+  return {
+    branchDeleted: false,
+    alreadyAbsent: false,
+    ...(stderr ? { stderr } : {}),
+  };
+}
+
+/**
  * Reap a single branch. Best-effort worktree remove → fallback to `--force`
  * → fallback to filesystem rm → `git worktree prune` → `git branch -D`.
  *
@@ -164,7 +198,7 @@ export function findWorktreePathForBranch(branch, worktrees) {
  *   rmSyncFn?: (path: string, opts: object) => void,
  *   logger?: { info?: Function, warn?: Function },
  * }} opts
- * @returns {{ branch: string, worktreeReaped: boolean, branchDeleted: boolean, method: string, stderr?: string }}
+ * @returns {{ branch: string, worktreeReaped: boolean, branchDeleted: boolean, alreadyAbsent: boolean, method: string, stderr?: string }}
  */
 export function reapBranch(opts) {
   const { branch, cwd, worktreePath, gitSpawn, rmSyncFn, logger } = opts;
@@ -201,16 +235,18 @@ export function reapBranch(opts) {
     gitSpawn(cwd, 'worktree', 'prune');
   }
 
-  // Drop the local branch.
+  // Drop the local branch. An already-absent branch (git → "not found") is
+  // already reaped — classifyBranchDeletion absorbs it as success so a benign
+  // missing ref never counts as a reap failure (Story #4393).
   const branchDel = gitSpawn(cwd, 'branch', '-D', branch);
-  const branchDeleted = branchDel.status === 0;
-  const stderr =
-    !branchDeleted && branchDel.stderr ? branchDel.stderr.trim() : undefined;
+  const { branchDeleted, alreadyAbsent, stderr } =
+    classifyBranchDeletion(branchDel);
 
   return {
     branch,
     worktreeReaped,
     branchDeleted,
+    alreadyAbsent,
     method: method ?? 'unknown',
     ...(stderr ? { stderr } : {}),
   };
