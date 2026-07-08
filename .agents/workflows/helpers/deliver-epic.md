@@ -489,6 +489,17 @@ therefore auto-runs its mapped lenses (e.g. a `security`-axis Epic runs
 low-risk Epic adds nothing. Findings are persisted as an `audit-results`
 structured comment on the Epic.
 
+The helper walks the selected roster **serially in-context by default**; when
+the roster carries more than one lens it **may delegate the walk to a single
+audit-orchestrator sub-agent** that fans the already-selected lenses out as
+parallel level-2 agents and returns only the aggregated `audit-results` (see
+[`epic-audit.md` § "Optional: delegate the roster walk to an audit-orchestrator
+sub-agent"](epic-audit.md), within the sub-agent depth budget noted under
+"Flat Story dispatch by design" above). The roster stays fixed upstream, every
+per-lens cost gate is preserved, and the seven sequential-only lenses are **not**
+batch-converted — the fan-out parallelizes across lenses only and never changes
+how any single lens runs internally.
+
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.
 - **Selector reports `degraded: true`** — STOP. Propagate the
