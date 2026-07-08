@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-06T23:32:37.118Z",
+  "generatedAt": "2026-07-08T12:27:13.352Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3176,26 +3176,38 @@
     {
       "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
       "method": "listWorkflowFiles",
-      "startLine": 44,
+      "startLine": 69,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
       "method": "splitFrontmatter",
-      "startLine": 63,
+      "startLine": 88,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
       "method": "isSubAgentWorkflow",
-      "startLine": 85,
+      "startLine": 110,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
       "method": "findAgentToolDeclaration",
-      "startLine": 99,
-      "crap": 9.192
+      "startLine": 124,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
+      "method": "parseDeclaredDepth",
+      "startLine": 166,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
+      "method": "resolveCeiling",
+      "startLine": 187,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/checks/worktree-bootstrap-env.js",
