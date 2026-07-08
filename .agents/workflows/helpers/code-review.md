@@ -293,12 +293,63 @@ For every finding, provide:
   fix worked. Keep it tight (≤ 5 sentences); the sub-agent will read the
   surrounding code itself.
 
+### The `## Fixed on-branch` section (Story #4399)
+
+Findings that Step 4.5 remediated on `[HEAD_REF]` MUST be rendered under a
+dedicated **`## Fixed on-branch`** heading, **not** in the severity groups
+above. This is the contract seam that keeps remediated findings from
+spawning ghost follow-up issues: the
+[`code-review` graduator](../../scripts/lib/feedback-loop/code-review-graduator.js)
+skips every entry inside this section (both because a fixed entry is
+rendered with a **✅ prefix** — so it carries no leading severity emoji the
+parser would match — and because the parser has an explicit
+Fixed-on-branch section guard).
+
+Render each fixed finding as a `✅`-prefixed line naming its original
+severity, the file path in backticks, and the remediating commit SHA, e.g.:
+
+```markdown
+## Fixed on-branch
+
+- ✅ 🟡 Medium: `src/lib/foo.js` — missing edge-case guard added (a1b2c3d)
+- ✅ 🟠 High: `src/api/users.js` — ownership check added (d4e5f6a)
+```
+
+Open (escalated / unfixed) findings stay in their severity group with
+their leading severity emoji so the graduator still files them.
+
 ## Step 4.5 — Focused-fix Routing (host LLM, no automated loop)
 
 There is **no runtime auto-fix function** at this phase. The host LLM is
-the executor: for each 🔴 / 🟠 finding from Step 4, decide between two
-paths and keep the `code-review` structured comment authoritative for
-anything not fixed in-place.
+the executor: it decides, per finding, between a focused fix on
+`[HEAD_REF]` and leaving the finding on the `code-review` structured
+comment for the operator.
+
+### Resolve the remediation threshold (Story #4399)
+
+Read `delivery.codeReview.autoFixSeverity` from the resolved `.agentrc.json`
+(default **`medium`**; the resolver in
+[`config/runners.js`](../../scripts/lib/config/runners.js) supplies the
+default when the key is absent). The threshold governs **which severities
+route into on-branch remediation** — it never changes the halting rule (a
+surviving 🔴 still stops) or the escalation classes:
+
+- **`medium`** (default) — route 🔴 Critical, 🟠 High, **and 🟡 Medium**
+  findings into remediation. 🟢 Suggestions stay on the comment (never
+  auto-fixed).
+- **`high`** — route only 🔴 Critical and 🟠 High findings, reproducing
+  the pre-4399 behavior exactly. 🟡 Medium and 🟢 Suggestion findings stay
+  on the comment.
+
+Hard cutover per
+[`rules/git-conventions.md`](../../rules/git-conventions.md) § Contract
+Cutovers — no back-compat flag; `high` is opt-in to the old routing.
+
+### 🔴 / 🟠 findings — per-finding ceremony (unchanged)
+
+For each 🔴 / 🟠 finding from Step 4, decide between two paths and keep the
+`code-review` structured comment authoritative for anything not fixed
+in-place.
 
 1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
    finding is unambiguously *fixable* (clean remediation, no scope
@@ -328,11 +379,36 @@ anything not fixed in-place.
      attempt (the equivalent of the prior loop's
      `validation-regression` / `thrash-detected` exits).
 
+### 🟡 Medium findings — batched per-lens ceremony (only when `autoFixSeverity: medium`)
+
+When the threshold is `medium`, remediate the fixable 🟡 Medium findings in
+a **batch keyed by owning review lens/pillar** rather than the per-finding
+ceremony above:
+
+1. Group the fixable Mediums by owning lens (the pillar or audit family
+   that produced them). A Medium is fixable on the same terms as a 🟠; a
+   Medium in any escalation class stays on the comment exactly like a 🟠.
+2. For each lens, call `assert-branch.js --expected [HEAD_REF]`, stage
+   explicit paths only, and make **one focused conventional commit per
+   lens** (`fix(<scope>): <description> (review findings batch)`).
+3. Bounded-attempt semantics extend to the batch: each finding gets **at
+   most one** attempt, and a lens's batch commit that would exceed
+   `delivery.codeReview.maxFixScopeFiles` routes that lens's findings to
+   escalation (`scope-exceeded`) instead of committing.
+4. After **all** lens batches are committed, run a **single** validation
+   pass (`npm run lint` plus the relevant `npm test` slice) and a
+   **single** targeted rescan over the touched files. Surviving batched
+   findings stay on the comment for Step 5.
+
+Record every remediated finding (🟠 or 🟡) in the **"Fixed on-branch"**
+section of the `code-review` comment (Step 4) so it does not graduate to a
+follow-up issue.
+
 Do not invent a programmatic retry budget. The host LLM applies *at most
-one* focused-fix attempt per finding before escalating to the operator.
-Escalated findings remain on the `code-review` structured comment with
-their reason recorded, so Step 5 (and downstream consumers) see exactly
-why each one was not auto-remediated.
+one* focused-fix attempt per finding (or per batched finding) before
+escalating to the operator. Escalated findings remain on the `code-review`
+structured comment with their reason recorded, so Step 5 (and downstream
+consumers) see exactly why each one was not auto-remediated.
 
 ## Step 4.6 — Cross-phase re-check trigger
 

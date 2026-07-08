@@ -116,6 +116,12 @@ export const QUALITY_SCHEMA = {
 /**
  * `delivery.codeReview` — sibling to `delivery.epicAudit`. Same bounded
  * retry + scope cap, applied to /deliver Phase 5 (code-review).
+ *
+ * `autoFixSeverity` (Story #4399) is the sibling of
+ * `delivery.epicAudit.autoFixSeverity`: the threshold that governs which
+ * Phase 5 findings the host-LLM focused-fix routing remediates on-branch —
+ * `medium` (default) routes 🔴/🟠/🟡 while 🟢 still graduates, `high`
+ * reproduces the pre-4399 Critical/High-only routing.
  */
 export const CODE_REVIEW_SCHEMA = {
   type: 'object',
@@ -173,6 +179,7 @@ export const CODE_REVIEW_SCHEMA = {
     providerConfig: { type: 'object', additionalProperties: true },
     maxFixAttempts: { type: 'integer', minimum: 0 },
     maxFixScopeFiles: { type: 'integer', minimum: 1 },
+    autoFixSeverity: { type: 'string', enum: ['high', 'medium'] },
   },
   additionalProperties: false,
 };

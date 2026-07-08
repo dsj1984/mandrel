@@ -210,12 +210,19 @@ const MERGE_WATCH_SCHEMA = {
  * `agent::blocked` (default 5) — a deliberately narrow bound for
  * unattended auto-fixes, independent of the Story-sizing thresholds in
  * `ticket-validator-sizing.js`.
+ *
+ * `autoFixSeverity` (Story #4399) is the threshold that governs which
+ * findings the Phase 4 host-LLM remediation loop fixes on-branch: `medium`
+ * (the default) routes 🔴/🟠/🟡 into remediation while 🟢 still graduates;
+ * `high` reproduces the pre-4399 Critical/High-only routing. It is a hard
+ * cutover per `rules/git-conventions.md` — there is no back-compat flag.
  */
 const EPIC_AUDIT_SCHEMA = {
   type: 'object',
   properties: {
     maxFixAttempts: { type: 'integer', minimum: 0 },
     maxFixScopeFiles: { type: 'integer', minimum: 1 },
+    autoFixSeverity: { type: 'string', enum: ['high', 'medium'] },
   },
   additionalProperties: false,
 };

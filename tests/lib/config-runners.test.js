@@ -67,7 +67,11 @@ describe('getRunners', () => {
   it('returns documented defaults for delivery.epicAudit (Story #2611)', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
-      assert.deepEqual(r.epicAudit, { maxFixAttempts: 3, maxFixScopeFiles: 5 });
+      assert.deepEqual(r.epicAudit, {
+        maxFixAttempts: 3,
+        maxFixScopeFiles: 5,
+        autoFixSeverity: 'medium',
+      });
     }
   });
 
@@ -77,6 +81,7 @@ describe('getRunners', () => {
       assert.deepEqual(r.codeReview, {
         maxFixAttempts: 3,
         maxFixScopeFiles: 5,
+        autoFixSeverity: 'medium',
       });
     }
   });
@@ -85,13 +90,35 @@ describe('getRunners', () => {
     const r = getRunners({
       delivery: { epicAudit: { maxFixAttempts: 1, maxFixScopeFiles: 10 } },
     });
-    assert.deepEqual(r.epicAudit, { maxFixAttempts: 1, maxFixScopeFiles: 10 });
+    assert.deepEqual(r.epicAudit, {
+      maxFixAttempts: 1,
+      maxFixScopeFiles: 10,
+      autoFixSeverity: 'medium',
+    });
   });
 
   it('reads delivery.codeReview overrides from config', () => {
     const r = getRunners({
       delivery: { codeReview: { maxFixAttempts: 0, maxFixScopeFiles: 2 } },
     });
-    assert.deepEqual(r.codeReview, { maxFixAttempts: 0, maxFixScopeFiles: 2 });
+    assert.deepEqual(r.codeReview, {
+      maxFixAttempts: 0,
+      maxFixScopeFiles: 2,
+      autoFixSeverity: 'medium',
+    });
+  });
+
+  it('reads delivery.epicAudit.autoFixSeverity override (Story #4399)', () => {
+    const r = getRunners({
+      delivery: { epicAudit: { autoFixSeverity: 'high' } },
+    });
+    assert.equal(r.epicAudit.autoFixSeverity, 'high');
+  });
+
+  it('reads delivery.codeReview.autoFixSeverity override (Story #4399)', () => {
+    const r = getRunners({
+      delivery: { codeReview: { autoFixSeverity: 'high' } },
+    });
+    assert.equal(r.codeReview.autoFixSeverity, 'high');
   });
 });

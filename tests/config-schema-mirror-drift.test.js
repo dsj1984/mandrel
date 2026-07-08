@@ -276,6 +276,29 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('accepts delivery.epicAudit/codeReview.autoFixSeverity on both sides (Story #4399)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          epicAudit: { autoFixSeverity: 'high' },
+          codeReview: { autoFixSeverity: 'medium' },
+        },
+      },
+      'autoFixSeverity high|medium',
+    );
+  });
+
+  it('rejects an unknown autoFixSeverity value on both sides (Story #4399)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { epicAudit: { autoFixSeverity: 'low' } },
+      },
+      'autoFixSeverity enum high|medium only',
+    );
+  });
+
   it('rejects legacy agentSettings on both sides', () => {
     assertAgree(
       { agentSettings: { paths: REQ.project.paths } },

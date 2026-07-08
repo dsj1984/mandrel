@@ -151,6 +151,41 @@ describe('parseFindings', () => {
     assert.deepEqual(parseFindings(null), []);
     assert.deepEqual(parseFindings(undefined), []);
   });
+
+  // Story #4399 — Fixed-on-branch findings must not graduate.
+  it('skips findings under a "Fixed on-branch" heading while unfixed ones still graduate', () => {
+    const body = [
+      '## 🟡 Warnings',
+      '🟡 Medium: `src/open.js` — still open',
+      '### ✅ Fixed on-branch',
+      '✅ 🟡 Medium: `src/fixed.js` — remediated on-branch',
+      '✅ 🟠 High: `src/fixed-high.js` — remediated on-branch',
+    ].join('\n');
+    const paths = parseFindings(body).map((f) => f.path);
+    assert.ok(
+      paths.includes('src/open.js'),
+      'the unfixed 🟡 Medium must still graduate',
+    );
+    assert.ok(
+      !paths.includes('src/fixed.js'),
+      'a 🟡 Medium under Fixed on-branch must not graduate',
+    );
+    assert.ok(
+      !paths.includes('src/fixed-high.js'),
+      'a 🟠 High under Fixed on-branch must not graduate',
+    );
+  });
+
+  it('resumes graduating after the Fixed-on-branch section ends at a new heading', () => {
+    const body = [
+      '### Fixed on-branch',
+      '✅ 🟡 Medium: `src/fixed.js`',
+      '## 🟡 Warnings',
+      '🟡 Medium: `src/after.js`',
+    ].join('\n');
+    const paths = parseFindings(body).map((f) => f.path);
+    assert.deepEqual(paths, ['src/after.js']);
+  });
 });
 
 describe('graduateFindings — toggle off', () => {

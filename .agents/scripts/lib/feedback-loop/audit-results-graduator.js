@@ -98,6 +98,13 @@ export function buildIdempotencyMarker(epicId, index) {
  * emoji and embeds the cited path inside backticks. 🔴 critical findings
  * are filtered out (they're blocking — the Epic stops on those).
  *
+ * Findings the Phase 4 remediation loop already fixed on-branch are
+ * rendered under a **"Fixed on-branch"** heading (Story #4399) with a ✅
+ * prefix so they no longer parse as open findings. As a belt-and-suspenders
+ * guard the parser also skips every line inside a Fixed-on-branch section
+ * outright, so a remediated 🟡 Medium never spawns a ghost follow-up issue
+ * even if its line retains its original severity emoji.
+ *
  * Pure. Exported so the parser can be unit-tested in isolation.
  *
  * @param {string} body
@@ -109,17 +116,24 @@ export function parseFindings(body) {
   const lines = body.split(/\r?\n/);
   let idx = 0;
   let lens = 'unknown';
+  let inFixedSection = false;
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
     if (trimmed.length === 0) continue;
 
-    // Detect a lens heading. We accept any heading-prefixed line that
-    // names a known audit family (`audit-*`).
-    const lensMatch = trimmed.match(/^#{2,6}\s+(audit-[a-z0-9-]+)/i);
-    if (lensMatch) {
-      lens = lensMatch[1];
+    // Any markdown heading resets the Fixed-on-branch guard and, when it
+    // names a known audit family (`audit-*`), sets the active lens. A
+    // "Fixed on-branch" heading opens a section whose entries never
+    // graduate (Story #4399).
+    const headingMatch = trimmed.match(/^#{2,6}\s+(.+)$/);
+    if (headingMatch) {
+      inFixedSection = /fixed on-branch/i.test(headingMatch[1]);
+      const lensMatch = headingMatch[1].match(/^(audit-[a-z0-9-]+)/i);
+      if (lensMatch) lens = lensMatch[1];
       continue;
     }
+
+    if (inFixedSection) continue;
 
     let severity = null;
     if (trimmed.startsWith('🔴')) {

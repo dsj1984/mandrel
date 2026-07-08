@@ -891,11 +891,23 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    fixed on a hotfix branch and re-merged into the Epic.
 2. **Audit (Phase 4).** The change-set audit lenses run against the Epic
    diff; findings flow through as advisory signal to inform the code
-   review that follows.
+   review that follows. Remediation routing is **threshold-aware**
+   (`delivery.epicAudit.autoFixSeverity`, default `medium`): at `medium`
+   the host LLM fixes 🔴/🟠/🟡 findings on-branch (Mediums batched per
+   lens) while 🟢 Suggestions graduate to follow-up issues; `high`
+   reproduces the older Critical/High-only routing. Findings fixed
+   on-branch are recorded under the `audit-results` comment's
+   `## Fixed on-branch` section, which the graduator skips so they never
+   spawn duplicate follow-up issues.
 3. **Code-review (Phase 5).** `lib/orchestration/code-review.js` (extracted
    from the `code-review.md` helper) audits the diff and posts the
-   findings as a `code-review` structured comment on the Epic. 🔴 Critical
-   findings halt the run; 🟠/🟡/🟢 findings flow through as non-blocking.
+   findings as a `code-review` structured comment on the Epic. Focused-fix
+   routing is threshold-aware in the same way
+   (`delivery.codeReview.autoFixSeverity`, default `medium` — fixes
+   🔴/🟠/🟡 on-branch, 🟢 stays on the comment), and fixed findings land
+   under the comment's `## Fixed on-branch` section so the graduator skips
+   them. The severity gate is unchanged: surviving 🔴 Critical findings
+   halt the run; surviving 🟠/🟡/🟢 flow through as non-blocking.
 4. **Retro (Phase 6).** `lib/orchestration/retro-runner.js` (extracted from the old
    retro helper) aggregates perf signals, friction counts, hotfix counts,
    recut counts, parked counts, and HITL count using

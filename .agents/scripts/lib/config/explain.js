@@ -196,6 +196,10 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum auto-fix attempts the code-review phase makes.',
   'delivery.codeReview.maxFixScopeFiles':
     'Maximum files an auto-fix may touch in one attempt.',
+  'delivery.codeReview.autoFixSeverity':
+    'Severity threshold for on-branch code-review remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
+  'delivery.epicAudit.autoFixSeverity':
+    'Severity threshold for on-branch epic-audit remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
   'delivery.refactorStage.enabled':
     'Whether a dedicated refactor stage runs during delivery.',
   'delivery.acceptanceEval.maxRounds':

@@ -76,6 +76,44 @@ describe('audit-results parseFindings', () => {
     assert.deepEqual(parseFindings(null), []);
     assert.deepEqual(parseFindings(undefined), []);
   });
+
+  // Story #4399 — Fixed-on-branch findings must not graduate.
+  it('skips findings under a "Fixed on-branch" heading while unfixed ones still graduate', () => {
+    const body = [
+      '<!-- claude-managed: audit-results -->',
+      '#### audit-clean-code',
+      '🟡 medium finding in `src/open.js` — still open',
+      '#### ✅ Fixed on-branch',
+      '✅ 🟡 medium finding in `src/fixed.js` — remediated on-branch',
+      '✅ 🟠 high finding in `src/fixed-high.js` — remediated on-branch',
+    ].join('\n');
+    const findings = parseFindings(body);
+    const paths = findings.map((f) => f.path);
+    assert.ok(
+      paths.includes('src/open.js'),
+      'the unfixed 🟡 Medium must still graduate',
+    );
+    assert.ok(
+      !paths.includes('src/fixed.js'),
+      'a 🟡 Medium under Fixed on-branch must not graduate',
+    );
+    assert.ok(
+      !paths.includes('src/fixed-high.js'),
+      'a 🟠 High under Fixed on-branch must not graduate',
+    );
+  });
+
+  it('resumes graduating findings after the Fixed-on-branch section ends at a new lens heading', () => {
+    const body = [
+      '<!-- claude-managed: audit-results -->',
+      '#### Fixed on-branch',
+      '✅ 🟡 medium finding in `src/fixed.js`',
+      '#### audit-security',
+      '🟡 medium finding in `src/after.js`',
+    ].join('\n');
+    const paths = parseFindings(body).map((f) => f.path);
+    assert.deepEqual(paths, ['src/after.js']);
+  });
 });
 
 describe('audit-results isAutoFileEnabled', () => {
