@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-04T23:12:38.376Z",
+  "generatedAt": "2026-07-08T12:24:41.101Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -377,8 +377,8 @@
       "tier": "stack",
       "category": "architecture",
       "path": ".agents/skills/stack/architecture/subagent-orchestration/SKILL.md",
-      "description": "Coordinates complex tasks via task-isolated subagents. Use when one objective is too large for a single agent or when independent work streams should run concurrently with minimal context bleed. One objective per subagent; summarize before returning to keep the main context window clean.",
-      "policyCapsuleBullets": 7,
+      "description": "Coordinates complex tasks via task-isolated subagents. Use when one objective is too large for a single agent or when independent work streams should run concurrently with minimal context bleed. One objective per subagent; summarize before returning to keep the orchestrator's context window clean. Applies recursively — an orchestrator at any supported nesting depth applies the same policy to its own children.",
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },

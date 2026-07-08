@@ -89,9 +89,17 @@ Every other runtime modifier is sourced from the Epic's labels or from
 - **Single pause point.** Only `agent::blocked` halts execution. No
   clarifying questions — if stuck, flip to `agent::blocked`, post a
   friction comment, park.
-- **Two-level dispatch.** Host LLM fans out per-Story Agent calls
-  directly with `subagent_type: general-purpose`. Sub-agents do not
-  carry the `Agent` tool, so this stays flat.
+- **Flat Story dispatch by design.** Host LLM fans out per-Story Agent
+  calls directly with `subagent_type: general-purpose`. Keeping Story
+  dispatch flat — the host owns the single fan-out level — is a
+  **design choice**, not a harness constraint: the wave aggregator, idle
+  watchdog, and merge-lock all assume one host-owned dispatch level. As of
+  Claude Code 2.1.202 a level-1 sub-agent **does** carry the `Agent` tool
+  and can nest further (verified depth 2, announced max depth 5; see
+  [#2870](https://github.com/dsj1984/mandrel/issues/2870)), so a Story
+  worker may itself fan out for its own sub-work within that depth budget —
+  the Epic wave loop nonetheless stays flat by choice, not because nesting
+  is unavailable.
 - **Operator-merges-PR exit.** Phase 7 opens the PR; the workflow
   never merges to `main` itself. Phase 8.5 may fire auto-merge when
   every signal is clean.
@@ -480,6 +488,17 @@ therefore auto-runs its mapped lenses (e.g. a `security`-axis Epic runs
 `audit-security`) even when the change set alone did not select them; a
 low-risk Epic adds nothing. Findings are persisted as an `audit-results`
 structured comment on the Epic.
+
+The helper walks the selected roster **serially in-context by default**; when
+the roster carries more than one lens it **may delegate the walk to a single
+audit-orchestrator sub-agent** that fans the already-selected lenses out as
+parallel level-2 agents and returns only the aggregated `audit-results` (see
+[`epic-audit.md` § "Optional: delegate the roster walk to an audit-orchestrator
+sub-agent"](epic-audit.md), within the sub-agent depth budget noted under
+"Flat Story dispatch by design" above). The roster stays fixed upstream, every
+per-lens cost gate is preserved, and the seven sequential-only lenses are **not**
+batch-converted — the fan-out parallelizes across lenses only and never changes
+how any single lens runs internally.
 
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.

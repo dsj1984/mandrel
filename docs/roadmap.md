@@ -52,15 +52,23 @@ across renumbers.
 3. **Anti-thrashing / FinOps → observability** — gated on inference economics.
    *(Part 1.)*
 4. **Worktree demotion to an implementation option** — gated on agent platforms
-   shipping reliable per-task sandboxes
-   ([#2870](https://github.com/dsj1984/mandrel/issues/2870), watch). *(Part 1.)*
+   shipping reliable per-task sandboxes (a distinct capability from the
+   now-lifted sub-agent nesting limit; #2870's nesting axis is resolved and
+   superseded by [#4385](https://github.com/dsj1984/mandrel/issues/4385), the
+   per-task-sandbox axis remains a watch). *(Part 1.)*
 5. **Fan-out epic-plan decomposition spike** — unblocked; runs after the
    re-baseline (🔜 Next). *(Part 3.)*
 6. **Generalize the 7 remaining sequential-only audit lenses** — each per-lens
    cost-gated; several may stay sequential by design. *(Part 3.)*
 7. **Dynamic spec / Gherkin mutation engine** — trip-wire gated. *(Part 1.)*
-8. **Sub-agent capability-limit re-spike** after a Claude Code upgrade
-   ([#2870](https://github.com/dsj1984/mandrel/issues/2870)). *(Part 1 · Part 3.)*
+8. ~~**Sub-agent capability-limit re-spike** after a Claude Code upgrade
+   ([#2870](https://github.com/dsj1984/mandrel/issues/2870)).~~ **Done /
+   lifted** (2026-07-08): re-spiked on Claude Code 2.1.202 — nested `Agent`
+   dispatch works (verified depth 2, announced max depth 5; `Skill` at
+   depth 2 confirmed). #2870 is superseded by Epic
+   [#4385](https://github.com/dsj1984/mandrel/issues/4385), which absorbs
+   the lift across the contracts and lands the execution wins. *(Part 1 ·
+   Part 3.)*
 
 ### 🚪 Gated — "Productize or stay internal?"
 
@@ -223,8 +231,11 @@ not validate.
 - **Worktree demotion to an option** 🌅 — worktree/branch isolation stays
   **Keep** today (concurrency physics, not model capability). Demoting local
   worktrees to an implementation option is contingent on future agent platforms
-  shipping reliable per-task sandboxes; track alongside the sub-agent
-  capability spike ([#2870](https://github.com/dsj1984/mandrel/issues/2870)).
+  shipping reliable per-task sandboxes — a **distinct** capability from the
+  sub-agent nesting limit, whose re-spike ([#2870](https://github.com/dsj1984/mandrel/issues/2870))
+  is now resolved (nested `Agent` works on Claude Code 2.1.202; superseded by
+  Epic [#4385](https://github.com/dsj1984/mandrel/issues/4385)). The per-task
+  sandbox axis remains the open watch here.
 - **`typhonjs-escomplex` abandonware risk** 🔭 — the complexity kernel behind
   the CRAP and maintainability-index gates
   ([`crap-engine.js`](../.agents/scripts/lib/crap-engine.js),

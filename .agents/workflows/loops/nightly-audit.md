@@ -32,7 +32,15 @@ Each scheduled run:
    (`/audit-security`, `/audit-clean-code`, `/audit-dependencies`,
    `/audit-quality`, and any others the project relies on). Each audit writes a
    structured `temp/audits/audit-*-results.md` report — that is the canonical
-   artifact this loop consumes, not free-form prose.
+   artifact this loop consumes, not free-form prose. Because these audits are
+   **independent** of one another, a scheduled run **may fan them out to
+   parallel sub-agents** (one per audit) rather than walking them serially —
+   the same cross-lens parallelization `/deliver` Phase 4 uses (see
+   [`../helpers/epic-audit.md` § "Optional: delegate the roster walk to an
+   audit-orchestrator sub-agent"](../helpers/epic-audit.md)). Each sub-agent
+   returns only its structured report; the scheduler/host owns the fan-out just
+   as it owns the cadence, and each per-audit strategy (sequential or
+   orchestrated) is unchanged by running under its own sub-agent.
 2. **Diff against the prior night.** Compare the fresh findings against the last
    sweep's reports and against already-open Issues. A finding seen before is
    not new signal; only genuinely fresh or regressed findings warrant a record.
