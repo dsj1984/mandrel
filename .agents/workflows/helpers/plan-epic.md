@@ -683,26 +683,36 @@ node .agents/scripts/epic-plan-spec-validate.js \
 
 3. **Phase 8.3 — Holistic Consolidation (HITL diff gate)**: After the
    draft `temp/epic-[Epic_ID]/tickets.json` exists and **before** the persist
-   call below, activate the
+   call below, **dispatch a genuine fresh-context sub-agent** (`Agent` tool,
+   `subagent_type: general-purpose`) whose task is to read the
    [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
-   skill with `[Epic_ID]` as input. This is a **separate critic pass with
-   fresh context** (not a self-review appended to the author skill): it reads
-   the draft array plus the Epic body (which carries the Tech Spec
-   sections), reconciles the draft against
+   skill and execute its procedure with `[Epic_ID]` as input. Dispatching the critic
+   as a sub-agent — **not** activating the skill inline in your authoring
+   turn — is what makes it a **separate critic pass with fresh context**: the
+   sub-agent does not inherit the conversation that authored the draft, so it
+   cannot grade its own homework (the same nested-dispatch mechanic the
+   acceptance self-eval loop uses, now that the sub-agent depth limit is
+   lifted — see [`.agents/instructions.md` § 4](../../instructions.md)). The
+   sub-agent reads the draft array plus the Epic body (which carries the Tech
+   Spec sections), reconciles the draft against
    the Tech Spec `## Delivery Slicing` target, and emits a **consolidated**
    `tickets.json` plus a human-readable
    `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are
    scope-preserving only — **merge sibling Stories and rewire
    `depends_on`** — and it MUST NOT add scope or invent tickets; it
    consolidates fragmented slices by merging them into a cohesive Story,
-   never by splitting one. It runs **before** the deterministic
+   never by splitting one. The sub-agent **never writes to GitHub**: it emits
+   only the two temp artifacts and returns control to this operator session.
+   It runs **before** the deterministic
    validator (step 7), so the validator re-checks its output and the critic
    cannot emit an invalid plan.
 
    **Show the operator the consolidation report (the before/after diff +
-   rationale) before persisting.** Consolidation is never auto-applied without
-   review: on operator approval, persist the consolidated `tickets.json`; on
-   rejection, persist the draft instead. This is a sub-step of Phase 8 — it
+   rationale) before persisting.** The HITL diff-confirm and the persist call
+   both run here in the **operator session**, never inside the sub-agent —
+   consolidation is never auto-applied without review: on operator approval,
+   persist the consolidated `tickets.json`; on rejection, persist the draft
+   instead. This is a sub-step of Phase 8 — it
    does **not** renumber the top-level lifecycle phases (9–12).
 
 4. **Phase 8.4 — Reachability Completeness Critic (HITL diff gate, F6)**:
@@ -742,11 +752,17 @@ node .agents/scripts/epic-plan-spec-validate.js \
      invalid addition cannot reach GitHub.
 
 5. **Phase 8.5 — Planning Pre-Mortem Critic (code-reading, F9)**: After the
-   reachability critic (8.4) and **before** the persist call below, activate the
+   reachability critic (8.4) and **before** the persist call below, **dispatch a
+   genuine fresh-context sub-agent** (`Agent` tool,
+   `subagent_type: general-purpose`) whose task is to read the
    [`epic-plan-premortem`](../../skills/core/epic-plan-premortem/SKILL.md)
-   skill with `[Epic_ID]` as input. This is a **fresh-context critic** sibling
-   to `epic-plan-consolidate`: it reads the drafted `tickets.json`, the Epic
-   body (with its folded Tech Spec sections), **and the actual cited code
+   skill and execute its procedure with `[Epic_ID]` as input. Like the 8.3
+   consolidate pass, dispatching the critic as a sub-agent — **not** activating
+   the skill inline in your authoring turn — is what makes it a genuine
+   **fresh-context critic** sibling to `epic-plan-consolidate`: the sub-agent
+   does not inherit the authoring conversation, so its code-reading review is
+   independent of the draft it grades. It reads the drafted `tickets.json`, the
+   Epic body (with its folded Tech Spec sections), **and the actual cited code
    surfaces** (the files each Story's
    `changes[]` / `references[]` name), then emits predicted-rework findings —
    unverifiable acceptance criteria, over- or under-specified Stories, and
@@ -756,7 +772,9 @@ node .agents/scripts/epic-plan-spec-validate.js \
    Unlike the consolidate critic it is **not** scope-preserving-only: it may
    recommend splitting an under-specified Story or tightening an AC. But it
    **never writes to GitHub** and never persists `tickets.json` — it only emits
-   the report. Its findings are shown in the **same Phase 8 HITL diff**, and on
+   the report and returns control to this operator session. Its findings are
+   shown in the **same Phase 8 HITL diff** (which stays in the operator
+   session), and on
    operator approval the author re-runs (Step 2) on the findings **before** the
    persist call. The critic runs **before** the deterministic validator (step
    7), so the persist below is the single GitHub write for the whole phase.
