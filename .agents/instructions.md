@@ -334,6 +334,13 @@ budget grounds.
   spawns (search, doc regeneration, lint, log triage) and keep
   **implementation and design** work on the default capability; name no
   specific model — let the host and operator own the concrete mapping.
+  **Depth compounds the cost.** Sub-agents now carry the `Agent` tool and
+  can nest further (verified depth 2, announced max depth 5; see
+  [#2870](https://github.com/dsj1984/mandrel/issues/2870)), so this
+  spend-per-spawn caution is not one-level — **every** nesting level
+  re-pays the full always-loaded context. Weigh the whole subtree's cost,
+  not just the immediate spawn, before opening a deeper orchestration
+  level, and stay within the supported depth envelope.
 - **Anti-Laziness:** NEVER use placeholder comments like
   `// ... existing code ...`, `/* rest of file */`, or
   `// implementation here`. You MUST output the ENTIRE file or the ENTIRE
