@@ -1158,9 +1158,26 @@ renamed, moved, promoted, and bumped key.
 
 ## ADR 20260508-flatten: Retire `/wave-execute`; `/epic-execute` owns the wave loop directly
 
-**Status:** Accepted
+**Status:** Accepted — decision stands; rationale partially superseded (see note)
 **Date:** 2026-05-08
 **Supersedes:** ADR 20260507-1114a (Wave-runner is a custom sub-agent type)
+
+> **Superseding note (2026-07-08, Epic
+> [#4385](https://github.com/dsj1984/mandrel/issues/4385) /
+> [#2870](https://github.com/dsj1984/mandrel/issues/2870)).** The
+> **decision** — flat, host-owned Story fan-out with
+> `subagent_type: general-purpose` — still stands and remains the delivery
+> architecture. But part of the **rationale** below is now obsolete: as of
+> Claude Code 2.1.202 the harness limitation this ADR leaned on (nested
+> `Agent` grants "wobbling across releases") is **lifted** — a level-1
+> sub-agent carries `Agent` and can nest further (verified depth 2,
+> announced max depth 5). Flat wave dispatch is therefore now a **design
+> choice** (the wave aggregator, idle watchdog, and merge-lock all assume a
+> single host-owned dispatch level), not a capability floor. The
+> `subagent-agent-tool-required` self-healing check referenced under
+> *Context* is inverted into a depth/budget guard by Epic #4385 (Story S2);
+> do not read the "custom sub-agent types" fragility argument as a live
+> constraint.
 
 ### Context
 

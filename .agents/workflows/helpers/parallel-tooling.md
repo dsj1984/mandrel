@@ -76,8 +76,15 @@ If a unit of work is both long (Rule 2) and independent (Rule 1 or 3),
 prefer the higher-numbered rule — the parallelism gain compounds the
 background-shell gain. Concretely: dispatch the `Agent` calls in one turn
 (Rule 3), and **inside** each sub-agent let it apply Rule 2 to its own
-long-running shells. The host does not need to micromanage the child's
-shell strategy.
+long-running shells — and, within the supported nesting depth budget
+(verified depth 2, announced max depth 5; see
+[#2870](https://github.com/dsj1984/mandrel/issues/2870)), let it apply
+**Rule 3** to its own independent sub-units as well, not only Rule 2
+background shells. A sub-agent is a full orchestrator at its own level:
+recursive `Agent` fan-out is available to it, so the host does not need to
+micromanage the child's shell **or** dispatch strategy. Mind the depth
+budget and the compounding cost — every nesting level re-pays the
+always-loaded context (see [`instructions.md` § 4](../../instructions.md)).
 
 ## Constraints
 

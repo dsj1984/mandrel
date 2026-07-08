@@ -35,7 +35,29 @@ per-criterion, mid-delivery, and evaluates the actual work product.
 1. **Eval pass (fresh context, independent of the author).** Run a **separate
    critic pass** — a fresh-context sub-agent (`Agent` tool,
    `subagent_type: general-purpose`), *not* a continuation of your implementing
-   turn — so the evaluator does not grade its own homework. The critic:
+   turn — so the evaluator does not grade its own homework.
+
+   > **Inline-critic fallback (nesting-absent harness).** Dispatching the
+   > critic as a nested `Agent` is the preferred shape — it gives genuine
+   > fresh-context isolation — and works on any harness that carries `Agent`
+   > into sub-agents (Claude Code ≥ 2.1.202; see
+   > [#2870](https://github.com/dsj1984/mandrel/issues/2870)). This eval loop
+   > itself runs inside a Story delivery sub-agent, so the nested critic sits
+   > at nesting depth 2. If the host does **not** support nested `Agent`
+   > dispatch at that depth — the tool is absent, or a spawn attempt returns
+   > an unsupported-capability error — do **not** stall the Story. Fall back
+   > to authoring the verdict **inline**: in a deliberately scoped,
+   > self-critical pass (re-read only the diff, the `acceptance[]` /
+   > `verify[]` arrays, and the `verify[]` command output — treat the
+   > implementation reasoning as untrusted and score against the criteria
+   > afresh), write the same verdict file described below and hand it to the
+   > same `acceptance-eval.js` gate. The fresh-context isolation is weaker in
+   > the inline path, but the gate, the schema, the round cap, and the
+   > proceed / redraft / block decision are identical — a Story is **never**
+   > stranded on a nesting-absent harness. Note in the blocked/friction
+   > comment (if you block) that the inline fallback was used.
+
+   The critic:
    - Inspects the working diff (`git diff origin/<baseBranch>...HEAD`) and the
      Story's inline `acceptance[]` / `verify[]` arrays.
    - **Runs the `verify[]` commands** and consumes their output as **required
