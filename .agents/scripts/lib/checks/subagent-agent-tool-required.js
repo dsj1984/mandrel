@@ -1,36 +1,61 @@
 /**
- * subagent-agent-tool-required — refuse-and-print check.
+ * subagent-agent-tool-required — supported-depth guard (refuse-and-print).
  *
- * Detects sub-agent workflow definitions that declare access to the
- * `Agent` tool (or otherwise document nested Agent dispatch). Nested
- * Agent dispatch is not supported in this Claude Code, so any
- * wave-runner-as-sub-agent or cascading fan-out design that declares
- * `Agent` in its tool list will silently fail at runtime. The remediation
- * is to flatten the fan-out back to the host agent and run sub-agents at
- * one level only.
+ * Nested `Agent` dispatch from a sub-agent is **supported** on this Claude
+ * Code build (verified depth 2, announced max depth 5 — Claude Code
+ * 2.1.202, re-spiked 2026-07-08; see Epic #4385 / watch #2870). A level-1
+ * sub-agent carries `Agent` in its primary toolset and can spawn a working
+ * level-2 sub-agent. Declaring `Agent` in a sub-agent workflow is therefore
+ * a legitimate design choice, **not** an automatic runtime failure.
+ *
+ * What this check guards is the one case that still fails: a fan-out whose
+ * declared nesting depth exceeds the announced/supported ceiling. A dispatch
+ * chain deeper than the harness supports will silently fail at runtime, so a
+ * workflow that declares `Agent` together with a `nesting-depth` beyond the
+ * ceiling is flagged as a blocker. A sub-agent that declares `Agent` at a
+ * supported depth (the common case — an undeclared depth is treated as the
+ * shallow level-1 fan-out) produces no finding.
+ *
+ * This inverts the historical guard (Story #4387): the check used to refuse
+ * `Agent` in *any* sub-agent workflow on the now-false rationale that
+ * sub-agents cannot dispatch. It no longer strips a real capability; it only
+ * catches an over-deep fan-out. The self-healing surface is preserved — it is
+ * re-scoped, not removed.
  *
  * Scope: 'epic-deliver', 'retro'. Surfaces as a blocker at preflight for
  * `epic-deliver` (the fan-out site) and as audit signal at retro.
  *
- * The check is `refuse-and-print` — auto-rewriting a workflow's tool
- * list would silently change runtime behavior in ways the operator may
- * not have intended (the workflow's logic may depend on the missing
- * tool). The fixCommand cites the flatten-fan-out remediation pattern.
+ * The check is `refuse-and-print` — auto-rewriting a workflow's declared
+ * depth or tool list would silently change runtime behavior in ways the
+ * operator may not have intended. The fixCommand explains how to bring the
+ * fan-out back under the ceiling (reduce the declared depth or split the
+ * deepest level out), and is explicit that stripping `Agent` is NOT the fix.
  *
- * Implementation note: we scan `.agents/workflows/*.md` for workflow
- * files whose frontmatter or body identifies them as a sub-agent role
- * AND whose `tools:` declaration includes `Agent`. The marker for
- * "sub-agent" is the phrase `sub-agent` appearing in the description /
- * overview region. This keeps the check stable while the workflow
- * surface evolves — the project doesn't yet have a structured
- * `role: sub-agent` frontmatter field, and the textual marker is what
- * the human contributors actually grep for.
+ * Implementation note: we scan `.agents/workflows/*.md` for workflow files
+ * whose frontmatter or body identifies them as a sub-agent role AND whose
+ * `tools:` declaration includes `Agent`, then read the workflow's declared
+ * `nesting-depth`. The marker for "sub-agent" is the phrase `sub-agent`
+ * appearing in the description / overview region. The depth is read from a
+ * `nesting-depth:` (or `agent-depth:`) frontmatter field, or a
+ * `<!-- nesting-depth: N -->` body marker; an absent declaration is treated
+ * as depth 1 (a single, shallow fan-out level).
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const WORKFLOWS_DIR_DEFAULT = path.join('.agents', 'workflows');
+
+/**
+ * Announced maximum nesting depth the Claude Code harness supports for
+ * sub-agent fan-out. Depth 2 is independently verified; depths 3–5 are
+ * announced but not yet re-spiked (Epic #4385 / watch #2870). A workflow
+ * declaring a fan-out deeper than this ceiling is flagged. Operators can pin
+ * a stricter (or, once verified, looser) ceiling via `state.supportedDepth`.
+ *
+ * @type {number}
+ */
+export const ANNOUNCED_MAX_DEPTH = 5;
 
 /**
  * Walk a workflow directory and return absolute `.md` file paths
@@ -127,17 +152,57 @@ function findAgentToolDeclaration(parts) {
   return null;
 }
 
+/**
+ * Parse the workflow's declared nesting depth. A sub-agent that declares
+ * `Agent` may also declare how deep its fan-out reaches via a
+ * `nesting-depth:` (or `agent-depth:`) frontmatter field, or a
+ * `<!-- nesting-depth: N -->` marker in the body. Returns the integer
+ * depth, or `null` when no depth is declared (the caller treats an absent
+ * declaration as the shallow level-1 fan-out).
+ *
+ * @param {{ frontmatter: string, body: string }} parts
+ * @returns {number | null}
+ */
+function parseDeclaredDepth(parts) {
+  const { frontmatter, body } = parts;
+  const fmMatch = frontmatter.match(
+    /^[ \t]*(?:nesting-depth|agent-depth)\s*:\s*(\d+)\s*$/m,
+  );
+  if (fmMatch) return Number.parseInt(fmMatch[1], 10);
+  const bodyMatch = body.match(
+    /<!--\s*(?:nesting-depth|agent-depth)\s*:\s*(\d+)\s*-->/,
+  );
+  if (bodyMatch) return Number.parseInt(bodyMatch[1], 10);
+  return null;
+}
+
+/**
+ * Resolve the supported depth ceiling for a detect run. Operators may pin a
+ * stricter (or, once verified, looser) ceiling via `state.supportedDepth`;
+ * an unset or non-positive-integer override falls back to the announced max.
+ *
+ * @param {{ supportedDepth?: unknown } | null | undefined} state
+ * @returns {number}
+ */
+function resolveCeiling(state) {
+  const override = state?.supportedDepth;
+  if (Number.isInteger(override) && override > 0) return override;
+  return ANNOUNCED_MAX_DEPTH;
+}
+
 const FIX_COMMAND = [
-  '# Flatten fan-out to the host. Sub-agents cannot dispatch other agents.',
-  "# Remove the `Agent` entry from this workflow's `tools:` declaration,",
-  '# move any fan-out logic up to the parent / host invocation, and have',
-  '# the parent dispatch the leaf sub-agents directly.',
+  '# Nested Agent dispatch IS supported (verified depth 2, announced max 5 —',
+  '# Claude Code 2.1.202). This workflow declares a fan-out deeper than the',
+  '# supported ceiling, so the deepest dispatch chain will fail at runtime.',
   '#',
-  '# Pattern (host workflow):',
-  '#   for each child: Agent(prompt=<child workflow>, args=<id>)',
+  '# Bring the fan-out back under the ceiling — either:',
+  '#   1. Lower the declared `nesting-depth` to <= the supported ceiling, or',
+  '#   2. Split the deepest level out to a shallower sibling fan-out so no',
+  '#      single dispatch chain exceeds the supported depth.',
   '#',
-  '# Pattern (sub-agent workflow):',
-  '#   tools: [Bash, Read, Edit, Grep, Glob, Write]   # NO Agent',
+  '# Do NOT strip `Agent` from the tool list to silence this. Sub-agents CAN',
+  '# dispatch nested agents at a supported depth; removing the tool would',
+  '# disable a legitimate capability, not fix the depth overflow.',
 ].join('\n');
 
 export default {
@@ -149,6 +214,7 @@ export default {
   detect(state) {
     const cwd = state?.cwd ?? process.cwd();
     const root = state?.scanRoot ?? path.join(cwd, WORKFLOWS_DIR_DEFAULT);
+    const ceiling = resolveCeiling(state);
     const files = listWorkflowFiles(root);
     const offences = [];
     for (const file of files) {
@@ -162,18 +228,29 @@ export default {
       const parts = splitFrontmatter(src);
       const where = findAgentToolDeclaration(parts);
       if (!where) continue;
+      // Declaring `Agent` is legitimate. Only a fan-out deeper than the
+      // supported ceiling is a runtime hazard; an undeclared depth is the
+      // shallow level-1 fan-out and always within the ceiling.
+      const depth = parseDeclaredDepth(parts) ?? 1;
+      if (depth <= ceiling) continue;
       offences.push({
         file: path.relative(root, file).replace(/\\/g, '/'),
         where,
+        depth,
       });
     }
     if (offences.length === 0) return null;
-    const detail = offences.map((o) => `${o.file} — ${o.where}`).join('\n');
+    const detail = offences
+      .map(
+        (o) =>
+          `${o.file} — declares Agent at nesting-depth ${o.depth} (exceeds supported ceiling ${ceiling}); ${o.where}`,
+      )
+      .join('\n');
     return {
       id: 'subagent-agent-tool-required',
       severity: 'blocker',
       scope: state?.scope ?? 'epic-deliver',
-      summary: `${offences.length} sub-agent workflow(s) declare Agent in their tool list — nested Agent dispatch is unsupported`,
+      summary: `${offences.length} sub-agent workflow(s) declare an Agent fan-out deeper than the supported nesting ceiling (${ceiling})`,
       detail,
       fixCommand: FIX_COMMAND,
       autoCorrectable: false,
