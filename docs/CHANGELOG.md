@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.87.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.86.0...mandrel-v1.87.0) (2026-07-08)
+
+
+### Added
+
+* **boot-sweep:** report content-merged branches and align sweep docs ([#4396](https://github.com/dsj1984/mandrel/issues/4396)) ([#4398](https://github.com/dsj1984/mandrel/issues/4398)) ([8c9c938](https://github.com/dsj1984/mandrel/commit/8c9c938d34c0bcbdaeb607f5a148261925a58622))
+* Epic [#4385](https://github.com/dsj1984/mandrel/issues/4385) ([#4392](https://github.com/dsj1984/mandrel/issues/4392)) ([0999dca](https://github.com/dsj1984/mandrel/commit/0999dcac00a708bca0d1a9664f46d8f79c9ffe11))
+* **git-cleanup:** detect content-merged branches and surface silent skips (refs [#4395](https://github.com/dsj1984/mandrel/issues/4395)) ([#4397](https://github.com/dsj1984/mandrel/issues/4397)) ([a5ddabf](https://github.com/dsj1984/mandrel/commit/a5ddabf41f25a75cb5b63e0f51ed05e8dcfcf81d))
+* **planning:** stamp authoring Mandrel version onto Epic and Story bodies (refs [#4382](https://github.com/dsj1984/mandrel/issues/4382)) ([#4383](https://github.com/dsj1984/mandrel/issues/4383)) ([db3de0a](https://github.com/dsj1984/mandrel/commit/db3de0a9302a8f3aa97b06ad74af04879aaba53a))
+
+
+### Fixed
+
+* branchCleaner false-blocks a successfully-merged Epic when local branches are already reaped ([#4393](https://github.com/dsj1984/mandrel/issues/4393)) ([#4394](https://github.com/dsj1984/mandrel/issues/4394)) ([83a5604](https://github.com/dsj1984/mandrel/commit/83a5604b55aab470d9c4c08ee9d66b4b181af81a))
+
 ## [1.86.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.85.0...mandrel-v1.86.0) (2026-07-07)
 
 
