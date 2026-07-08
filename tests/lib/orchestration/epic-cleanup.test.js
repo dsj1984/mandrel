@@ -322,11 +322,17 @@ describe('reapEpicBranches', () => {
       gitSpawn,
       epicBranchHasOpenPrFn: () => false,
     });
-    assert.equal(out.ok, true, 'already-absent branches must not force ok:false');
+    assert.equal(
+      out.ok,
+      true,
+      'already-absent branches must not force ok:false',
+    );
     assert.equal(out.failures.length, 0);
     assert.equal(out.reaped.length, 3);
     assert.ok(
-      out.reaped.every((r) => r.branchDeleted === true && r.alreadyAbsent === true),
+      out.reaped.every(
+        (r) => r.branchDeleted === true && r.alreadyAbsent === true,
+      ),
       'every already-absent branch is recorded as reaped',
     );
   });
