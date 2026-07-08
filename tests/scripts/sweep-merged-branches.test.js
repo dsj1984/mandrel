@@ -250,5 +250,29 @@ describe('sweepMergedBranches (scope-agnostic engine)', () => {
         { branch: 'story-2', worktreePath: null },
       ]);
     });
+
+    it('degrades gracefully when the upstream probe is unsupported/inconclusive', async () => {
+      // Mirrors the parent Story's degradation contract (git < 2.38, or a
+      // conflicted `merge-tree` simulation): `probeContentEquivalent`
+      // returns `{ supported: false }`, so `evaluateContentEquivalence`
+      // never stamps `detectedBy: 'content-merged'` on the candidate — the
+      // branch simply keeps its existing `not-merged` skip and never
+      // reaches `plan.candidates` at all. This engine has nothing special
+      // to do in that case: no contentMerged entry appears, nothing
+      // throws, and the ordinary reap of unrelated candidates proceeds
+      // unaffected — the "never fails its host" contract holds because
+      // there is no error to swallow at this layer, only an absent signal.
+      const candidates = [{ branch: 'story-1', detectedBy: 'gh' }];
+      const result = await sweepMergedBranches({
+        cwd: '/tmp/repo',
+        baseBranch: 'main',
+        include: ['story-*'],
+        planCleanupFn: makePlanFake(candidates),
+        executeCleanupFn: makeExecuteFake(),
+      });
+      assert.equal(result.ok, true);
+      assert.equal(result.localDeleted, 1);
+      assert.deepEqual(result.contentMerged, []);
+    });
   });
 });
