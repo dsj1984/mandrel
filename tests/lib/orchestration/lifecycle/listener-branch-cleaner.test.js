@@ -185,6 +185,40 @@ describe('BranchCleaner — handle()', () => {
     assert.equal(last.failures[0].stderr, 'pinned');
   });
 
+  it('records reaped (not failed) when every branch is already absent (Story #4393)', async () => {
+    const state = {
+      epicId: 4372,
+      stories: { 100: { status: 'done' }, 101: { status: 'done' } },
+    };
+    const { cleaner } = buildHarness({
+      state,
+      gitOverrides: [
+        {
+          // Every `git branch -D` reports the ref is already gone — the
+          // /deliver post-merge path where GitHub / a prior sweep already
+          // dropped the branches. classifyBranchDeletion keys off the
+          // "not found" substring, so a fixed message covers every ref.
+          match: (args) => args[0] === 'branch' && args[1] === '-D',
+          result: {
+            status: 1,
+            stdout: '',
+            stderr: 'error: branch not found.',
+          },
+        },
+      ],
+    });
+    await cleaner.handle({ event: 'epic.cleanup.start', seqId: 40 });
+    const last = cleaner.classifications.at(-1);
+    assert.equal(
+      last.outcome,
+      'reaped',
+      'an all-already-absent cleanup must NOT classify as failed (would false-block the merged Epic)',
+    );
+    assert.equal(last.epicId, 4372);
+    // 2 story branches + the epic branch (wt-branch is a separate sweep).
+    assert.equal(last.branchesDeleted, 3);
+  });
+
   it('records skipped-duplicate on a replayed (event, seqId)', async () => {
     const state = { epicId: 1, stories: { 9: { status: 'done' } } };
     const { cleaner } = buildHarness({ state });

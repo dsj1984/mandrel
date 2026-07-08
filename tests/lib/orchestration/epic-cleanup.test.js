@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   armCleanupIfMerged,
+  classifyBranchDeletion,
   deleteWtBranchIfPresent,
   detectMergedUncleanedEpic,
   epicBranchHasOpenPr,
@@ -71,6 +72,41 @@ describe('findWorktreePathForBranch', () => {
     ];
     assert.equal(findWorktreePathForBranch('story-9', wts), '/b');
     assert.equal(findWorktreePathForBranch('story-42', wts), null);
+  });
+});
+
+describe('classifyBranchDeletion (Story #4393)', () => {
+  it('treats a clean exit (status 0) as a real deletion', () => {
+    const out = classifyBranchDeletion({ status: 0, stderr: '' });
+    assert.deepEqual(out, { branchDeleted: true, alreadyAbsent: false });
+  });
+
+  it('absorbs an already-absent branch (not-found stderr) as success', () => {
+    const out = classifyBranchDeletion({
+      status: 1,
+      stderr: "error: branch 'story-100' not found.",
+    });
+    assert.equal(out.branchDeleted, true);
+    assert.equal(out.alreadyAbsent, true);
+    // No stderr surfaced — a benign missing ref is not a failure.
+    assert.equal(out.stderr, undefined);
+  });
+
+  it('keeps a genuine reap failure (other stderr) classified as failed', () => {
+    const out = classifyBranchDeletion({
+      status: 128,
+      stderr: "error: branch 'story-7' is checked out at '/wt'",
+    });
+    assert.equal(out.branchDeleted, false);
+    assert.equal(out.alreadyAbsent, false);
+    assert.match(out.stderr, /checked out/);
+  });
+
+  it('is defensive against a missing/empty result envelope', () => {
+    assert.deepEqual(classifyBranchDeletion({}), {
+      branchDeleted: false,
+      alreadyAbsent: false,
+    });
   });
 });
 
@@ -161,6 +197,23 @@ describe('reapBranch', () => {
     assert.match(out.stderr, /checked out/);
   });
 
+  it('treats an already-absent branch (not-found) as reaped, not failed (Story #4393)', () => {
+    const { gitSpawn } = fakeGitSpawnSequence([
+      { status: 0, stdout: '', stderr: '' }, // worktree remove
+      { status: 0, stdout: '', stderr: '' }, // prune
+      { status: 1, stdout: '', stderr: "error: branch 'story-6' not found." },
+    ]);
+    const out = reapBranch({
+      branch: 'story-6',
+      cwd: '/repo',
+      worktreePath: '/wt',
+      gitSpawn,
+    });
+    assert.equal(out.branchDeleted, true);
+    assert.equal(out.alreadyAbsent, true);
+    assert.equal(out.stderr, undefined);
+  });
+
   it('skips worktree steps when no path is given', () => {
     const { gitSpawn, calls } = fakeGitSpawnSequence([
       { status: 0, stdout: '', stderr: '' }, // branch -D only
@@ -242,6 +295,74 @@ describe('reapEpicBranches', () => {
     assert.equal(out.ok, false);
     assert.equal(out.failures.length, 1);
     assert.equal(out.failures[0].branch, 'story-99');
+  });
+
+  it('stays ok=true when every story + epic branch is already absent (Story #4393)', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'branch' && args[1] === '-D') {
+        // Every ref is already gone — GitHub's --delete-branch / a prior
+        // sweep dropped it. git exits non-zero with a not-found stderr.
+        return {
+          status: 1,
+          stdout: '',
+          stderr: `error: branch '${args[2]}' not found.`,
+        };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: {
+        epicId: 4372,
+        stories: { 1: { status: 'done' }, 2: { status: 'done' } },
+      },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
+    });
+    assert.equal(
+      out.ok,
+      true,
+      'already-absent branches must not force ok:false',
+    );
+    assert.equal(out.failures.length, 0);
+    assert.equal(out.reaped.length, 3);
+    assert.ok(
+      out.reaped.every(
+        (r) => r.branchDeleted === true && r.alreadyAbsent === true,
+      ),
+      'every already-absent branch is recorded as reaped',
+    );
+  });
+
+  it('still fails when a genuine (non-not-found) reap error occurs (Story #4393)', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'branch' && args[1] === '-D' && args[2] === 'story-5') {
+        // Not a not-found error — a real refusal that must stay classified
+        // as a failure.
+        return {
+          status: 128,
+          stdout: '',
+          stderr: "error: branch 'story-5' is checked out at '/wt'",
+        };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 8, stories: { 5: { status: 'done' } } },
+      cwd: '/repo',
+      gitSpawn,
+      epicBranchHasOpenPrFn: () => false,
+    });
+    assert.equal(out.ok, false);
+    assert.equal(out.failures.length, 1);
+    assert.equal(out.failures[0].branch, 'story-5');
+    assert.match(out.failures[0].stderr, /checked out/);
   });
 
   it('switches main checkout off epic/<id> before deleting it', () => {
