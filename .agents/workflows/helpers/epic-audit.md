@@ -1,8 +1,10 @@
 ---
 description: >-
   Run smart change-set audits at Epic finalize. Consumes the epic-audit-prepare
-  envelope, dispatches each selected lens inline via runAuditSuite, and posts
-  an audit-results structured comment back onto the Epic ticket.
+  envelope, dispatches each selected lens (inline, or via a single
+  audit-orchestrator sub-agent that fans the lenses out as parallel level-2
+  agents) through runAuditSuite, and posts an audit-results structured comment
+  back onto the Epic ticket.
 ---
 
 # Epic Audit (helper)
@@ -196,6 +198,62 @@ After the runner returns:
 3. **Aggregate** by severity (🔴 Critical Blocker / 🟠 High /
    🟡 Medium / 🟢 Suggestion). Hold the aggregate for Step 3
    (auto-fix) and Step 4 (the `audit-results` structured comment).
+
+### Optional: delegate the roster walk to an audit-orchestrator sub-agent
+
+The Step 2 loop above walks the `selectedAudits` roster **serially in the
+host's own context**. When the roster carries more than one lens, `/deliver`
+Phase 4 MAY instead delegate the whole walk to a **single audit-orchestrator
+sub-agent** — one level-1 `Agent` call (`subagent_type: general-purpose`) — that:
+
+1. Receives the **already-selected** `selectedAudits` roster, the run's
+   `depth`, and the prepare envelope's substitution payload. It does **not**
+   re-run `selectAudits` and does **not** widen the roster — the roster is
+   fixed upstream by Step 1 (see the Constraints below).
+2. Fans the roster out as **parallel level-2 agents, one per lens** (nested
+   `Agent` dispatch — verified depth 2, announced max depth 5, per
+   [#2870](https://github.com/dsj1984/mandrel/issues/2870) and the
+   "Flat Story dispatch by design" note in
+   [`deliver-epic.md`](deliver-epic.md)). Each level-2 agent executes exactly
+   one lens's workflow procedure at the run's `depth`, isolated from the main
+   context.
+3. Collects the per-lens findings, **aggregates them by severity** (🔴 / 🟠 /
+   🟡 / 🟢), and returns **only the aggregated audit-results** to the host —
+   the per-lens reasoning transcripts stay in the level-2 leaves and never
+   enter the main context. The host resumes at Step 3 (remediation routing)
+   with the aggregate exactly as if it had walked the roster itself, and Step 4
+   posts the identical `audit-results` comment.
+
+This delegation is a **cross-lens parallelization of the roster walk only**. It
+is orthogonal to — and MUST NOT be conflated with — the *per-lens execution
+strategy*:
+
+- **The per-lens cost/precision gate is preserved.** Each level-2 lens agent
+  still runs its own lens at whatever strategy that lens's cost/precision gate
+  dictates (`docs/roadmap.md` § "The per-lens cost / precision gate"): an
+  orchestrated lens fans its own analysis dimensions out under
+  `runAuditOrchestration`, a sequential-only lens runs turn-by-turn. Fanning
+  the *roster* out in parallel changes **which context** runs a lens, never
+  **how** that lens runs internally, so no per-lens cost gate is bypassed or
+  altered.
+- **The "do not batch-convert the sequential-only lenses" rule is preserved.**
+  The seven sequential-only lenses (`audit-dependencies`, `audit-devops`,
+  `audit-sre`, `audit-privacy`, `audit-seo`, `audit-ux-ui`,
+  `audit-lighthouse`) stay sequential **inside** their level-2 agent.
+  Dispatching them as parallel level-2 agents is **not** a batch-conversion of
+  their internal execution — a sequential-only lens remains sequential-only
+  (`docs/roadmap.md` § "Remaining orchestration surface"). Generalizing any of
+  those lenses to orchestrated is still a separate, gated, lens-by-lens
+  decision that this roster fan-out neither performs nor pre-empts.
+
+Weigh the whole subtree's token cost before delegating
+([`.agents/instructions.md` § 4](../../instructions.md) — cost compounds with
+nesting depth): the level-1 orchestrator plus one level-2 agent per lens
+re-pays the always-loaded context at each level. For a single-lens roster the
+serial host walk is cheaper; the delegation pays off when several lenses fan
+out at once. Either path produces the identical Step 4 `audit-results` comment,
+so the delegation is a performance/context-isolation choice, never a change to
+what gets audited or reported.
 
 If a future Story lifts per-lens execution out of the host-LLM walk
 into the CLI itself, the runner will populate `findings[]` and this
