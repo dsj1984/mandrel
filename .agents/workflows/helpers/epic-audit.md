@@ -263,9 +263,32 @@ envelope" bullet. Until then, the host LLM is the gate.
 ## Step 3 — Remediation Routing (host LLM, no automated loop)
 
 There is **no runtime auto-fix function** at this phase. The host LLM is
-the executor: it inspects the aggregated 🔴 / 🟠 findings from Step 2 and
-either applies a focused fix on the Epic branch or escalates the finding
-to the operator via the `audit-results` comment in Step 4.
+the executor: it inspects the aggregated findings from Step 2 and either
+applies a focused fix on the Epic branch or escalates the finding to the
+operator via the `audit-results` comment in Step 4.
+
+### Resolve the remediation threshold (Story #4399)
+
+Read `delivery.epicAudit.autoFixSeverity` from the resolved `.agentrc.json`
+(default **`medium`**; the resolver in
+[`config/runners.js`](../../scripts/lib/config/runners.js) supplies the
+default when the key is absent). The threshold governs **which severities
+route into on-branch remediation** — it never changes the halting rule
+(a surviving 🔴 still stops Phase 4 in Step 4) or the escalation classes:
+
+- **`medium`** (default) — route 🔴 Critical, 🟠 High, **and 🟡 Medium**
+  findings into remediation. 🟢 Suggestions still graduate to follow-up
+  issues (never auto-fixed).
+- **`high`** — route only 🔴 Critical and 🟠 High findings into
+  remediation, reproducing the pre-4399 behavior exactly. 🟡 Medium and
+  🟢 Suggestion findings graduate to follow-up issues untouched.
+
+This is a hard cutover per
+[`rules/git-conventions.md`](../../rules/git-conventions.md) § Contract
+Cutovers — there is no back-compat flag; `high` is opt-in to the old
+routing, `medium` is the shipped default.
+
+### 🔴 / 🟠 findings — per-finding ceremony (unchanged)
 
 For each 🔴 / 🟠 finding, the host LLM MUST decide between two paths:
 
@@ -297,10 +320,42 @@ For each 🔴 / 🟠 finding, the host LLM MUST decide between two paths:
      attempt (the equivalent of the prior loop's
      `validation-regression` / `thrash-detected` exits).
 
+### 🟡 Medium findings — batched per-lens ceremony (only when `autoFixSeverity: medium`)
+
+When the threshold is `medium`, remediate the fixable 🟡 Medium findings
+in a **batch keyed by owning lens** rather than the per-finding ceremony
+above — the per-finding rescan is disproportionate for the volume of
+Mediums a wide change set surfaces:
+
+1. Group the fixable Mediums by their owning lens. A Medium is fixable on
+   the same terms as a 🟠 (clean remediation, no escalation class); a
+   Medium that falls into any escalation class (`spec-deviation`,
+   `secrets`, `test-deletion`, `scope-exceeded`) routes to Step 4
+   untouched exactly like a 🟠.
+2. For each lens, call `assert-branch.js --expected [EPIC_BRANCH]`, stage
+   explicit paths only, and make **one focused conventional commit per
+   lens** carrying all that lens's Medium fixes
+   (`fix(<scope>): <description> (audit findings batch)`).
+3. The bounded-attempt semantics extend to the batch: each finding in the
+   batch gets **at most one** attempt, and a lens's batch commit that
+   would exceed `delivery.epicAudit.maxFixScopeFiles` routes that lens's
+   findings to escalation (`scope-exceeded`) instead of committing.
+4. After **all** lens batches are committed, run a **single** validation
+   pass (`npm run lint` plus the relevant `npm test` slice) and a
+   **single** rescan of the **overlapping lenses only** (re-invoke
+   `run-audit-suite.js` for the lenses whose findings were touched).
+   Confirm the batched findings are gone. If a batched finding survives
+   the rescan or validation regresses, route the surviving finding(s) to
+   escalation and record the attempt context in Step 4.
+
+Record every remediated finding (🟠 or 🟡) in the **"Fixed on-branch"**
+section of the `audit-results` comment (Step 4) so it does not graduate to
+a follow-up issue.
+
 Do not invent a programmatic retry budget. The host LLM applies *at most
-one* focused-fix attempt per finding before escalating; any further
-remediation is the operator's call after reading the `audit-results`
-comment.
+one* focused-fix attempt per finding (or per batched finding) before
+escalating; any further remediation is the operator's call after reading
+the `audit-results` comment.
 
 Escalated findings flow through to Step 4 unchanged with their
 escalation reason recorded — the audit pass does not delete them, it
@@ -332,12 +387,40 @@ The body MUST include:
 - a link to the per-lens artifact files under `<auditOutputDir>` so the
   operator (and downstream retro) can re-read the full prompt body.
 
+### The `## Fixed on-branch` section (Story #4399)
+
+Findings that Step 3 remediated on the Epic branch MUST be rendered under a
+dedicated **`## Fixed on-branch`** heading, **not** under their lens's
+open-findings group. This is the contract seam that keeps remediated
+findings from spawning ghost follow-up issues: the
+[`audit-results` graduator](../../scripts/lib/feedback-loop/audit-results-graduator.js)
+skips every entry inside this section (both because a fixed entry is
+rendered with a **✅ prefix** — so it carries no leading severity emoji the
+parser would match — and because the parser has an explicit
+Fixed-on-branch section guard).
+
+Render each fixed finding as a `✅`-prefixed line naming its original
+severity, the file path in backticks, and the remediating commit SHA, e.g.:
+
+```markdown
+## Fixed on-branch
+
+- ✅ 🟡 Medium (audit-clean-code): `.agents/scripts/foo.js` — dead branch removed (a1b2c3d)
+- ✅ 🟠 High (audit-security): `src/api/users.js` — ownership check added (d4e5f6a)
+```
+
+Open (escalated / unfixed) findings stay under their lens heading with
+their leading severity emoji so the graduator still files them.
+
 ### Severity gating
 
-- **Any 🔴 Critical Blocker** → STOP. Relay to the operator and let
-  `/deliver` Phase 4 record a manual intervention.
-- **Only 🟠/🟡/🟢** → log as non-blocking and return to `/deliver`
-  Phase 5 (code-review).
+The gate is unchanged by the threshold — it keys off the **surviving**
+(unfixed) findings after Step 3:
+
+- **Any surviving 🔴 Critical Blocker** → STOP. Relay to the operator and
+  let `/deliver` Phase 4 record a manual intervention.
+- **Only 🟠/🟡/🟢 surviving** → log as non-blocking and return to
+  `/deliver` Phase 5 (code-review).
 
 ## Constraints
 

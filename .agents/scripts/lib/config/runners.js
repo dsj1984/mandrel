@@ -48,15 +48,22 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
  * and Phase 5 (code-review). Operators override via
  * `delivery.epicAudit.*` and `delivery.codeReview.*` in `.agentrc.json`
  * (Story #2611, Epic #2586).
+ *
+ * `autoFixSeverity` (Story #4399) defaults to `'medium'` — the phase
+ * remediates 🔴/🟠/🟡 findings on-branch while 🟢 suggestions graduate to
+ * follow-up issues. `'high'` reproduces the pre-4399 Critical/High-only
+ * routing. Hard cutover per `rules/git-conventions.md` — no back-compat flag.
  */
 export const DEFAULT_EPIC_AUDIT = Object.freeze({
   maxFixAttempts: 3,
   maxFixScopeFiles: 5,
+  autoFixSeverity: 'medium',
 });
 
 export const DEFAULT_CODE_REVIEW = Object.freeze({
   maxFixAttempts: 3,
   maxFixScopeFiles: 5,
+  autoFixSeverity: 'medium',
 });
 
 /**
@@ -65,8 +72,8 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  * @param {object | null | undefined} config
  * @returns {{
  *   deliverRunner: { concurrencyCap: number, progressReportIntervalSec: number, verifyConcurrencyCap: number },
- *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number },
- *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number },
+ *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
+ *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
  *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
  *   decomposer: { concurrencyCap: number },
  * }}
@@ -92,12 +99,16 @@ export function getRunners(config) {
         epicAuditUser.maxFixAttempts ?? DEFAULT_EPIC_AUDIT.maxFixAttempts,
       maxFixScopeFiles:
         epicAuditUser.maxFixScopeFiles ?? DEFAULT_EPIC_AUDIT.maxFixScopeFiles,
+      autoFixSeverity:
+        epicAuditUser.autoFixSeverity ?? DEFAULT_EPIC_AUDIT.autoFixSeverity,
     },
     codeReview: {
       maxFixAttempts:
         codeReviewUser.maxFixAttempts ?? DEFAULT_CODE_REVIEW.maxFixAttempts,
       maxFixScopeFiles:
         codeReviewUser.maxFixScopeFiles ?? DEFAULT_CODE_REVIEW.maxFixScopeFiles,
+      autoFixSeverity:
+        codeReviewUser.autoFixSeverity ?? DEFAULT_CODE_REVIEW.autoFixSeverity,
     },
     storyMergeRetry: DEFAULT_STORY_MERGE_RETRY,
     decomposer: DEFAULT_DECOMPOSER,

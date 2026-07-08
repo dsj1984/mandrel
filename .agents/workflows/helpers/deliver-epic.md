@@ -489,6 +489,16 @@ therefore auto-runs its mapped lenses (e.g. a `security`-axis Epic runs
 low-risk Epic adds nothing. Findings are persisted as an `audit-results`
 structured comment on the Epic.
 
+The helper's Step 3 remediation is **threshold-aware** (Story #4399): it
+reads `delivery.epicAudit.autoFixSeverity` (default **`medium`**) and, at
+`medium`, routes 🔴/🟠/**🟡** findings into on-branch remediation (Mediums
+batched per lens — one commit per lens, a single validation + overlapping-
+lens rescan at the end) while 🟢 Suggestions still graduate; `high`
+reproduces the pre-4399 Critical/High-only routing. Remediated findings are
+rendered under the comment's `## Fixed on-branch` section so they never
+graduate to follow-up issues. The severity gate below is **unchanged** —
+it keys off the surviving (unfixed) findings.
+
 The helper walks the selected roster **serially in-context by default**; when
 the roster carries more than one lens it **may delegate the walk to a single
 audit-orchestrator sub-agent** that fans the already-selected lenses out as
@@ -500,8 +510,8 @@ per-lens cost gate is preserved, and the seven sequential-only lenses are **not*
 batch-converted — the fan-out parallelizes across lenses only and never changes
 how any single lens runs internally.
 
-- **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
-- **Only 🟠/🟡/🟢** — log as non-blocking and continue.
+- **Any surviving 🔴 Critical Blocker** — STOP. Relay to the operator.
+- **Only 🟠/🟡/🟢 surviving** — log as non-blocking and continue.
 - **Selector reports `degraded: true`** — STOP. Propagate the
   `reason`/`detail`, post a friction comment, do not fall back to a
   full-roster audit.
@@ -533,8 +543,18 @@ emit so a high-risk Epic gets a deeper adversarial pass and a low-risk one a
 lighter one. Depth is **input-only** — it never changes the findings envelope
 or the posted comment shape.
 
-- **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
-- **Only 🟠/🟡/🟢** — log as non-blocking and continue.
+The helper's Step 4.5 focused-fix routing is **threshold-aware**
+(Story #4399): it reads `delivery.codeReview.autoFixSeverity` (default
+**`medium`**) and, at `medium`, routes 🔴/🟠/**🟡** findings into on-branch
+remediation (Mediums batched per lens — one commit per lens, a single
+validation + rescan at the end) while 🟢 Suggestions stay on the comment;
+`high` reproduces the pre-4399 Critical/High-only routing. Remediated
+findings are rendered under the comment's `## Fixed on-branch` section so
+they never graduate to follow-up issues. The severity gate below is
+**unchanged** — it keys off the surviving (unfixed) findings.
+
+- **Any surviving 🔴 Critical Blocker** — STOP. Relay to the operator.
+- **Only 🟠/🟡/🟢 surviving** — log as non-blocking and continue.
 
 ---
 
