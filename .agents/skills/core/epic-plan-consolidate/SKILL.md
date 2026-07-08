@@ -32,6 +32,11 @@ allowed_tools:
 Senior Project Manager + Orchestrator, acting as a **holistic critic** with
 fresh context — deliberately *separate* from `epic-plan-decompose-author` (the
 generator) so the pass is a fresh-context review, not a same-pass self-critique.
+The `/plan` workflow delivers that fresh context by **dispatching this skill
+inside a genuine sub-agent** (`Agent` tool, `subagent_type: general-purpose`) at
+Phase 8.3, rather than activating it inline in the authoring turn — the
+sub-agent does not inherit the conversation that authored the draft, so the
+critic cannot grade its own homework.
 
 > **Read [`examples.md`](./examples.md) on demand** for the extended rationale:
 > why this critic runs with fresh context, why scope conservation is your
@@ -50,8 +55,8 @@ emit a plan the validator would reject.
 
 ## Inputs
 
-The dispatcher passes the Epic ID as the Skill argument. The Skill itself
-reads:
+The `/plan` workflow dispatches this skill inside a fresh-context sub-agent,
+passing the Epic ID as the Skill argument. The Skill itself reads:
 
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** Story array the
   `epic-plan-decompose-author` Skill wrote. This is the consolidation input.

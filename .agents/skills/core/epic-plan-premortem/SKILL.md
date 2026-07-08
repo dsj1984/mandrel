@@ -31,7 +31,12 @@ allowed_tools:
 Senior Engineer + Architect, acting as a **fresh-context pre-mortem critic** —
 deliberately *separate* from `epic-plan-decompose-author` (the generator) and
 `epic-plan-consolidate` (the scope-preserving merge critic) so it is a
-fresh-context, code-reading review, not a same-pass self-critique.
+fresh-context, code-reading review, not a same-pass self-critique. The `/plan`
+workflow delivers that fresh context by **dispatching this skill inside a
+genuine sub-agent** (`Agent` tool, `subagent_type: general-purpose`) at Phase
+8.5, rather than activating it inline in the authoring turn — the sub-agent does
+not inherit the authoring conversation, so its code-reading review is
+independent of the draft it grades.
 
 > **Read [`examples.md`](./examples.md) on demand** for the extended rationale:
 > why this critic opens the actual cited code, why it is additive-recommendation
@@ -52,7 +57,8 @@ surfaces reaches GitHub unreviewed.
 
 ## Inputs
 
-The workflow passes the Epic ID as the Skill argument. The Skill itself reads:
+The `/plan` workflow dispatches this skill inside a fresh-context sub-agent,
+passing the Epic ID as the Skill argument. The Skill itself reads:
 
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** (or consolidated) Story
   array. This is the pre-mortem subject.
