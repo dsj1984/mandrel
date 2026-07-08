@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-07T15:22:18.875Z",
+  "generatedAt": "2026-07-08T12:27:13.138Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -404,7 +404,7 @@
     },
     {
       "path": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
-      "mi": 92.576
+      "mi": 92.389
     },
     {
       "path": ".agents/scripts/lib/checks/windows-coverage-noise-floor.js",
