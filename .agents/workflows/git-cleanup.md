@@ -18,11 +18,17 @@ confirmation:
 3. **reap merged local branches** — the existing squash-aware
    `gh pr list --state merged` + `git branch --merged <base>` sweep,
    with attached worktrees removed first. Optionally also deletes the
-   `origin/<branch>` ref when `--remote` is passed. With `--remote`,
-   the planner additionally enumerates `refs/remotes/origin/*` and
-   reaps any **remote-only** merged branches — branches whose local
-   ref is already gone (or never existed) but whose `origin/<branch>`
-   still points at a merged PR.
+   `origin/<branch>` ref when `--remote` is passed. Every default run
+   also **enumerates** `refs/remotes/origin/*` and reports any
+   **remote-only** merged branches — branches whose local ref is
+   already gone (or never existed) but whose `origin/<branch>` still
+   points at a merged PR — even without `--remote`; `--remote` is still
+   required to *delete* them. A third branch, whose content already
+   landed in `<base>` by another route (a squash-merged Epic PR, a
+   cherry-pick, a manual `merge --squash`), is caught by a
+   **content-equivalence probe** (`git merge-tree --write-tree`,
+   git ≥ 2.38) even when it has no merged PR of its own and is not a
+   git ancestor of `<base>`.
 4. **triage `git stash` entries** — list every stash and prompt for
    `drop / keep / quit` per entry (or pass `--drop-stashes <ref>` for
    non-interactive use).
@@ -150,6 +156,10 @@ programmatic consumption:
       "detectedBy": "gh"
     }
   ],
+  "skipped": [
+    { "branch": "story-4200", "reason": "not-merged", "lastCommitAt": "2026-05-01T00:00:00Z" }
+  ],
+  "ghDegraded": false,
   "worktrees": [{ "path": "C:/repo/.worktrees/fix-foo", "ok": true, "dirty": false }],
   "local":  [{ "branch": "fix/foo", "ok": true, "alreadyGone": false }],
   "remote": [{ "branch": "fix/foo", "ok": true, "alreadyGone": true }],
@@ -200,18 +210,51 @@ follow-up prune when `--remote` is set, so passing both is idempotent
 
 ### branches
 
-The merged-branch sweep semantics:
+The merged-branch sweep recognizes three detection signals, in order:
 
-- A branch is a candidate iff it is not `<base>`, not the current
-  HEAD, not in `git config branch.protectedBranches`, and either has a
-  merged PR (`gh pr list --head <branch> --state merged`) or appears in
-  `git branch --merged <base>`.
+1. **`detectedBy: 'gh'`** — the branch has a merged PR
+   (`gh pr list --head <branch> --state all`, classified by the
+   **latest** PR's state).
+2. **`detectedBy: 'git-merged'`** — the branch is a git ancestor of
+   `<base>` (`git branch --merged <base>`), or of `origin/<base>` when
+   that remote-tracking ref exists (unioned so a stale local `<base>` —
+   fast-forward phase skipped, or `--branches` run alone — no longer
+   hides a branch already merged on the remote).
+3. **`detectedBy: 'content-merged'`** (Story #4395) — the branch has no
+   reapable PR verdict and is not an ancestor of `<base>` under either
+   anchor, but simulating the merge via
+   `git merge-tree --write-tree <base> <branch>` (git ≥ 2.38) produces a
+   tree identical to `<base>`'s own tree — i.e. applying the branch's
+   changes on top of `<base>` is a content no-op. This catches
+   `story-<id>` branches merged into `epic/<id>` whose Epic PR
+   **squash-merged** to `main` (the story commits are not ancestors of
+   `main` and the story branch usually has no PR of its own), and any
+   other branch whose content landed via a different route (a renamed
+   head, a cherry-pick, a manual `merge --squash`). When git rejects
+   `--write-tree` (git < 2.38) or the simulated merge conflicts, the
+   probe is inconclusive and the branch keeps its existing `not-merged`
+   skip — the signal never guesses. `content-merged` candidates render
+   with a "weaker signal — verify before deleting" annotation in the
+   dry-run list and are called out separately in the confirmation
+   prompt, since — unlike a merged PR or git ancestry — no CI or GitHub
+   merge check ever validated this branch's exact diff.
+
+Other candidate semantics:
+
+- A branch is a candidate iff it is not `<base>`, not the current HEAD,
+  not in `git config branch.protectedBranches`, and matches one of the
+  three signals above.
 - When a candidate has an attached worktree, the worktree is removed
   (force if dirty) **before** `git branch -D`, mirroring the pattern in
   [`worktree-lifecycle.md`](helpers/worktree-lifecycle.md).
 - `--remote` is required on top of `--execute` to touch `origin/`.
+- A throwing `gh` runner (auth failure, rate limit, missing binary) no
+  longer aborts the run: the branches phase logs one warning and
+  continues with the git-only signals (ancestry + content-equivalence).
+  The JSON envelope's `ghDegraded: true` records that this happened for
+  the run, and the dry-run text carries a matching warning line.
 
-The skip taxonomy distinguishes two unreapable cases:
+The skip taxonomy:
 
 - `reason: 'protected'` — the base branch or a name in
   `git config branch.protectedBranches`. Not reapable; ignore.
@@ -219,15 +262,26 @@ The skip taxonomy distinguishes two unreapable cases:
   `git checkout <base>`. The dry-run output surfaces a remediation
   hint so the operator sees the recovery path without having to look
   in the JSON envelope.
+- `reason: 'tip-diverged-from-merge'` — the latest PR merged, but the
+  branch's tip has since moved past the merged commit (a post-merge
+  force-push). The dry-run line names both SHAs and a remediation hint
+  (delete manually via `git branch -D <branch>`, or push the follow-up
+  commit).
+- `reason: 'not-merged'` — none of the three detection signals matched.
+  Previously silent; the dry-run output now lists every surviving
+  `not-merged` branch as a one-line-per-branch summary with its
+  last-commit age, so the operator can see why a leftover branch isn't
+  reaped instead of hunting for it by hand.
 
-The `--remote` flag also opts the planner into a **remote-only
+Every default run also opts the planner into a **remote-only
 enumeration pass**: in addition to walking `refs/heads/*`, the planner
 also walks `refs/remotes/origin/*` and emits candidates for any branch
 that exists on `origin` with a merged PR but has no local ref. These
-candidates carry `detectedBy: 'remote-only'` and `localExists: false`,
-and the executor runs only the `git push --delete origin/<branch>`
-path for them (no local `git branch -D` is attempted — there is no
-local branch to delete).
+candidates carry `detectedBy: 'remote-only'` and `localExists: false`
+and are always shown in the dry-run list; **deleting** them (via the
+`git push --delete origin/<branch>` path — no local `git branch -D` is
+attempted, since there is no local branch) still requires `--remote` on
+top of `--execute`, unchanged.
 
 ### stashes
 

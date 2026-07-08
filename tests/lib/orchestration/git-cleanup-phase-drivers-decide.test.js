@@ -174,6 +174,68 @@ describe('decideBranchPhase', () => {
       remote: true,
     });
   });
+
+  // -------------------------------------------------------------------
+  // Story #4395 — remote-only always-enumerated + content-merged prompt
+  // -------------------------------------------------------------------
+
+  it('returns no-candidates when the plan holds only remote-only candidates and --remote is absent', () => {
+    const plan = {
+      candidates: [{ branch: 'fix/remote-only', localExists: false }],
+    };
+    const action = decideBranchPhase({ plan, opts: {}, cwd });
+    assert.equal(action.kind, 'no-candidates');
+  });
+
+  it('counts remote-only candidates toward "no-candidates" once --remote is set', () => {
+    const plan = {
+      candidates: [{ branch: 'fix/remote-only', localExists: false }],
+    };
+    const action = decideBranchPhase({ plan, opts: { remote: true }, cwd });
+    assert.equal(action.kind, 'prompt-then-execute');
+    assert.match(action.promptMessage, /Reap 1 merged branch\(es\)/);
+  });
+
+  it('the prompt "Reap N" count excludes remote-only candidates when --remote is absent', () => {
+    const plan = {
+      candidates: [
+        { branch: 'fix/local', localExists: true },
+        { branch: 'fix/remote-only', localExists: false },
+      ],
+    };
+    const action = decideBranchPhase({ plan, opts: {}, cwd });
+    assert.equal(action.kind, 'prompt-then-execute');
+    assert.match(action.promptMessage, /Reap 1 merged branch\(es\)\?/);
+    // executeArgs still carries every candidate — executeCleanup no-ops
+    // the remote-only one when `remote` is falsy.
+    assert.deepEqual(action.executeArgs.candidates, plan.candidates);
+  });
+
+  it('the prompt calls out content-merged candidates as a weaker signal', () => {
+    const plan = {
+      candidates: [
+        { branch: 'fix/a', localExists: true, detectedBy: 'gh' },
+        {
+          branch: 'story-4200',
+          localExists: true,
+          detectedBy: 'content-merged',
+        },
+      ],
+    };
+    const action = decideBranchPhase({ plan, opts: {}, cwd });
+    assert.match(
+      action.promptMessage,
+      /Reap 2 merged branch\(es\) \(1 content-merged — weaker signal, verify before confirming\)\?/,
+    );
+  });
+
+  it('the prompt omits the content-merged note when none are present', () => {
+    const plan = {
+      candidates: [{ branch: 'fix/a', localExists: true, detectedBy: 'gh' }],
+    };
+    const action = decideBranchPhase({ plan, opts: {}, cwd });
+    assert.doesNotMatch(action.promptMessage, /content-merged/);
+  });
 });
 
 // ---------------------------------------------------------------------

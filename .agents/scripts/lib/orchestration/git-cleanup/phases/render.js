@@ -9,10 +9,61 @@
  */
 
 const TAG = '[git-cleanup]';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Pure: format a last-commit ISO timestamp as a short relative-age string
+ * for the `not-merged` skip-visibility line (Story #4395). Returns
+ * `'unknown'` when `iso` is missing or unparseable — a branch whose commit
+ * date could not be resolved (e.g. `gh`-degraded run, deleted ref) still
+ * gets a line, just without an age.
+ *
+ * @param {string|null|undefined} iso
+ * @param {number} now  Epoch-ms reference clock (injectable for tests).
+ * @returns {string}
+ */
+function formatCommitAge(iso, now) {
+  if (!iso) return 'unknown';
+  const then = Date.parse(iso);
+  if (!Number.isFinite(then)) return 'unknown';
+  const days = Math.max(0, Math.floor((now - then) / DAY_MS));
+  if (days === 0) return 'today';
+  if (days === 1) return '1 day ago';
+  return `${days} days ago`;
+}
+
+/**
+ * Pure: render a single `not-merged` skip-visibility line (Story #4395).
+ * `renderDryRun` previously kept `not-merged` survivors silent; this
+ * surfaces each one with its last-commit age so the operator can see why
+ * a leftover branch isn't reaped instead of hunting for it by hand.
+ *
+ * @param {{ branch: string, reason: string, lastCommitAt?: string|null }} skip
+ * @param {{ now?: number }} [opts]
+ * @returns {string | null}
+ */
+export function renderNotMergedSkipLine(skip, opts = {}) {
+  if (!skip || skip.reason !== 'not-merged') return null;
+  const now = opts.now ?? Date.now();
+  const age = formatCommitAge(skip.lastCommitAt, now);
+  return `${TAG} ⏭️  ${skip.branch} skipped — not merged (last commit: ${age})`;
+}
+
+/**
+ * Pure: render a single content-merged candidate annotation line
+ * (Story #4395). `content-merged` is a weaker signal than a merged PR or
+ * git ancestry — this note lets the operator tell it apart in both the
+ * dry-run list and the confirmation prompt.
+ */
+function contentMergedNote(candidate) {
+  return candidate.detectedBy === 'content-merged'
+    ? ' (weaker signal — verify before deleting)'
+    : '';
+}
 
 /** Pure: render the dry-run plan as the operator-facing text block. */
 export function renderDryRun(plan, opts = {}) {
-  const { baseBranch = null } = opts;
+  const { baseBranch = null, now } = opts;
   const lines = [
     `${TAG} DRY RUN (nothing deleted) — ${plan.candidates.length} candidate(s)`,
   ];
@@ -23,7 +74,9 @@ export function renderDryRun(plan, opts = {}) {
       const pr = c.prNumber ? `PR #${c.prNumber}` : c.detectedBy;
       const wt = c.hasWorktree ? ` (worktree: ${c.worktreePath})` : '';
       const remoteOnly = c.localExists === false ? ' (remote-only)' : '';
-      lines.push(`  • ${c.branch} — ${pr}${wt}${remoteOnly}`);
+      lines.push(
+        `  • ${c.branch} — ${pr}${wt}${remoteOnly}${contentMergedNote(c)}`,
+      );
     }
   }
   const skipped = plan.skipped ?? [];
@@ -40,6 +93,15 @@ export function renderDryRun(plan, opts = {}) {
     const line = renderLatestPrSkipLine(skip);
     if (line) lines.push(line);
   }
+  for (const skip of skipped) {
+    const line = renderNotMergedSkipLine(skip, { now });
+    if (line) lines.push(line);
+  }
+  if (plan.ghDegraded) {
+    lines.push(
+      `${TAG} ⚠️ gh probe degraded — candidates rely on git-only signals (ancestry + content-equivalence) for this run`,
+    );
+  }
   return lines;
 }
 
@@ -47,7 +109,8 @@ export function renderDryRun(plan, opts = {}) {
  * Pure: render a single latest-PR-state skip line. Returns null when the
  * skip reason is not one of the latest-PR family — `renderDryRun` filters
  * by truthy return value so unrelated skip reasons (`protected`,
- * `current-head`, `filtered`, `not-merged`) stay quiet.
+ * `current-head`, `filtered`) stay quiet here. `not-merged` gets its own
+ * renderer ({@link renderNotMergedSkipLine}).
  *
  * @param {{ branch: string, reason: string, prNumber?: number, tipSha?: string, mergedSha?: string }} skip
  * @returns {string | null}
@@ -64,7 +127,10 @@ export function renderLatestPrSkipLine(skip) {
   if (skip.reason === 'tip-diverged-from-merge') {
     const tip = skip.tipSha ? skip.tipSha.slice(0, 7) : '<unknown>';
     const merged = skip.mergedSha ? skip.mergedSha.slice(0, 7) : '<unknown>';
-    return `${TAG} ⏭️  ${skip.branch} skipped — tip ${tip} diverges from ${prRef}'s merged ${merged} (post-merge force-push)`;
+    return (
+      `${TAG} ⏭️  ${skip.branch} skipped — tip ${tip} diverges from ${prRef}'s merged ${merged} (post-merge force-push); ` +
+      `resolve by deleting manually (\`git branch -D ${skip.branch}\`) or pushing the follow-up commit`
+    );
   }
   if (skip.reason === 'latest-pr-unknown-state') {
     return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} has an unrecognized state`;
@@ -160,6 +226,7 @@ export function buildJsonEnvelope({
     baseBranch,
     candidates: plan.candidates,
     skipped: plan.skipped,
+    ghDegraded: plan.ghDegraded ?? false,
     worktrees: r.worktrees,
     local: r.local,
     remote: r.remote,

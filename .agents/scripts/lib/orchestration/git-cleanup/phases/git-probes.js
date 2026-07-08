@@ -344,7 +344,91 @@ export function branchTipSha({
   return res.status !== 0 ? null : validSha(firstLsRemoteSha(res.stdout));
 }
 
-export const __testing = { validSha, firstLsRemoteSha };
+/* node:coverage ignore next */
+// Story #4395: ancestry-anchor freshness check. `planCleanup` calls this
+// before unioning `git branch --merged origin/<base>` into the ancestry
+// signal so a stale local `<base>` (fast-forward phase skipped or
+// `--branches` run alone) doesn't hide a branch that's already merged on
+// the remote.
+export function refExists(cwd, ref) {
+  const res = gitSpawn(cwd, 'rev-parse', '--verify', '--quiet', ref);
+  return res.status === 0;
+}
+
+/* node:coverage ignore next */
+// Story #4395: last-commit timestamp for the dry-run `not-merged`
+// skip-visibility line (branch name + last-commit age).
+export function branchLastCommitAt(cwd, branch) {
+  const res = gitSpawn(
+    cwd,
+    'log',
+    '-1',
+    '--format=%cI',
+    `refs/heads/${branch}`,
+    '--',
+  );
+  if (res.status !== 0) return null;
+  return res.stdout.trim() || null;
+}
+
+/**
+ * First non-empty trimmed stdout line — the resulting tree OID on a clean
+ * `git merge-tree --write-tree` run.
+ *
+ * @param {string} stdout
+ * @returns {string}
+ */
+function firstStdoutLine(stdout) {
+  const first = (stdout ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .find(Boolean);
+  return first ?? '';
+}
+
+/**
+ * Probe content-equivalence between `base` and `branch` via
+ * `git merge-tree --write-tree <base> <branch>` (git >= 2.38, Story #4395).
+ *
+ * A clean merge (exit 0) whose resulting tree OID equals `<base>`'s own
+ * tree OID means applying `branch`'s changes on top of `base` is a no-op —
+ * `branch`'s content already lives in `base` by another route (a
+ * squash-merged Epic PR, a cherry-pick, a manual `merge --squash`) that
+ * neither the PR probe nor the ancestry check can see.
+ *
+ * Both the "unsupported" case (git < 2.38 rejects `--write-tree`) and the
+ * "real conflict" case (branch and base diverge and cannot auto-merge)
+ * surface as a non-zero exit. This probe treats them identically — the
+ * signal is inconclusive, so the caller keeps the branch's current
+ * `not-merged` classification rather than guessing.
+ *
+ * @param {{ cwd: string, base: string, branch: string, spawn?: typeof gitSpawn }} args
+ * @returns {{ supported: false } | { supported: true, equivalent: boolean }}
+ */
+export function probeContentEquivalent({
+  cwd,
+  base,
+  branch,
+  spawn = gitSpawn,
+}) {
+  const merged = spawn(cwd, 'merge-tree', '--write-tree', base, branch);
+  if (merged.status !== 0) return { supported: false };
+  const mergedTree = validSha(firstStdoutLine(merged.stdout));
+  if (!mergedTree) return { supported: false };
+  const baseTreeRes = spawn(
+    cwd,
+    'rev-parse',
+    '--verify',
+    '--quiet',
+    `${base}^{tree}`,
+  );
+  if (baseTreeRes.status !== 0) return { supported: false };
+  const baseTree = validSha(baseTreeRes.stdout);
+  if (!baseTree) return { supported: false };
+  return { supported: true, equivalent: mergedTree === baseTree };
+}
+
+export const __testing = { validSha, firstLsRemoteSha, firstStdoutLine };
 
 /**
  * Pure-ish: classify a latest-PR probe row into a planner verdict.
