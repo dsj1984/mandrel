@@ -295,8 +295,9 @@ Changes /plan gate behavior and acceptance-spec creation for critical workflow o
       );
       // node:test may append V8 binary IPC to the captured stdout buffer;
       // assert the envelope fingerprint we wrote is present instead of
-      // parsing the whole capture.
-      assert.match(stdout, /"systemPrompts"/);
+      // parsing the whole capture. Story #4403 retired the `systemPrompts`
+      // backstop field; `planningSections` is a stable envelope key instead.
+      assert.match(stdout, /"planningSections"/);
       assert.doesNotMatch(stdout, /"planningRisk"/);
     });
   });

@@ -199,7 +199,7 @@ describe('runSpecPhase risk-verdict recording', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\n\n## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },
@@ -233,7 +233,7 @@ describe('runSpecPhase risk-verdict recording', () => {
         provider.epic.id,
         provider,
         {
-          techSpecContent: '## Technical Overview\nTS.',
+          techSpecContent: '## Delivery Slicing\n\n## Technical Overview\nTS.',
         },
         { baseBranch: 'main', paths: { tempRoot: sandbox } },
         { config: SPEC_LEASE_CFG },
@@ -243,6 +243,46 @@ describe('runSpecPhase risk-verdict recording', () => {
 
     // No mutation happened: the Epic never flipped to review-spec.
     assert.ok(!provider.epic.labels.includes('agent::review-spec'));
+  });
+
+  // Story #4403 (Finding 3): the "## Delivery Slicing" presence gate used to
+  // run as a standalone `epic-plan-spec-validate.js` CLI step AFTER the
+  // persist path had already written to GitHub — so it could never actually
+  // block. It is now folded into runSpecPhase's own input validation.
+  it('rejects a Tech Spec missing "## Delivery Slicing" before any provider call', async () => {
+    const provider = buildSpecPhaseProvider();
+    let providerCalled = false;
+    const guardedProvider = new Proxy(provider, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value !== 'function') return value;
+        return (...args) => {
+          providerCalled = true;
+          return value.apply(target, args);
+        };
+      },
+    });
+
+    await assert.rejects(
+      runSpecPhase(
+        provider.epic.id,
+        guardedProvider,
+        {
+          // No "## Delivery Slicing" heading — the slicing-less spec the
+          // gate must reject.
+          techSpecContent: '## Technical Overview\nNo slicing section here.',
+        },
+        { baseBranch: 'main', paths: { tempRoot: sandbox } },
+        { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },
+      ),
+      /missing required section.*Delivery Slicing/s,
+    );
+
+    assert.equal(
+      providerCalled,
+      false,
+      'the section gate must fail closed before any provider/GitHub call',
+    );
   });
 });
 
@@ -264,7 +304,7 @@ describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\n\n## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },
@@ -291,7 +331,7 @@ describe('runSpecPhase rerun demotion guard (Story #4019)', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nTS.',
+        techSpecContent: '## Delivery Slicing\n\n## Technical Overview\nTS.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       { config: SPEC_LEASE_CFG, riskVerdict: VALID_VERDICT },

@@ -20,6 +20,10 @@ import {
 } from '../../epic-plan-state-store.js';
 import { resolveReviewRouting } from '../../plan-review-routing.js';
 import { deriveRiskEnvelope } from '../../planning-risk.js';
+import {
+  formatMissingSectionMessage,
+  validateSpecSections,
+} from '../../spec-section-validator.js';
 import { upsertStructuredComment } from '../../ticketing.js';
 import { planEpic } from './plan-epic.js';
 import { runSpecFreshnessCheck } from './spec-freshness.js';
@@ -106,6 +110,24 @@ export async function runSpecPhase(
   if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
     throw new Error(
       '[epic-plan-spec] risk verdict is required — author risk-verdict.json via the epic-plan-spec-author Skill and pass it with --risk-verdict.',
+    );
+  }
+
+  // Story #4403 (Finding 3): the "## Delivery Slicing" presence gate — the
+  // Phase 8-side anchor the Holistic Consolidation pass reconciles against —
+  // is validated here, against the in-memory authored content, before any
+  // GitHub mutation (lease acquisition, Epic body write, structured
+  // comments). This replaces the retired standalone `epic-plan-spec-validate.js`
+  // CLI / Phase 7.5 workflow step, whose documented ordering ran the check
+  // AFTER the persist path had already written to GitHub and deleted the
+  // temp file it read — so the "blocking gate" could never actually block.
+  const sectionCheck = validateSpecSections({ body: techSpecContent });
+  if (!sectionCheck.ok) {
+    throw new Error(
+      formatMissingSectionMessage({
+        techspecPath: `Epic #${epicId} authored Tech Spec`,
+        missing: sectionCheck.missing,
+      }),
     );
   }
 

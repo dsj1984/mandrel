@@ -576,7 +576,8 @@ describe('review routing — Story #2795', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNo stale paths here.',
+        techSpecContent:
+          '## Delivery Slicing\n\n## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       { config: SPEC_LEASE_CFG, riskVerdict: HIGH_RISK_VERDICT },
@@ -600,7 +601,8 @@ describe('review routing — Story #2795', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNo stale paths here.',
+        techSpecContent:
+          '## Delivery Slicing\n\n## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       { config: SPEC_LEASE_CFG, riskVerdict: LOW_RISK_VERDICT },
@@ -628,7 +630,8 @@ describe('review routing — Story #2795', () => {
       provider.epic.id,
       provider,
       {
-        techSpecContent: '## Technical Overview\nNo stale paths here.',
+        techSpecContent:
+          '## Delivery Slicing\n\n## Technical Overview\nNo stale paths here.',
       },
       { baseBranch: 'main', paths: { tempRoot: sandbox } },
       {

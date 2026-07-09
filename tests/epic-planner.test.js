@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 // Story #1437 Task #1446: the `epic-planner.js` engine was retired; its
-// `buildAuthoringContext` / `planEpic` / system-prompt exports were
-// migrated into `epic-plan-spec.js`. The test suite name is kept as a
-// historical breadcrumb so a reader looking for the original module can
-// still find this file. The exercised behaviour is unchanged.
+// `buildAuthoringContext` / `planEpic` exports were migrated into
+// `epic-plan-spec.js`. The test suite name is kept as a historical
+// breadcrumb so a reader looking for the original module can still find
+// this file. The exercised behaviour is unchanged.
+//
+// Story #4403: the duplicated `TECH_SPEC_SYSTEM_PROMPT` /
+// `ACCEPTANCE_SPEC_SYSTEM_PROMPT` backstop (and the `systemPrompts` field on
+// the `--emit-context` envelope) is retired — the `epic-plan-spec-author`
+// skill body is the sole home for those prompts.
 //
 // Story #4314: the PRD artifact class is retired; the Epic body carries its
 // `## User Stories` section inline.
@@ -16,11 +21,9 @@ import { beforeEach, describe, it } from 'node:test';
 // including the sentinel oracle: operator-authored prose outside the managed
 // sections survives the persist byte-for-byte.
 import {
-  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
   planEpic,
   resolveReviewRouting,
-  TECH_SPEC_SYSTEM_PROMPT,
 } from '../.agents/scripts/epic-plan-spec.js';
 import {
   extractEpicSection,
@@ -398,7 +401,7 @@ describe('epic-planner orchestration (v5.6+)', () => {
 });
 
 describe('epic-planner buildAuthoringContext', () => {
-  it('returns the epic, docs context, and system prompts', async () => {
+  it('returns the epic and docs context', async () => {
     const provider = {
       async getEpic(id) {
         return {
@@ -421,20 +424,10 @@ describe('epic-planner buildAuthoringContext', () => {
       techSpec: false,
       acceptanceTable: false,
     });
-    assert.ok(
-      !('prd' in ctx.systemPrompts),
-      'systemPrompts must not carry a prd key',
-    );
-    assert.equal(ctx.systemPrompts.techSpec, TECH_SPEC_SYSTEM_PROMPT);
-    assert.equal(
-      ctx.systemPrompts.acceptanceSpec,
-      ACCEPTANCE_SPEC_SYSTEM_PROMPT,
-    );
-    assert.equal(typeof ctx.systemPrompts.acceptanceSpec, 'string');
-    assert.ok(
-      ctx.systemPrompts.acceptanceSpec.length > 0,
-      'acceptanceSpec system prompt must be non-empty',
-    );
+    // Story #4403 — the systemPrompts backstop is retired; the
+    // `epic-plan-spec-author` skill body is the sole home for the Tech
+    // Spec / Acceptance Spec system prompts.
+    assert.equal('systemPrompts' in ctx, false);
     // docsContext is the planning-context budget envelope (Epic #817 Story 9)
     assert.equal(typeof ctx.docsContext, 'object');
     assert.ok(ctx.docsContext);
