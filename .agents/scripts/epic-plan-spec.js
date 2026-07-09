@@ -71,10 +71,6 @@ import {
   resolveAcceptancePersistence,
 } from './lib/orchestration/epic-plan-spec/phases/plan-epic.js';
 import {
-  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
-  TECH_SPEC_SYSTEM_PROMPT,
-} from './lib/orchestration/epic-plan-spec/phases/prompts.js';
-import {
   loadRiskVerdict,
   validateRiskVerdict,
 } from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
@@ -86,7 +82,6 @@ import { createProvider } from './lib/provider-factory.js';
 // Re-exports for stable public API: tests and external callers import these
 // from `epic-plan-spec.js`. The implementations live in `phases/`.
 export {
-  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
   drainPendingCleanupAtBoot,
   loadRiskVerdict,
@@ -96,7 +91,6 @@ export {
   resolveReviewRouting,
   runSpecFreshnessCheck,
   runSpecPhase,
-  TECH_SPEC_SYSTEM_PROMPT,
   validateRiskVerdict,
 };
 

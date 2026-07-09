@@ -233,7 +233,6 @@ describe('buildAuthoringContext — envelope carries grounding', () => {
 
     // Envelope keys the epic-plan-spec-author Skill relies on.
     assert.ok(ctx.epic);
-    assert.ok(ctx.systemPrompts);
     assert.ok(Object.hasOwn(ctx, 'docsContext'));
     assert.ok(Object.hasOwn(ctx, 'codebaseSnapshot'));
     assert.ok(ctx.bddRunner);

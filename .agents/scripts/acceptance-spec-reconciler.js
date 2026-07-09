@@ -87,10 +87,12 @@ Options:
 /**
  * Pure: parse stable AC IDs (AC-<n>) out of an acceptance-table section.
  * AC authoring style is "Acceptance Table — Markdown table whose first
- * column is the AC ID" — see ACCEPTANCE_SPEC_SYSTEM_PROMPT in
- * epic-plan-spec.js. We scan the entire section with a permissive regex
- * because operators are free to format the content however they wish
- * around the canonical table.
+ * column is the AC ID" — see the Acceptance Spec system prompt in the
+ * `epic-plan-spec-author` skill body
+ * (`.agents/skills/core/epic-plan-spec-author/SKILL.md`), the sole home for
+ * that prompt. We scan the entire section with a permissive regex because
+ * operators are free to format the content however they wish around the
+ * canonical table.
  *
  * Returns IDs **in document order**, deduplicated, normalised to
  * upper-case (`AC-7`, not `ac-7`).

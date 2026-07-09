@@ -1,6 +1,6 @@
 /**
- * tests/spec-section-validator.test.js — unit tests for the Phase 7.5
- * Tech Spec post-authoring section gate.
+ * tests/spec-section-validator.test.js — unit tests for the Tech Spec
+ * post-authoring section gate.
  *
  * Covers (per Story #3853 acceptance):
  *  - `## Delivery Slicing` present (canonical) → ok
@@ -12,6 +12,14 @@
  *  - inline mention (not a heading) → not ok (heading required)
  *  - validateSpecFile reads from disk and reports the same verdict
  *  - formatMissingSectionMessage names the section and the recovery options
+ *
+ * Story #4403 (Finding 3): the standalone `epic-plan-spec-validate.js` CLI
+ * (and its separate Phase 7.5 workflow step) is retired — `validateSpecFile`
+ * and `formatMissingSectionMessage` now live on this retained library, and
+ * `runSpecPhase` calls `validateSpecSections` directly as part of its
+ * persist-path input validation (see
+ * `tests/epic-plan-spec-risk-verdict.test.js` for the fail-closed
+ * before-any-GitHub-call coverage).
  */
 
 import assert from 'node:assert/strict';
@@ -21,10 +29,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   formatMissingSectionMessage,
-  validateSpecFile,
-} from '../.agents/scripts/epic-plan-spec-validate.js';
-import {
   REQUIRED_SECTION_NAMES,
+  validateSpecFile,
   validateSpecSections,
 } from '../.agents/scripts/lib/orchestration/spec-section-validator.js';
 

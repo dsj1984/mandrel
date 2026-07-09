@@ -23,10 +23,6 @@ import { Logger } from '../../../Logger.js';
 import { buildDocsContext } from '../../doc-reader.js';
 import { applyBudget } from '../../planning-context-budget.js';
 import { collectReferences, hasNewFileCue } from '../../spec-freshness.js';
-import {
-  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
-  TECH_SPEC_SYSTEM_PROMPT,
-} from './prompts.js';
 import { buildAuthoringGrounding } from './spec-authoring-grounding.js';
 
 /**
@@ -216,10 +212,6 @@ export async function buildAuthoringContext(
     },
     docsContext,
     codebaseSnapshot,
-    systemPrompts: {
-      techSpec: TECH_SPEC_SYSTEM_PROMPT,
-      acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
-    },
     bddRunner,
     bddScenarios,
     memoryFreshness,
