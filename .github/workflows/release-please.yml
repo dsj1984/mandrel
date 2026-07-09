@@ -79,9 +79,17 @@ jobs:
     #
     # Gated on the root component's release output so the publish runs only
     # when release-please cuts a new root release.
+    # Normally gated on the root release-please cut. Also runs on a manual
+    # `workflow_dispatch` so a **stuck release** — one release-please already
+    # tagged/released but whose npm publish failed (e.g. the npm 12.0.0
+    # provenance regression above) — can be re-published without waiting for a
+    # new version to be cut. This is safe: the npm registry rejects
+    # re-publishing an already-present version, so a dispatch can only fill the
+    # gap (publish the current `package.json` version if, and only if, it is
+    # missing on npm), never clobber an existing one.
     name: Publish to npm
     needs: release-please
-    if: ${{ needs.release-please.outputs.root_release_created == 'true' }}
+    if: ${{ needs.release-please.outputs.root_release_created == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,8 +107,17 @@ jobs:
       - name: Install Dependencies
         run: npm ci --ignore-scripts
 
+      # Pinned, not `npm@latest` (Story #3399 supply-chain policy applied to
+      # the toolchain, not just `uses:` refs). The floating `@latest` bit us
+      # when npm 12.0.0 shipped: its in-place global self-upgrade leaves the
+      # freshly-replaced global npm tree unable to resolve the bundled
+      # `sigstore` module from `libnpmpublish/lib/provenance.js`, so
+      # `npm publish` (provenance on) dies with `Cannot find module
+      # 'sigstore'` — with zero change on our side. Pin to the last known-good
+      # npm 11 line (>=11.5.1 required for Trusted Publishing) and bump
+      # deliberately once a 12.x self-upgrade is verified clean.
       - name: Upgrade npm for Trusted Publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.18.0
 
       - name: Publish package
         run: npm publish
