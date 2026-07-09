@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.88.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.87.0...mandrel-v1.88.0) (2026-07-08)
+
+
+### Added
+
+* **delivery:** threshold-aware auto-fix remediates Medium findings on-branch (refs [#4399](https://github.com/dsj1984/mandrel/issues/4399)) ([#4400](https://github.com/dsj1984/mandrel/issues/4400)) ([34964b3](https://github.com/dsj1984/mandrel/commit/34964b3665852bf43081f6d893430ff9a0a1f630))
+
 ## [1.87.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.86.0...mandrel-v1.87.0) (2026-07-08)
 
 
