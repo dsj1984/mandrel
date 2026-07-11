@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T00:58:50.478Z",
+  "generatedAt": "2026-07-11T01:40:46.750Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -15304,6 +15304,30 @@
       "method": "runSingleStoryClose",
       "startLine": 73,
       "crap": 1.0029154518950438
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "parseArguments",
+      "startLine": 63,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "rollupStory",
+      "startLine": 112,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "buildRollup",
+      "startLine": 153,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "main",
+      "startLine": 177,
+      "crap": 1.6297376093294462
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
