@@ -34,6 +34,7 @@ allowed_tools:
 
 - Run only during `/plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
 - Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All three MUST exist on disk before returning.
+- **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the Phase 7 persist call rejecting an artifact (e.g. a missing `## Delivery Slicing` heading, a schema-invalid risk verdict) — apply **targeted edits** to the existing `temp/epic-<Epic_ID>/` artifact that fix only what the rejection named; do NOT rewrite an artifact wholesale from a blank draft. `helpers/plan-epic.md` bounds this to **one refinement pass** per invocation (the same shape as the Epic Clarity Gate's own "one refinement pass per invocation" contract) — do not loop.
 - Start each markdown artifact at the correct `##` heading (Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Table` — never the Epic's own `## Acceptance Criteria` heading, which stays the ideation bullets) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
 - The Tech Spec MUST open with `## Delivery Slicing` and MUST NOT restate the Epic's Context, Goal, or Scope — your output lands as sections of the same Epic body, which travels into every downstream story agent's prompt, so any restatement is duplication and a drift risk. A `## Technical Overview` section is optional and, when present, is a 2–3 sentence orientation of the *technical approach* only (which subsystems are touched and reused), never a re-narration of the problem statement, goals, or scope.
 - Judge risk from what the change *does* (the Epic body / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
@@ -75,15 +76,24 @@ reads:
   Fields:
   - `epic.id`, `epic.title`, `epic.body` (or `epic.bodySummary` when the
     planning-context budget downgrades the body to a summary)
-  - `docsContext.items[]` — bounded project docs scraped from the configured
-    `docsRoot` (start with these for "how does the codebase do X today?"
-    context; the validator already capped their size)
+  - `docsContext` — digest-first (Story #4433, hard cutover of the § 3.1
+    planning read contract): `{ mode: 'digest', digestPath }` pointing at
+    the per-Epic docs digest (`<tempRoot>/epic-<Epic_ID>/docs-digest.md` —
+    the same file the `/deliver` story sub-agents already consume, Story
+    #4338 / #4324), or `null` when `project.docsContextFiles` is unset. Read
+    the digest at `digestPath` for "how does the codebase do X today?"
+    orientation (path, byte size, heading outline with line numbers, first
+    paragraph per `##` section), then pull the full file on demand with your
+    own Read tool — jump straight to the line the digest names — only when a
+    section bears on the spec. There is no full-content `items[]` field;
+    embedding whole/summarized doc bodies in this envelope was retired in
+    the same cutover that made the `/deliver` children digest-first.
   - `codebaseSnapshot` — Story #2634 structural view of the consumer repo
     (file tree, `package.json` exports + scripts, recently-touched
     directories, detected test runner + BDD feature roots, and — at the
     `medium` tier — per-file export signatures). Prefer module / file
     names that appear in this snapshot over names that appear only in
-    `docsContext.items[]`; the docs may be stale relative to the actual
+    the docs digest; the docs may be stale relative to the actual
     source tree. When the spec needs to cite a file that is **not** in
     `codebaseSnapshot.files`, surface that as a `<!-- DRIFT -->` callout
     in the Tech Spec body naming the cited path, so the freshness gate
@@ -151,13 +161,16 @@ or (for the verdict) schema-invalid.
 
 Read `temp/epic-<Epic_ID>/planner-context.json` with the `Read` tool. Pull
 the Epic title, body (or body summary, including the Epic's `## User Stories`
-section), the `docsContext` items, and (for reference) the two system prompts.
+section), and the `docsContext` digest pointer (`digestPath`, or `null`).
+When non-null, read the digest file at `digestPath` next — that outline,
+not the planner-context envelope, is where the actual doc orientation
+lives; pull a full doc on demand only when a section looks relevant.
 
 ### Step 2 — Author the Tech Spec (Engineering Architect persona)
 
 Apply the Tech Spec system prompt below to the Epic body (Context / Goal /
-Scope / User Stories), the
-`docsContext` items, and the `codebaseSnapshot` envelope (so the spec is
+Scope / User Stories), the docs digest (plus any full file pulled on
+demand), and the `codebaseSnapshot` envelope (so the spec is
 grounded in the actual codebase, not hallucinated patterns). Cite module
 and file names from `codebaseSnapshot.files` / `codebaseSnapshot.signatures`
 before reaching for names that appear only in the documentation. Write to

@@ -50,7 +50,6 @@ import {
   graduate,
   makeIsAutoFileEnabled,
   NO_VERIFICATION_RESULTS_COMMENT_REASON,
-  probePathExists,
   VERIFICATION_RESULTS_MARKER,
 } from './graduator-core.js';
 
@@ -62,9 +61,6 @@ import {
  * @returns {boolean}
  */
 export const isAutoFileEnabled = makeIsAutoFileEnabled('auditResultsAutoFile');
-
-// Re-export the shared path probe so existing importers keep working.
-export { probePathExists };
 
 /**
  * Severity → label mapping. Only non-blocking severities have a route;

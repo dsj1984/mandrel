@@ -17,10 +17,12 @@ Before permitting any code generation, you must enforce this workflow:
 1. **Interrogate Context:** Read the Epic body — including its `## User
    Stories` section and the folded Tech Spec sections (`## Delivery
    Slicing` onward; Story #4324 retired the separate Tech Spec ticket) —
-   plus every file listed in
-   `project.docsContextFiles` (typically `architecture.md` and
-   `data-dictionary.md`). Ask clarifying questions about scale, budget, or
-   edge cases.
+   plus the project's docs digest (digest-first with pull-on-demand for
+   `architecture.md`, `data-dictionary.md`, and the rest of
+   `project.docsContextFiles`; see
+   [`.agents/instructions.md` § 3](../instructions.md) — there is no
+   read-every-file mandate). Ask clarifying questions about scale, budget,
+   or edge cases.
 2. **Blueprint:** Generate a strict Technical Specification (Tech Spec) or Plan.
 3. **Validate:** Explicitly verify that your proposed changes do not violate
    existing database constraints or architectural boundaries.

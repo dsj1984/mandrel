@@ -32,7 +32,6 @@
  *   node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
  */
 
-import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -43,7 +42,7 @@ import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
 import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
 import { getEpicBranch, gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
-import { buildDocsDigest } from './lib/orchestration/docs-digest.js';
+import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
 import {
   resolveOperator,
   runPrepareGuards,
@@ -359,14 +358,14 @@ async function writeDocsDigest({ epicId, cwd, config }) {
   const paths = getPaths(config);
   const root = path.resolve(cwd ?? process.cwd());
   const docsRoot = path.resolve(root, paths.docsRoot);
-  const digest = await buildDocsDigest({ docsContextFiles, docsRoot });
-  if (digest == null) return null;
-
   const relPath = path.join(paths.tempRoot, `epic-${epicId}`, 'docs-digest.md');
   const absPath = path.resolve(root, relPath);
-  await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
-  await fs.promises.writeFile(absPath, digest, 'utf-8');
-  return relPath;
+  const result = await ensureDocsDigest({
+    docsContextFiles,
+    docsRoot,
+    outputPath: absPath,
+  });
+  return result ? relPath : null;
 }
 
 /**

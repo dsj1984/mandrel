@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-07-11T02:59:48.140Z",
+  "generatedAt": "2026-07-11T13:30:00.000Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
@@ -61,11 +61,11 @@
     },
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
-      "symbol": "_internals"
+      "symbol": "BASELINE_KIND_SCHEMA_FILES"
     },
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
-      "symbol": "BASELINE_KIND_SCHEMA_FILES"
+      "symbol": "_internals"
     },
     {
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
@@ -216,16 +216,8 @@
       "symbol": "default"
     },
     {
-      "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "symbol": "probePathExists"
-    },
-    {
       "file": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
       "symbol": "default"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "symbol": "probePathExists"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
@@ -234,10 +226,6 @@
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "symbol": "DEFAULT_RUN_CHILD_TIMEOUT_MS"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "symbol": "probePathStatus"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
@@ -285,15 +273,15 @@
     },
     {
       "file": ".agents/scripts/lib/observability/perf-report-render.js",
+      "symbol": "STORY_PERF_MARKER"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/perf-report-render.js",
       "symbol": "renderBaselineRefreshRateRow"
     },
     {
       "file": ".agents/scripts/lib/observability/perf-report-render.js",
       "symbol": "renderQualityGateFrictionBlock"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "STORY_PERF_MARKER"
     },
     {
       "file": ".agents/scripts/lib/observability/source-classifier.js",
@@ -357,15 +345,15 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
+      "symbol": "RUN_TRACE_MAX_BYTES"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
       "symbol": "loadPerfReportFromDisk"
     },
     {
       "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
       "symbol": "renderPerfReportSection"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/finalize/post-handoff-comment.js",
-      "symbol": "RUN_TRACE_MAX_BYTES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
@@ -389,19 +377,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "applyAutoMergePolicy"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "symbol": "AUTOMERGE_VERDICT_TRAILER_RE"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "classifyRequiredChecksProbe"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "probeRequiredChecks"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
@@ -410,6 +386,18 @@
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
       "symbol": "TRUST_CI_BLOCKING_CATEGORIES"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "symbol": "applyAutoMergePolicy"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "symbol": "classifyRequiredChecksProbe"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "symbol": "probeRequiredChecks"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js",
@@ -429,14 +417,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "DEFAULT_INTERVAL_SECONDS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "DEFAULT_MAX_BUDGET_SECONDS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
       "symbol": "defaultSleep"
     },
     {
@@ -449,15 +429,15 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
+      "symbol": "STILL_RUNNING"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "hasFailingCheck"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "promotePendingToStillRunning"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "STILL_RUNNING"
     },
     {
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
@@ -501,15 +481,15 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
+      "symbol": "SECURITY_REVIEW_INVOKE_PROMPT"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "symbol": "defaultInvokeSecurityReview"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "symbol": "defaultProbeClaudeCli"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "symbol": "SECURITY_REVIEW_INVOKE_PROMPT"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
@@ -613,19 +593,19 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "symbol": "_rawCommentsCache"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "symbol": "_structuredCommentCache"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "symbol": "CLAIM_TYPE_PATTERN"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "symbol": "LIFECYCLE_TYPE_PATTERN"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "symbol": "_rawCommentsCache"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "symbol": "_structuredCommentCache"
     },
     {
       "file": ".agents/scripts/lib/preflight-runner.js",
@@ -680,10 +660,6 @@
       "symbol": "listJsFiles"
     },
     {
-      "file": ".agents/scripts/lib/single-story/confirm-merge.js",
-      "symbol": "readPrMergeState"
-    },
-    {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",
       "symbol": "walkSkillFiles"
     },
@@ -729,15 +705,15 @@
     },
     {
       "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
-      "symbol": "isReservedTestEpicTempId"
-    },
-    {
-      "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
       "symbol": "TEST_EPIC_TEMP_ID_MAX"
     },
     {
       "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
       "symbol": "TEST_EPIC_TEMP_ID_MIN"
+    },
+    {
+      "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
+      "symbol": "isReservedTestEpicTempId"
     },
     {
       "file": ".agents/scripts/lib/wave-runner/tick.js",
@@ -773,11 +749,11 @@
     },
     {
       "file": ".agents/scripts/providers/github/issues.js",
-      "symbol": "paginateRest"
+      "symbol": "SUBTICKET_HYDRATION_CONCURRENCY"
     },
     {
       "file": ".agents/scripts/providers/github/issues.js",
-      "symbol": "SUBTICKET_HYDRATION_CONCURRENCY"
+      "symbol": "paginateRest"
     },
     {
       "file": ".agents/scripts/providers/github/labels.js",

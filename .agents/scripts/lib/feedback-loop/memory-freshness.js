@@ -54,6 +54,60 @@ import * as path from 'node:path';
 
 const FRONTMATTER_FENCE = '---';
 
+/**
+ * Default per-probe watchdog bound for the `gh` spawns. Matches
+ * `graduator-core`'s `DEFAULT_RUN_CHILD_TIMEOUT_MS` (30000 ms) — the other
+ * feedback-loop spawn site Epic #4406 bounded so a hung `gh` cannot block a
+ * finalize/scan forever. Caller-overridable via `scanMemoryFreshness`'s
+ * `probeTimeoutMs`.
+ */
+const DEFAULT_PROBE_TIMEOUT_MS = 30000;
+
+/**
+ * Arm a caller-overridable watchdog over a probe's spawned child and return a
+ * `settle(value)` function the probe's own event handlers call to resolve.
+ * The first `settle` wins (subsequent calls are ignored) and always clears the
+ * timer, so it never outlives its purpose.
+ *
+ * On timeout the child is SIGKILL'd and the probe settles to the supplied
+ * `onTimeout` value — for these three-valued probes always `{ status:
+ * 'unknown' }`, so a hung `gh` never confirms a `missing` reference.
+ *
+ * The timer is intentionally **not** `.unref()`'d. An unref'd watchdog cannot
+ * keep an otherwise-idle event loop alive to fire, so on a stub child (or a
+ * real child whose stdio handles close early) it would silently never fire and
+ * the awaiting promise would hang forever — the exact defect Epic #4406 fixed
+ * in `graduator-core.runChild`. `settle()` always `clearTimeout()`s it.
+ *
+ * @param {object} opts
+ * @param {{ kill?: Function }} opts.child
+ * @param {number} opts.timeoutMs — watchdog bound; `0`/`Infinity` disables it
+ * @param {Function} opts.resolve — the enclosing Promise's resolve
+ * @param {*} opts.onTimeout — value to settle with on overrun
+ * @returns {(value: *) => void}
+ */
+function armProbeWatchdog({ child, timeoutMs, resolve, onTimeout }) {
+  let settled = false;
+  let timer = null;
+  const settle = (value) => {
+    if (settled) return;
+    settled = true;
+    if (timer) clearTimeout(timer);
+    resolve(value);
+  };
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    timer = setTimeout(() => {
+      try {
+        child.kill?.('SIGKILL');
+      } catch {
+        // Killing an already-dead / stub child is a no-op we ignore.
+      }
+      settle(onTimeout);
+    }, timeoutMs);
+  }
+  return settle;
+}
+
 const FILE_PATH_REGEX =
   /(?<![\w/])((?:\.{1,2}\/|\/)?[\w.\-/]+\.[A-Za-z0-9]{1,8})\b/g;
 const LABEL_REGEX = /\b([a-z][\w-]*::[a-z][\w-]+)\b/g;
@@ -231,11 +285,17 @@ function classifyGhFailure(stderr) {
  *   - `{ status: 'exists', state: 'open' | 'closed' }`
  *   - `{ status: 'missing' }` — confirmed 404 (issue does not exist)
  *   - `{ status: 'unknown' }` — gh missing, spawn/child error, unparseable
- *     JSON, or a transient (rate-limit/auth/network) failure
+ *     JSON, a transient (rate-limit/auth/network) failure, or a spawn that
+ *     overran `timeoutMs` (the child is SIGKILL'd; never `missing`)
  *
  * Never throws.
  */
-function probeIssue({ number, ghPath, spawnImpl }) {
+function probeIssue({
+  number,
+  ghPath,
+  spawnImpl,
+  timeoutMs = DEFAULT_PROBE_TIMEOUT_MS,
+}) {
   return new Promise((resolve) => {
     if (!ghPath) {
       resolve({ status: 'unknown' });
@@ -252,6 +312,12 @@ function probeIssue({ number, ghPath, spawnImpl }) {
       resolve({ status: 'unknown' });
       return;
     }
+    const settle = armProbeWatchdog({
+      child,
+      timeoutMs,
+      resolve,
+      onTimeout: { status: 'unknown' },
+    });
     let stdout = '';
     let stderr = '';
     child.stdout?.on('data', (c) => {
@@ -260,22 +326,22 @@ function probeIssue({ number, ghPath, spawnImpl }) {
     child.stderr?.on('data', (c) => {
       stderr += c.toString();
     });
-    child.on('error', () => resolve({ status: 'unknown' }));
+    child.on('error', () => settle({ status: 'unknown' }));
     child.on('close', (code) => {
       if (code !== 0) {
         // Distinguish a confirmed 404 from a transient outage.
-        resolve({ status: classifyGhFailure(stderr) });
+        settle({ status: classifyGhFailure(stderr) });
         return;
       }
       try {
         const parsed = JSON.parse(stdout || '{}');
         if (typeof parsed.state !== 'string') {
-          resolve({ status: 'unknown' });
+          settle({ status: 'unknown' });
           return;
         }
-        resolve({ status: 'exists', state: parsed.state.toLowerCase() });
+        settle({ status: 'exists', state: parsed.state.toLowerCase() });
       } catch {
-        resolve({ status: 'unknown' });
+        settle({ status: 'unknown' });
       }
     });
   });
@@ -285,12 +351,20 @@ function probeIssue({ number, ghPath, spawnImpl }) {
  * Probe `gh` for a label's existence. Resolves to one of:
  *   - `{ status: 'exists' }`
  *   - `{ status: 'missing' }` — confirmed 404 (label does not exist)
- *   - `{ status: 'unknown' }` — gh/owner/repo missing, spawn/child error, or a
- *     transient (rate-limit/auth/network) failure
+ *   - `{ status: 'unknown' }` — gh/owner/repo missing, spawn/child error, a
+ *     transient (rate-limit/auth/network) failure, or a spawn that overran
+ *     `timeoutMs` (the child is SIGKILL'd; never `missing`)
  *
  * Never throws.
  */
-function probeLabel({ name, owner, repo, ghPath, spawnImpl }) {
+function probeLabel({
+  name,
+  owner,
+  repo,
+  ghPath,
+  spawnImpl,
+  timeoutMs = DEFAULT_PROBE_TIMEOUT_MS,
+}) {
   return new Promise((resolve) => {
     if (!ghPath || !owner || !repo) {
       // No way to verify; cannot confirm existence or absence.
@@ -308,20 +382,26 @@ function probeLabel({ name, owner, repo, ghPath, spawnImpl }) {
       resolve({ status: 'unknown' });
       return;
     }
+    const settle = armProbeWatchdog({
+      child,
+      timeoutMs,
+      resolve,
+      onTimeout: { status: 'unknown' },
+    });
     let stderr = '';
     child.stdout?.on('data', () => {});
     child.stderr?.on('data', (c) => {
       stderr += c.toString();
     });
-    child.on('error', () => resolve({ status: 'unknown' }));
+    child.on('error', () => settle({ status: 'unknown' }));
     child.on('close', (code) => {
       if (code === 0) {
-        resolve({ status: 'exists' });
+        settle({ status: 'exists' });
         return;
       }
       // Only a confirmed 404 marks the label missing; a transient failure
       // (rate-limit/auth/network) stays unknown and mutates nothing.
-      resolve({ status: classifyGhFailure(stderr) });
+      settle({ status: classifyGhFailure(stderr) });
     });
   });
 }
@@ -349,6 +429,7 @@ async function verifyReferences({
   owner,
   repo,
   projectRoot,
+  probeTimeoutMs,
 }) {
   let sawUnknown = false;
 
@@ -368,7 +449,12 @@ async function verifyReferences({
   }
 
   for (const number of references.issues) {
-    const probe = await probeIssue({ number, ghPath, spawnImpl });
+    const probe = await probeIssue({
+      number,
+      ghPath,
+      spawnImpl,
+      timeoutMs: probeTimeoutMs,
+    });
     if (probe.status === 'missing') {
       return { status: 'dead', reason: `issue #${number} no longer exists` };
     }
@@ -387,6 +473,7 @@ async function verifyReferences({
       repo,
       ghPath,
       spawnImpl,
+      timeoutMs: probeTimeoutMs,
     });
     if (probe.status === 'missing') {
       return {
@@ -444,6 +531,9 @@ function isStale(parsed) {
  * @param {string} [opts.owner] — GitHub owner used for label probes
  * @param {string} [opts.repo]  — GitHub repo used for label probes
  * @param {string} [opts.now]   — ISO timestamp injector (test seam)
+ * @param {number} [opts.probeTimeoutMs] — per-`gh`-spawn watchdog bound (ms);
+ *   defaults to {@link DEFAULT_PROBE_TIMEOUT_MS}. A spawn that overruns is
+ *   SIGKILL'd and resolves `unknown`, so a hung `gh` never marks an entry stale.
  * @returns {Promise<{
  *   scanned: number,
  *   staleEntries: Array<{ file: string, reason: string }>,
@@ -461,6 +551,7 @@ export async function scanMemoryFreshness({
   owner,
   repo,
   now,
+  probeTimeoutMs = DEFAULT_PROBE_TIMEOUT_MS,
 } = {}) {
   const result = {
     scanned: 0,
@@ -540,6 +631,7 @@ export async function scanMemoryFreshness({
         owner,
         repo,
         projectRoot,
+        probeTimeoutMs,
       });
     } catch (err) {
       result.errors.push({

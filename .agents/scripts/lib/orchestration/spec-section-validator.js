@@ -33,6 +33,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { DELIVERY_SLICING_RE } from '../epic-body-sections.js';
 
 /**
  * The single required Tech Spec section, with the heading variants the
@@ -48,7 +49,7 @@ const REQUIRED_SECTIONS = Object.freeze([
   {
     name: 'Delivery Slicing',
     /** Level-2 heading, allowing the `Delivery ` qualifier to be optional. */
-    re: /^##\s+(?:Delivery\s+)?Slicing\s*$/im,
+    re: DELIVERY_SLICING_RE,
   },
 ]);
 

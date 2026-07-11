@@ -27,10 +27,34 @@ function resolveFlag(paramValue, parsedValue, defaultValue) {
 }
 
 /**
+ * Resolve the `waitForMerge` option: an explicit `--no-wait-merge` opt-out
+ * always wins (preserves the pre-Story-#4428 exit shape even if a future
+ * headless wrapper defaults to waiting); otherwise the explicit
+ * `--wait-merge` / injected value governs, defaulting to `false` so
+ * attended (non-headless) invocations are byte-identical to before.
+ *
+ * @param {{ waitForMergeParam, noWaitForMergeParam, parsed }} raw
+ * @returns {boolean}
+ */
+function resolveWaitForMerge({
+  waitForMergeParam,
+  noWaitForMergeParam,
+  parsed,
+}) {
+  const optedOut = resolveFlag(
+    noWaitForMergeParam,
+    parsed.noWaitForMerge,
+    false,
+  );
+  if (optedOut) return false;
+  return resolveFlag(waitForMergeParam, parsed.waitForMerge, false);
+}
+
+/**
  * Parse and resolve all CLI / injection options for `runSingleStoryClose`.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam, waitForMergeParam, noWaitForMergeParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMerge }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -39,6 +63,8 @@ export function parseCloseOptions({
   skipSyncParam,
   noAutoMergeParam,
   noFullScopeCrapParam,
+  waitForMergeParam,
+  noWaitForMergeParam,
 }) {
   const parsed =
     storyIdParam !== undefined
@@ -49,6 +75,8 @@ export function parseCloseOptions({
           skipSync: !!skipSyncParam,
           noAutoMerge: !!noAutoMergeParam,
           noFullScopeCrap: !!noFullScopeCrapParam,
+          waitForMerge: !!waitForMergeParam,
+          noWaitForMerge: !!noWaitForMergeParam,
         }
       : parseSprintArgs();
   return {
@@ -66,5 +94,10 @@ export function parseCloseOptions({
       parsed.noFullScopeCrap,
       false,
     ),
+    waitForMerge: resolveWaitForMerge({
+      waitForMergeParam,
+      noWaitForMergeParam,
+      parsed,
+    }),
   };
 }

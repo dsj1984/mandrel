@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/merge.unlanded.schema.json",
+  "title": "merge.unlanded",
+  "description": "Emitted whenever a headless delivery run (the epic-path finalize flow or the standalone single-story-close flow) finishes its work without a confirmed merge, so a work-complete-but-unmerged terminal state is precisely attributable from the lifecycle ledger instead of diffing origin/main after the fact (Epic #4425). scope distinguishes the epic-path (ticketId = epicId) from the standalone story-path (ticketId = storyId); blockClass is produced by the shared classifier in merge-block-class.js.",
+  "type": "object",
+  "required": [
+    "event",
+    "scope",
+    "ticketId",
+    "prNumber",
+    "blockClass",
+    "reason",
+    "elapsedSeconds"
+  ],
+  "properties": {
+    "event": { "type": "string", "const": "merge.unlanded" },
+    "scope": {
+      "type": "string",
+      "enum": ["epic", "story"]
+    },
+    "ticketId": { "type": "integer", "minimum": 1 },
+    "prNumber": { "type": "integer", "minimum": 1 },
+    "blockClass": {
+      "type": "string",
+      "enum": [
+        "checks-pending-timeout",
+        "branch-protection-human-required",
+        "arm-failure",
+        "api-race-other"
+      ]
+    },
+    "reason": { "type": "string", "minLength": 1 },
+    "elapsedSeconds": { "type": "number", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

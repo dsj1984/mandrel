@@ -86,6 +86,67 @@ or a small Epic, and neither call is clearly right. **Present the choice rather
 than deciding for the operator.** Do not force a verdict to avoid the third
 option; a borderline scope surfaced as borderline is the correct output.
 
+## Change-Request Triage Rubric
+
+A **change request** — "fix this", "tweak that", "extend the existing X" —
+is the common case this rubric routes cheaply: a delta against a surface the
+project already shipped, not a from-scratch capability. Route it to `story`
+by default when all three delta signals hold; treat any one signal's absence
+as a prompt to re-check, not an automatic `epic` bump.
+
+### Delta signals
+
+- **Delta to an already-delivered surface.** The request references a
+  concrete existing capability (a module, workflow, script, or shipped
+  feature) rather than proposing a new one. "Fix the flaky retry in
+  `evidence-gate.js`" is a delta; "add a retry framework" is not.
+- **Existing corpus covers the touched area.** The project's docs digest
+  and/or an already-closed or in-flight Epic's Tech Spec section already
+  describe the surface being changed — the standalone-Story path can draft
+  against that inherited context (`corpusContext` in the `/plan --idea`
+  envelope) instead of re-deriving architecture from a blank slate. When no
+  corpus hit exists for the touched area, that is a signal the request may
+  be reaching into genuinely new territory — re-check the `epic` signals
+  below before defaulting to `story`.
+- **Footprint fits Story sizing.** The plausible file footprint and
+  acceptance-criteria count still fit the Story width in
+  `DEFAULT_TASK_SIZING` (per the `story` verdict signals above) — a change
+  request that fans out across independent subsystems is sized like an Epic
+  regardless of how small the originating request sounded.
+
+### Story-verdict rationale template
+
+Use this template to record the verdict — it names which delta signal
+carried the call, so a reviewer can sanity-check the routing decision without
+re-deriving it:
+
+```text
+Verdict: story
+Delta: <the existing surface this change targets>
+Corpus hit: <docs digest section / Epic # and Tech Spec excerpt that covers
+  this area, or "none — re-checked epic signals, still story-sized">
+Footprint: <rough file/AC count vs DEFAULT_TASK_SIZING>
+```
+
+### Worked example
+
+> Request: "The `/plan` standalone-Story path always drafts from a blank
+> slate even when a change request is a small delta against something we
+> already shipped — thread the existing docs digest and matching Epic
+> Tech Spec sections into the draft context."
+>
+> ```text
+> Verdict: story
+> Delta: story-plan.js's --emit-context envelope and the plan-story.md
+>   Phase 2 drafting instructions — both already exist and ship today.
+> Corpus hit: Epic #4429's own Tech Spec section (this rubric's parent
+>   Epic) already describes the docs-digest reuse pattern from
+>   orchestration/docs-digest.js.
+> Footprint: one new lib module (planning-corpus.js), one envelope field,
+>   one helper-doc instruction — comfortably inside DEFAULT_TASK_SIZING's
+>   softFiles/softAcceptanceCount band.
+> ```
+
 ## Handoff & no-re-triage rule
 
 A workflow entered via a scope-triage **handoff** MUST NOT re-triage. A handoff

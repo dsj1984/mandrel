@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:52:27.738Z",
+  "generatedAt": "2026-07-11T14:01:20.390Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12,
+      "p95": 12.00169045830203,
       "max": 29.10003921033038,
       "methodsAbove20": 17
     }
@@ -3296,79 +3296,79 @@
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "camelCase",
-      "startLine": 108,
+      "startLine": 118,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "initialValueFor",
-      "startLine": 112,
+      "startLine": 122,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "coerceValue",
-      "startLine": 119,
+      "startLine": 129,
       "crap": 4.074074074074074
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "validateSpec",
-      "startLine": 151,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/cli-args.js",
-      "method": "initParserState",
       "startLine": 161,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
+      "method": "initParserState",
+      "startLine": 171,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/cli-args.js",
       "method": "classifyToken",
-      "startLine": 174,
+      "startLine": 184,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "assignFlagValue",
-      "startLine": 188,
+      "startLine": 198,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "readValuedFlag",
-      "startLine": 196,
+      "startLine": 206,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "parseTokens",
-      "startLine": 212,
+      "startLine": 222,
       "crap": 8.040303206997084
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "isAbsentValue",
-      "startLine": 248,
+      "startLine": 258,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "applyEnvFallbacks",
-      "startLine": 254,
+      "startLine": 264,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "applyDefaults",
-      "startLine": 267,
+      "startLine": 277,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
       "method": "defineFlags",
-      "startLine": 278,
+      "startLine": 288,
       "crap": 1
     },
     {
@@ -4039,128 +4039,134 @@
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "getResolveConfig",
-      "startLine": 54,
+      "method": "mainCheckoutRoot",
+      "startLine": 84,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "_clearMainCheckoutRootCache",
+      "startLine": 114,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "anchorTempRoot",
+      "startLine": 130,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "tempRootFrom",
-      "startLine": 75,
+      "startLine": 149,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "tempRootAsync",
-      "startLine": 93,
-      "crap": 1.512
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-1>",
-      "startLine": 99,
+      "startLine": 158,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-2>",
-      "startLine": 115,
+      "startLine": 174,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-3>",
-      "startLine": 125,
+      "startLine": 184,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-4>",
-      "startLine": 134,
+      "startLine": 193,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "epicTempDir",
-      "startLine": 156,
+      "startLine": 215,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTempDir",
-      "startLine": 180,
+      "startLine": 239,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "signalsFile",
-      "startLine": 198,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "epicArtifactPath",
-      "startLine": 213,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyArtifactPath",
-      "startLine": 228,
+      "startLine": 257,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-5>",
-      "startLine": 234,
+      "startLine": 282,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "epicArtifactPath",
+      "startLine": 296,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyArtifactPath",
+      "startLine": 311,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-6>",
-      "startLine": 236,
+      "startLine": 317,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-7>",
-      "startLine": 238,
+      "startLine": 319,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-8>",
-      "startLine": 240,
+      "startLine": 321,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-9>",
-      "startLine": 242,
+      "startLine": 323,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-10>",
-      "startLine": 259,
+      "startLine": 339,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-11>",
-      "startLine": 275,
+      "startLine": 355,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-12>",
-      "startLine": 280,
+      "startLine": 360,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-13>",
-      "startLine": 282,
+      "startLine": 362,
       "crap": 1
     },
     {
@@ -4780,18 +4786,6 @@
       "method": "releaseEpicMergeLock",
       "startLine": 232,
       "crap": 3.140625
-    },
-    {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "classify",
-      "startLine": 58,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "scoreEpicBody",
-      "startLine": 76,
-      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
@@ -7129,21 +7123,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "readDocsFromRoot",
-      "startLine": 7,
-      "crap": 3.002197265625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "scrapeProjectDocs",
-      "startLine": 51,
-      "crap": 4.101610526850582
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "buildDocsContext",
-      "startLine": 90,
-      "crap": 1
+      "method": "readDocFiles",
+      "startLine": 15,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
@@ -7420,18 +7402,6 @@
       "method": "spawnReconcilerApply",
       "startLine": 45,
       "crap": 4.065536
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "resolveMemoryDir",
-      "startLine": 48,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "buildAuthoringContext",
-      "startLine": 71,
-      "crap": 7.000892987315935
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
@@ -8940,6 +8910,18 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "method": "getValidator",
+      "startLine": 82,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "method": "emitMergeUnlanded",
+      "startLine": 115,
+      "crap": 16.862330464138353
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
       "method": "stripSecrets",
       "startLine": 52,
@@ -9316,6 +9298,30 @@
       "method": "createTraceLogger",
       "startLine": 322,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "isValidBlockClass",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "textIncludesAny",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "describeApiRaceFallback",
+      "startLine": 92,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "classifyMergeBlock",
+      "startLine": 144,
+      "crap": 14
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
@@ -10554,6 +10560,36 @@
       "crap": 5.031873757185806
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "defaultSleep",
+      "startLine": 52,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "resolveMergeWatchCadence",
+      "startLine": 63,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "formatUnlandedFriction",
+      "startLine": 82,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "blockOnUnlanded",
+      "startLine": 115,
+      "crap": 3.002776242275877
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "method": "runConfirmMergePhase",
+      "startLine": 217,
+      "crap": 6
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "resolveFlag",
       "startLine": 25,
@@ -10561,8 +10597,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
+      "method": "resolveWaitForMerge",
+      "startLine": 39,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "parseCloseOptions",
-      "startLine": 35,
+      "startLine": 59,
       "crap": 2
     },
     {
@@ -10636,6 +10678,54 @@
       "method": "runWrongTreeGuardPhase",
       "startLine": 152,
       "crap": 6.011104969103508
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "alreadyClosedResult",
+      "startLine": 27,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "resolveWorktreePath",
+      "startLine": 39,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "runPrePushPhases",
+      "startLine": 45,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "openAndReviewPr",
+      "startLine": 98,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "releaseLease",
+      "startLine": 139,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "releaseLeaseOnBlock",
+      "startLine": 190,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "closeResult",
+      "startLine": 199,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "runSingleStoryClose",
+      "startLine": 234,
+      "crap": 7.706454445823445
     },
     {
       "path": ".agents/scripts/lib/orchestration/skill-capsule-loader.js",
@@ -13842,6 +13932,36 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "rankDuplicateCandidates",
+      "startLine": 54,
+      "crap": 8.014247154743023
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "shouldRefine",
+      "startLine": 97,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "validateStoryBody",
+      "startLine": 128,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "escapeRegex",
+      "startLine": 164,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "loadBodyTemplate",
+      "startLine": 175,
+      "crap": 1.7023319615912207
+    },
+    {
       "path": ".agents/scripts/lib/task-utils.js",
       "method": "isBookendTask",
       "startLine": 22,
@@ -15446,8 +15566,8 @@
     {
       "path": ".agents/scripts/single-story-close.js",
       "method": "runSingleStoryClose",
-      "startLine": 73,
-      "crap": 1.0029154518950438
+      "startLine": 92,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/standalone-feedback-rollup.js",

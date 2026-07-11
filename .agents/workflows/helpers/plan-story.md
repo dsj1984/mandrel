@@ -98,7 +98,17 @@ Envelope fields (`kind: "story-plan-context"`, `version: 1`):
 | `requiredSections`     | `["Context", "Acceptance Criteria", "Out of Scope", "Notes"]`. |
 | `duplicateCandidates`  | Ranked open Stories whose titles fuzzy-match the seed.    |
 | `techStack`            | The project's Tech Stack inventory, resolved in order: `docs/tech-stack.md` (full body) when present, else the `## Tech Stack` section of `docs/architecture.md` (numbered/decorated and final-section headings tolerated). |
+| `corpusContext`        | Corpus-aware inherited context (Story #4432): `{ docsDigest, relevantSections }` — see below. |
 | `deliverContract`      | Workflow path + required/forbidden labels and references. |
+
+`corpusContext.docsDigest` is the same per-project docs digest
+`orchestration/docs-digest.js` builds for `/deliver` Story children (`null`
+when `project.docsContextFiles` is not configured). `corpusContext.relevantSections`
+is a ranked list of `{ epicId, epicTitle, section, score, excerpt }` —
+existing-Epic Tech Spec (or ideation-lede) excerpts that overlap with the
+seed, fetched via a bounded explicit per-candidate body fetch
+(`planning-corpus.js`). Both fields degrade to `null` / `[]` respectively
+when there is nothing to surface.
 
 ### Refine heuristic
 
@@ -120,6 +130,28 @@ Using the envelope above, draft a Story body that:
   (`- [ ] …`).
 - Does **NOT** contain any `Epic: #N` reference — that breaks the
   standalone contract enforced by `single-story-init.js`.
+
+### Drafting against `corpusContext`
+
+Check `corpusContext` before authoring the `## Context` section:
+
+- **When `corpusContext.relevantSections` is non-empty** (the seed is a
+  change-request-shaped delta against a surface an existing Epic already
+  covers — see the
+  [`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) change-request
+  rubric), draft `## Context` **against that inherited context** rather than
+  re-deriving it from scratch: reference the matching Epic's Tech Spec
+  excerpt(s) by number (`Epic #<epicId>`) and build the acceptance criteria on
+  top of the architecture / conventions they already establish. Pull
+  `corpusContext.docsDigest` the same way the digest-first delivery path does
+  (§ 3 of [`.agents/instructions.md`](../../instructions.md)) — read the
+  relevant doc section on demand when the digest outline names one that bears
+  on the change.
+- **When `corpusContext.relevantSections` is `[]` and `docsDigest` is
+  `null`** — no configured docs and no overlapping prior art — draft exactly
+  as today: from the seed, the body template, and the duplicate-candidates
+  scan alone. This is the common case for a genuinely new standalone Story
+  and is not a degraded path; it is simply that there is nothing to inherit.
 
 Write the draft to `temp/single-story-draft.md`.
 

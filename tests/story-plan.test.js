@@ -35,7 +35,12 @@ import {
   validateStoryBody,
 } from '../.agents/scripts/lib/story-plan.js';
 import { TicketGateway } from '../.agents/scripts/providers/github/tickets.js';
-import { extractTitle, runPersist } from '../.agents/scripts/story-plan.js';
+import {
+  extractTitle,
+  resolveSeed,
+  runEmitContext,
+  runPersist,
+} from '../.agents/scripts/story-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -175,6 +180,20 @@ describe('validateStoryBody', () => {
     );
   });
 
+  it('accepts a body containing an "Epic #<id>" prose citation (not a line-leading "Epic:" ref)', () => {
+    // EPIC_REF_PATTERN only flags a line-*leading* "Epic:" reference
+    // (the standalone-Story parent-link field). A prose citation like
+    // "Epic #4324 retired the separate context tickets" — no colon,
+    // and/or not at the start of the line — must not trip the guard.
+    const body = VALID_BODY.replace(
+      'Some context about the work.',
+      'Some context about the work. See Epic #4324 for prior art; ' +
+        'Epic #4432 covers the related corpus lookup.',
+    );
+    const r = validateStoryBody(body);
+    assert.deepEqual(r, { ok: true, errors: [] });
+  });
+
   it('rejects an AC section with no checklist items', () => {
     const body = VALID_BODY.replace(
       /## Acceptance Criteria[\s\S]*?(?=##\s+Out of Scope)/,
@@ -203,6 +222,10 @@ describe('buildContextEnvelope', () => {
       bodyTemplate: '# {{title}}\n',
       duplicateCandidates: [{ id: 1, title: 't', score: 0.42 }],
       techStack: '## Tech Stack\nNode 22',
+      corpusContext: {
+        docsDigest: '## architecture.md\nSome outline',
+        relevantSections: [{ epicId: 42, epicTitle: 't', score: 0.5 }],
+      },
     });
 
     assert.equal(envelope.kind, 'story-plan-context');
@@ -212,6 +235,10 @@ describe('buildContextEnvelope', () => {
     assert.deepEqual(envelope.requiredSections, REQUIRED_SECTIONS);
     assert.equal(envelope.duplicateCandidates.candidates.length, 1);
     assert.equal(envelope.techStack, '## Tech Stack\nNode 22');
+    assert.deepEqual(envelope.corpusContext, {
+      docsDigest: '## architecture.md\nSome outline',
+      relevantSections: [{ epicId: 42, epicTitle: 't', score: 0.5 }],
+    });
     assert.equal(
       envelope.deliverContract.workflow,
       '.agents/workflows/helpers/single-story-deliver.md',
@@ -232,6 +259,17 @@ describe('buildContextEnvelope', () => {
     });
     assert.equal(envelope.techStack, null);
   });
+
+  it('defaults corpusContext to null when not passed', () => {
+    const envelope = buildContextEnvelope({
+      seed: 'x',
+      refine: { refine: false, reason: 'x' },
+      persona: 'engineer',
+      bodyTemplate: '',
+      duplicateCandidates: [],
+    });
+    assert.equal(envelope.corpusContext, null);
+  });
 });
 
 describe('extractTitle', () => {
@@ -243,6 +281,112 @@ describe('extractTitle', () => {
     assert.equal(
       extractTitle('## Context\n\nbody'),
       'Untitled standalone Story',
+    );
+  });
+});
+
+describe('resolveSeed', () => {
+  it('returns the --idea seed verbatim', async () => {
+    const seed = await resolveSeed({
+      idea: 'a seed idea',
+      fromNotes: undefined,
+    });
+    assert.equal(seed, 'a seed idea');
+  });
+
+  it('reads and trims the --from-notes file', async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-seed-'));
+    try {
+      const notesPath = path.join(tmp, 'notes.md');
+      writeFileSync(notesPath, '  seed from a file  \n');
+      const seed = await resolveSeed({ idea: undefined, fromNotes: notesPath });
+      assert.equal(seed, 'seed from a file');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when both --idea and --from-notes are passed', async () => {
+    await assert.rejects(
+      () => resolveSeed({ idea: 'x', fromNotes: 'y.md' }),
+      /Pass either --idea or --from-notes, not both/,
+    );
+  });
+
+  it('throws when neither --idea nor --from-notes is passed', async () => {
+    await assert.rejects(
+      () => resolveSeed({ idea: undefined, fromNotes: undefined }),
+      /requires --idea .* or --from-notes/,
+    );
+  });
+});
+
+describe('runEmitContext', () => {
+  it('threads corpusContext into the emitted JSON envelope', async () => {
+    let captured = '';
+    const stubProvider = {}; // no listIssuesByLabel / getEpics surfaces
+    const stubConfig = {
+      raw: { project: {} },
+      project: { paths: {} },
+    };
+
+    await runEmitContext({
+      values: { idea: 'a small standalone change', pretty: false },
+      provider: stubProvider,
+      projectRoot: PROJECT_ROOT,
+      config: stubConfig,
+      write: (s) => {
+        captured += s;
+      },
+    });
+
+    const envelope = JSON.parse(captured);
+    assert.equal(envelope.kind, 'story-plan-context');
+    assert.ok(
+      Object.hasOwn(envelope, 'corpusContext'),
+      'envelope should carry a corpusContext field',
+    );
+    assert.deepEqual(envelope.corpusContext, {
+      docsDigest: null,
+      relevantSections: [],
+    });
+  });
+
+  it('resolves docsRoot against PROJECT_ROOT, not process.cwd() (audit-quality finding, Epic #4454)', async () => {
+    let captured = '';
+    const stubProvider = {};
+    const stubConfig = {
+      raw: { project: { docsContextFiles: ['CHANGELOG.md'] } },
+      project: { paths: { docsRoot: 'docs' } },
+    };
+
+    const originalCwd = process.cwd();
+    const tmpCwd = mkdtempSync(path.join(os.tmpdir(), 'story-plan-cwd-'));
+    process.chdir(tmpCwd);
+    try {
+      await runEmitContext({
+        values: { idea: 'a small standalone change', pretty: false },
+        provider: stubProvider,
+        projectRoot: PROJECT_ROOT,
+        config: stubConfig,
+        write: (s) => {
+          captured += s;
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(tmpCwd, { recursive: true, force: true });
+    }
+
+    const envelope = JSON.parse(captured);
+    // docs/CHANGELOG.md lives under the real repo root. If docsRoot were
+    // resolved relative to process.cwd() (the regression this guards
+    // against) instead of PROJECT_ROOT, the digest read would silently
+    // find nothing from the tmp cwd and docsDigest would stay null.
+    assert.notEqual(
+      envelope.corpusContext.docsDigest,
+      null,
+      'docsDigest should be non-null: docsRoot must resolve against PROJECT_ROOT regardless of process.cwd()',
     );
   });
 });

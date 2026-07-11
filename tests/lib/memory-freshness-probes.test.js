@@ -421,4 +421,90 @@ describe('memory-freshness three-valued probes and reversible stale path', () =>
       assert.equal(await fs.readFile(stuckFile, 'utf8'), snapshot.stuck);
     });
   });
+
+  describe('AC4 — bounded gh spawns (timeout → unknown, never missing)', () => {
+    // A spawn stub whose child NEVER emits `close` (a hung `gh`). It records
+    // `kill()` calls so the test can assert the watchdog SIGKILL'd it. No
+    // stdio data is emitted and no handles are held, so the child leaves the
+    // event loop idle — the condition under which an unref'd watchdog timer
+    // would silently never fire. This test therefore only passes when the
+    // watchdog timer is REF'd. It is authored to run in ISOLATION
+    // (`node --test tests/lib/memory-freshness-probes.test.js`) so that
+    // idle-loop condition is reproduced; it must not hang.
+    function makeHangingSpawn() {
+      const killed = [];
+      const fn = () => {
+        const child = new EventEmitter();
+        child.stdout = new EventEmitter();
+        child.stderr = new EventEmitter();
+        child.kill = (signal) => {
+          killed.push(signal);
+          return true;
+        };
+        // Deliberately never emit `close` / `error` / data.
+        return child;
+      };
+      fn.killed = killed;
+      return fn;
+    }
+
+    it('a hung label probe is killed and resolves unknown (no stale mutation)', async () => {
+      const file = path.join(memoryDir, 'hung-label.md');
+      const body =
+        '---\ntitle: hung-label\n---\nUses label agent::executing here.\n';
+      await fs.writeFile(file, body);
+
+      const spawnImpl = makeHangingSpawn();
+      const result = await scanMemoryFreshness({
+        memoryDir,
+        ghPath: 'gh',
+        spawnImpl,
+        owner: OWNER,
+        repo: REPO,
+        projectRoot,
+        probeTimeoutMs: 25,
+      });
+
+      assert.equal(
+        result.staleEntries.length,
+        0,
+        'a timed-out probe resolves unknown and must not mark the entry stale',
+      );
+      assert.deepEqual(
+        spawnImpl.killed,
+        ['SIGKILL'],
+        'the watchdog must SIGKILL the hung child',
+      );
+      assert.equal(
+        await fs.readFile(file, 'utf8'),
+        body,
+        'frontmatter must be byte-identical — a hung probe mutates nothing',
+      );
+    });
+
+    it('a hung issue probe is killed and resolves unknown (no stale mutation)', async () => {
+      const file = path.join(memoryDir, 'hung-issue.md');
+      const body = '---\ntitle: hung-issue\n---\nSee #4242 for context.\n';
+      await fs.writeFile(file, body);
+
+      const spawnImpl = makeHangingSpawn();
+      const result = await scanMemoryFreshness({
+        memoryDir,
+        ghPath: 'gh',
+        spawnImpl,
+        owner: OWNER,
+        repo: REPO,
+        projectRoot,
+        probeTimeoutMs: 25,
+      });
+
+      assert.equal(
+        result.staleEntries.length,
+        0,
+        'a timed-out issue probe resolves unknown and must not mark stale',
+      );
+      assert.deepEqual(spawnImpl.killed, ['SIGKILL']);
+      assert.equal(await fs.readFile(file, 'utf8'), body);
+    });
+  });
 });

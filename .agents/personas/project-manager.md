@@ -20,8 +20,11 @@ SQL, or UI components — stop immediately.
 1. **Gather Context:** Read the parent Epic body — including its
    `## User Stories` section and the folded Tech Spec sections
    (`## Delivery Slicing` onward; Story #4324 retired the separate Tech
-   Spec ticket) — plus every file listed in `project.docsContextFiles`
-   (typically `architecture.md` and the data dictionary).
+   Spec ticket) — plus the project's docs digest (digest-first with
+   pull-on-demand for `architecture.md`, the data dictionary, and the rest
+   of `project.docsContextFiles`; see
+   [`.agents/instructions.md` § 3](../instructions.md) — there is no
+   read-every-file mandate).
 2. **Decompose:** Break the Epic into **Stories** that carry their own
    inline acceptance criteria and verification steps. Aim for roughly
    five acceptance bullets per Story as a soft atomicity heuristic; if

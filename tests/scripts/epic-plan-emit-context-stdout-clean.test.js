@@ -36,7 +36,6 @@ import {
   routeAllOutputToStderr,
   STDERR_LOGGER,
 } from '../../.agents/scripts/lib/Logger.js';
-import { scrapeProjectDocs } from '../../.agents/scripts/lib/orchestration/doc-reader.js';
 
 function tmpRepo() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-ctx-stdout-'));
@@ -161,10 +160,13 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
   });
 
   // Story #2278 — covers the remaining stdout-leak path that #2055's
-  // injected-logger fix did not reach: the global `Logger.info` calls from
-  // `scrapeProjectDocs` (and any other production module the emit-context
-  // flow transits). These tests assert the new `routeAllOutputToStderr()`
-  // primitive flips those sinks for the rest of the process lifetime.
+  // injected-logger fix did not reach: global `Logger.info` calls from
+  // production modules the emit-context flow transits. These tests assert
+  // the new `routeAllOutputToStderr()` primitive flips those sinks for the
+  // rest of the process lifetime. (The former `scrapeProjectDocs`
+  // production-path probe was removed as part of Story #4455 — that
+  // function was dead code left over from Epic #4429 Story #4433's
+  // digest-first cutover, and no longer exists to exercise.)
   describe('routeAllOutputToStderr() — Story #2278', () => {
     // The Logger module is process-global. `routeAllOutputToStderr` is a
     // one-shot flip with no reset — once called, the sink stays flipped
@@ -200,47 +202,6 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
         /routed-warn-2278/,
         'Logger.warn output must land on stderr after routing',
       );
-    });
-
-    // The production-path probe: `scrapeProjectDocs` calls `Logger.info`
-    // mid-flow (the leak Epic #2172 surfaced) — exercise it and confirm
-    // routing flipped its output. We use the temp directory's basename as
-    // a unique probe substring because the test runner's V8 binary IPC
-    // echoes test names verbatim into our captured stdout buffer; a probe
-    // derived from `fs.mkdtempSync` cannot collide with anything node:test
-    // writes for orchestration.
-    it('production doc-scraper writes its log line to stderr (not stdout) after routing', async () => {
-      // Idempotent re-invocation — the prior test already flipped the sink.
-      routeAllOutputToStderr();
-
-      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-ctx-docs-'));
-      const probe = path.basename(tmp);
-      const docsDir = path.join(tmp, 'docs');
-      fs.mkdirSync(docsDir, { recursive: true });
-      fs.writeFileSync(path.join(docsDir, 'architecture.md'), '# Arch\n');
-
-      try {
-        const { stdout, stderr } = await captureIO(async () => {
-          await scrapeProjectDocs({
-            paths: { docsRoot: docsDir },
-            docsContextFiles: ['architecture.md'],
-          });
-        });
-        // The scrape log line contains the docsRoot path, which contains
-        // `probe` — a fingerprint unique to this run.
-        assert.doesNotMatch(
-          stdout,
-          new RegExp(probe),
-          `the production scrape log line (with probe ${probe}) must NOT land on stdout under emit-context routing`,
-        );
-        assert.match(
-          stderr,
-          new RegExp(probe),
-          `the production scrape log line must still be visible on stderr (probe ${probe})`,
-        );
-      } finally {
-        fs.rmSync(tmp, { recursive: true, force: true });
-      }
     });
   });
 

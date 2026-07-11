@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:52:27.481Z",
+  "generatedAt": "2026-07-11T14:07:55.891Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -567,6 +567,10 @@
       "mi": 89.732
     },
     {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "mi": 110.714
+    },
+    {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "mi": 90.371
     },
@@ -879,6 +883,10 @@
       "mi": 100.017
     },
     {
+      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
+      "mi": 107.528
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
       "mi": 101.917
     },
@@ -1095,6 +1103,10 @@
       "mi": 104.328
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "mi": 87.061
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
       "mi": 89.31
     },
@@ -1117,6 +1129,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
       "mi": 90.586
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "mi": 105.036
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
@@ -1447,6 +1463,10 @@
       "mi": 117.206
     },
     {
+      "path": ".agents/scripts/lib/planning-corpus.js",
+      "mi": 89.883
+    },
+    {
       "path": ".agents/scripts/lib/preflight-runner.js",
       "mi": 106.958
     },
@@ -1651,6 +1671,10 @@
       "mi": 93.77
     },
     {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "mi": 93.233
+    },
+    {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
       "mi": 120.302
     },
@@ -1847,6 +1871,10 @@
       "mi": 97.964
     },
     {
+      "path": ".agents/scripts/providers/github/issues.js",
+      "mi": 105.059
+    },
+    {
       "path": ".agents/scripts/providers/github/labels.js",
       "mi": 95.724
     },
@@ -1937,6 +1965,10 @@
     {
       "path": ".agents/scripts/story-phase.js",
       "mi": 85.061
+    },
+    {
+      "path": ".agents/scripts/story-plan.js",
+      "mi": 85.588
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
