@@ -1,20 +1,24 @@
 /**
- * tests/contract/code-review-graduator.test.js — Story #2555
+ * tests/contract/code-review-graduator.test.js — Story #2555, revised for
+ * Epic #4405 (Story #4411 unification).
  *
- * Contract test for the Finalizer ↔ code-review-graduator integration.
- * Stubs a finalize cycle with three non-blocking findings (one
- * framework-tagged, two consumer-tagged) and asserts:
+ * Regression guard for the Finalizer's SINGLE graduation pass. After the
+ * `verification-results` unification the former code-review + audit-results
+ * structured-comment contracts collapsed into one comment, and BOTH former
+ * graduators parsed the same 🟠/🟡/🟢 finding lines. Running both against
+ * the one comment double-filed every non-blocking finding, so the Finalizer
+ * now runs ONLY the lens-aware audit-results graduation pass.
  *
- *   1. Default config: graduator runs and files three follow-up issues
- *      routed by source classification.
- *   2. Toggle off: graduator short-circuits and zero issues are filed.
- *   3. Graduator failures do NOT block the finalize phase — the
- *      `pr.created` and `epic.finalize.end` emits still fire.
+ * This file pins that behaviour at the Finalizer wiring boundary:
  *
- * The contract surface under test is the Finalizer's wiring of the
- * graduator step: timing (after `epic.finalize.start`), error
- * isolation (best-effort), and toggle propagation through the
- * resolved agentrc config.
+ *   1. The Finalizer no longer wires any code-review graduation — a
+ *      `graduateFindingsFn` handed to the constructor is ignored (the
+ *      double-filing regression this fix closes).
+ *   2. The single audit-results pass runs after `epic.finalize.start`,
+ *      threads the resolved config through, and is error-isolated so a
+ *      throwing graduator never blocks `pr.created` / `epic.finalize.end`.
+ *   3. Graduation skips cleanly (and finalize still completes) when the
+ *      provider is not wired.
  */
 
 import { strict as assert } from 'node:assert';
@@ -24,9 +28,7 @@ import { Finalizer } from '../../.agents/scripts/lib/orchestration/lifecycle/lis
 
 /**
  * Minimal in-memory event bus that records every emit and forwards to
- * registered handlers. Sufficient for asserting the Finalizer's emit
- * sequence without dragging in the production bus and its persistence
- * surface.
+ * registered handlers.
  */
 function makeBus() {
   const handlers = new Map();
@@ -49,11 +51,11 @@ function makeBus() {
   };
 }
 
-/** Build a fake provider whose code-review comment contains the three findings. */
+/** A fake provider whose unified verification-results comment carries three findings. */
 function makeProvider() {
   const body = [
-    '<!-- structured-comment: code-review -->',
-    '## 🔬 Automated Code Review Results for Epic #2547',
+    '<!-- structured-comment: verification-results -->',
+    '## 🔬 Verification Results for Epic #2547',
     '',
     '### 📦 Severity Tier Counts',
     '- 🔴 Critical Blocker: 0',
@@ -61,11 +63,9 @@ function makeProvider() {
     '- 🟡 Medium Risk: 1',
     '- 🟢 Suggestion: 1',
     '',
-    '### 🚨 Critical Findings',
+    '#### audit-security',
     '🟠 High Risk: `.agents/scripts/foo.js` (complex)',
     '🟡 Size/Volume Warning: `src/Bar.tsx` (large)',
-    '',
-    '### 🟡 Warnings',
     '🟢 Suggestion: `src/Baz.ts` (minor)',
   ].join('\n');
   return {
@@ -75,31 +75,37 @@ function makeProvider() {
 
 /**
  * Build a finalizer fixture wired with a stub run-finalize that always
- * succeeds, a no-op PR-list probe (no existing PR), and an injected
- * `graduateFindingsFn` whose calls are recorded. Returns the finalizer
- * + the recording sinks.
+ * succeeds, a no-op PR-list probe (no existing PR), and injected graduator
+ * stubs whose calls are recorded. `graduateFindingsFn` is intentionally
+ * still injectable so the regression guard can prove it is ignored.
  */
-function buildFixture({ config, graduateFindingsFn, currentRepo } = {}) {
+function buildFixture({
+  config,
+  graduateAuditResultsFn,
+  graduateFindingsFn,
+  currentRepo,
+} = {}) {
   const bus = makeBus();
   const provider = makeProvider();
-  const graduatorCalls = [];
-  const fn =
-    graduateFindingsFn ??
+  const auditCalls = [];
+  const codeReviewCalls = [];
+  const fnAudit =
+    graduateAuditResultsFn ??
     (async (opts) => {
-      graduatorCalls.push(opts);
-      if (opts.config?.delivery?.feedbackLoop?.codeReviewAutoFile === false) {
+      auditCalls.push(opts);
+      if (opts.config?.delivery?.feedbackLoop?.auditResultsAutoFile === false) {
         return {
           filed: [],
           skipped: [{ reason: 'toggle-disabled' }],
           errors: [],
         };
       }
-      // Mimic the production behaviour: three findings filed.
       return {
         filed: [
           {
             index: 0,
             severity: 'high',
+            lens: 'audit-security',
             path: '.agents/scripts/foo.js',
             source: 'framework',
             repo: 'dsj1984/mandrel',
@@ -108,6 +114,7 @@ function buildFixture({ config, graduateFindingsFn, currentRepo } = {}) {
           {
             index: 1,
             severity: 'medium',
+            lens: 'audit-security',
             path: 'src/Bar.tsx',
             source: 'consumer',
             repo: `${opts.currentRepo.owner}/${opts.currentRepo.repo}`,
@@ -115,7 +122,8 @@ function buildFixture({ config, graduateFindingsFn, currentRepo } = {}) {
           },
           {
             index: 2,
-            severity: 'low',
+            severity: 'suggestion',
+            lens: 'audit-security',
             path: 'src/Baz.ts',
             source: 'consumer',
             repo: `${opts.currentRepo.owner}/${opts.currentRepo.repo}`,
@@ -134,7 +142,17 @@ function buildFixture({ config, graduateFindingsFn, currentRepo } = {}) {
     config: config ?? {},
     currentRepo: currentRepo ?? { owner: 'dsj1984', repo: 'mandrel' },
     frameworkRepo: { owner: 'dsj1984', repo: 'mandrel' },
-    graduateFindingsFn: fn,
+    graduateAuditResultsFn: fnAudit,
+    // Deliberately still passed: the Finalizer must IGNORE it (the
+    // single-pass contract). If a future change re-wires code-review
+    // graduation, this stub would record a call and the regression test
+    // below would fail.
+    graduateFindingsFn:
+      graduateFindingsFn ??
+      (async (opts) => {
+        codeReviewCalls.push(opts);
+        return { filed: [], skipped: [], errors: [] };
+      }),
     runFinalizeFn: async () => ({
       prUrl: 'https://github.com/dsj1984/mandrel/pull/4242',
     }),
@@ -146,65 +164,62 @@ function buildFixture({ config, graduateFindingsFn, currentRepo } = {}) {
     },
   });
   finalizer.register();
-  return { bus, finalizer, graduatorCalls };
+  return { bus, finalizer, auditCalls, codeReviewCalls };
 }
 
-describe('Finalizer ↔ code-review graduator (contract)', () => {
-  it('files three follow-up issues under default config (toggle on)', async () => {
-    const { bus, graduatorCalls } = buildFixture();
+describe('Finalizer graduation — single canonical pass (contract)', () => {
+  it('runs the audit-results pass exactly once and never the code-review pass', async () => {
+    const { bus, auditCalls, codeReviewCalls } = buildFixture();
     await bus.emit('acceptance.reconcile.ok', { epicId: 2547 });
 
-    assert.equal(graduatorCalls.length, 1, 'graduator invoked exactly once');
-    assert.equal(graduatorCalls[0].epicId, 2547);
     assert.equal(
-      graduatorCalls[0].currentRepo.owner,
+      auditCalls.length,
+      1,
+      'audit-results graduator invoked exactly once',
+    );
+    assert.equal(
+      codeReviewCalls.length,
+      0,
+      'code-review graduator must NOT be invoked (single-pass contract)',
+    );
+    assert.equal(auditCalls[0].epicId, 2547);
+    assert.equal(
+      auditCalls[0].currentRepo.owner,
       'dsj1984',
       'currentRepo threaded through',
     );
 
-    // Finalize still completes: pr.created + epic.finalize.end fire.
     const eventNames = bus.emitted.map((e) => e.event);
     assert.ok(eventNames.includes('epic.finalize.start'));
     assert.ok(eventNames.includes('pr.created'));
     assert.ok(eventNames.includes('epic.finalize.end'));
   });
 
-  it('files zero issues when the toggle is disabled', async () => {
-    const { bus, graduatorCalls } = buildFixture({
+  it('threads a disabled toggle through to the single pass', async () => {
+    const { bus, auditCalls } = buildFixture({
       config: {
-        delivery: { feedbackLoop: { codeReviewAutoFile: false } },
+        delivery: { feedbackLoop: { auditResultsAutoFile: false } },
       },
     });
     await bus.emit('acceptance.reconcile.ok', { epicId: 2547 });
 
-    assert.equal(graduatorCalls.length, 1);
-    // The graduator was invoked but the stub honours the toggle: no findings filed.
-    // The contract surface is that the toggle flows from agentrc → graduator,
-    // and we observe that by passing the disabled config through.
-    assert.equal(
-      graduatorCalls[0].config?.delivery?.feedbackLoop?.codeReviewAutoFile,
-      false,
-    );
+    // The Finalizer gates the audit pass on the toggle before invoking it,
+    // so a disabled toggle short-circuits and the graduator is never called.
+    assert.equal(auditCalls.length, 0);
 
-    // Finalize still completes regardless.
     const eventNames = bus.emitted.map((e) => e.event);
     assert.ok(eventNames.includes('pr.created'));
     assert.ok(eventNames.includes('epic.finalize.end'));
   });
 
   it('continues finalize when the graduator throws (best-effort)', async () => {
-    const { bus, graduatorCalls } = buildFixture({
-      graduateFindingsFn: async () => {
-        // Even though graduateFindings is documented as never-throws,
-        // the Finalizer must defend against a misbehaving stub or a
-        // future regression. This is the listener's belt-and-braces
-        // contract: the finalize phase must not be blocked.
+    const { bus } = buildFixture({
+      graduateAuditResultsFn: async () => {
         throw new Error('graduator exploded');
       },
     });
     await bus.emit('acceptance.reconcile.ok', { epicId: 2547 });
 
-    assert.equal(graduatorCalls.length, 0); // the stub didn't record before throwing
     const eventNames = bus.emitted.map((e) => e.event);
     assert.ok(
       eventNames.includes('pr.created'),
@@ -217,8 +232,6 @@ describe('Finalizer ↔ code-review graduator (contract)', () => {
   });
 
   it('skips graduation cleanly when provider is not wired', async () => {
-    // Build a finalizer with no provider — the listener should skip
-    // graduation silently and still finalize.
     const bus = makeBus();
     let graduatorInvoked = false;
     const finalizer = new Finalizer({
@@ -227,7 +240,7 @@ describe('Finalizer ↔ code-review graduator (contract)', () => {
       cwd: '/tmp',
       // provider intentionally omitted.
       currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
-      graduateFindingsFn: async () => {
+      graduateAuditResultsFn: async () => {
         graduatorInvoked = true;
         return { filed: [], skipped: [], errors: [] };
       },
