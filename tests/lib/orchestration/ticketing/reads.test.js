@@ -94,15 +94,23 @@ describe('ticketing/reads — constants and validators', () => {
     assert.doesNotThrow(() => assertValidStructuredCommentType('friction'));
   });
 
-  // Story #2681 — `audit-results` was prescribed by `helpers/epic-audit.md`
-  // Step 4 before it was added to the registry; the missing entry made
-  // every Phase 4 audit-results upsert fail with "Invalid structured-
-  // comment type". Pin the entry so the helper's invocation stays
-  // green and the marker can't be silently retired again.
-  it('isValidStructuredCommentType accepts the audit-results marker', () => {
-    assert.equal(isValidStructuredCommentType('audit-results'), true);
+  // Story #4412 — the `audit-results` structured-comment marker is retired.
+  // The standalone Phase 4 lens walk folded into the Phase 5 code-review
+  // pass, whose single `verification-results` comment carries the Epic-close
+  // lens findings. The former producer (`helpers/epic-audit.md` Step 4) is
+  // gone, so the marker is no longer a valid structured-comment type.
+  it('isValidStructuredCommentType rejects the retired audit-results marker', () => {
+    assert.equal(isValidStructuredCommentType('audit-results'), false);
+    assert.throws(
+      () => assertValidStructuredCommentType('audit-results'),
+      /Invalid structured-comment type/,
+    );
+  });
+
+  it('isValidStructuredCommentType accepts the unified verification-results marker', () => {
+    assert.equal(isValidStructuredCommentType('verification-results'), true);
     assert.doesNotThrow(() =>
-      assertValidStructuredCommentType('audit-results'),
+      assertValidStructuredCommentType('verification-results'),
     );
   });
 });

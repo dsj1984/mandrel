@@ -60,14 +60,15 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'notification',
   // Extended set (Story #449 — retro follow-ons)
   // Story #4411 (Epic #4405) — the former `code-review` structured comment
-  // is unified with `audit-results` into the single `verification-results`
-  // findings contract. `runCodeReview` (the sole code producer) upserts
-  // `verification-results`; the feedback-loop graduators and the
-  // auto-merge integration gate read it. The `code-review` marker is
-  // retired here (hard cutover, no dual-shape reader per
-  // `git-conventions.md`). The `audit-results` marker below stays
-  // registered until the capstone Story #4412 retires its `epic-audit.md`
-  // Phase 4 producer.
+  // is unified with the former `audit-results` comment into the single
+  // `verification-results` findings contract. `runCodeReview` (the sole code
+  // producer) upserts `verification-results`; the feedback-loop graduators and
+  // the auto-merge integration gate read it. Both the `code-review` and (as of
+  // Story #4412's slim-Epic-close cutover) the `audit-results` markers are
+  // retired here — the Phase 4 standalone lens walk folded into the Phase 5
+  // code-review pass, whose single `verification-results` comment now carries
+  // the Epic-close lens findings. Hard cutover, no dual-shape reader per
+  // `git-conventions.md`.
   'verification-results',
   'retro',
   'retro-partial',
@@ -107,14 +108,6 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // operator can correct drift before Phase 8 decomposes from a stale
   // spec. Advisory: the run continues regardless of the report contents.
   'spec-freshness',
-  // Story #2681 — `/deliver` Phase 4 epic-audit helper upserts an
-  // `audit-results` comment on the Epic listing the per-lens findings
-  // returned by the change-set audit pass. The marker was prescribed by
-  // `helpers/epic-audit.md` Step 4 long before it was added to this
-  // registry; without the entry the helper's `post-structured-comment.js`
-  // invocation always failed with "Invalid structured-comment type". One
-  // entry per Epic; re-runs replace prior content.
-  'audit-results',
   // Story #2813 — the per-Task progress writer (since retired under
   // #3157) upserted a `model-attribution` comment on a Task ticket at
   // the moment it transitioned to `agent::executing`, recording which

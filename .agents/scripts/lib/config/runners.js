@@ -49,15 +49,23 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
  * `delivery.epicAudit.*` and `delivery.codeReview.*` in `.agentrc.json`
  * (Story #2611, Epic #2586).
  *
- * `autoFixSeverity` (Story #4399) defaults to `'medium'` — the phase
- * remediates 🔴/🟠/🟡 findings on-branch while 🟢 suggestions graduate to
- * follow-up issues. `'high'` reproduces the pre-4399 Critical/High-only
- * routing. Hard cutover per `rules/git-conventions.md` — no back-compat flag.
+ * `autoFixSeverity` is **tier-aware** (Story #4412, Epic #4405). The
+ * Epic-close audit tier (`DEFAULT_EPIC_AUDIT`) defaults to `'high'` —
+ * remediating only 🔴 Critical + 🟠 High findings on-branch while 🟡 Medium
+ * and 🟢 Suggestion findings graduate to follow-up issues. This is the
+ * three-tier model's slim outermost tier: 🟡 Medium code-quality concerns are
+ * already routed into on-branch remediation shift-left (the write-time
+ * checklist threading of Story #4410 and the Story-scope local-lens pass of
+ * Story #4409), so the Epic-close tier stops paying to re-remediate them where
+ * a fix is most expensive. The code-review tier (`DEFAULT_CODE_REVIEW`) keeps
+ * the `'medium'` default introduced by Story #4399. Both are hard cutovers per
+ * `rules/git-conventions.md` — no back-compat flag; an operator opts back into
+ * the wider routing by setting `delivery.epicAudit.autoFixSeverity: 'medium'`.
  */
 export const DEFAULT_EPIC_AUDIT = Object.freeze({
   maxFixAttempts: 3,
   maxFixScopeFiles: 5,
-  autoFixSeverity: 'medium',
+  autoFixSeverity: 'high',
 });
 
 export const DEFAULT_CODE_REVIEW = Object.freeze({
