@@ -27,7 +27,15 @@
  */
 
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +67,17 @@ const IGNORE_DIRS = new Set([
   'coverage',
 ]);
 
+/**
+ * Path suffixes to skip regardless of the leaf directory name. Claude Code
+ * linked-worktree checkouts live at `.claude/worktrees/<name>/` — a full
+ * nested clone of the repo. `.claude` itself is an authored dir we walk into
+ * (see below), but its `worktrees/` child is scratch: descending into it
+ * re-scans another copy of the tree and produces false-positive hits from a
+ * concurrent delivery's checkout. This complements the name-based `.worktrees`
+ * exclusion (the older repo-root convention) above.
+ */
+const IGNORE_PATH_SUFFIXES = [path.join('.claude', 'worktrees')];
+
 const IGNORE_FILES = new Set([
   'package-lock.json',
   'npm-shrinkwrap.json',
@@ -82,6 +101,10 @@ function* walkRepo(root) {
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (IGNORE_DIRS.has(entry.name)) continue;
+      const dirPath = path.join(root, entry.name);
+      if (IGNORE_PATH_SUFFIXES.some((suffix) => dirPath.endsWith(suffix))) {
+        continue;
+      }
       if (
         entry.name.startsWith('.') &&
         entry.name !== '.agents' &&
@@ -143,6 +166,35 @@ describe('Deliver-runner CLI retirement (Task #2264)', () => {
       `Found stale references to '${FORBIDDEN_LITERAL}' in:\n  ${hits.join('\n  ')}\n` +
         '/deliver is the sole entry point — these files must be updated.',
     );
+  });
+
+  it('does not descend into .claude/worktrees harness checkouts', () => {
+    // Plant a decoy carrying the forbidden literal inside a fake linked
+    // worktree, then confirm the scan never reaches it. Regression guard for
+    // the false positives raised when a concurrent Claude Code delivery has an
+    // active checkout under `.claude/worktrees/`.
+    const worktreeRoot = path.join(
+      PROJECT_ROOT,
+      '.claude',
+      'worktrees',
+      `guard-fixture-${process.pid}`,
+    );
+    const decoy = path.join(worktreeRoot, 'docs', 'CHANGELOG.md');
+    mkdirSync(path.dirname(decoy), { recursive: true });
+    try {
+      writeFileSync(decoy, `stale ${FORBIDDEN_LITERAL} reference\n`, 'utf8');
+      const scanned = [];
+      for (const file of walkRepo(PROJECT_ROOT)) {
+        scanned.push(file);
+      }
+      assert.equal(
+        scanned.includes(decoy),
+        false,
+        `Planted decoy ${decoy} must NOT be scanned — .claude/worktrees checkouts are excluded`,
+      );
+    } finally {
+      rmSync(worktreeRoot, { recursive: true, force: true });
+    }
   });
 
   it('/deliver slash command remains the documented entry point', () => {
