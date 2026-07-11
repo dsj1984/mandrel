@@ -66,7 +66,7 @@ function defaultSleep(ms) {
  * probe when the read itself fails, preserving the prior conservative
  * classification on probe errors.
  */
-export async function readPrClassificationProbe({ prNumber, gh = defaultGh }) {
+async function readPrClassificationProbe({ prNumber, gh = defaultGh }) {
   try {
     const view = await gh.pr.view(prNumber, [
       'mergeStateStatus',
