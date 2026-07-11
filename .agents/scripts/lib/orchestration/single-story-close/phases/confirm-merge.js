@@ -320,12 +320,20 @@ export async function runConfirmMergePhase({
 
     if (confirmation.reason === 'pr-not-merged') {
       // The PR was closed without merging — a definitive terminal state,
-      // not a "still pending" condition the budget should keep waiting on.
+      // not a "still pending" condition the budget should keep waiting
+      // on. checksStatus MUST be a non-pending, non-undefined value here
+      // (audit-clean-code finding, Epic #4425): classifyMergeBlock's
+      // budget-exhausted branch treats an undefined checksStatus as
+      // "still pending", which would misclassify this definitive
+      // closed-without-merging case as checks-pending-timeout instead
+      // of falling through to the api-race-other reason built from
+      // prProbe.error below.
       return blockOnUnlanded({
         storyId,
         prNumber,
         prUrl,
         prProbe: {
+          checksStatus: 'closed',
           error: 'PR closed without merging (state=CLOSED)',
         },
         budget: {

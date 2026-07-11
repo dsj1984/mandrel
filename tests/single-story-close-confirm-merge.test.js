@@ -352,6 +352,10 @@ describe('runConfirmMergePhase — budget exhaustion', () => {
       0,
       'never slept — closed-without-merge is terminal',
     );
+    // Regression assertion (audit-clean-code finding, Epic #4425): must
+    // NOT misclassify as checks-pending-timeout — the PR is definitively
+    // closed, not still-in-flight.
+    assert.notEqual(outcome.blockClass, 'checks-pending-timeout');
     const [{ patch }] = provider._updates();
     assert.deepEqual(patch.labels.add, ['agent::blocked']);
   });
