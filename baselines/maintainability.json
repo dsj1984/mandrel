@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T12:33:32.930Z",
+  "generatedAt": "2026-07-11T14:01:20.173Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.891,
+      "p50": 97.964,
       "p95": 126.964
     }
   },
@@ -869,6 +869,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "mi": 100.017
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
+      "mi": 107.528
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
