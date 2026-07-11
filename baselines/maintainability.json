@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:34:07.316Z",
+  "generatedAt": "2026-07-11T12:33:32.930Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -555,6 +555,10 @@
       "mi": 89.732
     },
     {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "mi": 110.714
+    },
+    {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "mi": 90.371
     },
@@ -1083,6 +1087,10 @@
       "mi": 104.328
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "mi": 87.061
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/emit-story-heartbeat.js",
       "mi": 89.31
     },
@@ -1101,6 +1109,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
       "mi": 90.586
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "mi": 105.036
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
