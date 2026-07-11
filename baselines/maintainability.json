@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T12:33:32.930Z",
+  "generatedAt": "2026-07-11T12:52:13.742Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -424,7 +424,7 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "mi": 88.628
+      "mi": 87.958
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
@@ -1275,8 +1275,12 @@
       "mi": 108.168
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "mi": 85.922
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "mi": 110.234
+      "mi": 105.762
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
@@ -1296,7 +1300,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "mi": 80.718
+      "mi": 83.102
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
@@ -1909,6 +1913,10 @@
     {
       "path": ".agents/scripts/signals-view.js",
       "mi": 93.522
+    },
+    {
+      "path": ".agents/scripts/single-story-close.js",
+      "mi": 119.755
     },
     {
       "path": ".agents/scripts/single-story-confirm-merge.js",
