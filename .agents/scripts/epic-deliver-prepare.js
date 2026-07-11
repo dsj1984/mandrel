@@ -32,6 +32,7 @@
  *   node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -389,12 +390,13 @@ async function writeDocsDigest({ epicId, cwd, config }) {
  * }} args
  * @returns {Promise<Array<{ storyId: number, worktree?: string, title?: string, checklistPath: string|null }>>}
  */
-async function writeStoryChecklists({
+export async function writeStoryChecklists({
   epicId,
   cwd,
   config,
   stories,
   storyById,
+  buildPayload = buildChecklistPayload,
 }) {
   const paths = getPaths(config);
   const root = path.resolve(cwd ?? process.cwd());
@@ -405,7 +407,7 @@ async function writeStoryChecklists({
       const footprint = ticket
         ? collectStoryAssumptionEntries(ticket).map((e) => e.path)
         : [];
-      const { payload } = buildChecklistPayload({ footprint, logger: Logger });
+      const { payload } = buildPayload({ footprint, logger: Logger });
       if (!payload) return { ...entry, checklistPath: null };
 
       const relPath = path.join(
