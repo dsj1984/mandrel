@@ -457,7 +457,10 @@ function shellEscape(s) {
  * Render the body lines (everything below a section heading and its trailing
  * blank) for a "proposed issues" bucket — the consumer and framework sections
  * share this shape. Empty buckets collapse to a single `_None._`; populated
- * buckets emit one fenced `gh issue create` stanza per item.
+ * buckets emit, per item, either the **filed issue reference** (when the
+ * retro auto-filer already filed it — Story #4418, stamped as
+ * `item.filedIssue`) or the paste-ready fenced `gh issue create` stanza (the
+ * toggle-OFF / filing-skipped fallback).
  *
  * @param {object[]} items
  * @returns {string[]}
@@ -468,9 +471,16 @@ function renderIssueBucket(items) {
   for (const item of items) {
     lines.push(`- **${item.title ?? item.category}**`);
     lines.push('');
-    lines.push('```sh');
-    lines.push(String(item.command ?? ''));
-    lines.push('```');
+    if (item.filedIssue && item.filedIssue.url) {
+      const ref = Number.isInteger(item.filedIssue.number)
+        ? `#${item.filedIssue.number}`
+        : 'issue';
+      lines.push(`  Filed: [${ref}](${item.filedIssue.url})`);
+    } else {
+      lines.push('```sh');
+      lines.push(String(item.command ?? ''));
+      lines.push('```');
+    }
     lines.push('');
   }
   return lines;
