@@ -675,8 +675,9 @@ for the scoring logic.
    gracefully when the section is absent.
 
    > **One-pass refinement contract (amend, don't regenerate).** When the
-   > deterministic validator (step 6) rejects the draft, or the 8.3 / 8.4 /
-   > 8.5 critics below flag specific Stories, re-entering this step applies
+   > deterministic validator (`validateAndNormalizeTickets`) rejects the
+   > draft, or the 8.3 / 8.4 / 8.5 critics below flag specific Stories,
+   > re-entering this step applies
    > **targeted edits** to the existing `temp/epic-[Epic_ID]/tickets.json` —
    > fix only the rejected or flagged Stories — per the
    > `epic-plan-decompose-author` skill's re-emit rule, rather than
@@ -702,9 +703,11 @@ for the scoring logic.
    - **`dispatch: false`** — the draft already matches the Delivery Slicing
      target, so the consolidation critic has nothing to reconcile. **Skip the
      sub-agent dispatch** and surface the skip as a **one-line progress
-     note** naming the precondition's `reasons` (e.g. "Skipping Phase 8.3
-     consolidation dispatch: Draft matches Delivery Slicing 1:1 in count and
-     dependency shape (N slice(s))."). Proceed straight to Phase 8.4 with the
+     note** naming the precondition's `reasons` — quoting verbatim the
+     string `evaluateConsolidationPrecondition` actually emits: "Draft
+     matches Delivery Slicing 1:1 in count and dependency shape (N
+     slice(s)) — skipping the 8.3 consolidation dispatch." (`N` is the
+     interpolated `slicing.length`). Proceed straight to Phase 8.4 with the
      draft `tickets.json` unchanged (no `consolidation-report.md` is
      produced when the dispatch is skipped).
    - **`dispatch: true`** — **dispatch a genuine fresh-context sub-agent**
@@ -728,9 +731,10 @@ for the scoring logic.
      consolidates fragmented slices by merging them into a cohesive Story,
      never by splitting one. The sub-agent **never writes to GitHub**: it
      emits only the two temp artifacts and returns control to this operator
-     session. It runs **before** the deterministic validator (step 7), so the
-     validator re-checks its output and the critic cannot emit an invalid
-     plan. **Show the operator the consolidation report (the before/after
+     session. It runs **before** the deterministic validator
+     (`validateAndNormalizeTickets`), so the validator re-checks its output
+     and the critic cannot emit an invalid plan. **Show the operator the
+     consolidation report (the before/after
      diff + rationale) before persisting.** The HITL diff-confirm and the
      persist call both run here in the **operator session**, never inside
      the sub-agent — consolidation is never auto-applied without review: on
@@ -738,7 +742,8 @@ for the scoring logic.
      rejection, persist the draft instead.
 
    Phase 8.4 (Reachability Completeness Critic), Phase 8.5 (Planning
-   Pre-Mortem Critic), and the deterministic ticket validator (step 6) are
+   Pre-Mortem Critic), and the deterministic ticket validator
+   (`validateAndNormalizeTickets`) are
    **unconditional** — the precondition governs only the 8.3 sub-agent
    dispatch, never any other Phase 8 gate. This is a sub-step of Phase 8 — it
    does **not** renumber the top-level lifecycle phases (9–12).
@@ -776,8 +781,8 @@ for the scoring logic.
    - **HITL.** The added Story is surfaced in the **same Phase 8 HITL diff** as
      consolidation, **before** any GitHub write — never auto-persisted. On
      operator rejection, drop the added Story and persist without it. The
-     deterministic validator (step 7) re-checks the critic's output, so an
-     invalid addition cannot reach GitHub.
+     deterministic validator (`validateAndNormalizeTickets`) re-checks the
+     critic's output, so an invalid addition cannot reach GitHub.
 
 5. **Phase 8.5 — Planning Pre-Mortem Critic (code-reading, F9)**: After the
    reachability critic (8.4) and **before** the persist call below, **dispatch a
@@ -807,8 +812,8 @@ for the scoring logic.
    persist call — applying **targeted edits** to the flagged Stories in the
    existing `tickets.json` (amend, don't regenerate; **one refinement pass**
    per the contract above), not a wholesale re-author. The critic runs
-   **before** the deterministic validator (step 7), so the persist below is
-   the single GitHub write for the whole phase.
+   **before** the deterministic validator (`validateAndNormalizeTickets`),
+   so the persist below is the single GitHub write for the whole phase.
 
 6. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates
