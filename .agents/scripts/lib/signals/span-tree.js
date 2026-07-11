@@ -51,20 +51,21 @@
  */
 
 function tsOf(evt) {
-  // Schema accepts both `ts` (canonical) and `timestamp` (legacy).
-  return evt?.ts ?? evt?.timestamp ?? null;
+  // Canonical envelope only (Epic #4406) — the legacy `timestamp` alias
+  // was deleted from every writer in the same PR.
+  return evt?.ts ?? null;
 }
 
 function epicOf(evt) {
-  return evt?.epic ?? evt?.epicId ?? null;
+  return evt?.epicId ?? null;
 }
 
 function storyOf(evt) {
-  return evt?.story ?? evt?.storyId ?? null;
+  return evt?.storyId ?? null;
 }
 
 function taskOf(evt) {
-  return evt?.task ?? evt?.taskId ?? null;
+  return evt?.taskId ?? null;
 }
 
 /**

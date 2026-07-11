@@ -42,6 +42,7 @@ import {
   storyTempDir,
 } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
+import { recordSignalReject, validateSignal } from './signal-validator.js';
 import { classifyPathSource } from './source-classifier.js';
 
 const TRACES_BASENAME = 'traces.ndjson';
@@ -60,20 +61,23 @@ function tracesFile(eid, sid, config) {
  * Best-effort decoration of a signal record with a `source` field
  * (`"framework"` or `"consumer"`) produced by `classifyPathSource`.
  *
- * Rules (Epic #2547 / Story #2553 / Tech Spec #2550):
+ * Post the Epic #4406 cutover `source` is reserved **exclusively** for
+ * this framework/consumer classification — a record's originating tool
+ * lives in `emitter`, never `source`. That freed the classifier to run
+ * for every friction record (pre-cutover a provenance object under the
+ * `source` key blocked it via `Object.hasOwn`).
+ *
+ * Rules:
  *   - If the record is not a plain object (string, number, null,
- *     undefined), return it unchanged — the writer's existing
- *     serialisation guard will reject or pass it through as before.
- *   - If the caller pre-set `signal.source`, preserve it verbatim. Some
- *     detectors classify upstream (e.g. wave-lifecycle signals always
- *     belong to the framework) and we MUST NOT overwrite their
- *     intentional tag.
- *   - Otherwise, invoke `classifyPathSource` against the record's
- *     `failingPath` / `path` and `command` fields, and inject the result
- *     as a new `source` key. The classifier itself never throws, but we
- *     belt-and-braces a try/catch so an unexpected fault degrades to a
- *     `Logger.warn` and a passthrough of the original signal — never a
- *     dropped write.
+ *     undefined), return it unchanged.
+ *   - If the caller pre-set `source` to exactly `"framework"` or
+ *     `"consumer"`, preserve it verbatim — some detectors classify
+ *     upstream and we MUST NOT overwrite their intentional tag.
+ *   - Otherwise (absent, or any other value — defense in depth against a
+ *     stray non-canonical `source`), invoke `classifyPathSource` against
+ *     the record's `failingPath` / `path` and `command` /
+ *     `emitter.command` fields and inject/overwrite `source` with the
+ *     result.
  *
  * @param {unknown} signal
  * @returns {unknown}
@@ -82,16 +86,17 @@ function tagSignalSource(signal) {
   if (signal === null || typeof signal !== 'object' || Array.isArray(signal)) {
     return signal;
   }
-  // Caller-supplied source wins, even when undefined-typed but present as
-  // an own property — only inject when the key is absent entirely so we
-  // never overwrite an explicit decision.
-  if (Object.hasOwn(signal, 'source')) {
-    return signal;
+  const record = /** @type {Record<string, unknown>} */ (signal);
+  if (record.source === 'framework' || record.source === 'consumer') {
+    return record;
   }
   try {
-    const record = /** @type {Record<string, unknown>} */ (signal);
     const failingPath = record.failingPath ?? record.path;
-    const command = record.command;
+    const emitter =
+      record.emitter && typeof record.emitter === 'object'
+        ? /** @type {Record<string, unknown>} */ (record.emitter)
+        : null;
+    const command = record.command ?? emitter?.command;
     const source = classifyPathSource(failingPath, command);
     return { ...record, source };
   } catch (err) {
@@ -102,6 +107,27 @@ function tagSignalSource(signal) {
     );
     return signal;
   }
+}
+
+/**
+ * Validate a record against the canonical `signal-event.schema.json`
+ * before it is appended. On failure the record is **dropped** (never
+ * appended), a `Logger.warn` names the violating field, and the per-Epic
+ * reject tally is incremented under the Epic temp tree. Never throws —
+ * the writer's best-effort contract is preserved.
+ *
+ * @param {unknown} record
+ * @param {{ epicId?: number|null, config?: object, label: string }} ctx
+ * @returns {Promise<boolean>} true when the record is valid (safe to append).
+ */
+async function validateOrDrop(record, { epicId, config, label }) {
+  const { valid, violatingField, message } = validateSignal(record);
+  if (valid) return true;
+  Logger.warn(
+    `signals-writer: dropping schema-invalid ${label} record — violating field '${violatingField}' (${message}).`,
+  );
+  await recordSignalReject({ epicId, config, field: violatingField });
+  return false;
 }
 
 /**
@@ -163,7 +189,14 @@ export async function appendSignal(args) {
     );
     return false;
   }
-  return appendOne(target, tagSignalSource(signal));
+  const tagged = tagSignalSource(signal);
+  const ok = await validateOrDrop(tagged, {
+    epicId: Number.isInteger(epicId) ? epicId : null,
+    config,
+    label: 'signal',
+  });
+  if (!ok) return false;
+  return appendOne(target, tagged);
 }
 
 /**
@@ -188,7 +221,14 @@ export async function appendEpicSignal(args) {
     );
     return false;
   }
-  return appendOne(target, tagSignalSource(signal));
+  const tagged = tagSignalSource(signal);
+  const ok = await validateOrDrop(tagged, {
+    epicId: Number.isInteger(epicId) ? epicId : null,
+    config,
+    label: 'epic signal',
+  });
+  if (!ok) return false;
+  return appendOne(target, tagged);
 }
 
 /**
@@ -211,6 +251,12 @@ export async function appendTrace(args) {
     );
     return false;
   }
+  const ok = await validateOrDrop(trace, {
+    epicId: Number.isInteger(epicId) ? epicId : null,
+    config,
+    label: 'trace',
+  });
+  if (!ok) return false;
   return appendOne(target, trace);
 }
 

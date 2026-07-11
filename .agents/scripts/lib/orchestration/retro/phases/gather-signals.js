@@ -239,30 +239,25 @@ export async function gatherRetroSignals({
     hitl,
   };
 
-  // Story #2558 — read per-Story `signals.ndjson` streams (already
-  // source-tagged by Story #2553's writer) and compose the four routed
-  // proposal sections (framework / consumer / memory / discarded). Read
-  // failures degrade silently — observability MUST NOT take down the
-  // retro path. Empty streams yield empty arrays so the composer
-  // remains backward-compatible.
+  // Story #2558 — read per-Story `signals.ndjson` streams (source-tagged
+  // by the writer's `tagSignalSource`) and compose the routed proposal
+  // sections (framework / consumer / discarded). Reads the canonical
+  // envelope: top-level `category` and the string `source` classifier tag
+  // (Epic #4406). Read failures degrade silently — observability MUST NOT
+  // take down the retro path. Empty streams yield empty arrays.
   //
-  // Story #3347 — the per-Story reads previously ran one-at-a-time in a
-  // sequential `for` loop, serializing N disk reads. They now fan out via
-  // `concurrentMap` with a bounded cap (`SIGNALS_READ_CONCURRENCY`). Each
-  // Story accumulates into its own local arrays; `concurrentMap` preserves
-  // input order so we concatenate the per-Story results in `stories` order.
-  // That keeps `routedSignals` / `memorablePatterns` — and therefore the
-  // composed `routedProposals` — byte-for-byte identical to the prior
-  // serial behaviour, independent of which read settles first.
+  // Story #3347 — the per-Story reads fan out via `concurrentMap` with a
+  // bounded cap (`SIGNALS_READ_CONCURRENCY`); `concurrentMap` preserves
+  // input order so we concatenate the per-Story `routedSignals` in
+  // `stories` order, keeping the composed `routedProposals` deterministic.
   const perStorySignals = await concurrentMap(
     stories,
     async (story) => {
       const sid = Number(story.id ?? story.number);
       if (!Number.isInteger(sid) || sid <= 0) {
-        return { routedSignals: [], memorablePatterns: [] };
+        return { routedSignals: [] };
       }
       const localRoutedSignals = [];
-      const localMemorablePatterns = [];
       try {
         await forEachLineFn(epicId, sid, (parsed) => {
           if (parsed === null || typeof parsed !== 'object') return;
@@ -274,12 +269,6 @@ export async function gatherRetroSignals({
           if (category) {
             localRoutedSignals.push({ category, source });
           }
-          if (record.memorable === true && typeof record.insight === 'string') {
-            localMemorablePatterns.push({
-              category: category ?? 'general',
-              insight: record.insight,
-            });
-          }
         });
       } catch (err) {
         logger?.warn?.(
@@ -288,18 +277,13 @@ export async function gatherRetroSignals({
           }`,
         );
       }
-      return {
-        routedSignals: localRoutedSignals,
-        memorablePatterns: localMemorablePatterns,
-      };
+      return { routedSignals: localRoutedSignals };
     },
     { concurrency: SIGNALS_READ_CONCURRENCY },
   );
   const routedSignals = [];
-  const memorablePatterns = [];
   for (const perStory of perStorySignals) {
     routedSignals.push(...perStory.routedSignals);
-    memorablePatterns.push(...perStory.memorablePatterns);
   }
 
   // Resolve repos. Caller overrides win; otherwise default the consumer
@@ -321,7 +305,6 @@ export async function gatherRetroSignals({
     consumerRepo: resolvedConsumerRepo,
     signals: routedSignals,
     unresolvedBlockedEvents: [],
-    memorablePatterns,
   });
 
   return {

@@ -26,7 +26,7 @@ function tx({ ts, story, to }) {
   return {
     kind: 'state-transition',
     ts,
-    story,
+    storyId: story,
     details: { to },
   };
 }
@@ -180,7 +180,7 @@ function refIsObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 function refTsOf(evt) {
-  return evt?.ts ?? evt?.timestamp ?? null;
+  return evt?.ts ?? null;
 }
 function refTsToMs(ts) {
   if (typeof ts !== 'string') return null;
@@ -188,7 +188,7 @@ function refTsToMs(ts) {
   return Number.isFinite(n) ? n : null;
 }
 function refStoryIdOf(evt) {
-  const raw = evt?.story ?? evt?.storyId;
+  const raw = evt?.storyId;
   const n = Number(raw);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
@@ -357,7 +357,7 @@ function buildLargeStream({ waveCount, storiesPerWave, completeEvery }) {
       events.push({
         kind: 'state-transition',
         ts: new Date(clock).toISOString(),
-        story: id,
+        storyId: id,
         details: { to: 'agent::executing' },
       });
       clock += step;
@@ -365,13 +365,13 @@ function buildLargeStream({ waveCount, storiesPerWave, completeEvery }) {
       events.push({
         kind: 'story.heartbeat',
         ts: new Date(clock).toISOString(),
-        story: id,
+        storyId: id,
       });
       clock += step;
       events.push({
         kind: 'state-transition',
         ts: new Date(clock).toISOString(),
-        story: id,
+        storyId: id,
         details: { to: 'agent::done' },
       });
       clock += step;

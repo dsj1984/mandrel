@@ -274,7 +274,7 @@ export async function aggregateBaselineFrictionFromSignals({
         ) {
           return;
         }
-        const ts = Date.parse(record.timestamp);
+        const ts = Date.parse(record.ts);
         if (Number.isFinite(ts) && ts < cutoffMs) return;
 
         totalRecords += 1;

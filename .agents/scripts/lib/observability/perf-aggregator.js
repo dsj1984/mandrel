@@ -8,12 +8,10 @@
  *   - `computeStoryPerfSummary(events, opts)` → `<!-- structured:story-perf-summary -->`
  *   - `computeEpicPerfReport(perStorySummaries, opts)` → `<!-- structured:epic-perf-report -->`
  *
- * Plus streaming counterparts that consume the canonical
- * `lib/signals/read` iterator directly, so the aggregator owns its own
- * NDJSON ingestion through the shared reader (Task #1460 AC):
- *
- *   - `computeStoryPerfSummaryFromStore({ storyId, epicId, config? })`
- *   - `computeEpicPerfReportFromStore({ epicId, perStorySummaries, config? })`
+ * Both take a materialised event iterable; the caller (`analyze-execution.js`)
+ * owns NDJSON ingestion via `lib/signals/read.js`. (The former
+ * streaming store-reading variants were retired in the Epic #4406
+ * signal-contract cutover — they had no callers.)
  *
  * Schemas:
  *   - `.agents/schemas/story-perf-summary.schema.json`
@@ -39,7 +37,6 @@
  */
 
 import { isObject } from '../json-utils.js';
-import { read as readSignals } from '../signals/read.js';
 import { EVENT_KINDS } from '../signals/schema.js';
 
 const FRICTION_KIND = EVENT_KINDS.FRICTION;
@@ -69,7 +66,10 @@ function nonNegativeNumber(v) {
 
 /**
  * Pull friction-by-category counts off a list of NDJSON events. Keys are
- * the `details.category` strings; values ≥ 0 integers.
+ * the **top-level** `category` strings (Epic #4406 canonical shape); a
+ * record with no top-level category buckets under `Unknown`. Reading the
+ * top-level key (not `details.category`) is what un-zeroes the report —
+ * every writer emits `category` at the envelope top level.
  *
  * @param {Iterable<object>} events
  * @returns {Object<string, number>}
@@ -79,8 +79,8 @@ function frictionByCategory(events) {
   for (const evt of events) {
     if (!isObject(evt) || evt.kind !== FRICTION_KIND) continue;
     const category =
-      isObject(evt.details) && typeof evt.details.category === 'string'
-        ? evt.details.category
+      typeof evt.category === 'string' && evt.category.length > 0
+        ? evt.category
         : 'Unknown';
     out[category] = (out[category] ?? 0) + 1;
   }
@@ -125,7 +125,10 @@ function topSlowPhasesVsBaseline(events, opts = {}) {
 /**
  * Build the `reworkScore` object: `{ filesEditedBeyondThreshold, topPath?,
  * topPathEdits? }`. We aggregate `kind: 'rework'` signals whose details
- * carry a `path` and an `edits` count. When the input has no rework
+ * carry a `targetHash` and an `editCount` — the exact keys
+ * `detectors/rework.js` emits (Epic #4406 canonical shape). `topPath` is
+ * the offending `targetHash` (a sha256; the raw path never reaches the
+ * aggregator by the privacy contract). When the input has no rework
  * signals we return the zero-shape: `{ filesEditedBeyondThreshold: 0 }`.
  *
  * @param {Iterable<object>} events
@@ -136,9 +139,12 @@ function reworkScore(events) {
   for (const evt of events) {
     if (!isObject(evt) || evt.kind !== REWORK_KIND) continue;
     const d = isObject(evt.details) ? evt.details : {};
-    const p = typeof d.path === 'string' && d.path.length > 0 ? d.path : null;
+    const p =
+      typeof d.targetHash === 'string' && d.targetHash.length > 0
+        ? d.targetHash
+        : null;
     if (!p) continue;
-    const edits = nonNegativeInt(d.edits);
+    const edits = nonNegativeInt(d.editCount);
     editsByPath.set(p, Math.max(editsByPath.get(p) ?? 0, edits));
   }
   if (editsByPath.size === 0) {
@@ -161,24 +167,27 @@ function reworkScore(events) {
 
 /**
  * Build the `retryDensity` object: `{ retries, uniqueCommands }`. Sums
- * `kind: 'retry'` signals; `uniqueCommands` is the number of distinct
- * `details.command` strings observed. Zero-shape on empty input.
+ * `kind: 'retry'` signals; `uniqueCommands` is the hash-cardinality of the
+ * distinct `details.commandHash` values observed — the exact key
+ * `detectors/retry.js` emits (Epic #4406 canonical shape). The raw command
+ * never reaches the aggregator by the privacy contract, so we count
+ * distinct hashes. Zero-shape on empty input.
  *
  * @param {Iterable<object>} events
  * @returns {{ retries: number, uniqueCommands: number }}
  */
 function retryDensity(events) {
   let retries = 0;
-  const commands = new Set();
+  const commandHashes = new Set();
   for (const evt of events) {
     if (!isObject(evt) || evt.kind !== RETRY_KIND) continue;
     const d = isObject(evt.details) ? evt.details : {};
     retries += 1;
-    if (typeof d.command === 'string' && d.command.length > 0) {
-      commands.add(d.command);
+    if (typeof d.commandHash === 'string' && d.commandHash.length > 0) {
+      commandHashes.add(d.commandHash);
     }
   }
-  return { retries, uniqueCommands: commands.size };
+  return { retries, uniqueCommands: commandHashes.size };
 }
 
 /**
@@ -375,7 +384,7 @@ const DEFAULT_VERIFY_CONCURRENCY_CAP = 4;
 const DEFAULT_WAVE_CONCURRENCY_CAP = 2;
 
 function tsOf(evt) {
-  return evt?.ts ?? evt?.timestamp ?? null;
+  return evt?.ts ?? null;
 }
 
 function tsToMs(ts) {
@@ -385,8 +394,7 @@ function tsToMs(ts) {
 }
 
 function storyIdOf(evt) {
-  const raw = evt?.story ?? evt?.storyId;
-  const n = Number(raw);
+  const n = Number(evt?.storyId);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
@@ -802,86 +810,4 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
     topHotspots,
     mostFrictionStories,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Streaming entry-points (Epic #1181 / Story #1438 / Task #1460)
-// ---------------------------------------------------------------------------
-
-/**
- * Streaming variant of `computeStoryPerfSummary` that ingests events
- * directly from `lib/signals/read.js` rather than expecting the caller
- * to materialise the iterable upstream. The aggregation logic is
- * identical — we collect the events through the shared reader and then
- * delegate to `computeStoryPerfSummary`.
- *
- * Use this when the caller is the analyzer and already has the
- * `{ epicId, storyId, config }` triple; use the pure
- * `computeStoryPerfSummary(events, opts)` when the caller already
- * holds an in-memory event array (tests, mock injections).
- *
- * @param {{
- *   storyId: number,
- *   epicId: number,
- *   closedAt?: string,
- *   phaseTiming?: object|null,
- *   config?: object,
- * }} opts
- * @returns {Promise<object>} StoryPerfSummary payload.
- */
-export async function computeStoryPerfSummaryFromStore(opts) {
-  if (!opts || typeof opts !== 'object') {
-    throw new TypeError('computeStoryPerfSummaryFromStore: opts is required');
-  }
-  const { storyId, epicId, config } = opts;
-  const events = [];
-  for await (const evt of readSignals({
-    epic: Number(epicId),
-    story: Number(storyId),
-    config,
-  })) {
-    events.push(evt);
-  }
-  return computeStoryPerfSummary(events, {
-    storyId,
-    epicId,
-    closedAt: opts.closedAt,
-    phaseTiming: opts.phaseTiming,
-  });
-}
-
-/**
- * Streaming variant of `computeEpicPerfReport` that ingests the
- * raw-event roll-up directly from `lib/signals/read.js` (across every
- * Story under the Epic). Per-Story summaries are still passed in by
- * the caller — those are the canonical per-Story payloads upserted
- * onto each Story ticket and not derivable from the raw stream alone
- * (they fold in phase-timer data).
- *
- * @param {{
- *   epicId: number,
- *   perStorySummaries?: Iterable<object>,
- *   generatedAt?: string,
- *   waveParallelism?: Array<object>,
- *   topHotspots?: Array<object>,
- *   config?: object,
- * }} opts
- * @returns {Promise<object>} EpicPerfReport payload.
- */
-export async function computeEpicPerfReportFromStore(opts) {
-  if (!opts || typeof opts !== 'object') {
-    throw new TypeError('computeEpicPerfReportFromStore: opts is required');
-  }
-  const { epicId, perStorySummaries, config } = opts;
-  const events = [];
-  for await (const evt of readSignals({ epic: Number(epicId), config })) {
-    events.push(evt);
-  }
-  return computeEpicPerfReport(perStorySummaries ?? [], {
-    epicId,
-    generatedAt: opts.generatedAt,
-    events,
-    waveParallelism: opts.waveParallelism,
-    topHotspots: opts.topHotspots,
-  });
 }

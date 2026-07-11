@@ -16,7 +16,7 @@
  *     which keeps its own `normalizedHash` and does NOT collapse).
  *
  * Plus the schema/shape contract: every emission carries
- * `{ ts, kind:'retry', source:{tool:'retry-detector'}, epicId, storyId,
+ * `{ ts, kind:'retry', emitter:{tool:'retry-detector'}, epicId, storyId,
  *   taskId, details:{ commandHash, failureCount, threshold,
  *   normalizationRules } }` per `.agents/schemas/signal-event.schema.json`.
  *
@@ -204,7 +204,7 @@ describe('detectRetry — emission shape (schema contract)', () => {
     assert.equal(typeof evt.ts, 'string');
     assert.match(evt.ts, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(evt.kind, 'retry');
-    assert.deepEqual(evt.source, { tool: 'retry-detector' });
+    assert.deepEqual(evt.emitter, { tool: 'retry-detector' });
     assert.equal(evt.epicId, EPIC_ID);
     assert.equal(evt.storyId, STORY_ID);
     assert.equal(evt.taskId, TASK_ID);

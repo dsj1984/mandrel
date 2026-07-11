@@ -149,26 +149,26 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
       'signal.category is set by the classifier',
     );
     assert.ok(
-      signal.source && signal.source.tool === 'diagnose-friction.js',
-      'signal.source.tool identifies the detector',
+      signal.emitter && signal.emitter.tool === 'diagnose-friction.js',
+      'signal.emitter.tool identifies the detector',
     );
     assert.ok(
-      typeof signal.source.command === 'string' &&
-        signal.source.command.length > 0,
-      'signal.source.command captures the wrapped command',
+      typeof signal.emitter.command === 'string' &&
+        signal.emitter.command.length > 0,
+      'signal.emitter.command captures the wrapped command',
     );
     assert.ok(
-      typeof signal.details === 'string' && signal.details.length > 0,
-      'signal.details captures the error preview',
+      signal.details &&
+        typeof signal.details === 'object' &&
+        typeof signal.details.errorPreview === 'string' &&
+        signal.details.errorPreview.length > 0,
+      'signal.details.errorPreview captures the error preview',
     );
     assert.ok(
       typeof signal.eventId === 'string' && signal.eventId.length > 0,
       'signal.eventId is a UUID',
     );
-    assert.ok(
-      typeof signal.timestamp === 'string',
-      'signal.timestamp is an ISO string',
-    );
+    assert.ok(typeof signal.ts === 'string', 'signal.ts is an ISO string');
   });
 
   it('classifies "Cannot find module" as Missing Skill', () => {

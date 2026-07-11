@@ -81,10 +81,13 @@ describe('emitFrictionSignal', () => {
     assert.equal(parsed.epicId, 7);
     assert.equal(parsed.storyId, 42);
     assert.equal(parsed.category, 'unit-test');
-    assert.deepEqual(parsed.source, { tool: 'gate-friction.test.js' });
-    assert.equal(parsed.details, 'one regression detected');
+    assert.deepEqual(parsed.emitter, { tool: 'gate-friction.test.js' });
+    // Bare-string `details` is normalised to an object per the canonical
+    // envelope (Epic #4406); the classifier injects a string `source` tag.
+    assert.deepEqual(parsed.details, { message: 'one regression detected' });
+    assert.ok(parsed.source === 'framework' || parsed.source === 'consumer');
     assert.deepEqual(parsed.violations, [{ file: 'a.js', drop: 0.5 }]);
-    assert.equal(typeof parsed.timestamp, 'string');
+    assert.equal(typeof parsed.ts, 'string');
   });
 
   it('swallows underlying append failures after a logger.warn', async () => {

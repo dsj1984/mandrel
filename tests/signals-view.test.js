@@ -132,14 +132,14 @@ describe('signals-view — happy path', () => {
       {
         kind: 'wave-start',
         ts: '2026-05-11T00:00:00.000Z',
-        epic: 1181,
-        story: 1438,
+        epicId: 1181,
+        storyId: 1438,
       },
       {
         kind: 'wave-end',
         ts: '2026-05-11T00:01:00.000Z',
-        epic: 1181,
-        story: 1438,
+        epicId: 1181,
+        storyId: 1438,
       },
     ]);
 
@@ -163,8 +163,8 @@ describe('signals-view — happy path', () => {
       {
         kind: 'friction',
         ts: '2026-05-11T00:00:00Z',
-        epic: 1181,
-        story: 1438,
+        epicId: 1181,
+        storyId: 1438,
         task: 1461,
       },
     ]);
@@ -172,8 +172,8 @@ describe('signals-view — happy path', () => {
       {
         kind: 'friction',
         ts: '2026-05-11T00:00:00Z',
-        epic: 1181,
-        story: 1440,
+        epicId: 1181,
+        storyId: 1440,
         task: 1465,
       },
     ]);
@@ -218,7 +218,12 @@ describe('signals-view — missing-file friendly message', () => {
   it('exits 0 with story-scoped friendly message when --story has no signals', async () => {
     // Different Story has signals, but the requested one does not.
     await writeSignalsFile(workRoot, 9999, 1, [
-      { kind: 'friction', ts: '2026-05-11T00:00:00Z', epic: 9999, story: 1 },
+      {
+        kind: 'friction',
+        ts: '2026-05-11T00:00:00Z',
+        epicId: 9999,
+        storyId: 1,
+      },
     ]);
     const cap = captureStdout();
     let exitCode;
@@ -242,10 +247,15 @@ describe('signals-view — tempRoot honour (memory: phase_timings_uses_project_r
       {
         kind: 'wave-start',
         ts: '2026-05-11T00:00:00Z',
-        epic: 1181,
-        story: 1438,
+        epicId: 1181,
+        storyId: 1438,
       },
-      { kind: 'wave-end', ts: '2026-05-11T00:00:05Z', epic: 1181, story: 1438 },
+      {
+        kind: 'wave-end',
+        ts: '2026-05-11T00:00:05Z',
+        epicId: 1181,
+        storyId: 1438,
+      },
     ]);
 
     const cap = captureStdout();
@@ -268,7 +278,12 @@ describe('signals-view — tempRoot honour (memory: phase_timings_uses_project_r
     // Write the fixture to workRoot, but point the viewer at a different
     // temp dir. The viewer MUST NOT see the workRoot fixture.
     await writeSignalsFile(workRoot, 1181, 1438, [
-      { kind: 'friction', ts: '2026-05-11T00:00:00Z', epic: 1181, story: 1438 },
+      {
+        kind: 'friction',
+        ts: '2026-05-11T00:00:00Z',
+        epicId: 1181,
+        storyId: 1438,
+      },
     ]);
     const otherRoot = mkdtempSync(path.join(tmpdir(), 'signals-other-'));
     try {

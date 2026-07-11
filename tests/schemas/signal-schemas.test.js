@@ -53,18 +53,19 @@ describe('signal-event.schema.json', () => {
     assert.doesNotThrow(() => compile(schema));
   });
 
-  it('accepts a representative friction signal', () => {
+  it('accepts a representative friction signal (canonical envelope)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-07T18:42:11.045Z',
       kind: 'friction',
-      source: { tool: 'Bash', script: 'diagnose-friction.js' },
+      emitter: { tool: 'diagnose-friction.js', command: 'npm test' },
+      source: 'consumer',
+      category: 'Execution Error',
       epicId: 1030,
       storyId: 1042,
       phase: 'implement',
       details: {
-        category: 'Execution Error',
-        command: 'npm test',
+        errorPreview: 'boom',
         elapsedMs: 41020,
       },
     });
@@ -76,7 +77,7 @@ describe('signal-event.schema.json', () => {
     const ok = validate({
       ts: '2026-05-07T18:42:11.045Z',
       kind: 'trace',
-      source: { tool: 'Bash' },
+      emitter: { tool: 'Bash' },
       epicId: 1030,
       storyId: 1042,
     });
@@ -88,78 +89,68 @@ describe('signal-event.schema.json', () => {
     const ok = validate({
       ts: '2026-05-07T18:42:11.045Z',
       kind: 'cosmic-ray',
-      source: { tool: 'Bash' },
+      emitter: { tool: 'Bash' },
       epicId: 1030,
       storyId: 1042,
     });
     assert.equal(ok, false);
   });
 
-  it('rejects a missing required source.tool', () => {
+  it('rejects a record missing the required `ts`', () => {
+    const validate = compile(schema);
+    const ok = validate({
+      kind: 'friction',
+      emitter: { tool: 'x' },
+      epicId: 1030,
+      storyId: 1042,
+    });
+    assert.equal(ok, false);
+  });
+
+  it('rejects a non-canonical `source` (must be the framework/consumer classifier tag, not an object)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-07T18:42:11.045Z',
       kind: 'friction',
-      source: {},
+      source: { tool: 'Bash' },
       epicId: 1030,
       storyId: 1042,
     });
-    assert.equal(ok, false);
+    assert.equal(
+      ok,
+      false,
+      '`source` is reserved for the framework|consumer string; provenance lives in `emitter`',
+    );
   });
 
-  // Story #3203 — `taskId` removed from the signal-event schema as part
-  // of the Epic #3163 Task-tier producer rewrite. Under the 2-tier
-  // hierarchy there is no parent Task ticket, so the field has no
-  // referent. `additionalProperties: false` means any leftover emitter
-  // that still ships `taskId` MUST be rejected.
-  it('accepts a 2-tier signal event with taskId omitted (Storyless)', () => {
+  // Epic #4406 canonical envelope: `taskId` (nullable) is a first-class
+  // field again — every trace / detector writer emits `taskId: null`, so
+  // the schema that "validates every writer's real output" MUST accept it.
+  it('accepts a 2-tier signal event with taskId: null', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-27T16:00:00.000Z',
       kind: 'trace',
-      source: { tool: 'Bash' },
-      epicId: 3078,
-      storyId: 3143,
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-
-  it('rejects a signal event carrying legacy taskId (4-tier removed)', () => {
-    const validate = compile(schema);
-    const ok = validate({
-      ts: '2026-05-27T16:00:00.000Z',
-      kind: 'trace',
-      source: { tool: 'Bash' },
+      emitter: { tool: 'Bash' },
       epicId: 3078,
       storyId: 3143,
       taskId: null,
       phase: null,
-      details: { tool: 'Bash', durationMs: 12 },
+      details: { tool: 'Bash', durationMs: 12, exitCode: 1 },
     });
-    assert.equal(
-      ok,
-      false,
-      'taskId must be rejected under additionalProperties:false',
-    );
+    assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  it('rejects a signal event carrying legacy taskId integer (4-tier removed)', () => {
+  it('accepts an epic-level wave record (no storyId)', () => {
     const validate = compile(schema);
     const ok = validate({
       ts: '2026-05-27T16:00:00.000Z',
-      kind: 'friction',
-      source: { tool: 'Bash', script: 'diagnose-friction.js' },
+      kind: 'wave-start',
       epicId: 3078,
-      storyId: 3143,
-      taskId: 3149,
-      phase: 'implement',
-      details: { category: 'Execution Error' },
+      index: 0,
+      stories: [{ id: 3143, title: 'x' }],
     });
-    assert.equal(
-      ok,
-      false,
-      'taskId must be rejected under additionalProperties:false',
-    );
+    assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 });
 

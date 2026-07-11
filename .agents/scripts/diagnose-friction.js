@@ -131,7 +131,7 @@ function buildFrictionSignal({
   return {
     kind: 'friction',
     eventId: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
+    ts: new Date().toISOString(),
     epicId: epicId ?? null,
     storyId: storyId ?? null,
     // 2-tier hierarchy (Epic #3163): no Task tier, so friction signals
@@ -139,11 +139,11 @@ function buildFrictionSignal({
     // and always null.
     taskId: null,
     category,
-    source: {
+    emitter: {
       tool: 'diagnose-friction.js',
       command: commandStr,
     },
-    details: errorPreview,
+    details: { errorPreview },
   };
 }
 

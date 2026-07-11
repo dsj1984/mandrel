@@ -35,7 +35,24 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { computeStoryPerfSummaryFromStore } from '../../../../.agents/scripts/lib/observability/perf-aggregator.js';
+import { computeStoryPerfSummary } from '../../../../.agents/scripts/lib/observability/perf-aggregator.js';
+import { read } from '../../../../.agents/scripts/lib/signals/read.js';
+
+async function computeStoryPerfSummaryFromStore({
+  storyId,
+  epicId,
+  closedAt,
+  config,
+}) {
+  const events = [];
+  for await (const evt of read({
+    epic: Number(epicId),
+    story: Number(storyId),
+    config,
+  }))
+    events.push(evt);
+  return computeStoryPerfSummary(events, { storyId, epicId, closedAt });
+}
 
 const EPIC_ID = 1721;
 const STORY_ID = 1770;
@@ -76,7 +93,7 @@ function reworkEvent({ targetPath, edits = 7, threshold = 5 }) {
   return {
     ts: '2026-05-14T10:00:00.000Z',
     kind: 'rework',
-    source: { tool: 'rework-detector' },
+    emitter: { tool: 'rework-detector' },
     epicId: EPIC_ID,
     storyId: STORY_ID,
     taskId: TASK_ID,
@@ -102,7 +119,7 @@ function retryEvent({ command, failureCount = 4, threshold = 3 }) {
   return {
     ts: '2026-05-14T10:00:00.000Z',
     kind: 'retry',
-    source: { tool: 'retry-detector' },
+    emitter: { tool: 'retry-detector' },
     epicId: EPIC_ID,
     storyId: STORY_ID,
     taskId: TASK_ID,
@@ -138,7 +155,7 @@ describe('story-perf-summary picks up rework + retry detector emissions', () => 
     // 2 distinct paths over threshold.
     assert.equal(summary.reworkScore.filesEditedBeyondThreshold, 2);
     // Heaviest path wins — `src/bar.ts` was emitted with edits=9.
-    assert.equal(summary.reworkScore.topPath, 'src/bar.ts');
+    assert.equal(summary.reworkScore.topPath, 'sha256:src/bar.ts-hash');
     assert.equal(summary.reworkScore.topPathEdits, 9);
   });
 
@@ -175,7 +192,7 @@ describe('story-perf-summary picks up rework + retry detector emissions', () => 
     });
 
     assert.equal(summary.reworkScore.filesEditedBeyondThreshold, 1);
-    assert.equal(summary.reworkScore.topPath, 'a.js');
+    assert.equal(summary.reworkScore.topPath, 'sha256:a.js-hash');
     assert.equal(summary.retryDensity.retries, 2);
     assert.equal(summary.retryDensity.uniqueCommands, 1);
   });

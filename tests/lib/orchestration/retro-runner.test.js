@@ -474,7 +474,6 @@ test('gatherRetroSignals: returns routedProposals envelope (empty when no signal
   assert.deepEqual(signals.routedProposals, {
     framework: [],
     consumer: [],
-    memory: [],
     discarded: [],
   });
   // Existing behaviour intact.
