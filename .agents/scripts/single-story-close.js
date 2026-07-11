@@ -23,6 +23,14 @@
  *                          the post-merge confirmation step,
  *                          `single-story-confirm-merge.js`)
  *   8. worktree-reap     — drop the per-Story worktree
+ *   9. confirm-merge      — Story #4428, headless-only (`--wait-merge`):
+ *                          poll the just-armed PR to merge confirmation
+ *                          (reusing `confirmStoryMerged`) or terminate
+ *                          `agent::blocked` with a classified
+ *                          `merge.unlanded` lifecycle event. Attended runs
+ *                          (the default, no `--wait-merge`) skip this
+ *                          phase entirely and keep resting at
+ *                          `agent::closing`, exactly as before.
  *
  * Existing tests import the re-exported helpers
  * (`runSingleStoryClose`, `ensurePullRequest`, `parsePrNumber`,
@@ -33,8 +41,19 @@
  *   node single-story-close.js --story <STORY_ID> [--cwd <main-repo>]
  *                              [--skip-validation] [--skip-sync]
  *                              [--no-auto-merge] [--no-full-scope-crap]
+ *                              [--wait-merge | --no-wait-merge]
  *
- * Exit codes: 0 ok, 1 error.
+ * `--wait-merge` is the headless must-land signal (Story #4428, Epic
+ * #4425): the invoking surface (a headless `/single-story-deliver` run, a
+ * CI-driven wrapper, or `/deliver`'s standalone multi-Story fan-out) opts
+ * in explicitly — attended runs never pass it, so the default exit shape
+ * (rest at `agent::closing`, issue OPEN) is unchanged. `--no-wait-merge` is
+ * the explicit opt-out that always wins over `--wait-merge`, for a caller
+ * that wants to manage merge confirmation externally even in an otherwise
+ * headless context.
+ *
+ * Exit codes: 0 ok, 1 error (including a headless `--wait-merge` run that
+ * gave up without a confirmed merge — see phase 9 above).
  *
  * @see .agents/workflows/helpers/single-story-deliver.md
  */
