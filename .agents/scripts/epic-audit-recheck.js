@@ -10,10 +10,18 @@
  * subset of audit lenses whose `filePatterns` overlap that list.
  *
  * The CLI is intentionally narrower than `select-audits.js`: it does NOT
- * run a git diff, does NOT consult the Epic ticket body for keyword
- * triggers, and does NOT honor `alwaysRun`. The auto-fix tail already knows
- * exactly which paths it touched — only file-pattern overlap is relevant
- * for deciding which lenses are stale and need re-invocation.
+ * run a git diff and does NOT consult the Epic ticket body for keyword
+ * triggers. The auto-fix tail already knows exactly which paths it touched —
+ * only file-pattern overlap is relevant for deciding which lenses are stale
+ * and need re-invocation.
+ *
+ * Tier gate (Epic #4405): this is the **Epic-close** re-check, so it emits
+ * only non-`local` lenses. A `local`-tier lens is verified shift-left at
+ * write-time and Story-scope review; re-running it here would verify the same
+ * concern at a second tier. The overlap set is therefore filtered through
+ * `resolveLensTier`, dropping every `local` lens (including the universal
+ * `audit-clean-code`) so a focused-fix commit cannot drag one back into the
+ * Epic-close re-check.
  *
  * Usage:
  *   node .agents/scripts/epic-audit-recheck.js \
@@ -40,7 +48,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { matchesAnyFilePattern } from './lib/audit-suite/index.js';
+import {
+  matchesAnyFilePattern,
+  resolveLensTier,
+} from './lib/audit-suite/index.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
@@ -148,23 +159,45 @@ export function loadAuditRules(deps = {}) {
 
 /**
  * Pure overlap detector. Walks the audit-rules document and returns the
- * names of every audit whose `triggers.filePatterns` matches at least one
- * entry in `files`. Lenses without `filePatterns` (or with an empty
- * array) NEVER appear in the output — `alwaysRun` and keyword triggers
- * are intentionally ignored: this CLI answers "what was invalidated by
- * the touched paths?", not "what should I run from scratch?".
+ * names of every **non-`local`** audit whose `triggers.filePatterns` matches
+ * at least one entry in `files`. Lenses without `filePatterns` (or with an
+ * empty array) NEVER appear in the output — keyword triggers are
+ * intentionally ignored: this CLI answers "what was invalidated by the
+ * touched paths?", not "what should I run from scratch?".
+ *
+ * The output is additionally gated by tier (Epic #4405): a `local`-tier lens
+ * is verified shift-left (write-time + Story-scope) and is never re-run at
+ * Epic close, so it is dropped here even when its patterns overlap. This
+ * matters now that `audit-clean-code` carries the universal `**` glob — its
+ * overlap is universal, so without the tier gate every focused-fix commit
+ * would drag it (and any other local lens) back into the Epic-close re-check.
  *
  * @param {{ audits: Record<string, { triggers?: { filePatterns?: string[] } }> }} rules
  * @param {string[]} files
+ * @param {(lens: string) => string} [resolveLensTierFn] tier resolver
+ *   (injectable seam; defaults to {@link resolveLensTier}).
  */
-export function selectOverlappingAudits(rules, files) {
+export function selectOverlappingAudits(
+  rules,
+  files,
+  resolveLensTierFn = resolveLensTier,
+) {
   const selected = [];
   for (const [auditName, ruleOpts] of Object.entries(rules?.audits ?? {})) {
     const patterns = ruleOpts?.triggers?.filePatterns;
     if (!Array.isArray(patterns) || patterns.length === 0) continue;
-    if (matchesAnyFilePattern(patterns, files)) {
-      selected.push(auditName);
+    if (!matchesAnyFilePattern(patterns, files)) continue;
+    // Epic-close tier gate: skip `local` lenses (verified shift-left). A
+    // malformed/unknown tier is drift the schema guards against — skip it
+    // rather than throw the whole selection.
+    let tier;
+    try {
+      tier = resolveLensTierFn(auditName);
+    } catch {
+      continue;
     }
+    if (tier === 'local') continue;
+    selected.push(auditName);
   }
   return selected;
 }

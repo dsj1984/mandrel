@@ -16,6 +16,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { selectOverlappingAudits } from '../../.agents/scripts/epic-audit-recheck.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), '..', '..');
 const CLI_PATH = path.join(
@@ -32,16 +34,12 @@ function runCli(args) {
   });
 }
 
-test('epic-audit-recheck: overlapping file list returns selectedAudits including audit-security', () => {
-  // `audit-security` declares `filePatterns: ["**/auth/*.js", ...]` in
-  // `.agents/schemas/audit-rules.json`. A touched file under that glob
-  // MUST surface the lens.
-  const res = runCli([
-    '--epic',
-    '2586',
-    '--files',
-    'src/auth/login.js,src/api/users.ts',
-  ]);
+test('epic-audit-recheck: overlapping file list surfaces cumulative lenses only', () => {
+  // `audit-devops` (cumulative) declares `filePatterns: [".github/workflows/**",
+  // ...]`. A touched workflow file MUST surface that lens at Epic close. The
+  // universal `audit-clean-code` (local, `**/*`) also matches every path but
+  // is a `local`-tier lens, so the Epic-close tier gate drops it.
+  const res = runCli(['--epic', '2586', '--files', '.github/workflows/ci.yml']);
 
   assert.equal(res.status, 0, `stderr: ${res.stderr}`);
   const envelope = JSON.parse(res.stdout);
@@ -51,24 +49,36 @@ test('epic-audit-recheck: overlapping file list returns selectedAudits including
     'selectedAudits must be an array',
   );
   assert.ok(
-    envelope.selectedAudits.length > 0,
-    'overlapping file list must yield non-empty selectedAudits',
+    envelope.selectedAudits.includes('audit-devops'),
+    `expected audit-devops in selectedAudits, got ${JSON.stringify(envelope.selectedAudits)}`,
   );
   assert.ok(
-    envelope.selectedAudits.includes('audit-security'),
-    `expected audit-security in selectedAudits, got ${JSON.stringify(envelope.selectedAudits)}`,
+    !envelope.selectedAudits.includes('audit-clean-code'),
+    `local lens audit-clean-code must NOT re-run at Epic close, got ${JSON.stringify(envelope.selectedAudits)}`,
   );
-  assert.deepEqual(envelope.context.changedFiles, [
-    'src/auth/login.js',
-    'src/api/users.ts',
-  ]);
-  assert.equal(envelope.context.changedFilesCount, 2);
+  assert.equal(envelope.context.changedFilesCount, 1);
+});
+
+test('epic-audit-recheck: a local-lens overlap is filtered out at Epic close', () => {
+  // `src/auth/login.js` overlaps only local lenses: audit-security
+  // (`**/auth/*.js`), audit-performance (`src/**/*.{ts,js}`), and the
+  // universal audit-clean-code. Every one is `local`-tier, so the Epic-close
+  // tier gate drops them all — the re-check re-runs nothing.
+  const res = runCli(['--epic', '2586', '--files', 'src/auth/login.js']);
+
+  assert.equal(res.status, 0, `stderr: ${res.stderr}`);
+  const envelope = JSON.parse(res.stdout);
+  assert.deepEqual(
+    envelope.selectedAudits,
+    [],
+    `a local-only overlap must yield empty selectedAudits, got ${JSON.stringify(envelope.selectedAudits)}`,
+  );
 });
 
 test('epic-audit-recheck: non-overlapping file list returns empty selectedAudits', () => {
-  // `.rs` is not in any lens's filePatterns, and `src/billing/` is not
-  // either. The CLI MUST emit an envelope with selectedAudits=[] rather
-  // than fall back to keyword/alwaysRun behaviour.
+  // `.rs` matches no cumulative/global lens's filePatterns. It DOES match the
+  // universal `audit-clean-code` (`**/*`), but that lens is `local`-tier and
+  // dropped by the Epic-close tier gate — so the envelope is still empty.
   const res = runCli([
     '--epic',
     '2586',
@@ -84,6 +94,30 @@ test('epic-audit-recheck: non-overlapping file list returns empty selectedAudits
     `non-overlapping input must yield empty selectedAudits, got ${JSON.stringify(envelope.selectedAudits)}`,
   );
   assert.equal(envelope.context.changedFilesCount, 2);
+});
+
+test('selectOverlappingAudits: tier gate drops local lenses, keeps cumulative/global (pure)', () => {
+  const rules = {
+    audits: {
+      'lens-local': { triggers: { filePatterns: ['**/*'] } },
+      'lens-cumulative': { triggers: { filePatterns: ['**/*'] } },
+      'lens-global': { triggers: { filePatterns: ['**/*'] } },
+      'lens-no-patterns': { triggers: {} },
+    },
+  };
+  const fakeTierResolver = (lens) => {
+    if (lens.includes('cumulative')) return 'cumulative';
+    if (lens.includes('global')) return 'global';
+    return 'local';
+  };
+  const selected = selectOverlappingAudits(
+    rules,
+    ['any/path.js'],
+    fakeTierResolver,
+  );
+  // The local lens overlaps but is dropped by the tier gate; the pattern-less
+  // lens is dropped by the pattern gate.
+  assert.deepEqual(selected, ['lens-cumulative', 'lens-global']);
 });
 
 test('epic-audit-recheck: missing --epic exits non-zero', () => {

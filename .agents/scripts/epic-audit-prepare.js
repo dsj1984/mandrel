@@ -23,7 +23,7 @@
  *
  * Story #3939 — depth-aware lenses. The `depth` field tells the audit
  * executor (`helpers/epic-audit.md`) how thorough each selected lens should
- * be on this Epic without ever skipping a selected (or alwaysRun) lens:
+ * be on this Epic without ever skipping a selected lens:
  * `light` shrinks a lens's sweep to the changed surface + Critical/High
  * findings, `standard` is today's behavior, and `deep` widens the sweep to
  * the directly-touched modules. Depth never changes which lenses fire, the
