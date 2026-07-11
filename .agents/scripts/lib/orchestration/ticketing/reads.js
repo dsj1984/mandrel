@@ -59,7 +59,16 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'friction',
   'notification',
   // Extended set (Story #449 — retro follow-ons)
-  'code-review',
+  // Story #4411 (Epic #4405) — the former `code-review` structured comment
+  // is unified with `audit-results` into the single `verification-results`
+  // findings contract. `runCodeReview` (the sole code producer) upserts
+  // `verification-results`; the feedback-loop graduators and the
+  // auto-merge integration gate read it. The `code-review` marker is
+  // retired here (hard cutover, no dual-shape reader per
+  // `git-conventions.md`). The `audit-results` marker below stays
+  // registered until the capstone Story #4412 retires its `epic-audit.md`
+  // Phase 4 producer.
+  'verification-results',
   'retro',
   'retro-partial',
   'epic-run-state',

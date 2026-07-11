@@ -332,7 +332,7 @@ describe('evaluateAutoMergePredicate', () => {
     const findCommentFn = async (provider, ticketId, type) => {
       assert.equal(provider, fakeProvider);
       captured.findCalls.push({ ticketId, type });
-      if (type === 'code-review') return cleanReview;
+      if (type === 'verification-results') return cleanReview;
       if (type === 'retro') return cleanRetro;
       if (type === 'retro-partial') return null;
       return null;
@@ -351,13 +351,13 @@ describe('evaluateAutoMergePredicate', () => {
     assert.equal(out.clean, true);
     assert.deepEqual(out.reasons, []);
     const types = captured.findCalls.map((c) => c.type).sort();
-    assert.deepEqual(types, ['code-review', 'retro']);
+    assert.deepEqual(types, ['retro', 'verification-results']);
   });
 
   it('falls back to retro-partial when retro is absent', async () => {
     const fakeProvider = {};
     const findCommentFn = async (_p, _id, type) => {
-      if (type === 'code-review') return cleanReview;
+      if (type === 'verification-results') return cleanReview;
       if (type === 'retro') return null;
       if (type === 'retro-partial') return cleanRetro;
       return null;

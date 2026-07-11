@@ -25,9 +25,16 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { graduateAuditResults } from '../../.agents/scripts/lib/feedback-loop/audit-results-graduator.js';
+import {
+  NO_VERIFICATION_RESULTS_COMMENT_REASON,
+  VERIFICATION_RESULTS_MARKER,
+} from '../../.agents/scripts/lib/feedback-loop/graduator-core.js';
 import { Finalizer } from '../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 
-const AUDIT_RESULTS_MARKER = '<!-- claude-managed: audit-results -->';
+// Story #4411 — the audit graduator now reads the unified
+// `verification-results` structured comment; the source-comment fixtures
+// carry that one marker rather than the retired audit-results marker.
+const AUDIT_RESULTS_MARKER = VERIFICATION_RESULTS_MARKER;
 
 /** Stub provider returning a fixed set of comments. */
 function makeProvider(comments) {
@@ -92,7 +99,7 @@ describe('audit-results graduator (contract)', () => {
     assert.deepEqual(result.filed, []);
     assert.equal(result.errors.length, 0);
     const reasons = result.skipped.map((s) => s.reason);
-    assert.ok(reasons.includes('no-audit-results-comment'));
+    assert.ok(reasons.includes(NO_VERIFICATION_RESULTS_COMMENT_REASON));
   });
 
   it('short-circuits when auditResultsAutoFile toggle is false', async () => {

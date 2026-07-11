@@ -1,7 +1,15 @@
 /**
  * audit-results-graduator.js — Auto-graduate non-blocking audit findings
- * from the Epic's `audit-results` structured comment into routed GitHub
- * follow-up issues. Story #2615 / Epic #2586.
+ * from the Epic's unified `verification-results` structured comment into
+ * routed GitHub follow-up issues. Story #2615 / Epic #2586.
+ *
+ * Story #4411 (Epic #4405) unified the former `audit-results` and
+ * `code-review` structured-comment contracts into one `verification-results`
+ * contract: this graduator now reads the shared
+ * {@link VERIFICATION_RESULTS_MARKER} comment rather than the retired
+ * audit-results structured-comment marker. The lens-aware finding
+ * parser, the `audit-results::<severity>` + `domain::<lens>` label shape,
+ * and the audit idempotency marker are unchanged.
  *
  * As of Story #3845 / Epic #3823 the spawn helper, the path/idempotency
  * probes, the `gh issue create` filer, the toggle reader, and the
@@ -12,8 +20,8 @@
  * title / body shape, and the audit idempotency marker. Behaviour is
  * identical to the pre-consolidation graduator.
  *
- *   - Read the `audit-results` structured comment off the Epic ticket
- *     via the injected provider (`getTicketComments`).
+ *   - Read the unified `verification-results` structured comment off the
+ *     Epic ticket via the injected provider (`getTicketComments`).
  *   - For each non-blocking finding (severity high/medium/low/suggestion
  *     — i.e. anything that is NOT a 🔴 Critical Blocker), check that
  *     the cited file still exists in the merged tree.
@@ -41,7 +49,9 @@ import {
   contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
+  NO_VERIFICATION_RESULTS_COMMENT_REASON,
   probePathExists,
+  VERIFICATION_RESULTS_MARKER,
 } from './graduator-core.js';
 
 /**
@@ -218,8 +228,8 @@ export async function graduateAuditResults(opts = {}) {
     spec: {
       fnName: 'graduateAuditResults',
       isAutoFileEnabled,
-      commentMarker: '<!-- claude-managed: audit-results -->',
-      noCommentReason: 'no-audit-results-comment',
+      commentMarker: VERIFICATION_RESULTS_MARKER,
+      noCommentReason: NO_VERIFICATION_RESULTS_COMMENT_REASON,
       parseFindings,
       buildContentMarker,
       buildLegacyMarker: buildIdempotencyMarker,
