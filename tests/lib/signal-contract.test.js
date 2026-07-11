@@ -26,13 +26,13 @@ import { fileURLToPath } from 'node:url';
 
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import { storyTempDir } from '../../.agents/scripts/lib/config/temp-paths.js';
 import {
   computeEpicPerfReport,
   computeStoryPerfSummary,
   computeWaveParallelismRows,
 } from '../../.agents/scripts/lib/observability/perf-aggregator.js';
 import { aggregateBaselineFrictionFromSignals } from '../../.agents/scripts/lib/observability/perf-report-readers.js';
-import { storyTempDir } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { readSignalRejectCount } from '../../.agents/scripts/lib/observability/signal-validator.js';
 import {
   appendSignal,
@@ -45,7 +45,6 @@ import {
 import { buildAcceptanceEvalSignal } from '../../.agents/scripts/lib/orchestration/acceptance-eval-decision.js';
 import { composeRoutedProposals } from '../../.agents/scripts/lib/orchestration/retro-proposals.js';
 import { detectRetry } from '../../.agents/scripts/lib/signals/detectors/retry.js';
-import { detectRework } from '../../.agents/scripts/lib/signals/detectors/rework.js';
 import { hasCommonEnvelope } from '../../.agents/scripts/lib/signals/schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -36,6 +36,7 @@ describe('signals/schema — EVENT_KINDS enumeration', () => {
       'idle',
       'retry',
       'acceptance-eval',
+      'notification.emitted',
     ]);
     const actual = new Set(Object.values(EVENT_KINDS));
     assert.deepEqual(actual, expected);
