@@ -180,6 +180,20 @@ describe('validateStoryBody', () => {
     );
   });
 
+  it('accepts a body containing an "Epic #<id>" prose citation (not a line-leading "Epic:" ref)', () => {
+    // EPIC_REF_PATTERN only flags a line-*leading* "Epic:" reference
+    // (the standalone-Story parent-link field). A prose citation like
+    // "Epic #4324 retired the separate context tickets" — no colon,
+    // and/or not at the start of the line — must not trip the guard.
+    const body = VALID_BODY.replace(
+      'Some context about the work.',
+      'Some context about the work. See Epic #4324 for prior art; ' +
+        'Epic #4432 covers the related corpus lookup.',
+    );
+    const r = validateStoryBody(body);
+    assert.deepEqual(r, { ok: true, errors: [] });
+  });
+
   it('rejects an AC section with no checklist items', () => {
     const body = VALID_BODY.replace(
       /## Acceptance Criteria[\s\S]*?(?=##\s+Out of Scope)/,

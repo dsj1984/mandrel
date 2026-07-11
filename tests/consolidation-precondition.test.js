@@ -82,6 +82,16 @@ describe('parseDeliverySlicingTable', () => {
     assert.equal(parseDeliverySlicingTable(''), null);
     assert.equal(parseDeliverySlicingTable(null), null);
   });
+
+  it('returns null when the table has no "Independent?" column at all', () => {
+    const header = '| Slice | What ships |';
+    const sep = '| --- | --- |';
+    const body =
+      '## Goal\n\nSome goal.\n\n## Delivery Slicing\n\n' +
+      `${header}\n${sep}\n| Foundation | Base module |\n\n` +
+      '## Architecture & Design\n\nMore text.\n';
+    assert.equal(parseDeliverySlicingTable(body), null);
+  });
 });
 
 describe('evaluateConsolidationPrecondition', () => {
@@ -202,6 +212,63 @@ describe('evaluateConsolidationPrecondition', () => {
     });
     assert.equal(result.dispatch, true);
     assert.match(result.reasons[0], /missing or unparseable/);
+  });
+
+  it('fails open (dispatch:true) when the Delivery Slicing table is missing the "Independent?" column entirely', () => {
+    const header = '| Slice | What ships |';
+    const sep = '| --- | --- |';
+    const epicBody =
+      '## Goal\n\nSome goal.\n\n## Delivery Slicing\n\n' +
+      `${header}\n${sep}\n| Foundation | Base module |\n\n` +
+      '## Architecture & Design\n\nMore text.\n';
+    const draftStories = [draftStory({ slug: 'foundation' })];
+    const result = evaluateConsolidationPrecondition({
+      draftStories,
+      epicBody,
+    });
+    assert.equal(result.dispatch, true);
+    assert.match(result.reasons[0], /missing or unparseable/);
+  });
+
+  // Pins the current row/Story matching behavior: rows and draft Stories are
+  // paired up by array **position**, not by slug/name. Reordering either
+  // side relative to the other therefore compares the wrong pairs — this
+  // test locks that in as documented, current behavior so a future
+  // refactor toward name-based matching shows up as an intentional
+  // behavior change here, not a silent regression.
+  it('matches Delivery Slicing rows to draft Stories positionally, not by slug', () => {
+    const epicBody = slicingBody([
+      { slice: 'Foundation', ships: 'Base module', independent: 'Yes' },
+      {
+        slice: 'Wiring',
+        ships: 'Integration',
+        independent: 'No (a: consumes Foundation)',
+      },
+    ]);
+    // Same two Stories as the matching 1:1 case above, but listed in the
+    // opposite order from the Delivery Slicing table — "wiring" (which
+    // has depends_on) now sits at position 0 (paired against the
+    // Independent: Yes "Foundation" row), and "foundation" (no
+    // depends_on) sits at position 1 (paired against the Independent: No
+    // "Wiring" row).
+    const draftStories = [
+      draftStory({ slug: 'wiring', dependsOn: ['foundation'] }),
+      draftStory({ slug: 'foundation', dependsOn: [] }),
+    ];
+    const result = evaluateConsolidationPrecondition({
+      draftStories,
+      epicBody,
+    });
+    assert.equal(result.dispatch, true);
+    assert.equal(result.reasons.length, 2);
+    assert.match(
+      result.reasons[0],
+      /Slice "Foundation" \(position 1\) is marked Independent: Yes but draft Story "wiring" declares depends_on \[foundation\]\./,
+    );
+    assert.match(
+      result.reasons[1],
+      /Slice "Wiring" \(position 2\) is marked Independent: No but draft Story "foundation" declares no depends_on\./,
+    );
   });
 
   it('excludes the wave-0 bdd-scaffold Story from the count comparison', () => {
