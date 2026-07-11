@@ -98,8 +98,17 @@ Envelope fields (`kind: "story-plan-context"`, `version: 1`):
 | `requiredSections`     | `["Context", "Acceptance Criteria", "Out of Scope", "Notes"]`. |
 | `duplicateCandidates`  | Ranked open Stories whose titles fuzzy-match the seed.    |
 | `techStack`            | The project's Tech Stack inventory, resolved in order: `docs/tech-stack.md` (full body) when present, else the `## Tech Stack` section of `docs/architecture.md` (numbered/decorated and final-section headings tolerated). |
-| `corpusContext`        | Corpus-aware inherited context (Story #4432): `{ docsDigest, relevantSections }`. `docsDigest` is the same per-project docs digest `orchestration/docs-digest.js` builds for `/deliver` Story children (`null` when `project.docsContextFiles` is not configured). `relevantSections` is a ranked list of `{ epicId, epicTitle, section, score, excerpt }` — existing-Epic Tech Spec (or ideation-lede) excerpts that overlap with the seed, fetched via a bounded explicit per-candidate body fetch (`planning-corpus.js`). Both fields degrade to `null` / `[]` respectively when there is nothing to surface. |
+| `corpusContext`        | Corpus-aware inherited context (Story #4432): `{ docsDigest, relevantSections }` — see below. |
 | `deliverContract`      | Workflow path + required/forbidden labels and references. |
+
+`corpusContext.docsDigest` is the same per-project docs digest
+`orchestration/docs-digest.js` builds for `/deliver` Story children (`null`
+when `project.docsContextFiles` is not configured). `corpusContext.relevantSections`
+is a ranked list of `{ epicId, epicTitle, section, score, excerpt }` —
+existing-Epic Tech Spec (or ideation-lede) excerpts that overlap with the
+seed, fetched via a bounded explicit per-candidate body fetch
+(`planning-corpus.js`). Both fields degrade to `null` / `[]` respectively
+when there is nothing to surface.
 
 ### Refine heuristic
 

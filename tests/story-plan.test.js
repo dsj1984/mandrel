@@ -180,6 +180,20 @@ describe('validateStoryBody', () => {
     );
   });
 
+  it('accepts a body containing an "Epic #<id>" prose citation (not a line-leading "Epic:" ref)', () => {
+    // EPIC_REF_PATTERN only flags a line-*leading* "Epic:" reference
+    // (the standalone-Story parent-link field). A prose citation like
+    // "Epic #4324 retired the separate context tickets" — no colon,
+    // and/or not at the start of the line — must not trip the guard.
+    const body = VALID_BODY.replace(
+      'Some context about the work.',
+      'Some context about the work. See Epic #4324 for prior art; ' +
+        'Epic #4432 covers the related corpus lookup.',
+    );
+    const r = validateStoryBody(body);
+    assert.deepEqual(r, { ok: true, errors: [] });
+  });
+
   it('rejects an AC section with no checklist items', () => {
     const body = VALID_BODY.replace(
       /## Acceptance Criteria[\s\S]*?(?=##\s+Out of Scope)/,
@@ -336,6 +350,44 @@ describe('runEmitContext', () => {
       docsDigest: null,
       relevantSections: [],
     });
+  });
+
+  it('resolves docsRoot against PROJECT_ROOT, not process.cwd() (audit-quality finding, Epic #4454)', async () => {
+    let captured = '';
+    const stubProvider = {};
+    const stubConfig = {
+      raw: { project: { docsContextFiles: ['CHANGELOG.md'] } },
+      project: { paths: { docsRoot: 'docs' } },
+    };
+
+    const originalCwd = process.cwd();
+    const tmpCwd = mkdtempSync(path.join(os.tmpdir(), 'story-plan-cwd-'));
+    process.chdir(tmpCwd);
+    try {
+      await runEmitContext({
+        values: { idea: 'a small standalone change', pretty: false },
+        provider: stubProvider,
+        projectRoot: PROJECT_ROOT,
+        config: stubConfig,
+        write: (s) => {
+          captured += s;
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(tmpCwd, { recursive: true, force: true });
+    }
+
+    const envelope = JSON.parse(captured);
+    // docs/CHANGELOG.md lives under the real repo root. If docsRoot were
+    // resolved relative to process.cwd() (the regression this guards
+    // against) instead of PROJECT_ROOT, the digest read would silently
+    // find nothing from the tmp cwd and docsDigest would stay null.
+    assert.notEqual(
+      envelope.corpusContext.docsDigest,
+      null,
+      'docsDigest should be non-null: docsRoot must resolve against PROJECT_ROOT regardless of process.cwd()',
+    );
   });
 });
 

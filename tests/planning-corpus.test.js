@@ -335,4 +335,40 @@ describe('buildCorpusContext', () => {
     assert.equal(top.epicId, 101);
     assert.equal(top.section, 'techSpec');
   });
+
+  it('degrades to an empty candidate list (not a thrown rejection) when provider.getEpics fails', async () => {
+    const provider = {
+      async getEpics() {
+        throw new Error('simulated transient GitHub API failure');
+      },
+    };
+    const ctx = await buildCorpusContext({
+      seed: 'anything',
+      provider,
+      docsContextFiles: [],
+      docsRoot: path.join(tmp, 'docs'),
+    });
+    assert.deepEqual(ctx.relevantSections, []);
+  });
+
+  it('bounds the provider.getEpics pagination scan instead of scanning unboundedly', async () => {
+    let receivedFilters = null;
+    const provider = {
+      async getEpics(filters) {
+        receivedFilters = filters;
+        return [];
+      },
+    };
+    await buildCorpusContext({
+      seed: 'anything',
+      provider,
+      docsContextFiles: [],
+      docsRoot: path.join(tmp, 'docs'),
+    });
+    assert.equal(receivedFilters.state, 'open');
+    assert.ok(
+      Number.isInteger(receivedFilters.pageCap) && receivedFilters.pageCap > 0,
+      'expected a bounded, positive pageCap to be passed to provider.getEpics',
+    );
+  });
 });

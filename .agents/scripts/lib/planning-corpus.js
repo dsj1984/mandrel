@@ -60,6 +60,16 @@ const DEFAULT_CORPUS_MAX_SECTIONS = 5;
 const EXCERPT_MAX_CHARS = 600;
 
 /**
+ * Page-scan cap passed to `provider.getEpics({ state: 'open', pageCap })`.
+ * The corpus lookup only ever ranks the list down to a top-5 shortlist
+ * (`DEFAULT_CORPUS_MAX_CANDIDATES`), so there is no need to inherit
+ * `paginateRest`'s full default ceiling (50 pages / 5000 items) to build
+ * it — a bounded scan keeps this call a fixed, small number of GitHub
+ * reads regardless of how many open Epics the repo carries.
+ */
+const CORPUS_EPICS_PAGE_CAP = 5;
+
+/**
  * Rank open Epics by title-overlap with the seed. This is the cheap
  * first pass over the list surface (title only — `issueToEpicListItem`
  * has no `body`), used solely to pick the bounded top-K candidates
@@ -256,7 +266,24 @@ export async function buildCorpusContext({
 
   let relevantSections = [];
   if (provider && typeof provider.getEpics === 'function') {
-    const epics = await provider.getEpics({ state: 'open' });
+    // A single candidate-listing call failing (rate limit, transient
+    // network error, provider outage) must not abort the whole
+    // `--emit-context` envelope build — degrade to an empty candidate
+    // list instead of letting the rejection propagate out of the
+    // caller's `Promise.all` and take down the rest of the envelope
+    // (body template, tech-stack summary, docs digest) with it.
+    let epics = [];
+    try {
+      epics = await provider.getEpics({
+        state: 'open',
+        pageCap: CORPUS_EPICS_PAGE_CAP,
+      });
+    } catch (err) {
+      Logger.debug(
+        `[planning-corpus] buildCorpusContext: provider.getEpics failed, degrading to an empty candidate list: ${err?.message ?? err}`,
+      );
+      epics = [];
+    }
     const ranked = rankCandidateEpics({
       seed,
       epics: Array.isArray(epics) ? epics : [],

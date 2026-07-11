@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T12:33:32.930Z",
+  "generatedAt": "2026-07-11T14:07:55.891Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.891,
+      "p50": 97.964,
       "p95": 126.964
     }
   },
@@ -871,6 +871,10 @@
       "mi": 100.017
     },
     {
+      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
+      "mi": 107.528
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
       "mi": 101.917
     },
@@ -1436,7 +1440,7 @@
     },
     {
       "path": ".agents/scripts/lib/planning-corpus.js",
-      "mi": 90.043
+      "mi": 89.883
     },
     {
       "path": ".agents/scripts/lib/preflight-runner.js",
@@ -1843,6 +1847,10 @@
       "mi": 97.964
     },
     {
+      "path": ".agents/scripts/providers/github/issues.js",
+      "mi": 105.059
+    },
+    {
       "path": ".agents/scripts/providers/github/labels.js",
       "mi": 95.724
     },
@@ -1936,7 +1944,7 @@
     },
     {
       "path": ".agents/scripts/story-plan.js",
-      "mi": 85.721
+      "mi": 85.588
     },
     {
       "path": ".agents/scripts/sync-agentrc.js",
