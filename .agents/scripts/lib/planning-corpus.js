@@ -37,6 +37,7 @@
 
 import { overlapScore, tokenize } from './duplicate-search.js';
 import { extractEpicSection, hasEpicSection } from './epic-body-sections.js';
+import { Logger } from './Logger.js';
 import { buildDocsDigest } from './orchestration/docs-digest.js';
 
 /** Top-K Epics kept after the cheap title-only ranking pass. */
@@ -106,7 +107,17 @@ export function rankCandidateEpics({
  *
  * A single candidate's fetch failing (deleted issue, transient error) is
  * non-fatal — it is dropped from the result rather than aborting corpus
- * assembly for every other candidate.
+ * assembly for every other candidate. Failures are logged via
+ * `Logger.debug` (stderr) so they are visible under
+ * `AGENT_LOG_LEVEL=verbose` triage without violating the friction-
+ * telemetry posture in `.agents/instructions.md` §1.H of never silently
+ * swallowing an error.
+ *
+ * The bounded candidate slice is fetched concurrently
+ * (`Promise.allSettled`) rather than sequentially — `topK` is a fixed
+ * small ceiling (default 3), so this is a bounded fan-out, not an
+ * unbounded one, and it removes the serial network-latency stacking a
+ * plain `for`-await loop would otherwise incur.
  *
  * @param {{ provider: object, candidates: Array<{ id:number, title:string }>, topK?: number }} opts
  * @returns {Promise<Array<{ id:number, title:string, body:string }>>}
@@ -120,19 +131,30 @@ export async function fetchCandidateBodies({
   if (!Array.isArray(candidates) || candidates.length === 0) return [];
 
   const bounded = candidates.slice(0, topK);
-  const results = [];
-  for (const candidate of bounded) {
-    try {
+  const settled = await Promise.allSettled(
+    bounded.map(async (candidate) => {
       const epic = await provider.getEpic(candidate.id);
-      results.push({
+      return {
         id: candidate.id,
         title: candidate.title ?? epic?.title ?? '',
         body: epic?.body ?? '',
-      });
-    } catch {
-      // Best-effort: one candidate failing to resolve must not abort
-      // corpus-context assembly for the rest.
+      };
+    }),
+  );
+
+  const results = [];
+  for (let i = 0; i < settled.length; i += 1) {
+    const outcome = settled[i];
+    if (outcome.status === 'fulfilled') {
+      results.push(outcome.value);
+      continue;
     }
+    // Best-effort: one candidate failing to resolve must not abort
+    // corpus-context assembly for the rest — but the failure is still
+    // surfaced for triage rather than silently swallowed.
+    Logger.debug(
+      `[planning-corpus] fetchCandidateBodies: candidate #${bounded[i].id} failed to resolve: ${outcome.reason?.message ?? outcome.reason}`,
+    );
   }
   return results;
 }
