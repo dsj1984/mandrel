@@ -86,9 +86,7 @@ export function parsePorcelainStatus(raw) {
         ];
       }
       // Porcelain may quote paths containing special chars; strip the quotes.
-      return [
-        { status, path: unquote(rawPath), untracked: status === '??' },
-      ];
+      return [{ status, path: unquote(rawPath), untracked: status === '??' }];
     });
 }
 

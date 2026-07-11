@@ -31,7 +31,7 @@ function quietLogger() {
  * returns a snapshot carrying the pre-flip label so the transition's
  * `fromState` lookup and label-merge path both resolve without network.
  */
-function createRecordingProvider({ epicId }) {
+function createRecordingProvider() {
   const calls = [];
   return {
     calls,
@@ -56,7 +56,7 @@ describe('LabelTransitioner — epic.complete → agent::done', () => {
   it('flips the Epic to agent::done and closes it as completed on epic.complete', async () => {
     const bus = new Bus();
     const epicId = 4405;
-    const provider = createRecordingProvider({ epicId });
+    const provider = createRecordingProvider();
     const listener = new LabelTransitioner({
       bus,
       epicId,
@@ -85,7 +85,7 @@ describe('LabelTransitioner — epic.complete → agent::done', () => {
   it('is idempotent per (event, seqId): a bus-replay of the same seqId flips once', async () => {
     const bus = new Bus();
     const epicId = 4425;
-    const provider = createRecordingProvider({ epicId });
+    const provider = createRecordingProvider();
     const listener = new LabelTransitioner({
       bus,
       epicId,
@@ -141,7 +141,7 @@ describe('LabelTransitioner — epic.complete → agent::done', () => {
 
   it('constructor validates bus, epicId, and provider', () => {
     const bus = new Bus();
-    const provider = createRecordingProvider({ epicId: 1 });
+    const provider = createRecordingProvider();
     assert.throws(
       () => new LabelTransitioner({ epicId: 1, provider }),
       /requires a bus/,
@@ -160,7 +160,7 @@ describe('LabelTransitioner — epic.complete → agent::done', () => {
     const listener = new LabelTransitioner({
       bus: new Bus(),
       epicId: 1,
-      provider: createRecordingProvider({ epicId: 1 }),
+      provider: createRecordingProvider(),
       logger: quietLogger(),
     });
     assert.deepEqual([...listener.events], ['epic.complete']);

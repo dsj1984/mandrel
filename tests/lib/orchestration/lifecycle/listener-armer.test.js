@@ -89,7 +89,8 @@ describe('AutomergeArmer — arm-failure re-probe (2026-07-11 incident, Epic #44
             }
           : {
               status: 0,
-              stdout: '{"autoMergeRequest":null,"mergeCommit":{"oid":"deadbeef"}}',
+              stdout:
+                '{"autoMergeRequest":null,"mergeCommit":{"oid":"deadbeef"}}',
               stderr: '',
             };
       },
@@ -104,7 +105,9 @@ describe('AutomergeArmer — arm-failure re-probe (2026-07-11 incident, Epic #44
     });
     armer.register();
 
-    await bus.emit('epic.merge.ready', { prUrl: 'https://github.com/o/r/pull/4459' });
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/4459',
+    });
 
     assert.equal(probes, 2, 're-probe issued after the non-zero arm exit');
     assert.equal(emits.length, 1, 'epic.merge.armed emitted exactly once');
@@ -131,9 +134,15 @@ describe('AutomergeArmer — arm-failure re-probe (2026-07-11 incident, Epic #44
     });
     armer.register();
 
-    await bus.emit('epic.merge.ready', { prUrl: 'https://github.com/o/r/pull/1' });
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/1',
+    });
 
-    assert.equal(emits.length, 0, 'no epic.merge.armed on a genuine arm failure');
+    assert.equal(
+      emits.length,
+      0,
+      'no epic.merge.armed on a genuine arm failure',
+    );
     const outcome = armer.classifications.at(-1);
     assert.equal(outcome.outcome, 'failed');
     assert.match(outcome.reason, /arm-failed:status=1/);

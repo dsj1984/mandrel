@@ -156,7 +156,6 @@ describe('AC1 — content-hash idempotency markers', () => {
     const m1 = buildAuditContentMarker(2586, findings[1]);
     assert.notEqual(m0, m1);
   });
-
 });
 
 describe('AC2 — runChild bounded timeout', () => {

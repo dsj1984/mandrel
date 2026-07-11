@@ -34,7 +34,7 @@ const LINE_SPLIT_RE = new RegExp(String.raw`\r?\n`);
 const FRONTMATTER_BLOCK_RE = new RegExp(
   String.raw`^---\r?\n([\s\S]*?)\r?\n---`,
 );
-const BLOCK_SCALAR_INDICATOR_RE = new RegExp(String.raw`^[|>][+-]?$`);
+const BLOCK_SCALAR_INDICATOR_RE = new RegExp('^[|>][+-]?$');
 const DESCRIPTION_KEY_RE = new RegExp(String.raw`^description\s*:`);
 const INDENTED_LINE_RE = new RegExp(String.raw`^\s+\S`);
 const COLLAPSE_WS_RE = new RegExp(String.raw`\s+`, 'g');
@@ -53,7 +53,7 @@ const BOILERPLATE_SECTION_RE = new RegExp(
 // The report-template / output-contract boundary. Everything at or after the
 // first heading matching this is template scaffolding, never a concern.
 const OUTPUT_BOUNDARY_RE = new RegExp(
-  String.raw`(Output Requirements|Generate the Report)`,
+  '(Output Requirements|Generate the Report)',
   'i',
 );
 // biome-ignore-end lint/complexity/useRegexLiterals: typhonjs-escomplex MI workaround

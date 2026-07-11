@@ -117,7 +117,7 @@ function makeSpec(source) {
         finding.command ??
         `gh issue create --title "${finding.title}" --label "${metaSourceLabel(source)},friction::${finding.category}"`
       }`,
-    buildFollowUp: ({ finding, source: routedSource, epicId, idMarker }) => {
+    buildFollowUp: ({ finding, source: routedSource, idMarker }) => {
       const labels = [
         metaSourceLabel(routedSource),
         `friction::${finding.category}`,
