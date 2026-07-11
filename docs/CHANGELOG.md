@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.89.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.88.0...mandrel-v1.89.0) (2026-07-11)
+
+
+### Added
+
+* add cross-epic guard to story-close.js shared-checkout merge phase ([#4462](https://github.com/dsj1984/mandrel/issues/4462)) ([78c5263](https://github.com/dsj1984/mandrel/commit/78c526309a65f71fbfe14f4ef51c1e8ae706e454))
+* Epic [#4405](https://github.com/dsj1984/mandrel/issues/4405) ([#4463](https://github.com/dsj1984/mandrel/issues/4463)) ([99737f1](https://github.com/dsj1984/mandrel/commit/99737f171d0cb0b4b28b40ea4c160b92c59428d6))
+* Epic [#4406](https://github.com/dsj1984/mandrel/issues/4406) ([#4440](https://github.com/dsj1984/mandrel/issues/4440)) ([63cc5c3](https://github.com/dsj1984/mandrel/commit/63cc5c35483e9ec1138be2880127fad3b6244eb4))
+* Epic [#4425](https://github.com/dsj1984/mandrel/issues/4425) ([#4458](https://github.com/dsj1984/mandrel/issues/4458)) ([6da35a6](https://github.com/dsj1984/mandrel/commit/6da35a6f740cabc620b7b286dc87a710af237a30))
+* Epic [#4429](https://github.com/dsj1984/mandrel/issues/4429) ([#4443](https://github.com/dsj1984/mandrel/issues/4443)) ([0a8122f](https://github.com/dsj1984/mandrel/commit/0a8122fb406092ff2212346b546276727d04f974))
+* Epic [#4430](https://github.com/dsj1984/mandrel/issues/4430) ([#4470](https://github.com/dsj1984/mandrel/issues/4470)) ([8cfcd28](https://github.com/dsj1984/mandrel/commit/8cfcd28099664763d34231121ebea9f2187c437f))
+* Epic [#4454](https://github.com/dsj1984/mandrel/issues/4454) ([#4459](https://github.com/dsj1984/mandrel/issues/4459)) ([bd57246](https://github.com/dsj1984/mandrel/commit/bd57246cdb867e62e7e2eae662c93658a54766e2))
+
+
+### Fixed
+
+* **deliver:** add missing fs import in epic-deliver-prepare ([#4465](https://github.com/dsj1984/mandrel/issues/4465)) ([7b24da8](https://github.com/dsj1984/mandrel/commit/7b24da806c9859dcb75d4f5232670c2d3547d126))
+* **delivery:** smoke-cover the prepare checklist branch + undeclared-var guard + docs-freshness hygiene ([#4471](https://github.com/dsj1984/mandrel/issues/4471)) ([d9ead77](https://github.com/dsj1984/mandrel/commit/d9ead770263bc49d210ed65038de6e454602c684)), closes [#4466](https://github.com/dsj1984/mandrel/issues/4466) [#4469](https://github.com/dsj1984/mandrel/issues/4469)
+* **lifecycle:** restore the Epic agent::done flip + remediate post-1.88.0 robustness findings ([#4468](https://github.com/dsj1984/mandrel/issues/4468)) ([0cf9d5b](https://github.com/dsj1984/mandrel/commit/0cf9d5b499127a26c57cade13d753bd7aa6b3082))
+* **single-story-close:** intersect wrong-tree stray paths with the Story diff (refs [#4424](https://github.com/dsj1984/mandrel/issues/4424)) ([#4434](https://github.com/dsj1984/mandrel/issues/4434)) ([a3b05a5](https://github.com/dsj1984/mandrel/commit/a3b05a5afe3175e58ad9b7e1a76bdf69637a1f0f)), closes [#4420](https://github.com/dsj1984/mandrel/issues/4420)
+* **story-close:** make re-run against an already-closed Story a safe no-op ([#4461](https://github.com/dsj1984/mandrel/issues/4461)) ([7e6859d](https://github.com/dsj1984/mandrel/commit/7e6859d6e5a7d42b06f5781684defb88830ea16a))
+
 ## [1.88.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.87.0...mandrel-v1.88.0) (2026-07-08)
 
 
