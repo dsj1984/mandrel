@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T20:33:49.798Z",
+  "generatedAt": "2026-07-11T20:23:35.938Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
+      "p50": 97.891,
       "p95": 126.964
     }
   },
@@ -37,10 +37,6 @@
     {
       "path": ".agents/scripts/check-baselines.js",
       "mi": 106.627
-    },
-    {
-      "path": ".agents/scripts/check-context-budget.js",
-      "mi": 83.251
     },
     {
       "path": ".agents/scripts/check-doc-links.js",
@@ -609,10 +605,6 @@
     {
       "path": ".agents/scripts/lib/dependency-parser.js",
       "mi": 111.597
-    },
-    {
-      "path": ".agents/scripts/lib/doc-tiers.js",
-      "mi": 101.185
     },
     {
       "path": ".agents/scripts/lib/duplicate-search.js",
@@ -1923,10 +1915,6 @@
       "mi": 95.317
     },
     {
-      "path": ".agents/scripts/resolve-doc-tiers.js",
-      "mi": 104.744
-    },
-    {
       "path": ".agents/scripts/run-audit-suite.js",
       "mi": 107.591
     },
@@ -2024,7 +2012,7 @@
     },
     {
       "path": ".agents/scripts/validate-docs-freshness.js",
-      "mi": 102.274
+      "mi": 103.244
     },
     {
       "path": ".agents/scripts/validate-skills.js",
@@ -2040,7 +2028,7 @@
     },
     {
       "path": "lib/cli/doctor.js",
-      "mi": 104.154
+      "mi": 108.115
     },
     {
       "path": "lib/cli/explain.js",
