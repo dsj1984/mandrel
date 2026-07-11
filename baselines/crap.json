@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T12:50:52.848Z",
+  "generatedAt": "2026-07-11T14:01:20.390Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -7027,21 +7027,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "readDocsFromRoot",
-      "startLine": 7,
-      "crap": 3.002197265625
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "scrapeProjectDocs",
-      "startLine": 51,
-      "crap": 4.101610526850582
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "method": "buildDocsContext",
-      "startLine": 90,
-      "crap": 1
+      "method": "readDocFiles",
+      "startLine": 15,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/cli.js",
