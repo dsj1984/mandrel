@@ -139,8 +139,12 @@ technology context is intentionally kept out of `.agentrc.json`.
 ### H. Observability & Friction Telemetry
 
 You MUST log telemetry about any operational difficulty or automation
-opportunity you encounter. Post friction details directly to the relevant
-GitHub Story (or Epic) ticket:
+opportunity you encounter. Friction is a **local NDJSON signal**:
+`diagnose-friction.js` appends one canonical `kind: friction` record to the
+per-Epic/per-Story `signals.ndjson` stream on local disk (validated
+write-time against `signal-event.schema.json`; the retro roll-up reads it
+back). It is not posted to the GitHub ticket at capture time — the retro
+phase is what surfaces the aggregated friction as routed proposals.
 
 - **Command**:
   `node .agents/scripts/diagnose-friction.js --story [STORY_ID] --cmd [FAILED_COMMAND]`
@@ -149,10 +153,12 @@ GitHub Story (or Epic) ticket:
   command failures, or ambiguity requiring explicit self-correction. Also
   after repetitive sequences of commands or boilerplate-heavy steps that
   could be simplified by a workflow or skill.
-- **No-ticket fallback**: If you hit friction outside an Epic/Story
-  loop, write a JSON record to `temp/friction-<timestamp>.json` with the
-  same fields, and mention the file in your final summary so a human can
-  route it later. Do not silently drop the signal.
+- **No-Epic context**: Outside an Epic/Story loop there is no per-Epic
+  stream to anchor to, so the record lands on the **standalone signal
+  stream** (`temp/standalone/stories/story-<sid>/signals.ndjson`) under the
+  same canonical schema. The signal is never silently dropped — a
+  best-effort write failure is logged, not swallowed into a promise of a
+  side-file that no reader consumes.
 
 #### Log Level Control
 
