@@ -22,8 +22,11 @@
  * Behaviour:
  *   - Loads the configured review adapter via the factory; defaults to
  *     `native` when `delivery.codeReview.provider` is unset.
- *   - Always posts the structured `code-review` comment on the Epic
- *     issue (the adapter never posts; the orchestrator owns persistence).
+ *   - Always posts the unified `verification-results` structured comment on
+ *     the Epic issue (the adapter never posts; the orchestrator owns
+ *     persistence). Story #4411 (Epic #4405) unified the former
+ *     `code-review` and `audit-results` findings contracts into this one
+ *     `verification-results` marker.
  *   - Treats severity.critical > 0 as a halting blocker — the merged
  *     `/deliver` runner consults `halted` and refuses to advance
  *     to Phase E (retro) when set.
@@ -32,6 +35,7 @@
  * helper's "operator must remediate before /deliver" gate.
  */
 
+import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
 import { selectAuditStrategy } from '../dynamic-workflow/capability.js';
 import { gitSpawn } from '../git-utils.js';
@@ -551,7 +555,7 @@ async function postReviewComment({
     const postResult = await upsertCommentFn(
       provider,
       commentTargetId,
-      'code-review',
+      'verification-results',
       report,
     );
     const postedCommentId =
@@ -621,7 +625,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   const severity = countBySeverity(findings);
-  const halted = severity.critical > 0;
+  const halted = hasSurvivingCritical(severity);
   const report = renderFindingsFn({
     scope,
     ticketId,

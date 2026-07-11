@@ -98,7 +98,7 @@ test('runCodeReview: clean run posts the structured comment and reports posted=t
   const [provider, ticketId, type, body] = upsert.calls[0];
   assert.deepEqual(provider, { kind: 'github' });
   assert.equal(ticketId, 42);
-  assert.equal(type, 'code-review');
+  assert.equal(type, 'verification-results');
   assert.match(body, /Code Review — Epic #42/);
 });
 

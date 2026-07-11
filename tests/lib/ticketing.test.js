@@ -398,7 +398,7 @@ test('ticketing.js', async (t) => {
       // epic-plan-state used by the plan-runner. Guard against accidental
       // removal of canonical types.
       for (const required of [
-        'code-review',
+        'verification-results',
         'retro',
         'retro-partial',
         'epic-run-state',
@@ -503,7 +503,7 @@ test('ticketing.js', async (t) => {
         assertValidStructuredCommentType('nope');
         assert.fail('should have thrown');
       } catch (err) {
-        for (const expected of ['retro', 'code-review', 'wave-']) {
+        for (const expected of ['retro', 'verification-results', 'wave-']) {
           assert.ok(
             err.message.includes(expected),
             `error message should mention ${expected}: ${err.message}`,

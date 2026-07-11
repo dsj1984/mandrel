@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:24:29.446Z",
+  "generatedAt": "2026-07-11T11:52:27.481Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
+      "p50": 97.891,
       "p95": 126.964
     }
   },
@@ -180,7 +180,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
-      "mi": 93.141
+      "mi": 97.483
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
@@ -668,7 +668,7 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "mi": 92.049
+      "mi": 92.074
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
@@ -852,7 +852,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 83.28
+      "mi": 93.155
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1101,6 +1101,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
       "mi": 108.444
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "mi": 90.109
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
