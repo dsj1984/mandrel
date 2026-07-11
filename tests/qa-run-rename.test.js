@@ -24,7 +24,14 @@
  */
 
 import assert from 'node:assert/strict';
-import { readdir, readFile, stat } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +55,15 @@ const SCAN_ROOTS = [
 // Directories that hold historical breadcrumbs, generated mirrors, or
 // installed dependencies — none of which are live consumers.
 const EXCLUDED_DIRS = new Set(['node_modules', '.worktrees', 'archive']);
+
+// Claude Code linked-worktree checkouts live at `.claude/worktrees/<name>/`.
+// A concurrent delivery's worktree is a full nested clone of the repo, so
+// descending into it re-scans another copy of the tree and produces
+// false-positive offenders (e.g. an old reference inside a sibling worktree's
+// docs/CHANGELOG.md). Skip the harness worktree root by path suffix — distinct
+// from the older repo-root `.worktrees` convention already excluded by name
+// above, so both conventions are covered.
+const EXCLUDED_PATH_SUFFIXES = [path.join('.claude', 'worktrees')];
 
 // The old name, as a string. Constructed at runtime so this test file is not
 // itself an offender when it scans for the pattern.
@@ -83,6 +99,9 @@ async function* walkTextFiles(root) {
     const full = path.join(root, entry.name);
     if (entry.isDirectory()) {
       if (EXCLUDED_DIRS.has(entry.name)) continue;
+      if (EXCLUDED_PATH_SUFFIXES.some((suffix) => full.endsWith(suffix))) {
+        continue;
+      }
       yield* walkTextFiles(full);
       continue;
     }
@@ -140,5 +159,37 @@ describe('qa-run rename guard', () => {
       [],
       `Found live references to the old /qa-run-harness name (repoint to /qa-run):\n${offenders.join('\n')}`,
     );
+  });
+
+  it('does not descend into .claude/worktrees harness checkouts', async () => {
+    // Plant a decoy carrying the forbidden literal inside a fake linked
+    // worktree, then confirm the scan never reaches it. Regression guard for
+    // the false positives raised when a concurrent Claude Code delivery has an
+    // active checkout under `.claude/worktrees/`.
+    const worktreeRoot = path.join(
+      REPO_ROOT,
+      '.claude',
+      'worktrees',
+      `guard-fixture-${process.pid}`,
+    );
+    const decoy = path.join(worktreeRoot, 'docs', 'CHANGELOG.md');
+    await mkdir(path.dirname(decoy), { recursive: true });
+    try {
+      await writeFile(decoy, `stale ${OLD_REFERENCE} reference\n`, 'utf8');
+      const decoyRel = path.relative(REPO_ROOT, decoy);
+      const scanned = [];
+      for (const root of SCAN_ROOTS) {
+        for await (const file of walkTextFiles(root)) {
+          scanned.push(path.relative(REPO_ROOT, file));
+        }
+      }
+      assert.equal(
+        scanned.includes(decoyRel),
+        false,
+        `Planted decoy ${decoyRel} must NOT be scanned — .claude/worktrees checkouts are excluded`,
+      );
+    } finally {
+      await rm(worktreeRoot, { recursive: true, force: true });
+    }
   });
 });
