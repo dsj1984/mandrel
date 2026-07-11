@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:34:07.557Z",
+  "generatedAt": "2026-07-11T11:58:14.681Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.00169045830203,
-      "max": 30,
-      "methodsAbove20": 20
+      "p95": 12.000805501108497,
+      "max": 29.10003921033038,
+      "methodsAbove20": 19
     }
   },
   "rows": [
@@ -4776,18 +4776,6 @@
       "crap": 3.140625
     },
     {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "classify",
-      "startLine": 58,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "scoreEpicBody",
-      "startLine": 76,
-      "crap": 7
-    },
-    {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
       "method": "parseOnePager",
       "startLine": 52,
@@ -7324,18 +7312,6 @@
       "method": "spawnReconcilerApply",
       "startLine": 45,
       "crap": 4.065536
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "resolveMemoryDir",
-      "startLine": 48,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "buildAuthoringContext",
-      "startLine": 71,
-      "crap": 7.000892987315935
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
@@ -12234,36 +12210,6 @@
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/planning-corpus.js",
-      "method": "rankCandidateEpics",
-      "startLine": 71,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/planning-corpus.js",
-      "method": "fetchCandidateBodies",
-      "startLine": 114,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/planning-corpus.js",
-      "method": "extractScoreableExcerpt",
-      "startLine": 149,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/planning-corpus.js",
-      "method": "extractRelevantSections",
-      "startLine": 167,
-      "crap": 8.014247154743023
-    },
-    {
-      "path": ".agents/scripts/lib/planning-corpus.js",
-      "method": "buildCorpusContext",
-      "startLine": 223,
-      "crap": 4
-    },
-    {
       "path": ".agents/scripts/lib/preflight-runner.js",
       "method": "<anon method-1>",
       "startLine": 42,
@@ -13804,24 +13750,6 @@
       "method": "loadBodyTemplate",
       "startLine": 175,
       "crap": 1.7023319615912207
-    },
-    {
-      "path": ".agents/scripts/lib/story-plan.js",
-      "method": "buildContextEnvelope",
-      "startLine": 200,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/story-plan.js",
-      "method": "extractTechStackSection",
-      "startLine": 244,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/story-plan.js",
-      "method": "readTechStackSummary",
-      "startLine": 266,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/task-utils.js",
@@ -15472,48 +15400,6 @@
       "method": "main",
       "startLine": 270,
       "crap": 3
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "resolveSeed",
-      "startLine": 84,
-      "crap": 30
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "fetchOpenStories",
-      "startLine": 100,
-      "crap": 6
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "renderGhArgv",
-      "startLine": 119,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "extractTitle",
-      "startLine": 131,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "runEmitContext",
-      "startLine": 136,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "runPersist",
-      "startLine": 182,
-      "crap": 6.262971176640744
-    },
-    {
-      "path": ".agents/scripts/story-plan.js",
-      "method": "main",
-      "startLine": 251,
-      "crap": 5.172767519706295
     },
     {
       "path": ".agents/scripts/sync-branch-from-base.js",
