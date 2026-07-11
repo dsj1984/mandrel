@@ -351,6 +351,44 @@ describe('runEmitContext', () => {
       relevantSections: [],
     });
   });
+
+  it('resolves docsRoot against PROJECT_ROOT, not process.cwd() (audit-quality finding, Epic #4454)', async () => {
+    let captured = '';
+    const stubProvider = {};
+    const stubConfig = {
+      raw: { project: { docsContextFiles: ['CHANGELOG.md'] } },
+      project: { paths: { docsRoot: 'docs' } },
+    };
+
+    const originalCwd = process.cwd();
+    const tmpCwd = mkdtempSync(path.join(os.tmpdir(), 'story-plan-cwd-'));
+    process.chdir(tmpCwd);
+    try {
+      await runEmitContext({
+        values: { idea: 'a small standalone change', pretty: false },
+        provider: stubProvider,
+        projectRoot: PROJECT_ROOT,
+        config: stubConfig,
+        write: (s) => {
+          captured += s;
+        },
+      });
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(tmpCwd, { recursive: true, force: true });
+    }
+
+    const envelope = JSON.parse(captured);
+    // docs/CHANGELOG.md lives under the real repo root. If docsRoot were
+    // resolved relative to process.cwd() (the regression this guards
+    // against) instead of PROJECT_ROOT, the digest read would silently
+    // find nothing from the tmp cwd and docsDigest would stay null.
+    assert.notEqual(
+      envelope.corpusContext.docsDigest,
+      null,
+      'docsDigest should be non-null: docsRoot must resolve against PROJECT_ROOT regardless of process.cwd()',
+    );
+  });
 });
 
 describe('story-plan.js CLI: --help', () => {
