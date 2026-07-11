@@ -1,0 +1,61 @@
+{
+  "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
+  "generatedAt": "2026-07-11T20:24:48.023Z",
+  "toleranceBytes": 2048,
+  "tiers": {
+    "alwaysLoaded": {
+      "totalBytes": 63123,
+      "files": [
+        {
+          "path": ".agentrc.json",
+          "bytes": 1933
+        },
+        {
+          "path": ".agents/instructions.md",
+          "bytes": 25702
+        },
+        {
+          "path": ".agents/personas/engineer.md",
+          "bytes": 5684
+        },
+        {
+          "path": ".agents/rules/git-conventions.md",
+          "bytes": 13997
+        },
+        {
+          "path": ".agents/rules/security-baseline.md",
+          "bytes": 4178
+        },
+        {
+          "path": "AGENTS.md",
+          "bytes": 9769
+        },
+        {
+          "path": "CLAUDE.md",
+          "bytes": 1860
+        }
+      ]
+    },
+    "mandatoryRead": {
+      "totalBytes": 370039,
+      "files": [
+        {
+          "path": "docs/architecture.md",
+          "bytes": 86784
+        },
+        {
+          "path": "docs/data-dictionary.md",
+          "bytes": 45994
+        },
+        {
+          "path": "docs/decisions.md",
+          "bytes": 185330
+        },
+        {
+          "path": "docs/patterns.md",
+          "bytes": 51931
+        }
+      ]
+    }
+  }
+}
