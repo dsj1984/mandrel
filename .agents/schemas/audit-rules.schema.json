@@ -24,10 +24,15 @@
   "definitions": {
     "auditEntry": {
       "type": "object",
-      "required": ["triggers"],
+      "required": ["triggers", "scope"],
       "additionalProperties": false,
       "properties": {
         "triggers": { "$ref": "#/definitions/triggers" },
+        "scope": {
+          "type": "string",
+          "enum": ["local", "cumulative", "global"],
+          "description": "Concern-ownership tier declaring the widest scope at which this lens's concern becomes decidable. `local` — decidable from a single Story's diff (verified at write-time + Story-scope review). `cumulative` — only decidable across the Epic's combined diff (verified at Epic close). `global` — evaluates a whole-product property regardless of the diff (verified at Epic close; exempt from change-set narrowing). All tier routing derives from this one field via resolveLensTier()."
+        },
         "substitutionKeys": {
           "type": "array",
           "description": "Substitution keys this audit accepts via run-audit-suite --substitution. Empty array means no caller-supplied keys are allowed.",
@@ -38,7 +43,7 @@
     },
     "triggers": {
       "type": "object",
-      "description": "Selection criteria for whether this audit runs against a given ticket / changeset. At least one of `gates` or `alwaysRun: true` must be set for select-audits.js to ever pick the audit.",
+      "description": "Selection criteria for whether this audit runs against a given ticket / changeset. `gates` must be set for select-audits.js to ever pick the audit; keyword / file-pattern matches then narrow selection within a matched gate.",
       "additionalProperties": false,
       "properties": {
         "gates": {
@@ -46,10 +51,6 @@
           "items": { "type": "string", "pattern": "^gate[0-9]+$" },
           "uniqueItems": true,
           "description": "Quality-gate identifiers (gate1..gateN) that include this audit."
-        },
-        "alwaysRun": {
-          "type": "boolean",
-          "description": "If true, the audit is always selected regardless of keyword / file-pattern matches."
         },
         "keywords": {
           "type": "array",

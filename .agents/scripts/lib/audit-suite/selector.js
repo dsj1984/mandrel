@@ -16,6 +16,7 @@
  * mapping. All rule-matching lives here.
  */
 
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import picomatch from 'picomatch';
@@ -60,6 +61,76 @@ export const GLOBAL_LENS_ALLOWLIST = Object.freeze([NAVIGABILITY_LENS]);
  */
 export function isGlobalLens(lens) {
   return GLOBAL_LENS_ALLOWLIST.includes(lens);
+}
+
+/**
+ * The canonical concern-ownership tiers a lens can declare via its
+ * `scope` field in [`audit-rules.json`](../../../schemas/audit-rules.json).
+ * This frozen tuple is the single source of truth for the tier vocabulary the
+ * schema's `scope` enum enforces and {@link resolveLensTier} returns:
+ *
+ *   - `local`      — decidable from a single Story's diff; verified at
+ *                    write-time and Story-scope review, not re-run at Epic close.
+ *   - `cumulative` — only decidable across the Epic's combined diff; verified
+ *                    at Epic close.
+ *   - `global`     — evaluates a whole-product property regardless of the diff;
+ *                    verified at Epic close, exempt from change-set narrowing.
+ *
+ * @type {readonly ['local', 'cumulative', 'global']}
+ */
+export const LENS_TIERS = Object.freeze(['local', 'cumulative', 'global']);
+
+/**
+ * Resolve the concern-ownership tier a lens declares in `audit-rules.json`.
+ * This is the pure read-side of the `scope` field (Epic #4405, Story #4407)
+ * that replaced the former `alwaysRun` special case: every downstream tier —
+ * write-time checklist threading, Story-scope review, the Epic-close roster
+ * split — routes off this one field instead of a maintained prose constraint.
+ *
+ * Deterministic given the on-disk manifest: it reads the same
+ * `audit-rules.json` that {@link selectAudits} consumes (resolved through the
+ * project's configured `schemasRoot`), looks up the lens, and returns its
+ * `scope`. It takes no ticket, runs no git, and has no side effects.
+ *
+ * @param {string} lens Lens key registered in `audit-rules.json`
+ *   (e.g. `audit-clean-code`).
+ * @returns {'local' | 'cumulative' | 'global'} The lens's declared tier.
+ * @throws {Error} When `lens` is not registered in the manifest, or the
+ *   manifest cannot be read, or the registered entry carries a scope outside
+ *   {@link LENS_TIERS}.
+ */
+export function resolveLensTier(lens) {
+  const { agentSettings } = resolveConfig();
+  const rulesPath = path.join(
+    PROJECT_ROOT,
+    getPaths({ agentSettings }).schemasRoot,
+    'audit-rules.json',
+  );
+
+  let rulesData;
+  try {
+    rulesData = JSON.parse(readFileSync(rulesPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `resolveLensTier: failed to read audit-rules from ${rulesPath}: ${err.message}`,
+    );
+  }
+
+  const entry = rulesData.audits?.[lens];
+  if (!entry) {
+    throw new Error(
+      `resolveLensTier: unknown lens '${lens}' — not registered in audit-rules.json`,
+    );
+  }
+
+  const { scope } = entry;
+  if (!LENS_TIERS.includes(scope)) {
+    throw new Error(
+      `resolveLensTier: lens '${lens}' declares invalid scope '${scope}'; expected one of ${LENS_TIERS.join(', ')}`,
+    );
+  }
+
+  return scope;
 }
 
 /**
@@ -263,11 +334,6 @@ export async function selectAudits({
 
     const gateMatch = triggers.gates?.includes(gate);
     if (!gateMatch) continue;
-
-    if (triggers.alwaysRun) {
-      selectedAudits.push(auditName);
-      continue;
-    }
 
     const keywords = triggers.keywords || [];
     let keywordMatch = false;
