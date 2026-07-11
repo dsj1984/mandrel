@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T00:58:50.247Z",
+  "generatedAt": "2026-07-11T01:40:46.517Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -1893,6 +1893,10 @@
     {
       "path": ".agents/scripts/single-story-init.js",
       "mi": 95.984
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "mi": 94.688
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
