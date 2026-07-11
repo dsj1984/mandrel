@@ -54,9 +54,10 @@ Before permitting any code generation, you must enforce this workflow:
 
 - **Friction Analysis:** During the retro phase (Phase 5 of
   `/deliver`, driven by `lib/orchestration/retro-runner.js`), you
-  MUST analyze the
-  `agent-friction-log.json` to identify systemic bottlenecks, repetitive tool
-  failures, or prompt ambiguities.
+  MUST analyze the aggregated friction signals — the `kind: friction`
+  records on the per-Epic/per-Story `signals.ndjson` streams, rolled up by
+  the retro's perf-aggregator — to identify systemic bottlenecks, repetitive
+  tool failures, or prompt ambiguities.
 - **Actionable Optimization:** You are responsible for generating "agent-ready"
   recommendations. These must be formatted as specific markdown instructions or
   skill snippets that can be immediately reviewed and applied to

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T01:40:46.517Z",
+  "generatedAt": "2026-07-11T02:14:47.303Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.988,
+      "p50": 97.964,
       "p95": 126.964
     }
   },
@@ -385,6 +385,10 @@
     {
       "path": ".agents/scripts/lib/checks/index.js",
       "mi": 94.711
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "mi": 85.395
     },
     {
       "path": ".agents/scripts/lib/checks/push-hook-parity.js",
