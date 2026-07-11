@@ -707,45 +707,41 @@ for the scoring logic.
      dependency shape (N slice(s))."). Proceed straight to Phase 8.4 with the
      draft `tickets.json` unchanged (no `consolidation-report.md` is
      produced when the dispatch is skipped).
-   - **`dispatch: true`** — dispatch the sub-agent exactly as below,
-     including the precondition's `reasons` in the HITL diff context so the
-     operator sees *why* the critic ran.
+   - **`dispatch: true`** — **dispatch a genuine fresh-context sub-agent**
+     (`Agent` tool, `subagent_type: general-purpose`) whose task is to read
+     the
+     [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
+     skill and execute its procedure with `[Epic_ID]` as input, including the
+     precondition's `reasons` in the HITL diff context so the operator sees
+     *why* the critic ran. Dispatching the critic as a sub-agent — **not**
+     activating the skill inline in your authoring turn — is what makes it a
+     **separate critic pass with fresh context**: the sub-agent does not
+     inherit the conversation that authored the draft, so it cannot grade its
+     own homework (the same nested-dispatch mechanic the acceptance self-eval
+     loop uses, now that the sub-agent depth limit is lifted — see
+     [`.agents/instructions.md` § 4](../../instructions.md)). The sub-agent
+     reads the draft array plus the Epic body (which carries the Tech Spec
+     sections), reconciles the draft against the Tech Spec `## Delivery
+     Slicing` target, and emits a **consolidated** `tickets.json` plus a
+     human-readable `temp/epic-[Epic_ID]/consolidation-report.md`. Its
+     operations are scope-preserving only — **merge sibling Stories and
+     rewire `depends_on`** — and it MUST NOT add scope or invent tickets; it
+     consolidates fragmented slices by merging them into a cohesive Story,
+     never by splitting one. The sub-agent **never writes to GitHub**: it
+     emits only the two temp artifacts and returns control to this operator
+     session. It runs **before** the deterministic validator (step 7), so the
+     validator re-checks its output and the critic cannot emit an invalid
+     plan. **Show the operator the consolidation report (the before/after
+     diff + rationale) before persisting.** The HITL diff-confirm and the
+     persist call both run here in the **operator session**, never inside
+     the sub-agent — consolidation is never auto-applied without review: on
+     operator approval, persist the consolidated `tickets.json`; on
+     rejection, persist the draft instead.
 
    Phase 8.4 (Reachability Completeness Critic), Phase 8.5 (Planning
    Pre-Mortem Critic), and the deterministic ticket validator (step 6) are
    **unconditional** — the precondition governs only the 8.3 sub-agent
-   dispatch, never any other Phase 8 gate.
-
-   **When `dispatch: true`**, **dispatch a genuine fresh-context sub-agent** (`Agent` tool,
-   `subagent_type: general-purpose`) whose task is to read the
-   [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
-   skill and execute its procedure with `[Epic_ID]` as input. Dispatching the critic
-   as a sub-agent — **not** activating the skill inline in your authoring
-   turn — is what makes it a **separate critic pass with fresh context**: the
-   sub-agent does not inherit the conversation that authored the draft, so it
-   cannot grade its own homework (the same nested-dispatch mechanic the
-   acceptance self-eval loop uses, now that the sub-agent depth limit is
-   lifted — see [`.agents/instructions.md` § 4](../../instructions.md)). The
-   sub-agent reads the draft array plus the Epic body (which carries the Tech
-   Spec sections), reconciles the draft against
-   the Tech Spec `## Delivery Slicing` target, and emits a **consolidated**
-   `tickets.json` plus a human-readable
-   `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are
-   scope-preserving only — **merge sibling Stories and rewire
-   `depends_on`** — and it MUST NOT add scope or invent tickets; it
-   consolidates fragmented slices by merging them into a cohesive Story,
-   never by splitting one. The sub-agent **never writes to GitHub**: it emits
-   only the two temp artifacts and returns control to this operator session.
-   It runs **before** the deterministic
-   validator (step 7), so the validator re-checks its output and the critic
-   cannot emit an invalid plan.
-
-   **Show the operator the consolidation report (the before/after diff +
-   rationale) before persisting.** The HITL diff-confirm and the persist call
-   both run here in the **operator session**, never inside the sub-agent —
-   consolidation is never auto-applied without review: on operator approval,
-   persist the consolidated `tickets.json`; on rejection, persist the draft
-   instead. This is a sub-step of Phase 8 — it
+   dispatch, never any other Phase 8 gate. This is a sub-step of Phase 8 — it
    does **not** renumber the top-level lifecycle phases (9–12).
 
 4. **Phase 8.4 — Reachability Completeness Critic (HITL diff gate, F6)**:
