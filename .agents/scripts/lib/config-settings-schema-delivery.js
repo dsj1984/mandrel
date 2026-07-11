@@ -331,15 +331,23 @@ const ACCEPTANCE_EVAL_SCHEMA = {
 /**
  * `delivery.feedbackLoop` — opt-out toggles consumed by the Epic finalize
  * listener's auto-file graduators (`lib/feedback-loop/*-graduator.js`, read
- * via `graduator-core.js#makeIsAutoFileEnabled`). Both default to `true`
- * (auto-file on); set either to `false` to suppress auto-filing the
+ * via `graduator-core.js#makeIsAutoFileEnabled`). All default to `true`
+ * (auto-file on); set any to `false` to suppress auto-filing the
  * corresponding non-blocking findings as follow-up issues.
+ *
+ * `retroProposals` (Story #4418) governs the retro auto-filer: when true
+ * (default) the retro's actionable routed proposals are filed as
+ * `meta::<framework-gap|consumer-improvement>` + `friction::<category>`
+ * issues via the graduator pre-parsed-findings seam, and the rendered retro
+ * sections list the filed issue numbers instead of paste-ready `gh` command
+ * stanzas; set it to `false` to fall back to the command stanzas.
  */
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   properties: {
     codeReviewAutoFile: { type: 'boolean' },
     auditResultsAutoFile: { type: 'boolean' },
+    retroProposals: { type: 'boolean' },
   },
   additionalProperties: false,
 };

@@ -178,6 +178,9 @@ export async function runRetroCli({
     forceFull: fullRetro,
     frameworkRepo,
     consumerRepo,
+    // Story #4418 — thread the resolved config so the retro auto-filer can
+    // read the `delivery.feedbackLoop.retroProposals` toggle.
+    config,
     logger,
   });
 
