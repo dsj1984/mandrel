@@ -37,6 +37,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { runBootSweep } from './boot-sweep.js';
+import { buildChecklistPayload } from './lib/audit-suite/index.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
 import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
@@ -60,6 +61,7 @@ import {
 import { runBuildWaveDagPhase } from './lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapshot.js';
 import { StoryLauncher } from './lib/orchestration/epic-runner/story-launcher.js';
+import { collectStoryAssumptionEntries } from './lib/orchestration/file-assumptions.js';
 import {
   computeBaseSha,
   readPreflightCache,
@@ -367,6 +369,60 @@ async function writeDocsDigest({ epicId, cwd, config }) {
   return relPath;
 }
 
+/**
+ * Thread footprint-matched **local**-lens authoring checklists into the
+ * per-Story dispatch entries (Epic #4405, Story #4410). For each planned Story,
+ * derive its predicted footprint from the full ticket body's `changes[]` /
+ * `references[]` entries, build the budget-capped checklist payload (matched by
+ * `resolveLensTier(lens) === 'local'` + `matchesAnyFilePattern` — NOT
+ * `selectAudits`, so no provider or git diff runs here), and write it to
+ * `<tempRoot>/epic-<id>/checklists/story-<sid>.md`. The parent threads the
+ * returned repo-relative `checklistPath` into that child's maker prompt, next
+ * to `docsDigestPath`; a Story that matches no local lens gets a `null` path
+ * and no file.
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd?: string,
+ *   config: object,
+ *   stories: Array<{ storyId: number, worktree?: string, title?: string }>,
+ *   storyById: Map<number, object>,
+ * }} args
+ * @returns {Promise<Array<{ storyId: number, worktree?: string, title?: string, checklistPath: string|null }>>}
+ */
+async function writeStoryChecklists({
+  epicId,
+  cwd,
+  config,
+  stories,
+  storyById,
+}) {
+  const paths = getPaths(config);
+  const root = path.resolve(cwd ?? process.cwd());
+
+  return Promise.all(
+    stories.map(async (entry) => {
+      const ticket = storyById.get(Number(entry.storyId));
+      const footprint = ticket
+        ? collectStoryAssumptionEntries(ticket).map((e) => e.path)
+        : [];
+      const { payload } = buildChecklistPayload({ footprint, logger: Logger });
+      if (!payload) return { ...entry, checklistPath: null };
+
+      const relPath = path.join(
+        paths.tempRoot,
+        `epic-${epicId}`,
+        'checklists',
+        `story-${entry.storyId}.md`,
+      );
+      const absPath = path.resolve(root, relPath);
+      await fs.promises.mkdir(path.dirname(absPath), { recursive: true });
+      await fs.promises.writeFile(absPath, payload, 'utf-8');
+      return { ...entry, checklistPath: relPath };
+    }),
+  );
+}
+
 export async function runEpicDeliverPrepare({
   epicId,
   cwd,
@@ -450,10 +506,25 @@ export async function runEpicDeliverPrepare({
   // dispatch from. This is a dispatch *hint* — the ready-set tick decides
   // which Stories to dispatch on each beat; the prepare only enumerates them.
   const launcher = new StoryLauncher({ concurrencyCap });
-  const stories = launcher.planWave(openStories).map((entry, i) => ({
+  const plannedStories = launcher.planWave(openStories).map((entry, i) => ({
     ...entry,
     title: openStories[i]?.title ?? '',
   }));
+
+  // Thread footprint-matched local-lens authoring checklists into each Story's
+  // dispatch entry (Story #4410). Keyed off the full discovered tickets (which
+  // carry the `changes[]`/`references[]` bodies the footprint is derived from);
+  // a Story that matches no local lens gets a `null` checklistPath.
+  const storyById = new Map(
+    (state.stories ?? []).map((t) => [Number(t.id ?? t.number), t]),
+  );
+  const stories = await writeStoryChecklists({
+    epicId,
+    cwd,
+    config,
+    stories: plannedStories,
+    storyById,
+  });
 
   // Persist the `--ignore-concurrency-hazards` flag on the checkpoint so
   // retro tooling can flag a run that shipped despite an outstanding hazard
