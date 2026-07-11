@@ -17,3 +17,6 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Workflow & Contract Descriptions
 - [ ] Version & Topology Claims
 - [ ] Completeness
+- [ ] History Bloat
+- [ ] Contradiction
+- [ ] Authority Drift

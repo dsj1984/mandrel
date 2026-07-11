@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import doctor, {
+  formatClosureReport,
   runDoctor,
   writeDoctorResultCache,
 } from '../../lib/cli/doctor.js';
@@ -529,5 +530,62 @@ describe('writeDoctorResultCache', () => {
     assert.doesNotThrow(() =>
       writeDoctorResultCache('unready', { fs: throwingFs, cwd: () => '/x' }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatClosureReport — the report-only always-loaded closure line (#4438)
+// ---------------------------------------------------------------------------
+
+describe('formatClosureReport', () => {
+  it('reports file count and KB when a closure resolves', () => {
+    const line = formatClosureReport({
+      cwd: () => '/repo',
+      resolveClosure: () => [
+        { path: 'CLAUDE.md', bytes: 1024 },
+        { path: 'AGENTS.md', bytes: 2048 },
+      ],
+    });
+    assert.match(line, /context-closure/);
+    assert.match(line, /2 file\(s\), 3\.0 KB always-loaded/);
+    assert.ok(line.endsWith('\n'));
+  });
+
+  it('degrades to a neutral line when no CLAUDE.md closure exists', () => {
+    const line = formatClosureReport({
+      cwd: () => '/x',
+      resolveClosure: () => [],
+    });
+    assert.match(line, /no CLAUDE\.md closure found/);
+  });
+
+  it('never throws — a resolver failure yields an "unavailable" line', () => {
+    const line = formatClosureReport({
+      cwd: () => '/x',
+      resolveClosure: () => {
+        throw new Error('boom');
+      },
+    });
+    assert.match(line, /always-loaded closure unavailable/);
+  });
+});
+
+describe('runDoctor closure report line (#4438)', () => {
+  it('emits the report line without changing the pass/fail verdict', async () => {
+    const cap = makeCapture();
+    const checks = [{ name: 'x', run: () => ({ ok: true, detail: 'ok' }) }];
+    await runDoctor({
+      checks,
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+      closureReport: () =>
+        'ℹ  context-closure  1 file(s), 1.0 KB always-loaded\n',
+    });
+    const out = cap.lines.join('');
+    assert.match(out, /context-closure/);
+    // The report line is not counted: 1/1 checks still pass, exit stays 0.
+    assert.match(out, /Ready \(1\/1 checks passed\)/);
+    assert.equal(cap.exitCode, null); // exit(0) is never called on all-pass
   });
 });
