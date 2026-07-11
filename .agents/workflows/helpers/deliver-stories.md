@@ -336,6 +336,32 @@ auto-merge. Report its one-line result in the summary. Merged Story branches
 themselves are reaped by the boot sweep at the next `/plan` / `/deliver` boot —
 see [`.agents/rules/git-conventions.md` § Local checkout hygiene](../../rules/git-conventions.md).
 
+### Feedback rollup
+
+Then run the **end-of-run feedback rollup** over the delivered Story set so
+the write-only standalone signals tree finally has a consumer. Each per-Story
+sub-agent appends `friction` records to its standalone stream
+(`temp/standalone/stories/story-<sid>/signals.ndjson`); the rollup scans those
+streams and aggregates friction by category:
+
+```bash
+node .agents/scripts/standalone-feedback-rollup.js --stories <all delivered story ids, comma-separated>
+```
+
+The CLI prints one JSON object
+(`{ kind, stories, totalFriction, byCategory, perStory }`) and **always exits
+0** — missing or empty streams degrade to an empty summary, so this beat never
+fails the run. Surface `totalFriction` and the `byCategory` totals in the run
+summary so the operator sees where friction clustered across the delivery:
+
+```text
+Feedback rollup — 4 friction signals across 3 Stories
+  Execution Error: 2, Tool Limitation: 1, Missing Skill: 1
+```
+
+When `totalFriction` is 0 (or every stream was missing), report a single
+"no friction signals recorded" line and move on — it is not an error.
+
 When some Stories are blocked or failed, list them explicitly with the
 `blockerCommentId` or failure detail so the operator knows where to look.
 
