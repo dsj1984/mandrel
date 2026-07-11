@@ -27,6 +27,37 @@ export function normalizeInterventionCount(value) {
 }
 
 /**
+ * Pure: does `routedProposals` carry at least one actionable item (a
+ * framework- or consumer-routed `gh issue create` proposal)? Story #4417 —
+ * the compact retro shape (and therefore the `automerge-verdict`
+ * `cleanSprint: true` flag it drives) MUST be suppressed whenever an
+ * actionable proposal exists, regardless of `forceFull` or the
+ * comment-derived counts: the clean-sprint verdict is an auto-merge input
+ * and must never read "clean" while actionable friction sits in the routed
+ * proposals. Discarded (single-occurrence) items do NOT count — they are
+ * the retro's explicit "nothing to file" bucket.
+ *
+ * @param {{ framework?: object[], consumer?: object[] } | null | undefined} routedProposals
+ * @returns {boolean}
+ */
+export function hasActionableProposals(routedProposals) {
+  if (
+    !routedProposals ||
+    typeof routedProposals !== 'object' ||
+    Array.isArray(routedProposals)
+  ) {
+    return false;
+  }
+  const framework = Array.isArray(routedProposals.framework)
+    ? routedProposals.framework
+    : [];
+  const consumer = Array.isArray(routedProposals.consumer)
+    ? routedProposals.consumer
+    : [];
+  return framework.length > 0 || consumer.length > 0;
+}
+
+/**
  * Pure: derive the recurring-defect-class signal from the routed-proposal
  * sections (Story #4135 / Epic #4131, F11).
  *
@@ -125,7 +156,15 @@ export function composeRetroBody(input) {
   } = input;
 
   const interventions = normalizeInterventionCount(counts?.interventions);
-  const compact = !forceFull && isCleanManifest({ ...counts, interventions });
+  // Story #4417 — the compact shape requires BOTH a clean manifest AND zero
+  // actionable routed proposals. The routed proposals and the counts are
+  // derived from the same unified signals scan (gather-signals.js), so this
+  // guard closes the window where the comment-derived counts read "clean"
+  // while the ndjson-derived routed proposals hold an actionable item.
+  const compact =
+    !forceFull &&
+    isCleanManifest({ ...counts, interventions }) &&
+    !hasActionableProposals(routedProposals);
   const heading = `## 🪞 Sprint Retrospective — Epic #${epicId}: ${epicTitle}`;
   const generatedLine = `_Generated ${timestamp}_`;
   const scorecardRows = [
