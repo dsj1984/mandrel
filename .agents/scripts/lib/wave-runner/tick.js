@@ -425,7 +425,13 @@ export function planTick(state, records, inFlight) {
       inFlight.length === 0
     ) {
       signals.push({
+        // `index` is what the perf-aggregator's `bucketWaves` keys on to
+        // bracket a wave's wall-clock (Epic #4406 / Story #4413). Without
+        // it every wave-start collapsed to NaN and the waveParallelism
+        // table rendered structurally empty. The continuous ready-set
+        // scheduler runs a single logical wave, so `index: 0`.
         kind: 'wave-start',
+        index: 0,
         stories: records.map((s) => ({ id: s.id, title: s.title })),
       });
     }
@@ -443,7 +449,7 @@ export function planTick(state, records, inFlight) {
     nextAction = { kind: 'observe', waitingOn };
   } else if (allDone) {
     // Every Story is done and nothing is in flight: the run is complete.
-    signals.push({ kind: 'wave-complete' });
+    signals.push({ kind: 'wave-complete', index: 0 });
     nextAction = { kind: 'epic-complete' };
   } else {
     // Ready set empty, nothing in flight, but not all Stories are done — a
@@ -739,7 +745,9 @@ function defaultSignalEmit(epicId, ctx) {
   return async (signal) => {
     await appendEpicSignal({
       epicId,
-      signal: { ts: new Date().toISOString(), epic: epicId, ...signal },
+      // Canonical envelope (Epic #4406 / Story #4413): the single
+      // `epicId` key — the legacy `epic` alias is gone.
+      signal: { ts: new Date().toISOString(), epicId, ...signal },
       config: ctx?.config,
     });
   };

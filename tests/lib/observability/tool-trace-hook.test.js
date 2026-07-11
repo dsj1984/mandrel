@@ -194,7 +194,7 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
     assert.equal(lines.length, 1, 'exactly one trace line should be written');
     const trace = JSON.parse(lines[0]);
     assert.equal(trace.kind, 'trace');
-    assert.equal(trace.source.tool, 'Bash');
+    assert.equal(trace.emitter.tool, 'Bash');
     assert.equal(trace.epicId, 1030);
     assert.equal(trace.storyId, 1043);
     assert.equal(typeof trace.details.durationMs, 'number');
@@ -546,11 +546,11 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       .split('\n')
       .map((l) => JSON.parse(l));
     assert.equal(lines.length, 2);
-    assert.equal(lines[0].source.tool, 'Agent');
+    assert.equal(lines[0].emitter.tool, 'Agent');
     assert.equal(lines[0].details.model, 'haiku');
     // Bare Agent call (no model) records `null` so the analyzer can
     // distinguish "Agent fired without model" from "non-Agent tool".
-    assert.equal(lines[1].source.tool, 'Agent');
+    assert.equal(lines[1].emitter.tool, 'Agent');
     assert.equal(lines[1].details.model, null);
     assert.equal(Object.hasOwn(lines[1].details, 'model'), true);
   });
@@ -626,7 +626,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       assert.equal(
         Object.hasOwn(trace.details, 'normalizedHash'),
         false,
-        `${trace.source.tool} trace must not carry normalizedHash`,
+        `${trace.emitter.tool} trace must not carry normalizedHash`,
       );
     }
   });

@@ -35,10 +35,10 @@ describe('computeStoryPerfSummary', () => {
 
   it('aggregates friction events by category', () => {
     const events = [
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
-      { kind: 'friction', details: { category: 'Execution Error' } },
-      { kind: 'friction', details: {} },
+      { kind: 'friction', category: 'Tool Limitation' },
+      { kind: 'friction', category: 'Tool Limitation' },
+      { kind: 'friction', category: 'Execution Error' },
+      { kind: 'friction' },
       { kind: 'trace' },
     ];
     const out = computeStoryPerfSummary(events, { storyId: 10, epicId: 20 });
@@ -92,23 +92,23 @@ describe('computeStoryPerfSummary', () => {
     assert.equal(out.topSlowPhasesVsBaseline.length, 3);
   });
 
-  it('builds reworkScore with the heaviest path', () => {
+  it('builds reworkScore with the heaviest targetHash', () => {
     const events = [
-      { kind: 'rework', details: { path: 'src/a.js', edits: 6 } },
-      { kind: 'rework', details: { path: 'src/a.js', edits: 8 } },
-      { kind: 'rework', details: { path: 'src/b.js', edits: 5 } },
+      { kind: 'rework', details: { targetHash: 'sha256:a', editCount: 6 } },
+      { kind: 'rework', details: { targetHash: 'sha256:a', editCount: 8 } },
+      { kind: 'rework', details: { targetHash: 'sha256:b', editCount: 5 } },
     ];
     const out = computeStoryPerfSummary(events, { storyId: 1, epicId: 2 });
     assert.equal(out.reworkScore.filesEditedBeyondThreshold, 2);
-    assert.equal(out.reworkScore.topPath, 'src/a.js');
+    assert.equal(out.reworkScore.topPath, 'sha256:a');
     assert.equal(out.reworkScore.topPathEdits, 8);
   });
 
-  it('counts retries and unique commands', () => {
+  it('counts retries and unique command hashes', () => {
     const events = [
-      { kind: 'retry', details: { command: 'npm test' } },
-      { kind: 'retry', details: { command: 'npm test' } },
-      { kind: 'retry', details: { command: 'npm run lint' } },
+      { kind: 'retry', details: { commandHash: 'sha256:t' } },
+      { kind: 'retry', details: { commandHash: 'sha256:t' } },
+      { kind: 'retry', details: { commandHash: 'sha256:l' } },
       { kind: 'retry', details: {} },
     ];
     const out = computeStoryPerfSummary(events, { storyId: 1, epicId: 2 });
@@ -317,7 +317,7 @@ describe('computeWaveParallelismRows (Story #3850 fixes)', () => {
     for (const t of transitions) {
       events.push({
         kind: 'state-transition',
-        story: t.storyId,
+        storyId: t.storyId,
         details: { to: t.to },
         ts: new Date(base + t.offset).toISOString(),
       });

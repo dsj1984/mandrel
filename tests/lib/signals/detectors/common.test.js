@@ -50,38 +50,38 @@ describe('isPositiveInt()', () => {
 });
 
 describe('extractTool()', () => {
-  it('prefers source.tool when present', () => {
+  it('prefers emitter.tool when present', () => {
     const rec = {
-      source: { tool: 'Edit' },
+      emitter: { tool: 'Edit' },
       details: { tool: 'Write' },
     };
     assert.equal(extractTool(rec), 'Edit');
   });
 
-  it('falls back to details.tool when source.tool is absent', () => {
+  it('falls back to details.tool when emitter.tool is absent', () => {
     const rec = { details: { tool: 'Write' } };
     assert.equal(extractTool(rec), 'Write');
   });
 
-  it('falls back to details.tool when source.tool is empty string', () => {
-    const rec = { source: { tool: '' }, details: { tool: 'Write' } };
+  it('falls back to details.tool when emitter.tool is empty string', () => {
+    const rec = { emitter: { tool: '' }, details: { tool: 'Write' } };
     assert.equal(extractTool(rec), 'Write');
   });
 
-  it('falls back to details.tool when source.tool is not a string', () => {
-    const rec = { source: { tool: 123 }, details: { tool: 'Write' } };
+  it('falls back to details.tool when emitter.tool is not a string', () => {
+    const rec = { emitter: { tool: 123 }, details: { tool: 'Write' } };
     assert.equal(extractTool(rec), 'Write');
   });
 
-  it('returns null when both source.tool and details.tool are missing', () => {
+  it('returns null when both emitter.tool and details.tool are missing', () => {
     assert.equal(extractTool({}), null);
-    assert.equal(extractTool({ source: {} }), null);
+    assert.equal(extractTool({ emitter: {} }), null);
     assert.equal(extractTool({ details: {} }), null);
-    assert.equal(extractTool({ source: {}, details: {} }), null);
+    assert.equal(extractTool({ emitter: {}, details: {} }), null);
   });
 
   it('returns null when both fields are empty strings', () => {
-    const rec = { source: { tool: '' }, details: { tool: '' } };
+    const rec = { emitter: { tool: '' }, details: { tool: '' } };
     assert.equal(extractTool(rec), null);
   });
 

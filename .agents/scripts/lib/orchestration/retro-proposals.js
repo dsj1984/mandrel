@@ -1,12 +1,14 @@
 /**
  * lib/orchestration/retro-proposals.js — pure composer that turns
- * aggregated source-tagged friction signals into four routed proposal
- * sections (framework, consumer, memory, discarded).
+ * aggregated source-tagged friction signals into three routed proposal
+ * sections (framework, consumer, discarded).
  *
  * Epic #2547 / Story #2558 / Tech Spec #2550. Consumes per-Story signals
- * already source-tagged by `signals-writer.appendSignal` (Story #2553) and
- * yields a four-way split that the retro composer renders above the
- * `<!-- retro-complete: ... -->` marker.
+ * already source-tagged by `signals-writer.appendSignal` and yields a
+ * three-way split that the retro composer renders above the
+ * `<!-- retro-complete: ... -->` marker. The former "memory updates"
+ * pane was deleted in the Epic #4406 signal-contract cutover (it had no
+ * producer — no writer ever emitted the record it rendered).
  *
  * Heuristic:
  *   - **Actionable** (renders as a pre-drafted `gh issue create` shell
@@ -14,14 +16,8 @@
  *     Epic, OR an `agent::blocked` event whose root cause was not
  *     resolved by Epic close (the caller supplies these as
  *     `unresolvedBlockedEvents`).
- *   - **Memorable** (renders as a plain bulleted instruction line under
- *     "update your memory with the following insights"): a pattern
- *     observed in retro signals supplied via `memorablePatterns`. We do
- *     **not** emit memory frontmatter — the section is a free-text
- *     instruction block.
  *   - **Discarded**: a friction category with exactly 1 occurrence and
- *     no follow-on signal (no companion `agent::blocked`, not in
- *     `memorablePatterns`).
+ *     no follow-on signal (no companion `agent::blocked`).
  *
  * Routing:
  *   - Each actionable item is routed to `framework` or `consumer` based
@@ -45,17 +41,12 @@
  * @property {string} [category]
  * @property {string} [summary]
  *
- * @typedef {Object} MemorablePattern
- * @property {string} category
- * @property {string} insight   The instruction line text (rendered as a bullet).
- *
  * @typedef {Object} RoutedProposalsInput
  * @property {number}                epicId
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
  * @property {FrictionSignal[]}      [signals]
  * @property {BlockedEvent[]}        [unresolvedBlockedEvents]
- * @property {MemorablePattern[]}    [memorablePatterns]
  *
  * @typedef {Object} RoutedItem
  * @property {string} category
@@ -65,10 +56,6 @@
  * @property {string} body
  * @property {string} command       The pre-drafted `gh issue create` line.
  *
- * @typedef {Object} MemoryItem
- * @property {string} category
- * @property {string} insight
- *
  * @typedef {Object} DiscardedItem
  * @property {string} category
  * @property {number} occurrences
@@ -77,7 +64,6 @@
  * @typedef {Object} RoutedProposals
  * @property {RoutedItem[]}     framework
  * @property {RoutedItem[]}     consumer
- * @property {MemoryItem[]}     memory
  * @property {DiscardedItem[]}  discarded
  */
 
@@ -88,7 +74,7 @@
  * @returns {RoutedProposals}
  */
 function emptyResult() {
-  return { framework: [], consumer: [], memory: [], discarded: [] };
+  return { framework: [], consumer: [], discarded: [] };
 }
 
 /**
@@ -250,7 +236,6 @@ function buildRoutedItem({
  *   consumerRepo: string,
  *   signals: FrictionSignal[],
  *   unresolvedBlockedEvents: BlockedEvent[],
- *   memorablePatterns: MemorablePattern[],
  * } | null}
  */
 function normaliseInput(input) {
@@ -269,9 +254,6 @@ function normaliseInput(input) {
     unresolvedBlockedEvents: Array.isArray(record.unresolvedBlockedEvents)
       ? record.unresolvedBlockedEvents
       : [],
-    memorablePatterns: Array.isArray(record.memorablePatterns)
-      ? record.memorablePatterns
-      : [],
   };
 }
 
@@ -280,11 +262,9 @@ function normaliseInput(input) {
  * signals.
  *
  * Pure — no I/O, no time-dependent state, no provider calls. Returns an
- * object with four arrays:
+ * object with three arrays:
  *   - `framework`: actionable items routed to the framework repo.
  *   - `consumer`: actionable items routed to the consumer repo.
- *   - `memory`: bulleted instruction lines for the operator's memory
- *     surface (NOT memory frontmatter).
  *   - `discarded`: single-occurrence friction with no follow-on signal.
  *
  * @param {RoutedProposalsInput} input
@@ -299,27 +279,9 @@ export function composeRoutedProposals(input) {
     consumerRepo,
     signals,
     unresolvedBlockedEvents,
-    memorablePatterns,
   } = normalised;
 
   const byCategory = aggregateByCategory(signals);
-
-  // Memory: every supplied pattern with a non-empty insight, sorted by
-  // category. Memorable categories are *also* tracked so a 1-occurrence
-  // friction that's memorable is NOT discarded — it's already covered by
-  // the memory section.
-  const memorableCategories = new Set();
-  /** @type {MemoryItem[]} */
-  const memory = [];
-  for (const m of memorablePatterns) {
-    if (m === null || typeof m !== 'object') continue;
-    const category = asString(m.category);
-    const insight = asString(m.insight);
-    if (category.length === 0 || insight.length === 0) continue;
-    memorableCategories.add(category);
-    memory.push({ category, insight });
-  }
-  memory.sort((a, b) => a.category.localeCompare(b.category));
 
   // Unresolved agent::blocked events always promote their category to
   // actionable — even if the friction count is < 2. The event itself
@@ -362,12 +324,7 @@ export function composeRoutedProposals(input) {
       else consumer.push(item);
       continue;
     }
-    // total === 1 AND no force flag.
-    if (memorableCategories.has(category)) {
-      // Memorable single-occurrence frictions are covered by the memory
-      // section; do not also discard them.
-      continue;
-    }
+    // total === 1 AND no force flag → discarded.
     discarded.push({ category, occurrences: total, source });
   }
 
@@ -391,5 +348,5 @@ export function composeRoutedProposals(input) {
   consumer.sort((a, b) => a.category.localeCompare(b.category));
   discarded.sort((a, b) => a.category.localeCompare(b.category));
 
-  return { framework, consumer, memory, discarded };
+  return { framework, consumer, discarded };
 }

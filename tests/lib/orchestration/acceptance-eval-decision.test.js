@@ -172,7 +172,7 @@ describe('buildAcceptanceEvalSignal', () => {
     assert.equal(signal.kind, 'acceptance-eval');
     assert.equal(signal.storyId, 3819);
     assert.equal(signal.epicId, null);
-    assert.equal(signal.source.tool, 'acceptance-eval.js');
+    assert.equal(signal.emitter.tool, 'acceptance-eval.js');
     assert.equal(signal.details.decision, 'redraft');
     assert.equal(signal.details.round, 1);
     assert.equal(signal.details.reworkedCount, 1);

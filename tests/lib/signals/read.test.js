@@ -42,7 +42,7 @@ afterEach(() => {
 const baseEnvelope = (overrides = {}) => ({
   kind: 'friction',
   ts: '2026-05-11T00:00:00.000Z',
-  epic: 1181,
+  epicId: 1181,
   ...overrides,
 });
 
@@ -142,7 +142,7 @@ describe('signals/read — envelope discipline', () => {
     await writeSignalsFile(1181, 1438, [
       baseEnvelope({ id: 1 }),
       { kind: 'friction' /* no ts, no epic */, id: 2 },
-      { kind: 'mystery', ts: '2026-05-11T00:00:00.000Z', epic: 1181, id: 3 },
+      { kind: 'mystery', ts: '2026-05-11T00:00:00.000Z', epicId: 1181, id: 3 },
       baseEnvelope({ id: 4 }),
     ]);
     const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
@@ -261,8 +261,8 @@ describe('signals/read — streaming, not slurping', () => {
         JSON.stringify({
           kind: 'friction',
           ts: '2026-05-11T00:00:00.000Z',
-          epic: 1181,
-          story: 1438,
+          epicId: 1181,
+          storyId: 1438,
           id: i,
           padding: 'x'.repeat(120),
         }),

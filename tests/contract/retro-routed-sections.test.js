@@ -29,9 +29,10 @@ const NON_CLEAN_COUNTS = {
   hitl: 0,
 };
 
-test('contract: full retro renders four routed sections in deterministic order', () => {
+test('contract: full retro renders three routed sections in deterministic order', () => {
   // Synthetic signals stream: framework lint-loop x3, consumer flaky-test x2,
-  // consumer one-off x1.
+  // consumer one-off x1. The former "Proposed memory updates" pane was
+  // deleted in the Epic #4406 cutover.
   const routedProposals = composeRoutedProposals({
     epicId: 2547,
     frameworkRepo: 'dsj1984/mandrel',
@@ -43,12 +44,6 @@ test('contract: full retro renders four routed sections in deterministic order',
       { category: 'flaky-test', source: 'consumer' },
       { category: 'flaky-test', source: 'consumer' },
       { category: 'one-off', source: 'consumer' },
-    ],
-    memorablePatterns: [
-      {
-        category: 'pwsh-and',
-        insight: 'PowerShell does not support &&; use ;',
-      },
     ],
   });
 
@@ -62,26 +57,28 @@ test('contract: full retro renders four routed sections in deterministic order',
     timestamp: '2026-05-19T00:00:00.000Z',
   });
 
-  // All four section headings appear verbatim.
+  // The three section headings appear verbatim; the memory heading does NOT.
   const consumerIdx = body.indexOf('### Proposed issues — consumer repo');
   const frameworkIdx = body.indexOf('### Proposed issues — framework repo');
-  const memoryIdx = body.indexOf('### Proposed memory updates');
   const discardedIdx = body.indexOf('### One-off / discarded');
   const completeIdx = body.indexOf('<!-- retro-complete:');
 
   assert.notEqual(consumerIdx, -1, 'consumer section heading present');
   assert.notEqual(frameworkIdx, -1, 'framework section heading present');
-  assert.notEqual(memoryIdx, -1, 'memory section heading present');
+  assert.equal(
+    body.includes('### Proposed memory updates'),
+    false,
+    'memory section heading must be gone',
+  );
   assert.notEqual(discardedIdx, -1, 'discarded section heading present');
   assert.notEqual(completeIdx, -1, 'retro-complete marker present');
 
-  // Deterministic ordering: consumer < framework < memory < discarded < marker.
+  // Deterministic ordering: consumer < framework < discarded < marker.
   assert.ok(consumerIdx < frameworkIdx, 'consumer appears before framework');
-  assert.ok(frameworkIdx < memoryIdx, 'framework appears before memory');
-  assert.ok(memoryIdx < discardedIdx, 'memory appears before discarded');
+  assert.ok(frameworkIdx < discardedIdx, 'framework appears before discarded');
   assert.ok(
     discardedIdx < completeIdx,
-    'all four sections appear before the retro-complete marker',
+    'all three sections appear before the retro-complete marker',
   );
 });
 
@@ -116,7 +113,9 @@ test('contract: each Proposed issues section contains pre-drafted gh issue creat
   assert.match(body, /--body-file - <<EOF/);
 });
 
-test('contract: memory section is a plain instruction block (not frontmatter)', () => {
+test('contract: the retro renders no "Proposed memory updates" section', () => {
+  // The memory pane was deleted in the Epic #4406 cutover — even with
+  // actionable routed proposals present, no memory section is rendered.
   const routedProposals = composeRoutedProposals({
     epicId: 2547,
     frameworkRepo: 'dsj1984/mandrel',
@@ -124,16 +123,6 @@ test('contract: memory section is a plain instruction block (not frontmatter)', 
     signals: [
       { category: 'noise', source: 'consumer' },
       { category: 'noise', source: 'consumer' },
-    ],
-    memorablePatterns: [
-      {
-        category: 'pwsh-and',
-        insight: 'PowerShell does not support && — use ; instead.',
-      },
-      {
-        category: 'worktree-symlink',
-        insight: 'Worktree node_modules may symlink on Windows.',
-      },
     ],
   });
   const { body } = composeRetroBody({
@@ -143,20 +132,10 @@ test('contract: memory section is a plain instruction block (not frontmatter)', 
     routedProposals,
     timestamp: '2026-05-19T00:00:00.000Z',
   });
-  // Instruction prelude.
-  assert.match(body, /update your memory with the following insights:/);
-  // Bulleted insights present.
-  assert.match(body, /- PowerShell does not support && — use ; instead\./);
-  assert.match(body, /- Worktree node_modules may symlink on Windows\./);
-  // No YAML frontmatter fence (---) inside the memory section. Check the
-  // narrow span between the memory heading and the next heading.
-  const memoryIdx = body.indexOf('### Proposed memory updates');
-  const afterIdx = body.indexOf('### One-off / discarded', memoryIdx);
-  const memorySection = body.slice(memoryIdx, afterIdx);
+  assert.equal(body.includes('### Proposed memory updates'), false);
   assert.equal(
-    /^---$/m.test(memorySection),
+    body.includes('update your memory with the following insights:'),
     false,
-    'memory section must not contain a YAML frontmatter fence',
   );
 });
 
@@ -208,25 +187,27 @@ test('contract: full path with absent routedProposals renders legacy Action Item
 });
 
 test('contract: routed sections render placeholders for empty buckets', () => {
-  // Only memory items — all three other buckets empty.
+  // A single-occurrence friction → only the discarded bucket is non-empty;
+  // the two "Proposed issues" buckets render "_None._".
   const routedProposals = composeRoutedProposals({
     epicId: 2547,
     frameworkRepo: 'dsj1984/mandrel',
     consumerRepo: 'dsj1984/domio',
-    signals: [],
-    memorablePatterns: [{ category: 'lesson', insight: 'Keep retros short.' }],
+    signals: [{ category: 'one-off', source: 'consumer' }],
   });
   const { body } = composeRetroBody({
     epicId: 2547,
-    epicTitle: 'Memory-only Epic',
+    epicTitle: 'Discarded-only Epic',
     counts: NON_CLEAN_COUNTS,
     routedProposals,
     timestamp: '2026-05-19T00:00:00.000Z',
   });
-  // All four headings are still emitted; empty buckets render "_None._".
+  // The three headings are emitted; empty buckets render "_None._".
   assert.match(body, /### Proposed issues — consumer repo\n\n_None\._/);
   assert.match(body, /### Proposed issues — framework repo\n\n_None\._/);
-  assert.match(body, /### One-off \/ discarded\n\n_None\._/);
-  // Memory section actually populated.
-  assert.match(body, /- Keep retros short\./);
+  // The discarded bucket is populated.
+  assert.match(body, /### One-off \/ discarded/);
+  assert.match(body, /`one-off`/);
+  // No memory section.
+  assert.equal(body.includes('### Proposed memory updates'), false);
 });

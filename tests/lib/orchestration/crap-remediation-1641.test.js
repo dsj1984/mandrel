@@ -598,7 +598,7 @@ describe('auto-refresh-runner.runAutoRefresh — Story #2205 contract', () => {
           cb({
             kind: 'friction',
             category: 'baseline-refresh-regression',
-            source: { tool: 'auto-refresh-runner' },
+            emitter: { tool: 'auto-refresh-runner' },
           });
         },
       }),

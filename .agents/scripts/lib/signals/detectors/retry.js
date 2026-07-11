@@ -41,12 +41,11 @@
  *
  * ## Tool filter
  *
- * Only trace records whose `source.tool === 'Bash'` participate. Edit /
+ * Only trace records whose `emitter.tool === 'Bash'` participate. Edit /
  * Write / Read / Grep / Glob events are not retries — those belong to
- * other detectors (rework for file-edit churn, hotspot at Epic scope).
- * The tool name is read from `source.tool` first and falls back to
- * `details.tool` to mirror the rework detector's tolerance for legacy
- * trace shapes.
+ * other detectors (rework for file-edit churn). The tool name is read
+ * from `emitter.tool` first and falls back to `details.tool` (see
+ * `common.extractTool`).
  *
  * ## Privacy contract
  *
@@ -238,7 +237,7 @@ export async function detectRetry(args) {
   return offenders.map(([commandHash, failureCount]) => ({
     ts,
     kind: 'retry',
-    source: { tool: 'retry-detector' },
+    emitter: { tool: 'retry-detector' },
     epicId,
     storyId,
     taskId,

@@ -214,12 +214,11 @@ export function composeRetroBody(input) {
     legacyActionItems.length > 0 ? legacyActionItems.join('\n') : '_None._';
 
   // Story #2558 — routed-proposals mode. When routedProposals is supplied
-  // AND any of the four buckets is non-empty, render the four explicit
+  // AND any of the three buckets is non-empty, render the three explicit
   // sections in deterministic order ABOVE the retro-complete marker:
   //   1. Proposed issues — consumer repo
   //   2. Proposed issues — framework repo
-  //   3. Proposed memory updates
-  //   4. One-off / discarded
+  //   3. One-off / discarded
   // Otherwise the legacy "Action Items for Next Epic" section renders.
   const routedSectionsBlock = renderRoutedSections(routedProposals);
 
@@ -439,24 +438,6 @@ function renderIssueBucket(items) {
 }
 
 /**
- * Render the body lines for the "proposed memory updates" bucket — a plain
- * instruction prelude followed by one bullet per insight, or `_None._` when
- * empty. Deliberately NOT YAML frontmatter (asserted by the routed-sections
- * contract test).
- *
- * @param {object[]} items
- * @returns {string[]}
- */
-function renderMemoryBucket(items) {
-  if (items.length === 0) return ['_None._'];
-  return [
-    'update your memory with the following insights:',
-    '',
-    ...items.map((m) => `- ${m.insight}`),
-  ];
-}
-
-/**
  * Render the body lines for the "one-off / discarded" bucket — one bullet per
  * discarded class naming its occurrence count and source, or `_None._`.
  *
@@ -472,11 +453,15 @@ function renderDiscardedBucket(items) {
 }
 
 /**
- * Descriptor table for the four routed-proposal sections, in deterministic
- * emit order (consumer → framework → memory → discarded). Each descriptor
- * pairs a heading, the `routedProposals` field it reads, and a body renderer.
+ * Descriptor table for the three routed-proposal sections, in deterministic
+ * emit order (consumer → framework → discarded). Each descriptor pairs a
+ * heading, the `routedProposals` field it reads, and a body renderer.
  * {@link renderRoutedSections} walks the table once, so reordering or adding a
  * section is a data edit here rather than another copy-pasted emit block.
+ *
+ * The former "Proposed memory updates" section was deleted in the Epic
+ * #4406 signal-contract cutover — no writer ever produced the memory-pane
+ * records it rendered.
  *
  * @type {Array<{ heading: string, field: string, renderBucket: (items: object[]) => string[] }>}
  */
@@ -490,11 +475,6 @@ const ROUTED_SECTIONS = [
     heading: '### Proposed issues — framework repo',
     field: 'framework',
     renderBucket: renderIssueBucket,
-  },
-  {
-    heading: '### Proposed memory updates',
-    field: 'memory',
-    renderBucket: renderMemoryBucket,
   },
   {
     heading: '### One-off / discarded',

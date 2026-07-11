@@ -37,10 +37,53 @@ import { fileURLToPath } from 'node:url';
 
 import {
   computeEpicPerfReport,
-  computeEpicPerfReportFromStore,
   computeStoryPerfSummary,
-  computeStoryPerfSummaryFromStore,
 } from '../../../.agents/scripts/lib/observability/perf-aggregator.js';
+import { read } from '../../../.agents/scripts/lib/signals/read.js';
+
+// The `*FromStore` streaming variants were retired in the Epic #4406
+// signal-contract cutover; the store path is now "read via the canonical
+// signals reader, then compute". These local shims preserve the
+// regression test's two-path coverage (in-memory vs from-disk).
+async function computeStoryPerfSummaryFromStore({
+  storyId,
+  epicId,
+  closedAt,
+  phaseTiming,
+  config,
+}) {
+  const events = [];
+  for await (const evt of read({
+    epic: Number(epicId),
+    story: Number(storyId),
+    config,
+  })) {
+    events.push(evt);
+  }
+  return computeStoryPerfSummary(events, {
+    storyId,
+    epicId,
+    closedAt,
+    phaseTiming,
+  });
+}
+
+async function computeEpicPerfReportFromStore({
+  epicId,
+  perStorySummaries,
+  generatedAt,
+  config,
+}) {
+  const events = [];
+  for await (const evt of read({ epic: Number(epicId), config })) {
+    events.push(evt);
+  }
+  return computeEpicPerfReport(perStorySummaries ?? [], {
+    epicId,
+    generatedAt,
+    events,
+  });
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_NDJSON = path.join(
