@@ -54,9 +54,12 @@ export const ACCEPTANCE_TABLE_HEADING = '## Acceptance Table';
 
 /**
  * Regex matching the Tech Spec's required opening heading (same variants
- * `spec-section-validator.js` accepts).
+ * `spec-section-validator.js` accepts). Exported so it is the single
+ * source of truth for this pattern — `spec-section-validator.js`,
+ * `epic-plan-clarity.js`, and `consolidation-precondition.js` all import
+ * it rather than each carrying their own copy.
  */
-const DELIVERY_SLICING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/im;
+export const DELIVERY_SLICING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/im;
 
 /**
  * @param {'techSpec'|'acceptanceTable'} kind

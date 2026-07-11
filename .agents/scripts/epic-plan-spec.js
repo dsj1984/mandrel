@@ -120,8 +120,10 @@ async function main() {
   // Story #2278 — in --emit-context mode stdout is reserved for the JSON
   // envelope. Flip every Logger sink that could land on stdout to stderr
   // *before* any pipeline code runs (drainPendingCleanupAtBoot,
-  // buildAuthoringContext → buildDocsContext → scrapeProjectDocs), so a
-  // captured file is unconditionally parseable by `JSON.parse`.
+  // buildAuthoringContext → ensureDocsDigest — Story #4433 cut the digest
+  // build over from the old buildDocsContext/scrapeProjectDocs full-content
+  // read path), so a captured file is unconditionally parseable by
+  // `JSON.parse`.
   if (emitContext) routeAllOutputToStderr();
 
   try {

@@ -17,7 +17,8 @@ allowed_tools:
 
 - Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
-- Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
+- Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate.
+- **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the validator rejecting the draft, or a Phase 8.3/8.4/8.5 critic flagging specific Stories — apply **targeted edits** to the existing `temp/epic-<Epic_ID>/tickets.json`, fixing only the rejected or flagged Stories, rather than re-authoring the whole array from scratch. `helpers/plan-epic.md` bounds each critic's feedback to **one refinement pass** — apply the edit and re-run the downstream step once; do not loop.
 - Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` note inside the first Story's `## Goal` section explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
 - Honour the 2-tier hierarchy: every ticket is a **Story** attached directly to the Epic. Stories carry the implementation scope inline; no Feature and no lower ticket tier exists. Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
 - **Decompose at deliverable granularity, not module/task level.** A Story is a capability slice a frontier model delivers and self-verifies in one pass — a shippable slice a reviewer would accept as a single PR — not a single module or file. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
@@ -435,5 +436,6 @@ any logical ordering requirement via Story-level `depends_on`.
   loudly. Instruct the caller to run `--emit-context` first.
 - The validator
   ([`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js))
-  is the authoritative gate. Re-author when it rejects rather than
-  patching tickets by hand.
+  is the authoritative gate. On rejection, apply the re-emit rule above —
+  a targeted edit to the existing `tickets.json` fixing only what was
+  rejected — rather than re-authoring the array from scratch.

@@ -428,11 +428,12 @@ describe('epic-planner buildAuthoringContext', () => {
     // `epic-plan-spec-author` skill body is the sole home for the Tech
     // Spec / Acceptance Spec system prompts.
     assert.equal('systemPrompts' in ctx, false);
-    // docsContext is the planning-context budget envelope (Epic #817 Story 9)
-    assert.equal(typeof ctx.docsContext, 'object');
-    assert.ok(ctx.docsContext);
-    assert.ok(['full', 'summary'].includes(ctx.docsContext.mode));
-    assert.ok(Array.isArray(ctx.docsContext.items));
+    // Story #4433 — docsContext is digest-first: a silent no-op (`null`)
+    // when `project.docsContextFiles` is unset, as it is in this test's
+    // empty `settings`. No embedded doc content / `items[]` shape survives
+    // the hard cutover — see the dedicated coverage in
+    // `tests/plan-docs-digest.test.js` for the configured-digest path.
+    assert.equal(ctx.docsContext, null);
     // Story #2094 Task #2103 — bddRunner is verified at planner-context
     // build time so the acceptance-spec body can decide between features-
     // first and dependencies-first ordering.

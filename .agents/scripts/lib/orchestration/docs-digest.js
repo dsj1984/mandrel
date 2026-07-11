@@ -12,8 +12,16 @@
  *
  * The heavy lifting of reading + normalizing doc bodies is delegated to
  * `doc-reader.js` (`readDocFiles`), keeping a single home for the fs read path.
+ *
+ * Story #4433 extends this module with {@link ensureDocsDigest}, a shared
+ * generate-and-write export so the planner-context surface
+ * (`epic-plan-spec.js` / `authoring-context.js`) can produce a session docs
+ * digest without duplicating the mkdir+writeFile plumbing
+ * `epic-deliver-prepare.js` already owns for the delivery-children digest.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { readDocFiles } from './doc-reader.js';
 
 /**
@@ -131,4 +139,30 @@ export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
 
   const sections = docs.map(renderDocSection).join('\n');
   return `${header}\n${sections}`.replace(/\n+$/, '\n');
+}
+
+/**
+ * Build the docs digest and write it to `outputPath`, returning `null` (no
+ * write) when there is nothing to digest. This is the single shared
+ * generate-and-persist export both digest producers call: the per-Epic
+ * delivery-children digest (`epic-deliver-prepare.js`) and the planner-
+ * context digest (`epic-plan-spec.js` → `authoring-context.js`, Story
+ * #4433). Callers own path construction (temp-root layout, epic id, etc.)
+ * so both surfaces can keep — or deliberately share — their own convention;
+ * this function only owns "build digest, ensure parent dir, write file".
+ *
+ * @param {{ docsContextFiles?: string[], docsRoot?: string, outputPath: string }} args
+ * @returns {Promise<{ digest: string, outputPath: string } | null>}
+ */
+export async function ensureDocsDigest({
+  docsContextFiles,
+  docsRoot,
+  outputPath,
+} = {}) {
+  const digest = await buildDocsDigest({ docsContextFiles, docsRoot });
+  if (digest == null) return null;
+
+  await fs.promises.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.promises.writeFile(outputPath, digest, 'utf-8');
+  return { digest, outputPath };
 }

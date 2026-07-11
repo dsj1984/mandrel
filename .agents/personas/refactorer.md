@@ -24,9 +24,11 @@ red tests green by "refactoring".
 
 1. **Read Context:** Before touching anything, confirm the suite is green
    and the quality gates currently pass. Read the parent Epic body —
-   including its folded Tech Spec sections (Story #4324) — plus every file
-   listed in
-   `project.docsContextFiles` so you know the conventions the code must keep
+   including its folded Tech Spec sections (Story #4324) — plus the
+   project's docs digest (digest-first with pull-on-demand across
+   `project.docsContextFiles`; see
+   [`.agents/instructions.md` § 3](../instructions.md) — there is no
+   read-every-file mandate) so you know the conventions the code must keep
    matching.
 2. **Establish the baseline:** Capture the current CRAP and maintainability
    numbers (e.g. `node .agents/scripts/check-baselines.js`) and the set of

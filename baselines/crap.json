@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T02:14:47.524Z",
+  "generatedAt": "2026-07-11T11:58:14.681Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4776,18 +4776,6 @@
       "crap": 3.140625
     },
     {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "classify",
-      "startLine": 58,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "method": "scoreEpicBody",
-      "startLine": 76,
-      "crap": 7
-    },
-    {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
       "method": "parseOnePager",
       "startLine": 52,
@@ -7324,18 +7312,6 @@
       "method": "spawnReconcilerApply",
       "startLine": 45,
       "crap": 4.065536
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "resolveMemoryDir",
-      "startLine": 48,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js",
-      "method": "buildAuthoringContext",
-      "startLine": 71,
-      "crap": 7.000892987315935
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-spec/phases/cli-args.js",
@@ -13744,6 +13720,36 @@
       "method": "<anon method-2>",
       "startLine": 166,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "rankDuplicateCandidates",
+      "startLine": 54,
+      "crap": 8.014247154743023
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "shouldRefine",
+      "startLine": 97,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "validateStoryBody",
+      "startLine": 128,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "escapeRegex",
+      "startLine": 164,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-plan.js",
+      "method": "loadBodyTemplate",
+      "startLine": 175,
+      "crap": 1.7023319615912207
     },
     {
       "path": ".agents/scripts/lib/task-utils.js",

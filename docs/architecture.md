@@ -320,8 +320,9 @@ detected test/BDD surface. Tier is controlled by
 
 The Architect persona is instructed (via the
 `epic-plan-spec-author` skill) to prefer module / file names that
-appear in the snapshot over names that appear only in `docsContext.items[]`,
-because the docs may be stale relative to the source tree. Any error in
+appear in the snapshot over names that appear only in the docs digest
+(`docsContext.digestPath` — digest-first since Story #4433), because the
+docs may be stale relative to the source tree. Any error in
 the snapshot generation degrades to a `Logger.warn` and an empty
 envelope so Phase 7 stays non-blocking.
 
