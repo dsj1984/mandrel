@@ -55,6 +55,7 @@ import {
   buildMergeMessageWithCap,
   loadHeaderMaxLength,
 } from './merge-subject.js';
+import { assertSharedCheckoutAvailable as defaultAssertSharedCheckoutAvailable } from './shared-checkout-guard.js';
 
 /**
  * Render the lock-file path for a given main-repo `cwd` + `epicId`. Pure;
@@ -424,7 +425,7 @@ export async function runFinalizeMerge({
   storyBranch,
   storyTitle,
   storyId,
-  epicId: _epicId,
+  epicId,
   cwd,
   config,
   bus = null,
@@ -432,6 +433,7 @@ export async function runFinalizeMerge({
   logger = DefaultLogger,
   gitSync = defaultGitSync,
   gitSpawn = defaultGitSpawn,
+  assertSharedCheckoutAvailable = defaultAssertSharedCheckoutAvailable,
 }) {
   rebaseStoryOnEpic({
     config,
@@ -442,6 +444,15 @@ export async function runFinalizeMerge({
     log,
     gitSpawn,
   });
+
+  // Story #4460 — cross-epic shared-checkout guard. Runs AFTER the
+  // per-Epic merge lock is already held (acquired around the whole close
+  // flow in story-close.js) so it composes with, rather than replaces,
+  // that same-epic serialization. Fails fast with an actionable
+  // diagnostic instead of letting a raw `git checkout` error surface
+  // when another epic's merge phase (or unrelated dirt) holds the
+  // shared checkout.
+  assertSharedCheckoutAvailable({ cwd, epicId, gitSpawn });
 
   log('GIT', `Checking out ${epicBranch}...`);
   gitSync(cwd, 'checkout', epicBranch);

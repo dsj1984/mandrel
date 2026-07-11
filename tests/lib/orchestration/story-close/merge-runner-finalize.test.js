@@ -216,6 +216,102 @@ describe('runFinalizeMerge — happy and conflict paths (per-test mocks)', () =>
   });
 });
 
+describe('runFinalizeMerge — shared-checkout guard wiring (Story #4460)', () => {
+  it('runs assertSharedCheckoutAvailable before the epic-branch checkout and aborts on refusal', async (t) => {
+    pinMergeCollab(t, {
+      mergeResult: {
+        merged: true,
+        major: false,
+        autoResolved: false,
+        conflicts: { files: 0, lines: 0, fileList: [] },
+      },
+      pushResult: { ok: true, attempts: 1 },
+    });
+    const { runFinalizeMerge } = await import(
+      `${mergeRunnerUrl}?t=guard-refused`
+    );
+
+    const stub = gitStub();
+    const guardCalls = [];
+    const assertSharedCheckoutAvailable = (args) => {
+      guardCalls.push(args);
+      throw new Error(
+        '[story-close] shared-checkout guard: refusing to touch the shared main checkout',
+      );
+    };
+
+    await assert.rejects(
+      () =>
+        runFinalizeMerge({
+          epicBranch: 'epic/4425',
+          storyBranch: 'story-4427',
+          storyTitle: 'Guard wiring',
+          storyId: 4427,
+          epicId: 4425,
+          cwd: '/tmp',
+          orchestration: { worktreeIsolation: { enabled: false } },
+          log: () => {},
+          logger: { error: () => {} },
+          gitSync: () => ({ status: 0, stdout: '', stderr: '' }),
+          gitSpawn: stub.gitSpawn,
+          assertSharedCheckoutAvailable,
+        }),
+      /shared-checkout guard/,
+    );
+
+    assert.equal(guardCalls.length, 1);
+    assert.equal(guardCalls[0].cwd, '/tmp');
+    assert.equal(guardCalls[0].epicId, 4425);
+    // No `checkout` call reached git — the guard threw before it.
+    assert.ok(
+      !stub.calls.some((c) => c.args[0] === 'checkout'),
+      'checkout must not run when the guard refuses',
+    );
+  });
+
+  it('proceeds to checkout + merge when the guard passes', async (t) => {
+    pinMergeCollab(t, {
+      mergeResult: {
+        merged: true,
+        major: false,
+        autoResolved: false,
+        conflicts: { files: 0, lines: 0, fileList: [] },
+      },
+      pushResult: { ok: true, attempts: 1 },
+    });
+    const { runFinalizeMerge } = await import(
+      `${mergeRunnerUrl}?t=guard-passed`
+    );
+
+    const stub = gitStub();
+    const syncCalls = [];
+    let guardCallCount = 0;
+
+    await runFinalizeMerge({
+      epicBranch: 'epic/1',
+      storyBranch: 'story-1',
+      storyTitle: 'Guard passes',
+      storyId: 1,
+      epicId: 1,
+      cwd: '/tmp',
+      orchestration: { worktreeIsolation: { enabled: false } },
+      log: () => {},
+      logger: { error: () => {} },
+      gitSync: (_cwd, ...args) => {
+        syncCalls.push(args);
+        return { status: 0, stdout: '', stderr: '' };
+      },
+      gitSpawn: stub.gitSpawn,
+      assertSharedCheckoutAvailable: () => {
+        guardCallCount += 1;
+      },
+    });
+
+    assert.equal(guardCallCount, 1);
+    assert.ok(syncCalls.some((args) => args[0] === 'checkout'));
+  });
+});
+
 describe('finalizeMergeIfPending — pending merge path', () => {
   it('commits the pending merge when MERGE_HEAD exists', async () => {
     const { finalizeMergeIfPending } = await import(mergeRunnerUrl);
