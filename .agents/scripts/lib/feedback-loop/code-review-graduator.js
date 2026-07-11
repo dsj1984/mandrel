@@ -1,9 +1,14 @@
 /**
  * code-review-graduator.js — Auto-graduate non-blocking code-review
- * findings from the Epic's `code-review` structured comment into routed
- * GitHub follow-up issues.
+ * findings from the Epic's unified `verification-results` structured
+ * comment into routed GitHub follow-up issues.
  *
- * Story #2555 / Epic #2547. As of Story #3845 / Epic #3823 the spawn
+ * Story #2555 / Epic #2547. Story #4411 (Epic #4405) unified the former
+ * `code-review` and `audit-results` structured-comment contracts into one
+ * `verification-results` contract: this graduator now reads the shared
+ * {@link VERIFICATION_RESULTS_MARKER} comment (upserted by `runCodeReview`)
+ * rather than the retired code-review structured-comment marker.
+ * As of Story #3845 / Epic #3823 the spawn
  * helper, the path/idempotency probes, the `gh issue create` filer, the
  * toggle reader, and the route → probe → file walk all live in the
  * shared [`graduator-core.js`](./graduator-core.js). This module is the
@@ -12,8 +17,8 @@
  * body shape, and the code-review idempotency marker. Behaviour is
  * identical to the pre-consolidation graduator.
  *
- *   - Read the `code-review` structured comment off the Epic ticket via
- *     the injected provider (findStructuredComment surface).
+ *   - Read the unified `verification-results` structured comment off the
+ *     Epic ticket via the injected provider (findStructuredComment surface).
  *   - For each non-blocking finding (severity high/medium/low — i.e.
  *     anything that is NOT a 🔴 Critical Blocker), check that the cited
  *     file still exists in the merged tree (`git cat-file -e <ref>:<path>`)
@@ -44,6 +49,8 @@ import {
   contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
+  NO_VERIFICATION_RESULTS_COMMENT_REASON,
+  VERIFICATION_RESULTS_MARKER,
 } from './graduator-core.js';
 
 /**
@@ -209,8 +216,8 @@ export async function graduateFindings(opts = {}) {
     spec: {
       fnName: 'graduateFindings',
       isAutoFileEnabled,
-      commentMarker: '<!-- structured-comment: code-review -->',
-      noCommentReason: 'no-code-review-comment',
+      commentMarker: VERIFICATION_RESULTS_MARKER,
+      noCommentReason: NO_VERIFICATION_RESULTS_COMMENT_REASON,
       parseFindings,
       buildContentMarker,
       buildLegacyMarker: buildIdempotencyMarker,

@@ -112,12 +112,18 @@ From zero to shipped:
    3. **Phase 3 — close-validation** — lint, test, and the project's
       ratcheted baselines run against the Epic branch. Evidence is
       cached by HEAD SHA so re-runs short-circuit.
-   4. **Phase 4 — audit** — runs the change-set audit lenses against
-      the Epic diff; findings flow through as advisory signal.
+   4. **Phase 4 — Epic-close lens roster** — resolves (does not walk) the
+      slim Epic-close lens roster: the change-set `gate3` selection plus the
+      risk-routed lenses, restricted to the **cumulative + global +
+      risk-routed** tiers via `selectEpicCloseLenses` (every local-tier
+      change-set lens is excluded — already verified shift-left). The roster is
+      handed to Phase 5.
    5. **Phase 5 — code-review** — auto-invokes the in-process
-      `lib/orchestration/code-review.js` (extracted from the old
-      `helpers/code-review.md` helper); findings persist as a
-      `code-review` structured comment on the Epic. Critical findings
+      `lib/orchestration/code-review.js`; walks the cumulative Epic diff
+      **once**, executing the Phase 4 lens roster as review dimensions
+      **alongside** the review pillars (Story #4412 folded the standalone lens
+      walk into this pass). Findings persist as the single unified
+      `verification-results` structured comment on the Epic. Critical findings
       halt the run.
    6. **Phase 6 — retro** — auto-invokes the in-process
       `lib/orchestration/retro-runner.js` (extracted from the old
@@ -889,25 +895,31 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    on `git rev-parse HEAD`. A clean tree on a re-run short-circuits in
    milliseconds. A failing gate halts the workflow until the regression is
    fixed on a hotfix branch and re-merged into the Epic.
-2. **Audit (Phase 4).** The change-set audit lenses run against the Epic
-   diff; findings flow through as advisory signal to inform the code
-   review that follows. Remediation routing is **threshold-aware**
-   (`delivery.epicAudit.autoFixSeverity`, default `medium`): at `medium`
-   the host LLM fixes 🔴/🟠/🟡 findings on-branch (Mediums batched per
-   lens) while 🟢 Suggestions graduate to follow-up issues; `high`
-   reproduces the older Critical/High-only routing. Findings fixed
-   on-branch are recorded under the `audit-results` comment's
-   `## Fixed on-branch` section, which the graduator skips so they never
-   spawn duplicate follow-up issues.
-3. **Code-review (Phase 5).** `lib/orchestration/code-review.js` (extracted
-   from the `code-review.md` helper) audits the diff and posts the
-   findings as a `code-review` structured comment on the Epic. Focused-fix
-   routing is threshold-aware in the same way
-   (`delivery.codeReview.autoFixSeverity`, default `medium` — fixes
-   🔴/🟠/🟡 on-branch, 🟢 stays on the comment), and fixed findings land
+2. **Epic-close lens roster (Phase 4).** Resolves — does not walk — the slim
+   Epic-close lens roster (`epicCloseLenses`): the `gate3` change-set selection
+   plus the risk-routed lenses, restricted to the **cumulative + global +
+   risk-routed** tiers via `selectEpicCloseLenses`. Every **local-tier**
+   change-set lens is excluded because its concern is already verified
+   shift-left — the write-time distilled checklist threaded into the Story
+   prompt (Story #4410) and the maker-blind Story-scope local-lens pass in
+   `story-close` (Story #4409). The roster is handed to Phase 5; there is no
+   standalone Phase 4 walk and no separate `audit-results` comment (Story
+   #4412).
+3. **Code-review (Phase 5) — cumulative diff walked once.**
+   `lib/orchestration/code-review.js` walks `main..epic/<id>` a single time,
+   executing the Phase 4 lens roster as review **dimensions** alongside the
+   review pillars, and posts the unified `verification-results` structured
+   comment on the Epic (Story #4411 unified the former `code-review` and
+   `audit-results` contracts; Story #4412 folded the lens walk into this pass).
+   Remediation is **tier-aware and split by finding class** (Story #4412): the
+   review-pillar findings route off `delivery.codeReview.autoFixSeverity`
+   (default `medium` — 🔴/🟠/🟡 on-branch, 🟢 stays on the comment), while the
+   Epic-close lens findings route off `delivery.epicAudit.autoFixSeverity`
+   (default **`high`** — only 🔴/🟠 on-branch; 🟡/🟢 graduate, because 🟡
+   Medium concerns were already remediated shift-left). Fixed findings land
    under the comment's `## Fixed on-branch` section so the graduator skips
-   them. The severity gate is unchanged: surviving 🔴 Critical findings
-   halt the run; surviving 🟠/🟡/🟢 flow through as non-blocking.
+   them. The severity gate is unchanged: surviving 🔴 Critical findings halt
+   the run; surviving 🟠/🟡/🟢 flow through as non-blocking.
 4. **Retro (Phase 6).** `lib/orchestration/retro-runner.js` (extracted from the old
    retro helper) aggregates perf signals, friction counts, hotfix counts,
    recut counts, parked counts, and HITL count using
@@ -1225,14 +1237,37 @@ on so re-runs short-circuit when state has not changed.
 
 | Gate                      | When                                                 | What Runs                                                                                 | Blocking? | Idempotency key                                                          |
 | ------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------ |
-| Gate 1                    | After Story completion                               | Content-triggered audits (clean-code, etc.)                                              | advisory  | Audit-report comment per Story (`audit-<lens>` structured comment)       |
-| Gate 2                    | Pre-integration                                      | Dependency + DevOps audits                                                                | advisory  | Audit-report comment per Epic (`audit-<lens>` structured comment)        |
-| Gate 3                    | `/deliver` `delivery.code-review` state         | Full automated audit pass                                                                 | blocking  | `code-review` structured comment on Epic, keyed by Epic HEAD SHA          |
+| Tier 1 — write-time       | During Story implementation                          | Local-tier lens checklists threaded into the Story prompt (clean-code, etc.)             | advisory  | Distilled checklist in the hydrated Story prompt (Story #4410)           |
+| Tier 2 — Story-scope      | `story-close` (maker-blind subprocess)               | Local-tier lens roster over the Story diff (`selectLocalLenses`)                          | advisory  | `verification-results` structured comment on the Story                   |
+| Tier 3 — Epic-close       | `/deliver` Phase 4→5 (code-review pass)              | Slim roster: cumulative + global + risk-routed lenses (`selectEpicCloseLenses`) + pillars | blocking  | `verification-results` structured comment on Epic, keyed by Epic HEAD SHA |
 | Gate 4                    | `/deliver` `delivery.finalize` state (pre-PR)   | `audit-sre` production readiness gate                                                     | blocking  | `audit-sre` structured comment on Epic, keyed by Epic HEAD SHA            |
 | Close-validation          | `/deliver` `delivery.close-validation` state    | lint + test + maintainability + CRAP + coverage ratchets via `evidence-gate.js`           | blocking  | `evidence-gate` cache entry keyed by `git rev-parse HEAD`                 |
 | Pre-push                  | Local `.husky/pre-push` hook on every push           | Diff-scoped quality preview + coverage/CRAP ratchet                                       | blocking  | Working-tree SHA + staged-diff hash (per push)                            |
 | Acceptance reconciliation | `/deliver` `delivery.finalize` state            | `acceptance-spec-reconciler.js` diffs AC IDs against `@ac-*` / `@pending` feature tags    | blocking  | `acceptance-reconcile` structured comment on Epic, keyed by spec-body SHA |
 | Spec freshness            | `/plan` `planning.spec-authoring` state         | Re-derives Tech Spec / Acceptance Spec staleness against Epic body checksum               | advisory  | `epic-plan-state` checkpoint entry per spec artifact body SHA             |
+
+#### Three-tier lens model (Epic #4405)
+
+The three audit-lens tiers above (write-time → Story-scope → Epic-close) form a
+**shift-left** verification model in which **each lens concern is verified at
+exactly one tier**, chosen by the lens's `scope` field in `audit-rules.json`
+(resolved by `resolveLensTier`):
+
+- **`local`** lenses (decidable from a single Story's diff) are verified at the
+  two innermost tiers — the write-time distilled checklist (Tier 1) and the
+  maker-blind Story-scope pass (Tier 2). They are **not** re-run at Epic close.
+- **`cumulative`** lenses (only decidable across the Epic's combined diff) and
+  **`global`** lenses (whole-product properties) are verified at Epic close
+  (Tier 3) only.
+- **Risk-routed** lenses run at Epic close regardless of tier, because a
+  high-risk axis (or a route-adding change set) explicitly demands them.
+
+The Epic-close roster (`selectEpicCloseLenses`) is deliberately **slim**: it
+excludes every local-tier change-set lens so the outermost tier — where a fix
+is most expensive — does not re-verify a concern already covered shift-left.
+The Epic-close remediation threshold reflects this (`delivery.epicAudit.autoFixSeverity`
+defaults to `high`): 🟡 Medium code-quality findings are remediated at the
+innermost tiers, not re-remediated at close.
 
 ### Review & feedback loop
 

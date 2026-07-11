@@ -16,8 +16,15 @@
  *
  * Side effects executed inside `handle()`:
  *   1. Emit `epic.finalize.start`.
- *   2. Auto-graduate non-blocking code-review / audit-results findings
- *      (best-effort; never throws).
+ *   2. Auto-graduate non-blocking findings in a SINGLE pass over the
+ *      unified `verification-results` comment (best-effort; never throws).
+ *      Story #4411 folded the former code-review + audit-results
+ *      structured-comment contracts into one comment; the lens-aware
+ *      audit-results graduator is the single canonical reader (its
+ *      🟢→`suggestion` severity vocabulary matches `findings-renderer.js`).
+ *      Running a second code-review pass over the same comment would file
+ *      every non-blocking finding twice, so only the audit-results
+ *      graduation runs here.
  *   3. Idempotency probe — `gh pr list --head epic/<id>` returns any
  *      existing PR URL. If one exists, short-circuit to `pr.created`
  *      + `epic.finalize.end` carrying the existing URL.
@@ -69,7 +76,6 @@ import {
   graduateAuditResults as defaultGraduateAuditResults,
   isAutoFileEnabled as isAuditResultsAutoFileEnabled,
 } from '../../../feedback-loop/audit-results-graduator.js';
-import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
 import { parsePrNumberFromUrl } from '../../../github-url.js';
 import {
   markPrReady as defaultMarkPrReady,
@@ -298,7 +304,6 @@ export class Finalizer {
    *   the graduators.
    * @param {{owner:string,repo:string}} [opts.currentRepo]
    * @param {{owner:string,repo:string}} [opts.frameworkRepo]
-   * @param {Function} [opts.graduateFindingsFn]
    * @param {Function} [opts.graduateAuditResultsFn]
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
@@ -336,8 +341,6 @@ export class Finalizer {
     this.config = opts.config ?? null;
     this.currentRepo = opts.currentRepo ?? null;
     this.frameworkRepo = opts.frameworkRepo ?? null;
-    this.graduateFindingsFn =
-      opts.graduateFindingsFn ?? defaultGraduateFindings;
     this.graduateAuditResultsFn =
       opts.graduateAuditResultsFn ?? defaultGraduateAuditResults;
     this.logger = opts.logger ?? console;
@@ -395,10 +398,11 @@ export class Finalizer {
       return;
     }
 
-    // 1b. Auto-graduate non-blocking code-review findings (Story #2555).
-    await this._runCodeReviewGraduation();
-
-    // 1c. Auto-graduate non-blocking audit-results findings (Story #2615).
+    // 1b. Auto-graduate non-blocking findings in a SINGLE pass over the
+    //     unified `verification-results` comment (Story #2615; unified in
+    //     Story #4411). The lens-aware audit-results graduator is the sole
+    //     canonical reader — a second code-review pass over the same comment
+    //     would file every non-blocking finding twice.
     await this._runAuditResultsGraduation();
 
     // 2. Idempotency probe — does a PR already exist on the head
@@ -520,54 +524,14 @@ export class Finalizer {
   }
 
   /**
-   * Invoke the code-review graduator best-effort. Wired into finalize so
-   * that surviving non-blocking findings get auto-filed as routed
-   * follow-up issues (Story #2555 / Epic #2547). All failures are
-   * captured and logged at warn level; the finalize pipeline continues
-   * regardless — the toggle `delivery.feedbackLoop.codeReviewAutoFile`
-   * is the only operator-facing kill switch.
-   */
-  async _runCodeReviewGraduation() {
-    if (!this.provider || !this.currentRepo) {
-      this.logger.debug?.(
-        '[Finalizer] code-review graduation skipped: provider or currentRepo not wired',
-      );
-      return;
-    }
-    try {
-      const summary = await this.graduateFindingsFn({
-        epicId: this.epicId,
-        provider: this.provider,
-        config: this.config,
-        currentRepo: this.currentRepo,
-        frameworkRepo: this.frameworkRepo,
-        cwd: this.cwd,
-        logger: this.logger,
-      });
-      const filed = Array.isArray(summary?.filed) ? summary.filed.length : 0;
-      const skipped = Array.isArray(summary?.skipped)
-        ? summary.skipped.length
-        : 0;
-      const errors = Array.isArray(summary?.errors) ? summary.errors.length : 0;
-      this.logger.info?.(
-        `[Finalizer] code-review graduation: filed=${filed} skipped=${skipped} errors=${errors}`,
-      );
-      if (errors > 0) {
-        this.logger.warn?.(
-          `[Finalizer] code-review graduator errors: ${summary.errors.join('; ')}`,
-        );
-      }
-    } catch (err) {
-      this.logger.warn?.(
-        `[Finalizer] code-review graduator threw (swallowed): ${err?.message ?? err}`,
-      );
-    }
-  }
-
-  /**
-   * Invoke the audit-results graduator best-effort. Wired into finalize
-   * so that non-blocking audit findings (high/medium/low/suggestion) get
-   * auto-filed as routed follow-up issues — Story #2615 / Epic #2586.
+   * Invoke the audit-results graduator best-effort — the SINGLE canonical
+   * graduation pass over the unified `verification-results` comment. Wired
+   * into finalize so that non-blocking findings (high/medium/low/suggestion)
+   * get auto-filed as routed follow-up issues — Story #2615 / Epic #2586,
+   * unified into one pass in Story #4411 / Epic #4405. The lens-aware
+   * audit-results graduator is canonical because its 🟢→`suggestion`
+   * severity vocabulary matches `findings-renderer.js`; running a parallel
+   * code-review pass over the same comment would double-file every finding.
    */
   async _runAuditResultsGraduation() {
     if (!this.provider || !this.currentRepo) {

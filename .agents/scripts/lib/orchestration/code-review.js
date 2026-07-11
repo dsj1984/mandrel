@@ -22,8 +22,11 @@
  * Behaviour:
  *   - Loads the configured review adapter via the factory; defaults to
  *     `native` when `delivery.codeReview.provider` is unset.
- *   - Always posts the structured `code-review` comment on the Epic
- *     issue (the adapter never posts; the orchestrator owns persistence).
+ *   - Always posts the unified `verification-results` structured comment on
+ *     the Epic issue (the adapter never posts; the orchestrator owns
+ *     persistence). Story #4411 (Epic #4405) unified the former
+ *     `code-review` and `audit-results` findings contracts into this one
+ *     `verification-results` marker.
  *   - Treats severity.critical > 0 as a halting blocker — the merged
  *     `/deliver` runner consults `halted` and refuses to advance
  *     to Phase E (retro) when set.
@@ -32,6 +35,8 @@
  * helper's "operator must remediate before /deliver" gate.
  */
 
+import { hasSurvivingCritical } from '../audit-suite/findings.js';
+import { resolveLensTier } from '../audit-suite/selector.js';
 import { resolveConfig } from '../config-resolver.js';
 import { selectAuditStrategy } from '../dynamic-workflow/capability.js';
 import { gitSpawn } from '../git-utils.js';
@@ -226,6 +231,63 @@ export function resolveAuditLenses(envelope = {}) {
     if (lens) matched.add(lens);
   }
   return LENS_ORDER.filter((lens) => matched.has(lens));
+}
+
+/**
+ * Restrict a prepared Epic-close (gate3) lens roster to the tiers the **slim
+ * Epic-close** pass owns (Epic #4405, Story #4412): `cumulative` + `global`
+ * change-set lenses, plus every risk-routed lens. Every `local`-tier
+ * change-set lens is **excluded** — its concern is already verified
+ * shift-left at the two innermost tiers (the write-time checklist threading of
+ * Story #4410 and the maker-blind Story-scope local-lens pass of Story #4409),
+ * so re-running it over the cumulative Epic diff at close would verify the same
+ * concern at a second tier. This is the read-side of the `scope` field that
+ * {@link resolveLensTier} resolves; the Epic-close roster routes off it rather
+ * than re-running the full change-set selection.
+ *
+ * The two inputs mirror the `epic-audit-prepare.js` envelope:
+ *   - `changeSetAudits` — the raw change-set gate3 selection. Filtered here to
+ *     keep a lens **iff** `resolveLensTier(lens) !== 'local'` (i.e. its tier is
+ *     `cumulative` or `global`).
+ *   - `riskRoutedAudits` — the verdict-routed high-risk lenses plus the
+ *     route-glob navigability lens. Kept in **full**, regardless of tier: a
+ *     high-risk axis (or a route-adding change set) that demands a local-tier
+ *     lens still runs it at Epic close, because that demand is the whole point
+ *     of risk routing.
+ *
+ * De-duplicated and order-preserving (kept change-set lenses first, then the
+ * risk-routed extras). Pure over the injected `resolveLensTierFn` seam; the
+ * default resolver reads `audit-rules.json` from disk.
+ *
+ * @param {{
+ *   changeSetAudits?: string[],
+ *   riskRoutedAudits?: string[],
+ *   resolveLensTierFn?: typeof resolveLensTier,
+ * }} [params]
+ * @returns {string[]} The slim Epic-close roster (cumulative + global +
+ *   risk-routed), local-tier change-set lenses excluded.
+ */
+export function selectEpicCloseLenses({
+  changeSetAudits = [],
+  riskRoutedAudits = [],
+  resolveLensTierFn = resolveLensTier,
+} = {}) {
+  const kept = [];
+  const seen = new Set();
+  const add = (lens) => {
+    if (typeof lens !== 'string' || lens.length === 0 || seen.has(lens)) return;
+    seen.add(lens);
+    kept.push(lens);
+  };
+  for (const lens of Array.isArray(changeSetAudits) ? changeSetAudits : []) {
+    if (typeof lens !== 'string' || lens.length === 0) continue;
+    if (resolveLensTierFn(lens) === 'local') continue;
+    add(lens);
+  }
+  for (const lens of Array.isArray(riskRoutedAudits) ? riskRoutedAudits : []) {
+    add(lens);
+  }
+  return kept;
 }
 
 /**
@@ -551,7 +613,7 @@ async function postReviewComment({
     const postResult = await upsertCommentFn(
       provider,
       commentTargetId,
-      'code-review',
+      'verification-results',
       report,
     );
     const postedCommentId =
@@ -621,7 +683,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
   );
 
   const severity = countBySeverity(findings);
-  const halted = severity.critical > 0;
+  const halted = hasSurvivingCritical(severity);
   const report = renderFindingsFn({
     scope,
     ticketId,

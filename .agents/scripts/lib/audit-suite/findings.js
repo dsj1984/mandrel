@@ -36,6 +36,33 @@ export function aggregateSummary(findings) {
 }
 
 /**
+ * The single halting rule for the unified `verification-results` findings
+ * contract (Story #4411, Epic #4405): a **surviving** (unfixed) Critical
+ * finding halts the delivery gate. Every code consumer of the contract —
+ * the in-process code-review producer (`runCodeReview`) and the auto-merge
+ * integration gate (`evaluateAutoMergePredicate`) — routes its
+ * halt-on-critical decision through this one predicate so the rule has a
+ * single definition rather than a re-derived `critical > 0` expression at
+ * each site.
+ *
+ * Accepts either the severity **count object** produced by
+ * `countBySeverity` / {@link aggregateSummary} (`{ critical: n, ... }`) or a
+ * raw `Finding[]`. A non-numeric / absent `critical` count (e.g. the
+ * auto-merge gate's "unparseable body" sentinel `null`) is **not** a halt —
+ * the caller owns that fail-open path separately. Pure; never throws.
+ *
+ * @param {{ critical?: unknown }|Array<{ severity?: string }>|null|undefined} input
+ * @returns {boolean} `true` when at least one surviving Critical is present.
+ */
+export function hasSurvivingCritical(input) {
+  if (Array.isArray(input)) {
+    return input.some((finding) => finding?.severity === 'critical');
+  }
+  const critical = input?.critical;
+  return typeof critical === 'number' && critical > 0;
+}
+
+/**
  * Resolve the per-component rollup map for an envelope. When the envelope
  * already carries a `rollup` block (every writer-produced baseline does), we
  * trust it as the source of truth. When `rollup` is absent (raw test

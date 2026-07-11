@@ -29,6 +29,7 @@ import {
   contentFingerprint,
   graduate,
   runChild,
+  VERIFICATION_RESULTS_MARKER,
 } from '../../.agents/scripts/lib/feedback-loop/graduator-core.js';
 import {
   _resetStructuredCommentCache,
@@ -121,7 +122,7 @@ function makeRecordingProvider(initialComments = []) {
 describe('AC1 — content-hash idempotency markers', () => {
   it('keeps a finding marker stable across sibling reorder / insert', () => {
     const bodyA = [
-      '<!-- claude-managed: audit-results -->',
+      VERIFICATION_RESULTS_MARKER,
       '#### audit-security',
       '🟠 high finding in `src/api.js`',
       '🟡 medium finding in `src/util.js`',
@@ -129,7 +130,7 @@ describe('AC1 — content-hash idempotency markers', () => {
     // Reordered + a sibling inserted; the src/api.js finding now has a
     // different parse index but identical content.
     const bodyB = [
-      '<!-- claude-managed: audit-results -->',
+      VERIFICATION_RESULTS_MARKER,
       '#### audit-security',
       '🟢 suggestion in `src/new.js`',
       '🟡 medium finding in `src/util.js`',
@@ -148,7 +149,7 @@ describe('AC1 — content-hash idempotency markers', () => {
   it('gives two distinct findings distinct markers', () => {
     const findings = parseAuditFindings(
       [
-        '<!-- claude-managed: audit-results -->',
+        VERIFICATION_RESULTS_MARKER,
         '#### audit-security',
         '🟠 high finding in `src/api.js`',
         '🟡 medium finding in `src/util.js`',
@@ -357,7 +358,7 @@ describe('AC6 — probe-error distinction + durable cross-repo deferral', () => 
   it('upserts cross-repo-deferred findings into a durable Epic comment', async () => {
     _resetStructuredCommentCache();
     const codeReviewBody = [
-      '<!-- structured-comment: code-review -->',
+      VERIFICATION_RESULTS_MARKER,
       '### 🚨 Critical Findings',
       '🟠 High Risk: `.agents/scripts/foo.js` (framework path)',
     ].join('\n');
@@ -399,7 +400,7 @@ describe('AC6 — probe-error distinction + durable cross-repo deferral', () => 
       getTicketComments: async () => [
         {
           body: [
-            '<!-- structured-comment: code-review -->',
+            VERIFICATION_RESULTS_MARKER,
             '🟠 High Risk: `.agents/scripts/foo.js`',
           ].join('\n'),
         },

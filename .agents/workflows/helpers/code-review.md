@@ -117,13 +117,82 @@ The pipeline will:
 - Run a focused lint check on the change set.
 - Post a structured summary report to the `[TICKET_ID]` issue.
 
+### Step 1a — Story-scope local-lens pass (`scope: story` only, Epic #4405)
+
+When `scope === 'story'`, the shared review spine
+[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
+runs a **shift-left local-lens pass** in the same close subprocess, *before*
+returning the review envelope. It:
+
+1. Enumerates the actual Story diff (`baseRef...headRef` via
+   `git diff --name-only`).
+2. Selects the **local-tier** lenses that own a concern decidable from a single
+   Story's diff — `resolveLensTier(lens) === 'local'` **plus** the pure
+   `matchesAnyFilePattern` matcher against the diff (the audit-suite SDK's
+   [`selectLocalLenses`](../../scripts/lib/audit-suite/selector.js)). This is
+   deliberately **not** `selectAudits`: `selectAudits` unions in keyword and
+   gate matches and has no per-tier gate, so it would widen the roster past the
+   footprint-matched local set this tier owns.
+3. Materializes the matched roster at **`light`** depth
+   (`STORY_SCOPE_LENS_DEPTH`) via `runAuditSuite`, surfacing the outcome on the
+   review envelope's `localLensReview` field.
+
+A diff that matches no local lens adds **no** lens work (the roster is empty and
+`runAuditSuite` is never invoked). The pass is advisory and best-effort: a git
+or materialization failure degrades to a skipped envelope and never blocks the
+close.
+
+Both close entry points —
+[`runStoryCodeReview`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
+(Epic-attached) and
+[`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
+(standalone) — reach this pass through the single `runStoryReviewCore` spine, so
+standalone Stories gain local-lens coverage for the first time. Because the pass
+lives inside the close subprocess (invoked after the delivering child exits), it
+honors the maker-blind invariant above: a maker never runs its own local-lens
+review. This step does not apply to `scope: epic`, whose lens roster is the
+cumulative + global + risk-routed set resolved at Epic close (Step 1b).
+
+### Step 1b — Epic-close lens roster (`scope: epic` only, Epic #4405)
+
+When `scope === 'epic'`, the cumulative Epic diff is walked **once** at close:
+the Epic-close lens roster is executed as **dimensions of this same review
+pass**, not as a separate Phase 4 walk (Story #4412 folded the standalone
+epic-audit lens walk into this pass). Resolve and walk the roster inline:
+
+1. Resolve the roster via [`helpers/epic-audit.md`](epic-audit.md) Step 1 —
+   run `epic-audit-prepare.js --gate gate3` and take its **`epicCloseLenses`**
+   field: the slim roster of cumulative + global + risk-routed lenses, with
+   every local-tier change-set lens excluded (routed off `resolveLensTier` in
+   [`selectEpicCloseLenses`](../../scripts/lib/orchestration/code-review.js)).
+   Local-tier concerns are already verified shift-left (write-time checklists +
+   the Story-scope local-lens pass), so they are **not** re-run here.
+2. Materialize each rostered lens via
+   [`runAuditSuite`](../../scripts/lib/audit-suite/index.js) at the envelope's
+   `depth`, applying the `{{changedFiles}}` substitution, and walk each lens's
+   `.agents/workflows/audit-<lens>.md` procedure over the cumulative
+   `main..epic/<epicId>` diff. Global lenses (`globalLenses`, e.g.
+   `audit-navigability`) run against the WHOLE route tree, exempt from the
+   change-set narrowing.
+3. Fold the lens findings into this pass's severity aggregate **alongside** the
+   Step 2 review pillars — one walk of the cumulative diff, one aggregate, one
+   `verification-results` comment (Step 4). An empty `epicCloseLenses` roster
+   (docs-only, or every selected lens already covered shift-left, and no
+   risk-routed lens) adds no lens dimension — the pillars still run.
+
+This step does not apply to `scope: story` (its roster is the local-tier set of
+Step 1a) and is skipped when `epic-audit-prepare.js` returns `degraded: true`
+(propagate the reason and STOP, per `epic-audit.md`).
+
 ## Step 2 — Review Pillars
 
 For each changed file, execute a strict review against four pillars. The
 second pillar (**Integration Review**) deliberately defers the security /
-performance / quality / coverage sweeps to the change-set-scoped audits
-that already ran upstream — re-walking them here is duplication, not
-defense-in-depth.
+performance / quality / coverage sweeps to the change-set-scoped lenses — at
+`scope: story` those ran shift-left in the Story-scope local-lens pass (Step
+1a); at `scope: epic` they run inline in this same pass as the Epic-close lens
+roster (Step 1b). Re-walking those sweeps a second time in this pillar is
+duplication, not defense-in-depth.
 
 **Apply the `depth` lever** (see **Review depth** above) to how hard you walk
 these pillars: at `light`, focus on Pillar 1 and reduce Pillars 2–3 to a quick
@@ -151,11 +220,11 @@ The integration view depends on `scope`. The diff under review is always
 against differs:
 
 - **`scope: story`** — the diff is `epic/<epicId>..story-<storyId>` (i.e.
-  one Story's contribution to the Epic). There is typically no
-  `audit-results` comment on the Story; Phase 4 epic-level audits have not
-  yet run for this change set. The integration view here focuses on
-  cross-Task ripple within the Story and contract drift against the Epic
-  branch tip. Look for:
+  one Story's contribution to the Epic). The Story-scope local-lens pass
+  (Step 1a) has already covered the local-tier concerns; the Epic-close lens
+  roster has not run for this change set (it runs once at Epic close). The
+  integration view here focuses on cross-Task ripple within the Story and
+  contract drift against the Epic branch tip. Look for:
   - Cross-Task contract drift inside the Story (one Task's API change vs.
     another Task's caller in the same branch).
   - Shared-module ripple effects from this Story onto siblings already
@@ -163,30 +232,31 @@ against differs:
   - Spec deviations that the per-Task commits papered over.
 
 - **`scope: epic`** — the diff is `main..epic/<epicId>` (the cumulative
-  Epic change set). Read the **`audit-results` structured comment** posted
-  on the Epic ticket by the [`epic-audit.md`](epic-audit.md) helper in
-  Phase 4. That comment is the authoritative source of security, privacy,
-  performance, code-quality, and test-coverage findings for this change
-  set — they were produced by the change-set-aware lens selector and
-  per-lens audit workflows under `.agents/workflows/audit-*.md`. Do **not**
-  re-derive those findings inline here.
+  Epic change set). The Epic-close lens roster (`epicCloseLenses`) is walked
+  **inline as part of this pass** (Step 1b) — the cumulative diff is read once,
+  and the security, privacy, performance, code-quality, and test-coverage
+  findings the rostered lenses produce feed this pass's aggregate directly.
+  There is no separate `audit-results` comment to read (Story #4412 retired it);
+  the lens findings and the pillar findings share the single
+  `verification-results` comment this pass posts.
 
   The integration view at epic scope is what the per-lens audits cannot
   produce because each lens runs in isolation:
 
-  - Cross-reference 🔴 / 🟠 audit findings against the spec deviations
+  - Cross-reference 🔴 / 🟠 lens findings against the spec deviations
     flagged in Pillar 1 — a finding that traces back to a deliberate
     Tech-Spec decision is different from one that traces back to an
     oversight.
   - Look for cross-cutting concerns no single lens owns: contract drift
     between Stories, shared-module ripple effects, boundary changes that
     thread security and performance implications together.
-  - Note any audit finding that the operator's remediation flow should
+  - Note any lens finding that the operator's remediation flow should
     bundle (e.g. one refactor closes findings from multiple lenses).
 
-  If the Epic has no `audit-results` comment (docs-only Epic, or Phase 4
-  was skipped via `--skip-epic-audit`), record that explicitly in the
-  findings report and proceed — there is nothing to integrate.
+  If the Epic-close roster is empty (docs-only Epic, every selected lens
+  already covered shift-left, or the pass was skipped via
+  `--skip-epic-audit` / `--skip-code-review`), record that explicitly in the
+  findings report and proceed — there is no lens dimension to integrate.
 
 ### Pillar 3: Documentation Integrity
 
@@ -261,9 +331,11 @@ prior baseline before merging.
 
 ## Step 4 — Produce Findings Report
 
-Findings are **persisted as a `code-review` structured comment on the
-`[TICKET_ID]` issue** by `runCodeReview`. The target ticket is the Story
-when `scope === 'story'` and the Epic when `scope === 'epic'`. The comment
+Findings are **persisted as a `verification-results` structured comment on
+the `[TICKET_ID]` issue** by `runCodeReview` (the unified findings contract of
+Story #4411; at `scope: epic` this single comment also carries the Step 1b
+Epic-close lens findings). The target ticket is the Story when
+`scope === 'story'` and the Epic when `scope === 'epic'`. The comment
 is idempotent — re-runs replace the prior one — and its body includes
 severity-tier counts plus the full findings list so downstream workflows
 (notably the retro helper) can summarise blockers/high findings without
@@ -348,7 +420,7 @@ Cutovers — no back-compat flag; `high` is opt-in to the old routing.
 ### 🔴 / 🟠 findings — per-finding ceremony (unchanged)
 
 For each 🔴 / 🟠 finding from Step 4, decide between two paths and keep the
-`code-review` structured comment authoritative for anything not fixed
+`verification-results` structured comment authoritative for anything not fixed
 in-place.
 
 1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
@@ -401,8 +473,8 @@ ceremony above:
    findings stay on the comment for Step 5.
 
 Record every remediated finding (🟠 or 🟡) in the **"Fixed on-branch"**
-section of the `code-review` comment (Step 4) so it does not graduate to a
-follow-up issue.
+section of the `verification-results` comment (Step 4) so it does not graduate
+to a follow-up issue.
 
 Do not invent a programmatic retry budget. The host LLM applies *at most
 one* focused-fix attempt per finding (or per batched finding) before
@@ -413,18 +485,18 @@ consumers) see exactly why each one was not auto-remediated.
 ## Step 4.6 — Cross-phase re-check trigger
 
 After the focused-fix routing in Step 4.5 completes, any host-LLM-applied
-fix commits have modified files on `[HEAD_REF]` that the Phase 4 audit
-lenses already walked. Some of those edits may overlap the `filePatterns`
-of one or more lenses (e.g. a fix landing in `**/auth/*.js` overlaps the
-`audit-security` lens). When that happens, the prior `audit-results`
-structured comment is **stale for the overlapping lenses only** — the
-non-overlapping findings remain authoritative and MUST NOT be
+fix commits have modified files on `[HEAD_REF]` that the Epic-close lens
+roster already walked (Step 1b). Some of those edits may overlap the
+`filePatterns` of one or more lenses (e.g. a fix landing in `**/auth/*.js`
+overlaps the `audit-security` lens). When that happens, the lens findings in
+the `verification-results` comment are **stale for the overlapping lenses
+only** — the non-overlapping findings remain authoritative and MUST NOT be
 re-derived.
 
 > **Scope note.** This cross-phase re-check applies only when
-> `scope === 'epic'`. Story-scope reviews run before Phase 4 epic audits
-> exist, so there is no `audit-results` comment to invalidate; skip this
-> step entirely for `scope === 'story'`.
+> `scope === 'epic'`. Story-scope reviews carry no Epic-close lens roster,
+> so there is nothing to invalidate; skip this step entirely for
+> `scope === 'story'`.
 
 Invoke the re-check selector with the cumulative set of paths touched by
 the focused-fix commits:
@@ -445,11 +517,11 @@ no-op.
 When `selectedAudits` is non-empty:
 
 1. Re-invoke each listed lens prompt under
-   [`../audit-*.md`](../) the same way Phase 4's `epic-audit.md` does —
+   [`../audit-*.md`](../) the same way the Step 1b Epic-close walk does —
    one lens at a time, against the current `[HEAD_REF]` tip.
 2. **Append** a `## Cross-phase re-check` section to the **existing**
-   `audit-results` structured comment on the Epic ticket. Do **not** post
-   a new comment; the comment is idempotent and downstream consumers
+   `verification-results` structured comment on the Epic ticket. Do **not**
+   post a new comment; the comment is idempotent and downstream consumers
    (the code-review trim, `/deliver` Pillar 2, the retro helper)
    read it once. The append carries the re-checked lens names, the new
    findings (if any), and the focused-fix commit SHAs that triggered the
@@ -459,7 +531,7 @@ When `selectedAudits` is non-empty:
    through Step 4.5's focused-fix routing. Findings that already
    received a focused-fix attempt in the first pass do not get a fresh
    attempt when the cross-phase re-check resurfaces an adjacent one —
-   leave them on the `code-review` comment for the operator.
+   leave them on the `verification-results` comment for the operator.
 
 If `selectedAudits` is empty, skip silently and proceed to Step 5. The
 re-check trigger is **read-only signal** — it never mutates the Epic

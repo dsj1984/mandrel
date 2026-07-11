@@ -180,6 +180,20 @@ Run a single Story-implementation phase against the inline `acceptance[]`
    Story's own context points you at one. See
    [`.agents/instructions.md` § 3](../../instructions.md).
 
+   **Write-time audit checklists — read the threaded `checklistPath`.**
+   When the parent prompt passes a `checklistPath` (Story #4410 — the
+   repo-relative path to this Story's footprint-matched **local**-lens
+   authoring checklists at
+   `temp/epic-<epicId>/checklists/story-<storyId>.md`), read it before you
+   write and self-check your change against each listed concern as you
+   author it. These are the local audit lenses whose `filePatterns` matched
+   the Story's predicted footprint, distilled to a short checklist and
+   capped at a hard token budget by `epic-deliver-prepare.js` (matched via
+   `resolveLensTier(lens) === 'local'` + `matchesAnyFilePattern`, never
+   `selectAudits` — no provider or git diff runs on that path). When
+   `checklistPath` is null or absent, the Story's footprint matched no local
+   lens and there is nothing extra to read.
+
 3. Implement the work as one or more commits on `story-<storyId>`.
    Author commits directly with the project's editor / `git commit`,
    following

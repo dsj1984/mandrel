@@ -2,11 +2,13 @@
   "version": 1,
   "audits": {
     "audit-clean-code": {
-      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
+      "triggers": { "gates": ["gate1", "gate3"], "filePatterns": ["**/*"] },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-architecture": {
-      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
+      "triggers": { "gates": ["gate1", "gate3"] },
+      "scope": "cumulative",
       "substitutionKeys": []
     },
     "audit-security": {
@@ -22,6 +24,7 @@
         ],
         "filePatterns": ["**/*.lock", "**/auth/*.js", "**/crypto/*.js"]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-privacy": {
@@ -30,6 +33,7 @@
         "keywords": ["privacy", "pii", "gdpr", "cookie", "tracking"],
         "filePatterns": ["**/user-profile/**/*.js"]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-lighthouse": {
@@ -54,6 +58,7 @@
           "**/frontend/**/*.js"
         ]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-devops": {
@@ -67,10 +72,12 @@
           "**/*.tf"
         ]
       },
+      "scope": "cumulative",
       "substitutionKeys": []
     },
     "audit-sre": {
       "triggers": { "gates": ["gate4"] },
+      "scope": "global",
       "substitutionKeys": []
     },
     "audit-documentation": {
@@ -91,6 +98,7 @@
           ".agents/workflows/**"
         ]
       },
+      "scope": "cumulative",
       "substitutionKeys": []
     },
     "audit-dependencies": {
@@ -112,6 +120,7 @@
           "**/yarn.lock"
         ]
       },
+      "scope": "cumulative",
       "substitutionKeys": []
     },
     "audit-performance": {
@@ -120,6 +129,7 @@
         "keywords": ["performance", "n+1", "hot path", "latency", "throughput"],
         "filePatterns": [".agents/scripts/**", "src/**/*.{ts,js}"]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-quality": {
@@ -128,6 +138,7 @@
         "keywords": ["test", "coverage", "flaky", "assertion"],
         "filePatterns": ["tests/**", "**/*.test.{ts,js}", "**/*.spec.{ts,js}"]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-seo": {
@@ -136,6 +147,7 @@
         "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
         "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-ux-ui": {
@@ -148,6 +160,7 @@
           "**/*.css"
         ]
       },
+      "scope": "local",
       "substitutionKeys": []
     },
     "audit-navigability": {
@@ -160,6 +173,7 @@
           "route tree"
         ]
       },
+      "scope": "global",
       "substitutionKeys": []
     }
   }

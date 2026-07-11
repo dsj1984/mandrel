@@ -9,13 +9,16 @@
 import { strict as assert } from 'node:assert';
 import { EventEmitter } from 'node:events';
 import { describe, it } from 'node:test';
-
 import {
   buildIdempotencyMarker,
   graduateFindings,
   isAutoFileEnabled,
   parseFindings,
 } from '../../../.agents/scripts/lib/feedback-loop/code-review-graduator.js';
+import {
+  NO_VERIFICATION_RESULTS_COMMENT_REASON,
+  VERIFICATION_RESULTS_MARKER,
+} from '../../../.agents/scripts/lib/feedback-loop/graduator-core.js';
 
 /**
  * Build a spawn stub that routes by command + args[0] to a responder.
@@ -60,12 +63,12 @@ function makeSpawnStub(routes) {
   return fn;
 }
 
-/** Build a provider stub returning the given code-review comment body. */
+/** Build a provider stub returning the given verification-results comment body. */
 function makeProvider(body) {
   return {
     getTicketComments: async () => [
       {
-        body: `<!-- structured-comment: code-review -->\n${body}`,
+        body: `${VERIFICATION_RESULTS_MARKER}\n${body}`,
       },
     ],
   };
@@ -371,7 +374,7 @@ describe('graduateFindings — never throws', () => {
     assert.match(result.errors[0], /boom/);
   });
 
-  it('records no-code-review-comment when none is present on the Epic', async () => {
+  it('records no-verification-results-comment when none is present on the Epic', async () => {
     const provider = {
       getTicketComments: async () => [{ body: 'unrelated comment' }],
     };
@@ -382,6 +385,9 @@ describe('graduateFindings — never throws', () => {
       currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
     });
     assert.equal(result.skipped.length, 1);
-    assert.equal(result.skipped[0].reason, 'no-code-review-comment');
+    assert.equal(
+      result.skipped[0].reason,
+      NO_VERIFICATION_RESULTS_COMMENT_REASON,
+    );
   });
 });
