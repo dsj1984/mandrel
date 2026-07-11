@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file -- pre-push docs-freshness gate; pure git-mtime walk with no testable branching beyond filesystem state */
 
 /**
  * .agents/scripts/validate-docs-freshness.js — Documentation Freshness Gate
@@ -31,7 +30,7 @@
  * "does it mention the Epic?".
  *
  * Usage:
- *   node .agents/scripts/validate-docs-freshness.js --epic <EPIC_ID> [--base main] [--docs <comma-separated>] [--json]
+ *   node .agents/scripts/validate-docs-freshness.js --epic <EPIC_ID> [--docs <comma-separated>] [--json]
  *
  * `--json` emits a single JSON object on stdout with
  *   { ok, epicId, results: [{ file, pass, reason }, ...] }
@@ -107,6 +106,8 @@ function epicRefMatcher(epicId) {
   return new RegExp(`#${epicId}(?!\\d)`);
 }
 
+/* node:coverage disable -- real `git log` shell-out; exercised via the
+   injectable `commitsForFile` seam in runFreshnessGate, not directly. */
 function commitsMentioningEpic(docPath, epicId, cwd = PROJECT_ROOT) {
   const res = gitSpawn(
     cwd,
@@ -123,6 +124,7 @@ function commitsMentioningEpic(docPath, epicId, cwd = PROJECT_ROOT) {
     .map((s) => s.trim())
     .filter(Boolean);
 }
+/* node:coverage enable */
 
 function fileBodyMentionsEpic(
   docPath,
@@ -208,7 +210,6 @@ export function parseFreshnessArgs(argv) {
     args: argv,
     options: {
       epic: { type: 'string' },
-      base: { type: 'string' },
       docs: { type: 'string' },
       json: { type: 'boolean', default: false },
     },
@@ -259,6 +260,9 @@ export function renderFreshnessSuccessMessage(epicId, count) {
   return `[docs-freshness] ✅ All ${count} doc(s) reference Epic #${epicId}.`;
 }
 
+/* node:coverage disable -- process I/O + real config/git wiring (stdout,
+   process.exit, resolveConfig, runAsCli); the pure logic these thin wrappers
+   call is covered directly above. */
 function reportEmptyDocs(epicId, json) {
   if (json) {
     process.stdout.write(
@@ -306,3 +310,4 @@ async function main() {
 }
 
 runAsCli(import.meta.url, main, { source: 'validate-docs-freshness' });
+/* node:coverage enable */
