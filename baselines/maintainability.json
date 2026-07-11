@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T14:02:52.656Z",
+  "generatedAt": "2026-07-11T14:07:55.891Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -872,7 +872,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/doc-reader.js",
-      "mi": 99.856
+      "mi": 107.528
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-lease-guard.js",
