@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-08T12:27:13.138Z",
+  "generatedAt": "2026-07-11T00:52:07.189Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -648,7 +648,7 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
-      "mi": 87.877
+      "mi": 88.123
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
