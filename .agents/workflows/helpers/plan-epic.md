@@ -723,8 +723,7 @@ for the scoring logic.
      reads the draft array plus the Epic body (which carries the Tech Spec
      sections), reconciles the draft against the Tech Spec `## Delivery
      Slicing` target, and emits a **consolidated** `tickets.json` plus a
-     human-readable `temp/epic-[Epic_ID]/consolidation-report.md`. Its
-     operations are scope-preserving only — **merge sibling Stories and
+     human-readable `temp/epic-[Epic_ID]/consolidation-report.md`. Its operations are scope-preserving only — **merge sibling Stories and
      rewire `depends_on`** — and it MUST NOT add scope or invent tickets; it
      consolidates fragmented slices by merging them into a cohesive Story,
      never by splitting one. The sub-agent **never writes to GitHub**: it
