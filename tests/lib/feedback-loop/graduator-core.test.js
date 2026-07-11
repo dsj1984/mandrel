@@ -21,7 +21,7 @@ import {
   graduate,
   makeIsAutoFileEnabled,
   probeMarkerExists,
-  probePathExists,
+  probePathStatus,
   runChild,
 } from '../../../.agents/scripts/lib/feedback-loop/graduator-core.js';
 
@@ -103,17 +103,27 @@ describe('makeIsAutoFileEnabled', () => {
   });
 });
 
-describe('probePathExists', () => {
-  it('returns true on git cat-file exit 0, false otherwise', async () => {
+describe('probePathStatus', () => {
+  it('reports { exists, probeError } from the git cat-file exit code', async () => {
     const present = makeSpawnStub({ git: () => ({ code: 0 }) });
     const absent = makeSpawnStub({ git: () => ({ code: 1 }) });
-    assert.equal(
-      await probePathExists({ ref: 'HEAD', path: 'a', spawnImpl: present }),
-      true,
+    assert.deepEqual(
+      await probePathStatus({ ref: 'HEAD', path: 'a', spawnImpl: present }),
+      { exists: true, probeError: false },
     );
-    assert.equal(
-      await probePathExists({ ref: 'HEAD', path: 'a', spawnImpl: absent }),
-      false,
+    assert.deepEqual(
+      await probePathStatus({ ref: 'HEAD', path: 'a', spawnImpl: absent }),
+      { exists: false, probeError: false },
+    );
+  });
+
+  it('reports a spawn failure as a probe error, not a confirmed-missing file', async () => {
+    const spawnImpl = () => {
+      throw new Error('git missing');
+    };
+    assert.deepEqual(
+      await probePathStatus({ ref: 'HEAD', path: 'a', spawnImpl }),
+      { exists: false, probeError: true },
     );
   });
 });
