@@ -94,6 +94,7 @@ export function buildStoryReviewCrossRefBody({
  *   prNumber: number|null,
  *   provider: object,
  *   runCodeReviewFn: Function,
+ *   runLocalLensReviewFn?: Function,
  *   progress: (tag: string, msg: string) => void,
  * }} args
  * @returns {Promise<{
@@ -103,6 +104,7 @@ export function buildStoryReviewCrossRefBody({
  *   posted?: boolean,
  *   postedCommentId?: number|null,
  *   crossRefPosted?: boolean,
+ *   localLensReview?: object,
  * }>}
  */
 export async function runStoryScopeReview({
@@ -114,6 +116,7 @@ export async function runStoryScopeReview({
   prNumber,
   provider,
   runCodeReviewFn,
+  runLocalLensReviewFn,
   progress,
 }) {
   if (prNumber == null) {
@@ -138,6 +141,10 @@ export async function runStoryScopeReview({
     progress,
     progressTag: 'REVIEW',
     runCodeReviewFn,
+    // Forward the seam only when the caller injects it; otherwise
+    // `runStoryReviewCore` uses its default local-lens pass. `undefined`
+    // deep-merges to the default via the destructuring default there.
+    ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
   });
 
   const sev = result.severity ?? {
@@ -186,5 +193,6 @@ export async function runStoryScopeReview({
     posted: result.posted,
     postedCommentId: result.postedCommentId ?? null,
     crossRefPosted,
+    localLensReview: result.localLensReview,
   };
 }
