@@ -237,3 +237,86 @@ export function releaseEpicMergeLock(handle, fsImpl = fs) {
     if (err.code !== 'ENOENT') throw err;
   }
 }
+
+const LOCK_FILE_PREFIX = 'epic-';
+const LOCK_FILE_SUFFIX = '.merge.lock';
+
+// Extract the epic id from a lock filename, or `null` when `entry` isn't a
+// `epic-*.merge.lock` file. Split out of `findForeignActiveEpicLock` so
+// that function stays a flat filter+map instead of a nested-conditional
+// loop body (Story #4460).
+function parseLockFileEpicId(entry) {
+  if (
+    !entry.startsWith(LOCK_FILE_PREFIX) ||
+    !entry.endsWith(LOCK_FILE_SUFFIX)
+  ) {
+    return null;
+  }
+  return entry.slice(
+    LOCK_FILE_PREFIX.length,
+    entry.length - LOCK_FILE_SUFFIX.length,
+  );
+}
+
+// Read `<dir>/<entry>`'s lock meta and report it only when the recorded
+// pid is still alive — a foreign lock whose pid is dead (or whose meta is
+// unreadable/corrupt) is stale debris, not an active holder, mirroring the
+// pid-liveness half of `tryStealStale`'s heuristic.
+function readLiveLock(dir, entry, otherEpicId, fsImpl, killFn) {
+  const filePath = path.join(dir, entry);
+  const meta = readLockMeta(filePath, fsImpl);
+  if (!meta || !isProcessRunning(meta.pid, killFn)) return null;
+  return {
+    epicId: otherEpicId,
+    filePath,
+    pid: meta.pid,
+    acquiredAt: meta.acquiredAt,
+  };
+}
+
+/**
+ * Scan the shared common `.git/` dir for a *different* epic's live
+ * merge lock (Story #4460 — cross-epic shared-checkout guard).
+ *
+ * `acquireEpicMergeLock` only ever contends against locks for the *same*
+ * `epicId` (its own lock filename). This helper is the cross-epic
+ * counterpart: it lists every `epic-*.merge.lock` file in the common
+ * gitdir, skips the caller's own `epicId` namespace, and returns the
+ * first foreign lock whose recorded `pid` is still alive.
+ *
+ * @param {number|string} epicId Caller's own epic id (excluded from the scan).
+ * @param {{
+ *   repoRoot: string,
+ *   fsImpl?: object,
+ *   killFn?: (pid:number, signal:number)=>void,
+ * }} opts
+ * @returns {{ epicId: string, filePath: string, pid: number, acquiredAt: number }|null}
+ */
+export function findForeignActiveEpicLock(
+  epicId,
+  { repoRoot, fsImpl = fs, killFn = process.kill.bind(process) } = {},
+) {
+  if (!repoRoot) {
+    throw new Error('findForeignActiveEpicLock: repoRoot is required');
+  }
+  const dir = resolveGitCommonDir(repoRoot, fsImpl);
+  let entries;
+  try {
+    entries = fsImpl.readdirSync(dir);
+  } catch {
+    return null;
+  }
+
+  const foreignEntries = entries
+    .map((entry) => ({ entry, otherEpicId: parseLockFileEpicId(entry) }))
+    .filter(
+      ({ otherEpicId }) =>
+        otherEpicId !== null && String(otherEpicId) !== String(epicId),
+    );
+
+  for (const { entry, otherEpicId } of foreignEntries) {
+    const live = readLiveLock(dir, entry, otherEpicId, fsImpl, killFn);
+    if (live) return live;
+  }
+  return null;
+}

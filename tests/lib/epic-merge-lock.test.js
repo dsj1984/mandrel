@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   acquireEpicMergeLock,
+  findForeignActiveEpicLock,
   releaseEpicMergeLock,
   resolveGitCommonDir,
 } from '../../.agents/scripts/lib/epic-merge-lock.js';
@@ -240,6 +241,87 @@ describe('epic-merge-lock', () => {
       }
     } finally {
       fs.rmSync(mainRepo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('findForeignActiveEpicLock (Story #4460 — cross-epic shared-checkout guard)', () => {
+  let repoRoot;
+
+  beforeEach(() => {
+    repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'epic-lock-foreign-'));
+    fs.mkdirSync(path.join(repoRoot, '.git'), { recursive: true });
+  });
+
+  afterEach(() => {
+    fs.rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  it('returns null when no other epic holds a lock', () => {
+    const result = findForeignActiveEpicLock(4425, { repoRoot });
+    assert.equal(result, null);
+  });
+
+  it('ignores its own epic id namespace even if that lock file exists', () => {
+    const filePath = path.join(repoRoot, '.git', 'epic-4425.merge.lock');
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ pid: process.pid, acquiredAt: Date.now() }),
+    );
+    const result = findForeignActiveEpicLock(4425, { repoRoot });
+    assert.equal(result, null, 'own epic namespace must never read as foreign');
+  });
+
+  it('detects a different epic id holding a live lock', () => {
+    const acquiredAt = Date.now();
+    const filePath = path.join(repoRoot, '.git', 'epic-4405.merge.lock');
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ pid: process.pid, acquiredAt }),
+    );
+    const result = findForeignActiveEpicLock(4425, { repoRoot });
+    assert.ok(result, 'expected a foreign lock to be detected');
+    assert.equal(result.epicId, '4405');
+    assert.equal(result.filePath, filePath);
+    assert.equal(result.pid, process.pid);
+    assert.equal(result.acquiredAt, acquiredAt);
+  });
+
+  it('treats a foreign lock whose pid is dead as stale, not a live holder', () => {
+    const filePath = path.join(repoRoot, '.git', 'epic-4405.merge.lock');
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ pid: 999999, acquiredAt: Date.now() }),
+    );
+    const killFn = () => {
+      const err = new Error('no such process');
+      err.code = 'ESRCH';
+      throw err;
+    };
+    const result = findForeignActiveEpicLock(4425, { repoRoot, killFn });
+    assert.equal(result, null, 'dead-pid foreign lock is not an active holder');
+  });
+
+  it('ignores non-lock files and corrupt lock meta in the common gitdir', () => {
+    fs.writeFileSync(
+      path.join(repoRoot, '.git', 'unrelated-file.txt'),
+      'noise',
+    );
+    fs.writeFileSync(
+      path.join(repoRoot, '.git', 'epic-4406.merge.lock'),
+      '{ corrupted',
+    );
+    const result = findForeignActiveEpicLock(4425, { repoRoot });
+    assert.equal(result, null);
+  });
+
+  it('returns null when the common gitdir does not exist yet', () => {
+    const bareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'epic-lock-bare-'));
+    try {
+      const result = findForeignActiveEpicLock(4425, { repoRoot: bareDir });
+      assert.equal(result, null);
+    } finally {
+      fs.rmSync(bareDir, { recursive: true, force: true });
     }
   });
 });
