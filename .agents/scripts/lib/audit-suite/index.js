@@ -14,6 +14,12 @@
  *   import { runAuditSuite, selectAudits } from './lib/audit-suite/index.js';
  */
 
+export {
+  buildChecklistPayload,
+  DEFAULT_CHECKLIST_TOKEN_BUDGET,
+  matchLocalLenses,
+  readAuditRules,
+} from './checklist-threading.js';
 export { runAuditSuite } from './runner.js';
 export {
   GLOBAL_LENS_ALLOWLIST,

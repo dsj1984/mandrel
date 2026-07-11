@@ -178,9 +178,14 @@ Validates `type::epic`, enumerates `type::story` descendants, parses
 checkpoint in the per-Story-status shape (a flat `stories` map seeded at
 `pending`, plus the global `concurrencyCap`). Treat the printed JSON as
 `state`: `{ epicId, storyCount, concurrencyCap, stories, checkpointInitializedAt, docsDigestPath }`.
-`stories` is the flat dispatch hint (`{ storyId, worktree, title }` per open
-Story); the ready-set `tick` (Phase 2) decides which to dispatch on each
-beat. `docsDigestPath` is the repo-relative path to the per-Epic docs digest
+`stories` is the flat dispatch hint (`{ storyId, worktree, title,
+checklistPath }` per open Story); the ready-set `tick` (Phase 2) decides
+which to dispatch on each beat. `checklistPath` is the repo-relative path to
+that Story's footprint-matched local-lens authoring checklist
+(`temp/epic-<epicId>/checklists/story-<storyId>.md`, Story #4410) — thread it
+into that child's prompt (§ 2b, item 7); it is `null` when the Story's
+predicted footprint matched no local lens. `docsDigestPath` is the
+repo-relative path to the per-Epic docs digest
 (`temp/epic-<epicId>/docs-digest.md`) that prepare writes from
 `project.docsContextFiles` — thread it into every child prompt (§ 2b, item 6).
 It is `null` when the project configured no `docsContextFiles` (no digest is
@@ -369,7 +374,14 @@ digest instead of re-reading the full `project.docsContextFiles` set,
 and to pull individual docs files on demand (per
 [`.agents/instructions.md` § 3](../../instructions.md)). When
 `docsDigestPath` is null (the project configured no `docsContextFiles`),
-say so — the child then has no per-Story docs mandate. The pairing of
+say so — the child then has no per-Story docs mandate. (7) pass the
+**checklist path** — the `checklistPath` field from that Story's entry in
+the `stories` dispatch hint (Story #4410), which points at
+`temp/epic-<epicId>/checklists/story-<storyId>.md`. Instruct the child to
+read that file (footprint-matched local-lens authoring checklists) and
+self-check its change against those concerns while writing. When
+`checklistPath` is null (the Story's predicted footprint matched no local
+lens), there is nothing to read. The pairing of
 `story.heartbeat` and `agent::blocked` is what lets the § 2d Idle
 Watchdog distinguish a working child from a dead one; a silent child
 with no recent heartbeat and no blocker label is the failure mode the

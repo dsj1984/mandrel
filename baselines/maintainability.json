@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:07:44.332Z",
+  "generatedAt": "2026-07-11T11:24:29.446Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -104,7 +104,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 84.816
+      "mi": 86.562
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -171,6 +171,10 @@
       "mi": 89.263
     },
     {
+      "path": ".agents/scripts/lib/audit-suite/checklist-threading.js",
+      "mi": 102.173
+    },
+    {
       "path": ".agents/scripts/lib/audit-suite/cli.js",
       "mi": 114.249
     },
@@ -200,7 +204,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "mi": 100.988
+      "mi": 98.831
     },
     {
       "path": ".agents/scripts/lib/audit-suite/substitutions.js",
@@ -1271,6 +1275,10 @@
       "mi": 108.168
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "mi": 90.602
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "mi": 110.234
     },
@@ -1369,6 +1377,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/close.js",
       "mi": 87.145
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
+      "mi": 96.469
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",

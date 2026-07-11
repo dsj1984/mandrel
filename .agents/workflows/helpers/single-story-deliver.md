@@ -135,6 +135,19 @@ Operator/agent responsibilities while in the worktree:
    only when the Story's own context points you at one — do not ingest the
    whole docs set up front. See
    [`.agents/instructions.md` § 3](../../instructions.md).
+
+   **Write-time audit checklists.** The write-time local-lens checklist
+   threading (Story #4410) is wired on the Epic delivery path via
+   `epic-deliver-prepare.js`, which threads a per-Story `checklistPath` into
+   the maker prompt. When a standalone caller provides a `checklistPath`
+   (the repo-relative path to this Story's footprint-matched **local**-lens
+   authoring checklists, matched via `resolveLensTier(lens) === 'local'` +
+   `matchesAnyFilePattern` against the Story's predicted footprint — never
+   `selectAudits`, so no provider or git diff runs), read it before you
+   write and self-check your change against each listed concern as you
+   author it. When no `checklistPath` is provided, there is nothing extra to
+   read — the lens-aware coverage still runs maker-blind at Story-scope
+   review inside the close subprocess.
 2. Implement the changes.
 3. Commit on the Story branch. Conventional-commit format is encouraged
    but not enforced — the PR title carries the canonical summary.
