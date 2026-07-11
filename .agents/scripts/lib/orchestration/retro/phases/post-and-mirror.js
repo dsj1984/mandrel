@@ -37,6 +37,8 @@ export async function composeAndPostRetro({
   bus,
   now,
   manualInterventions,
+  frameworkRepo,
+  consumerRepo,
   gatherFn = defaultGatherRetroSignals,
   composeFn = defaultComposeRetroBody,
   upsertFn = upsertStructuredComment,
@@ -48,7 +50,13 @@ export async function composeAndPostRetro({
   onMirrorWritten,
   perfThresholds = null,
 }) {
-  const signals = await gatherFn({ epicId, provider, logger });
+  const signals = await gatherFn({
+    epicId,
+    provider,
+    logger,
+    frameworkRepo,
+    consumerRepo,
+  });
 
   // Best-effort fetch of the Epic title for the heading.
   let epicTitle;

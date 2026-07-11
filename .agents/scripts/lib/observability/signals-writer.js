@@ -261,37 +261,22 @@ export async function appendTrace(args) {
 }
 
 /**
- * Stream `signals.ndjson` line by line, invoking `cb(parsed, lineNumber)`
- * for each successfully parsed JSON line. `lineNumber` is 1-based to
- * match operator log expectations. Malformed lines are skipped with a
- * `Logger.warn`. A missing file resolves with `missing: true` rather
- * than throwing — the analyzer treats absence as "no signals yet" and
- * keeps walking.
+ * Stream any NDJSON `target` file line by line, invoking
+ * `cb(parsed, lineNumber)` for each successfully parsed JSON line.
+ * `lineNumber` is 1-based to match operator log expectations. Malformed
+ * lines are skipped with a `Logger.warn`. A missing file resolves with
+ * `missing: true` rather than throwing.
  *
- * @param {number} epicId
- * @param {number} storyId
+ * Shared spine for `forEachLine` (per-Story stream) and `forEachEpicLine`
+ * (per-Epic stream) so the two readers cannot drift in their
+ * malformed-line / missing-file / cb-throw handling.
+ *
+ * @param {string} target
  * @param {(parsed: unknown, lineNumber: number) => unknown | Promise<unknown>} cb
- * @param {object} [config]
+ * @param {string} label   Reader name used in warn messages.
  * @returns {Promise<{ linesRead: number, linesParsed: number, missing: boolean }>}
  */
-export async function forEachLine(epicId, storyId, cb, config) {
-  if (typeof cb !== 'function') {
-    Logger.warn('signals-writer: forEachLine called without a callback');
-    return { linesRead: 0, linesParsed: 0, missing: false };
-  }
-
-  let target;
-  try {
-    target = signalsFile(epicId, storyId, config);
-  } catch (err) {
-    Logger.warn(
-      `signals-writer: invalid epicId/storyId for forEachLine: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return { linesRead: 0, linesParsed: 0, missing: false };
-  }
-
+async function forEachLineIn(target, cb, label) {
   try {
     await fs.access(target);
   } catch {
@@ -324,7 +309,7 @@ export async function forEachLine(epicId, storyId, cb, config) {
         await cb(parsed, linesRead);
       } catch (err) {
         Logger.warn(
-          `signals-writer: forEachLine cb threw at ${target}:${linesRead}: ${
+          `signals-writer: ${label} cb threw at ${target}:${linesRead}: ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
@@ -332,11 +317,80 @@ export async function forEachLine(epicId, storyId, cb, config) {
     }
   } catch (err) {
     Logger.warn(
-      `signals-writer: forEachLine read failed for ${target}: ${
+      `signals-writer: ${label} read failed for ${target}: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
   }
 
   return { linesRead, linesParsed, missing: false };
+}
+
+/**
+ * Stream a per-Story `signals.ndjson` line by line, invoking
+ * `cb(parsed, lineNumber)` for each successfully parsed JSON line. A
+ * missing file resolves with `missing: true` rather than throwing — the
+ * analyzer treats absence as "no signals yet" and keeps walking.
+ *
+ * @param {number} epicId
+ * @param {number} storyId
+ * @param {(parsed: unknown, lineNumber: number) => unknown | Promise<unknown>} cb
+ * @param {object} [config]
+ * @returns {Promise<{ linesRead: number, linesParsed: number, missing: boolean }>}
+ */
+export async function forEachLine(epicId, storyId, cb, config) {
+  if (typeof cb !== 'function') {
+    Logger.warn('signals-writer: forEachLine called without a callback');
+    return { linesRead: 0, linesParsed: 0, missing: false };
+  }
+
+  let target;
+  try {
+    target = signalsFile(epicId, storyId, config);
+  } catch (err) {
+    Logger.warn(
+      `signals-writer: invalid epicId/storyId for forEachLine: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { linesRead: 0, linesParsed: 0, missing: false };
+  }
+
+  return forEachLineIn(target, cb, 'forEachLine');
+}
+
+/**
+ * Stream the per-Epic `signals.ndjson` line by line, invoking
+ * `cb(parsed, lineNumber)` for each successfully parsed JSON line. This is
+ * the read side of `appendEpicSignal` — the wave-lifecycle stream at
+ * `temp/epic-<eid>/signals.ndjson` written by `appendEpicSignal` callers
+ * (e.g. `lifecycle-emit`). A missing file resolves with `missing: true`
+ * rather than throwing, mirroring the per-Story `forEachLine` contract so
+ * the retro's unified counts scan can fold the Epic stream in alongside the
+ * Story streams without a special-cased absence branch.
+ *
+ * @param {number} epicId
+ * @param {(parsed: unknown, lineNumber: number) => unknown | Promise<unknown>} cb
+ * @param {object} [config]
+ * @returns {Promise<{ linesRead: number, linesParsed: number, missing: boolean }>}
+ */
+export async function forEachEpicLine(epicId, cb, config) {
+  if (typeof cb !== 'function') {
+    Logger.warn('signals-writer: forEachEpicLine called without a callback');
+    return { linesRead: 0, linesParsed: 0, missing: false };
+  }
+
+  let target;
+  try {
+    target = epicArtifactPath(epicId, EPIC_SIGNALS_BASENAME, config);
+  } catch (err) {
+    Logger.warn(
+      `signals-writer: invalid epicId for forEachEpicLine: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return { linesRead: 0, linesParsed: 0, missing: false };
+  }
+
+  return forEachLineIn(target, cb, 'forEachEpicLine');
 }

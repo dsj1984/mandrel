@@ -392,10 +392,16 @@ test('gatherRetroSignals: no warn when descendants empty and Epic body has no ch
     provider,
     logger: { warn: (msg) => warns.push(msg) },
   });
+  // The empty-descendant guard must stay silent for a genuinely empty Epic.
+  // A separate consumer-pane-disabled warn (Story #4417) is expected because
+  // this call resolves no consumerRepo, so scope the assertion to the guard.
+  const guardWarns = warns.filter((line) =>
+    /under-report|contract drift|WARNING/i.test(line),
+  );
   assert.equal(
-    warns.length,
+    guardWarns.length,
     0,
-    `expected no warns for genuinely empty Epic, got: ${warns.join('\n')}`,
+    `expected no descendant-guard warns for genuinely empty Epic, got: ${guardWarns.join('\n')}`,
   );
 });
 
@@ -894,10 +900,17 @@ test('gatherRetroSignals: 2-tier ledger (Stories present, zero Tasks) walks with
     'friction should aggregate across both Story perf summaries (2+1+4)',
   );
   assert.equal(signals.storyPerfSummaries.length, 2);
+  // The empty-descendant guard must stay silent (descendants are non-empty).
+  // A separate consumer-pane-disabled warn (Story #4417) is expected here
+  // because this call resolves no consumerRepo, so scope the assertion to
+  // the descendant guard rather than the whole warn stream.
+  const guardWarns = warns.filter((line) =>
+    /under-report|contract drift|WARNING/i.test(line),
+  );
   assert.equal(
-    warns.length,
+    guardWarns.length,
     0,
-    `2-tier walk is not empty, guard must stay silent; got: ${warns.join('\n')}`,
+    `2-tier walk is not empty, guard must stay silent; got: ${guardWarns.join('\n')}`,
   );
   assert.ok(signals.routedProposals, 'routedProposals envelope present');
 });

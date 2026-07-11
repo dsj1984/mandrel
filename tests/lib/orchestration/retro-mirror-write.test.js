@@ -92,6 +92,11 @@ test('runRetro: writes local mirror with the same body it posts to GitHub', asyn
     bus: { emit: async () => {} },
     logger,
     timestamp: '2026-05-16T00:00:00.000Z',
+    // Story #4417 — supply a resolved consumer repo so the happy path does
+    // not trip the (legitimate) consumer-pane-disabled warn; this test is
+    // about the local mirror write, not repo resolution.
+    frameworkRepo: 'dsj1984/mandrel',
+    consumerRepo: 'acme/widget',
     upsertFn,
     fsImpl,
   });
