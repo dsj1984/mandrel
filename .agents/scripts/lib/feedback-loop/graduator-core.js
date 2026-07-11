@@ -168,7 +168,14 @@ export function runChild({
           timedOut: true,
         });
       }, timeoutMs);
-      if (typeof timer.unref === 'function') timer.unref();
+      // Intentionally NOT unref'd: this is a watchdog timer that MUST keep
+      // the event loop alive until it fires (or the child settles). A real
+      // spawned child keeps the loop alive via its stdio handles, but a
+      // child whose handles close early — or a stub in tests — leaves the
+      // loop idle; an unref'd timer would then never fire, so the timeout
+      // silently would not bound a hung spawn (and the awaiting promise
+      // would hang forever). `finish()` always clearTimeout()s it, so the
+      // ref'd timer never outlives its purpose.
     }
     child.stdout?.on('data', (chunk) => {
       stdout += chunk.toString();

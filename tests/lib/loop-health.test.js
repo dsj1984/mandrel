@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -62,8 +68,13 @@ describe('resolveEpicTempTree', () => {
     const newer = path.join(root, 'temp', 'epic-200');
     mkdirSync(older, { recursive: true });
     mkdirSync(newer, { recursive: true });
-    // Touch newer after older by writing a file into it.
-    writeFileSync(path.join(newer, 'marker'), 'x', 'utf8');
+    // Stamp explicit mtimes so the "most recently touched" ordering is
+    // deterministic. Relying on wall-clock mtime between two dirs created
+    // microseconds apart is non-deterministic on CI filesystems with coarse
+    // mtime granularity (both land in one tick, and resolveEpicTempTree's
+    // strict `>` tie-break then picks the readdir-first entry, epic-100).
+    utimesSync(older, new Date(1_000_000), new Date(1_000_000));
+    utimesSync(newer, new Date(2_000_000), new Date(2_000_000));
     const tree = resolveEpicTempTree(root);
     assert.ok(tree);
     assert.equal(tree.epicId, 200);
