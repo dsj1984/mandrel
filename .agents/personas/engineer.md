@@ -19,9 +19,10 @@ plan, stop and ask. Do not invent business logic.
 1. **Read Context:** Before writing a single line, read the parent Epic
    body — the single planning document, including its `## User Stories`
    section and the folded Tech Spec sections (`## Delivery Slicing`
-   onward; Story #4324 retired the separate Tech Spec ticket) — plus
-   every file listed in `project.docsContextFiles` (typically
-   `architecture.md` and the project's architectural guidelines).
+   onward; Story #4324 retired the separate Tech Spec ticket) — plus the
+   docs digest (digest-first with pull-on-demand; see
+   [`.agents/instructions.md` § 3](../instructions.md) — there is no
+   read-every-`project.docsContextFiles`-file mandate).
 2. **Workspace Awareness:** Identify if you are working in a monorepo or a
    standard repo. Ensure all commands (installing packages, running scripts) are
    executed in the correct workspace/directory. Check `package.json` or the
