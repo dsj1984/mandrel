@@ -10,9 +10,11 @@
  *
  *   1. `--emit-context` mode — given a `--idea`/`--from-notes` seed,
  *      build the context envelope (seed, refine heuristic, persona,
- *      body template, duplicate candidates, tech-stack summary) and
- *      print it as JSON on stdout. Logs route to stderr so the
- *      envelope is byte-clean for `JSON.parse`.
+ *      body template, duplicate candidates, tech-stack summary, and a
+ *      corpus-aware `corpusContext` — the docs digest plus relevant
+ *      existing-Epic Tech Spec excerpts, Story #4432) and print it as
+ *      JSON on stdout. Logs route to stderr so the envelope is
+ *      byte-clean for `JSON.parse`.
  *   2. Persist mode — given a `--body <file>` authored by the host
  *      LLM after operator confirmation, validate the shape and persist
  *      via `provider.createIssue` (which also adds the new Story to
@@ -36,6 +38,7 @@ import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { exec as ghExec } from './lib/gh-exec.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
+import { buildCorpusContext } from './lib/planning-corpus.js';
 import { createProvider } from './lib/provider-factory.js';
 import {
   buildContextEnvelope,
@@ -130,7 +133,7 @@ export function extractTitle(body) {
   return m ? m[1].trim() : 'Untitled standalone Story';
 }
 
-async function runEmitContext({ values, provider, projectRoot }) {
+async function runEmitContext({ values, provider, projectRoot, config }) {
   const seed = await resolveSeed({
     idea: values.idea,
     fromNotes: values['from-notes'],
@@ -139,11 +142,21 @@ async function runEmitContext({ values, provider, projectRoot }) {
   const refine = shouldRefine({ seed, override });
   const persona = values.persona ?? 'engineer';
 
-  const [bodyTemplate, openStories, techStack] = await Promise.all([
-    loadBodyTemplate(projectRoot),
-    fetchOpenStories(provider),
-    readTechStackSummary(projectRoot),
-  ]);
+  // Corpus lookup uses the raw (un-defaulted) docsContextFiles list, same
+  // as the `/deliver` per-Epic digest builder: `config.project` fills in
+  // the framework's default four-file set even when the operator
+  // configured nothing, so a null-vs-configured distinction requires
+  // reading `config.raw` directly.
+  const docsContextFiles = config?.raw?.project?.docsContextFiles ?? [];
+  const docsRoot = config?.project?.paths?.docsRoot;
+
+  const [bodyTemplate, openStories, techStack, corpusContext] =
+    await Promise.all([
+      loadBodyTemplate(projectRoot),
+      fetchOpenStories(provider),
+      readTechStackSummary(projectRoot),
+      buildCorpusContext({ seed, provider, docsContextFiles, docsRoot }),
+    ]);
 
   const duplicateCandidates = rankDuplicateCandidates({
     seed,
@@ -157,6 +170,7 @@ async function runEmitContext({ values, provider, projectRoot }) {
     bodyTemplate,
     duplicateCandidates,
     techStack,
+    corpusContext,
   });
 
   const json = values.pretty
@@ -267,7 +281,7 @@ async function main() {
     // unconditionally parseable by `JSON.parse`. Mirrors the contract
     // `epic-plan-spec.js` enforces for its own --emit-context mode.
     routeAllOutputToStderr();
-    return runEmitContext({ values, provider, projectRoot });
+    return runEmitContext({ values, provider, projectRoot, config });
   }
 
   return runPersist({
