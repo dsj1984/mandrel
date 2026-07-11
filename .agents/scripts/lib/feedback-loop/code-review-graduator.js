@@ -44,7 +44,6 @@ import {
   contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
-  probePathExists,
 } from './graduator-core.js';
 
 /**
@@ -55,9 +54,6 @@ import {
  * @returns {boolean}
  */
 export const isAutoFileEnabled = makeIsAutoFileEnabled('codeReviewAutoFile');
-
-// Re-export the shared path probe so existing importers keep working.
-export { probePathExists };
 
 /**
  * Severity → label mapping. Only non-blocking severities have a route;

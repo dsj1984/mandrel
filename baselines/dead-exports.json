@@ -216,16 +216,8 @@
       "symbol": "default"
     },
     {
-      "file": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "symbol": "probePathExists"
-    },
-    {
       "file": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
       "symbol": "default"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "symbol": "probePathExists"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
@@ -234,10 +226,6 @@
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "symbol": "DEFAULT_RUN_CHILD_TIMEOUT_MS"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "symbol": "probePathStatus"
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/memory-freshness.js",

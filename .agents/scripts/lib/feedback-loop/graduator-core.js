@@ -247,24 +247,6 @@ export async function probePathStatus({
 }
 
 /**
- * Boolean convenience wrapper over {@link probePathStatus} — a spawn
- * failure degrades to `false` (kept for back-compat with the graduators'
- * re-exported probe surface). Callers that must distinguish a probe error
- * from a confirmed-missing file use `probePathStatus` directly.
- *
- * @param {object} opts
- * @param {string} opts.ref
- * @param {string} opts.path
- * @param {Function} [opts.spawnImpl]
- * @param {string} [opts.cwd]
- * @param {number} [opts.timeoutMs]
- */
-export async function probePathExists(opts) {
-  const { exists } = await probePathStatus(opts);
-  return exists;
-}
-
-/**
  * Probe whether a follow-up issue carrying the given idempotency marker
  * already exists in the routed repo. Uses `gh search issues` so we hit
  * the body field directly. Returns `true` when at least one match is
