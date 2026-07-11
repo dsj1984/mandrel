@@ -81,6 +81,19 @@ spawned.
 Every other runtime modifier is sourced from the Epic's labels or from
 `delivery.deliverRunner` in `.agentrc.json`.
 
+- `--yes` — the top-level `/deliver` unattended flag (suppresses the
+  operator confirmation gate; see [`deliver.md`](../deliver.md)). This
+  helper reads it as the **headless signal** for Phase 8.5's must-land
+  terminal step (Story #4427): when `/deliver` was invoked with `--yes`,
+  thread `--headless true` into the Phase 8.5
+  `epic.automerge.start` `lifecycle-emit.js` call (omit the flag, or
+  pass `--headless false`, for an attended run). The runtime reads this
+  as an explicit `headless` input threaded through
+  `runLifecycleEmit` → `buildDefaultListenerChain` →
+  `MergeWatcher({ headless })` — never an ambient/undefined global.
+  Attended-mode behavior (no `--headless` flag) is byte-for-byte
+  unchanged: `MergeWatcher` defaults `headless` to `false`.
+
 ---
 
 ## Contract
@@ -757,12 +770,35 @@ run. Passing `--epic <epicId>` scopes the red-path failure digest to
 ## Phase 8.5 — Auto-merge gate
 
 After Phase 8 exits 0, evaluate the auto-merge predicate by emitting
-`epic.automerge.start`:
+`epic.automerge.start`. When this `/deliver` run was invoked with `--yes`,
+add `--headless true` so the downstream `MergeWatcher` engages the
+must-land terminal step (Story #4427, § Arguments above); omit the flag
+(or pass `--headless false`) for an attended run:
 
 ```bash
 node .agents/scripts/lifecycle-emit.js --epic <epicId> \
-  --event epic.automerge.start --pr-url <prUrl>
+  --event epic.automerge.start --pr-url <prUrl> [--headless true]
 ```
+
+**Must-land terminal step (headless only).** `MergeWatcher` polls
+`epic.merge.armed` to confirmation as usual. If its poll budget is
+exhausted, a headless (`--headless true`) run does not exit silently —
+it classifies the block (`classifyMergeBlock`, the shared classifier
+from Story #4426) and applies one bounded retry before giving up:
+
+- `checks-pending-timeout` (required checks still progressing) — extend
+  the watch budget once and keep polling.
+- `api-race-other` (no definitive block signal) — re-arm once by
+  re-emitting `epic.merge.ready` on the bus (never a direct `gh pr merge`
+  call — `AutomergeArmer` remains the sole authorized call site).
+- `branch-protection-human-required`, or both bounded retries already
+  spent — terminal: emit `merge.unlanded` (`scope: "epic"`, carrying the
+  block class) and fall through to the existing single `epic.blocked`
+  emit — one blocked path, never a duplicate `agent::blocked` transition.
+
+Attended runs (no `--headless` flag) keep today's exact behavior: budget
+exhaustion emits `epic.blocked` immediately, with no classification, no
+retry, and no `merge.unlanded`.
 
 `AutomergePredicate` first runs a **live `gh pr checks --required` probe**
 (Story #4361): green required CI is the arming signal, so if any required
