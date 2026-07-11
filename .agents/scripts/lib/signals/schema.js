@@ -171,11 +171,14 @@ export function hasCommonEnvelope(evt) {
     return false;
   }
   if (!isTimestamp(evt.ts)) return false;
-  // `epicId` is nullable by contract (standalone-Story friction carries
-  // `epicId: null`; see signal-event.schema.json where epicId is
-  // `["integer","null"]` and NOT in `required`). Accept null; reject only a
-  // present-but-non-positive-int epicId so a malformed value still fails.
-  if (evt.epicId != null && !isPositiveInt(evt.epicId)) return false;
+  // The canonical `epicId` key MUST be present — a record carrying only the
+  // legacy `epic` alias is rejected (the cutover deleted that alias). Its
+  // value is nullable by contract: standalone-Story friction carries
+  // `epicId: null` (see signal-event.schema.json, where epicId is
+  // `["integer","null"]`). So accept an explicit null, reject a missing key
+  // or a present-but-non-positive-int value.
+  if (!Object.hasOwn(evt, 'epicId')) return false;
+  if (evt.epicId !== null && !isPositiveInt(evt.epicId)) return false;
   return true;
 }
 
