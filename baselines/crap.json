@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-08T12:27:13.352Z",
+  "generatedAt": "2026-07-11T00:52:07.415Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -4898,44 +4898,62 @@
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "parseFrontmatter",
-      "startLine": 59,
+      "startLine": 78,
       "crap": 16.746355685131196
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "renderFrontmatter",
-      "startLine": 117,
+      "startLine": 136,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "extractReferences",
-      "startLine": 147,
-      "crap": 7.087263822801013
+      "startLine": 166,
+      "crap": 7.010907977850127
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
+      "method": "classifyGhFailure",
+      "startLine": 210,
+      "crap": 3.0146549969468754
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "probeIssue",
-      "startLine": 189,
-      "crap": 1.0193119658739715
+      "startLine": 238,
+      "crap": 1.0146063100137175
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "probeLabel",
-      "startLine": 238,
+      "startLine": 293,
+      "crap": 1.0233236151603498
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
+      "method": "verifyReferences",
+      "startLine": 344,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
+      "method": "stripStaleKeys",
+      "startLine": 415,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
+      "method": "isStale",
+      "startLine": 428,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
-      "method": "findFirstDeadReason",
-      "startLine": 283,
-      "crap": 7.820292552856982
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
       "method": "scanMemoryFreshness",
-      "startLine": 346,
-      "crap": 6.33590902463916
+      "startLine": 454,
+      "crap": 6.3768310546875
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
