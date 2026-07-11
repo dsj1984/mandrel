@@ -10,15 +10,25 @@
  *
  *   1. `git log --all --grep="#<epicId>" -- <file>` returns a commit —
  *      the Epic ID was referenced in a commit message that touched the
- *      file.
- *   2. The file's current body contains `#<epicId>` — a human annotation
- *      (e.g., a CHANGELOG entry) explicitly ties the change to this Epic.
+ *      file. This is the pass path for **every** doc.
+ *   2. The file's current body contains `#<epicId>` — but this
+ *      body-annotation path is accepted **only for changelog-class files**
+ *      (basename matches `/changelog/i`), where an appended release note
+ *      keyed to the Epic is the legitimate, expected update. Any other doc
+ *      (architecture, decisions, README, …) MUST pass via condition 1: the
+ *      living doc has to be **rewritten in an Epic-referencing commit**, not
+ *      merely annotated with `#<epicId>`.
  *
  * The prior gate accepted any diff against the base branch — a stray
  * whitespace edit or a one-line unrelated cleanup passed, defeating the
  * purpose of the check. Requiring an Epic-ID reference makes "did you
  * update the docs for this Epic?" a falsifiable question instead of a
- * checkbox.
+ * checkbox. The changelog-only restriction on condition 2 closes the
+ * follow-on perverse incentive: without it, the gate rewarded appending
+ * `#<epicId>` history into living docs (manufacturing fake provenance) to
+ * satisfy the check. Restricting the annotation path to changelog files
+ * makes the gate ask "was this doc rewritten for the Epic?" rather than
+ * "does it mention the Epic?".
  *
  * Usage:
  *   node .agents/scripts/validate-docs-freshness.js --epic <EPIC_ID> [--base main] [--docs <comma-separated>] [--json]
@@ -74,6 +84,20 @@ export function resolveDocList(config) {
     ...contextDocs.map((f) => path.posix.join(docsRoot, f)),
   ];
   return Array.from(new Set(resolved));
+}
+
+/**
+ * A doc is "changelog-class" when its basename matches `/changelog/i`
+ * (e.g. `CHANGELOG.md`, `docs/CHANGELOG.md`, `changelog.mdx`). Only these
+ * files may satisfy the freshness gate via a body annotation (pass
+ * condition 2); every other doc must pass via an Epic-referencing commit
+ * (pass condition 1).
+ *
+ * @param {string} file
+ * @returns {boolean}
+ */
+export function isChangelogClass(file) {
+  return /changelog/i.test(path.basename(file));
 }
 
 function epicRefMatcher(epicId) {
@@ -145,17 +169,29 @@ export function runFreshnessGate({
         reason: `${commits.length} commit(s) reference Epic #${epicId}`,
       };
     }
-    if (fileBodyMentionsEpic(file, epicId, cwd, readFileImpl)) {
+    // Pass condition 2 (body annotation) is restricted to changelog-class
+    // files. For every other doc, an appended `#<epicId>` no longer passes —
+    // the living doc must be rewritten in an Epic-referencing commit.
+    const changelogClass = isChangelogClass(file);
+    if (
+      changelogClass &&
+      fileBodyMentionsEpic(file, epicId, cwd, readFileImpl)
+    ) {
       return {
         file,
         pass: true,
-        reason: `body mentions #${epicId}`,
+        reason: `changelog body annotation references #${epicId}`,
       };
     }
     return {
       file,
       pass: false,
-      reason: `no commit message or body reference to #${epicId}`,
+      reason: changelogClass
+        ? `no commit message or changelog body reference to #${epicId}`
+        : `${file} was not rewritten in an Epic-referencing commit for #${epicId} — ` +
+          `living docs must be REWRITTEN in a commit whose message references ` +
+          `#${epicId} (not annotated with #${epicId}); the body-annotation path ` +
+          `passes only for changelog-class files`,
     };
   });
   return { ok: results.every((r) => r.pass), results };
@@ -196,12 +232,25 @@ export function renderFreshnessLine(result) {
   return `[docs-freshness] ${result.pass ? '✅' : '❌'} ${result.file} — ${result.reason}`;
 }
 
-/** Pure: build the failure message for the operator. */
-export function renderFreshnessFailureMessage(epicId) {
+/**
+ * Pure: build the failure message for the operator. Names the failing
+ * file(s) and states the rewrite-not-append contract explicitly.
+ *
+ * @param {number} epicId
+ * @param {Array<{ file: string, pass: boolean }>} [results]
+ */
+export function renderFreshnessFailureMessage(epicId, results = []) {
+  const failing = results.filter((r) => !r.pass).map((r) => r.file);
+  const fileList = failing.length > 0 ? failing.join(', ') : '(see rows above)';
   return (
     `[docs-freshness] ❌ Documentation freshness gate FAILED for Epic #${epicId}.\n\n` +
-    `Update each failing file so its commit message or body references #${epicId}, ` +
-    `then re-run /deliver.`
+    `Failing file(s): ${fileList}\n\n` +
+    `Living docs satisfy this gate by being REWRITTEN in an Epic-referencing ` +
+    `commit — a commit whose message references #${epicId} and touches the ` +
+    `file — NOT by appending a #${epicId} annotation to the body. The ` +
+    `body-annotation path passes ONLY for changelog-class files (basename ` +
+    `matches /changelog/i). Rewrite each failing file for the Epic, then ` +
+    `re-run /deliver.`
   );
 }
 
@@ -234,7 +283,7 @@ function reportGateOutcome({ epicId, json, ok, results }) {
     Logger.info(renderFreshnessSuccessMessage(epicId, results.length));
     return;
   }
-  Logger.error(renderFreshnessFailureMessage(epicId));
+  Logger.error(renderFreshnessFailureMessage(epicId, results));
   process.exit(1);
 }
 
