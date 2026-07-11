@@ -18,9 +18,11 @@ export { runAuditSuite } from './runner.js';
 export {
   GLOBAL_LENS_ALLOWLIST,
   isGlobalLens,
+  LENS_TIERS,
   matchesAnyFilePattern,
   matchesFilePattern,
   NAVIGABILITY_LENS,
+  resolveLensTier,
   resolveNavigabilityRouteGlobs,
   routesNavigabilityLens,
   selectAudits,
