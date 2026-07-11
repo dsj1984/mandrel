@@ -1016,7 +1016,7 @@ required checks fail.
    label-transition pathway flips the Epic to `agent::done` on merge.
    The operator becomes a touchpoint here only when they (a) disarm
    auto-merge in the GitHub UI to inspect required-checks, the
-   `code-review` comment, and the retro before merging by hand, or
+   `verification-results` comment, and the retro before merging by hand, or
    (b) checks fail and need remediation on the Epic branch. There is
    no separate close command — the close-out side effects (PR open,
    handoff comment) are owned by `/deliver`'s

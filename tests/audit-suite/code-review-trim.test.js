@@ -88,19 +88,24 @@ test('code-review.md adds Pillar 4 (Anti-Gaming / Shortcut Detection) enumeratin
   }
 });
 
-test('Pillar 2 body references the audit-results structured comment', () => {
+test('Pillar 2 body references the unified verification-results comment', () => {
   const body = loadHelper();
   // The merged Integration Review pillar must point reviewers at the
-  // audit-results comment posted by the epic-audit helper, otherwise it
-  // would silently re-duplicate Phase 4's audit work.
+  // unified verification-results comment (Story #4411 retired the
+  // separate audit-results comment; Story #4412 folded the lens walk into
+  // this pass). NOTE: the pre-#4411 version of this test matched the bare
+  // string /audit-results/, which after the fold passed only because
+  // Pillar 2 contained the NEGATION sentence "There is no separate
+  // `audit-results` comment to read" — an inverted assertion. Match the
+  // real contract instead.
   const pillar2Match = body.match(
     /^### Pillar 2: Integration Review\b([\s\S]*?)(?=^### Pillar 3:|^## Step )/m,
   );
   assert.ok(pillar2Match, 'Pillar 2 section not found');
   assert.match(
     pillar2Match[1],
-    /audit-results/,
-    'Pillar 2 must reference the audit-results structured comment',
+    /verification-results/,
+    'Pillar 2 must reference the unified verification-results comment',
   );
 });
 

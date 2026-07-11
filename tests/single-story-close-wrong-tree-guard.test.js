@@ -153,10 +153,17 @@ describe('parsePorcelainStatus — pure unit', () => {
     assert.equal(entries[0].untracked, true);
   });
 
-  it('collapses a rename to its destination path', () => {
+  it('keeps BOTH sides of a rename (origin first, then destination)', () => {
+    // A stray main-checkout rename whose ORIGIN is in the Story's diff
+    // set must intersect — collapsing to the destination only let that
+    // stray downgrade to proceed (Epic #4406 review finding).
     const entries = parsePorcelainStatus('R  old.js -> new.js');
-    assert.equal(entries[0].path, 'new.js');
+    assert.deepEqual(
+      entries.map((e) => e.path),
+      ['old.js', 'new.js'],
+    );
     assert.equal(entries[0].untracked, false);
+    assert.equal(entries[1].untracked, false);
   });
 
   it('strips surrounding quotes from special-char paths', () => {

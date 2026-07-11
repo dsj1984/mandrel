@@ -19,12 +19,9 @@ import { describe, it } from 'node:test';
 import {
   buildContentMarker as buildAuditContentMarker,
   buildIdempotencyMarker as buildAuditLegacyMarker,
+  graduateAuditResults,
   parseFindings as parseAuditFindings,
 } from '../../.agents/scripts/lib/feedback-loop/audit-results-graduator.js';
-import {
-  buildContentMarker as buildCodeReviewContentMarker,
-  graduateFindings,
-} from '../../.agents/scripts/lib/feedback-loop/code-review-graduator.js';
 import {
   contentFingerprint,
   graduate,
@@ -160,20 +157,6 @@ describe('AC1 — content-hash idempotency markers', () => {
     assert.notEqual(m0, m1);
   });
 
-  it('code-review markers are content-derived and collision-free', () => {
-    const a = buildCodeReviewContentMarker(42, {
-      severity: 'high',
-      path: 'src/a.js',
-      summary: 'one',
-    });
-    const b = buildCodeReviewContentMarker(42, {
-      severity: 'high',
-      path: 'src/b.js',
-      summary: 'two',
-    });
-    assert.notEqual(a, b);
-    assert.match(a, /^<!-- code-review-followup: epic-42-[0-9a-f]{16} -->$/);
-  });
 });
 
 describe('AC2 — runChild bounded timeout', () => {
@@ -368,7 +351,7 @@ describe('AC6 — probe-error distinction + durable cross-repo deferral', () => 
       ghSearch: () => ({ stdout: '[]', code: 0 }),
       ghCreate: () => ({ stdout: 'https://x/issues/1', code: 0 }),
     });
-    const env = await graduateFindings({
+    const env = await graduateAuditResults({
       epicId: 4406,
       provider,
       config: {},
@@ -407,7 +390,7 @@ describe('AC6 — probe-error distinction + durable cross-repo deferral', () => 
       ],
     };
     const spawnImpl = makeSpawnStub({ git: () => ({ code: 0 }) });
-    const env = await graduateFindings({
+    const env = await graduateAuditResults({
       epicId: 4406,
       provider,
       config: {},

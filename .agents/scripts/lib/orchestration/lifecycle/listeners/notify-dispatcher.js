@@ -147,6 +147,12 @@ export class NotifyDispatcher {
         kind: 'notification.emitted',
         seqId,
         ts: new Date(this._now()).toISOString(),
+        // The common signal envelope requires `epicId` on the record
+        // itself — `hasCommonEnvelope` (lib/signals/schema.js) rejects
+        // rows without it and the read side silently drops them, so
+        // without this field the record was write-only (invisible to
+        // signals-view.js and every other reader).
+        epicId: this.epicId,
         sourceEvent: event,
         webhookEvent,
       };

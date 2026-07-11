@@ -20,6 +20,7 @@ import {
   AutomergeArmer,
   ghPrMergeAuto,
   parseAutoMergeArmed,
+  parsePrMerged,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 
 function quietLogger() {
@@ -53,6 +54,89 @@ describe('parseAutoMergeArmed', () => {
   it('returns false for empty / malformed input', () => {
     assert.equal(parseAutoMergeArmed(''), false);
     assert.equal(parseAutoMergeArmed('not json'), false);
+  });
+});
+
+describe('parsePrMerged', () => {
+  it('returns true when mergeCommit is a non-null object', () => {
+    assert.equal(parsePrMerged('{"mergeCommit":{"oid":"deadbeef"}}'), true);
+  });
+
+  it('returns false when mergeCommit is null / absent / malformed', () => {
+    assert.equal(parsePrMerged('{"mergeCommit":null}'), false);
+    assert.equal(parsePrMerged('{"autoMergeRequest":null}'), false);
+    assert.equal(parsePrMerged(''), false);
+    assert.equal(parsePrMerged('not json'), false);
+  });
+});
+
+describe('AutomergeArmer — arm-failure re-probe (2026-07-11 incident, Epic #4454)', () => {
+  it('treats a non-zero arm exit as success when the re-probe shows the PR merged (post-merge housekeeping failure)', async () => {
+    const { bus, emits } = recordingBus();
+    let probes = 0;
+    const armer = new AutomergeArmer({
+      bus,
+      logger: quietLogger(),
+      ghPrViewAutoMergeFn: () => {
+        probes += 1;
+        // First probe (pre-arm): not armed, not merged. Second probe
+        // (post-arm-failure recheck): the merge actually landed.
+        return probes === 1
+          ? {
+              status: 0,
+              stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+              stderr: '',
+            }
+          : {
+              status: 0,
+              stdout: '{"autoMergeRequest":null,"mergeCommit":{"oid":"deadbeef"}}',
+              stderr: '',
+            };
+      },
+      // gh pr merge merged the PR immediately, then exited 1 because the
+      // local --delete-branch failed (branch held by a harness worktree).
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr:
+          "failed to delete local branch epic/4454: cannot delete branch 'epic/4454' used by worktree",
+      }),
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', { prUrl: 'https://github.com/o/r/pull/4459' });
+
+    assert.equal(probes, 2, 're-probe issued after the non-zero arm exit');
+    assert.equal(emits.length, 1, 'epic.merge.armed emitted exactly once');
+    const outcome = armer.classifications.at(-1);
+    assert.equal(outcome.outcome, 'armed');
+    assert.match(outcome.note, /re-probe shows merged/);
+  });
+
+  it('keeps the failed classification when the re-probe shows neither merged nor armed', async () => {
+    const { bus, emits } = recordingBus();
+    const armer = new AutomergeArmer({
+      bus,
+      logger: quietLogger(),
+      ghPrViewAutoMergeFn: () => ({
+        status: 0,
+        stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+        stderr: '',
+      }),
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'GraphQL: Pull request is in unstable status',
+      }),
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', { prUrl: 'https://github.com/o/r/pull/1' });
+
+    assert.equal(emits.length, 0, 'no epic.merge.armed on a genuine arm failure');
+    const outcome = armer.classifications.at(-1);
+    assert.equal(outcome.outcome, 'failed');
+    assert.match(outcome.reason, /arm-failed:status=1/);
   });
 });
 

@@ -7,7 +7,7 @@
  *
  *   - ONE structured-comment marker ({@link VERIFICATION_RESULTS_MARKER})
  *     replaces the two retired per-graduator markers. Both feedback-loop
- *     graduators (`graduateFindings` / `graduateAuditResults`, both via the
+ *     canonical graduator (`graduateAuditResults`, via the
  *     shared `graduate()` walk in graduator-core) file follow-ups from that
  *     one marker and both surface the single
  *     {@link NO_VERIFICATION_RESULTS_COMMENT_REASON} when it is absent.
@@ -28,7 +28,6 @@ import { describe, it } from 'node:test';
 
 import { hasSurvivingCritical } from '../../.agents/scripts/lib/audit-suite/findings.js';
 import { graduateAuditResults } from '../../.agents/scripts/lib/feedback-loop/audit-results-graduator.js';
-import { graduateFindings } from '../../.agents/scripts/lib/feedback-loop/code-review-graduator.js';
 import {
   NO_VERIFICATION_RESULTS_COMMENT_REASON,
   VERIFICATION_RESULTS_MARKER,
@@ -205,54 +204,25 @@ describe('verification-results contract — single unified marker', () => {
     );
   });
 
-  it('both graduators skip a body that lacks the unified marker', async () => {
+  it('the canonical graduator skips a body that lacks the unified marker', async () => {
     const provider = makeProvider(`no marker here\n${MIXED_FINDINGS}`);
-    for (const graduate of [graduateFindings, graduateAuditResults]) {
-      const result = await graduate({
-        epicId: 4405,
-        provider,
-        config: {},
-        currentRepo: CONSUMER_REPO,
-      });
-      assert.deepEqual(result.filed, []);
-      assert.equal(result.skipped.length, 1);
-      assert.equal(
-        result.skipped[0].reason,
-        NO_VERIFICATION_RESULTS_COMMENT_REASON,
-      );
-    }
-  });
-});
-
-describe('verification-results contract — one remediation loop', () => {
-  it('code-review graduator files the non-blocking tiers from the unified marker; halts the Critical and skips Fixed-on-branch', async () => {
-    const provider = makeProvider(
-      `${VERIFICATION_RESULTS_MARKER}\n${MIXED_FINDINGS}`,
-    );
-    const result = await graduateFindings({
+    const result = await graduateAuditResults({
       epicId: 4405,
       provider,
       config: {},
       currentRepo: CONSUMER_REPO,
-      frameworkRepo: FRAMEWORK_REPO,
-      spawnImpl: makeSpawnStub(),
     });
-    assert.equal(result.errors.length, 0, JSON.stringify(result.errors));
-    const filedPaths = result.filed.map((f) => f.path).sort();
-    assert.deepEqual(filedPaths, [
-      'src/high.js',
-      'src/medium.js',
-      'src/suggestion.js',
-    ]);
-    for (const path of NON_GRADUATING) {
-      assert.ok(
-        !filedPaths.includes(path),
-        `${path} must not graduate (surviving Critical / Fixed-on-branch)`,
-      );
-    }
+    assert.deepEqual(result.filed, []);
+    assert.equal(result.skipped.length, 1);
+    assert.equal(
+      result.skipped[0].reason,
+      NO_VERIFICATION_RESULTS_COMMENT_REASON,
+    );
   });
+});
 
-  it('audit-results graduator files the same non-blocking set (lens-tagged) from the unified marker', async () => {
+describe('verification-results contract — one remediation loop', () => {
+  it('the canonical audit-results graduator files the non-blocking tiers (lens-tagged); halts the Critical and skips Fixed-on-branch', async () => {
     const provider = makeProvider(
       `${VERIFICATION_RESULTS_MARKER}\n${MIXED_FINDINGS}`,
     );

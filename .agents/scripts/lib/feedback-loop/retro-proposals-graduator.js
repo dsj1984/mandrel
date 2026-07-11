@@ -30,6 +30,8 @@
  * failure path is captured in `errors[]`.
  */
 
+import { META_LABELS } from '../label-constants.js';
+import { DEFAULT_FRAMEWORK_REPO } from '../orchestration/retro/phases/gather-signals.js';
 import {
   contentFingerprint,
   DEFAULT_MAX_FILINGS_PER_RUN,
@@ -39,7 +41,7 @@ import {
 
 /**
  * Resolve the toggle from the resolved agentrc config. Defaults to `true`
- * — the feature is opt-out (mirrors codeReviewAutoFile / auditResultsAutoFile).
+ * — the feature is opt-out (mirrors auditResultsAutoFile).
  *
  * @param {object|undefined|null} config
  * @returns {boolean}
@@ -48,20 +50,27 @@ export const isAutoFileEnabled = makeIsAutoFileEnabled('retroProposals');
 
 /**
  * Build the content-hash idempotency marker embedded in freshly filed
- * follow-up bodies. Derived from the proposal's `category|''|title` triple
- * (retro proposals are path-less) so the marker is stable across sibling
- * insert/remove/reorder churn in the routed-proposal set. An HTML comment
- * so it survives markdown rendering but stays indexable via `gh search`.
+ * follow-up bodies. Derived from the proposal's CATEGORY (retro proposals
+ * are path-less and the rendered title embeds a mutable recurrence count)
+ * so the marker is stable across sibling insert/remove/reorder churn AND
+ * across re-runs that change the count. An HTML comment so it survives
+ * markdown rendering but stays indexable via `gh search`.
  *
  * @param {number} epicId
  * @param {{ category?: string, title?: string }} finding
  * @returns {string}
  */
 export function buildContentMarker(epicId, finding) {
+  // Fingerprint on the CATEGORY only — never the rendered title. The
+  // title embeds the mutable recurrence count ("… recurred <N> times in
+  // Epic #X"), so hashing it made a retro re-run after the count changed
+  // mint a fresh fingerprint and re-file a duplicate issue for the same
+  // category. The idempotency identity of a retro proposal is
+  // (epic, category); the epic id is already carried in the marker text.
   const fp = contentFingerprint({
     category: finding.category,
     path: '',
-    title: finding.title,
+    title: '',
   });
   return `<!-- retro-proposal-followup: epic-${epicId}-${fp} -->`;
 }
@@ -74,8 +83,8 @@ export function buildContentMarker(epicId, finding) {
  */
 function metaSourceLabel(source) {
   return source === 'framework'
-    ? 'meta::framework-gap'
-    : 'meta::consumer-improvement';
+    ? META_LABELS.FRAMEWORK_GAP
+    : META_LABELS.CONSUMER_IMPROVEMENT;
 }
 
 /**
@@ -380,7 +389,15 @@ export async function fileRetroProposals({
     );
     return passthrough('no-current-repo');
   }
-  const frameworkRepoObj = parseRepoSlug(frameworkRepo) ?? currentRepo;
+  // Framework-repo fallback parity with `gatherRetroSignals`
+  // (gather-signals.js): an unconfigured `github.frameworkRepo` falls
+  // back to the Mandrel mirror constant, NEVER to the consumer's own
+  // repo — the prior `?? currentRepo` fallback silently auto-filed
+  // framework-tagged proposals into the consumer's repo while the retro
+  // body rendered them under "framework repo" (masked in this repo only
+  // because consumer === framework here).
+  const frameworkRepoObj =
+    parseRepoSlug(frameworkRepo) ?? parseRepoSlug(DEFAULT_FRAMEWORK_REPO);
 
   let summary;
   try {

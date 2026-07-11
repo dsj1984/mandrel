@@ -238,6 +238,8 @@ export async function runSingleStoryClose({
   skipSync: skipSyncParam,
   noAutoMerge: noAutoMergeParam,
   noFullScopeCrap: noFullScopeCrapParam,
+  waitForMerge: waitForMergeParam,
+  noWaitForMerge: noWaitForMergeParam,
   injectedProvider,
   injectedConfig,
   injectedNotify,
@@ -254,6 +256,8 @@ export async function runSingleStoryClose({
     skipSyncParam,
     noAutoMergeParam,
     noFullScopeCrapParam,
+    waitForMergeParam,
+    noWaitForMergeParam,
   });
   if (!options.storyId) {
     throw new Error(

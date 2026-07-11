@@ -34,13 +34,15 @@ Each scheduled run:
    structured `temp/audits/audit-*-results.md` report — that is the canonical
    artifact this loop consumes, not free-form prose. Because these audits are
    **independent** of one another, a scheduled run **may fan them out to
-   parallel sub-agents** (one per audit) rather than walking them serially —
-   the same cross-lens parallelization `/deliver` Phase 4 uses (see
-   [`../helpers/epic-audit.md` § "Optional: delegate the roster walk to an
-   audit-orchestrator sub-agent"](../helpers/epic-audit.md)). Each sub-agent
-   returns only its structured report; the scheduler/host owns the fan-out just
-   as it owns the cadence, and each per-audit strategy (sequential or
-   orchestrated) is unchanged by running under its own sub-agent.
+   parallel sub-agents** (one per audit) rather than walking them serially:
+   dispatch one general-purpose sub-agent per lens, each instructed to read
+   its `/audit-<lens>` workflow and write the structured report. Each
+   sub-agent returns only its structured report; the scheduler/host owns the
+   fan-out just as it owns the cadence, and each per-audit strategy
+   (sequential or orchestrated) is unchanged by running under its own
+   sub-agent. (The former `/deliver` Phase 4 audit-orchestrator pattern this
+   note used to cite was retired by Story #4412, which folded the Epic-close
+   lens walk into the Phase 5 code-review pass.)
 2. **Diff against the prior night.** Compare the fresh findings against the last
    sweep's reports and against already-open Issues. A finding seen before is
    not new signal; only genuinely fresh or regressed findings warrant a record.

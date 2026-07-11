@@ -5,7 +5,7 @@
  * `parseFindings` (lens detection plus the 🔵→low / 🟢→suggestion severity
  * mapping that distinguishes it from the code-review parser), the
  * `isAutoFileEnabled` toggle reader, and the `buildIdempotencyMarker`
- * shape. These behaviours diverge from `code-review-graduator.js` and the
+ * shape. These behaviours diverged from the retired `code-review-graduator.js` and the
  * Story #3845 consolidation MUST preserve them exactly, so they are pinned
  * here at the unit tier alongside the code-review parser unit tests.
  *

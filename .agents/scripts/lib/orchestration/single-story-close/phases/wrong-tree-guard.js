@@ -62,24 +62,33 @@ import { postStructuredComment } from '../../ticketing/state.js';
  */
 export function parsePorcelainStatus(raw) {
   if (typeof raw !== 'string' || raw.trim() === '') return [];
+  const unquote = (p) =>
+    p.startsWith('"') && p.endsWith('"') ? p.slice(1, -1) : p;
   return raw
     .split('\n')
     .map((line) => line.replace(/\r$/, ''))
     .filter((line) => line.length > 0)
-    .map((line) => {
+    .flatMap((line) => {
       // First two chars are the status code; path begins at column 3.
       const status = line.slice(0, 2);
-      let filePath = line.slice(3).trim();
-      // Renames/copies render as "orig -> dest"; keep the destination.
-      const arrowIdx = filePath.indexOf(' -> ');
+      const rawPath = line.slice(3).trim();
+      // Renames/copies render as "orig -> dest". Keep BOTH sides: the
+      // Story-diff intersection downstream must match a rename whose
+      // ORIGIN path is in the Story's footprint — collapsing to the
+      // destination only made such a stray downgrade to proceed.
+      const arrowIdx = rawPath.indexOf(' -> ');
       if (arrowIdx !== -1) {
-        filePath = filePath.slice(arrowIdx + 4).trim();
+        const origin = unquote(rawPath.slice(0, arrowIdx).trim());
+        const dest = unquote(rawPath.slice(arrowIdx + 4).trim());
+        return [
+          { status, path: origin, untracked: status === '??' },
+          { status, path: dest, untracked: status === '??' },
+        ];
       }
       // Porcelain may quote paths containing special chars; strip the quotes.
-      if (filePath.startsWith('"') && filePath.endsWith('"')) {
-        filePath = filePath.slice(1, -1);
-      }
-      return { status, path: filePath, untracked: status === '??' };
+      return [
+        { status, path: unquote(rawPath), untracked: status === '??' },
+      ];
     });
 }
 

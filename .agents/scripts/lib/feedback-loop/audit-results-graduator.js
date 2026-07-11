@@ -55,7 +55,7 @@ import {
 
 /**
  * Resolve the toggle from the resolved agentrc config. Defaults to `true`
- * — the feature is opt-out, not opt-in (mirrors codeReviewAutoFile).
+ * — the feature is opt-out, not opt-in.
  *
  * @param {object|undefined|null} config
  * @returns {boolean}
