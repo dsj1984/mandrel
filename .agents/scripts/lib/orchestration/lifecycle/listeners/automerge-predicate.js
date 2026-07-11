@@ -66,6 +66,7 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { hasSurvivingCritical } from '../../../audit-suite/findings.js';
 import { getCiDelivery } from '../../../config/ci.js';
 import * as epicRunStateStore from '../../epic-run-state-store.js';
 import { findStructuredComment } from '../../ticketing.js';
@@ -441,7 +442,11 @@ function evaluateCodeReviewSignals(codeReview, reasons) {
   if (codeReviewUnparseable) {
     return { codeReviewFound, codeReviewUnparseable, severity };
   }
-  if (severity.critical > 0) {
+  // Route the halt-on-critical decision through the single halting rule of
+  // the unified verification-results contract (Story #4411) rather than a
+  // re-derived `critical > 0` expression. The unparseable branch above has
+  // already returned, so `severity.critical` is a concrete number here.
+  if (hasSurvivingCritical(severity)) {
     pushReason(
       reasons,
       REASON_CATEGORY.CRITICAL_REVIEW,
@@ -648,7 +653,11 @@ export async function evaluateAutoMergePredicate({
   // only IO, but the rule is directory-scoped; sequencing here is a
   // cheap concession for living inside the listener tree.
   const state = await readRunStateFn({ provider, epicId });
-  const codeReview = await findCommentFn(provider, epicId, 'code-review');
+  const codeReview = await findCommentFn(
+    provider,
+    epicId,
+    'verification-results',
+  );
   let retro = await findCommentFn(provider, epicId, 'retro');
   if (!retro) {
     retro = await findCommentFn(provider, epicId, 'retro-partial');

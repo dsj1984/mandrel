@@ -64,13 +64,15 @@ describe('getRunners', () => {
     assert.equal(r.decomposer.concurrencyCap, 3);
   });
 
-  it('returns documented defaults for delivery.epicAudit (Story #2611)', () => {
+  it('returns documented defaults for delivery.epicAudit (Story #2611; autoFixSeverity high per Story #4412)', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
       assert.deepEqual(r.epicAudit, {
         maxFixAttempts: 3,
         maxFixScopeFiles: 5,
-        autoFixSeverity: 'medium',
+        // Story #4412 — the slim Epic-close tier defaults to `high`; 🟡 Medium
+        // concerns are remediated shift-left, not re-remediated at close.
+        autoFixSeverity: 'high',
       });
     }
   });
@@ -93,7 +95,7 @@ describe('getRunners', () => {
     assert.deepEqual(r.epicAudit, {
       maxFixAttempts: 1,
       maxFixScopeFiles: 10,
-      autoFixSeverity: 'medium',
+      autoFixSeverity: 'high',
     });
   });
 
@@ -108,11 +110,13 @@ describe('getRunners', () => {
     });
   });
 
-  it('reads delivery.epicAudit.autoFixSeverity override (Story #4399)', () => {
+  it('reads delivery.epicAudit.autoFixSeverity override (Story #4399; default flipped to high in #4412)', () => {
+    // Override to `medium` (the non-default) to prove the read — `high` is now
+    // the default, so overriding to `high` would not distinguish the two.
     const r = getRunners({
-      delivery: { epicAudit: { autoFixSeverity: 'high' } },
+      delivery: { epicAudit: { autoFixSeverity: 'medium' } },
     });
-    assert.equal(r.epicAudit.autoFixSeverity, 'high');
+    assert.equal(r.epicAudit.autoFixSeverity, 'medium');
   });
 
   it('reads delivery.codeReview.autoFixSeverity override (Story #4399)', () => {

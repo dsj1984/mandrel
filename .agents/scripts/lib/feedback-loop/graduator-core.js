@@ -48,7 +48,34 @@ import { spawn as defaultSpawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import { classifyPathSource as defaultClassifier } from '../observability/source-classifier.js';
-import { upsertStructuredComment } from '../orchestration/ticketing.js';
+import {
+  structuredCommentMarker,
+  upsertStructuredComment,
+} from '../orchestration/ticketing.js';
+
+/**
+ * The single structured-comment marker for the unified `verification-results`
+ * findings contract (Story #4411, Epic #4405). It replaces the two retired
+ * per-graduator markers (the former code-review and audit-results
+ * structured-comment markers). Both feedback-loop graduators
+ * search the Epic's comments for this one marker so they file follow-ups
+ * from the same unified source comment that `runCodeReview` upserts (comment
+ * type `verification-results`). Derived from the canonical
+ * `structuredCommentMarker` builder so the read-side marker stays byte-stable
+ * with the write side rather than being hand-copied.
+ */
+export const VERIFICATION_RESULTS_MARKER = structuredCommentMarker(
+  'verification-results',
+);
+
+/**
+ * The single "no source comment" skip reason for the unified contract. Both
+ * graduators surface this reason when the Epic carries no
+ * `verification-results` comment, replacing the two retired
+ * `no-code-review-comment` / `no-audit-results-comment` reasons.
+ */
+export const NO_VERIFICATION_RESULTS_COMMENT_REASON =
+  'no-verification-results-comment';
 
 /**
  * Default child-process timeout. A hung `gh`/`git` spawn previously blocked

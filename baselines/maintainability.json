@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.964,
+      "p50": 97.891,
       "p95": 126.964
     }
   },
@@ -104,7 +104,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 84.816
+      "mi": 86.562
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -133,6 +133,10 @@
     {
       "path": ".agents/scripts/generate-config-docs.js",
       "mi": 85.454
+    },
+    {
+      "path": ".agents/scripts/generate-lens-checklists.js",
+      "mi": 100.525
     },
     {
       "path": ".agents/scripts/generate-lifecycle-docs.js",
@@ -167,12 +171,16 @@
       "mi": 89.263
     },
     {
+      "path": ".agents/scripts/lib/audit-suite/checklist-threading.js",
+      "mi": 102.173
+    },
+    {
       "path": ".agents/scripts/lib/audit-suite/cli.js",
       "mi": 114.249
     },
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
-      "mi": 93.141
+      "mi": 97.483
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
@@ -187,12 +195,16 @@
       "mi": 171
     },
     {
+      "path": ".agents/scripts/lib/audit-suite/lens-checklist.js",
+      "mi": 87.088
+    },
+    {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
       "mi": 98.141
     },
     {
       "path": ".agents/scripts/lib/audit-suite/selector.js",
-      "mi": 100.988
+      "mi": 98.831
     },
     {
       "path": ".agents/scripts/lib/audit-suite/substitutions.js",
@@ -660,7 +672,7 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "mi": 92.049
+      "mi": 92.074
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
@@ -844,7 +856,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 83.28
+      "mi": 93.155
     },
     {
       "path": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1103,6 +1115,10 @@
       "mi": 108.444
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "mi": 90.109
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "mi": 82.309
     },
@@ -1279,6 +1295,10 @@
       "mi": 108.168
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
+      "mi": 90.602
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "mi": 110.234
     },
@@ -1377,6 +1397,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/close.js",
       "mi": 87.145
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/phases/code-review.js",
+      "mi": 96.469
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",

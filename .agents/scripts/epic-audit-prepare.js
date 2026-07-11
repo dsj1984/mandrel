@@ -23,7 +23,7 @@
  *
  * Story #3939 — depth-aware lenses. The `depth` field tells the audit
  * executor (`helpers/epic-audit.md`) how thorough each selected lens should
- * be on this Epic without ever skipping a selected (or alwaysRun) lens:
+ * be on this Epic without ever skipping a selected lens:
  * `light` shrinks a lens's sweep to the changed surface + Critical/High
  * findings, `standard` is today's behavior, and `deep` widens the sweep to
  * the directly-touched modules. Depth never changes which lenses fire, the
@@ -53,6 +53,7 @@
  *     "epicBranch": "epic/2586",
  *     "depth": "deep",
  *     "selectedAudits": ["audit-security", "audit-privacy"],
+ *     "epicCloseLenses": ["audit-security"],
  *     "changeSetAudits": ["audit-privacy"],
  *     "riskRoutedAudits": ["audit-security"],
  *     "globalLenses": [],
@@ -97,7 +98,10 @@ import {
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
-import { resolveAuditLenses } from './lib/orchestration/code-review.js';
+import {
+  resolveAuditLenses,
+  selectEpicCloseLenses,
+} from './lib/orchestration/code-review.js';
 import { read as readPlanState } from './lib/orchestration/epic-plan-state-store.js';
 import { resolveDepth } from './lib/orchestration/review-depth.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -121,6 +125,14 @@ Output (JSON envelope on stdout):
                      each SELECTED lens runs; it never changes which lenses
                      fire, the severity taxonomy, or the Phase 4 halting rule.
   selectedAudits     De-duplicated union of changeSetAudits + riskRoutedAudits.
+  epicCloseLenses    The SLIM Epic-close roster (Story #4412): selectedAudits
+                     with every local-tier change-set lens excluded, keeping
+                     only cumulative + global change-set lenses plus every
+                     risk-routed lens. This is the roster the Phase 5
+                     code-review pass walks over the cumulative Epic diff —
+                     local-tier concerns are already verified shift-left
+                     (write-time checklists + the Story-scope local-lens pass),
+                     so they are not re-run at Epic close.
   changeSetAudits    Lenses the change-set selector chose.
   riskRoutedAudits   Lenses routed from the model-judged high-risk axes plus the
                      navigability lens when a changed file matches a configured
@@ -409,6 +421,21 @@ export async function runEpicAuditPrepare(values, deps = {}) {
   );
   const selectedAudits = unionAudits(changeSetAudits, riskRoutedAudits);
 
+  // Story #4412 (Epic #4405) — the SLIM Epic-close roster. Restrict the gate3
+  // selection to the tiers the Epic-close pass owns: cumulative + global
+  // change-set lenses plus every risk-routed lens, dropping every local-tier
+  // change-set lens (routed off `resolveLensTier` in `selectEpicCloseLenses`).
+  // Local-tier concerns are already verified shift-left — the write-time
+  // checklist threading (#4410) and the maker-blind Story-scope local-lens
+  // pass (#4409) — so re-running them over the cumulative diff at close would
+  // verify the same concern at a second tier. This is the roster the Phase 5
+  // code-review pass walks; `selectedAudits` stays the pre-slim union for
+  // observability.
+  const epicCloseLenses = selectEpicCloseLenses({
+    changeSetAudits,
+    riskRoutedAudits,
+  });
+
   // Epic #4131 (F2) — surface which selected lenses are on the global-lens
   // allowlist so the helper runs them against the WHOLE route tree, exempt from
   // the cross-epic-leak guard's change-set narrowing (`#3362`). The exemption
@@ -439,6 +466,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
         epicBranch,
         depth,
         selectedAudits,
+        epicCloseLenses,
         changeSetAudits,
         riskRoutedAudits,
         globalLenses,

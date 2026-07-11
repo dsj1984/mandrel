@@ -12,10 +12,12 @@
  *      critical findings are filtered out.
  *   3. Toggle `delivery.feedbackLoop.auditResultsAutoFile = false`
  *      short-circuits the graduator (no issues filed).
- *   4. The Finalizer invokes the injected `graduateAuditResultsFn` after
- *      the `graduateFindingsFn` (code-review) call on
- *      `acceptance.reconcile.ok`, honours the toggle, and continues
- *      `pr.created` / `epic.finalize.end` emits when the graduator throws.
+ *   4. The Finalizer invokes the injected `graduateAuditResultsFn` as the
+ *      SINGLE graduation pass on `acceptance.reconcile.ok` (Story #4411
+ *      collapsed the former dual code-review + audit-results passes into
+ *      one canonical pass over the unified `verification-results` comment),
+ *      honours the toggle, and continues `pr.created` / `epic.finalize.end`
+ *      emits when the graduator throws.
  *
  * Tier: contract — exercises wire shape and listener ordering. No
  * filesystem, git, or network I/O fires; all collaborators are stubbed.
@@ -25,9 +27,16 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import { graduateAuditResults } from '../../.agents/scripts/lib/feedback-loop/audit-results-graduator.js';
+import {
+  NO_VERIFICATION_RESULTS_COMMENT_REASON,
+  VERIFICATION_RESULTS_MARKER,
+} from '../../.agents/scripts/lib/feedback-loop/graduator-core.js';
 import { Finalizer } from '../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 
-const AUDIT_RESULTS_MARKER = '<!-- claude-managed: audit-results -->';
+// Story #4411 — the audit graduator now reads the unified
+// `verification-results` structured comment; the source-comment fixtures
+// carry that one marker rather than the retired audit-results marker.
+const AUDIT_RESULTS_MARKER = VERIFICATION_RESULTS_MARKER;
 
 /** Stub provider returning a fixed set of comments. */
 function makeProvider(comments) {
@@ -92,7 +101,7 @@ describe('audit-results graduator (contract)', () => {
     assert.deepEqual(result.filed, []);
     assert.equal(result.errors.length, 0);
     const reasons = result.skipped.map((s) => s.reason);
-    assert.ok(reasons.includes('no-audit-results-comment'));
+    assert.ok(reasons.includes(NO_VERIFICATION_RESULTS_COMMENT_REASON));
   });
 
   it('short-circuits when auditResultsAutoFile toggle is false', async () => {
@@ -368,7 +377,6 @@ describe('Finalizer ↔ audit-results graduator (contract)', () => {
   } = {}) {
     const bus = makeBus();
     const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
-    const codeReviewCalls = [];
     const auditResultsCalls = [];
     const fnAudit =
       graduateAuditResultsFn ??
@@ -407,10 +415,6 @@ describe('Finalizer ↔ audit-results graduator (contract)', () => {
       config: config ?? {},
       currentRepo: { owner: 'dsj1984', repo: 'mandrel' },
       frameworkRepo: { owner: 'dsj1984', repo: 'mandrel' },
-      graduateFindingsFn: async (opts) => {
-        codeReviewCalls.push({ at: Date.now(), opts });
-        return { filed: [], skipped: [], errors: [] };
-      },
       graduateAuditResultsFn: async (opts) => fnAudit(opts),
       runFinalizeFn: async () => ({
         prUrl: 'https://github.com/dsj1984/mandrel/pull/4242',
@@ -419,18 +423,17 @@ describe('Finalizer ↔ audit-results graduator (contract)', () => {
       logger: { info: () => {}, warn: () => {}, debug: () => {} },
     });
     finalizer.register();
-    return { bus, finalizer, codeReviewCalls, auditResultsCalls };
+    return { bus, finalizer, auditResultsCalls };
   }
 
-  it('invokes audit-results graduator after code-review graduator on default config', async () => {
-    const { bus, codeReviewCalls, auditResultsCalls } = buildFixture();
+  it('invokes the audit-results graduator as the single graduation pass on default config', async () => {
+    const { bus, auditResultsCalls } = buildFixture();
     await bus.emit('acceptance.reconcile.ok', { epicId: 2586 });
 
-    assert.equal(codeReviewCalls.length, 1, 'code-review graduator ran once');
     assert.equal(
       auditResultsCalls.length,
       1,
-      'audit-results graduator ran once',
+      'audit-results graduator ran exactly once (single canonical pass)',
     );
     const events = bus.emitted.map((e) => e.event);
     assert.ok(events.includes('epic.finalize.start'));

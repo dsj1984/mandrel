@@ -16,6 +16,7 @@
  * mapping. All rule-matching lives here.
  */
 
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import picomatch from 'picomatch';
@@ -60,6 +61,141 @@ export const GLOBAL_LENS_ALLOWLIST = Object.freeze([NAVIGABILITY_LENS]);
  */
 export function isGlobalLens(lens) {
   return GLOBAL_LENS_ALLOWLIST.includes(lens);
+}
+
+/**
+ * The canonical concern-ownership tiers a lens can declare via its
+ * `scope` field in [`audit-rules.json`](../../../schemas/audit-rules.json).
+ * This frozen tuple is the single source of truth for the tier vocabulary the
+ * schema's `scope` enum enforces and {@link resolveLensTier} returns:
+ *
+ *   - `local`      — decidable from a single Story's diff; verified at
+ *                    write-time and Story-scope review, not re-run at Epic close.
+ *   - `cumulative` — only decidable across the Epic's combined diff; verified
+ *                    at Epic close.
+ *   - `global`     — evaluates a whole-product property regardless of the diff;
+ *                    verified at Epic close, exempt from change-set narrowing.
+ *
+ * @type {readonly ['local', 'cumulative', 'global']}
+ */
+export const LENS_TIERS = Object.freeze(['local', 'cumulative', 'global']);
+
+/**
+ * Resolve the concern-ownership tier a lens declares in `audit-rules.json`.
+ * This is the pure read-side of the `scope` field (Epic #4405, Story #4407)
+ * that replaced the former `alwaysRun` special case: every downstream tier —
+ * write-time checklist threading, Story-scope review, the Epic-close roster
+ * split — routes off this one field instead of a maintained prose constraint.
+ *
+ * Deterministic given the on-disk manifest: it reads the same
+ * `audit-rules.json` that {@link selectAudits} consumes (resolved through the
+ * project's configured `schemasRoot`), looks up the lens, and returns its
+ * `scope`. It takes no ticket, runs no git, and has no side effects.
+ *
+ * @param {string} lens Lens key registered in `audit-rules.json`
+ *   (e.g. `audit-clean-code`).
+ * @returns {'local' | 'cumulative' | 'global'} The lens's declared tier.
+ * @throws {Error} When `lens` is not registered in the manifest, or the
+ *   manifest cannot be read, or the registered entry carries a scope outside
+ *   {@link LENS_TIERS}.
+ */
+/**
+ * Read and parse the `audit-rules.json` manifest synchronously from the
+ * project's configured `schemasRoot`. Shared by the synchronous, ticket-free
+ * readers ({@link resolveLensTier}, {@link selectLocalLenses}) so the path
+ * resolution and read-failure handling live in one place rather than being
+ * duplicated per reader.
+ *
+ * @returns {{ audits?: Record<string, object> }} Parsed manifest.
+ * @throws {Error} When the manifest cannot be read or parsed.
+ */
+function readAuditRulesSync() {
+  const { agentSettings } = resolveConfig();
+  const rulesPath = path.join(
+    PROJECT_ROOT,
+    getPaths({ agentSettings }).schemasRoot,
+    'audit-rules.json',
+  );
+  try {
+    return JSON.parse(readFileSync(rulesPath, 'utf8'));
+  } catch (err) {
+    throw new Error(
+      `audit-suite: failed to read audit-rules from ${rulesPath}: ${err.message}`,
+    );
+  }
+}
+
+export function resolveLensTier(lens) {
+  const rulesData = readAuditRulesSync();
+
+  const entry = rulesData.audits?.[lens];
+  if (!entry) {
+    throw new Error(
+      `resolveLensTier: unknown lens '${lens}' — not registered in audit-rules.json`,
+    );
+  }
+
+  const { scope } = entry;
+  if (!LENS_TIERS.includes(scope)) {
+    throw new Error(
+      `resolveLensTier: lens '${lens}' declares invalid scope '${scope}'; expected one of ${LENS_TIERS.join(', ')}`,
+    );
+  }
+
+  return scope;
+}
+
+/**
+ * Select the LOCAL-tier lenses whose `filePatterns` triggers match a change
+ * set. This is the Story-scope roster used by the maker-blind story-close
+ * review (Epic #4405, Story #4409): a lens is selected iff
+ * `resolveLensTier(lens) === 'local'` **and** the pure
+ * {@link matchesAnyFilePattern} matcher hits at least one of `changedFiles`
+ * against the lens's registered `triggers.filePatterns`.
+ *
+ * This deliberately does **not** call {@link selectAudits}: `selectAudits`
+ * unions in keyword-matched and gate-scoped lenses and has no per-tier gate,
+ * so it would widen the roster beyond the local, footprint-matched set the
+ * shift-left Story-scope tier owns. A local lens with a universal
+ * `filePatterns` glob (e.g. `audit-clean-code`, whose sole pattern matches
+ * every path) matches every change set here, so its concern is verified at
+ * BOTH innermost tiers — the
+ * write-time checklist threading and this Story-scope lens pass — and excluded
+ * from Epic close (a local lens is dropped by {@link selectEpicCloseLenses}).
+ * A local lens with an empty `filePatterns` list matches nothing here, so a
+ * diff matching no local lens's patterns yields an empty roster and adds no
+ * lens work.
+ *
+ * Pure over its injected seams: `injectedRules` skips the disk read of the
+ * manifest and `resolveLensTierFn` overrides the tier resolver, so callers can
+ * exercise the selection without touching the filesystem. Selection order
+ * follows the manifest's declaration order, which is deterministic.
+ *
+ * @param {{
+ *   changedFiles?: string[],
+ *   injectedRules?: { audits?: Record<string, object> },
+ *   resolveLensTierFn?: typeof resolveLensTier,
+ * }} [params]
+ * @returns {string[]} The matched local-lens identifiers, in manifest order.
+ */
+export function selectLocalLenses({
+  changedFiles,
+  injectedRules,
+  resolveLensTierFn = resolveLensTier,
+} = {}) {
+  const files = Array.isArray(changedFiles) ? changedFiles : [];
+  if (files.length === 0) return [];
+
+  const rules = injectedRules ?? readAuditRulesSync();
+  const selected = [];
+  for (const [lens, entry] of Object.entries(rules.audits ?? {})) {
+    if (resolveLensTierFn(lens) !== 'local') continue;
+    const patterns = entry?.triggers?.filePatterns ?? [];
+    if (matchesAnyFilePattern(patterns, files)) {
+      selected.push(lens);
+    }
+  }
+  return selected;
 }
 
 /**
@@ -263,11 +399,6 @@ export async function selectAudits({
 
     const gateMatch = triggers.gates?.includes(gate);
     if (!gateMatch) continue;
-
-    if (triggers.alwaysRun) {
-      selectedAudits.push(auditName);
-      continue;
-    }
 
     const keywords = triggers.keywords || [];
     let keywordMatch = false;
