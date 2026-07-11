@@ -364,7 +364,7 @@ describe('runAutoRefresh — Story #2205 routing through refreshBaseline()', () 
     assert.equal(result.status, 'refused');
     assert.ok(result.refusalReasons.length >= 1);
     assert.equal(appendCalls.length, 1);
-    assert.equal(appendCalls[0].source.tool, 'auto-refresh-runner');
+    assert.equal(appendCalls[0].emitter.tool, 'auto-refresh-runner');
     assert.equal(appendCalls[0].category, 'baseline-refresh-regression');
   });
 });

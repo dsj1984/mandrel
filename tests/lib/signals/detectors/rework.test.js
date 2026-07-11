@@ -11,7 +11,7 @@
  *   - Non-edit tool events → ignored entirely.
  *
  * Plus the schema/shape contract: every emission carries
- * `{ ts, kind:'rework', source:{tool:'rework-detector'}, epicId, storyId,
+ * `{ ts, kind:'rework', emitter:{tool:'rework-detector'}, epicId, storyId,
  *   taskId, details:{ targetHash, editCount, threshold } }` per
  * `.agents/schemas/signal-event.schema.json`.
  *
@@ -158,7 +158,7 @@ describe('detectRework — emission shape (schema contract)', () => {
     assert.equal(typeof evt.ts, 'string');
     assert.match(evt.ts, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(evt.kind, 'rework');
-    assert.deepEqual(evt.source, { tool: 'rework-detector' });
+    assert.deepEqual(evt.emitter, { tool: 'rework-detector' });
     assert.equal(evt.epicId, EPIC_ID);
     assert.equal(evt.storyId, STORY_ID);
     assert.equal(evt.taskId, TASK_ID);

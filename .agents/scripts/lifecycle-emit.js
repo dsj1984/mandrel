@@ -261,11 +261,16 @@ export async function emitBlockedSignal({
       config,
       signal: {
         kind: 'friction',
+        ts: new Date().toISOString(),
+        epicId,
+        category: 'lifecycle-listener-failure',
+        emitter: { tool: 'lifecycle-emit.js' },
         severity: 'high',
         event,
-        message: `lifecycle-emit: ${event} produced failed listener classification(s): ${reasons}`,
-        outcomes: failedOutcomes,
-        timestamp: new Date().toISOString(),
+        details: {
+          message: `lifecycle-emit: ${event} produced failed listener classification(s): ${reasons}`,
+          outcomes: failedOutcomes,
+        },
       },
     });
   } catch (err) {

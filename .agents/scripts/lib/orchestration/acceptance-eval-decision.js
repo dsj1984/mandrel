@@ -174,7 +174,7 @@ export function buildAcceptanceEvalSignal({
     epicId: epicId ?? null,
     storyId,
     phase,
-    source: { tool: 'acceptance-eval.js' },
+    emitter: { tool: 'acceptance-eval.js' },
     details: {
       decision: outcome.decision,
       round: outcome.round,

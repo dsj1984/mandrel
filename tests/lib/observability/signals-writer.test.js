@@ -52,13 +52,27 @@ const tracesPath = (eid, sid) =>
     'traces.ndjson',
   );
 
+// Canonical friction record helper (Epic #4406). The writer now validates
+// every record against `signal-event.schema.json` before appending, so
+// test fixtures must carry the canonical envelope (`kind`, `ts`, `epicId`).
+// Extra fields survive (`additionalProperties: true`).
+const mkSignal = (overrides = {}) => ({
+  kind: 'friction',
+  ts: '2026-07-11T00:00:00.000Z',
+  epicId: overrides.epicId ?? 1030,
+  storyId: overrides.storyId ?? 1041,
+  category: 'Execution Error',
+  emitter: { tool: 'test' },
+  ...overrides,
+});
+
 describe('signals-writer — appendSignal correctness', () => {
   it('writes 100 valid newline-terminated JSON lines', async () => {
     for (let i = 0; i < 100; i += 1) {
       const ok = await appendSignal({
         epicId: 1030,
         storyId: 1041,
-        signal: { kind: 'test', i, msg: `signal ${i}` },
+        signal: mkSignal({ i, msg: `signal ${i}` }),
         config: cfg,
       });
       assert.equal(ok, true);
@@ -71,7 +85,7 @@ describe('signals-writer — appendSignal correctness', () => {
 
     lines.forEach((line, idx) => {
       const parsed = JSON.parse(line);
-      assert.equal(parsed.kind, 'test');
+      assert.equal(parsed.kind, 'friction');
       assert.equal(parsed.i, idx);
       assert.equal(parsed.msg, `signal ${idx}`);
     });
@@ -85,7 +99,7 @@ describe('signals-writer — appendSignal correctness', () => {
     const ok = await appendSignal({
       epicId: 2000,
       storyId: 2100,
-      signal: { kind: 'lazy', value: 1 },
+      signal: mkSignal({ epicId: 2000, storyId: 2100, value: 1 }),
       config: cfg,
     });
     assert.equal(ok, true);
@@ -93,11 +107,11 @@ describe('signals-writer — appendSignal correctness', () => {
     const stat = await fs.stat(dir);
     assert.ok(stat.isDirectory());
     const raw = await fs.readFile(signalsPath(2000, 2100), 'utf8');
-    // The writer injects a `source` tag (Story #2553) — the rest of the
-    // payload must survive verbatim.
+    // The writer injects a `source` classifier tag — the rest of the
+    // payload survives verbatim.
     assert.ok(raw.endsWith('\n'));
     const parsed = JSON.parse(raw.replace(/\n$/, ''));
-    assert.equal(parsed.kind, 'lazy');
+    assert.equal(parsed.kind, 'friction');
     assert.equal(parsed.value, 1);
     assert.equal(parsed.source, 'consumer');
   });
@@ -165,7 +179,7 @@ describe('signals-writer — appendSignal correctness', () => {
     const ok = await appendSignal({
       epicId: 7,
       storyId: 8,
-      signal: { kind: 'eacces' },
+      signal: mkSignal({ epicId: 7, storyId: 8 }),
       config: cfg,
     });
     assert.equal(ok, false);
@@ -173,14 +187,31 @@ describe('signals-writer — appendSignal correctness', () => {
     const stat = await fs.stat(target);
     assert.ok(stat.isDirectory());
   });
+
+  it('drops a schema-invalid record (returns false, writes nothing)', async () => {
+    // A non-canonical record — no `ts`, unknown `kind` — is rejected by
+    // the write-time validator (Epic #4406 / Story #4413).
+    const ok = await appendSignal({
+      epicId: 555,
+      storyId: 556,
+      signal: { kind: 'not-a-kind', foo: 1 },
+      config: cfg,
+    });
+    assert.equal(ok, false);
+    await assert.rejects(() => fs.stat(signalsPath(555, 556)));
+  });
 });
 
-describe('signals-writer — source tagging (Story #2553)', () => {
+describe('signals-writer — source tagging (framework/consumer classifier)', () => {
   it('tags consumer signals with source="consumer"', async () => {
     await appendSignal({
       epicId: 100,
       storyId: 101,
-      signal: { kind: 'lint-failure', failingPath: 'src/foo.ts' },
+      signal: mkSignal({
+        epicId: 100,
+        storyId: 101,
+        failingPath: 'src/foo.ts',
+      }),
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 101), 'utf8');
@@ -193,10 +224,11 @@ describe('signals-writer — source tagging (Story #2553)', () => {
     await appendSignal({
       epicId: 100,
       storyId: 102,
-      signal: {
-        kind: 'test-failure',
+      signal: mkSignal({
+        epicId: 100,
+        storyId: 102,
         failingPath: '.agents/scripts/story-init.js',
-      },
+      }),
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 102), 'utf8');
@@ -204,14 +236,15 @@ describe('signals-writer — source tagging (Story #2553)', () => {
     assert.equal(parsed.source, 'framework');
   });
 
-  it('tags framework signals (by command) with source="framework"', async () => {
+  it('tags framework signals (by emitter.command) with source="framework"', async () => {
     await appendSignal({
       epicId: 100,
       storyId: 103,
-      signal: {
-        kind: 'command-failure',
-        command: 'node .agents/scripts/story-close.js',
-      },
+      signal: mkSignal({
+        epicId: 100,
+        storyId: 103,
+        emitter: { tool: 'x', command: 'node .agents/scripts/story-close.js' },
+      }),
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 103), 'utf8');
@@ -223,12 +256,13 @@ describe('signals-writer — source tagging (Story #2553)', () => {
     await appendSignal({
       epicId: 100,
       storyId: 104,
-      signal: {
-        kind: 'wave-tick',
+      signal: mkSignal({
+        epicId: 100,
+        storyId: 104,
         // failingPath says consumer, but caller has tagged framework
         failingPath: 'src/checkout/index.ts',
         source: 'framework',
-      },
+      }),
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 104), 'utf8');
@@ -240,11 +274,12 @@ describe('signals-writer — source tagging (Story #2553)', () => {
     await appendSignal({
       epicId: 100,
       storyId: 105,
-      signal: {
-        kind: 'pinned',
+      signal: mkSignal({
+        epicId: 100,
+        storyId: 105,
         failingPath: '.agents/scripts/story-init.js',
         source: 'consumer',
-      },
+      }),
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 105), 'utf8');
@@ -257,7 +292,10 @@ describe('signals-writer — source tagging (Story #2553)', () => {
       epicId: 200,
       signal: {
         kind: 'wave-start',
-        command: 'node .agents/scripts/epic-deliver.js',
+        ts: '2026-07-11T00:00:00.000Z',
+        epicId: 200,
+        index: 0,
+        emitter: { tool: 'x', command: 'node .agents/scripts/epic-deliver.js' },
       },
       config: cfg,
     });
@@ -272,7 +310,13 @@ describe('signals-writer — source tagging (Story #2553)', () => {
   it('appendEpicSignal preserves caller-supplied source', async () => {
     await appendEpicSignal({
       epicId: 201,
-      signal: { kind: 'manual', source: 'consumer' },
+      signal: {
+        kind: 'wave-start',
+        ts: '2026-07-11T00:00:00.000Z',
+        epicId: 201,
+        index: 0,
+        source: 'consumer',
+      },
       config: cfg,
     });
     const raw = await fs.readFile(
@@ -310,35 +354,40 @@ describe('signals-writer — source tagging (Story #2553)', () => {
     });
   });
 
-  it('passes through non-object signals (string/number) without tagging', async () => {
-    // The writer must not blow up if a detector posts a scalar (legacy
-    // shape). It just persists the value verbatim — no tag injection.
+  it('drops non-object signals (string/number) as schema-invalid', async () => {
+    // Post the Epic #4406 cutover the writer validates every record; a
+    // bare scalar is not a valid signal object and is dropped (never
+    // written), and the writer still does not throw.
     const ok = await appendSignal({
       epicId: 400,
       storyId: 401,
       signal: 'just-a-string',
       config: cfg,
     });
-    assert.equal(ok, true);
-    const raw = await fs.readFile(signalsPath(400, 401), 'utf8');
-    assert.equal(raw, '"just-a-string"\n');
+    assert.equal(ok, false);
+    await assert.rejects(() => fs.stat(signalsPath(400, 401)));
   });
 });
 
 describe('signals-writer — appendTrace correctness', () => {
   it('writes traces to the traces.ndjson sibling, not signals.ndjson', async () => {
+    const trace = {
+      kind: 'trace',
+      ts: '2026-07-11T00:00:00.000Z',
+      epicId: 1030,
+      storyId: 1041,
+      emitter: { tool: 'Bash' },
+      details: { durationMs: 42 },
+    };
     await appendTrace({
       epicId: 1030,
       storyId: 1041,
-      trace: { kind: 'span', name: 'task-commit', durMs: 42 },
+      trace,
       config: cfg,
     });
 
     const traceRaw = await fs.readFile(tracesPath(1030, 1041), 'utf8');
-    assert.equal(
-      traceRaw,
-      `${JSON.stringify({ kind: 'span', name: 'task-commit', durMs: 42 })}\n`,
-    );
+    assert.equal(traceRaw, `${JSON.stringify(trace)}\n`);
     // signals.ndjson must not be touched
     await assert.rejects(() => fs.stat(signalsPath(1030, 1041)));
   });
@@ -362,7 +411,7 @@ describe('signals-writer — forEachLine reader', () => {
       await appendSignal({
         epicId: 9,
         storyId: 10,
-        signal: { i },
+        signal: mkSignal({ i }),
         config: cfg,
       });
     }
@@ -442,7 +491,7 @@ describe('signals-writer — forEachLine reader', () => {
       await appendSignal({
         epicId: 13,
         storyId: 14,
-        signal: { i },
+        signal: mkSignal({ i }),
         config: cfg,
       });
     }

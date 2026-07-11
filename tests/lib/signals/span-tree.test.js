@@ -38,7 +38,7 @@ describe('signals/span-tree — empty + edge cases', () => {
         null,
         'not-an-object',
         42,
-        { kind: 'friction', ts: '2026-05-11T00:00:00Z', epic: 1 },
+        { kind: 'friction', ts: '2026-05-11T00:00:00Z', epicId: 1 },
       ]),
     );
     assert.equal(tree.epic, 1);
@@ -52,17 +52,22 @@ describe('signals/span-tree — pure-function contract', () => {
       {
         kind: 'wave-start',
         ts: '2026-05-11T00:00:00Z',
-        epic: 1181,
-        story: 1438,
+        epicId: 1181,
+        storyId: 1438,
       },
       {
         kind: 'state-transition',
         ts: '2026-05-11T00:00:10Z',
-        epic: 1181,
-        story: 1438,
-        task: 1461,
+        epicId: 1181,
+        storyId: 1438,
+        taskId: 1461,
       },
-      { kind: 'wave-end', ts: '2026-05-11T00:01:00Z', epic: 1181, story: 1438 },
+      {
+        kind: 'wave-end',
+        ts: '2026-05-11T00:01:00Z',
+        epicId: 1181,
+        storyId: 1438,
+      },
     ];
     const a = await buildSpanTree(fromArray(events));
     const b = await buildSpanTree(fromArray(events));
@@ -74,14 +79,14 @@ describe('signals/span-tree — pure-function contract', () => {
       {
         kind: 'wave-start',
         ts: '2026-05-11T00:00:05Z',
-        epic: 1,
-        story: 10,
+        epicId: 1,
+        storyId: 10,
       },
       {
         kind: 'wave-end',
         ts: '2026-05-11T00:00:10Z',
-        epic: 1,
-        story: 10,
+        epicId: 1,
+        storyId: 10,
       },
     ];
     const reversed = [...ordered].reverse();
@@ -105,14 +110,14 @@ describe('signals/span-tree — durations', () => {
         {
           kind: 'wave-start',
           ts: '2026-05-11T00:00:00.000Z',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
         {
           kind: 'wave-end',
           ts: '2026-05-11T00:00:05.000Z',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
       ]),
     );
@@ -125,8 +130,8 @@ describe('signals/span-tree — durations', () => {
         {
           kind: 'wave-start',
           ts: '2026-05-11T00:00:00Z',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
       ]),
     );
@@ -145,8 +150,8 @@ describe('signals/span-tree — durations', () => {
         {
           kind: 'wave-start',
           ts: 'not-a-date',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
       ]),
     );
@@ -162,20 +167,20 @@ describe('signals/span-tree — grouping', () => {
         {
           kind: 'friction',
           ts: '2026-05-11T00:00:00Z',
-          epic: 1,
-          story: 20,
+          epicId: 1,
+          storyId: 20,
         },
         {
           kind: 'friction',
           ts: '2026-05-11T00:00:00Z',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
         {
           kind: 'friction',
           ts: '2026-05-11T00:00:01Z',
-          epic: 1,
-          story: 10,
+          epicId: 1,
+          storyId: 10,
         },
       ]),
     );
@@ -187,12 +192,12 @@ describe('signals/span-tree — grouping', () => {
     assert.equal(tree.stories[1].events.length, 1);
   });
 
-  it('uses legacy epicId/storyId field aliases', async () => {
+  it('reads canonical epicId/storyId/ts', async () => {
     const tree = await buildSpanTree(
       fromArray([
         {
           kind: 'friction',
-          timestamp: '2026-05-11T00:00:00Z',
+          ts: '2026-05-11T00:00:00Z',
           epicId: 99,
           storyId: 9,
         },
@@ -205,8 +210,18 @@ describe('signals/span-tree — grouping', () => {
   it('Story-level events land on story.events', async () => {
     const tree = await buildSpanTree(
       fromArray([
-        { kind: 'wave-start', ts: '2026-05-11T00:00:00Z', epic: 1, story: 10 },
-        { kind: 'wave-end', ts: '2026-05-11T00:01:00Z', epic: 1, story: 10 },
+        {
+          kind: 'wave-start',
+          ts: '2026-05-11T00:00:00Z',
+          epicId: 1,
+          storyId: 10,
+        },
+        {
+          kind: 'wave-end',
+          ts: '2026-05-11T00:01:00Z',
+          epicId: 1,
+          storyId: 10,
+        },
       ]),
     );
     assert.equal(tree.stories[0].events.length, 2);

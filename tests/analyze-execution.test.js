@@ -88,8 +88,8 @@ async function seedPhaseTimings(eid, sid, payload) {
 describe('runStoryMode', () => {
   it('upserts a story-perf-summary comment from NDJSON + phase-timings', async () => {
     await seedSignals(100, 200, [
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
+      { kind: 'friction', category: 'Tool Limitation' },
+      { kind: 'friction', category: 'Tool Limitation' },
       { kind: 'retry', details: { command: 'npm test' } },
     ]);
     await seedPhaseTimings(100, 200, {
@@ -144,7 +144,7 @@ describe('runStoryMode', () => {
 
   it('is idempotent — second run replaces in place', async () => {
     await seedSignals(1, 2, [
-      { kind: 'friction', details: { category: 'Execution Error' } },
+      { kind: 'friction', category: 'Execution Error' },
     ]);
     const provider = createFakeProvider();
 
@@ -345,7 +345,7 @@ describe('runEpicMode — Quality gate friction block (Story #1400 / Task #1429)
       {
         kind: 'friction',
         category: 'baseline-refresh-regression',
-        timestamp: '2026-05-07T11:00:00.000Z',
+        ts: '2026-05-07T11:00:00.000Z',
         regressedFiles: [
           { file: 'lib/foo.js', current: 60, baseline: 75, drop: 15 },
         ],
@@ -378,7 +378,7 @@ describe('runEpicMode — Quality gate friction block (Story #1400 / Task #1429)
       {
         kind: 'friction',
         category: 'baseline-refresh-regression',
-        timestamp: '2026-05-07T10:00:00.000Z',
+        ts: '2026-05-07T10:00:00.000Z',
         regressedFiles: [
           { file: 'lib/a.js', current: 50, baseline: 70, drop: 20 },
           { file: 'lib/b.js', current: 55, baseline: 70, drop: 15 },
@@ -387,7 +387,7 @@ describe('runEpicMode — Quality gate friction block (Story #1400 / Task #1429)
       {
         kind: 'friction',
         category: 'baseline-refresh-regression',
-        timestamp: '2026-05-07T11:00:00.000Z',
+        ts: '2026-05-07T11:00:00.000Z',
         miOverCap: [{ path: 'lib/a.js', mi: 50, baseline: 70 }],
         crapOverCap: [{ file: 'lib/c.js', method: 'doSomething', crap: 35 }],
       },
@@ -397,19 +397,19 @@ describe('runEpicMode — Quality gate friction block (Story #1400 / Task #1429)
       {
         kind: 'friction',
         category: 'baseline-refresh-regression',
-        timestamp: '2026-05-07T11:30:00.000Z',
+        ts: '2026-05-07T11:30:00.000Z',
         regressedFiles: [{ file: 'lib/a.js' }], // 3rd hit on lib/a.js
       },
       {
         kind: 'friction',
         category: 'tool-limitation', // ignored
-        timestamp: '2026-05-07T11:45:00.000Z',
+        ts: '2026-05-07T11:45:00.000Z',
       },
       // Out-of-window (default 28d) — 60 days before NOW.
       {
         kind: 'friction',
         category: 'baseline-refresh-regression',
-        timestamp: '2026-03-08T00:00:00.000Z',
+        ts: '2026-03-08T00:00:00.000Z',
         regressedFiles: [{ file: 'lib/old.js' }],
       },
     ]);
@@ -567,8 +567,8 @@ describe('runStoryMode — back-compat with source-tagged streams (Story #2553)'
     // Identical seeds to the canonical "upserts a story-perf-summary"
     // test at the top of the file — pre-Story-2553 fixture shape.
     await seedSignals(1200, 1201, [
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
-      { kind: 'friction', details: { category: 'Tool Limitation' } },
+      { kind: 'friction', category: 'Tool Limitation' },
+      { kind: 'friction', category: 'Tool Limitation' },
       { kind: 'retry', details: { command: 'npm test' } },
     ]);
     await seedPhaseTimings(1200, 1201, {

@@ -38,6 +38,7 @@
  */
 
 import {
+  contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
   probePathExists,
@@ -79,9 +80,12 @@ function metaSourceLabel(source) {
 }
 
 /**
- * Build the idempotency marker for a given epicId / finding index. An
- * HTML comment so it survives markdown rendering without leaking into
- * the visible body, but stays indexable via `gh search`.
+ * Build the **legacy** idempotency marker for a given epicId / finding
+ * index. Superseded by the content-hash marker
+ * ({@link buildContentMarker}) at the Story #4415 cutover, but still
+ * probed for so follow-ups filed before the cutover are recognized and
+ * not re-filed. An HTML comment so it survives markdown rendering without
+ * leaking into the visible body, but stays indexable via `gh search`.
  *
  * @param {number} epicId
  * @param {number} index — zero-based finding ordinal within the Epic.
@@ -89,6 +93,26 @@ function metaSourceLabel(source) {
  */
 export function buildIdempotencyMarker(epicId, index) {
   return `<!-- audit-results-followup: epic-${epicId}-finding-${index} -->`;
+}
+
+/**
+ * Build the content-hash idempotency marker embedded in freshly filed
+ * follow-up bodies. Derived from the finding's `lens|path|summary` triple
+ * so the marker is stable across sibling insert/remove/reorder churn in
+ * the source `audit-results` comment (Story #4415). An HTML comment so it
+ * survives markdown rendering but stays indexable via `gh search`.
+ *
+ * @param {number} epicId
+ * @param {{ lens?: string, path?: string, summary?: string }} finding
+ * @returns {string}
+ */
+export function buildContentMarker(epicId, finding) {
+  const fp = contentFingerprint({
+    category: finding.lens,
+    path: finding.path,
+    title: finding.summary,
+  });
+  return `<!-- audit-results-followup: epic-${epicId}-${fp} -->`;
 }
 
 /**
@@ -197,7 +221,9 @@ export async function graduateAuditResults(opts = {}) {
       commentMarker: '<!-- claude-managed: audit-results -->',
       noCommentReason: 'no-audit-results-comment',
       parseFindings,
-      buildIdempotencyMarker,
+      buildContentMarker,
+      buildLegacyMarker: buildIdempotencyMarker,
+      crossRepoCommentAttrs: { graduator: 'audit-results' },
       decorateRecord: (record, finding) => {
         record.lens = finding.lens;
         return record;

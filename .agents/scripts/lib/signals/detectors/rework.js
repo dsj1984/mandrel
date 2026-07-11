@@ -158,7 +158,7 @@ export async function detectRework(args) {
   return offenders.map(([targetHash, editCount]) => ({
     ts,
     kind: 'rework',
-    source: { tool: 'rework-detector' },
+    emitter: { tool: 'rework-detector' },
     epicId,
     storyId,
     taskId,

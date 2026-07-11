@@ -2,15 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/signal-event.schema.json",
   "title": "SignalEvent",
-  "description": "One NDJSON line emitted by the signals writer (Epic #1030). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson; tickets carry only summaries (story-perf-summary, epic-perf-report). `kind: trace` is the raw tool-call trace; the named kinds are derived signals.",
+  "description": "One NDJSON line emitted by the signals writer (Epic #1030; canonical envelope cutover Epic #4406 / Story #4413). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson (per-Story) and temp/epic-<eid>/signals.ndjson (Epic-level wave lifecycle); tickets carry only summaries (story-perf-summary, epic-perf-report). `kind: trace` is the raw tool-call trace; the named kinds are derived signals. This is the ONLY shape — the legacy `timestamp` / `epic` aliases and the `source: { tool }` provenance object were deleted in the same PR that moved every writer (no read-side compatibility branch).",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["ts", "kind", "source", "epicId", "storyId"],
+  "additionalProperties": true,
+  "required": ["kind", "ts"],
   "properties": {
     "ts": {
       "type": "string",
       "format": "date-time",
-      "description": "Event timestamp in ISO-8601 UTC."
+      "description": "Event timestamp in ISO-8601 UTC. The single canonical timestamp key — the legacy `timestamp` alias is gone."
     },
     "kind": {
       "type": "string",
@@ -22,28 +22,43 @@
         "idle",
         "retry",
         "acceptance-eval",
-        "trace"
+        "trace",
+        "wave-start",
+        "wave-end",
+        "wave-complete",
+        "state-transition",
+        "notification.emitted"
       ]
     },
     "source": {
+      "type": "string",
+      "enum": ["framework", "consumer"],
+      "description": "Framework/consumer classification injected by `tagSignalSource` (signals-writer.js) for records appended via appendSignal/appendEpicSignal. Reserved exclusively for this classifier tag — the originating tool/surface lives in `emitter`."
+    },
+    "emitter": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["tool"],
+      "additionalProperties": true,
       "properties": {
         "tool": {
           "type": "string",
           "minLength": 1,
           "description": "Originating tool or surface (Bash, Edit, Write, Read, Grep, Glob, or a script name for derived signals)."
         },
-        "script": {
+        "command": {
           "type": "string",
-          "minLength": 1,
-          "description": "Script that emitted the signal, when applicable (e.g. diagnose-friction.js)."
+          "description": "Command line the signal blames, when applicable (e.g. the failed command captured by diagnose-friction.js)."
         }
-      }
+      },
+      "description": "Provenance of the record — the tool/script that produced it. Replaces the pre-cutover `source: { tool }` object; `source` now carries only the framework/consumer classification."
     },
     "epicId": { "type": ["integer", "null"], "minimum": 1 },
-    "storyId": { "type": "integer", "minimum": 1 },
+    "storyId": { "type": ["integer", "null"], "minimum": 1 },
+    "taskId": { "type": ["integer", "null"], "minimum": 1 },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Top-level friction category (e.g. Execution Error, baseline-refresh-regression). Read directly by perf-aggregator frictionByCategory and the retro routed-proposal extraction — never nested under details."
+    },
     "phase": {
       "type": ["string", "null"],
       "minLength": 1,
@@ -51,7 +66,7 @@
     },
     "details": {
       "type": "object",
-      "description": "Kind-specific payload. Free-form for forward compatibility; common keys include category, command, elapsedMs, targetHash.",
+      "description": "Kind-specific payload — always an object, never a bare string. Free-form for forward compatibility; common keys include errorPreview, command, commandHash, targetHash, editCount, failureCount, exitCode, elapsedMs.",
       "additionalProperties": true
     }
   }

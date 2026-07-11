@@ -27,11 +27,12 @@
  * ## Failure rule
  *
  * A trace record is treated as **failed** when its `details.exitCode`
- * is a number and not `0`. The hook does not itself capture the exit
- * code today (the field is set by callers / future hook extensions);
- * records without an `exitCode` field are ignored, which matches the
- * decision in the parent Epic body that retry only counts non-zero-exit
- * commands.
+ * is a number and not `0`. As of Epic #4406 / Story #4413 the tool-trace
+ * hook captures `details.exitCode` for Bash `PostToolUse` events, so this
+ * detector fires on real deliveries; records without an `exitCode` field
+ * (non-Bash tools, or tools that report no exit code) are ignored, which
+ * matches the decision in the parent Epic body that retry only counts
+ * non-zero-exit commands.
  *
  * Successful runs after failures **do not** cancel the count — failure-
  * count is monotonic per identity. This matches the Epic's intent: once
@@ -41,12 +42,11 @@
  *
  * ## Tool filter
  *
- * Only trace records whose `source.tool === 'Bash'` participate. Edit /
+ * Only trace records whose `emitter.tool === 'Bash'` participate. Edit /
  * Write / Read / Grep / Glob events are not retries — those belong to
- * other detectors (rework for file-edit churn, hotspot at Epic scope).
- * The tool name is read from `source.tool` first and falls back to
- * `details.tool` to mirror the rework detector's tolerance for legacy
- * trace shapes.
+ * other detectors (rework for file-edit churn). The tool name is read
+ * from `emitter.tool` first and falls back to `details.tool` (see
+ * `common.extractTool`).
  *
  * ## Privacy contract
  *
@@ -124,13 +124,14 @@ function resolveIdentity(rec) {
 }
 
 /**
- * Decide whether a trace record represents a failed invocation. The
- * hook (today) does not capture exit codes; the field is populated by
- * future hook extensions and by tests that need to assert behaviour.
- * A record counts as failed when `details.exitCode` is a number and
- * not zero. Anything else (missing field, null, non-number, zero) is
- * NOT a failure and is ignored entirely — the detector only counts
- * non-zero-exit commands per the parent Epic.
+ * Decide whether a trace record represents a failed invocation. As of
+ * Epic #4406 / Story #4413 the tool-trace hook records `details.exitCode`
+ * for Bash `PostToolUse` events, so the field is present on real Bash
+ * traces (and still set directly by tests). A record counts as failed
+ * when `details.exitCode` is a number and not zero. Anything else
+ * (missing field, null, non-number, zero) is NOT a failure and is ignored
+ * entirely — the detector only counts non-zero-exit commands per the
+ * parent Epic.
  *
  * @param {object} rec
  * @returns {boolean}
@@ -238,7 +239,7 @@ export async function detectRetry(args) {
   return offenders.map(([commandHash, failureCount]) => ({
     ts,
     kind: 'retry',
-    source: { tool: 'retry-detector' },
+    emitter: { tool: 'retry-detector' },
     epicId,
     storyId,
     taskId,

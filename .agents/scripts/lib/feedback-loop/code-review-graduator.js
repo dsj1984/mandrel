@@ -41,6 +41,7 @@
  */
 
 import {
+  contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
   probePathExists,
@@ -81,7 +82,10 @@ function metaSourceLabel(source) {
 }
 
 /**
- * Compile a marker for a given epicId / finding index. The marker is an
+ * Compile the **legacy** marker for a given epicId / finding index.
+ * Superseded by the content-hash marker ({@link buildContentMarker}) at
+ * the Story #4415 cutover, but still probed for so follow-ups filed
+ * before the cutover are recognized and not re-filed. The marker is an
  * HTML comment so it survives GitHub markdown rendering without leaking
  * into the visible body — but it's still indexable via `gh search`.
  *
@@ -91,6 +95,27 @@ function metaSourceLabel(source) {
  */
 export function buildIdempotencyMarker(epicId, index) {
   return `<!-- code-review-followup: epic-${epicId}-finding-${index} -->`;
+}
+
+/**
+ * Build the content-hash idempotency marker embedded in freshly filed
+ * follow-up bodies. Derived from the finding's `severity|path|summary`
+ * triple (code-review findings carry no lens) so the marker is stable
+ * across sibling insert/remove/reorder churn in the source `code-review`
+ * comment (Story #4415). An HTML comment so it survives markdown
+ * rendering but stays indexable via `gh search`.
+ *
+ * @param {number} epicId
+ * @param {{ severity?: string, path?: string, summary?: string }} finding
+ * @returns {string}
+ */
+export function buildContentMarker(epicId, finding) {
+  const fp = contentFingerprint({
+    category: finding.severity,
+    path: finding.path,
+    title: finding.summary,
+  });
+  return `<!-- code-review-followup: epic-${epicId}-${fp} -->`;
 }
 
 /**
@@ -191,7 +216,9 @@ export async function graduateFindings(opts = {}) {
       commentMarker: '<!-- structured-comment: code-review -->',
       noCommentReason: 'no-code-review-comment',
       parseFindings,
-      buildIdempotencyMarker,
+      buildContentMarker,
+      buildLegacyMarker: buildIdempotencyMarker,
+      crossRepoCommentAttrs: { graduator: 'code-review' },
       buildCrossRepoLog: ({ finding, routedRepo, source }) => {
         const metaLabel = metaSourceLabel(source);
         return `[code-review-graduator] cross-repo skip (would file in ${routedRepo.owner}/${routedRepo.repo}): gh issue create --repo ${routedRepo.owner}/${routedRepo.repo} --title "Code review follow-up: ${finding.path}" --label "${metaLabel},${SEVERITY_LABEL[finding.severity]}"`;

@@ -376,7 +376,7 @@ function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
 
 /**
  * Check whether a `baseline-refresh-regression` signal tagged with the
- * runner's `source.tool === 'auto-refresh-runner'` already exists in the
+ * runner's `emitter.tool === 'auto-refresh-runner'` already exists in the
  * Story's signals stream. Backs the AC3 idempotent-re-run contract.
  */
 async function priorRefusalSignalExists({
@@ -391,7 +391,7 @@ async function priorRefusalSignalExists({
       typeof record === 'object' &&
       record.kind === 'friction' &&
       record.category === FRICTION_CATEGORY &&
-      record?.source?.tool === RUNNER_SOURCE_TOOL
+      record?.emitter?.tool === RUNNER_SOURCE_TOOL
     ) {
       found = true;
     }
@@ -413,12 +413,14 @@ function buildRefusalSignal({
 }) {
   return {
     kind: 'friction',
-    timestamp: new Date().toISOString(),
+    ts: new Date().toISOString(),
     epicId,
     storyId,
     category: FRICTION_CATEGORY,
-    source: { tool: RUNNER_SOURCE_TOOL },
-    details: `Auto-refresh refused: ${refusalReasons.length} row(s) breach configured caps (miDropCap=${caps.miDropCap}, crapJumpCap=${caps.crapJumpCap}).`,
+    emitter: { tool: RUNNER_SOURCE_TOOL },
+    details: {
+      message: `Auto-refresh refused: ${refusalReasons.length} row(s) breach configured caps (miDropCap=${caps.miDropCap}, crapJumpCap=${caps.crapJumpCap}).`,
+    },
     refusalReasons,
     miOverCap,
     crapOverCap,

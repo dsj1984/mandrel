@@ -10,8 +10,12 @@
  */
 
 import { TYPE_LABELS } from '../../../label-constants.js';
-import { forEachLine } from '../../../observability/signals-writer.js';
+import {
+  forEachEpicLine,
+  forEachLine,
+} from '../../../observability/signals-writer.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
+import { read as readEpicRunState } from '../../epic-run-state-store.js';
 import { composeRoutedProposals } from '../../retro-proposals.js';
 import { parseFencedJsonComment } from '../../structured-comment-parser.js';
 import { findStructuredComment } from '../../ticketing.js';
@@ -39,6 +43,15 @@ const SIGNALS_READ_CONCURRENCY = 8;
 const EPIC_BODY_REFERENCE = /#\d+/;
 
 /**
+ * Fallback category stamped on a snapshot-derived blocked event that
+ * carries no `category` of its own. A non-empty category is what promotes
+ * the event to an actionable routed proposal in `composeRoutedProposals`,
+ * so a category-less `agent::blocked` record must still resolve to a
+ * concrete bucket rather than being silently dropped.
+ */
+const BLOCKED_EVENT_FALLBACK_CATEGORY = 'agent-blocked';
+
+/**
  * Pure: aggregate `frictionByCategory` payloads into a single integer.
  */
 function sumFriction(byCategory) {
@@ -48,6 +61,83 @@ function sumFriction(byCategory) {
     if (typeof v === 'number' && Number.isFinite(v) && v >= 0) total += v;
   }
   return total;
+}
+
+/**
+ * Fold one parsed `signals.ndjson` record into the routed-signal
+ * accumulator. Shared by the per-Story and per-Epic scans so both streams
+ * contribute to the SAME unified counts that feed the routed proposals AND
+ * the compact/full retro decision. Reads the canonical envelope: top-level
+ * `category` and the string `source` classifier tag (Epic #4406). Non-object
+ * records and records without a `category` contribute nothing.
+ *
+ * @param {unknown} parsed
+ * @param {Array<{ category: string, source: 'framework'|'consumer' }>} routedSignals
+ */
+function accumulateSignalRecord(parsed, routedSignals) {
+  if (parsed === null || typeof parsed !== 'object') return;
+  const record = /** @type {Record<string, unknown>} */ (parsed);
+  const category = typeof record.category === 'string' ? record.category : null;
+  if (!category) return;
+  const source = record.source === 'framework' ? 'framework' : 'consumer';
+  routedSignals.push({ category, source });
+}
+
+/**
+ * Read the `epic-run-state` snapshot and project every Story still recorded
+ * as `blocked` into an `unresolvedBlockedEvents` entry for
+ * `composeRoutedProposals`. Each event carries a **non-empty** category —
+ * the snapshot record's own `category` when present, otherwise the
+ * `agent-blocked` fallback — so it force-promotes an actionable proposal
+ * even when no friction signal shares its category. Best-effort: a read
+ * failure or shapeless snapshot degrades to an empty array (observability
+ * MUST NOT take down the retro path).
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   logger?: { warn?: Function },
+ *   readFn: typeof readEpicRunState,
+ * }} args
+ * @returns {Promise<Array<{ ticketId?: number, category: string, source: 'framework'|'consumer' }>>}
+ */
+async function readUnresolvedBlockedEvents({
+  epicId,
+  provider,
+  logger,
+  readFn,
+}) {
+  let snapshot;
+  try {
+    snapshot = await readFn({ provider, epicId });
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] Failed to read epic-run-state for blocked events (continuing): ${
+        err?.message ?? err
+      }`,
+    );
+    return [];
+  }
+  const storiesMap =
+    snapshot && typeof snapshot.stories === 'object' && snapshot.stories
+      ? snapshot.stories
+      : {};
+  const events = [];
+  for (const [key, record] of Object.entries(storiesMap)) {
+    if (!record || typeof record !== 'object' || record.status !== 'blocked') {
+      continue;
+    }
+    const rawCategory =
+      typeof record.category === 'string' ? record.category.trim() : '';
+    const category =
+      rawCategory.length > 0 ? rawCategory : BLOCKED_EVENT_FALLBACK_CATEGORY;
+    const source = record.source === 'framework' ? 'framework' : 'consumer';
+    const ticketId = Number(key);
+    const event = { category, source };
+    if (Number.isInteger(ticketId) && ticketId > 0) event.ticketId = ticketId;
+    events.push(event);
+  }
+  return events;
 }
 
 /**
@@ -154,6 +244,8 @@ export async function gatherRetroSignals({
   frameworkRepo,
   consumerRepo,
   forEachLineFn = forEachLine,
+  forEachEpicLineFn = forEachEpicLine,
+  epicRunStateReadFn = readEpicRunState,
   composeRoutedProposalsFn = composeRoutedProposals,
 }) {
   const descendants = await collectDescendants(provider, epicId);
@@ -232,54 +324,35 @@ export async function gatherRetroSignals({
     };
   }
 
-  const counts = {
-    friction: frictionFromSummaries,
-    parked: parkedFollowOns.parked.length,
-    recuts: parkedFollowOns.recuts.length,
-    hitl,
-  };
-
-  // Story #2558 — read per-Story `signals.ndjson` streams (already
-  // source-tagged by Story #2553's writer) and compose the four routed
-  // proposal sections (framework / consumer / memory / discarded). Read
-  // failures degrade silently — observability MUST NOT take down the
-  // retro path. Empty streams yield empty arrays so the composer
-  // remains backward-compatible.
+  // Story #4417 — the compact/full retro decision, the automerge-verdict
+  // cleanSprint flag, and the routed proposals must all read from ONE
+  // signals scan. We fold the per-Story `signals.ndjson` streams AND the
+  // per-Epic `signals.ndjson` stream (the `appendEpicSignal` wave-lifecycle
+  // writers, e.g. lifecycle-emit) into a single `routedSignals`
+  // accumulation; `counts.friction` then derives from that same scan so a
+  // retro can never read "clean" from the comment substrate while
+  // actionable friction sits unrendered in the ndjson substrate.
   //
-  // Story #3347 — the per-Story reads previously ran one-at-a-time in a
-  // sequential `for` loop, serializing N disk reads. They now fan out via
-  // `concurrentMap` with a bounded cap (`SIGNALS_READ_CONCURRENCY`). Each
-  // Story accumulates into its own local arrays; `concurrentMap` preserves
-  // input order so we concatenate the per-Story results in `stories` order.
-  // That keeps `routedSignals` / `memorablePatterns` — and therefore the
-  // composed `routedProposals` — byte-for-byte identical to the prior
-  // serial behaviour, independent of which read settles first.
+  // Story #2558 — the streams are source-tagged by the writer's
+  // `tagSignalSource`; `accumulateSignalRecord` reads the canonical
+  // envelope (top-level `category` + string `source`, Epic #4406). Read
+  // failures degrade silently — observability MUST NOT take down the retro.
+  //
+  // Story #3347 — the per-Story reads fan out via `concurrentMap` with a
+  // bounded cap (`SIGNALS_READ_CONCURRENCY`); `concurrentMap` preserves
+  // input order so we concatenate the per-Story `routedSignals` in
+  // `stories` order, keeping the composed `routedProposals` deterministic.
   const perStorySignals = await concurrentMap(
     stories,
     async (story) => {
       const sid = Number(story.id ?? story.number);
       if (!Number.isInteger(sid) || sid <= 0) {
-        return { routedSignals: [], memorablePatterns: [] };
+        return { routedSignals: [] };
       }
       const localRoutedSignals = [];
-      const localMemorablePatterns = [];
       try {
         await forEachLineFn(epicId, sid, (parsed) => {
-          if (parsed === null || typeof parsed !== 'object') return;
-          const record = /** @type {Record<string, unknown>} */ (parsed);
-          const category =
-            typeof record.category === 'string' ? record.category : null;
-          const source =
-            record.source === 'framework' ? 'framework' : 'consumer';
-          if (category) {
-            localRoutedSignals.push({ category, source });
-          }
-          if (record.memorable === true && typeof record.insight === 'string') {
-            localMemorablePatterns.push({
-              category: category ?? 'general',
-              insight: record.insight,
-            });
-          }
+          accumulateSignalRecord(parsed, localRoutedSignals);
         });
       } catch (err) {
         logger?.warn?.(
@@ -288,24 +361,60 @@ export async function gatherRetroSignals({
           }`,
         );
       }
-      return {
-        routedSignals: localRoutedSignals,
-        memorablePatterns: localMemorablePatterns,
-      };
+      return { routedSignals: localRoutedSignals };
     },
     { concurrency: SIGNALS_READ_CONCURRENCY },
   );
   const routedSignals = [];
-  const memorablePatterns = [];
   for (const perStory of perStorySignals) {
     routedSignals.push(...perStory.routedSignals);
-    memorablePatterns.push(...perStory.memorablePatterns);
   }
 
-  // Resolve repos. Caller overrides win; otherwise default the consumer
-  // repo to the project's own `github.owner/repo` (best-effort: the
-  // provider may expose it, but we don't depend on it — empty string
-  // disables that pane in the routed proposals).
+  // Story #4417 — fold in the per-Epic `signals.ndjson` stream
+  // (`appendEpicSignal` wave-lifecycle writers, e.g. lifecycle-emit) so the
+  // unified scan is not blind to Epic-scoped friction that never lands on
+  // an individual Story stream.
+  try {
+    await forEachEpicLineFn(epicId, (parsed) => {
+      accumulateSignalRecord(parsed, routedSignals);
+    });
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] forEachEpicLine failed for epic #${epicId} (continuing): ${
+        err?.message ?? err
+      }`,
+    );
+  }
+
+  const counts = {
+    // `friction` derives from the unified ndjson scan (every categorized
+    // signal across the per-Story and per-Epic streams) PLUS the legacy
+    // story-perf-summary totals, so a non-empty ndjson substrate forces the
+    // full retro even when no `story-perf-summary` comment was posted.
+    friction: frictionFromSummaries + routedSignals.length,
+    parked: parkedFollowOns.parked.length,
+    recuts: parkedFollowOns.recuts.length,
+    hitl,
+  };
+
+  // Story #4417 — project unresolved `agent::blocked` Stories from the
+  // epic-run-state snapshot into force-flag events for the routed-proposal
+  // composer. This replaces the formerly hardwired empty array: a blocked
+  // Story now force-promotes an actionable proposal even absent a matching
+  // friction category (its category falls back to `agent-blocked`).
+  const unresolvedBlockedEvents = await readUnresolvedBlockedEvents({
+    epicId,
+    provider,
+    logger,
+    readFn: epicRunStateReadFn,
+  });
+
+  // Resolve repos. The framework repo falls back to the Mandrel mirror
+  // constant (a known, stable default). The consumer repo does NOT fall
+  // back to the framework repo: when the caller resolves no consumer repo
+  // from `config.github`, the consumer proposal pane is DISABLED loudly
+  // (Story #4417) rather than silently routing consumer-tagged friction at
+  // the framework mirror.
   const resolvedFrameworkRepo =
     typeof frameworkRepo === 'string' && frameworkRepo.length > 0
       ? frameworkRepo
@@ -313,15 +422,21 @@ export async function gatherRetroSignals({
   const resolvedConsumerRepo =
     typeof consumerRepo === 'string' && consumerRepo.length > 0
       ? consumerRepo
-      : resolvedFrameworkRepo; // when caller omits, fall back to the framework repo so the command renders without an empty `--repo` flag.
+      : '';
+  if (resolvedConsumerRepo.length === 0) {
+    logger?.warn?.(
+      '[retro-runner] No consumer repo resolved from config.github — the ' +
+        'consumer proposal pane is DISABLED for this retro. Set ' +
+        'github.owner / github.repo to route consumer-tagged friction.',
+    );
+  }
 
   const routedProposals = composeRoutedProposalsFn({
     epicId,
     frameworkRepo: resolvedFrameworkRepo,
     consumerRepo: resolvedConsumerRepo,
     signals: routedSignals,
-    unresolvedBlockedEvents: [],
-    memorablePatterns,
+    unresolvedBlockedEvents,
   });
 
   return {

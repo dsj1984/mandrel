@@ -197,7 +197,10 @@ function makeSpec(overrides = {}) {
       body.includes('FIND')
         ? [{ severity: 'low', path: 'src/x.js', summary: 'FIND', index: 0 }]
         : [],
-    buildIdempotencyMarker: (epicId, index) => `<!-- f-${epicId}-${index} -->`,
+    buildContentMarker: (epicId, finding) =>
+      `<!-- f-${epicId}-${finding.index} -->`,
+    buildLegacyMarker: (epicId, index) =>
+      `<!-- legacy-f-${epicId}-${index} -->`,
     buildCrossRepoLog: ({ routedRepo }) => `xrepo ${routedRepo.repo}`,
     buildFollowUp: ({ finding, source, epicId, idMarker }) => ({
       title: `t ${finding.path}`,

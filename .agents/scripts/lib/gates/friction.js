@@ -1,8 +1,12 @@
 /**
  * Friction-signal emit helper shared by the baseline gates. The gate
- * supplies the violation payload; this helper owns the envelope shape
- * (`kind`/`timestamp`/`source`) and swallows append errors after a warn
+ * supplies the violation payload; this helper owns the canonical envelope
+ * shape (`kind`/`ts`/`emitter`) and swallows append errors after a warn
  * so observability outages never block a gate run.
+ *
+ * `details` is normalised to an object (never a bare string) per the
+ * Epic #4406 canonical contract — a string caller value is wrapped as
+ * `{ message }`.
  */
 
 import { appendSignal } from '../signals/index.js';
@@ -19,18 +23,24 @@ export async function emitFrictionSignal({
   logLabel = 'gate',
 }) {
   if (!storyId || !epicId) return;
+  const detailsObj =
+    typeof details === 'string'
+      ? { message: details }
+      : details && typeof details === 'object'
+        ? details
+        : {};
   try {
     await appendSignal({
       epicId,
       storyId,
       signal: {
         kind: 'friction',
-        timestamp: new Date().toISOString(),
+        ts: new Date().toISOString(),
         epicId,
         storyId,
         category,
-        source: { tool },
-        details,
+        emitter: { tool },
+        details: detailsObj,
         ...payload,
       },
       config,

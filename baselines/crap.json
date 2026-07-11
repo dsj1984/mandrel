@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-08T12:27:13.352Z",
+  "generatedAt": "2026-07-11T02:14:47.524Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.006059669598093,
+      "p95": 12.000805501108497,
       "max": 29.10003921033038,
-      "methodsAbove20": 21
+      "methodsAbove20": 19
     }
   },
   "rows": [
@@ -3012,6 +3012,54 @@
       "crap": 12.99514091350826
     },
     {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "resolveEpicTempTree",
+      "startLine": 60,
+      "crap": 6.009667349199423
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "findSignalStreams",
+      "startLine": 100,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "<anon method-1>",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "sampleStreamInvalidCount",
+      "startLine": 137,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "readRejectTally",
+      "startLine": 178,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "scanRetroMirror",
+      "startLine": 200,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "<anon method-3>",
+      "startLine": 208,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "detectLoopHealth",
+      "startLine": 251,
+      "crap": 7
+    },
+    {
       "path": ".agents/scripts/lib/checks/push-hook-parity.js",
       "method": "buildFixCommand",
       "startLine": 84,
@@ -4801,99 +4849,213 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "isAutoFileEnabled",
-      "startLine": 45,
+      "method": "metaSourceLabel",
+      "startLine": 76,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
       "method": "buildIdempotencyMarker",
-      "startLine": 71,
+      "startLine": 94,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
+      "method": "buildContentMarker",
+      "startLine": 109,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
       "method": "parseFindings",
-      "startLine": 87,
-      "crap": 11
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "runChild",
-      "startLine": 136,
-      "crap": 1.0051252613883308
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "probePathExists",
-      "startLine": 170,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "probeMarkerExists",
-      "startLine": 180,
-      "crap": 6.085333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
-      "method": "createFollowUpIssue",
-      "startLine": 211,
-      "crap": 7
+      "startLine": 137,
+      "crap": 13
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
       "method": "graduateAuditResults",
-      "startLine": 272,
-      "crap": 21.001533934385176
+      "startLine": 215,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
+      "method": "<anon method-1>",
+      "startLine": 227,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
+      "method": "<anon method-2>",
+      "startLine": 231,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
+      "method": "<anon method-3>",
+      "startLine": 240,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "method": "isAutoFileEnabled",
-      "startLine": 47,
+      "method": "metaSourceLabel",
+      "startLine": 78,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
       "method": "buildIdempotencyMarker",
-      "startLine": 72,
+      "startLine": 96,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
+      "method": "buildContentMarker",
+      "startLine": 112,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
       "method": "parseFindings",
-      "startLine": 90,
-      "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "method": "runChild",
-      "startLine": 126,
-      "crap": 1.0026241338308253
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "method": "probePathExists",
-      "startLine": 169,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "method": "probeMarkerExists",
-      "startLine": 187,
-      "crap": 6.085333333333334
-    },
-    {
-      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "method": "createFollowUpIssue",
-      "startLine": 222,
-      "crap": 7.3919999999999995
+      "startLine": 142,
+      "crap": 10
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
       "method": "graduateFindings",
-      "startLine": 286,
-      "crap": 21.64503204153752
+      "startLine": 210,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
+      "method": "<anon method-1>",
+      "startLine": 222,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
+      "method": "<anon method-2>",
+      "startLine": 226,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "contentFingerprint",
+      "startLine": 84,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "<anon method-1>",
+      "startLine": 85,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "runChild",
+      "startLine": 116,
+      "crap": 1.0000754377484906
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "<anon method-3>",
+      "startLine": 145,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "makeIsAutoFileEnabled",
+      "startLine": 197,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "isAutoFileEnabled",
+      "startLine": 198,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "probePathStatus",
+      "startLine": 222,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "probePathExists",
+      "startLine": 255,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "probeMarkerExists",
+      "startLine": 267,
+      "crap": 6.009667349199423
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "createFollowUpIssue",
+      "startLine": 305,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "checkGraduatePreconditions",
+      "startLine": 349,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "loadGraduateFindings",
+      "startLine": 381,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "resolveAlreadyFiled",
+      "startLine": 412,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "<anon method-10>",
+      "startLine": 423,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "processGraduateFinding",
+      "startLine": 455,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "<anon method-11>",
+      "startLine": 473,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "renderCrossRepoDeferredBody",
+      "startLine": 579,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "persistCrossRepoDeferred",
+      "startLine": 602,
+      "crap": 2.0210405194378236
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "graduate",
+      "startLine": 672,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "method": "<anon method-13>",
+      "startLine": 693,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
@@ -8882,7 +9044,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "method": "ghPrListHead",
-      "startLine": 244,
+      "startLine": 255,
       "crap": 1
     },
     {
@@ -11840,73 +12002,73 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "isValidStructuredCommentType",
-      "startLine": 180,
+      "startLine": 197,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "assertValidStructuredCommentType",
-      "startLine": 197,
+      "startLine": 214,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "structuredCommentMarker",
-      "startLine": 223,
+      "startLine": 240,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "buildStorylessTicketSnapshot",
-      "startLine": 281,
+      "startLine": 298,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "getProviderCommentCache",
-      "startLine": 292,
+      "startLine": 309,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "structuredCommentCacheKey",
-      "startLine": 311,
+      "startLine": 328,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "getProviderRawCommentsCache",
-      "startLine": 351,
+      "startLine": 368,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "invalidateRawCommentsCache",
-      "startLine": 369,
+      "startLine": 386,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "_resetRawCommentsCache",
-      "startLine": 382,
+      "startLine": 399,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "_resetStructuredCommentCache",
-      "startLine": 401,
+      "startLine": 418,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "_peekStructuredCommentCache",
-      "startLine": 415,
+      "startLine": 432,
       "crap": 3.0416666666666665
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "method": "findStructuredComment",
-      "startLine": 444,
+      "startLine": 461,
       "crap": 4
     },
     {
@@ -15190,6 +15352,30 @@
       "method": "runSingleStoryClose",
       "startLine": 73,
       "crap": 1.0029154518950438
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "parseArguments",
+      "startLine": 63,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "rollupStory",
+      "startLine": 112,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "buildRollup",
+      "startLine": 153,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/standalone-feedback-rollup.js",
+      "method": "main",
+      "startLine": 177,
+      "crap": 1.6297376093294462
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",

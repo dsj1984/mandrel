@@ -585,6 +585,23 @@ the GitHub upsert succeeds, the retro body is also **mirrored locally** to
 `epicRetroMirrorPath`). GitHub remains the source of truth — a
 mirror-write failure only logs a warn and never fails the phase.
 
+**Auto-file routed proposals (Story #4418).** Between gathering the retro
+signals and composing the body, the runner files the retro's **actionable
+routed proposals** (the `framework` / `consumer` friction categories that
+recurred ≥ 2× or were force-flagged by an unresolved `agent::blocked`) as
+GitHub follow-up issues via the graduator pre-parsed-findings seam
+([`retro-proposals-graduator.js`](../../scripts/lib/feedback-loop/retro-proposals-graduator.js)).
+Each filed issue carries `meta::<framework-gap|consumer-improvement>` +
+`friction::<category>` labels — the join key `/plan` Phase 0's
+prior-feedback fetcher reads back — and the rendered retro sections then
+list the **real filed issue numbers** instead of paste-ready `gh issue
+create` command stanzas. Filing is idempotent (a content-hash marker probe
+skips already-filed categories) and respects the graduator per-run filing
+cap. The beat runs behind `delivery.feedbackLoop.retroProposals` (default
+**ON**); set it to `false` to suppress auto-filing and fall back to the
+command stanzas. Filing never fails the phase — a filing error degrades to
+the command stanzas.
+
 ---
 
 ## Phase 6.5 — Post-wave integration gate (Epic #4131, F1/F4)

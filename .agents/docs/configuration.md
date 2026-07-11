@@ -310,6 +310,7 @@ top-level keys are validation errors.
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
 | `feedbackLoop.codeReviewAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
 | `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
+| `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
 
 <!-- END GENERATED:agentrc -->
 

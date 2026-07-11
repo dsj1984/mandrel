@@ -18,48 +18,50 @@
  * the codebase as of Epic #1181 (audit-snapshot 2026-05-11):
  *
  * Signals-writer `appendSignal` call sites:
- *   - `friction`       — quality-gate / runtime friction (check-crap.js,
- *                        check-maintainability.js, diagnose-friction.js,
- *                        post-merge-pipeline.js, progress-reporter.js,
- *                        auto-refresh-runner.js)
- *   - `dispatched`     — (no live emitter; retained pending Story #3908 sweep)
+ *   - `friction`       — quality-gate / runtime friction (diagnose-friction.js,
+ *                        lib/gates/friction.js, auto-refresh-runner.js,
+ *                        worktree-reap.js, lifecycle-emit.js)
+ *   - `acceptance-eval` — acceptance-eval.js per-criterion terminus signal.
  *   - `wave-start` / `wave-complete` — `lib/wave-runner/tick.js` (read by
  *                        perf-aggregator's `waveParallelism` report;
  *                        `wave-start` also anchors span-tree Story spans)
- *   - `wave-end`       — span-tree pairing anchor (no live emitter after the
- *                        Epic #2646 listener deletion; retained for span-tree)
- *   - `state-transition` — orchestration/ticketing.js
+ *   - `wave-end`       — span-tree pairing anchor (retained for span-tree)
+ *   - `state-transition` — notification-derived window anchor read by the
+ *                        waveParallelism bucketer.
  *
- * Story #3909 retired the write-only wave kinds with no consumer (`wave-tick`,
- * `epic-complete`) — they duplicated the checkpoint + `epic-run-progress`
- * rollup and nothing read them back.
+ * The `dispatched` kind was deleted in the Epic #4406 signal-contract
+ * cutover — it had no live emitter and no consumer.
  *
  * Signals-writer `appendTrace` call sites (traces.ndjson sibling, but
  * sharing the same envelope shape — `tool-trace-hook.js`):
  *   - `trace`          — per-tool-call timing record
  *
- * Aggregator-consumed kinds (perf-aggregator.js scans these — emitters
- * for `hotspot`, `rework`, `churn`, `idle`, `retry` are future Epic #1030
- * detector Stories that the aggregator was built to receive; the schema
- * pins the names so emitters land on a known shape):
+ * Detector-emitted / aggregator-consumed kinds (`rework`, `retry` are
+ * emitted by `lib/signals/detectors/*`; `hotspot`, `churn`, `idle` remain
+ * pinned in the enum for the aggregator's kind-count rollup even though no
+ * live detector emits them):
  *   - `hotspot`, `rework`, `churn`, `idle`, `retry`
  *
- * ## Common envelope
+ * ## Common envelope (canonical — Epic #4406 / Story #4413)
  *
  * Every signal MUST carry at minimum:
- *   - `ts`     — ISO-8601 timestamp string (writers historically used
- *                `timestamp:` instead; both keys are accepted by the
- *                guards below for backward-compat — the migration to
- *                `ts:` lands in a follow-on Story).
- *   - `epic`   — integer Epic ID (writers historically used `epicId:`;
- *                same backward-compat note).
+ *   - `ts`     — ISO-8601 timestamp string. The single canonical
+ *                timestamp key; the legacy `timestamp:` alias was deleted
+ *                from every writer and this guard in the same PR.
  *   - `kind`   — one of `EVENT_KINDS`.
  *
+ * Scoped signals additionally carry:
+ *   - `epicId` — integer Epic ID (or `null` for standalone-Story
+ *                friction). The single canonical epic-id key; the legacy
+ *                `epic:` alias was deleted.
+ *
  * Optional but commonly carried:
- *   - `story` / `storyId`  — integer Story ID
- *   - `task` / `taskId`    — integer Task ID (nullable)
- *   - `source`             — `{ tool: string }`
- *   - `details`            — kind-specific payload (object or string)
+ *   - `storyId`  — integer Story ID
+ *   - `taskId`   — integer Task ID (nullable)
+ *   - `emitter`  — `{ tool: string, command?: string }` provenance
+ *   - `source`   — `"framework" | "consumer"` classifier tag
+ *   - `category` — top-level friction category string
+ *   - `details`  — kind-specific payload (always an object)
  *
  * @module lib/signals/schema
  */
@@ -77,7 +79,6 @@ import { isPositiveInt } from './detectors/common.js';
 export const EVENT_KINDS = Object.freeze({
   FRICTION: 'friction',
   TRACE: 'trace',
-  DISPATCHED: 'dispatched',
   // Wave-window forensics signals: `wave-start` / `wave-end` anchor the
   // span-tree's Story spans, and the perf-aggregator brackets each wave's
   // wall-clock from `wave-start` → `wave-complete` (the `waveParallelism`
@@ -101,6 +102,13 @@ export const EVENT_KINDS = Object.freeze({
   // the retro and /plan Phase 0 feedback fetch can see acceptance
   // churn alongside friction/hotspot data.
   ACCEPTANCE_EVAL: 'acceptance-eval',
+  // Forensic breadcrumb appended to the per-Epic stream by the notify
+  // dispatcher (lib/orchestration/lifecycle/listeners/notify-dispatcher.js)
+  // when a lifecycle event maps to a webhook notification — the resume
+  // suite reads it back to prove a dispatch survived a crash window without
+  // duplicating. Enumerated so the write-time validator (Story #4413) does
+  // not drop it; it is a deliberate write, not malformed data.
+  NOTIFICATION_EMITTED: 'notification.emitted',
 });
 
 /**
@@ -117,20 +125,17 @@ export const EVENT_KIND_VALUES = Object.freeze(
  * spread string literals across the module graph.
  */
 export const FIELDS = Object.freeze({
-  // Envelope (canonical names — migration to these is in flight)
+  // Canonical envelope keys — there is exactly one key per concept. The
+  // legacy `timestamp` / `epic` / `story` / `task` aliases were deleted in
+  // the Epic #4406 signal-contract cutover; no reader tolerates them.
   TS: 'ts',
-  EPIC: 'epic',
-  STORY: 'story',
-  TASK: 'task',
-  KIND: 'kind',
-
-  // Legacy envelope aliases still emitted by some writers
-  TIMESTAMP: 'timestamp',
   EPIC_ID: 'epicId',
   STORY_ID: 'storyId',
   TASK_ID: 'taskId',
+  KIND: 'kind',
 
   // Common payload fields
+  EMITTER: 'emitter',
   SOURCE: 'source',
   DETAILS: 'details',
   CATEGORY: 'category',
@@ -150,8 +155,9 @@ function isTimestamp(v) {
 }
 
 /**
- * Common envelope guard: every signal MUST carry `ts` (or legacy
- * `timestamp`), `epic` (or legacy `epicId`), and a recognised `kind`.
+ * Common envelope guard: every signal MUST carry `ts`, `epicId`, and a
+ * recognised `kind`. Canonical keys only — the legacy `timestamp` / `epic`
+ * aliases were deleted in the Epic #4406 cutover.
  *
  * Returns true when the envelope is well-formed. Used by `lib/signals/read`
  * to discard malformed lines before yielding them to the consumer.
@@ -164,16 +170,24 @@ export function hasCommonEnvelope(evt) {
   if (typeof evt.kind !== 'string' || !EVENT_KIND_VALUES.has(evt.kind)) {
     return false;
   }
-  const ts = evt.ts ?? evt.timestamp;
-  if (!isTimestamp(ts)) return false;
-  const epic = evt.epic ?? evt.epicId;
-  if (!isPositiveInt(epic)) return false;
+  if (!isTimestamp(evt.ts)) return false;
+  // The canonical `epicId` key MUST be present — a record carrying only the
+  // legacy `epic` alias is rejected (the cutover deleted that alias). Its
+  // value is nullable by contract: standalone-Story friction carries
+  // `epicId: null` (see signal-event.schema.json, where epicId is
+  // `["integer","null"]`). So accept an explicit null, reject a missing key
+  // or a present-but-non-positive-int value.
+  if (!Object.hasOwn(evt, 'epicId')) return false;
+  if (evt.epicId !== null && !isPositiveInt(evt.epicId)) return false;
   return true;
 }
 
 /**
  * Generic per-kind guard. Returns true when the envelope is well-formed
- * AND (when `kind` is supplied) the event's `kind` matches.
+ * AND (when `kind` is supplied) the event's `kind` matches. The full
+ * canonical-shape check lives in the AJV validator compiled from
+ * `signal-event.schema.json` (see `lib/observability/signal-validator.js`);
+ * this predicate is the cheap envelope gate the streaming reader uses.
  *
  * @param {unknown} evt
  * @param {string} [kind] — optional kind to match (one of `EVENT_KINDS`).
@@ -184,42 +198,3 @@ export function isValidSignal(evt, kind) {
   if (kind != null && evt.kind !== kind) return false;
   return true;
 }
-
-/**
- * Per-kind shape guards. Each entry asserts the envelope plus any
- * required per-kind fields. Unknown kinds fall back to the envelope
- * check.
- *
- * The guards are intentionally lax — they reject records that are
- * obviously malformed (missing `kind`, missing `ts`, missing `epic`),
- * not records with extra fields or future schema extensions. The
- * aggregator (perf-aggregator.js) carries its own per-kind narrowing.
- *
- * @type {Readonly<Record<string, (evt: unknown) => boolean>>}
- */
-export const GUARDS = Object.freeze({
-  [EVENT_KINDS.FRICTION]: (evt) => {
-    if (!isValidSignal(evt, EVENT_KINDS.FRICTION)) return false;
-    // friction signals commonly carry a `category` field, but some
-    // writers (early in the migration) omit it. We accept both.
-    return true;
-  },
-  [EVENT_KINDS.TRACE]: (evt) => isValidSignal(evt, EVENT_KINDS.TRACE),
-  [EVENT_KINDS.DISPATCHED]: (evt) => isValidSignal(evt, EVENT_KINDS.DISPATCHED),
-  [EVENT_KINDS.WAVE_START]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_START),
-  [EVENT_KINDS.WAVE_END]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_END),
-  [EVENT_KINDS.WAVE_TICK]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_TICK),
-  [EVENT_KINDS.WAVE_COMPLETE]: (evt) =>
-    isValidSignal(evt, EVENT_KINDS.WAVE_COMPLETE),
-  [EVENT_KINDS.EPIC_COMPLETE]: (evt) =>
-    isValidSignal(evt, EVENT_KINDS.EPIC_COMPLETE),
-  [EVENT_KINDS.STATE_TRANSITION]: (evt) =>
-    isValidSignal(evt, EVENT_KINDS.STATE_TRANSITION),
-  [EVENT_KINDS.HOTSPOT]: (evt) => isValidSignal(evt, EVENT_KINDS.HOTSPOT),
-  [EVENT_KINDS.REWORK]: (evt) => isValidSignal(evt, EVENT_KINDS.REWORK),
-  [EVENT_KINDS.CHURN]: (evt) => isValidSignal(evt, EVENT_KINDS.CHURN),
-  [EVENT_KINDS.IDLE]: (evt) => isValidSignal(evt, EVENT_KINDS.IDLE),
-  [EVENT_KINDS.RETRY]: (evt) => isValidSignal(evt, EVENT_KINDS.RETRY),
-  [EVENT_KINDS.ACCEPTANCE_EVAL]: (evt) =>
-    isValidSignal(evt, EVENT_KINDS.ACCEPTANCE_EVAL),
-});

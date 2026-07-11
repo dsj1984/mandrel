@@ -1,7 +1,7 @@
 /**
  * detectors/common.js — shared helpers for the signals layer.
  *
- * Hoisted out of three detector modules (hotspot, retry, rework) plus
+ * Hoisted out of the detector modules (retry, rework) plus
  * `signals/read.js` and `signals/schema.js`, all of which shipped
  * byte-equivalent copies of these predicates. See Story #2464.
  */
@@ -19,15 +19,15 @@ export function isPositiveInt(v) {
 
 /**
  * Pull the tool name from a trace record. The hook writes the tool name
- * into `source.tool` and (defensively) into `details.tool` — we accept
- * either so older traces still classify correctly.
+ * into `emitter.tool` (canonical provenance) and, defensively, into
+ * `details.tool` — we accept either.
  *
  * @param {object} rec
  * @returns {string|null}
  */
 export function extractTool(rec) {
-  if (typeof rec?.source?.tool === 'string' && rec.source.tool.length > 0) {
-    return rec.source.tool;
+  if (typeof rec?.emitter?.tool === 'string' && rec.emitter.tool.length > 0) {
+    return rec.emitter.tool;
   }
   if (typeof rec?.details?.tool === 'string' && rec.details.tool.length > 0) {
     return rec.details.tool;
@@ -38,12 +38,12 @@ export function extractTool(rec) {
 /**
  * Validate and normalize the shared detector argument preamble.
  *
- * `detectRework`, `detectRetry`, and `detectHotspot` previously shipped a
- * near-identical guard block: the `args` object-shape `TypeError`, the
- * `nowFn` function-type `TypeError`, the positive-integer `RangeError`s for
- * the id fields, the non-empty-string `tracesPath` check, and the
+ * `detectRework` and `detectRetry` previously shipped a near-identical
+ * guard block: the `args` object-shape `TypeError`, the `nowFn`
+ * function-type `TypeError`, the positive-integer `RangeError`s for the id
+ * fields, the non-empty-string `tracesPath` check, and the
  * non-negative-integer `threshold` check. Story #4077 hoists that preamble
- * here so the three detectors share one error-message contract.
+ * here so the detectors share one error-message contract.
  *
  * Error wording stays per-detector-accurate by prefixing every message with
  * `fnName` (e.g. `detectRework: …`). Error *types* are preserved exactly:

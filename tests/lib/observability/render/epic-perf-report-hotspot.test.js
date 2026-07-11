@@ -31,10 +31,33 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { computeEpicPerfReportFromStore } from '../../../../.agents/scripts/lib/observability/perf-aggregator.js';
+import { computeEpicPerfReport } from '../../../../.agents/scripts/lib/observability/perf-aggregator.js';
+import { read } from '../../../../.agents/scripts/lib/signals/read.js';
 
 const EPIC_ID = 1721;
 const STORY_ID = 1770;
+
+/**
+ * Collect every event under the Epic through the canonical signals reader,
+ * then compute the report. Replaces the retired
+ * `computeEpicPerfReportFromStore` streaming variant (Epic #4406).
+ */
+async function reportFromStore({
+  epicId,
+  perStorySummaries,
+  generatedAt,
+  config,
+}) {
+  const events = [];
+  for await (const evt of read({ epic: Number(epicId), config })) {
+    events.push(evt);
+  }
+  return computeEpicPerfReport(perStorySummaries ?? [], {
+    epicId,
+    generatedAt,
+    events,
+  });
+}
 
 let workRoot;
 let cfg;
@@ -75,7 +98,7 @@ function hotspotEvent({ targetHash, totalEdits = 12, storiesAffected = 3 }) {
   return {
     ts: '2026-05-14T10:00:00.000Z',
     kind: 'hotspot',
-    source: { tool: 'hotspot-detector' },
+    emitter: { tool: 'hotspot-detector' },
     epicId: EPIC_ID,
     details: {
       targetHash,
@@ -91,7 +114,7 @@ function frictionEvent(category) {
   return {
     ts: '2026-05-14T10:00:00.000Z',
     kind: 'friction',
-    source: { tool: 'test' },
+    emitter: { tool: 'test' },
     epicId: EPIC_ID,
     storyId: STORY_ID,
     details: { category },
@@ -106,7 +129,7 @@ describe('epic-perf-report picks up hotspot detector emissions', () => {
       hotspotEvent({ targetHash: 'sha256:c', totalEdits: 22 }),
     ]);
 
-    const report = await computeEpicPerfReportFromStore({
+    const report = await reportFromStore({
       epicId: EPIC_ID,
       perStorySummaries: [],
       generatedAt: '2026-05-14T10:01:00.000Z',
@@ -133,7 +156,7 @@ describe('epic-perf-report picks up hotspot detector emissions', () => {
       hotspotEvent({ targetHash: 'sha256:hot3' }),
     ]);
 
-    const report = await computeEpicPerfReportFromStore({
+    const report = await reportFromStore({
       epicId: EPIC_ID,
       perStorySummaries: [],
       generatedAt: '2026-05-14T10:01:00.000Z',
@@ -151,7 +174,7 @@ describe('epic-perf-report picks up hotspot detector emissions', () => {
   it('returns zeroed signalCounts when no hotspot events are present', async () => {
     await writeStorySignals([frictionEvent('Tool Limitation')]);
 
-    const report = await computeEpicPerfReportFromStore({
+    const report = await reportFromStore({
       epicId: EPIC_ID,
       perStorySummaries: [],
       generatedAt: '2026-05-14T10:01:00.000Z',

@@ -161,7 +161,7 @@ function formatDuration(ms) {
 }
 
 function describeEvent(evt) {
-  const ts = evt?.ts ?? evt?.timestamp ?? '(no ts)';
+  const ts = evt?.ts ?? '(no ts)';
   const kind = evt?.kind ?? '(no kind)';
   const phase = evt?.phase ? ` phase=${evt.phase}` : '';
   const category = evt?.category ? ` category=${evt.category}` : '';

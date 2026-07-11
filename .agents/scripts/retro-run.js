@@ -37,6 +37,46 @@ import { createLedgerWriter } from './lib/orchestration/lifecycle/ledger-writer.
 import { runRetro } from './lib/orchestration/retro-runner.js';
 import { createProvider } from './lib/provider-factory.js';
 
+/**
+ * Pure: resolve the framework/consumer repo slugs (`"<owner>/<repo>"`)
+ * from a resolved config's `github` block, for threading into the retro's
+ * routed-proposal composer.
+ *
+ * - `consumerRepo` is the project's OWN repo (`github.owner/github.repo`).
+ *   It has **no** silent fallback: when `github.owner` / `github.repo` are
+ *   absent the slug is `''`, which `gatherRetroSignals` treats as "disable
+ *   the consumer pane loudly" rather than routing consumer-tagged friction
+ *   at the framework mirror (Story #4417).
+ * - `frameworkRepo` is the distinct framework mirror
+ *   (`github.frameworkRepo.{owner,repo}`) when configured, otherwise `''`
+ *   — `gatherRetroSignals` then falls back to its `DEFAULT_FRAMEWORK_REPO`
+ *   constant (a stable, known default is legitimate for the framework).
+ *
+ * Exported for tests.
+ *
+ * @param {object} [config]
+ * @returns {{ frameworkRepo: string, consumerRepo: string }}
+ */
+export function resolveRetroRepos(config) {
+  const gh = config?.github ?? {};
+  const consumerRepo =
+    typeof gh.owner === 'string' &&
+    gh.owner.length > 0 &&
+    typeof gh.repo === 'string' &&
+    gh.repo.length > 0
+      ? `${gh.owner}/${gh.repo}`
+      : '';
+  const fw = gh.frameworkRepo ?? {};
+  const frameworkRepo =
+    typeof fw.owner === 'string' &&
+    fw.owner.length > 0 &&
+    typeof fw.repo === 'string' &&
+    fw.repo.length > 0
+      ? `${fw.owner}/${fw.repo}`
+      : '';
+  return { frameworkRepo, consumerRepo };
+}
+
 const HELP = `Usage: node .agents/scripts/retro-run.js --epic <epicId> [--full-retro]
 
 Composes and posts the Epic retro structured comment for Epic #<epicId>,
@@ -125,11 +165,22 @@ export async function runRetroCli({
     : createLedgerWriter({ epicId, tempRoot });
   ledger.register(bus);
 
+  // Story #4417 — thread the framework/consumer repo slugs resolved from
+  // `config.github` into the retro so the routed-proposal composer files
+  // consumer-tagged friction at the project's own repo (not the framework
+  // mirror), and disables the consumer pane loudly when unresolved.
+  const { frameworkRepo, consumerRepo } = resolveRetroRepos(config);
+
   const result = await runRetroFn({
     epicId,
     provider,
     bus,
     forceFull: fullRetro,
+    frameworkRepo,
+    consumerRepo,
+    // Story #4418 — thread the resolved config so the retro auto-filer can
+    // read the `delivery.feedbackLoop.retroProposals` toggle.
+    config,
     logger,
   });
 

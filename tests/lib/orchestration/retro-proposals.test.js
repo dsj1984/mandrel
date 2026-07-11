@@ -28,32 +28,24 @@ function baseInput(overrides = {}) {
     consumerRepo: CONSUMER_REPO,
     signals: [],
     unresolvedBlockedEvents: [],
-    memorablePatterns: [],
     ...overrides,
   };
 }
 
 test('composeRoutedProposals: returns empty arrays for empty input', () => {
   const out = composeRoutedProposals(baseInput());
-  assert.deepEqual(out, {
-    framework: [],
-    consumer: [],
-    memory: [],
-    discarded: [],
-  });
+  assert.deepEqual(out, { framework: [], consumer: [], discarded: [] });
 });
 
 test('composeRoutedProposals: returns empty arrays for null/undefined/invalid input', () => {
   assert.deepEqual(composeRoutedProposals(null), {
     framework: [],
     consumer: [],
-    memory: [],
     discarded: [],
   });
   assert.deepEqual(composeRoutedProposals(undefined), {
     framework: [],
     consumer: [],
-    memory: [],
     discarded: [],
   });
   // Missing epicId
@@ -62,13 +54,12 @@ test('composeRoutedProposals: returns empty arrays for null/undefined/invalid in
       frameworkRepo: 'a/b',
       consumerRepo: 'c/d',
     }),
-    { framework: [], consumer: [], memory: [], discarded: [] },
+    { framework: [], consumer: [], discarded: [] },
   );
   // Missing repos
   assert.deepEqual(composeRoutedProposals({ epicId: 1 }), {
     framework: [],
     consumer: [],
-    memory: [],
     discarded: [],
   });
 });
@@ -138,47 +129,19 @@ test('composeRoutedProposals: source tie resolves to first-seen source determini
   assert.equal(b.consumer.length, 0);
 });
 
-test('composeRoutedProposals: memory section is plain insight lines, not frontmatter', () => {
-  const out = composeRoutedProposals(
-    baseInput({
-      memorablePatterns: [
-        {
-          category: 'pwsh-and',
-          insight: 'PowerShell does not support && — use ; instead.',
-        },
-        {
-          category: 'worktree-symlink',
-          insight:
-            'Worktree node_modules can symlink on Windows when ADMIN-enabled.',
-        },
-      ],
-    }),
-  );
-  assert.equal(out.memory.length, 2);
-  // Sorted alphabetically by category for deterministic rendering.
-  assert.equal(out.memory[0].category, 'pwsh-and');
-  assert.equal(out.memory[1].category, 'worktree-symlink');
-  // Insight is plain prose — no YAML / frontmatter markers.
-  for (const m of out.memory) {
-    assert.equal(m.insight.startsWith('---'), false);
-    assert.equal(m.insight.includes('frontmatter'), false);
-  }
-});
-
-test('composeRoutedProposals: memorable single-occurrence categories do not get discarded', () => {
+test('composeRoutedProposals: single-occurrence friction is discarded (no memory rescue)', () => {
+  // The former "memory pane" rescued single-occurrence memorable
+  // categories from the discarded bucket. That pane was deleted in the
+  // Epic #4406 cutover — a lone occurrence is now always discarded, and
+  // the result carries no `memory` bucket.
   const out = composeRoutedProposals(
     baseInput({
       signals: [{ category: 'edge-case', source: 'consumer' }],
-      memorablePatterns: [
-        {
-          category: 'edge-case',
-          insight: 'Watch for this edge case next sprint.',
-        },
-      ],
     }),
   );
-  assert.equal(out.discarded.length, 0, 'memorable category is not discarded');
-  assert.equal(out.memory.length, 1);
+  assert.equal(Object.hasOwn(out, 'memory'), false, 'no memory bucket');
+  assert.equal(out.discarded.length, 1);
+  assert.equal(out.discarded[0].category, 'edge-case');
   assert.equal(out.framework.length, 0);
   assert.equal(out.consumer.length, 0);
 });

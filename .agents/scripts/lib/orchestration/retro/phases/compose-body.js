@@ -27,6 +27,37 @@ export function normalizeInterventionCount(value) {
 }
 
 /**
+ * Pure: does `routedProposals` carry at least one actionable item (a
+ * framework- or consumer-routed `gh issue create` proposal)? Story #4417 —
+ * the compact retro shape (and therefore the `automerge-verdict`
+ * `cleanSprint: true` flag it drives) MUST be suppressed whenever an
+ * actionable proposal exists, regardless of `forceFull` or the
+ * comment-derived counts: the clean-sprint verdict is an auto-merge input
+ * and must never read "clean" while actionable friction sits in the routed
+ * proposals. Discarded (single-occurrence) items do NOT count — they are
+ * the retro's explicit "nothing to file" bucket.
+ *
+ * @param {{ framework?: object[], consumer?: object[] } | null | undefined} routedProposals
+ * @returns {boolean}
+ */
+export function hasActionableProposals(routedProposals) {
+  if (
+    !routedProposals ||
+    typeof routedProposals !== 'object' ||
+    Array.isArray(routedProposals)
+  ) {
+    return false;
+  }
+  const framework = Array.isArray(routedProposals.framework)
+    ? routedProposals.framework
+    : [];
+  const consumer = Array.isArray(routedProposals.consumer)
+    ? routedProposals.consumer
+    : [];
+  return framework.length > 0 || consumer.length > 0;
+}
+
+/**
  * Pure: derive the recurring-defect-class signal from the routed-proposal
  * sections (Story #4135 / Epic #4131, F11).
  *
@@ -125,7 +156,15 @@ export function composeRetroBody(input) {
   } = input;
 
   const interventions = normalizeInterventionCount(counts?.interventions);
-  const compact = !forceFull && isCleanManifest({ ...counts, interventions });
+  // Story #4417 — the compact shape requires BOTH a clean manifest AND zero
+  // actionable routed proposals. The routed proposals and the counts are
+  // derived from the same unified signals scan (gather-signals.js), so this
+  // guard closes the window where the comment-derived counts read "clean"
+  // while the ndjson-derived routed proposals hold an actionable item.
+  const compact =
+    !forceFull &&
+    isCleanManifest({ ...counts, interventions }) &&
+    !hasActionableProposals(routedProposals);
   const heading = `## 🪞 Sprint Retrospective — Epic #${epicId}: ${epicTitle}`;
   const generatedLine = `_Generated ${timestamp}_`;
   const scorecardRows = [
@@ -214,12 +253,11 @@ export function composeRetroBody(input) {
     legacyActionItems.length > 0 ? legacyActionItems.join('\n') : '_None._';
 
   // Story #2558 — routed-proposals mode. When routedProposals is supplied
-  // AND any of the four buckets is non-empty, render the four explicit
+  // AND any of the three buckets is non-empty, render the three explicit
   // sections in deterministic order ABOVE the retro-complete marker:
   //   1. Proposed issues — consumer repo
   //   2. Proposed issues — framework repo
-  //   3. Proposed memory updates
-  //   4. One-off / discarded
+  //   3. One-off / discarded
   // Otherwise the legacy "Action Items for Next Epic" section renders.
   const routedSectionsBlock = renderRoutedSections(routedProposals);
 
@@ -419,7 +457,10 @@ function shellEscape(s) {
  * Render the body lines (everything below a section heading and its trailing
  * blank) for a "proposed issues" bucket — the consumer and framework sections
  * share this shape. Empty buckets collapse to a single `_None._`; populated
- * buckets emit one fenced `gh issue create` stanza per item.
+ * buckets emit, per item, either the **filed issue reference** (when the
+ * retro auto-filer already filed it — Story #4418, stamped as
+ * `item.filedIssue`) or the paste-ready fenced `gh issue create` stanza (the
+ * toggle-OFF / filing-skipped fallback).
  *
  * @param {object[]} items
  * @returns {string[]}
@@ -430,30 +471,19 @@ function renderIssueBucket(items) {
   for (const item of items) {
     lines.push(`- **${item.title ?? item.category}**`);
     lines.push('');
-    lines.push('```sh');
-    lines.push(String(item.command ?? ''));
-    lines.push('```');
+    if (item.filedIssue && item.filedIssue.url) {
+      const ref = Number.isInteger(item.filedIssue.number)
+        ? `#${item.filedIssue.number}`
+        : 'issue';
+      lines.push(`  Filed: [${ref}](${item.filedIssue.url})`);
+    } else {
+      lines.push('```sh');
+      lines.push(String(item.command ?? ''));
+      lines.push('```');
+    }
     lines.push('');
   }
   return lines;
-}
-
-/**
- * Render the body lines for the "proposed memory updates" bucket — a plain
- * instruction prelude followed by one bullet per insight, or `_None._` when
- * empty. Deliberately NOT YAML frontmatter (asserted by the routed-sections
- * contract test).
- *
- * @param {object[]} items
- * @returns {string[]}
- */
-function renderMemoryBucket(items) {
-  if (items.length === 0) return ['_None._'];
-  return [
-    'update your memory with the following insights:',
-    '',
-    ...items.map((m) => `- ${m.insight}`),
-  ];
 }
 
 /**
@@ -472,11 +502,15 @@ function renderDiscardedBucket(items) {
 }
 
 /**
- * Descriptor table for the four routed-proposal sections, in deterministic
- * emit order (consumer → framework → memory → discarded). Each descriptor
- * pairs a heading, the `routedProposals` field it reads, and a body renderer.
+ * Descriptor table for the three routed-proposal sections, in deterministic
+ * emit order (consumer → framework → discarded). Each descriptor pairs a
+ * heading, the `routedProposals` field it reads, and a body renderer.
  * {@link renderRoutedSections} walks the table once, so reordering or adding a
  * section is a data edit here rather than another copy-pasted emit block.
+ *
+ * The former "Proposed memory updates" section was deleted in the Epic
+ * #4406 signal-contract cutover — no writer ever produced the memory-pane
+ * records it rendered.
  *
  * @type {Array<{ heading: string, field: string, renderBucket: (items: object[]) => string[] }>}
  */
@@ -490,11 +524,6 @@ const ROUTED_SECTIONS = [
     heading: '### Proposed issues — framework repo',
     field: 'framework',
     renderBucket: renderIssueBucket,
-  },
-  {
-    heading: '### Proposed memory updates',
-    field: 'memory',
-    renderBucket: renderMemoryBucket,
   },
   {
     heading: '### One-off / discarded',
