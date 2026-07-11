@@ -133,7 +133,17 @@ export function extractTitle(body) {
   return m ? m[1].trim() : 'Untitled standalone Story';
 }
 
-async function runEmitContext({ values, provider, projectRoot, config }) {
+async function runEmitContext({
+  values,
+  provider,
+  projectRoot,
+  config,
+  // Injectable stdout port so unit tests can capture the emitted envelope
+  // without stubbing the process-global stream (mirrors the `runPersist`
+  // pattern above — raw stdout writes corrupt the `node --test` runner's
+  // structured report stream).
+  write = (s) => process.stdout.write(s),
+}) {
   const seed = await resolveSeed({
     idea: values.idea,
     fromNotes: values['from-notes'],
@@ -176,7 +186,7 @@ async function runEmitContext({ values, provider, projectRoot, config }) {
   const json = values.pretty
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify(envelope);
-  process.stdout.write(`${json}\n`);
+  write(`${json}\n`);
 }
 
 async function runPersist({
@@ -295,4 +305,10 @@ runAsCli(import.meta.url, main, { source: 'story-plan' });
 
 // Test surface — exported so unit tests can drive the helpers
 // without importing the CLI side.
-export { fetchOpenStories, renderGhArgv, runPersist };
+export {
+  fetchOpenStories,
+  renderGhArgv,
+  resolveSeed,
+  runEmitContext,
+  runPersist,
+};

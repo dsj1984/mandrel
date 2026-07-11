@@ -35,7 +35,12 @@ import {
   validateStoryBody,
 } from '../.agents/scripts/lib/story-plan.js';
 import { TicketGateway } from '../.agents/scripts/providers/github/tickets.js';
-import { extractTitle, runPersist } from '../.agents/scripts/story-plan.js';
+import {
+  extractTitle,
+  resolveSeed,
+  runEmitContext,
+  runPersist,
+} from '../.agents/scripts/story-plan.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
@@ -203,6 +208,10 @@ describe('buildContextEnvelope', () => {
       bodyTemplate: '# {{title}}\n',
       duplicateCandidates: [{ id: 1, title: 't', score: 0.42 }],
       techStack: '## Tech Stack\nNode 22',
+      corpusContext: {
+        docsDigest: '## architecture.md\nSome outline',
+        relevantSections: [{ epicId: 42, epicTitle: 't', score: 0.5 }],
+      },
     });
 
     assert.equal(envelope.kind, 'story-plan-context');
@@ -212,6 +221,10 @@ describe('buildContextEnvelope', () => {
     assert.deepEqual(envelope.requiredSections, REQUIRED_SECTIONS);
     assert.equal(envelope.duplicateCandidates.candidates.length, 1);
     assert.equal(envelope.techStack, '## Tech Stack\nNode 22');
+    assert.deepEqual(envelope.corpusContext, {
+      docsDigest: '## architecture.md\nSome outline',
+      relevantSections: [{ epicId: 42, epicTitle: 't', score: 0.5 }],
+    });
     assert.equal(
       envelope.deliverContract.workflow,
       '.agents/workflows/helpers/single-story-deliver.md',
@@ -232,6 +245,17 @@ describe('buildContextEnvelope', () => {
     });
     assert.equal(envelope.techStack, null);
   });
+
+  it('defaults corpusContext to null when not passed', () => {
+    const envelope = buildContextEnvelope({
+      seed: 'x',
+      refine: { refine: false, reason: 'x' },
+      persona: 'engineer',
+      bodyTemplate: '',
+      duplicateCandidates: [],
+    });
+    assert.equal(envelope.corpusContext, null);
+  });
 });
 
 describe('extractTitle', () => {
@@ -244,6 +268,74 @@ describe('extractTitle', () => {
       extractTitle('## Context\n\nbody'),
       'Untitled standalone Story',
     );
+  });
+});
+
+describe('resolveSeed', () => {
+  it('returns the --idea seed verbatim', async () => {
+    const seed = await resolveSeed({
+      idea: 'a seed idea',
+      fromNotes: undefined,
+    });
+    assert.equal(seed, 'a seed idea');
+  });
+
+  it('reads and trims the --from-notes file', async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-seed-'));
+    try {
+      const notesPath = path.join(tmp, 'notes.md');
+      writeFileSync(notesPath, '  seed from a file  \n');
+      const seed = await resolveSeed({ idea: undefined, fromNotes: notesPath });
+      assert.equal(seed, 'seed from a file');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when both --idea and --from-notes are passed', async () => {
+    await assert.rejects(
+      () => resolveSeed({ idea: 'x', fromNotes: 'y.md' }),
+      /Pass either --idea or --from-notes, not both/,
+    );
+  });
+
+  it('throws when neither --idea nor --from-notes is passed', async () => {
+    await assert.rejects(
+      () => resolveSeed({ idea: undefined, fromNotes: undefined }),
+      /requires --idea .* or --from-notes/,
+    );
+  });
+});
+
+describe('runEmitContext', () => {
+  it('threads corpusContext into the emitted JSON envelope', async () => {
+    let captured = '';
+    const stubProvider = {}; // no listIssuesByLabel / getEpics surfaces
+    const stubConfig = {
+      raw: { project: {} },
+      project: { paths: {} },
+    };
+
+    await runEmitContext({
+      values: { idea: 'a small standalone change', pretty: false },
+      provider: stubProvider,
+      projectRoot: PROJECT_ROOT,
+      config: stubConfig,
+      write: (s) => {
+        captured += s;
+      },
+    });
+
+    const envelope = JSON.parse(captured);
+    assert.equal(envelope.kind, 'story-plan-context');
+    assert.ok(
+      Object.hasOwn(envelope, 'corpusContext'),
+      'envelope should carry a corpusContext field',
+    );
+    assert.deepEqual(envelope.corpusContext, {
+      docsDigest: null,
+      relevantSections: [],
+    });
   });
 });
 
