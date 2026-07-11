@@ -259,6 +259,30 @@ export function signalsFile(eid, sid, config) {
 }
 
 /**
+ * `temp/epic-<eid>/stories/story-<sid>/lifecycle.ndjson` — the story-scope
+ * ledger destination for lifecycle events emitted directly by a Story
+ * (rather than routed through the Epic-scoped bus ledger). Story #4426
+ * (Epic #4425) introduces the first consumer: a standalone
+ * `single-story-close` run (no parent Epic) emitting `merge.unlanded`
+ * needs an on-disk home even though there is no `epic-<id>/` directory to
+ * anchor the event to.
+ *
+ * Mirrors `epicLedgerPath` exactly, one level down: `eid === null` routes
+ * through `storyTempDir`'s standalone branch to
+ * `<tempRoot>/standalone/stories/story-<sid>/lifecycle.ndjson`; a real
+ * `eid` routes to `<tempRoot>/epic-<eid>/stories/story-<sid>/lifecycle.ndjson`,
+ * so an Epic-attached Story's story-scope ledger sits alongside its
+ * `signals.ndjson` sibling.
+ *
+ * @param {number|null} eid
+ * @param {number} sid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export const storyLedgerPath = (eid, sid, config) =>
+  storyArtifactPath(eid, sid, 'lifecycle.ndjson', config);
+
+/**
  * Escape hatch for an Epic-level artifact whose name isn't part of the
  * canonical layout (one of the per-Epic perf surfaces, retro mirror, etc.).
  * Use the named helpers below for the canonical files; reserve this one
