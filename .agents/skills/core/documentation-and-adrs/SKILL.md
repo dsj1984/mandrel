@@ -316,6 +316,64 @@ For shipped features:
 - Task list now loads 50 items per page (was 20) for better UX (#126)
 ```
 
+## Pruning & Archiving
+
+Living docs accrete history — dated changelog entries, closed decision-log
+rows, completed rollout checklists, resolved runbook incidents. Left
+unpruned, that verbatim history crowds out the live guidance a reader (human
+or agent) actually needs, and every task that loads the doc re-pays the cost.
+The fix is to **archive, don't delete**: relocate the cold history so the live
+doc stays lean while the record stays recoverable.
+
+### The archive-don't-delete rule
+
+**History is preserved by _moving_ it, never by deleting it.** Pruning a doc
+never destroys its past — the verbatim content is relocated to a dated archive
+file under version control, so the full record remains diffable and
+recoverable. Deleting history outright (even with "git has it") is the
+anti-pattern this convention exists to prevent: the archive is discoverable
+from the live doc, a buried git revision is not.
+
+### How to prune a doc
+
+1. **Extract the still-live signal first — before you archive anything.**
+   Gotchas, traps, and hard-won caveats buried in the history are the most
+   valuable lines in the doc. Lift them into the live doc's standing guidance
+   (a "Known gotchas" list, an inline warning, or an ADR) **before** the
+   history moves. Archiving first risks stranding a live trap in a cold file
+   nobody rereads.
+2. **Move the verbatim history to a dated archive file.** Relocate the cold
+   content — untouched, word-for-word — to
+   `docs/archive/<name>-<YYYY-MM>.md`, where `<name>` is the source doc's base
+   name and `<YYYY-MM>` is the archive date (e.g. `docs/archive/changelog-2025-01.md`,
+   `docs/archive/decisions-2024-11.md`). The archive is an exact copy of what
+   was live; do not summarize or rewrite it in the move.
+3. **Collapse completed checklists to a one-line summary.** A finished
+   checklist (a rollout runbook, a migration plan, a release gate) does not
+   need to keep every ticked box in the live doc. Replace it with a single
+   line recording the outcome and date — e.g.
+   `Auth-migration rollout — completed 2025-01-18, all 12 steps green` — and
+   let the archived copy carry the full detail.
+4. **Leave a one-line pointer behind.** Every archived doc leaves exactly one
+   line in the live doc pointing at where its history went, so the record is
+   never orphaned — e.g.
+   `Older entries archived to docs/archive/changelog-2024.md`. The pointer is
+   what makes "moved, not deleted" true from the reader's vantage point.
+
+### When to prune
+
+- A changelog, decision log, or runbook has grown long enough that the live
+  entries are hard to find among the historical ones.
+- A checklist or rollout plan is fully complete and its step-by-step detail is
+  now reference-only.
+- A doc reloaded into agent context on many tasks carries more cold history
+  than live guidance.
+
+Do **not** prune ADRs by archiving — an ADR that no longer holds is
+**superseded** in place (see [ADR Lifecycle](#adr-lifecycle)), keeping the
+numbered chain intact. Archiving is for the accreted history of living docs,
+not for the immutable decision record.
+
 ## Documentation for Agents
 
 Special consideration for AI agent context:
