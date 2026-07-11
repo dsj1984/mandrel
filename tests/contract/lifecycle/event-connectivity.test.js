@@ -230,6 +230,11 @@ const EVENT_CLASSIFICATION = Object.freeze({
     emitter: 'merge-watcher.js',
     subscriber: 'cleaner.js',
   },
+  'merge.unlanded': {
+    kind: 'terminal',
+    emitter: 'emit-merge-unlanded.js',
+    why: 'work-complete-but-unmerged diagnosis event (Epic #4425 slice 1, Story #4426), emitted by the epic-path finalize flow and the standalone single-story-close flow whenever a headless delivery run finishes without a confirmed merge. Not routed through the bus (unlike loop.tick), so it has no dedicated this.events subscriber — consumed only by ad hoc ledger readers (retro tooling, the benchmark) that scan for it, mirroring story.heartbeat / story.dispatch.start.',
+  },
 
   // --- cleanup ---
   'epic.cleanup.start': {
