@@ -16,6 +16,7 @@
 
 import { strict as assert } from 'node:assert';
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { resolveConfig } from '../../.agents/scripts/lib/config-resolver.js';
@@ -255,10 +256,17 @@ describe('AC3 — the config key validates against the runtime AJV schema', () =
       },
       delivery: { feedbackLoop: { retroProposals: true } },
     });
-    const root = '/virtual/project';
+    // Derive the expected path exactly as resolveConfig does — it calls
+    // path.resolve(cwd) then path.join(root, '.agentrc.json'). Keying the stub
+    // off a hard-coded '/'-separated literal only matches on POSIX; on Windows
+    // resolveConfig produces `<drive>:\virtual\project\.agentrc.json`, so the
+    // literal never matched and config fell back to defaults (no `delivery`),
+    // making resolved.raw.delivery throw. Compute the path the same way here.
+    const root = path.resolve('/virtual/project');
+    const agentrcPath = path.join(root, '.agentrc.json');
     const fsStub = {
-      existsSync: (p) => p === `${root}/.agentrc.json`,
-      readFileSync: (p) => (p === `${root}/.agentrc.json` ? agentrc : '{}'),
+      existsSync: (p) => p === agentrcPath,
+      readFileSync: (p) => (p === agentrcPath ? agentrc : '{}'),
     };
     const resolved = resolveConfig({
       cwd: root,
