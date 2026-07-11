@@ -32,6 +32,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
@@ -158,7 +159,15 @@ async function runEmitContext({
   // configured nothing, so a null-vs-configured distinction requires
   // reading `config.raw` directly.
   const docsContextFiles = config?.raw?.project?.docsContextFiles ?? [];
-  const docsRoot = config?.project?.paths?.docsRoot;
+  // Resolve docsRoot against PROJECT_ROOT (not process.cwd()) so the
+  // corpus digest reads the project's actual docs directory regardless
+  // of the directory this CLI happens to be invoked from — matching the
+  // sibling resolution pattern in
+  // epic-plan-spec/phases/authoring-context.js.
+  const docsRoot = path.resolve(
+    PROJECT_ROOT,
+    config?.project?.paths?.docsRoot ?? 'docs',
+  );
 
   const [bodyTemplate, openStories, techStack, corpusContext] =
     await Promise.all([
