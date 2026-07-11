@@ -209,7 +209,7 @@ export async function main(args = process.argv.slice(2)) {
 
     // Story #2874 — accept story-only context (no parent Epic). When
     // only the story is resolved, write to the standalone signals
-    // stream at `<tempRoot>/standalone/story-<sid>/signals.ndjson`
+    // stream at `<tempRoot>/standalone/stories/story-<sid>/signals.ndjson`
     // by passing `epicId: null` through to the writer. The only case
     // we still skip is fully-no-context (story unresolved).
     if (resolvedStoryId != null) {

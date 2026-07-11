@@ -32,6 +32,7 @@ import {
   computeWaveParallelismRows,
 } from '../../.agents/scripts/lib/observability/perf-aggregator.js';
 import { aggregateBaselineFrictionFromSignals } from '../../.agents/scripts/lib/observability/perf-report-readers.js';
+import { storyTempDir } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { readSignalRejectCount } from '../../.agents/scripts/lib/observability/signal-validator.js';
 import {
   appendSignal,
@@ -485,10 +486,24 @@ describe('signal contract — trace hook records exitCode (item 4)', () => {
     assert.equal(extractExitCode({ tool_response: {} }), null);
   });
 
-  it('handlePost records details.exitCode for a Bash PostToolUse event', async () => {
+  it('handlePost records details.exitCode for a Bash PostToolUse event and omits it for a non-Bash tool', async () => {
     const workRoot = mkdtempSync(path.join(tmpdir(), 'sig-trace-'));
-    const cfg = { project: { paths: { tempRoot: workRoot } } };
+    // handlePost writes through the default writer, whose temp root is
+    // anchored at the main checkout root (git rev-parse). A freshly-minted
+    // temp dir is not a git repo, so chdir'ing into it makes the writer
+    // resolve `temp/` relative to workRoot — hermetic and collision-free.
+    const origCwd = process.cwd();
+    const readLastTrace = async (storyId) => {
+      const dir = storyTempDir(4406, storyId);
+      const raw = await fs.readFile(path.join(dir, 'traces.ndjson'), 'utf8');
+      const lines = raw.trim().split('\n').filter(Boolean);
+      return JSON.parse(lines[lines.length - 1]);
+    };
     try {
+      process.chdir(workRoot);
+
+      // Bash PostToolUse: details.exitCode is recorded verbatim — the write
+      // that makes detectRetry's `exitCode !== 0` failure predicate fireable.
       await handlePost(
         {
           hook_event_name: 'PostToolUse',
@@ -498,11 +513,33 @@ describe('signal contract — trace hook records exitCode (item 4)', () => {
           tool_response: { exitCode: 1 },
         },
         { epicId: 4406, storyId: 4413 },
-        // handlePost uses the default writer, which resolves the temp root
-        // from process env / default config — so we assert via the record
-        // shape it builds rather than the on-disk path here.
+      );
+      const bashTrace = await readLastTrace(4413);
+      assert.equal(bashTrace.kind, 'trace');
+      assert.equal(bashTrace.emitter.tool, 'Bash');
+      assert.equal(bashTrace.details.exitCode, 1);
+
+      // Non-Bash PostToolUse (Read): the field is omitted entirely so a
+      // non-Bash exit summary can never leak into retry detection.
+      await handlePost(
+        {
+          hook_event_name: 'PostToolUse',
+          tool_name: 'Read',
+          tool_use_id: 't2',
+          tool_input: { file_path: '/etc/hosts' },
+          tool_response: { exitCode: 0 },
+        },
+        { epicId: 4406, storyId: 4414 },
+      );
+      const readTrace = await readLastTrace(4414);
+      assert.equal(readTrace.emitter.tool, 'Read');
+      assert.equal(
+        Object.hasOwn(readTrace.details, 'exitCode'),
+        false,
+        'non-Bash trace must omit details.exitCode',
       );
     } finally {
+      process.chdir(origCwd);
       rmSync(workRoot, { recursive: true, force: true });
     }
   });
