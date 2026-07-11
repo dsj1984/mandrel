@@ -236,16 +236,38 @@ export function extractPrUrl(stdout) {
 }
 
 /**
+ * Default bounded timeout for the finalize idempotency probe. Story #4415
+ * (Epic #4406) — a hung `gh pr list` spawn previously blocked finalize
+ * forever; the probe now SIGKILLs the child at this bound so a stalled
+ * `gh` cannot park the merge gate.
+ */
+export const GH_PR_LIST_TIMEOUT_MS = 30000;
+
+/**
  * Default `gh` spawn used by the listener's idempotency probe.
  * Mirrors the `shell: false` contract `openOrLocatePr` and the other
  * listener helpers use so a future Windows audit doesn't have to grep
- * across two modules. Exported so tests can stub.
+ * across two modules. Bounded by `timeoutMs` (default
+ * {@link GH_PR_LIST_TIMEOUT_MS}) + `killSignal: 'SIGKILL'` so a hung `gh`
+ * spawn cannot block finalize indefinitely (Story #4415). Exported so
+ * tests can stub.
  */
-export function ghPrListHead({ epicBranch, cwd, spawnFn = spawnSync }) {
+export function ghPrListHead({
+  epicBranch,
+  cwd,
+  spawnFn = spawnSync,
+  timeoutMs = GH_PR_LIST_TIMEOUT_MS,
+}) {
   const result = spawnFn(
     'gh',
     ['pr', 'list', '--head', epicBranch, '--json', 'url', '--jq', '.[0].url'],
-    { cwd, encoding: 'utf-8', shell: false },
+    {
+      cwd,
+      encoding: 'utf-8',
+      shell: false,
+      timeout: timeoutMs,
+      killSignal: 'SIGKILL',
+    },
   );
   return {
     status: result.status ?? 1,

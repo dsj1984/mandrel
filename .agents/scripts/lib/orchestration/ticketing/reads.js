@@ -160,6 +160,15 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // refuses with the claim age. One entry per Epic; re-acquires upsert
   // in place.
   'plan-lease',
+  // Story #4415 (Epic #4406) — the feedback-loop graduators
+  // (`audit-results-graduator.js` / `code-review-graduator.js`) upsert a
+  // `cross-repo-deferred` comment on the Epic listing findings that route
+  // to a different repository and were therefore not filed here. Replaces
+  // the prior log-line-only trace so the deferral survives the finalize
+  // run as a durable, operator-visible record. Discriminated by a
+  // `graduator="audit-results|code-review"` attr so the two graduators
+  // upsert independent comments; re-runs upsert in place.
+  'cross-repo-deferred',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

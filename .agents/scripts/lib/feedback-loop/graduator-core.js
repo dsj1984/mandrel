@@ -14,20 +14,84 @@
  * The third `runGh` spawn copy in `prior-feedback-fetcher.js` is also
  * collapsed onto the single `runChild` helper here.
  *
- * Behaviour-preserving: the parametrized `graduate()` walk reproduces the
- * exact envelope, skip reasons, label sets, titles, and bodies the two
- * standalone graduators produced before consolidation. The only injected
- * seams are the parser (`parseFindings`) and the per-finding
- * `bodyBuilder`; everything mechanical is shared.
+ * Story #4415 / Epic #4406 hardens the walk so it is bounded and
+ * replay-safe — the shared mechanism the retro auto-filer will reuse:
+ *
+ *   - **Content-hash idempotency markers.** Follow-up markers derive from
+ *     a `category|path|title` digest (`contentFingerprint`) instead of a
+ *     `(epicId, parse-index)` ordinal, so a finding keeps its marker when
+ *     sibling findings are added, removed, or reordered in the source
+ *     comment, and two distinct findings never collide.
+ *   - **Legacy-marker recognition.** The idempotency probe also checks the
+ *     legacy `(epicId, parse-index)` marker so findings filed before the
+ *     fingerprint cutover are not re-filed.
+ *   - **Bounded spawns.** `runChild` enforces a caller-overridable timeout
+ *     (default 30000 ms) and kills a child that overruns instead of
+ *     hanging finalize forever.
+ *   - **Probe-error vs confirmed-missing.** A `git cat-file` spawn failure
+ *     (or timeout) records the finding as skipped `probe-error`, not the
+ *     confirmed-missing `file-removed`.
+ *   - **Per-run filing cap.** `graduate()` stops filing once
+ *     `maxFilingsPerRun` issues are created and records the excess as
+ *     skipped `cap-reached`.
+ *   - **Pre-parsed / path-less seam.** `graduate()` accepts a pre-parsed
+ *     `findings` array (bypassing structured-comment parsing), and a
+ *     path-less finding skips the path-exists gate instead of being
+ *     misclassified `file-removed` — the seam the retro auto-filer
+ *     consumes.
+ *   - **Durable cross-repo deferral.** Cross-repo-deferred findings are
+ *     upserted into a structured comment on the Epic instead of only a
+ *     log line.
  */
 
 import { spawn as defaultSpawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 
 import { classifyPathSource as defaultClassifier } from '../observability/source-classifier.js';
+import { upsertStructuredComment } from '../orchestration/ticketing.js';
 
 /**
- * Spawn a child process and resolve to `{ code, stdout, stderr, spawnError }`.
- * Never throws — spawn-time errors are captured as `spawnError`.
+ * Default child-process timeout. A hung `gh`/`git` spawn previously blocked
+ * finalize indefinitely; the walk now caps every spawn at this bound unless
+ * a caller overrides it.
+ */
+export const DEFAULT_RUN_CHILD_TIMEOUT_MS = 30000;
+
+/**
+ * Default per-run filing cap. `graduate()` files at most this many follow-up
+ * issues per invocation; the remainder is recorded as skipped `cap-reached`.
+ */
+export const DEFAULT_MAX_FILINGS_PER_RUN = 20;
+
+/**
+ * Structured-comment type used to durably persist cross-repo-deferred
+ * findings on the Epic. Registered in `STRUCTURED_COMMENT_TYPES`.
+ */
+export const CROSS_REPO_DEFERRED_COMMENT_TYPE = 'cross-repo-deferred';
+
+/**
+ * Compute a stable content fingerprint for a finding from its
+ * `category|path|title` triple. Pure — the digest depends only on the
+ * finding content, never on its position in the source comment, so the
+ * marker survives sibling insert/remove/reorder churn. Distinct triples
+ * yield distinct digests (SHA-256, truncated to 16 hex chars for a compact
+ * marker that still has a negligible collision probability across a single
+ * Epic's finding set).
+ *
+ * @param {{ category?: unknown, path?: unknown, title?: unknown }} parts
+ * @returns {string} 16-char lowercase hex digest.
+ */
+export function contentFingerprint({ category, path, title } = {}) {
+  const norm = (v) => (typeof v === 'string' ? v : v == null ? '' : String(v));
+  const canonical = `${norm(category)}|${norm(path)}|${norm(title)}`;
+  return createHash('sha256').update(canonical).digest('hex').slice(0, 16);
+}
+
+/**
+ * Spawn a child process and resolve to
+ * `{ code, stdout, stderr, spawnError, timedOut }`. Never throws — spawn-time
+ * errors are captured as `spawnError` and an overrun is captured as
+ * `timedOut: true` with a matching `spawnError`.
  *
  * This is the single spawn helper for the feedback-loop modules. Both
  * graduators and `prior-feedback-fetcher.js` route their child-process
@@ -36,14 +100,26 @@ import { classifyPathSource as defaultClassifier } from '../observability/source
  * options (e.g. omitting `cwd`) pass `undefined` and the option is
  * dropped by the child_process layer.
  *
+ * A caller-overridable `timeoutMs` (default {@link DEFAULT_RUN_CHILD_TIMEOUT_MS})
+ * bounds the wait: when it elapses the child is SIGKILL'd and the promise
+ * resolves with `{ code: null, timedOut: true, spawnError }` rather than
+ * hanging. Pass `0`/`Infinity` to disable the watchdog.
+ *
  * @param {object} opts
  * @param {string} opts.cmd — binary to spawn (e.g. "git", "gh")
  * @param {string[]} opts.args — positional + flag arguments
  * @param {Function} [opts.spawnImpl] — test seam; defaults to node:child_process spawn
  * @param {string} [opts.cwd] — working directory for the child
- * @returns {Promise<{ code: number|null, stdout: string, stderr: string, spawnError: Error|null }>}
+ * @param {number} [opts.timeoutMs] — watchdog bound in ms
+ * @returns {Promise<{ code: number|null, stdout: string, stderr: string, spawnError: Error|null, timedOut: boolean }>}
  */
-export function runChild({ cmd, args, spawnImpl = defaultSpawn, cwd }) {
+export function runChild({
+  cmd,
+  args,
+  spawnImpl = defaultSpawn,
+  cwd,
+  timeoutMs = DEFAULT_RUN_CHILD_TIMEOUT_MS,
+}) {
   return new Promise((resolve) => {
     let child;
     try {
@@ -52,12 +128,48 @@ export function runChild({ cmd, args, spawnImpl = defaultSpawn, cwd }) {
         cwd,
       });
     } catch (err) {
-      resolve({ code: null, stdout: '', stderr: '', spawnError: err });
+      resolve({
+        code: null,
+        stdout: '',
+        stderr: '',
+        spawnError: err,
+        timedOut: false,
+      });
       return;
     }
     let stdout = '';
     let stderr = '';
     let spawnError = null;
+    let settled = false;
+    let timer = null;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(result);
+    };
+    if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+      timer = setTimeout(() => {
+        try {
+          child.kill?.('SIGKILL');
+        } catch {
+          // Killing an already-dead / stub child is a no-op we ignore.
+        }
+        finish({
+          code: null,
+          stdout,
+          stderr,
+          spawnError: Object.assign(
+            new Error(
+              `child process '${cmd}' exceeded ${timeoutMs}ms and was killed`,
+            ),
+            { code: 'ETIMEDOUT' },
+          ),
+          timedOut: true,
+        });
+      }, timeoutMs);
+      if (typeof timer.unref === 'function') timer.unref();
+    }
     child.stdout?.on('data', (chunk) => {
       stdout += chunk.toString();
     });
@@ -68,7 +180,7 @@ export function runChild({ cmd, args, spawnImpl = defaultSpawn, cwd }) {
       spawnError = err;
     });
     child.on('close', (code) => {
-      resolve({ code, stdout, stderr, spawnError });
+      finish({ code, stdout, stderr, spawnError, timedOut: false });
     });
   });
 }
@@ -91,26 +203,58 @@ export function makeIsAutoFileEnabled(toggleKey) {
 }
 
 /**
- * Probe whether the cited path exists in the merged tree at the given
- * git ref via `git cat-file -e <ref>:<path>`. Resolves `true` when the
- * file is present, `false` otherwise — a spawn failure degrades to
- * `false` (we cannot prove existence, so the finding skips with
- * `file-removed`).
+ * Probe whether the cited path exists in the merged tree at the given git
+ * ref, distinguishing a confirmed-missing file from a probe failure.
+ * Resolves `{ exists, probeError }`:
+ *
+ *   - `git cat-file -e <ref>:<path>` exit 0        → `{ exists: true,  probeError: false }`
+ *   - clean non-zero exit (file genuinely absent)  → `{ exists: false, probeError: false }`
+ *   - spawn failure / timeout (cannot decide)      → `{ exists: false, probeError: true  }`
  *
  * @param {object} opts
  * @param {string} opts.ref
  * @param {string} opts.path
  * @param {Function} [opts.spawnImpl]
  * @param {string} [opts.cwd]
+ * @param {number} [opts.timeoutMs]
+ * @returns {Promise<{ exists: boolean, probeError: boolean }>}
  */
-export async function probePathExists({ ref, path, spawnImpl, cwd }) {
+export async function probePathStatus({
+  ref,
+  path,
+  spawnImpl,
+  cwd,
+  timeoutMs,
+}) {
   const res = await runChild({
     cmd: 'git',
     args: ['cat-file', '-e', `${ref}:${path}`],
     spawnImpl,
     cwd,
+    timeoutMs,
   });
-  return res.code === 0;
+  if (res.spawnError || res.timedOut) {
+    return { exists: false, probeError: true };
+  }
+  return { exists: res.code === 0, probeError: false };
+}
+
+/**
+ * Boolean convenience wrapper over {@link probePathStatus} — a spawn
+ * failure degrades to `false` (kept for back-compat with the graduators'
+ * re-exported probe surface). Callers that must distinguish a probe error
+ * from a confirmed-missing file use `probePathStatus` directly.
+ *
+ * @param {object} opts
+ * @param {string} opts.ref
+ * @param {string} opts.path
+ * @param {Function} [opts.spawnImpl]
+ * @param {string} [opts.cwd]
+ * @param {number} [opts.timeoutMs]
+ */
+export async function probePathExists(opts) {
+  const { exists } = await probePathStatus(opts);
+  return exists;
 }
 
 /**
@@ -127,6 +271,7 @@ export async function probeMarkerExists({
   ghPath,
   spawnImpl,
   cwd,
+  timeoutMs,
 }) {
   const args = [
     'search',
@@ -139,7 +284,7 @@ export async function probeMarkerExists({
     '--limit',
     '1',
   ];
-  const res = await runChild({ cmd: ghPath, args, spawnImpl, cwd });
+  const res = await runChild({ cmd: ghPath, args, spawnImpl, cwd, timeoutMs });
   if (res.spawnError || (typeof res.code === 'number' && res.code !== 0)) {
     return false;
   }
@@ -166,6 +311,7 @@ export async function createFollowUpIssue({
   ghPath,
   spawnImpl,
   cwd,
+  timeoutMs,
 }) {
   const args = [
     'issue',
@@ -180,7 +326,7 @@ export async function createFollowUpIssue({
   for (const label of labels) {
     args.push('--label', label);
   }
-  const res = await runChild({ cmd: ghPath, args, spawnImpl, cwd });
+  const res = await runChild({ cmd: ghPath, args, spawnImpl, cwd, timeoutMs });
   if (res.spawnError || (typeof res.code === 'number' && res.code !== 0)) {
     return {
       url: null,
@@ -193,51 +339,6 @@ export async function createFollowUpIssue({
   return { url, error: null };
 }
 
-/**
- * Parametrized graduator walk. Reads the Epic's structured comment via
- * the injected provider, parses non-blocking findings with the injected
- * `parseFindings`, then for each finding runs the shared route → path
- * probe → idempotency probe → file sequence. Never throws — every
- * failure path is captured in `errors[]`.
- *
- * The per-graduator variation lives entirely in the injected callbacks:
- *
- *   - `parseFindings(body)` — turns the rendered comment into findings.
- *     Each finding MUST carry `{ severity, path, summary, index }` and
- *     MAY carry additional fields (e.g. `lens`) that the builder uses.
- *   - `buildIdempotencyMarker(epicId, index)` — the HTML-comment marker
- *     embedded in (and searched for in) follow-up bodies.
- *   - `buildFollowUp({ finding, source, epicId })` — returns
- *     `{ title, body, labels }` for the issue to file.
- *   - `buildCrossRepoLog({ finding, routedRepo })` — returns the
- *     human-readable would-be-command string logged on a cross-repo skip.
- *   - `decorateRecord(record, finding)` — copies finding-specific fields
- *     (e.g. `lens`) onto a `skipped`/`filed` record before it is pushed.
- *
- * @param {object} opts
- * @param {number} opts.epicId
- * @param {object} opts.provider — exposes `getTicketComments(ticketId)`
- * @param {object} [opts.config]
- * @param {{owner: string, repo: string}} opts.currentRepo
- * @param {{owner: string, repo: string}} [opts.frameworkRepo]
- * @param {string} [opts.gitRef='HEAD']
- * @param {Function} [opts.classifier=classifyPathSource]
- * @param {string} [opts.ghPath='gh']
- * @param {Function} [opts.spawnImpl]
- * @param {string} [opts.cwd]
- * @param {{info?: Function, warn?: Function, debug?: Function}} [opts.logger]
- * @param {object} opts.spec — the per-graduator behaviour bundle
- * @param {string} opts.spec.fnName — name used in error-message prefixes
- * @param {(config: object|undefined|null) => boolean} opts.spec.isAutoFileEnabled
- * @param {string} opts.spec.commentMarker — structured-comment marker to match
- * @param {string} opts.spec.noCommentReason — skip reason when absent
- * @param {Function} opts.spec.parseFindings
- * @param {(epicId: number, index: number) => string} opts.spec.buildIdempotencyMarker
- * @param {Function} opts.spec.buildFollowUp
- * @param {Function} opts.spec.buildCrossRepoLog
- * @param {(record: object, finding: object) => object} [opts.spec.decorateRecord]
- * @returns {Promise<{ filed: object[], skipped: object[], errors: string[] }>}
- */
 /**
  * Validate the `graduate` preconditions (toggle, epicId, provider shape,
  * currentRepo shape). Returns `null` when all preconditions pass, or a
@@ -302,9 +403,54 @@ async function loadGraduateFindings({ epicId, provider, spec }) {
 }
 
 /**
+ * Probe whether a finding was already filed, checking both the current
+ * content-hash marker AND the legacy `(epicId, parse-index)` marker so
+ * findings filed before the fingerprint cutover are not re-filed. Returns
+ * the content-hash marker (embedded in a freshly filed body) alongside the
+ * `alreadyFiled` decision.
+ */
+async function resolveAlreadyFiled({
+  finding,
+  epicId,
+  routedRepo,
+  ghPath,
+  spawnImpl,
+  cwd,
+  timeoutMs,
+  spec,
+}) {
+  const contentMarker = spec.buildContentMarker(epicId, finding);
+  const probe = (marker) =>
+    probeMarkerExists({
+      marker,
+      owner: routedRepo.owner,
+      repo: routedRepo.repo,
+      ghPath,
+      spawnImpl,
+      cwd,
+      timeoutMs,
+    });
+
+  if (await probe(contentMarker)) {
+    return { alreadyFiled: true, contentMarker };
+  }
+  // Legacy recognition — a pre-cutover follow-up carries the ordinal
+  // marker, not the content hash. Skip re-filing when it is present.
+  if (typeof spec.buildLegacyMarker === 'function') {
+    const legacyMarker = spec.buildLegacyMarker(epicId, finding.index);
+    if (legacyMarker && (await probe(legacyMarker))) {
+      return { alreadyFiled: true, contentMarker };
+    }
+  }
+  return { alreadyFiled: false, contentMarker };
+}
+
+/**
  * Route a single finding (path-exists probe → repo routing → idempotency
- * probe → file) and fold the outcome into the running envelope. Story #4075
- * — extracted from `graduate`'s per-finding loop body.
+ * probe → cap → file) and fold the outcome into the running envelope. Story
+ * #4075 extracted this from `graduate`'s per-finding loop; Story #4415
+ * hardened it (path-less seam, probe-error distinction, legacy-marker
+ * recognition, filing cap, and cross-repo-deferred collection).
  */
 async function processGraduateFinding({
   finding,
@@ -318,6 +464,9 @@ async function processGraduateFinding({
   ghPath,
   spawnImpl,
   cwd,
+  timeoutMs,
+  maxFilingsPerRun,
+  crossRepoDeferred,
   logger,
   spec,
 }) {
@@ -334,13 +483,24 @@ async function processGraduateFinding({
       ),
     );
 
-  const exists = await probePathExists({
-    ref: gitRef,
-    path: finding.path,
-    spawnImpl,
-    cwd,
-  });
-  if (!exists) return skip('file-removed');
+  // Path-less findings (the retro auto-filer seam) are not file-scoped, so
+  // the path-exists gate does not apply — probing an empty path would
+  // misclassify them `file-removed`. Only file-scoped findings are probed.
+  const hasPath =
+    typeof finding.path === 'string' && finding.path.trim().length > 0;
+  if (hasPath) {
+    const { exists, probeError } = await probePathStatus({
+      ref: gitRef,
+      path: finding.path,
+      spawnImpl,
+      cwd,
+      timeoutMs,
+    });
+    // A probe failure is not proof the file is gone — record it distinctly
+    // so a transient git/spawn fault does not masquerade as a removal.
+    if (probeError) return skip('probe-error');
+    if (!exists) return skip('file-removed');
+  }
 
   const source = classifier(finding.path, null);
   const routedRepo =
@@ -349,26 +509,34 @@ async function processGraduateFinding({
     routedRepo.owner !== currentRepo.owner ||
     routedRepo.repo !== currentRepo.repo;
   if (isCrossRepo) {
-    logger?.info?.(spec.buildCrossRepoLog({ finding, routedRepo, source }));
+    const logLine = spec.buildCrossRepoLog({ finding, routedRepo, source });
+    logger?.info?.(logLine);
+    crossRepoDeferred.push({ finding, routedRepo, source, logLine });
     return skip('cross-repo-deferred');
   }
 
-  const idMarker = spec.buildIdempotencyMarker(epicId, finding.index);
-  const alreadyFiled = await probeMarkerExists({
-    marker: idMarker,
-    owner: routedRepo.owner,
-    repo: routedRepo.repo,
+  const { alreadyFiled, contentMarker } = await resolveAlreadyFiled({
+    finding,
+    epicId,
+    routedRepo,
     ghPath,
     spawnImpl,
     cwd,
+    timeoutMs,
+    spec,
   });
   if (alreadyFiled) return skip('already-filed');
+
+  // Per-run filing cap — count only actual filings (already-filed and
+  // skipped findings do not consume the budget). The excess is surfaced so
+  // a re-run picks it up next time.
+  if (envelope.filed.length >= maxFilingsPerRun) return skip('cap-reached');
 
   const { title, body, labels } = spec.buildFollowUp({
     finding,
     source,
     epicId,
-    idMarker,
+    idMarker: contentMarker,
   });
   const created = await createFollowUpIssue({
     owner: routedRepo.owner,
@@ -379,6 +547,7 @@ async function processGraduateFinding({
     ghPath,
     spawnImpl,
     cwd,
+    timeoutMs,
   });
   if (created.error) {
     envelope.errors.push(
@@ -401,6 +570,105 @@ async function processGraduateFinding({
   );
 }
 
+/**
+ * Render the durable cross-repo-deferred comment body from the collected
+ * deferrals. Each row names the finding path/severity plus the would-be
+ * `gh issue create` command so an operator (or a later cross-repo pass)
+ * can act on it.
+ */
+function renderCrossRepoDeferredBody(deferred, spec) {
+  const header =
+    spec.crossRepoCommentHeader ??
+    '### Cross-repo-deferred findings\n\nThese findings route to a different repository and were **not** filed here. They are recorded for a cross-repo follow-up pass.';
+  const rows = deferred.map(({ finding, routedRepo, logLine }) => {
+    const path =
+      typeof finding.path === 'string' && finding.path.length > 0
+        ? `\`${finding.path}\``
+        : '_(no path)_';
+    return [
+      `- ${path} (severity: ${finding.severity ?? 'n/a'}) → ${routedRepo.owner}/${routedRepo.repo}`,
+      `  - ${logLine}`,
+    ].join('\n');
+  });
+  return [header, '', ...rows].join('\n');
+}
+
+/**
+ * Durably persist the cross-repo-deferred findings as a structured comment
+ * on the Epic (upserted — one comment per graduator, refreshed in place).
+ * Best-effort: a provider that cannot post comments is a no-op, and an
+ * upsert failure lands in `envelope.errors` rather than throwing.
+ */
+async function persistCrossRepoDeferred({
+  epicId,
+  provider,
+  crossRepoDeferred,
+  spec,
+  envelope,
+}) {
+  if (typeof provider?.postComment !== 'function') return;
+  try {
+    const body = renderCrossRepoDeferredBody(crossRepoDeferred, spec);
+    await upsertStructuredComment(
+      provider,
+      epicId,
+      CROSS_REPO_DEFERRED_COMMENT_TYPE,
+      body,
+      spec.crossRepoCommentAttrs ?? null,
+    );
+  } catch (err) {
+    envelope.errors.push(
+      `cross-repo-deferred comment upsert failed: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
+ * Parametrized graduator walk. Parses non-blocking findings (from the
+ * Epic's structured comment, or a pre-parsed `findings` array), then for
+ * each finding runs the shared route → path probe → idempotency probe →
+ * cap → file sequence. Never throws — every failure path is captured in
+ * `errors[]`.
+ *
+ * The per-graduator variation lives entirely in the injected callbacks:
+ *
+ *   - `parseFindings(body)` — turns the rendered comment into findings.
+ *     Each finding MUST carry `{ severity, path, summary, index }` and
+ *     MAY carry additional fields (e.g. `lens`) that the builder uses.
+ *   - `buildContentMarker(epicId, finding)` — the content-hash HTML-comment
+ *     marker embedded in (and searched for in) follow-up bodies.
+ *   - `buildLegacyMarker(epicId, index)` — the pre-cutover ordinal marker,
+ *     probed for idempotency so legacy filings are not duplicated.
+ *   - `buildFollowUp({ finding, source, epicId, idMarker })` — returns
+ *     `{ title, body, labels }` for the issue to file.
+ *   - `buildCrossRepoLog({ finding, routedRepo, source })` — returns the
+ *     human-readable would-be-command string for a cross-repo skip.
+ *   - `decorateRecord(record, finding)` — copies finding-specific fields
+ *     (e.g. `lens`) onto a `skipped`/`filed` record before it is pushed.
+ *   - `crossRepoCommentAttrs` — discriminator attrs for the durable
+ *     cross-repo-deferred comment (so the two graduators do not clobber
+ *     each other's comment).
+ *
+ * @param {object} opts
+ * @param {number} opts.epicId
+ * @param {object} opts.provider — exposes `getTicketComments(ticketId)`
+ * @param {object} [opts.config]
+ * @param {{owner: string, repo: string}} opts.currentRepo
+ * @param {{owner: string, repo: string}} [opts.frameworkRepo]
+ * @param {string} [opts.gitRef='HEAD']
+ * @param {Function} [opts.classifier=classifyPathSource]
+ * @param {string} [opts.ghPath='gh']
+ * @param {Function} [opts.spawnImpl]
+ * @param {string} [opts.cwd]
+ * @param {number} [opts.timeoutMs] — per-spawn watchdog bound
+ * @param {number} [opts.maxFilingsPerRun] — per-run filing cap
+ * @param {Array<object>} [opts.findings] — pre-parsed findings; when
+ *   provided, the structured-comment read/parse is bypassed (the retro
+ *   auto-filer seam).
+ * @param {{info?: Function, warn?: Function, debug?: Function}} [opts.logger]
+ * @param {object} opts.spec — the per-graduator behaviour bundle
+ * @returns {Promise<{ filed: object[], skipped: object[], errors: string[] }>}
+ */
 export async function graduate({
   epicId,
   provider,
@@ -412,6 +680,9 @@ export async function graduate({
   ghPath = 'gh',
   spawnImpl,
   cwd,
+  timeoutMs = DEFAULT_RUN_CHILD_TIMEOUT_MS,
+  maxFilingsPerRun = DEFAULT_MAX_FILINGS_PER_RUN,
+  findings: preParsedFindings,
   logger,
   spec,
 }) {
@@ -430,10 +701,19 @@ export async function graduate({
   });
   if (precondition) return { ...envelope, ...precondition };
 
-  const loaded = await loadGraduateFindings({ epicId, provider, spec });
-  if (!loaded.findings) return { ...envelope, ...loaded };
+  let findings;
+  if (Array.isArray(preParsedFindings)) {
+    // Pre-parsed seam (retro auto-filer): bypass the structured-comment
+    // read + parse entirely and file the supplied findings directly.
+    findings = preParsedFindings;
+  } else {
+    const loaded = await loadGraduateFindings({ epicId, provider, spec });
+    if (!loaded.findings) return { ...envelope, ...loaded };
+    findings = loaded.findings;
+  }
 
-  for (const finding of loaded.findings) {
+  const crossRepoDeferred = [];
+  for (const finding of findings) {
     await processGraduateFinding({
       finding,
       envelope,
@@ -446,8 +726,21 @@ export async function graduate({
       ghPath,
       spawnImpl,
       cwd,
+      timeoutMs,
+      maxFilingsPerRun,
+      crossRepoDeferred,
       logger,
       spec,
+    });
+  }
+
+  if (crossRepoDeferred.length > 0) {
+    await persistCrossRepoDeferred({
+      epicId,
+      provider,
+      crossRepoDeferred,
+      spec,
+      envelope,
     });
   }
 
