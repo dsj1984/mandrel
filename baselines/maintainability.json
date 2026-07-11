@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T02:14:47.303Z",
+  "generatedAt": "2026-07-11T11:07:44.332Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -135,6 +135,10 @@
       "mi": 85.454
     },
     {
+      "path": ".agents/scripts/generate-lens-checklists.js",
+      "mi": 100.525
+    },
+    {
       "path": ".agents/scripts/generate-lifecycle-docs.js",
       "mi": 96.784
     },
@@ -185,6 +189,10 @@
     {
       "path": ".agents/scripts/lib/audit-suite/index.js",
       "mi": 171
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/lens-checklist.js",
+      "mi": 87.088
     },
     {
       "path": ".agents/scripts/lib/audit-suite/runner.js",
