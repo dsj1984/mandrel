@@ -118,6 +118,9 @@ Using the envelope above, draft a Story body that:
 - Includes every section in `requiredSections` (`## Context`,
   `## Acceptance Criteria`, `## Out of Scope`, `## Notes`).
 - Has at least one unchecked checklist item under `## Acceptance Criteria`
+  (`- [ ] …`).
+- Does **NOT** contain any `Epic: #N` reference — that breaks the
+  standalone contract enforced by `single-story-init.js`.
 
 ### Drafting against `corpusContext`
 
@@ -140,9 +143,6 @@ Check `corpusContext` before authoring the `## Context` section:
   as today: from the seed, the body template, and the duplicate-candidates
   scan alone. This is the common case for a genuinely new standalone Story
   and is not a degraded path; it is simply that there is nothing to inherit.
-  (`- [ ] …`).
-- Does **NOT** contain any `Epic: #N` reference — that breaks the
-  standalone contract enforced by `single-story-init.js`.
 
 Write the draft to `temp/single-story-draft.md`.
 
