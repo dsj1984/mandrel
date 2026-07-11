@@ -22,6 +22,12 @@ entrypoint the standalone `lifecycle-emit.js` CLI shells in for
   the PR's `mergeCommit` is observed, then emits `epic.merge.confirmed`.
 - `cleaner.js` — archives `temp/epic-<id>/` and emits the terminal
   `epic.cleanup.* → epic.complete` sequence on `epic.merge.confirmed`.
+- `label-transitioner.js` — flips the Epic ticket to `agent::done` (and
+  closes it as completed, idempotently) on `epic.complete`. Skipped when
+  no provider is wired. Re-homed onto this chain after the 2026-07-11
+  incident (merged Epics stranding at `agent::executing`): the original
+  LabelTransitioner died with the in-process runner stratum (#3936) and
+  the flip had no owner.
 - `checkpoint-pointer-writer.js` — persists `{ lastCompletedSeqId, phase }`
   on every `*.end` event.
 

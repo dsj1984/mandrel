@@ -184,9 +184,15 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'finalize end trace; the auto-merge arm re-enters via Phase 8.5',
   },
   'epic.complete': {
-    kind: 'terminal',
+    kind: 'connected',
     emitter: 'cleaner.js',
-    why: 'terminal success event emitted by Cleaner; consumed only by the wildcard NotifyDispatcher (dynamic this.events) which fans it to the curated webhook. Its former dedicated subscriber (LabelTransitioner) was part of the in-process runner stratum deleted in Story #3908; the agent::done flip is driven by the post-merge close path, not a bus subscriber.',
+    subscriber: 'label-transitioner.js',
+    // LabelTransitioner was re-homed onto the lifecycle-emit chain after
+    // the 2026-07-11 incident: the original listener died with the
+    // in-process runner stratum (Story #3908) and this entry's former
+    // 'terminal' rationale ("the agent::done flip is driven by the
+    // post-merge close path") described a path that did not exist —
+    // cleanly-merged Epics stranded at agent::executing.
   },
   'epic.snapshot.start': {
     kind: 'terminal',

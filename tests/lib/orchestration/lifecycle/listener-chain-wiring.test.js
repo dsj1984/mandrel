@@ -125,6 +125,7 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
       'BranchCleaner',
       'MergeWatcher',
       'Cleaner',
+      'LabelTransitioner',
       'CheckpointPointerWriter',
     ]);
 
@@ -132,8 +133,8 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
     // listener addition that bypasses the canonical roster contract.
     assert.equal(
       chain.order.length,
-      9,
-      'full-roster chain has exactly nine named registrations',
+      10,
+      'full-roster chain has exactly ten named registrations',
     );
 
     // Every named listener is constructed and exposed for tests.
@@ -144,6 +145,7 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
     assert.ok(chain.automergePredicate, 'automergePredicate constructed');
     assert.ok(chain.branchCleaner, 'branchCleaner constructed');
     assert.ok(chain.cleaner, 'cleaner constructed');
+    assert.ok(chain.labelTransitioner, 'labelTransitioner constructed');
     assert.ok(
       chain.checkpointPointerWriter,
       'checkpointPointerWriter constructed',
@@ -171,7 +173,7 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
 });
 
 describe('buildDefaultListenerChain — full roster with provider + checkpointer + config', () => {
-  it('subscribes all eight canonical listeners and forwards config to AcceptanceReconciler', async () => {
+  it('subscribes the full canonical roster and forwards config to AcceptanceReconciler', async () => {
     const bus = new Bus();
     // Synthetic resolved-config wrapper that mirrors the post-reshape
     // shape returned by `resolveConfig()`. The reconciler only reads
@@ -191,11 +193,12 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
       logger: quietLogger(),
     });
 
-    // All nine canonical listeners subscribe, in canonical order, when
+    // All ten canonical listeners subscribe, in canonical order, when
     // provider + checkpointer + config are all supplied — the
     // `buildDefaultListenerChain` "full roster" contract from Story
     // #2531 (Epic #2527), extended by Story #2896 (Epic #2880) which
-    // inserted MergeWatcher between BranchCleaner and Cleaner.
+    // inserted MergeWatcher between BranchCleaner and Cleaner, and by
+    // the LabelTransitioner re-homing (epic.complete → agent::done).
     assert.deepEqual(chain.order, [
       'LedgerWriter',
       'AcceptanceReconciler',
@@ -205,9 +208,10 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
       'BranchCleaner',
       'MergeWatcher',
       'Cleaner',
+      'LabelTransitioner',
       'CheckpointPointerWriter',
     ]);
-    assert.equal(chain.order.length, 9);
+    assert.equal(chain.order.length, 10);
 
     // The reconciler stored the injected config for its downstream
     // `reconcileAcceptanceSpec` call; assert the reference threaded
@@ -219,6 +223,8 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
     assert.strictEqual(chain.branchCleaner.checkpointer, fakeCheckpointer);
     // AutomergePredicate received the injected provider.
     assert.strictEqual(chain.automergePredicate.provider, fakeProvider);
+    // LabelTransitioner received the injected provider.
+    assert.strictEqual(chain.labelTransitioner.provider, fakeProvider);
   });
 });
 
@@ -233,6 +239,9 @@ describe('buildDefaultListenerChain — graceful skips', () => {
     });
     assert.equal(chain.automergePredicate, null);
     assert.equal(chain.order.includes('AutomergePredicate'), false);
+    // LabelTransitioner shares the provider dependency — also skipped.
+    assert.equal(chain.labelTransitioner, null);
+    assert.equal(chain.order.includes('LabelTransitioner'), false);
     // BranchCleaner still wires (its dependency is satisfied).
     assert.ok(chain.branchCleaner);
     assert.equal(chain.order.includes('BranchCleaner'), true);
@@ -251,6 +260,9 @@ describe('buildDefaultListenerChain — graceful skips', () => {
     // AutomergePredicate still wires.
     assert.ok(chain.automergePredicate);
     assert.equal(chain.order.includes('AutomergePredicate'), true);
+    // LabelTransitioner wires too (provider satisfied).
+    assert.ok(chain.labelTransitioner);
+    assert.equal(chain.order.includes('LabelTransitioner'), true);
   });
 
   it('LedgerWriter is always first in the documented order regardless of skips', async () => {
