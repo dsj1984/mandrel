@@ -32,9 +32,140 @@
  * invocation pattern (Story #3653).
  */
 
+import {
+  runAuditSuite,
+  selectLocalLenses,
+} from '../../../audit-suite/index.js';
+import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
 import { runCodeReview } from '../../code-review.js';
 import { emitBlockedCloseResult } from '../merge-runner.js';
+
+/**
+ * The review depth the Story-scope local-lens pass runs at. Shift-left
+ * (Epic #4405): local concerns are cheap to decide on a single Story's diff, so
+ * the maker-blind Story-scope review runs its matched local lenses at `light`
+ * depth here rather than paying a deeper pass at Epic close. Fixed for this
+ * tier — it is not risk-scaled like the code-review pillar depth.
+ */
+export const STORY_SCOPE_LENS_DEPTH = 'light';
+
+/**
+ * Enumerate the files changed in the `baseRef...headRef` diff via
+ * `git diff --name-only`. Best-effort: returns `[]` when the diff cannot be
+ * enumerated (git failure, missing ref) and never throws, mirroring the
+ * advisory posture of the surrounding review phase. Synchronous `gitSpawn`
+ * (returns `{ status, stdout }`) is the same seam `code-review.js#countChangedFiles`
+ * uses.
+ *
+ * @param {{ baseRef: string, headRef: string, gitSpawnFn?: typeof gitSpawn }} args
+ * @returns {string[]} Changed file paths, or `[]` on any failure.
+ */
+export function enumerateChangedFiles({
+  baseRef,
+  headRef,
+  gitSpawnFn = gitSpawn,
+}) {
+  try {
+    const result = gitSpawnFn(
+      process.cwd(),
+      'diff',
+      '--name-only',
+      `${baseRef}...${headRef}`,
+    );
+    if (!result || result.status !== 0 || typeof result.stdout !== 'string') {
+      return [];
+    }
+    return result.stdout
+      .split('\n')
+      .map((f) => f.trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Run the Story-scope local-lens pass: select the LOCAL-tier lenses whose
+ * `filePatterns` match the actual Story diff (`baseRef...headRef`) and
+ * materialize their lens-prompt bodies at `light` depth. This is the
+ * shift-left tier from Epic #4405 — it runs **inside** the story-close
+ * subprocess spine (called only from {@link runStoryReviewCore}), never in the
+ * delivering child's (maker's) context, so a maker never grades its own work.
+ *
+ * A diff that matches no local lens adds **no** lens work: the roster is empty
+ * and `runAuditSuite` is never invoked. Best-effort and total — a git or
+ * materialization failure degrades to `{ skipped: true, lenses: [] }` and is
+ * logged via `progress`, matching the advisory posture the review phase already
+ * takes for provider/transport failures.
+ *
+ * @param {{
+ *   baseRef: string,
+ *   headRef: string,
+ *   progress: (tag: string, msg: string) => void,
+ *   progressTag?: string,
+ *   gitSpawnFn?: typeof gitSpawn,
+ *   selectLocalLensesFn?: typeof selectLocalLenses,
+ *   runAuditSuiteFn?: typeof runAuditSuite,
+ * }} args
+ * @returns {Promise<{
+ *   depth: 'light',
+ *   lenses: string[],
+ *   skipped: boolean,
+ *   materialized: object|null,
+ * }>}
+ */
+export async function runLocalLensReview({
+  baseRef,
+  headRef,
+  progress,
+  progressTag = 'CODE-REVIEW',
+  gitSpawnFn = gitSpawn,
+  selectLocalLensesFn = selectLocalLenses,
+  runAuditSuiteFn = runAuditSuite,
+}) {
+  const empty = {
+    depth: STORY_SCOPE_LENS_DEPTH,
+    lenses: [],
+    skipped: true,
+    materialized: null,
+  };
+  let lenses;
+  try {
+    const changedFiles = enumerateChangedFiles({
+      baseRef,
+      headRef,
+      gitSpawnFn,
+    });
+    lenses = selectLocalLensesFn({ changedFiles });
+    if (lenses.length === 0) {
+      progress(
+        progressTag,
+        'No local lens matched the Story diff — skipping the lens pass.',
+      );
+      return empty;
+    }
+    const materialized = await runAuditSuiteFn({ auditWorkflows: lenses });
+    progress(
+      progressTag,
+      `Ran ${lenses.length} local lens(es) at ${STORY_SCOPE_LENS_DEPTH} depth: ${lenses.join(', ')}.`,
+    );
+    return {
+      depth: STORY_SCOPE_LENS_DEPTH,
+      lenses,
+      skipped: false,
+      materialized,
+    };
+  } catch (err) {
+    // The lens pass is advisory: a git or materialization failure must not
+    // fail the close. Log and degrade to a skipped envelope.
+    progress(
+      progressTag,
+      `⚠️ local lens pass failed (continuing without it): ${err?.message ?? err}`,
+    );
+    return empty;
+  }
+}
 
 /**
  * Collect the extra fields for the code-review-critical blocked envelope.
@@ -92,8 +223,13 @@ function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
  *   progressTag?: string,
  *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   runCodeReviewFn?: typeof runCodeReview,
+ *   runLocalLensReviewFn?: typeof runLocalLensReview,
  * }} args
- * @returns {Promise<object>} Raw result envelope from `runCodeReview`.
+ * @returns {Promise<object>} Raw result envelope from `runCodeReview`, augmented
+ *   with a `localLensReview` field carrying the Story-scope local-lens pass
+ *   outcome (Epic #4405, Story #4409). Both close entry points reach the lens
+ *   pass through this single spine, so it runs on the Epic-attached and
+ *   standalone paths alike and always inside the close subprocess.
  */
 export async function runStoryReviewCore({
   storyId,
@@ -105,6 +241,7 @@ export async function runStoryReviewCore({
   progressTag = 'CODE-REVIEW',
   planningRisk = null,
   runCodeReviewFn = runCodeReview,
+  runLocalLensReviewFn = runLocalLensReview,
 }) {
   const storyIdNum = Number(storyId);
   const opts = {
@@ -127,7 +264,21 @@ export async function runStoryReviewCore({
   if (planningRisk != null) {
     opts.planningRisk = planningRisk;
   }
-  return runCodeReviewFn(opts);
+
+  // Shift-left local-lens pass (Epic #4405). Runs matched local lenses at
+  // `light` depth against the actual Story diff, inside this close-subprocess
+  // spine so the maker never grades its own work. Advisory — it never blocks
+  // the close and its outcome rides on the returned envelope for downstream
+  // consumers.
+  const localLensReview = await runLocalLensReviewFn({
+    baseRef,
+    headRef,
+    progress,
+    progressTag,
+  });
+
+  const result = await runCodeReviewFn(opts);
+  return { ...result, localLensReview };
 }
 
 /**
@@ -155,8 +306,12 @@ export async function runStoryReviewCore({
  *   progress: (tag: string, msg: string) => void,
  *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
  *   runCodeReviewFn?: typeof runCodeReview,
+ *   runLocalLensReviewFn?: typeof runLocalLensReview,
  * }} args
- * @returns {Promise<{ blocked: object|null }>}
+ * @returns {Promise<{ blocked: object|null, localLensReview?: object }>}
+ *   `localLensReview` carries the Story-scope local-lens pass outcome
+ *   (Epic #4405, Story #4409) when the review completed; it is absent only when
+ *   the whole review phase threw (advisory failure).
  */
 export async function runStoryCodeReview(args) {
   const {
@@ -168,6 +323,7 @@ export async function runStoryCodeReview(args) {
     progress,
     planningRisk = null,
     runCodeReviewFn = runCodeReview,
+    runLocalLensReviewFn = runLocalLensReview,
   } = args;
 
   const storyIdNum = Number(storyId);
@@ -186,6 +342,7 @@ export async function runStoryCodeReview(args) {
       progress,
       planningRisk,
       runCodeReviewFn,
+      runLocalLensReviewFn,
     });
   } catch (err) {
     // Adapter / wiring failure — log and proceed. The review is advisory
@@ -196,6 +353,8 @@ export async function runStoryCodeReview(args) {
     );
     return { blocked: null };
   }
+
+  const localLensReview = reviewResult?.localLensReview;
 
   if (reviewResult?.halted) {
     const blocked = await emitBlockedCloseResult({
@@ -208,7 +367,7 @@ export async function runStoryCodeReview(args) {
       blockedMessage: `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
       logger: Logger,
     });
-    return { blocked };
+    return { blocked, localLensReview };
   }
 
   const counts = reviewResult?.severity ?? {};
@@ -216,5 +375,5 @@ export async function runStoryCodeReview(args) {
     'CODE-REVIEW',
     `Review complete — high=${counts.high ?? 0} medium=${counts.medium ?? 0} suggestion=${counts.suggestion ?? 0} (posted=${reviewResult?.posted ?? false}).`,
   );
-  return { blocked: null };
+  return { blocked: null, localLensReview };
 }

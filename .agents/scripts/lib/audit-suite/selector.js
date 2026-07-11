@@ -99,22 +99,34 @@ export const LENS_TIERS = Object.freeze(['local', 'cumulative', 'global']);
  *   manifest cannot be read, or the registered entry carries a scope outside
  *   {@link LENS_TIERS}.
  */
-export function resolveLensTier(lens) {
+/**
+ * Read and parse the `audit-rules.json` manifest synchronously from the
+ * project's configured `schemasRoot`. Shared by the synchronous, ticket-free
+ * readers ({@link resolveLensTier}, {@link selectLocalLenses}) so the path
+ * resolution and read-failure handling live in one place rather than being
+ * duplicated per reader.
+ *
+ * @returns {{ audits?: Record<string, object> }} Parsed manifest.
+ * @throws {Error} When the manifest cannot be read or parsed.
+ */
+function readAuditRulesSync() {
   const { agentSettings } = resolveConfig();
   const rulesPath = path.join(
     PROJECT_ROOT,
     getPaths({ agentSettings }).schemasRoot,
     'audit-rules.json',
   );
-
-  let rulesData;
   try {
-    rulesData = JSON.parse(readFileSync(rulesPath, 'utf8'));
+    return JSON.parse(readFileSync(rulesPath, 'utf8'));
   } catch (err) {
     throw new Error(
-      `resolveLensTier: failed to read audit-rules from ${rulesPath}: ${err.message}`,
+      `audit-suite: failed to read audit-rules from ${rulesPath}: ${err.message}`,
     );
   }
+}
+
+export function resolveLensTier(lens) {
+  const rulesData = readAuditRulesSync();
 
   const entry = rulesData.audits?.[lens];
   if (!entry) {
@@ -131,6 +143,55 @@ export function resolveLensTier(lens) {
   }
 
   return scope;
+}
+
+/**
+ * Select the LOCAL-tier lenses whose `filePatterns` triggers match a change
+ * set. This is the Story-scope roster used by the maker-blind story-close
+ * review (Epic #4405, Story #4409): a lens is selected iff
+ * `resolveLensTier(lens) === 'local'` **and** the pure
+ * {@link matchesAnyFilePattern} matcher hits at least one of `changedFiles`
+ * against the lens's registered `triggers.filePatterns`.
+ *
+ * This deliberately does **not** call {@link selectAudits}: `selectAudits`
+ * unions in keyword-matched and gate-scoped lenses and has no per-tier gate,
+ * so it would widen the roster beyond the local, footprint-matched set the
+ * shift-left Story-scope tier owns. A local lens with an empty `filePatterns`
+ * list (e.g. `audit-clean-code`) therefore matches nothing here — its concern
+ * is threaded at write-time, not re-run as a Story-scope lens pass — so a diff
+ * matching no local lens's patterns yields an empty roster and adds no lens
+ * work.
+ *
+ * Pure over its injected seams: `injectedRules` skips the disk read of the
+ * manifest and `resolveLensTierFn` overrides the tier resolver, so callers can
+ * exercise the selection without touching the filesystem. Selection order
+ * follows the manifest's declaration order, which is deterministic.
+ *
+ * @param {{
+ *   changedFiles?: string[],
+ *   injectedRules?: { audits?: Record<string, object> },
+ *   resolveLensTierFn?: typeof resolveLensTier,
+ * }} [params]
+ * @returns {string[]} The matched local-lens identifiers, in manifest order.
+ */
+export function selectLocalLenses({
+  changedFiles,
+  injectedRules,
+  resolveLensTierFn = resolveLensTier,
+} = {}) {
+  const files = Array.isArray(changedFiles) ? changedFiles : [];
+  if (files.length === 0) return [];
+
+  const rules = injectedRules ?? readAuditRulesSync();
+  const selected = [];
+  for (const [lens, entry] of Object.entries(rules.audits ?? {})) {
+    if (resolveLensTierFn(lens) !== 'local') continue;
+    const patterns = entry?.triggers?.filePatterns ?? [];
+    if (matchesAnyFilePattern(patterns, files)) {
+      selected.push(lens);
+    }
+  }
+  return selected;
 }
 
 /**

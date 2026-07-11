@@ -26,4 +26,5 @@ export {
   resolveNavigabilityRouteGlobs,
   routesNavigabilityLens,
   selectAudits,
+  selectLocalLenses,
 } from './selector.js';
