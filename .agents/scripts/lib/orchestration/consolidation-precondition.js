@@ -129,7 +129,7 @@ export function parseDeliverySlicingTable(epicBody) {
  * @param {{ body?: unknown }} story
  * @returns {boolean}
  */
-export function isBddScaffoldStory(story) {
+function isBddScaffoldStory(story) {
   const body = story?.body;
   return (
     typeof body === 'string' &&

@@ -41,7 +41,7 @@ import { Logger } from './Logger.js';
 import { buildDocsDigest } from './orchestration/docs-digest.js';
 
 /** Top-K Epics kept after the cheap title-only ranking pass. */
-export const DEFAULT_CORPUS_MAX_CANDIDATES = 5;
+const DEFAULT_CORPUS_MAX_CANDIDATES = 5;
 
 /**
  * Bound on the explicit per-candidate body fetch. Keeps corpus-context
@@ -51,10 +51,10 @@ export const DEFAULT_CORPUS_MAX_CANDIDATES = 5;
 export const DEFAULT_CORPUS_BODY_FETCH_TOP_K = 3;
 
 /** Minimum Jaccard overlap for a section excerpt to be worth surfacing. */
-export const DEFAULT_CORPUS_MIN_SCORE = 0.1;
+const DEFAULT_CORPUS_MIN_SCORE = 0.1;
 
 /** Max relevant-section excerpts returned in the envelope. */
-export const DEFAULT_CORPUS_MAX_SECTIONS = 5;
+const DEFAULT_CORPUS_MAX_SECTIONS = 5;
 
 /** Excerpt length cap (chars) so one oversized Tech Spec doesn't blow the envelope. */
 const EXCERPT_MAX_CHARS = 600;
