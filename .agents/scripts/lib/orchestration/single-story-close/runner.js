@@ -57,6 +57,7 @@ async function runPrePushPhases({
   await runWrongTreeGuardPhase({
     cwd,
     worktreePath,
+    baseBranch,
     storyId,
     provider,
     progress,

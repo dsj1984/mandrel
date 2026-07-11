@@ -8,22 +8,32 @@
  * the close path detected it — close would commit an unchanged worktree and
  * open an empty-diff PR.
  *
- * Asserts:
- *   AC-1: when the worktree is the active work tree and the main checkout has
- *         uncommitted tracked-path changes, the guard throws (close aborts)
- *         and posts a `friction` comment naming the stray files.
- *   AC-2: the helper workflow doc states the worktree-scope requirement for
- *         the path-based edit tools, not only for the Bash cwd (asserted in a
- *         sibling doc-contract assertion at the bottom of this file).
- *   - The guard does not fire in single-tree mode (worktree === main checkout).
- *   - The guard does not fire when no worktree exists.
- *   - The guard ignores untracked (`??`) files — only tracked-path edits count.
- *   - The guard fails open on a git probe error (never blocks a valid close).
+ * Story #4424 — the raw "main checkout is dirty" signal is too coarse for
+ * multi-session operation: stray main-checkout paths can belong to another
+ * concurrent session. The guard now intersects the main-checkout stray tracked
+ * paths with the Story's own diff-path set (committed diff vs base + the
+ * worktree's uncommitted tracked changes):
+ *   AC-1 (overlap):     at least one stray path is in the Story diff set →
+ *                       throw (close aborts) + friction comment naming strays.
+ *   Disjoint downgrade: Story diff set non-empty and fully disjoint from the
+ *                       strays → no throw, a "close proceeded" friction comment
+ *                       naming the disjoint strays, result identifies the
+ *                       downgrade (`overlap: []`).
+ *   Empty-diff backstop: empty Story diff set + stray paths → keep the abort
+ *                       (the original #3364 silent empty-diff failure mode).
+ *   Probe failure:      a main-checkout status probe failure still skips the
+ *                       guard (fail-open); a Story-diff probe failure with
+ *                       strays present falls back to the coarse abort.
+ *   AC-2:               the helper workflow doc states the worktree-scope
+ *                       requirement for the path-based edit tools (asserted in
+ *                       a sibling doc-contract assertion at the bottom).
  *
  * Tests exercise the pure helpers directly (`parsePorcelainStatus`,
- * `collectStrayTrackedPaths`, `guardApplies`, `formatWrongTreeFinding`) and the
- * orchestration wrapper (`runWrongTreeGuardPhase`) with an in-memory provider
- * and an injected fake `gitSpawn` so no real git or GitHub call is made.
+ * `collectStrayTrackedPaths`, `parseDiffNameOnly`, `intersectPaths`,
+ * `collectStoryDiffPaths`, `guardApplies`, `formatWrongTreeFinding`,
+ * `formatWrongTreeDowngradeFinding`) and the orchestration wrapper
+ * (`runWrongTreeGuardPhase`) with an in-memory provider and an injected fake
+ * `gitSpawn` so no real git or GitHub call is made.
  */
 
 import assert from 'node:assert/strict';
@@ -32,9 +42,13 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  collectStoryDiffPaths,
   collectStrayTrackedPaths,
+  formatWrongTreeDowngradeFinding,
   formatWrongTreeFinding,
   guardApplies,
+  intersectPaths,
+  parseDiffNameOnly,
   parsePorcelainStatus,
   runWrongTreeGuardPhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/wrong-tree-guard.js';
@@ -63,9 +77,46 @@ function makeProvider() {
   };
 }
 
-/** Build a fake `gitSpawn` result envelope. */
-function spawnResult(stdout, { status = 0, stderr = '' } = {}) {
-  return () => ({ status, stdout, stderr });
+/**
+ * Build a fake `gitSpawn(dir, ...args)` that dispatches by command + tree.
+ *
+ * `status --porcelain` against a `.worktrees/` path is the worktree probe;
+ * against any other dir it is the main-checkout probe. `diff` is the worktree
+ * committed-diff probe. Any probe can be forced to throw or exit non-zero.
+ */
+function fakeGit({
+  main = '',
+  mainStatus = 0,
+  mainThrows = null,
+  diff = '',
+  diffStatus = 0,
+  diffThrows = null,
+  wtStatus = '',
+  wtStatusCode = 0,
+} = {}) {
+  return (dir, ...args) => {
+    if (args[0] === 'status') {
+      const isWorktree = String(dir).includes('.worktrees');
+      if (isWorktree) {
+        return { status: wtStatusCode, stdout: wtStatus, stderr: '' };
+      }
+      if (mainThrows) throw new Error(mainThrows);
+      return {
+        status: mainStatus,
+        stdout: main,
+        stderr: mainStatus === 0 ? '' : 'main status err',
+      };
+    }
+    if (args[0] === 'diff') {
+      if (diffThrows) throw new Error(diffThrows);
+      return {
+        status: diffStatus,
+        stdout: diff,
+        stderr: diffStatus === 0 ? '' : 'diff err',
+      };
+    }
+    throw new Error(`unexpected git ${args.join(' ')}`);
+  };
 }
 
 function noop() {}
@@ -147,6 +198,115 @@ describe('collectStrayTrackedPaths — pure unit', () => {
 });
 
 // ---------------------------------------------------------------------------
+// parseDiffNameOnly — pure unit
+// ---------------------------------------------------------------------------
+
+describe('parseDiffNameOnly — pure unit', () => {
+  it('returns empty array for empty input', () => {
+    assert.deepEqual(parseDiffNameOnly(''), []);
+    assert.deepEqual(parseDiffNameOnly('  '), []);
+    assert.deepEqual(parseDiffNameOnly(undefined), []);
+  });
+
+  it('splits newline-separated paths and trims CR', () => {
+    assert.deepEqual(parseDiffNameOnly('src/a.js\nsrc/b.js\r'), [
+      'src/a.js',
+      'src/b.js',
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// intersectPaths — pure unit
+// ---------------------------------------------------------------------------
+
+describe('intersectPaths — pure unit', () => {
+  it('returns the sorted shared paths', () => {
+    assert.deepEqual(
+      intersectPaths(['b.js', 'a.js', 'c.js'], ['c.js', 'a.js']),
+      ['a.js', 'c.js'],
+    );
+  });
+
+  it('returns empty for disjoint sets', () => {
+    assert.deepEqual(intersectPaths(['x.js'], ['y.js']), []);
+  });
+
+  it('uses repo-relative path equality regardless of probe tree', () => {
+    // The same file edited in both trees must intersect even though the probes
+    // ran in different working directories.
+    assert.deepEqual(
+      intersectPaths(['.agents/scripts/foo.js'], ['.agents/scripts/foo.js']),
+      ['.agents/scripts/foo.js'],
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collectStoryDiffPaths — pure unit
+// ---------------------------------------------------------------------------
+
+describe('collectStoryDiffPaths — pure unit', () => {
+  it('unions committed diff and uncommitted tracked changes, sorted', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({
+        diff: 'src/b.js\nsrc/a.js',
+        wtStatus: ' M src/c.js',
+      }),
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.paths, ['src/a.js', 'src/b.js', 'src/c.js']);
+  });
+
+  it('deduplicates a path present in both committed and uncommitted sets', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({ diff: 'src/a.js', wtStatus: ' M src/a.js' }),
+    });
+    assert.deepEqual(result.paths, ['src/a.js']);
+  });
+
+  it('excludes untracked worktree files from the diff set', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({ diff: '', wtStatus: '?? scratch.txt' }),
+    });
+    assert.deepEqual(result.paths, []);
+  });
+
+  it('reports ok:false when the diff probe throws', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({ diffThrows: 'git not found' }),
+    });
+    assert.equal(result.ok, false);
+  });
+
+  it('reports ok:false when the diff probe exits non-zero', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({ diffStatus: 128 }),
+    });
+    assert.equal(result.ok, false);
+  });
+
+  it('reports ok:false when the worktree status probe exits non-zero', () => {
+    const result = collectStoryDiffPaths({
+      worktreePath: '/repo/.worktrees/story-1',
+      baseBranch: 'main',
+      gitSpawnFn: fakeGit({ diff: 'src/a.js', wtStatusCode: 128 }),
+    });
+    assert.equal(result.ok, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // guardApplies — pure unit
 // ---------------------------------------------------------------------------
 
@@ -171,7 +331,7 @@ describe('guardApplies — pure unit', () => {
 });
 
 // ---------------------------------------------------------------------------
-// formatWrongTreeFinding — pure unit
+// formatWrongTreeFinding / formatWrongTreeDowngradeFinding — pure unit
 // ---------------------------------------------------------------------------
 
 describe('formatWrongTreeFinding — pure unit', () => {
@@ -196,12 +356,27 @@ describe('formatWrongTreeFinding — pure unit', () => {
   });
 });
 
+describe('formatWrongTreeDowngradeFinding — pure unit', () => {
+  it('states close proceeded and names the disjoint stray files', () => {
+    const body = formatWrongTreeDowngradeFinding({
+      storyId: 7,
+      strayFiles: ['other/session.js'],
+      worktreePath: '/repo/.worktrees/story-7',
+    });
+    assert.match(body, /#7/);
+    assert.match(body, /proceeded/i);
+    assert.match(body, /disjoint/i);
+    assert.match(body, /`other\/session\.js`/);
+    assert.doesNotMatch(body, /aborted/i);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // runWrongTreeGuardPhase — orchestration contract tests
 // ---------------------------------------------------------------------------
 
-describe('runWrongTreeGuardPhase — AC-1: aborts on stray main-checkout edits', () => {
-  it('throws and posts a friction comment naming the stray files', async () => {
+describe('runWrongTreeGuardPhase — AC-1: aborts on overlap with the Story diff', () => {
+  it('throws and posts a friction comment naming the stray files when a stray path is in the Story diff', async () => {
     const storyId = 200;
     const provider = makeProvider();
 
@@ -210,10 +385,16 @@ describe('runWrongTreeGuardPhase — AC-1: aborts on stray main-checkout edits',
         runWrongTreeGuardPhase({
           cwd: '/repo',
           worktreePath: '/repo/.worktrees/story-200',
+          baseBranch: 'main',
           storyId,
           provider,
           progress: noop,
-          gitSpawn: spawnResult(' M .agents/scripts/foo.js\nM  docs/bar.md'),
+          // Main checkout has two stray files; the Story's committed diff
+          // touches one of them → overlap → abort.
+          gitSpawn: fakeGit({
+            main: ' M .agents/scripts/foo.js\nM  docs/bar.md',
+            diff: '.agents/scripts/foo.js',
+          }),
         }),
       /Wrong-tree edits detected/,
     );
@@ -221,6 +402,7 @@ describe('runWrongTreeGuardPhase — AC-1: aborts on stray main-checkout edits',
     const comments = await provider.getTicketComments(storyId);
     assert.equal(comments.length, 1, 'expected one friction comment');
     assert.equal(comments[0].type, 'friction');
+    assert.match(comments[0].body, /aborted/i);
     assert.match(comments[0].body, /`\.agents\/scripts\/foo\.js`/);
     assert.match(comments[0].body, /`docs\/bar\.md`/);
   });
@@ -232,26 +414,144 @@ describe('runWrongTreeGuardPhase — AC-1: aborts on stray main-checkout edits',
         runWrongTreeGuardPhase({
           cwd: '/repo',
           worktreePath: '/repo/.worktrees/story-201',
+          baseBranch: 'main',
           storyId: 201,
           provider,
           progress: noop,
-          gitSpawn: spawnResult(' M src/leaked.js'),
+          gitSpawn: fakeGit({
+            main: ' M src/leaked.js',
+            diff: 'src/leaked.js',
+          }),
         }),
       /src\/leaked\.js/,
     );
   });
+
+  it('intersects an uncommitted worktree change (not only the committed diff)', async () => {
+    const provider = makeProvider();
+    await assert.rejects(
+      () =>
+        runWrongTreeGuardPhase({
+          cwd: '/repo',
+          worktreePath: '/repo/.worktrees/story-208',
+          baseBranch: 'main',
+          storyId: 208,
+          provider,
+          progress: noop,
+          // No committed diff, but the worktree has an uncommitted edit to the
+          // same file that is stray in the main checkout → overlap → abort.
+          gitSpawn: fakeGit({
+            main: ' M src/shared.js',
+            diff: '',
+            wtStatus: ' M src/shared.js',
+          }),
+        }),
+      /Wrong-tree edits detected/,
+    );
+  });
 });
 
-describe('runWrongTreeGuardPhase — clean main checkout proceeds', () => {
+describe('runWrongTreeGuardPhase — disjoint downgrade proceeds without throwing', () => {
+  it('does not throw, posts a proceeded-wording friction comment naming the disjoint strays, and reports overlap:[]', async () => {
+    const storyId = 210;
+    const provider = makeProvider();
+    const result = await runWrongTreeGuardPhase({
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-210',
+      baseBranch: 'main',
+      storyId,
+      provider,
+      progress: noop,
+      // Main-checkout strays belong to another session; the Story diff is a
+      // non-empty, fully disjoint set → downgrade → proceed.
+      gitSpawn: fakeGit({
+        main: ' M other/alpha.js\nM  other/beta.js',
+        diff: 'src/mine.js',
+      }),
+    });
+
+    assert.equal(result.applied, true);
+    assert.deepEqual(result.overlap, []);
+    assert.deepEqual(result.strayFiles, ['other/alpha.js', 'other/beta.js']);
+
+    const comments = await provider.getTicketComments(storyId);
+    assert.equal(comments.length, 1, 'expected one telemetry friction comment');
+    assert.equal(comments[0].type, 'friction');
+    assert.match(comments[0].body, /proceeded/i);
+    assert.doesNotMatch(comments[0].body, /aborted/i);
+    assert.match(comments[0].body, /`other\/alpha\.js`/);
+    assert.match(comments[0].body, /`other\/beta\.js`/);
+  });
+});
+
+describe('runWrongTreeGuardPhase — empty-diff backstop keeps the abort', () => {
+  it('throws when the Story diff-path set is empty and the main checkout has stray tracked paths', async () => {
+    const storyId = 211;
+    const provider = makeProvider();
+    await assert.rejects(
+      () =>
+        runWrongTreeGuardPhase({
+          cwd: '/repo',
+          worktreePath: '/repo/.worktrees/story-211',
+          baseBranch: 'main',
+          storyId,
+          provider,
+          progress: noop,
+          // The worktree has no committed diff and no uncommitted tracked
+          // changes → empty Story diff set → keep the #3364 abort.
+          gitSpawn: fakeGit({
+            main: ' M src/leaked.js',
+            diff: '',
+            wtStatus: '',
+          }),
+        }),
+      /Wrong-tree edits detected/,
+    );
+    const comments = await provider.getTicketComments(storyId);
+    assert.equal(comments.length, 1);
+    assert.match(comments[0].body, /aborted/i);
+  });
+});
+
+describe('runWrongTreeGuardPhase — Story-diff probe failure falls back to abort', () => {
+  it('throws (coarse abort) when strays are present but the diff probe fails', async () => {
+    const storyId = 212;
+    const provider = makeProvider();
+    await assert.rejects(
+      () =>
+        runWrongTreeGuardPhase({
+          cwd: '/repo',
+          worktreePath: '/repo/.worktrees/story-212',
+          baseBranch: 'main',
+          storyId,
+          provider,
+          progress: noop,
+          // Main checkout dirty, but the Story-diff probe blows up → must NOT
+          // silently pass; fall back to the coarse abort.
+          gitSpawn: fakeGit({
+            main: ' M src/leaked.js',
+            diffThrows: 'git boom',
+          }),
+        }),
+      /Wrong-tree edits detected/,
+    );
+    const comments = await provider.getTicketComments(storyId);
+    assert.equal(comments.length, 1);
+    assert.match(comments[0].body, /aborted/i);
+  });
+});
+
+describe('runWrongTreeGuardPhase — clean / ignored main checkout proceeds', () => {
   it('returns applied:true and does not throw when main checkout is clean', async () => {
     const provider = makeProvider();
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: '/repo/.worktrees/story-202',
+      baseBranch: 'main',
       storyId: 202,
       provider,
       progress: noop,
-      gitSpawn: spawnResult(''),
+      gitSpawn: fakeGit({ main: '' }),
     });
     assert.equal(result.applied, true);
     assert.deepEqual(result.strayFiles, []);
@@ -264,10 +564,11 @@ describe('runWrongTreeGuardPhase — clean main checkout proceeds', () => {
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: '/repo/.worktrees/story-203',
+      baseBranch: 'main',
       storyId: 203,
       provider,
       progress: noop,
-      gitSpawn: spawnResult('?? temp/scratch.json\n?? notes.txt'),
+      gitSpawn: fakeGit({ main: '?? temp/scratch.json\n?? notes.txt' }),
     });
     assert.equal(result.applied, true);
     assert.deepEqual(result.strayFiles, []);
@@ -282,6 +583,7 @@ describe('runWrongTreeGuardPhase — guard does not apply', () => {
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: '/repo',
+      baseBranch: 'main',
       storyId: 204,
       provider: makeProvider(),
       progress: noop,
@@ -298,38 +600,39 @@ describe('runWrongTreeGuardPhase — guard does not apply', () => {
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: null,
+      baseBranch: 'main',
       storyId: 205,
       provider: makeProvider(),
       progress: noop,
-      gitSpawn: spawnResult(' M src/a.js'),
+      gitSpawn: fakeGit({ main: ' M src/a.js' }),
     });
     assert.equal(result.applied, false);
   });
 });
 
-describe('runWrongTreeGuardPhase — fail-open on probe error', () => {
+describe('runWrongTreeGuardPhase — fail-open on main-checkout probe error', () => {
   it('does not throw when gitSpawn throws (probe hiccup never blocks close)', async () => {
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: '/repo/.worktrees/story-206',
+      baseBranch: 'main',
       storyId: 206,
       provider: makeProvider(),
       progress: noop,
-      gitSpawn: () => {
-        throw new Error('git not found');
-      },
+      gitSpawn: fakeGit({ mainThrows: 'git not found' }),
     });
     assert.equal(result.applied, false);
   });
 
-  it('does not throw when git status exits non-zero', async () => {
+  it('does not throw when main git status exits non-zero', async () => {
     const result = await runWrongTreeGuardPhase({
       cwd: '/repo',
       worktreePath: '/repo/.worktrees/story-207',
+      baseBranch: 'main',
       storyId: 207,
       provider: makeProvider(),
       progress: noop,
-      gitSpawn: spawnResult('', { status: 128, stderr: 'fatal: not a repo' }),
+      gitSpawn: fakeGit({ mainStatus: 128 }),
     });
     assert.equal(result.applied, false);
   });
