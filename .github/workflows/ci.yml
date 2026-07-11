@@ -156,9 +156,17 @@ jobs:
         # sub-second checks that were green-but-unenforced — running them here
         # converts documented-but-unenforced boundaries into build-failing
         # guardrails.
+        #
+        # Story #4438: the context-budget ratchet (check-context-budget.js,
+        # budget baselines/context-budget.json) joins the same standalone-ratchet
+        # slot — it measures the always-loaded doc closure + resolved
+        # docsContextFiles byte totals and fails when a tier grows beyond the
+        # committed tolerance, so doc-context growth becomes a conscious
+        # baseline-refresh decision.
         run: |
           node .agents/scripts/check-arch-cycles.js --format text
           node .agents/scripts/check-dead-exports.js
+          node .agents/scripts/check-context-budget.js
 
   windows-smoke:
     # Story #3389 — advisory Windows leg. Exercises bootstrap, command sync,
