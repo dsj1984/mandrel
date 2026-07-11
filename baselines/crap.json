@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T01:40:46.750Z",
+  "generatedAt": "2026-07-11T02:14:47.524Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3010,6 +3010,54 @@
       "method": "isValidCheck",
       "startLine": 268,
       "crap": 12.99514091350826
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "resolveEpicTempTree",
+      "startLine": 60,
+      "crap": 6.009667349199423
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "findSignalStreams",
+      "startLine": 100,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "<anon method-1>",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "sampleStreamInvalidCount",
+      "startLine": 137,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "readRejectTally",
+      "startLine": 178,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "scanRetroMirror",
+      "startLine": 200,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "<anon method-3>",
+      "startLine": 208,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/checks/loop-health.js",
+      "method": "detectLoopHealth",
+      "startLine": 251,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/checks/push-hook-parity.js",
