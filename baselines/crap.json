@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T11:58:14.681Z",
+  "generatedAt": "2026-07-11T12:33:33.162Z",
   "rollup": {
     "*": {
       "p50": 3,
-      "p95": 12.000805501108497,
+      "p95": 12.00169045830203,
       "max": 29.10003921033038,
       "methodsAbove20": 19
     }
@@ -4033,128 +4033,134 @@
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "getResolveConfig",
-      "startLine": 54,
+      "method": "mainCheckoutRoot",
+      "startLine": 84,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "_clearMainCheckoutRootCache",
+      "startLine": 114,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "anchorTempRoot",
+      "startLine": 130,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "tempRootFrom",
-      "startLine": 75,
+      "startLine": 149,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "tempRootAsync",
-      "startLine": 93,
-      "crap": 1.512
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-1>",
-      "startLine": 99,
+      "startLine": 158,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-2>",
-      "startLine": 115,
+      "startLine": 174,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-3>",
-      "startLine": 125,
+      "startLine": 184,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-4>",
-      "startLine": 134,
+      "startLine": 193,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "epicTempDir",
-      "startLine": 156,
+      "startLine": 215,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTempDir",
-      "startLine": 180,
+      "startLine": 239,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "signalsFile",
-      "startLine": 198,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "epicArtifactPath",
-      "startLine": 213,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config/temp-paths.js",
-      "method": "storyArtifactPath",
-      "startLine": 228,
+      "startLine": 257,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-5>",
-      "startLine": 234,
+      "startLine": 282,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "epicArtifactPath",
+      "startLine": 296,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyArtifactPath",
+      "startLine": 311,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-6>",
-      "startLine": 236,
+      "startLine": 317,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-7>",
-      "startLine": 238,
+      "startLine": 319,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-8>",
-      "startLine": 240,
+      "startLine": 321,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-9>",
-      "startLine": 242,
+      "startLine": 323,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-10>",
-      "startLine": 259,
+      "startLine": 339,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-11>",
-      "startLine": 275,
+      "startLine": 355,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-12>",
-      "startLine": 280,
+      "startLine": 360,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-13>",
-      "startLine": 282,
+      "startLine": 362,
       "crap": 1
     },
     {
@@ -8820,6 +8826,18 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "method": "getValidator",
+      "startLine": 82,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js",
+      "method": "emitMergeUnlanded",
+      "startLine": 115,
+      "crap": 16.862330464138353
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/ledger-writer.js",
       "method": "stripSecrets",
       "startLine": 52,
@@ -9196,6 +9214,30 @@
       "method": "createTraceLogger",
       "startLine": 322,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "isValidBlockClass",
+      "startLine": 65,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "textIncludesAny",
+      "startLine": 82,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "describeApiRaceFallback",
+      "startLine": 92,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "method": "classifyMergeBlock",
+      "startLine": 144,
+      "crap": 14
     },
     {
       "path": ".agents/scripts/lib/orchestration/model-attribution.js",
