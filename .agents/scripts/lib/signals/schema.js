@@ -102,6 +102,13 @@ export const EVENT_KINDS = Object.freeze({
   // the retro and /plan Phase 0 feedback fetch can see acceptance
   // churn alongside friction/hotspot data.
   ACCEPTANCE_EVAL: 'acceptance-eval',
+  // Forensic breadcrumb appended to the per-Epic stream by the notify
+  // dispatcher (lib/orchestration/lifecycle/listeners/notify-dispatcher.js)
+  // when a lifecycle event maps to a webhook notification — the resume
+  // suite reads it back to prove a dispatch survived a crash window without
+  // duplicating. Enumerated so the write-time validator (Story #4413) does
+  // not drop it; it is a deliberate write, not malformed data.
+  NOTIFICATION_EMITTED: 'notification.emitted',
 });
 
 /**

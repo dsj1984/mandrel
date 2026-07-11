@@ -201,9 +201,12 @@ export async function appendSignal(args) {
 
 /**
  * Append one signal record to the per-Epic stream at
- * `temp/epic-<eid>/signals.ndjson` — used for wave-lifecycle signals
- * (`wave-start`, `wave-tick`, `wave-complete`, `epic-complete`) that are
- * not scoped to an individual Story.
+ * `temp/epic-<eid>/signals.ndjson` — used for Epic-scoped signals not tied
+ * to an individual Story: the wave-window forensics kinds (`wave-start`,
+ * `wave-complete`), notification-derived anchors (`state-transition`,
+ * `notification.emitted`), and Epic-level `friction` (e.g.
+ * `lifecycle-emit.js`). The retired write-only kinds `wave-tick` /
+ * `epic-complete` are gone (Story #3909) and are NOT valid here.
  *
  * @param {{ epicId: number, signal: unknown, config?: object }} args
  * @returns {Promise<boolean>}
