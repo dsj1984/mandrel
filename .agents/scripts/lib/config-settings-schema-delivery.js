@@ -351,7 +351,6 @@ const ACCEPTANCE_EVAL_SCHEMA = {
 const FEEDBACK_LOOP_SCHEMA = {
   type: 'object',
   properties: {
-    codeReviewAutoFile: { type: 'boolean' },
     auditResultsAutoFile: { type: 'boolean' },
     retroProposals: { type: 'boolean' },
   },

@@ -64,7 +64,7 @@ envelope via
 
 It is an **input-only** signal: it changes *how thorough* the review is, never
 the findings envelope (`{ status, severity, posted, report, halted,
-blockerReason }`) nor the posted `code-review` structured-comment body. An
+blockerReason }`) nor the posted `verification-results` structured-comment body. An
 absent or malformed `depth` is treated as `standard`, so an Epic that skipped
 `/plan` still gets a passing review with no new failure mode.
 
@@ -371,7 +371,8 @@ Findings that Step 4.5 remediated on `[HEAD_REF]` MUST be rendered under a
 dedicated **`## Fixed on-branch`** heading, **not** in the severity groups
 above. This is the contract seam that keeps remediated findings from
 spawning ghost follow-up issues: the
-[`code-review` graduator](../../scripts/lib/feedback-loop/code-review-graduator.js)
+[audit-results graduator](../../scripts/lib/feedback-loop/audit-results-graduator.js)
+(the sole canonical reader of the unified comment)
 skips every entry inside this section (both because a fixed entry is
 rendered with a **✅ prefix** — so it carries no leading severity emoji the
 parser would match — and because the parser has an explicit
@@ -394,8 +395,8 @@ their leading severity emoji so the graduator still files them.
 
 There is **no runtime auto-fix function** at this phase. The host LLM is
 the executor: it decides, per finding, between a focused fix on
-`[HEAD_REF]` and leaving the finding on the `code-review` structured
-comment for the operator.
+`[HEAD_REF]` and leaving the finding on the `verification-results`
+structured comment for the operator.
 
 ### Resolve the remediation threshold (Story #4399)
 

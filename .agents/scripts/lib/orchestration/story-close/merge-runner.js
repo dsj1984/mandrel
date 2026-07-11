@@ -55,7 +55,10 @@ import {
   buildMergeMessageWithCap,
   loadHeaderMaxLength,
 } from './merge-subject.js';
-import { assertSharedCheckoutAvailable as defaultAssertSharedCheckoutAvailable } from './shared-checkout-guard.js';
+import {
+  assertNoForeignEpicLock as defaultAssertNoForeignEpicLock,
+  assertSharedCheckoutAvailable as defaultAssertSharedCheckoutAvailable,
+} from './shared-checkout-guard.js';
 
 /**
  * Render the lock-file path for a given main-repo `cwd` + `epicId`. Pure;
@@ -593,13 +596,21 @@ export async function runResumeMerge({
   storyBranch,
   storyTitle,
   storyId,
-  epicId: _epicId,
+  epicId,
   config,
   bus = null,
   logger = DefaultLogger,
   log = () => {},
   gitSpawn = defaultGitSpawn,
+  assertNoForeignEpicLockFn = defaultAssertNoForeignEpicLock,
 }) {
+  // Story #4460 follow-up: the resume path re-enters the shared checkout
+  // just like the finalize path, so another epic's live merge phase is
+  // the same hazard here. Only the foreign-lock half of the guard runs —
+  // a resume's own partial merge legitimately leaves the tree dirty, so
+  // the dirty-tree probe would false-positive against our own state.
+  assertNoForeignEpicLockFn({ cwd, epicId });
+
   const resumeMergeMessage = await buildMergeMessage(storyTitle, storyId, {
     cwd,
     logger,

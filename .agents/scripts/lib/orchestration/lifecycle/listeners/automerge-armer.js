@@ -64,7 +64,7 @@ import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 export function ghPrViewAutoMerge({ prUrl, cwd, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
-    ['pr', 'view', prUrl, '--json', 'autoMergeRequest'],
+    ['pr', 'view', prUrl, '--json', 'autoMergeRequest,mergeCommit'],
     { cwd, encoding: 'utf-8', shell: false },
   );
   return {
@@ -110,9 +110,10 @@ export function ghPrMergeAuto({
 }
 
 /**
- * Pure: parse `gh pr view --json autoMergeRequest` output. The field
- * is `null` when auto-merge is NOT armed; a non-null object means a
- * prior arm is in place. Returns `true` iff already armed.
+ * Pure: parse `gh pr view --json autoMergeRequest,mergeCommit` output.
+ * `autoMergeRequest` is `null` when auto-merge is NOT armed; a non-null
+ * object means a prior arm is in place. Returns `true` iff already
+ * armed.
  *
  * Exported for tests so the JSON shape pin is reviewable.
  */
@@ -128,6 +129,36 @@ export function parseAutoMergeArmed(stdout) {
       parsed.autoMergeRequest !== null &&
       parsed.autoMergeRequest !== undefined &&
       typeof parsed.autoMergeRequest === 'object'
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pure: parse the same probe output for a non-null `mergeCommit` — the
+ * PR has ALREADY merged. `gh pr merge --auto` on an already-green PR
+ * merges immediately (there is nothing to queue behind), and its exit
+ * code then reflects the post-merge local housekeeping: on 2026-07-11
+ * (Epic #4454, PR #4459) the merge itself succeeded but the trailing
+ * local `--delete-branch` failed because a harness worktree held
+ * `epic/4454`, so `gh` exited 1 and the armer misreported a successful
+ * merge as `arm-failed` — stranding the run at `agent::blocked` with
+ * the whole must-land chain (MergeWatcher → Cleaner → LabelTransitioner)
+ * never engaging. The arm-failure re-probe below uses this parser to
+ * distinguish "merge landed, housekeeping grumbled" from a genuine arm
+ * failure.
+ */
+export function parsePrMerged(stdout) {
+  const trimmed = String(stdout ?? '').trim();
+  if (trimmed.length === 0) return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!parsed || typeof parsed !== 'object') return false;
+    return (
+      parsed.mergeCommit !== null &&
+      parsed.mergeCommit !== undefined &&
+      typeof parsed.mergeCommit === 'object'
     );
   } catch {
     return false;
@@ -208,13 +239,17 @@ export class AutomergeArmer {
     }
 
     // Layer 2 idempotency — cross-process probe. If auto-merge is
-    // already armed on the PR, emit `epic.merge.armed` and bail
-    // without re-issuing the merge command.
+    // already armed on the PR (or the PR already merged — a prior arm
+    // completed the merge before this run re-entered), emit
+    // `epic.merge.armed` and bail without re-issuing the merge command.
     const probe = this.ghPrViewAutoMergeFn({ prUrl, cwd: this.cwd });
-    if (probe.status === 0 && parseAutoMergeArmed(probe.stdout)) {
+    if (
+      probe.status === 0 &&
+      (parseAutoMergeArmed(probe.stdout) || parsePrMerged(probe.stdout))
+    ) {
       this.classifications.push({ event, seqId, outcome: 'existing', prUrl });
       this.logger.info?.(
-        `[AutomergeArmer] auto-merge already armed on ${prUrl} — short-circuiting.`,
+        `[AutomergeArmer] auto-merge already armed (or PR already merged) on ${prUrl} — short-circuiting.`,
       );
       await this._emitArmed(prUrl);
       return;
@@ -232,6 +267,32 @@ export class AutomergeArmer {
     // entire codebase (see check-lifecycle-lint.js).
     const arm = this.ghPrMergeAutoFn({ prUrl, cwd: this.cwd });
     if (arm.status !== 0) {
+      // A non-zero arm exit does NOT necessarily mean the arm failed:
+      // `gh pr merge --auto --squash --delete-branch` on an
+      // already-green PR merges immediately and then runs local
+      // branch-delete housekeeping whose failure (e.g. the epic branch
+      // held by another worktree) surfaces as exit 1 AFTER the merge
+      // landed (2026-07-11 incident, Epic #4454 / PR #4459). Re-probe
+      // before classifying: merged or armed → proceed as success so the
+      // MergeWatcher → Cleaner → LabelTransitioner chain engages.
+      const recheck = this.ghPrViewAutoMergeFn({ prUrl, cwd: this.cwd });
+      if (
+        recheck.status === 0 &&
+        (parsePrMerged(recheck.stdout) || parseAutoMergeArmed(recheck.stdout))
+      ) {
+        this.classifications.push({
+          event,
+          seqId,
+          outcome: 'armed',
+          prUrl,
+          note: `arm exit ${arm.status} but re-probe shows merged/armed (post-merge housekeeping failure): ${arm.stderr}`,
+        });
+        this.logger.warn?.(
+          `[AutomergeArmer] gh pr merge exited ${arm.status} but the PR is merged/armed — treating as success (housekeeping stderr: ${arm.stderr})`,
+        );
+        await this._emitArmed(prUrl);
+        return;
+      }
       this.classifications.push({
         event,
         seqId,

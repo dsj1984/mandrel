@@ -275,7 +275,7 @@ top-level keys are validation errors.
 | `epicAudit` | No | `object` | — | Nested configuration block. |
 | `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
-| `epicAudit.autoFixSeverity` | No | `"high"` \| `"medium"` | `"medium"` | Severity threshold for on-branch remediation in /deliver Phase 4 (epic-audit). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM remediation loop (Mediums batched per lens: one commit per lens, a single validation + overlapping-lens rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag. |
+| `epicAudit.autoFixSeverity` | No | `"high"` \| `"medium"` | `"high"` | Severity threshold for on-branch remediation of the Epic-close lens findings walked inside the /deliver Phase 5 code-review pass (Story #4412 folded the former Phase 4 lens walk into that single cumulative-diff pass). `high` (default) routes only 🔴 Critical / 🟠 High lens findings into the host-LLM remediation loop while 🟡 Medium and 🟢 Suggestion findings graduate to follow-up issues (🟡 Medium concerns are already remediated shift-left at the write-time and Story-scope tiers); `medium` opts back into routing 🔴/🟠/🟡 (Mediums batched per lens). Hard cutover — no back-compat flag. |
 | `codeReview` | No | `object` | — | Nested configuration block. |
 | `codeReview.provider` | No | `"native"` \| `"codex"` \| `"security-review"` | `"native"` | Legacy single-adapter selection. ReviewProvider that produces the Finding[] consumed by runCodeReview(). Story #2833 registered `native` (in-process maintainability/lint); Story #2830 added `codex` (invokes `/codex:review` plugin); Story #2871 added `security-review` (shells out to `claude --print /security-review`). When `providers` (chain shape) is set this field is ignored with a warning. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. |
 | `codeReview.providers[]` | No | `array<object>` | — | Multi-provider chain (Story #2871). When set and non-empty, takes precedence over the legacy `provider` field. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Each item has: name, scopes, optional, manualPrompt, when. |
@@ -308,7 +308,6 @@ top-level keys are validation errors.
 | `preflight.maxClaudeQuotaTokens` | No | `integer` | — | — |
 | `failOnConcurrencyHazards` | No | `boolean` | — | — |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
-| `feedbackLoop.codeReviewAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
 | `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
 | `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
 
@@ -752,8 +751,8 @@ per-scope override.
 
 | Field                   | Required | Default | Purpose                                                                                                                                  |
 | ----------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `codeReviewAutoFile`    | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. |
-| `auditResultsAutoFile`  | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. |
+| `auditResultsAutoFile`  | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking findings from the unified `verification-results` comment as follow-up issues routed by source classification. (The former `codeReviewAutoFile` key was retired with its graduator when Story #4411 unified the pass; a config carrying it fails validation.) |
+| `retroProposals`        | No       | `true`  | When `true`, the retro runner auto-files the retro's actionable routed proposals as GitHub follow-up issues (Story #4418). |
 
 ---
 

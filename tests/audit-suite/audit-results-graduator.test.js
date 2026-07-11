@@ -2,7 +2,7 @@
  * tests/audit-suite/audit-results-graduator.test.js — Story #2615
  *
  * Contract test for the audit-results graduator + Finalizer wiring. Mirrors
- * the shape of `tests/contract/code-review-graduator.test.js` (Story #2555)
+ * the shape of the (since-retired) code-review graduator contract suite (Story #2555)
  * but exercises the audit-results auto-file path:
  *
  *   1. `graduateAuditResults` short-circuits when no `audit-results`

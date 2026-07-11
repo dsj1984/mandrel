@@ -5,9 +5,9 @@
  * Sits between the close-validation gate chain and the merge into
  * `epic/<id>` inside `runStoryCloseLocked` (locked-pipeline.js). The
  * configured ReviewProvider runs against the
- * `epic/<id>`…`story-<id>` diff. The structured `code-review` comment
- * is posted to the Story issue (default `commentTargetId === ticketId`
- * inside `runCodeReview`). Outcomes:
+ * `epic/<id>`…`story-<id>` diff. The unified `verification-results`
+ * structured comment is posted to the Story issue (default
+ * `commentTargetId === ticketId` inside `runCodeReview`). Outcomes:
  *
  *   - clean / non-critical findings → `{ blocked: null }`; the pipeline
  *     proceeds to merge.

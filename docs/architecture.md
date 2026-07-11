@@ -780,7 +780,7 @@ changing its shape (full per-field reference:
   post-green refactor checkpoint in story-deliver (`refactorer` persona +
   `core/refactoring-discipline` skill); never alters close-validation
   gate semantics.
-- **`delivery.feedbackLoop.{codeReviewAutoFile,auditResultsAutoFile}`** —
+- **`delivery.feedbackLoop.auditResultsAutoFile`** —
   both default `true`: the Epic finalize listener auto-files
   non-blocking code-review / audit findings as follow-up issues (routed
   via `lib/feedback-loop/`). Set `false` to keep findings only in the

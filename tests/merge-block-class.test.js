@@ -87,6 +87,29 @@ describe('merge-block-class (Story #4426)', () => {
       expected: 'branch-protection-human-required',
     },
     {
+      // Protected-branch steady state: GitHub reports BLOCKED for the
+      // entire time required checks run, so a budget exhaustion with
+      // positive checks-in-flight evidence MUST classify as the timeout
+      // (headless budget extension), never human-required. Regression
+      // pin for the classifier-ordering fix.
+      name: 'budget exhausted with BLOCKED merge state and checks still pending → checks-pending-timeout',
+      input: {
+        prProbe: { mergeStateStatus: 'BLOCKED', checksStatus: 'pending' },
+        budget: { exhausted: true, elapsedSeconds: 3600 },
+      },
+      expected: 'checks-pending-timeout',
+    },
+    {
+      // BLOCKED with settled checks is a genuinely human gate (e.g. a
+      // missing required approval) even at budget exhaustion.
+      name: 'budget exhausted with BLOCKED merge state and checks settled → branch-protection-human-required',
+      input: {
+        prProbe: { mergeStateStatus: 'BLOCKED', checksStatus: 'success' },
+        budget: { exhausted: true, elapsedSeconds: 3600 },
+      },
+      expected: 'branch-protection-human-required',
+    },
+    {
       name: 'watch budget exhausted with checks still pending → checks-pending-timeout',
       input: {
         armResult: { armed: true },

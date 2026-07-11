@@ -33,6 +33,7 @@
  * invokes it when `options.waitForMerge` is `true`.
  */
 
+import { gh as defaultGh } from '../../../gh-exec.js';
 import {
   confirmStoryMerged as defaultConfirmStoryMerged,
   readPrMergeState as defaultReadPrMergeState,
@@ -41,6 +42,7 @@ import { emitMergeUnlanded as defaultEmitMergeUnlanded } from '../../lifecycle/e
 import {
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
+  deriveChecksStatus,
 } from '../../lifecycle/listeners/merge-watcher.js';
 import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
 import {
@@ -51,6 +53,43 @@ import {
 
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Fresh PR probe for terminal classification. Fetches the fields
+ * `classifyMergeBlock` keys on (`mergeStateStatus`, `reviewDecision`,
+ * `statusCheckRollup` → derived `checksStatus`) so a budget exhaustion
+ * is classified from the REAL PR state instead of a hardcoded
+ * `checksStatus: 'pending'` stamp (which mislabeled every timeout as
+ * `checks-pending-timeout` — a review-required block was never
+ * diagnosable). Returns a degraded `{ checksStatus: 'pending', error }`
+ * probe when the read itself fails, preserving the prior conservative
+ * classification on probe errors.
+ */
+async function readPrClassificationProbe({ prNumber, gh = defaultGh }) {
+  try {
+    const view = await gh.pr.view(prNumber, [
+      'mergeStateStatus',
+      'reviewDecision',
+      'statusCheckRollup',
+    ]);
+    return {
+      mergeStateStatus:
+        typeof view?.mergeStateStatus === 'string'
+          ? view.mergeStateStatus
+          : undefined,
+      reviewDecision:
+        typeof view?.reviewDecision === 'string'
+          ? view.reviewDecision
+          : undefined,
+      checksStatus: deriveChecksStatus(view?.statusCheckRollup),
+    };
+  } catch (err) {
+    return {
+      checksStatus: 'pending',
+      error: `classification probe failed: ${err?.message ?? err}`,
+    };
+  }
 }
 
 /**
@@ -228,6 +267,7 @@ export async function runConfirmMergePhase({
   injectedNotify,
   confirmStoryMergedFn = defaultConfirmStoryMerged,
   readPrMergeStateFn = defaultReadPrMergeState,
+  readPrClassificationProbeFn = readPrClassificationProbe,
   classifyMergeBlockFn = defaultClassifyMergeBlock,
   emitMergeUnlandedFn = defaultEmitMergeUnlanded,
   sleepFn = defaultSleep,
@@ -349,11 +389,20 @@ export async function runConfirmMergePhase({
 
     const elapsedMs = nowMsFn() - startedAtMs;
     if (elapsedMs + intervalMs > budgetMs) {
+      // Terminal classification from the REAL PR state — one fresh probe
+      // of the fields classifyMergeBlock keys on, instead of stamping
+      // every timeout `checksStatus: 'pending'` (which made a
+      // review-required block undiagnosable). The probe degrades to the
+      // prior conservative pending stamp when the read itself fails.
+      const prProbe = await readPrClassificationProbeFn({
+        prNumber,
+        gh: injectedGh,
+      });
       return blockOnUnlanded({
         storyId,
         prNumber,
         prUrl,
-        prProbe: { checksStatus: 'pending' },
+        prProbe,
         budget: {
           exhausted: true,
           elapsedSeconds: Math.round(elapsedMs / 1000),

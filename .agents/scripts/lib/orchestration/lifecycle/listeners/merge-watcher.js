@@ -135,7 +135,7 @@ export function ghPrViewMerge({ prUrl, cwd, spawnFn = spawnSync }) {
  * shape: `{ status, conclusion }` per check). Mirrors the values
  * `classifyMergeBlock` expects on `prProbe.checksStatus`.
  */
-function deriveChecksStatus(statusCheckRollup) {
+export function deriveChecksStatus(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
     return 'unknown';
   }

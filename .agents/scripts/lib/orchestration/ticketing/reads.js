@@ -163,7 +163,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // in place.
   'plan-lease',
   // Story #4415 (Epic #4406) — the feedback-loop graduators
-  // (`audit-results-graduator.js` / `code-review-graduator.js`) upsert a
+  // (`audit-results-graduator.js` / `retro-proposals-graduator.js`) upsert a
   // `cross-repo-deferred` comment on the Epic listing findings that route
   // to a different repository and were therefore not filed here. Replaces
   // the prior log-line-only trace so the deferral survives the finalize

@@ -1,15 +1,16 @@
 /**
  * tests/audit-suite/epic-close-slim.test.js
  *
- * Capstone contract for Epic #4405 / Story #4412 — the slim Epic-close
- * (gate3) lens tier. Pins:
+ * Capstone contract for Epic #4405 / Story #4412 — the Epic-close (gate3)
+ * lens tier. Pins:
  *
- *   1. `selectEpicCloseLenses` restricts a prepared gate3 roster to the
- *      cumulative + global + risk-routed lenses only, excluding every
- *      local-tier change-set lens (routed off `resolveLensTier`). A fixture
- *      change set that would today select a local lens at gate3 selects none
- *      of them after the tier filter.
- *   2. `epic-audit-prepare.js` surfaces the slim roster on `epicCloseLenses`.
+ *   1. `selectEpicCloseLenses` composes the gate3 roster from the change-set
+ *      selection plus the risk-routed lenses. STOPGAP (post-#4405 review
+ *      finding): the Story #4412 local-tier exclusion is SUSPENDED — the
+ *      story-scope pass that was supposed to verify local-tier concerns has
+ *      no real consumer yet, so local lenses are kept at Epic close until it
+ *      does (see selectEpicCloseLenses' docstring; tracked as a follow-up).
+ *   2. `epic-audit-prepare.js` surfaces that roster on `epicCloseLenses`.
  *   3. `delivery.epicAudit.autoFixSeverity` resolves to `high` by default via
  *      `config/runners.js`, and the runtime AJV schema round-trips a configured
  *      value while rejecting a bad one.
@@ -52,40 +53,50 @@ const fakeResolveLensTier = (lens) => {
   return tier;
 };
 
-test('selectEpicCloseLenses: drops local-tier change-set lenses, keeps cumulative + global', () => {
+test('selectEpicCloseLenses: keeps EVERY change-set lens including local tier (stopgap — exclusion suspended)', () => {
   const roster = selectEpicCloseLenses({
     changeSetAudits: [
-      'audit-clean-code', // local  → dropped
+      'audit-clean-code', // local  → kept (stopgap)
       'audit-architecture', // cumulative → kept
-      'audit-privacy', // local  → dropped
+      'audit-privacy', // local  → kept (stopgap)
       'audit-navigability', // global → kept
     ],
     riskRoutedAudits: [],
     resolveLensTierFn: fakeResolveLensTier,
   });
-  assert.deepEqual(roster, ['audit-architecture', 'audit-navigability']);
+  assert.deepEqual(roster, [
+    'audit-clean-code',
+    'audit-architecture',
+    'audit-privacy',
+    'audit-navigability',
+  ]);
 });
 
-test('selectEpicCloseLenses: a change set selecting only local lenses yields an empty roster', () => {
-  // The acceptance fixture: a gate3 selection that today runs local lenses
-  // selects none of them at Epic close once the tier filter applies.
+test('selectEpicCloseLenses: a change set selecting only local lenses keeps them (stopgap coverage guarantee)', () => {
+  // The stopgap's whole point: change-set lenses must be executed by SOME
+  // tier. Until the story-scope pass has a real consumer, that tier is
+  // Epic close.
   const roster = selectEpicCloseLenses({
     changeSetAudits: ['audit-clean-code', 'audit-security', 'audit-privacy'],
     riskRoutedAudits: [],
     resolveLensTierFn: fakeResolveLensTier,
   });
-  assert.deepEqual(roster, []);
+  assert.deepEqual(roster, [
+    'audit-clean-code',
+    'audit-security',
+    'audit-privacy',
+  ]);
 });
 
 test('selectEpicCloseLenses: risk-routed lenses are kept regardless of tier', () => {
   // audit-security is local-tier, but a high-risk axis routed it — it must
-  // still run at Epic close.
+  // still run at Epic close (true both before and after the stopgap).
   const roster = selectEpicCloseLenses({
-    changeSetAudits: ['audit-clean-code'], // local → dropped
+    changeSetAudits: ['audit-clean-code'], // local → kept (stopgap)
     riskRoutedAudits: ['audit-security'], // local but risk-routed → kept
     resolveLensTierFn: fakeResolveLensTier,
   });
-  assert.deepEqual(roster, ['audit-security']);
+  assert.deepEqual(roster, ['audit-clean-code', 'audit-security']);
 });
 
 test('selectEpicCloseLenses: de-duplicates and preserves order (kept change-set first, then risk-routed)', () => {
@@ -95,7 +106,11 @@ test('selectEpicCloseLenses: de-duplicates and preserves order (kept change-set 
     riskRoutedAudits: ['audit-architecture', 'audit-security'],
     resolveLensTierFn: fakeResolveLensTier,
   });
-  assert.deepEqual(roster, ['audit-architecture', 'audit-security']);
+  assert.deepEqual(roster, [
+    'audit-architecture',
+    'audit-privacy',
+    'audit-security',
+  ]);
 });
 
 test('selectEpicCloseLenses: empty inputs and defaults are total', () => {
@@ -113,17 +128,17 @@ test('selectEpicCloseLenses: empty inputs and defaults are total', () => {
   );
 });
 
-test('selectEpicCloseLenses: routes off the REAL audit-rules tiers by default', () => {
-  // No injected resolver — reads audit-rules.json from disk. audit-clean-code
-  // is local (dropped), audit-architecture is cumulative (kept).
+test('selectEpicCloseLenses: default resolver path keeps every change-set lens (stopgap)', () => {
+  // No injected resolver. Under the stopgap the tier no longer filters the
+  // change-set selection; both lenses survive.
   const roster = selectEpicCloseLenses({
     changeSetAudits: ['audit-clean-code', 'audit-architecture'],
     riskRoutedAudits: [],
   });
-  assert.deepEqual(roster, ['audit-architecture']);
+  assert.deepEqual(roster, ['audit-clean-code', 'audit-architecture']);
 });
 
-test('epic-audit-prepare: surfaces the slim roster on epicCloseLenses (local change-set lens excluded)', async () => {
+test('epic-audit-prepare: surfaces the roster on epicCloseLenses (local change-set lens kept — stopgap)', async () => {
   const EPIC_ID = 4405;
   const provider = new MockProvider({
     tickets: {
@@ -168,8 +183,11 @@ test('epic-audit-prepare: surfaces the slim roster on epicCloseLenses (local cha
     'audit-clean-code',
     'audit-architecture',
   ]);
-  // The slim Epic-close roster drops the local lens.
-  assert.deepEqual(result.envelope.epicCloseLenses, ['audit-architecture']);
+  // Stopgap: the Epic-close roster keeps the local lens too.
+  assert.deepEqual(result.envelope.epicCloseLenses, [
+    'audit-clean-code',
+    'audit-architecture',
+  ]);
 });
 
 test('runners: delivery.epicAudit.autoFixSeverity defaults to high; codeReview stays medium', () => {

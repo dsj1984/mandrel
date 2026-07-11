@@ -109,10 +109,17 @@ function describeApiRaceFallback(prProbe, budget) {
  *      rejection surfaced AT arm time still routes to
  *      `branch-protection-human-required` rather than the generic
  *      `arm-failure`.
- *   2. PR-probe human-required signals — `reviewDecision` or
- *      `mergeStateStatus` reporting the PR needs a human action.
- *   3. Budget exhaustion while checks were still in flight —
- *      `checks-pending-timeout`.
+ *   2. Budget exhaustion while checks were still in flight —
+ *      `checks-pending-timeout`. Evaluated BEFORE the human-required
+ *      probe signals because on a protected branch GitHub reports
+ *      `mergeStateStatus: 'BLOCKED'` for the entire time required checks
+ *      are still running — a slow-CI timeout would otherwise always
+ *      misclassify as `branch-protection-human-required` and the
+ *      headless once-only budget extension could never engage.
+ *   3. PR-probe human-required signals — `reviewDecision` reporting a
+ *      required review, or `mergeStateStatus: 'BLOCKED'` with checks NOT
+ *      in flight (green/failed checks + BLOCKED = a genuinely human
+ *      gate, e.g. a missing approval).
  *   4. Fallback — `api-race-other`.
  *
  * @param {object} input
@@ -161,30 +168,44 @@ export function classifyMergeBlock(input) {
     };
   }
 
-  // 2. PR-probe human-required signals.
+  // Positive in-flight evidence from the latest probe. Only `pending` /
+  // `still-running` count — `unknown` (empty rollup: a checks-less repo
+  // or a probe race) routes to the api-race re-arm below, and
+  // `undefined` (no probe at all) keeps its budget-timeout mapping in
+  // step 2 without suppressing the step-3 human-required verdict.
+  const checksStatus = prProbe?.checksStatus;
+  const checksPendingEvidence =
+    checksStatus === 'pending' || checksStatus === 'still-running';
+
+  // 2. Budget exhausted while checks were still in flight. Ordered
+  // before the human-required probe signals: `mergeStateStatus:
+  // 'BLOCKED'` is the steady state on a protected branch while required
+  // checks run, so a slow-CI timeout must not read as human-required —
+  // it must consume the headless once-only budget extension instead.
+  if (
+    budget &&
+    budget.exhausted === true &&
+    (checksPendingEvidence || checksStatus === undefined)
+  ) {
+    return {
+      blockClass: 'checks-pending-timeout',
+      reason: `watch budget exhausted after ${budget.elapsedSeconds ?? 'an unknown number of'} seconds with required checks still pending`,
+    };
+  }
+
+  // 3. PR-probe human-required signals. A BLOCKED merge state counts
+  // only without positive checks-in-flight evidence —
+  // BLOCKED-with-settled-checks is a genuinely human gate (e.g. a
+  // missing required approval), whereas BLOCKED-while-checks-run is the
+  // protected-branch steady state.
   if (prProbe) {
     if (
       prProbe.reviewDecision === 'REVIEW_REQUIRED' ||
-      prProbe.mergeStateStatus === 'BLOCKED'
+      (prProbe.mergeStateStatus === 'BLOCKED' && !checksPendingEvidence)
     ) {
       return {
         blockClass: 'branch-protection-human-required',
         reason: `PR requires human action (reviewDecision=${prProbe.reviewDecision ?? 'n/a'}, mergeStateStatus=${prProbe.mergeStateStatus ?? 'n/a'})`,
-      };
-    }
-  }
-
-  // 3. Budget exhausted while checks were still in flight.
-  if (budget && budget.exhausted === true) {
-    const checksStatus = prProbe?.checksStatus;
-    if (
-      checksStatus === 'pending' ||
-      checksStatus === 'still-running' ||
-      checksStatus === undefined
-    ) {
-      return {
-        blockClass: 'checks-pending-timeout',
-        reason: `watch budget exhausted after ${budget.elapsedSeconds ?? 'an unknown number of'} seconds with required checks still pending`,
       };
     }
   }

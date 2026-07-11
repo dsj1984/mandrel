@@ -3,7 +3,7 @@
  *
  * Story #3845 / Epic #3823. The audit-results graduator
  * (`audit-results-graduator.js`) and the code-review graduator
- * (`code-review-graduator.js`) duplicated ~90% of their mechanism: a
+ * (the since-retired `code-review-graduator.js`) duplicated ~90% of their mechanism: a
  * `spawn`-based child runner, the `git cat-file` path probe, the
  * `gh search issues` idempotency probe, the `gh issue create` filer, the
  * `isAutoFileEnabled` toggle reader, and the route → probe → file
@@ -225,7 +225,7 @@ export function runChild({
  * toggle defaults to `true` and only an explicit `false` disables it.
  *
  * @param {string} toggleKey — key under `config.delivery.feedbackLoop`
- *   (e.g. "auditResultsAutoFile", "codeReviewAutoFile")
+ *   (e.g. "auditResultsAutoFile", "retroProposals")
  * @returns {(config: object|undefined|null) => boolean}
  */
 export function makeIsAutoFileEnabled(toggleKey) {

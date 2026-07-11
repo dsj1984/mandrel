@@ -234,21 +234,26 @@ export function resolveAuditLenses(envelope = {}) {
 }
 
 /**
- * Restrict a prepared Epic-close (gate3) lens roster to the tiers the **slim
- * Epic-close** pass owns (Epic #4405, Story #4412): `cumulative` + `global`
- * change-set lenses, plus every risk-routed lens. Every `local`-tier
- * change-set lens is **excluded** — its concern is already verified
- * shift-left at the two innermost tiers (the write-time checklist threading of
- * Story #4410 and the maker-blind Story-scope local-lens pass of Story #4409),
- * so re-running it over the cumulative Epic diff at close would verify the same
- * concern at a second tier. This is the read-side of the `scope` field that
- * {@link resolveLensTier} resolves; the Epic-close roster routes off it rather
- * than re-running the full change-set selection.
+ * Compose the Epic-close (gate3) lens roster from the change-set selection
+ * plus every risk-routed lens.
+ *
+ * STOPGAP (post-#4405 review finding): Story #4412 excluded every
+ * `local`-tier change-set lens here on the premise that the Story-scope
+ * local-lens pass (Story #4409) verifies those concerns shift-left. That
+ * premise does not hold yet — `runLocalLensReview`
+ * (story-close/phases/code-review.js) materializes lens bodies with no
+ * `artifactPrefix` (so no content persists) and no consumer acts on its
+ * result, which left change-set lenses (security, privacy, performance,
+ * quality, …) executed by NO reviewer at ANY tier. Local-tier lenses are
+ * therefore KEPT at Epic close until the story-scope pass has a real
+ * consumer; re-enable the exclusion then (tracked as a follow-up issue).
+ * The write-time maker checklists (#4410) are advisory self-checks, not
+ * verification. The `resolveLensTierFn` seam is retained so the
+ * re-exclusion is a one-line revert.
  *
  * The two inputs mirror the `epic-audit-prepare.js` envelope:
- *   - `changeSetAudits` — the raw change-set gate3 selection. Filtered here to
- *     keep a lens **iff** `resolveLensTier(lens) !== 'local'` (i.e. its tier is
- *     `cumulative` or `global`).
+ *   - `changeSetAudits` — the raw change-set gate3 selection, kept in full
+ *     (see the stopgap note above).
  *   - `riskRoutedAudits` — the verdict-routed high-risk lenses plus the
  *     route-glob navigability lens. Kept in **full**, regardless of tier: a
  *     high-risk axis (or a route-adding change set) that demands a local-tier
@@ -264,8 +269,8 @@ export function resolveAuditLenses(envelope = {}) {
  *   riskRoutedAudits?: string[],
  *   resolveLensTierFn?: typeof resolveLensTier,
  * }} [params]
- * @returns {string[]} The slim Epic-close roster (cumulative + global +
- *   risk-routed), local-tier change-set lenses excluded.
+ * @returns {string[]} The Epic-close roster (all change-set tiers +
+ *   risk-routed; local-tier exclusion suspended per the stopgap above).
  */
 export function selectEpicCloseLenses({
   changeSetAudits = [],
@@ -281,7 +286,10 @@ export function selectEpicCloseLenses({
   };
   for (const lens of Array.isArray(changeSetAudits) ? changeSetAudits : []) {
     if (typeof lens !== 'string' || lens.length === 0) continue;
-    if (resolveLensTierFn(lens) === 'local') continue;
+    // Stopgap: keep local-tier lenses (see docstring). The tier seam is
+    // deliberately untouched so restoring `=== 'local' → continue` is a
+    // one-line revert once the story-scope tier has a real consumer.
+    void resolveLensTierFn;
     add(lens);
   }
   for (const lens of Array.isArray(riskRoutedAudits) ? riskRoutedAudits : []) {

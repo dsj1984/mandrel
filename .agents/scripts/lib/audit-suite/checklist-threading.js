@@ -108,9 +108,11 @@ export function readAuditRules(config = resolveConfig()) {
 }
 
 /**
- * The `triggers.filePatterns` a lens declares in the manifest, or `[]` when the
- * lens declares none (e.g. `audit-clean-code` — local, but concern-wide with no
- * file trigger, so it never footprint-matches).
+ * The `triggers.filePatterns` a lens declares in the manifest, or `[]` when
+ * the lens declares none. (`audit-clean-code` carries the universal
+ * match-everything glob, so it footprint-matches every non-empty change
+ * set — the selector.js twin comment documents the same post-#4405
+ * follow-up fix.)
  *
  * @param {object} rules parsed `audit-rules.json`.
  * @param {string} lens canonical lens name.

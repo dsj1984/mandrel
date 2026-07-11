@@ -731,13 +731,18 @@ chain, `security-review`, and `ultrareview` were added in Story #2871.
 
 ---
 
-## Feedback loop — code-review auto-graduation
+## Feedback loop — verification-results auto-graduation
 
-When the Epic finalize listener runs, non-blocking code-review findings
-(severity `high`, `medium`, or `low`) that survived merge are
-auto-graduated into follow-up issues, routed by source classification
-into the framework repo or the consumer repo. The toggle lives at
-`delivery.feedbackLoop.codeReviewAutoFile` and defaults to `true`.
+When the Epic finalize listener runs, non-blocking findings (severity
+`high`, `medium`, or `suggestion`) that survived merge are auto-graduated
+into follow-up issues in a SINGLE pass over the unified
+`verification-results` structured comment (Story #4411 folded the former
+`code-review` and `audit-results` comments into one), routed by source
+classification into the framework repo or the consumer repo. The toggle
+lives at `delivery.feedbackLoop.auditResultsAutoFile` and defaults to
+`true`. (The former `codeReviewAutoFile` key was retired with its
+graduator when the pass unified — a config carrying it fails validation;
+delete the key.)
 
 To opt out (for example, to triage findings manually during a
 stabilization window), set the toggle to `false` in your root
@@ -747,17 +752,17 @@ stabilization window), set the toggle to `false` in your root
 {
   "delivery": {
     "feedbackLoop": {
-      "codeReviewAutoFile": false
+      "auditResultsAutoFile": false
     }
   }
 }
 ```
 
-When disabled, the listener short-circuits and leaves the structured
-`code-review` comments on the Epic ticket untouched. Re-enabling the
-toggle is safe: the graduator embeds an idempotency marker
-(`<!-- code-review-followup: epic-<id>-finding-<idx> -->`) in each filed
-issue body, so re-runs skip findings that already have an issue.
+When disabled, the listener short-circuits and leaves the
+`verification-results` comment on the Epic ticket untouched. Re-enabling
+the toggle is safe: the graduator embeds a content-derived idempotency
+marker in each filed issue body, so re-runs skip findings that already
+have an issue.
 
 ---
 

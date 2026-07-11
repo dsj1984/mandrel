@@ -70,18 +70,32 @@ export async function composeAndPostRetro({
   // OFF (or when filing is skipped / fails) the proposals pass through
   // unenriched and the composer falls back to the command stanzas. Never
   // throws — a filing failure degrades gracefully.
-  const { routedProposals: filedRoutedProposals } = await fileRetroProposalsFn({
-    epicId,
-    provider,
-    config,
-    frameworkRepo,
-    consumerRepo,
-    routedProposals: signals.routedProposals,
-    ghPath,
-    spawnImpl,
-    cwd,
-    logger,
-  });
+  const { routedProposals: filedRoutedProposals, summary: filingSummary } =
+    await fileRetroProposalsFn({
+      epicId,
+      provider,
+      config,
+      frameworkRepo,
+      consumerRepo,
+      routedProposals: signals.routedProposals,
+      ghPath,
+      spawnImpl,
+      cwd,
+      logger,
+    });
+  // Surface (never throw on) per-proposal filing failures. Dropping
+  // `summary.errors` silently made a failed `gh issue create` — e.g. a
+  // `friction::<category>` label that doesn't exist in the target repo —
+  // invisible except as an unenriched command stanza in the retro body.
+  if (Array.isArray(filingSummary?.errors) && filingSummary.errors.length) {
+    for (const err of filingSummary.errors) {
+      logger?.warn?.(
+        `[retro] proposal auto-file error (degrading to command stanza): ${
+          typeof err === 'string' ? err : JSON.stringify(err)
+        }`,
+      );
+    }
+  }
 
   // Best-effort fetch of the Epic title for the heading.
   let epicTitle;

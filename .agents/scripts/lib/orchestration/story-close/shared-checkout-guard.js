@@ -28,6 +28,17 @@
  * epics' lock files plus the tree's overall dirty state — it never
  * contends with same-epic concurrent runs, which continue to serialize
  * solely via `withEpicMergeLock` before this guard ever executes.
+ *
+ * Breadth trade-off (deliberate): the foreign-lock probe keys on the
+ * OTHER epic's per-epic merge lock, which that run holds for its WHOLE
+ * close flow — so any overlapping story-close of another epic trips this
+ * guard even when that run never actually touches the shared checkout
+ * during the overlap. The refusal is deterministic and loud (throws with
+ * a diagnostic naming the holder pid), never a deadlock (no waiting),
+ * and stale/dead-pid foreign locks are ignored via the pid-liveness
+ * probe. Narrowing the window (a dedicated checkout-phase lock) was
+ * considered and rejected: the coarse refusal is rare, cheap to retry,
+ * and far simpler than a second lock tier.
  */
 
 import { findForeignActiveEpicLock as defaultFindForeignActiveEpicLock } from '../../epic-merge-lock.js';
@@ -96,6 +107,25 @@ function describeDirtyCheckout({ cwd, epicId, currentBranch, dirtyFiles }) {
  * }} opts
  * @throws {Error} with an actionable, story-close-specific diagnostic.
  */
+/**
+ * Foreign-lock-only variant for the RESUME merge path (Story #4460
+ * follow-up): a resume legitimately re-enters a shared checkout that is
+ * dirty with THIS story's own in-progress merge, so the dirty-tree half
+ * of `assertSharedCheckoutAvailable` would false-positive there. The
+ * cross-epic hazard — another epic's live merge phase holding the
+ * checkout — still applies and is the only probe this variant runs.
+ */
+export function assertNoForeignEpicLock({
+  cwd,
+  epicId,
+  findForeignActiveEpicLock = defaultFindForeignActiveEpicLock,
+}) {
+  const foreign = findForeignActiveEpicLock(epicId, { repoRoot: cwd });
+  if (foreign) {
+    throw new Error(describeForeignLock(foreign));
+  }
+}
+
 export function assertSharedCheckoutAvailable({
   cwd,
   epicId,
