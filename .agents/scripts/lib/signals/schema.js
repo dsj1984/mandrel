@@ -164,7 +164,11 @@ export function hasCommonEnvelope(evt) {
     return false;
   }
   if (!isTimestamp(evt.ts)) return false;
-  if (!isPositiveInt(evt.epicId)) return false;
+  // `epicId` is nullable by contract (standalone-Story friction carries
+  // `epicId: null`; see signal-event.schema.json where epicId is
+  // `["integer","null"]` and NOT in `required`). Accept null; reject only a
+  // present-but-non-positive-int epicId so a malformed value still fails.
+  if (evt.epicId != null && !isPositiveInt(evt.epicId)) return false;
   return true;
 }
 
