@@ -266,26 +266,37 @@ budget grounds.
 
 1. **Context First:** Before proposing any solution, understand the
    repository's tech stack, historical context, and structure.
-   - **Mandatory Reading (planning & interactive tasks)**: For planning
-     (`/plan`) and interactive tasks, before starting ANY work you MUST read
-     every file listed in `project.docsContextFiles` in `.agentrc.json`.
-     This list is the project's authoritative reference set (architecture,
-     data dictionary, decisions log, patterns, etc.) and replaces any
-     hardcoded filename list. Resolve each entry against
-     `project.paths.docsRoot` (default `docs/`) and skip silently
-     when an entry's file is absent. The decisions log (`decisions.md`) may
-     be either a single-file dated-entry log or an **index** into a
-     `decisions/` ADR directory — both are first-class layouts (see
+   - **Digest-first Reading (planning & interactive tasks, Story #4433)**:
+     For planning (`/plan`) and interactive tasks, read the project's **docs
+     digest** before reading any full doc file — do not read every file
+     listed in `project.docsContextFiles` up front. The epic planning path
+     ensures (generates or reuses) a per-Epic docs digest — a single compact
+     outline (path, byte size, heading outline with line numbers, and the
+     first paragraph under each `##`) built from `project.docsContextFiles`
+     — at `temp/epic-<epicId>/docs-digest.md` (`epic-plan-spec.js
+     --emit-context`, via the shared generator in
+     `.agents/scripts/lib/orchestration/docs-digest.js`; the same file the
+     `/deliver` story sub-agents below already consume). Use the digest to
+     decide which docs bear on the task at hand, then **pull the full file
+     on demand** (jump to the section at the line number the digest names)
+     when a section actually bears on the decision. The decisions log
+     (`decisions.md`) may be either a single-file dated-entry log or an
+     **index** into a `decisions/` ADR directory — both are first-class
+     layouts (see
      [`skills/core/documentation-and-adrs`](skills/core/documentation-and-adrs/SKILL.md)).
-     When it is an index, only the index is the mandatory-read; the
-     per-ADR bodies under `decisions/` are link-followed on demand
-     (index-only by default), not auto-loaded into every task's context.
+     When it is an index, treat the index like any other digested doc —
+     link-follow the per-ADR bodies under `decisions/` on demand, not
+     auto-loaded into every task's context. When no digest exists yet for
+     the task at hand (an ad hoc interactive task with no Epic in scope, or
+     `project.docsContextFiles` unset) there is no mandatory docs read —
+     read a full doc only when the task itself points you at one. This is a
+     hard cutover: there is no read-every-`docsContextFiles`-file branch
+     retained.
    - **Digest-first Reading (`/deliver` story sub-agents)**: A `/deliver`
      Story delivery sub-agent (dispatched via `helpers/epic-deliver-story` or
      `helpers/single-story-deliver`) does **not** re-read the full
      `project.docsContextFiles` set per Story. Instead it reads the **per-Epic
-     docs digest** — a single compact outline (path, byte size, heading
-     outline with line numbers, and the first paragraph under each `##`) that
+     docs digest** — the same file and shape described above — that
      `epic-deliver-prepare.js` writes to
      `temp/epic-<epicId>/docs-digest.md` and the parent threads into the
      child prompt as `docsDigestPath`. Use the digest to decide which docs are

@@ -15,12 +15,12 @@ import {
 } from '../../../bdd-runner-detect.js';
 import { scanBddScenarios } from '../../../bdd-scenario-scanner.js';
 import { buildCodebaseSnapshot } from '../../../codebase-snapshot.js';
-import { getLimits, PROJECT_ROOT } from '../../../config-resolver.js';
+import { getLimits, getPaths, PROJECT_ROOT } from '../../../config-resolver.js';
 import { hasEpicSection } from '../../../epic-body-sections.js';
 import { scanMemoryFreshness } from '../../../feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from '../../../feedback-loop/prior-feedback-fetcher.js';
 import { Logger } from '../../../Logger.js';
-import { buildDocsContext } from '../../doc-reader.js';
+import { ensureDocsDigest } from '../../docs-digest.js';
 import { applyBudget } from '../../planning-context-budget.js';
 import { collectReferences, hasNewFileCue } from '../../spec-freshness.js';
 import { buildAuthoringGrounding } from './spec-authoring-grounding.js';
@@ -54,15 +54,58 @@ export function resolveMemoryDir({ github } = {}) {
 }
 
 /**
+ * Build the digest-first `docsContext` envelope field (Story #4433 — hard
+ * cutover of the § 3.1 planning read contract to digest-first with
+ * pull-on-demand, mirroring the Story #4324 delivery-children cutover).
+ *
+ * Ensures a docs digest exists at the **same** per-Epic temp path the
+ * `/deliver` story sub-agents already consume
+ * (`<tempRoot>/epic-<epicId>/docs-digest.md`) via the shared
+ * `ensureDocsDigest` export in `docs-digest.js` — one generator, one file,
+ * reused across the planning and delivery surfaces for the same Epic. The
+ * envelope carries only the digest path, not embedded doc content; the
+ * planner (host LLM or the `epic-plan-spec-author` Skill) reads the digest
+ * and pulls a full file/section on demand when it bears on the decision.
+ *
+ * Returns `null` — a silent no-op — when `project.docsContextFiles` is not
+ * configured. There is no scrape-every-markdown-under-docsRoot fallback for
+ * planning; that fallback remains a `doc-reader.js` primitive used
+ * elsewhere, not part of this envelope.
+ *
+ * @param {{ epicId: number, settings: object, cwd: string }} args
+ * @returns {Promise<{ mode: 'digest', digestPath: string } | null>}
+ */
+async function buildPlanningDocsContext({ epicId, settings, cwd }) {
+  const docsContextFiles = Array.isArray(settings?.docsContextFiles)
+    ? settings.docsContextFiles
+    : [];
+  if (docsContextFiles.length === 0) return null;
+
+  const paths = getPaths({ project: { paths: settings?.paths } });
+  const docsRoot = path.resolve(cwd, paths.docsRoot);
+  const relPath = path.join(paths.tempRoot, `epic-${epicId}`, 'docs-digest.md');
+  const absPath = path.resolve(cwd, relPath);
+
+  const result = await ensureDocsDigest({
+    docsContextFiles,
+    docsRoot,
+    outputPath: absPath,
+  });
+  if (!result) return null;
+  return { mode: 'digest', digestPath: relPath };
+}
+
+/**
  * Build the authoring context the host LLM (or the
  * `epic-plan-spec-author` Skill) needs to write the Tech Spec.
  *
- * `docsContext` is bounded by the planning-context budget (Epic #817 Story 9):
- * over-budget payloads downgrade to a summary representation with headings +
- * bounded excerpts. Pass `{ fullContext: true }` (CLI: `--full-context`) to
- * restore the unbounded full-body envelope. The Epic body itself is always
- * subject to the same budget so a sprawling Epic narrative cannot bypass the
- * cap by riding on top of `docsContext`.
+ * `docsContext` is digest-first (Story #4433): a pointer at the per-Epic
+ * docs digest rather than embedded doc content, `null` when
+ * `project.docsContextFiles` is unset. The Epic body itself stays bounded by
+ * the planning-context budget (Epic #817 Story 9) — over-budget bodies
+ * downgrade to a summary representation with headings + bounded excerpts.
+ * Pass `{ fullContext: true }` (CLI: `--full-context`) to restore the
+ * unbounded full Epic body.
  */
 export async function buildAuthoringContext(
   epicId,
@@ -76,10 +119,12 @@ export async function buildAuthoringContext(
   }
 
   const planningLimits = getLimits(settings).planningContext;
-  const { fullContext = false } = opts;
+  const { fullContext = false, cwd = PROJECT_ROOT } = opts;
 
-  const docsContext = await buildDocsContext(settings, planningLimits, {
-    fullContext,
+  const docsContext = await buildPlanningDocsContext({
+    epicId: epic.id,
+    settings,
+    cwd,
   });
 
   const epicBody = applyBudget(
