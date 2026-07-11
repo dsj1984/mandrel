@@ -308,6 +308,19 @@ budget grounds.
      points you at one. This is the hard cutover from the former
      read-every-file-per-Story rule: delivery children no longer ingest the
      whole docs set up front.
+   - **Standalone-Story planning path (`story-plan.js --emit-context`)**:
+     The standalone counterpart to `/plan` for Stories that do not attach
+     to an Epic does not write a `docs-digest.md` file at all — there is
+     no per-Epic directory to anchor one. Instead `buildCorpusContext`
+     (`.agents/scripts/lib/planning-corpus.js`) builds the same compact
+     digest shape in memory and threads it inline as
+     `corpusContext.docsDigest` on the `--emit-context` envelope, next to
+     `corpusContext.relevantSections` (ranked excerpts from existing
+     Epics' Tech Spec sections). Treat `corpusContext.docsDigest` exactly
+     like the file-based digest above — decide relevance from the outline,
+     then pull the full file on demand — the only difference is the
+     delivery mechanism (inline JSON field vs. a temp file path), not the
+     content or the digest-first discipline.
    - **Conditional Reads**: When the task touches UI copy, layout, or
      routing and the corresponding file is present in the project, also
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when

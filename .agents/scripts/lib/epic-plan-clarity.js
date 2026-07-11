@@ -40,6 +40,8 @@
  * Pure ESM, no I/O.
  */
 
+import { DELIVERY_SLICING_RE } from './epic-body-sections.js';
+
 const SECTION_RE = {
   context:
     /^##\s+(?:Context(?:\s+&\s+Problem)?|Background|Problem(?:\s+Statement)?)\s*$/im,
@@ -69,7 +71,7 @@ export const SECTION_NAMES = Object.freeze([
  * `spec-section-validator.js`.
  */
 const PLANNING_SECTION_RE = {
-  deliverySlicing: /^##\s+(?:Delivery\s+)?Slicing\s*$/im,
+  deliverySlicing: DELIVERY_SLICING_RE,
   acceptanceTable: /^##\s+Acceptance\s+Table\s*$/im,
 };
 

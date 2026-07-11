@@ -27,14 +27,7 @@
  * Epic body off disk / the GitHub API.
  */
 
-/**
- * Matches the Tech Spec's Delivery Slicing heading. Mirrors the accepted
- * heading variants elsewhere in the planning surface (`##&nbsp;Delivery
- * Slicing`, `## Delivery slicing`, the `## Slicing` shorthand) — see
- * `spec-section-validator.js#validateSpecSections` and
- * `epic-body-sections.js`'s internal `DELIVERY_SLICING_RE`.
- */
-const DELIVERY_SLICING_HEADING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/i;
+import { DELIVERY_SLICING_RE as DELIVERY_SLICING_HEADING_RE } from '../epic-body-sections.js';
 
 /** A row is a markdown table line: starts with `|` once trimmed. */
 const TABLE_ROW_RE = /^\|/;
