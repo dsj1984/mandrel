@@ -79,6 +79,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { classifyMergeBlock } from '../../merge-block-class.js';
 import { emitMergeUnlanded } from '../emit-merge-unlanded.js';
 
@@ -205,18 +206,17 @@ export function parseMergeView(stdout) {
   };
 }
 
-/**
- * Pure fallback: extract the PR number from a `.../pull/<n>` URL when
- * a `gh pr view` probe never successfully returned `number` (e.g.
- * every poll on the final watch cycle probe-failed). `emitMergeUnlanded`
- * requires a positive-integer `prNumber`, and `prUrl` is always present
- * by the time a watch cycle starts (checked in `handle()`), so this is
- * the last-resort source of truth.
- */
-export function parsePrNumberFromUrl(prUrl) {
-  const m = /\/pull\/(\d+)/.exec(String(prUrl ?? ''));
-  return m ? Number.parseInt(m[1], 10) : null;
-}
+// `parsePrNumberFromUrl` (imported above from the Story #3649 canonical
+// `lib/github-url.js` helper) is the last-resort fallback for a `gh pr
+// view` probe that never successfully returned `number` (e.g. every poll
+// on the final watch cycle probe-failed). `emitMergeUnlanded` requires a
+// positive-integer `prNumber`, and `prUrl` is always present by the time
+// a watch cycle starts (checked in `handle()`), so this is the
+// last-resort source of truth. Re-exported here so existing imports of
+// `parsePrNumberFromUrl` from this module (e.g.
+// `tests/epic-must-land-terminal.test.js`) keep working without a
+// duplicate implementation (code-review finding, Epic #4425).
+export { parsePrNumberFromUrl };
 
 /**
  * Resolve the resume-ledger path for an Epic. Pure helper — exported
