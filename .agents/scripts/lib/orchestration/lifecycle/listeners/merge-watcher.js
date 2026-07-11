@@ -570,22 +570,32 @@ export class MergeWatcher {
             this.logger.info?.(
               `[MergeWatcher] re-arming once (api-race-other): ${classification.reason}`,
             );
+            let reArmEmitSucceeded = false;
             try {
               await this.bus.emit('epic.merge.ready', {
                 prUrl,
                 reason: `must-land retry: ${classification.reason}`,
               });
+              reArmEmitSucceeded = true;
             } catch (err) {
               this.logger.warn?.(
-                `[MergeWatcher] must-land re-arm epic.merge.ready emit failed (swallowed): ${err?.message ?? err}`,
+                `[MergeWatcher] must-land re-arm epic.merge.ready emit failed: ${err?.message ?? err}`,
               );
             }
-            // A successful re-arm re-emits epic.merge.armed (via
-            // AutomergeArmer's idempotent-probe short-circuit or a
-            // fresh arm), which re-triggers this watcher's handle()
-            // for a new watch cycle continuing the resume ledger's
-            // attempt count. Do NOT also emit epic.blocked here.
-            return;
+            if (reArmEmitSucceeded) {
+              // A successful re-arm re-emits epic.merge.armed (via
+              // AutomergeArmer's idempotent-probe short-circuit or a
+              // fresh arm), which re-triggers this watcher's handle()
+              // for a new watch cycle continuing the resume ledger's
+              // attempt count. Do NOT also emit epic.blocked here.
+              return;
+            }
+            // The re-arm attempt itself failed to emit — the bounded
+            // retry is spent with nothing landed. Fall through to the
+            // terminal merge.unlanded + epic.blocked path below rather
+            // than returning silently (audit-quality Critical finding,
+            // Epic #4425): a swallowed re-arm failure must still
+            // surface as an explicit block, never a silent stall.
           }
 
           // Terminal: branch-protection-human-required, or both bounded

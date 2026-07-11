@@ -271,6 +271,68 @@ describe('epic must-land terminal step — api-race-other re-arm (exactly once)'
     assert.equal(unlandedEmits[0].scope, 'epic');
     assert.equal(unlandedEmits[0].blockClass, 'api-race-other');
   });
+
+  it('falls through to merge.unlanded + epic.blocked when the re-arm epic.merge.ready emit itself throws', async () => {
+    // Regression test for an audit-quality Critical finding (Epic #4425
+    // Phase 4): a failed re-arm emit used to be swallowed and the
+    // watcher returned silently — neither epic.blocked nor
+    // merge.unlanded fired, stranding the run with no diagnosis.
+    const bus = new Bus();
+    const blockedEmits = [];
+    const unlandedEmits = [];
+    bus.on('epic.blocked', async (ctx) => blockedEmits.push(ctx.payload));
+    // No epic.merge.ready listener registered — any emit throws
+    // "no handler" inside Bus, simulating a re-arm emit failure.
+    bus.on('epic.merge.ready', async () => {
+      throw new Error('simulated re-arm emit failure');
+    });
+
+    const watcher = new MergeWatcher({
+      bus,
+      epicId: 4425,
+      tempRoot: '/t',
+      intervalSeconds: 1,
+      maxBudgetSeconds: 1,
+      headless: true,
+      readPriorAttemptsFn: () => 0,
+      appendAttemptFn: () => {},
+      ghPrViewMergeFn: () => ({
+        status: 0,
+        stdout: probeStdout({
+          merged: false,
+          mergeStateStatus: 'CLEAN',
+          reviewDecision: null,
+          statusCheckRollup: [],
+        }),
+        stderr: '',
+      }),
+      sleepFn: async () => {},
+      nowMsFn: makeClock(2000),
+      nowIsoFn: () => '2026-07-11T00:00:00Z',
+      emitMergeUnlandedFn: (opts) => unlandedEmits.push(opts),
+      logger: quietLogger(),
+    });
+    watcher.register();
+
+    await watcher.handle({
+      event: 'epic.merge.armed',
+      seqId: 20,
+      payload: { prUrl: 'https://github.com/o/r/pull/99' },
+    });
+
+    assert.equal(
+      unlandedEmits.length,
+      1,
+      'merge.unlanded still emitted despite the re-arm emit throwing',
+    );
+    assert.equal(unlandedEmits[0].scope, 'epic');
+    assert.equal(unlandedEmits[0].blockClass, 'api-race-other');
+    assert.equal(
+      blockedEmits.length,
+      1,
+      'epic.blocked still emitted despite the re-arm emit throwing',
+    );
+  });
 });
 
 describe('epic must-land terminal step — checks-pending-timeout budget extension (exactly once)', () => {
