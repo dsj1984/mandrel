@@ -106,6 +106,47 @@ describe('runConfirmMergePhase — merge confirmed (no operator action)', () => 
     assert.equal(provider._comments().length, 0);
   });
 
+  it('blocks explicitly instead of reporting confirmed:true when the merge landed but the agent::done flip failed', async () => {
+    // Regression test for an audit-quality Critical finding (Epic #4425
+    // Phase 4): confirmation.merged is true even when the agent::done
+    // label flip itself threw (action: 'flip-failed') — reporting
+    // confirmed:true in that case would exit 0 while the Story stayed
+    // stuck at agent::closing with no notification and no block.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const outcome = await runConfirmMergePhase({
+      cwd: '/repo',
+      storyId: 4428,
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      provider,
+      config: {},
+      progress: NOOP_PROGRESS,
+      confirmStoryMergedFn: async () => ({
+        storyId: 4428,
+        action: 'flip-failed',
+        merged: true,
+      }),
+      emitMergeUnlandedFn: (payload) => {
+        emitted.push(payload);
+        return { ledgerPath: '/tmp/fake.ndjson', record: payload };
+      },
+    });
+
+    assert.equal(outcome.confirmed, false);
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].scope, 'story');
+    assert.equal(emitted[0].ticketId, 4428);
+
+    // Friction comment posted and the Story routed to agent::blocked —
+    // never a silent confirmed:true exit.
+    assert.equal(provider._comments().length, 1);
+    const [{ patch }] = provider._updates();
+    assert.deepEqual(patch.labels.add, ['agent::blocked']);
+  });
+
   it('polls (sleeping between attempts) until the merge confirms, reusing the same confirm call each round', async () => {
     const provider = makeFakeProvider();
     const results = ['pending', 'pending', 'merged'];

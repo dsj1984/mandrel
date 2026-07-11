@@ -280,12 +280,42 @@ export async function runConfirmMergePhase({
       readPrMergeStateFn,
     });
 
-    if (confirmation.merged) {
+    if (confirmation.merged && confirmation.action !== 'flip-failed') {
       progress?.(
         'CONFIRM',
         `✅ Story #${storyId} merge confirmed — agent::done.`,
       );
       return { confirmed: true, action: confirmation.action };
+    }
+
+    if (confirmation.merged && confirmation.action === 'flip-failed') {
+      // The PR merged but the agent::closing → agent::done label flip
+      // itself threw — reporting confirmed:true here would strand the
+      // Story at agent::closing with no notification and no block, the
+      // silent-terminal-state gap the Epic exists to close (audit-quality
+      // Critical finding, Epic #4425). Route through the same
+      // blockOnUnlanded path as an unlanded merge so the run still
+      // terminates in an explicit agent::blocked state with a diagnosis.
+      progress?.(
+        'CONFIRM',
+        `⚠️ Story #${storyId} merge confirmed but the agent::done flip failed — blocking explicitly.`,
+      );
+      return blockOnUnlanded({
+        storyId,
+        prNumber,
+        prUrl,
+        prProbe: {
+          error: 'merge confirmed but agent::done label flip failed',
+        },
+        budget: {
+          exhausted: true,
+          elapsedSeconds: Math.round((nowMsFn() - startedAtMs) / 1000),
+        },
+        provider,
+        progress,
+        classifyMergeBlockFn,
+        emitMergeUnlandedFn,
+      });
     }
 
     if (confirmation.reason === 'pr-not-merged') {
