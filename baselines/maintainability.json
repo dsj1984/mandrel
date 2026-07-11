@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-08T12:27:13.138Z",
+  "generatedAt": "2026-07-11T00:58:50.247Z",
   "rollup": {
     "*": {
       "min": 70.566,
       "p50": 97.988,
-      "p95": 127.336
+      "p95": 126.964
     }
   },
   "rows": [
@@ -643,8 +643,16 @@
       "mi": 126.057
     },
     {
+      "path": ".agents/scripts/lib/feedback-loop/audit-results-graduator.js",
+      "mi": 97.074
+    },
+    {
       "path": ".agents/scripts/lib/feedback-loop/code-review-graduator.js",
-      "mi": 88.159
+      "mi": 98.646
+    },
+    {
+      "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
+      "mi": 92.049
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/memory-freshness.js",
@@ -1080,7 +1088,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
-      "mi": 82.431
+      "mi": 82.309
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
@@ -1388,7 +1396,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 103.078
+      "mi": 103.082
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
