@@ -55,44 +55,77 @@ function makeLoggerSpy() {
 
 test('matchLocalLenses: footprint matching a local lens returns that lens', () => {
   // `tests/**` and `**/*.test.{ts,js}` are the `audit-quality` (local)
-  // triggers and match nothing cumulative/global.
+  // triggers. `audit-clean-code` (local, universal `**/*` pattern) also
+  // matches every footprint, so it is threaded alongside — both in stable
+  // AUDIT_LENSES order (clean-code precedes quality).
   const matched = matchLocalLenses({ footprint: ['tests/foo.test.js'] });
-  assert.deepEqual(matched, ['quality']);
+  assert.deepEqual(matched, ['clean-code', 'quality']);
+});
+
+test('matchLocalLenses: the universal clean-code lens matches EVERY footprint', () => {
+  // `audit-clean-code` carries the universal `**/*` filePattern, so its
+  // concern is threaded at write-time for any change set (the write-time tier
+  // of its formerly-`alwaysRun` behaviour). It is nonetheless a `local` lens,
+  // so it is excluded from the Epic-close roster (no double-verification).
+  for (const footprint of [
+    ['docs/architecture.md'],
+    ['.github/workflows/ci.yml'],
+    ['app/routes/registry.config'],
+    ['README.md'],
+    ['.agents/scripts/lib/foo.js'],
+  ]) {
+    const matched = matchLocalLenses({ footprint });
+    assert.ok(
+      matched.includes('clean-code'),
+      `clean-code must match footprint ${JSON.stringify(footprint)}; got ${JSON.stringify(matched)}`,
+    );
+  }
 });
 
 test('buildChecklistPayload: local-lens footprint returns that checklist', () => {
   const result = buildChecklistPayload({ footprint: ['tests/foo.test.js'] });
-  assert.deepEqual(result.matchedLenses, ['quality']);
-  assert.deepEqual(result.includedLenses, ['quality']);
+  // The universal clean-code lens is threaded alongside the footprint-matched
+  // quality lens, in AUDIT_LENSES order.
+  assert.deepEqual(result.matchedLenses, ['clean-code', 'quality']);
+  assert.deepEqual(result.includedLenses, ['clean-code', 'quality']);
   assert.deepEqual(result.droppedLenses, []);
-  // Payload is the real distilled quality checklist.
-  const onDisk = readFileSync(
+  // Payload concatenates both real distilled checklists.
+  const cleanCodeOnDisk = readFileSync(
+    path.join(HERE, '..', '..', '.agents', 'audit-checklists', 'clean-code.md'),
+    'utf8',
+  ).trim();
+  const qualityOnDisk = readFileSync(
     path.join(HERE, '..', '..', '.agents', 'audit-checklists', 'quality.md'),
     'utf8',
   ).trim();
-  assert.equal(result.payload, onDisk);
+  assert.equal(result.payload, `${cleanCodeOnDisk}\n\n${qualityOnDisk}`);
   assert.ok(result.payload.includes('authoring checklist'));
 });
 
-test('buildChecklistPayload: footprint matching only a cumulative lens returns nothing', () => {
-  // `.github/workflows/**` is an `audit-devops` (cumulative) trigger and
-  // matches no local lens.
+test('buildChecklistPayload: a cumulative-only footprint threads only the universal clean-code lens', () => {
+  // `.github/workflows/**` is an `audit-devops` (cumulative) trigger — a
+  // cumulative lens is never threaded at write-time. The only local lens that
+  // matches is the universal `audit-clean-code`.
   const result = buildChecklistPayload({
     footprint: ['.github/workflows/ci.yml'],
   });
-  assert.deepEqual(result.matchedLenses, []);
-  assert.deepEqual(result.includedLenses, []);
-  assert.equal(result.payload, '');
+  assert.deepEqual(result.matchedLenses, ['clean-code']);
+  assert.deepEqual(result.includedLenses, ['clean-code']);
+  assert.ok(!result.matchedLenses.includes('devops'));
+  assert.ok(result.payload.length > 0);
 });
 
-test('buildChecklistPayload: footprint matching only a global lens returns nothing', () => {
-  // `audit-navigability` (global) has no filePatterns; `audit-sre` (global)
-  // has none either. A route-ish path matches no LOCAL lens filePattern.
+test('buildChecklistPayload: a global-only footprint threads only the universal clean-code lens', () => {
+  // `audit-navigability` / `audit-sre` (global) are never threaded at
+  // write-time. A route-ish path matches no other local lens's filePattern,
+  // so only the universal `audit-clean-code` is threaded.
   const result = buildChecklistPayload({
     footprint: ['app/routes/registry.config'],
   });
-  assert.deepEqual(result.matchedLenses, []);
-  assert.equal(result.payload, '');
+  assert.deepEqual(result.matchedLenses, ['clean-code']);
+  assert.ok(!result.matchedLenses.includes('navigability'));
+  assert.ok(!result.matchedLenses.includes('sre'));
+  assert.ok(result.payload.length > 0);
 });
 
 test('buildChecklistPayload: empty / absent footprint returns nothing', () => {

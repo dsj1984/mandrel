@@ -142,10 +142,13 @@ test('selectLocalLenses against the REAL manifest selects local lenses only', ()
   }
 });
 
-test('selectLocalLenses against the REAL manifest: a docs-only diff matches no local lens', () => {
-  // README.md matches only audit-documentation (cumulative), which the tier
-  // gate drops — so the Story-scope roster is empty.
-  assert.deepEqual(selectLocalLenses({ changedFiles: ['README.md'] }), []);
+test('selectLocalLenses against the REAL manifest: a docs-only diff matches only the universal clean-code lens', () => {
+  // README.md matches audit-documentation (cumulative, dropped by the tier
+  // gate) and the universal `audit-clean-code` (local, `**/*`). Only the
+  // local lens survives the Story-scope roster.
+  assert.deepEqual(selectLocalLenses({ changedFiles: ['README.md'] }), [
+    'audit-clean-code',
+  ]);
 });
 
 // ---------------------------------------------------------------------------

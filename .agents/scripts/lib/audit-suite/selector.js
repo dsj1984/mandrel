@@ -156,11 +156,15 @@ export function resolveLensTier(lens) {
  * This deliberately does **not** call {@link selectAudits}: `selectAudits`
  * unions in keyword-matched and gate-scoped lenses and has no per-tier gate,
  * so it would widen the roster beyond the local, footprint-matched set the
- * shift-left Story-scope tier owns. A local lens with an empty `filePatterns`
- * list (e.g. `audit-clean-code`) therefore matches nothing here — its concern
- * is threaded at write-time, not re-run as a Story-scope lens pass — so a diff
- * matching no local lens's patterns yields an empty roster and adds no lens
- * work.
+ * shift-left Story-scope tier owns. A local lens with a universal
+ * `filePatterns` glob (e.g. `audit-clean-code`, whose sole pattern matches
+ * every path) matches every change set here, so its concern is verified at
+ * BOTH innermost tiers — the
+ * write-time checklist threading and this Story-scope lens pass — and excluded
+ * from Epic close (a local lens is dropped by {@link selectEpicCloseLenses}).
+ * A local lens with an empty `filePatterns` list matches nothing here, so a
+ * diff matching no local lens's patterns yields an empty roster and adds no
+ * lens work.
  *
  * Pure over its injected seams: `injectedRules` skips the disk read of the
  * manifest and `resolveLensTierFn` overrides the tier resolver, so callers can

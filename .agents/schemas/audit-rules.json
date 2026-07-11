@@ -2,7 +2,7 @@
   "version": 1,
   "audits": {
     "audit-clean-code": {
-      "triggers": { "gates": ["gate1", "gate3"] },
+      "triggers": { "gates": ["gate1", "gate3"], "filePatterns": ["**/*"] },
       "scope": "local",
       "substitutionKeys": []
     },
