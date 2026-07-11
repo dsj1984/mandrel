@@ -118,6 +118,11 @@ export function parseLedgerPath(ledgerPath) {
  * @param {object} [opts.checkpointer] Epic-run-state checkpoint reader.
  *   When omitted, BranchCleaner is skipped.
  * @param {object} [opts.logger] Logger surface (`debug`/`warn`/`error`).
+ * @param {boolean} [opts.headless] Explicit must-land signal (Story
+ *   #4427), threaded straight through to `MergeWatcher`. Defaults to
+ *   `false` (attended-mode behavior unchanged). `lifecycle-emit.js`
+ *   resolves this from its own `--headless` runtime flag — an explicit
+ *   input, never an ambient global.
  *
  * @returns {Promise<{
  *   ledgerWriter: object,
@@ -140,6 +145,7 @@ export async function buildDefaultListenerChain(opts = {}) {
     config = null,
     checkpointer = null,
     logger = console,
+    headless = false,
   } = opts;
   if (
     !bus ||
@@ -288,6 +294,7 @@ export async function buildDefaultListenerChain(opts = {}) {
     cwd: repoRoot,
     intervalSeconds: mergeWatchConfig.intervalSeconds,
     maxBudgetSeconds: mergeWatchConfig.maxBudgetSeconds,
+    headless,
     logger,
   });
   mergeWatcher.register();

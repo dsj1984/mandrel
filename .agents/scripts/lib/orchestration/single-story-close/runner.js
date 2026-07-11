@@ -15,6 +15,7 @@ import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
+import { runConfirmMergePhase } from './phases/confirm-merge.js';
 import { parseCloseOptions } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
@@ -205,6 +206,8 @@ function closeResult({
   autoMergeReason,
   worktreeReaped,
   leaseReleased,
+  waitedForMerge = false,
+  merged = false,
 }) {
   return {
     storyId,
@@ -218,9 +221,13 @@ function closeResult({
     autoMergeReason,
     worktreeReaped,
     leaseReleased,
-    note: autoMergeEnabled
-      ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
-      : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
+    waitedForMerge,
+    merged,
+    note: waitedForMerge
+      ? 'Headless must-land: PR merge confirmed. Story flipped agent::closing → agent::done and the issue closed (confirmStoryMerged).'
+      : autoMergeEnabled
+        ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
+        : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
   };
 }
 
@@ -250,7 +257,7 @@ export async function runSingleStoryClose({
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap] [--wait-merge|--no-wait-merge]',
     );
   }
 
@@ -342,6 +349,56 @@ export async function runSingleStoryClose({
     WorktreeManager,
   });
   const leaseReleased = await releaseLease(leaseArgs);
+
+  // Story #4428 — headless must-land: `--wait-merge` polls the just-armed
+  // PR to merge confirmation (or an explicit `agent::blocked` +
+  // `merge.unlanded`) instead of resting at `agent::closing`. Attended
+  // (non-headless) runs never set this flag, so the exit shape below is
+  // unreachable and the pre-existing early-return is byte-identical.
+  if (options.waitForMerge) {
+    const waitOutcome = await runConfirmMergePhase({
+      cwd: options.cwd,
+      storyId: options.storyId,
+      prNumber,
+      prUrl,
+      autoMergeEnabled,
+      autoMergeReason,
+      provider,
+      config,
+      progress,
+      injectedGh,
+      injectedNotify,
+    });
+    if (!waitOutcome.confirmed) {
+      throw new Error(
+        `[single-story-close] Headless must-land: PR ${prUrl} did not reach a confirmed merge ` +
+          `(blockClass=${waitOutcome.blockClass}). Story #${options.storyId} was transitioned to ` +
+          `agent::blocked with a merge.unlanded lifecycle event. Reason: ${waitOutcome.reason}`,
+      );
+    }
+    const result = closeResult({
+      storyId: options.storyId,
+      storyBranch,
+      baseBranch,
+      prUrl,
+      prNumber,
+      autoMergeEnabled,
+      autoMergeReason,
+      worktreeReaped,
+      leaseReleased,
+      waitedForMerge: true,
+      merged: true,
+    });
+    Logger.info(
+      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+    );
+    progress(
+      'DONE',
+      `✅ Standalone Story #${options.storyId}: PR merged → ${prUrl}`,
+    );
+    return { success: true, result };
+  }
+
   const result = closeResult({
     storyId: options.storyId,
     storyBranch,

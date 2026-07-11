@@ -147,6 +147,16 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     status: 'running',
     timestamp: '2026-05-26T00:00:00.000Z',
   },
+  'merge.unlanded': {
+    event: 'merge.unlanded',
+    scope: 'epic',
+    ticketId: 9999,
+    prNumber: 1,
+    blockClass: 'checks-pending-timeout',
+    reason: 'fixture',
+    elapsedSeconds: 60,
+    timestamp: '2026-05-26T00:00:00.000Z',
+  },
   'notification.emitted': {
     event: 'epic.complete',
     channel: 'webhook',

@@ -130,14 +130,27 @@ export function parseArgv(argv) {
 }
 
 /**
- * Build the bus emit payload from parsed argv. `event` is consumed.
- * `--epic` is mapped to `epicId` (integer). All other flags are
- * mapped from kebab-case to camelCase with light value coercion.
+ * Argv keys that are runtime OPTIONS consumed by `main()` /
+ * `runLifecycleEmit()` directly rather than forwarded into the emitted
+ * bus payload. `--headless` (Story #4427) is the first member: every
+ * lifecycle event schema declares `additionalProperties: false`, so a
+ * flag that selects delivery-run behavior (rather than describing the
+ * event itself) would fail schema validation if it leaked into the
+ * payload.
+ */
+const RUNTIME_OPTION_KEYS = Object.freeze(['event', 'headless']);
+
+/**
+ * Build the bus emit payload from parsed argv. `event` and `headless`
+ * (see `RUNTIME_OPTION_KEYS`) are consumed as runtime options, not
+ * payload fields. `--epic` is mapped to `epicId` (integer). All other
+ * flags are mapped from kebab-case to camelCase with light value
+ * coercion.
  */
 export function buildPayload(parsed) {
   const payload = {};
   for (const [key, raw] of Object.entries(parsed)) {
-    if (key === 'event') continue;
+    if (RUNTIME_OPTION_KEYS.includes(key)) continue;
     if (key === 'epic') {
       const n = Number.parseInt(raw, 10);
       if (!Number.isInteger(n) || n < 1) {
@@ -326,6 +339,11 @@ export async function emitBlockedSignal({
  *   alongside an injected `bus` (when the caller owns listener wiring) —
  *   lets a test inject a bus + a chain carrying a `failed`-classifying
  *   listener to exercise the non-zero-exit path without the real roster.
+ * @param {boolean} [opts.headless] Explicit must-land signal (Story
+ *   #4427), forwarded to `buildDefaultListenerChain({ headless })` (and
+ *   from there to `MergeWatcher`) when this call constructs the default
+ *   chain. Defaults to `false` — attended-mode behavior is unchanged.
+ *   Ignored when the caller injects its own `bus`/`chain`.
  *
  * @returns {Promise<{ event: string, payload: object, seqId: number,
  *   outcomes: Array<object>, failed: boolean }>} The `outcomes[]` array
@@ -345,6 +363,7 @@ export async function runLifecycleEmit({
   config,
   emitBlockedSignalFn = emitBlockedSignal,
   chain: injectedChain,
+  headless = false,
 } = {}) {
   if (typeof event !== 'string' || event.length === 0) {
     throw new Error('lifecycle-emit: --event is required');
@@ -409,6 +428,7 @@ export async function runLifecycleEmit({
       checkpointer: resolvedCheckpointer,
       config: resolvedConfig,
       logger,
+      headless,
     });
   }
   const { seqId } = await targetBus.emit(event, payload ?? {});
@@ -469,7 +489,13 @@ async function main() {
   }
   const event = parsed.event;
   const payload = buildPayload(parsed);
-  const out = await runLifecycleEmit({ event, payload });
+  // `--headless true` is a runtime option (Story #4427), not a payload
+  // field — see RUNTIME_OPTION_KEYS. Threaded explicitly through
+  // runLifecycleEmit → buildDefaultListenerChain → MergeWatcher so the
+  // epic-path must-land terminal step reads a caller-supplied input
+  // rather than an ambient global.
+  const headless = parsed.headless === 'true';
+  const out = await runLifecycleEmit({ event, payload, headless });
   process.stdout.write(`${JSON.stringify(out)}\n`);
   // Exit non-zero when any listener classification came back `failed` so
   // the workflow's "re-run on non-zero" loop closes the partial-finalize

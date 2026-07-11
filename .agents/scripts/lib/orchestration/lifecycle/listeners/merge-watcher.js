@@ -41,11 +41,47 @@
  * labels, post comments, or call `notify`. Downstream listeners
  * (Cleaner / LabelTransitioner on `epic.merge.confirmed`, Task #2912)
  * own those side effects.
+ *
+ * Must-land terminal step (Story #4427, Epic #4425 slice 2). In
+ * headless (`--yes`) delivery runs — signalled via the explicit
+ * `headless` constructor option, threaded from `/deliver`'s `--yes`
+ * flag through `lifecycle-emit.js`'s `--headless` runtime flag and
+ * `buildDefaultListenerChain({ headless })` — budget exhaustion no
+ * longer falls straight through to `epic.blocked`. Instead the watcher
+ * classifies the block (`classifyMergeBlock`, the shared classifier
+ * from Story #4426) and, bounded by one attempt each per watch run:
+ *
+ *   - `checks-pending-timeout` (required checks still progressing) →
+ *     extend the watch budget once and keep polling in the SAME watch
+ *     cycle.
+ *   - `api-race-other` (no definitive block signal) → re-arm once by
+ *     re-emitting `epic.merge.ready` on the bus. This does NOT call
+ *     `gh pr merge` directly — AutomergeArmer remains the sole
+ *     authorized call site (merge-lockout invariant, Story #4427 AC).
+ *     AutomergeArmer's own idempotent `gh pr view` probe short-circuits
+ *     to a single `epic.merge.armed` re-emit when auto-merge is
+ *     already armed on the PR, which re-triggers this watcher's
+ *     `handle()` for a fresh watch cycle that continues the resume
+ *     ledger's attempt count.
+ *   - `branch-protection-human-required`, or retries already
+ *     exhausted (both bounded attempts spent) → terminal: emit
+ *     `merge.unlanded` (scope `"epic"`, carrying the block class) via
+ *     `emitMergeUnlanded`, THEN fall through to the existing single
+ *     `epic.blocked` emit below — one blocked path, never a duplicate
+ *     `agent::blocked` transition.
+ *
+ * Attended-mode (headless === false, the default) behavior is
+ * byte-for-byte unchanged: budget exhaustion emits exactly
+ * `epic.blocked` with `reason: 'merge-watch:budget-exceeded'`, no
+ * classification, no retry, no `merge.unlanded`.
  */
 
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parsePrNumberFromUrl } from '../../../github-url.js';
+import { classifyMergeBlock } from '../../merge-block-class.js';
+import { emitMergeUnlanded } from '../emit-merge-unlanded.js';
 
 /**
  * Default poll interval and budget. The schema in
@@ -59,15 +95,31 @@ export const DEFAULT_INTERVAL_SECONDS = 30;
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
 /**
- * Default `gh pr view --json mergeCommit,mergedAt` probe. Pure-spawn
+ * Fields requested from `gh pr view` on every poll. The merge-confirm
+ * fields (`mergeCommit`, `mergedAt`, `number`) are the original Story
+ * #2896 contract; `mergeStateStatus`, `reviewDecision`, and
+ * `statusCheckRollup` were added in Story #4427 so a headless
+ * budget-exhaustion path can classify the block (`classifyMergeBlock`)
+ * from the SAME probe already being polled, instead of issuing a
+ * second `gh` call.
+ */
+const PR_VIEW_JSON_FIELDS =
+  'mergeCommit,mergedAt,number,mergeStateStatus,reviewDecision,statusCheckRollup';
+
+/**
+ * Default `gh pr view --json <PR_VIEW_JSON_FIELDS>` probe. Pure-spawn
  * helper — exported so tests can stub the shell-out without touching
  * the spawn wrapper.
  */
 export function ghPrViewMerge({ prUrl, cwd, spawnFn = spawnSync }) {
   const result = spawnFn(
     'gh',
-    ['pr', 'view', prUrl, '--json', 'mergeCommit,mergedAt,number'],
-    { cwd, encoding: 'utf-8', shell: false },
+    ['pr', 'view', prUrl, '--json', PR_VIEW_JSON_FIELDS],
+    {
+      cwd,
+      encoding: 'utf-8',
+      shell: false,
+    },
   );
   return {
     status: result.status ?? 1,
@@ -77,24 +129,58 @@ export function ghPrViewMerge({ prUrl, cwd, spawnFn = spawnSync }) {
 }
 
 /**
- * Parse `gh pr view --json mergeCommit,mergedAt,number` output.
- * Returns `{ mergeCommitSha, mergedAt, prNumber }` where
- * `mergeCommitSha` is `null` until the PR has merged. Pure — exported
- * for tests so the JSON-shape pin is reviewable.
+ * Pure: derive an aggregate `checksStatus` (`success` | `pending` |
+ * `still-running` | `failure` | `unknown`) from a
+ * `statusCheckRollup` array (`gh pr view --json statusCheckRollup`
+ * shape: `{ status, conclusion }` per check). Mirrors the values
+ * `classifyMergeBlock` expects on `prProbe.checksStatus`.
+ */
+function deriveChecksStatus(statusCheckRollup) {
+  if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
+    return 'unknown';
+  }
+  let anyPending = false;
+  for (const check of statusCheckRollup) {
+    const conclusion = String(check?.conclusion ?? '').toUpperCase();
+    const status = String(check?.status ?? '').toUpperCase();
+    if (['FAILURE', 'CANCELLED', 'TIMED_OUT', 'ERROR'].includes(conclusion)) {
+      return 'failure';
+    }
+    if (status !== 'COMPLETED') {
+      anyPending = true;
+    }
+  }
+  return anyPending ? 'still-running' : 'success';
+}
+
+/**
+ * Parse `gh pr view --json <PR_VIEW_JSON_FIELDS>` output. Returns
+ * `{ mergeCommitSha, mergedAt, prNumber, mergeStateStatus,
+ * reviewDecision, checksStatus }` where `mergeCommitSha` is `null`
+ * until the PR has merged. Pure — exported for tests so the
+ * JSON-shape pin is reviewable.
  */
 export function parseMergeView(stdout) {
+  const empty = {
+    mergeCommitSha: null,
+    mergedAt: null,
+    prNumber: null,
+    mergeStateStatus: null,
+    reviewDecision: null,
+    checksStatus: 'unknown',
+  };
   const trimmed = String(stdout ?? '').trim();
   if (trimmed.length === 0) {
-    return { mergeCommitSha: null, mergedAt: null, prNumber: null };
+    return empty;
   }
   let parsed;
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    return { mergeCommitSha: null, mergedAt: null, prNumber: null };
+    return empty;
   }
   if (!parsed || typeof parsed !== 'object') {
-    return { mergeCommitSha: null, mergedAt: null, prNumber: null };
+    return empty;
   }
   const merge = parsed.mergeCommit;
   const sha =
@@ -103,8 +189,34 @@ export function parseMergeView(stdout) {
       : null;
   const mergedAt = typeof parsed.mergedAt === 'string' ? parsed.mergedAt : null;
   const prNumber = Number.isInteger(parsed.number) ? parsed.number : null;
-  return { mergeCommitSha: sha, mergedAt, prNumber };
+  const mergeStateStatus =
+    typeof parsed.mergeStateStatus === 'string'
+      ? parsed.mergeStateStatus
+      : null;
+  const reviewDecision =
+    typeof parsed.reviewDecision === 'string' ? parsed.reviewDecision : null;
+  const checksStatus = deriveChecksStatus(parsed.statusCheckRollup);
+  return {
+    mergeCommitSha: sha,
+    mergedAt,
+    prNumber,
+    mergeStateStatus,
+    reviewDecision,
+    checksStatus,
+  };
 }
+
+// `parsePrNumberFromUrl` (imported above from the Story #3649 canonical
+// `lib/github-url.js` helper) is the last-resort fallback for a `gh pr
+// view` probe that never successfully returned `number` (e.g. every poll
+// on the final watch cycle probe-failed). `emitMergeUnlanded` requires a
+// positive-integer `prNumber`, and `prUrl` is always present by the time
+// a watch cycle starts (checked in `handle()`), so this is the
+// last-resort source of truth. Re-exported here so existing imports of
+// `parsePrNumberFromUrl` from this module (e.g.
+// `tests/epic-must-land-terminal.test.js`) keep working without a
+// duplicate implementation (code-review finding, Epic #4425).
+export { parsePrNumberFromUrl };
 
 /**
  * Resolve the resume-ledger path for an Epic. Pure helper — exported
@@ -194,6 +306,16 @@ export class MergeWatcher {
    *   epoch ms.
    * @param {() => string} [opts.nowIsoFn] override for tests; returns
    *   ISO-8601 wall-clock for the attempt record.
+   * @param {boolean} [opts.headless] Explicit must-land signal (Story
+   *   #4427). Defaults to `false` — attended-mode behavior (immediate
+   *   `epic.blocked` on budget exhaustion, no classification, no
+   *   retry) is unchanged. `true` engages the bounded classify-and-
+   *   retry terminal step. Threaded from `/deliver`'s `--yes` flag via
+   *   `lifecycle-emit.js --headless true` → `buildDefaultListenerChain`
+   *   — an explicit constructor input, never an ambient global.
+   * @param {Function} [opts.emitMergeUnlandedFn] override for tests
+   *   (defaults to the real `emitMergeUnlanded`, which appends to the
+   *   on-disk lifecycle ledger).
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -229,14 +351,26 @@ export class MergeWatcher {
     this.nowMsFn = opts.nowMsFn ?? Date.now;
     this.nowIsoFn =
       opts.nowIsoFn ?? (() => new Date(this.nowMsFn()).toISOString());
+    this.headless = opts.headless === true;
+    this.emitMergeUnlandedFn = opts.emitMergeUnlandedFn ?? emitMergeUnlanded;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
     /**
+     * Must-land bounded-retry state (Story #4427, headless only). Each
+     * flips to `true` on its single use across the instance's whole
+     * lifetime — NOT per watch cycle — so a re-armed or budget-extended
+     * cycle that times out again falls straight through to the
+     * `merge.unlanded` terminal rather than retrying indefinitely.
+     */
+    this._budgetExtended = false;
+    this._reArmed = false;
+    /**
      * Classification log — every `epic.merge.armed` observed lands
      * here with the outcome (`confirmed`, `budget-exceeded`,
-     * `skipped-duplicate`, `failed`). Mirrors the Armer / Cleaner
-     * "no silent skip" surface.
+     * `skipped-duplicate`, `failed`, or — headless only — `extended` /
+     * `re-armed`). Mirrors the Armer / Cleaner "no silent skip"
+     * surface.
      */
     this.classifications = [];
     // Frozen tuple — MergeWatcher subscribes to EXACTLY one event.
@@ -292,7 +426,9 @@ export class MergeWatcher {
     }
 
     const intervalMs = this.intervalSeconds * 1000;
-    const budgetMs = this.maxBudgetSeconds * 1000;
+    // `let`, not `const`: the headless must-land path extends this
+    // once on a `checks-pending-timeout` classification (Story #4427).
+    let budgetMs = this.maxBudgetSeconds * 1000;
     const startedAtMs = this.nowMsFn();
     let attempt = priorAttempts;
 
@@ -377,6 +513,112 @@ export class MergeWatcher {
       // Not merged. Budget check before sleeping.
       const elapsedMs = this.nowMsFn() - startedAtMs;
       if (elapsedMs + intervalMs > budgetMs) {
+        // Headless must-land: classify the block and try the bounded
+        // per-instance retry (budget extension OR re-arm, each at most
+        // once across this watcher's whole lifetime) before giving up.
+        // Attended mode (this.headless === false) skips straight to the
+        // unchanged budget-exceeded → epic.blocked path below.
+        if (this.headless) {
+          const elapsedSeconds = Math.floor(elapsedMs / 1000);
+          const classification = classifyMergeBlock({
+            prProbe: {
+              reviewDecision: view.reviewDecision,
+              mergeStateStatus: view.mergeStateStatus,
+              checksStatus: view.checksStatus,
+              error:
+                probe.status !== 0
+                  ? probe.stderr || 'gh pr view failed'
+                  : undefined,
+            },
+            budget: { exhausted: true, elapsedSeconds },
+          });
+
+          if (
+            classification.blockClass === 'checks-pending-timeout' &&
+            !this._budgetExtended
+          ) {
+            this._budgetExtended = true;
+            budgetMs += this.maxBudgetSeconds * 1000;
+            this.classifications.push({
+              event,
+              seqId,
+              outcome: 'extended',
+              reason: classification.reason,
+              prUrl,
+              pollAttempts: attempt,
+            });
+            this.logger.info?.(
+              `[MergeWatcher] extending watch budget once (checks-pending-timeout): ${classification.reason}`,
+            );
+            await this.sleepFn(intervalMs);
+            continue;
+          }
+
+          if (
+            classification.blockClass === 'api-race-other' &&
+            !this._reArmed
+          ) {
+            this._reArmed = true;
+            this.classifications.push({
+              event,
+              seqId,
+              outcome: 're-armed',
+              reason: classification.reason,
+              prUrl,
+              pollAttempts: attempt,
+            });
+            this.logger.info?.(
+              `[MergeWatcher] re-arming once (api-race-other): ${classification.reason}`,
+            );
+            let reArmEmitSucceeded = false;
+            try {
+              await this.bus.emit('epic.merge.ready', {
+                prUrl,
+                reason: `must-land retry: ${classification.reason}`,
+              });
+              reArmEmitSucceeded = true;
+            } catch (err) {
+              this.logger.warn?.(
+                `[MergeWatcher] must-land re-arm epic.merge.ready emit failed: ${err?.message ?? err}`,
+              );
+            }
+            if (reArmEmitSucceeded) {
+              // A successful re-arm re-emits epic.merge.armed (via
+              // AutomergeArmer's idempotent-probe short-circuit or a
+              // fresh arm), which re-triggers this watcher's handle()
+              // for a new watch cycle continuing the resume ledger's
+              // attempt count. Do NOT also emit epic.blocked here.
+              return;
+            }
+            // The re-arm attempt itself failed to emit — the bounded
+            // retry is spent with nothing landed. Fall through to the
+            // terminal merge.unlanded + epic.blocked path below rather
+            // than returning silently (audit-quality Critical finding,
+            // Epic #4425): a swallowed re-arm failure must still
+            // surface as an explicit block, never a silent stall.
+          }
+
+          // Terminal: branch-protection-human-required, or both bounded
+          // retries already spent. Emit merge.unlanded before falling
+          // through to the existing single epic.blocked emit below —
+          // one blocked path, never a duplicate agent::blocked
+          // transition.
+          try {
+            this.emitMergeUnlandedFn({
+              scope: 'epic',
+              ticketId: this.epicId,
+              prNumber: view.prNumber ?? parsePrNumberFromUrl(prUrl),
+              blockClass: classification.blockClass,
+              reason: classification.reason,
+              elapsedSeconds,
+            });
+          } catch (err) {
+            this.logger.warn?.(
+              `[MergeWatcher] emitMergeUnlanded failed (swallowed): ${err?.message ?? err}`,
+            );
+          }
+        }
+
         this.classifications.push({
           event,
           seqId,
@@ -416,6 +658,8 @@ export class MergeWatcher {
 
   reset() {
     this._seen.clear();
+    this._budgetExtended = false;
+    this._reArmed = false;
     this.classifications = [];
   }
 }

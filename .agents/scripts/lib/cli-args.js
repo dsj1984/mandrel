@@ -58,6 +58,8 @@ export function parseSprintArgs(args = process.argv) {
       'skip-sync': { type: 'boolean', default: false },
       'no-auto-merge': { type: 'boolean', default: false },
       'no-full-scope-crap': { type: 'boolean', default: false },
+      'wait-merge': { type: 'boolean', default: false },
+      'no-wait-merge': { type: 'boolean', default: false },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -79,6 +81,12 @@ export function parseSprintArgs(args = process.argv) {
     skipSync: coerceBooleanFlag(values['skip-sync']),
     noAutoMerge: coerceBooleanFlag(values['no-auto-merge']),
     noFullScopeCrap: coerceBooleanFlag(values['no-full-scope-crap']),
+    // Story #4428 — headless must-land signal for `single-story-close.js`:
+    // `--wait-merge` opts a headless run into polling to merge confirmation
+    // instead of resting at `agent::closing`; `--no-wait-merge` is the
+    // explicit opt-out (see `single-story-close/phases/options.js`).
+    waitForMerge: coerceBooleanFlag(values['wait-merge']),
+    noWaitForMerge: coerceBooleanFlag(values['no-wait-merge']),
     executor: values.executor ?? null,
     // Resolve worktree cwd from flag or env. Empty string/whitespace → null.
     cwd:
