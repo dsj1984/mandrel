@@ -10,6 +10,9 @@
  * envelope. Pipeline shape:
  *
  *   1. parse + resolveCloseInputs (lib/orchestration/story-close/close-inputs.js)
+ *   1.5. already-done no-op guard (inline below) — a Story already at
+ *      `agent::done` AND closed short-circuits here so no phase below it
+ *      ever flips the label away from `agent::done` or reopens the issue.
  *   2. preflight                  (phases/preflight.js)
  *   3. state-flip → closing       (inline helper below)
  *   4. capture starting branch    (phases/branch-restore.js)
@@ -151,6 +154,51 @@ export async function runStoryClose({
     epicBranch,
     storyBranch,
   } = resolved;
+
+  // Phase 0 — idempotency guard. A re-run against a Story that is already
+  // fully closed must be a safe no-op. Without this guard, Phase 3 below
+  // (`transitionToClosing`) unconditionally flips the label to
+  // `agent::closing` — and `transitionTicketState`
+  // (lib/orchestration/ticketing/transition.js) unconditionally sends
+  // `state: 'open'` for any non-`agent::done` target — so re-running close
+  // against an already-closed Story reopens the GitHub issue and strips
+  // `agent::done` *before* the post-merge pipeline even starts. If the
+  // pipeline then throws or a phase silently no-ops (the merge is already
+  // fully reaped, so there is nothing left to redo), the Story is left
+  // regressed at `agent::closing`/OPEN instead of a safe no-op.
+  //
+  // The "already fully closed" test mirrors the deepest-level guard in the
+  // post-merge `ticketClosurePhase` (post-merge/phases/ticket-closure.js):
+  // label `agent::done` AND issue `state === 'closed'`, an AND — never a
+  // state-alone check. The `state === 'closed'` disjunct is deliberately
+  // excluded per the hard-won reasoning in
+  // `lib/single-story/confirm-merge.js`: a Story can arrive here closed at
+  // the GitHub layer (a `Closes #<id>` PR footer, or a prior close that set
+  // `state: closed` but was killed before the label flip landed) while its
+  // label is legitimately still `agent::closing`. Treating that as
+  // already-done would skip the very `closing → done` re-assertion the
+  // re-run exists to perform, stranding the label. Requiring BOTH signals
+  // no-ops only a genuinely finished Story.
+  const alreadyDone =
+    Array.isArray(story?.labels) &&
+    story.labels.includes(STATE_LABELS.DONE) &&
+    story?.state === 'closed';
+  if (alreadyDone) {
+    progress(
+      'SKIP',
+      `Story #${storyId} is already ${STATE_LABELS.DONE} and closed — no-op re-run.`,
+    );
+    return {
+      success: true,
+      result: {
+        storyId,
+        epicId,
+        action: 'noop',
+        reason: 'already-done',
+        merged: true,
+      },
+    };
+  }
 
   const notifyFn = (ticketId, payload, opts = {}) =>
     notify(ticketId, payload, { config, provider, ...opts });
