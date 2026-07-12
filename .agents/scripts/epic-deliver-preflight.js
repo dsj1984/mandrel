@@ -11,7 +11,12 @@
  *      `storyCount`, `installCostSeconds`, `dependencyDepth`,
  *      `githubApiRequests`, `claudeQuotaTokens`, plus `breaches`
  *      (the non-empty subset of `delivery.preflight.max*` thresholds the
- *      estimate exceeds).
+ *      estimate exceeds), plus `remoteVerified` / `remoteProbe` — the
+ *      issue #4483 deterministic remote evidence (`git remote get-url
+ *      origin` + bounded `git ls-remote origin HEAD`). On
+ *      `remoteVerified: false` the workflow MUST flip the Epic to
+ *      `agent::blocked` quoting `remoteProbe.detail` — inline delivery to
+ *      local `main` is never a sanctioned fallback.
  *   2. When `--post` is set (and `--dry-run` is not), an upserted
  *      `delivery-preflight` structured comment on the Epic ticket so
  *      reviewers reading the Epic discover the same numbers without
@@ -66,6 +71,7 @@ import {
   computeBaseSha,
   writePreflightCache,
 } from './lib/orchestration/preflight-cache.js';
+import { verifyRemote } from './lib/orchestration/remote-verifier.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -218,10 +224,23 @@ export function renderPreflightBody({
   estimate,
   breaches,
   thresholds,
+  remote,
 }) {
   const lines = [];
   lines.push(`### 🛫 Delivery preflight — Epic #${epicId}`);
   lines.push('');
+  // Issue #4483 — verified remote evidence at entry. Rendered before the
+  // metric table so a reviewer (and the orchestrating agent) sees the
+  // land-or-block fact first. Omitted when the caller has no probe result
+  // (legacy callers / tests that only exercise the estimate math).
+  if (remote) {
+    lines.push(
+      remote.remoteVerified
+        ? `✅ **remoteVerified: true** — ${remote.detail}`
+        : `⛔ **remoteVerified: false** — ${remote.detail} — \`/deliver\` MUST transition the Epic to \`agent::blocked\` quoting this probe; inline delivery to local \`main\` is forbidden.`,
+    );
+    lines.push('');
+  }
   lines.push('| Metric | Estimate | Threshold |');
   lines.push('| --- | ---: | ---: |');
   const rows = [
@@ -276,6 +295,7 @@ export function renderPreflightBody({
  *   perStoryClaudeTokens?: number,
  *   injectedProvider?: object,
  *   injectedConfig?: object,
+ *   verifyRemoteFn?: typeof verifyRemote,
  * }} args
  */
 export async function runPreflight({
@@ -288,6 +308,7 @@ export async function runPreflight({
   perStoryClaudeTokens,
   injectedProvider,
   injectedConfig,
+  verifyRemoteFn = verifyRemote,
 }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError('runPreflight: --epic must be a positive integer');
@@ -296,6 +317,13 @@ export async function runPreflight({
   const config = injectedConfig ?? resolveConfig({ cwd });
   const provider = injectedProvider ?? createProvider(config);
   const thresholds = getPreflight(config);
+
+  // Issue #4483 — deterministic remote evidence at entry. Probe BEFORE any
+  // provider work so the envelope always carries verified fact (not the
+  // agent's perception) about whether a live, pushable `origin` exists.
+  // The CLI records; the `/deliver` workflow owns the `agent::blocked`
+  // transition on `remoteVerified: false` (same split as breach handling).
+  const remote = verifyRemoteFn({ cwd });
 
   // Compose the same two phases /deliver Phase 1 runs so the
   // preflight numbers match the actual dispatch plan.
@@ -348,6 +376,13 @@ export async function runPreflight({
     thresholds,
     baseSha,
     cacheWritten,
+    // Issue #4483 — verified remote evidence. `remoteVerified: false`
+    // REQUIRES the workflow to block explicitly (never build inline).
+    remoteVerified: remote.remoteVerified,
+    remoteProbe: {
+      remoteUrl: remote.remoteUrl,
+      detail: remote.detail,
+    },
   };
 
   if (post && !dryRun) {
@@ -356,6 +391,7 @@ export async function runPreflight({
       estimate,
       breaches,
       thresholds,
+      remote,
     });
     await upsertStructuredComment(provider, epicId, 'delivery-preflight', body);
     envelope.commentUpserted = true;

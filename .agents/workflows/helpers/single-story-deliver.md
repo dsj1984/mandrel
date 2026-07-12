@@ -97,6 +97,14 @@ Capture `workCwd` from the result envelope. Add `--dry-run` to inspect
 the planned actions without git or ticket mutations (dry-run also skips
 the lease and the sweep).
 
+**Remote evidence — land or block (issue #4483).** The envelope also
+carries `remoteVerified` + `remoteProbe` (`git remote get-url origin` +
+bounded `git ls-remote origin HEAD`). When `remoteVerified` is `false`,
+transition the Story to `agent::blocked` quoting `remoteProbe.detail` and
+stop. Implementing the Story inline outside the worktree/branch/PR path
+and/or committing it to local `main` is expressly forbidden — the close
+pipeline's push is the only sanctioned landing.
+
 ### Step 0.5 — `cd` into the workCwd
 
 ```bash

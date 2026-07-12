@@ -158,6 +158,41 @@ describe('contract/delivery/preflight-estimate', () => {
       assert.match(body, /storyCount/);
       assert.match(body, /Threshold breaches/);
     });
+
+    it('renders the remote-evidence line (issue #4483)', () => {
+      const e = computeEstimate({ storyCount: 1, dependencyDepth: 1 });
+      const t = {
+        maxStories: null,
+        maxWaves: null,
+        maxInstallCostSeconds: null,
+        maxGithubApiRequests: null,
+        maxClaudeQuotaTokens: null,
+      };
+      const verified = renderPreflightBody({
+        epicId: 1,
+        estimate: e,
+        breaches: [],
+        thresholds: t,
+        remote: {
+          remoteVerified: true,
+          detail: 'origin verified (https://github.com/o/r.git)',
+        },
+      });
+      assert.match(verified, /remoteVerified: true/);
+      const unverified = renderPreflightBody({
+        epicId: 1,
+        estimate: e,
+        breaches: [],
+        thresholds: t,
+        remote: {
+          remoteVerified: false,
+          detail: "no 'origin' remote configured",
+        },
+      });
+      assert.match(unverified, /remoteVerified: false/);
+      assert.match(unverified, /agent::blocked/);
+      assert.match(unverified, /inline delivery to local `main` is forbidden/);
+    });
   });
 
   describe('runPreflight (programmatic)', () => {
@@ -175,6 +210,11 @@ describe('contract/delivery/preflight-estimate', () => {
         dryRun: true,
         injectedProvider: provider,
         injectedConfig: FAKE_CONFIG,
+        verifyRemoteFn: () => ({
+          remoteVerified: true,
+          remoteUrl: 'https://github.com/o/r.git',
+          detail: 'origin verified (stub)',
+        }),
       });
       // AC1 — envelope carries the five canonical keys.
       assert.equal(envelope.storyCount, 4);
@@ -184,8 +224,47 @@ describe('contract/delivery/preflight-estimate', () => {
       assert.equal(typeof envelope.claudeQuotaTokens, 'number');
       assert.deepEqual(envelope.breaches, []);
       assert.equal(envelope.commentUpserted, false);
+      // Issue #4483 — the envelope carries the verified remote evidence.
+      assert.equal(envelope.remoteVerified, true);
+      assert.equal(
+        envelope.remoteProbe.remoteUrl,
+        'https://github.com/o/r.git',
+      );
+      assert.match(envelope.remoteProbe.detail, /origin verified/);
       // Dry-run MUST NOT write a comment.
       assert.equal(provider._comments.size, 0);
+    });
+
+    it('records remoteVerified: false in the envelope and comment (issue #4483)', async () => {
+      const stories = [401].map((id) => ({
+        id,
+        number: id,
+        labels: ['type::story'],
+        body: '',
+        title: `Story #${id}`,
+      }));
+      const provider = buildFakeProvider({ epicId: 88, stories });
+      const envelope = await runPreflight({
+        epicId: 88,
+        dryRun: false,
+        post: true,
+        injectedProvider: provider,
+        injectedConfig: FAKE_CONFIG,
+        verifyRemoteFn: () => ({
+          remoteVerified: false,
+          remoteUrl: null,
+          detail:
+            "no 'origin' remote configured — `git remote get-url origin` exited 2",
+        }),
+      });
+      assert.equal(envelope.remoteVerified, false);
+      assert.equal(envelope.remoteProbe.remoteUrl, null);
+      assert.match(envelope.remoteProbe.detail, /no 'origin' remote/);
+      // The posted comment quotes the probe so a reviewer sees the
+      // land-or-block fact on the ticket.
+      const comment = Array.from(provider._comments.values())[0];
+      assert.match(comment.body, /remoteVerified: false/);
+      assert.match(comment.body, /agent::blocked/);
     });
 
     it('upserts a delivery-preflight comment on --post', async () => {
@@ -205,6 +284,11 @@ describe('contract/delivery/preflight-estimate', () => {
         post: true,
         injectedProvider: provider,
         injectedConfig: FAKE_CONFIG,
+        verifyRemoteFn: () => ({
+          remoteVerified: true,
+          remoteUrl: 'https://github.com/o/r.git',
+          detail: 'origin verified (stub)',
+        }),
       });
       assert.equal(first.commentUpserted, true);
       assert.equal(provider._comments.size, 1);
@@ -220,6 +304,11 @@ describe('contract/delivery/preflight-estimate', () => {
         post: true,
         injectedProvider: provider,
         injectedConfig: FAKE_CONFIG,
+        verifyRemoteFn: () => ({
+          remoteVerified: true,
+          remoteUrl: 'https://github.com/o/r.git',
+          detail: 'origin verified (stub)',
+        }),
       });
       assert.equal(provider._comments.size, 1);
     });
@@ -237,6 +326,11 @@ describe('contract/delivery/preflight-estimate', () => {
         epicId: 55,
         injectedProvider: provider,
         injectedConfig: FAKE_CONFIG,
+        verifyRemoteFn: () => ({
+          remoteVerified: true,
+          remoteUrl: 'https://github.com/o/r.git',
+          detail: 'origin verified (stub)',
+        }),
       });
       assert.equal(envelope.commentUpserted, false);
       assert.equal(provider._comments.size, 0);

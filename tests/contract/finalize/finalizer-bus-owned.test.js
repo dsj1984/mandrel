@@ -63,6 +63,7 @@ describe('composeBusOwnedFinalize', () => {
   it('invokes openOrLocatePr → markPrReady (earlyPr on) → postHandoffComment in order', async () => {
     const calls = [];
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: { sentinel: true },
       // Default earlyPr (on): the wave-1 draft is located then marked ready.
       openOrLocatePrFn: async (args) => {
@@ -110,6 +111,7 @@ describe('composeBusOwnedFinalize', () => {
 
   it('routes openOrLocatePr failure to a blocker envelope', async () => {
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: { sentinel: true },
       openOrLocatePrFn: async () => {
         throw new Error('branch behind base');
@@ -126,6 +128,7 @@ describe('composeBusOwnedFinalize', () => {
 
   it('treats handoff-comment failures as non-blocking', async () => {
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: { sentinel: true },
       openOrLocatePrFn: async () => ({
         prNumber: 1,
@@ -145,6 +148,7 @@ describe('composeBusOwnedFinalize', () => {
 
   it('skips the handoff comment when provider is absent', async () => {
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: null,
       openOrLocatePrFn: async () => ({
         prNumber: 5,
@@ -167,6 +171,7 @@ describe('composeBusOwnedFinalize', () => {
   it('skips markPrReady when earlyPr is off (Story #4359)', async () => {
     const calls = [];
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: null,
       earlyPr: false,
       openOrLocatePrFn: async () => {
@@ -189,8 +194,56 @@ describe('composeBusOwnedFinalize', () => {
     assert.equal(result.prNumber, 7);
   });
 
+  it('blocks with delivery-branch-missing-on-origin when epic/<id> is not on origin (issue #4483)', async () => {
+    const calls = [];
+    const run = composeBusOwnedFinalize({
+      provider: { sentinel: true },
+      probeRemoteBranchFn: ({ branch, cwd }) => {
+        calls.push({ step: 'probeRemoteBranch', branch, cwd });
+        return {
+          exists: false,
+          detail: 'ls-remote found no ref — never pushed',
+        };
+      },
+      openOrLocatePrFn: async () => {
+        calls.push({ step: 'openOrLocatePr' });
+        throw new Error('must not be called when the branch is not on origin');
+      },
+      postHandoffCommentFn: async () => {
+        throw new Error('must not be called');
+      },
+    });
+    const result = await run({ epicId: 4483, cwd: '/tmp' });
+    // The probe runs FIRST — the land-or-block decision precedes any PR
+    // side effect — and names the delivery branch.
+    assert.deepEqual(
+      calls.map((c) => c.step),
+      ['probeRemoteBranch'],
+    );
+    assert.equal(calls[0].branch, 'epic/4483');
+    assert.equal(result?.blocker?.reason, 'delivery-branch-missing-on-origin');
+    assert.match(result.blocker.detail, /never pushed/);
+    assert.match(result.blocker.detail, /epic\/4483/);
+  });
+
+  it('routes a probeRemoteBranch throw to the same blocker (fail closed, issue #4483)', async () => {
+    const run = composeBusOwnedFinalize({
+      provider: null,
+      probeRemoteBranchFn: () => {
+        throw new Error('ls-remote timed out');
+      },
+      openOrLocatePrFn: async () => {
+        throw new Error('must not be called');
+      },
+    });
+    const result = await run({ epicId: 1, cwd: '/tmp' });
+    assert.equal(result?.blocker?.reason, 'delivery-branch-missing-on-origin');
+    assert.match(result.blocker.detail, /ls-remote timed out/);
+  });
+
   it('routes a markPrReady failure to a blocker envelope (earlyPr on)', async () => {
     const run = composeBusOwnedFinalize({
+      probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
       provider: null,
       openOrLocatePrFn: async () => ({
         prNumber: 8,
@@ -218,6 +271,7 @@ describe('Finalizer with the bus-owned default', () => {
       // Stub the probe so we go through the create path.
       ghPrListHeadFn: () => ({ status: 0, stdout: '', stderr: '' }),
       runFinalizeFn: composeBusOwnedFinalize({
+        probeRemoteBranchFn: () => ({ exists: true, detail: 'stub' }),
         provider: { sentinel: true },
         openOrLocatePrFn: async () => ({
           prNumber: 99,
