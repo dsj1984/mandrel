@@ -20,6 +20,16 @@
  *       keeps + adds + modifies, closes excluded; all git-local, still
  *       zero provider calls). Skipped entirely in single mode (no tickets
  *       exist to validate).
+ *    4.5. deterministic draft reachability (Epic #4474 PR6, design §4 —
+ *       the 8.4 critic demoted into persist): route-glob scan of the
+ *       draft set vs `planning.navigation.navRegistry`, mirroring the
+ *       `--paranoid` F7 healthcheck mechanics. Orphan surfaces are a
+ *       NAMED SOFT FAILURE (`code: PLAN_REACHABILITY_ORPHANS`, CLI exit
+ *       3) raised before any provider call — the author appends the
+ *       single reachability Story in one targeted amend and re-runs the
+ *       persist once. Silent no-op when `planning.navigation` is
+ *       unconfigured; skip decisions are appended to the plan-metrics
+ *       ledger (`kind: critic-skip`) for audit.
  *    5. ideation fold — `renderEpicBody` / `openEpicFromOnePager` create
  *       the Epic when the run starts from a one-pager (the first provider
  *       call of the run). Amend additionally resolves every
@@ -119,6 +129,11 @@ import {
   read as readPlanState,
   write as writePlanState,
 } from '../epic-plan-state-store.js';
+import { appendCriticSkip } from '../plan-metrics.js';
+import {
+  evaluateDraftReachability,
+  renderReachabilityOrphans,
+} from '../plan-reachability.js';
 import { resolveReviewRouting } from '../plan-review-routing.js';
 import { deriveRiskEnvelope } from '../planning-risk.js';
 import { renderSpec } from '../spec-renderer.js';
@@ -404,6 +419,7 @@ export async function runPlanPersist({
   // with no tickets to validate. ----
   let validated = null;
   let amendPartition = null;
+  let reachability = null;
   if (mode !== 'single') {
     amendPartition = mode === 'amend' ? partitionAmendTickets(tickets) : null;
     const gateSet = mode === 'amend' ? buildMergedTicketSet(tickets) : tickets;
@@ -430,6 +446,43 @@ export async function runPlanPersist({
     validated = validateTickets(gateSet, config, { fanOutCounter, cwd });
     enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
     surfaceSoftConflictFindings(validated.findings, 'plan-persist');
+
+    // ---- Step 4.5: deterministic draft reachability (#4474 PR6 — the 8.4
+    // critic demoted into persist). Still git-local, zero provider calls,
+    // so the one-targeted-amend recovery re-runs a clean persist. ----
+    reachability = evaluateDraftReachability({ tickets: gateSet, config });
+    if (reachability.status === 'orphans') {
+      const err = new Error(renderReachabilityOrphans(reachability));
+      err.code = 'PLAN_REACHABILITY_ORPHANS';
+      err.orphans = reachability.orphans;
+      throw err;
+    }
+    Logger.info(`[plan-persist] reachability: ${reachability.reasons[0]}`);
+  } else {
+    reachability = {
+      status: 'skipped',
+      reasons: [
+        'single-delivery shape — no draft story tree to scan for orphan surfaces.',
+      ],
+      orphans: [],
+      scanned: 0,
+    };
+  }
+  if (reachability.status === 'skipped') {
+    // Audit trail for the skip decision (#4474 PR6). Best-effort by
+    // contract — a failed append never fails the persist. Logged before
+    // the first provider call so even an ideation run that later fails
+    // still records the decision (ideation has no Epic id yet, so the
+    // record lands on the standalone stream).
+    await appendCriticSkip(
+      {
+        critic: 'reachability',
+        reasons: reachability.reasons,
+        cli: 'plan-persist',
+        epicId: requestedEpicId,
+      },
+      config,
+    );
   }
 
   // ---- Step 5: ideation fold / Epic resolution (first provider call). ----
@@ -780,6 +833,7 @@ export async function runPlanPersist({
       reviewRouting,
       freshness,
       healthcheck,
+      reachability,
       reconcile,
       specPath: specFilePath,
       waveTable,

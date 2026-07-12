@@ -18,6 +18,19 @@
  *   "durationMs": 1234, "ok": true }
  * ```
  *
+ * Critic-skip records (Epic #4474 PR6 — additive `kind` extension): the
+ * conditional-critic layer logs every skip decision so under-firing is
+ * auditable from the same stream:
+ *
+ * ```json
+ * { "v": 1, "kind": "critic-skip", "cli": "plan-critics",
+ *   "critic": "pre-mortem", "reasons": ["..."], "epicId": 4474,
+ *   "at": "..." }
+ * ```
+ *
+ * Records without a `kind` field are invocation records (the PR1 shape);
+ * readers key on `kind`, never on the absence of other fields.
+ *
  * Attribution note (#4474 PR1 risk register): these records count **CLI
  * invocations from the parent session's perspective**. Sub-agent sessions
  * spawned by the workflow do not write here; they are attributed separately
@@ -55,6 +68,9 @@ import { Logger } from '../Logger.js';
 
 export const PLAN_METRICS_BASENAME = 'plan-metrics.json';
 export const PLAN_METRICS_SCHEMA_VERSION = 1;
+
+/** Record kind for a logged critic skip decision (Epic #4474 PR6). */
+export const PLAN_METRICS_KIND_CRITIC_SKIP = 'critic-skip';
 
 /**
  * Rotation threshold. At ~200 bytes per record this is ~5000 invocations —
@@ -168,6 +184,60 @@ export async function appendPlanMetric(entry, config, opts = {}) {
 }
 
 /**
+ * Append one critic-skip audit record (Epic #4474 PR6). Every conditional
+ * critic that decides NOT to dispatch logs the decision here — with the
+ * deterministic reasons — so an under-firing critic layer (a distorted
+ * plan sailing through) is auditable after the fact. Best-effort with the
+ * same contract as `appendPlanMetric`: a failed append can never fail the
+ * plan step.
+ *
+ * @param {{
+ *   critic: string,
+ *   reasons: string[],
+ *   cli: string,
+ *   epicId?: number|null,
+ * }} entry
+ * @param {object} [config]
+ * @returns {Promise<boolean>} true when the line was written.
+ */
+export async function appendCriticSkip(entry, config) {
+  try {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError('appendCriticSkip requires an entry object');
+    }
+    if (typeof entry.critic !== 'string' || entry.critic.length === 0) {
+      throw new TypeError('appendCriticSkip requires a non-empty entry.critic');
+    }
+    if (typeof entry.cli !== 'string' || entry.cli.length === 0) {
+      throw new TypeError('appendCriticSkip requires a non-empty entry.cli');
+    }
+    const epicId = entry.epicId ?? null;
+    const record = {
+      v: PLAN_METRICS_SCHEMA_VERSION,
+      kind: PLAN_METRICS_KIND_CRITIC_SKIP,
+      cli: entry.cli,
+      critic: entry.critic,
+      reasons: Array.isArray(entry.reasons)
+        ? entry.reasons.filter((r) => typeof r === 'string')
+        : [],
+      epicId,
+      at: new Date().toISOString(),
+    };
+    const filePath = planMetricsPath(epicId, config);
+    const line = `${JSON.stringify(record)}\n`;
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await rotateIfNeeded(filePath, Buffer.byteLength(line), MAX_LEDGER_BYTES);
+    await fs.appendFile(filePath, line, 'utf8');
+    return true;
+  } catch (err) {
+    Logger.warn(
+      `[plan-metrics] critic-skip append failed (non-fatal): ${err?.message ?? err}`,
+    );
+    return false;
+  }
+}
+
+/**
  * Wrap one plan CLI invocation: stamp `startedAt`, run `fn`, stamp
  * `endedAt` + `ok`, append the record, and re-throw the original error on
  * failure. The metric write itself is best-effort and can never mask or
@@ -247,12 +317,19 @@ export async function readPlanMetrics(epicId, config) {
  * summary and `analyze-execution.js`. Returns `null` when there is nothing
  * to summarize (missing ledger or zero parseable entries).
  *
+ * Critic-skip records (kind: 'critic-skip') are counted separately from
+ * invocations — `criticSkips` totals them and `criticSkipsByCritic` breaks
+ * them down, so the skip-audit trail is visible in the persist summary
+ * without inflating the turns-per-plan proxy.
+ *
  * @param {{ entries: object[], malformedLines?: number }} ledger
  * @returns {{
  *   invocations: number,
  *   failures: number,
  *   byCli: Record<string, number>,
  *   byMode: Record<string, number>,
+ *   criticSkips: number,
+ *   criticSkipsByCritic: Record<string, number>,
  *   firstStartedAt: string|null,
  *   lastEndedAt: string|null,
  *   spanMs: number|null,
@@ -265,11 +342,23 @@ export function summarizePlanMetrics(ledger) {
   if (entries.length === 0) return null;
   const byCli = {};
   const byMode = {};
+  const criticSkipsByCritic = {};
+  let criticSkips = 0;
   let failures = 0;
   let totalDurationMs = 0;
   let firstStartedAt = null;
   let lastEndedAt = null;
+  const invocationEntries = [];
   for (const e of entries) {
+    if (e.kind === PLAN_METRICS_KIND_CRITIC_SKIP) {
+      criticSkips += 1;
+      if (typeof e.critic === 'string') {
+        criticSkipsByCritic[e.critic] =
+          (criticSkipsByCritic[e.critic] ?? 0) + 1;
+      }
+      continue;
+    }
+    invocationEntries.push(e);
     byCli[e.cli] = (byCli[e.cli] ?? 0) + 1;
     if (typeof e.mode === 'string') byMode[e.mode] = (byMode[e.mode] ?? 0) + 1;
     if (e.ok !== true) failures += 1;
@@ -291,10 +380,12 @@ export function summarizePlanMetrics(ledger) {
     if (Number.isFinite(span)) spanMs = Math.max(0, span);
   }
   return {
-    invocations: entries.length,
+    invocations: invocationEntries.length,
     failures,
     byCli,
     byMode,
+    criticSkips,
+    criticSkipsByCritic,
     firstStartedAt,
     lastEndedAt,
     spanMs,
@@ -323,9 +414,17 @@ export function renderPlanMetricsSummaryLine(summary) {
     summary.malformedLines > 0
       ? `; ${summary.malformedLines} malformed line(s) skipped`
       : '';
+  const skips =
+    (summary.criticSkips ?? 0) > 0
+      ? `; ${summary.criticSkips} critic skip(s) logged (${Object.entries(
+          summary.criticSkipsByCritic ?? {},
+        )
+          .map(([critic, count]) => `${critic} ×${count}`)
+          .join(', ')})`
+      : '';
   return (
     `plan-metrics: ${summary.invocations} invocation(s)${failed} across ` +
-    `${cliParts} — span ${span}${malformed}`
+    `${cliParts || 'no plan CLIs'} — span ${span}${skips}${malformed}`
   );
 }
 
