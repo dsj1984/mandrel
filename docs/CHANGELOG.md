@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.92.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.91.0...mandrel-v1.92.0) (2026-07-12)
+
+
+### Added
+
+* **plan:** collapse the plan workflow prose to interrogate → author → persist (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4492](https://github.com/dsj1984/mandrel/issues/4492)) ([b7cb068](https://github.com/dsj1984/mandrel/commit/b7cb068fed8c599ce1a42e51b3ff3f7658cb08b1))
+* **plan:** delivery-shape modes — single persist, amend delta (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4491](https://github.com/dsj1984/mandrel/issues/4491)) ([63e97c5](https://github.com/dsj1984/mandrel/commit/63e97c5d4546f1f1245e4d6b33428338d50bcded))
+* **plan:** plan-context emit cli — single envelope for the 3-step collapse (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4489](https://github.com/dsj1984/mandrel/issues/4489)) ([9255067](https://github.com/dsj1984/mandrel/commit/92550676af49ec33ec8ba9f9cc48785254bd53af))
+* **plan:** plan-metrics ledger — measure turns-per-plan before the collapse (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4487](https://github.com/dsj1984/mandrel/issues/4487)) ([d64b3aa](https://github.com/dsj1984/mandrel/commit/d64b3aa275f31c00760cc2ba6637674f1945d408))
+* **plan:** plan-persist cli — single github-write surface for the 3-step collapse (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4490](https://github.com/dsj1984/mandrel/issues/4490)) ([b01b9bf](https://github.com/dsj1984/mandrel/commit/b01b9bf080718f237f394818e0978d6f87f58e49))
+* **plan:** retire the 12-phase delegates — plan pipeline is context → author → persist (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4494](https://github.com/dsj1984/mandrel/issues/4494)) ([98e80f6](https://github.com/dsj1984/mandrel/commit/98e80f6550e6874c5793cfe7535a8d93bb8e7e72))
+* **plan:** risk/size-conditional critics — consolidation, reachability, pre-mortem (refs [#4474](https://github.com/dsj1984/mandrel/issues/4474)) ([#4493](https://github.com/dsj1984/mandrel/issues/4493)) ([a264cb3](https://github.com/dsj1984/mandrel/commit/a264cb3ab0d21167ef444b9f8af8141baeef7b21))
+
 ## [1.91.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.90.0...mandrel-v1.91.0) (2026-07-12)
 
 
