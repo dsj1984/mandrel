@@ -59,8 +59,11 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
+import {
+  diff,
+  parseLedgerText,
+} from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-diff.js';
 import { LedgerWriter } from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
-import { diff, parseLedgerText } from '../../.agents/scripts/lifecycle-diff.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');

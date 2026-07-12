@@ -35,10 +35,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
+import { parseLedgerText } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-diff.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
 import { AcceptanceReconciler } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
 import { Finalizer } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
-import { parseLedgerText } from '../../../../.agents/scripts/lifecycle-diff.js';
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };

@@ -466,6 +466,29 @@ describe('commands-in-sync check', () => {
       path.join(consumerRoot, '.claude', 'commands'),
     ]);
   });
+
+  // #4482 — a workflow whose frontmatter carries `command: false` (dual-use
+  // audit lens payload with a host-native standalone equivalent) is excluded
+  // from projection and MUST NOT count as "not synced".
+  it('excludes frontmatter `command: false` workflows from the expected set', () => {
+    const check = findCheck('commands-in-sync');
+    let callCount = 0;
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => {
+        callCount++;
+        // src has the lens + a normal workflow; dest only has the normal one.
+        if (callCount === 1) return ['audit-security.md', 'epic-deliver.md'];
+        return ['epic-deliver.md'];
+      },
+      readFile: (file) =>
+        file.endsWith('audit-security.md')
+          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
+          : '---\ndescription: normal\n---\n\n# Normal\n',
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /1 commands up to date/);
+  });
 });
 
 // ---------------------------------------------------------------------------

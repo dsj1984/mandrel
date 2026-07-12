@@ -151,8 +151,10 @@ host's equivalent structured-choice surface.
 
 This skill is the engine behind two operator-facing entry points:
 
-- [`/explain`](../../../workflows/explain.md) — runs the loop over a realized
-  change (a PR, branch, or diff).
+- **An ad-hoc conversational walkthrough** of a realized change (a PR,
+  branch, or diff) — the host's native mode. Read this skill and run the
+  loop directly when the operator asks to be walked through a change.
+  (The former `/explain` workflow wrapper was retired in #4482.)
 - [`/plan`](../../../workflows/helpers/plan-epic.md) **Phase 11 — Plan
   Comprehension Gate** — runs the loop over a freshly planned backlog before
   the operator hands off to `/deliver`. That phase decides *whether* to

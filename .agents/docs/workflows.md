@@ -32,7 +32,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (25)
+## Commands (23)
 
 | Command | Description |
 | --- | --- |
@@ -52,24 +52,18 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-to-stories` | Convert findings produced by the audit-\* workflows into actionable GitHub Stories. Reads temp/audits/audit-\*-results.md, groups findings cross-audit, deduplicates against existing Issues by fingerprint, and either chains into /plan --idea or opens standalone Stories. |
 | `/audit-ux-ui` | Audit UX/UI consistency and design system adherence |
 | `/deliver` | Unified delivery entry point. Inspects the ticket type(s) and Epic-reference state of the supplied IDs, composes a sequential segment plan over any mix of Epics and standalone Stories, then delegates each segment to the Epic wave loop or the standalone multi-Story fan-out — preserving every flag and the parallel-delivery contract of the retired commands. |
-| `/explain` | Walk the operator through a code change until they genuinely understand it. Targets a PR, a branch, or the working-tree diff, then drives the `core/knowledge-transfer` skill (restate-first, why-ladder, mastery gates, persistent checklist) with an operator-controlled stop at every checkpoint. |
 | `/git-cleanup` | Tidy the local checkout in four phases: fast-forward `main`, prune stale remote-tracking refs, sweep merged branches (squash-aware), and triage `git stash` entries — each step gated by operator confirmation. |
 | `/git-deliver` | Single ad-hoc delivery command for working-tree changes. Detects the git setup and escalates to the right terminal step — commit only, commit + push, or commit + push + open a PR with native auto-merge — picking the default from observable state and letting flags pin any level explicitly. Replaces the retired git-commit-all, git-push, and git-pr-all trio. |
-| `/git-merge-pr` | Analyze, validate, resolve conflicts, and merge a given pull request by number. |
 | `/mandrel-update` | npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update` (resolve newest published version → install → re-materialize `.agents/` → migrate → doctor → surface changelog) as the single mechanical step, then walks the operator through the judgment wraparound the CLI deliberately leaves unowned: reconcile `.agentrc.json`, install the Epic #1386 quality-gate surface, refresh the harness permission allowlist, reconcile the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and stage + commit the staged lockfile bump. |
 | `/plan` | Unified planning entry point. Routes a seed idea (via scope triage) or an existing Epic ID to the right planning path — the full Epic pipeline (sectioned Epic body: Tech Spec + Acceptance Table, then decomposition) or the standalone-Story authoring path — and absorbs every planning flag. |
 | `/qa-assist` | Human-led QA assist loop — set up, then ride a rolling multi-observation intake session. The operator reports observations in any order; the agent enriches each (repro + root-cause file:line + coverage verdict for bugs; analysis + options + recommendation for enhancements), asks clarifying questions only when ambiguous, and appends a redacted ledger item — recording, never planning — to a persistent, resumable session under temp/qa/. Only when the operator says they are done does it review the full ledger and hand off to /plan. |
 | `/qa-explore` | Agent-led exploratory-QA loop — the agent Plans a surface with an explicit static-vs-drive method choice, drives it (browser MCP or static), and captures ledger items read-only, then Triages — a bounded per-surface session, HITL-gated at every phase transition, routed through the shared dedup/coverage/classification/missing-test/redaction/session core under temp/qa/ |
 | `/qa-run` | Drive Gherkin scenarios through a real browser as an agent-driven QA sweep |
 
-## Loops namespace (3)
+## Loops namespace (0)
 
 Loop units project to `.claude/commands/loops/<name>.md` and are invoked
 as `/loops:<name>` (flat fallback `/loops-<name>` on hosts that flatten
 subdirectory commands).
 
-| Command | Description |
-| --- | --- |
-| `/loops:fix-failing-tests` | Self-paced convergence loop that drives a red test suite to green. Each round reads the latest failure, applies the smallest fix, and re-runs the verify oracle (`npm test`); the loop terminates when the oracle exits 0. The host (`/loop`) owns iteration and pacing — mandrel supplies the action, the goal, and the terminating oracle. |
-| `/loops:nightly-audit` | Cron maintenance loop that runs a nightly audit sweep over the repository and files actionable findings. Each run executes the audit workflows and routes the results; the host (`/schedule` or a cron-driven `/loop`) owns the cadence. verify is optional for a cron loop — the scheduler owns iteration, so this unit ships the action and goal, not a terminating oracle. |
-| `/loops:watch-ci` | Interval watch loop that polls a pull request's CI checks until they settle. Each round runs `gh pr checks` and reports the delta; the host (`/loop 5m`) owns the cadence and re-invokes the unit on its schedule. verify is optional for an interval loop — the externally-scheduled host owns iteration, so this unit ships the action and goal, not a terminating oracle. |
+> No loop units are shipped yet.

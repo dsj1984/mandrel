@@ -1,5 +1,6 @@
 ---
 description: Audit dependency CVEs, input-validation gaps, secrets handling, and auth boundaries; emit a structured High/Medium/Low findings report.
+command: false
 ---
 
 # Security & Vulnerability Audit

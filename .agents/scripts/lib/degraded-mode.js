@@ -2,7 +2,7 @@
  * Shared helper for the explicit-degraded contract used by soft-failing gates.
  *
  * Tech Spec #819 §"Degraded-mode contract (Story 3)" — three soft-fail sites
- * (select-audits diff-timeout, lint-baseline JSON-parse, baseline-refresh
+ * (audit-suite selector diff-timeout, lint-baseline JSON-parse, baseline-refresh
  * guardrail git-diff) historically returned a silent zero/empty result. The
  * new contract is:
  *

@@ -28,9 +28,10 @@
  * `lib/baseline-snapshot.js`: the fs surface and the clock are injected so
  * unit tests never touch real files. The two writer paths
  * (`readBaseline`, `writeBaseline`) are split because the typical caller
- * sequence is read-then-merge-then-write — for instance,
- * `update-mutation-baseline.js` reads the prior baseline to preserve the
- * configured `tolerancePct` if the Stryker run does not override it.
+ * sequence is read-then-merge-then-write — a refresh CLI reads the prior
+ * baseline to preserve the configured `tolerancePct` if the Stryker run
+ * does not override it (the former `update-mutation-baseline.js` wrapper
+ * was retired in #4482; the gate ships dormant).
  */
 
 import fs from 'node:fs';
@@ -89,9 +90,9 @@ export function readBaseline(baselinePath, opts = {}) {
  * The on-disk shape is canonicalised: `workspaces` keys are sorted
  * alphabetically (with `"*"` always first) and the file ends with a
  * trailing newline. This produces a byte-stable serialisation, which
- * the `update-mutation-baseline.js` entry-point relies on to detect
- * "no change" runs (skip the baseline-refresh commit when re-running
- * Stryker produces an identical baseline).
+ * lets a refresh caller detect "no change" runs (skip the
+ * baseline-refresh commit when re-running Stryker produces an identical
+ * baseline).
  *
  * @param {string} baselinePath
  * @param {{ generatedAt?: string, tolerancePct?: number, workspaces: Record<string, number> }} payload
