@@ -100,6 +100,34 @@ reseeding from live GitHub state when the file is missing — so only the
 genuinely-missing children are created; the existing tree is never
 duplicated.
 
+## Measurement — the G2 acceptance gate (Epic #4474)
+
+The 3-step collapse is **measured, not asserted**. The acceptance bar the
+next benchmark cohort reads as the gate:
+
+- **Turns-per-plan ≤ ~15** at the epic rung (from the 55–72-turn 12-phase
+  baseline). The turns proxy is the plan-metrics invocation ledger
+  (`temp/epic-<id>/plan-metrics.json`) plus the host session's turn
+  accounting — ledger records count CLI invocations from the parent
+  session's perspective, not sub-agent turns.
+- **Plan tokens ≤ ~1.5M** at the epic rung (from 7.3–8.9M) — owned by the
+  host's session accounting (mandrel-bench `modelUsage`), not by any
+  in-repo counter.
+- **Unchanged validator coverage** — every deterministic gate of the
+  retired pipeline still fires on the persist path: section gate, ticket
+  validator, file-assumption, DAG, budget, draft reachability, inline
+  healthcheck, mode-coherence. The enumerated receipt is
+  `tests/contract/planning/plan-persist-validator-coverage.test.js`.
+
+Where to read the measurement:
+
+- The `plan-summary` structured comment on the Epic carries the
+  plan-metrics roll-up line (invocations, per-CLI counts, span, critic
+  skips) — no runner-disk access needed.
+- `node .agents/scripts/analyze-execution.js --epic <id> --plan-metrics-json`
+  prints the compact machine-readable envelope
+  (`{ epicId, planMetrics, summaryLine }`) — local read-only, stdout-pure.
+
 ## Troubleshooting
 
 - If `plan-context.js` fails, confirm the Epic exists and has a body with

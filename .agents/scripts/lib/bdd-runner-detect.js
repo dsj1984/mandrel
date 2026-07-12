@@ -2,7 +2,7 @@
  * BDD runner detection + pending-tag verification (Epic #2001 Story #2094
  * Task #2103; workspace-aware extension from Story #2956).
  *
- * Used by `epic-plan-spec.js#buildAuthoringContext` to decide whether the
+ * Used by `buildAuthoringContext` (the `plan-context.js` envelope) to decide whether the
  * acceptance-table section should plan **features-first** Story ordering (a real
  * pending-tag is available, so the features-first Story can ship `.feature`
  * files marked `@pending` / `@skip` ahead of the implementation Stories) or

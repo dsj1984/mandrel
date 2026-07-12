@@ -10,7 +10,7 @@
  *
  * `validateSpecFreshness` scans a Tech Spec body for path-shaped references,
  * probes each against `baseBranchRef` (via `git cat-file -e`), and returns a
- * `{ stale, fresh, ambiguous }` envelope. The caller (epic-plan-spec.js)
+ * `{ stale, fresh, ambiguous }` envelope. The caller (plan-persist.js)
  * uses the result to write a JSON report and post an advisory structured
  * comment on the Epic. The check is intentionally non-blocking —
  * planning continues even when stale references are present, because the

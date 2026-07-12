@@ -13,7 +13,7 @@
  * Record shape (v1):
  *
  * ```json
- * { "v": 1, "cli": "epic-plan-spec", "mode": "emit-context",
+ * { "v": 1, "cli": "plan-context", "mode": "emit",
  *   "epicId": 4474, "startedAt": "...", "endedAt": "...",
  *   "durationMs": 1234, "ok": true }
  * ```
@@ -397,8 +397,8 @@ export function summarizePlanMetrics(ledger) {
 /**
  * Render the one-line human summary (snapshot-tested). Example:
  *
- *   `plan-metrics: 5 invocation(s) (1 failed) across epic-plan-spec ×2,
- *    epic-plan-decompose ×2, epic-plan-healthcheck ×1 — span 12m 3s`
+ *   `plan-metrics: 3 invocation(s) (1 failed) across plan-context ×1,
+ *    plan-critics ×1, plan-persist ×1 — span 12m 3s`
  *
  * @param {ReturnType<typeof summarizePlanMetrics>} summary
  * @returns {string}

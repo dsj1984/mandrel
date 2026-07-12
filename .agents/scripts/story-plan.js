@@ -299,7 +299,7 @@ async function main() {
   if (values['emit-context']) {
     // Reserve stdout for the JSON envelope so a captured file is
     // unconditionally parseable by `JSON.parse`. Mirrors the contract
-    // `epic-plan-spec.js` enforces for its own --emit-context mode.
+    // `plan-context.js` enforces for its emit mode.
     routeAllOutputToStderr();
     // Plan-metrics ledger (#4474 PR1): standalone plans have no Epic, so
     // `epicId: null` routes the stamp to the standalone stream

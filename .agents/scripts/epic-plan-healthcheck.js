@@ -5,9 +5,12 @@
 /**
  * epic-plan-healthcheck.js — Post-Plan Readiness Check
  *
- * Runs at the end of /plan (Phase 10) to validate the backlog and
- * optionally prime the execution environment before handing off to
- * /epic-deliver.
+ * Library home of `runPlanHealthcheck`, the **inline** blocking check the
+ * collapsed persist surface runs as the `agent::ready` exit condition
+ * (`plan-persist.js` step 9 — the authoritative invocation since Epic
+ * #4474 retired the standalone Phase 10 workflow step). The CLI form
+ * remains for manual re-validation and the opt-in slow paths below; no
+ * workflow mandates running it standalone.
  *
  * Modes (additive — the fast checks below always run):
  *   (default)         — config validation + git remote check only.
@@ -30,7 +33,7 @@
  *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
  *     [--paranoid] [--prime-install] [--dry-run]
  *
- * @see .agents/workflows/helpers/plan-epic.md Phase 10
+ * @see .agents/workflows/helpers/plan-epic.md (persist step — inline gate)
  */
 
 import { spawnSync } from 'node:child_process';

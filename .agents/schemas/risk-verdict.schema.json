@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "risk-verdict",
   "title": "Planning Risk Verdict",
-  "description": "Planner-authored risk judgment for an Epic, produced by the epic-plan-spec-author Skill as the fourth planning artifact (risk-verdict.json) alongside the PRD, Tech Spec, and Acceptance Spec (Epic #3865). epic-plan-spec.js validates the verdict against this schema, derives the deterministic planningRisk envelope via deriveRiskEnvelope (lib/orchestration/planning-risk.js), and records the verdict as a risk-verdict structured comment plus the epic-plan-state checkpoint riskVerdict field. The model supplies the judgment input (axes); the harness owns the gate decision. A malformed verdict fails closed to the validation-error path — it is never silently coerced.",
+  "description": "Planner-authored risk judgment for an Epic, produced by the epic-plan-spec-author Skill as the fourth planning artifact (risk-verdict.json) alongside the PRD, Tech Spec, and Acceptance Spec (Epic #3865). plan-persist.js validates the verdict against this schema, derives the deterministic planningRisk envelope via deriveRiskEnvelope (lib/orchestration/planning-risk.js), and records the verdict as a risk-verdict structured comment plus the epic-plan-state checkpoint riskVerdict field. The model supplies the judgment input (axes); the harness owns the gate decision. A malformed verdict fails closed to the validation-error path — it is never silently coerced.",
   "type": "object",
   "required": ["axes", "summary"],
   "properties": {

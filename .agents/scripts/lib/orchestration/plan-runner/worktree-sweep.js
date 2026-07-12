@@ -1,9 +1,9 @@
 /**
  * plan-runner/worktree-sweep.js
  *
- * Reap-sweep used at the start of `/epic-plan-spec` and
- * `/epic-plan-decompose` (via `drainPendingCleanupAtBoot` in
- * `epic-plan-spec.js`, which see). Iterates the `.worktrees/story-<id>/`
+ * Reap-sweep run at plan boot (via `drainPendingCleanupAtBoot` in
+ * `lib/orchestration/epic-plan-spec/phases/drain.js`, wired into
+ * `plan-persist.js`). Iterates the `.worktrees/story-<id>/`
  * entries registered with git, looks up each parent Story, and force-removes
  * any whose Story is already closed or labeled `agent::done`.
  *

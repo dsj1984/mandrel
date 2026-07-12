@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 // Story #1437 Task #1447: the `ticket-decomposer.js` engine was inlined
 // into `epic-plan-decompose.js`. The test suite name is kept as a
 // historical breadcrumb for greppability; the exercised behaviour is
@@ -18,11 +19,12 @@ import { fileURLToPath } from 'node:url';
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
+} from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
+import {
   orderTicketsForCreation,
   resolveDependencies,
-  runDecomposePhase,
-} from '../.agents/scripts/epic-plan-decompose.js';
-import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
+} from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js';
+import { runDecomposePhase } from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import {
   AUTHORING_ALTITUDE_GUIDANCE,
   DELIVERABLE_GRANULARITY_GUIDANCE,

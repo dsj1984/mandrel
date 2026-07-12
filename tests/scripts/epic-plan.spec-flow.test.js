@@ -29,12 +29,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import yaml from 'js-yaml';
-import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
-import {
-  planEpic,
-  resolveAcceptancePersistence,
-  runSpecPhase,
-} from '../../.agents/scripts/epic-plan-spec.js';
 import {
   EXIT_CODES,
   runReconcile,
@@ -45,6 +39,12 @@ import {
   upsertEpicSection,
 } from '../../.agents/scripts/lib/epic-body-sections.js';
 import { ACCEPTANCE_NA } from '../../.agents/scripts/lib/label-constants.js';
+import { runDecomposePhase } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
+import {
+  planEpic,
+  resolveAcceptancePersistence,
+} from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js';
+import { runSpecPhase } from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
 import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
 import { deriveRiskEnvelope } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
 import {

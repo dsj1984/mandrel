@@ -1,211 +1,64 @@
 #!/usr/bin/env node
 
+/* node:coverage ignore file */
+
 /**
- * epic-plan-spec.js — Phase 7 (spec) entry point for the split planning flow.
+ * epic-plan-spec.js — RETIRED delegate CLI (Epic #4474, PR7).
  *
- * > **Delegate for one release (Epic #4474, PR3).** The collapsed
- * > `plan-persist.js` CLI is now the canonical single GitHub-write surface
- * > for the plan flow (section gate → risk verdict → validators → lease →
- * > sections → story creation → healthcheck → single `agent::ready` flip).
- * > This CLI's persist half remains fully functional so in-flight workflows
- * > and external callers keep working; the workflow-prose cutover is PR5
- * > and this entry point is retired in PR7.
+ * The 12-phase plan pipeline collapsed to context → author → persist:
  *
- * Two idempotent modes and a single-purpose label lifecycle:
+ *   - `--emit-context` moved to `plan-context.js` (single authoring
+ *     envelope: Epic body + docs digest + codebase snapshot + duplicate
+ *     search + clarity + system prompts).
+ *   - The persist half (section gate, risk verdict, managed sections,
+ *     checkpoint) moved to `plan-persist.js` (single GitHub-write surface).
  *
- *   1. --emit-context   Prints the planner authoring context (Epic body,
- *                       scraped project docs, recommended system prompts) as
- *                       JSON. The authoring middle is the
- *                       `epic-plan-spec-author` Skill (see
- *                       `.agents/skills/core/epic-plan-spec-author/SKILL.md`),
- *                       which consumes this envelope and writes the Tech Spec
- *                       markdown file.
+ * This file is a **re-export shim only** — it carries external importers of
+ * the historic named-export surface one more release (#4474 design §6 PR7
+ * risk note) and is deleted in the next release. Internal consumers import
+ * the phase modules directly; do not add new imports of this file.
  *
- *   2. (default)        Given author-provided Tech Spec and risk-verdict
- *                       files, validates the risk verdict against
- *                       `risk-verdict.schema.json`, derives the planningRisk
- *                       envelope, folds the authored content into managed
- *                       sections of the Epic body (Story #4324 — no separate
- *                       context tickets), records the verdict as a
- *                       `risk-verdict` structured comment, flips the Epic to
- *                       `agent::review-spec`, and upserts the
- *                       `epic-plan-state` structured comment.
- *
- * --force regenerates the existing Tech Spec.
- * --steal forcibly transfers a foreign Epic-lease claim (the plan-lease guard
- *   fails closed, so any foreign assignee blocks the run unless stolen).
- *
- * Exit codes:
- *   0 — phase complete, Epic is now `agent::review-spec`.
- *   1 — fatal error (see stderr).
- *
- * The phase implementations live under
- * `lib/orchestration/epic-plan-spec/phases/`. This file is now a thin CLI
- * entry that wires argv → phases.
+ * Invoking it as a CLI is refused with a pointer to the successor CLIs.
  */
 
-// Fail-fast if the framework's runtime deps are not installed — must be the
-// first import so the check runs before any third-party-importing sibling
-// module is evaluated (Story #3432).
-import './lib/runtime-deps/ensure-installed.js';
-import { readFile } from 'node:fs/promises';
-import {
+// cli-opt-out: retired delegate shim (Epic #4474 PR7) — deliberately
+// refuses CLI execution with a pointer to plan-context.js/plan-persist.js
+// instead of wiring runAsCli around a dead main().
+import { pathToFileURL } from 'node:url';
+
+export {
   forkAndCommitEpicSnapshot,
   forkMainToEpic,
 } from './lib/baseline-snapshot.js';
-
-// Re-exported so the historic import path
-// (`epic-plan-spec.js#forkAndCommitEpicSnapshot`) and existing tests keep
-// working after Story #1585 relocated the wrapper into the lower-level
-// `lib/baseline-snapshot.js` module. `forkMainToEpic` is also re-exported
-// for the same reason.
-export { forkAndCommitEpicSnapshot, forkMainToEpic };
-
-import { runAsCli } from './lib/cli-utils.js';
-import {
-  PROJECT_ROOT,
-  resolveConfig,
-  validateOrchestrationConfig,
-} from './lib/config-resolver.js';
-import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
-import {
+export {
   buildAuthoringContext,
   resolveMemoryDir,
 } from './lib/orchestration/epic-plan-spec/phases/authoring-context.js';
-import { parseEpicPlanSpecArgs } from './lib/orchestration/epic-plan-spec/phases/cli-args.js';
-import { drainPendingCleanupAtBoot } from './lib/orchestration/epic-plan-spec/phases/drain.js';
-import {
+export { drainPendingCleanupAtBoot } from './lib/orchestration/epic-plan-spec/phases/drain.js';
+export {
   planEpic,
   resolveAcceptancePersistence,
 } from './lib/orchestration/epic-plan-spec/phases/plan-epic.js';
-import {
+export {
   loadRiskVerdict,
   validateRiskVerdict,
 } from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
-import { runSpecPhase } from './lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
-import { runSpecFreshnessCheck } from './lib/orchestration/epic-plan-spec/phases/spec-freshness.js';
-import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
-import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
-import { createProvider } from './lib/provider-factory.js';
+export { runSpecPhase } from './lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
+export { runSpecFreshnessCheck } from './lib/orchestration/epic-plan-spec/phases/spec-freshness.js';
+export { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 
-// Re-exports for stable public API: tests and external callers import these
-// from `epic-plan-spec.js`. The implementations live in `phases/`.
-export {
-  buildAuthoringContext,
-  drainPendingCleanupAtBoot,
-  loadRiskVerdict,
-  planEpic,
-  resolveAcceptancePersistence,
-  resolveMemoryDir,
-  resolveReviewRouting,
-  runSpecFreshnessCheck,
-  runSpecPhase,
-  validateRiskVerdict,
-};
-
-async function main() {
-  const { values, epicId } = parseEpicPlanSpecArgs();
-
-  let config;
-  let settings;
-  try {
-    config = resolveConfig();
-    // `settings` retains the legacy bag shape used by buildAuthoringContext
-    // and friends: `{ baseBranch, paths, planning, ... }`. Build it from the
-    // canonical blocks rather than the legacy shim.
-    settings = {
-      baseBranch: config.project?.baseBranch,
-      paths: config.project?.paths,
-      planning: config.planning,
-      docsContextFiles: config.project?.docsContextFiles,
-    };
-    validateOrchestrationConfig(config);
-  } catch (err) {
-    throw new Error(`Config schema validation failed:\n${err.message}`);
-  }
-  const provider = createProvider(config);
-
-  const emitContext = values['emit-context'];
-  // Story #2278 — in --emit-context mode stdout is reserved for the JSON
-  // envelope. Flip every Logger sink that could land on stdout to stderr
-  // *before* any pipeline code runs (drainPendingCleanupAtBoot,
-  // buildAuthoringContext → ensureDocsDigest — Story #4433 cut the digest
-  // build over from the old buildDocsContext/scrapeProjectDocs full-content
-  // read path), so a captured file is unconditionally parseable by
-  // `JSON.parse`.
-  if (emitContext) routeAllOutputToStderr();
-
-  try {
-    await drainPendingCleanupAtBoot({
-      repoRoot: PROJECT_ROOT,
-      config,
-      provider,
-      // In --emit-context mode stdout is reserved for the JSON envelope;
-      // route every drain/sweep log line through stderr so the captured
-      // file is unconditionally parseable.
-      logger: emitContext ? STDERR_LOGGER : undefined,
-    });
-  } catch (err) {
-    Logger.warn(
-      `[epic-plan-spec] pending-cleanup drain skipped: ${err.message}`,
-    );
-  }
-
-  if (emitContext) {
-    // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode so the
-    // 12-phase baseline is measurable before the collapse changes anything.
-    const ctx = await recordPlanInvocation(
-      { cli: 'epic-plan-spec', mode: 'emit-context', epicId, config },
-      () =>
-        buildAuthoringContext(epicId, provider, settings, {
-          fullContext: values['full-context'],
-          github: config.github ?? null,
-        }),
-    );
-    const json = values.pretty
-      ? JSON.stringify(ctx, null, 2)
-      : JSON.stringify(ctx);
-    process.stdout.write(`${json}\n`);
-    return;
-  }
-
-  if (!values['tech-spec'] || !values['risk-verdict']) {
-    throw new Error(
-      'Missing --tech-spec and/or --risk-verdict file paths. (Use --emit-context first to gather authoring context; the epic-plan-spec-author Skill writes all artifacts including risk-verdict.json.)',
-    );
-  }
-
-  // Read + schema-validate the planner-authored risk verdict before any
-  // GitHub mutation: a malformed verdict fails closed here (Epic #3865).
-  const riskVerdict = loadRiskVerdict(values['risk-verdict']);
-
-  const readPromises = [readFile(values['tech-spec'], 'utf8')];
-  if (values['acceptance-table']) {
-    readPromises.push(readFile(values['acceptance-table'], 'utf8'));
-  }
-  const [techSpecContent, acceptanceSpecContent = null] =
-    await Promise.all(readPromises);
-
-  // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
-  const result = await recordPlanInvocation(
-    { cli: 'epic-plan-spec', mode: 'persist', epicId, config },
-    () =>
-      runSpecPhase(
-        epicId,
-        provider,
-        { techSpecContent, acceptanceSpecContent },
-        settings,
-        {
-          force: values.force,
-          forceReview: values['force-review'],
-          steal: values.steal === true,
-          config,
-          riskVerdict,
-        },
-      ),
+// CLI execution is retired — fail loudly with the successor surface instead
+// of silently doing nothing (a stale automation script should break visibly).
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  process.stderr.write(
+    '[epic-plan-spec] retired (Epic #4474): the plan pipeline is ' +
+      'context → author → persist.\n' +
+      '  - authoring envelope:  node .agents/scripts/plan-context.js --epic <id>\n' +
+      '  - persist (all gates): node .agents/scripts/plan-persist.js --epic <id> ...\n' +
+      'This file survives one release as an import shim only.\n',
   );
-
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.exit(1);
 }
-
-runAsCli(import.meta.url, main, { source: 'epic-plan-spec' });

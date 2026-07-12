@@ -1,82 +1,54 @@
 #!/usr/bin/env node
+
 /* node:coverage ignore file */
 
 /**
- * epic-plan-decompose.js — Story #2466 thin CLI shell.
+ * epic-plan-decompose.js — RETIRED delegate CLI (Epic #4474, PR7).
  *
- * > **Delegate for one release (Epic #4474, PR3).** The collapsed
- * > `plan-persist.js` CLI is now the canonical single GitHub-write surface
- * > for the plan flow. This CLI's persist half remains fully functional so
- * > in-flight workflows and external callers keep working; the
- * > workflow-prose cutover is PR5 and this entry point is retired in PR7.
+ * The 12-phase plan pipeline collapsed to context → author → persist:
  *
- * Phase 8 (decompose) entry point for the split planning flow. The
- * deterministic decomposer engine and reconciler-based persist flow
- * have been split into phase modules under
- * `lib/orchestration/epic-plan-decompose/phases/`:
+ *   - `--emit-context` moved to `plan-context.js` (the single authoring
+ *     envelope carries the decomposer context — ticket schema, risk
+ *     heuristics, ticket cap — alongside the spec half).
+ *   - The persist half (ticket validator, file-assumption gate, DAG,
+ *     budget, story creation, healthcheck, `agent::ready` flip) moved to
+ *     `plan-persist.js` (single GitHub-write surface).
  *
- *   1. planning-artifacts — `resolveConflictPolicy`.
- *   2. dag                — `resolveDependencies`,
- *                            `orderTicketsForCreation`.
- *   3. context            — `buildDecomposerSystemPrompt`,
- *                            `buildDecompositionContext`.
- *   4. creation           — sub-issue link reconciliation, Epic label
- *                            transitions, and the advisory ticket-cap
- *                            warning (`reconcileSubIssueLinks`,
- *                            `setEpicLabel`, `warnTicketCapNearLimit`).
- *   5. persist            — `runDecomposePhase` (reconciler-based flow).
- *   6. cli                — argument parsing + `main()` pipeline.
+ * This file is a **re-export shim only** — it carries external importers of
+ * the historic named-export surface one more release (#4474 design §6 PR7
+ * risk note) and is deleted in the next release. Internal consumers import
+ * the phase modules directly; do not add new imports of this file.
  *
- * Modes:
- *   --emit-context     Prints the decomposer authoring context (Epic body,
- *                      Tech Spec body, risk heuristics, system prompt,
- *                      ticket cap) as JSON. The authoring middle is the
- *                      `epic-plan-decompose-author` Skill
- *                      (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`).
- *
- *   (default)          Given an author-provided tickets JSON file,
- *                      persists the Feature/Story/Task hierarchy via the
- *                      structural reconciler, flips the Epic to
- *                      `agent::ready`, and updates the `epic-plan-state`
- *                      structured comment.
- *
- * --force re-decomposes (closes existing child Features/Stories/Tasks).
- *
- * Exit codes:
- *   0 — phase complete, Epic is now `agent::ready`.
- *   1 — fatal error (see stderr).
- *
- * Public CLI surface and named exports are byte-identical to the pre-
- * refactor implementation.
+ * Invoking it as a CLI is refused with a pointer to the successor CLIs.
  */
 
-// Fail-fast if the framework's runtime deps are not installed — must be the
-// first import so the check runs before any third-party-importing sibling
-// module is evaluated (Story #3432).
-import './lib/runtime-deps/ensure-installed.js';
-import { runAsCli } from './lib/cli-utils.js';
-import { main } from './lib/orchestration/epic-plan-decompose/phases/cli.js';
-import {
-  buildDecomposerSystemPrompt,
-  buildDecompositionContext,
-} from './lib/orchestration/epic-plan-decompose/phases/context.js';
-import {
-  orderTicketsForCreation,
-  resolveDependencies,
-} from './lib/orchestration/epic-plan-decompose/phases/dag.js';
-import { runDecomposePhase } from './lib/orchestration/epic-plan-decompose/phases/persist.js';
+// cli-opt-out: retired delegate shim (Epic #4474 PR7) — deliberately
+// refuses CLI execution with a pointer to plan-context.js/plan-persist.js
+// instead of wiring runAsCli around a dead main().
+import { pathToFileURL } from 'node:url';
 
-// Named exports preserved for the existing test surface. The pre-refactor
-// module published these and the consumers (`tests/ticket-decomposer.test.js`,
-// `tests/scripts/epic-plan-decompose.body-preservation.test.js`,
-// `tests/scripts/epic-plan-decompose.sub-issue-safety-net.test.js`,
-// `tests/scripts/epic-plan.spec-flow.test.js`) still depend on them.
 export {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
+} from './lib/orchestration/epic-plan-decompose/phases/context.js';
+export {
   orderTicketsForCreation,
   resolveDependencies,
-  runDecomposePhase,
-};
+} from './lib/orchestration/epic-plan-decompose/phases/dag.js';
+export { runDecomposePhase } from './lib/orchestration/epic-plan-decompose/phases/persist.js';
 
-runAsCli(import.meta.url, main, { source: 'epic-plan-decompose' });
+// CLI execution is retired — fail loudly with the successor surface instead
+// of silently doing nothing (a stale automation script should break visibly).
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  process.stderr.write(
+    '[epic-plan-decompose] retired (Epic #4474): the plan pipeline is ' +
+      'context → author → persist.\n' +
+      '  - authoring envelope:  node .agents/scripts/plan-context.js --epic <id>\n' +
+      '  - persist (all gates): node .agents/scripts/plan-persist.js --epic <id> --tickets ...\n' +
+      'This file survives one release as an import shim only.\n',
+  );
+  process.exit(1);
+}

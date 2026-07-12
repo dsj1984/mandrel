@@ -33,7 +33,7 @@ import {
  * 5xx, transport timeouts) inside the cascade transition. Three attempts with
  * exponential backoff (250ms / 500ms / 1000ms) mirrors the budget used by
  * `gitFetchWithRetry` (see `lib/git-utils.js`) and the HTTP-client retry path
- * referenced by `epic-plan-decompose.js`. Backoff is overridable via
+ * referenced by the plan persist surface. Backoff is overridable via
  * {@link __setCascadeRetryDelays} so tests don't pay real wall-clock time.
  */
 const CASCADE_RETRY_BACKOFF_MS = [250, 500, 1000];

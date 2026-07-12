@@ -98,6 +98,7 @@ function renderWaveTableLines(waveTable) {
  *   healthcheck?: { ok?: boolean, waived?: boolean, skipped?: boolean },
  *   waveTable: ReturnType<typeof buildWaveTable>,
  *   mode?: 'fan-out'|'single'|'amend',
+ *   planMetricsLine?: string|null,
  *   single?: { deliveryShape: 'single', sliceCount: number|null, routingReasons: string[] }|null,
  *   amend?: {
  *     closed: Array<{ slug: string, issueNumber: number }>,
@@ -117,6 +118,7 @@ export function buildPlanSummaryCommentBody({
   healthcheck,
   waveTable,
   mode = 'fan-out',
+  planMetricsLine = null,
   single = null,
   amend = null,
 }) {
@@ -176,6 +178,13 @@ export function buildPlanSummaryCommentBody({
     `- Risk: ${planningRisk?.overallLevel ?? 'unknown'} · ${planningRisk?.gateDecision ?? 'unknown'} (review routing: ${reviewRouting?.decision ?? 'unknown'}).`,
     freshnessLine,
     healthcheckLine,
+    // G2 measurement receipt (Epic #4474 PR1/PR7): the plan-CLI invocation
+    // ledger roll-up (turns-per-plan proxy, per-mode counts, critic skips)
+    // rides the summary comment so the cohort reader never has to pull the
+    // temp ledger off the runner's disk. Omitted when the ledger is empty.
+    ...(typeof planMetricsLine === 'string' && planMetricsLine.length > 0
+      ? [`- ${planMetricsLine}`]
+      : []),
     '',
     ...tail,
   ].join('\n');

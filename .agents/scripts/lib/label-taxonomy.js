@@ -109,9 +109,9 @@ export const LABEL_TAXONOMY = [
 
   // Planning axis — operator-applied waivers for the planning → delivery
   // handoff gates. Currently the sole entry is the `healthcheck-waived`
-  // override consumed by the persist half of `epic-plan-decompose.js`
-  // when `epic-plan-healthcheck.js` returned `ok: false` for a reason
-  // the operator has triaged and accepted.
+  // override consumed by `plan-persist.js` when the inline healthcheck
+  // (`runPlanHealthcheck`) returned `ok: false` for a reason the
+  // operator has triaged and accepted.
   {
     name: PLANNING_LABELS.HEALTHCHECK_WAIVED,
     color: LABEL_COLORS.PLANNING,

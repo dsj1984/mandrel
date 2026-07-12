@@ -185,8 +185,8 @@ graph TB
     classDef iface fill:#f5e8d5,stroke:#333,color:#000
 
     subgraph Scripts ["Orchestration Scripts"]
-        EP["epic-plan-spec.js"]:::script
-        TD["epic-plan-decompose.js"]:::script
+        EP["plan-context.js"]:::script
+        TD["plan-persist.js"]:::script
         DI["dispatcher.js"]:::script
         EDP["epic-deliver-prepare.js"]:::script
         LE["lifecycle-emit.js"]:::script
@@ -227,8 +227,8 @@ graph TB
 
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epic-plan-spec.js`          | Authoring wrapper for Tech Spec + Acceptance Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
-| `epic-plan-decompose.js`     | Authoring wrapper for the Epic's child-Story backlog; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                       |
+| `plan-context.js`            | Single authoring-envelope emitter for `/plan` (Epic #4474): Epic body / one-pager + docs digest + `codebaseSnapshot` (Story #2634, see below) + duplicate search + clarity + rendered system prompts, so the authoring skills cite real modules instead of doc-only names. |
+| `plan-persist.js`            | Single GitHub-write surface for `/plan`: section gate, risk verdict, ticket validator + file-assumption + DAG + budget gates, story creation, inline healthcheck, one terminal `agent::ready` flip, `plan-summary` comment, `epic-plan-state` checkpoint. |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
 | `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 7 / 8.5 / 9 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
@@ -580,8 +580,8 @@ synthetic dependency edges between tasks with overlapping `focusAreas`.
 sequenceDiagram
     participant H as Human
     participant P as /plan
-    participant EP as epic-plan-spec.js
-    participant TD as epic-plan-decompose.js
+    participant EP as plan-context.js
+    participant TD as plan-persist.js
     participant D as /deliver
     participant EDR as /deliver (in-session)
     participant CH as hydrate-context.js
@@ -589,11 +589,10 @@ sequenceDiagram
     participant GH as GitHub
 
     H->>P: /plan (ideation) or /plan #EPIC
-    P->>GH: Open Epic (ideation path) / read existing Epic
-    P->>EP: Generate Tech Spec + Acceptance Spec
-    EP->>GH: Create linked context issues
-    EP->>TD: Decompose into Stories
-    TD->>GH: Create the Story backlog
+    P->>EP: Emit the authoring envelope (all GitHub reads)
+    P->>P: Author spec + risk verdict + tickets (2–3 Write turns)
+    P->>TD: Persist (all gates, all GitHub writes)
+    TD->>GH: Open/update the Epic + create the Story backlog
 
     H->>D: /deliver #EPIC
     D->>EDR: Build DAG, compute waves, run the nine-phase flow

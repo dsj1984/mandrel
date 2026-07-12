@@ -117,7 +117,7 @@ top-level keys are validation errors.
 | `failOnLargeFanOut` | No | `boolean` | — | — |
 | `largeFanOutThreshold` | No | `integer` | — | — |
 | `crossCuttingRegistries` | No | `string[]` or `{ append?, prepend? }` | — | — |
-| `navigation` | No | `object` | — | Navigability-reachability config consumed by the epic-plan-healthcheck --paranoid reachability check. Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
+| `navigation` | No | `object` | — | Navigability-reachability config consumed by the plan-persist draft reachability gate (Epic #4474 PR6; also the manual epic-plan-healthcheck --paranoid re-check). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
 | `navigation.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route. |
 | `navigation.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference. |
 

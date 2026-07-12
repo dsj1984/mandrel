@@ -1,5 +1,11 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
+import {
+  extractEpicSection,
+  hasEpicSection,
+  upsertEpicSection,
+} from '../.agents/scripts/lib/epic-body-sections.js';
+import { Logger } from '../.agents/scripts/lib/Logger.js';
 // Story #1437 Task #1446: the `epic-planner.js` engine was retired; its
 // `buildAuthoringContext` / `planEpic` exports were migrated into
 // `epic-plan-spec.js`. The test suite name is kept as a historical
@@ -20,22 +26,14 @@ import { beforeEach, describe, it } from 'node:test';
 // writes; see lib/epic-body-sections.js). These tests pin that contract,
 // including the sentinel oracle: operator-authored prose outside the managed
 // sections survives the persist byte-for-byte.
-import {
-  buildAuthoringContext,
-  planEpic,
-  resolveReviewRouting,
-} from '../.agents/scripts/epic-plan-spec.js';
-import {
-  extractEpicSection,
-  hasEpicSection,
-  upsertEpicSection,
-} from '../.agents/scripts/lib/epic-body-sections.js';
-import { Logger } from '../.agents/scripts/lib/Logger.js';
+import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
 import {
   getExistingSections,
   hasAllRequestedSections,
+  planEpic,
   validatePlanEpicInputs,
 } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/plan-epic.js';
+import { resolveReviewRouting } from '../.agents/scripts/lib/orchestration/plan-review-routing.js';
 import { deriveRiskEnvelope } from '../.agents/scripts/lib/orchestration/planning-risk.js';
 
 const TECH_SPEC_CONTENT =

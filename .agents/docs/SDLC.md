@@ -422,7 +422,7 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > "do not modify existing issues without permission" Constraint — every
 > body rewrite is operator-confirmed.
 
-1. **Epic Planner** (`epic-plan-spec.js`):
+1. **Epic Planner** (the spec half of `plan-persist.js`):
    - Synthesizes the Epic body with project documentation.
    - Folds the authored **Tech Spec** (opening with `## Delivery
      Slicing`) and the **Acceptance Table** (the AC-ID table) into
@@ -460,8 +460,8 @@ BDD runner + pending-tag (e.g. `playwright-bdd supports @skip`) for the
 features-first Story to consume.
 
 The spec is persisted by
-`epic-plan-spec.js --epic [Epic_ID] --tech-spec ... --acceptance-table ...`
-— the persist half folds both artifacts into the Epic body's managed
+`plan-persist.js --epic [Epic_ID] --tech-spec ... --acceptance-table ...`
+— the persist step folds both artifacts into the Epic body's managed
 sections in one atomic, section-scoped write (everything outside the
 managed regions is byte-preserved) and fails loudly if any input is
 missing or empty. At delivery time, hydration strips the
@@ -474,7 +474,7 @@ authoring/close-time machinery, not delivery context.
 **`planningRisk`** envelope from a **planner-authored risk verdict**
 (`risk-verdict.json`, the third planning artifact the
 `epic-plan-spec-author` Skill writes from the Epic body / Tech Spec it just
-authored). The persist half of `epic-plan-spec.js` validates the verdict
+authored). `plan-persist.js` validates the verdict
 against `risk-verdict.schema.json` — a malformed verdict fails closed —
 then derives the envelope via `deriveRiskEnvelope`
 (`lib/orchestration/planning-risk.js`). The verdict is recorded as a
@@ -518,8 +518,8 @@ on the Epic ticket records the waiver. There are two routes to the label:
 - **Planner-selected** — `/plan`'s `planning.spec-authoring` state derives a
   `planningRisk` envelope from the planner-authored risk verdict
   (see § Adaptive planning risk routing) and,
-  when `acceptanceDisposition === 'not-applicable'`, the persist half
-  of `epic-plan-spec.js` applies `acceptance::n-a` on the Epic and skips
+  when `acceptanceDisposition === 'not-applicable'`, the persist step
+  of `plan-persist.js` applies `acceptance::n-a` on the Epic and skips
   the Acceptance Table section for that run (stripping a stale one on a
   re-plan). The disposition is also
   recorded in the `epic-plan-state` checkpoint so the decision is
@@ -540,7 +540,7 @@ The waiver is binary — there is no partial opt-out. If an Epic later
 warrants spec coverage, remove the label and run `/plan`'s
 `planning.spec-authoring` state to author the spec.
 
-1. **Ticket Decomposer** (`epic-plan-decompose.js`):
+1. **Ticket Decomposer** (the fan-out half of `plan-persist.js`):
    - Decomposes specs into the **2-tier hierarchy**
      (Epic → Story):
 
@@ -574,8 +574,7 @@ prepare phase — planning posts no separate dispatch-manifest comment
 ### `agent::ready` exit conditions
 
 The planning → delivery handoff is governed by an explicit checklist.
-`plan-persist.js` (and its one-release delegate,
-`epic-plan-decompose.js`) refuses to flip the Epic to `agent::ready`
+`plan-persist.js` refuses to flip the Epic to `agent::ready`
 unless **every** condition below is true. The
 contract is enforced at the planner boundary so `/deliver` can
 treat `agent::ready` as a load-bearing precondition rather than a
