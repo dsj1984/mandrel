@@ -4,6 +4,12 @@
 /**
  * epic-plan-decompose.js — Story #2466 thin CLI shell.
  *
+ * > **Delegate for one release (Epic #4474, PR3).** The collapsed
+ * > `plan-persist.js` CLI is now the canonical single GitHub-write surface
+ * > for the plan flow. This CLI's persist half remains fully functional so
+ * > in-flight workflows and external callers keep working; the
+ * > workflow-prose cutover is PR5 and this entry point is retired in PR7.
+ *
  * Phase 8 (decompose) entry point for the split planning flow. The
  * deterministic decomposer engine and reconciler-based persist flow
  * have been split into phase modules under

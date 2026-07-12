@@ -41,6 +41,22 @@ export const PHASE_TEMP_BASENAMES = Object.freeze({
     'acceptance-spec.md',
   ]),
   decompose: Object.freeze(['decomposer-context.json', 'tickets.json']),
+  // Epic #4474 (PR3) — the collapsed `plan-persist.js` surface owns every
+  // plan-phase artifact and deletes them ONLY at terminal success (after
+  // the `agent::ready` flip), fixing the mid-pipeline deletion defect where
+  // per-phase cleanup removed artifacts a `--force`/`--resume` re-persist
+  // was still entitled to reuse. `risk-verdict.json` joins the set here:
+  // the split-phase cleanup never owned it, which orphaned it in temp/.
+  // `plan-metrics.json` stays deliberately excluded (PR1) — the ledger
+  // must survive cleanup so the whole plan run is visible in one stream.
+  persist: Object.freeze([
+    'planner-context.json',
+    'techspec.md',
+    'acceptance-spec.md',
+    'risk-verdict.json',
+    'decomposer-context.json',
+    'tickets.json',
+  ]),
 });
 
 /**

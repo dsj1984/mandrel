@@ -291,7 +291,13 @@ export function reseedMappingFromGh(state, spec, ghState) {
   }
 
   for (const entity of flattenSpecForReseed(spec)) {
-    if (mapping[entity.slug]) continue; // already mapped
+    // Epic #4474 (PR3) — a mapping entry WITHOUT an issue number is a
+    // partial-failure tombstone (the apply's state writer persists every
+    // spec slug; only completed creations carry `issueNumber`). Treat it
+    // as unmapped here so a title-matched live issue reseeds it instead
+    // of leaving a numberless entry the diff engine can neither update
+    // nor (post-fix) skip-create.
+    if (Number.isInteger(mapping[entity.slug]?.issueNumber)) continue; // already mapped
     const candidates = openByTitle.get(entity.title) ?? [];
     // Pick the lowest unclaimed candidate for determinism.
     const match = candidates

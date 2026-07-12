@@ -240,13 +240,17 @@ export async function runDecomposePhase(
  * @param {typeof defaultRunPlanHealthcheck} args.runHealthcheckFn
  * @returns {Promise<{ ok: boolean, waived?: boolean, reason?: string|null }>}
  */
-function enforceFanOutGate(findings, allowLargeFanOut) {
+export function enforceFanOutGate(
+  findings,
+  allowLargeFanOut,
+  tag = 'epic-plan-decompose',
+) {
   const fanOut = (findings ?? []).filter((f) => f.kind === 'fan-out-warning');
   if (fanOut.length === 0) return;
   if (allowLargeFanOut) {
     for (const f of fanOut) {
       Logger.warn(
-        `[epic-plan-decompose] Persisting a large-fan-out deletion: ` +
+        `[${tag}] Persisting a large-fan-out deletion: ` +
           `Task "${f.taskSlug}" deletes "${f.path}" with ${f.callSiteCount} ` +
           `call site(s) (threshold ${f.threshold}). Operator override --allow-large-fan-out.`,
       );
@@ -260,7 +264,7 @@ function enforceFanOutGate(findings, allowLargeFanOut) {
     )
     .join('\n');
   throw new Error(
-    `[epic-plan-decompose] ${fanOut.length} Task(s) declare large-fan-out deletions:\n${lines}\n\n` +
+    `[${tag}] ${fanOut.length} Task(s) declare large-fan-out deletions:\n${lines}\n\n` +
       `Split each deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
       `or rerun --allow-large-fan-out after confirming the deletion is intentional.`,
   );
@@ -284,24 +288,30 @@ function enforceFanOutGate(findings, allowLargeFanOut) {
  *
  * @param {object[]} findings
  */
-function surfaceSoftConflictFindings(findings) {
+export function surfaceSoftConflictFindings(
+  findings,
+  tag = 'epic-plan-decompose',
+) {
   const soft = (findings ?? []).filter(
     (f) => f?.severity === 'soft' && f?.kind !== 'fan-out-warning',
   );
   if (soft.length === 0) return;
   Logger.warn(
-    `[epic-plan-decompose] ${soft.length} soft cross-Story conflict finding(s) — review before approving the plan:`,
+    `[${tag}] ${soft.length} soft cross-Story conflict finding(s) — review before approving the plan:`,
   );
   for (const finding of soft) {
-    Logger.warn(
-      `[epic-plan-decompose] soft conflict: ${renderHardConflictError(finding)}`,
-    );
+    Logger.warn(`[${tag}] soft conflict: ${renderHardConflictError(finding)}`);
   }
 }
 
-async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {
+export async function runHealthcheckGate({
+  epicId,
+  epic,
+  runHealthcheckFn,
+  tag = 'epic-plan-decompose',
+}) {
   Logger.info(
-    `[epic-plan-decompose] Running post-plan readiness healthcheck for Epic #${epicId}...`,
+    `[${tag}] Running post-plan readiness healthcheck for Epic #${epicId}...`,
   );
   let result;
   try {
@@ -321,13 +331,13 @@ async function runHealthcheckGate({ epicId, epic, runHealthcheckFn }) {
   const waived = labels.includes(PLANNING_HEALTHCHECK_WAIVED);
   if (waived) {
     Logger.warn(
-      `[epic-plan-decompose] Healthcheck failed for Epic #${epicId} but '${PLANNING_HEALTHCHECK_WAIVED}' is applied — proceeding with agent::ready handoff. Reason: ${result?.reason ?? '(no reason reported)'}`,
+      `[${tag}] Healthcheck failed for Epic #${epicId} but '${PLANNING_HEALTHCHECK_WAIVED}' is applied — proceeding with agent::ready handoff. Reason: ${result?.reason ?? '(no reason reported)'}`,
     );
     return { ok: false, waived: true, reason: result?.reason ?? null };
   }
 
   throw new Error(
-    `[epic-plan-decompose] Refusing agent::ready handoff for Epic #${epicId}: ` +
+    `[${tag}] Refusing agent::ready handoff for Epic #${epicId}: ` +
       `post-plan healthcheck failed (${result?.reason ?? '(no reason reported)'}). ` +
       `Resolve the failing check(s), or apply the '${PLANNING_HEALTHCHECK_WAIVED}' ` +
       `label to the Epic to override and rerun the persist phase.`,

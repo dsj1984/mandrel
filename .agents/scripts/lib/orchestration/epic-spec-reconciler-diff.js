@@ -568,7 +568,20 @@ export function diff({ spec, state, ghState } = {}) {
 
   for (const entity of flattenSpec(spec)) {
     seenSpecSlugs.add(entity.slug);
-    const mapped = mapping[entity.slug];
+    // Epic #4474 (PR3) — a mapping entry without a numeric `issueNumber`
+    // is a partial-failure tombstone: the apply's state writer projects an
+    // entry per spec slug, but only completed creations carry a number
+    // (`buildState` seeds new slugs with `issueNumber: null`). Treating
+    // such an entry as "mapped" made a `--resume` after a rate-limit crash
+    // silently skip every failed creation (no Create emitted; the content
+    // hash matches, so no Update either — a lossy resume). A numberless
+    // entry is therefore unmapped here → Create. No duplicate risk: any
+    // live same-title issue was already reseeded onto the slug (with its
+    // number) by `reseedMappingFromGh` before the diff runs.
+    const mappedEntry = mapping[entity.slug];
+    const mapped = Number.isInteger(mappedEntry?.issueNumber)
+      ? mappedEntry
+      : undefined;
 
     if (!mapped) {
       plan.creates.push(
@@ -630,9 +643,12 @@ export function diff({ spec, state, ghState } = {}) {
     }
   }
 
-  // Closes — anything in mapping not seen in spec.
+  // Closes — anything in mapping not seen in spec. A numberless
+  // partial-failure tombstone (see above) has no live issue to close;
+  // dropping it from the spec simply drops the entry.
   for (const [slug, mapped] of Object.entries(mapping)) {
     if (seenSpecSlugs.has(slug)) continue;
+    if (!Number.isInteger(mapped?.issueNumber)) continue;
     plan.closes.push(
       closeOp({
         slug,
