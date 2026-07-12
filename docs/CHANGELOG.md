@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.91.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.90.0...mandrel-v1.91.0) (2026-07-12)
+
+
+### Fixed
+
+* **deliver:** verify the remote at entry and assert the delivery branch on origin (refs [#4483](https://github.com/dsj1984/mandrel/issues/4483)) ([#4484](https://github.com/dsj1984/mandrel/issues/4484)) ([a99ca2f](https://github.com/dsj1984/mandrel/commit/a99ca2fc4c74f7c397041dc4c703d845fae640c2))
+
 ## [1.90.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.89.0...mandrel-v1.90.0) (2026-07-12)
 
 
