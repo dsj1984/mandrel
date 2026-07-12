@@ -5,12 +5,11 @@
  * plan-context.js — step 1 of the collapsed `/plan` pipeline (Epic #4474,
  * M3 PR2): the single emit-context CLI.
  *
- * Folds the two `--emit-context` halves of the 12-phase pipeline
- * (`epic-plan-spec.js --emit-context` + `epic-plan-decompose.js
- * --emit-context`) plus the three previously-no-CLI library calls
+ * Folds the retired 12-phase pipeline's two emit-context halves plus
+ * the three previously-no-CLI library calls
  * (`findSimilarOpenEpics`, clarity scoring, re-plan detection) into ONE
- * stdout-pure JSON envelope. The existing CLIs are untouched — they stay
- * available in parallel until the PR5/PR7 cutover retires them.
+ * stdout-pure JSON envelope. The PR7 cutover retired the delegate CLIs —
+ * this is the only emit-context surface.
  *
  * Two entry forms (exactly one is required):
  *
@@ -137,7 +136,7 @@ async function main() {
 
   // stdout is reserved for the JSON envelope: flip every Logger sink that
   // could land on stdout to stderr BEFORE any pipeline code runs
-  // (Story #2278 — the same guarantee `epic-plan-spec.js --emit-context`
+  // (Story #2278 — the same stdout-purity guarantee the retired pipeline
   // gives; this CLI is emit-only so the flip is unconditional).
   routeAllOutputToStderr();
 

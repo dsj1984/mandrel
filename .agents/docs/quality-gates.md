@@ -121,10 +121,11 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   unit-tested hydration engine; end-to-end coverage requires a real
   provider tree and Story prompt context, which lives in integration
   tests.
-- `epic-plan-decompose.js`, `epic-plan-spec.js`,
-  `epic-plan-healthcheck.js` — `/epic-plan` slash-command CLI shells
-  with no unit-test seam; the meaningful orchestration logic lives in
-  `lib/orchestration/plan-runner/*` and is unit-tested there.
+- `plan-context.js`, `plan-persist.js`, `epic-plan-healthcheck.js` —
+  `/plan` CLI shells with no unit-test seam; the meaningful
+  orchestration logic lives in `lib/orchestration/plan-context.js`,
+  `lib/orchestration/plan-persist/*`, and the plan phase modules, and is
+  unit-tested there.
 - A larger Story #1702 carve-out of top-level CLI gates, orchestration
   CLIs, git-manipulation CLIs, and `lib/*` glue (e.g. `lint-baseline.js`,
   `story-close.js`, `dispatcher.js`, `run-tests.js`,

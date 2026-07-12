@@ -297,9 +297,10 @@ const PLANNING_SCHEMA = {
     failOnRegistryConflicts: { type: 'boolean' },
     failOnLargeFanOut: { type: 'boolean' },
     largeFanOutThreshold: { type: 'integer', minimum: 0 },
-    // Navigability-reachability config consumed by the epic-plan-healthcheck
-    // --paranoid reachability check (Epic #4131, F7). Opt-in: absent or empty
-    // routeGlobs degrades to a silent no-op.
+    // Navigability-reachability config consumed by the plan-persist draft
+    // reachability gate (Epic #4131 F7; demoted into persist by #4474 PR6 —
+    // the manual epic-plan-healthcheck --paranoid re-check reads it too).
+    // Opt-in: absent or empty routeGlobs degrades to a silent no-op.
     navigation: {
       type: 'object',
       properties: {

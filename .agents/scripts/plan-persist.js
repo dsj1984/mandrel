@@ -4,9 +4,9 @@
  * plan-persist.js — single GitHub-write surface for the collapsed /plan
  * flow (Epic #4474, PR3 — design §1 Step 3).
  *
- * Supersedes the separate persist halves of `epic-plan-spec.js` (Phase 7)
- * and `epic-plan-decompose.js` (Phase 8), which remain functional as thin
- * delegates for one release. Given the author-written planning artifacts
+ * Supersedes the retired 12-phase pipeline's separate persist halves
+ * (Epic #4474 PR7 — the delegate CLIs are import shims now, deleted next
+ * release). Given the author-written planning artifacts
  * (Tech Spec, optional Acceptance Table, risk verdict, tickets JSON), this
  * CLI performs every GitHub mutation of the plan flow in one ordered,
  * fail-closed pass:
@@ -111,7 +111,7 @@ import {
 import { createProvider } from './lib/provider-factory.js';
 
 // Re-exports for the stable public API (tests import through the CLI
-// module, mirroring the epic-plan-spec.js / epic-plan-decompose.js shape).
+// module, mirroring the plan-context.js CLI-shell shape).
 export {
   buildPlanSummaryCommentBody,
   buildWaveTable,

@@ -15,7 +15,7 @@
  *
  * Story #4433 extends this module with {@link ensureDocsDigest}, a shared
  * generate-and-write export so the planner-context surface
- * (`epic-plan-spec.js` / `authoring-context.js`) can produce a session docs
+ * (`plan-context.js` / `authoring-context.js`) can produce a session docs
  * digest without duplicating the mkdir+writeFile plumbing
  * `epic-deliver-prepare.js` already owns for the delivery-children digest.
  */
@@ -146,7 +146,7 @@ export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
  * write) when there is nothing to digest. This is the single shared
  * generate-and-persist export both digest producers call: the per-Epic
  * delivery-children digest (`epic-deliver-prepare.js`) and the planner-
- * context digest (`epic-plan-spec.js` → `authoring-context.js`, Story
+ * context digest (`plan-context.js` → `authoring-context.js`, Story
  * #4433). Callers own path construction (temp-root layout, epic id, etc.)
  * so both surfaces can keep — or deliberately share — their own convention;
  * this function only owns "build digest, ensure parent dir, write file".

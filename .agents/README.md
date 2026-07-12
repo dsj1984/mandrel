@@ -318,7 +318,7 @@ install — so a freshly bootstrapped repo already has them. If you adopt
 to your own `package.json` (any compatible versions) and install.
 
 **Fail-fast guard.** The dependency-dependent entry points
-(`epic-plan-spec.js`, `epic-plan-decompose.js`, and the baseline scorers)
+(`plan-context.js`, `plan-persist.js`, and the baseline scorers)
 run a presence check on their required deps before doing any work. When the
 install is missing, empty, or stale, they exit non-zero with an actionable
 message naming the missing packages and your install command — instead of a
@@ -412,11 +412,11 @@ LLM consumes downstream, and that does not turn the script into a Skill.
 The signal is whether the *output of this unit* is the product of
 judgment (Skill) or of a parseable transform (script).
 
-### Worked example 1 — split: `epic-plan-decompose.js`
+### Worked example 1 — split: the plan pipeline
 
-[`scripts/epic-plan-decompose.js`](scripts/epic-plan-decompose.js) is a
-**split**: the deterministic halves stay as a script, the judgment middle
-moves to a Skill.
+The collapsed plan pipeline (`plan-context.js` → author → `plan-persist.js`,
+Epic #4474) is a **split**: the deterministic halves stay as scripts, the
+judgment middle moves to a Skill.
 
 - **`--emit-context`** (script half) — fetches the Epic body (which
   carries the folded Tech Spec sections), scrapes project docs, emits a

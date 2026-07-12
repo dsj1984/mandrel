@@ -273,8 +273,8 @@ budget grounds.
      ensures (generates or reuses) a per-Epic docs digest — a single compact
      outline (path, byte size, heading outline with line numbers, and the
      first paragraph under each `##`) built from `project.docsContextFiles`
-     — at `temp/epic-<epicId>/docs-digest.md` (`epic-plan-spec.js
-     --emit-context`, via the shared generator in
+     — at `temp/epic-<epicId>/docs-digest.md` (`plan-context.js`, via the
+     shared generator in
      `.agents/scripts/lib/orchestration/docs-digest.js`; the same file the
      `/deliver` story sub-agents below already consume). Use the digest to
      decide which docs bear on the task at hand, then **pull the full file

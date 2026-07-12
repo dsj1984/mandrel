@@ -106,8 +106,8 @@ let progressStdoutSink = (msg) => console.log(msg);
  * Flip every Logger output that can land on stdout (`info`, `warn`, and the
  * stdout branch of `createProgress`) to stderr for the lifetime of the
  * process. Idempotent. Use when stdout is reserved for a structured payload
- * — for example the `--emit-context` JSON envelopes emitted by
- * `epic-plan-spec.js` and `epic-plan-decompose.js`, where any interleaved
+ * — for example the JSON envelope emitted by
+ * `plan-context.js`, where any interleaved
  * `[Orchestrator] ℹ️ …` log line corrupts the captured file
  * (Story #2278).
  */
@@ -180,8 +180,8 @@ export const NOOP_LOGGER = Object.freeze({
 
 /**
  * Frozen logger that routes every level to **stderr**. Use this when a
- * caller's stdout is a structured payload (e.g. `--emit-context` JSON
- * envelopes from `epic-plan-spec.js` / `epic-plan-decompose.js`) and any
+ * caller's stdout is a structured payload (e.g. the authoring-context JSON
+ * envelope from `plan-context.js`) and any
  * progress/telemetry log must not interleave with the payload. Mirrors the
  * `{ info, warn, error, debug }` shape that the orchestration helpers
  * accept via optional `logger` arguments.

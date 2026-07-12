@@ -138,7 +138,7 @@ function resolveRequiresReview(overallLevel, axes) {
 /**
  * Derive the stable planningRisk envelope from a schema-validated planner
  * verdict. Pure derivation — schema validation happens at the read boundary
- * (`epic-plan-spec.js`), never here, so a malformed verdict fails closed
+ * (`plan-persist.js` via `loadRiskVerdict`), never here, so a malformed verdict fails closed
  * before this function runs.
  *
  * **No-BDD-runner waiver (Story #4145).** The acceptance disposition the risk
