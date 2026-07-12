@@ -5,15 +5,24 @@
  * author-step critics of the collapsed /plan flow (Epic #4474 PR6,
  * design §4).
  *
+ * **Thin shim (#4496 fix 6).** The evaluation itself now lives in
+ * `lib/orchestration/plan-critics-evaluate.js` and is folded into
+ * `plan-persist.js` as a pre-write phase, so the headless (`--yes`) path
+ * never pays a standalone CLI turn for the dispatch decision. This CLI
+ * survives one release for the attended pre-gate evaluation (the verdict
+ * folds into gate #2's view before the persist runs) and for any external
+ * scripting; it delegates to the shared module and keeps its exact output
+ * contract.
+ *
  * Runs between authoring and gate #2, entirely git-local (zero GitHub
  * calls): reads the authored artifacts, evaluates the risk/size dispatch
  * conditions for the consolidation (8.3) and pre-mortem (8.5) critics via
- * `lib/orchestration/plan-critic-conditions.js`, and emits one JSON
- * verdict on stdout. The workflow dispatches a fresh-context sub-agent
- * ONLY for critics with `dispatch: true`; every skip decision is appended
- * to the plan-metrics ledger (`kind: "critic-skip"`, with reasons) so
- * under-firing is auditable — the persist validators remain unchanged
- * hard gates regardless of what this gate decides.
+ * the shared evaluator, and emits one JSON verdict on stdout. The workflow
+ * dispatches a fresh-context sub-agent ONLY for critics with
+ * `dispatch: true`; every skip decision is appended to the plan-metrics
+ * ledger (`kind: "critic-skip"`, with reasons) so under-firing is
+ * auditable — the persist validators remain unchanged hard gates
+ * regardless of what this gate decides.
  *
  * Conditions (design §4 / §6 PR6):
  *   - Consolidation: the existing deterministic precondition
@@ -53,16 +62,12 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { epicArtifactPath } from './lib/config/temp-paths.js';
 import {
-  getLimits,
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import { routeAllOutputToStderr } from './lib/Logger.js';
 import { loadRiskVerdict } from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
-import {
-  evaluateConsolidationDispatch,
-  evaluatePremortemDispatch,
-} from './lib/orchestration/plan-critic-conditions.js';
+import { evaluatePlanCritics } from './lib/orchestration/plan-critics-evaluate.js';
 import {
   appendCriticSkip,
   recordPlanInvocation,
@@ -71,20 +76,6 @@ import {
 const USAGE =
   'Usage: plan-critics.js (--epic <EpicId> | --tech-spec <file> ' +
   '--risk-verdict <file> [--tickets <file>]) [--pretty]';
-
-/**
- * Resolve the planning risk heuristics list from the canonical config
- * block (same resolution `plan-context.js` and the decompose context use).
- *
- * @param {object} config
- * @returns {string[]}
- */
-function resolveRiskHeuristics(config = {}) {
-  if (Array.isArray(config.planning?.riskHeuristics)) {
-    return config.planning.riskHeuristics;
-  }
-  return config.agentSettings?.planning?.riskHeuristics || [];
-}
 
 async function readOptional(filePath, { required }) {
   try {
@@ -172,30 +163,11 @@ async function main() {
         }
       }
 
-      const consolidation =
-        tickets === null
-          ? {
-              critic: 'consolidation',
-              dispatch: false,
-              reasons: [
-                'single-delivery shape — no draft tickets exist to consolidate.',
-              ],
-            }
-          : evaluateConsolidationDispatch({
-              draftStories: tickets,
-              specText: techSpecContent,
-            });
-
-      const premortem = evaluatePremortemDispatch({
+      const { consolidation, premortem } = evaluatePlanCritics({
+        techSpecContent,
         riskVerdict,
-        ticketCount: tickets?.length ?? 0,
-        maxTickets: getLimits(config).maxTickets,
-        riskHeuristics: resolveRiskHeuristics(config),
-        planText: [
-          techSpecContent,
-          ticketsRaw ?? '',
-          riskVerdict.summary ?? '',
-        ].join('\n'),
+        tickets,
+        config,
       });
 
       // Skip-audit trail (#4474 PR6): every non-dispatch is a ledger

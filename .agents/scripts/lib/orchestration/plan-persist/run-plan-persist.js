@@ -130,6 +130,7 @@ import {
   read as readPlanState,
   write as writePlanState,
 } from '../epic-plan-state-store.js';
+import { evaluatePlanCritics } from '../plan-critics-evaluate.js';
 import {
   appendCriticSkip,
   readPlanMetrics,
@@ -426,9 +427,10 @@ export async function runPlanPersist({
   let validated = null;
   let amendPartition = null;
   let reachability = null;
+  let gateSet = null;
   if (mode !== 'single') {
     amendPartition = mode === 'amend' ? partitionAmendTickets(tickets) : null;
-    const gateSet = mode === 'amend' ? buildMergedTicketSet(tickets) : tickets;
+    gateSet = mode === 'amend' ? buildMergedTicketSet(tickets) : tickets;
     const maxTickets = getLimits(config).maxTickets;
     if (gateSet.length > maxTickets && !allowOverBudget) {
       throw new Error(
@@ -531,6 +533,40 @@ export async function runPlanPersist({
       },
       config,
     );
+  }
+
+  // ---- Step 4.7: folded critic dispatch evaluation (#4496 fix 6 — the
+  // former standalone `plan-critics.js` turn). Deterministic and git-local,
+  // still zero provider calls: the verdicts are printed (and returned on
+  // the result) as part of the pre-write phase, and every skip decision is
+  // appended to the plan-metrics ledger exactly as the standalone CLI did,
+  // so under-firing stays auditable without a separate invocation on the
+  // headless path. Advisory by construction — the deterministic validators
+  // above remain the unchanged hard gates. ----
+  const critics = evaluatePlanCritics({
+    techSpecContent,
+    riskVerdict,
+    tickets: gateSet,
+    config,
+  });
+  for (const decision of [critics.consolidation, critics.premortem]) {
+    Logger.info(
+      `[plan-persist] critic ${decision.critic}: ` +
+        `${decision.dispatch ? 'dispatch' : 'skip'} — ` +
+        decision.reasons.join('; '),
+    );
+    if (!decision.dispatch) {
+      // Best-effort by contract — a failed append never fails the persist.
+      await appendCriticSkip(
+        {
+          critic: decision.critic,
+          reasons: decision.reasons,
+          cli: 'plan-persist',
+          epicId: requestedEpicId,
+        },
+        config,
+      );
+    }
   }
 
   // ---- Step 5: ideation fold / Epic resolution (first provider call). ----
@@ -902,6 +938,7 @@ export async function runPlanPersist({
       freshness,
       healthcheck,
       reachability,
+      critics,
       reconcile,
       specPath: specFilePath,
       waveTable,
