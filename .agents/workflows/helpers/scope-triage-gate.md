@@ -11,7 +11,8 @@ caller: plan-epic.md, plan-story.md
 
 > **Not a slash command.** This file lives in `helpers/` and is a
 > path-included fragment (not projected into the plugin command tree). It is
-> referenced by [`plan-epic.md`](plan-epic.md) (Phases 1.5 and 5.5) and
+> referenced by [`plan-epic.md`](plan-epic.md) (its interrogate step — the
+> ideation triage and the existing-Epic story-sized advisory) and
 > [`plan-story.md`](plan-story.md) (Phase 2), which supply only their
 > path-specific firing conditions and defer the gate mechanics here.
 
@@ -44,7 +45,7 @@ The rubric emits exactly one verdict:
   presented so the operator makes the call.
 
 The verdict is **advisory**. Being wrong in the `epic` direction is cheap
-(Phase 8.3 consolidation and the sizing validator catch an over-planned Story
+(the consolidation critic and the sizing validator catch an over-planned Story
 later), so the gate never costs the operator a stop on an `epic` verdict; the
 gate exists to avoid the ceremony tax of pushing a story-sized scope through
 the full Epic pipeline.
@@ -89,8 +90,9 @@ otherwise STOP. See
 ## No-re-triage rule
 
 A **scope-triage handoff** is a triage decision *already made*. When `/plan` is
-entered via a handoff (from the ideation-path Phase 1.5, the existing-Epic
-Phase 5.5 conversion, or the standalone-Story Phase 2 escalation), the
+entered via a handoff (from the Epic path's ideation triage, its
+existing-Epic story-sized conversion, or the standalone-Story Phase 2
+escalation), the
 receiving path **MUST NOT** re-run this gate. Re-triaging a settled call would
 re-litigate it and risk a ping-pong between the two `/plan` paths. Each
 referencing path states its own skip-on-handoff condition and defers the

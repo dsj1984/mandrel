@@ -351,13 +351,14 @@ When the watch exits, branch on the exit code:
   commit on `story-<storyId>`, then re-watch. Auto-merge stays enabled
   across retries; no need to re-arm it. The Story stays at
   `agent::closing` throughout, so a failed/abandoned PR never strands a
-  CLOSED issue. If the same failure class recurs, hand convergence off to
-  the host loop: `/loop /loops:fix-failing-tests`.
+  CLOSED issue. If the same failure class recurs, hand convergence off to a
+  self-paced host loop (`/loop`) that re-runs the failing check and applies
+  the smallest fix until it exits green.
 - **Exit 2 (still-running — slow CI, not red)** — the poll cap fired with
   checks still pending and the watcher exhausted its resume budget with
   nothing red. This is **never** a failure. Hand the wait off to the
-  host's interval loop rather than ending your turn:
-  `/loop 5m /loops:watch-ci`.
+  host's interval loop rather than ending your turn: `/loop 5m` polling
+  `gh pr checks` until the checks settle.
 
 > **Triage authority.** How to classify and remediate a red (or repeatedly
 > slow) check — the root-cause-only decision tree for infra/transient and

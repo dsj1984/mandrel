@@ -41,9 +41,9 @@ If a Story-under-Epic needs replanning, use `/plan <epicId> --force`. If you
 have a refactor, framework-maintenance idea, or any standalone unit of
 work, use this workflow.
 
-**Inbound from `/plan` scope triage.** `/plan` Phase 1.5 runs the
-[`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) rubric over the
-sharpened one-pager. On a `story` / `borderline` verdict the operator may route
+**Inbound from `/plan` scope triage.** The Epic path's interrogate step runs
+the [`core/scope-triage`](../../skills/core/scope-triage/SKILL.md) rubric over
+the sharpened one-pager. On a `story` / `borderline` verdict the operator may route
 the work here via `/plan --from-notes <path>`. That invocation is a
 **scope-triage handoff** — the triage decision is already made, so `/plan`
 MUST NOT re-triage it (the no-re-triage rule in the skill); it proceeds straight
@@ -116,7 +116,7 @@ when there is nothing to surface.
 (or empty). Pass `--refine` / `--no-refine` to override. When the
 envelope advises refinement, activate the
 [`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md) skill
-before drafting the body — same skill `/plan` Phase 1 drives.
+before drafting the body — same skill the Epic path's interrogate step drives.
 
 ## Phase 2 — Host LLM Authors a Draft Body
 
@@ -155,11 +155,11 @@ Check `corpusContext` before authoring the `## Context` section:
 
 Write the draft to `temp/single-story-draft.md`.
 
-### Scope-triage escalation gate (symmetric counterpart to `/plan` Phase 1.5)
+### Scope-triage escalation gate (symmetric counterpart to the Epic path's ideation triage)
 
 This gate runs the shared scope-triage gate over the **drafted Story body** to
 catch an Epic-sized scope before it is persisted as a standalone Story — the
-outbound mirror of `/plan` Phase 1.5's inbound downgrade gate. The gate
+outbound mirror of the Epic path's inbound downgrade gate. The gate
 mechanics (verdict meanings, the three-way operator choice, the `--yes`
 resolution, and the no-re-triage rule) live in the single-homed fragment
 [`scope-triage-gate.md`](scope-triage-gate.md); read it and follow it. This
@@ -172,13 +172,13 @@ phase supplies only its path-specific firing conditions:
   `refine` heuristic in `story-plan.js` is unchanged — it is a deterministic
   seed-length proxy, not a scope-size judgment.)
 - **When it is skipped**: entirely, when `/plan` was entered via a scope-triage
-  handoff — from `/plan` Phase 1.5 (the inbound route above) or the `/plan`
-  Phase 5.5 existing-Epic conversion path (the no-re-triage rule in the
+  handoff — from the Epic path's ideation triage (the inbound route above) or
+  its existing-Epic story-sized conversion path (the no-re-triage rule in the
   fragment).
 - **Recommended branch on an `epic` verdict**: escalate to `/plan --idea` —
   persist the notes/draft to a notes file and hand off to `/plan --idea` (or
   `--from-notes <path>`), identifying the invocation as a scope-triage handoff
-  so `/plan` skips its own Phase 1.5 gate, then **abandon the draft and exit
+  so `/plan` skips its own ideation triage gate, then **abandon the draft and exit
   `/plan`** (no standalone Story is created). The alternative branches are
   **persist as a standalone Story anyway** (proceed to Phase 3 with the draft
   unchanged) and **abort**.
@@ -186,8 +186,8 @@ phase supplies only its path-specific firing conditions:
 ### HITL — operator confirms the draft (verdict folded in)
 
 Display the draft to the operator and **STOP**. Do not call the persist phase
-until the operator explicitly confirms the draft. This mirrors the HITL gate
-`/plan` Phase 3 enforces before opening the Epic Issue. This is the
+until the operator explicitly confirms the draft. This mirrors the Epic
+path's gate #1 at the exit of its interrogate step. This is the
 story-path face of `/plan`'s **gate #1** (the ideation one-pager /
 scope-triage confirm). The scope-triage verdict folds into this same stop, per
 the branch bindings above; on a **`story` verdict (or gate skipped via
@@ -229,8 +229,8 @@ exact `gh issue create` shape that would run.
 ## Constraints
 
 - **No `Epic: #N` references.** This is the standalone contract; persist
-  fails fast if one is present. To attach a Story to an Epic, use
-  `/plan` Phase 8 instead.
+  fails fast if one is present. To attach a Story to an Epic, plan it
+  through the Epic path (`/plan <epicId>`) instead.
 - **No external LLM APIs.** Mirrors the v5.6 contract: the host LLM does
   the authoring; the Node wrapper does the I/O.
 - **Idempotent.** Re-running `--emit-context` is safe. Re-running
@@ -245,7 +245,7 @@ exact `gh issue create` shape that would run.
 
 - [`/single-story-deliver`](single-story-deliver.md) — the consumer
   workflow that picks the Story up after this one creates it.
-- [`/plan`](plan-epic.md) — the Epic-tier equivalent. Phases 1–4
+- [`/plan`](plan-epic.md) — the Epic-tier equivalent. Its ideation entry
   inspired the seed-capture + envelope-emit pattern used here.
 - [`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md) —
   optional pre-authoring skill activated when the seed is short.
