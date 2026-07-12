@@ -72,6 +72,11 @@ import {
   renderStoryBody,
   STORY_PERF_TYPE,
 } from './lib/observability/perf-report-render.js';
+import {
+  readPlanMetrics,
+  renderPlanMetricsSummaryLine,
+  summarizePlanMetrics,
+} from './lib/orchestration/plan-metrics.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -284,11 +289,34 @@ export async function runEpicMode(ctx) {
   logger.info?.(
     `[analyze-execution] epic-perf-report upserted on Epic #${epicId} (commentId=${result.commentId}, stories=${summaries.length})`,
   );
+
+  // Plan-metrics roll-up (#4474 PR1) — surface the plan-CLI invocation
+  // ledger (`temp/epic-<id>/plan-metrics.json`) alongside the perf report.
+  // Additive and non-fatal: a missing or unreadable ledger yields `null`.
+  let planMetrics = null;
+  try {
+    planMetrics = summarizePlanMetrics(
+      await readPlanMetrics(epicId, ctx.config),
+    );
+    if (planMetrics) {
+      logger.info?.(
+        `[analyze-execution] ${renderPlanMetricsSummaryLine(planMetrics)}`,
+      );
+    }
+  } catch (err) {
+    logger.warn?.(
+      `[analyze-execution] plan-metrics read failed (non-fatal): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
   return {
     commentId: result.commentId,
     payload,
     baselineRefreshRate,
     qualityGateFriction,
+    planMetrics,
   };
 }
 

@@ -25,6 +25,12 @@ import {
   STDERR_LOGGER,
 } from '../../../Logger.js';
 import { createProvider } from '../../../provider-factory.js';
+import {
+  readPlanMetrics,
+  recordPlanInvocation,
+  renderPlanMetricsSummaryLine,
+  summarizePlanMetrics,
+} from '../../plan-metrics.js';
 import { buildDecompositionContext } from './context.js';
 import { reportPartialFailure } from './diagnostics.js';
 import { runDecomposePhase } from './persist.js';
@@ -123,15 +129,36 @@ async function runPersistPath({ epicId, provider, config, values }) {
   const tickets = await loadTicketsFile(values.tickets);
   let result;
   try {
-    result = await runDecomposePhase(epicId, provider, { tickets }, config, {
-      force: values.force,
-      resume: values.resume,
-      allowOverBudget: values['allow-over-budget'],
-      allowLargeFanOut: values['allow-large-fan-out'],
-    });
+    // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+    result = await recordPlanInvocation(
+      { cli: 'epic-plan-decompose', mode: 'persist', epicId, config },
+      () =>
+        runDecomposePhase(epicId, provider, { tickets }, config, {
+          force: values.force,
+          resume: values.resume,
+          allowOverBudget: values['allow-over-budget'],
+          allowLargeFanOut: values['allow-large-fan-out'],
+        }),
+    );
   } catch (err) {
     await reportPartialFailure({ epicId, provider, err });
     throw err;
+  }
+  // Surface the whole plan run's invocation ledger in the persist summary
+  // (#4474 PR1). Additive and best-effort: a read failure never fails the
+  // persist that already succeeded.
+  try {
+    const summary = summarizePlanMetrics(await readPlanMetrics(epicId, config));
+    if (summary) {
+      result.planMetrics = summary;
+      Logger.info(
+        `[epic-plan-decompose] ${renderPlanMetricsSummaryLine(summary)}`,
+      );
+    }
+  } catch (err) {
+    Logger.warn(
+      `[epic-plan-decompose] plan-metrics summary skipped: ${err.message}`,
+    );
   }
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
@@ -160,7 +187,11 @@ export async function main() {
   await driveDrainPendingCleanup({ config, provider, emitContext });
 
   if (emitContext) {
-    await runEmitContextPath({ epicId, provider, config, values });
+    // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+    await recordPlanInvocation(
+      { cli: 'epic-plan-decompose', mode: 'emit-context', epicId, config },
+      () => runEmitContextPath({ epicId, provider, config, values }),
+    );
     return;
   }
   await runPersistPath({ epicId, provider, config, values });

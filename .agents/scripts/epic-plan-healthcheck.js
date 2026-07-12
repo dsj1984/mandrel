@@ -47,6 +47,7 @@ import {
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
+import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const progress = Logger.createProgress('plan-healthcheck', { stderr: true });
@@ -543,6 +544,31 @@ export async function runPlanHealthcheck(opts = {}) {
 // Main guard
 // ---------------------------------------------------------------------------
 
-runAsCli(import.meta.url, runPlanHealthcheck, {
+/**
+ * CLI wrapper: stamp the plan-metrics ledger (#4474 PR1) around the direct
+ * invocation only. In-process callers (the decompose persist gate imports
+ * `runPlanHealthcheck` directly) are already covered by their own CLI's
+ * stamp — wrapping here too would double-count the inline gate.
+ */
+async function cliMain() {
+  const { epicId } = parseHealthcheckArgs();
+  let config;
+  try {
+    config = resolveConfig();
+  } catch {
+    config = undefined;
+  }
+  return recordPlanInvocation(
+    {
+      cli: 'epic-plan-healthcheck',
+      mode: 'healthcheck',
+      epicId: epicId ?? null,
+      config,
+    },
+    () => runPlanHealthcheck(),
+  );
+}
+
+runAsCli(import.meta.url, cliMain, {
   source: 'epic-plan-healthcheck',
 });
