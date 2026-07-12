@@ -34,6 +34,7 @@ import {
 } from './lib/config-resolver.js';
 import { scoreEpicBody } from './lib/epic-plan-clarity.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
+import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -175,7 +176,11 @@ async function main() {
   // additions cannot silently corrupt the captured file.
   if (values['emit-context']) {
     routeAllOutputToStderr();
-    const envelope = await buildClarityContext({ epicId, provider });
+    // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+    const envelope = await recordPlanInvocation(
+      { cli: 'epic-plan-clarity', mode: 'emit-context', epicId, config },
+      () => buildClarityContext({ epicId, provider }),
+    );
     const json = values.pretty
       ? JSON.stringify(envelope, null, 2)
       : JSON.stringify(envelope);
@@ -190,11 +195,16 @@ async function main() {
   }
 
   const updatedBody = await readFile(values['updated-body'], 'utf8');
-  const result = await persistClarityUpdate({
-    epicId,
-    updatedBody,
-    provider,
-  });
+  // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+  const result = await recordPlanInvocation(
+    { cli: 'epic-plan-clarity', mode: 'persist', epicId, config },
+    () =>
+      persistClarityUpdate({
+        epicId,
+        updatedBody,
+        provider,
+      }),
+  );
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
