@@ -113,7 +113,12 @@ export async function buildAuthoringContext(
   settings = {},
   opts = {},
 ) {
-  const epic = await provider.getEpic(epicId);
+  // Epic #4474 (M3 PR2): `opts.epic` is an optional prefetched Epic object
+  // so a caller that already holds the issue (the folded `plan-context.js`
+  // envelope build, which also needs the raw body for clarity scoring and
+  // re-plan detection) does not pay a second provider fetch. Absent, the
+  // fetch behaviour is unchanged.
+  const epic = opts.epic ?? (await provider.getEpic(epicId));
   if (!epic) {
     throw new Error(`Epic #${epicId} not found.`);
   }
