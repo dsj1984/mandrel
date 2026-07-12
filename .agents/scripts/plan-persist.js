@@ -66,8 +66,12 @@
  *
  * Exit codes: 0 — persist complete, Epic is `agent::ready`; 1 — fatal
  * error (see stderr); 2 — amend close ops require --explicit-delete (the
- * dry-run diff is printed; nothing was mutated). The Epic lease is
- * released on every exit path.
+ * dry-run diff is printed; nothing was mutated); 3 — reachability orphans
+ * (Epic #4474 PR6 named soft failure: the deterministic route-glob vs
+ * `planning.navigation.navRegistry` scan found route-adding draft stories
+ * with no navigation owner — the orphan-surface list is printed, nothing
+ * was mutated; apply one targeted amend and re-run the persist once). The
+ * Epic lease is released on every exit path.
  */
 
 // Fail-fast if the framework's runtime deps are not installed — must be the
@@ -346,6 +350,14 @@ async function main() {
     if (err?.code === 'PLAN_AMEND_EXPLICIT_DELETE_REQUIRED') {
       process.stdout.write(`${err.diff}\n\n${err.message}\n`);
       process.exitCode = 2;
+      return;
+    }
+    // Reachability soft failure (#4474 PR6): the orphan-surface list is the
+    // message; nothing was mutated (the check runs before any provider
+    // call). Exit 3 so non-interactive callers can branch on the code.
+    if (err?.code === 'PLAN_REACHABILITY_ORPHANS') {
+      process.stdout.write(`${err.message}\n`);
+      process.exitCode = 3;
       return;
     }
     throw err;

@@ -455,7 +455,11 @@ async function timed(name, fn) {
  *   checks: Array<{name: string, ok: boolean, durationMs: number, detail: string}>}>}
  */
 // exported for tests — direct-unit coverage of the reachability semantics.
-export { checkReachability, extractStoryPaths, globToRegExp };
+// (`resolveNavConfig` / `extractStoryPaths` / `globToRegExp` are also the
+// shared mechanics of the persist-side draft reachability check —
+// `lib/orchestration/plan-reachability.js`, Epic #4474 PR6 — so the two
+// surfaces can never drift apart.)
+export { checkReachability, extractStoryPaths, globToRegExp, resolveNavConfig };
 
 // exported for tests — Story-level reuse runner reserved for future test coverage
 export async function runPlanHealthcheck(opts = {}) {

@@ -153,23 +153,40 @@ skills name — read the envelope wherever a skill asks for either.
 
 ### Conditional critics (between authoring and gate #2)
 
+Evaluate the dispatch conditions deterministically first — one git-local
+CLI call, zero GitHub reads:
+
+```bash
+node .agents/scripts/plan-critics.js --epic [Epic_ID]
+```
+
+(ideation: pass `--tech-spec`/`--risk-verdict`/`--tickets` explicitly). The
+verdict names each critic with `dispatch: true|false` and reasons. Dispatch
+a sub-agent ONLY for a critic with `dispatch: true`; surface each skip as a
+one-line note. Every skip decision is appended to the plan-metrics ledger
+(`kind: "critic-skip"`, with reasons) so under-firing is auditable — the
+persist validators remain unchanged hard gates either way.
+
 Both critics are **fresh-context sub-agents** (`Agent` tool,
 `subagent_type: general-purpose`) — never inline skill activations, so they
 cannot grade their own homework. Both are report-only: they never write to
 GitHub and never persist `tickets.json`; their findings fold into the gate #2
-view, and accepted findings get one targeted amend pass (above). PR6 wires
-their risk/size dispatch conditions; until then their current preconditions
-hold:
+view, and accepted findings get one targeted amend pass (above).
 
-- **Consolidation critic** (fan-out only): skip the dispatch when the draft
-  already matches the Tech Spec's Delivery Slicing table 1:1 in Story count
-  and dependency shape (surface the skip as a one-line note); otherwise the
-  sub-agent reads the
+- **Consolidation critic** (fan-out only): fires when the draft does NOT
+  already match the Tech Spec's Delivery Slicing table 1:1 in Story count
+  and dependency shape, AND the divergence is worth a dispatch — the draft
+  has more than 5 stories, or the mismatch is confirmed (a small draft
+  whose table is merely missing/unparseable skips: gate #2's single view
+  covers it). On dispatch the sub-agent reads the
   [`epic-plan-consolidate`](../../skills/core/epic-plan-consolidate/SKILL.md)
   skill and reconciles the draft against the slicing target. Its operations
   are scope-preserving only — merge sibling Stories and rewire `depends_on`;
   it MUST NOT add scope or invent tickets.
-- **Pre-mortem critic**: the sub-agent reads the
+- **Pre-mortem critic**: fires when the risk verdict's overall level is
+  high, OR the ticket count is at least half `maxTickets`, OR any
+  `planning.riskHeuristics` phrase matches the plan text. On dispatch the
+  sub-agent reads the
   [`epic-plan-premortem`](../../skills/core/epic-plan-premortem/SKILL.md)
   skill, reads the actual cited code surfaces, and emits predicted-rework
   findings to `temp/epic-[Epic_ID]/premortem-report.md`.
@@ -245,9 +262,9 @@ contract (step 2) and re-run the persist once:
   edit to `techspec.md` or `tickets.json`.
 - **Reachability orphans** (deterministic route-glob vs `navRegistry` check;
   a silent no-op when `planning.navigation` is unconfigured) — a named
-  **soft failure** listing the orphaned surfaces: apply one targeted amend
-  adding a navigation owner (at most one reachability Story per plan), then
-  re-persist.
+  **soft failure** (exit 3, before any GitHub write) listing the orphaned
+  surfaces: apply one targeted amend adding a navigation owner
+  (at most one reachability Story per plan), then re-persist.
 - **Over budget** (`maxTickets`) — re-scope, or re-run with
   `--allow-over-budget` after confirming the rationale on the Epic.
 - **Rate-limit abort on a large Epic** — resume with `--resume`; see

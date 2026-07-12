@@ -11,9 +11,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
+  appendCriticSkip,
   appendPlanMetric,
   MAX_LEDGER_BYTES,
   PLAN_METRICS_BASENAME,
+  PLAN_METRICS_KIND_CRITIC_SKIP,
   PLAN_METRICS_SCHEMA_VERSION,
   planMetricsPath,
   readPlanMetrics,
@@ -84,6 +86,58 @@ describe('appendPlanMetric', () => {
     assert.equal(await appendPlanMetric(null, config), false);
     assert.equal(await appendPlanMetric(entry({ cli: '' }), config), false);
     assert.equal(await appendPlanMetric(entry({ mode: '' }), config), false);
+  });
+
+  it('appendCriticSkip writes the additive critic-skip record shape (PR6)', async () => {
+    assert.equal(
+      await appendCriticSkip(
+        {
+          critic: 'consolidation',
+          reasons: ['draft matches Delivery Slicing 1:1'],
+          cli: 'plan-critics',
+          epicId: 4474,
+        },
+        config,
+      ),
+      true,
+    );
+    const { entries } = await readPlanMetrics(4474, config);
+    assert.equal(entries.length, 1);
+    const record = entries[0];
+    assert.equal(record.v, PLAN_METRICS_SCHEMA_VERSION);
+    assert.equal(record.kind, PLAN_METRICS_KIND_CRITIC_SKIP);
+    assert.equal(record.cli, 'plan-critics');
+    assert.equal(record.critic, 'consolidation');
+    assert.deepEqual(record.reasons, ['draft matches Delivery Slicing 1:1']);
+    assert.equal(record.epicId, 4474);
+    assert.ok(typeof record.at === 'string' && record.at.length > 0);
+  });
+
+  it('appendCriticSkip routes epicId:null to the standalone stream and never throws', async () => {
+    assert.equal(
+      await appendCriticSkip(
+        {
+          critic: 'reachability',
+          reasons: ['unconfigured'],
+          cli: 'plan-persist',
+        },
+        config,
+      ),
+      true,
+    );
+    const { entries } = await readPlanMetrics(null, config);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].epicId, null);
+    // Invalid entries degrade to false, never a throw.
+    assert.equal(await appendCriticSkip(null, config), false);
+    assert.equal(
+      await appendCriticSkip({ critic: '', cli: 'x' }, config),
+      false,
+    );
+    assert.equal(
+      await appendCriticSkip({ critic: 'x', cli: '' }, config),
+      false,
+    );
   });
 
   it('rotates the ledger to <name>.1 when the byte cap would be exceeded', async () => {
@@ -212,12 +266,49 @@ describe('summarizePlanMetrics', () => {
       failures: 1,
       byCli: { 'epic-plan-spec': 2, 'epic-plan-decompose': 1 },
       byMode: { 'emit-context': 1, persist: 2 },
+      criticSkips: 0,
+      criticSkipsByCritic: {},
       firstStartedAt: '2026-07-12T10:00:00.000Z',
       lastEndedAt: '2026-07-12T10:12:03.000Z',
       spanMs: 723_000,
       totalDurationMs: 243_000,
       malformedLines: 1,
     });
+  });
+
+  it('counts critic-skip records separately from invocations (PR6)', () => {
+    const withSkips = ledger();
+    withSkips.entries.push(
+      {
+        v: 1,
+        kind: PLAN_METRICS_KIND_CRITIC_SKIP,
+        cli: 'plan-critics',
+        critic: 'pre-mortem',
+        reasons: ['low risk, small plan'],
+        epicId: 4474,
+        at: '2026-07-12T10:13:00.000Z',
+      },
+      {
+        v: 1,
+        kind: PLAN_METRICS_KIND_CRITIC_SKIP,
+        cli: 'plan-persist',
+        critic: 'reachability',
+        reasons: ['No planning.navigation.routeGlobs configured — skipped.'],
+        epicId: 4474,
+        at: '2026-07-12T10:14:00.000Z',
+      },
+    );
+    const summary = summarizePlanMetrics(withSkips);
+    assert.equal(summary.invocations, 3, 'skips never inflate invocations');
+    assert.equal(summary.criticSkips, 2);
+    assert.deepEqual(summary.criticSkipsByCritic, {
+      'pre-mortem': 1,
+      reachability: 1,
+    });
+    assert.match(
+      renderPlanMetricsSummaryLine(summary),
+      /2 critic skip\(s\) logged \(pre-mortem ×1, reachability ×1\)/,
+    );
   });
 
   it('renderPlanMetricsSummaryLine snapshot', () => {

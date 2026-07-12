@@ -19,9 +19,12 @@
  * Delivery Slicing section, an unparseable "Independent?" cell — resolves to
  * `dispatch: true`. This gate can only ever *save* a dispatch when it is
  * confident the critic has nothing to do; it never disables the critic's
- * ability to catch a real divergence. Phase 8.4 (reachability critic), 8.5
- * (pre-mortem critic), and the deterministic ticket validator are
- * unconditional — this precondition governs only the 8.3 dispatch.
+ * ability to catch a real divergence. Since Epic #4474 PR6 this precondition
+ * is one input to the risk/size-conditional dispatch layer
+ * (`plan-critic-conditions.js`): reachability (8.4) is a deterministic
+ * persist-side check (`plan-reachability.js`) and the pre-mortem critic
+ * (8.5) is risk/size-gated; the deterministic ticket validator remains
+ * unconditional.
  *
  * Pure, synchronous, no I/O — callers own reading `tickets.json` and the
  * Epic body off disk / the GitHub API.
@@ -146,10 +149,14 @@ function isBddScaffoldStory(story) {
  *   top-level `slug` / `depends_on` / `body` (serialized string).
  * @param {string} input.epicBody - The Epic body carrying the folded Tech
  *   Spec sections (`## Delivery Slicing` onward).
- * @returns {{ dispatch: boolean, reasons: string[] }} `dispatch: false` only
- *   when the draft matches the Delivery Slicing table 1:1 in count and
- *   dependency shape; `dispatch: true` (with `reasons`) otherwise, including
- *   every fail-open case.
+ * @returns {{ dispatch: boolean, cause: 'match'|'divergence'|'fail-open', reasons: string[] }}
+ *   `dispatch: false` only when the draft matches the Delivery Slicing table
+ *   1:1 in count and dependency shape; `dispatch: true` (with `reasons`)
+ *   otherwise, including every fail-open case. `cause` distinguishes a
+ *   **confirmed** divergence (count or dependency-shape mismatch) from the
+ *   fail-open ambiguity (missing/unparseable table) — the #4474 PR6
+ *   conditional-dispatch layer treats only the former as a firing condition
+ *   on small drafts.
  */
 export function evaluateConsolidationPrecondition({ draftStories, epicBody }) {
   if (!Array.isArray(draftStories)) {
@@ -162,6 +169,7 @@ export function evaluateConsolidationPrecondition({ draftStories, epicBody }) {
   if (!slicing) {
     return {
       dispatch: true,
+      cause: 'fail-open',
       reasons: [
         'Delivery Slicing section is missing or unparseable — fail-open to the critic.',
       ],
@@ -175,6 +183,7 @@ export function evaluateConsolidationPrecondition({ draftStories, epicBody }) {
   if (slicedStories.length !== slicing.length) {
     return {
       dispatch: true,
+      cause: 'divergence',
       reasons: [
         `Story count diverges from Delivery Slicing: ${slicing.length} proposed slice(s) vs ${slicedStories.length} non-scaffold draft Story(ies).`,
       ],
@@ -201,11 +210,12 @@ export function evaluateConsolidationPrecondition({ draftStories, epicBody }) {
   }
 
   if (reasons.length > 0) {
-    return { dispatch: true, reasons };
+    return { dispatch: true, cause: 'divergence', reasons };
   }
 
   return {
     dispatch: false,
+    cause: 'match',
     reasons: [
       `Draft matches Delivery Slicing 1:1 in count and dependency shape (${slicing.length} slice(s)) — skipping the 8.3 consolidation dispatch.`,
     ],

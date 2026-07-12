@@ -6,8 +6,9 @@
  *
  *   - The consolidation critic and the pre-mortem critic survive as
  *     fresh-context sub-agent dispatches between authoring and gate #2 —
- *     report-only, never writing to GitHub (PR6 wires their new dispatch
- *     conditions; the current preconditions hold until then).
+ *     report-only, never writing to GitHub, and risk/size-conditional
+ *     since PR6: the deterministic `plan-critics.js` CLI owns the
+ *     dispatch decision and every skip is ledger-logged for audit.
  *   - The consolidation critic keeps its scope-preserving conservation
  *     invariant (merge-and-rewire only, never adds scope).
  *   - The reachability completeness check is DEMOTED from a workflow
@@ -126,11 +127,44 @@ describe('author-step critics — shared sub-agent mechanics', () => {
     );
   });
 
-  it('names PR6 as the owner of the new dispatch conditions', () => {
+  it('routes the dispatch decision through the deterministic plan-critics CLI', () => {
     assert.match(
       criticsSection,
+      /node \.agents\/scripts\/plan-critics\.js --epic/,
+      'the dispatch conditions must be evaluated by the plan-critics CLI, never judged inline',
+    );
+    assert.match(
+      criticsSection,
+      /dispatch: true\|false/,
+      'the CLI verdict shape must be documented',
+    );
+    assert.doesNotMatch(
+      criticsSection,
       /PR6 wires/i,
-      'the section must defer new dispatch conditions to PR6 while keeping current preconditions',
+      'the PR6 deferral note must be gone — the conditions are wired now',
+    );
+  });
+
+  it('logs every skip decision to the plan-metrics ledger for audit', () => {
+    assert.match(
+      criticsSection,
+      /plan-metrics ledger/,
+      'skips must be recorded in the plan-metrics ledger',
+    );
+    assert.match(
+      criticsSection,
+      /`kind: "critic-skip"`/,
+      'the additive critic-skip record kind must be named',
+    );
+    assert.match(
+      criticsSection,
+      /under-firing is auditable/i,
+      'the under-firing audit rationale must survive',
+    );
+    assert.match(
+      criticsSection,
+      /persist validators remain unchanged hard gates/i,
+      'the unchanged-hard-gates guarantee must be stated',
     );
   });
 });
@@ -144,8 +178,21 @@ describe('consolidation critic — conservation invariant', () => {
     );
     assert.match(
       criticsSection,
-      /matches[\s\S]*Delivery Slicing table 1:1/i,
+      /match[\s\S]*?Delivery Slicing table 1:1/i,
       'the deterministic 1:1 skip precondition must survive',
+    );
+  });
+
+  it('documents the PR6 size/divergence dispatch condition', () => {
+    assert.match(
+      criticsSection,
+      /more than 5 stories/,
+      'the >5-stories size condition must be stated',
+    );
+    assert.match(
+      criticsSection,
+      /mismatch is confirmed/i,
+      'the confirmed-divergence condition must be stated',
     );
   });
 
@@ -220,6 +267,24 @@ describe('pre-mortem critic — code-reading skill (F9)', () => {
     assert.ok(
       criticsIdx > 0 && persistIdx > criticsIdx,
       'the critics must be documented before the persist call',
+    );
+  });
+
+  it('documents the PR6 risk/size dispatch conditions', () => {
+    assert.match(
+      criticsSection,
+      /overall level is\s*\n?\s*high/i,
+      'the high-risk condition must be stated',
+    );
+    assert.match(
+      criticsSection,
+      /at least half `maxTickets`/,
+      'the half-budget size condition must be stated',
+    );
+    assert.match(
+      criticsSection,
+      /`planning\.riskHeuristics` phrase matches/,
+      'the risk-heuristics condition must be stated',
     );
   });
 
