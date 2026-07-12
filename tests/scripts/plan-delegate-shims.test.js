@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
@@ -55,7 +55,7 @@ const DECOMPOSE_EXPORTS = [
 
 describe('plan delegate shims — named-export compatibility (one release)', () => {
   it('epic-plan-spec.js re-exports the full historic surface', async () => {
-    const mod = await import(SPEC_SHIM);
+    const mod = await import(pathToFileURL(SPEC_SHIM).href);
     for (const name of SPEC_EXPORTS) {
       assert.equal(
         typeof mod[name],
@@ -66,7 +66,7 @@ describe('plan delegate shims — named-export compatibility (one release)', () 
   });
 
   it('epic-plan-decompose.js re-exports the full historic surface', async () => {
-    const mod = await import(DECOMPOSE_SHIM);
+    const mod = await import(pathToFileURL(DECOMPOSE_SHIM).href);
     for (const name of DECOMPOSE_EXPORTS) {
       assert.equal(
         typeof mod[name],

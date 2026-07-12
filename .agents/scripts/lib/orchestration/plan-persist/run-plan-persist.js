@@ -90,6 +90,7 @@ import { runPlanHealthcheck as defaultRunPlanHealthcheck } from '../../../epic-p
 import { verifyBddRunnerPendingTag } from '../../bdd-runner-detect.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { openEpicFromOnePager } from '../../epic-plan-ideation.js';
+import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import {
   AGENT_LABELS,
@@ -459,17 +460,39 @@ export async function runPlanPersist({
     // CLI must gate it here or the check is silently advisory. Fan-out and
     // shared-editor findings keep their own policy channels above — this
     // rejects only the deterministic assumption mismatches, still before
-    // any provider call.
+    // any provider call. Guarded on ref resolvability: in a checkout where
+    // the base branch ref does not resolve (shallow CI fetches, detached
+    // test sandboxes) every path probes "absent" and the findings are
+    // noise, so they downgrade to warnings instead of hard-failing.
     const assumptionFailures = (validated.errors ?? []).filter((e) =>
       e.startsWith('File assumption mismatch:'),
     );
     if (assumptionFailures.length > 0) {
-      throw new Error(
-        `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
-          `mismatch(es) between declared assumptions and the base branch:\n` +
-          `${assumptionFailures.map((e) => `  - ${e}`).join('\n')}\n` +
-          'Fix the Story change declarations (or the plan) and re-run the persist.',
+      const gateBaseRef = config?.baseBranch ?? 'main';
+      const refResolves =
+        gitSpawn(
+          cwd ?? process.cwd(),
+          'rev-parse',
+          '--verify',
+          '--quiet',
+          `${gateBaseRef}^{commit}`,
+        ).status === 0;
+      if (refResolves) {
+        throw new Error(
+          `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
+            `mismatch(es) between declared assumptions and the base branch:\n` +
+            `${assumptionFailures.map((e) => `  - ${e}`).join('\n')}\n` +
+            'Fix the Story change declarations (or the plan) and re-run the persist.',
+        );
+      }
+      Logger.warn(
+        `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
+          `does not resolve in this checkout — ${assumptionFailures.length} ` +
+          'finding(s) downgraded to warnings.',
       );
+      for (const e of assumptionFailures) {
+        Logger.warn(`[plan-persist] ${e}`);
+      }
     }
 
     // ---- Step 4.5: deterministic draft reachability (#4474 PR6 — the 8.4

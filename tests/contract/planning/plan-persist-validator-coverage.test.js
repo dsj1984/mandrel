@@ -30,12 +30,22 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { upsertEpicSection } from '../../../.agents/scripts/lib/epic-body-sections.js';
 import { AGENT_LABELS } from '../../../.agents/scripts/lib/label-constants.js';
 import { runPlanPersist } from '../../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
 import { writeSpec } from '../../../.agents/scripts/lib/spec/index.js';
 import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
+
+// Repo root, derived from this file: the assumption-gate git probes run
+// against this repo (HEAD ref) regardless of the runner's process.cwd().
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+);
 
 const EPIC_ID = 9611;
 const OPERATOR = 'plan-persist-coverage-tester';
@@ -202,6 +212,10 @@ beforeEach(() => {
   epicsDir = path.join(sandbox, '.agents', 'epics');
   config = {
     github: { operatorHandle: OPERATOR },
+    // Pin the assumption-gate base ref to HEAD: unlike 'main', it resolves
+    // in every checkout (shallow CI fetches included), so gate 4 exercises
+    // the hard-fail branch deterministically.
+    baseBranch: 'HEAD',
     project: { paths: { tempRoot: path.join(sandbox, 'temp') } },
   };
 });
@@ -227,6 +241,7 @@ function baseInput(provider, { artifacts = {}, planning, opts = {} } = {}) {
       paths: { tempRoot: path.join(sandbox, 'temp') },
     },
     opts: {
+      cwd: REPO_ROOT,
       skipHealthcheck: true,
       skipCleanup: true,
       spawnSync: () => ({ status: 0, stdout: '', stderr: '' }),

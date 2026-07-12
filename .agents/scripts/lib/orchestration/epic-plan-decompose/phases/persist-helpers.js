@@ -104,6 +104,10 @@ export function validateTickets(tickets, config, opts = {}) {
   const validated = validateAndNormalizeTickets(tickets, {
     baseBranchRef,
     conflictPolicy,
+    // Thread the repo cwd into the AC-freshness / file-assumption git
+    // probes (#4474 PR7) — without it they silently ran against
+    // process.cwd(), which is only the repo root by coincidence.
+    cwd: opts.cwd,
   });
   validateTaskBodies(validated);
   return validated;
