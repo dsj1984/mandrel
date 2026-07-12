@@ -211,6 +211,78 @@ describe('plan-persist checkpoint v2 — four-consumer round-trip (#4474 §3)', 
   });
 });
 
+describe('plan-persist checkpoint v2 — single-mode fixture round-trip (#4474 PR4)', () => {
+  /** @type {ReturnType<typeof buildProvider>} */
+  let provider;
+
+  beforeEach(async () => {
+    provider = buildProvider();
+    // The single-delivery persist variant: decompose is a DELIBERATE
+    // zero-ticket single-shape block (never an absence delivery-time
+    // consumers could misread as unplanned).
+    await writeCheckpointV2(provider, EPIC_ID, {
+      planningRisk: PLANNING_RISK,
+      riskVerdict: {
+        ...RISK_VERDICT,
+        deliveryShape: 'single',
+        deliveryShapeRationale: 'Pure dependent chain — one-pass-sized.',
+      },
+      reviewRouting: REVIEW_ROUTING,
+      spec: {
+        techSpecPersisted: true,
+        acceptanceTable: 'persisted',
+        completedAt: new Date().toISOString(),
+      },
+      decompose: {
+        ticketCount: 0,
+        shape: 'single',
+        completedAt: new Date().toISOString(),
+      },
+      persist: { mode: 'single', cli: 'plan-persist', completedAt: null },
+    });
+  });
+
+  it('records the deliberate zero-ticket single-shape decompose block', async () => {
+    const state = await readPlanState({ provider, epicId: EPIC_ID });
+    assert.equal(state.decompose.ticketCount, 0);
+    assert.equal(state.decompose.shape, 'single');
+    assert.ok(state.decompose.completedAt, 'planned, not unplanned');
+  });
+
+  it('consumer 1 — code-review.js resolves review depth off the single-mode checkpoint', async () => {
+    const depth = await resolveReviewDepthForEpic({
+      epicId: EPIC_ID,
+      provider,
+    });
+    assert.equal(depth, 'deep');
+  });
+
+  it('consumer 2 — epic-audit-prepare.js routes lenses off the single-mode checkpoint', async () => {
+    const lenses = await resolveRiskRoutedLenses({
+      epicId: EPIC_ID,
+      provider,
+      resolveAuditLenses: (envelope) => envelope.axes.map((a) => a.axis),
+    });
+    assert.deepEqual(lenses, ['critical-workflow']);
+  });
+
+  it('consumer 3 — locked-pipeline.js inherits the envelope from the single-mode checkpoint', async () => {
+    const envelope = await resolveParentEpicPlanningRisk({
+      provider,
+      epicId: EPIC_ID,
+    });
+    assert.deepEqual(envelope, PLANNING_RISK);
+  });
+
+  it('consumer 4 — the decompose context reader surfaces the single-mode fields verbatim', async () => {
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.deepEqual(ctx.planningRisk, PLANNING_RISK);
+    assert.deepEqual(ctx.reviewRouting, REVIEW_ROUTING);
+  });
+});
+
 describe('plan-persist — ≥60-ticket rate-limit recovery re-proof (#4474 PR3 risk)', () => {
   let sandbox;
   let epicsDir;

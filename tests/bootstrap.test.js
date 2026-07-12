@@ -152,7 +152,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // Story #4314 — removed the `context::prd` label (PRD artifact retired).
     // Story #4324 — removed `context::tech-spec` + `context::acceptance-spec`
     // (planning content folded into managed Epic-body sections).
-    const nonPersonaBase = 10;
+    // Epic #4474 PR4 — added `delivery::single` (single-delivery routing
+    // marker applied by plan-persist.js; inert until #4475).
+    const nonPersonaBase = 11;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

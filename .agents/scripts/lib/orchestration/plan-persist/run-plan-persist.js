@@ -1,31 +1,50 @@
 /**
  * run-plan-persist.js — single GitHub-write surface for the /plan collapse
- * (Epic #4474, PR3).
+ * (Epic #4474, PR3 + PR4 modes).
  *
  * Implements the ordered, fail-closed superset persist that replaces the
  * separate `epic-plan-spec.js` / `epic-plan-decompose.js` persist halves
- * (design §1 Step 3, issue #4474):
+ * (design §1 Step 3 + §2 mode matrix, issue #4474):
  *
  *    1. args (owned by the `plan-persist.js` CLI shell)
  *    2. section gate — `validateSpecSections` runs BEFORE the lease and
  *       BEFORE any provider call; a rejection makes zero GitHub calls.
  *    3. risk-verdict validation (CLI-owned `loadRiskVerdict`) +
- *       mode-coherence hard error (fan-out requires tickets; `single` is
- *       PR4's surface — see {@link assertFanOutMode}).
+ *       mode-coherence hard error (`resolveDeliveryMode`): fan-out requires
+ *       tickets; `deliveryShape: "single"` refuses any tickets payload —
+ *       the single mode's validator/DAG skip is fenced by construction,
+ *       unreachable when tickets are present; `--amend` requires tickets
+ *       carrying `op` fields and refuses the single shape.
  *    4. ticket validator + file-assumption gate + DAG + sizing + budget
- *       (fan-out only; all git-local, still zero provider calls).
+ *       (fan-out and amend; amend validates the MERGED set — existing
+ *       keeps + adds + modifies, closes excluded; all git-local, still
+ *       zero provider calls). Skipped entirely in single mode (no tickets
+ *       exist to validate).
  *    5. ideation fold — `renderEpicBody` / `openEpicFromOnePager` create
  *       the Epic when the run starts from a one-pager (the first provider
- *       call of the run).
+ *       call of the run). Amend additionally resolves every
+ *       modify/keep/close slug to its live issue and enforces the close-op
+ *       confirmation gate (exit 2 without `--explicit-delete`) BEFORE the
+ *       lease and before any mutation.
  *    6. Epic lease (KEEP — documented double-create at ~80 creations).
  *       From here the lease is released on EVERY exit path (success, gate
  *       failure, throw) via try/finally.
  *    7. managed Tech Spec / Acceptance Table sections + risk-verdict
  *       structured comment + spec-freshness advisory.
- *    8. story creation via the structural reconciler (idempotent per-slug
- *       creation; the reconciler's state file is the per-slug resume
- *       ledger), bracketed by checkpoint-v2 writes so a rate-limit crash
- *       resumes losslessly with `--resume`.
+ *    8. mode-split mutation:
+ *       - fan-out: story creation via the structural reconciler
+ *         (idempotent per-slug creation; the reconciler's state file is
+ *         the per-slug resume ledger), bracketed by checkpoint-v2 writes
+ *         so a rate-limit crash resumes losslessly with `--resume`;
+ *       - single: NO story tree — the `delivery::single` routing marker is
+ *         applied instead (inert until #4475 lands the deliver-side
+ *         reader), and `decompose = { ticketCount: 0, shape: "single" }`
+ *         is checkpointed so delivery-time consumers never misread absence
+ *         as unplanned;
+ *       - amend: op-mapped delta — close ops close, modify ops
+ *         close-and-recreate, add ops create, keep ops are untouched by
+ *         construction; the state ledger and blocked-by edges are rebuilt
+ *         over the merged set.
  *    9. inline post-plan healthcheck (the `agent::ready` exit condition,
  *       Story #2921).
  *   10. single terminal `agent::ready` flip — the intermediate
@@ -34,7 +53,8 @@
  *       `agent::ready`).
  *   11. checkpoint v2 + single `plan-summary` comment carrying the dry-run
  *       wave table as closing text (replaces the Phase 9 dispatcher
- *       round-trip and the Phase 12 notify).
+ *       round-trip and the Phase 12 notify). The single-mode summary
+ *       records `{ deliveryShape: "single", sliceCount, routingReasons }`.
  *   12. temp cleanup ONLY at terminal success — a failed run leaves
  *       techspec/acceptance/risk-verdict/tickets artifacts on disk so a
  *       `--force`/`--resume` re-persist reuses them (fixes the
@@ -50,10 +70,6 @@
  * additions are the `version` bump and the additive `persist` progress
  * block; consumers key on field presence, never on `version`.
  *
- * Single-delivery (`deliveryShape: "single"`) and `--amend` are PR4's
- * surface — this module hard-refuses both (see the mode guard) rather than
- * shipping a half-built branch.
- *
  * @module lib/orchestration/plan-persist/run-plan-persist
  */
 
@@ -65,9 +81,13 @@ import { verifyBddRunnerPendingTag } from '../../bdd-runner-detect.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { openEpicFromOnePager } from '../../epic-plan-ideation.js';
 import { Logger } from '../../Logger.js';
-import { AGENT_LABELS, TYPE_LABELS } from '../../label-constants.js';
+import {
+  AGENT_LABELS,
+  DELIVERY_LABELS,
+  TYPE_LABELS,
+} from '../../label-constants.js';
 import { cleanupPhaseTempFiles } from '../../plan-phase-cleanup.js';
-import { loadState, writeSpec } from '../../spec/index.js';
+import { loadState, writeSpec, writeState } from '../../spec/index.js';
 import {
   reconcileSubIssueLinks,
   setBlockedByDependencies,
@@ -108,6 +128,15 @@ import {
 } from '../spec-section-validator.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import {
+  applyAmendOps,
+  buildMergedTicketSet,
+  enforceAmendCloseGate,
+  partitionAmendTickets,
+  renderAmendPlanDiff,
+  resolveAmendTargets,
+} from './amend.js';
+import { countDeliverySlices, resolveDeliveryMode } from './delivery-mode.js';
+import {
   buildPlanSummaryCommentBody,
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
@@ -116,41 +145,10 @@ import {
 /** Checkpoint schema version written by this surface. */
 export const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
 
-/**
- * Mode-coherence hard error (design §1 Step 3 item 3).
- *
- * PR3 ships the fan-out path only. `deliveryShape: "single"` (the spec-only
- * / single-delivery variant) and the `--amend` delta path are PR4's surface
- * (#4474 design §6); this guard is the deliberate seam they land behind —
- * a verdict declaring any non-fan-out shape refuses loudly instead of being
- * silently treated as fan-out.
- *
- * TODO(#4474 PR4): accept `deliveryShape: "single"` here (skip the ticket
- * validator + DAG in that mode only, persist the `delivery::single` routing
- * marker, no story tree) once the risk-verdict schema carries the field and
- * #4475's deliver-side reader exists.
- *
- * @param {{ deliveryShape?: string }} riskVerdict schema-validated verdict
- * @param {unknown} tickets parsed tickets payload
- */
-export function assertFanOutMode(riskVerdict, tickets) {
-  const shape = riskVerdict?.deliveryShape ?? 'fan-out';
-  if (shape !== 'fan-out') {
-    throw new Error(
-      `[plan-persist] deliveryShape "${shape}" is not supported yet — the ` +
-        'single-delivery persist variant lands in #4474 PR4 (inert until ' +
-        '#4475 ships the deliver-side reader). Re-author the risk verdict ' +
-        'without deliveryShape, or wait for PR4.',
-    );
-  }
-  if (!Array.isArray(tickets) || tickets.length === 0) {
-    throw new Error(
-      '[plan-persist] fan-out persist requires a non-empty tickets array ' +
-        '(--tickets <file>). A ticket-less spec-only plan is the ' +
-        'single-delivery mode, which lands in #4474 PR4.',
-    );
-  }
-}
+// Mode-coherence resolution (design §1 Step 3 item 3 + §2 mode matrix)
+// lives in `delivery-mode.js`; re-exported here so the CLI's stable public
+// API keeps a single import root for the persist surface.
+export { resolveDeliveryMode };
 
 /**
  * Merge-write the epic-plan-state checkpoint at schema v2. Reads the
@@ -256,7 +254,8 @@ async function resolveTargetEpic({
 
 /**
  * Execute the collapsed persist end to end (module doc has the 12-step
- * order). Fan-out mode only in PR3.
+ * order). Modes: fan-out (default), single (`deliveryShape: "single"`),
+ * amend (`--amend`).
  *
  * @param {{
  *   epicId?: number|null,
@@ -265,7 +264,7 @@ async function resolveTargetEpic({
  *     techSpecContent: string,
  *     acceptanceSpecContent?: string|null,
  *     riskVerdict: import('../planning-risk.js').RiskVerdict,
- *     tickets: Array<object>,
+ *     tickets?: Array<object>|null,
  *     onePagerContent?: string|null,
  *     templateContent?: string|null,
  *   },
@@ -274,6 +273,8 @@ async function resolveTargetEpic({
  *   opts?: {
  *     force?: boolean,
  *     resume?: boolean,
+ *     amend?: boolean,
+ *     explicitDelete?: boolean,
  *     steal?: boolean,
  *     forceReview?: boolean,
  *     allowOverBudget?: boolean,
@@ -286,6 +287,7 @@ async function resolveTargetEpic({
  *     writeSpecFn?: typeof writeSpec,
  *     renderSpecFn?: typeof renderSpec,
  *     loadStateFn?: typeof loadState,
+ *     writeStateFn?: typeof writeState,
  *     runHealthcheckFn?: typeof defaultRunPlanHealthcheck,
  *     bddProbeFn?: typeof verifyBddRunnerPendingTag,
  *     fanOutCounter?: (arg: { path: string }) => number,
@@ -305,13 +307,15 @@ export async function runPlanPersist({
     techSpecContent,
     acceptanceSpecContent = null,
     riskVerdict,
-    tickets,
+    tickets = null,
     onePagerContent = null,
     templateContent = null,
   } = artifacts ?? {};
   const {
     force = false,
     resume = false,
+    amend = false,
+    explicitDelete = false,
     steal = false,
     forceReview = false,
     allowOverBudget = false,
@@ -323,6 +327,7 @@ export async function runPlanPersist({
     writeSpecFn = writeSpec,
     renderSpecFn = renderSpec,
     loadStateFn = loadState,
+    writeStateFn = writeState,
     runHealthcheckFn = defaultRunPlanHealthcheck,
     bddProbeFn = verifyBddRunnerPendingTag,
     fanOutCounter = undefined,
@@ -333,6 +338,18 @@ export async function runPlanPersist({
   if (force && resume) {
     throw new Error(
       '[plan-persist] --force and --resume are mutually exclusive.',
+    );
+  }
+  if (amend && (force || resume)) {
+    throw new Error(
+      '[plan-persist] --amend is mutually exclusive with --force/--resume ' +
+        '— the amend delta is already an incremental re-persist.',
+    );
+  }
+  if (amend && onePagerContent) {
+    throw new Error(
+      '[plan-persist] --amend requires --epic <id> — there is no existing ' +
+        'plan to amend in ideation mode.',
     );
   }
   if (onePagerContent && resume) {
@@ -375,32 +392,45 @@ export async function runPlanPersist({
         'and pass it with --risk-verdict.',
     );
   }
-  assertFanOutMode(riskVerdict, tickets);
+  const mode = resolveDeliveryMode(riskVerdict, tickets, { amend });
 
   // ---- Step 4: ticket validator + file-assumption gate + DAG + sizing +
-  // budget (fan-out only; git-local — still no provider call). ----
-  const maxTickets = getLimits(config).maxTickets;
-  if (tickets.length > maxTickets && !allowOverBudget) {
-    throw new Error(
-      `[plan-persist] Tickets (${tickets.length}) exceed the reviewability ` +
-        `budget (${maxTickets}). Re-scope the Epic into a smaller plan, or ` +
-        'rerun with --allow-over-budget after confirming the over-budget ' +
-        'rationale on the Epic.',
+  // budget (fan-out and amend; git-local — still no provider call). In
+  // amend mode every gate runs over the MERGED set — keeps + adds +
+  // modifies, closes excluded — so the DAG is validated against the tree
+  // that will actually exist post-amend. The skip branch below is fenced
+  // by construction: `resolveDeliveryMode` hard-refuses `deliveryShape:
+  // "single"` with any tickets payload, so single mode can only reach here
+  // with no tickets to validate. ----
+  let validated = null;
+  let amendPartition = null;
+  if (mode !== 'single') {
+    amendPartition = mode === 'amend' ? partitionAmendTickets(tickets) : null;
+    const gateSet = mode === 'amend' ? buildMergedTicketSet(tickets) : tickets;
+    const maxTickets = getLimits(config).maxTickets;
+    if (gateSet.length > maxTickets && !allowOverBudget) {
+      throw new Error(
+        `[plan-persist] Tickets (${gateSet.length}) exceed the reviewability ` +
+          `budget (${maxTickets}). Re-scope the Epic into a smaller plan, or ` +
+          'rerun with --allow-over-budget after confirming the over-budget ' +
+          'rationale on the Epic.',
+      );
+    }
+    warnTicketCapNearLimit(gateSet, maxTickets, 'plan-persist');
+    if (gateSet.length > maxTickets && allowOverBudget) {
+      Logger.warn(
+        `[plan-persist] Persisting an over-budget decomposition: ${gateSet.length} ` +
+          `tickets vs. budget ${maxTickets} (operator override --allow-over-budget).`,
+      );
+    }
+    Logger.info(
+      `[plan-persist] Running cross-validation on ${gateSet.length} tickets` +
+        `${mode === 'amend' ? ' (merged amend set)' : ''}...`,
     );
+    validated = validateTickets(gateSet, config, { fanOutCounter, cwd });
+    enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
+    surfaceSoftConflictFindings(validated.findings, 'plan-persist');
   }
-  warnTicketCapNearLimit(tickets, maxTickets, 'plan-persist');
-  if (tickets.length > maxTickets && allowOverBudget) {
-    Logger.warn(
-      `[plan-persist] Persisting an over-budget decomposition: ${tickets.length} ` +
-        `tickets vs. budget ${maxTickets} (operator override --allow-over-budget).`,
-    );
-  }
-  Logger.info(
-    `[plan-persist] Running cross-validation on ${tickets.length} tickets...`,
-  );
-  const validated = validateTickets(tickets, config, { fanOutCounter, cwd });
-  enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
-  surfaceSoftConflictFindings(validated.findings, 'plan-persist');
 
   // ---- Step 5: ideation fold / Epic resolution (first provider call). ----
   const { epicId, epic, created } = await resolveTargetEpic({
@@ -410,6 +440,33 @@ export async function runPlanPersist({
     provider,
   });
 
+  // Amend pre-mutation resolution: every modify/keep/close slug must
+  // resolve to a live issue, and close ops require --explicit-delete
+  // (exit 2 with the dry-run diff otherwise — the epic-reconcile.js
+  // contract). Runs BEFORE the lease and before any mutation.
+  let amendTargets = null;
+  if (mode === 'amend') {
+    const priorState = loadStateFn(epicId);
+    amendTargets = await resolveAmendTargets({
+      partition: amendPartition,
+      stateMapping: priorState.mapping,
+      provider,
+    });
+    enforceAmendCloseGate({
+      epicId,
+      targets: amendTargets,
+      adds: amendPartition.add,
+      explicitDelete,
+    });
+    Logger.info(
+      renderAmendPlanDiff({
+        epicId,
+        targets: amendTargets,
+        adds: amendPartition.add,
+      }),
+    );
+  }
+
   // ---- Step 6: Epic lease. Every path after a successful acquire runs
   // through the finally below, so the lease is released on success, on a
   // gate failure, and on a throw alike. ----
@@ -418,12 +475,15 @@ export async function runPlanPersist({
   try {
     // Refuse a duplicate story tree unless this is a deliberate re-persist
     // (`--force` closes + recreates via the reconciler's close ops;
-    // `--resume` continues a partial persist).
-    await assertNoOpenPlanChildren({
-      provider,
-      epicId,
-      force: force || resume,
-    });
+    // `--resume` continues a partial persist). Amend is exempt by
+    // definition — its whole purpose is mutating the existing open tree.
+    if (mode !== 'amend') {
+      await assertNoOpenPlanChildren({
+        provider,
+        epicId,
+        force: force || resume,
+      });
+    }
 
     await initializePlanState({ provider, epicId });
 
@@ -447,12 +507,15 @@ export async function runPlanPersist({
       );
     }
 
+    // Amend always overwrites the managed sections — the amended Tech Spec
+    // IS the delta's spec half (planEpic would otherwise short-circuit
+    // `already-planned` on the pre-amend sections).
     const planResult = await planEpic(
       epicId,
       provider,
       { techSpecContent, acceptanceSpecContent },
       settings,
-      { force, planningRisk },
+      { force: force || mode === 'amend', planningRisk },
     );
 
     const reviewRouting = resolveReviewRouting({ planningRisk, forceReview });
@@ -496,59 +559,157 @@ export async function runPlanPersist({
         completedAt: new Date().toISOString(),
       },
       persist: {
-        mode: 'fan-out',
+        mode,
         cli: 'plan-persist',
         startedAt: new Date().toISOString(),
         completedAt: null,
       },
     });
 
-    // ---- Step 8: story creation via the structural reconciler. ----
-    Logger.info(
-      `[plan-persist] Rendering spec for Epic #${epicId} (${validated.length} tickets)...`,
-    );
-    const spec = renderSpecFn(validated, {
-      epic: buildEpicSpecInput(epic, epicId),
-    });
-    const specFilePath = writeSpecFn(epicId, spec, { epicsDir: undefined });
-    Logger.info(`[plan-persist] Wrote spec → ${specFilePath}`);
+    // ---- Step 8: mode-split mutation. ----
+    let reconcile = null;
+    let specFilePath = null;
+    let ticketCount = 0;
+    let single = null;
+    let amendSummary = null;
 
-    // Pre-creation checkpoint: marks creation in flight so a rate-limit
-    // crash mid-creation leaves a checkpoint pointing at the spec + the
-    // reconciler's per-slug state file (the resume ledger). `--resume`
-    // re-runs the reconciler, which creates only the missing slugs.
-    await writeCheckpointV2(provider, epicId, {
-      decompose: { ticketCount: null, completedAt: null },
-    });
+    if (mode === 'fan-out') {
+      // Story creation via the structural reconciler.
+      Logger.info(
+        `[plan-persist] Rendering spec for Epic #${epicId} (${validated.length} tickets)...`,
+      );
+      const spec = renderSpecFn(validated, {
+        epic: buildEpicSpecInput(epic, epicId),
+      });
+      specFilePath = writeSpecFn(epicId, spec, { epicsDir: undefined });
+      Logger.info(`[plan-persist] Wrote spec → ${specFilePath}`);
 
-    Logger.info(
-      `[plan-persist] Spawning epic-reconcile.js --apply --yes for Epic #${epicId}...`,
-    );
-    const reconcile = spawnReconcilerApply({
-      spawnSync,
-      reconcileCli,
-      epicId,
-      cwd,
-      explicitDelete: force,
-    });
+      // Pre-creation checkpoint: marks creation in flight so a rate-limit
+      // crash mid-creation leaves a checkpoint pointing at the spec + the
+      // reconciler's per-slug state file (the resume ledger). `--resume`
+      // re-runs the reconciler, which creates only the missing slugs.
+      await writeCheckpointV2(provider, epicId, {
+        decompose: { ticketCount: null, completedAt: null },
+      });
 
-    await reconcileSubIssueLinks(epicId, provider);
+      Logger.info(
+        `[plan-persist] Spawning epic-reconcile.js --apply --yes for Epic #${epicId}...`,
+      );
+      reconcile = spawnReconcilerApply({
+        spawnSync,
+        reconcileCli,
+        epicId,
+        cwd,
+        explicitDelete: force,
+      });
 
-    const postReconcileState = loadStateFn(epicId);
-    await setBlockedByDependencies(
-      epicId,
-      provider,
-      spec,
-      postReconcileState.mapping,
-    );
+      await reconcileSubIssueLinks(epicId, provider);
 
-    // Post-creation checkpoint (the former recordCheckpoint half).
-    await writeCheckpointV2(provider, epicId, {
-      decompose: {
-        ticketCount: tickets.length,
-        completedAt: new Date().toISOString(),
-      },
-    });
+      const postReconcileState = loadStateFn(epicId);
+      await setBlockedByDependencies(
+        epicId,
+        provider,
+        spec,
+        postReconcileState.mapping,
+      );
+
+      ticketCount = tickets.length;
+      // Post-creation checkpoint (the former recordCheckpoint half).
+      await writeCheckpointV2(provider, epicId, {
+        decompose: {
+          ticketCount,
+          shape: 'fan-out',
+          completedAt: new Date().toISOString(),
+        },
+      });
+
+      // A force re-persist over a former single-delivery plan flips the
+      // routing shape — drop the stale marker so #4475's reader never sees
+      // a fan-out tree labelled single.
+      await removeSingleDeliveryMarker(provider, epicId, epic);
+    } else if (mode === 'single') {
+      // Single-delivery: NO story tree. The delivery::single routing
+      // marker (inert until #4475's deliver-side reader) plus the Delivery
+      // Slicing table of the persisted Tech Spec are the plan.
+      single = {
+        deliveryShape: 'single',
+        sliceCount: countDeliverySlices(techSpecContent),
+        routingReasons: riskVerdict.deliveryShapeRationale
+          ? [riskVerdict.deliveryShapeRationale]
+          : [],
+      };
+      Logger.info(
+        `[plan-persist] Single-delivery mode: applying ${DELIVERY_LABELS.SINGLE} ` +
+          `to Epic #${epicId} (no story tree).`,
+      );
+      await provider.updateTicket(epicId, {
+        labels: { add: [DELIVERY_LABELS.SINGLE], remove: [] },
+      });
+      // Explicit zero-ticket checkpoint so delivery-time consumers read a
+      // deliberate single-shape plan, never an unplanned absence.
+      await writeCheckpointV2(provider, epicId, {
+        decompose: {
+          ticketCount: 0,
+          shape: 'single',
+          completedAt: new Date().toISOString(),
+        },
+      });
+    } else {
+      // Amend delta: close-and-recreate is scoped to modify/close slugs
+      // only; keeps are untouched by construction (no code path receives
+      // them); adds are created fresh. The state ledger and blocked-by
+      // edges are rebuilt over the merged set.
+      const spec = renderSpecFn(validated, {
+        epic: buildEpicSpecInput(epic, epicId),
+      });
+      specFilePath = writeSpecFn(epicId, spec, { epicsDir: undefined });
+      Logger.info(`[plan-persist] Wrote amended spec → ${specFilePath}`);
+
+      await writeCheckpointV2(provider, epicId, {
+        decompose: { ticketCount: null, completedAt: null },
+      });
+
+      const validatedBySlug = new Map(validated.map((t) => [t.slug, t]));
+      const applied = await applyAmendOps({
+        epicId,
+        provider,
+        targets: amendTargets,
+        validatedBySlug,
+      });
+
+      // Rebuild the state ledger over the merged set: prior mapping minus
+      // closed/replaced slugs, plus the fresh create/recreate numbers.
+      const priorState = loadStateFn(epicId);
+      const mergedMapping = { ...(priorState.mapping ?? {}) };
+      for (const slug of applied.closedSlugs) delete mergedMapping[slug];
+      Object.assign(mergedMapping, applied.mapping);
+      writeStateFn(epicId, {
+        epicId,
+        mapping: mergedMapping,
+        lastReconciledAt: new Date().toISOString(),
+      });
+
+      await reconcileSubIssueLinks(epicId, provider);
+      await setBlockedByDependencies(epicId, provider, spec, mergedMapping);
+
+      ticketCount = validated.length;
+      amendSummary = {
+        closed: applied.closed,
+        recreated: applied.recreated,
+        created: applied.created,
+        keptCount: amendTargets.keep.length,
+      };
+      await writeCheckpointV2(provider, epicId, {
+        decompose: {
+          ticketCount,
+          shape: 'fan-out',
+          completedAt: new Date().toISOString(),
+        },
+      });
+
+      // An amended plan is fan-out-shaped; drop a stale single marker.
+      await removeSingleDeliveryMarker(provider, epicId, epic);
+    }
 
     // ---- Step 9: inline healthcheck — the agent::ready exit condition. ----
     const healthcheck = skipHealthcheck
@@ -569,8 +730,10 @@ export async function runPlanPersist({
     await setEpicLabel(provider, epicId, AGENT_LABELS.READY);
 
     // ---- Step 11: final checkpoint v2 + single plan-summary comment with
-    // the dry-run wave table as closing text. ----
-    const waveTable = buildWaveTable(validated);
+    // the dry-run wave table as closing text (single mode records the
+    // { deliveryShape, sliceCount, routingReasons } routing record
+    // instead). ----
+    const waveTable = mode === 'single' ? [] : buildWaveTable(validated);
     const checkpoint = await writeCheckpointV2(provider, epicId, {
       persist: { completedAt: new Date().toISOString() },
     });
@@ -580,12 +743,15 @@ export async function runPlanPersist({
       PLAN_SUMMARY_COMMENT_TYPE,
       buildPlanSummaryCommentBody({
         epicId,
-        ticketCount: tickets.length,
+        ticketCount,
         planningRisk,
         reviewRouting,
         freshness,
         healthcheck,
         waveTable,
+        mode,
+        single,
+        amend: amendSummary,
       }),
     );
 
@@ -595,8 +761,8 @@ export async function runPlanPersist({
       ? { deleted: [], missing: [], failed: [], skipped: true }
       : await cleanupPhaseTempFiles({ phase: 'persist', epicId });
     Logger.info(
-      `[plan-persist] ✅ Persist complete for Epic #${epicId}. ` +
-        `${tickets.length} ticket(s) persisted; Epic is ${AGENT_LABELS.READY}.`,
+      `[plan-persist] ✅ Persist complete for Epic #${epicId} (${mode}). ` +
+        `${ticketCount} ticket(s) persisted; Epic is ${AGENT_LABELS.READY}.`,
     );
     if (cleanup.deleted.length > 0) {
       Logger.info(
@@ -607,7 +773,8 @@ export async function runPlanPersist({
     return {
       epicId,
       epicCreated: created,
-      ticketCount: tickets.length,
+      mode,
+      ticketCount,
       checkpoint,
       planningRisk,
       reviewRouting,
@@ -616,6 +783,8 @@ export async function runPlanPersist({
       reconcile,
       specPath: specFilePath,
       waveTable,
+      single,
+      amend: amendSummary,
       cleanup,
       labelTransition: 'ready',
     };
@@ -624,6 +793,26 @@ export async function runPlanPersist({
     // Best-effort by contract — releaseEpicPlanLease never throws.
     await releaseEpicPlanLease({ provider, epicId, config });
   }
+}
+
+/**
+ * Drop a stale `delivery::single` marker when a fan-out-shaped persist
+ * (full re-persist or amend) lands over a formerly single-delivery plan.
+ * No-op — and no API call — when the fetched Epic never carried it.
+ *
+ * @param {object} provider
+ * @param {number} epicId
+ * @param {{ labels?: string[] }} epic the Epic as fetched at step 5
+ */
+async function removeSingleDeliveryMarker(provider, epicId, epic) {
+  if (!epic?.labels?.includes(DELIVERY_LABELS.SINGLE)) return;
+  Logger.info(
+    `[plan-persist] Removing stale ${DELIVERY_LABELS.SINGLE} marker from ` +
+      `Epic #${epicId} (plan is fan-out-shaped now).`,
+  );
+  await provider.updateTicket(epicId, {
+    labels: { add: [], remove: [DELIVERY_LABELS.SINGLE] },
+  });
 }
 
 /**

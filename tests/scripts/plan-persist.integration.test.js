@@ -43,8 +43,8 @@ import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.
 import { AGENT_LABELS } from '../../.agents/scripts/lib/label-constants.js';
 import { read as readPlanState } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import {
-  assertFanOutMode,
   PLAN_CHECKPOINT_SCHEMA_VERSION_V2,
+  resolveDeliveryMode,
   runPlanPersist,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
 import {
@@ -470,29 +470,26 @@ describe('plan-persist — fail-closed ordering (design non-negotiable 2)', () =
   });
 });
 
-describe('plan-persist — mode coherence (PR4 seam)', () => {
+describe('plan-persist — mode coherence (PR4: resolveDeliveryMode)', () => {
   it('refuses fan-out without tickets', () => {
     assert.throws(
-      () => assertFanOutMode(RISK_VERDICT, undefined),
+      () => resolveDeliveryMode(RISK_VERDICT, undefined),
       /fan-out persist requires a non-empty tickets array/,
     );
     assert.throws(
-      () => assertFanOutMode(RISK_VERDICT, []),
+      () => resolveDeliveryMode(RISK_VERDICT, []),
       /non-empty tickets/,
     );
   });
 
-  it('refuses deliveryShape "single" until PR4 lands', () => {
-    // NOTE: the shipped risk-verdict schema (additionalProperties: false)
-    // also rejects deliveryShape at the CLI's loadRiskVerdict boundary; this
-    // module-level guard is the explicit seam PR4 replaces.
+  it('refuses deliveryShape "single" combined with a tickets payload (DAG-skip fence)', () => {
     assert.throws(
       () =>
-        assertFanOutMode(
+        resolveDeliveryMode(
           { ...RISK_VERDICT, deliveryShape: 'single' },
           buildTickets(),
         ),
-      /PR4/,
+      /mode-coherence/,
     );
   });
 

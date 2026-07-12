@@ -47,7 +47,20 @@
       "type": "string",
       "minLength": 1,
       "description": "One-paragraph overall risk narrative for the audit trail (the rationale the retired regex classifier could never produce)."
+    },
+    "deliveryShape": {
+      "type": "string",
+      "enum": ["fan-out", "single"],
+      "description": "Planner-judged delivery shape for the Epic (Epic #4474 PR4, design §2 mode matrix). 'fan-out' persists a Story tree (the default when the field is absent — existing verdicts stay valid); 'single' is the spec-only single-delivery mode: no tickets are authored, the ticket validator + DAG are skipped, and plan-persist applies the delivery::single routing marker instead of a Story tree. The marker is inert until #4475 lands the deliver-side reader."
+    },
+    "deliveryShapeRationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Concrete justification for the declared deliveryShape, grounded in the Delivery Slicing table (slice count / chain shape). Required whenever deliveryShape is present; surfaced as the routingReasons of the single-mode plan summary."
     }
+  },
+  "dependentRequired": {
+    "deliveryShape": ["deliveryShapeRationale"]
   },
   "additionalProperties": false
 }
