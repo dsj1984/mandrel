@@ -635,11 +635,7 @@ export async function runPlanPersist({
  * @param {{ epicId: number, riskVerdict: import('../planning-risk.js').RiskVerdict, planningRisk: import('../planning-risk.js').PlanningRiskEnvelope }} input
  * @returns {string}
  */
-function buildRiskVerdictCommentBody({
-  epicId,
-  riskVerdict,
-  planningRisk,
-}) {
+function buildRiskVerdictCommentBody({ epicId, riskVerdict, planningRisk }) {
   const axisRows = planningRisk.axes.map(
     (entry) => `| ${entry.axis} | ${entry.level} | ${entry.rationale} |`,
   );
