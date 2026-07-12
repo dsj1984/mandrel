@@ -9,7 +9,7 @@
  * `.agents/workflows/helpers/code-review.md` Step 4.6) and emit the
  * subset of audit lenses whose `filePatterns` overlap that list.
  *
- * The CLI is intentionally narrower than `select-audits.js`: it does NOT
+ * The CLI is intentionally narrower than `lib/audit-suite/selector.js`: it does NOT
  * run a git diff and does NOT consult the Epic ticket body for keyword
  * triggers. The auto-fix tail already knows exactly which paths it touched —
  * only file-pattern overlap is relevant for deciding which lenses are stale

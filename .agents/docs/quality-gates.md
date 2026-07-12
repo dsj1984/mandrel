@@ -581,9 +581,9 @@ Cross-references:
 - [`.agents/README.md`](../README.md) — consumer onboarding.
 
 > The `mutation` gate ships **dormant** (built-but-unwired, intentionally
-> opt-in). The cost/fit analysis behind deferring its activation lives in
-> the header comment of
-> [`.agents/scripts/update-mutation-baseline.js`](../scripts/update-mutation-baseline.js).
+> opt-in). The former `update-mutation-baseline.js` refresh CLI was retired
+> with the rest of the zero-consumer script surface (#4482); the
+> `lib/mutation/` snapshot machinery remains for a future activation.
 
 ### Envelope
 

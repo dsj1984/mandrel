@@ -17,29 +17,6 @@ These scripts are kept in the distributed product but are intentionally
 not invoked by `npm test`, `npm run verify`, CI, or any Husky hook. They
 are optional operator tools; run them by hand when you need them.
 
-### `loc-delta.js`
-
-**Purpose.** Verify the Skills-migration LOC budget — the signed line
-delta between `main` and `HEAD` across the four SSOT directories
-(`.agents/scripts/`, `.agents/skills/`, `.agents/workflows/`,
-`.agents/README.md`) must be `< 0`.
-
-**When to run.** Optional spot-check during framework refactors that
-claim to retire code rather than add it. Originally an acceptance
-criterion of Epic #1181 / Story #1441; kept available because the same
-"net-negative LOC" check is occasionally useful when reviewing
-maintenance Epics.
-
-**Usage.**
-
-```bash
-node .agents/scripts/loc-delta.js                 # main...HEAD
-node .agents/scripts/loc-delta.js --base main     # explicit base
-node .agents/scripts/loc-delta.js --json          # machine output
-```
-
-Exits `0` iff total LOC delta `< 0`; exits `1` otherwise.
-
 ### `validate-docs-freshness.js`
 
 **Purpose.** Per-Epic documentation freshness gate. For each doc in
@@ -57,29 +34,6 @@ Epic should have produced documentation updates; the standard
 node .agents/scripts/validate-docs-freshness.js --epic <id> \
   [--base main] [--docs <comma-separated>] [--json]
 ```
-
-### `update-mutation-baseline.js`
-
-**Purpose.** Refresh `baselines/mutation.json` from a fresh Stryker
-run. Reads `delivery.quality.gates.mutation` from `.agentrc.json`,
-invokes the in-repo Stryker runner, and atomically rewrites the
-baseline.
-
-**When to run.** Optional. Mutation testing is opt-in per consumer;
-this is the equivalent of `npm run coverage:update` /
-`npm run crap:update` / `npm run maintainability:update` for the
-mutation gate. It is intentionally not wired into `package.json`
-because most consumers do not configure Stryker.
-
-**Usage.**
-
-```bash
-node .agents/scripts/update-mutation-baseline.js [--full-scope]
-```
-
-Exits `0` whether or not the baseline changed; exits `0` (with a
-stderr explainer) when no Stryker config is present; exits `1` only
-when Stryker itself fails to run.
 
 ## See Also
 

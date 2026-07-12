@@ -85,7 +85,7 @@ The payload's narrow, schema-pinned shape (`additionalProperties:false`) means a
 ### A.2 — The `verify` oracle exits 0 (the terminating check)
 
 A self-paced `/loop` terminates when the unit's `verify` oracle exits 0. The
-[`fix-failing-tests`](../.agents/workflows/loops/fix-failing-tests.md) starter
+`fix-failing-tests` starter (retired in #4482)
 declares `verify: npm test` — its done-signal is the full suite passing. To
 demonstrate the oracle's terminating semantics without a multi-minute full run,
 I ran a representative slice covering exactly the loop machinery under

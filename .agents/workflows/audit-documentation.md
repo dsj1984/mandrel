@@ -283,14 +283,12 @@ bloated tail over many Epics, and no single change-set-scoped `/deliver`
 Phase 4 run sees the whole picture. Run this lens **full-scope** on a
 recurring cadence so the drift is caught before it compounds:
 
-- **Cron loop** — [`loops:nightly-audit`](loops/nightly-audit.md)
-  runs the audit sweep unattended each night; the host (`/schedule` or a
-  cron-driven `/loop`) owns the cadence. Point it at this lens full-scope
-  (no `--paths`, no change-set filter — the `{{changedFiles}}` block renders
-  the literal token, so the whole target-set union is audited).
 - **Scheduled invocation** — `/schedule` running `/audit-documentation`
-  full-scope on a daily/weekly cron is the equivalent one-shot form when a
-  standing loop is not wired up.
+  full-scope on a daily/weekly cron. Point it at this lens full-scope
+  (no `--paths`, no change-set filter — the `{{changedFiles}}` block renders
+  the literal token, so the whole target-set union is audited). The nightly
+  sweep-then-route recipe lives in
+  [`audit-to-stories.md` § Scheduling a nightly sweep](audit-to-stories.md#scheduling-a-nightly-sweep).
 
 Route the resulting `audit-documentation-results.md` through
 [`/audit-to-stories`](audit-to-stories.md), which groups the findings,

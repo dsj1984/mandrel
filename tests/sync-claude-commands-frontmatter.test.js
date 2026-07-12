@@ -211,3 +211,68 @@ test('sync-claude-commands: re-running is idempotent (no churn)', () => {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('sync-claude-commands: frontmatter `command: false` excludes the workflow and reaps a stale projection', () => {
+  const excluded = [
+    '---',
+    'description: Dual-use lens payload with a host-native standalone equivalent.',
+    'command: false',
+    '---',
+    '',
+    '# Excluded lens',
+    '',
+    'Body content.',
+    '',
+  ].join('\n');
+  const included = [
+    '---',
+    'description: Ordinary projected workflow.',
+    '---',
+    '',
+    '# Included',
+    '',
+    'Body content.',
+    '',
+  ].join('\n');
+
+  // First run: only the included workflow projects.
+  const run = runSyncWith({
+    'excluded-lens.md': excluded,
+    'included.md': included,
+  });
+  try {
+    assert.ok(run.commands['included.md'], 'expected included.md projected');
+    assert.equal(
+      run.commands['excluded-lens.md'],
+      undefined,
+      'command: false workflow must not project',
+    );
+
+    // A stale projection of the excluded workflow (e.g. from a version
+    // before the opt-out landed) is reaped on the next sync.
+    fs.writeFileSync(
+      path.join(run.dest, 'excluded-lens.md'),
+      applyHeader(excluded, HEADER),
+      'utf8',
+    );
+    const rerun = spawnSync(process.execPath, [SYNC_SCRIPT], {
+      env: {
+        ...process.env,
+        SYNC_CLAUDE_COMMANDS_SRC: path.join(run.tmp, 'workflows'),
+        SYNC_CLAUDE_COMMANDS_DEST: run.dest,
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(rerun.status, 0, rerun.stderr || rerun.stdout);
+    assert.ok(
+      !fs.existsSync(path.join(run.dest, 'excluded-lens.md')),
+      'stale projection of an excluded workflow must be reaped',
+    );
+    assert.ok(
+      fs.existsSync(path.join(run.dest, 'included.md')),
+      'unrelated command untouched by the reap',
+    );
+  } finally {
+    run.cleanup();
+  }
+});

@@ -19,13 +19,13 @@
  *             IMMEDIATELY, consuming no resume budget. On red the CLI
  *             writes `temp/epic-<id>-ci-digest.{json,md}` (failing check
  *             name, run id, a `gh run view --log-failed` tail, and a
- *             coarse classification) and prints the `/loop
- *             /loops:fix-failing-tests` handoff.
+ *             coarse classification) and prints the red-green
+ *             remediation handoff.
  *   - STILL-RUNNING — the poll cap fired with checks still pending and
  *             none failed; the watcher re-armed up to
  *             `delivery.ci.watch.maxResumes` times, then returned a
  *             `still-running` verdict → exit 2 (NEVER 1, NEVER
- *             `timed_out`). The CLI prints the `/loop 5m /loops:watch-ci`
+ *             `timed_out`). The CLI prints the `gh pr checks --watch`
  *             handoff so the host can keep polling on its own cadence.
  *
  * Config (Story #4356 namespace, read via `getCiDelivery`):
@@ -350,9 +350,9 @@ export async function runPrWatch({
       .map(([k]) => k)
       .join(', ');
     logger.warn?.(
-      `[pr-watch] required check(s) still running after ${result.polls} polls + ${result.resumesApplied} resumes: ${stillPending}. Hand off to the interval watch loop:`,
+      `[pr-watch] required check(s) still running after ${result.polls} polls + ${result.resumesApplied} resumes: ${stillPending}. Keep polling natively:`,
     );
-    logger.warn?.('[pr-watch]   /loop 5m /loops:watch-ci');
+    logger.warn?.('[pr-watch]   gh pr checks <pr> --watch');
     return STILL_RUNNING_EXIT_CODE;
   }
 
@@ -392,8 +392,9 @@ export async function runPrWatch({
   if (digestPaths) {
     logger.error?.(`[pr-watch] CI failure digest → ${digestPaths.jsonPath}`);
   }
-  logger.error?.('[pr-watch] a required check failed. Drive it to green with:');
-  logger.error?.('[pr-watch]   /loop /loops:fix-failing-tests');
+  logger.error?.(
+    '[pr-watch] a required check failed. Read the digest, apply the smallest fix, and re-run the suite until green.',
+  );
   return 1;
 }
 

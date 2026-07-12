@@ -47,7 +47,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { applyHeader } from './lib/command-header.js';
+import { applyHeader, isCommandExcluded } from './lib/command-header.js';
 import { Logger } from './lib/Logger.js';
 
 // Resolve the project root from the invocation cwd — the consumer project where
@@ -154,9 +154,7 @@ const isTopLevelWorkflow = (entry) =>
 /**
  * `README.md` (any case) under `loops/` is namespace documentation, not a
  * loop unit — it carries no `loop:` frontmatter and must not project as a
- * `/loops:README` command. Exclude it from the loop-unit enumeration (this
- * mirrors `check-loop-units.js#isLoopUnitFile`, which excludes it from the
- * lint gate).
+ * `/loops:README` command. Exclude it from the loop-unit enumeration.
  *
  * @param {import('node:fs').Dirent} entry
  * @returns {boolean}
@@ -204,11 +202,18 @@ const entries = SRC_DIRS.flatMap((dir) => [
 
 // Collision policy: payload wins, warn on a shadowed local file. Keyed by the
 // destination-relative path so a flat `foo.md` and a `loops/foo.md` are
-// distinct entries.
+// distinct entries. A workflow whose frontmatter carries `command: false`
+// (#4482 — dual-use audit lens files with a host-native standalone
+// equivalent) is excluded from projection entirely: it never enters
+// `sourceSet`, so any previously projected copy is reaped below.
 const byRel = new Map();
 for (const e of entries) {
   if (byRel.has(e.rel)) {
     Logger.warn(`  shadowed  ${e.rel} (local copy ignored; payload wins)`);
+    continue;
+  }
+  if (isCommandExcluded(fs.readFileSync(path.join(e.dir, e.rel), 'utf8'))) {
+    Logger.info(`  excluded ${e.rel} (frontmatter command: false)`);
     continue;
   }
   byRel.set(e.rel, e);

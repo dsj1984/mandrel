@@ -1,35 +1,22 @@
-#!/usr/bin/env node
-/* node:coverage ignore file */
-
 /**
- * lifecycle-diff.js — assertion modes over a lifecycle ledger file for
- * the repeatability invariants. The structural-`diff` helpers below are
- * exported for unit tests that pin the diff contract.
+ * ledger-diff.js — structural-diff and ordering-assertion helpers over a
+ * lifecycle ledger (`temp/epic-<id>/lifecycle.ndjson`) for the
+ * repeatability invariants.
  *
- * Usage:
- *   node .agents/scripts/lifecycle-diff.js --assert <mode> <ledger>
- *       — `mode` is one of:
- *           merge-gate-ordering   — epic.merge.armed must be preceded
- *                                   by epic.merge.ready (same seqId
- *                                   chain; armed.seqId > ready.seqId).
- *           reconcile-ordering    — pr.created must be preceded by
- *                                   acceptance.reconcile.ok.
- *       — exits 0 on pass; exits 1 with a structured message on fail.
+ * Relocated from the retired `.agents/scripts/lifecycle-diff.js` CLI
+ * (#4482): the assertion helpers are the live surface — they pin the
+ * cross-listener ordering contracts in the lifecycle invariant tests —
+ * while the CLI wrapper had no workflow, script, or CI consumer.
  *
  * Invariants are derived from Tech Spec #2189 § Repeatability Acceptance
  * Criteria.
  */
 
-import { readFileSync } from 'node:fs';
-import { parseArgs } from 'node:util';
-
-import { runAsCli } from './lib/cli-utils.js';
-
 /**
  * Parse an NDJSON lifecycle ledger into an array of records. Blank
  * lines tolerated; malformed JSON throws with line number. Duplicated
- * from `lib/orchestration/lifecycle/trace-logger.js` to avoid coupling
- * the CLI to the listener surface.
+ * from `trace-logger.js` to keep the diff surface decoupled from the
+ * listener surface.
  */
 export function parseLedgerText(text) {
   const out = [];
@@ -41,7 +28,7 @@ export function parseLedgerText(text) {
       out.push(JSON.parse(line));
     } catch (_err) {
       throw new Error(
-        `lifecycle-diff: malformed JSON in ledger on line ${i + 1}: ${line.slice(0, 80)}`,
+        `ledger-diff: malformed JSON in ledger on line ${i + 1}: ${line.slice(0, 80)}`,
       );
     }
   }
@@ -151,56 +138,3 @@ export function assertReconcileOrdering(records) {
   }
   return { ok: true };
 }
-
-const ASSERTIONS = new Map([
-  ['merge-gate-ordering', assertMergeGateOrdering],
-  ['reconcile-ordering', assertReconcileOrdering],
-]);
-
-function loadLedger(p) {
-  return parseLedgerText(readFileSync(p, 'utf8'));
-}
-
-async function main() {
-  const { values, positionals } = parseArgs({
-    options: {
-      assert: { type: 'string' },
-    },
-    allowPositionals: true,
-    args: process.argv.slice(2),
-  });
-
-  // --assert <mode> <ledger>
-  if (!values.assert) {
-    process.stderr.write('Usage: lifecycle-diff --assert <mode> <ledger>\n');
-    return 2;
-  }
-  if (positionals.length !== 1) {
-    process.stderr.write(
-      'lifecycle-diff --assert <mode> requires exactly one positional ledger path\n',
-    );
-    return 2;
-  }
-  const assertion = ASSERTIONS.get(values.assert);
-  if (!assertion) {
-    process.stderr.write(
-      `lifecycle-diff: unknown --assert mode "${values.assert}". Valid: ${[...ASSERTIONS.keys()].join(', ')}\n`,
-    );
-    return 2;
-  }
-  const records = loadLedger(positionals[0]);
-  const result = assertion(records);
-  if (result.ok) {
-    process.stdout.write(`[lifecycle-diff] PASS ${values.assert}\n`);
-    return 0;
-  }
-  process.stderr.write(
-    `[lifecycle-diff] FAIL ${values.assert}: ${result.reason}\n`,
-  );
-  return 1;
-}
-
-await runAsCli(import.meta.url, main, {
-  source: 'lifecycle-diff',
-  propagateExitCode: true,
-});
