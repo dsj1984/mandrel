@@ -11,7 +11,7 @@
  * stdout-pure JSON envelope. The PR7 cutover retired the delegate CLIs —
  * this is the only emit-context surface.
  *
- * Two entry forms (exactly one is required):
+ * Three entry forms (exactly one is required):
  *
  *   --epic <id>          Existing-Epic mode. Envelope carries `epic`,
  *                        `clarity` (Epic Clarity Gate rubric), `replan`
@@ -22,6 +22,15 @@
  *                        carries `onePager` and `duplicates[]` (cross-Epic
  *                        dup search). No clarity score: the ideation path
  *                        is definitionally clear.
+ *
+ *   --seed "<text>"      Headless ideation entry (#4496 fix 1) — neither
+ *                        the Epic nor the one-pager exists yet. The dup
+ *                        search runs off the raw seed text, and the
+ *                        envelope additively carries `seed`, `scopeTriage`
+ *                        (the scope-triage rubric applied CLI-side — fix 6)
+ *                        and `onePagerSpec`, so the one-pager sections are
+ *                        authored in the same batched write as the spec
+ *                        artifacts.
  *
  * Flags:
  *   --pretty         Pretty-print the JSON envelope.
@@ -58,10 +67,11 @@ import { createProvider } from './lib/provider-factory.js';
  * captured output is exactly one `JSON.parse`-able payload.
  *
  * @param {{
- *   mode: 'epic'|'one-pager',
+ *   mode: 'epic'|'one-pager'|'seed',
  *   epicId?: number,
  *   onePagerPath?: string,
  *   onePagerContent?: string,
+ *   seedText?: string,
  *   provider: object,
  *   config: object,
  *   settings: object,
@@ -77,6 +87,7 @@ export async function emitPlanContext({
   epicId,
   onePagerPath,
   onePagerContent,
+  seedText,
   provider,
   config,
   settings,
@@ -90,6 +101,7 @@ export async function emitPlanContext({
     epicId,
     onePagerPath,
     onePagerContent,
+    seedText,
     provider,
     config,
     settings,
@@ -108,6 +120,7 @@ async function main() {
     options: {
       epic: { type: 'string' },
       'one-pager': { type: 'string' },
+      seed: { type: 'string' },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
     },
@@ -117,12 +130,16 @@ async function main() {
   const hasEpic = typeof values.epic === 'string' && values.epic.length > 0;
   const hasOnePager =
     typeof values['one-pager'] === 'string' && values['one-pager'].length > 0;
-  if (hasEpic === hasOnePager) {
+  const hasSeed = typeof values.seed === 'string' && values.seed.length > 0;
+  const entryForms = [hasEpic, hasOnePager, hasSeed].filter(Boolean).length;
+  if (entryForms !== 1) {
     throw new Error(
-      'Pass exactly one of --epic <id> or --one-pager <path>. ' +
-        '(--epic: existing-Epic mode; --one-pager: ideation mode.)',
+      'Pass exactly one of --epic <id>, --one-pager <path> or --seed "<text>". ' +
+        '(--epic: existing-Epic mode; --one-pager: ideation mode; ' +
+        '--seed: headless ideation entry.)',
     );
   }
+  const mode = hasEpic ? 'epic' : hasOnePager ? 'one-pager' : 'seed';
 
   let epicId;
   if (hasEpic) {
@@ -159,21 +176,22 @@ async function main() {
   const provider = createProvider(config);
 
   // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode so the folded
-  // emit surface is measured against the 12-phase baseline. One-pager mode
-  // has no Epic yet, so the record routes to the standalone stream
-  // (epicId null) exactly like `story-plan.js`.
+  // emit surface is measured against the 12-phase baseline. One-pager and
+  // seed modes have no Epic yet, so the record routes to the standalone
+  // stream (epicId null) exactly like `story-plan.js`.
   await recordPlanInvocation(
     {
       cli: 'plan-context',
-      mode: hasEpic ? 'epic' : 'one-pager',
+      mode,
       epicId: hasEpic ? epicId : null,
       config,
     },
     () =>
       emitPlanContext({
-        mode: hasEpic ? 'epic' : 'one-pager',
+        mode,
         epicId,
         onePagerPath: hasOnePager ? values['one-pager'] : undefined,
+        seedText: hasSeed ? values.seed : undefined,
         provider,
         config,
         settings,

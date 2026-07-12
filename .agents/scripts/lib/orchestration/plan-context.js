@@ -11,7 +11,7 @@
  * file instead of shim-scripting library imports (the bench measured
  * ~12–15 turns of shim-writing for the dup search alone).
  *
- * Two modes (the design's mode matrix):
+ * Three modes (the design's mode matrix + the #4496 seed entry):
  *   - `epic`      — the Epic exists. Carries `epic`, `clarity` (the Epic
  *                   Clarity Gate rubric — free, same body fetch), `replan`
  *                   (already-planned signals) and `planState`.
@@ -19,6 +19,14 @@
  *                   to the persist half). Carries `onePager` and
  *                   `duplicates[]` (cross-Epic dup search). Clarity is not
  *                   scored — the ideation path is definitionally clear.
+ *   - `seed`      — headless ideation entry (#4496 fix 1): the one-pager
+ *                   does not exist yet either. The dup search runs off the
+ *                   raw seed text, and the envelope additively carries
+ *                   `seed`, `scopeTriage` (the scope-triage rubric applied
+ *                   CLI-side — no skill Reads on the headless path) and
+ *                   `onePagerSpec` (the canonical one-pager sections, so
+ *                   the authoring pass writes the one-pager in the SAME
+ *                   batched write as the spec artifacts).
  *
  * All fields are JSON-serialisable; the module performs no GitHub writes.
  * The only I/O surfaces are the injected `provider` (reads) and the
@@ -78,6 +86,131 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
   validatedBy:
     'validateAndNormalizeTickets (lib/orchestration/ticket-validator.js) at persist time',
 });
+
+/**
+ * Canonical one-pager authoring descriptor for the `seed` envelope
+ * (#4496 fix 1). The section names are the ones `plan-epic.md`'s ideation
+ * entry has always named, chosen so the authored headings parse against
+ * the `SECTION_RE` map in `lib/epic-plan-ideation.js` (which renders the
+ * Epic body from the one-pager at persist time via
+ * `.agents/templates/epic-from-idea.md`).
+ */
+export const ONE_PAGER_AUTHORING_SPEC = Object.freeze({
+  sections: Object.freeze([
+    'Problem Statement',
+    'Recommended Direction',
+    'Key Assumptions',
+    'MVP Scope',
+    'Not Doing',
+  ]),
+  instruction:
+    'Author the one-pager markdown (the canonical sections above, as `## ` ' +
+    'headings) in the SAME batched write as the other planning artifacts — ' +
+    'no separate ideation pass and no idea-refinement skill activation on ' +
+    'this path. Every unresolved unknown lands in Key Assumptions instead ' +
+    'of a question.',
+  consumedBy:
+    'plan-persist.js --one-pager (ideation Epic creation via ' +
+    '.agents/templates/epic-from-idea.md)',
+});
+
+/**
+ * Count top-level enumerated items (`- `, `* `, `1. `) anywhere in a
+ * free-form seed text. Unlike {@link countScopeItems} this does not require
+ * a scope-shaped heading — a raw `--idea` seed rarely has one.
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function countEnumeratedItems(text) {
+  if (typeof text !== 'string' || text.length === 0) return 0;
+  return text
+    .split(/\r?\n/)
+    .filter((line) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(line)).length;
+}
+
+/**
+ * Delta-shaped change-request verbs — the `core/scope-triage` skill's
+ * change-request rubric routes these to `story` by default when the
+ * footprint stays inside Story width.
+ */
+const DELTA_VERB_RE =
+  /\b(fix(?:es)?|tweak(?:s)?|extend(?:s)?|update(?:s)?|adjust(?:s)?|rename(?:s)?|correct(?:s)?|patch(?:es)?|bug|regression|flaky)\b/i;
+
+/**
+ * Deterministic, CLI-applied scope-triage verdict over a raw `--idea` seed
+ * (#4496 fix 6). Embedding the verdict in the `--seed` envelope removes the
+ * two skill Reads (`core/scope-triage` + the gate fragment's rubric pass)
+ * from the headless path; the attended path keeps the skill-based judgment.
+ *
+ * The heuristics anchor to the same sizing SSOT the skill anchors to —
+ * `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
+ * `ticket-validator-sizing.js` (one Story = one coherent capability slice;
+ * multiple independent capabilities = an Epic) — and to the skill's
+ * change-request delta rubric. Like the skill, the verdict is **advisory**:
+ * being wrong in the `epic` direction is cheap (the consolidation critic and
+ * the sizing validator catch an over-planned Story later), and `borderline`
+ * is a first-class output, not a forced call.
+ *
+ * @param {{ seedText?: string }} args
+ * @returns {{ verdict: 'epic'|'story'|'borderline', reasons: string[], advisory: true, appliedBy: 'cli' }}
+ */
+export function buildScopeTriageSignal({ seedText = '' } = {}) {
+  const advisory = /** @type {const} */ (true);
+  const appliedBy = /** @type {const} */ ('cli');
+  const text = typeof seedText === 'string' ? seedText : '';
+  const listItems = countEnumeratedItems(text);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  if (listItems >= 3) {
+    return {
+      verdict: 'epic',
+      reasons: [
+        `seed enumerates ${listItems} candidate capabilities — a genuine fan-out surface`,
+      ],
+      advisory,
+      appliedBy,
+    };
+  }
+  if (listItems >= 1) {
+    return {
+      verdict: 'story',
+      reasons: [
+        `seed enumerates ${listItems} capability item(s) — one coherent change with one reason to exist`,
+      ],
+      advisory,
+      appliedBy,
+    };
+  }
+  if (DELTA_VERB_RE.test(text) && wordCount <= 120) {
+    return {
+      verdict: 'story',
+      reasons: [
+        'delta-shaped seed (change-request verb, no capability enumeration) within Story width',
+      ],
+      advisory,
+      appliedBy,
+    };
+  }
+  if (wordCount >= 250) {
+    return {
+      verdict: 'epic',
+      reasons: [
+        `broad prose seed (~${wordCount} words) with no enumeration — plausibly multiple independent capabilities`,
+      ],
+      advisory,
+      appliedBy,
+    };
+  }
+  return {
+    verdict: 'borderline',
+    reasons: [
+      'no capability enumeration and no clear delta signal — could be one ambitious Story or a small Epic; the operator (or the --yes Recommended branch) decides',
+    ],
+    advisory,
+    appliedBy,
+  };
+}
 
 /**
  * Resolve the planning risk heuristics list from the canonical config
@@ -450,13 +583,55 @@ async function buildOnePagerModeEnvelope({
 }
 
 /**
+ * Build the seed-mode (headless ideation) envelope — #4496 fix 1. The
+ * one-pager does not exist yet: the dup search and the authoring-context
+ * fold both run off the raw seed text (the same builders the one-pager mode
+ * uses), and the envelope additively carries `seed`, the CLI-applied
+ * `scopeTriage` verdict (fix 6 — no skill Reads on the headless path), and
+ * `onePagerSpec` so the one-pager sections are authored in the same batched
+ * write as the spec artifacts.
+ */
+async function buildSeedModeEnvelope({
+  seedText,
+  provider,
+  config,
+  settings,
+  fullContext,
+  cwd,
+}) {
+  if (typeof seedText !== 'string' || seedText.trim().length === 0) {
+    throw new Error(
+      '[plan-context] --seed requires non-empty seed text — nothing to plan from.',
+    );
+  }
+  const base = await buildOnePagerModeEnvelope({
+    onePagerPath: undefined,
+    onePagerContent: seedText,
+    provider,
+    config,
+    settings,
+    fullContext,
+    cwd,
+  });
+  const { onePager: _onePager, ...rest } = base;
+  return {
+    ...rest,
+    mode: 'seed',
+    seed: { text: seedText },
+    scopeTriage: buildScopeTriageSignal({ seedText }),
+    onePagerSpec: ONE_PAGER_AUTHORING_SPEC,
+  };
+}
+
+/**
  * Build the single planner-context envelope.
  *
  * @param {{
- *   mode: 'epic'|'one-pager',
+ *   mode: 'epic'|'one-pager'|'seed',
  *   epicId?: number,
  *   onePagerPath?: string,
  *   onePagerContent?: string,
+ *   seedText?: string,
  *   provider: object,
  *   config: object,
  *   settings: object,
@@ -469,6 +644,7 @@ export async function buildPlanContext({
   epicId,
   onePagerPath,
   onePagerContent,
+  seedText,
   provider,
   config = {},
   settings = {},
@@ -504,7 +680,17 @@ export async function buildPlanContext({
       cwd,
     });
   }
+  if (mode === 'seed') {
+    return buildSeedModeEnvelope({
+      seedText,
+      provider,
+      config,
+      settings,
+      fullContext,
+      cwd,
+    });
+  }
   throw new Error(
-    `[plan-context] unknown mode "${mode}" — expected "epic" or "one-pager".`,
+    `[plan-context] unknown mode "${mode}" — expected "epic", "one-pager" or "seed".`,
   );
 }
