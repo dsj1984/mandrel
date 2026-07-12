@@ -1,22 +1,15 @@
 ---
 description: >-
-  Thin pointer — Phase 7 (spec) of sprint planning now lives entirely in
-  `helpers/plan-epic.md`. This file is kept only so pre-existing links to
-  `helpers/epic-plan-spec.md` still resolve.
+  Redirect stub — the spec half of Epic planning now lives in the author +
+  persist steps of `helpers/plan-epic.md`. Kept one release so pre-existing
+  links still resolve; scheduled for deletion (Epic #4474 PR7).
 ---
 
-# Sprint Plan — Spec Phase (thin pointer)
+# Epic plan — spec phase (redirect stub)
 
-> **Superseded.** This file used to carry its own Phase 7 step-by-step
-> procedure — a drifted duplicate of the authoritative one, and a pre-skill
-> pattern that instructed inline authoring from the envelope's
-> (now-retired) `systemPrompts` field. Story #4403 collapsed it: the full,
-> current Phase 7 procedure (context gathering, the
-> [`epic-plan-spec-author`](../../skills/core/epic-plan-spec-author/SKILL.md)
-> skill activation, the persist call and its folded Tech Spec section gate,
-> review routing, freshness/BDD advisories, and cleanup) lives in
-> [`helpers/plan-epic.md` § Phase 7](plan-epic.md#phase-7-epic-planning-tech-spec--acceptance-spec).
-> Read that section — do not resurrect an inline copy here.
-
-The complementary Phase 8 pointer is
-[`helpers/epic-plan-decompose.md`](epic-plan-decompose.md).
+> **Superseded (Epic #4474).** The 12-phase pipeline this file pointed into
+> was collapsed to three steps. Tech Spec / risk-verdict / Acceptance Table
+> authoring is the **author** step, and the folded section gate + persist is
+> the **persist** step, of [`helpers/plan-epic.md`](plan-epic.md). Read that
+> file — do not resurrect an inline copy here. This stub is removed in the
+> next release.

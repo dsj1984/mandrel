@@ -57,6 +57,16 @@ const tasks = [
     args: ['.agents/scripts/check-lifecycle-lint.js'],
   },
   {
+    // Custom Node-based lint for the workflow prose surface (Epic #4474
+    // PR5). Enforces: no workflow may instruct calling an exported
+    // library function that has no CLI entrypoint — the measured
+    // shim-writing failure mode the /plan collapse killed. See
+    // check-workflow-cli-lint.js for the paragraph-level heuristic.
+    name: 'workflow-cli-lint',
+    cmd: 'node',
+    args: ['.agents/scripts/check-workflow-cli-lint.js'],
+  },
+  {
     // Custom Node-based lint for label-vocabulary citations in
     // `.agents/docs/SDLC.md` and `.agents/workflows/**/*.md` (Story #2892,
     // Tech Spec F9 under Epic #2880). Greps inline backtick code

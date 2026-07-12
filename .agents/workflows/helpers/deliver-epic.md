@@ -769,14 +769,15 @@ run. Passing `--epic <epicId>` scopes the red-path failure digest to
   `gh run view --log-failed` tail, coarse classification) and surfaces
   the fix-loop handoff. Remediate on `epic/<epicId>` and re-run the
   helper (auto-merge stays armed across retries). If the same failure
-  class recurs, hand the convergence off to the host loop:
-  `/loop /loops:fix-failing-tests`.
+  class recurs, hand the convergence off to a self-paced host loop
+  (`/loop`) that re-runs the failing check and applies the smallest fix
+  until it exits green.
 - **Exit 2** — **still-running** (slow CI, not red): the poll cap fired
   with checks still pending and the watcher exhausted its
   `delivery.ci.watch.maxResumes` re-arm budget with nothing red. This is
   **never** a failure and **never** `timed_out`. Hand the wait off to the
-  host's interval loop rather than blocking the delivery turn:
-  `/loop 5m /loops:watch-ci`.
+  host's interval loop rather than blocking the delivery turn: `/loop 5m`
+  polling `gh pr checks` until the checks settle.
 
 > **Triage authority.** How to classify and remediate a red (or repeatedly
 > slow) check — the root-cause-only decision tree for infra/transient and
