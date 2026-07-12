@@ -171,6 +171,15 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // `graduator="audit-results|code-review"` attr so the two graduators
   // upsert independent comments; re-runs upsert in place.
   'cross-repo-deferred',
+  // Epic #4474 (PR3) — `plan-persist.js` upserts a single `plan-summary`
+  // comment on the Epic at terminal persist success, carrying the risk /
+  // routing / freshness / healthcheck receipts and the dry-run wave table
+  // as closing text. Replaces the retired plan-time `dispatch-manifest`
+  // comment (whose claimed consumer did not exist — the live manifest is
+  // written at deliver time by `wave-record-io.js`) and the Phase 12
+  // notify round-trip. One entry per Epic; a --force/--resume re-persist
+  // upserts in place.
+  'plan-summary',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

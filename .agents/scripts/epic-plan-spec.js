@@ -3,6 +3,14 @@
 /**
  * epic-plan-spec.js — Phase 7 (spec) entry point for the split planning flow.
  *
+ * > **Delegate for one release (Epic #4474, PR3).** The collapsed
+ * > `plan-persist.js` CLI is now the canonical single GitHub-write surface
+ * > for the plan flow (section gate → risk verdict → validators → lease →
+ * > sections → story creation → healthcheck → single `agent::ready` flip).
+ * > This CLI's persist half remains fully functional so in-flight workflows
+ * > and external callers keep working; the workflow-prose cutover is PR5
+ * > and this entry point is retired in PR7.
+ *
  * Two idempotent modes and a single-purpose label lifecycle:
  *
  *   1. --emit-context   Prints the planner authoring context (Epic body,
