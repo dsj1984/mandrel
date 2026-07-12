@@ -82,6 +82,7 @@ import {
   openOrLocatePr as defaultOpenOrLocatePr,
 } from '../../finalize/open-or-locate-pr.js';
 import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/post-handoff-comment.js';
+import { probeRemoteBranch as defaultProbeRemoteBranch } from '../../remote-verifier.js';
 
 /**
  * Build the production default `runFinalizeFn` that composes the
@@ -103,12 +104,22 @@ import { postHandoffComment as defaultPostHandoffComment } from '../../finalize/
  * contract is identical and `markPrReady` is a no-op on an already-ready
  * PR, so replay stays idempotent.
  *
+ * Issue #4483 — deterministic land-or-block backstop. Before opening (or
+ * readying) the PR, finalize asserts the delivery branch `epic/<id>`
+ * actually exists on origin. A delivery that was never pushed — e.g. an
+ * agent that built the Epic inline on local `main` and skipped the
+ * orchestration — MUST surface as an explicit
+ * `delivery-branch-missing-on-origin` blocker (which keeps the Epic at
+ * `agent::blocked`), never a declared success. The probe is bounded
+ * (timeout + SIGKILL) so a hung remote degrades to a blocker too.
+ *
  * @param {{
  *   provider?: object|null,
  *   earlyPr?: boolean,
  *   openOrLocatePrFn?: typeof defaultOpenOrLocatePr,
  *   markPrReadyFn?: typeof defaultMarkPrReady,
  *   postHandoffCommentFn?: typeof defaultPostHandoffComment,
+ *   probeRemoteBranchFn?: typeof defaultProbeRemoteBranch,
  * }} deps
  */
 export function composeBusOwnedFinalize(deps = {}) {
@@ -116,6 +127,8 @@ export function composeBusOwnedFinalize(deps = {}) {
   const markPrReadyFn = deps.markPrReadyFn ?? defaultMarkPrReady;
   const postHandoffCommentFn =
     deps.postHandoffCommentFn ?? defaultPostHandoffComment;
+  const probeRemoteBranchFn =
+    deps.probeRemoteBranchFn ?? defaultProbeRemoteBranch;
   const provider = deps.provider ?? null;
   const earlyPr = deps.earlyPr !== false;
 
@@ -128,6 +141,25 @@ export function composeBusOwnedFinalize(deps = {}) {
         },
       };
     }
+
+    // Issue #4483 backstop — the delivery branch MUST be on origin before
+    // finalize declares any success. A never-pushed branch is the silent
+    // local-main failure shape; block explicitly with the probe detail.
+    let branchProbe;
+    try {
+      branchProbe = probeRemoteBranchFn({ branch: `epic/${epicId}`, cwd });
+    } catch (err) {
+      branchProbe = { exists: false, detail: err?.message ?? String(err) };
+    }
+    if (!branchProbe.exists) {
+      return {
+        blocker: {
+          reason: 'delivery-branch-missing-on-origin',
+          detail: `epic/${epicId} is not on origin — the delivery was never pushed; refusing to finalize (issue #4483). Probe: ${branchProbe.detail}`,
+        },
+      };
+    }
+
     let openResult;
     try {
       openResult = await openOrLocatePrFn({

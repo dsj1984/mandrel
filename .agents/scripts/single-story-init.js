@@ -59,6 +59,7 @@ import {
   executeFastForward,
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
+import { verifyRemote } from './lib/orchestration/remote-verifier.js';
 import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
 import {
   STATE_LABELS,
@@ -446,6 +447,7 @@ export async function runSingleStoryInit({
   injectedAcquireLease,
   steal = false,
   leaseNow,
+  injectedVerifyRemote,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -486,6 +488,20 @@ export async function runSingleStoryInit({
     `worktreeIsolation=${runtime.worktreeEnabled ? 'on' : 'off'} (${runtime.worktreeEnabledSource})`,
   );
   progress('INIT', `Initializing standalone Story #${storyId}...`);
+
+  // Issue #4483 — deterministic remote evidence at the standalone entry
+  // seam (the counterpart to `epic-deliver-preflight.js`'s probe). The
+  // probe is read-only, so it runs under --dry-run too. The CLI records
+  // the fact; the workflow owns the `agent::blocked` transition on
+  // `remoteVerified: false` — inline delivery to local `main` is never a
+  // sanctioned fallback.
+  const remote = (injectedVerifyRemote ?? verifyRemote)({ cwd });
+  progress(
+    'REMOTE',
+    remote.remoteVerified
+      ? `✅ remoteVerified=true — ${remote.detail}`
+      : `⛔ remoteVerified=false — ${remote.detail}`,
+  );
 
   const story = await provider.getTicket(storyId);
   assertDeliverableStory(story, storyId);
@@ -563,6 +579,9 @@ export async function runSingleStoryInit({
     dependenciesInstalled,
     installFailed: installStatus.status === 'failed',
     dryRun,
+    // Issue #4483 — verified remote evidence for the orchestrating agent.
+    remoteVerified: remote.remoteVerified,
+    remoteProbe: { remoteUrl: remote.remoteUrl, detail: remote.detail },
   };
 
   // Upsert the `story-init` structured comment + flip Story to executing.
@@ -632,6 +651,8 @@ export function renderSingleStoryInitComment(result) {
     worktreeCreated: result.worktreeCreated,
     dependenciesInstalled: result.dependenciesInstalled,
     installStatus: result.installStatus,
+    remoteVerified: result.remoteVerified,
+    remoteProbe: result.remoteProbe,
   };
   return [
     '## Story init (standalone)',
@@ -641,6 +662,7 @@ export function renderSingleStoryInitComment(result) {
     `- **baseBranch:** \`${result.baseBranch}\``,
     `- **workCwd:** \`${result.workCwd}\``,
     `- **worktreeEnabled:** \`${result.worktreeEnabled}\``,
+    `- **remoteVerified:** \`${result.remoteVerified}\``,
     `- **dependenciesInstalled:** \`${result.dependenciesInstalled}\``,
     '',
     '```json',

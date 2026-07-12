@@ -83,6 +83,11 @@ describe('epic-deliver-preflight cache write', () => {
     const provider = buildFakeProvider({ epicId: 4242, stories });
 
     const envelope = await runPreflight({
+      verifyRemoteFn: () => ({
+        remoteVerified: true,
+        remoteUrl: 'https://github.com/o/r.git',
+        detail: 'origin verified (stub)',
+      }),
       epicId: 4242,
       cwd: workCwd,
       injectedProvider: provider,
@@ -119,6 +124,11 @@ describe('epic-deliver-preflight cache write', () => {
     const provider = buildFakeProvider({ epicId: 7777, stories });
 
     const envelope = await runPreflight({
+      verifyRemoteFn: () => ({
+        remoteVerified: true,
+        remoteUrl: 'https://github.com/o/r.git',
+        detail: 'origin verified (stub)',
+      }),
       epicId: 7777,
       cwd: workCwd,
       injectedProvider: provider,
@@ -149,6 +159,11 @@ describe('epic-deliver-preflight cache write', () => {
     const provider = buildFakeProvider({ epicId: 5151, stories });
 
     const envelope = await runPreflight({
+      verifyRemoteFn: () => ({
+        remoteVerified: true,
+        remoteUrl: 'https://github.com/o/r.git',
+        detail: 'origin verified (stub)',
+      }),
       epicId: 5151,
       cwd: workCwd,
       dryRun: true,
