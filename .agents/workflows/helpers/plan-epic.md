@@ -35,6 +35,9 @@ confirmed (gate #1).
 
 ### Ideation entry (`--idea "<seed>"` or no argument)
 
+**Attended (no `--yes`)** — the interactive grill loop is HITL by
+definition and stays:
+
 1. Activate the [`core/idea-refinement`](../../skills/core/idea-refinement/SKILL.md)
    skill with the seed. It returns a one-pager with the canonical sections
    (Problem Statement, Recommended Direction, Key Assumptions, MVP Scope,
@@ -63,6 +66,26 @@ confirmed (gate #1).
 4. Review `duplicates[]`. A non-empty ranked list folds into gate #1: the
    operator either confirms the new Epic is distinct or folds the idea into
    an existing Epic (in which case `/plan` exits).
+
+**Headless (`--yes`) — seed entry (#4496 fix 1).** There is no one to
+grill, so the one-pager prelude is pure ceremony: do **not** activate the
+`idea-refinement` skill and do **not** write a separate one-pager file
+before authoring. Instead, emit the envelope directly off the seed:
+
+```bash
+node .agents/scripts/plan-context.js --seed "<seed text>" \
+  > temp/plan-ideation/<slug>/plan-context.json
+```
+
+(slug from the seed's leading phrase; the tree is gitignored). The seed envelope is the one-pager envelope plus three additive fields:
+`seed` (the raw text), `scopeTriage` (the scope-triage rubric applied
+CLI-side — no skill Reads on this path; a `story` / `borderline` verdict
+resolves to its Recommended handoff per
+[`scope-triage-gate.md`](scope-triage-gate.md)), and `onePagerSpec` (the
+canonical one-pager sections). The one-pager markdown is authored **in
+step 2's single batched write**, alongside the other artifacts — every
+unresolved unknown lands in its Key Assumptions section. `duplicates[]`
+resolves headlessly per gate #1's `--yes` note.
 
 ### Existing-Epic entry (`/plan <epicId>`)
 
@@ -126,25 +149,38 @@ step 2 until the operator explicitly confirms.
 Read the envelope with the `Read` tool and write the planning artifacts to
 `temp/epic-[Epic_ID]/` (ideation: the `temp/plan-ideation/<slug>/` tree).
 The single `plan-context.json` envelope supersedes the per-phase
-`planner-context.json` / `decomposer-context.json` files the authoring
-skills name — read the envelope wherever a skill asks for either.
+`planner-context.json` / `decomposer-context.json` files.
 
-1. **`techspec.md`** — activate the
-   [`epic-plan-spec-author`](../../skills/core/epic-plan-spec-author/SKILL.md)
-   skill. The Tech Spec opens with `## Delivery Slicing` and never restates
-   the Epic's Context/Goal/Scope.
-2. **`risk-verdict.json`** — same skill; the schema-conformant verdict
+**The envelope's `systemPrompts` ARE the authoring instructions on this
+path** (#4496 fix 4): `systemPrompts.spec` / `systemPrompts.acceptance`
+govern the Tech Spec, risk verdict, and Acceptance Spec;
+`systemPrompts.decompose` (with `ticketSchema` and `maxTickets`) governs
+the tickets. Do **not** read the
+[`epic-plan-spec-author`](../../skills/core/epic-plan-spec-author/SKILL.md)
+or
+[`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
+SKILL.md files here — they remain the reference source the prompts render
+from, but re-reading them double-pays instructions the envelope already
+carries.
+
+**Batched writes (#4496 fix 3).** Emit the artifact files as **parallel
+`Write` calls in ONE message** — `techspec.md`, `risk-verdict.json`,
+`acceptance-spec.md`, and `tickets.json` together (ideation: the one-pager
+markdown joins the same batch). Never write them one-per-turn.
+
+1. **`techspec.md`** — per `systemPrompts.spec`. The Tech Spec opens with
+   `## Delivery Slicing` and never restates the Epic's Context/Goal/Scope.
+2. **`risk-verdict.json`** — the schema-conformant verdict
    **plus `deliveryShape: "fan-out"|"single"`** and a one-line rationale.
    Seed the shape from the envelope's `deliveryShapeSignal` (advisory —
    the operator vetoes it at gate #2). `"single"` means one-pass-sized or a
    pure dependent chain: the plan ships as spec-only, with **no tickets**.
-3. **`acceptance-spec.md`** — same skill; omit only when the Epic carries
-   the `acceptance::n-a` waiver label.
-4. **`tickets.json`** — fan-out shape only: activate the
-   [`epic-plan-decompose-author`](../../skills/core/epic-plan-decompose-author/SKILL.md)
-   skill against the same envelope (its `systemPrompts.decompose`,
-   `ticketSchema`, and `maxTickets` fields). In single-delivery shape author
-   **no** tickets file — the Delivery Slicing table is the plan.
+3. **`acceptance-spec.md`** — per `systemPrompts.acceptance`; omit only
+   when the Epic carries the `acceptance::n-a` waiver label.
+4. **`tickets.json`** — fan-out shape only: author against the same
+   envelope (its `systemPrompts.decompose`, `ticketSchema`, and
+   `maxTickets` fields). In single-delivery shape author **no** tickets
+   file — the Delivery Slicing table is the plan.
 
 > **One-pass refinement contract (amend, don't regenerate).** When a critic
 > flags Stories or the step 3 persist rejects an artifact, apply **targeted
@@ -153,8 +189,12 @@ skills name — read the envelope wherever a skill asks for either.
 
 ### Conditional critics (between authoring and gate #2)
 
-Evaluate the dispatch conditions deterministically first — one git-local
-CLI call, zero GitHub reads:
+The evaluation is folded into `plan-persist.js` as a deterministic
+pre-write phase (#4496 fix 6) — the persist prints both verdicts, returns
+them on its result envelope, and ledger-logs every skip. **Attended runs**
+evaluate the dispatch conditions before gate #2 so the verdicts fold into
+its view — one git-local CLI call, zero GitHub reads, via the thin shim
+(kept one release over the shared evaluator):
 
 ```bash
 node .agents/scripts/plan-critics.js --epic [Epic_ID]
@@ -166,6 +206,14 @@ a sub-agent ONLY for a critic with `dispatch: true`; surface each skip as a
 one-line note. Every skip decision is appended to the plan-metrics ledger
 (`kind: "critic-skip"`, with reasons) so under-firing is auditable — the
 persist validators remain unchanged hard gates either way.
+
+> **`--yes` (headless).** Do **not** run the standalone CLI and do **not**
+> dispatch critic sub-agents: the critics' findings would fold into a gate
+> that auto-proceeds, so a report nobody reviews is pure spend. The
+> persist's folded pre-write evaluation is the audit record — its verdicts
+> print in the persist output, a `dispatch: true` verdict surfaces as a
+> one-line advisory note in the run summary, and every skip still lands on
+> the plan-metrics ledger.
 
 Both critics are **fresh-context sub-agents** (`Agent` tool,
 `subagent_type: general-purpose`) — never inline skill activations, so they
@@ -252,6 +300,24 @@ intermediate `agent::review-spec`) → checkpoint v2 + a single `plan-summary`
 comment carrying the dry-run wave table → temp cleanup **only at terminal
 success**, so a failed run leaves the artifacts in place for `--force` /
 `--resume` reuse.
+
+Two deterministic softenings ride the gate list:
+
+- The file-assumption gate **auto-normalizes** a `refactors-existing`
+  declaration on a base-untracked path to `creates` with a logged warning
+  (#4496 fix 5) — a refactor of a path that does not exist is
+  deterministically a create, so no amend cycle is forced. Genuine
+  mismatches (an absent read dependency, a clobbering `creates`, a missing
+  `deletes` target) still reject.
+- Every auto-waiver the persist derives is printed **with its reason** in
+  the `plan-summary` comment and the result JSON (#4496 fix 2) — e.g. the
+  no-BDD-runner acceptance-disposition waiver.
+
+> **`--yes` (headless): persist outcomes are authoritative.** Read the
+> persist's result JSON and `plan-summary` receipts as the final word — do
+> **not** re-derive a waiver, disposition, or routing decision from
+> framework source. If a summary line seems surprising, its reason is on
+> the line itself; spend zero turns re-verifying it.
 
 ### Persist rejections and soft failures
 

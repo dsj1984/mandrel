@@ -306,7 +306,7 @@ describe('plan-persist — deterministic gate coverage inventory (#4474 G2 recei
     );
   });
 
-  it('gate 4 — file-assumption gate rejects a refactors-existing claim on a path absent from the base branch', async () => {
+  it('gate 4 — file-assumption gate rejects a genuine mismatch (absent read dependency)', async () => {
     const provider = buildStubProvider();
     const acceptance = ['bad-path done'];
     await assert.rejects(
@@ -316,11 +316,14 @@ describe('plan-persist — deterministic gate coverage inventory (#4474 G2 recei
             tickets: [
               ticket('bad-path', {
                 body: serialize({
-                  goal: 'Refactor a file that does not exist.',
+                  goal: 'Read a file that does not exist.',
                   changes: [
+                    { path: 'package.json', assumption: 'refactors-existing' },
+                  ],
+                  references: [
                     {
                       path: 'definitely/not/a/real/file.js',
-                      assumption: 'refactors-existing',
+                      assumption: 'exists',
                     },
                   ],
                   acceptance,
@@ -333,6 +336,38 @@ describe('plan-persist — deterministic gate coverage inventory (#4474 G2 recei
         }),
       ),
       /assumption/i,
+    );
+  });
+
+  it('gate 4b — refactors-existing on a base-untracked path auto-normalizes to creates instead of rejecting (#4496 fix 5)', async () => {
+    const provider = buildStubProvider();
+    const acceptance = ['new-path done'];
+    const result = await runPlanPersist(
+      baseInput(provider, {
+        artifacts: {
+          tickets: [
+            ticket('new-path', {
+              body: serialize({
+                goal: 'Refactor a file that turns out to be brand new.',
+                changes: [
+                  {
+                    path: 'definitely/not/a/real/file.js',
+                    assumption: 'refactors-existing',
+                  },
+                ],
+                acceptance,
+                verify: ['npm test (validate)'],
+              }),
+              acceptance,
+            }),
+          ],
+        },
+      }),
+    );
+    assert.equal(result.labelTransition, 'ready');
+    assert.ok(
+      provider.issues.get(EPIC_ID).labels.includes(AGENT_LABELS.READY),
+      'the deterministic normalization must not block the persist',
     );
   });
 

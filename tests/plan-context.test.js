@@ -28,7 +28,9 @@ import {
   buildDeliveryShapeSignal,
   buildPlanContext,
   buildReplanSignal,
+  buildScopeTriageSignal,
   buildSystemPrompts,
+  ONE_PAGER_AUTHORING_SPEC,
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
@@ -128,6 +130,28 @@ const EPIC_MODE_KEYS = [
   'ticketSchema',
 ];
 
+const SEED_MODE_KEYS = [
+  'bddRunner',
+  'bddScenarios',
+  'codebaseSnapshot',
+  'deliveryShapeSignal',
+  'docsContext',
+  'duplicates',
+  'maxTickets',
+  'maxTokenBudget',
+  'memoryFreshness',
+  'mode',
+  'onePagerSpec',
+  'planState',
+  'preflightCeilings',
+  'priorFeedback',
+  'riskHeuristics',
+  'scopeTriage',
+  'seed',
+  'systemPrompts',
+  'ticketSchema',
+];
+
 const ONE_PAGER_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
@@ -177,7 +201,33 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.equal(env.planState, null);
   });
 
-  it('rejects an unknown mode and a non-numeric epic id', async () => {
+  it('seed mode emits the one-pager key set plus the additive seed fields (#4496)', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: { github: { owner: 'o', repo: 'r' } },
+      settings: {},
+    });
+    assert.deepEqual(Object.keys(env).sort(), SEED_MODE_KEYS);
+    assert.equal(env.mode, 'seed');
+    assert.equal(env.seed.text, ONE_PAGER);
+    assert.ok(
+      !('onePager' in env),
+      'the one-pager does not exist yet in seed mode',
+    );
+    assert.equal(env.planState, null);
+    assert.deepEqual(env.onePagerSpec, ONE_PAGER_AUTHORING_SPEC);
+    assert.deepEqual(env.onePagerSpec.sections, [
+      'Problem Statement',
+      'Recommended Direction',
+      'Key Assumptions',
+      'MVP Scope',
+      'Not Doing',
+    ]);
+  });
+
+  it('rejects an unknown mode, a non-numeric epic id, and an empty seed', async () => {
     await assert.rejects(
       () => buildPlanContext({ mode: 'bogus', provider: buildProvider() }),
       /unknown mode/,
@@ -185,6 +235,15 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     await assert.rejects(
       () => buildPlanContext({ mode: 'epic', provider: buildProvider() }),
       /numeric epicId/,
+    );
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'seed',
+          seedText: '   ',
+          provider: buildProvider(),
+        }),
+      /non-empty seed text/,
     );
   });
 });
@@ -248,6 +307,26 @@ describe('plan-context dup-search fold parity vs library', () => {
     const env = await buildPlanContext({
       mode: 'one-pager',
       onePagerContent: ONE_PAGER,
+      provider,
+      config,
+      settings: {},
+    });
+    const direct = await findSimilarOpenEpics({
+      onePager: ONE_PAGER,
+      provider,
+      owner: 'o',
+      repo: 'r',
+    });
+    assert.ok(direct.length > 0, 'fixture must produce at least one candidate');
+    assert.deepEqual(env.duplicates, direct);
+  });
+
+  it('seed mode runs the dup search off the raw seed text (#4496 fix 1)', async () => {
+    const provider = buildProvider();
+    const config = { github: { owner: 'o', repo: 'r' } };
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
       provider,
       config,
       settings: {},
@@ -472,5 +551,63 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
     // The budget must have engaged (body over 50 KB cannot ride through full).
     assert.equal(env.epic.body, null);
     assert.ok(env.epic.bodySummary, 'expected the applyBudget summary mode');
+  });
+});
+
+describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', () => {
+  it('is embedded in the seed envelope as an advisory, cli-applied verdict', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    assert.ok(
+      ['epic', 'story', 'borderline'].includes(env.scopeTriage.verdict),
+      'verdict must be one of the three canonical scope-triage verdicts',
+    );
+    assert.equal(env.scopeTriage.advisory, true);
+    assert.equal(env.scopeTriage.appliedBy, 'cli');
+    assert.ok(env.scopeTriage.reasons.length > 0);
+  });
+
+  it('verdicts epic when the seed enumerates 3+ candidate capabilities', () => {
+    const signal = buildScopeTriageSignal({
+      seedText:
+        'Build the reporting surface:\n- export engine\n- scheduling\n- share links\n- audit log\n',
+    });
+    assert.equal(signal.verdict, 'epic');
+    assert.match(signal.reasons[0], /enumerates 4 candidate capabilities/);
+  });
+
+  it('verdicts story for a short enumeration and for a delta-shaped seed', () => {
+    const enumerated = buildScopeTriageSignal({
+      seedText: 'Improve onboarding:\n- add a progress meter\n',
+    });
+    assert.equal(enumerated.verdict, 'story');
+
+    const delta = buildScopeTriageSignal({
+      seedText:
+        'Fix the flaky retry in the evidence gate so CI stops re-running.',
+    });
+    assert.equal(delta.verdict, 'story');
+    assert.match(delta.reasons[0], /delta-shaped seed/);
+  });
+
+  it('verdicts borderline when there is no enumeration and no delta signal', () => {
+    const signal = buildScopeTriageSignal({
+      seedText:
+        'A better way to think about how planning context reaches the model.',
+    });
+    assert.equal(signal.verdict, 'borderline');
+  });
+
+  it('verdicts epic for a broad prose seed with no enumeration', () => {
+    const signal = buildScopeTriageSignal({
+      seedText: `${'word '.repeat(260)}`,
+    });
+    assert.equal(signal.verdict, 'epic');
+    assert.match(signal.reasons[0], /broad prose seed/);
   });
 });

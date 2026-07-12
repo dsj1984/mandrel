@@ -89,10 +89,16 @@ function renderWaveTableLines(waveTable) {
  * record `{ deliveryShape, sliceCount, routingReasons }` (Epic #4474 PR4)
  * for the spec-only mode.
  *
+ * Every auto-waiver the persist derived is printed WITH its reason
+ * (#4496 fix 2) — e.g. the no-BDD-runner acceptance-disposition waiver
+ * (`planningRisk.acceptanceWaivedReason`) — so the summary is
+ * self-explanatory and a headless reader never has to re-derive a persist
+ * outcome from framework source.
+ *
  * @param {{
  *   epicId: number,
  *   ticketCount: number,
- *   planningRisk: { overallLevel?: string, gateDecision?: string },
+ *   planningRisk: { overallLevel?: string, gateDecision?: string, acceptanceDisposition?: string, acceptanceWaivedReason?: string },
  *   reviewRouting: { decision?: string },
  *   freshness?: { stale?: number, ambiguous?: number },
  *   healthcheck?: { ok?: boolean, waived?: boolean, skipped?: boolean },
@@ -137,6 +143,14 @@ export function buildPlanSummaryCommentBody({
       ? `- Single-delivery plan (\`delivery::single\`): no Story tree — the Delivery Slicing table is the audit trail.`
       : `- ${ticketCount} Story ticket(s) persisted across ${waveTable.length} wave(s).`;
 
+  // Auto-waivers always ship with their reason (#4496 fix 2): the summary
+  // is authoritative, so the line must be self-explanatory on its own.
+  const waiverLines = planningRisk?.acceptanceWaivedReason
+    ? [
+        `- ⚠️ Acceptance disposition auto-waived to \`not-applicable\` — ${planningRisk.acceptanceWaivedReason}`,
+      ]
+    : [];
+
   const amendLines = amend
     ? [
         `- Amend delta: ${amend.created.length} added, ${amend.recreated.length} modified (closed + recreated), ${amend.closed.length} closed, ${amend.keptCount} kept untouched.`,
@@ -176,6 +190,7 @@ export function buildPlanSummaryCommentBody({
     headLine,
     ...amendLines,
     `- Risk: ${planningRisk?.overallLevel ?? 'unknown'} · ${planningRisk?.gateDecision ?? 'unknown'} (review routing: ${reviewRouting?.decision ?? 'unknown'}).`,
+    ...waiverLines,
     freshnessLine,
     healthcheckLine,
     // G2 measurement receipt (Epic #4474 PR1/PR7): the plan-CLI invocation

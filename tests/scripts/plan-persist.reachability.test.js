@@ -242,7 +242,13 @@ function baseInput(provider, { artifacts = {}, planning, opts = {} } = {}) {
 }
 
 function criticSkips(entries) {
-  return entries.filter((e) => e.kind === PLAN_METRICS_KIND_CRITIC_SKIP);
+  // The folded author-critics evaluation (#4496 fix 6) appends its own
+  // consolidation/pre-mortem skip records; this suite audits only the
+  // reachability channel.
+  return entries.filter(
+    (e) =>
+      e.kind === PLAN_METRICS_KIND_CRITIC_SKIP && e.critic === 'reachability',
+  );
 }
 
 describe('plan-persist — deterministic reachability (step 4.5, PR6)', () => {
