@@ -10,7 +10,8 @@ throw.
 Each event in the Tech Spec taxonomy has a `<event>.schema.json`
 file. The ledger record (`emitted | completed | failed` union)
 lives in `ledger-record.schema.json` and is consumed by
-`ledger-writer.js` and the `lifecycle-diff` CLI.
+`ledger-writer.js` and the `lib/orchestration/lifecycle/ledger-diff.js`
+assertion helpers.
 
 Schemas are intentionally permissive (`additionalProperties: true`)
 on inner objects whose shape is dictated by upstream tooling (e.g.

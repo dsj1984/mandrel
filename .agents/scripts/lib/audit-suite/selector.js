@@ -11,9 +11,8 @@
  *   - selectAudits          — main entry; reads audit-rules.json, runs `git
  *                             diff --name-only`, applies keyword + glob rules.
  *
- * The CLI wrapper at `.agents/scripts/select-audits.js` reduces to argv
- * parsing, provider construction, JSON stdout, and degraded-mode exit-code
- * mapping. All rule-matching lives here.
+ * All rule-matching lives here; the former `select-audits.js` CLI wrapper
+ * was retired in #4482 (consumers call `selectAudits` via the barrel).
  */
 
 import { readFileSync } from 'node:fs';

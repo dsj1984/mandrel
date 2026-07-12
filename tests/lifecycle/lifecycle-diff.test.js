@@ -11,7 +11,7 @@ import {
   diff,
   parseLedgerText,
   projectRecord,
-} from '../../.agents/scripts/lifecycle-diff.js';
+} from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-diff.js';
 
 /**
  * The diff CLI is a tiny pure-JS surface, so we exercise the pure

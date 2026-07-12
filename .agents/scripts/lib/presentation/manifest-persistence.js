@@ -120,10 +120,9 @@ export function deleteLegacyFlatManifest(epicId, opts = {}) {
  * Atomic write-then-rename. On any failure, best-effort remove the `.tmp`
  * file and rethrow so the caller can surface a structured result.
  *
- * Exported so other writers (e.g. `render-manifest.js`) can route their
- * `.md` / `.json` artefact writes through the same crash-safe primitive.
+ * Internal crash-safe write primitive for the manifest artefact pair.
  */
-export function atomicWrite(finalPath, content) {
+function atomicWrite(finalPath, content) {
   const tmpPath = `${finalPath}.tmp`;
   try {
     fs.writeFileSync(tmpPath, content, 'utf8');

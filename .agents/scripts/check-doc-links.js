@@ -50,6 +50,9 @@ export const RETIRED_COMMANDS = new Set([
   'agents-bootstrap-github',
   'single-story-plan',
   'mandrel',
+  // #4482 — dead workflow surface retired (host-native equivalents).
+  'explain',
+  'git-merge-pr',
 ]);
 
 // Tokens that look like `/foo` in prose but are not slash commands. Tokens

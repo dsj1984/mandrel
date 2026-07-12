@@ -9,9 +9,8 @@
  * file I/O decisions, or process.exit(). All I/O choices are delegated
  * to the caller.
  *
- * Consumers:
- *   - `.agents/scripts/hydrate-context.js`   — the only supported CLI wrapper
- *     (imports hydrateContext; `--emit prompt` writes the raw hydrated prompt)
+ * Consumers import `hydrateContext` from this module directly — the former
+ * `hydrate-context.js` CLI wrapper was retired (#4482) with no live consumer.
  *
  * @see .agents/scripts/lib/ITicketingProvider.js
  */
@@ -153,7 +152,7 @@ function getVersion() {
  * @param {string} body
  * @returns {Record<string, number>}
  */
-export function parseHierarchy(body) {
+function parseHierarchy(body) {
   const result = {};
   if (!body) return result;
 

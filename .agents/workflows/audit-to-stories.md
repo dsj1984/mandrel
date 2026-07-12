@@ -248,6 +248,17 @@ opened. When the Standalone-Stories path ran, list every Issue URL.
   creation; fall back to `gh issue create` when the MCP tool is
   unavailable.
 
+## Scheduling a nightly sweep
+
+To run an unattended maintenance sweep, `/schedule` a nightly (or weekly)
+job that (1) runs the relevant `audit-*` lens workflows full-scope — no
+`--paths`, no change-set filter, so the whole target-set union is audited —
+writing their `temp/audits/audit-*-results.md` reports, then (2) invokes
+`/audit-to-stories` over those results to dedupe and route the findings.
+The host scheduler owns the cadence; this workflow owns the routing. (This
+paragraph folds in the `loops/nightly-audit.md` starter unit retired in
+issue 4482.)
+
 ## See also
 
 - [`/plan`](helpers/plan-epic.md) — the planning pipeline `/audit-to-stories`

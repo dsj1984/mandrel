@@ -31,3 +31,23 @@ export function applyHeader(content, header) {
   const body = content.slice(block.length).replace(/^\r?\n/, '');
   return `${block}\n${header}${body}`;
 }
+
+/**
+ * True when a workflow opts out of slash-command projection via a
+ * `command: false` key in its YAML frontmatter (#4482). Used for dual-use
+ * lens files (e.g. `audit-security.md`, `audit-lighthouse.md`) that stay in
+ * the payload as `/deliver` audit-suite prompts but must NOT surface as
+ * standalone slash commands because the host ships a native equivalent.
+ *
+ * Both `sync-claude-commands.js` (projection + orphan-reap) and the
+ * `commands-in-sync` doctor check (parity expectation) consult this flag so
+ * an excluded workflow never reads as "not synced".
+ *
+ * @param {string} content - Raw workflow `.md` content.
+ * @returns {boolean}
+ */
+export function isCommandExcluded(content) {
+  const frontmatter = String(content).match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (!frontmatter) return false;
+  return /^command:\s*false\s*$/m.test(frontmatter[1]);
+}

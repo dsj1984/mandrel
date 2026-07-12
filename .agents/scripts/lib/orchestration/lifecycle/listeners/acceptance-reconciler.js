@@ -199,7 +199,7 @@ export class AcceptanceReconciler {
       ? epicIdFromPayload
       : this.epicId;
 
-    // 1. Start emit. The downstream lifecycle-diff `reconcile-ordering`
+    // 1. Start emit. The downstream ledger-diff `reconcile-ordering`
     //    assert checks for `acceptance.reconcile.ok` before `pr.created`,
     //    but operators want to see the `.start` marker in the trace too.
     try {

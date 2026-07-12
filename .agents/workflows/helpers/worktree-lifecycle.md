@@ -334,8 +334,9 @@ Set `delivery.worktreeIsolation.enabled: false` (or omit the block) to
 restore v5.5.1 single-tree behavior:
 
 - No `git worktree add` / `remove` calls.
-- `assert-branch.js` and `computeStoryWaves` focus-area serialization remain in
-  place as the primary race guards.
+- The native `git branch --show-current` pre-commit check and
+  `computeStoryWaves` focus-area serialization remain in place as the primary
+  race guards.
 - All existing v5.5.1 tests pass in this mode.
 
 Pick single-tree mode when:
@@ -370,8 +371,8 @@ Human reviewers should **keep using the main checkout** — not a worktree:
 - **Always** use the main checkout for code review — not a per-story worktree.
 - **Always** respect `delivery.worktreeIsolation.enabled: false` as a
   first-class fallback mode, not a degraded one. v5.5.1 single-tree guards
-  (`assert-branch.js`, focus-area serialization) remain the primary defense in
-  that mode.
+  (the `git branch --show-current` pre-commit check, focus-area serialization)
+  remain the primary defense in that mode.
 
 ## Operator escape hatches
 

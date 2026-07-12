@@ -129,14 +129,15 @@ describe('runPrWatch — red path', () => {
     assert.equal(out.stillRunning, false);
     assert.equal(out.checkOutcomes.baselines, 'failure');
     // The failing check is named on one of the error lines (Story #4358
-    // added the `/loop /loops:fix-failing-tests` handoff line after it).
+    // added the red-green remediation handoff line after it; #4482 retired
+    // the loops/ starter units, so the handoff is prose, not a command).
     assert.ok(
       errorLines.some((l) => /baselines=failure/.test(l)),
       'failing check named in error output',
     );
     assert.ok(
-      errorLines.some((l) => /fix-failing-tests/.test(l)),
-      'fix-loop handoff surfaced on red',
+      errorLines.some((l) => /apply the smallest fix/.test(l)),
+      'red-green remediation handoff surfaced on red',
     );
   });
 });

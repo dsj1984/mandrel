@@ -1,7 +1,9 @@
 /**
  * lib/audit-suite/runner.js — `runAuditSuite` aggregation core.
  *
- * Extracted from `.agents/scripts/run-audit-suite.js` (Story #963, Epic #946).
+ * Extracted from the former `run-audit-suite.js` CLI (Story #963, Epic #946;
+ * the CLI wrapper itself was retired in #4482 — `runAuditSuite` via the
+ * barrel is the only supported entry point).
  *
  * The runner composes the focused helpers from this directory:
  *   - frontmatter.js     → `summarizeWorkflow`
@@ -10,9 +12,9 @@
  *   - workflow-loader.js → `loadWorkflow`, `defaultWriteArtifact`
  *
  * It owns the audit envelope shape (`metadata`, `findings`, `workflows`) and
- * the per-audit fan-out + result reduction. The CLI entry-point in
- * `.agents/scripts/run-audit-suite.js` reduces to argument parsing and
- * stdout/stderr glue around this function.
+ * the per-audit fan-out + result reduction. The former CLI entry-point
+ * (`run-audit-suite.js`) was retired in #4482; callers invoke
+ * `runAuditSuite` via the `lib/audit-suite/index.js` barrel.
  */
 
 import fs from 'node:fs/promises';

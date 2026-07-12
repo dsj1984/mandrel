@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/ledger-record.schema.json",
   "title": "Lifecycle ledger record (emitted | completed | failed)",
-  "description": "Append-only NDJSON record shape for temp/epic-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, lifecycle-diff CLI, TraceLogger) discriminate on `kind`.",
+  "description": "Append-only NDJSON record shape for temp/epic-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, the ledger-diff assertion helpers, TraceLogger) discriminate on `kind`.",
   "oneOf": [
     { "$ref": "#/$defs/emitted" },
     { "$ref": "#/$defs/completed" },

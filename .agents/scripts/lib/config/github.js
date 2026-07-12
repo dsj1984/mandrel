@@ -8,15 +8,13 @@
  * drives both:
  *
  *   - `/agents-bootstrap-github` — registers GitHub required-status checks.
- *   - `/git-merge-pr` → `git-pr-quality-gate.js` — runs each check locally
- *     before merge.
  */
 
 /**
  * Default required-check suite. Mirrors the live CI required-check set
  * (`lint` + `test` + `baselines`); consumers override via
  * `github.branchProtection.requiredChecks` in `.agentrc.json`. Kept in sync
- * with `DEFAULT_CHECKS` in `git-pr-quality-gate.js` and the CI job names in
+ * with the CI job names in
  * `.github/workflows/ci.yml` — the retired `format:check` folded into `lint`
  * (Story #1829) and `lifecycle-doc-drift` collapsed into `lint`/`docs:check`
  * (Epic #1943), so neither belongs in the default set.

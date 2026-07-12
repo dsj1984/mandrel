@@ -65,10 +65,17 @@ The division of labor is fixed as:
   diagnosis.
 
 A loop unit is a markdown file under `.agents/workflows/loops/` whose
-frontmatter is validated against
-[`.agents/schemas/loop-unit.schema.json`](../../.agents/schemas/loop-unit.schema.json)
+frontmatter was validated against `.agents/schemas/loop-unit.schema.json`
 by `check-loop-units.js` (wired into `npm run lint`), and which projects to the
 namespaced `/loops:<name>` command via `sync-claude-commands.js`.
+
+> **Retirement addendum (#4482, 2026-07-12).** The three starter units, the
+> schema, and `check-loop-units.js` were retired: the starters were pure
+> adapters over host-native behavior and never ran. The division of labor
+> this ADR records (host owns the driver; a unit is content-only) stands —
+> `sync-claude-commands.js` still projects consumer-authored
+> `.agents/local/workflows/loops/` units — but the framework ships no
+> starter units and no frontmatter lint gate.
 
 ### The host owns (the loop *driver*)
 
@@ -92,10 +99,9 @@ not new framework code.
 - **Adding a starter loop is content-only.** A new `.agents/workflows/loops/*.md`
   with a valid `loop:` block is the entire change — no runner wiring, no
   scheduler plumbing. The three starters
-  ([`fix-failing-tests`](../../.agents/workflows/loops/fix-failing-tests.md)
-  self-paced, [`watch-ci`](../../.agents/workflows/loops/watch-ci.md) interval,
-  [`nightly-audit`](../../.agents/workflows/loops/nightly-audit.md) cron) map
-  one starter to each cadence.
+  (`fix-failing-tests` self-paced, `watch-ci` interval, `nightly-audit`
+  cron — retired in #4482, see the addendum above) mapped one starter to
+  each cadence.
 - **The `verify` oracle is the contract seam.** Because a self-paced unit
   carries a runnable oracle, the host `/loop` has a deterministic stop signal it
   did not have to be taught — the unit is portable to any host that can run a

@@ -1,5 +1,6 @@
 ---
 description: Run a Lighthouse audit (Performance / Accessibility / Best Practices / SEO) and produce a structured findings report
+command: false
 ---
 
 # Lighthouse Audit & Analysis

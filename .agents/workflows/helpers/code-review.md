@@ -427,8 +427,8 @@ in-place.
 1. **Apply a focused fix on `[HEAD_REF]`.** Permitted only when the
    finding is unambiguously *fixable* (clean remediation, no scope
    creep, no spec deviation, no secret exposure):
-   - Call [`assert-branch.js`](../../scripts/assert-branch.js) with
-     `--expected [HEAD_REF]` before touching the working tree.
+   - Confirm `git branch --show-current` reports `[HEAD_REF]` before
+     touching the working tree; if it does not, STOP and re-checkout.
    - Stage explicit paths only (never `git add .`).
    - Make one focused conventional commit per finding
      (`fix(<scope>): <description> (review finding)`).
@@ -461,9 +461,9 @@ ceremony above:
 1. Group the fixable Mediums by owning lens (the pillar or audit family
    that produced them). A Medium is fixable on the same terms as a 🟠; a
    Medium in any escalation class stays on the comment exactly like a 🟠.
-2. For each lens, call `assert-branch.js --expected [HEAD_REF]`, stage
-   explicit paths only, and make **one focused conventional commit per
-   lens** (`fix(<scope>): <description> (review findings batch)`).
+2. For each lens, confirm `git branch --show-current` reports
+   `[HEAD_REF]`, stage explicit paths only, and make **one focused
+   conventional commit per lens** (`fix(<scope>): <description> (review findings batch)`).
 3. Bounded-attempt semantics extend to the batch: each finding gets **at
    most one** attempt, and a lens's batch commit that would exceed
    `delivery.codeReview.maxFixScopeFiles` routes that lens's findings to
@@ -549,7 +549,8 @@ If the operator instructs you to fix any findings:
 
    ```powershell
    # Guard: confirm we're on the correct branch before committing.
-   node .agents/scripts/assert-branch.js --expected [HEAD_REF]
+   # ([HEAD_REF] mismatch -> STOP and re-checkout before any commit.)
+   git branch --show-current
 
    # Stage explicit paths — never `git add .` on a shared tree.
    git add <path/one> <path/two>
