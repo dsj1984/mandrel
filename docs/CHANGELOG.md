@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.90.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.89.0...mandrel-v1.90.0) (2026-07-12)
+
+
+### Fixed
+
+* **delivery:** land headless PRs in checks-less repos + degrade coverage gate without test:coverage ([#4480](https://github.com/dsj1984/mandrel/issues/4480)) ([9836f1e](https://github.com/dsj1984/mandrel/commit/9836f1ec9beb4b2798bd72e869214e5705296522)), closes [#4472](https://github.com/dsj1984/mandrel/issues/4472) [#4473](https://github.com/dsj1984/mandrel/issues/4473)
+
 ## [1.89.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.88.0...mandrel-v1.89.0) (2026-07-11)
 
 
