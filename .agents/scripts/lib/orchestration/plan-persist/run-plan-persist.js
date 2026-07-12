@@ -2,8 +2,8 @@
  * run-plan-persist.js — single GitHub-write surface for the /plan collapse
  * (Epic #4474, PR3 + PR4 modes).
  *
- * Implements the ordered, fail-closed superset persist that replaces the
- * separate `epic-plan-spec.js` / `epic-plan-decompose.js` persist halves
+ * Implements the ordered, fail-closed superset persist that replaced the
+ * retired 12-phase pipeline's separate persist halves
  * (design §1 Step 3 + §2 mode matrix, issue #4474):
  *
  *    1. args (owned by the `plan-persist.js` CLI shell)
@@ -129,7 +129,12 @@ import {
   read as readPlanState,
   write as writePlanState,
 } from '../epic-plan-state-store.js';
-import { appendCriticSkip } from '../plan-metrics.js';
+import {
+  appendCriticSkip,
+  readPlanMetrics,
+  renderPlanMetricsSummaryLine,
+  summarizePlanMetrics,
+} from '../plan-metrics.js';
 import {
   evaluateDraftReachability,
   renderReachabilityOrphans,
@@ -446,6 +451,26 @@ export async function runPlanPersist({
     validated = validateTickets(gateSet, config, { fanOutCounter, cwd });
     enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
     surfaceSoftConflictFindings(validated.findings, 'plan-persist');
+
+    // File-assumption gate (#4474 PR7 — coverage regression fix). The
+    // validator batches per-Story `{ path, assumption }` mismatches against
+    // the base branch onto `validated.errors`; the retired 12-phase flow
+    // gated that channel in the workflow's re-prompt loop, so the collapsed
+    // CLI must gate it here or the check is silently advisory. Fan-out and
+    // shared-editor findings keep their own policy channels above — this
+    // rejects only the deterministic assumption mismatches, still before
+    // any provider call.
+    const assumptionFailures = (validated.errors ?? []).filter((e) =>
+      e.startsWith('File assumption mismatch:'),
+    );
+    if (assumptionFailures.length > 0) {
+      throw new Error(
+        `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
+          `mismatch(es) between declared assumptions and the base branch:\n` +
+          `${assumptionFailures.map((e) => `  - ${e}`).join('\n')}\n` +
+          'Fix the Story change declarations (or the plan) and re-run the persist.',
+      );
+    }
 
     // ---- Step 4.5: deterministic draft reachability (#4474 PR6 — the 8.4
     // critic demoted into persist). Still git-local, zero provider calls,
@@ -790,6 +815,25 @@ export async function runPlanPersist({
     const checkpoint = await writeCheckpointV2(provider, epicId, {
       persist: { completedAt: new Date().toISOString() },
     });
+    // G2 measurement receipt (Epic #4474 PR7): roll the plan-metrics ledger
+    // into the summary comment so turns-per-plan / per-mode counts / critic
+    // skips are readable off the Epic. Best-effort — a missing ledger
+    // yields no line. The in-flight persist invocation itself is stamped by
+    // the CLI wrapper *after* this function returns, so it appears in the
+    // stdout JSON (and any later re-persist), not in this comment.
+    let planMetricsLine = null;
+    try {
+      const metricsSummary = summarizePlanMetrics(
+        await readPlanMetrics(epicId, config),
+      );
+      if (metricsSummary) {
+        planMetricsLine = renderPlanMetricsSummaryLine(metricsSummary);
+      }
+    } catch (err) {
+      Logger.warn(
+        `[plan-persist] plan-metrics summary line skipped: ${err.message}`,
+      );
+    }
     await upsertStructuredComment(
       provider,
       epicId,
@@ -803,6 +847,7 @@ export async function runPlanPersist({
         healthcheck,
         waveTable,
         mode,
+        planMetricsLine,
         single,
         amend: amendSummary,
       }),

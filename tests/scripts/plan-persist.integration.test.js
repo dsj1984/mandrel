@@ -379,6 +379,10 @@ describe('plan-persist — full fan-out happy path', () => {
     assert.match(summaries[0].body, /Dry-run wave table/);
     assert.match(summaries[0].body, /\| 1 \| `story-one` \|/);
     assert.match(summaries[0].body, /\| 2 \| `story-two` \|/);
+    // G2 measurement receipt (#4474 PR7): the plan-metrics ledger roll-up
+    // rides the summary comment (the reachability critic-skip logged during
+    // this run guarantees a non-empty ledger in this fixture).
+    assert.match(summaries[0].body, /plan-metrics:/);
 
     // Reconciler spawned with the canonical flag set (no --explicit-delete
     // on a plain persist).
