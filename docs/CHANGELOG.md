@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.93.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.92.0...mandrel-v1.93.0) (2026-07-12)
+
+
+### Added
+
+* **plan:** close the measured turn gap — seed-mode ideation, authoritative summaries, batched writes (refs [#4496](https://github.com/dsj1984/mandrel/issues/4496)) ([#4497](https://github.com/dsj1984/mandrel/issues/4497)) ([ae98701](https://github.com/dsj1984/mandrel/commit/ae987014d68669eb0032a68000ed328c7a3c702d))
+
 ## [1.92.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.91.0...mandrel-v1.92.0) (2026-07-12)
 
 
