@@ -38,9 +38,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
-import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
 import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
+import { runDecomposePhase } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { writeSpec } from '../../.agents/scripts/lib/spec/index.js';
 
 const EPIC_ID = 2173;

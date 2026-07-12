@@ -26,16 +26,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-
-import {
-  buildAuthoringContext,
-  drainPendingCleanupAtBoot,
-} from '../../.agents/scripts/epic-plan-spec.js';
 import {
   Logger,
   routeAllOutputToStderr,
   STDERR_LOGGER,
 } from '../../.agents/scripts/lib/Logger.js';
+import { buildAuthoringContext } from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
+import { drainPendingCleanupAtBoot } from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/drain.js';
 
 function tmpRepo() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-ctx-stdout-'));

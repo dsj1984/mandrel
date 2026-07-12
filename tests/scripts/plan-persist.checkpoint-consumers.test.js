@@ -31,7 +31,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { resolveRiskRoutedLenses } from '../../.agents/scripts/epic-audit-prepare.js';
-import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
 import {
   EXIT_CODES,
   runReconcile,
@@ -39,6 +38,7 @@ import {
 import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
 import { resolveReviewDepthForEpic } from '../../.agents/scripts/lib/orchestration/code-review.js';
 import { buildDecompositionContext } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
+import { runDecomposePhase } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { read as readPlanState } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { apply as applyFn } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js';
 import { writeCheckpointV2 } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';

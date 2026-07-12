@@ -18,7 +18,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { buildAuthoringContext } from '../../.agents/scripts/epic-plan-spec.js';
+import { buildAuthoringContext } from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
 
 function makeProvider() {
   return {

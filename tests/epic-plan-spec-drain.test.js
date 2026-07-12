@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { drainPendingCleanupAtBoot } from '../.agents/scripts/epic-plan-spec.js';
+import { drainPendingCleanupAtBoot } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/drain.js';
 import {
   MAX_SWEEP_ATTEMPTS,
   manifestPath,

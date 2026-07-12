@@ -29,7 +29,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { validateRiskVerdict } from '../.agents/scripts/epic-plan-spec.js';
+import { validateRiskVerdict } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
 import { deriveRiskEnvelope } from '../.agents/scripts/lib/orchestration/planning-risk.js';
 
 /**

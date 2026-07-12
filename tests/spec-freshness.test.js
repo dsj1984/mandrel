@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
-import { runSpecFreshnessCheck } from '../.agents/scripts/epic-plan-spec.js';
+import { runSpecFreshnessCheck } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-freshness.js';
 import {
   renderSpecFreshnessComment,
   validateSpecFreshness,

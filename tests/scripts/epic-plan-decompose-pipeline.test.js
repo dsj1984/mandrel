@@ -1,51 +1,42 @@
 // tests/scripts/epic-plan-decompose-pipeline.test.js
 //
-// Story #2466 / Task #2495 — byte-identical CLI surface for the thinned
-// epic-plan-decompose pipeline.
+// Story #2466 / Task #2495 — the thinned epic-plan-decompose pipeline.
 //
 // After Story #2466 extracted the per-phase modules under
 // `lib/orchestration/epic-plan-decompose/phases/`, this fixture-diff
-// test pins the public exports + the two CLI flows (`--emit-context`
-// envelope and the persist path's runDecomposePhase signature).
+// test pins the public phase-module surface (`--emit-context` envelope
+// shape and the persist path's runDecomposePhase signature). Epic #4474
+// PR7 retired the delegate CLI, so the imports point at the phase
+// modules directly; the one-release re-export shim is pinned separately
+// by tests/scripts/plan-delegate-shims.test.js.
 //
 // Run: node --test tests/scripts/epic-plan-decompose-pipeline.test.js
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
+import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
+} from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
+import { warnTicketCapNearLimit } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
+import {
   orderTicketsForCreation,
   resolveDependencies,
-  runDecomposePhase,
-} from '../../.agents/scripts/epic-plan-decompose.js';
-import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
-import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
-import { warnTicketCapNearLimit } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
+} from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/dag.js';
+import { runDecomposePhase } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { EPIC_PLAN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 describe('epic-plan-decompose pipeline — named exports (Story #2466)', () => {
-  it('re-exports the legacy named surface', () => {
+  it('exposes the phase-module surface', () => {
     // Removing any of these breaks downstream tests + the orchestrator.
     assert.equal(typeof buildDecomposerSystemPrompt, 'function');
     assert.equal(typeof buildDecompositionContext, 'function');
     assert.equal(typeof orderTicketsForCreation, 'function');
     assert.equal(typeof resolveDependencies, 'function');
     assert.equal(typeof runDecomposePhase, 'function');
-  });
-
-  it('no longer exports the retired ensurePlanningArtifacts helper (Story #4324)', async () => {
-    // Story #4324 folded the planning artifacts into the Epic body as
-    // managed sections — the `## Planning Artifacts` checklist writer is
-    // deleted, and the persist phase hands the Epic body to the spec
-    // renderer verbatim (see epic-plan-decompose.body-preservation.test.js).
-    const mod = await import('../../.agents/scripts/epic-plan-decompose.js');
-    assert.ok(
-      !('ensurePlanningArtifacts' in mod),
-      'ensurePlanningArtifacts must not be re-exported after the context-ticket fold',
-    );
   });
 });
 

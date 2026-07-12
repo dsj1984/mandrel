@@ -13,16 +13,18 @@ const SCRIPTS = [
   // Story #2259 / Task #2264 (Epic #2172) — the legacy
   // deliver-runner CLI wrapper was retired with the listener-chain
   // conversion. The remaining launcher-shaped CLIs continue to enforce
-  // the same orchestration schema contract.
+  // the same orchestration schema contract. Epic #4474 PR7 — the
+  // epic-plan-spec / epic-plan-decompose delegates were retired; the
+  // collapsed plan CLIs carry the same launcher contract.
   {
-    name: 'epic-plan-spec',
-    relPath: '.agents/scripts/epic-plan-spec.js',
-    args: ['--epic', '1', '--emit-context'],
+    name: 'plan-context',
+    relPath: '.agents/scripts/plan-context.js',
+    args: ['--epic', '1'],
   },
   {
-    name: 'epic-plan-decompose',
-    relPath: '.agents/scripts/epic-plan-decompose.js',
-    args: ['--epic', '1', '--emit-context'],
+    name: 'plan-persist',
+    relPath: '.agents/scripts/plan-persist.js',
+    args: ['--epic', '1'],
   },
 ];
 

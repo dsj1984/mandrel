@@ -19,12 +19,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 import {
   loadRiskVerdict,
-  runSpecPhase,
   validateRiskVerdict,
-} from '../.agents/scripts/epic-plan-spec.js';
-import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
+} from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
+import { runSpecPhase } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
 
 const VALID_VERDICT = {
   axes: [

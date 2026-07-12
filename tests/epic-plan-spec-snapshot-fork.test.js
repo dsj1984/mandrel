@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
-import { forkAndCommitEpicSnapshot } from '../.agents/scripts/epic-plan-spec.js';
+import { forkAndCommitEpicSnapshot } from '../.agents/scripts/lib/baseline-snapshot.js';
 
 /**
  * Story #1396 (Epic #1386). Verifies the snapshot-fork wiring inside

@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildAuthoringContext } from '../.agents/scripts/epic-plan-spec.js';
+import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
 import {
   buildAuthoringGrounding,
   buildTruncationSignal,
