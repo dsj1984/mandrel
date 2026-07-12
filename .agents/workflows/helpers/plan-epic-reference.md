@@ -100,19 +100,30 @@ reseeding from live GitHub state when the file is missing — so only the
 genuinely-missing children are created; the existing tree is never
 duplicated.
 
-## Measurement — the G2 acceptance gate (Epic #4474)
+## Measurement — the G2 acceptance gate (Epic #4474, restated per #4496)
 
-The 3-step collapse is **measured, not asserted**. The acceptance bar the
-next benchmark cohort reads as the gate:
+The 3-step collapse is **measured, not asserted**. The gate is stated
+**per mode** (#4496 — adopted in the bench roadmap after the first measured
+headless run):
 
-- **Turns-per-plan ≤ ~15** at the epic rung (from the 55–72-turn 12-phase
-  baseline). The turns proxy is the plan-metrics invocation ledger
+- **Epic-mode** (`/plan <id> --yes`): **≤ ~12 turns / ≤ ~1.1M tokens**.
+- **Ideation-mode** (`/plan --idea --yes`): **≤ ~15 turns / ≤ ~1.5M
+  tokens** once the #4496 fixes (seed-mode ideation, authoritative persist
+  summaries, batched artifact writes) are in play; **interim smoke
+  threshold ≤ ~20 turns / ≤ ~2.0M tokens** for runs measured before/during
+  the rollout.
+- Verification is a cheap direct `/plan --idea --yes` probe reading the
+  plan-metrics ledger (~$3–4), not a full bench cell.
+
+Shared mechanics behind both rungs (from the 55–72-turn / 7.3–8.9M
+12-phase baseline):
+
+- The turns proxy is the plan-metrics invocation ledger
   (`temp/epic-<id>/plan-metrics.json`) plus the host session's turn
   accounting — ledger records count CLI invocations from the parent
   session's perspective, not sub-agent turns.
-- **Plan tokens ≤ ~1.5M** at the epic rung (from 7.3–8.9M) — owned by the
-  host's session accounting (mandrel-bench `modelUsage`), not by any
-  in-repo counter.
+- Plan tokens are owned by the host's session accounting (mandrel-bench
+  `modelUsage`), not by any in-repo counter.
 - **Unchanged validator coverage** — every deterministic gate of the
   retired pipeline still fires on the persist path: section gate, ticket
   validator, file-assumption, DAG, budget, draft reachability, inline

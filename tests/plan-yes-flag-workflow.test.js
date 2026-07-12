@@ -392,3 +392,137 @@ describe('/plan --yes headless flag — gate #2 (risk-routed pre-persist review)
     );
   });
 });
+
+describe('/plan --yes headless turn-gap fixes (#4496)', () => {
+  const ideation =
+    epicSource.match(
+      /### Ideation entry[\s\S]*?(?=\n### Existing-Epic entry)/,
+    )?.[0] ?? '';
+  const step2 =
+    epicSource.match(
+      /## Step 2 — Author[\s\S]*?(?=\n### Conditional critics)/,
+    )?.[0] ?? '';
+  const step3 =
+    epicSource.match(
+      /## Step 3 — Persist[\s\S]*?(?=\n## Troubleshooting)/,
+    )?.[0] ?? '';
+
+  it('fix 1 — the headless ideation entry is seed-mode: no idea-refinement activation, no separate one-pager write', () => {
+    assert.match(
+      ideation,
+      /plan-context\.js --seed/,
+      'the headless entry must run plan-context.js --seed',
+    );
+    assert.match(
+      ideation,
+      /do \*\*not\*\* activate the\s*\n?`idea-refinement` skill/i,
+      'the headless entry must not activate idea-refinement',
+    );
+    assert.match(
+      ideation,
+      /Attended \(no `--yes`\)/,
+      'the attended grill loop must survive (HITL by definition)',
+    );
+    assert.match(
+      ideation,
+      /authored \*\*in\s*\nstep 2's single batched write\*\*/,
+      'the one-pager must be authored in the batched write',
+    );
+  });
+
+  it('fix 3 — step 2 mandates parallel Write calls in ONE message', () => {
+    assert.match(
+      step2,
+      /\*\*parallel\s*\n?`Write` calls in ONE message\*\*/,
+      'the batched-write mandate must be stated',
+    );
+    assert.match(step2, /Never write them one-per-turn/);
+  });
+
+  it('fix 4 — the envelope systemPrompts are the authoring instructions (no mandated author-skill reads)', () => {
+    assert.match(
+      step2,
+      /`systemPrompts` ARE the authoring instructions/,
+      'the envelope-authoritative statement must be present',
+    );
+    assert.match(
+      step2,
+      /Do \*\*not\*\* read the/,
+      'the author SKILL.md reads must be explicitly retired on this path',
+    );
+    assert.doesNotMatch(
+      step2,
+      /activate the\s*\n?\s*\[`epic-plan-spec-author`\]/,
+      'no mandated spec-author skill activation may survive',
+    );
+  });
+
+  it('fix 2 — persist outcomes are authoritative under --yes (no re-derivation)', () => {
+    assert.match(
+      step3,
+      /persist outcomes are authoritative/i,
+      'the authoritative-summary rule must be stated',
+    );
+    assert.match(
+      step3,
+      /do\s*\n?>?\s*\*\*not\*\* re-derive/i,
+      'the no-re-derivation prohibition must be stated',
+    );
+    assert.match(
+      step3,
+      /with its reason/i,
+      'auto-waivers must be documented as printed with reasons',
+    );
+  });
+
+  it('fix 5 — the untracked-path auto-normalization is documented at the persist gate list', () => {
+    assert.match(step3, /auto-normalizes/i);
+    assert.match(step3, /`refactors-existing`[\s\S]*`creates`/);
+    assert.match(step3, /Genuine\s*\n?\s*mismatches[\s\S]*still reject/i);
+  });
+
+  it('fix 6 — the seed envelope carries the CLI-applied scopeTriage verdict; the fragment forbids the headless skill Read', () => {
+    assert.match(ideation, /`scopeTriage`/);
+    assert.match(
+      gateFragmentSource,
+      /applied \*\*CLI-side\*\*/,
+      'the fragment must document the CLI-side rubric',
+    );
+    assert.match(
+      gateFragmentSource,
+      /Do \*\*not\*\* Read the\s*\n?`core\/scope-triage` skill headless/,
+      'the fragment must forbid the headless skill Read',
+    );
+    assert.match(
+      planSource,
+      /Under `--yes`, do not\s*\n?\s*Read the skill/i,
+      'the router must skip the triage skill Read under --yes',
+    );
+  });
+
+  it('fix 7 — the router executes injected helper content without a read-in-full turn under --yes', () => {
+    assert.match(
+      planSource,
+      /already injected or present in context, execute it\s*\n?\s*directly/i,
+      'the read-in-full exemption must be stated',
+    );
+    assert.match(
+      planSource,
+      /do not spend a separate read-in-full turn/i,
+      'the exemption must name the read-in-full turn',
+    );
+  });
+
+  it('gate restatement — the G2 reference states the per-mode turn/token gates', () => {
+    const reference = readFileSync(
+      path.join(WORKFLOWS, 'helpers', 'plan-epic-reference.md'),
+      'utf8',
+    );
+    assert.match(reference, /Epic-mode[\s\S]*≤ ~12 turns \/ ≤ ~1\.1M/);
+    assert.match(reference, /Ideation-mode[\s\S]*≤ ~15 turns \/ ≤ ~1\.5M/m);
+    assert.match(
+      reference,
+      /interim smoke\s*\n?\s*threshold ≤ ~20 turns \/ ≤ ~2\.0M/i,
+    );
+  });
+});

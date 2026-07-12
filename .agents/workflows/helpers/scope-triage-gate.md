@@ -87,6 +87,15 @@ meanings; it only forces the Recommended resolution where the gate would
 otherwise STOP. See
 [`plan.md` § Headless / non-interactive mode](../plan.md#headless--non-interactive-mode---yes).
 
+**Headless seed entry — the verdict is already in the envelope (#4496).**
+On the `--idea` `--yes` path the rubric is applied **CLI-side** by
+`plan-context.js --seed` and shipped as the envelope's `scopeTriage` field
+(`{ verdict, reasons, advisory: true, appliedBy: "cli" }`), anchored to the
+same sizing SSOT this skill anchors to. Do **not** Read the
+`core/scope-triage` skill headless — use the envelope verdict and resolve it
+per this section. The attended paths keep the skill-based judgment
+unchanged.
+
 ## No-re-triage rule
 
 A **scope-triage handoff** is a triage decision *already made*. When `/plan` is

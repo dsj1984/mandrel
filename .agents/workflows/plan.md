@@ -88,7 +88,10 @@ exactly **two** HITL STOP gates, and `--yes` deterministically auto-proceeds
    exactly one bounded pass**: no operator questions are asked — facts come
    from the codebase, and every unresolved unknown lands in the one-pager's
    **Key Assumptions** section instead of a question, so a headless driver
-   can never hang inside a free-form interrogation. The verdict / clarity
+   can never hang inside a free-form interrogation. On the `--idea` Epic
+   path this bounded pass IS the seed entry (#4496): `plan-context.js
+   --seed` replaces the idea-refinement prelude, and the one-pager is
+   authored in the same batched write as the spec artifacts. The verdict / clarity
    scoring is still recorded in chat (one line); only the *wait* is
    suppressed — the deterministic clarity *scoring* inside the
    `plan-context.js` envelope always runs.
@@ -126,15 +129,24 @@ advisory critic diffs — auto-proceed for the same headless reason.
 1. **Parse args.** Exactly one of `<epicId>`, `--idea`, `--from-notes`, or
    `--body` must be present; anything else is a usage error naming the four
    forms. A `--body` invocation routes to the story path (no triage).
-2. **Triage (idea path only).** Run the
+2. **Triage (idea path only).** Attended: run the
    [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) skill on the
-   seed. Record the verdict in chat (one line).
+   seed. Record the verdict in chat (one line). **Under `--yes`, do not
+   Read the skill**: delegate straight to
+   [`helpers/plan-epic.md`](helpers/plan-epic.md)'s ideation entry — its
+   `plan-context.js --seed` envelope carries the rubric's verdict applied
+   CLI-side (`scopeTriage`), and a `story` / `borderline` verdict resolves
+   to the Recommended handoff from inside the helper (see
+   [`helpers/scope-triage-gate.md`](helpers/scope-triage-gate.md)).
 3. **Delegate.** Read the selected path helper **in full** and execute it
    from its entry, forwarding the absorbed flags (including `--yes`). The
    helper's steps, HITL gates, and scripts are the procedure — this router
    adds no step content. When `--yes` is present, the two HITL STOP gates
    auto-proceed per [Headless / non-interactive mode](#headless--non-interactive-mode---yes)
-   above; every deterministic gate still runs.
+   above; every deterministic gate still runs. **Under `--yes`, when the
+   helper content is already injected or present in context, execute it
+   directly — do not spend a separate read-in-full turn re-reading content
+   you already hold.**
 4. **Internal returns.** When a path helper would historically have handed
    off to the other planning command, switch helpers in-place and continue;
    surface the switch to the operator as a one-line note.

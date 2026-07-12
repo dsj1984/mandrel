@@ -145,6 +145,29 @@ describe('author-step critics — shared sub-agent mechanics', () => {
     );
   });
 
+  it('documents the persist fold + the headless no-dispatch rule (#4496 fix 6)', () => {
+    assert.match(
+      criticsSection,
+      /folded into `plan-persist\.js` as a deterministic\s*\n?pre-write phase/i,
+      'the persist fold must be documented',
+    );
+    assert.match(
+      criticsSection,
+      /thin shim/i,
+      'the standalone CLI must be described as a one-release thin shim',
+    );
+    assert.match(
+      criticsSection,
+      /Do \*\*not\*\* run the standalone CLI/,
+      'headless runs must not pay the standalone CLI turn',
+    );
+    assert.match(
+      criticsSection,
+      /do \*\*not\*\*\s*\n?>?\s*dispatch critic sub-agents/i,
+      'headless runs must not dispatch critic sub-agents',
+    );
+  });
+
   it('logs every skip decision to the plan-metrics ledger for audit', () => {
     assert.match(
       criticsSection,
