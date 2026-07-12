@@ -131,6 +131,14 @@ the standalone segment; segments themselves remain strictly sequential.
 
 ## Constraints
 
+- **Land or block — never a silent local build (issue #4483).** The
+  helpers' orchestration path (worktrees, `story-<id>`/`epic/<id>` branches,
+  close-validation, PR) is the ONLY sanctioned delivery mechanism.
+  Executing story slices inline in this session and/or committing the
+  delivery to local `main` is expressly forbidden, regardless of how the
+  environment looks. Each path surfaces verified remote evidence
+  (`remoteVerified`) at entry; on `false`, transition the ticket to
+  `agent::blocked` quoting `remoteProbe.detail` and halt.
 - `/deliver` requires planned tickets: Epics at `agent::ready` (the
   Epic helper's preflight enforces this, per segment) or well-formed
   standalone Stories. Planning happens in [`/plan`](plan.md); the

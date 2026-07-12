@@ -181,6 +181,17 @@ Threshold defaults live in `delivery.preflight.*` in `.agentrc.json`
 (all keys default to "no cap" — the gate is opt-in until an operator
 configures `maxStories` etc.).
 
+**Remote evidence — land or block (issue #4483).** The envelope also
+carries `remoteVerified` + `remoteProbe` (deterministic probes:
+`git remote get-url origin`, bounded `git ls-remote origin HEAD`). When
+`remoteVerified` is `false`, flip the Epic to `agent::blocked`, post a
+friction comment quoting `remoteProbe.detail`, and halt — the same
+explicit-block shape as #4425/#4480. NEVER fall back to executing Stories
+inline in this session or committing the delivery to local `main`; the
+worktree/branch/PR path below is the only sanctioned mechanism. Phase 7's
+finalize additionally refuses with a `delivery-branch-missing-on-origin`
+blocker when `epic/<epicId>` never reached origin.
+
 ### Phase 1 main — Seed the wave plan
 
 ```bash
