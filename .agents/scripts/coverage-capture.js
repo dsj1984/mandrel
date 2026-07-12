@@ -33,6 +33,7 @@ import {
 } from './lib/coverage-capture.js';
 
 import { Logger } from './lib/Logger.js';
+import { hasNpmScript, readPackageScripts } from './lib/npm-scripts.js';
 
 function parseArgs(argv) {
   const out = {
@@ -57,6 +58,22 @@ function main() {
   if (crap.enabled === false) {
     Logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
     return 0;
+  }
+
+  // Story #4473 — detect the "missing npm script" misconfiguration
+  // distinctly. `close-validation/gates.js` already declines to register
+  // this gate when `test:coverage` is absent, so reaching here without the
+  // script means a direct/pre-push invocation in a consumer that never
+  // defined it. Surface a one-line, fix-naming diagnostic instead of
+  // spawning `npm run test:coverage` only to propagate npm's opaque
+  // "Missing script" exit code.
+  if (!hasNpmScript(readPackageScripts(args.cwd), 'test:coverage')) {
+    Logger.error(
+      '[coverage-capture] ✖ No "test:coverage" script in package.json. ' +
+        'Add one (e.g. "test:coverage": "node --test --experimental-test-coverage") ' +
+        'or disable the CRAP gate via delivery.quality.gates.crap.enabled=false.',
+    );
+    return 1;
   }
 
   if (args.skipWhenNoCrapFiles) {

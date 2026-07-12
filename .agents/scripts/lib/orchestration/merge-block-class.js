@@ -10,7 +10,7 @@
  * one of four classes from the SAME decision logic, instead of each path
  * inventing its own ad hoc diagnosis.
  *
- * Block classes (Epic #4425 Goal):
+ * Block classes (Epic #4425 Goal; `predicate-refused` added by #4472):
  *   - `checks-pending-timeout`           The watch/poll budget was
  *                                         exhausted while required checks
  *                                         were still pending/running — not
@@ -33,6 +33,18 @@
  *                                         a transient GraphQL/API error, an
  *                                         ambiguous probe result, or a
  *                                         genuinely novel condition.
+ *   - `predicate-refused`                The AutomergePredicate refused to
+ *                                         arm merge BEFORE any arm attempt —
+ *                                         a red/pending required check, an
+ *                                         unreadable check probe, a dirty
+ *                                         structured-signal verdict, or a
+ *                                         `delivery.ci.requireChecks` policy
+ *                                         block on a checks-less repo (#4472).
+ *                                         The must-land contract previously
+ *                                         only covered post-arm poll
+ *                                         exhaustion, so a predicate refusal
+ *                                         in headless mode silently parked;
+ *                                         this class makes it attributable.
  *
  * Pure function, no I/O: callers pass in the already-observed
  * arm-result / PR-probe / budget signals (from `AutomergeArmer`,
@@ -55,12 +67,28 @@ export const BLOCK_CLASSES = Object.freeze([
   'api-race-other',
 ]);
 
-const BLOCK_CLASS_SET = new Set(BLOCK_CLASSES);
+/**
+ * The full set of block-class values a `merge.unlanded` record may carry.
+ * This is the classifier's four outputs PLUS `predicate-refused` (#4472),
+ * which is emitted DIRECTLY by the AutomergePredicate / AutomergeArmer for a
+ * headless refusal that never reached the poll-exhaustion classifier — so it
+ * is a valid attribution value even though `classifyMergeBlock` never
+ * produces it. `isValidBlockClass` (and the `merge.unlanded` schema enum)
+ * validate against this broader set; the classifier's own reachability
+ * invariant stays scoped to `BLOCK_CLASSES`.
+ */
+export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
+  ...BLOCK_CLASSES,
+  'predicate-refused',
+]);
+
+const BLOCK_CLASS_SET = new Set(MERGE_UNLANDED_BLOCK_CLASSES);
 
 /**
  * @param {string} value
- * @returns {boolean} `true` iff `value` is one of the four canonical
- *   block classes.
+ * @returns {boolean} `true` iff `value` is a valid `merge.unlanded`
+ *   block-class attribution (the four classifier outputs plus the directly-
+ *   emitted `predicate-refused`).
  */
 export function isValidBlockClass(value) {
   return BLOCK_CLASS_SET.has(value);

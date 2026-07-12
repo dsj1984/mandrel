@@ -300,6 +300,7 @@ top-level keys are validation errors.
 | `ci.watch.maxPolls` | No | `integer` | — | — |
 | `ci.watch.maxResumes` | No | `integer` | — | — |
 | `ci.autoMerge` | No | `"trust-ci"` \| `"strict"` | — | Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate. |
+| `ci.requireChecks` | No | `boolean` | — | Story #4472. Fail-closed-without-checks policy. When true, the AutomergePredicate refuses to arm merge in a repo that reports zero required checks ('no checks reported'), treating the absent CI gate as a hard block. Defaults to false so a checks-less repo with green close-validation gates lands headlessly instead of parking on the operator-merges path. |
 | `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked. |
 | `preflight.maxStories` | No | `integer` | — | — |
 | `preflight.maxWaves` | No | `integer` | — | — |

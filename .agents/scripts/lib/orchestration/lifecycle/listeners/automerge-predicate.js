@@ -68,8 +68,10 @@ import { spawnSync } from 'node:child_process';
 
 import { hasSurvivingCritical } from '../../../audit-suite/findings.js';
 import { getCiDelivery } from '../../../config/ci.js';
+import { parsePrNumberFromUrl } from '../../../github-url.js';
 import * as epicRunStateStore from '../../epic-run-state-store.js';
 import { findStructuredComment } from '../../ticketing.js';
+import { emitMergeUnlanded } from '../emit-merge-unlanded.js';
 import { normalizeCheckState, RECOGNIZED_CHECK_STATES } from './watcher.js';
 
 /**
@@ -224,19 +226,51 @@ export function probeRequiredChecks({ prUrl, cwd, spawnFn = spawnSync }) {
  * stdout. We parse stdout first (it is populated even on the non-zero
  * exit) and classify from the outcomes.
  *
+ * Story #4472 — checks-less repos. In a repo with zero required checks
+ * (no branch protection, or protection that requires no status checks),
+ * `gh pr checks --required` writes NOTHING to stdout and reports
+ * `no checks reported on the <branch> branch` to stderr with a non-zero
+ * exit. That is the SAME empty-parsed-set condition the outcomes loop
+ * below already treats as green — there is simply nothing to gate on — so
+ * we must not conflate it with a genuine probe failure (auth, network, no
+ * PR). We detect the `no checks reported` stderr signature and return
+ * green, UNLESS the consumer opted into `delivery.ci.requireChecks`, in
+ * which case the absent CI gate is a deliberate hard block.
+ *
  * @param {{ status: number, stdout: string, stderr: string }} probe
+ * @param {{ requireChecks?: boolean }} [opts] When `requireChecks` is
+ *   true, a checks-less repo fails closed instead of arming.
  * @returns {{ ok: boolean, reason: string|null, outcomes: Record<string, string> }}
  */
-export function classifyRequiredChecksProbe(probe) {
+export function classifyRequiredChecksProbe(
+  probe,
+  { requireChecks = false } = {},
+) {
   const stdout = String(probe?.stdout ?? '').trim();
-  // Empty stdout with a non-zero status → probe genuinely failed (auth,
-  // network, no PR). Fail closed.
+  const stderr = String(probe?.stderr ?? '').trim();
+  // Empty stdout: either a checks-less repo (green, nothing to gate on) or
+  // a genuine probe failure. The `no checks reported` stderr signature
+  // distinguishes them.
   if (stdout.length === 0) {
+    const noChecksReported = /no checks reported/i.test(stderr);
+    if (noChecksReported && !requireChecks) {
+      // Zero required checks configured — matches the empty-parsed-set
+      // "treated as green" branch below. Nothing to gate on.
+      return { ok: true, reason: null, outcomes: {} };
+    }
+    if (noChecksReported && requireChecks) {
+      return {
+        ok: false,
+        reason:
+          'no required checks reported and delivery.ci.requireChecks is set — failing closed per policy',
+        outcomes: {},
+      };
+    }
     return {
       ok: false,
       reason:
         `live required-check probe failed (status=${probe?.status ?? 'unknown'})` +
-        (probe?.stderr ? `: ${String(probe.stderr).trim().slice(0, 200)}` : ''),
+        (stderr ? `: ${stderr.slice(0, 200)}` : ''),
       outcomes: {},
     };
   }
@@ -678,8 +712,13 @@ export class AutomergePredicate {
    *   evaluator). Required for the read of run-state + structured
    *   comments.
    * @param {object} [opts.config] Resolved agent config. Read for the
-   *   `delivery.ci.autoMerge` policy via `getCiDelivery`. Defaults to the
-   *   framework default (`trust-ci`) when omitted.
+   *   `delivery.ci.autoMerge` policy and the `delivery.ci.requireChecks`
+   *   fail-closed-without-checks policy via `getCiDelivery`. Defaults to the
+   *   framework defaults (`trust-ci` / `requireChecks: false`) when omitted.
+   * @param {boolean} [opts.headless] When true (a `/deliver --yes` run), a
+   *   predicate refusal escalates to an explicit `merge.unlanded` +
+   *   `epic.blocked` terminal instead of silently parking on the
+   *   operator-merges path (Story #4472). Defaults to `false` (attended).
    * @param {string} [opts.cwd] Working directory for the live
    *   `gh pr checks --required` probe. Defaults to `process.cwd()`.
    * @param {Function} [opts.evaluatePredicateFn] override of
@@ -708,13 +747,20 @@ export class AutomergePredicate {
     this.epicId = opts.epicId;
     this.provider = opts.provider;
     this.cwd = opts.cwd ?? process.cwd();
-    // Resolve the merge posture once at construction. `getCiDelivery`
-    // applies the framework default (`trust-ci`) for any omitted field.
-    this.policy = getCiDelivery(opts.config ?? null).autoMerge;
+    // Resolve the merge posture + fail-closed policy once at construction.
+    // `getCiDelivery` applies the framework defaults (`trust-ci` /
+    // `requireChecks: false`) for any omitted field.
+    const ci = getCiDelivery(opts.config ?? null);
+    this.policy = ci.autoMerge;
+    this.requireChecks = ci.requireChecks;
+    this.headless = opts.headless === true;
     this.evaluatePredicateFn =
       opts.evaluatePredicateFn ?? evaluateAutoMergePredicate;
     this.probeRequiredChecksFn =
       opts.probeRequiredChecksFn ?? probeRequiredChecks;
+    // Injected for tests so the headless terminal escalation can be
+    // observed without touching disk.
+    this.emitMergeUnlandedFn = opts.emitMergeUnlandedFn ?? emitMergeUnlanded;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -786,7 +832,9 @@ export class AutomergePredicate {
       let probeVerdict;
       try {
         const probe = this.probeRequiredChecksFn({ prUrl, cwd: this.cwd });
-        probeVerdict = classifyRequiredChecksProbe(probe);
+        probeVerdict = classifyRequiredChecksProbe(probe, {
+          requireChecks: this.requireChecks,
+        });
       } catch (err) {
         probeVerdict = {
           ok: false,
@@ -878,6 +926,17 @@ export class AutomergePredicate {
    * Emit `epic.merge.blocked`. Helper carved out so the blocking paths
    * (CI failure / predicate dirty / evaluator throw) share the same emit
    * shape.
+   *
+   * Story #4472 — must-land coverage of predicate refusal. In a headless
+   * (`/deliver --yes`) run there is no operator to act on a bare
+   * `epic.merge.blocked` (nothing in the listener chain consumes it), so
+   * the run would silently park on the operator-merges path. When
+   * `this.headless`, we additionally attribute the refusal to the
+   * lifecycle ledger via `merge.unlanded` (blockClass `predicate-refused`)
+   * and drive the explicit `epic.blocked` terminal — the same
+   * escalation the MergeWatcher performs on post-arm budget exhaustion —
+   * so the Epic transitions to `agent::blocked` with an operator-visible
+   * reason instead of stalling.
    */
   async _emitBlocked(prUrl, reason) {
     try {
@@ -885,6 +944,35 @@ export class AutomergePredicate {
     } catch (err) {
       this.logger.warn?.(
         `[AutomergePredicate] epic.merge.blocked emit failed (swallowed): ${err?.message ?? err}`,
+      );
+    }
+    if (!this.headless) return;
+    // Ledger attribution — best-effort; a failed append must NOT mask the
+    // epic.blocked transition below.
+    try {
+      const prNumber = parsePrNumberFromUrl(prUrl);
+      if (Number.isInteger(prNumber) && prNumber > 0) {
+        this.emitMergeUnlandedFn({
+          scope: 'epic',
+          ticketId: this.epicId,
+          prNumber,
+          blockClass: 'predicate-refused',
+          reason,
+          elapsedSeconds: 0,
+        });
+      }
+    } catch (err) {
+      this.logger.warn?.(
+        `[AutomergePredicate] emitMergeUnlanded failed (swallowed): ${err?.message ?? err}`,
+      );
+    }
+    try {
+      await this.bus.emit('epic.blocked', {
+        reason: `merge-predicate:refused`,
+      });
+    } catch (err) {
+      this.logger.warn?.(
+        `[AutomergePredicate] epic.blocked emit on predicate refusal failed (swallowed): ${err?.message ?? err}`,
       );
     }
   }

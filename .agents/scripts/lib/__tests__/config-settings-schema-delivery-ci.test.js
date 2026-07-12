@@ -110,6 +110,17 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const ok = validate(withCi({ watch: { pollIntervalMs: 1.5 } }));
     assert.equal(ok, false);
   });
+
+  it('accepts a boolean requireChecks (Story #4472)', () => {
+    const validate = makeValidator();
+    assert.equal(validate(withCi({ requireChecks: true })), true);
+    assert.equal(validate(withCi({ requireChecks: false })), true);
+  });
+
+  it('rejects a non-boolean requireChecks', () => {
+    const validate = makeValidator();
+    assert.equal(validate(withCi({ requireChecks: 'yes' })), false);
+  });
 });
 
 describe('getCiDelivery defaults (Story #4356)', () => {
@@ -143,5 +154,15 @@ describe('getCiDelivery defaults (Story #4356)', () => {
   it('falls back to trust-ci for an invalid autoMerge value', () => {
     const resolved = getCiDelivery({ delivery: { ci: { autoMerge: 'nope' } } });
     assert.equal(resolved.autoMerge, 'trust-ci');
+  });
+
+  it('defaults requireChecks to false and passes through the override (Story #4472)', () => {
+    assert.equal(getCiDelivery({}).requireChecks, false);
+    assert.equal(CI_DELIVERY_DEFAULTS.requireChecks, false);
+    assert.equal(
+      getCiDelivery({ delivery: { ci: { requireChecks: true } } })
+        .requireChecks,
+      true,
+    );
   });
 });

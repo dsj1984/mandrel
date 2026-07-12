@@ -168,6 +168,43 @@ describe('classifyRequiredChecksProbe', () => {
     assert.equal(v.ok, false);
     assert.match(v.reason, /unparseable/);
   });
+
+  // Story #4472 — checks-less repo. `gh pr checks --required` writes nothing
+  // to stdout and reports "no checks reported on the <branch> branch" to
+  // stderr with a non-zero exit.
+  it('ok:true when the repo reports "no checks reported" (checks-less repo, default)', () => {
+    const v = classifyRequiredChecksProbe({
+      status: 1,
+      stdout: '',
+      stderr: 'no checks reported on the epic/12 branch',
+    });
+    assert.equal(v.ok, true);
+    assert.equal(v.reason, null);
+    assert.deepEqual(v.outcomes, {});
+  });
+
+  it('ok:false (fail closed) on "no checks reported" when requireChecks is set', () => {
+    const v = classifyRequiredChecksProbe(
+      {
+        status: 1,
+        stdout: '',
+        stderr: 'no checks reported on the epic/12 branch',
+      },
+      { requireChecks: true },
+    );
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /requireChecks/);
+  });
+
+  it('still fails closed on a genuine empty-stdout probe error (not a checks-less repo)', () => {
+    const v = classifyRequiredChecksProbe({
+      status: 1,
+      stdout: '',
+      stderr: 'gh: not authenticated',
+    });
+    assert.equal(v.ok, false);
+    assert.match(v.reason, /probe failed/);
+  });
 });
 
 describe('applyAutoMergePolicy — trust-ci (default)', () => {
@@ -381,6 +418,162 @@ describe('AutomergePredicate policy resolution from config', () => {
       logger: quietLogger(),
     });
     assert.equal(predicate.policy, 'strict');
+  });
+
+  it('defaults requireChecks to false, reads it from delivery.ci.requireChecks (Story #4472)', () => {
+    const off = new AutomergePredicate({
+      bus: new Bus(),
+      epicId: 4355,
+      provider: fakeProvider,
+      logger: quietLogger(),
+    });
+    assert.equal(off.requireChecks, false);
+    const on = new AutomergePredicate({
+      bus: new Bus(),
+      epicId: 4355,
+      provider: fakeProvider,
+      config: { delivery: { ci: { requireChecks: true } } },
+      logger: quietLogger(),
+    });
+    assert.equal(on.requireChecks, true);
+  });
+});
+
+describe('AutomergePredicate — checks-less repo arming (Story #4472)', () => {
+  const noChecksProbe = () => ({
+    status: 1,
+    stdout: '',
+    stderr: 'no checks reported on the epic/4472 branch',
+  });
+
+  it('arms in a checks-less repo when the structured verdict is clean (default)', async () => {
+    const { bus, emits } = recordingBus();
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 4472,
+      provider: fakeProvider,
+      probeRequiredChecksFn: noChecksProbe,
+      evaluatePredicateFn: async () =>
+        deriveAutoMergeVerdict({
+          state: CLEAN_STATE,
+          codeReview: reviewBody({}),
+          retro: CLEAN_RETRO,
+        }),
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    await bus.emit('epic.automerge.start', { prUrl: PR_URL, epicId: 4472 });
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.merge.ready');
+  });
+
+  it('refuses to arm in a checks-less repo when requireChecks is set', async () => {
+    const { bus, emits } = recordingBus();
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 4472,
+      provider: fakeProvider,
+      config: { delivery: { ci: { requireChecks: true } } },
+      probeRequiredChecksFn: noChecksProbe,
+      evaluatePredicateFn: async () =>
+        deriveAutoMergeVerdict({
+          state: CLEAN_STATE,
+          codeReview: reviewBody({}),
+          retro: CLEAN_RETRO,
+        }),
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    await bus.emit('epic.automerge.start', { prUrl: PR_URL, epicId: 4472 });
+    assert.equal(emits[0].event, 'epic.merge.blocked');
+    assert.match(emits[0].payload.reason, /requireChecks/);
+  });
+});
+
+describe('AutomergePredicate — headless must-land attribution on refusal (Story #4472)', () => {
+  function headlessBus() {
+    const bus = new Bus();
+    const emits = [];
+    const record = (event) => async (ctx) => {
+      emits.push({ event, seqId: ctx.seqId, payload: ctx.payload });
+    };
+    bus.on('epic.merge.blocked', record('epic.merge.blocked'));
+    bus.on('epic.blocked', record('epic.blocked'));
+    return { bus, emits };
+  }
+
+  it('headless: a predicate refusal emits merge.unlanded (predicate-refused) + epic.blocked', async () => {
+    const { bus, emits } = headlessBus();
+    const unlanded = [];
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 4472,
+      provider: fakeProvider,
+      headless: true,
+      emitMergeUnlandedFn: (opts) => unlanded.push(opts),
+      probeRequiredChecksFn: () => ({
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'FAILURE' }]),
+        stderr: '',
+      }),
+      evaluatePredicateFn: async () => ({
+        clean: true,
+        reasons: [],
+        categorizedReasons: [],
+        signals: {},
+      }),
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    await bus.emit('epic.automerge.start', { prUrl: PR_URL, epicId: 4472 });
+
+    assert.ok(
+      emits.some((e) => e.event === 'epic.merge.blocked'),
+      'still emits the classification signal',
+    );
+    assert.ok(
+      emits.some((e) => e.event === 'epic.blocked'),
+      'escalates to the explicit blocked transition',
+    );
+    assert.equal(unlanded.length, 1);
+    assert.equal(unlanded[0].scope, 'epic');
+    assert.equal(unlanded[0].ticketId, 4472);
+    assert.equal(unlanded[0].prNumber, 42);
+    assert.equal(unlanded[0].blockClass, 'predicate-refused');
+  });
+
+  it('attended (non-headless): a refusal does NOT escalate — no epic.blocked, no merge.unlanded', async () => {
+    const { bus, emits } = headlessBus();
+    const unlanded = [];
+    const predicate = new AutomergePredicate({
+      bus,
+      epicId: 4472,
+      provider: fakeProvider,
+      headless: false,
+      emitMergeUnlandedFn: (opts) => unlanded.push(opts),
+      probeRequiredChecksFn: () => ({
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'FAILURE' }]),
+        stderr: '',
+      }),
+      evaluatePredicateFn: async () => ({
+        clean: true,
+        reasons: [],
+        categorizedReasons: [],
+        signals: {},
+      }),
+      logger: quietLogger(),
+    });
+    predicate.register();
+
+    await bus.emit('epic.automerge.start', { prUrl: PR_URL, epicId: 4472 });
+
+    assert.ok(emits.some((e) => e.event === 'epic.merge.blocked'));
+    assert.ok(!emits.some((e) => e.event === 'epic.blocked'));
+    assert.equal(unlanded.length, 0);
   });
 });
 

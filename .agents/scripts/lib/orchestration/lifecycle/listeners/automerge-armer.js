@@ -54,7 +54,10 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
+import { classifyMergeBlock } from '../../merge-block-class.js';
+import { emitMergeUnlanded } from '../emit-merge-unlanded.js';
 
 /**
  * Default `gh pr view --json autoMergeRequest` probe. Pure-spawn helper
@@ -107,6 +110,64 @@ export function ghPrMergeAuto({
     stdout: result.stdout ?? '',
     stderr: result.stderr ?? '',
   };
+}
+
+/**
+ * Story #4472 — direct (non-`--auto`) squash-merge fallback.
+ *
+ * GitHub's native auto-merge (`gh pr merge --auto`) can only be QUEUED on a
+ * repository that has the "Allow auto-merge" setting enabled — which in
+ * practice requires branch protection. A repo with zero required checks and
+ * no branch protection (every mandrel-bench sandbox, many real consumer
+ * repos) rejects the `--auto` arm outright with `Auto merge is not allowed
+ * for this repository`. The AutomergePredicate has already cleared the merge
+ * (green/absent required checks + a clean structured-signal verdict) by the
+ * time the armer runs, so the safe, must-land-satisfying fallback is a
+ * direct immediate squash-merge — the epic path's observed de-facto manual
+ * fallback, made legal and kept inside the sole authorized `gh pr merge`
+ * call site.
+ *
+ * Same `--squash --delete-branch` shape and same `resolveArmCwd` re-point as
+ * `ghPrMergeAuto` (so the trailing local `--delete-branch` housekeeping runs
+ * from the primary worktree, not a head-branch worktree). Omitting `--auto`
+ * makes `gh` merge synchronously.
+ */
+export function ghPrMergeDirect({
+  prUrl,
+  cwd,
+  spawnFn = spawnSync,
+  resolveArmCwd = resolveAutoMergeArmCwd,
+}) {
+  const armCwd = resolveArmCwd(cwd);
+  const result = spawnFn(
+    'gh',
+    ['pr', 'merge', prUrl, '--squash', '--delete-branch'],
+    { cwd: armCwd, encoding: 'utf-8', shell: false },
+  );
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+/**
+ * Pure: does this `gh pr merge --auto` stderr indicate that native
+ * auto-merge is unavailable on the repository (as opposed to a genuine arm
+ * failure — auth, a merge conflict, an already-merged race)? Only this
+ * specific class of failure is safe to retry as a direct merge; everything
+ * else must surface as a real failure. Matched case-insensitively.
+ *
+ * Exported so the marker set is reviewable and testable in isolation.
+ */
+export function isAutoMergeUnavailable(stderr) {
+  const text = String(stderr ?? '').toLowerCase();
+  return (
+    text.includes('auto merge is not allowed') ||
+    text.includes('auto-merge is not allowed') ||
+    text.includes('enablepullrequestautomerge') ||
+    (text.includes('auto') && text.includes('not enabled'))
+  );
 }
 
 /**
@@ -172,9 +233,17 @@ export class AutomergeArmer {
   /**
    * @param {object} opts
    * @param {object} opts.bus
+   * @param {number} [opts.epicId] Epic id — required for the headless
+   *   `merge.unlanded` attribution on a genuine arm failure (Story #4472).
+   * @param {boolean} [opts.headless] When true (a `/deliver --yes` run), a
+   *   genuine (non-fallback) arm failure escalates to an explicit
+   *   `merge.unlanded` + `epic.blocked` terminal instead of returning
+   *   silently (Story #4472). Defaults to `false` (attended).
    * @param {string} [opts.cwd]
    * @param {Function} [opts.ghPrViewAutoMergeFn] override for tests.
    * @param {Function} [opts.ghPrMergeAutoFn] override for tests.
+   * @param {Function} [opts.ghPrMergeDirectFn] override for tests.
+   * @param {Function} [opts.emitMergeUnlandedFn] override for tests.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -186,9 +255,13 @@ export class AutomergeArmer {
       throw new TypeError('AutomergeArmer requires a bus with on() and emit()');
     }
     this.bus = opts.bus;
+    this.epicId = Number.isInteger(opts.epicId) ? opts.epicId : null;
+    this.headless = opts.headless === true;
     this.cwd = opts.cwd ?? process.cwd();
     this.ghPrViewAutoMergeFn = opts.ghPrViewAutoMergeFn ?? ghPrViewAutoMerge;
     this.ghPrMergeAutoFn = opts.ghPrMergeAutoFn ?? ghPrMergeAuto;
+    this.ghPrMergeDirectFn = opts.ghPrMergeDirectFn ?? ghPrMergeDirect;
+    this.emitMergeUnlandedFn = opts.emitMergeUnlandedFn ?? emitMergeUnlanded;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -293,16 +366,26 @@ export class AutomergeArmer {
         await this._emitArmed(prUrl);
         return;
       }
-      this.classifications.push({
+
+      // Story #4472 — native auto-merge is unavailable on this repository
+      // (no branch protection / "Allow auto-merge" disabled). The predicate
+      // already cleared the merge, so fall back to a direct immediate
+      // squash-merge instead of stranding a landable PR on the
+      // operator-merges path.
+      if (isAutoMergeUnavailable(arm.stderr)) {
+        const armed = await this._tryDirectMerge({ event, seqId, prUrl, arm });
+        if (armed) return;
+      }
+
+      // Genuine arm failure (auth, conflict, an unresolved direct-merge
+      // fallback, …). Classify + escalate.
+      await this._emitArmFailure({
         event,
         seqId,
-        outcome: 'failed',
+        prUrl,
         reason: `arm-failed:status=${arm.status}`,
         ghStderr: arm.stderr,
       });
-      this.logger.warn?.(
-        `[AutomergeArmer] gh pr merge --auto failed (status=${arm.status}): ${arm.stderr}`,
-      );
       return;
     }
 
@@ -316,6 +399,97 @@ export class AutomergeArmer {
     } catch (err) {
       this.logger.warn?.(
         `[AutomergeArmer] epic.merge.armed emit failed (swallowed): ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /**
+   * Story #4472 — direct-merge fallback when native auto-merge is
+   * unavailable. Runs an immediate `gh pr merge --squash --delete-branch`
+   * (no `--auto`) then re-probes; on a confirmed merge (or the same
+   * post-merge `--delete-branch` housekeeping grumble the `--auto` path
+   * already tolerates) it emits `epic.merge.armed` so the
+   * MergeWatcher → Cleaner → LabelTransitioner chain engages and confirms
+   * the merge on its first poll.
+   *
+   * @returns {Promise<boolean>} `true` when the fallback landed the PR (an
+   *   `epic.merge.armed` was emitted); `false` when the direct merge did
+   *   not land, so the caller escalates the original arm failure.
+   */
+  async _tryDirectMerge({ event, seqId, prUrl, arm }) {
+    this.logger.info?.(
+      `[AutomergeArmer] native auto-merge unavailable (${arm.stderr?.trim?.() ?? arm.stderr}); falling back to a direct squash-merge on ${prUrl}.`,
+    );
+    const direct = this.ghPrMergeDirectFn({ prUrl, cwd: this.cwd });
+    const recheck = this.ghPrViewAutoMergeFn({ prUrl, cwd: this.cwd });
+    const merged =
+      recheck.status === 0 &&
+      (parsePrMerged(recheck.stdout) || parseAutoMergeArmed(recheck.stdout));
+    if (direct.status === 0 || merged) {
+      this.classifications.push({
+        event,
+        seqId,
+        outcome: 'armed',
+        prUrl,
+        note: `direct-merge fallback (native auto-merge unavailable); direct exit ${direct.status}${direct.status !== 0 ? ` but re-probe shows merged/armed (housekeeping stderr: ${direct.stderr})` : ''}`,
+      });
+      await this._emitArmed(prUrl);
+      return true;
+    }
+    this.logger.warn?.(
+      `[AutomergeArmer] direct-merge fallback failed (status=${direct.status}): ${direct.stderr}`,
+    );
+    return false;
+  }
+
+  /**
+   * Classify + (in headless) escalate a genuine arm failure. The `--auto`
+   * path historically returned silently here; a `/deliver --yes` run has no
+   * operator to notice, so we mirror the MergeWatcher's terminal:
+   * `merge.unlanded` ledger attribution + an explicit `epic.blocked`
+   * transition. Attended runs keep the classify-and-return behaviour.
+   */
+  async _emitArmFailure({ event, seqId, prUrl, reason, ghStderr }) {
+    this.classifications.push({
+      event,
+      seqId,
+      outcome: 'failed',
+      reason,
+      ghStderr,
+    });
+    this.logger.warn?.(
+      `[AutomergeArmer] gh pr merge --auto failed (${reason}): ${ghStderr}`,
+    );
+    if (!this.headless) return;
+    const classification = classifyMergeBlock({
+      armResult: { armed: false, reason: ghStderr },
+    });
+    const prNumber = parsePrNumberFromUrl(prUrl);
+    if (
+      Number.isInteger(this.epicId) &&
+      Number.isInteger(prNumber) &&
+      prNumber > 0
+    ) {
+      try {
+        this.emitMergeUnlandedFn({
+          scope: 'epic',
+          ticketId: this.epicId,
+          prNumber,
+          blockClass: classification.blockClass,
+          reason: classification.reason,
+          elapsedSeconds: 0,
+        });
+      } catch (err) {
+        this.logger.warn?.(
+          `[AutomergeArmer] emitMergeUnlanded failed (swallowed): ${err?.message ?? err}`,
+        );
+      }
+    }
+    try {
+      await this.bus.emit('epic.blocked', { reason: `merge-arm:failed` });
+    } catch (err) {
+      this.logger.warn?.(
+        `[AutomergeArmer] epic.blocked emit on arm failure failed (swallowed): ${err?.message ?? err}`,
       );
     }
   }
