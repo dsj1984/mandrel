@@ -212,11 +212,15 @@ describe('validateStoryFileAssumptions — rules table', () => {
       expectError: false,
     },
     {
-      label: 'refactors-existing + absent → error',
+      // #4496 fix 5: a changes-sourced refactor declaration on a
+      // base-untracked path is deterministically a create — it
+      // auto-normalizes with a warning instead of rejecting.
+      label:
+        'refactors-existing + absent (changes) → auto-normalized to creates, no error',
       assumption: 'refactors-existing',
       exists: false,
-      expectError: true,
-      expected: 'present',
+      expectError: false,
+      expectNormalization: true,
     },
     {
       label: 'exists + present → ok',
@@ -268,6 +272,12 @@ describe('validateStoryFileAssumptions — rules table', () => {
         assert.equal(report.mismatches[0].expected, tc.expected);
       } else {
         assert.deepEqual(report.errors, []);
+      }
+      if (tc.expectNormalization) {
+        assert.equal(report.normalizations.length, 1);
+        assert.equal(report.normalizations[0].normalizedTo, 'creates');
+        assert.equal(report.warnings.length, 1);
+        assert.match(report.warnings[0], /auto-normalized to "creates"/);
       }
     });
   }
@@ -329,14 +339,14 @@ describe('validateStoryFileAssumptions — rules table', () => {
         slug: 'story-b',
         body: {
           goal: 'g',
-          changes: [{ path: 'src/b.ts', assumption: 'refactors-existing' }],
+          changes: [{ path: 'src/b.ts', assumption: 'deletes' }],
           acceptance: ['ac'],
           verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
     // Both probes return the *opposite* of what each story expects.
-    const probe = ({ path }) => path === 'src/a.ts'; // a exists (bad for creates), b absent (bad for refactors)
+    const probe = ({ path }) => path === 'src/a.ts'; // a exists (bad for creates), b absent (bad for deletes)
     const report = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
@@ -693,5 +703,99 @@ describe('validateStoryFileAssumptions — wave-aware predecessor tree (Story #3
     );
     assert.equal(consumerMismatch.expected, 'absent');
     assert.equal(consumerMismatch.actual, 'present');
+  });
+});
+
+describe('refactors-existing auto-normalization on base-untracked paths (#4496 fix 5)', () => {
+  it('changes-sourced refactors-existing on an untracked path normalizes to creates with a warning', () => {
+    const tickets = [
+      makeStory({
+        slug: 'normalized-story',
+        body: {
+          goal: 'g',
+          changes: [
+            { path: 'src/brand-new.ts', assumption: 'refactors-existing' },
+          ],
+          acceptance: ['ac'],
+          verify: ['node --test tests/x.test.js (unit)'],
+        },
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+    });
+    assert.deepEqual(report.errors, []);
+    assert.deepEqual(report.mismatches, []);
+    assert.equal(report.normalizations.length, 1);
+    const n = report.normalizations[0];
+    assert.equal(n.slug, 'normalized-story');
+    assert.equal(n.path, 'src/brand-new.ts');
+    assert.equal(n.assumption, 'refactors-existing');
+    assert.equal(n.normalizedTo, 'creates');
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /untracked at the base branch/);
+    assert.match(report.warnings[0], /auto-normalized to "creates"/);
+  });
+
+  it('references-sourced refactors-existing on an absent path is a genuine mismatch and still fails', () => {
+    const tickets = [
+      makeStory({
+        slug: 'reader-story',
+        body: {
+          goal: 'g',
+          changes: [{ path: 'src/edit.ts', assumption: 'creates' }],
+          references: [
+            { path: 'src/missing-dep.ts', assumption: 'refactors-existing' },
+          ],
+          acceptance: ['ac'],
+          verify: ['node --test tests/x.test.js (unit)'],
+        },
+      }),
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+    });
+    assert.deepEqual(report.normalizations, []);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /body\.references/);
+    assert.match(report.errors[0], /absent at the base branch/);
+  });
+
+  it('base-TRACKED path deleted by a predecessor keeps the genuine mismatch (no normalization)', () => {
+    const tickets = [
+      makeStory({
+        slug: 'deleter',
+        body: {
+          goal: 'g',
+          changes: [{ path: 'src/old.ts', assumption: 'deletes' }],
+          acceptance: ['ac'],
+          verify: ['node --test tests/x.test.js (unit)'],
+        },
+      }),
+      {
+        ...makeStory({
+          slug: 'late-refactorer',
+          body: {
+            goal: 'g',
+            changes: [{ path: 'src/old.ts', assumption: 'refactors-existing' }],
+            acceptance: ['ac'],
+            verify: ['node --test tests/x.test.js (unit)'],
+          },
+        }),
+        depends_on: ['deleter'],
+      },
+    ];
+    const report = validateStoryFileAssumptions({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => true, // tracked at base; absence comes from the delete
+    });
+    assert.deepEqual(report.normalizations, []);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /"late-refactorer"/);
   });
 });

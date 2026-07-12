@@ -589,8 +589,25 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       gitRunner: sharedGitRunner,
       cwd: opts.cwd,
     });
+    // Auto-normalizations (#4496 fix 5) get their own prefix so the logged
+    // warning is self-explanatory; everything else on the warnings channel
+    // is a legacy-shape deprecation nudge.
+    const normalizationWarnings = new Set(
+      (assumptionReport.normalizations ?? []).map((n) => n.path),
+    );
     for (const warning of assumptionReport.warnings) {
-      Logger.warn(`[ticket-validator] assumption-deprecation: ${warning}`);
+      const isNormalization = warning.includes('auto-normalized to "creates"');
+      Logger.warn(
+        `[ticket-validator] ${isNormalization ? 'assumption-normalized' : 'assumption-deprecation'}: ${warning}`,
+      );
+    }
+    if (normalizationWarnings.size > 0) {
+      Logger.warn(
+        `[ticket-validator] ${normalizationWarnings.size} refactors-existing ` +
+          'declaration(s) on base-untracked path(s) auto-normalized to ' +
+          '"creates" — the gate proceeds; update the plan declarations at ' +
+          'the next amend.',
+      );
     }
     assumptionErrors = assumptionReport.errors;
   }
