@@ -39,6 +39,7 @@ import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { exec as ghExec } from './lib/gh-exec.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
+import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { buildCorpusContext } from './lib/planning-corpus.js';
 import { createProvider } from './lib/provider-factory.js';
 import {
@@ -300,14 +301,25 @@ async function main() {
     // unconditionally parseable by `JSON.parse`. Mirrors the contract
     // `epic-plan-spec.js` enforces for its own --emit-context mode.
     routeAllOutputToStderr();
-    return runEmitContext({ values, provider, projectRoot, config });
+    // Plan-metrics ledger (#4474 PR1): standalone plans have no Epic, so
+    // `epicId: null` routes the stamp to the standalone stream
+    // (`temp/standalone/plan-metrics.json`) — same pattern as friction.
+    return recordPlanInvocation(
+      { cli: 'story-plan', mode: 'emit-context', epicId: null, config },
+      () => runEmitContext({ values, provider, projectRoot, config }),
+    );
   }
 
-  return runPersist({
-    values,
-    provider,
-    dryRun: values['dry-run'],
-  });
+  // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+  return recordPlanInvocation(
+    { cli: 'story-plan', mode: 'persist', epicId: null, config },
+    () =>
+      runPersist({
+        values,
+        provider,
+        dryRun: values['dry-run'],
+      }),
+  );
 }
 
 runAsCli(import.meta.url, main, { source: 'story-plan' });

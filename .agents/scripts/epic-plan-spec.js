@@ -76,6 +76,7 @@ import {
 } from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
 import { runSpecPhase } from './lib/orchestration/epic-plan-spec/phases/run-spec-phase.js';
 import { runSpecFreshnessCheck } from './lib/orchestration/epic-plan-spec/phases/spec-freshness.js';
+import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -143,10 +144,16 @@ async function main() {
   }
 
   if (emitContext) {
-    const ctx = await buildAuthoringContext(epicId, provider, settings, {
-      fullContext: values['full-context'],
-      github: config.github ?? null,
-    });
+    // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode so the
+    // 12-phase baseline is measurable before the collapse changes anything.
+    const ctx = await recordPlanInvocation(
+      { cli: 'epic-plan-spec', mode: 'emit-context', epicId, config },
+      () =>
+        buildAuthoringContext(epicId, provider, settings, {
+          fullContext: values['full-context'],
+          github: config.github ?? null,
+        }),
+    );
     const json = values.pretty
       ? JSON.stringify(ctx, null, 2)
       : JSON.stringify(ctx);
@@ -171,18 +178,23 @@ async function main() {
   const [techSpecContent, acceptanceSpecContent = null] =
     await Promise.all(readPromises);
 
-  const result = await runSpecPhase(
-    epicId,
-    provider,
-    { techSpecContent, acceptanceSpecContent },
-    settings,
-    {
-      force: values.force,
-      forceReview: values['force-review'],
-      steal: values.steal === true,
-      config,
-      riskVerdict,
-    },
+  // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode.
+  const result = await recordPlanInvocation(
+    { cli: 'epic-plan-spec', mode: 'persist', epicId, config },
+    () =>
+      runSpecPhase(
+        epicId,
+        provider,
+        { techSpecContent, acceptanceSpecContent },
+        settings,
+        {
+          force: values.force,
+          forceReview: values['force-review'],
+          steal: values.steal === true,
+          config,
+          riskVerdict,
+        },
+      ),
   );
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
