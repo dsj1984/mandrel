@@ -30,6 +30,16 @@
  *                        Phase 3/4 steps in). Artifact paths must be
  *                        explicit (there is no Epic id to derive them from).
  *
+ * Modes (Epic #4474 PR4, design §2 mode matrix): the risk verdict's
+ * optional `deliveryShape` field selects between the full fan-out persist
+ * (default; requires tickets) and the spec-only single-delivery variant
+ * (`deliveryShape: "single"`; NO tickets — the ticket validator + DAG are
+ * skipped, fenced by construction, and the `delivery::single` routing
+ * marker is applied instead of a Story tree; inert until #4475 lands the
+ * deliver-side reader). `--amend` selects the change-request delta path:
+ * tickets carry `op: add|modify|keep|close` and the persist maps the ops
+ * onto the existing tree.
+ *
  * Flags:
  *   --force              Deliberate re-persist: overwrite managed sections,
  *                        close + recreate the story tree (reconciler
@@ -40,16 +50,24 @@
  *                        (rate-limit, network): sections short-circuit
  *                        idempotently, the reconciler creates only the
  *                        missing slugs from its per-slug state ledger.
+ *   --amend              Change-request delta persist: every ticket carries
+ *                        `op: add|modify|keep|close`; close-and-recreate is
+ *                        scoped to modify/close slugs only, keeps are
+ *                        untouched, and the DAG is validated over the
+ *                        merged set.
+ *   --explicit-delete    Confirm the close ops of an --amend plan (mirrors
+ *                        epic-reconcile.js). Without it, an amend carrying
+ *                        close ops prints the dry-run diff and exits 2.
  *   --steal              Force-transfer a live foreign Epic-lease claim.
  *   --force-review       Operator-forced review routing (recorded in the
  *                        checkpoint's reviewRouting envelope).
  *   --allow-over-budget / --allow-large-fan-out
  *                        Same overrides as the retired split persist.
- *   --amend              NOT IMPLEMENTED — the change-request delta path is
- *                        #4474 PR4's surface. Hard-refuses.
  *
  * Exit codes: 0 — persist complete, Epic is `agent::ready`; 1 — fatal
- * error (see stderr). The Epic lease is released on every exit path.
+ * error (see stderr); 2 — amend close ops require --explicit-delete (the
+ * dry-run diff is printed; nothing was mutated). The Epic lease is
+ * released on every exit path.
  */
 
 // Fail-fast if the framework's runtime deps are not installed — must be the
@@ -77,7 +95,7 @@ import {
   summarizePlanMetrics,
 } from './lib/orchestration/plan-metrics.js';
 import {
-  assertFanOutMode,
+  resolveDeliveryMode,
   runPlanPersist,
   writeCheckpointV2,
 } from './lib/orchestration/plan-persist/run-plan-persist.js';
@@ -91,10 +109,10 @@ import { createProvider } from './lib/provider-factory.js';
 // Re-exports for the stable public API (tests import through the CLI
 // module, mirroring the epic-plan-spec.js / epic-plan-decompose.js shape).
 export {
-  assertFanOutMode,
   buildPlanSummaryCommentBody,
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
+  resolveDeliveryMode,
   runPlanPersist,
   writeCheckpointV2,
 };
@@ -120,13 +138,14 @@ const CLI_OPTIONS = {
   'allow-over-budget': { type: 'boolean', default: false },
   'allow-large-fan-out': { type: 'boolean', default: false },
   amend: { type: 'boolean', default: false },
+  'explicit-delete': { type: 'boolean', default: false },
 };
 
 const USAGE =
   'Usage: plan-persist.js (--epic <EpicId> | --one-pager <file>) ' +
   '[--tech-spec <file>] [--acceptance-table <file>] [--risk-verdict <file>] ' +
-  '[--tickets <file>] [--force | --resume] [--steal] [--force-review] ' +
-  '[--allow-over-budget] [--allow-large-fan-out]';
+  '[--tickets <file>] [--force | --resume | --amend [--explicit-delete]] ' +
+  '[--steal] [--force-review] [--allow-over-budget] [--allow-large-fan-out]';
 
 /**
  * Parse `--epic`; returns null when absent (ideation mode).
@@ -159,9 +178,9 @@ function resolveArtifactPaths({ epicId, values, config }) {
   const ticketsPath = values.tickets ?? fallback('tickets.json');
   const acceptancePath =
     values['acceptance-table'] ?? fallback('acceptance-spec.md');
-  if (!techSpecPath || !riskVerdictPath || !ticketsPath) {
+  if (!techSpecPath || !riskVerdictPath) {
     throw new Error(
-      `Missing artifact path(s): ideation mode requires explicit --tech-spec, --risk-verdict, and --tickets.\n${USAGE}`,
+      `Missing artifact path(s): ideation mode requires explicit --tech-spec and --risk-verdict.\n${USAGE}`,
     );
   }
   return {
@@ -170,6 +189,7 @@ function resolveArtifactPaths({ epicId, values, config }) {
     ticketsPath,
     acceptancePath,
     acceptanceExplicit: values['acceptance-table'] !== undefined,
+    ticketsExplicit: values.tickets !== undefined,
   };
 }
 
@@ -185,15 +205,14 @@ async function readOptional(filePath, { required }) {
 async function main() {
   const { values } = parseArgs({ options: CLI_OPTIONS });
 
-  if (values.amend) {
-    throw new Error(
-      '[plan-persist] --amend (the change-request delta path) is #4474 ' +
-        "PR4's surface and is not implemented yet. Use --force for a full " +
-        're-persist, or wait for PR4.',
-    );
-  }
   if (values.force && values.resume) {
     throw new Error('--force and --resume are mutually exclusive.');
+  }
+  if (values.amend && (values.force || values.resume)) {
+    throw new Error(
+      '--amend is mutually exclusive with --force/--resume — the amend ' +
+        'delta is already an incremental re-persist.',
+    );
   }
 
   const epicId = parseEpicId(values.epic);
@@ -239,6 +258,7 @@ async function main() {
     ticketsPath,
     acceptancePath,
     acceptanceExplicit,
+    ticketsExplicit,
   } = resolveArtifactPaths({ epicId, values, config });
 
   // Deterministic local reads + validation before any GitHub call. A
@@ -246,14 +266,25 @@ async function main() {
   // gate itself runs first inside runPlanPersist.
   const techSpecContent = await readOptional(techSpecPath, { required: true });
   const riskVerdict = loadRiskVerdict(riskVerdictPath);
-  const ticketsRaw = await readOptional(ticketsPath, { required: true });
-  let tickets;
-  try {
-    tickets = JSON.parse(ticketsRaw);
-  } catch (err) {
-    throw new Error(
-      `Failed to parse tickets file "${ticketsPath}" as JSON: ${err.message}`,
-    );
+  // Tickets are mode-dependent (#4474 PR4): required when explicitly
+  // passed or in --amend mode; otherwise best-effort — a single-delivery
+  // plan authors no tickets file at all, and the mode-coherence gate
+  // (`resolveDeliveryMode`) hard-errors on every contradictory combination
+  // (including a stale tickets.json next to a `deliveryShape: "single"`
+  // verdict).
+  const ticketsRequired = ticketsExplicit || values.amend;
+  const ticketsRaw = ticketsPath
+    ? await readOptional(ticketsPath, { required: ticketsRequired })
+    : null;
+  let tickets = null;
+  if (ticketsRaw !== null) {
+    try {
+      tickets = JSON.parse(ticketsRaw);
+    } catch (err) {
+      throw new Error(
+        `Failed to parse tickets file "${ticketsPath}" as JSON: ${err.message}`,
+      );
+    }
   }
   // Acceptance table: explicit path is required to exist; the per-Epic
   // default is best-effort (absent file → no acceptance section, matching
@@ -270,33 +301,55 @@ async function main() {
 
   // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode. Ideation runs
   // have no Epic id at entry, so they stamp on the standalone stream.
-  const mode = values.resume ? 'resume' : values.force ? 'force' : 'persist';
-  const result = await recordPlanInvocation(
-    { cli: 'plan-persist', mode, epicId, config },
-    () =>
-      runPlanPersist({
-        epicId,
-        provider,
-        artifacts: {
-          techSpecContent,
-          acceptanceSpecContent,
-          riskVerdict,
-          tickets,
-          onePagerContent,
-          templateContent,
-        },
-        config,
-        settings,
-        opts: {
-          force: values.force,
-          resume: values.resume,
-          steal: values.steal,
-          forceReview: values['force-review'],
-          allowOverBudget: values['allow-over-budget'],
-          allowLargeFanOut: values['allow-large-fan-out'],
-        },
-      }),
-  );
+  const mode = values.amend
+    ? 'amend'
+    : values.resume
+      ? 'resume'
+      : values.force
+        ? 'force'
+        : 'persist';
+  let result;
+  try {
+    result = await recordPlanInvocation(
+      { cli: 'plan-persist', mode, epicId, config },
+      () =>
+        runPlanPersist({
+          epicId,
+          provider,
+          artifacts: {
+            techSpecContent,
+            acceptanceSpecContent,
+            riskVerdict,
+            tickets,
+            onePagerContent,
+            templateContent,
+          },
+          config,
+          settings,
+          opts: {
+            force: values.force,
+            resume: values.resume,
+            amend: values.amend,
+            explicitDelete: values['explicit-delete'],
+            steal: values.steal,
+            forceReview: values['force-review'],
+            allowOverBudget: values['allow-over-budget'],
+            allowLargeFanOut: values['allow-large-fan-out'],
+          },
+        }),
+    );
+  } catch (err) {
+    // Amend close-op confirmation gate (exit 2, mirroring the
+    // epic-reconcile.js contract): print the dry-run diff so the operator
+    // reviews exactly what would close, mutate nothing, and exit 2 so
+    // non-interactive callers can branch on the code.
+    if (err?.code === 'PLAN_AMEND_EXPLICIT_DELETE_REQUIRED') {
+      process.stdout.write(`${err.diff}\n\n${err.message}\n`);
+      process.exitCode = 2;
+      return;
+    }
+    throw err;
+  }
 
   // Surface the whole plan run's invocation ledger in the persist summary
   // (#4474 PR1). Additive and best-effort.

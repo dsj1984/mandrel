@@ -84,7 +84,10 @@ function renderWaveTableLines(waveTable) {
 
 /**
  * Build the `plan-summary` structured-comment body: risk + routing +
- * freshness + healthcheck receipts, closing with the dry-run wave table.
+ * freshness + healthcheck receipts, closing with the mode-specific tail —
+ * the dry-run wave table for fan-out/amend, or the single-delivery routing
+ * record `{ deliveryShape, sliceCount, routingReasons }` (Epic #4474 PR4)
+ * for the spec-only mode.
  *
  * @param {{
  *   epicId: number,
@@ -94,6 +97,14 @@ function renderWaveTableLines(waveTable) {
  *   freshness?: { stale?: number, ambiguous?: number },
  *   healthcheck?: { ok?: boolean, waived?: boolean, skipped?: boolean },
  *   waveTable: ReturnType<typeof buildWaveTable>,
+ *   mode?: 'fan-out'|'single'|'amend',
+ *   single?: { deliveryShape: 'single', sliceCount: number|null, routingReasons: string[] }|null,
+ *   amend?: {
+ *     closed: Array<{ slug: string, issueNumber: number }>,
+ *     recreated: Array<{ slug: string, oldIssueNumber: number, issueNumber: number }>,
+ *     created: Array<{ slug: string, issueNumber: number }>,
+ *     keptCount: number,
+ *   }|null,
  * }} input
  * @returns {string}
  */
@@ -105,6 +116,9 @@ export function buildPlanSummaryCommentBody({
   freshness,
   healthcheck,
   waveTable,
+  mode = 'fan-out',
+  single = null,
+  amend = null,
 }) {
   const freshnessLine =
     (freshness?.stale ?? 0) > 0 || (freshness?.ambiguous ?? 0) > 0
@@ -115,18 +129,54 @@ export function buildPlanSummaryCommentBody({
     : healthcheck?.ok
       ? '- Healthcheck: passed.'
       : `- Healthcheck: failed, waived by operator label.`;
+
+  const headLine =
+    mode === 'single'
+      ? `- Single-delivery plan (\`delivery::single\`): no Story tree — the Delivery Slicing table is the audit trail.`
+      : `- ${ticketCount} Story ticket(s) persisted across ${waveTable.length} wave(s).`;
+
+  const amendLines = amend
+    ? [
+        `- Amend delta: ${amend.created.length} added, ${amend.recreated.length} modified (closed + recreated), ${amend.closed.length} closed, ${amend.keptCount} kept untouched.`,
+      ]
+    : [];
+
+  const tail =
+    mode === 'single'
+      ? [
+          '#### Delivery routing record',
+          '',
+          '```json',
+          JSON.stringify(
+            {
+              deliveryShape: 'single',
+              sliceCount: single?.sliceCount ?? null,
+              routingReasons: single?.routingReasons ?? [],
+            },
+            null,
+            2,
+          ),
+          '```',
+          '',
+          '_Marker is inert until #4475 lands the deliver-side reader — `/deliver` still treats this Epic as fan-out until then._',
+        ]
+      : [
+          '#### Dry-run wave table',
+          '',
+          ...renderWaveTableLines(waveTable),
+          '',
+          '_Preview only — the authoritative dispatch manifest is written at deliver time (`wave-record-io.js`)._',
+        ];
+
   return [
     `### 📋 Plan Summary — Epic #${epicId} is \`agent::ready\``,
     '',
-    `- ${ticketCount} Story ticket(s) persisted across ${waveTable.length} wave(s).`,
+    headLine,
+    ...amendLines,
     `- Risk: ${planningRisk?.overallLevel ?? 'unknown'} · ${planningRisk?.gateDecision ?? 'unknown'} (review routing: ${reviewRouting?.decision ?? 'unknown'}).`,
     freshnessLine,
     healthcheckLine,
     '',
-    '#### Dry-run wave table',
-    '',
-    ...renderWaveTableLines(waveTable),
-    '',
-    '_Preview only — the authoritative dispatch manifest is written at deliver time (`wave-record-io.js`)._',
+    ...tail,
   ].join('\n');
 }
