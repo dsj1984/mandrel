@@ -48,9 +48,13 @@
  *
  * The schema declares `additionalProperties: false`, so this emitter's
  * signature is deliberately narrow: only the schema-allowed fields are
- * accepted. `blockClass` MUST be one of the four classes named in
- * `merge-block-class.js` — pass the classifier's verdict straight
- * through (`classifyMergeBlock(...)` returns `{ blockClass, reason }`).
+ * accepted. `blockClass` MUST be a valid `merge.unlanded` attribution from
+ * `merge-block-class.js` (`MERGE_UNLANDED_BLOCK_CLASSES` — the four
+ * `classifyMergeBlock` outputs plus the directly-emitted `predicate-refused`,
+ * Story #4472). For a post-arm poll-exhaustion block, pass the classifier's
+ * verdict straight through (`classifyMergeBlock(...)` returns
+ * `{ blockClass, reason }`); the predicate/armer refusal paths pass
+ * `predicate-refused` / a classified arm failure directly.
  */
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -98,8 +102,9 @@ function getValidator() {
  * @param {number} opts.ticketId       epicId when `scope === 'epic'`,
  *                                     storyId when `scope === 'story'`.
  * @param {number} opts.prNumber       The PR number that did not land.
- * @param {string} opts.blockClass     One of the four
- *                                     `merge-block-class.js` classes.
+ * @param {string} opts.blockClass     A valid `merge.unlanded` attribution
+ *                                     (`MERGE_UNLANDED_BLOCK_CLASSES` in
+ *                                     `merge-block-class.js`).
  * @param {string} opts.reason         Free-form diagnosis detail — pass
  *                                     the classifier's `reason`.
  * @param {number} opts.elapsedSeconds Elapsed watch/poll time when the

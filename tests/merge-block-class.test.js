@@ -19,6 +19,7 @@ import {
   BLOCK_CLASSES,
   classifyMergeBlock,
   isValidBlockClass,
+  MERGE_UNLANDED_BLOCK_CLASSES,
 } from '../.agents/scripts/lib/orchestration/merge-block-class.js';
 
 describe('merge-block-class (Story #4426)', () => {
@@ -31,12 +32,23 @@ describe('merge-block-class (Story #4426)', () => {
     ]);
   });
 
-  it('isValidBlockClass recognises only the canonical set', () => {
-    for (const cls of BLOCK_CLASSES) {
+  it('isValidBlockClass recognises the full merge.unlanded attribution set', () => {
+    for (const cls of MERGE_UNLANDED_BLOCK_CLASSES) {
       assert.equal(isValidBlockClass(cls), true);
     }
     assert.equal(isValidBlockClass('not-a-real-class'), false);
     assert.equal(isValidBlockClass(undefined), false);
+  });
+
+  it('predicate-refused is a valid attribution but NOT a classifyMergeBlock output (Story #4472)', () => {
+    // It is emitted directly by the AutomergePredicate / AutomergeArmer for a
+    // headless refusal that never reached the poll-exhaustion classifier.
+    assert.equal(isValidBlockClass('predicate-refused'), true);
+    assert.equal(BLOCK_CLASSES.includes('predicate-refused'), false);
+    assert.equal(
+      MERGE_UNLANDED_BLOCK_CLASSES.includes('predicate-refused'),
+      true,
+    );
   });
 
   const cases = [

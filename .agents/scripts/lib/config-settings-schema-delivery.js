@@ -264,6 +264,13 @@ const CI_DELIVERY_SCHEMA = {
     earlyPr: { type: 'boolean' },
     watch: CI_WATCH_SCHEMA,
     autoMerge: { type: 'string', enum: ['trust-ci', 'strict'] },
+    // Story #4472 — fail-closed-without-checks policy. When `true`, the
+    // AutomergePredicate refuses to arm merge in a repo that reports zero
+    // required checks ("no checks reported"), treating the absence of a CI
+    // gate as a hard block instead of green. Defaults to `false` so a
+    // checks-less repo with green close-validation gates lands headlessly
+    // rather than parking on the operator-merges path.
+    requireChecks: { type: 'boolean' },
   },
   additionalProperties: false,
 };

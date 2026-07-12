@@ -125,7 +125,11 @@ export async function runCloseValidationPhase({
   const validation = await runCloseValidation({
     cwd,
     worktreePath,
-    gates: buildDefaultGates({ config, epicBranch: baseBranch }),
+    gates: buildDefaultGates({
+      config,
+      epicBranch: baseBranch,
+      cwd: worktreePath || cwd,
+    }),
     log: (m) => Logger.info(m),
     storyId,
     // Story #4250 — standalone storyId-anchored evidence keyspace. No

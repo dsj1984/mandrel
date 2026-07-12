@@ -19,6 +19,8 @@ import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus
 import {
   AutomergeArmer,
   ghPrMergeAuto,
+  ghPrMergeDirect,
+  isAutoMergeUnavailable,
   parseAutoMergeArmed,
   parsePrMerged,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
@@ -404,5 +406,242 @@ describe('ghPrMergeAuto — worktree-occupied-base-branch robustness (Story #428
       '--squash',
       '--delete-branch',
     ]);
+  });
+});
+
+describe('isAutoMergeUnavailable (Story #4472)', () => {
+  it('matches the GitHub "Auto merge is not allowed" rejection', () => {
+    assert.equal(
+      isAutoMergeUnavailable(
+        'GraphQL: Pull request Auto merge is not allowed for this repository (enablePullRequestAutoMerge)',
+      ),
+      true,
+    );
+  });
+
+  it('matches an "auto-merge is not enabled" phrasing', () => {
+    assert.equal(
+      isAutoMergeUnavailable('auto-merge is not enabled for this repository'),
+      true,
+    );
+  });
+
+  it('does NOT match a genuine arm failure (conflict / auth / unstable)', () => {
+    assert.equal(
+      isAutoMergeUnavailable('GraphQL: Pull request is in unstable status'),
+      false,
+    );
+    assert.equal(isAutoMergeUnavailable('gh: not authenticated'), false);
+    assert.equal(isAutoMergeUnavailable(''), false);
+    assert.equal(isAutoMergeUnavailable(undefined), false);
+  });
+});
+
+describe('ghPrMergeDirect (Story #4472)', () => {
+  it('omits --auto so the squash-merge is immediate; keeps --squash --delete-branch', () => {
+    let capturedArgs = null;
+    ghPrMergeDirect({
+      prUrl: 'https://github.com/o/r/pull/88',
+      cwd: '/repo/primary',
+      spawnFn: (_bin, args) => {
+        capturedArgs = args;
+        return { status: 0, stdout: '', stderr: '' };
+      },
+      resolveArmCwd: (cwd) => cwd,
+    });
+    assert.deepEqual(capturedArgs, [
+      'pr',
+      'merge',
+      'https://github.com/o/r/pull/88',
+      '--squash',
+      '--delete-branch',
+    ]);
+  });
+});
+
+describe('AutomergeArmer — direct-merge fallback (Story #4472)', () => {
+  it('falls back to a direct squash-merge and emits armed when native auto-merge is unavailable', async () => {
+    const { bus, emits } = recordingBus();
+    let directCalled = false;
+    const armer = new AutomergeArmer({
+      bus,
+      logger: quietLogger(),
+      ghPrViewAutoMergeFn: () => ({
+        status: 0,
+        stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+        stderr: '',
+      }),
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr:
+          'GraphQL: Pull request Auto merge is not allowed for this repository (enablePullRequestAutoMerge)',
+      }),
+      ghPrMergeDirectFn: () => {
+        directCalled = true;
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/12',
+    });
+
+    assert.equal(directCalled, true, 'direct-merge fallback was attempted');
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.merge.armed');
+    const outcome = armer.classifications.at(-1);
+    assert.equal(outcome.outcome, 'armed');
+    assert.match(outcome.note, /direct-merge fallback/);
+  });
+
+  it('treats a direct-merge housekeeping grumble as success when the re-probe shows merged', async () => {
+    const { bus, emits } = recordingBus();
+    let views = 0;
+    const armer = new AutomergeArmer({
+      bus,
+      logger: quietLogger(),
+      ghPrViewAutoMergeFn: () => {
+        views += 1;
+        // First probe (pre-arm): not armed. Second probe (post-direct):
+        // merged despite the non-zero direct exit.
+        return views === 1
+          ? {
+              status: 0,
+              stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+              stderr: '',
+            }
+          : { status: 0, stdout: '{"mergeCommit":{"oid":"abc"}}', stderr: '' };
+      },
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'Auto merge is not allowed for this repository',
+      }),
+      ghPrMergeDirectFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: "cannot delete branch 'epic/12' used by worktree",
+      }),
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/12',
+    });
+
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.merge.armed');
+  });
+
+  it('does NOT fall back on a genuine (non-auto-merge) arm failure', async () => {
+    const { bus, emits } = recordingBus();
+    let directCalled = false;
+    const armer = new AutomergeArmer({
+      bus,
+      logger: quietLogger(),
+      ghPrViewAutoMergeFn: () => ({
+        status: 0,
+        stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+        stderr: '',
+      }),
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'GraphQL: Pull request is in unstable status',
+      }),
+      ghPrMergeDirectFn: () => {
+        directCalled = true;
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/12',
+    });
+
+    assert.equal(directCalled, false, 'no direct-merge on a genuine failure');
+    assert.equal(emits.length, 0, 'no epic.merge.armed');
+    assert.equal(armer.classifications.at(-1).outcome, 'failed');
+  });
+});
+
+describe('AutomergeArmer — headless must-land attribution on arm failure (Story #4472)', () => {
+  function headlessBus() {
+    const bus = new Bus();
+    const emits = [];
+    const record = (event) => async (ctx) => {
+      emits.push({ event, seqId: ctx.seqId, payload: ctx.payload });
+    };
+    bus.on('epic.merge.armed', record('epic.merge.armed'));
+    bus.on('epic.blocked', record('epic.blocked'));
+    return { bus, emits };
+  }
+
+  it('headless: a genuine arm failure emits merge.unlanded + epic.blocked', async () => {
+    const { bus, emits } = headlessBus();
+    const unlanded = [];
+    const armer = new AutomergeArmer({
+      bus,
+      epicId: 4472,
+      headless: true,
+      logger: quietLogger(),
+      emitMergeUnlandedFn: (opts) => unlanded.push(opts),
+      ghPrViewAutoMergeFn: () => ({
+        status: 0,
+        stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+        stderr: '',
+      }),
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'GraphQL: Pull request is in unstable status',
+      }),
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/99',
+    });
+
+    assert.ok(emits.some((e) => e.event === 'epic.blocked'));
+    assert.equal(unlanded.length, 1);
+    assert.equal(unlanded[0].scope, 'epic');
+    assert.equal(unlanded[0].ticketId, 4472);
+    assert.equal(unlanded[0].prNumber, 99);
+    assert.equal(unlanded[0].blockClass, 'arm-failure');
+  });
+
+  it('attended: a genuine arm failure stays silent (no epic.blocked, no merge.unlanded)', async () => {
+    const { bus, emits } = headlessBus();
+    const unlanded = [];
+    const armer = new AutomergeArmer({
+      bus,
+      epicId: 4472,
+      headless: false,
+      logger: quietLogger(),
+      emitMergeUnlandedFn: (opts) => unlanded.push(opts),
+      ghPrViewAutoMergeFn: () => ({
+        status: 0,
+        stdout: '{"autoMergeRequest":null,"mergeCommit":null}',
+        stderr: '',
+      }),
+      ghPrMergeAutoFn: () => ({
+        status: 1,
+        stdout: '',
+        stderr: 'GraphQL: Pull request is in unstable status',
+      }),
+    });
+    armer.register();
+
+    await bus.emit('epic.merge.ready', {
+      prUrl: 'https://github.com/o/r/pull/99',
+    });
+
+    assert.ok(!emits.some((e) => e.event === 'epic.blocked'));
+    assert.equal(unlanded.length, 0);
+    assert.equal(armer.classifications.at(-1).outcome, 'failed');
   });
 });

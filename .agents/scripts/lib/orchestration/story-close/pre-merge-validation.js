@@ -133,7 +133,14 @@ export async function runPreMergeGates({
   // `buildDefaultGates` reads the canonical resolved config directly:
   // gate commands resolve from `project.commands` and the CRAP toggle
   // from `delivery.quality.gates.crap.enabled`.
-  const gates = buildDefaultGates({ config, epicBranch });
+  // Probe the coverage script from the gate execution directory (the Story
+  // worktree when present) so coverage-capture is only registered when the
+  // consumer ships `test:coverage` (#4473).
+  const gates = buildDefaultGates({
+    config,
+    epicBranch,
+    cwd: worktreePath || cwd,
+  });
   const gateCount = Array.isArray(gates) ? gates.length : 0;
   // Story #2250 — emit `close-validate.start` only when both an epicId
   // and a storyId are present; the schema requires both, and unit

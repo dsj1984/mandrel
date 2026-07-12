@@ -27,7 +27,8 @@
         "checks-pending-timeout",
         "branch-protection-human-required",
         "arm-failure",
-        "api-race-other"
+        "api-race-other",
+        "predicate-refused"
       ]
     },
     "reason": { "type": "string", "minLength": 1 },

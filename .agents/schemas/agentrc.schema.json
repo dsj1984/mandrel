@@ -1456,6 +1456,10 @@
               "type": "string",
               "enum": ["trust-ci", "strict"],
               "description": "Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate."
+            },
+            "requireChecks": {
+              "type": "boolean",
+              "description": "Story #4472. Fail-closed-without-checks policy. When true, the AutomergePredicate refuses to arm merge in a repo that reports zero required checks ('no checks reported'), treating the absent CI gate as a hard block. Defaults to false so a checks-less repo with green close-validation gates lands headlessly instead of parking on the operator-merges path."
             }
           },
           "additionalProperties": false

@@ -6,6 +6,7 @@
  * runner (`INDEPENDENT_GATE_NAMES` / `partitionGates`).
  */
 
+import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import {
   buildFormatHint,
   FORMAT_CHECK_FALLBACK,
@@ -87,17 +88,30 @@ function isCrapGateEnabled(config) {
 }
 
 /**
- * Conditionally produce the standalone `test` gate entry. Returns an empty
- * array when the CRAP gate is enabled (Story #1798: coverage-capture is the
- * canonical test runner in that mode); returns the legacy single-entry
- * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
- * the CRAP-cyclomatic gate.
+ * The gates run in the Story worktree, whose `package.json` is the committed
+ * one the consumer ships — the presence of a `test:coverage` script is a
+ * committed fact, so probing at the gate cwd is authoritative. See
+ * `lib/npm-scripts.js` for the shared reader.
+ */
+
+/**
+ * Conditionally produce the standalone `test` gate entry.
  *
- * @param {object|undefined|null} config - Canonical resolved config.
+ * The plain `test` gate is the canonical test runner UNLESS the
+ * coverage-capture gate is taking that role — which happens only when the
+ * CRAP gate is enabled (Story #1798) AND the consumer actually ships a
+ * `test:coverage` script for coverage-capture to run (#4473). When CRAP is
+ * enabled but `test:coverage` is absent, coverage-capture is dropped from
+ * the gate list, so the `test` gate MUST come back — otherwise the consumer
+ * has NO working test gate at all. Splitting this out keeps
+ * `buildDefaultGates` flat for the CRAP-cyclomatic gate.
+ *
+ * @param {boolean} coverageCaptureActive - Whether the coverage-capture gate
+ *   is registered as the test runner for this build.
  * @returns {Gate[]}
  */
-function buildTestGateEntry(config) {
-  if (isCrapGateEnabled(config)) return [];
+function buildTestGateEntry(coverageCaptureActive) {
+  if (coverageCaptureActive) return [];
   return [{ name: 'test', cmd: 'npm', args: ['test'] }];
 }
 
@@ -105,10 +119,13 @@ function buildTestGateEntry(config) {
  * Build the canonical close-validation gate list.
  *
  * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
- * format → coverage-capture → check-baselines. The standalone `test`
- * gate is dropped when `crap.enabled === true` (Story #1798) because
- * coverage-capture carries test-failure signalling under c8 in that
- * mode.
+ * format → [coverage-capture] → check-baselines. The standalone `test`
+ * gate is dropped when coverage-capture is the active test runner — i.e.
+ * `crap.enabled === true` (Story #1798) AND a `test:coverage` script
+ * exists (Story #4473) — because coverage-capture then carries
+ * test-failure signalling under c8. When CRAP is on but `test:coverage` is
+ * absent, coverage-capture is dropped and the `test` gate is restored so
+ * there is always a working test gate.
  *
  * `typecheck` is mandatory; consumers may customise the command via
  * `project.commands.typecheck` (default `npm run typecheck`).
@@ -127,15 +144,34 @@ function buildTestGateEntry(config) {
  * re-discovered inherited main-vs-epic drift in untouched files as phantom
  * regressions and worked around it by hand-setting `BASELINE_REF`.
  *
- * @param {{ config?: object, epicBranch?: string }} [opts] - `config` is the
- *   canonical resolved config (`{ project, delivery, ... }`); gate commands
- *   resolve from `project.commands` and the CRAP toggle from
+ * Story #4473 — the coverage-capture gate spawns `npm run test:coverage`,
+ * so it is registered ONLY when the consumer actually ships that script.
+ * When CRAP is enabled but `test:coverage` is absent, coverage-capture is
+ * dropped and the plain `test` gate is restored (see `buildTestGateEntry`),
+ * so a consumer without a coverage script gets a working degraded test gate
+ * instead of a deterministic close failure with no test gate at all. The
+ * probe reads `package.json` at `cwd` (the gate execution directory).
+ *
+ * @param {{ config?: object, epicBranch?: string, cwd?: string, packageScripts?: Record<string, string> }} [opts]
+ *   `config` is the canonical resolved config (`{ project, delivery, ... }`);
+ *   gate commands resolve from `project.commands` and the CRAP toggle from
  *   `delivery.quality.gates.crap.enabled`. `epicBranch` is the close run's
  *   integration branch (`epic/<id>` for Epic-attached Stories, the base
- *   branch for standalone Stories).
+ *   branch for standalone Stories). `cwd` is where the `package.json`
+ *   coverage-script probe reads from (defaults to `process.cwd()`);
+ *   `packageScripts` injects the scripts map directly (tests) and short-
+ *   circuits the disk read.
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ config, epicBranch } = {}) {
+export function buildDefaultGates({
+  config,
+  epicBranch,
+  cwd,
+  packageScripts,
+} = {}) {
+  const scripts = packageScripts ?? readPackageScripts(cwd);
+  const coverageCaptureActive =
+    isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
   const typecheckCmdString = resolveTypecheckCommand(config);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
@@ -158,7 +194,7 @@ export function buildDefaultGates({ config, epicBranch } = {}) {
       hint: TYPECHECK_HINT,
     },
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
-    ...buildTestGateEntry(config),
+    ...buildTestGateEntry(coverageCaptureActive),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
@@ -172,12 +208,16 @@ export function buildDefaultGates({ config, epicBranch } = {}) {
         ? { changedFileScope: formatChangedFileScope }
         : {}),
     },
-    {
-      name: 'coverage-capture',
-      cmd: 'node',
-      args: ['.agents/scripts/coverage-capture.js'],
-      hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
-    },
+    ...(coverageCaptureActive
+      ? [
+          {
+            name: 'coverage-capture',
+            cmd: 'node',
+            args: ['.agents/scripts/coverage-capture.js'],
+            hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
+          },
+        ]
+      : []),
     {
       // Story #2210 — unified `check-baselines` gate is the only path for
       // per-kind regression enforcement. The legacy per-kind in-process

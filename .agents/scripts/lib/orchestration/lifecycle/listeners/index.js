@@ -226,10 +226,15 @@ export async function buildDefaultListenerChain(opts = {}) {
   order.push('Finalizer');
 
   // 4. AutomergeArmer — arms `gh pr merge --auto --squash --delete-branch`
-  //    on epic.merge.ready.
+  //    on epic.merge.ready. Story #4472: `headless` gates the direct-merge
+  //    fallback's terminal escalation (a genuine arm failure emits
+  //    `merge.unlanded` + `epic.blocked` in a `--yes` run instead of
+  //    returning silently); `epicId` scopes the `merge.unlanded` ledger row.
   const automergeArmer = new AutomergeArmer({
     bus,
+    epicId,
     cwd: repoRoot,
+    headless,
     logger,
   });
   automergeArmer.register();
@@ -250,6 +255,7 @@ export async function buildDefaultListenerChain(opts = {}) {
       provider,
       config,
       cwd: repoRoot,
+      headless,
       logger,
     });
     automergePredicate.register();
