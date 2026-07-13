@@ -327,6 +327,185 @@ export async function recordStoryStatus({
 }
 
 /**
+ * Terminal / in-progress per-slice statuses persisted on a single-delivery
+ * checkpoint. The single-delivery analogue of `STORY_STATUSES` — a spec-only
+ * plan authors no Story tickets, so the leaf work unit is a `## Delivery
+ * Slicing` slice walked in-session on `epic/<id>` (Epic #4475). The design's
+ * durable contract is `{pending, done}`; `blocked`/`failed` mirror the story
+ * map so the M4-B executor can record a stalled slice without a schema bump.
+ */
+export const SLICE_STATUSES = Object.freeze([
+  'pending',
+  'done',
+  'blocked',
+  'failed',
+]);
+
+/**
+ * Build the initial per-slice status map from parsed `## Delivery Slicing`
+ * rows (`parseDeliverySlicingTable` output — `[{ slice, independent }]`).
+ * Every slice seeds at `status: 'pending'`, keyed by a **stable, position-
+ * derived** id `slice-<n>` (1-based) so a re-run over the same table
+ * round-trips its keys. The slice's human label is carried through as `title`
+ * for the operator rollup. Pure — exported for unit tests.
+ *
+ * @param {Array<{ slice?: string, independent?: boolean } | string>} slices
+ * @returns {Record<string, { status: string, title?: string }>}
+ */
+export function buildSliceStatusMap(slices) {
+  const out = {};
+  const rows = Array.isArray(slices) ? slices : [];
+  rows.forEach((entry, i) => {
+    const sliceId = `slice-${i + 1}`;
+    const record = { status: 'pending' };
+    const title =
+      typeof entry === 'string'
+        ? entry
+        : entry && typeof entry === 'object' && typeof entry.slice === 'string'
+          ? entry.slice
+          : undefined;
+    if (title) record.title = title;
+    out[sliceId] = record;
+  });
+  return out;
+}
+
+/**
+ * Merge a freshly-seeded slice status map onto a persisted one. Every slice
+ * present in either map appears in the result; when a slice exists in the
+ * prior map its recorded `status` wins (recorded progress — a `done` slice
+ * whose work already sits on `epic/<id>` — is never lost), while its `title`
+ * is refreshed from the incoming seed. Slices present only in the incoming
+ * seed are added at `pending`. Pure — exported for unit tests.
+ *
+ * @param {Record<string, object>|undefined} prior
+ * @param {Record<string, object>} incoming
+ * @returns {Record<string, object>}
+ */
+export function mergeSliceStatuses(prior, incoming) {
+  const priorMap = prior && typeof prior === 'object' ? prior : {};
+  const seedMap = incoming && typeof incoming === 'object' ? incoming : {};
+  const out = {};
+  for (const key of new Set([
+    ...Object.keys(priorMap),
+    ...Object.keys(seedMap),
+  ])) {
+    const priorEntry = priorMap[key];
+    const seedEntry = seedMap[key];
+    if (priorEntry && typeof priorEntry === 'object') {
+      const merged = { ...priorEntry };
+      if (seedEntry && typeof seedEntry.title === 'string') {
+        merged.title = seedEntry.title;
+      }
+      out[key] = merged;
+    } else {
+      out[key] = seedEntry;
+    }
+  }
+  return out;
+}
+
+/**
+ * Initialize (or resume) the single-delivery checkpoint for an Epic. The
+ * single-delivery analogue of `initialize` (Story #4155's per-Story map),
+ * writing the slice-map shape the M4-B executor walks:
+ *
+ * ```json
+ * {
+ *   "epicId": 4475,
+ *   "deliveryShape": "single",
+ *   "slices": { "slice-1": { "status": "pending", "title": "…" } },
+ *   "concurrencyCap": 1,
+ *   "storyCount": 0
+ * }
+ * ```
+ *
+ * Idempotent + resume-preserving: on a re-run an existing single checkpoint
+ * has its slice map **merged** (every already-`done` slice keeps its status
+ * so the executor skips it — the work already sits on `epic/<id>`), while
+ * newly-authored slices seed at `pending`. `startedAt` is preserved. A
+ * checkpoint written for the fan-out shape is NOT reinterpreted here — the
+ * caller (`epic-deliver-prepare.js --single`) owns route selection.
+ *
+ * @param {{
+ *   provider: import('../ITicketingProvider.js').ITicketingProvider,
+ *   epicId: number,
+ *   slices: Array<{ slice?: string, independent?: boolean } | string>,
+ *   concurrencyCap?: number,
+ * }} opts
+ * @returns {Promise<object>} the persisted (or preserved) state
+ */
+export async function initializeSingle({
+  provider,
+  epicId,
+  slices,
+  concurrencyCap = 1,
+} = {}) {
+  assertProvider(provider);
+  assertEpicId(epicId);
+  const seededSlices = buildSliceStatusMap(slices);
+  const storyCount = 0;
+  const existing = await read({ provider, epicId });
+  if (existing && existing.deliveryShape === 'single') {
+    const mergedSlices = mergeSliceStatuses(existing.slices, seededSlices);
+    if (
+      existing.concurrencyCap === concurrencyCap &&
+      sliceMapsEqual(existing.slices, mergedSlices)
+    ) {
+      return existing;
+    }
+    return write({
+      provider,
+      epicId,
+      state: {
+        ...existing,
+        deliveryShape: 'single',
+        concurrencyCap,
+        storyCount,
+        slices: mergedSlices,
+      },
+    });
+  }
+  return write({
+    provider,
+    epicId,
+    state: {
+      epicId,
+      startedAt: new Date().toISOString(),
+      deliveryShape: 'single',
+      concurrencyCap,
+      storyCount,
+      phase: 'prepare',
+      slices: seededSlices,
+      manualInterventions: [],
+    },
+  });
+}
+
+/**
+ * Structural equality on two slice status maps — same key set and, per key,
+ * the same `status` and `title`. Used by `initializeSingle` to decide whether
+ * an idempotent re-prepare needs a rewrite. Pure.
+ *
+ * @param {Record<string, object>|undefined} a
+ * @param {Record<string, object>|undefined} b
+ * @returns {boolean}
+ */
+function sliceMapsEqual(a, b) {
+  const left = a && typeof a === 'object' ? a : {};
+  const right = b && typeof b === 'object' ? b : {};
+  const keys = Object.keys(left);
+  if (keys.length !== Object.keys(right).length) return false;
+  for (const key of keys) {
+    const l = left[key] ?? {};
+    const r = right[key];
+    if (!r) return false;
+    if (l.status !== r.status || l.title !== r.title) return false;
+  }
+  return true;
+}
+
+/**
  * Append a manual-intervention record to the checkpoint. Out-of-band
  * recovery steps the host LLM performs during a delivery — `AskUserQuestion`
  * calls, `git restore`/`git reset` against the working tree, manual `--no-ff`

@@ -32,13 +32,51 @@ reference) before routing:
 
 | Input | Route |
 | --- | --- |
-| Exactly one `type::epic` ID | **Epic path** — run [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9 unchanged (single-segment plan; no confirmation prompt). |
+| Exactly one `type::epic` ID | **Epic path** — resolve the Epic's delivery route (see [Epic delivery-route resolution](#epic-delivery-route-resolution) below), then run the selected helper's phases unchanged (single-segment plan; no confirmation prompt). |
 | One or more `type::story` IDs, none carrying an `Epic: #N` reference | **Standalone path** — run [`helpers/deliver-stories.md`](helpers/deliver-stories.md) Phases 0–3 (single-segment plan; no confirmation prompt). |
 | Any combination of ≥1 `type::epic` IDs and ≥0 standalone `type::story` IDs | **Segment plan** — compose and execute the sequential segment plan below. |
 | Any Story carrying an `Epic: #N` reference (alone or mixed into an otherwise-valid set) | **Error**, naming every affected ID and the fix: `Story #<id> belongs to Epic #<n> — run /deliver <n>`. |
 
 Per-ID classification is unchanged: fetch the `type::*` label and probe the
 body for an `Epic: #N` reference before routing. Never guess a route.
+
+## Epic delivery-route resolution
+
+Every `type::epic` segment resolves to one of two delivery shapes before its
+helper runs. The routing is a pure function of the Epic's labels, its
+`epic-plan-state` checkpoint, and the config kill-switch — implemented in
+[`lib/orchestration/deliver-route.js`](../scripts/lib/orchestration/deliver-route.js)
+(`resolveEpicDeliveryRoute(epic, checkpoint, config)`), mirroring how the
+code-review depth resolver reads `planningRisk`/`decompose` off the same
+checkpoint. Fetch the Epic's labels and read its `epic-plan-state` structured
+comment, then apply the precedence (highest wins):
+
+1. **Kill-switch — overrides all.** `delivery.routing.singleDelivery === false`
+   (default `true`, read via `getDeliveryRouting`) forces **fan-out** for
+   *every* Epic, even a single-marked one. This is the instant, per-consumer
+   global revert that ships before the default flips — no code rollback, no
+   re-plan.
+2. **Single marker → single route.** The `delivery::single` label (primary)
+   **or** `decompose.shape === "single"` on the checkpoint (secondary). A
+   spec-only plan authored no Story tree; its `## Delivery Slicing` table is
+   the audit trail.
+3. **No marker → fan-out.** A legacy Epic (no marker, an authored Story tree)
+   or a genuinely-wide DAG. Deliver-time width only *advises* — it never
+   reroutes a single-marked Epic (that would orphan a tree that does not
+   exist; re-route = re-plan).
+
+**Route dispatch.**
+
+- **`fan-out`** → run [`helpers/deliver-epic.md`](helpers/deliver-epic.md)
+  Phases 1–9 unchanged (the wave loop fanning out per-Story sub-agents).
+- **`single`** → **stub (M4-A):** for now, continue at
+  [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9 exactly as
+  the fan-out route does. **This is deliberately behavior-preserving** — the
+  reader, the kill-switch, and `epic-deliver-prepare.js --single` all ship
+  inert in this milestone so the change lands reviewably. **M4-B replaces
+  this stub with `helpers/deliver-epic-single.md`** (the one-worktree
+  in-session slice walk reusing Phases 3–9 of the fan-out helper). Until then,
+  a `single` verdict observably delivers exactly like `fan-out`.
 
 ## Segment plan (mixed / multi-Epic input)
 
@@ -54,9 +92,11 @@ Stories, the router composes a **segment plan** and executes the segments
    Phase 7.0 base-sync then integrates those merges naturally instead of
    the Epic PR opening behind base.
 2. **Epic segments in input order**: each `type::epic` ID forms its own
-   segment, delivered via
-   [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9
-   unchanged.
+   segment. Resolve its delivery route (see [Epic delivery-route
+   resolution](#epic-delivery-route-resolution)) and run the selected helper
+   unchanged — today every route dispatches
+   [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9 (the
+   `single` route via the M4-A stub).
 
 Sequential execution is a deliberate design decision: the Epic path assumes
 a single main checkout (prepare's checkout guard, Phase 7.0

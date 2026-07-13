@@ -36,6 +36,11 @@ const REQUIRED_EVENTS = Object.freeze([
   'story.dispatch.end',
   'story.merged',
   'story.blocked',
+  // Epic #4475 (M4-A) — single-delivery slice lifecycle (introduced inert;
+  // the executor that emits them lands in M4-B).
+  'slice.start',
+  'slice.end',
+  'slice.heartbeat',
   'epic.blocked',
   'epic.close.end',
   'acceptance.reconcile.start',
