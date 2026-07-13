@@ -656,3 +656,80 @@ blocked by #42`;
     assert.ok(warnings.some((w) => w.startsWith('legacy-string-body:')));
   });
 });
+
+// ---------------------------------------------------------------------------
+// v2 — optional `## Slicing` section (intra-Story delivery slice plan)
+// ---------------------------------------------------------------------------
+
+describe('parse()/serialize() — v2 `## Slicing` section', () => {
+  const SLICING_MARKDOWN = `## Goal
+Deliver the widget end to end.
+
+## Slicing
+- slice 1: schema + migration
+- slice 2: API handler on the schema
+- slice 3: UI wired to the API
+
+## Changes
+- ${JSON.stringify({ path: 'src/widget.ts', assumption: 'creates' })}
+
+## Acceptance
+- [ ] widget renders
+
+## Verify
+- npm test (unit)`;
+
+  it('parse() captures the slice plan verbatim and flags the section', () => {
+    const { body, info } = parse(SLICING_MARKDOWN);
+    assert.equal(
+      body.slicing,
+      '- slice 1: schema + migration\n- slice 2: API handler on the schema\n- slice 3: UI wired to the API',
+    );
+    assert.equal(info.hasSlicingSection, true);
+  });
+
+  it('parse() yields empty slicing and false flag when the section is absent', () => {
+    const { body, info } = parse(CANONICAL_MARKDOWN);
+    assert.equal(body.slicing, '');
+    assert.equal(info.hasSlicingSection, false);
+  });
+
+  it('serialize() emits `## Slicing` right after `## Goal` when present', () => {
+    const md = serialize({
+      goal: 'g',
+      slicing: '- slice 1: do the thing',
+      changes: [{ path: 'src/a.ts', assumption: 'creates' }],
+      acceptance: ['done'],
+      verify: ['npm test (unit)'],
+    });
+    assert.match(
+      md,
+      /## Goal\ng\n\n## Slicing\n- slice 1: do the thing\n\n## Changes/,
+    );
+  });
+
+  it('serialize() omits the section for a pre-v2 body (byte-identical)', () => {
+    const withoutField = serialize(CANONICAL_BODY);
+    const withEmptyField = serialize({ ...CANONICAL_BODY, slicing: '' });
+    assert.equal(withEmptyField, withoutField);
+    assert.doesNotMatch(withoutField, /## Slicing/);
+  });
+
+  it('round-trips: parse(serialize(body)) preserves the slice plan', () => {
+    const { body } = parse(SLICING_MARKDOWN);
+    const reparsed = parse(serialize(body)).body;
+    assert.equal(reparsed.slicing, body.slicing);
+    assert.equal(serialize(reparsed), serialize(body));
+  });
+
+  it('structured-object parse preserves an inline slicing string', () => {
+    const { body } = parse({
+      goal: 'g',
+      slicing: '- slice 1: x',
+      changes: [{ path: 'src/a.ts', assumption: 'creates' }],
+      acceptance: ['a'],
+      verify: ['npm test (unit)'],
+    });
+    assert.equal(body.slicing, '- slice 1: x');
+  });
+});

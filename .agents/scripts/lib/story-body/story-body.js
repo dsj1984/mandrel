@@ -11,6 +11,7 @@
  * ```js
  * {
  *   goal:                string,           // one-sentence purpose
+ *   slicing:             string,           // v2 intra-Story delivery slice plan (optional; '' when absent)
  *   changes:             PathEntry[],      // files/globs this Story touches
  *   acceptance:          string[],         // observable criteria
  *   verify:              string[],         // exact commands / tier annotation
@@ -98,6 +99,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {boolean} hasVerifySection     - Whether a `## Verify` section was found.
  * @property {boolean} hasReferencesSection - Whether a `## References` section was found.
  * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
+ * @property {boolean} hasSlicingSection    - Whether a `## Slicing` section was found (v2 folded slice plan).
  * @property {boolean} isLegacyStringBody   - True when no structured sections were found.
  */
 
@@ -139,6 +141,7 @@ export class StoryBodyParseError extends Error {
 // maps to the `non_goals` field.
 const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
+  ['slicing', 'slicing'],
   ['changes', 'changes'],
   ['acceptance', 'acceptance'],
   ['verify', 'verify'],
@@ -519,6 +522,22 @@ function parseGoalSection(lines) {
 }
 
 /**
+ * Parse a verbatim text-block section (the v2 `## Slicing` slice plan) into a
+ * newline-joined string. Unlike {@link parseGoalSection}, line breaks are
+ * preserved so a bullet list or compact table survives the round-trip; only
+ * blank lines and trailing whitespace are normalized.
+ *
+ * @param {string[]} lines
+ * @returns {string}
+ */
+function parseTextBlockSection(lines) {
+  return lines
+    .map((l) => l.replace(/\s+$/, ''))
+    .filter((l) => l.trim() !== '')
+    .join('\n');
+}
+
+/**
  * Parse a `## Changes` / `## References` section into a list of
  * `PathEntry | string` entries. List markers are stripped, blank entries are
  * dropped, and each surviving entry is normalized via {@link parsePathEntry}
@@ -601,6 +620,7 @@ export function parse(input) {
   const hasVerifySection = sections.has('verify');
   const hasReferencesSection = sections.has('references');
   const hasNonGoalsSection = sections.has('non_goals');
+  const hasSlicingSection = sections.has('slicing');
 
   // If no structured sections found, treat as legacy string body.
   const isLegacyStringBody =
@@ -614,6 +634,12 @@ export function parse(input) {
   }
 
   const goal = parseGoalSection(sections.get('goal') ?? []);
+  // Optional v2 intra-Story delivery slice plan (`## Slicing`). Preserved as
+  // a verbatim text block — a large Story (what v1 called an Epic) folds its
+  // Delivery Slicing here instead of fanning out into sibling Stories; a
+  // trivial Story omits it entirely. Parsed like `## Goal` (non-empty content
+  // lines joined) so a bullet list or compact table round-trips.
+  const slicing = parseTextBlockSection(sections.get('slicing') ?? []);
   const changes = parsePathEntrySection(
     sections.get('changes') ?? [],
     warnings,
@@ -644,6 +670,7 @@ export function parse(input) {
 
   const body = {
     goal,
+    slicing,
     changes,
     acceptance,
     verify,
@@ -667,6 +694,7 @@ export function parse(input) {
       hasVerifySection,
       hasReferencesSection,
       hasNonGoalsSection,
+      hasSlicingSection,
       isLegacyStringBody: false,
     },
   };
@@ -684,6 +712,9 @@ function parseStructuredObject(obj) {
   const warnings = [];
 
   const goal = typeof obj.goal === 'string' ? obj.goal.trim() : '';
+
+  // slicing — optional v2 intra-Story delivery slice plan (verbatim text).
+  const slicing = typeof obj.slicing === 'string' ? obj.slicing.trim() : '';
 
   // changes
   const rawChanges = Array.isArray(obj.changes) ? obj.changes : [];
@@ -747,6 +778,7 @@ function parseStructuredObject(obj) {
 
   const body = {
     goal,
+    slicing,
     changes,
     acceptance,
     verify,
@@ -770,6 +802,7 @@ function parseStructuredObject(obj) {
       hasVerifySection: 'verify' in obj,
       hasReferencesSection: 'references' in obj,
       hasNonGoalsSection: 'non_goals' in obj,
+      hasSlicingSection: 'slicing' in obj,
       isLegacyStringBody: false,
     },
   };
@@ -810,6 +843,17 @@ const SERIALIZE_SECTIONS = [
     render: (goal) =>
       typeof goal === 'string' && goal.trim().length > 0
         ? `## Goal\n${goal.trim()}`
+        : null,
+  },
+  {
+    // Optional v2 intra-Story delivery slice plan. Single-token `## Slicing`
+    // heading (recognized by the `[\w-]+` field-heading regex). Verbatim text
+    // block. Render-when-non-empty: an absent/empty `slicing` emits nothing,
+    // so every pre-v2 body round-trips byte-identically.
+    field: 'slicing',
+    render: (slicing) =>
+      typeof slicing === 'string' && slicing.trim().length > 0
+        ? `## Slicing\n${slicing.trim()}`
         : null,
   },
   {

@@ -337,3 +337,27 @@ describe('validateTaskBodyShape (predicate)', () => {
     });
   }
 });
+
+describe('v2 — optional `## Slicing` slice plan', () => {
+  it('validates clean when a Story carries a folded slice plan', () => {
+    const withSlicing = {
+      ...validStoryBody,
+      slicing: '- slice 1: schema\n- slice 2: handler on the schema',
+    };
+    assert.deepEqual(
+      collectTaskBodyErrors([story('s-slice', withSlicing)]),
+      [],
+    );
+  });
+
+  it('validates clean through the serialized (string) body path', () => {
+    const md = serialize({
+      goal: 'Deliver the widget.',
+      slicing: '- slice 1: do it',
+      changes: [{ path: 'src/w.ts', assumption: 'creates' }],
+      acceptance: ['widget renders'],
+      verify: ['npm test (unit)'],
+    });
+    assert.deepEqual(validateTaskBodyShape(story('s-slice-md', md)), []);
+  });
+});

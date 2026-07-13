@@ -291,11 +291,13 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 *Data contract first — the validators and planner below all consume it.*
 
-- [ ] **v2 Story body contract** — evolve `task-body-validator.js` so a Story
-  body carries the folded Tech Spec (Delivery Slicing + spec sections)
-  alongside `context`/`changes`/`acceptance`/`verify`; this is the merge of
-  today's Epic-body spec into the single Story type. New/updated
-  schema + tests. *(Foundation both planning and delivery consume.)*
+- [x] **v2 Story body contract** — the Story body now carries an optional
+  `## Slicing` section (the intra-Story delivery slice plan that replaces
+  sibling fan-out) alongside `goal`/`changes`/`acceptance`/`verify`, via the
+  canonical `story-body.js` parser/serializer (round-trip safe; pre-v2 bodies
+  serialize byte-identically). `task-body-validator.js` tolerates it (optional).
+  Heavy Tech Spec prose spills to a linked doc (item 3), keeping the body
+  parser-safe. Tests: `story-body.test.js` (+6), `task-body-validator.test.js` (+2).
 - [ ] Split-policy validator — plan-time **one-owner-AC split rejector** (new
   module + unit tests) over the contract above: no identical AC in more than
   one Story (the deterministic coupling signal; semantic overlap stays a
