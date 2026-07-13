@@ -307,6 +307,26 @@ const EVENT_CLASSIFICATION = Object.freeze({
     emitter: 'post-merge-close.js',
     why: 'merge signal surfaced via the post-merge label flip; its former dedicated subscriber (LabelTransitioner) was part of the in-process runner stratum deleted in Story #3908. Consumed by wildcard observers (LedgerWriter) only.',
   },
+  // --- single-delivery slice lifecycle (Epic #4475, M4-A) ---
+  // Introduced INERT: emit-slice-lifecycle.js is the ledger-append emitter,
+  // but the executor that CALLS it lands in M4-B (deliver-epic-single.md), so
+  // no production path emits them yet. The connectivity extractor derives the
+  // emitter from the `event: 'slice.*'` literals in emit-slice-lifecycle.js.
+  'slice.start': {
+    kind: 'terminal',
+    emitter: 'emit-slice-lifecycle.js',
+    why: 'ledger-append slice-boundary marker (the single-delivery analogue of story.dispatch.start); consumed by the idle watchdog reading the ledger, not a dedicated bus subscriber. Inert until M4-B wires the executor.',
+  },
+  'slice.end': {
+    kind: 'terminal',
+    emitter: 'emit-slice-lifecycle.js',
+    why: 'ledger-append slice-end marker (the single-delivery analogue of story.dispatch.end); consumed by the idle watchdog and by CheckpointPointerWriter via the dynamic SUBSCRIBED_END_EVENTS array (classified as a wildcard observer, not a dedicated literal subscriber). Inert until M4-B wires the executor.',
+  },
+  'slice.heartbeat': {
+    kind: 'terminal',
+    emitter: 'emit-slice-lifecycle.js',
+    why: 'ledger-append heartbeat for the one long guarded single-delivery session (the analogue of story.heartbeat); consumed by the idle watchdog reading the ledger, not a bus subscriber. Inert until M4-B wires the executor.',
+  },
   'loop.tick': {
     kind: 'terminal',
     emitter: 'emit-loop-tick.js',

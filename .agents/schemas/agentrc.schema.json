@@ -1468,6 +1468,17 @@
           },
           "additionalProperties": false
         },
+        "routing": {
+          "type": "object",
+          "description": "Epic #4475 (M4-A). Delivery-route selection for epic-shaped work.",
+          "properties": {
+            "singleDelivery": {
+              "type": "boolean",
+              "description": "Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet."
+            }
+          },
+          "additionalProperties": false
+        },
         "preflight": {
           "type": "object",
           "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked.",

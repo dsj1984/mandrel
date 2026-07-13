@@ -233,6 +233,23 @@ const EPIC_AUDIT_SCHEMA = {
   additionalProperties: false,
 };
 
+// Epic #4475 (M4-A) — single-delivery routing kill-switch.
+// `delivery.routing.singleDelivery` (default true via getDeliveryRouting) is
+// the global kill-switch for the single-delivery route. When true (the
+// default), an Epic marked `delivery::single` at plan time routes to the
+// single-delivery helper; when false, EVERY Epic — even a single-marked one —
+// is forced down the fan-out path (the instant, code-rollback-free per-consumer
+// revert). Shipped INERT in M4-A: the router's single verdict falls through to
+// fan-out until M4-B wires the executor, so the knob has no observable effect
+// yet.
+const ROUTING_SCHEMA = {
+  type: 'object',
+  properties: {
+    singleDelivery: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
 // Story #2899 (Epic #2880) — performance defaults + preflight (F13).
 // `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
 // true, pre-push tooling appends a `[skip ci]` trailer to Story-branch
@@ -384,6 +401,7 @@ export const DELIVERY_SCHEMA = {
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
+    routing: ROUTING_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,
     // `epic-deliver-prepare` refuses to flip the Epic to

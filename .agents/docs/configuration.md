@@ -302,6 +302,8 @@ top-level keys are validation errors.
 | `ci.watch.maxResumes` | No | `integer` | — | — |
 | `ci.autoMerge` | No | `"trust-ci"` \| `"strict"` | — | Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate. |
 | `ci.requireChecks` | No | `boolean` | — | Story #4472. Fail-closed-without-checks policy. When true, the AutomergePredicate refuses to arm merge in a repo that reports zero required checks ('no checks reported'), treating the absent CI gate as a hard block. Defaults to false so a checks-less repo with green close-validation gates lands headlessly instead of parking on the operator-merges path. |
+| `routing` | No | `object` | — | Epic #4475 (M4-A). Delivery-route selection for epic-shaped work. |
+| `routing.singleDelivery` | No | `boolean` | — | Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet. |
 | `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked. |
 | `preflight.maxStories` | No | `integer` | — | — |
 | `preflight.maxWaves` | No | `integer` | — | — |

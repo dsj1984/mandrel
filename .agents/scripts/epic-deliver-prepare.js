@@ -39,10 +39,21 @@ import { parseArgs } from 'node:util';
 import { runBootSweep } from './boot-sweep.js';
 import { buildChecklistPayload } from './lib/audit-suite/index.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { getPaths, getRunners, resolveConfig } from './lib/config-resolver.js';
-import { currentBranch as gitCurrentBranch } from './lib/git-branch-lifecycle.js';
-import { getEpicBranch, gitSpawn } from './lib/git-utils.js';
+import {
+  getPaths,
+  getRunners,
+  resolveConfig,
+  resolveRuntime,
+} from './lib/config-resolver.js';
+import { cachedGitFetch } from './lib/git/cached-fetch.js';
+import {
+  ensureEpicBranchRef,
+  currentBranch as gitCurrentBranch,
+} from './lib/git-branch-lifecycle.js';
+import { getEpicBranch, gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { ACCEPTANCE_NA, TYPE_LABELS } from './lib/label-constants.js';
+import { parseDeliverySlicingTable } from './lib/orchestration/consolidation-precondition.js';
 import { ensureDocsDigest } from './lib/orchestration/docs-digest.js';
 import {
   resolveOperator,
@@ -50,6 +61,7 @@ import {
 } from './lib/orchestration/epic-deliver-lease-guard.js';
 import {
   initialize as initializeEpicRunState,
+  initializeSingle as initializeEpicRunStateSingle,
   write as writeEpicRunState,
 } from './lib/orchestration/epic-run-state-store.js';
 import {
@@ -72,7 +84,7 @@ import {
 } from './lib/orchestration/ticket-lease.js';
 import { createProvider } from './lib/provider-factory.js';
 
-const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards] [--steal] [--as <handle>]
+const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--single] [--ignore-concurrency-hazards] [--steal] [--as <handle>]
 
 Snapshots Epic #<id>, builds the wave DAG, initializes the epic-run-state
 checkpoint, and prints the per-wave dispatch plan as JSON. Before any of that,
@@ -81,6 +93,15 @@ runs two fail-closed preflight guards (Story #3482): a checkout-safety check
 (refuse on a live foreign claim).
 
 Options:
+  --single                       Single-delivery prepare (Epic #4475). Short-
+                                 circuits Story enumeration: seeds epic/<id>,
+                                 materializes ONE worktree on it, and writes a
+                                 slice-map epic-run-state (deliveryShape:
+                                 "single", storyCount: 0) from the Epic body's
+                                 ## Delivery Slicing table. Refuses
+                                 acceptance::n-a (fail-closed). INERT until
+                                 M4-B: nothing in production drives this flag
+                                 yet.
   --ignore-concurrency-hazards   Bypass the cross-Story concurrency-hazard
                                  gate (Story #2297). The flag's use is
                                  recorded on the Epic checkpoint so retro
@@ -424,6 +445,239 @@ export async function writeStoryChecklists({
   );
 }
 
+/**
+ * Seed `epic/<id>` and materialize the ONE worktree the single-delivery
+ * executor walks — the single-delivery counterpart to `single-story-init.js`'s
+ * single-worktree seed (Epic #4475). Fetches origin so remote-tracking refs
+ * are authoritative, publishes the Epic integration branch via the shared
+ * `ensureEpicBranchRef` seeder (the same helper `branch-initializer.js` uses),
+ * then adds a worktree at `.worktrees/epic-<id>/` on `epic/<id>` — idempotent,
+ * reused on a re-prepare. When worktree isolation is off it checks the branch
+ * out on the main tree instead (mirroring `provisionWorktree`).
+ *
+ * Skipped in the same injected-test shape the preflight guards use (a provider
+ * injected with no git seam) so unit tests never spawn real git.
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd: string,
+ *   baseBranch: string,
+ *   worktreeEnabled: boolean,
+ *   progress?: (stage: string, msg: string) => void,
+ * }} args
+ * @returns {{ epicBranch: string, workCwd: string, worktreeCreated: boolean }}
+ */
+export function provisionEpicWorktree({
+  epicId,
+  cwd,
+  baseBranch,
+  worktreeEnabled,
+  progress = () => {},
+}) {
+  const epicBranch = getEpicBranch(epicId);
+
+  // Fetch origin so `ensureEpicBranchRef` can read remote-tracking refs
+  // instead of a second network round-trip (mirrors materializeBaseBranch).
+  cachedGitFetch(cwd, 'origin');
+  ensureEpicBranchRef(epicBranch, baseBranch, cwd, { progress });
+
+  if (!worktreeEnabled) {
+    // Single-tree mode: check out the Epic integration branch in place.
+    gitSync(cwd, 'checkout', epicBranch);
+    progress('WORKTREE', `Checked out ${epicBranch} on the main tree.`);
+    return { epicBranch, workCwd: cwd, worktreeCreated: false };
+  }
+
+  const worktreeRoot = path.join(cwd, '.worktrees');
+  const wtPath = path.join(worktreeRoot, `epic-${epicId}`);
+  fs.mkdirSync(worktreeRoot, { recursive: true });
+
+  const listed = gitSpawn(cwd, 'worktree', 'list', '--porcelain');
+  const alreadyPresent =
+    listed.status === 0 && (listed.stdout ?? '').includes(wtPath);
+  if (alreadyPresent) {
+    progress('WORKTREE', `♻️  Reusing worktree: ${wtPath}`);
+    return { epicBranch, workCwd: wtPath, worktreeCreated: false };
+  }
+
+  const res = gitSpawn(cwd, 'worktree', 'add', wtPath, epicBranch);
+  if (res.status !== 0) {
+    const stderr = res.stderr || res.stdout || '';
+    if (/already (exists|checked out)/.test(stderr)) {
+      progress('WORKTREE', `♻️  Reusing worktree (race): ${wtPath}`);
+      return { epicBranch, workCwd: wtPath, worktreeCreated: false };
+    }
+    throw new Error(
+      `epic-deliver-prepare --single: git worktree add failed for epic-${epicId}: ${stderr}`,
+    );
+  }
+  progress('WORKTREE', `✨ Created worktree: ${wtPath}`);
+  return { epicBranch, workCwd: wtPath, worktreeCreated: true };
+}
+
+/**
+ * Step 0/1 of `/deliver` for a single-delivery Epic (Epic #4475, design §S1).
+ *
+ * The single-delivery counterpart to `runEpicDeliverPrepare`. It short-circuits
+ * Story enumeration entirely — a spec-only plan authored NO Story tickets, so
+ * there is nothing to fan out. Instead it:
+ *
+ *   1. Refuses `acceptance::n-a` (fail-closed front gate). Under single
+ *      delivery the non-waivable epic-level acceptance reconcile is the ONLY
+ *      acceptance gate; an Epic that declares "no acceptance criteria" is
+ *      structurally incoherent with that contract.
+ *   2. Runs the same fail-closed preflight guards (checkout-safety + Epic
+ *      lease) as the fan-out prepare.
+ *   3. Seeds `epic/<id>` and materializes ONE worktree on it.
+ *   4. Parses the Epic body's `## Delivery Slicing` table and writes an
+ *      `epic-run-state` **slice map** (`deliveryShape: "single"`,
+ *      `storyCount: 0`, `concurrencyCap: 1`) — idempotent + resume-preserving
+ *      (a re-run keeps every already-`done` slice).
+ *   5. Writes the per-Epic docs digest.
+ *
+ * BEHAVIOR-PRESERVING (M4-A): this function is reachable only through the
+ * `--single` flag, which nothing in production drives yet (the `deliver.md`
+ * router's single verdict falls through to the fan-out helper until M4-B). The
+ * slice-map checkpoint round-trips but no executor consumes it here.
+ *
+ * @param {object} args — same DI surface as `runEpicDeliverPrepare` minus the
+ *   concurrency-hazard knobs (single delivery fans out nothing to gate).
+ * @returns {Promise<{
+ *   epicId: number,
+ *   deliveryShape: 'single',
+ *   storyCount: 0,
+ *   concurrencyCap: number,
+ *   sliceCount: number,
+ *   slices: Record<string, { status: string, title?: string }>,
+ *   epicBranch: string,
+ *   workCwd: string,
+ *   worktreeCreated: boolean,
+ *   checkpointInitializedAt: string,
+ *   docsDigestPath: string|null,
+ * }>}
+ */
+export async function runEpicDeliverPrepareSingle({
+  epicId,
+  cwd,
+  injectedProvider,
+  injectedConfig,
+  asOperator,
+  steal = false,
+  injectedGit,
+  leaseHeartbeatAt,
+  leaseNow,
+  skipPreflightGuards = false,
+} = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'runEpicDeliverPrepareSingle: --epic must be a positive integer',
+    );
+  }
+
+  const config = injectedConfig ?? resolveConfig({ cwd });
+  if (!config.github) {
+    throw new Error(
+      'runEpicDeliverPrepareSingle: no github block in .agentrc.json',
+    );
+  }
+  const provider = injectedProvider ?? createProvider(config);
+  // Single delivery collapses the whole Epic into ONE guarded in-session slice
+  // walk — the concurrency cap is 1 by definition (nothing fans out).
+  const concurrencyCap = 1;
+
+  const epic = await provider.getTicket(epicId);
+  const labels = Array.isArray(epic?.labels) ? epic.labels : [];
+  if (!labels.includes(TYPE_LABELS.EPIC)) {
+    throw new Error(
+      `runEpicDeliverPrepareSingle: #${epicId} is not a ${TYPE_LABELS.EPIC} (labels: ${labels.join(', ') || 'none'}).`,
+    );
+  }
+
+  // Fail-closed front gate (design §"Non-waivable epic reconcile"): under
+  // single delivery the epic-level acceptance reconcile is the ONLY acceptance
+  // gate that runs — there is no per-Story self-eval critic tier behind it. An
+  // Epic labelled `acceptance::n-a` (no acceptance criteria) is therefore
+  // structurally incoherent with single delivery: it would waive the sole
+  // gate. Refuse loudly instead of silently shipping ungated.
+  if (labels.includes(ACCEPTANCE_NA)) {
+    throw new Error(
+      `[epic-deliver-prepare] BLOCKER: Epic #${epicId} carries ${ACCEPTANCE_NA}, ` +
+        'but single delivery makes the non-waivable epic-level acceptance ' +
+        'reconcile the ONLY acceptance gate — an Epic with no acceptance ' +
+        'criteria would ship ungated. Remove the label (author an ' +
+        '## Acceptance Table), or re-plan the Epic as fan-out.',
+    );
+  }
+
+  await runPreflightGuardsForPrepare({
+    epicId,
+    cwd,
+    config,
+    provider,
+    injectedProvider,
+    injectedGit,
+    asOperator,
+    steal,
+    leaseHeartbeatAt,
+    leaseNow,
+    skipPreflightGuards,
+  });
+
+  const baseBranch = config.project?.baseBranch ?? 'main';
+  const runtime = resolveRuntime({ config });
+
+  // Seed epic/<id> + materialize the one worktree. Skipped in the injected-
+  // test shape (a provider injected with no git seam) so unit tests never
+  // spawn real git — matching the preflight-guard suppression rule.
+  const worktreeSuppressed =
+    skipPreflightGuards || (Boolean(injectedProvider) && !injectedGit);
+  let epicBranch = getEpicBranch(epicId);
+  let workCwd = cwd ?? process.cwd();
+  let worktreeCreated = false;
+  if (!worktreeSuppressed) {
+    ({ epicBranch, workCwd, worktreeCreated } = provisionEpicWorktree({
+      epicId,
+      cwd: cwd ?? process.cwd(),
+      baseBranch,
+      worktreeEnabled: runtime.worktreeEnabled,
+      progress: (stage, msg) =>
+        Logger.info(`[epic-deliver-prepare:single] ${stage} ${msg}`),
+    }));
+  }
+
+  // Parse the Epic body's `## Delivery Slicing` table — the single mode's
+  // audit trail and the source of the slice map. A missing/unparseable table
+  // yields an empty slice set (the executor has nothing to walk); that is a
+  // plan-quality problem surfaced downstream, not a prepare-time throw.
+  const slices = parseDeliverySlicingTable(epic?.body ?? '') ?? [];
+
+  const checkpointState = await initializeEpicRunStateSingle({
+    provider,
+    epicId,
+    slices,
+    concurrencyCap,
+  });
+
+  const docsDigestPath = await writeDocsDigest({ epicId, cwd, config });
+
+  return {
+    epicId,
+    deliveryShape: 'single',
+    storyCount: 0,
+    concurrencyCap,
+    sliceCount: Object.keys(checkpointState.slices ?? {}).length,
+    slices: checkpointState.slices ?? {},
+    epicBranch,
+    workCwd,
+    worktreeCreated,
+    checkpointInitializedAt:
+      checkpointState.startedAt ??
+      checkpointState.lastUpdatedAt ??
+      new Date().toISOString(),
+    docsDigestPath,
+  };
+}
+
 export async function runEpicDeliverPrepare({
   epicId,
   cwd,
@@ -559,6 +813,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       epic: { type: 'string' },
+      single: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h' },
       'ignore-concurrency-hazards': { type: 'boolean', default: false },
       steal: { type: 'boolean', default: false },
@@ -578,12 +833,19 @@ async function main() {
     process.exit(2);
   }
 
-  const result = await runEpicDeliverPrepare({
-    epicId,
-    ignoreConcurrencyHazards: values['ignore-concurrency-hazards'] === true,
-    steal: values.steal === true,
-    asOperator: typeof values.as === 'string' ? values.as : undefined,
-  });
+  const asOperator = typeof values.as === 'string' ? values.as : undefined;
+  const steal = values.steal === true;
+
+  const result =
+    values.single === true
+      ? await runEpicDeliverPrepareSingle({ epicId, asOperator, steal })
+      : await runEpicDeliverPrepare({
+          epicId,
+          ignoreConcurrencyHazards:
+            values['ignore-concurrency-hazards'] === true,
+          steal,
+          asOperator,
+        });
   Logger.info(JSON.stringify(result, null, 2));
 }
 
