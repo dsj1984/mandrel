@@ -1325,6 +1325,10 @@
         "baselineEpsilon": {
           "$ref": "#/$defs/baselineEpsilon"
         },
+        "requireBaselines": {
+          "type": "boolean",
+          "description": "Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture, analogous to delivery.ci.requireChecks)."
+        },
         "navigability": {
           "type": "object",
           "description": "Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",

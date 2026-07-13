@@ -129,6 +129,7 @@ export async function runCloseValidationPhase({
       config,
       epicBranch: baseBranch,
       cwd: worktreePath || cwd,
+      log: (m) => Logger.info(m),
     }),
     log: (m) => Logger.info(m),
     storyId,
