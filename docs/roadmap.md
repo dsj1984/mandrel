@@ -35,31 +35,47 @@ before upgrading.
 
 ### Decided design (operator decisions, 2026-07-13)
 
-1. **One ticket type: Story.** The spec lives **in the Story body** — the
-   folded Tech Spec pattern the Epic body uses today, scaled to the Story's
-   complexity (a trivial Story carries a paragraph; a complex one carries the
-   full spec sections). Every Story is **independently executable and
-   independently shippable**, with optional `depends_on` edges for ordering.
-2. **No integration branch.** Every Story PRs directly to `main`
+1. **One ticket type: Story — and Stories are large.** The spec lives **in
+   the Story body** — the folded Tech Spec pattern the Epic body uses today,
+   scaled to the Story's complexity (a trivial Story carries a paragraph; a
+   complex one carries the full spec sections). What v1 called an Epic
+   becomes one large Story: frontier models with 1M+ context windows execute
+   epic-sized capabilities in a single guarded session — v1.94.0's
+   single-delivery default already proved this shape; v2 renames the
+   container. Every Story is **independently executable and independently
+   shippable**, with optional `depends_on` edges for ordering.
+2. **Default-single split policy.** `/plan` does **not** split into multiple
+   Stories unless (a) the pieces have **near-zero overlap** — genuinely
+   independent capabilities that happen to share a seed idea — or (b) there
+   is an **architectural seam** (different deployables, a migration vs. the
+   feature that consumes it). Decomposition of coupled work happens **inside
+   the one Story** as the spec's Delivery Slicing table — checkpointed
+   slices within one session (the M4 mechanism), not sibling tickets. The
+   sizing profile inverts in meaning: `DEFAULT_TASK_SIZING`'s ceilings stop
+   being slice caps and become **split advisories keyed to model capacity**
+   (what one guarded session can deliver and self-verify at the current
+   model tier).
+3. **No integration branch.** Every Story PRs directly to `main`
    (`story-<id>` → PR → required checks → squash). The `epic/<id>` branch,
    `--no-ff` wave merges, and the epic→main PR die. Dependent Stories deliver
    sequentially in dependency order, each landing before the next starts.
-3. **No epic-level acceptance.** Acceptance criteria belong to the Stories
+4. **No epic-level acceptance.** Acceptance criteria belong to the Stories
    that implement them, checked per-Story by the existing per-AC-cluster
-   critic machinery. The epic-level reconcile gate is replaced at **plan
-   time**: a deterministic validator asserts every acceptance criterion in
-   the plan maps to exactly one Story (**no orphan ACs**) before persist.
+   critic machinery. At **plan time**, a deterministic validator asserts
+   every acceptance criterion maps to exactly one Story — and under the
+   split policy this is a **split rejector**, not an orphan-handler: an AC
+   that cannot be assigned to a single Story is evidence the split coupled
+   what should have stayed one Story, and the persist refuses it.
 
 ### The v2 shape
 
 **`/plan`** keeps its 3 steps (interrogate → author → persist) and loses its
 router: no scope triage verdict, no `deliveryShape`, no path helpers to choose
-between. The author step emits **1..N Stories** — the "shape" decision
-collapses into *how many Stories and which dependency edges*, judged against
-the same sizing profile (`DEFAULT_TASK_SIZING`) that exists today. One Story
-is the common case; multiple Stories are the exception for genuinely
-separable work. Persist creates the Stories (and a **plan-run id** label
-grouping them when N>1).
+between. The author step emits **one Story by default** — the shape decision
+collapses into the split policy (design decision 2): N>1 only on near-zero
+overlap or an architectural seam, with coupled work decomposed *inside* the
+Story as Delivery Slicing rows. Persist creates the Story/Stories (and a
+**plan-run id** label grouping them in the rare N>1 case).
 
 **`/deliver`** becomes one engine: the M4 single-delivery guarded session,
 invoked per Story. `/deliver <storyId...>` or `/deliver --run <planRunId>`
@@ -73,7 +89,11 @@ The open design area flagged by the operator: epic delivery today carries
 extra steps (audit lenses, reconcile, retro, degradation watch) that must not
 be lost — but must not run on every one-file Story either. The v2 answer is
 that **ceremony attaches to two scopes, both risk-routed**, using machinery
-that already shipped in 1.94.0:
+that already shipped in 1.94.0. Under the default-single split policy the
+per-run scope is the rare case — the load-bearing scaffold is **inside the
+large Story**: the per-AC-cluster critic scaling and the in-session slice
+checkpoints (both M4 mechanisms) are what keep a 14-AC Story honest, and
+they scale with the Story rather than bloating a trivial one:
 
 | Scope | Ceremony | Mechanism |
 | --- | --- | --- |
@@ -156,27 +176,30 @@ suite.
 
 ### What is lost — accepted trade-offs
 
-Recorded so the decision is made with eyes open; each has a mitigation, none
-has a free replacement.
+Recorded so the decision is made with eyes open. **The default-single split
+policy (design decision 2) is the primary mitigation for the top three**:
+each is a *coupling* loss, and the policy forbids splitting coupled work —
+coupled work stays one large Story, where atomicity, integration testing,
+and acceptance coverage are intrinsic to the single session/PR. The residue
+below applies only to the rare, policy-compliant N>1 runs.
 
-1. **Atomic feature integration and a single revert point.** Today a
-   multi-story feature reaches `main` as one epic PR — one review of the
-   combined diff, one revert. In v2 it lands as N sequential squash commits;
-   reverting a feature means reverting N commits, and `main` holds
-   partial-feature states between them. *Mitigation:* independently-shippable
-   slices are already the Story definition (#3865); feature flags where
-   partial exposure matters.
-2. **Pre-main cross-Story integration testing.** The epic branch tested the
-   combined diff before promotion. In v2, each Story's CI tests
-   `main + that Story` only; cross-Story interaction defects surface on
-   `main` after the later Story lands. *Mitigation:* the per-run audit sweep
-   over the combined diff (post-land); dependency ordering means the
-   combination is at least built incrementally.
-3. **Cross-Story acceptance reconciliation.** The non-waivable epic-level
-   reconcile (M4-B) dies with the tier. An acceptance criterion that spans
-   Stories has no runtime checker. *Mitigation:* the plan-time no-orphan-AC
-   validator (every AC assigned to exactly one Story) plus per-Story critics;
-   the residual risk is plan-time mis-assignment, reviewed at gate #2.
+1. **Atomic feature integration and a single revert point.** Largely
+   dissolved by the split policy: a coupled feature is one Story → one PR
+   → one revert. When a plan legitimately splits, the pieces are independent
+   capabilities, so per-piece landing *is* the correct atomicity. Residue:
+   feature flags where partial exposure matters across an architectural
+   seam.
+2. **Pre-main cross-Story integration testing.** Cross-Story interaction
+   defects require interacting Stories; near-zero-overlap splits make them
+   near-zero by construction. Residue: seam-splits (e.g. migration →
+   consumer) — covered by dependency ordering (the consumer builds on the
+   landed migration) plus the per-run audit sweep over the combined diff.
+3. **Cross-Story acceptance reconciliation.** An AC spanning Stories is now
+   *evidence of a policy-violating split*, and the plan-time validator
+   **rejects** it rather than reconciling it at delivery time. Inside a
+   large Story, acceptance coverage is the per-AC-cluster critic machinery
+   (the `[1,8]` floor), which already scales with AC count. Residue:
+   plan-time mis-assignment in legitimate N>1 runs, reviewed at gate #2.
 4. **A single canonical spec document.** The Epic body was the one durable
    home of the Tech Spec. In v2 the spec is sharded across Story bodies:
    sibling drift is possible while a run is in flight, and post-hoc there is
