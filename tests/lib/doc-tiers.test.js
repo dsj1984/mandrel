@@ -191,6 +191,29 @@ test('resolveDocTiers partitions the four tiers with highest-tier-wins dedup', (
   }
 });
 
+test('resolveDocTiers surfaces .agents/agents/*.md in the agentBoot tier', () => {
+  const root = makeRepo({
+    'CLAUDE.md': '@AGENTS.md\n',
+    'AGENTS.md': 'onboarding\n',
+    '.agents/agents/story-worker.md': 'boot A\n',
+    '.agents/agents/retro.md': 'boot B\n',
+  });
+  const { tiers } = resolveDocTiers({ project: {} }, { root });
+  assert.deepEqual(tiers.agentBoot.map((e) => e.path).sort(), [
+    '.agents/agents/retro.md',
+    '.agents/agents/story-worker.md',
+  ]);
+});
+
+test('resolveDocTiers yields an empty agentBoot tier when the dir is absent', () => {
+  const root = makeRepo({
+    'CLAUDE.md': '@AGENTS.md\n',
+    'AGENTS.md': 'onboarding\n',
+  });
+  const { tiers } = resolveDocTiers({ project: {} }, { root });
+  assert.deepEqual(tiers.agentBoot, []);
+});
+
 test('resolveDocTiers skips absent context / conditional docs silently', () => {
   const root = makeRepo({
     'CLAUDE.md': '@AGENTS.md\n',

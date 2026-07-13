@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
+  AGENT_BOOT_CEILING_BYTES,
+  agentBootOverflow,
   buildBaseline,
   diffBudget,
   GATED_TIERS,
@@ -158,6 +160,49 @@ test('renderDiff tags a gate fail and a clean pass', () => {
 });
 
 // ---------------------------------------------------------------------------
+// agentBootOverflow / buildBaseline agentBoot section
+// ---------------------------------------------------------------------------
+
+test('agentBootOverflow flags only role defs above the per-file ceiling', () => {
+  const tierMap = {
+    tiers: {
+      agentBoot: [
+        { path: '.agents/agents/story-worker.md', bytes: 7000 },
+        { path: '.agents/agents/huge.md', bytes: 9000 },
+      ],
+    },
+  };
+  const over = agentBootOverflow(tierMap, 8192);
+  assert.equal(over.length, 1);
+  assert.equal(over[0].path, '.agents/agents/huge.md');
+  assert.equal(over[0].ceiling, 8192);
+});
+
+test('agentBootOverflow is empty when there are no agent defs', () => {
+  assert.deepEqual(agentBootOverflow({ tiers: {} }), []);
+  assert.equal(AGENT_BOOT_CEILING_BYTES, 8192);
+});
+
+test('buildBaseline records the agentBoot ceiling + files top-level (not under tiers)', () => {
+  const envelope = buildBaseline(
+    {
+      tiers: {
+        alwaysLoaded: [{ path: 'CLAUDE.md', bytes: 10 }],
+        mandatoryRead: [],
+        agentBoot: [{ path: '.agents/agents/retro.md', bytes: 1800 }],
+      },
+    },
+    2048,
+  );
+  // agentBoot MUST NOT leak into the ratcheted `tiers` set.
+  assert.deepEqual(Object.keys(envelope.tiers).sort(), [...GATED_TIERS].sort());
+  assert.equal(envelope.agentBoot.ceilingBytes, 8192);
+  assert.deepEqual(envelope.agentBoot.files, [
+    { path: '.agents/agents/retro.md', bytes: 1800 },
+  ]);
+});
+
+// ---------------------------------------------------------------------------
 // runCli end-to-end
 // ---------------------------------------------------------------------------
 
@@ -207,6 +252,55 @@ test('runCli exits 1 naming the tier that grew beyond tolerance (always-loaded f
   assert.equal(code, 1);
   assert.match(stdout.text(), /\+ alwaysLoaded:/);
   assert.match(stderr.text(), /grew beyond tolerance/);
+});
+
+test('runCli exits 1 when a role-agent boot context exceeds the per-file ceiling', async () => {
+  const { root, config } = makeRepo();
+  // A role def larger than the 8192-byte per-agent ceiling.
+  fs.mkdirSync(path.join(root, '.agents', 'agents'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.agents', 'agents', 'huge.md'),
+    'x'.repeat(AGENT_BOOT_CEILING_BYTES + 500),
+  );
+  // Seed a baseline (records the ceiling); update itself never fails.
+  await runCli({
+    argv: ['--update'],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+
+  const stdout = makeSink();
+  const stderr = makeSink();
+  const code = await runCli({ argv: [], cwd: root, config, stdout, stderr });
+  assert.equal(code, 1);
+  assert.match(stdout.text(), /agentBoot: \.agents\/agents\/huge\.md/);
+  assert.match(stderr.text(), /per-agent ceiling/);
+});
+
+test('runCli passes when role-agent boot contexts are within the ceiling', async () => {
+  const { root, config } = makeRepo();
+  fs.mkdirSync(path.join(root, '.agents', 'agents'), { recursive: true });
+  fs.writeFileSync(
+    path.join(root, '.agents', 'agents', 'ok.md'),
+    'x'.repeat(4000),
+  );
+  await runCli({
+    argv: ['--update'],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  const code = await runCli({
+    argv: [],
+    cwd: root,
+    config,
+    stdout: makeSink(),
+    stderr: makeSink(),
+  });
+  assert.equal(code, 0);
 });
 
 test('runCli is a no-op (exit 0) when the baseline is absent', async () => {

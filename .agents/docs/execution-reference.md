@@ -9,6 +9,30 @@ links here from the sections that used to inline this content.
 
 ---
 
+## Friction telemetry
+
+Reference mechanics behind the friction-telemetry MUST in
+[`instructions.md` § 1.H](../instructions.md). The always-loaded core keeps the
+MUST, the command, and the when-to-fire triggers; the detail below is consulted
+only when reasoning about **where** a friction record lands and **how** it is
+validated.
+
+- **Canonical record + schema validation**: `diagnose-friction.js` appends one
+  `kind: friction` record, validated write-time against
+  `signal-event.schema.json`, to the per-Epic/per-Story `signals.ndjson`
+  stream on local disk. The retro roll-up reads that stream back to aggregate
+  friction into routed proposals; nothing is posted to the GitHub ticket at
+  capture time.
+- **No-Epic context**: Outside an Epic/Story loop there is no per-Epic stream
+  to anchor to, so the record lands on the **standalone signal stream**
+  (`temp/standalone/stories/story-<sid>/signals.ndjson`) under the same
+  canonical schema.
+- **Never silently dropped**: The signal is never silently dropped — a
+  best-effort write failure is logged, not swallowed into a promise of a
+  side-file that no reader consumes.
+
+---
+
 ## Log-level control
 
 The orchestrator logger (`lib/Logger.js`) emits progress/trace output based on
@@ -22,8 +46,9 @@ the `AGENT_LOG_LEVEL` environment variable:
 
 This is a diagnostic knob: set it when you need quieter script embedding
 (`silent`) or a deeper trace (`verbose`). The friction-telemetry MUST it sits
-under — post friction to the relevant ticket via `diagnose-friction.js` — stays
-in [`instructions.md` § 1.H](../instructions.md).
+under — capture friction as a local NDJSON signal via `diagnose-friction.js` —
+stays in [`instructions.md` § 1.H](../instructions.md); its record-landing and
+schema mechanics are in [§ Friction telemetry](#friction-telemetry) above.
 
 ---
 
