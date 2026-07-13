@@ -289,9 +289,22 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 1 — New v2 machinery (additive; TDD; breaks nothing)
 
-- [ ] Split-policy validator — plan-time **no-orphan-AC split rejector** (new module + unit tests): every AC maps to exactly one Story or the plan is refused
-- [ ] Run-epilogue scaffold — the `/deliver --run` closeout entry (per-run audit sweep + retro + sibling-coherence), inert until Stage 4 wires it
-- [ ] Spec spill-to-doc — helper that spills an over-budget folded spec to `docs/specs/<storyId>.md` and links it from the body (+ tests)
+*Data contract first — the validators and planner below all consume it.*
+
+- [ ] **v2 Story body contract** — evolve `task-body-validator.js` so a Story
+  body carries the folded Tech Spec (Delivery Slicing + spec sections)
+  alongside `context`/`changes`/`acceptance`/`verify`; this is the merge of
+  today's Epic-body spec into the single Story type. New/updated
+  schema + tests. *(Foundation both planning and delivery consume.)*
+- [ ] Split-policy validator — plan-time **one-owner-AC split rejector** (new
+  module + unit tests) over the contract above: no identical AC in more than
+  one Story (the deterministic coupling signal; semantic overlap stays a
+  gate-#2 review call)
+- [ ] Spec spill-to-doc — helper that spills an over-budget folded spec to
+  `docs/specs/<storyId>.md` and links it from the body (+ tests), reusing the
+  §2 `maxTokenBudget` machinery
+- [ ] Run-epilogue scaffold — the `/deliver --run` closeout entry (per-run
+  audit sweep + retro + sibling-coherence), inert until Stage 4 wires it
 
 #### Stage 2 — Sizing removal
 
