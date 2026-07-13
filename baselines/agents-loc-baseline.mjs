@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// Tracks lines-of-code of the `.agents/` payload over Mandrel releases, so the
-// framework's context-diet work (e.g. #4474 /plan collapse, #4479 skills diet,
-// #4482 dead-surface retirement, #4475 single-delivery) is measurable over time.
+// Tracks lines-of-code and byte size of the `.agents/` payload over Mandrel
+// releases, so the framework's context-diet work (e.g. #4474 /plan collapse,
+// #4479 skills diet, #4482 dead-surface retirement, #4475 single-delivery) is
+// measurable over time. Bytes tell the prose-diet story that LOC understates:
+// markdown cuts drop many bytes per line, JS cuts drop many lines per byte.
 //
 //   Backfill the last N released tags:
 //     node baselines/agents-loc-baseline.mjs --backfill 10
 //   Add / refresh the current version at release (upsert, keeps history):
 //     node baselines/agents-loc-baseline.mjs            (or: npm run baseline:agents-loc)
 //
-// Output: baselines/agents-loc.csv — one row per version, LOC (all lines, the
-// `wc -l` proxy) for `.agents` overall plus the key sub-trees. `git grep -c`
-// reads each ref directly, so backfill needs no checkout.
+// Output: baselines/agents-loc.csv — one row per version, with `(loc)` (all
+// lines, the `wc -l` proxy, via `git grep -c ^`) and `(bytes)` (blob sizes via
+// `git ls-tree --long`) for `.agents` overall plus the key sub-trees. Both read
+// each ref directly, so backfill needs no checkout.
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +28,10 @@ const PATHS = [
   '.agents/skills',
   '.agents/workflows',
 ];
-const HEADER = ['version', ...PATHS];
+const HEADER = [
+  'version',
+  ...PATHS.flatMap((p) => [`${p} (loc)`, `${p} (bytes)`]),
+];
 
 const git = (args) =>
   execFileSync('git', ['-C', REPO, ...args], {
@@ -52,9 +58,23 @@ function locAt(ref, pathspec) {
   return sum;
 }
 
+// Byte size of `pathspec` at `ref` = sum of `git ls-tree --long` blob sizes.
+// A missing path in that tree yields empty output (exit 0) → 0.
+function bytesAt(ref, pathspec) {
+  const out = git(['ls-tree', '-r', '--long', ref, '--', pathspec]);
+  let sum = 0;
+  for (const line of out.split('\n')) {
+    if (!line) continue;
+    // "<mode> <type> <sha> <size>\t<path>"
+    const size = Number(line.replace('\t', ' ').split(/\s+/)[3]);
+    if (Number.isFinite(size)) sum += size;
+  }
+  return sum;
+}
+
 const rowFor = (version, ref) => [
   version,
-  ...PATHS.map((p) => String(locAt(ref, p))),
+  ...PATHS.flatMap((p) => [String(locAt(ref, p)), String(bytesAt(ref, p))]),
 ];
 
 function cmpVersion(a, b) {
