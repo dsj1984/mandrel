@@ -298,10 +298,11 @@ below applies only to the rare, policy-compliant N>1 runs.
   serialize byte-identically). `task-body-validator.js` tolerates it (optional).
   Heavy Tech Spec prose spills to a linked doc (item 3), keeping the body
   parser-safe. Tests: `story-body.test.js` (+6), `task-body-validator.test.js` (+2).
-- [ ] Split-policy validator — plan-time **one-owner-AC split rejector** (new
-  module + unit tests) over the contract above: no identical AC in more than
-  one Story (the deterministic coupling signal; semantic overlap stays a
-  gate-#2 review call)
+- [x] Split-policy validator — plan-time **one-owner-AC split rejector**
+  (`split-policy-validator.js` + 12 unit tests): rejects any identical AC
+  shared across Stories (coupling signal), with optional manifest-coverage
+  checking; single-Story plans always pass. `assertAcceptancePartition`
+  throwing-wrapper ready for the Stage-3 persist wiring. Additive.
 - [ ] Spec spill-to-doc — helper that spills an over-budget folded spec to
   `docs/specs/<storyId>.md` and links it from the body (+ tests), reusing the
   §2 `maxTokenBudget` machinery
