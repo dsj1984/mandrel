@@ -35,12 +35,10 @@ import {
   elideEnvelope,
   envelopeToPrompt,
 } from './context-envelope.js';
-import { loadSkillCapsule } from './skill-capsule-loader.js';
 
 // ---------------------------------------------------------------------------
-// File-content cache — the agent-protocol template and persona files are
-// read-only during a dispatch run. Skill bodies are loaded via
-// `skills.index.json` + `loadSkillCapsule` (not cached here).
+// File-content cache — the agent-protocol template is read-only during a
+// dispatch run.
 // ---------------------------------------------------------------------------
 
 const _fileCache = new Map();
@@ -50,81 +48,6 @@ function readFileCached(absPath) {
   const content = fs.readFileSync(absPath, 'utf8');
   _fileCache.set(absPath, content);
   return content;
-}
-
-let _skillsIndexCache = null;
-
-function loadSkillsIndex() {
-  if (!_skillsIndexCache) {
-    const indexPath = path.join(
-      PROJECT_ROOT,
-      '.agents',
-      'skills',
-      'skills.index.json',
-    );
-    _skillsIndexCache = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
-  }
-  return _skillsIndexCache;
-}
-
-/**
- * Test-only seam: clear the persona/skill/template cache between runs.
- * The `__` prefix matches the project convention for test-only exports
- * (see `git-utils.__setGitRunners`, `git-utils.__setSleep`).
- */
-export function __resetContextCache() {
-  _fileCache.clear();
-  _skillsIndexCache = null;
-}
-
-/**
- * Resolve activated skills to Policy Capsule payloads via `skills.index.json`.
- *
- * Capsule-only is the contract (Story #3863, hard cutover): only the Policy
- * Capsule is hydrated. The full `SKILL.md` body is never inlined into a task
- * prompt — the sub-agent reads it on demand via the rendered pointer path.
- *
- * @param {object} task - Normalized task (skills[]).
- * @param {object} skillsIndex - Parsed `skills.index.json` body.
- * @returns {Array<{ skill: string, capsule: string, source: string, path: string }>}
- */
-export function buildSkillCapsuleSections(task, skillsIndex) {
-  const entries = [];
-
-  for (const skill of task.skills ?? []) {
-    try {
-      const {
-        capsule,
-        source,
-        path: skillPath,
-      } = loadSkillCapsule(skill, skillsIndex);
-      entries.push({ skill, capsule, source, path: skillPath });
-    } catch (err) {
-      Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
-    }
-  }
-
-  return entries;
-}
-
-/**
- * Render skill capsule entries for the prose prompt and envelope
- * `skillCapsules` section. Each entry carries its capsule plus a pointer
- * instruction so the sub-agent knows to `Read` the full `SKILL.md` when the
- * task needs the playbook beyond the capsule's non-negotiables. The source is
- * recorded per skill for auditors.
- *
- * @param {Array<{ skill: string, capsule: string, source: string, path: string }>} entries
- * @returns {string}
- */
-export function formatSkillCapsulesSection(entries) {
-  if (!entries.length) return '';
-  let out = '## Activated Skills\n\n';
-  for (const { skill, capsule, source, path: skillPath } of entries) {
-    out += `### Skill: ${skill} (source: ${source})\n${capsule}\n\n`;
-    out += `Read the full playbook on demand: \`Read ${skillPath}\`.\n\n`;
-  }
-  return out.trimEnd();
 }
 
 // ---------------------------------------------------------------------------
@@ -377,8 +300,6 @@ function envelopeTaskFrom(task) {
   return {
     id: task.id,
     title: task.title,
-    persona: task.persona,
-    skills: task.skills,
     protocolVersion: task.protocolVersion,
   };
 }
@@ -446,7 +367,7 @@ async function buildHierarchySections(task, provider, epicId, agentSettings) {
 
 /**
  * @param {object} task
- * @param {{ templatesRoot: string, personasRoot: string, skillsRoot: string }} paths
+ * @param {{ templatesRoot: string }} paths
  * @param {object} agentSettings - Legacy-shim settings bag or resolved config.
  * @param {string} currentVersion
  * @param {string} taskBranch
@@ -489,48 +410,6 @@ function buildStaticSections(
       content: protocolTpl,
       source: { kind: 'file', ref: 'templates/agent-protocol.md' },
     });
-  }
-
-  if (task.persona) {
-    try {
-      const pPath = path.join(
-        PROJECT_ROOT,
-        paths.personasRoot,
-        `${task.persona}.md`,
-      );
-      if (fs.existsSync(pPath)) {
-        sections.push({
-          name: 'persona',
-          priority: DEFAULT_SECTION_PRIORITIES.persona,
-          elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.persona,
-          content: `## Persona: ${task.persona}\n\n${readFileCached(pPath)}`,
-          source: { kind: 'file', ref: `personas/${task.persona}.md` },
-        });
-      }
-    } catch (err) {
-      Logger.warn(
-        `[Hydrator] Failed to load persona ${task.persona}: ${err.message}`,
-      );
-    }
-  }
-
-  if (task.skills?.length > 0) {
-    try {
-      const skillsIndex = loadSkillsIndex();
-      const entries = buildSkillCapsuleSections(task, skillsIndex);
-      const skillsContext = formatSkillCapsulesSection(entries);
-      if (skillsContext) {
-        sections.push({
-          name: 'skillCapsules',
-          priority: DEFAULT_SECTION_PRIORITIES.skillCapsules,
-          elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.skillCapsules,
-          content: skillsContext,
-          source: { kind: 'derived', ref: 'activated-skills' },
-        });
-      }
-    } catch (err) {
-      Logger.warn(`[Hydrator] Failed to load skills index: ${err.message}`);
-    }
   }
 
   // Track which dedicated section(s) were emitted so taskInstructions drops
