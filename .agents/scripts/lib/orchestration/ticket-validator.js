@@ -272,7 +272,7 @@ export function validateAcFreshness({
  * Epic #2501 introduced this guard after the legacy `baseline-refresh`
  * leading-token prescription created a wave of commit-msg hook failures
  * across story-deliver sub-agents. See
- * `.agents/skills/core/baseline-refresh/SKILL.md` for the canonical refresh
+ * `.agents/skills/core/gates-and-baselines/SKILL.md` for the canonical refresh
  * shape (Conventional-Commits subject + `baseline-refresh: true` body
  * trailer).
  */

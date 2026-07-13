@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T13:04:34.093Z",
+  "generatedAt": "2026-07-13T15:00:10.171Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -23,16 +23,6 @@
       "vendor": null
     },
     {
-      "name": "baseline-refresh",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/baseline-refresh/SKILL.md",
-      "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
-      "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
-      "vendor": null
-    },
-    {
       "name": "browser-testing-with-devtools",
       "tier": "core",
       "category": "core",
@@ -43,22 +33,12 @@
       "vendor": null
     },
     {
-      "name": "ci-cd-and-automation",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/ci-cd-and-automation/SKILL.md",
-      "description": "Automates CI/CD pipeline setup. Use when setting up or modifying build and deployment pipelines. Use when you need to automate quality gates, configure test runners in CI, or establish deployment strategies.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
       "name": "code-review-and-quality",
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/code-review-and-quality/SKILL.md",
-      "description": "Conducts multi-axis code review. Use before merging any change. Use when reviewing code written by yourself, another agent, or a human. Use when you need to assess code quality across multiple dimensions before it enters the main branch.",
-      "policyCapsuleBullets": 10,
+      "description": "Conducts multi-axis code review and runs the disciplined post-green refactor pass. Use before merging any change, when reviewing code written by yourself, another agent, or a human, or when the opt-in `delivery.refactorStage` checkpoint asks for a behaviour-preserving CRAP/duplication pass after the suite is green.",
+      "policyCapsuleBullets": 12,
       "allowedTools": null,
       "vendor": null
     },
@@ -133,6 +113,16 @@
       "vendor": null
     },
     {
+      "name": "gates-and-baselines",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/gates-and-baselines/SKILL.md",
+      "description": "Governs quality gates and the unified-baseline snapshots. Use when authoring a baseline refresh commit (CRAP, maintainability, dead-exports, lighthouse), when setting up or modifying CI quality gates, or when introducing a new gate that asserts on pre-existing state without turning the integration branch red.",
+      "policyCapsuleBullets": 9,
+      "allowedTools": ["Read", "Write", "Bash"],
+      "vendor": null
+    },
+    {
       "name": "git-workflow-and-versioning",
       "tier": "core",
       "category": "core",
@@ -153,16 +143,6 @@
       "vendor": null
     },
     {
-      "name": "property-based-testing",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/property-based-testing/SKILL.md",
-      "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
-      "policyCapsuleBullets": 8,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
       "name": "qa-coverage-mapping",
       "tier": "core",
       "category": "core",
@@ -170,16 +150,6 @@
       "description": "Map a quality finding to a per-tier coverage verdict (unit / contract / acceptance) aligned to `.agents/rules/testing-standards.md`. Use when a finding points at a symbol or surface and you need to know which test tiers already cover it and which are missing, so remediation lands the right tier. Delegates the verdict to the deterministic `lib/qa/coverage-verdict.js#coverageVerdict` helper.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Bash"],
-      "vendor": null
-    },
-    {
-      "name": "refactoring-discipline",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/refactoring-discipline/SKILL.md",
-      "description": "Run a post-green refactor pass that lowers CRAP and removes duplication without changing behaviour. Use after tests pass and gates are green, when a function's CRAP score is high but well-covered, or when the same logic is duplicated across files. Wired into the opt-in `delivery.refactorStage` checkpoint; focuses on the measured CRAP/duplication axes.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": null,
       "vendor": null
     },
     {
@@ -199,26 +169,6 @@
       "path": ".agents/skills/core/security-and-hardening/SKILL.md",
       "description": "Hardens code against vulnerabilities. Use when handling user input, authentication, data storage, or external integrations. The non-negotiable security MUSTs live in `.agents/rules/security-baseline.md`; this skill shows how to apply them with code patterns, decision trees, and review checklists.",
       "policyCapsuleBullets": 11,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "test-driven-development",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/test-driven-development/SKILL.md",
-      "description": "Drives development with tests. Use when implementing any logic, fixing any bug, or changing any behavior. The non-negotiable test-tier placement, mocking, assertion-placement, and coverage rules live in `.agents/rules/testing-standards.md`; this skill shows how to apply them via the TDD cycle, the Prove-It Pattern, and good-test style.",
-      "policyCapsuleBullets": 10,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "using-agent-skills",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/using-agent-skills/SKILL.md",
-      "description": "Discovers and invokes agent skills. Use when starting a session or when you need to discover which skill applies to the current task. This is the meta-skill that governs how all other skills are discovered and invoked.",
-      "policyCapsuleBullets": 9,
       "allowedTools": null,
       "vendor": null
     },

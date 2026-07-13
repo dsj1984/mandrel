@@ -313,8 +313,8 @@ const PREFLIGHT_SCHEMA = {
  * checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly
  * additive and default-OFF: when `enabled` is unset or `false`, story-deliver
  * behaves exactly as before. When `true`, the worker runs an advisory
- * post-green refactor pass (the `core/refactoring-discipline` skill) after
- * the suite is green. The stage is
+ * post-green refactor pass (the `core/code-review-and-quality` skill's
+ * Post-Green Refactor Pass) after the suite is green. The stage is
  * advisory only — it never changes existing close-validation gate semantics.
  */
 const REFACTOR_STAGE_SCHEMA = {
@@ -323,7 +323,7 @@ const REFACTOR_STAGE_SCHEMA = {
     enabled: {
       type: 'boolean',
       description:
-        'When true, story-deliver runs an advisory post-green refactor stage (core/refactoring-discipline skill) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged.',
+        'When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged.',
     },
   },
   additionalProperties: false,

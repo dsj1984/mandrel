@@ -376,10 +376,10 @@ Story's suite is green and the close-validation gates already pass — and
 key is unset or `false`, story-deliver behaves exactly as documented above
 and this stage is skipped entirely.
 
-The stage applies the
-[`core/refactoring-discipline`](../../skills/core/refactoring-discipline/SKILL.md)
-skill to drive a behaviour-preserving pass that lowers CRAP and removes
-duplication on the files the Story already touched:
+The stage applies the post-green refactor discipline in
+[`core/code-review-and-quality`](../../skills/core/code-review-and-quality/SKILL.md)
+(§ Post-Green Refactor Pass) to drive a behaviour-preserving pass that lowers
+CRAP and removes duplication on the files the Story already touched:
 
 - **Post-green only.** It runs after the suite is green and the gates pass —
   never from red, and never to make a failing test pass.
