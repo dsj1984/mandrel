@@ -2,9 +2,9 @@
 name: epic-plan-decompose-author
 description: >-
   Author the Story ticket JSON for an Epic from the decomposer
-  authoring context emitted by `epic-plan-decompose.js --emit-context`. Use
+  authoring context emitted by `plan-context.js --epic <Epic_ID>`. Use
   during Phase 8 of `/plan` when the host LLM needs to write the ticket
-  array before `epic-plan-decompose.js` validates and persists it.
+  array before `plan-persist.js` validates and persists it.
 allowed_tools:
   - Read
   - Write
@@ -15,11 +15,11 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
+- Run only after `plan-context.js --epic <Epic_ID>` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
 - Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate.
 - **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the validator rejecting the draft, or a Phase 8.3/8.4/8.5 critic flagging specific Stories — apply **targeted edits** to the existing `temp/epic-<Epic_ID>/tickets.json`, fixing only the rejected or flagged Stories, rather than re-authoring the whole array from scratch. `helpers/plan-epic.md` bounds each critic's feedback to **one refinement pass** — apply the edit and re-run the downstream step once; do not loop.
-- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` note inside the first Story's `## Goal` section explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
+- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Merge narrow, single-module Stories into their capability first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` note inside the first Story's `## Goal` section explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `plan-persist.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
 - Honour the 2-tier hierarchy: every ticket is a **Story** attached directly to the Epic. Stories carry the implementation scope inline; no Feature and no lower ticket tier exists. Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
 - **Decompose at deliverable granularity, not module/task level.** A Story is a capability slice a frontier model delivers and self-verifies in one pass — a shippable slice a reviewer would accept as a single PR — not a single module or file. See the STORY SIZING section for the full guidance and the single-consumer merge rule.
 - Every ticket carries `type::story` and `persona::*` labels. Every Story ticket object MUST carry top-level `acceptance: string[]` and `verify: string[]` arrays (read by `hasInlineAcceptanceAndVerify` in the validator) and `body` MUST be a **string** produced by `serialize()` from `lib/story-body/story-body.js` — an object body causes `createOp` in `epic-spec-reconciler-ops.js` to throw `StoryBodyParseError` (Story #3302), and is also silently discarded by `composeStoryBody` in the GitHub provider, producing an empty issue body.
@@ -41,7 +41,7 @@ orchestrator can execute autonomously.
 ## When to use
 
 `/plan` Phase 8, immediately after
-`epic-plan-decompose.js --emit-context` writes
+`plan-context.js --epic <Epic_ID>` writes
 `temp/epic-<Epic_ID>/decomposer-context.json`. The Skill replaces the
 inline "Author the Ticket Array" step in the legacy workflow body —
 the caller dispatches this Skill via the `Skill` tool, supplies the Epic
@@ -54,7 +54,7 @@ The dispatcher passes the Epic ID as the Skill argument. The Skill itself
 reads:
 
 - `temp/epic-<Epic_ID>/decomposer-context.json` — produced by
-  `node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --emit-context`.
+  `node .agents/scripts/plan-context.js --epic <Epic_ID>`.
   Fields:
   - `epic.id`, `epic.title`
   - `epicBody` — the sectioned Epic body. It carries everything the
@@ -93,7 +93,7 @@ reads:
   objects conforming to the schema in this Skill's body.
 
 The file MUST exist before the Skill returns. The caller will then run
-`node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --tickets
+`node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
 temp/epic-<Epic_ID>/tickets.json`, which validates the array, persists
 the hierarchy as GitHub issues, and transitions the Epic to
 `agent::ready`. The script's validator is the final gate — author for
@@ -140,7 +140,7 @@ machine-consumed.
 ### Step 4 — Hand back to `/plan`
 
 Return control. The caller invokes
-`node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --tickets
+`node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
 temp/epic-<Epic_ID>/tickets.json`, which validates, persists, and flips
 the Epic to `agent::ready`.
 

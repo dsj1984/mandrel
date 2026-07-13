@@ -38,7 +38,6 @@ import {
 import { upsertEpicSection } from '../../.agents/scripts/lib/epic-body-sections.js';
 import { resolveReviewDepthForEpic } from '../../.agents/scripts/lib/orchestration/code-review.js';
 import { buildDecompositionContext } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
-import { runDecomposePhase } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js';
 import { read as readPlanState } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
 import { apply as applyFn } from '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js';
 import { writeCheckpointV2 } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
@@ -492,14 +491,5 @@ describe('plan-persist — ≥60-ticket rate-limit recovery re-proof (#4474 PR3 
       'no duplicate story issues after resume',
     );
     assert.equal(liveTitles.length, TICKET_COUNT);
-  });
-});
-
-// Keep the delegate import warm so a regression in the one-release delegate
-// surface (epic-plan-decompose.js re-exports) is caught here rather than in
-// the retired-CLI PR7 window.
-describe('one-release delegate surface', () => {
-  it('epic-plan-decompose.js still exports its persist half', () => {
-    assert.equal(typeof runDecomposePhase, 'function');
   });
 });
