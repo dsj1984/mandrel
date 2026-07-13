@@ -28,6 +28,7 @@
     "test:coverage": "node .agents/scripts/run-coverage.js",
     "coverage:check": "node .agents/scripts/check-baselines.js --gate coverage",
     "coverage:update": "node .agents/scripts/update-coverage-baseline.js",
+    "baseline:agents-loc": "node baselines/agents-loc-baseline.mjs",
     "lint:md": "markdownlint-cli2 \".agents/**/*.md\" \"*.md\" \"!node_modules/**\" \"!.worktrees/**\"",
     "lint": "node .agents/scripts/run-lint.js && npm run docs:check",
     "docs:gen": "node .agents/scripts/generate-config-docs.js && node .agents/scripts/generate-lifecycle-docs.js && node .agents/scripts/generate-workflows-doc.js && node .agents/scripts/generate-lens-checklists.js",
