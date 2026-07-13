@@ -388,11 +388,15 @@ transition to `agent::blocked` and exit if stuck), (4) tell the child to
 suppress per-Story chat relay and instead relay **one line per phase
 transition** (e.g. `Story #<id>: implementing → closing`) — the child's
 authoritative progress lands in the `story-run-progress` snapshot the
-`story-phase.js` CLI upserts, not in a verbatim body dump, (5) require the
-child to emit a `story.heartbeat` lifecycle event at least once per
-Story-level phase transition via `node .agents/scripts/story-phase.js` (or
-whenever it stalls on a long-running step), and if it cannot make progress
-to transition to `agent::blocked` rather than fall silent, and (6) pass the
+`story-phase.js` CLI upserts, not in a verbatim body dump, (5) remind the
+child that its `story.heartbeat` liveness signal is emitted **off the token
+stream** by the PostToolUse hook (Epic #4476) — a throttled heartbeat lands as
+a free byproduct of every tool call, keyed off the active-Story env
+`story-init.js` exported — so it does **not** run `story-phase.js` per step
+just to heartbeat (a `story-phase.js` call at a genuine Story-level phase
+transition still renders the snapshot and stamps an operator-bearing
+heartbeat), and if it cannot make progress it must transition to
+`agent::blocked` rather than fall silent, and (6) pass the
 **docs digest path** — the `docsDigestPath` field from the
 `epic-deliver-prepare.js` envelope (§ Phase 1 main), which points at
 `temp/epic-<epicId>/docs-digest.md`. Instruct the child to read that
@@ -729,6 +733,33 @@ accessor (default `true`); do not read `delivery.ci.earlyPr` directly.
 
 In both modes the PR title/body contract (`feat: Epic #<epicId>` /
 `Closes #<epicId>`) is identical.
+
+**Drain the bookkeeping outbox (Epic #4476 M5).** When this run was invoked
+with `--yes` (headless), the mechanical bookkeeping — non-urgent
+structured-comment upserts and intermediate `agent::*` label flips — was
+**buffered to a local per-Epic outbox** instead of posting live per
+transition (see the box below). Reconcile it to GitHub once, now, after the PR
+is open:
+
+```bash
+node .agents/scripts/bookkeeping-reconcile.js --epic <epicId>
+```
+
+This drains `temp/epic-<epicId>/bookkeeping-outbox.ndjson` (FIFO,
+idempotent) so GitHub is the source of truth at rest. It exits non-zero and
+**retains** the outbox if any op fails (crash-recovery: a later reconcile
+re-drains the remainder). Attended runs buffered nothing, so this is a no-op.
+
+> **Headless buffering, not silence (§1.H / §1.J).** In `--yes` mode the
+> comment/label CLIs accept `--buffer --epic <epicId>` to enqueue a mutation
+> instead of a live round-trip
+> ([`post-structured-comment.js`](../../scripts/post-structured-comment.js),
+> [`update-ticket-state.js`](../../scripts/update-ticket-state.js)). The
+> `agent::blocked` HITL gate is **never** buffered — a genuine blocker flips
+> the label live and immediately, exactly as before, so the operator can see
+> and resume it. `agent::done` is also never buffered (its cascade runs live).
+> Attended runs pass no `--buffer` and behave byte-for-byte as they always
+> have.
 
 See
 [`deliver-epic-reference.md` § Phase 7 — Finalize](deliver-epic-reference.md#phase-7--finalize-close-tail-listener-chain)

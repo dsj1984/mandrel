@@ -143,9 +143,17 @@ The `--check-idle <minutes>` mode scans the per-Epic lifecycle ledger
 `story.dispatch.start` without a matching `story.dispatch.end` (the
 canonical in-flight list — see § 2a's `nextAction['in-flight']`), and
 compares each in-flight Story's most recent ledger event (any
-`story.*` event, notably the `story.heartbeat` records emitted by
-`story-phase.js` at each Story-level phase transition) against the
-threshold. **Before flagging a stall, it also checks the last commit on
+`story.*` event, notably the `story.heartbeat` records) against the
+threshold. **As of Epic #4476 (M5) those `story.heartbeat` records are
+emitted OFF the token stream by the PostToolUse hook** (a throttled
+heartbeat per tool call, keyed off the active-Story env) rather than by a
+per-transition `story-phase.js` LLM turn — the signal the watchdog reads is
+unchanged; only its emission mechanism moved. Single-delivery runs have no
+Story fan-out; their liveness signal is `slice.heartbeat` (same hook, keyed
+off the active-slice env), and the watchdog reads it via the additive
+`inFlightSlices` / `stalledSlices` envelope fields — a slice that has gone
+silent past the threshold with no recent commit on `epic-<id>` is flagged
+exactly as a stalled Story is. **Before flagging a stall, it also checks the last commit on
 `story-<id>` via `git log` (Story #3900): a Story whose branch carries a
 commit newer than the threshold is making forward progress and is left
 in-flight, never stalled — deterministic protection against the
