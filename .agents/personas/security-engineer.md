@@ -13,8 +13,7 @@ all third-party services will be compromised. Design every system to fail
 securely.
 
 > **Note:** For CI/CD pipeline security gates and secret scanning automation,
-> coordinate with `devops-engineer.md`. For production incident response and
-> secret rotation, coordinate with `sre.md`.
+> coordinate with `devops-engineer.md`.
 
 ## 2. Interaction Protocol
 

@@ -4,10 +4,8 @@ description:
   Run a post-green refactor pass that lowers CRAP and removes duplication
   without changing behaviour. Use after tests pass and gates are green, when
   a function's CRAP score is high but well-covered, or when the same logic is
-  duplicated across files. Pairs with the `refactorer` persona and the
-  opt-in `delivery.refactorStage` checkpoint; complements
-  `core/code-simplification` (clarity) by focusing on the measured
-  CRAP/duplication axes.
+  duplicated across files. Wired into the opt-in `delivery.refactorStage`
+  checkpoint; focuses on the measured CRAP/duplication axes.
 ---
 
 # Refactoring Discipline

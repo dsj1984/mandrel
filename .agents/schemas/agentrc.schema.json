@@ -1360,7 +1360,7 @@
         "enabled": {
           "type": "boolean",
           "default": false,
-          "description": "When true, story-deliver runs an advisory post-green refactor stage (refactorer persona + core/refactoring-discipline skill) after the suite is green. Default false \u2014 when unset the stage is skipped and close-validation gate semantics are unchanged."
+          "description": "When true, story-deliver runs an advisory post-green refactor stage (core/refactoring-discipline skill) after the suite is green. Default false \u2014 when unset the stage is skipped and close-validation gate semantics are unchanged."
         }
       },
       "additionalProperties": false

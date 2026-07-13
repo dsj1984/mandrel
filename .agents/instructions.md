@@ -10,13 +10,13 @@ set. You MUST strictly adhere to the following rules:
 
 ### A. Persona Routing & Execution
 
-When the runtime injects a persona for the current task (via the hydrator from
-`task.persona`), retrieve and strictly adopt the rules in
-`.agents/personas/[role].md`. If a user explicitly instructs "Act as
-[Role/Persona]" in chat, honor that as well.
+When a task carries a `persona::<role>` label, or a user explicitly instructs
+"Act as [Role/Persona]" in chat, retrieve and strictly adopt the rules in
+`.agents/personas/[role].md`. Personas are advisory role framing, not a runtime
+injection — read the file when the label or the instruction points you at one.
 
-- **Fallback:** If the specific persona file is missing, default to
-  `.agents/personas/engineer.md`.
+- **Fallback:** If no persona is indicated, or the named file is missing,
+  default to `.agents/personas/engineer.md`.
 
 ### B. Skill Activation
 
