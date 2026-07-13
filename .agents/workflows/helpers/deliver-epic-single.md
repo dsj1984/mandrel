@@ -138,7 +138,11 @@ For each slice `slice-<n>` (1-based, matching the checkpoint's slice-map keys),
 **skip it when `slices[slice-<n>].status === "done"`** (resume: the work is
 already on `epic/<id>`). Otherwise:
 
-1. **Announce the slice.** Emit `slice.start` on the ledger:
+1. **Announce the slice.** Emit `slice.start` on the ledger. This same
+   boundary call also exports the active-slice env
+   (`CC_EPIC_ID` / `CC_SLICE_ID`) into the worktree's `.env.local`, which
+   arms the PostToolUse hook to emit `slice.heartbeat` for the rest of this
+   slice (below):
 
    ```bash
    node <main-repo>/.agents/scripts/slice-phase.js \
@@ -147,14 +151,13 @@ already on `epic/<id>`). Otherwise:
 
 2. **Implement the slice** on `epic/<id>` in the worktree. Apply the relevant
    [skills](../../instructions.md) and local-lens concerns for the slice's
-   footprint. Emit a `slice.heartbeat` at least once per meaningful step (and
-   whenever you stall on a long-running command) so the `/deliver` §2e Idle
-   Watchdog can tell this one long session from a dead one:
-
-   ```bash
-   node <main-repo>/.agents/scripts/slice-phase.js \
-     --epic <epicId> --slice slice-<n> --event heartbeat --phase implementing
-   ```
+   footprint. You do **NOT** run a per-step `slice.heartbeat` CLI (Epic
+   #4476): once `--event start` armed the active-slice env, the PostToolUse
+   hook emits a throttled `slice.heartbeat` off the token stream as a free
+   byproduct of every tool call, so the `/deliver` §2e Idle Watchdog can tell
+   this one long session from a dead one without a dedicated bookkeeping turn.
+   (The `slice-phase.js --event heartbeat` CLI remains available for an
+   explicit beat if you deliberately want one, e.g. a long non-tool wait.)
 
 3. **Commit** the slice to `epic/<id>` before the next slice
    (conventional subject, `(refs #<epicId>)`). Run the advisory quick gates

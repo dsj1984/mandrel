@@ -14,6 +14,10 @@ import { parseArgs } from 'node:util';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import {
+  enqueueLabel,
+  outboxPathFor,
+} from './lib/orchestration/bookkeeping-outbox.js';
+import {
   cascadeCompletion,
   STATE_LABELS,
   transitionTicketState,
@@ -33,6 +37,8 @@ if (
       ticket: { type: 'string' },
       state: { type: 'string' },
       'remove-label': { type: 'string' },
+      buffer: { type: 'boolean' },
+      epic: { type: 'string' },
     },
     strict: false,
   });
@@ -66,6 +72,31 @@ if (
         labels: { remove: [removeLabel] },
       });
       Logger.info('[State-Sync] ✅ Success');
+      return;
+    }
+
+    // Headless buffering (Epic #4476 M5): buffer an intermediate state flip to
+    // the per-Epic outbox instead of a live GitHub round-trip; finalize's
+    // bookkeeping-reconcile.js drains it once. `agent::blocked` (the HITL gate,
+    // §1.J) and `agent::done` (its cascade must run live) ALWAYS surface
+    // immediately and are never buffered. Requires --epic to locate the outbox.
+    if (
+      values.buffer &&
+      state !== STATE_LABELS.BLOCKED &&
+      state !== STATE_LABELS.DONE
+    ) {
+      const epicId = Number.parseInt(values.epic ?? '', 10);
+      if (!Number.isInteger(epicId) || epicId <= 0) {
+        throw new Error('--buffer requires --epic <id>');
+      }
+      enqueueLabel({
+        outboxPath: outboxPathFor(epicId, config),
+        ticketId,
+        state,
+      });
+      Logger.info(
+        `[State-Sync] Buffered #${ticketId} → ${state} (headless; drained at finalize)`,
+      );
       return;
     }
 

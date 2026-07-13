@@ -20,7 +20,9 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   ACTIVE_STORY_ENV_KEYS,
   clearActiveStoryEnv,
+  renderActiveSliceEnvFile,
   renderActiveStoryEnvFile,
+  setActiveSliceEnv,
   setActiveStoryEnv,
 } from '../../../.agents/scripts/lib/observability/active-story-env.js';
 
@@ -108,6 +110,70 @@ describe('setActiveStoryEnv — storyId validation unchanged', () => {
       );
     });
   }
+});
+
+describe('setActiveSliceEnv — single-delivery slice context (Epic #4476)', () => {
+  it('renders CC_EPIC_ID + CC_SLICE_ID and omits CC_STORY_ID', () => {
+    const body = renderActiveSliceEnvFile({ epicId: 42, sliceId: 'slice-1' });
+    assert.match(body, /CC_EPIC_ID=42/);
+    assert.match(body, /CC_SLICE_ID=slice-1/);
+    assert.doesNotMatch(body, /CC_STORY_ID/);
+  });
+
+  it('includes CC_OPERATOR only when an operator is supplied', () => {
+    assert.doesNotMatch(
+      renderActiveSliceEnvFile({ epicId: 42, sliceId: 'slice-1' }),
+      /CC_OPERATOR/,
+    );
+    assert.match(
+      renderActiveSliceEnvFile({
+        epicId: 42,
+        sliceId: 'slice-1',
+        operator: 'octocat',
+      }),
+      /CC_OPERATOR=octocat/,
+    );
+  });
+
+  it('sets env + writes .env.local and clears any prior CC_STORY_ID', () => {
+    env.CC_STORY_ID = '99'; // a leaked prior Story context
+    const res = setActiveSliceEnv({
+      epicId: 42,
+      sliceId: 'slice-2',
+      workCwd: tmp,
+      env,
+    });
+    assert.equal(res.fileWritten, true);
+    assert.equal(env.CC_EPIC_ID, '42');
+    assert.equal(env.CC_SLICE_ID, 'slice-2');
+    assert.equal('CC_STORY_ID' in env, false);
+    const body = readFileSync(path.join(tmp, '.env.local'), 'utf8');
+    assert.match(body, /CC_SLICE_ID=slice-2/);
+  });
+
+  it('rejects a bad epicId / empty sliceId', () => {
+    assert.throws(
+      () => setActiveSliceEnv({ epicId: 0, sliceId: 'slice-1', env }),
+      /epicId must be a positive integer/,
+    );
+    assert.throws(
+      () => setActiveSliceEnv({ epicId: 1, sliceId: '', env }),
+      /sliceId must be a non-empty string/,
+    );
+  });
+
+  it('clearActiveStoryEnv also wipes CC_SLICE_ID + CC_OPERATOR', () => {
+    setActiveSliceEnv({
+      epicId: 42,
+      sliceId: 'slice-1',
+      operator: 'octocat',
+      env,
+    });
+    clearActiveStoryEnv({ env });
+    assert.equal('CC_SLICE_ID' in env, false);
+    assert.equal('CC_OPERATOR' in env, false);
+    assert.equal('CC_EPIC_ID' in env, false);
+  });
 });
 
 describe('clearActiveStoryEnv — unchanged', () => {
