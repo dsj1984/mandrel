@@ -2,10 +2,12 @@
 
 > **Two sections.** (1) **v2.0.0** — the committed next major: collapse the
 > ticket model to a single type (Story) and the delivery surface to a single
-> path, with everything that rides along. (2) **Someday** — parked items and
-> trip-wired watches. Prior roadmap analyses (the model-evolution audit, the
-> product-readiness backlog, the orchestration evidence) are compressed here;
-> their full text is preserved in git history
+> path, with everything that rides along. (2) **Someday** — strictly
+> aspirational items and monitors that re-price on ~10x shifts in model
+> capability, platforms, or economics. Operational dependency trip-wires
+> live in the appendix. Prior roadmap analyses (the model-evolution audit,
+> the product-readiness backlog, the orchestration evidence) are compressed
+> here; their full text is preserved in git history
 > (`docs/roadmap.md` @ `mandrel-v1.94.0`).
 >
 > **Last reviewed:** 2026-07-13 against framework version 1.94.0.
@@ -51,10 +53,13 @@ before upgrading.
    feature that consumes it). Decomposition of coupled work happens **inside
    the one Story** as the spec's Delivery Slicing table — checkpointed
    slices within one session (the M4 mechanism), not sibling tickets. The
-   sizing profile inverts in meaning: `DEFAULT_TASK_SIZING`'s ceilings stop
-   being slice caps and become **split advisories keyed to model capacity**
-   (what one guarded session can deliver and self-verify at the current
-   model tier).
+   v1 sizing profile (`DEFAULT_TASK_SIZING` — `softFiles: 15`,
+   `hardFiles: 30`, advisory acceptance mass) **goes away or is replaced
+   outright**: per-Story file/AC ceilings are meaningless when a Story is
+   session-capacity-sized. Whatever split advisory replaces it is keyed to
+   **model capacity** (what one guarded session can deliver and self-verify
+   at the current tier), not file counts — designed fresh in the v2 design
+   pass, not carried over.
 3. **No integration branch.** Every Story PRs directly to `main`
    (`story-<id>` → PR → required checks → squash). The `epic/<id>` branch,
    `--no-ff` wave merges, and the epic→main PR die. Dependent Stories deliver
@@ -150,6 +155,12 @@ alone, plus ~2.2k lines of workflow prose):**
   simplify to flat Story ops.
 - Taxonomy/schema: `type::epic` label and the Epic body schema; the
   epic-keyed lifecycle events (`slice.*` naming reviewed — one event family).
+- **Persona tier (pulled in from Someday):** the idle hydration seam
+  (`context-hydration-engine.js` — invoked by zero workflows) is deleted;
+  the 7 remaining persona files retire or reduce to the one-line role
+  labels workflow headers already carry (prose-only, zero runtime cost),
+  with any security/release review lens folded into the risk-routed
+  ceremony. Built-but-unwired code is exactly what v2 removes.
 
 **Merges — duplicate pairs collapse to one:**
 
@@ -253,60 +264,71 @@ below applies only to the rare, policy-compliant N>1 runs.
   3. `retro` role def (staged unwired in 1.94.0) — wire it to the per-run
      retro or drop it.
 
-## 2. Someday — monitor
+## 2. Someday — aspirational & model-shift monitors
 
-Parked items with their trip-wires. Re-price when a trip-wire fires, a
-stronger model tier lands, or inference economics move.
+Strictly items that are **aspirational** or that **re-price on a ~10x shift**
+in model capability, agent platforms, or inference economics. Operational
+dependency trip-wires live in the appendix, not here.
 
-1. **`typhonjs-escomplex` abandonware watch** 🔭 — the complexity kernel
-   behind the CRAP/maintainability gates is pinned at its terminal `0.1.0`
-   (last release 2018). Deliberately not swapped: stable, pure JS, no
-   reachable CVE; every baseline stamps its resolved version, so any swap is
-   an Epic with a full baseline recut. **Trip-wire:** a CVE against it, or
-   install/parse failure under a future Node major. Renovate is pinned off.
-2. **`typescript` peer floor stays `>=5.0.0`** 🔒 — a permissive floor, not a
-   pin; raising it is a consumer-visible break. **Watch:** only relevant if
-   the maintainability transpiler config ever adopts a TS-6-removed flag.
-3. **Worktree demotion to an implementation option** — contingent on agent
-   platforms shipping reliable per-task sandboxes
-   ([#4385](https://github.com/dsj1984/mandrel/issues/4385) tracks the
+1. **Worktree demotion to an implementation option** — re-price when agent
+   platforms ship reliable per-task sandboxes
+   ([#4385](https://github.com/dsj1984/mandrel/issues/4385) tracked the
    related capability lift). Until then worktree isolation is concurrency
    physics and keeps.
-4. **Dynamic spec / Gherkin mutation engine** — static placeholder lint
-   (`check-gherkin-placeholders.js`) is the supported surface. **Trip-wire
-   (both):** consumer demand on the BDD tier *and* a dogfood fixture.
-5. **Remaining sequential-only audit lenses** (`audit-dependencies`,
+2. **Remaining sequential-only audit lenses** (`audit-dependencies`,
    `audit-devops`, `audit-sre`, `audit-privacy`, `audit-seo`, `audit-ux-ui`,
-   `audit-lighthouse`) — several are externally bound or not dimensionally
-   decomposable; sequential may be the correct default. Any generalization
-   must clear the measured **~5× token-multiple / no-precision-loss gate**
-   lens-by-lens (anchor: `audit-clean-code`, 2026-06-04 — 23 agents, ~2.47M
-   tokens, 49/51 findings kept). Do not batch-convert.
-6. **Personas → review checklists (residue)** — M8 cut the tier 13→7 files;
-   the hydration seam (`context-hydration-engine.js`) remains built-but-idle.
-   v2's design pass should decide wire-or-delete; if untouched, it stays a
-   monitor item.
-7. **Multi-Story plan-authoring quality spike** — the old fan-out
-   decomposition spike, reframed for v2: when `/plan` authors N>1 Stories,
-   a parallel-draft + adversarial-consolidation pass could improve slice
-   quality. Hold to the same measured-delta discipline as the audit gate.
-8. **Productize-or-stay-internal** 🚪 — the one product decision gating the
-   entire readiness backlog (runtime/ticketing portability, release
-   maturity, deterministic QA runner, enterprise/compliance, platform
-   matrix, external positioning). Nothing in it blocks internal use; build
-   none of it until the call is made. Full analysis preserved at
-   `docs/roadmap.md` @ `mandrel-v1.94.0` (Part 2).
+   `audit-lighthouse`) — re-price on inference economics. Several are
+   externally bound or not dimensionally decomposable; sequential may be the
+   correct default forever. Any generalization must clear the measured
+   **~5× token-multiple / no-precision-loss gate** lens-by-lens (anchor:
+   `audit-clean-code`, 2026-06-04 — 23 agents, ~2.47M tokens, 49/51 findings
+   kept). Do not batch-convert.
+3. **Multi-Story plan-authoring quality spike** — aspirational, and doubly
+   rare under the default-single split policy: when `/plan` legitimately
+   authors N>1 Stories, a parallel-draft + adversarial-consolidation pass
+   could improve seam quality. Hold to the same measured-delta discipline as
+   the audit gate.
+4. **Dynamic spec / Gherkin mutation engine** — aspirational; static
+   placeholder lint (`check-gherkin-placeholders.js`) is the supported
+   surface. **Trip-wire (both):** consumer demand on the BDD tier *and* a
+   dogfood fixture.
+5. **Productize-or-stay-internal** 🚪 — aspirational/external; the one
+   product decision gating the entire readiness backlog (runtime/ticketing
+   portability, release maturity, deterministic QA runner,
+   enterprise/compliance, platform matrix, external positioning). Nothing in
+   it blocks internal use; build none of it until the call is made. Full
+   analysis preserved at `docs/roadmap.md` @ `mandrel-v1.94.0` (Part 2).
+6. **Beyond v2: the harness as validators-only** — the standing 10x
+   question. Each model tier absorbs more of the procedural scaffold; the
+   durable kernel is what the model cannot self-provide (external state,
+   deterministic validation, isolation, gates, HITL risk appetite). At each
+   major model shift, re-run the audit: what remaining prose is now a
+   retirement candidate?
 
-## Appendix — historical anchors
+## Appendix — standing watches & historical anchors
 
-Two in-code doc comments cite Part titles from the pre-2.0 roadmap; their
-content is compressed above and preserved in git history
-(`docs/roadmap.md` @ `mandrel-v1.94.0`):
+**Operational dependency trip-wires** (not roadmap work — policy notes kept
+here so Someday stays aspirational):
+
+- **`typhonjs-escomplex`** 🔭 — the complexity kernel behind the
+  CRAP/maintainability gates is pinned at its terminal `0.1.0` (last release
+  2018). Deliberately not swapped: stable, pure JS, no reachable CVE; every
+  baseline stamps its resolved version, so any swap is its own project with
+  a full baseline recut. **Trip-wire:** a CVE against it, or install/parse
+  failure under a future Node major. Renovate is pinned off
+  (`renovate.json`).
+- **`typescript` peer floor `>=5.0.0`** 🔒 — a permissive floor, not a pin;
+  raising it is a consumer-visible break. **Watch:** only relevant if the
+  maintainability transpiler config ever adopts a TS-6-removed flag.
+
+**Historical anchors.** Two in-code doc comments cite Part titles from the
+pre-2.0 roadmap; their content is compressed above and preserved in git
+history (`docs/roadmap.md` @ `mandrel-v1.94.0`):
 
 - **Part 1 — Model-Evolution Audit** (cited by `planning-risk.js`): the
   model-judged risk envelope replaced the keyword classifier; risk routes
   rigor, never scope. Its Keep-invariants are folded into the v2 ceremony
-  model above.
+  model above; its standing question survives as Someday item 6.
 - **Part 3 — Dynamic-Workflow Orchestration** (cited by `capability.js`):
   the per-lens cost/precision gate and the orchestrated-lens roster; the
-  live remainder is Someday item 5.
+  live remainder is Someday item 2.
