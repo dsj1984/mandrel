@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.14.0",
-  "generatedAt": "2026-07-13T11:53:01.853Z",
+  "generatedAt": "2026-07-13T12:02:03.347Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
@@ -58,10 +58,6 @@
     {
       "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
       "symbol": "sortRows"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/reader.js",
-      "symbol": "_internals"
     },
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
