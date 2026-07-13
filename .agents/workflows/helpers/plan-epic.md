@@ -189,31 +189,33 @@ markdown joins the same batch). Never write them one-per-turn.
 
 ### Conditional critics (between authoring and gate #2)
 
-The evaluation is folded into `plan-persist.js` as a deterministic
-pre-write phase (#4496 fix 6) — the persist prints both verdicts, returns
-them on its result envelope, and ledger-logs every skip. **Attended runs**
-evaluate the dispatch conditions before gate #2 so the verdicts fold into
-its view — one git-local CLI call, zero GitHub reads, via the thin shim
-(kept one release over the shared evaluator):
+The dispatch decision is a **deterministic** function of the authored
+artifacts, evaluated in exactly one place — the evaluation is
+folded into `plan-persist.js` as a deterministic pre-write phase
+(#4496 fix 6). The persist prints both verdicts, returns them on its
+result envelope, and ledger-logs every skip: that fold is the
+single authoritative record, headless or attended. **Attended runs**
+apply the same deterministic conditions (below) to the authored
+artifacts before gate #2 so a `dispatch: true` critic runs and its
+findings fold into the gate's view; the persist fold then re-checks
+and ledger-logs the identical verdict. No separate CLI turn and zero
+GitHub reads — the conditions are mechanical thresholds over
+`techspec.md` / `risk-verdict.json` / `tickets.json`, and are
+never judged inline as an opinion. The verdict names each critic
+with `dispatch: true|false` and reasons.
 
-```bash
-node .agents/scripts/plan-critics.js --epic [Epic_ID]
-```
-
-(ideation: pass `--tech-spec`/`--risk-verdict`/`--tickets` explicitly). The
-verdict names each critic with `dispatch: true|false` and reasons. Dispatch
-a sub-agent ONLY for a critic with `dispatch: true`; surface each skip as a
-one-line note. Every skip decision is appended to the plan-metrics ledger
-(`kind: "critic-skip"`, with reasons) so under-firing is auditable — the
+For each critic whose conditions hold (`dispatch: true`), dispatch a
+sub-agent; surface each skip as a one-line note. Every skip decision
+is appended to the plan-metrics ledger (`kind: "critic-skip"`, with
+reasons) so under-firing is auditable — the
 persist validators remain unchanged hard gates either way.
 
-> **`--yes` (headless).** Do **not** run the standalone CLI and do **not**
-> dispatch critic sub-agents: the critics' findings would fold into a gate
-> that auto-proceeds, so a report nobody reviews is pure spend. The
-> persist's folded pre-write evaluation is the audit record — its verdicts
-> print in the persist output, a `dispatch: true` verdict surfaces as a
-> one-line advisory note in the run summary, and every skip still lands on
-> the plan-metrics ledger.
+> **`--yes` (headless).** Do **not** dispatch critic sub-agents: the
+> critics' findings would fold into a gate that auto-proceeds, so a report
+> nobody reviews is pure spend. The persist's folded pre-write evaluation is
+> the audit record — its verdicts print in the persist output, a
+> `dispatch: true` verdict surfaces as a one-line advisory note in the run
+> summary, and every skip still lands on the plan-metrics ledger.
 
 Both critics are **fresh-context sub-agents** (`Agent` tool,
 `subagent_type: general-purpose`) — never inline skill activations, so they

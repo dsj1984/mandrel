@@ -7,8 +7,10 @@
  *   - The consolidation critic and the pre-mortem critic survive as
  *     fresh-context sub-agent dispatches between authoring and gate #2 —
  *     report-only, never writing to GitHub, and risk/size-conditional
- *     since PR6: the deterministic `plan-critics.js` CLI owns the
- *     dispatch decision and every skip is ledger-logged for audit.
+ *     since PR6: the dispatch decision is a deterministic function of the
+ *     authored artifacts (the pre-write fold in `plan-persist.js` is the
+ *     single authoritative record) and every skip is ledger-logged for
+ *     audit.
  *   - The consolidation critic keeps its scope-preserving conservation
  *     invariant (merge-and-rewire only, never adds scope).
  *   - The reachability completeness check is DEMOTED from a workflow
@@ -127,16 +129,26 @@ describe('author-step critics — shared sub-agent mechanics', () => {
     );
   });
 
-  it('routes the dispatch decision through the deterministic plan-critics CLI', () => {
+  it('sources the dispatch decision from the deterministic persist fold, never a standalone CLI', () => {
+    assert.doesNotMatch(
+      criticsSection,
+      /plan-critics\.js/,
+      'the retired standalone plan-critics.js CLI must no longer be invoked',
+    );
     assert.match(
       criticsSection,
-      /node \.agents\/scripts\/plan-critics\.js --epic/,
-      'the dispatch conditions must be evaluated by the plan-critics CLI, never judged inline',
+      /deterministic/i,
+      'the dispatch conditions must be described as deterministic',
+    );
+    assert.match(
+      criticsSection,
+      /never judged inline/i,
+      'the conditions must be mechanical thresholds, not an inline opinion',
     );
     assert.match(
       criticsSection,
       /dispatch: true\|false/,
-      'the CLI verdict shape must be documented',
+      'the verdict shape must be documented',
     );
     assert.doesNotMatch(
       criticsSection,
@@ -145,7 +157,7 @@ describe('author-step critics — shared sub-agent mechanics', () => {
     );
   });
 
-  it('documents the persist fold + the headless no-dispatch rule (#4496 fix 6)', () => {
+  it('documents the persist fold as the single record + the headless no-dispatch rule (#4496 fix 6)', () => {
     assert.match(
       criticsSection,
       /folded into `plan-persist\.js` as a deterministic\s*\n?pre-write phase/i,
@@ -153,13 +165,8 @@ describe('author-step critics — shared sub-agent mechanics', () => {
     );
     assert.match(
       criticsSection,
-      /thin shim/i,
-      'the standalone CLI must be described as a one-release thin shim',
-    );
-    assert.match(
-      criticsSection,
-      /Do \*\*not\*\* run the standalone CLI/,
-      'headless runs must not pay the standalone CLI turn',
+      /single authoritative record/i,
+      'the fold must be named the single authoritative record for both paths',
     );
     assert.match(
       criticsSection,

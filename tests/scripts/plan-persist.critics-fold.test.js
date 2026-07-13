@@ -2,12 +2,13 @@
  * tests/scripts/plan-persist.critics-fold.test.js — #4496 fix 6.
  *
  * Persist-side coverage for the folded author-critics evaluation (the
- * former standalone `plan-critics.js` turn, now a deterministic pre-write
- * phase inside `runPlanPersist`):
+ * former standalone `plan-critics.js` turn, retired once the fold became
+ * the sole surface — now a deterministic pre-write phase inside
+ * `runPlanPersist`):
  *
  *   - the result envelope carries `critics.consolidation` /
- *     `critics.premortem` with the same `{ critic, dispatch, reasons }`
- *     verdict shape the standalone CLI emits;
+ *     `critics.premortem` with the `{ critic, dispatch, reasons }`
+ *     verdict shape the folded evaluation emits;
  *   - PRE-WRITE ORDERING: the evaluation (and its critic-skip ledger
  *     records) lands BEFORE the first provider call — a persist that dies
  *     at Epic resolution has already recorded the verdicts;
@@ -15,10 +16,10 @@
  *     `cli: 'plan-persist'` so under-firing stays auditable without a
  *     standalone CLI invocation;
  *   - the single-delivery shape records the no-tickets consolidation skip
- *     reason (parity with the standalone CLI's single-shape branch);
- *   - the standalone `plan-critics.js` CLI survives as a thin shim over the
- *     shared evaluator (`lib/orchestration/plan-critics-evaluate.js`), so
- *     both surfaces produce identical verdicts for identical artifacts.
+ *     reason;
+ *   - the fold delegates to the shared evaluator
+ *     (`lib/orchestration/plan-critics-evaluate.js`), so the persist result
+ *     matches a direct evaluator call for identical artifacts.
  */
 
 import assert from 'node:assert/strict';
@@ -305,7 +306,7 @@ describe('plan-persist — folded critic evaluation (pre-write phase, #4496 fix 
     assert.equal(result.critics.consolidation.dispatch, false);
   });
 
-  it('produces the same verdicts as the shared evaluator (thin-shim parity)', async () => {
+  it('produces the same verdicts as the shared evaluator (fold parity)', async () => {
     const provider = buildStubProvider();
     const tickets = [ticket('story-one')];
     const result = await runPlanPersist(

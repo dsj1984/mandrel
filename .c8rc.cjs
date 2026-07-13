@@ -22,9 +22,8 @@
  *     CLI shell only argv-parses and calls a single provider method
  *     loop. Real coverage requires hitting a live GitHub repo, which
  *     belongs in integration tests, not the unit-test gate.
- *   - epic-plan-decompose.js / epic-plan-spec.js /
- *     epic-plan-healthcheck.js — `/epic-plan` slash-command CLIs.
- *     Each exports a `runXPhase` that calls into a real GitHub
+ *   - epic-plan-healthcheck.js — a `/epic-plan` slash-command CLI.
+ *     It exports a `runXPhase` that calls into a real GitHub
  *     provider, reads PRD/Tech Spec bodies, drives `lib/orchestration/
  *     plan-runner` against live tickets, and writes back through
  *     `lib/orchestration/ticketing.js`. The exports have no unit-
@@ -97,9 +96,7 @@ module.exports = {
 
     // Pre-Story-#1702 baseline carve-outs.
     '.agents/scripts/agents-bootstrap-github.js',
-    '.agents/scripts/epic-plan-decompose.js',
     '.agents/scripts/epic-plan-healthcheck.js',
-    '.agents/scripts/epic-plan-spec.js',
     // Story #1702 — top-level CLI gates and orchestrators.
     '.agents/scripts/assert-branch.js',
     '.agents/scripts/detect-merges.js',

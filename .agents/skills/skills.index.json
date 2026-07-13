@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T11:39:40.963Z",
+  "generatedAt": "2026-07-13T13:04:34.093Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -97,7 +97,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
       "policyCapsuleBullets": 9,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -107,7 +107,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
-      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
+      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `plan-context.js --epic <Epic_ID>`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `plan-persist.js` validates and persists it.",
       "policyCapsuleBullets": 15,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -117,7 +117,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
-      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
+      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Write", "Bash", "Grep"],
       "vendor": null
@@ -127,7 +127,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
-      "description": "Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` folds them into the Epic body's managed sections.",
+      "description": "Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `plan-context.js --epic <Epic_ID>`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `plan-persist.js` folds them into the Epic body's managed sections.",
       "policyCapsuleBullets": 14,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
