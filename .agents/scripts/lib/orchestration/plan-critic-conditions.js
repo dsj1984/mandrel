@@ -28,8 +28,9 @@
  * skip decision this module produces is logged to the plan-metrics ledger
  * (`appendCriticSkip`) by the callers so under-firing is auditable.
  *
- * Pure, synchronous, no I/O — the `plan-critics.js` CLI owns reading the
- * authored artifacts and the resolved config.
+ * Pure, synchronous, no I/O — the folded pre-write phase inside
+ * `plan-persist.js` owns reading the authored artifacts and the resolved
+ * config.
  */
 
 import { evaluateConsolidationPrecondition } from './consolidation-precondition.js';

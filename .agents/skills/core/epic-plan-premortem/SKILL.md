@@ -4,7 +4,7 @@ description: >-
   Run a fresh-context, code-reading pre-mortem critic over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write
-  `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js`
+  `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js`
   validates and persists it. Reads the sectioned Epic body AND the cited
   code surfaces, then emits predicted-rework findings before any GitHub write.
 allowed_tools:
@@ -49,7 +49,7 @@ independent of the draft it grades.
 after `epic-plan-decompose-author` writes (and, when present,
 `epic-plan-consolidate` consolidates) `temp/epic-<Epic_ID>/tickets.json`, after
 the reachability completeness critic (8.4), and **before**
-`epic-plan-decompose.js --tickets …` validates and persists. The pass operates
+`plan-persist.js --tickets …` validates and persists. The pass operates
 on the temp artifact and emits a report so the operator sees predicted rework in
 the Phase 8 HITL diff before the GitHub write; the author re-runs on the
 findings and the deterministic validator runs *after*, so nothing this critic
@@ -63,7 +63,7 @@ passing the Epic ID as the Skill argument. The Skill itself reads:
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** (or consolidated) Story
   array. This is the pre-mortem subject.
 - `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope emitted
-  by `epic-plan-decompose.js --emit-context`. Read `epicBody` from it —
+  by `plan-context.js --epic <Epic_ID>`. Read `epicBody` from it —
   the sectioned Epic body carrying the folded Tech Spec sections
   (there is no separate `techSpec` key — Story #4324).
 - **The repository working tree** — the actual files each Story's `changes[]` /
@@ -126,7 +126,7 @@ line. Paste identifiers and short rationale only — never full source bodies.
 Return control. The workflow shows the operator the pre-mortem report at the
 Phase 8 HITL diff; on operator approval it re-runs
 `epic-plan-decompose-author` on the findings **before** the persist call
-(`node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --tickets
+(`node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
 temp/epic-<Epic_ID>/tickets.json`). This Skill itself persists nothing.
 
 ## Constraints
