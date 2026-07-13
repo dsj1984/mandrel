@@ -22,7 +22,7 @@ allowed_tools:
 - Read the verdict as a `{unit, contract, acceptance}` object: each tier is `{status: 'present'|'absent', note}`. A surface with only a colocated unit test reports `unit: present` and `contract`/`acceptance`: `absent` with explanatory notes.
 - Route remediation by the absent tiers, honoring the assertion-placement rule: wire-shape and status-code gaps become **contract** tests, user-visible journey gaps become **acceptance** scenarios — never push those into unit tests or `.feature` files incorrectly.
 - Treat `absent` as a coverage gap to surface, not an automatic failure: some surfaces legitimately need only one tier (a pure formatter needs no acceptance scenario). Use the notes to justify, not to mandate, the missing tier.
-- This skill is read + classify only: it does not author tests, mutate tickets, or run the suite. Hand the verdict to `core/test-driven-development` to actually write the missing tier.
+- This skill is read + classify only: it does not author tests, mutate tickets, or run the suite. Hand the verdict to the TDD cycle in `.agents/rules/testing-standards.md` to actually write the missing tier.
 
 ## Role
 
@@ -45,9 +45,9 @@ missing so remediation is aimed correctly.
 - During a test-pyramid audit, to roll up many surfaces into a tier-by-tier
   gap report.
 
-**When NOT to use:** for authoring tests (use
-[`core/test-driven-development`](../test-driven-development/SKILL.md)), for
-measuring line/branch coverage percentages (that is the unit-tier coverage
+**When NOT to use:** for authoring tests (use the TDD cycle in
+[`.agents/rules/testing-standards.md`](../../../rules/testing-standards.md#applying-the-standards)),
+for measuring line/branch coverage percentages (that is the unit-tier coverage
 config, not this skill), or for anything that requires running the suite.
 
 ## The verdict shape
@@ -79,9 +79,9 @@ config, not this skill), or for anything that requires running the suite.
    explicit `tier` field when you already know it.
 3. **Read the gaps.** Every `absent` tier is a candidate gap. Apply judgment
    from the Policy Capsule: not every surface needs all three tiers.
-4. **Route remediation.** For real gaps, hand off to
-   `core/test-driven-development` with the missing tier named, honoring the
-   assertion-placement rule so each assertion lands in its correct tier.
+4. **Route remediation.** For real gaps, hand off to the TDD cycle in
+   `.agents/rules/testing-standards.md` with the missing tier named, honoring
+   the assertion-placement rule so each assertion lands in its correct tier.
 
 ## Example
 

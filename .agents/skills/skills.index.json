@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-13T11:39:40.963Z",
+  "generatedAt": "2026-07-13T13:50:58.399Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -9,7 +9,10 @@
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
       "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -23,16 +26,6 @@
       "vendor": null
     },
     {
-      "name": "baseline-refresh",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/baseline-refresh/SKILL.md",
-      "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
-      "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
-      "vendor": null
-    },
-    {
       "name": "browser-testing-with-devtools",
       "tier": "core",
       "category": "core",
@@ -43,22 +36,12 @@
       "vendor": null
     },
     {
-      "name": "ci-cd-and-automation",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/ci-cd-and-automation/SKILL.md",
-      "description": "Automates CI/CD pipeline setup. Use when setting up or modifying build and deployment pipelines. Use when you need to automate quality gates, configure test runners in CI, or establish deployment strategies.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
       "name": "code-review-and-quality",
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/code-review-and-quality/SKILL.md",
-      "description": "Conducts multi-axis code review. Use before merging any change. Use when reviewing code written by yourself, another agent, or a human. Use when you need to assess code quality across multiple dimensions before it enters the main branch.",
-      "policyCapsuleBullets": 10,
+      "description": "Conducts multi-axis code review and runs the disciplined post-green refactor pass. Use before merging any change, when reviewing code written by yourself, another agent, or a human, or when the opt-in `delivery.refactorStage` checkpoint asks for a behaviour-preserving CRAP/duplication pass after the suite is green.",
+      "policyCapsuleBullets": 12,
       "allowedTools": null,
       "vendor": null
     },
@@ -79,7 +62,10 @@
       "path": ".agents/skills/core/diagnose-friction/SKILL.md",
       "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Bash", "Read"],
+      "allowedTools": [
+        "Bash",
+        "Read"
+      ],
       "vendor": null
     },
     {
@@ -99,7 +85,11 @@
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
       "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
       "policyCapsuleBullets": 9,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -109,7 +99,11 @@
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
       "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 15,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -119,7 +113,12 @@
       "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
       "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Write", "Bash", "Grep"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash",
+        "Grep"
+      ],
       "vendor": null
     },
     {
@@ -129,7 +128,25 @@
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
       "description": "Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` folds them into the Epic body's managed sections.",
       "policyCapsuleBullets": 14,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "gates-and-baselines",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/gates-and-baselines/SKILL.md",
+      "description": "Governs quality gates and the unified-baseline snapshots. Use when authoring a baseline refresh commit (CRAP, maintainability, dead-exports, lighthouse), when setting up or modifying CI quality gates, or when introducing a new gate that asserts on pre-existing state without turning the integration branch red.",
+      "policyCapsuleBullets": 9,
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -153,33 +170,16 @@
       "vendor": null
     },
     {
-      "name": "property-based-testing",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/property-based-testing/SKILL.md",
-      "description": "Generative testing of invariants. Use when a unit has properties that should hold across a whole input domain — round-trips, idempotence, ordering, conservation — rather than a handful of hand-picked examples. The test-tier, mocking, and assertion-placement MUSTs live in `.agents/rules/testing-standards.md`; this skill shows how to find properties, pick the right per-stack library, and keep generative tests deterministic and fast.",
-      "policyCapsuleBullets": 8,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
       "name": "qa-coverage-mapping",
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/qa-coverage-mapping/SKILL.md",
       "description": "Map a quality finding to a per-tier coverage verdict (unit / contract / acceptance) aligned to `.agents/rules/testing-standards.md`. Use when a finding points at a symbol or surface and you need to know which test tiers already cover it and which are missing, so remediation lands the right tier. Delegates the verdict to the deterministic `lib/qa/coverage-verdict.js#coverageVerdict` helper.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Bash"],
-      "vendor": null
-    },
-    {
-      "name": "refactoring-discipline",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/refactoring-discipline/SKILL.md",
-      "description": "Run a post-green refactor pass that lowers CRAP and removes duplication without changing behaviour. Use after tests pass and gates are green, when a function's CRAP score is high but well-covered, or when the same logic is duplicated across files. Wired into the opt-in `delivery.refactorStage` checkpoint; focuses on the measured CRAP/duplication axes.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": null,
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -199,26 +199,6 @@
       "path": ".agents/skills/core/security-and-hardening/SKILL.md",
       "description": "Hardens code against vulnerabilities. Use when handling user input, authentication, data storage, or external integrations. The non-negotiable security MUSTs live in `.agents/rules/security-baseline.md`; this skill shows how to apply them with code patterns, decision trees, and review checklists.",
       "policyCapsuleBullets": 11,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "test-driven-development",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/test-driven-development/SKILL.md",
-      "description": "Drives development with tests. Use when implementing any logic, fixing any bug, or changing any behavior. The non-negotiable test-tier placement, mocking, assertion-placement, and coverage rules live in `.agents/rules/testing-standards.md`; this skill shows how to apply them via the TDD cycle, the Prove-It Pattern, and good-test style.",
-      "policyCapsuleBullets": 10,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "using-agent-skills",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/using-agent-skills/SKILL.md",
-      "description": "Discovers and invokes agent skills. Use when starting a session or when you need to discover which skill applies to the current task. This is the meta-skill that governs how all other skills are discovered and invoked.",
-      "policyCapsuleBullets": 9,
       "allowedTools": null,
       "vendor": null
     },

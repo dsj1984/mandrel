@@ -1,10 +1,11 @@
 ---
 name: code-review-and-quality
 description:
-  Conducts multi-axis code review. Use before merging any change. Use when
-  reviewing code written by yourself, another agent, or a human. Use when you
-  need to assess code quality across multiple dimensions before it enters the
-  main branch.
+  Conducts multi-axis code review and runs the disciplined post-green refactor
+  pass. Use before merging any change, when reviewing code written by yourself,
+  another agent, or a human, or when the opt-in `delivery.refactorStage`
+  checkpoint asks for a behaviour-preserving CRAP/duplication pass after the
+  suite is green.
 ---
 
 # Code Review and Quality
@@ -21,6 +22,8 @@ description:
 - Review performance on the hot path only, and measure before optimizing; explicit checks include no N+1 queries, no unbounded fetches, no blocking sync work, no obviously oversized bundles.
 - Disallow scope creep in a PR: drive-by cleanups, adjacent refactors, and "while I'm here" edits should be split into a separate change.
 - Bug-fix reviews cover **both** the fix and the regression test; a fix without a failing-then-passing test is not approvable.
+- **Refactoring is post-green and behaviour-preserving.** Run the refactor pass only when the suite is already green and gates pass; inputs, outputs, side effects, error semantics, and ordering MUST be identical before and after, and existing tests MUST keep passing **without modification** (if a test had to change, behaviour changed — revert).
+- **Lower CRAP by lowering complexity, and remove duplication at the root.** Target the highest-CRAP well-covered functions and the largest verbatim duplications by measurement (`check-baselines.js`), not by smell; extract one well-named helper rather than leaving near-copies. CRAP must not rise and maintainability must not fall on any touched file, and no gate, floor, or threshold may be retuned to make the pass "succeed".
 
 ## Overview
 
@@ -409,6 +412,50 @@ Every dependency is a liability.
   optional
 - Accepting "I'll fix it later" — it never happens
 
+## Post-Green Refactor Pass
+
+Review's sibling discipline is the **behaviour-preserving refactor** that drives
+CRAP (Change Risk Anti-Patterns) and duplication down _after_ the code is green
+— the pass wired in as the opt-in `delivery.refactorStage` checkpoint. It
+optimises for the measured CRAP and duplication axes the baselines ratchet, not
+for subjective readability, and it never runs from red.
+
+**When to run:** a baseline report flags a high-CRAP function that is already
+well-covered (so the lever is complexity, not coverage); the same logic is
+duplicated across two or more files and the copies are drifting; or the
+`delivery.refactorStage` checkpoint fires after gates pass and before a Story
+closes. **When NOT to:** before tests are green (write/fix tests first), or when
+a function's CRAP is high because it is _uncovered_ — that is a missing-test
+problem, so drive it with the TDD cycle in
+[`.agents/rules/testing-standards.md`](../../../rules/testing-standards.md).
+
+```text
+Confirm green + baseline  →  pick highest-CRAP / largest dup
+        ▲                                  │
+        │                                  ▼
+  re-run gates, confirm   ◄──  refactor   ◄──  comprehend the target
+  CRAP↓ / maint↑, tests pass   (one change)    (call sites + tests)
+```
+
+1. **Baseline.** Confirm green and capture current CRAP and maintainability
+   (`node .agents/scripts/check-baselines.js`) — your do-no-harm reference.
+2. **Target by measurement.** Pick the highest-CRAP well-covered function, or
+   the largest verbatim duplication. Work worst-first.
+3. **Comprehend before you touch (Chesterton's Fence).** Read the call sites and
+   the tests that pin the behaviour first; an "unnecessary" abstraction may
+   exist for testability or extensibility.
+4. **Refactor one step.** Extract a focused function, flatten nesting into guard
+   clauses, replace a nested ternary / boolean-flag param, or extract a single
+   shared helper for the duplication (dedup the _behaviour_, not just the text —
+   look-alike blocks that encode different responsibilities stay separate).
+5. **Verify.** Re-run the affected tests (unmodified) and the baselines. CRAP
+   must not rise, maintainability must not fall, tests must pass. If a test
+   needed editing, revert — behaviour changed.
+
+Keep each refactor an isolated, reviewable commit separate from feature or fix
+work, refactor only the targeted functions/duplications (no drive-by rewrites),
+and leave no dead code behind (unused imports, orphaned helpers).
+
 ## Verification
 
 After review is complete:
@@ -419,3 +466,12 @@ After review is complete:
 - [ ] Tests pass
 - [ ] Build succeeds
 - [ ] The verification story is documented (what changed, how it was verified)
+
+After a post-green refactor pass:
+
+- [ ] The suite was green before and after, with **no test modifications**
+- [ ] CRAP did not rise and maintainability did not fall on any touched file
+      (baselines re-run and compared)
+- [ ] No gate, floor, or coverage threshold was loosened
+- [ ] Duplication was removed at the root (one helper), not just locally patched
+- [ ] Each refactor is an isolated commit, separate from feature or fix work

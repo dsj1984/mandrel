@@ -776,9 +776,9 @@ changing its shape (full per-field reference:
   the budget surfaces `agent::blocked` with reason `budget-exceeded`.
   Tune on repos with slow required checks.
 - **`delivery.refactorStage.enabled`** — opt-in (default off) advisory
-  post-green refactor checkpoint in story-deliver (`refactorer` persona +
-  `core/refactoring-discipline` skill); never alters close-validation
-  gate semantics.
+  post-green refactor checkpoint in story-deliver (the
+  `core/code-review-and-quality` skill's Post-Green Refactor Pass); never
+  alters close-validation gate semantics.
 - **`delivery.feedbackLoop.auditResultsAutoFile`** —
   both default `true`: the Epic finalize listener auto-files
   non-blocking code-review / audit findings as follow-up issues (routed
