@@ -303,9 +303,10 @@ below applies only to the rare, policy-compliant N>1 runs.
   shared across Stories (coupling signal), with optional manifest-coverage
   checking; single-Story plans always pass. `assertAcceptancePartition`
   throwing-wrapper ready for the Stage-3 persist wiring. Additive.
-- [ ] Spec spill-to-doc — helper that spills an over-budget folded spec to
-  `docs/specs/<storyId>.md` and links it from the body (+ tests), reusing the
-  §2 `maxTokenBudget` machinery
+- [x] Spec spill-to-doc — `spec-spill.js` (+6 tests): an over-budget folded
+  spec (`estimateTokens` > soft budget) spills to `docs/specs/<storyId>.md`
+  and returns a `references[]` pointer entry; small specs stay inline. Reuses
+  the §2 `estimateTokens` estimator; injectable fs. Additive.
 - [ ] Run-epilogue scaffold — the `/deliver --run` closeout entry (per-run
   audit sweep + retro + sibling-coherence), inert until Stage 4 wires it
 
