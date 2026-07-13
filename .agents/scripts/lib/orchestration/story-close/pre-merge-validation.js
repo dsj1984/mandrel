@@ -140,6 +140,7 @@ export async function runPreMergeGates({
     config,
     epicBranch,
     cwd: worktreePath || cwd,
+    log: (m) => logger.info?.(m),
   });
   const gateCount = Array.isArray(gates) ? gates.length : 0;
   // Story #2250 — emit `close-validate.start` only when both an epicId

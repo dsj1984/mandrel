@@ -96,6 +96,15 @@ export const QUALITY_SCHEMA = {
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
     baselineEpsilon: BASELINE_EPSILON_SCHEMA,
+    // Story #4495. Fail-closed baseline-enforcement policy for the unified
+    // check-baselines close-validation gate. Default false: a consumer that
+    // enables baseline gates but has not committed baseline artifacts under
+    // baselines/ gets a clean skip-with-reason from buildDefaultGates rather
+    // than a deterministic first-try close failure. Set true to keep the gate
+    // registered so an absent baseline artifact fails close-validation with a
+    // preflight hint (the fail-closed posture, analogous to
+    // delivery.ci.requireChecks).
+    requireBaselines: { type: 'boolean' },
     // Navigability lens + post-wave integration gate config (Epic #4131,
     // F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the
     // deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty

@@ -6,7 +6,12 @@
  * runner (`INDEPENDENT_GATE_NAMES` / `partitionGates`).
  */
 
+import { existsSync } from 'node:fs';
+
+import { _internals as baselineReaderInternals } from '../baselines/reader.js';
+import { getQuality } from '../config/quality.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
+import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
 import {
   buildFormatHint,
   FORMAT_CHECK_FALLBACK,
@@ -115,6 +120,106 @@ function buildTestGateEntry(coverageCaptureActive) {
   return [{ name: 'test', cmd: 'npm', args: ['test'] }];
 }
 
+const CHECK_BASELINES_HINT =
+  'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.';
+
+/**
+ * Baseline kinds the resolved config enables for the unified
+ * `check-baselines` gate. Mirrors `selectEnabledGates` in the check-baselines
+ * pipeline (a kind runs when its `gates.<kind>` block is present and not
+ * explicitly disabled) so the registration probe's view of "what will run"
+ * matches the gate's own view exactly.
+ *
+ * @param {object|undefined|null} config canonical resolved config
+ * @returns {string[]}
+ */
+function enabledBaselineKinds(config) {
+  const gates = getQuality(config)?.gates ?? {};
+  return KNOWN_KINDS.filter((kind) => {
+    const block = gates[kind];
+    return block && typeof block === 'object' && block.enabled !== false;
+  });
+}
+
+/**
+ * Whether the consumer opted into fail-closed baseline enforcement via
+ * `delivery.quality.requireBaselines: true`. Default false — a consumer that
+ * enables baseline gates but has not committed baseline artifacts gets a
+ * clean skip (see `probeBaselinesGate`) rather than a deterministic first-try
+ * close failure. Mirrors the `delivery.ci.requireChecks` escape hatch (#4472).
+ *
+ * @param {object|undefined|null} config
+ * @returns {boolean}
+ */
+function baselinesRequiredByConfig(config) {
+  return config?.delivery?.quality?.requireBaselines === true;
+}
+
+function toKindSet(presentBaselines) {
+  if (presentBaselines instanceof Set) return presentBaselines;
+  if (Array.isArray(presentBaselines)) return new Set(presentBaselines);
+  return new Set();
+}
+
+/**
+ * Probe whether the `check-baselines` consumer contract is satisfied before
+ * registering the gate (#4495 — mirrors the #4473/#4480 coverage-capture
+ * remedy). The contract: every enabled baseline kind carries a committed
+ * baseline artifact on disk (the same path the gate's reader resolves).
+ *
+ * Decision shape:
+ *   - `{ register: false, reason }` — skip (caller logs the reason). Baseline
+ *     gates ARE enabled but none of the enabled kinds carry a committed
+ *     baseline artifact and the consumer has not set `requireBaselines`. This
+ *     is the bench/greenfield case: the gate would otherwise fail
+ *     deterministically on first try reading a non-existent
+ *     `baselines/<kind>.json`.
+ *   - `{ register: true }` — at least one committed baseline artifact is
+ *     present, OR no baseline kinds are enabled at all (the gate then self-
+ *     skips every kind and exits a clean empty PASS — no failure to avoid, so
+ *     the gate stays registered exactly as pre-#4495); run the gate.
+ *   - `{ register: true, hint }` — baselines are required-by-config
+ *     (`requireBaselines: true`) but absent; keep the gate registered so it
+ *     fails, with a preflight hint naming the fix.
+ *
+ * @param {{ config?: object, cwd?: string, presentBaselines?: string[]|Set<string> }} opts
+ *   `presentBaselines` injects the set of kinds whose baseline artifact
+ *   exists (tests), short-circuiting the on-disk probe.
+ * @returns {{ register: boolean, reason?: string, hint?: string }}
+ */
+function probeBaselinesGate({ config, cwd, presentBaselines } = {}) {
+  const enabled = enabledBaselineKinds(config);
+  if (enabled.length === 0) {
+    // No enabled baseline kinds → `check-baselines.js` self-skips every kind
+    // and exits clean (an empty PASS). There is no deterministic-failure risk
+    // to avoid, so keep the gate registered exactly as it was pre-#4495; the
+    // #4495 skip is confined strictly to the read-miss-would-fail case below.
+    return { register: true };
+  }
+  const injected =
+    presentBaselines != null ? toKindSet(presentBaselines) : null;
+  const present = enabled.filter((kind) =>
+    injected
+      ? injected.has(kind)
+      : existsSync(baselineReaderInternals.resolveBaselinePath(kind, { cwd })),
+  );
+  if (present.length > 0) return { register: true };
+  if (baselinesRequiredByConfig(config)) {
+    return {
+      register: true,
+      hint:
+        `Baselines are required (delivery.quality.requireBaselines) but no committed baseline artifact was found for enabled kind(s): ${enabled.join(', ')}. ` +
+        'Generate the baseline(s) with the per-kind update script (e.g. `npm run crap:update`, `npm run maintainability:update`) and commit them, or unset requireBaselines to skip the gate until baselines exist.',
+    };
+  }
+  return {
+    register: false,
+    reason:
+      `check-baselines skipped — enabled kind(s) ${enabled.join(', ')} have no committed baseline artifact under baselines/ ` +
+      'and delivery.quality.requireBaselines is not set. Commit baseline artifacts (or set requireBaselines to enforce them) to activate the gate.',
+  };
+}
+
 /**
  * Build the canonical close-validation gate list.
  *
@@ -152,15 +257,30 @@ function buildTestGateEntry(coverageCaptureActive) {
  * instead of a deterministic close failure with no test gate at all. The
  * probe reads `package.json` at `cwd` (the gate execution directory).
  *
- * @param {{ config?: object, epicBranch?: string, cwd?: string, packageScripts?: Record<string, string> }} [opts]
+ * Story #4495 — the unified `check-baselines` gate reads a committed
+ * `baselines/<kind>.json` for each enabled kind; a consumer that enables
+ * baseline gates but ships no `baselines/` tree (every bench sandbox, any
+ * greenfield consumer) failed the gate deterministically on first try. The
+ * gate is now registered only when its consumer contract is satisfied
+ * (`probeBaselinesGate`): at least one enabled kind carries a committed
+ * baseline, OR the consumer opted into fail-closed enforcement via
+ * `delivery.quality.requireBaselines`. When no baselines are committed and
+ * none are required, the gate is skipped with a logged reason (via `log`)
+ * instead of a blocking failure.
+ *
+ * @param {{ config?: object, epicBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void }} [opts]
  *   `config` is the canonical resolved config (`{ project, delivery, ... }`);
  *   gate commands resolve from `project.commands` and the CRAP toggle from
  *   `delivery.quality.gates.crap.enabled`. `epicBranch` is the close run's
  *   integration branch (`epic/<id>` for Epic-attached Stories, the base
  *   branch for standalone Stories). `cwd` is where the `package.json`
- *   coverage-script probe reads from (defaults to `process.cwd()`);
- *   `packageScripts` injects the scripts map directly (tests) and short-
- *   circuits the disk read.
+ *   coverage-script probe and the `baselines/<kind>.json` presence probe
+ *   read from (defaults to `process.cwd()`); `packageScripts` injects the
+ *   scripts map directly (tests) and short-circuits the coverage-script disk
+ *   read; `presentBaselines` injects the set of kinds whose baseline artifact
+ *   exists (tests) and short-circuits the baseline-presence disk read; `log`
+ *   receives the skip reason when the `check-baselines` gate is not
+ *   registered.
  * @returns {Gate[]}
  */
 export function buildDefaultGates({
@@ -168,6 +288,8 @@ export function buildDefaultGates({
   epicBranch,
   cwd,
   packageScripts,
+  presentBaselines,
+  log,
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive =
@@ -186,6 +308,14 @@ export function buildDefaultGates({
       ? buildChangedFileScope(epicBranch)
       : null;
   const baselinesGateEnv = buildBaselinesGateEnv(epicBranch);
+  const baselinesDecision = probeBaselinesGate({
+    config,
+    cwd,
+    presentBaselines,
+  });
+  if (!baselinesDecision.register && baselinesDecision.reason) {
+    log?.(`[close-validation] ${baselinesDecision.reason}`);
+  }
   return [
     {
       name: 'typecheck',
@@ -218,23 +348,31 @@ export function buildDefaultGates({
           },
         ]
       : []),
-    {
-      // Story #2210 — unified `check-baselines` gate is the only path for
-      // per-kind regression enforcement. The legacy per-kind in-process
-      // gates were retired because their regression-compare semantics are
-      // fully subsumed by this gate's attribution-wired floor + tolerance +
-      // schema enforcement, and running both paths in series was redundant
-      // and conflict-prone.
-      //
-      // `check-baselines.js` self-skips per-kind gates whose
-      // `enabled === false` is configured, so registering it
-      // unconditionally is safe.
-      name: 'check-baselines',
-      cmd: 'node',
-      args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
-      hint: 'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.',
-      ...(baselinesGateEnv ? { env: baselinesGateEnv } : {}),
-    },
+    // Story #2210 — unified `check-baselines` gate is the only path for
+    // per-kind regression enforcement. The legacy per-kind in-process gates
+    // were retired because their regression-compare semantics are fully
+    // subsumed by this gate's attribution-wired floor + tolerance + schema
+    // enforcement, and running both paths in series was redundant and
+    // conflict-prone.
+    //
+    // `check-baselines.js` self-skips per-kind gates whose `enabled === false`
+    // is configured. Story #4495: it is now also skipped entirely when the
+    // consumer enables baseline gates but ships no committed baseline artifact
+    // (and has not set `delivery.quality.requireBaselines`) — otherwise the
+    // gate fails deterministically on first try reading a non-existent
+    // `baselines/<kind>.json` (`probeBaselinesGate`). When required-by-config
+    // but absent, it stays registered with a preflight hint naming the fix.
+    ...(baselinesDecision.register
+      ? [
+          {
+            name: 'check-baselines',
+            cmd: 'node',
+            args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
+            hint: baselinesDecision.hint ?? CHECK_BASELINES_HINT,
+            ...(baselinesGateEnv ? { env: baselinesGateEnv } : {}),
+          },
+        ]
+      : []),
   ];
 }
 
