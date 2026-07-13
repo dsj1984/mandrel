@@ -25,10 +25,11 @@ The skill library uses a **two-tier architecture**:
 - **`core/`** — Universal, process-driven skills that apply across any project
   (e.g., `core/debugging-and-error-recovery`, `core/test-driven-development`,
   `core/security-and-hardening`). Always check for a relevant core skill first.
-- **`stack/`** — Tech-stack-specific skills for concrete libraries, services,
-  and tools (e.g., `stack/backend/cloudflare-hono-architect`,
-  `stack/frontend/tailwind-v4`, `stack/qa/playwright`). Apply these when the
-  project uses that specific technology.
+- **`stack/`** — Tech-stack-specific skills for concrete tools (e.g.,
+  `stack/qa/playwright`, `stack/qa/vitest`, `stack/qa/gherkin-authoring`).
+  Apply these when the project uses that specific technology. For third-party
+  library and framework knowledge not covered here, use the live-docs lookup
+  mandated in § 1.C rather than a frozen in-repo cache.
 
 When a task involves a specific domain or technology, you MUST read the
 corresponding `.agents/skills/[tier]/[category]/[skill-name]/SKILL.md` file and

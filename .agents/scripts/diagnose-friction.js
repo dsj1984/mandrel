@@ -81,12 +81,6 @@ const FRICTION_RULES = [
     remediation:
       ' - Syntax/parsing error. Check recently modified files for missing brackets, quotes, or invalid structures.',
   },
-  {
-    markers: ['Astro', 'astro'],
-    category: 'Missing Skill',
-    remediation:
-      ' - Framework error: Refer to `.agents/skills/stack/frontend/astro/SKILL.md` for Astro rules.',
-  },
 ];
 
 const FRICTION_DEFAULT = {
