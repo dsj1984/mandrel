@@ -69,14 +69,15 @@ comment, then apply the precedence (highest wins):
 
 - **`fan-out`** → run [`helpers/deliver-epic.md`](helpers/deliver-epic.md)
   Phases 1–9 unchanged (the wave loop fanning out per-Story sub-agents).
-- **`single`** → **stub (M4-A):** for now, continue at
-  [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9 exactly as
-  the fan-out route does. **This is deliberately behavior-preserving** — the
-  reader, the kill-switch, and `epic-deliver-prepare.js --single` all ship
-  inert in this milestone so the change lands reviewably. **M4-B replaces
-  this stub with `helpers/deliver-epic-single.md`** (the one-worktree
-  in-session slice walk reusing Phases 3–9 of the fan-out helper). Until then,
-  a `single` verdict observably delivers exactly like `fan-out`.
+- **`single`** → run
+  [`helpers/deliver-epic-single.md`](helpers/deliver-epic-single.md) (the
+  live flip, M4-B): a one-worktree in-session slice walk (prepare `--single` →
+  ordered `## Delivery Slicing` walk on `epic/<id>` → per-AC-cluster
+  acceptance critics) that **reuses `helpers/deliver-epic.md` Phases 3–9
+  byte-for-byte** for the merge tail. This is now the **default** shape for a
+  single-marked Epic. The kill-switch (`delivery.routing.singleDelivery=false`)
+  still forces this verdict back to `fan-out` — an instant global revert with
+  no code rollback.
 
 ## Segment plan (mixed / multi-Epic input)
 
@@ -94,9 +95,11 @@ Stories, the router composes a **segment plan** and executes the segments
 2. **Epic segments in input order**: each `type::epic` ID forms its own
    segment. Resolve its delivery route (see [Epic delivery-route
    resolution](#epic-delivery-route-resolution)) and run the selected helper
-   unchanged — today every route dispatches
-   [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9 (the
-   `single` route via the M4-A stub).
+   unchanged — the `fan-out` route dispatches
+   [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9, the
+   `single` route dispatches
+   [`helpers/deliver-epic-single.md`](helpers/deliver-epic-single.md) (which
+   reuses that helper's Phases 3–9 for the merge tail).
 
 Sequential execution is a deliberate design decision: the Epic path assumes
 a single main checkout (prepare's checkout guard, Phase 7.0

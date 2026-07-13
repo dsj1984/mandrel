@@ -354,6 +354,12 @@ const ACCEPTANCE_EVAL_SCHEMA = {
       description:
         'Maximum number of redraft rounds the acceptance self-eval loop runs before escalating to agent::blocked when criteria remain unmet. Default 2; clamped into [1, hard ceiling] by the resolver so the cap can never be disabled.',
     },
+    clusterCeiling: {
+      type: 'integer',
+      minimum: 1,
+      description:
+        'Epic #4475 (M4-B). Max acceptance criteria one single-delivery acceptance critic scores in a single fresh-context pass. Single delivery clusters the Epic ## Acceptance Table ACs into ceil(totalACs / clusterCeiling) groups and spawns one maker-blind critic per cluster, restoring the distributed acceptance coverage the per-Story critic fan-out gave for free. Default 4; clamped into [1, 8] by the resolver so a large value cannot collapse the fan-out to a single diluted critic. Ignored on the fan-out route.',
+    },
   },
   additionalProperties: false,
 };

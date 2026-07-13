@@ -41,7 +41,10 @@
 
 import { readFileSync } from 'node:fs';
 
-import { signalsFile } from '../config/temp-paths.js';
+import { epicArtifactPath, signalsFile } from '../config/temp-paths.js';
+
+/** Epic-level signals stream basename (mirrors signals-writer). */
+const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
 
 /**
  * Verdicts that clear a criterion. Anything else (`partial`, `unmet`, or
@@ -168,11 +171,18 @@ export function buildAcceptanceEvalSignal({
   epicId,
   outcome,
   phase = 'implement',
+  clusterId = null,
 }) {
   return {
     kind: 'acceptance-eval',
     epicId: epicId ?? null,
-    storyId,
+    storyId: storyId ?? null,
+    // Epic #4475 (M4-B): single-delivery acceptance critics score an AC
+    // *cluster*, not a Story. `clusterId` scopes the per-cluster round count
+    // on the epic-level signals stream; omitted (null) for the per-Story path.
+    ...(typeof clusterId === 'string' && clusterId.length > 0
+      ? { clusterId }
+      : {}),
     phase,
     emitter: { tool: 'acceptance-eval.js' },
     details: {
@@ -216,13 +226,27 @@ export function buildAcceptanceEvalSignal({
 export function deriveAcceptanceEvalRound({
   epicId,
   storyId,
+  clusterId = null,
   config,
   readFile = (p) => readFileSync(p, 'utf8'),
   signalsPathResolver = signalsFile,
+  epicSignalsPathResolver = (eid, cfg) =>
+    epicArtifactPath(eid, EPIC_SIGNALS_BASENAME, cfg),
 }) {
+  // Epic #4475 (M4-B): single-delivery critics score AC clusters, not
+  // Stories. When `clusterId` is supplied the round is counted per cluster
+  // off the epic-level signals stream; otherwise the per-Story path
+  // (unchanged) counts by `storyId` off the Story's stream.
+  const clusterMode =
+    typeof clusterId === 'string' &&
+    clusterId.length > 0 &&
+    Number.isInteger(epicId);
+
   let text;
   try {
-    text = readFile(signalsPathResolver(epicId ?? null, storyId, config));
+    text = clusterMode
+      ? readFile(epicSignalsPathResolver(epicId, config))
+      : readFile(signalsPathResolver(epicId ?? null, storyId, config));
   } catch (_err) {
     // No ledger yet → no prior rounds.
     return 1;
@@ -240,7 +264,11 @@ export function deriveAcceptanceEvalRound({
     }
     if (!record || typeof record !== 'object') continue;
     if (record.kind !== 'acceptance-eval') continue;
-    if (record.storyId !== storyId) continue;
+    if (clusterMode) {
+      if (record.clusterId !== clusterId) continue;
+    } else if (record.storyId !== storyId) {
+      continue;
+    }
     priorRounds += 1;
   }
   return priorRounds + 1;

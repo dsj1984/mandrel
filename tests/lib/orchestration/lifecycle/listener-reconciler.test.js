@@ -29,11 +29,12 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { write as writeEpicRunState } from '../../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   AcceptanceReconciler,
   classifyReconcileResult,
+  defaultResolveSingle,
 } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
 
 function quietLogger() {
@@ -103,6 +104,45 @@ describe('classifyReconcileResult', () => {
     const out = classifyReconcileResult({ status: 'mystery' });
     assert.equal(out.outcome, 'failed');
     assert.match(out.reason, /unknown-status/);
+  });
+
+  // Epic #4475 (M4-B, §2c): the non-waivable epic reconcile back gate.
+  it('waived → waived on the fan-out route (single omitted / false)', () => {
+    assert.equal(
+      classifyReconcileResult({ status: 'waived' }).outcome,
+      'waived',
+    );
+    assert.equal(
+      classifyReconcileResult({ status: 'waived' }, { single: false }).outcome,
+      'waived',
+    );
+  });
+
+  it('waived → FAILED under single delivery (non-waivable)', () => {
+    const out = classifyReconcileResult({ status: 'waived' }, { single: true });
+    assert.equal(out.outcome, 'failed');
+    assert.match(out.reason, /single-delivery-non-waivable/);
+  });
+
+  it('single: true does not change ok / gap / empty-spec classification', () => {
+    assert.equal(
+      classifyReconcileResult({ status: 'ok' }, { single: true }).outcome,
+      'ok',
+    );
+    assert.equal(
+      classifyReconcileResult({ status: 'empty-spec' }, { single: true })
+        .outcome,
+      'skipped',
+    );
+    assert.equal(
+      classifyReconcileResult(
+        { status: 'gap', missing: ['AC-1'] },
+        {
+          single: true,
+        },
+      ).outcome,
+      'failed',
+    );
   });
 });
 
@@ -263,6 +303,73 @@ describe('AcceptanceReconciler (bus integration)', () => {
     assert.ok(dup, 'duplicate seqId logged as skipped');
   });
 
+  it('single delivery: a waived reconcile emits .failed + epic.blocked, never .waived', async () => {
+    const { bus, emits } = recordingBus();
+    const reconciler = new AcceptanceReconciler({
+      bus,
+      epicId: 4475,
+      reconcileAcceptanceSpecFn: async () => ({ status: 'waived' }),
+      resolveSingleFn: async () => true, // single-delivery Epic
+      logger: quietLogger(),
+    });
+    reconciler.register();
+
+    await bus.emit('epic.close.end', { epicId: 4475 });
+
+    const ordered = emits.map((e) => e.event);
+    assert.ok(
+      !ordered.includes('acceptance.reconcile.waived'),
+      'single delivery must NOT pass a waived reconcile through',
+    );
+    const failedIdx = ordered.indexOf('acceptance.reconcile.failed');
+    const blockedIdx = ordered.indexOf('epic.blocked');
+    assert.ok(failedIdx !== -1 && blockedIdx !== -1);
+    assert.ok(failedIdx < blockedIdx, '.failed precedes epic.blocked');
+    const failed = emits.find((e) => e.event === 'acceptance.reconcile.failed');
+    assert.match(failed.payload.reason, /single-delivery-non-waivable/);
+  });
+
+  it('fan-out: a waived reconcile still passes through to .waived (no regression)', async () => {
+    const { bus, emits } = recordingBus();
+    const reconciler = new AcceptanceReconciler({
+      bus,
+      epicId: 2172,
+      reconcileAcceptanceSpecFn: async () => ({ status: 'waived' }),
+      resolveSingleFn: async () => false, // fan-out Epic
+      logger: quietLogger(),
+    });
+    reconciler.register();
+
+    await bus.emit('epic.close.end', { epicId: 2172 });
+
+    const ordered = emits.map((e) => e.event);
+    assert.deepEqual(ordered, [
+      'acceptance.reconcile.start',
+      'acceptance.reconcile.waived',
+    ]);
+    assert.ok(!ordered.includes('epic.blocked'));
+  });
+
+  it('a resolveSingleFn that throws degrades to fan-out (never invents a block)', async () => {
+    const { bus, emits } = recordingBus();
+    const reconciler = new AcceptanceReconciler({
+      bus,
+      epicId: 2172,
+      reconcileAcceptanceSpecFn: async () => ({ status: 'waived' }),
+      resolveSingleFn: async () => {
+        throw new Error('probe failed');
+      },
+      logger: quietLogger(),
+    });
+    reconciler.register();
+
+    await bus.emit('epic.close.end', { epicId: 2172 });
+
+    const ordered = emits.map((e) => e.event);
+    assert.ok(ordered.includes('acceptance.reconcile.waived'));
+    assert.ok(!ordered.includes('epic.blocked'));
+  });
+
   it('records a classification entry for every observed event (no silent skip)', async () => {
     const { bus } = recordingBus();
     let toggle = 'ok';
@@ -283,5 +390,63 @@ describe('AcceptanceReconciler (bus integration)', () => {
     assert.equal(reconciler.classifications.length, 3);
     const outcomes = reconciler.classifications.map((c) => c.outcome);
     assert.deepEqual(outcomes, ['ok', 'waived', 'failed']);
+  });
+});
+
+describe('defaultResolveSingle — delivery-shape probe (Epic #4475)', () => {
+  function commentProvider({ labels = [] } = {}) {
+    let autoId = 1;
+    const comments = new Map();
+    return {
+      async getTicket() {
+        return { labels };
+      },
+      async getTicketComments(ticketId) {
+        return comments.get(ticketId) ?? [];
+      },
+      async postComment(ticketId, payload) {
+        const list = comments.get(ticketId) ?? [];
+        const c = { id: autoId++, body: payload.body };
+        list.push(c);
+        comments.set(ticketId, list);
+        return c;
+      },
+      async deleteComment(commentId) {
+        for (const [, list] of comments) {
+          const idx = list.findIndex((c) => c.id === commentId);
+          if (idx !== -1) list.splice(idx, 1);
+        }
+      },
+    };
+  }
+
+  it('null provider degrades to false (fan-out)', async () => {
+    assert.equal(
+      await defaultResolveSingle({ provider: null, epicId: 4475 }),
+      false,
+    );
+  });
+
+  it('true when the epic-run-state checkpoint deliveryShape is "single"', async () => {
+    const provider = commentProvider({ labels: [] });
+    await writeEpicRunState({
+      provider,
+      epicId: 4475,
+      state: { epicId: 4475, deliveryShape: 'single', slices: {} },
+    });
+    assert.equal(await defaultResolveSingle({ provider, epicId: 4475 }), true);
+  });
+
+  it('true off the delivery::single label when the checkpoint is not single', async () => {
+    const provider = commentProvider({
+      labels: ['type::epic', 'delivery::single'],
+    });
+    // No checkpoint written → falls through to the label probe.
+    assert.equal(await defaultResolveSingle({ provider, epicId: 4475 }), true);
+  });
+
+  it('false for a fan-out Epic (no checkpoint shape, no label)', async () => {
+    const provider = commentProvider({ labels: ['type::epic'] });
+    assert.equal(await defaultResolveSingle({ provider, epicId: 4475 }), false);
   });
 });

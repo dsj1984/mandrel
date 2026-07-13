@@ -204,6 +204,8 @@ const KEY_MEANINGS = Object.freeze({
     'Whether a dedicated refactor stage runs during delivery.',
   'delivery.acceptanceEval.maxRounds':
     'Redraft rounds the per-Story acceptance self-eval loop runs before escalating to agent::blocked (default 2; clamped to a hard ceiling that cannot be disabled).',
+  'delivery.acceptanceEval.clusterCeiling':
+    'Max acceptance criteria one single-delivery acceptance critic scores per fresh-context pass; the Epic ACs are split into ceil(totalACs / clusterCeiling) maker-blind critic clusters (default 4; clamped to [1, 8]).',
 
   // qa.*
   'qa.featureRoot': 'Root directory holding the QA harness .feature files.',
