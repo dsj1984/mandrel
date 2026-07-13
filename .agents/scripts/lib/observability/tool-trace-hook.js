@@ -48,6 +48,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { emitHeartbeatFromHook } from './hook-heartbeat.js';
 import { appendTrace } from './signals-writer.js';
 
 /**
@@ -381,15 +382,25 @@ export async function handlePost(event, active) {
  */
 export async function main(event) {
   try {
-    const active = resolveActiveStory();
-    if (!active) return; // No active Story => zero filesystem calls.
     if (!event || typeof event !== 'object') return;
+    const active = resolveActiveStory();
 
     const phase = event.hook_event_name;
     if (phase === 'PreToolUse') {
-      handlePre(event);
+      // Pre-pairing only matters for the trace-line duration, which only
+      // the Story-scoped trace path records; slice-only context (single
+      // delivery) needs no Pre.
+      if (active) handlePre(event);
     } else if (phase === 'PostToolUse') {
-      await handlePost(event, active);
+      if (active) await handlePost(event, active);
+      // Heartbeat OFF the token stream (Epic #4476 M5). A throttled
+      // story.heartbeat / slice.heartbeat, keyed off the same active-Story /
+      // active-slice env vars, so the §2e Idle Watchdog's forward-progress
+      // signal is a free byproduct of ANY tool call — no dedicated
+      // bookkeeping LLM turn. Best-effort and self-guarded; resolves its own
+      // target (fires for slice context even when `active` is null because
+      // there is no CC_STORY_ID under single delivery).
+      emitHeartbeatFromHook();
     }
     // Any other phase is silently ignored — the hook is registered for
     // Pre/Post only; receiving anything else is a configuration error

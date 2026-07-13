@@ -25,6 +25,7 @@ import {
   branchLastCommitMs,
   buildWaveStallEnvelope,
   readLedgerLastEvents,
+  readLedgerSliceEvents,
   runCheckIdle,
 } from '../../.agents/scripts/wave-tick.js';
 
@@ -244,6 +245,125 @@ test('runCheckIdle returns zero stalled when recent heartbeat present', () => {
   assert.equal(stalledCount, 0);
   assert.deepEqual(envelope.stalled, []);
   assert.deepEqual(envelope.inFlight, [201]);
+});
+
+// ── Single-delivery slice liveness (Epic #4476, M5) ──────────────────────
+
+test('readLedgerSliceEvents tracks in-flight slices and skips ended ones', () => {
+  const tmp = makeTmpDir();
+  const ledger = path.join(tmp, 'lifecycle.ndjson');
+  writeLedger(ledger, [
+    emitted(
+      'slice.start',
+      { epicId: 9, sliceId: 'slice-1' },
+      '2026-05-26T19:00:00.000Z',
+    ),
+    emitted(
+      'slice.heartbeat',
+      { epicId: 9, sliceId: 'slice-1', phase: 'implementing' },
+      '2026-05-26T19:05:00.000Z',
+    ),
+    emitted(
+      'slice.start',
+      { epicId: 9, sliceId: 'slice-2' },
+      '2026-05-26T18:50:00.000Z',
+    ),
+    emitted(
+      'slice.end',
+      { epicId: 9, sliceId: 'slice-2', outcome: 'done' },
+      '2026-05-26T18:55:00.000Z',
+    ),
+  ]);
+
+  const events = readLedgerSliceEvents(ledger);
+  // slice-2 has a matching end — excluded.
+  assert.equal(events.has('slice-2'), false);
+  // slice-1 in-flight; the heartbeat is its latest event.
+  assert.equal(events.get('slice-1'), '2026-05-26T19:05:00.000Z');
+});
+
+test('buildWaveStallEnvelope flags a stalled slice and leaves story fields empty', () => {
+  const now = new Date('2026-05-26T19:15:00.000Z');
+  const sliceEvents = new Map([['slice-1', '2026-05-26T19:00:00.000Z']]); // 15m idle
+  const envelope = buildWaveStallEnvelope({
+    epicId: 9,
+    thresholdMinutes: 10,
+    lastEvents: new Map(),
+    now,
+    sliceEvents,
+    // No commit on epic-9 → ledger staleness governs.
+    epicBranchActivity: () => null,
+  });
+  assert.deepEqual(envelope.inFlight, []);
+  assert.deepEqual(envelope.stalled, []);
+  assert.deepEqual(envelope.inFlightSlices, ['slice-1']);
+  assert.equal(envelope.stalledSlices.length, 1);
+  assert.equal(envelope.stalledSlices[0].sliceId, 'slice-1');
+});
+
+test('buildWaveStallEnvelope: a recent epic-branch commit clears a slice stall', () => {
+  const now = new Date('2026-05-26T19:15:00.000Z');
+  const sliceEvents = new Map([['slice-1', '2026-05-26T19:00:00.000Z']]);
+  const recentCommitMs = now.getTime() - 60 * 1000; // committed 1m ago
+  const envelope = buildWaveStallEnvelope({
+    epicId: 9,
+    thresholdMinutes: 10,
+    lastEvents: new Map(),
+    now,
+    sliceEvents,
+    epicBranchActivity: () => recentCommitMs,
+  });
+  assert.deepEqual(envelope.stalledSlices, []);
+  assert.deepEqual(envelope.inFlightSlices, ['slice-1']);
+});
+
+test('runCheckIdle: a fresh hook-emitted slice.heartbeat clears the single-delivery stall', () => {
+  const tmp = makeTmpDir();
+  const ledger = path.join(tmp, 'lifecycle.ndjson');
+  const now = new Date('2026-05-26T19:15:00.000Z');
+  writeLedger(ledger, [
+    emitted(
+      'slice.start',
+      { epicId: 9, sliceId: 'slice-1' },
+      '2026-05-26T18:00:00.000Z',
+    ),
+    // Hook-emitted heartbeat 2 minutes ago → session is alive.
+    emitted(
+      'slice.heartbeat',
+      { epicId: 9, sliceId: 'slice-1', phase: 'implementing' },
+      new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
+    ),
+  ]);
+  const { stalledCount, envelope } = runCheckIdle({
+    epicId: 9,
+    thresholdMinutes: 10,
+    ledgerPath: ledger,
+    now,
+    epicBranchActivity: () => null,
+  });
+  assert.equal(stalledCount, 0);
+  assert.deepEqual(envelope.inFlightSlices, ['slice-1']);
+});
+
+test('runCheckIdle: a silent single-delivery slice is flagged (non-zero stalledCount)', () => {
+  const tmp = makeTmpDir();
+  const ledger = path.join(tmp, 'lifecycle.ndjson');
+  writeLedger(ledger, [
+    emitted(
+      'slice.start',
+      { epicId: 9, sliceId: 'slice-1' },
+      '2026-05-26T18:00:00.000Z',
+    ),
+  ]);
+  const { stalledCount, envelope } = runCheckIdle({
+    epicId: 9,
+    thresholdMinutes: 10,
+    ledgerPath: ledger,
+    now: new Date('2026-05-26T19:00:00.000Z'),
+    epicBranchActivity: () => null,
+  });
+  assert.equal(stalledCount, 1);
+  assert.equal(envelope.stalledSlices[0].sliceId, 'slice-1');
 });
 
 function makeIsolatedRoot() {

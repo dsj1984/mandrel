@@ -40,6 +40,9 @@
  *   --phase <init|implementing|closing|blocked|done>
  *                                        Heartbeat phase (default implementing).
  *   --duration-ms <n>                    Slice duration for --event end.
+ *   --work-cwd <path>                    Single worktree root for the
+ *                                        active-slice env export (--event
+ *                                        start). Defaults to the process cwd.
  *   --no-emit                            Suppress the ledger emit (tests).
  *
  * Stdout: a single JSON envelope
@@ -51,6 +54,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { setActiveSliceEnv } from './lib/observability/active-story-env.js';
 import { recordSliceStatus } from './lib/orchestration/epic-run-state-store.js';
 import {
   emitSliceEnd,
@@ -184,6 +188,7 @@ export async function runSlicePhase(args) {
     provider: providerOverride,
     config: configOverride,
     ledgerPath: ledgerPathOverride,
+    workCwd: workCwdOverride,
     now = new Date(),
   } = args ?? {};
 
@@ -212,6 +217,36 @@ export async function runSlicePhase(args) {
   const config = configOverride ?? (providerOverride ? null : resolveConfig());
   const operator = normalizeOperatorHandle(config?.github?.operatorHandle);
   const timestamp = now.toISOString();
+
+  // Epic #4476 (M5): at each slice boundary START, export the active-slice
+  // env (`CC_EPIC_ID` / `CC_SLICE_ID` / `CC_OPERATOR`) into the single
+  // worktree's `.env.local` so the PostToolUse hook emits `slice.heartbeat`
+  // off the token stream for the duration of this slice — no per-step
+  // heartbeat CLI turn. Best-effort: a write failure never blocks the slice.
+  // Gated on an explicit `workCwd` (the CLI supplies `process.cwd()`); a bare
+  // `runSlicePhase` call in a unit test passes none and never touches the env
+  // or writes a `.env.local`.
+  let sliceEnvWritten = false;
+  if (
+    event === 'start' &&
+    typeof workCwdOverride === 'string' &&
+    workCwdOverride.length > 0
+  ) {
+    try {
+      const res = setActiveSliceEnv({
+        epicId,
+        sliceId,
+        ...(operator ? { operator } : {}),
+        workCwd: workCwdOverride,
+        logger: Logger,
+      });
+      sliceEnvWritten = res.fileWritten;
+    } catch (err) {
+      Logger.warn(
+        `[slice-phase] active-slice env export failed (continuing): ${err.message}`,
+      );
+    }
+  }
 
   let emitted = false;
   let ledgerPath = null;
@@ -260,6 +295,7 @@ export async function runSlicePhase(args) {
     ledgerPath,
     recorded,
     status,
+    sliceEnvWritten,
   };
 }
 
@@ -276,6 +312,7 @@ export function parseArgv(argv) {
       title: { type: 'string' },
       phase: { type: 'string' },
       'duration-ms': { type: 'string' },
+      'work-cwd': { type: 'string' },
       'no-emit': { type: 'boolean' },
       help: { type: 'boolean' },
     },
@@ -292,6 +329,9 @@ export function parseArgv(argv) {
   if (typeof values.record === 'string') parsed.record = values.record;
   if (typeof values.title === 'string') parsed.title = values.title;
   if (typeof values.phase === 'string') parsed.phase = values.phase;
+  if (typeof values['work-cwd'] === 'string' && values['work-cwd']) {
+    parsed.workCwd = values['work-cwd'];
+  }
   if (values['slice-index'] !== undefined) {
     parsed.sliceIndex = Number.parseInt(values['slice-index'], 10);
   }
@@ -307,7 +347,14 @@ export async function main(argv = process.argv.slice(2)) {
     process.stdout.write(HELP);
     return;
   }
-  const envelope = await runSlicePhase(parsed);
+  // The CLI runs from inside the single worktree (the executor `cd`s there),
+  // so default the active-slice env target to the process cwd unless an
+  // explicit --work-cwd overrides it. runSlicePhase only writes the
+  // `.env.local` for --event start.
+  const envelope = await runSlicePhase({
+    ...parsed,
+    workCwd: parsed.workCwd ?? process.cwd(),
+  });
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
 }
 

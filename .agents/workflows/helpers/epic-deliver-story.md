@@ -161,6 +161,14 @@ Run a single Story-implementation phase against the inline `acceptance[]`
      --phase implementing
    ```
 
+   > **Liveness between transitions is free (Epic #4476).** These
+   > `story-phase.js` calls fire only at genuine phase transitions (a few per
+   > Story) and each renders the snapshot + stamps an operator-bearing
+   > `story.heartbeat`. You do **not** add extra `story-phase.js` calls
+   > mid-`implementing` just to prove you are alive: the PostToolUse hook emits
+   > a throttled `story.heartbeat` off the token stream on every tool call, so
+   > the §2e Idle Watchdog sees continuous forward progress for free.
+
 2. Read the Story body's inline `acceptance[]` and `verify[]` arrays
    from the `story-init` structured comment (`context.acceptance`,
    `context.verify`). Treat the acceptance items as the contract and
