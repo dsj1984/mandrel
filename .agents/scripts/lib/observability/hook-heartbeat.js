@@ -48,7 +48,7 @@ import { emitStoryHeartbeat } from '../orchestration/lifecycle/emit-story-heartb
  * threshold, so an actively-working agent never trips a false stall, while
  * still bounding ledger growth to ~1 line/minute of activity.
  */
-export const HEARTBEAT_MIN_INTERVAL_MS = 60_000;
+const HEARTBEAT_MIN_INTERVAL_MS = 60_000;
 
 /**
  * Resolve the heartbeat target from the active-Story / active-slice env vars.

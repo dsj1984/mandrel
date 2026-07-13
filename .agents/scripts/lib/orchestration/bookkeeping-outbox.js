@@ -43,7 +43,7 @@ import { upsertStructuredComment } from './ticketing/state.js';
 import { transitionTicketState } from './ticketing/transition.js';
 
 /** Canonical basename for the per-Epic bookkeeping outbox. */
-export const OUTBOX_BASENAME = 'bookkeeping-outbox.ndjson';
+const OUTBOX_BASENAME = 'bookkeeping-outbox.ndjson';
 
 /**
  * Resolve the canonical outbox path for an Epic:
