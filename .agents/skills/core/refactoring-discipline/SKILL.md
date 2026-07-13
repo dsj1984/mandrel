@@ -27,12 +27,9 @@ description:
 CRAP (Change Risk Anti-Patterns) flags functions that are both complex and
 under-tested; duplication multiplies the cost of every future change. This
 skill is the disciplined, **behaviour-preserving** pass that drives those two
-metrics down *after* the code is green — the post-green stage owned by the
-[`refactorer`](../../../personas/refactorer.md) persona and wired in as the
-opt-in `delivery.refactorStage` checkpoint. It complements
-[`core/code-simplification`](../code-simplification/SKILL.md): simplification
-optimises for human comprehension; this skill optimises for the measured
-CRAP and duplication axes the baselines ratchet.
+metrics down *after* the code is green — the post-green stage wired in as the
+opt-in `delivery.refactorStage` checkpoint. It optimises for the measured CRAP
+and duplication axes the baselines ratchet, not for subjective readability.
 
 ## When to Use
 
@@ -43,11 +40,9 @@ CRAP and duplication axes the baselines ratchet.
 - An opt-in `delivery.refactorStage` checkpoint runs after gates pass and
   before a story closes.
 
-**When NOT to use:** before tests are green (write/fix tests first); when a
+**When NOT to use:** before tests are green (write/fix tests first); or when a
 high-CRAP function is high because it is *uncovered* (that is a missing-test
-problem — use `core/test-driven-development` or
-`core/mutation-survivor-remediation`); or for pure clarity tweaks with no
-metric impact (use `core/code-simplification`).
+problem — use `core/test-driven-development`).
 
 ## The Refactor Loop
 

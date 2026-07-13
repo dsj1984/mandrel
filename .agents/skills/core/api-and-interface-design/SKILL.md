@@ -19,7 +19,7 @@ description:
 - Define the contract before implementing — interfaces are the spec; implementation follows.
 - Validate at system **boundaries** (API routes, form handlers, env-var loaders, third-party responses) using a strict schema. After validation, internal code trusts the types; do not re-validate between internal functions.
 - Treat third-party API responses as untrusted data — validate shape and content before using them in any decision, render, or logic path.
-- Prefer **addition over modification**: extend interfaces with optional fields rather than changing existing types or removing fields; reach for the deprecation playbook (see `deprecation-and-migration`) when removal is unavoidable.
+- Prefer **addition over modification**: extend interfaces with optional fields rather than changing existing types or removing fields. When removal is unavoidable, use an expand–contract migration — ship the replacement, migrate consumers, then remove the old surface in a later release.
 - Follow REST resource conventions (`GET/POST/PATCH/DELETE /resource`, sub-resources at `/resource/:id/child`) and paginate every list endpoint with `page` + `pageSize` query params and a `pagination` envelope.
 - Security input-validation and test-tier MUSTs come from `.agents/rules/security-baseline.md` and `.agents/rules/testing-standards.md` respectively — apply both, and never put DB/wire-shape assertions outside the contract tier.
 
@@ -55,8 +55,10 @@ ordering — becomes a de facto contract once users depend on it. Implications:
   potential commitment.
 - **Don't leak implementation details.** If users can observe it, they will
   depend on it.
-- **Plan for deprecation at design time.** See `deprecation-and-migration`
-  for how to safely remove things users depend on.
+- **Plan for deprecation at design time.** Remove things users depend on via
+  expand–contract: add the replacement, migrate consumers behind a deprecation
+  window, then delete the old surface — never break a published contract in one
+  step.
 - **Tests are not enough.** Even with perfect contract tests, "safe" changes
   can break real users who depend on undocumented behavior.
 
