@@ -281,35 +281,35 @@ below applies only to the rare, policy-compliant N>1 runs.
 > must end green (`npm test`, `lint`, `docs:check`, `check:context-budget`,
 > `check-dead-exports`). Deletion inventory grounded against `mandrel-v1.94.0`.
 
-**Stage 0 — Setup & decisions**
+#### Stage 0 — Setup & decisions
 
 - [x] `v2` branch created off `main` (1.94.0)
 - [x] Three open design questions resolved (run epilogue · spec spill-to-doc · drop `retro` role)
 - [x] Staged checklist committed to `roadmap.md`
 
-**Stage 1 — New v2 machinery (additive; TDD; breaks nothing)**
+#### Stage 1 — New v2 machinery (additive; TDD; breaks nothing)
 
 - [ ] Split-policy validator — plan-time **no-orphan-AC split rejector** (new module + unit tests): every AC maps to exactly one Story or the plan is refused
 - [ ] Run-epilogue scaffold — the `/deliver --run` closeout entry (per-run audit sweep + retro + sibling-coherence), inert until Stage 4 wires it
 - [ ] Spec spill-to-doc — helper that spills an over-budget folded spec to `docs/specs/<storyId>.md` and links it from the body (+ tests)
 
-**Stage 2 — Sizing removal**
+#### Stage 2 — Sizing removal
 
 - [ ] Delete/replace `DEFAULT_TASK_SIZING`; per-Story file/AC ceilings → a model-capacity split advisory; update `ticket-validator-sizing.js` + consumers + tests
 
-**Stage 3 — Planning collapse**
+#### Stage 3 — Planning collapse
 
 - [ ] `/plan` → single path: delete the `plan-epic.md`/`plan-story.md` fork, the scope-triage `epic|story` verdict, and `deliveryShape`
 - [ ] Author step emits **1 Story by default**; split policy wired to the Stage-1 validator
 - [ ] `plan-persist` → flat Story ops (drop epic tree cascades); Story body absorbs the folded spec; drop `epic-spec.schema.json`
 
-**Stage 4 — Delivery collapse**
+#### Stage 4 — Delivery collapse
 
 - [ ] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the `deliver-epic*` tier prose
 - [ ] Branch model: `story-<id>` → PR → `main`; delete the epic integration branch + `--no-ff` wave merges
 - [ ] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js`) + the per-run epilogue; minimal `depends_on` sequencer for N>1
 
-**Stage 5 — Deletion sweep**
+#### Stage 5 — Deletion sweep
 
 - [ ] Wave/dispatch engine (`dispatcher.js`, `dispatch-*`, `wave-*`, `manifest-builder.js`)
 - [ ] Epic lifecycle/reconcile/lease scripts + `epic-runner/`, `epic-spec-reconciler-*`
@@ -317,7 +317,7 @@ below applies only to the rare, policy-compliant N>1 runs.
 - [ ] Re-key epic-scoped → run-scoped (`docs-digest`, `bookkeeping-outbox`, `temp/epic-*` → `temp/run-*`)
 - [ ] Delete `type::epic` label + Persona tier (`context-hydration-engine.js` + files)
 
-**Stage 6 — Docs, config, gates, release**
+#### Stage 6 — Docs, config, gates, release
 
 - [ ] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
 - [ ] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
