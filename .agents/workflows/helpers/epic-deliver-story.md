@@ -13,9 +13,10 @@ caller: epic-deliver.md
 
 > **Not a slash command.** This file lives in `helpers/` and is not projected
 > into the mandrel plugin command tree. It is invoked exclusively by the
-> [`/deliver`](deliver-epic.md) per-wave fan-out via an `Agent` tool
-> call (`subagent_type: general-purpose`). Run `/deliver <epicId>` from
-> the operator surface, not this helper directly.
+> [`/deliver`](deliver-epic.md) per-wave fan-out via an `Agent` tool call —
+> `subagent_type: story-worker` when `delivery.routing.roleScopedAgents` is on
+> (the default), else `subagent_type: general-purpose` (Epic #4478, M7-B). Run
+> `/deliver <epicId>` from the operator surface, not this helper directly.
 
 ## Overview
 

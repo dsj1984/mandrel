@@ -249,7 +249,17 @@ Each Agent call:
 4. Requests the child suppress per-phase chat relay and include its
    **terminal** `renderedBody` in the JSON return.
 
-Use `subagent_type: general-purpose`.
+**Sub-agent type (Epic #4478, M7-B).** When `delivery.routing.roleScopedAgents`
+is enabled (the **default**), dispatch each Story child with
+`subagent_type: story-worker` — it boots on the role-scoped
+[`story-worker`](../../agents/story-worker.md) context (its own system prompt,
+no `CLAUDE.md` @-closure) which carries every load-bearing delivery MUST
+standalone, so the spawn stops re-paying the always-loaded context. When the
+kill-switch is **off** (`delivery.routing.roleScopedAgents: false`), fall back
+to `subagent_type: general-purpose` — the instant, code-rollback-free revert and
+the universal escape for hosts that ignore `.claude/agents/`. The child still
+runs [`helpers/epic-deliver-story`](epic-deliver-story.md) either way; only the
+boot context differs.
 
 ### 2b′. Collect each return and re-tick
 

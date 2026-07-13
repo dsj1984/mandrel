@@ -24,6 +24,12 @@ import { applyQualityBootstrap } from './quality-bootstrap.js';
 
 export const SYNC_COMMAND = 'node .agents/scripts/sync-claude-commands.js';
 
+// Epic #4478 (M7-B). The role-scoped agent projection runs in every place the
+// command projection does — `sync:agents` script, `prepare`, and the bootstrap
+// `sync` phase (`runSyncCommands`) — so `.claude/agents/*.md` materializes for
+// hosts that read it, exactly as `.claude/commands/*.md` does.
+export const SYNC_AGENTS_COMMAND = 'node .agents/scripts/sync-claude-agents.js';
+
 export const BOOTSTRAP_COMMAND = 'node .agents/scripts/bootstrap.js';
 
 /**
@@ -202,6 +208,7 @@ export function ensurePackageJson(ctx) {
   const outcomes = {
     created: false,
     scriptsSyncCommands: 'already-present',
+    scriptsSyncAgents: 'already-present',
     scriptsPrepare: 'already-present',
     scriptsBootstrap: 'already-present',
   };
@@ -220,13 +227,29 @@ export function ensurePackageJson(ctx) {
     pkg.scripts['sync:commands'] = SYNC_COMMAND;
     outcomes.scriptsSyncCommands = 'added';
   }
+  if (!pkg.scripts['sync:agents']) {
+    pkg.scripts['sync:agents'] = SYNC_AGENTS_COMMAND;
+    outcomes.scriptsSyncAgents = 'added';
+  }
   const prepare = pkg.scripts.prepare;
   if (!prepare) {
-    pkg.scripts.prepare = SYNC_COMMAND;
+    pkg.scripts.prepare = `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`;
     outcomes.scriptsPrepare = 'added';
-  } else if (!prepare.includes('sync-claude-commands.js')) {
-    pkg.scripts.prepare = `${prepare} && ${SYNC_COMMAND}`;
-    outcomes.scriptsPrepare = 'appended';
+  } else {
+    // Append each projection independently so an existing prepare that already
+    // carries the command sync still gains the agent sync on the next bootstrap
+    // (and both are idempotent — a prepare carrying both is left untouched).
+    let next = prepare;
+    if (!next.includes('sync-claude-commands.js')) {
+      next = `${next} && ${SYNC_COMMAND}`;
+    }
+    if (!next.includes('sync-claude-agents.js')) {
+      next = `${next} && ${SYNC_AGENTS_COMMAND}`;
+    }
+    if (next !== prepare) {
+      pkg.scripts.prepare = next;
+      outcomes.scriptsPrepare = 'appended';
+    }
   }
   // Expose a discoverable `npm run bootstrap` alias for the framework
   // setup command. An operator-defined `bootstrap` script always wins —
@@ -238,6 +261,7 @@ export function ensurePackageJson(ctx) {
   const mutated =
     outcomes.created ||
     outcomes.scriptsSyncCommands === 'added' ||
+    outcomes.scriptsSyncAgents === 'added' ||
     outcomes.scriptsPrepare !== 'already-present' ||
     outcomes.scriptsBootstrap === 'added';
   if (mutated) writeJson(pkgPath, pkg, fsImpl);
@@ -482,25 +506,39 @@ function ensureIssueFormsPhase(ctx) {
  */
 export function runSyncCommands(ctx) {
   const { spawnImpl = defaultSpawnSync } = ctx;
-  const script = path.join(
+  const scriptsDir = path.join(
     ctx.agentRoot ?? path.join(ctx.projectRoot, '.agents'),
     'scripts',
-    'sync-claude-commands.js',
   );
-  const result = spawnImpl(process.execPath, [script], {
-    cwd: ctx.projectRoot,
-    encoding: 'utf8',
-  });
-  if (result.status !== 0) {
-    throw new Error(
-      `[Bootstrap] sync-claude-commands.js failed (exit ${result.status}): ${(
-        result.stderr ?? ''
-      )
-        .trim()
-        .slice(0, 400)}`,
+  // Both projections run here (Epic #4478, M7-B): the command tree AND the
+  // role-scoped agent tree, so `mandrel sync` / the postinstall path
+  // materializes `.claude/agents/*.md` alongside `.claude/commands/*.md`.
+  const projections = [
+    { label: 'sync-claude-commands.js', script: 'sync-claude-commands.js' },
+    { label: 'sync-claude-agents.js', script: 'sync-claude-agents.js' },
+  ];
+  const stdouts = [];
+  for (const { label, script } of projections) {
+    const result = spawnImpl(
+      process.execPath,
+      [path.join(scriptsDir, script)],
+      {
+        cwd: ctx.projectRoot,
+        encoding: 'utf8',
+      },
     );
+    if (result.status !== 0) {
+      throw new Error(
+        `[Bootstrap] ${label} failed (exit ${result.status}): ${(
+          result.stderr ?? ''
+        )
+          .trim()
+          .slice(0, 400)}`,
+      );
+    }
+    stdouts.push((result.stdout ?? '').trim());
   }
-  return { ok: true, stdout: (result.stdout ?? '').trim() };
+  return { ok: true, stdout: stdouts.filter(Boolean).join('\n') };
 }
 
 /**
