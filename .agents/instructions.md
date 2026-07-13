@@ -106,12 +106,17 @@ does not re-pay their bytes on every turn.
 - **Always-on core** (loaded alongside this file):
   - [`rules/security-baseline.md`](rules/security-baseline.md) — inviolable
     security MUSTs; applies to every piece of code generated.
-  - [`rules/git-conventions.md`](rules/git-conventions.md) — every commit,
-    branch, and PR touches it.
+  - [`rules/git-conventions.md`](rules/git-conventions.md) — the always-on git
+    core (branch shapes, commit-subject format, `refs #`, push/hygiene MUSTs);
+    every commit, branch, and PR touches it.
 
 - **On-demand** — read the file **before** doing the matching work; each opens
   with a one-line "this rule applies when…" scope header, so skimming its first
   paragraph confirms whether it governs the task at hand:
+  - [`rules/git-conventions-reference.md`](rules/git-conventions-reference.md)
+    — the git-history mechanics the core summarizes: hard-cutover policy, the
+    push-hook false-negative signature, shared-checkout contention, the
+    docs-freshness gate, and `meta::*` routing labels.
   - [`rules/shell-conventions.md`](rules/shell-conventions.md) — before
     chaining shell commands or writing cross-platform command strings.
   - [`rules/testing-standards.md`](rules/testing-standards.md) — before
@@ -148,27 +153,22 @@ technology context is intentionally kept out of `.agentrc.json`.
 
 ### H. Observability & Friction Telemetry
 
-You MUST log telemetry about any operational difficulty or automation
-opportunity you encounter. Friction is a **local NDJSON signal**:
-`diagnose-friction.js` appends one canonical `kind: friction` record to the
-per-Epic/per-Story `signals.ndjson` stream on local disk (validated
-write-time against `signal-event.schema.json`; the retro roll-up reads it
-back). It is not posted to the GitHub ticket at capture time — the retro
-phase is what surfaces the aggregated friction as routed proposals.
+You MUST log telemetry about operational difficulty or automation
+opportunities you hit. Friction is a **local NDJSON signal**:
+`diagnose-friction.js` appends one `kind: friction` record to the per-Epic/
+per-Story `signals.ndjson` stream on local disk — not posted to the ticket at
+capture time; the retro phase surfaces the aggregate as routed proposals.
 
 - **Command**:
   `node .agents/scripts/diagnose-friction.js --story [STORY_ID] --cmd [FAILED_COMMAND]`
-  (add `--epic [EPIC_ID]` when the Story sits under an Epic)
-- **When to fire**: After consecutive tool validation errors, unrecoverable
-  command failures, or ambiguity requiring explicit self-correction. Also
-  after repetitive sequences of commands or boilerplate-heavy steps that
-  could be simplified by a workflow or skill.
-- **No-Epic context**: Outside an Epic/Story loop there is no per-Epic
-  stream to anchor to, so the record lands on the **standalone signal
-  stream** (`temp/standalone/stories/story-<sid>/signals.ndjson`) under the
-  same canonical schema. The signal is never silently dropped — a
-  best-effort write failure is logged, not swallowed into a promise of a
-  side-file that no reader consumes.
+  (add `--epic [EPIC_ID]` under an Epic).
+- **When to fire**: after repeated tool-validation errors, an unrecoverable
+  command failure, ambiguity needing self-correction, or repetitive
+  boilerplate steps a workflow/skill could simplify.
+
+The schema validation, the standalone (no-Epic) stream path, and the
+never-silently-dropped guarantee are reference detail — see
+[`docs/execution-reference.md` § Friction telemetry](docs/execution-reference.md#friction-telemetry).
 
 #### Log Level Control
 

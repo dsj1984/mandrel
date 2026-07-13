@@ -4,7 +4,7 @@
  * Accepts the canonical resolved config object (the wrapper returned by
  * `resolveConfig()` with `config.github` populated). The legacy
  * `orchestration`-shaped argument is no longer supported as part of the
- * Epic #2880 hard cutover; see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`.
+ * Epic #2880 hard cutover; see `.agents/rules/git-conventions-reference.md#contract-cutovers-—-no-shim-layer`.
  *
  * @see docs/v5-implementation-plan.md Sprint 1B
  */

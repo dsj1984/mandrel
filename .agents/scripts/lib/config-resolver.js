@@ -19,7 +19,7 @@
  * deleted from the resolver wrapper. Every internal call site reads the
  * canonical `project` / `github` / `planning` / `delivery` blocks
  * directly; consumers upgrade in lockstep with the framework bump
- * (see `.agents/rules/git-conventions.md#contract-cutovers-—-no-shim-layer`).
+ * (see `.agents/rules/git-conventions-reference.md#contract-cutovers-—-no-shim-layer`).
  */
 
 import fs from 'node:fs';

@@ -24,10 +24,16 @@
  *   - `onDemand`      — the on-demand `.agents/rules/*.md` set (instructions.md
  *                       § 1.F): every rule file that is **not** part of the
  *                       always-on core already captured in `alwaysLoaded`.
+ *   - `agentBoot`     — the role-scoped boot contexts `.agents/agents/*.md`
+ *                       (issue #4478). Each is a standalone system prompt a
+ *                       converted spawn boots on **instead of** the always-loaded
+ *                       closure, so it is budgeted independently (per-file ≤8KB
+ *                       ceiling gated by `check-context-budget.js`).
  *
  * A file that could appear in more than one tier is kept in its **highest**
  * tier only (alwaysLoaded > mandatoryRead > digestVisible > onDemand), so the
- * four arrays partition the doc set with no double-counting.
+ * arrays partition the doc set with no double-counting. `agentBoot` is disjoint
+ * from the read-tiers (it lives under `.agents/agents/`, not the doc/rules set).
  *
  * The closure is discovered by parsing `@`-import references and following
  * them recursively (cycle-safe via a visited set). A candidate `@`-token only
@@ -216,6 +222,7 @@ export function docsContextPaths(config) {
  *   mandatoryRead: Array<{ path: string, bytes: number }>,
  *   digestVisible: Array<{ path: string, bytes: number }>,
  *   onDemand: Array<{ path: string, bytes: number }>,
+ *   agentBoot: Array<{ path: string, bytes: number }>,
  * } }}
  */
 export function resolveDocTiers(
@@ -254,7 +261,35 @@ export function resolveDocTiers(
   //    (the always-on ones already live in the alwaysLoaded closure).
   const onDemand = collect(listOnDemandRules(root, fs));
 
-  return { tiers: { alwaysLoaded, mandatoryRead, digestVisible, onDemand } };
+  // 5. agent-boot: role-scoped boot contexts .agents/agents/*.md (#4478). These
+  //    are standalone system prompts, disjoint from the doc read-tiers.
+  const agentBoot = collect(listAgentDefs(root, fs));
+
+  return {
+    tiers: { alwaysLoaded, mandatoryRead, digestVisible, onDemand, agentBoot },
+  };
+}
+
+/**
+ * List the role-scoped agent-boot defs (repo-relative posix): every
+ * `.agents/agents/*.md`. Returns [] when the directory is absent.
+ *
+ * @param {string} root absolute repo root
+ * @param {FsLike} fs
+ * @returns {string[]}
+ */
+function listAgentDefs(root, fs) {
+  const agentsDir = path.resolve(root, '.agents', 'agents');
+  let names;
+  try {
+    names = fs.readdirSync(agentsDir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((n) => n.endsWith('.md'))
+    .map((n) => path.posix.join('.agents', 'agents', n))
+    .sort();
 }
 
 /**

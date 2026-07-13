@@ -70,8 +70,8 @@ describe('registry', () => {
     assert.ok(Array.isArray(registry), 'registry must be an array');
   });
 
-  it('contains exactly 10 checks', () => {
-    assert.equal(registry.length, 10);
+  it('contains exactly 11 checks', () => {
+    assert.equal(registry.length, 11);
   });
 
   it('every entry has a string name and a run function', () => {
@@ -94,6 +94,7 @@ describe('registry', () => {
       'github-token',
       'gh-auth',
       'commands-in-sync',
+      'agents-in-sync',
       'runtime-deps',
       'agents-materialized',
       'agents-drift',
@@ -488,6 +489,104 @@ describe('commands-in-sync check', () => {
     });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /1 commands up to date/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// agents-in-sync
+// ---------------------------------------------------------------------------
+
+describe('agents-in-sync check', () => {
+  it('returns ok=true when sources and destinations match', () => {
+    const check = findCheck('agents-in-sync');
+    const files = ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => [...files],
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /3 agents up to date/);
+  });
+
+  it('is a clean no-op when there are no agent sources or dests', () => {
+    const check = findCheck('agents-in-sync');
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => [],
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /0 agents up to date/);
+  });
+
+  // Inert-scaffolding divergence (#4478 PR-2): sources present but the tree
+  // was never materialized (dest empty) is advisory (ok:true), not fatal —
+  // nothing spawns the role agents yet.
+  it('is advisory (ok:true) when sources exist but the dest tree is empty', () => {
+    const check = findCheck('agents-in-sync');
+    let callCount = 0;
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => {
+        callCount++;
+        // First call = srcDir (3 defs), second call = destDir (empty).
+        if (callCount === 1) {
+          return ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
+        }
+        return [];
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /3 agent def\(s\) not yet materialized/);
+  });
+
+  it('returns ok=false when a source def is not in the destination', () => {
+    const check = findCheck('agents-in-sync');
+    let callCount = 0;
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => {
+        callCount++;
+        // First call = srcDir (2 defs), second call = destDir (1 def).
+        if (callCount === 1) return ['story-worker.md', 'retro.md'];
+        return ['story-worker.md'];
+      },
+    });
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.remedy, /sync:agents/);
+    assert.match(result.detail, /1 not synced/);
+  });
+
+  it('returns ok=false when the destination has a stale def not in source', () => {
+    const check = findCheck('agents-in-sync');
+    let callCount = 0;
+    const result = check.run({
+      projectRoot: '/fake/root',
+      readDir: () => {
+        callCount++;
+        if (callCount === 1) return ['story-worker.md'];
+        return ['story-worker.md', 'old-agent.md'];
+      },
+    });
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /1 stale/);
+  });
+
+  it('defaults the root to cwd() (the consumer dir), not the package-relative climb', () => {
+    const check = findCheck('agents-in-sync');
+    const consumerRoot = path.join('/fake', 'consumer');
+    const dirsRead = [];
+    const result = check.run({
+      cwd: () => consumerRoot,
+      readDir: (dir) => {
+        dirsRead.push(dir);
+        return ['story-worker.md'];
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.deepEqual(dirsRead, [
+      path.join(consumerRoot, '.agents', 'agents'),
+      path.join(consumerRoot, '.claude', 'agents'),
+    ]);
   });
 });
 

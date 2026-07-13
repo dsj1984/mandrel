@@ -12,7 +12,13 @@
  *                       session and every subagent spawn (instructions.md § 4).
  *   - `mandatoryRead` — the resolved `project.docsContextFiles` set.
  *
- * A tier that resolves **empty** is skipped silently (the `docsContextFiles`
+ * It additionally enforces a **per-file** ceiling on the role-scoped agent-boot
+ * tier (`.agents/agents/*.md`, #4478): no single boot context may exceed
+ * `agentBoot.ceilingBytes` (default 8192). This is a per-agent cap, not a sum
+ * ratchet — each role def is a standalone system prompt a converted spawn boots
+ * on, and adding another role def is legitimate.
+ *
+ * A read-tier that resolves **empty** is skipped silently (the `docsContextFiles`
  * half skips when unconfigured / its files are absent), so a repo with no
  * `CLAUDE.md` and no context docs is a clean no-op.
  *
@@ -59,6 +65,31 @@ export const GATED_TIERS = ['alwaysLoaded', 'mandatoryRead'];
  * @type {number}
  */
 export const DEFAULT_TOLERANCE_BYTES = 2048;
+
+/**
+ * Per-file ceiling (bytes) for the role-scoped agent-boot tier (#4478). Unlike
+ * the read-tiers (gated by a total-byte ratchet), each `.agents/agents/*.md`
+ * boot context is a **standalone** system prompt a converted spawn boots on, so
+ * the meaningful budget is per-agent, not the sum: no single role def may
+ * exceed this ceiling. Adding another role def is legitimate — a per-file gate
+ * (rather than a sum ratchet) does not false-positive on that.
+ * @type {number}
+ */
+export const AGENT_BOOT_CEILING_BYTES = 8192;
+
+/**
+ * Return the agent-boot files that exceed the per-file ceiling.
+ *
+ * @param {{ tiers: Record<string, Array<{ path: string, bytes: number }>> }} tierMap
+ * @param {number} ceiling
+ * @returns {Array<{ path: string, bytes: number, ceiling: number }>}
+ */
+export function agentBootOverflow(tierMap, ceiling = AGENT_BOOT_CEILING_BYTES) {
+  const files = tierMap?.tiers?.agentBoot ?? [];
+  return files
+    .filter((f) => Number.isFinite(f?.bytes) && f.bytes > ceiling)
+    .map((f) => ({ path: f.path, bytes: f.bytes, ceiling }));
+}
 
 /**
  * Parse argv for `--baseline <path>`, `--root <path>`, `--update`, `--json`.
@@ -127,11 +158,19 @@ export function buildBaseline(tierMap, toleranceBytes) {
     const files = tierMap.tiers[name] ?? [];
     tiers[name] = { totalBytes: tierTotalBytes(files), files };
   }
+  // The agent-boot tier is recorded top-level (not under `tiers`) because it is
+  // gated by a per-file ceiling, not the total-byte ratchet the `tiers` entries
+  // use — keeping it out of `tiers` keeps the ratchet diff loop unambiguous.
+  const agentBootFiles = tierMap.tiers.agentBoot ?? [];
   return {
     $schema: 'https://mandrel.dev/baselines/context-budget.schema.json',
     generatedAt: new Date().toISOString(),
     toleranceBytes,
     tiers,
+    agentBoot: {
+      ceilingBytes: AGENT_BOOT_CEILING_BYTES,
+      files: agentBootFiles,
+    },
   };
 }
 
@@ -278,7 +317,11 @@ export async function runCli({
   }
 
   const diff = diffBudget(tierMap, baseline);
-  const exitCode = diff.grown.length > 0 ? 1 : 0;
+  const ceiling = Number.isFinite(baseline?.agentBoot?.ceilingBytes)
+    ? baseline.agentBoot.ceilingBytes
+    : AGENT_BOOT_CEILING_BYTES;
+  const bootOverflow = agentBootOverflow(tierMap, ceiling);
+  const exitCode = diff.grown.length > 0 || bootOverflow.length > 0 ? 1 : 0;
 
   if (json) {
     const envelope = {
@@ -293,16 +336,30 @@ export async function runCli({
       grown: diff.grown,
       shrunk: diff.shrunk,
       skipped: diff.skipped,
+      agentBootCeilingBytes: ceiling,
+      agentBootOverflow: bootOverflow,
       exitCode,
     };
     stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   } else {
     stdout.write(`\n--- context-budget preview ---\n`);
     stdout.write(`${renderDiff(diff)}\n`);
-    if (exitCode === 1) {
-      stderr.write(
-        `[context-budget] ❌ a documentation tier grew beyond tolerance — refresh the budget consciously with \`node .agents/scripts/check-context-budget.js --update\` once the growth is intentional\n`,
+    for (const o of bootOverflow) {
+      stdout.write(
+        `+ agentBoot: ${o.path} is ${o.bytes} bytes, over the ${o.ceiling}-byte per-agent ceiling\n`,
       );
+    }
+    if (exitCode === 1) {
+      if (bootOverflow.length > 0) {
+        stderr.write(
+          `[context-budget] ❌ a role-agent boot context exceeds the ${ceiling}-byte per-agent ceiling — trim the role def (the ceiling is a hard cap, not a starve target)\n`,
+        );
+      }
+      if (diff.grown.length > 0) {
+        stderr.write(
+          `[context-budget] ❌ a documentation tier grew beyond tolerance — refresh the budget consciously with \`node .agents/scripts/check-context-budget.js --update\` once the growth is intentional\n`,
+        );
+      }
     }
   }
 
