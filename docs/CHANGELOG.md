@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.94.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.93.0...mandrel-v1.94.0) (2026-07-13)
+
+
+### Added
+
+* context diet — extract instructions core + inert role-agent scaffolding (refs [#4478](https://github.com/dsj1984/mandrel/issues/4478)) ([#4509](https://github.com/dsj1984/mandrel/issues/4509)) ([2796e57](https://github.com/dsj1984/mandrel/commit/2796e57b7a0fb0a0651b1e184d6945546b9da22c))
+* **deliver:** move bookkeeping off the token stream — hook heartbeats + buffered finalize sync ([#4476](https://github.com/dsj1984/mandrel/issues/4476)) ([#4508](https://github.com/dsj1984/mandrel/issues/4508)) ([378da81](https://github.com/dsj1984/mandrel/commit/378da818e18f4b09aa9380a4413b753748661aa2))
+* **deliver:** single-delivery executor as the live default (refs [#4475](https://github.com/dsj1984/mandrel/issues/4475)) ([#4503](https://github.com/dsj1984/mandrel/issues/4503)) ([c532d41](https://github.com/dsj1984/mandrel/commit/c532d412f785c212223a3ac9af08fce7dad284aa))
+* **deliver:** single-delivery routing + kill-switch + prepare --single (refs [#4475](https://github.com/dsj1984/mandrel/issues/4475)) ([#4501](https://github.com/dsj1984/mandrel/issues/4501)) ([b481caf](https://github.com/dsj1984/mandrel/commit/b481cafc618a78b80d099cf697e2c094544835b6))
+* flip role-scoped spawns behind kill-switch + risk-routed ceremony (refs [#4478](https://github.com/dsj1984/mandrel/issues/4478)) ([#4510](https://github.com/dsj1984/mandrel/issues/4510)) ([adb9d52](https://github.com/dsj1984/mandrel/commit/adb9d52d7c7be213d32afbe86ec2edad88e01619))
+
+
+### Fixed
+
+* **close-validate:** probe the check-baselines consumer contract before failing (refs [#4495](https://github.com/dsj1984/mandrel/issues/4495)) ([#4499](https://github.com/dsj1984/mandrel/issues/4499)) ([49b430f](https://github.com/dsj1984/mandrel/commit/49b430fe2811000b69e97201efc83bff64651726))
+
 ## [1.93.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.92.0...mandrel-v1.93.0) (2026-07-12)
 
 
