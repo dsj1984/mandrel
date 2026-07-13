@@ -32,9 +32,20 @@
  * — this CLI is the decision + signal boundary, mirroring how the existing
  * gates separate decision from ticket mutation.
  *
+ * Two invocation shapes (Epic #4475, M4-B):
+ *   - Per-Story (fan-out): the diff is one Story's; round scoping is per
+ *     Story off the Story's `signals.ndjson`.
+ *   - Per-AC-cluster (single delivery): `--epic <id> --cluster <clusterId>`
+ *     with NO `--story`. The verdict scores one AC cluster of the Epic's
+ *     `## Acceptance Table` against the cumulative `main..epic/<id>` diff;
+ *     round scoping is per cluster off the Epic's `signals.ndjson`. This is
+ *     the acceptance-dilution guard — `ceil(totalACs / clusterCeiling)`
+ *     independent maker-blind critic passes, one per cluster.
+ *
  * CLI:
- *   --story <id>            Story ID (required).
- *   --epic <id>            Parent Epic ID (omit for standalone Stories).
+ *   --story <id>           Story ID (required unless --cluster is given).
+ *   --epic <id>            Parent Epic ID (required with --cluster).
+ *   --cluster <id>         AC-cluster id for the single-delivery critic.
  *   --verdict <path>       Path to the round's verdict JSON (required).
  *   --no-signal            Suppress the signal emit (tests).
  *
@@ -57,7 +68,10 @@ import addFormats from 'ajv-formats';
 import { runAsCli } from './lib/cli-utils.js';
 import { getAcceptanceEval, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { appendSignal } from './lib/observability/signals-writer.js';
+import {
+  appendEpicSignal,
+  appendSignal,
+} from './lib/observability/signals-writer.js';
 import {
   buildAcceptanceEvalSignal,
   decideAcceptanceEval,
@@ -126,6 +140,7 @@ function parseCliArgs(argv) {
     options: {
       story: { type: 'string' },
       epic: { type: 'string' },
+      cluster: { type: 'string' },
       verdict: { type: 'string' },
       'no-signal': { type: 'boolean', default: false },
     },
@@ -136,6 +151,10 @@ function parseCliArgs(argv) {
   return {
     storyId: Number.isInteger(storyId) && storyId > 0 ? storyId : null,
     epicId: Number.isInteger(epicRaw) && epicRaw > 0 ? epicRaw : null,
+    clusterId:
+      typeof values.cluster === 'string' && values.cluster.length > 0
+        ? values.cluster
+        : null,
     verdictPath: values.verdict ?? null,
     emitSignal: values['no-signal'] !== true,
   };
@@ -163,18 +182,23 @@ function parseCliArgs(argv) {
  * @returns {Promise<{ envelope: object, exitCode: number }>}
  */
 export async function runAcceptanceEval(
-  { storyId, epicId, verdict, config, emitSignal, round },
+  { storyId, epicId, clusterId = null, verdict, config, emitSignal, round },
   deps = {},
 ) {
   const {
     appendSignalFn = appendSignal,
+    appendEpicSignalFn = appendEpicSignal,
     deriveRoundFn = deriveAcceptanceEvalRound,
   } = deps;
+  const clusterMode =
+    typeof clusterId === 'string' &&
+    clusterId.length > 0 &&
+    Number.isInteger(epicId);
   const { maxRounds } = getAcceptanceEval(config);
   const resolvedRound =
     Number.isInteger(round) && round >= 1
       ? round
-      : deriveRoundFn({ epicId: epicId ?? null, storyId, config });
+      : deriveRoundFn({ epicId: epicId ?? null, storyId, clusterId, config });
   const outcome = decideAcceptanceEval({
     verdict,
     maxRounds,
@@ -184,16 +208,21 @@ export async function runAcceptanceEval(
   let signalEmitted = false;
   if (emitSignal) {
     const signal = {
-      ...buildAcceptanceEvalSignal({ storyId, epicId, outcome }),
+      ...buildAcceptanceEvalSignal({ storyId, epicId, outcome, clusterId }),
       ts: new Date().toISOString(),
     };
     try {
-      signalEmitted = await appendSignalFn({
-        epicId,
-        storyId,
-        signal,
-        config,
-      });
+      // Cluster mode (single delivery) writes to the epic-level signals
+      // stream so per-cluster round counts survive resume; the per-Story
+      // path writes to the Story stream (unchanged).
+      signalEmitted = clusterMode
+        ? await appendEpicSignalFn({ epicId, signal, config })
+        : await appendSignalFn({
+            epicId,
+            storyId,
+            signal,
+            config,
+          });
     } catch (err) {
       // Observability is best-effort — a failed signal write must never
       // take down the gate. The decision still stands.
@@ -206,8 +235,9 @@ export async function runAcceptanceEval(
   }
 
   const envelope = {
-    storyId,
+    storyId: storyId ?? null,
     epicId: epicId ?? null,
+    ...(clusterMode ? { clusterId } : {}),
     decision: outcome.decision,
     round: outcome.round,
     cap: outcome.cap,
@@ -231,11 +261,19 @@ export async function runAcceptanceEval(
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const { storyId, epicId, verdictPath, emitSignal } = parseCliArgs(argv);
+  const { storyId, epicId, clusterId, verdictPath, emitSignal } =
+    parseCliArgs(argv);
 
-  if (!storyId) {
+  // Epic #4475 (M4-B): two invocation shapes.
+  //   - Per-Story (fan-out): --story <id> [--epic <id>].
+  //   - Per-AC-cluster (single delivery): --epic <id> --cluster <id> (no
+  //     --story); the verdict scores one AC cluster of the Epic's Acceptance
+  //     Table against the cumulative main..epic/<id> diff.
+  const clusterMode = Boolean(clusterId) && Number.isInteger(epicId);
+  if (!storyId && !clusterMode) {
     throw new Error(
-      'Usage: node acceptance-eval.js --story <id> [--epic <id>] --verdict <path> [--no-signal]',
+      'Usage: node acceptance-eval.js --story <id> [--epic <id>] --verdict <path> [--no-signal]\n' +
+        '   or: node acceptance-eval.js --epic <id> --cluster <clusterId> --verdict <path> [--no-signal]',
     );
   }
   if (!verdictPath) {
@@ -267,8 +305,13 @@ export async function main(argv = process.argv.slice(2)) {
   const verdict = validateVerdict(parsed);
 
   // A verdict whose embedded storyId disagrees with the CLI flag is a
-  // wiring error worth failing on, not a silent mismatch.
-  if (Number.isInteger(verdict.storyId) && verdict.storyId !== storyId) {
+  // wiring error worth failing on, not a silent mismatch. Skipped in cluster
+  // mode (no --story; the verdict scores an AC cluster, not a Story).
+  if (
+    !clusterMode &&
+    Number.isInteger(verdict.storyId) &&
+    verdict.storyId !== storyId
+  ) {
     throw new Error(
       `acceptance-eval: verdict storyId (${verdict.storyId}) does not match --story ${storyId}.`,
     );
@@ -278,6 +321,7 @@ export async function main(argv = process.argv.slice(2)) {
   const { envelope, exitCode } = await runAcceptanceEval({
     storyId,
     epicId,
+    clusterId,
     verdict,
     config,
     emitSignal,

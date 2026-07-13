@@ -13,6 +13,7 @@ import {
   initializeSingle,
   mergeSliceStatuses,
   read,
+  recordSliceStatus,
   SLICE_STATUSES,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
@@ -149,5 +150,114 @@ describe('initializeSingle — checkpoint round-trip / resume', () => {
     const second = await initializeSingle({ provider, epicId, slices });
     assert.equal(second.startedAt, first.startedAt);
     assert.deepEqual(second.slices, first.slices);
+  });
+});
+
+describe('recordSliceStatus — the executor slice-walk marker flip (M4-B)', () => {
+  it('flips one slice pending → done, preserving siblings + run-level fields', async () => {
+    const provider = createFakeProvider();
+    const epicId = 4475;
+    const slices = [
+      { slice: 'A', independent: false },
+      { slice: 'B', independent: false },
+    ];
+    const seeded = await initializeSingle({ provider, epicId, slices });
+
+    const after = await recordSliceStatus({
+      provider,
+      epicId,
+      sliceId: 'slice-1',
+      status: 'done',
+    });
+
+    assert.equal(after.slices['slice-1'].status, 'done');
+    // Sibling + run-level fields untouched.
+    assert.equal(after.slices['slice-2'].status, 'pending');
+    assert.equal(after.deliveryShape, 'single');
+    assert.equal(after.storyCount, 0);
+    assert.equal(after.startedAt, seeded.startedAt);
+    // Persisted (a resumed run reads this back and skips slice-1).
+    const readBack = await read({ provider, epicId });
+    assert.equal(readBack.slices['slice-1'].status, 'done');
+  });
+
+  it('preserves the prior title when the flip omits one', async () => {
+    const provider = createFakeProvider();
+    const epicId = 4475;
+    await initializeSingle({
+      provider,
+      epicId,
+      slices: [{ slice: 'Seed schema', independent: false }],
+    });
+    const after = await recordSliceStatus({
+      provider,
+      epicId,
+      sliceId: 'slice-1',
+      status: 'done',
+    });
+    assert.equal(after.slices['slice-1'].title, 'Seed schema');
+  });
+
+  it('records a blocked slice (stalled walk)', async () => {
+    const provider = createFakeProvider();
+    const epicId = 4475;
+    await initializeSingle({
+      provider,
+      epicId,
+      slices: [{ slice: 'A', independent: false }],
+    });
+    const after = await recordSliceStatus({
+      provider,
+      epicId,
+      sliceId: 'slice-1',
+      status: 'blocked',
+    });
+    assert.equal(after.slices['slice-1'].status, 'blocked');
+  });
+
+  it('rejects an unknown status and an empty sliceId', async () => {
+    const provider = createFakeProvider();
+    const epicId = 4475;
+    await initializeSingle({
+      provider,
+      epicId,
+      slices: [{ slice: 'A', independent: false }],
+    });
+    await assert.rejects(
+      () =>
+        recordSliceStatus({
+          provider,
+          epicId,
+          sliceId: 'slice-1',
+          status: 'mystery',
+        }),
+      /must be one of/,
+    );
+    await assert.rejects(
+      () =>
+        recordSliceStatus({ provider, epicId, sliceId: '', status: 'done' }),
+      /non-empty string/,
+    );
+  });
+
+  it('upgrades a legacy checkpoint with no slices map in place', async () => {
+    const provider = createFakeProvider();
+    const epicId = 4475;
+    // A checkpoint that predates the slices field.
+    await write({
+      provider,
+      epicId,
+      state: { epicId, deliveryShape: 'single', storyCount: 0 },
+    });
+    const after = await recordSliceStatus({
+      provider,
+      epicId,
+      sliceId: 'slice-1',
+      status: 'done',
+      title: 'A',
+    });
+    assert.deepEqual(after.slices, {
+      'slice-1': { status: 'done', title: 'A' },
+    });
   });
 });

@@ -483,6 +483,60 @@ export async function initializeSingle({
 }
 
 /**
+ * Record a per-slice terminal (or in-progress) status on a single-delivery
+ * checkpoint. The single-delivery analogue of `recordStoryStatus`: the M4-B
+ * executor calls this after each Delivery-Slicing slice commits to
+ * `epic/<id>`, flipping `slices[sliceId].status` `pending → done` so a resumed
+ * run skips the already-landed slice. Reads the current state first, splices
+ * the single slice's record into the `slices` map, and re-writes; other slices
+ * and all run-level fields are preserved verbatim. Tolerant of a
+ * legacy/absent `slices` map (treated as empty).
+ *
+ * @param {{
+ *   provider: import('../ITicketingProvider.js').ITicketingProvider,
+ *   epicId: number,
+ *   sliceId: string,
+ *   status: string,
+ *   title?: string,
+ * }} opts
+ * @returns {Promise<object>} the persisted state
+ */
+export async function recordSliceStatus({
+  provider,
+  epicId,
+  sliceId,
+  status,
+  title,
+} = {}) {
+  assertProvider(provider);
+  assertEpicId(epicId);
+  if (typeof sliceId !== 'string' || sliceId.length === 0) {
+    throw new TypeError(
+      'recordSliceStatus: sliceId must be a non-empty string',
+    );
+  }
+  if (!SLICE_STATUSES.includes(status)) {
+    throw new RangeError(
+      `recordSliceStatus: status "${status}" must be one of: ${SLICE_STATUSES.join(', ')}`,
+    );
+  }
+  const existing = (await read({ provider, epicId })) ?? {};
+  const slices =
+    existing.slices && typeof existing.slices === 'object'
+      ? { ...existing.slices }
+      : {};
+  const prior = slices[sliceId] ?? {};
+  const record = { ...prior, status };
+  if (typeof title === 'string' && title) record.title = title;
+  slices[sliceId] = record;
+  return write({
+    provider,
+    epicId,
+    state: { ...existing, slices },
+  });
+}
+
+/**
  * Structural equality on two slice status maps — same key set and, per key,
  * the same `status` and `title`. Used by `initializeSingle` to decide whether
  * an idempotent re-prepare needs a rewrite. Pure.

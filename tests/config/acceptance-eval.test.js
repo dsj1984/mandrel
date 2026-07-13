@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  ACCEPTANCE_EVAL_CLUSTER_CEILING_MAX,
   ACCEPTANCE_EVAL_DEFAULTS,
   ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING,
   getAcceptanceEval,
@@ -93,5 +94,62 @@ describe('getAcceptanceEval — undisableable cap (open-loop guard)', () => {
 
   it('freezes the defaults object so callers cannot mutate it cross-process', () => {
     assert.equal(Object.isFrozen(ACCEPTANCE_EVAL_DEFAULTS), true);
+  });
+});
+
+describe('getAcceptanceEval — clusterCeiling (single-delivery dilution guard)', () => {
+  it('defaults to 4 when the block is absent', () => {
+    const out = getAcceptanceEval({});
+    assert.equal(out.clusterCeiling, 4);
+    assert.equal(out.clusterCeiling, ACCEPTANCE_EVAL_DEFAULTS.clusterCeiling);
+    assert.equal(out.clusterCeilingMax, ACCEPTANCE_EVAL_CLUSTER_CEILING_MAX);
+    assert.equal(out.clusterCeilingMax, 8);
+  });
+
+  it('honours an in-range operator override', () => {
+    const out = getAcceptanceEval({
+      delivery: { acceptanceEval: { clusterCeiling: 3 } },
+    });
+    assert.equal(out.clusterCeiling, 3);
+  });
+
+  it('clamps clusterCeiling: 0 / negative up to 1 (never a zero-size cluster)', () => {
+    assert.equal(
+      getAcceptanceEval({ delivery: { acceptanceEval: { clusterCeiling: 0 } } })
+        .clusterCeiling,
+      1,
+    );
+    assert.equal(
+      getAcceptanceEval({
+        delivery: { acceptanceEval: { clusterCeiling: -4 } },
+      }).clusterCeiling,
+      1,
+    );
+  });
+
+  it('clamps an over-max clusterCeiling down to the hard cap (anti-dilution)', () => {
+    const out = getAcceptanceEval({
+      delivery: { acceptanceEval: { clusterCeiling: 999 } },
+    });
+    assert.equal(out.clusterCeiling, ACCEPTANCE_EVAL_CLUSTER_CEILING_MAX);
+  });
+
+  it('falls back to the default for non-integer / non-finite values', () => {
+    for (const bad of [1.5, Number.NaN, Number.POSITIVE_INFINITY, '4', null]) {
+      const out = getAcceptanceEval({
+        delivery: { acceptanceEval: { clusterCeiling: bad } },
+      });
+      assert.equal(out.clusterCeiling, 4, `value ${String(bad)} → default`);
+    }
+  });
+
+  it('never returns a clusterCeiling outside [1, max] for any numeric input', () => {
+    for (let v = -3; v <= ACCEPTANCE_EVAL_CLUSTER_CEILING_MAX + 5; v += 1) {
+      const { clusterCeiling } = getAcceptanceEval({
+        delivery: { acceptanceEval: { clusterCeiling: v } },
+      });
+      assert.ok(clusterCeiling >= 1);
+      assert.ok(clusterCeiling <= ACCEPTANCE_EVAL_CLUSTER_CEILING_MAX);
+    }
   });
 });

@@ -34,6 +34,47 @@
  */
 
 import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from '../../../../acceptance-spec-reconciler.js';
+import { DELIVERY_SINGLE_LABEL } from '../../deliver-route.js';
+import { read as readEpicRunState } from '../../epic-run-state-store.js';
+
+/**
+ * Default single-delivery resolver (Epic #4475, M4-B, design §2c). Decides
+ * whether the Epic under reconciliation is the single-delivery shape — the
+ * signal that flips a `waived` reconcile into a hard failure (the back gate
+ * of the non-waivable epic-level acceptance contract). Two sources, primary
+ * first:
+ *
+ *   1. `epic-run-state.deliveryShape === 'single'` — the durable checkpoint
+ *      the single-delivery prepare writes.
+ *   2. The `delivery::single` label on the Epic ticket — the plan-time marker.
+ *
+ * Best-effort + fail-open-to-fan-out: any probe failure (null provider in a
+ * unit fixture, a GitHub read error) degrades to `false` (treat as fan-out),
+ * so the defence-in-depth back gate never *invents* a block — the front gate
+ * (prepare refusing `acceptance::n-a`) is the primary guard. Tests inject
+ * `resolveSingleFn` directly to bypass the probes.
+ *
+ * @param {{ provider?: object|null, epicId: number, config?: object|null }} args
+ * @returns {Promise<boolean>}
+ */
+export async function defaultResolveSingle({ provider, epicId }) {
+  if (!provider) return false;
+  try {
+    const checkpoint = await readEpicRunState({ provider, epicId });
+    if (checkpoint?.deliveryShape === 'single') return true;
+  } catch {
+    // Fall through to the label probe.
+  }
+  try {
+    const epic = await provider.getTicket(epicId);
+    const labels = Array.isArray(epic?.labels) ? epic.labels : [];
+    return labels.some(
+      (l) => (typeof l === 'string' ? l : l?.name) === DELIVERY_SINGLE_LABEL,
+    );
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Classify a `reconcileAcceptanceSpec` result envelope into the typed
@@ -49,6 +90,16 @@ import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from '../..
  *                       `.waived` and route waived Epics through to PR
  *                       creation, while empty-spec Epics still
  *                       terminate without a PR via `.skipped`.
+ *                       **Non-waivable under single delivery (Epic #4475,
+ *                       M4-B, design §2c):** when `opts.single` is true the
+ *                       epic-level reconcile is the ONLY acceptance gate
+ *                       left, so a `waived` status is treated as a hard
+ *                       `failed` (reason `single-delivery-non-waivable`)
+ *                       instead of passing through — the back gate that
+ *                       forecloses the cohort's dilution (waived reconcile
+ *                       as the sole gate). The front gate (prepare refusing
+ *                       `acceptance::n-a`) already blocks this at seed time;
+ *                       this is defence in depth.
  *   - `'empty-spec'` → the linked spec exists but declares zero AC IDs.
  *                       Treated as "no work to do"; emit `.skipped` with
  *                       reason `'empty-spec'` so operators see the
@@ -61,14 +112,23 @@ import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from '../..
  *                       the Epic ticket.
  *
  * @param {object|undefined|null} result reconciler envelope.
+ * @param {{ single?: boolean }} [opts] `single: true` flips a `waived` status
+ *   into a hard `failed` (the non-waivable epic reconcile back gate).
  * @returns {{ outcome: 'ok'|'waived'|'skipped'|'failed', reason?: string }}
  */
-export function classifyReconcileResult(result) {
+export function classifyReconcileResult(result, opts = {}) {
+  const single = opts?.single === true;
   if (!result || typeof result !== 'object') {
     return { outcome: 'failed', reason: 'reconciler-no-result' };
   }
   const status = result.status;
   if (status === 'waived') {
+    if (single) {
+      return {
+        outcome: 'failed',
+        reason: 'single-delivery-non-waivable',
+      };
+    }
     return { outcome: 'waived', reason: 'waiver' };
   }
   if (status === 'empty-spec') {
@@ -112,6 +172,9 @@ export class AcceptanceReconciler {
    *   injected for the same reason.
    * @param {Function} [opts.reconcileAcceptanceSpecFn] Override of the
    *   helper for tests; defaults to the production export.
+   * @param {Function} [opts.resolveSingleFn] Override of the single-delivery
+   *   resolver for tests (Epic #4475, M4-B); defaults to `defaultResolveSingle`
+   *   (checkpoint `deliveryShape` → `delivery::single` label).
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -134,6 +197,7 @@ export class AcceptanceReconciler {
     this.config = opts.config ?? null;
     this.reconcileAcceptanceSpecFn =
       opts.reconcileAcceptanceSpecFn ?? defaultReconcileAcceptanceSpec;
+    this.resolveSingleFn = opts.resolveSingleFn ?? defaultResolveSingle;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` keys we've handled. */
     this._seen = new Set();
@@ -256,7 +320,24 @@ export class AcceptanceReconciler {
       return;
     }
 
-    const classification = classifyReconcileResult(result);
+    // Resolve the delivery shape before classifying: under single delivery a
+    // `waived` reconcile is non-waivable (design §2c). Best-effort — a probe
+    // failure degrades to `false` (fan-out pass-through), never inventing a
+    // block.
+    let single = false;
+    try {
+      single = await this.resolveSingleFn({
+        provider: this.provider,
+        epicId,
+        config: this.config,
+      });
+    } catch (err) {
+      this.logger.warn?.(
+        `[AcceptanceReconciler] single-delivery probe failed (treating as fan-out): ${err?.message ?? err}`,
+      );
+    }
+
+    const classification = classifyReconcileResult(result, { single });
     if (classification.outcome === 'ok') {
       await this._emitOk({ event, seqId, baseRead });
       return;
