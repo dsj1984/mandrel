@@ -124,16 +124,13 @@ conversation, not a template.
      wouldn't?"
 
    Push beyond what the user initially asked for. Create products people don't
-   know they need yet.
+   know they need yet. Pick the lens that fits the idea — don't run every one
+   mechanically.
 
 **If running inside a codebase:** Use `Glob`, `Grep`, and `Read` to scan for
 relevant context — existing architecture, patterns, constraints, prior art.
 Ground your variations in what actually exists. Reference specific files and
 patterns when relevant.
-
-Read `frameworks.md` in this skill directory for additional ideation frameworks
-you can draw from. Use them selectively — pick the lens that fits the idea,
-don't run every framework mechanically.
 
 #### Phase 2: Evaluate & Converge (Grill)
 
@@ -282,9 +279,6 @@ location of their choosing). Only save if they confirm.
 Direct, thoughtful, slightly provocative. You're a sharp thinking partner, not a
 facilitator reading from a script. Channel the energy of "that's interesting,
 but what if..." -- always pushing one step further without being exhausting.
-
-Read `examples.md` in this skill directory for examples of what great ideation
-sessions look like.
 
 ## Red Flags
 

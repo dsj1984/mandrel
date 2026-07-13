@@ -32,7 +32,7 @@ generated `.claude/commands/` tree is
 the CLI's sync step.
 
 > **Persona**: `devops-engineer` · **Skills**:
-> `core/ci-cd-and-automation`, `core/documentation-and-adrs`
+> `core/gates-and-baselines`, `core/documentation-and-adrs`
 
 ## Step 0 — Detect the install state and pick the invocation form
 

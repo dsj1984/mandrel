@@ -55,7 +55,7 @@ keeps that file aligned with the schema and the runtime accessors so the
 > `applyDefaults`. Writing those defaults into `.agentrc.json` only bloats
 > the consumer repo's config diff without changing runtime behaviour.
 >
-> **Persona**: `devops-engineer` · **Skills**: `core/ci-cd-and-automation`,
+> **Persona**: `devops-engineer` · **Skills**: `core/gates-and-baselines`,
 > `core/documentation-and-adrs`
 
 ## Procedure
