@@ -307,8 +307,11 @@ below applies only to the rare, policy-compliant N>1 runs.
   spec (`estimateTokens` > soft budget) spills to `docs/specs/<storyId>.md`
   and returns a `references[]` pointer entry; small specs stay inline. Reuses
   the §2 `estimateTokens` estimator; injectable fs. Additive.
-- [ ] Run-epilogue scaffold — the `/deliver --run` closeout entry (per-run
-  audit sweep + retro + sibling-coherence), inert until Stage 4 wires it
+- [x] Run-epilogue scaffold — `run-epilogue.js` (+6 tests): a pure, inert
+  planner enumerating the per-run closeout steps (audit-sweep · retro-rollup ·
+  sibling-coherence) for a multi-Story run; a single-Story run is
+  `applicable: false` (no run scope). Stage 4 wires the descriptors into
+  `/deliver --run`.
 
 #### Stage 2 — Sizing removal
 
