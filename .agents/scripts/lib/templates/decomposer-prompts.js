@@ -88,7 +88,7 @@ Your job is to take an Epic (including its inline User Stories) and a Technical 
 
 ### LABEL CONVENTIONS:
 - Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.
-- Every ticket must have a \`persona::[engineer|architect|qa-engineer|engineer-web|etc]\` label indicating WHO should execute it.
+- Every ticket must have a \`persona::[engineer|architect|qa-engineer|security-engineer|etc]\` label indicating WHO should execute it.
 
 ### OUTPUT FORMAT:
 You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown blocks.

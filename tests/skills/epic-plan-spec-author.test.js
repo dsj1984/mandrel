@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
 
+import { renderTechSpecSystemPrompt } from '../../.agents/scripts/lib/templates/spec-author-prompts.js';
 import { fixturePath, runSkillSmoke } from './_harness/run-skill-smoke.js';
 
 describe('skill:epic-plan-spec-author — smoke', () => {
@@ -38,7 +39,7 @@ describe('skill:epic-plan-spec-author — smoke', () => {
     );
   });
 
-  it('end-to-end: validator can locate the prd.md / techspec.md contract in the Skill body', async () => {
+  it('Skill body references the techspec.md output contract the persist half reads back', async () => {
     const fixtureFile = fixturePath('epic-1181-sample', 'planner-context.json');
     const ctx = JSON.parse(await readFile(fixtureFile, 'utf8'));
     assert.ok(ctx.epic.id > 0, 'fixture must carry a sample Epic ID');
@@ -60,70 +61,16 @@ describe('skill:epic-plan-spec-author — smoke', () => {
             'Skill body must reference temp/epic-<Epic_ID>/techspec.md output path',
           );
         }
-        // Story #4316 — the Tech Spec now OPENS with "## Delivery Slicing"
-        // (not "## Technical Overview"), and the "Technical Overview" section
-        // is demoted to optional. The prompt must say "Open ... with ## Delivery
-        // Slicing" and must NOT carry the old "Start with ## Technical Overview"
-        // instruction that contradicted the Delivery-Slicing-first ordering.
+        // Epic #4479 (M8) — the Tech Spec system prompt is single-sourced in
+        // lib/templates/spec-author-prompts.js; the Skill body must NOT carry a
+        // second verbatim copy. It points at the rendered systemPrompts.techSpec
+        // instead (the prompt-content contract is asserted separately below).
         if (
-          !/Open the document with the `## Delivery Slicing` section/.test(body)
+          !/systemPrompts\.techSpec/.test(body) ||
+          !/spec-author-prompts\.js/.test(body)
         ) {
           errors.push(
-            'Tech Spec prompt must instruct the document to OPEN with "## Delivery Slicing" (Story #4316)',
-          );
-        }
-        if (/Start with ## Technical Overview/.test(body)) {
-          errors.push(
-            'Tech Spec prompt must not retain the "Start with ## Technical Overview" contradiction (Story #4316)',
-          );
-        }
-        // Story #4316 — the prompt must forbid restating the Epic's
-        // Context/Goal/Scope (the Epic body travels with the Tech Spec
-        // downstream, so restatement is duplication).
-        if (!/Do NOT restate the Epic's Context, Goal, or Scope/.test(body)) {
-          errors.push(
-            "Tech Spec prompt must forbid restating the Epic's Context/Goal/Scope (Story #4316)",
-          );
-        }
-        // Story #3797 — the Tech Spec must carry a "Delivery Slicing" section
-        // proposing how PRD capabilities cluster into N shippable Stories;
-        // it is the target the Phase 8 consolidation pass reconciles against.
-        if (!/## Delivery Slicing/.test(body)) {
-          errors.push(
-            'Tech Spec prompt must require a "## Delivery Slicing" section (Story #3797)',
-          );
-        }
-        if (!/shippable Stor/i.test(body)) {
-          errors.push(
-            'Delivery Slicing must propose shippable Stories (Story #3797)',
-          );
-        }
-        // Story #3797 — the PRD capability enumeration is NOT coarsened; the
-        // grouping recommendation is the granularity lever.
-        if (!/not coarsen|do not coarsen|without coarsening/i.test(body)) {
-          errors.push(
-            'Skill body must state the PRD enumeration is not coarsened (Story #3797)',
-          );
-        }
-        // Story #4311 — the Delivery Slicing count is a CEILING, not a target,
-        // and an "Independent? No" slice must justify staying separate.
-        if (!/ceiling/i.test(body)) {
-          errors.push(
-            'Tech Spec prompt must frame the Delivery Slicing count as a ceiling (Story #4311)',
-          );
-        }
-        if (
-          !/parallelism|risk isolation|delivery-envelope|envelope pressure/i.test(
-            body,
-          )
-        ) {
-          errors.push(
-            'Tech Spec prompt must require a justification (parallelism, risk isolation, or envelope pressure) for an "Independent? No" slice (Story #4311)',
-          );
-        }
-        if (!/fold(s)? into (its )?consumer/i.test(body)) {
-          errors.push(
-            'Tech Spec prompt must state an unjustified dependent single-consumer slice folds into its consumer (Story #4311)',
+            'Skill body must defer the Tech Spec prompt to systemPrompts.techSpec / spec-author-prompts.js (Epic #4479)',
           );
         }
         return { ok: errors.length === 0, errors };
@@ -133,6 +80,60 @@ describe('skill:epic-plan-spec-author — smoke', () => {
       result.pass,
       true,
       `validator failed: ${result.errors.join('; ')}`,
+    );
+  });
+
+  // Epic #4479 (M8) — the Tech Spec prompt-content contract now lives on the
+  // single-sourced renderTechSpecSystemPrompt() output, not the Skill body.
+  // These assertions moved verbatim from the former Skill-body validator so the
+  // behavioural coverage is preserved at the new source of truth.
+  it('renderTechSpecSystemPrompt() carries the Delivery-Slicing-first contract', () => {
+    const prompt = renderTechSpecSystemPrompt();
+    // Story #4316 — opens with "## Delivery Slicing", forbids restatement.
+    assert.match(
+      prompt,
+      /Open the document with the `## Delivery Slicing` section/,
+      'Tech Spec prompt must instruct the document to OPEN with "## Delivery Slicing" (Story #4316)',
+    );
+    assert.doesNotMatch(
+      prompt,
+      /Start with ## Technical Overview/,
+      'Tech Spec prompt must not retain the "Start with ## Technical Overview" contradiction (Story #4316)',
+    );
+    assert.match(
+      prompt,
+      /Do NOT restate the Epic's Context, Goal, or Scope/,
+      "Tech Spec prompt must forbid restating the Epic's Context/Goal/Scope (Story #4316)",
+    );
+    // Story #3797 — a "## Delivery Slicing" section proposing shippable Stories,
+    // without coarsening the enumeration.
+    assert.match(prompt, /## Delivery Slicing/);
+    assert.match(
+      prompt,
+      /shippable Stor/i,
+      'Delivery Slicing must propose shippable Stories (Story #3797)',
+    );
+    assert.match(
+      prompt,
+      /not coarsen|do not coarsen|without coarsening/i,
+      'prompt must state the enumeration is not coarsened (Story #3797)',
+    );
+    // Story #4311 — the count is a CEILING and an "Independent? No" slice must
+    // justify staying separate or fold into its consumer.
+    assert.match(
+      prompt,
+      /ceiling/i,
+      'Tech Spec prompt must frame the Delivery Slicing count as a ceiling (Story #4311)',
+    );
+    assert.match(
+      prompt,
+      /parallelism|risk isolation|delivery-envelope|envelope pressure/i,
+      'prompt must require a justification for an "Independent? No" slice (Story #4311)',
+    );
+    assert.match(
+      prompt,
+      /fold(s)? into (its )?consumer/i,
+      'prompt must state an unjustified dependent single-consumer slice folds into its consumer (Story #4311)',
     );
   });
 });

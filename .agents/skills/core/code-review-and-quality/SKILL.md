@@ -18,7 +18,7 @@ description:
 - Reject "clever" code in favour of the boring, obvious solution. Abstractions MUST earn their complexity (no generalizing before the third use case).
 - Flag dead code artifacts (`_unused` vars, backwards-compat shims, `// removed` comments) and require their removal before merge.
 - Defer to `.agents/rules/security-baseline.md` and the `security-and-hardening` skill for security review; explicit checks include input validation, no hardcoded secrets, parameterized queries, encoded output, authn+authz, and treating external data as untrusted.
-- Defer to `performance-optimization` for perf review; explicit checks include no N+1 queries, no unbounded fetches, no blocking sync work, no obviously oversized bundles.
+- Review performance on the hot path only, and measure before optimizing; explicit checks include no N+1 queries, no unbounded fetches, no blocking sync work, no obviously oversized bundles.
 - Disallow scope creep in a PR: drive-by cleanups, adjacent refactors, and "while I'm here" edits should be split into a separate change.
 - Bug-fix reviews cover **both** the fix and the regression test; a fix without a failing-then-passing test is not approvable.
 
@@ -105,8 +105,8 @@ introduce vulnerabilities?
 
 ### 5. Performance
 
-For detailed profiling and optimization, see `performance-optimization`. Does
-the change introduce performance problems?
+Measure before optimizing, and only on the hot path. Does the change introduce
+performance problems?
 
 - Any N+1 query patterns?
 - Any unbounded loops or unconstrained data fetching?

@@ -35,6 +35,8 @@ local override may relax them. The skill is updated to match.
   "Logged in" is not "allowed".
 - Users MUST only be able to access or modify resources they own; ownership
   checks MUST run server-side before any state change.
+- Inbound webhooks and server-to-server callbacks MUST verify the sender's
+  signature before parsing the payload; never act on an unverified webhook.
 - Admin or elevated actions MUST verify the role server-side; never trust a
   client-asserted role claim.
 
@@ -57,6 +59,9 @@ local override may relax them. The skill is updated to match.
 - NEVER log Personal Identifiable Information (PII) such as emails, passwords,
   full credit card numbers, session tokens, or phone numbers.
 - Avoid logging complete objects directly; destructure out safe properties.
+  Prefer logging entities by opaque ID (e.g. `userId`), and sanitize user input
+  before it reaches an error log so a payload cannot smuggle PII through the
+  error path.
 
 ## Transport & Headers
 

@@ -81,10 +81,10 @@ a test fails, fix the code — don't skip the test.
 lint-vocabulary, dependency-cycle, missing-test-coverage) has its own
 hazard: the gate lands red because of latent findings nobody authored,
 and every downstream PR is blocked until someone hotfixes the integration
-branch. Before wiring such a gate into `requiredChecks`, read
-[`core/introducing-a-baseline-gate`](../introducing-a-baseline-gate/SKILL.md) —
-it covers the two landing shapes (advisory-first or
-populate-the-baseline) that keep the gate green at merge.
+branch. Before wiring such a gate into `requiredChecks`, land it in a shape
+that is green at merge — either advisory-first (report-only until the backlog
+is burned down) or by committing the populated baseline in the same change that
+turns the gate on.
 
 ## CI Configuration (GitHub Actions)
 

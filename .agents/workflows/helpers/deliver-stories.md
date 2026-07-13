@@ -376,7 +376,7 @@ Story's suite is green and the close-validation gates already pass — and
 key is unset or `false`, story-deliver behaves exactly as documented above
 and this stage is skipped entirely.
 
-The stage adopts the [`refactorer`](../../personas/refactorer.md) persona and the
+The stage applies the
 [`core/refactoring-discipline`](../../skills/core/refactoring-discipline/SKILL.md)
 skill to drive a behaviour-preserving pass that lowers CRAP and removes
 duplication on the files the Story already touched:

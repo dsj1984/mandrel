@@ -10,13 +10,13 @@ set. You MUST strictly adhere to the following rules:
 
 ### A. Persona Routing & Execution
 
-When the runtime injects a persona for the current task (via the hydrator from
-`task.persona`), retrieve and strictly adopt the rules in
-`.agents/personas/[role].md`. If a user explicitly instructs "Act as
-[Role/Persona]" in chat, honor that as well.
+When a task carries a `persona::<role>` label, or a user explicitly instructs
+"Act as [Role/Persona]" in chat, retrieve and strictly adopt the rules in
+`.agents/personas/[role].md`. Personas are advisory role framing, not a runtime
+injection — read the file when the label or the instruction points you at one.
 
-- **Fallback:** If the specific persona file is missing, default to
-  `.agents/personas/engineer.md`.
+- **Fallback:** If no persona is indicated, or the named file is missing,
+  default to `.agents/personas/engineer.md`.
 
 ### B. Skill Activation
 
@@ -25,10 +25,11 @@ The skill library uses a **two-tier architecture**:
 - **`core/`** — Universal, process-driven skills that apply across any project
   (e.g., `core/debugging-and-error-recovery`, `core/test-driven-development`,
   `core/security-and-hardening`). Always check for a relevant core skill first.
-- **`stack/`** — Tech-stack-specific skills for concrete libraries, services,
-  and tools (e.g., `stack/backend/cloudflare-hono-architect`,
-  `stack/frontend/tailwind-v4`, `stack/qa/playwright`). Apply these when the
-  project uses that specific technology.
+- **`stack/`** — Tech-stack-specific skills for concrete tools (e.g.,
+  `stack/qa/playwright`, `stack/qa/vitest`, `stack/qa/gherkin-authoring`).
+  Apply these when the project uses that specific technology. For third-party
+  library and framework knowledge not covered here, use the live-docs lookup
+  mandated in § 1.C rather than a frozen in-repo cache.
 
 When a task involves a specific domain or technology, you MUST read the
 corresponding `.agents/skills/[tier]/[category]/[skill-name]/SKILL.md` file and
