@@ -105,7 +105,9 @@ Every other runtime modifier is sourced from the Epic's labels or from
   clarifying questions — if stuck, flip to `agent::blocked`, post a
   friction comment, park.
 - **Flat Story dispatch by design.** Host LLM fans out per-Story Agent
-  calls directly with `subagent_type: general-purpose`. Keeping Story
+  calls directly — with `subagent_type: story-worker` when
+  `delivery.routing.roleScopedAgents` is on (the default; § 2b), else
+  `general-purpose`. Keeping Story
   dispatch flat — the host owns the single fan-out level — is a
   **design choice**, not a harness constraint: the wave aggregator, idle
   watchdog, and merge-lock all assume one host-owned dispatch level. As of
@@ -338,8 +340,18 @@ span-tree view.
 `helpers/epic-deliver-story` yourself. Emit **one `Agent` tool call per
 Story** in `nextAction.stories` (even when `length === 1` — the
 parent-child boundary keeps the return-parser uniform). The *children*
-run [`helpers/epic-deliver-story`](epic-deliver-story.md). Use
-`subagent_type: general-purpose`.
+run [`helpers/epic-deliver-story`](epic-deliver-story.md).
+
+**Sub-agent type (Epic #4478, M7-B).** When
+`delivery.routing.roleScopedAgents` is enabled (the **default**), each Story
+child is dispatched with `subagent_type: story-worker` — it boots on the
+role-scoped [`story-worker`](../../agents/story-worker.md) context (its own
+system prompt, no `CLAUDE.md` @-closure) that carries every load-bearing
+delivery MUST standalone, so the spawn stops re-paying the always-loaded
+context. When the kill-switch is **off**
+(`delivery.routing.roleScopedAgents: false`), fall back to
+`subagent_type: general-purpose` — the instant, code-rollback-free revert and
+the escape for hosts that ignore `.claude/agents/`.
 
 Emit **one assistant turn** with **N parallel `Agent` calls** where
 `N === nextAction.stories.length` (the ready set is already capped at

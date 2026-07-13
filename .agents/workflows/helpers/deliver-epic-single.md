@@ -200,26 +200,43 @@ distributed critic count.
    The result is **exactly `ceil(totalACs / clusterCeiling)`** clusters — the
    fan-out width.
 
-2. **One fresh-context critic per cluster.** For **each** cluster emit a
-   **separate** `Agent` tool call (`subagent_type: general-purpose`,
-   maker-blind — NOT a continuation of your implementing turn, so the critic
-   does not grade its own homework). There MUST be
-   `ceil(totalACs / clusterCeiling)` such spawns — one per cluster — never a
-   single critic over all ACs (that is the collapse this guard forecloses).
-   Each critic runs the shared
+2. **One maker-blind critic per cluster.** For **each** cluster author **one**
+   maker-blind verdict — NOT a continuation of your implementing turn, so the
+   critic does not grade its own homework. There MUST be
+   **exactly `ceil(totalACs / clusterCeiling)`** critic passes — **one per
+   cluster** — never a single critic over all ACs (that is the collapse this
+   guard forecloses). Each critic runs the shared
    [`acceptance-self-eval.md`](acceptance-self-eval.md) mechanic scoped to its
    cluster: it scores **that cluster's ACs** against the cumulative
    `git diff main...epic/<epicId>` diff (plus any `verify[]` evidence the ACs
    reference) and writes a verdict file under `temp/` conforming to
    [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json).
 
-   > **Inline-critic fallback (nesting-absent harness).** As in
-   > `acceptance-self-eval.md`: if the host cannot spawn a nested `Agent` at
-   > this depth, author each cluster's verdict inline in a deliberately-scoped
-   > self-critical pass (re-read only the diff + that cluster's ACs, treat the
-   > implementation reasoning as untrusted). The gate, schema, and
-   > proceed/redraft/block decision are identical. Note the fallback in any
-   > block/friction comment.
+   > **Fresh-vs-inline is risk-routed PER CLUSTER — the count is fixed
+   > (Epic #4478, M7-B).** Whether a given cluster's critic runs as a
+   > fresh-context spawn or inline is resolved per cluster by
+   > `resolveCeremonyForRisk`
+   > ([`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js))
+   > from the Epic's `planningRisk.overallLevel` and
+   > `delivery.routing.freshCriticSampleRate`: **`high`/`medium` → fresh spawn**,
+   > **`low` → inline** (except the sampling-floor fraction forced fresh),
+   > **missing/unknown → fresh + full ceremony**. This is **strictly** a
+   > fresh-vs-inline choice **per cluster**: the number of clusters — hence the
+   > number of critic passes and verdicts — stays **exactly**
+   > `ceil(totalACs / clusterCeiling)` under **every** risk level. Risk routing
+   > NEVER re-slices, merges, or drops a cluster.
+   >
+   > - **Fresh** → emit a **separate** `Agent` tool call
+   >   (`subagent_type: acceptance-critic` when
+   >   `delivery.routing.roleScopedAgents` is on — the default — else
+   >   `general-purpose`), maker-blind, scoped to that cluster's ACs.
+   > - **Inline** → author that cluster's verdict inline in a deliberately
+   >   scoped self-critical pass (re-read only the diff + that cluster's ACs,
+   >   treat the implementation reasoning as untrusted). The gate, schema, and
+   >   proceed/redraft/block decision are identical.
+   > - **Nesting-absent fallback.** If the host cannot spawn a nested `Agent` at
+   >   this depth at all, author **every** cluster's verdict inline regardless of
+   >   the risk verdict. Note the fallback in any block/friction comment.
 
 3. **Gate each cluster (Epic-scoped).** Run the gate per cluster:
 
@@ -293,12 +310,13 @@ progress signal for the single long session.
 
 - **Never** fan out `Agent` calls for slice implementation — the slice walk is
   in-session. The only `Agent` spawns are the S2a maker-blind acceptance
-  critics (read-only).
+  critics (read-only), and only for clusters the risk router sends `fresh`.
 - **Never** dereference, enumerate, or transition a `type::story` ticket —
   this path has none.
 - **Never** collapse the S2a critics to fewer than
-  `ceil(totalACs / clusterCeiling)` spawns, and **never** proceed to S2b with a
-  blocked cluster.
+  `ceil(totalACs / clusterCeiling)` **critic passes** — one maker-blind verdict
+  per cluster (fresh spawn or inline; the risk router chooses the mode, never
+  the count) — and **never** proceed to S2b with a blocked cluster.
 - **Never** merge `epic/<epicId>` to `main` outside Phase 8.5 — the merge tail
   is `deliver-epic.md`'s, unchanged.
 - **Always** flip the slice marker `→ done` after each slice commits, and

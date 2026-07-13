@@ -33,20 +33,45 @@ per-criterion, mid-delivery, and evaluates the actual work product.
 ## Per round
 
 1. **Eval pass (fresh context, independent of the author).** Run a **separate
-   critic pass** — a fresh-context sub-agent (`Agent` tool,
-   `subagent_type: general-purpose`), *not* a continuation of your implementing
-   turn — so the evaluator does not grade its own homework.
+   critic pass** — a fresh-context sub-agent (`Agent` tool), *not* a
+   continuation of your implementing turn — so the evaluator does not grade its
+   own homework.
 
-   > **Inline-critic fallback (nesting-absent harness).** Dispatching the
-   > critic as a nested `Agent` is the preferred shape — it gives genuine
-   > fresh-context isolation — and works on any harness that carries `Agent`
-   > into sub-agents (Claude Code ≥ 2.1.202; see
-   > [#2870](https://github.com/dsj1984/mandrel/issues/2870)). This eval loop
-   > itself runs inside a Story delivery sub-agent, so the nested critic sits
-   > at nesting depth 2. If the host does **not** support nested `Agent`
-   > dispatch at that depth — the tool is absent, or a spawn attempt returns
-   > an unsupported-capability error — do **not** stall the Story. Fall back
-   > to authoring the verdict **inline**: in a deliberately scoped,
+   > **Sub-agent type + risk-routed ceremony (Epic #4478, M7-B).** When
+   > `delivery.routing.roleScopedAgents` is enabled (the **default**), dispatch
+   > the critic with `subagent_type: acceptance-critic` — it boots on the
+   > role-scoped [`acceptance-critic`](../../agents/acceptance-critic.md) context
+   > (its own system prompt, no `CLAUDE.md` @-closure) that carries the
+   > maker-blind invariant and the verdict schema standalone. When the
+   > kill-switch is **off** (`roleScopedAgents: false`), fall back to
+   > `subagent_type: general-purpose`.
+   >
+   > **Whether to spawn fresh at all is risk-routed** (mirrors the risk →
+   > review-depth and risk → audit-lens routers). Resolve it per cluster with
+   > `resolveCeremonyForRisk` from
+   > [`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js)
+   > using the Epic's `planningRisk.overallLevel` and
+   > `delivery.routing.freshCriticSampleRate`:
+   > **`high`/`medium` risk → `fresh`** (spawn the critic); **`low` risk →
+   > `inline`** (the contract-identical inline fallback below), **except** the
+   > `freshCriticSampleRate` fraction of low-risk clusters the sampling floor
+   > forces `fresh` so low risk never means zero independent checking; **missing
+   > / unknown risk → `fresh` + full ceremony** (fail-safe). This chooses
+   > fresh-vs-inline **per cluster only — it never changes the cluster count**.
+   >
+   > **Inline-critic path (low-risk-routed OR nesting-absent harness).** The
+   > verdict is authored **inline** whenever the risk router above resolves to
+   > `inline` (a low-risk cluster not caught by the sampling floor), and also as
+   > a **fallback** on any harness that cannot spawn the fresh critic.
+   > Dispatching the critic as a nested `Agent` is the fresh-context shape and
+   > works on any harness that carries `Agent` into sub-agents (Claude Code ≥
+   > 2.1.202; see [#2870](https://github.com/dsj1984/mandrel/issues/2870)). This
+   > eval loop itself runs inside a Story delivery sub-agent, so the nested
+   > critic sits at nesting depth 2. If the host does **not** support nested
+   > `Agent` dispatch at that depth — the tool is absent, or a spawn attempt
+   > returns an unsupported-capability error — do **not** stall the Story
+   > regardless of the risk verdict. Author the verdict **inline**: in a
+   > deliberately scoped,
    > self-critical pass (re-read only the diff, the `acceptance[]` /
    > `verify[]` arrays, and the `verify[]` command output — treat the
    > implementation reasoning as untrusted and score against the criteria

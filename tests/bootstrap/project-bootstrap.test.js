@@ -24,6 +24,7 @@ import {
   ensurePackageJson,
   GITIGNORE_BLOCKS,
   REQUIRED_NODE_FLOOR,
+  SYNC_AGENTS_COMMAND,
   SYNC_COMMAND,
   satisfiesNodeEngine,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
@@ -96,10 +97,16 @@ describe('ensurePackageJson', () => {
     const outcome = ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.created, true);
     assert.equal(outcome.scriptsSyncCommands, 'added');
+    assert.equal(outcome.scriptsSyncAgents, 'added');
     assert.equal(outcome.scriptsPrepare, 'added');
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
     assert.equal(pkg.scripts['sync:commands'], SYNC_COMMAND);
-    assert.equal(pkg.scripts.prepare, SYNC_COMMAND);
+    assert.equal(pkg.scripts['sync:agents'], SYNC_AGENTS_COMMAND);
+    // Both projections run on prepare — command tree AND role-scoped agents.
+    assert.equal(
+      pkg.scripts.prepare,
+      `${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`,
+    );
   });
 
   it('never seeds framework runtime deps into the consumer manifest', () => {
@@ -134,7 +141,24 @@ describe('ensurePackageJson', () => {
     const outcome = ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(outcome.scriptsPrepare, 'appended');
     const pkg = readJson(path.join(tmpRoot, 'package.json'));
-    assert.equal(pkg.scripts.prepare, `husky && ${SYNC_COMMAND}`);
+    assert.equal(
+      pkg.scripts.prepare,
+      `husky && ${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`,
+    );
+  });
+
+  it('appends only the agent sync to a prepare that already carries the command sync', () => {
+    writeFile(
+      path.join(tmpRoot, 'package.json'),
+      `${JSON.stringify({ name: 'host', scripts: { prepare: `husky && ${SYNC_COMMAND}` } }, null, 2)}\n`,
+    );
+    const outcome = ensurePackageJson({ projectRoot: tmpRoot });
+    assert.equal(outcome.scriptsPrepare, 'appended');
+    const pkg = readJson(path.join(tmpRoot, 'package.json'));
+    assert.equal(
+      pkg.scripts.prepare,
+      `husky && ${SYNC_COMMAND} && ${SYNC_AGENTS_COMMAND}`,
+    );
   });
 
   it('is idempotent on the second run', () => {
@@ -142,6 +166,7 @@ describe('ensurePackageJson', () => {
     const second = ensurePackageJson({ projectRoot: tmpRoot });
     assert.equal(second.created, false);
     assert.equal(second.scriptsSyncCommands, 'already-present');
+    assert.equal(second.scriptsSyncAgents, 'already-present');
     assert.equal(second.scriptsPrepare, 'already-present');
     assert.equal(second.mutated, false);
   });

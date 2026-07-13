@@ -242,10 +242,20 @@ const EPIC_AUDIT_SCHEMA = {
 // revert). Shipped INERT in M4-A: the router's single verdict falls through to
 // fan-out until M4-B wires the executor, so the knob has no observable effect
 // yet.
+// Epic #4478 (M7-B) — role-scoped-agent kill-switch + maker-checker floor.
+// `delivery.routing.roleScopedAgents` (default true via getDeliveryRouting)
+// flips converted delivery spawns onto their `.claude/agents/<role>.md` boot
+// context; false falls back to `subagent_type: general-purpose` (the instant
+// per-consumer revert + the escape for hosts that ignore `.claude/agents/`).
+// `delivery.routing.freshCriticSampleRate` (default 0.2, clamped [0, 1]) is the
+// maker-checker sampling floor forcing a fraction of low-risk acceptance
+// clusters through a fresh critic.
 const ROUTING_SCHEMA = {
   type: 'object',
   properties: {
     singleDelivery: { type: 'boolean' },
+    roleScopedAgents: { type: 'boolean' },
+    freshCriticSampleRate: { type: 'number', minimum: 0, maximum: 1 },
   },
   additionalProperties: false,
 };

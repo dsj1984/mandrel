@@ -84,8 +84,13 @@ performance ceiling. See `agentrc-reference.json`
 ### Sub-agent dispatch capability
 
 `Agent` calls emit no `model:` argument by default — children inherit from
-the `general-purpose` sub-agent definition and the parent's worktree
-context. No `--dangerously-skip-permissions` (no subprocess is spawned).
+their sub-agent definition and the parent's worktree context. With
+`delivery.routing.roleScopedAgents` on (the default, Epic #4478), a Story child
+boots on the role-scoped [`story-worker`](../../agents/story-worker.md)
+definition — its own system prompt, no `CLAUDE.md` @-closure — instead of the
+full-closure `general-purpose` definition the kill-switch (`roleScopedAgents:
+false`) falls back to. No `--dangerously-skip-permissions` (no subprocess is
+spawned).
 Per [`.agents/instructions.md` § 4](../../instructions.md)'s cost-aware
 spawning heuristic, this optional per-call `model:` is the escape hatch: if
 a specific call would run better on a cheaper or faster capability the host
