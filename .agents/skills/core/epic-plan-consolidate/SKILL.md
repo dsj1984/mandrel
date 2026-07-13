@@ -4,7 +4,7 @@ description: >-
   Run a holistic, pre-persist consolidation pass over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/plan`, after `epic-plan-decompose-author` writes
-  `temp/epic-<Epic_ID>/tickets.json` and before `epic-plan-decompose.js`
+  `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js`
   validates and persists it. Reconciles the draft against the Tech Spec
   "Delivery Slicing" ceiling via scope-preserving operations only.
 allowed_tools:
@@ -48,7 +48,7 @@ critic cannot grade its own homework.
 `/plan` Phase 8, as the **8.3 — Holistic Consolidation** sub-step:
 immediately after `epic-plan-decompose-author` writes
 `temp/epic-<Epic_ID>/tickets.json` and **before**
-`epic-plan-decompose.js --tickets …` validates and persists. The pass operates
+`plan-persist.js --tickets …` validates and persists. The pass operates
 on the temp artifact so the holistic adjustment happens before the GitHub
 write; the deterministic validator runs *after* it, so the critic can never
 emit a plan the validator would reject.
@@ -61,7 +61,7 @@ passing the Epic ID as the Skill argument. The Skill itself reads:
 - `temp/epic-<Epic_ID>/tickets.json` — the **draft** Story array the
   `epic-plan-decompose-author` Skill wrote. This is the consolidation input.
 - `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope
-  emitted by `epic-plan-decompose.js --emit-context`. Read `epicBody`
+  emitted by `plan-context.js --epic <Epic_ID>`. Read `epicBody`
   from it — the sectioned Epic body carrying the folded Tech Spec
   sections (there is no separate `techSpec` key — Story #4324). The
   **"Delivery Slicing"**
@@ -74,7 +74,7 @@ passing the Epic ID as the Skill argument. The Skill itself reads:
 - `temp/epic-<Epic_ID>/tickets.json` — the **consolidated** array, overwriting
   the draft. Same schema as the author skill emits (flat Story array; Stories
   carry top-level `acceptance[]` / `verify[]`; `body` is a serialized string).
-  The downstream `epic-plan-decompose.js --tickets …` validator is the final
+  The downstream `plan-persist.js --tickets …` validator is the final
   gate — author for its rules, not for "looks right."
 - `temp/epic-<Epic_ID>/consolidation-report.md` — a human-readable
   rationale + before/after diff. This is the artifact the workflow shows the
@@ -152,7 +152,7 @@ so the operator sees the coarsening at the Phase 8.3 advisory diff.
 
 Return control. The workflow shows the operator the consolidation report at the
 HITL diff gate; on approval it runs
-`node .agents/scripts/epic-plan-decompose.js --epic <Epic_ID> --tickets
+`node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
 temp/epic-<Epic_ID>/tickets.json`, which validates the consolidated array,
 persists the hierarchy, and flips the Epic to `agent::ready`.
 

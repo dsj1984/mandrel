@@ -3,8 +3,8 @@ name: epic-plan-spec-author
 description: >-
   Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON
   for an Epic from the planner authoring context emitted by
-  `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/plan` when
-  the host LLM needs to write the three artifacts before `epic-plan-spec.js`
+  `plan-context.js --epic <Epic_ID>`. Use during Phase 7 of `/plan` when
+  the host LLM needs to write the three artifacts before `plan-persist.js`
   folds them into the Epic body's managed sections.
 allowed_tools:
   - Read
@@ -32,7 +32,7 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only during `/plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
+- Run only during `/plan` Phase 7, after `plan-context.js --epic <Epic_ID>` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
 - Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All three MUST exist on disk before returning.
 - **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the Phase 7 persist call rejecting an artifact (e.g. a missing `## Delivery Slicing` heading, a schema-invalid risk verdict) — apply **targeted edits** to the existing `temp/epic-<Epic_ID>/` artifact that fix only what the rejection named; do NOT rewrite an artifact wholesale from a blank draft. `helpers/plan-epic.md` bounds this to **one refinement pass** per invocation (the same shape as the Epic Clarity Gate's own "one refinement pass per invocation" contract) — do not loop.
 - Start each markdown artifact at the correct `##` heading (Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Table` — never the Epic's own `## Acceptance Criteria` heading, which stays the ideation bullets) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
@@ -57,7 +57,7 @@ the Tech Spec to produce the Acceptance Spec).
 
 ## When to use
 
-`/plan` Phase 7, immediately after `epic-plan-spec.js --emit-context`
+`/plan` Phase 7, immediately after `plan-context.js --epic <Epic_ID>`
 writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the Tech Spec" step from the legacy workflow body — the calling
 workflow dispatches this Skill via the `Skill` tool, supplies the Epic ID, and
@@ -72,7 +72,7 @@ The dispatcher passes the Epic ID as the Skill argument. The Skill itself
 reads:
 
 - `temp/epic-<Epic_ID>/planner-context.json` — produced by
-  `node .agents/scripts/epic-plan-spec.js --epic <Epic_ID> --emit-context`.
+  `node .agents/scripts/plan-context.js --epic <Epic_ID>`.
   Fields:
   - `epic.id`, `epic.title`, `epic.body` (or `epic.bodySummary` when the
     planning-context budget downgrades the body to a summary)
@@ -151,7 +151,7 @@ reads:
 
 All three files MUST exist on disk before this Skill returns control. The
 caller will invoke
-`epic-plan-spec.js --epic <Epic_ID> --tech-spec ... --risk-verdict ... --acceptance-table ...`
+`plan-persist.js --epic <Epic_ID> --tech-spec ... --risk-verdict ... --acceptance-table ...`
 next, and the persist half will fail loudly if any file is missing, empty,
 or (for the verdict) schema-invalid.
 
@@ -357,7 +357,7 @@ auditable anchor coverage, and Conventional-Commits subjects (no
 ### Step 5 — Hand back to `/plan`
 
 All three files exist; return. The caller will run
-`node .agents/scripts/epic-plan-spec.js --epic <Epic_ID>
+`node .agents/scripts/plan-persist.js --epic <Epic_ID>
 --tech-spec temp/epic-<Epic_ID>/techspec.md
 --risk-verdict temp/epic-<Epic_ID>/risk-verdict.json
 --acceptance-table temp/epic-<Epic_ID>/acceptance-spec.md`, which validates

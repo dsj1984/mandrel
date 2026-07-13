@@ -23,8 +23,11 @@ injection — read the file when the label or the instruction points you at one.
 The skill library uses a **two-tier architecture**:
 
 - **`core/`** — Universal, process-driven skills that apply across any project
-  (e.g., `core/debugging-and-error-recovery`, `core/test-driven-development`,
+  (e.g., `core/debugging-and-error-recovery`, `core/code-review-and-quality`,
   `core/security-and-hardening`). Always check for a relevant core skill first.
+  The **test-first** discipline (TDD cycle, Prove-It Pattern, good-test style,
+  property-based technique) lives in
+  [`rules/testing-standards.md`](rules/testing-standards.md), not a skill.
 - **`stack/`** — Tech-stack-specific skills for concrete tools (e.g.,
   `stack/qa/playwright`, `stack/qa/vitest`, `stack/qa/gherkin-authoring`).
   Apply these when the project uses that specific technology. For third-party
@@ -35,8 +38,14 @@ When a task involves a specific domain or technology, you MUST read the
 corresponding `.agents/skills/[tier]/[category]/[skill-name]/SKILL.md` file and
 apply its constraints. Review the skill's `examples/` directory or
 `examples.md` sibling **when present and relevant** to the task — most skills
-do not ship one, so do not probe blindly. When uncertain which skill to apply,
-read `core/using-agent-skills` for guidance on skill selection and sequencing.
+do not ship one, so do not probe blindly. When uncertain which skill applies,
+match the task against the one-line `description` in each skill's frontmatter
+(catalogued in `.agents/skills/skills.index.json`). Skills compose: a complete
+feature typically flows `idea-refinement` → the `/plan` workflow →
+implementation test-first (`rules/testing-standards.md`) →
+`code-review-and-quality` — not every task needs every skill. The always-on
+operating posture (surface assumptions, manage confusion, push back on flawed
+approaches, verify don't assume) is governed by § 3–4 and § 1.I of this file.
 
 ### C. Proactive Documentation
 

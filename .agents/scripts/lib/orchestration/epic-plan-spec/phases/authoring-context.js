@@ -41,7 +41,7 @@ import { buildAuthoringGrounding } from './spec-authoring-grounding.js';
  * @param {{ github?: { owner?: string, repo?: string }|null }} opts
  * @returns {string|null}
  */
-export function resolveMemoryDir({ github } = {}) {
+function resolveMemoryDir({ github } = {}) {
   if (
     typeof process.env.MANDREL_MEMORY_DIR === 'string' &&
     process.env.MANDREL_MEMORY_DIR.length > 0
