@@ -95,6 +95,106 @@ async function readOptional(filePath, { required }) {
   }
 }
 
+async function readJsonFile(filePath, label) {
+  const raw = await readOptional(filePath, { required: true });
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `Failed to parse ${label} file "${filePath}" as JSON: ${err.message}`,
+    );
+  }
+}
+
+function resolveInputPaths(values) {
+  return {
+    storiesPath: path.resolve(values.stories),
+    riskVerdictPath: path.resolve(values['risk-verdict']),
+    techSpecPath: values['tech-spec']
+      ? path.resolve(values['tech-spec'])
+      : null,
+    planAcceptancePath: values['plan-acceptance']
+      ? path.resolve(values['plan-acceptance'])
+      : null,
+    planDir: values['plan-dir'] ? path.resolve(values['plan-dir']) : null,
+  };
+}
+
+async function loadArtifacts(paths) {
+  const riskVerdict = loadRiskVerdict(paths.riskVerdictPath);
+  const stories = await readJsonFile(paths.storiesPath, 'stories');
+  const techSpecContent = paths.techSpecPath
+    ? await readOptional(paths.techSpecPath, { required: true })
+    : null;
+  const planAcceptance = paths.planAcceptancePath
+    ? await readJsonFile(paths.planAcceptancePath, 'plan-acceptance')
+    : null;
+
+  return { stories, riskVerdict, techSpecContent, planAcceptance };
+}
+
+function resolvePersonaLabel(personaValue) {
+  const persona =
+    typeof personaValue === 'string' && personaValue.trim() !== ''
+      ? personaValue.trim()
+      : null;
+  if (!persona) return undefined;
+  return persona.startsWith(PERSONA_LABEL_PREFIX)
+    ? persona
+    : `${PERSONA_LABEL_PREFIX}${persona}`;
+}
+
+function buildPersistOptions(values, paths) {
+  return {
+    forceReview: values['force-review'],
+    allowOverBudget: values['allow-over-budget'],
+    allowLargeFanOut: values['allow-large-fan-out'],
+    dryRun: values['dry-run'],
+    personaLabel: resolvePersonaLabel(values.persona),
+    planRunId: values['plan-run-id'],
+    planDir: paths.planDir,
+    skipCleanup: values['dry-run'],
+  };
+}
+
+async function runPersistInvocation({ values, config, provider, artifacts }) {
+  const paths = resolveInputPaths(values);
+  const settings = {
+    baseBranch: config.project?.baseBranch,
+    paths: config.project?.paths,
+    planning: config.planning,
+    docsContextFiles: config.project?.docsContextFiles,
+  };
+
+  return recordPlanInvocation(
+    {
+      cli: 'plan-persist',
+      mode: values['dry-run'] ? 'dry-run' : 'persist',
+      config,
+    },
+    () =>
+      runPlanPersist({
+        provider,
+        artifacts,
+        config,
+        settings,
+        opts: buildPersistOptions(values, paths),
+      }),
+  );
+}
+
+async function attachPlanMetrics(result, config) {
+  try {
+    const summary = summarizePlanMetrics(await readPlanMetrics(config));
+    if (summary) {
+      result.planMetrics = summary;
+      Logger.info(`[plan-persist] ${renderPlanMetricsSummaryLine(summary)}`);
+    }
+  } catch (err) {
+    Logger.warn(`[plan-persist] plan-metrics summary skipped: ${err.message}`);
+  }
+}
+
 async function main() {
   const { values } = parseArgs({ options: CLI_OPTIONS });
 
@@ -109,90 +209,18 @@ async function main() {
   } catch (err) {
     throw new Error(`Config schema validation failed:\n${err.message}`);
   }
-  const settings = {
-    baseBranch: config.project?.baseBranch,
-    paths: config.project?.paths,
-    planning: config.planning,
-    docsContextFiles: config.project?.docsContextFiles,
-  };
   const provider = createProvider(config);
-
-  const storiesPath = path.resolve(values.stories);
-  const riskVerdictPath = path.resolve(values['risk-verdict']);
-  const techSpecPath = values['tech-spec']
-    ? path.resolve(values['tech-spec'])
-    : null;
-  const planAcceptancePath = values['plan-acceptance']
-    ? path.resolve(values['plan-acceptance'])
-    : null;
-  const planDir = values['plan-dir'] ? path.resolve(values['plan-dir']) : null;
-
-  const riskVerdict = loadRiskVerdict(riskVerdictPath);
-  const storiesRaw = await readOptional(storiesPath, { required: true });
-  let stories;
-  try {
-    stories = JSON.parse(storiesRaw);
-  } catch (err) {
-    throw new Error(
-      `Failed to parse stories file "${storiesPath}" as JSON: ${err.message}`,
-    );
-  }
-  const techSpecContent = techSpecPath
-    ? await readOptional(techSpecPath, { required: true })
-    : null;
-  let planAcceptance = null;
-  if (planAcceptancePath) {
-    const raw = await readOptional(planAcceptancePath, { required: true });
-    try {
-      planAcceptance = JSON.parse(raw);
-    } catch (err) {
-      throw new Error(
-        `Failed to parse plan-acceptance file "${planAcceptancePath}" as JSON: ${err.message}`,
-      );
-    }
-  }
-
-  const persona =
-    typeof values.persona === 'string' && values.persona.trim() !== ''
-      ? values.persona.trim()
-      : null;
-  const personaLabel = persona
-    ? persona.startsWith(PERSONA_LABEL_PREFIX)
-      ? persona
-      : `${PERSONA_LABEL_PREFIX}${persona}`
-    : undefined;
+  const paths = resolveInputPaths(values);
+  const artifacts = await loadArtifacts(paths);
 
   let result;
   try {
-    result = await recordPlanInvocation(
-      {
-        cli: 'plan-persist',
-        mode: values['dry-run'] ? 'dry-run' : 'persist',
-        config,
-      },
-      () =>
-        runPlanPersist({
-          provider,
-          artifacts: {
-            stories,
-            riskVerdict,
-            techSpecContent,
-            planAcceptance,
-          },
-          config,
-          settings,
-          opts: {
-            forceReview: values['force-review'],
-            allowOverBudget: values['allow-over-budget'],
-            allowLargeFanOut: values['allow-large-fan-out'],
-            dryRun: values['dry-run'],
-            personaLabel,
-            planRunId: values['plan-run-id'],
-            planDir,
-            skipCleanup: values['dry-run'],
-          },
-        }),
-    );
+    result = await runPersistInvocation({
+      values,
+      config,
+      provider,
+      artifacts,
+    });
   } catch (err) {
     if (err?.code === 'PLAN_REACHABILITY_ORPHANS') {
       process.stdout.write(`${err.message}\n`);
@@ -202,15 +230,7 @@ async function main() {
     throw err;
   }
 
-  try {
-    const summary = summarizePlanMetrics(await readPlanMetrics(config));
-    if (summary) {
-      result.planMetrics = summary;
-      Logger.info(`[plan-persist] ${renderPlanMetricsSummaryLine(summary)}`);
-    }
-  } catch (err) {
-    Logger.warn(`[plan-persist] plan-metrics summary skipped: ${err.message}`);
-  }
+  await attachPlanMetrics(result, config);
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

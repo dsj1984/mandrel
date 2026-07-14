@@ -44,6 +44,38 @@ export function planRunLabel(id) {
   return `${PLAN_RUN_LABEL_PREFIX}${token}`;
 }
 
+function bodyObjectFromTicket(ticket) {
+  if (typeof ticket.body === 'string') {
+    return parseStoryBody(ticket.body).body;
+  }
+  if (ticket.body && typeof ticket.body === 'object') {
+    return parseStoryBody(ticket.body).body;
+  }
+
+  // Allow top-level structured fields (goal/changes/…) without a `body` key.
+  return parseStoryBody({
+    goal: ticket.goal ?? '',
+    slicing: ticket.slicing ?? '',
+    spec: ticket.spec ?? '',
+    changes: ticket.changes ?? [],
+    acceptance: ticket.acceptance ?? [],
+    verify: ticket.verify ?? [],
+    references: ticket.references ?? [],
+    non_goals: ticket.non_goals ?? [],
+    wide: ticket.wide ?? null,
+    reason_to_exist: ticket.reason_to_exist ?? null,
+    depends_on: ticket.depends_on ?? [],
+    estimated_test_files: ticket.estimated_test_files ?? null,
+  }).body;
+}
+
+function normalizeDependsOn(ticket, bodyObject) {
+  if (Array.isArray(ticket.depends_on)) {
+    return ticket.depends_on.filter((d) => typeof d === 'string');
+  }
+  return Array.isArray(bodyObject.depends_on) ? bodyObject.depends_on : [];
+}
+
 /**
  * Normalize a plan Story ticket into `{ slug, title, bodyObject }`.
  * Accepts either a serialized markdown `body` string or a structured body.
@@ -68,35 +100,8 @@ export function normalizeStoryTicket(ticket) {
     typeof ticket.title === 'string' && ticket.title.trim() !== ''
       ? ticket.title.trim()
       : `Story ${slug}`;
-
-  let bodyObject;
-  if (typeof ticket.body === 'string') {
-    bodyObject = parseStoryBody(ticket.body).body;
-  } else if (ticket.body && typeof ticket.body === 'object') {
-    bodyObject = parseStoryBody(ticket.body).body;
-  } else {
-    // Allow top-level structured fields (goal/changes/…) without a `body` key.
-    bodyObject = parseStoryBody({
-      goal: ticket.goal ?? '',
-      slicing: ticket.slicing ?? '',
-      spec: ticket.spec ?? '',
-      changes: ticket.changes ?? [],
-      acceptance: ticket.acceptance ?? [],
-      verify: ticket.verify ?? [],
-      references: ticket.references ?? [],
-      non_goals: ticket.non_goals ?? [],
-      wide: ticket.wide ?? null,
-      reason_to_exist: ticket.reason_to_exist ?? null,
-      depends_on: ticket.depends_on ?? [],
-      estimated_test_files: ticket.estimated_test_files ?? null,
-    }).body;
-  }
-
-  const depends_on = Array.isArray(ticket.depends_on)
-    ? ticket.depends_on.filter((d) => typeof d === 'string')
-    : Array.isArray(bodyObject.depends_on)
-      ? bodyObject.depends_on
-      : [];
+  const bodyObject = bodyObjectFromTicket(ticket);
+  const depends_on = normalizeDependsOn(ticket, bodyObject);
 
   return { slug, title, bodyObject, depends_on };
 }
@@ -164,6 +169,31 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
   return { bodyObject: next, spill };
 }
 
+function assembleOnePlanStory(ticket, opts) {
+  const { slug, title, bodyObject, depends_on } = normalizeStoryTicket(ticket);
+  const { bodyObject: folded, spill } = foldSpecIntoStoryBody(
+    bodyObject,
+    slug,
+    {
+      sharedSpec: opts.sharedSpec ?? null,
+      repoRoot: opts.repoRoot,
+      write: opts.write,
+      fs: opts.fs,
+    },
+  );
+  const body = serializeStoryBody({ ...folded, depends_on });
+  return {
+    story: {
+      slug,
+      title,
+      body,
+      acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
+      depends_on,
+    },
+    spill: spill ? { slug, spill } : null,
+  };
+}
+
 /**
  * Assemble markdown bodies for every Story: normalize → fold/spill spec →
  * assertAcceptancePartition → serialize.
@@ -186,27 +216,9 @@ export function assemblePlanStories(tickets, opts = {}) {
 
   const spills = [];
   const stories = tickets.map((ticket) => {
-    const { slug, title, bodyObject, depends_on } =
-      normalizeStoryTicket(ticket);
-    const { bodyObject: folded, spill } = foldSpecIntoStoryBody(
-      bodyObject,
-      slug,
-      {
-        sharedSpec: opts.sharedSpec ?? null,
-        repoRoot: opts.repoRoot,
-        write: opts.write,
-        fs: opts.fs,
-      },
-    );
-    if (spill) spills.push({ slug, spill });
-    const body = serializeStoryBody({ ...folded, depends_on });
-    return {
-      slug,
-      title,
-      body,
-      acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
-      depends_on,
-    };
+    const { story, spill } = assembleOnePlanStory(ticket, opts);
+    if (spill) spills.push(spill);
+    return story;
   });
 
   assertAcceptancePartition(stories, {
