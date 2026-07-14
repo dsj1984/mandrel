@@ -30,6 +30,7 @@ import { describe, it } from 'node:test';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   AutomergePredicate,
+  classifyRequiredChecksProbe,
   formatCheckFailureReason,
   listFailingChecks,
   NON_FAILING_CHECK_OUTCOMES,
@@ -96,6 +97,116 @@ describe('NON_FAILING_CHECK_OUTCOMES', () => {
     assert.equal(NON_FAILING_CHECK_OUTCOMES.has('timed_out'), false);
     assert.equal(NON_FAILING_CHECK_OUTCOMES.has('cancelled'), false);
     assert.equal(NON_FAILING_CHECK_OUTCOMES.has('action_required'), false);
+  });
+});
+
+describe('classifyRequiredChecksProbe — Stage 5 coverage branches', () => {
+  it('covers green, red, pending, unknown, and checks-less outcomes', () => {
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 0,
+        stdout: JSON.stringify([
+          { name: 'lint', state: 'SUCCESS' },
+          { name: 'test', state: 'SUCCESS' },
+        ]),
+        stderr: '',
+      }).ok,
+      true,
+    );
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'FAILURE' }]),
+        stderr: '',
+      }).ok,
+      false,
+    );
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'IN_PROGRESS' }]),
+        stderr: '',
+      }).ok,
+      false,
+    );
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 8,
+        stdout: JSON.stringify([{ name: 'test', state: 'SOME_FUTURE_STATE' }]),
+        stderr: '',
+      }).outcomes.test,
+      'unknown',
+    );
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 1,
+        stdout: '',
+        stderr: 'no checks reported on the epic/12 branch',
+      }).ok,
+      true,
+    );
+    assert.equal(
+      classifyRequiredChecksProbe(
+        {
+          status: 1,
+          stdout: '',
+          stderr: 'no checks reported on the epic/12 branch',
+        },
+        { requireChecks: true },
+      ).ok,
+      false,
+    );
+  });
+
+  it('covers empty/unknown probe, non-array JSON, nameless entries, and bucket', () => {
+    assert.match(
+      classifyRequiredChecksProbe({ stdout: '', stderr: '' }).reason,
+      /status=unknown/,
+    );
+    assert.match(
+      classifyRequiredChecksProbe({
+        status: 0,
+        stdout: JSON.stringify({ name: 'lint', state: 'SUCCESS' }),
+        stderr: '',
+      }).reason,
+      /unparseable/,
+    );
+    assert.deepEqual(
+      classifyRequiredChecksProbe({
+        status: 0,
+        stdout: JSON.stringify([
+          null,
+          { state: 'FAILURE' },
+          { name: 12, state: 'FAILURE' },
+        ]),
+        stderr: '',
+      }).outcomes,
+      {},
+    );
+    assert.equal(
+      classifyRequiredChecksProbe({
+        status: 0,
+        stdout: JSON.stringify([{ name: 'lint', bucket: 'SUCCESS' }]),
+        stderr: '',
+      }).outcomes.lint,
+      'success',
+    );
+    assert.match(
+      classifyRequiredChecksProbe({
+        status: 0,
+        stdout: 'not json',
+        stderr: '',
+      }).reason,
+      /unparseable/,
+    );
+    assert.match(
+      classifyRequiredChecksProbe({
+        status: 1,
+        stdout: '',
+        stderr: 'gh: not authenticated',
+      }).reason,
+      /probe failed/,
+    );
   });
 });
 
