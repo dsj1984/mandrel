@@ -176,8 +176,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // success, carrying risk / routing receipts and the depends_on order
   // table. One entry per plan; a re-persist upserts in place.
   'plan-summary',
-  // v2 Stage 3 — flat Story persist checkpoint on the primary Story
-  // (replaces epic-plan-state for new plans).
+  // v2 Stage 3 — flat Story persist checkpoint on every created Story
+  // (replaces epic-plan-state for new plans). plan-summary stays primary-only.
   'story-plan-state',
 ]);
 

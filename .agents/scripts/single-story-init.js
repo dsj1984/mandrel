@@ -2,14 +2,12 @@
 /* node:coverage ignore file */
 
 /**
- * single-story-init.js — Initialize a standalone Story (no parent Epic).
+ * single-story-init.js — Initialize a Story for v2 `/deliver`.
  *
- * Counterpart to `story-init.js` for the `/single-story-deliver` workflow.
- * The framework's main `story-init.js` requires an `Epic: #N` reference in
- * the Story body to trace hierarchy, seed the Story branch from
- * `epic/<id>`, and gate execution on the epic's dispatch manifest. None of
- * that applies to a standalone Story — a top-level work unit that branches
- * directly from `main` and opens its PR straight to `main`.
+ * Seeds `story-<id>` from `project.baseBranch` (default `main`), materialises
+ * the per-Story worktree when isolation is enabled, upserts a `story-init`
+ * structured comment, and flips the Story to `agent::executing`. There is no
+ * Epic parent, epic branch, or dispatch-manifest gate.
  *
  * What this script does:
  *   1. Validate the Story (type::story, not closed).
@@ -22,17 +20,14 @@
  *      `standalone: true`.
  *   6. Flip the Story to `agent::executing`.
  *
- * What this script does NOT do (and why):
- *   - Skips `validateBlockers` against the body's `Blocked by:` markers —
- *     pre-flight is still the operator's responsibility, but the Epic-scope
- *     blocker chain doesn't fit.
- *   - Skips child-Task transitions — a standalone Story is treated as
- *     atomic (one branch, one commit-set, one PR).
+ * What this script does NOT do:
+ *   - Child-Task transitions — a Story is atomic (one branch, one
+ *     commit-set, one PR to `main`).
  *
  * Usage: `node single-story-init.js --story <STORY_ID> [--dry-run]`
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/helpers/single-story-deliver.md
+ * @see .agents/workflows/helpers/deliver-story.md
  */
 
 import { existsSync } from 'node:fs';

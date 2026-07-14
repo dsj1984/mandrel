@@ -138,7 +138,7 @@ async function openAndReviewPr({
     });
     throw new Error(
       `[single-story-close] Story-scope review reported ${criticalCount} critical blocker(s) on PR ${prUrl}. ` +
-        'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/single-story-deliver`.',
+        'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/deliver`.',
     );
   }
   return { prUrl, prNumber };

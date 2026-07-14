@@ -11,7 +11,8 @@
  *   risk-verdict → ticket validator / DAG / capacity → reachability →
  *   split-policy partition → fold/spill Spec into each Story body →
  *   createIssue(s) with type::story + agent::ready → risk-verdict +
- *   plan-summary + story-plan-state on the primary Story → temp cleanup.
+ *   story-plan-state on every Story; plan-summary on the primary → temp
+ *   cleanup.
  *
  * CLI:
  *   --stories <file>         Required Story ticket array (default length 1)

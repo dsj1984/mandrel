@@ -52,7 +52,7 @@ import {
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './summary.js';
 
-/** Checkpoint schema version written on the primary Story. */
+/** Checkpoint schema version written on each Story's story-plan-state. */
 const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
 
 /** Structured-comment type for the per-plan Story checkpoint. */

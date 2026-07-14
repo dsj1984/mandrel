@@ -1,6 +1,14 @@
 /**
- * amend.js — the `--amend` change-request delta path of the collapsed
- * persist surface (Epic #4474 PR4, design §2 mode matrix, amend row).
+ * amend.js — DEAD / NOT WIRED (v2 Stages 4–5).
+ *
+ * `run-plan-persist.js` no longer imports this module; `--amend` tree
+ * cascades and the reconciler ledger (`.agents/epics/<id>.state.json`)
+ * are gone from the live `/plan` path. Kept only so the maintainability
+ * baseline does not need a delete-refresh in this pass. Do not re-wire
+ * without an explicit product decision to restore amend semantics.
+ *
+ * Historical notes — the `--amend` change-request delta path of the
+ * collapsed persist surface (Epic #4474 PR4, design §2 mode matrix):
  *
  * An amend run receives the full ticket set with every ticket carrying an
  * `op` field:
