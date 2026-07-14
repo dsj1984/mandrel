@@ -24,7 +24,7 @@ export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
   // Story #2144 — intermediate state held by a Story between successful
-  // close-preflight and a confirmed merge into `epic/<id>`. Included in
+  // close-preflight and a confirmed Story PR merge into `main`. Included in
   // the state enum so `transitionTicketState` can apply the label via
   // the canonical one-state-at-a-time path (which removes every other
   // `agent::*` label in the same call) and so the read-side `ALL_STATES`

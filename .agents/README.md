@@ -545,7 +545,7 @@ sessions, `gh auth login` is sufficient.
 ## Self-Healing Checks
 
 `scripts/lib/checks/` is the discovery-based registry of named checks
-consumed by preflight guards (`/deliver`, `/story-close`, `npm test`),
+consumed by preflight guards (`/deliver`, `single-story-close`, `npm test`),
 the `diagnose.js` ad-hoc viewer, and the retro surface. Use one check per
 file. The runner (`index.js`) loads checks at process start and filters by
 scope at each call site.
@@ -554,9 +554,9 @@ Each check module default-exports an object with this shape:
 
 ```js
 export default {
-  id: 'stale-origin-epic',
+  id: 'stale-origin-main',
   severity: 'blocker', // 'blocker' | 'warning' | 'info'
-  scope: ['epic-deliver', 'story-close', 'retro'],
+  scope: ['deliver', 'single-story-close', 'retro'],
   autoCorrect: 'refuse-and-print', // 'auto' | 'refuse-and-print'
   detect(state) {
     return null;

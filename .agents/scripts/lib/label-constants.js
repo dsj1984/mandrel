@@ -10,12 +10,12 @@ export const AGENT_LABELS = {
   REVIEW_SPEC: 'agent::review-spec',
   READY: 'agent::ready',
   EXECUTING: 'agent::executing',
-  // Story #2144 — intermediate state owned by `story-close.js`. A Story
+  // Story #2144 — intermediate state owned by `single-story-close.js`. A Story
   // flips to `agent::closing` after preflight validation succeeds and
-  // before the merge into `epic/<id>` is attempted. It flips to
-  // `agent::done` only after the post-merge pipeline confirms the merge
+  // the Story PR is opened against `main`. It flips to
+  // `agent::done` only after the close pipeline confirms the PR merge
   // landed; if the close is killed mid-flight, the Story remains at
-  // `agent::closing` so a `/story-execute --resume` can pick up at the
+  // `agent::closing` so `/deliver` can pick up at the
   // post-merge phase rather than re-running preflight. The label is the
   // distinguishing signal between "hung close" and "finished work".
   CLOSING: 'agent::closing',
