@@ -86,7 +86,7 @@ describe('runPlanPersist — flat Story ops', () => {
         techSpecContent: '## Overview\n\nSmall folded spec.',
       },
       config: {},
-      opts: { skipCleanup: true, writeSpill: false },
+      opts: { skipCleanup: true },
     });
 
     assert.equal(result.stories.length, 1);
@@ -118,7 +118,7 @@ describe('runPlanPersist — flat Story ops', () => {
               deliveryShapeRationale: 'nope',
             },
           },
-          opts: { skipCleanup: true, writeSpill: false },
+          opts: { skipCleanup: true },
         }),
       /deliveryShape/,
     );
@@ -161,7 +161,7 @@ describe('runPlanPersist — flat Story ops', () => {
               },
             },
           },
-          opts: { skipCleanup: true, writeSpill: false },
+          opts: { skipCleanup: true },
         }),
       /ticket validation failed.*oversized/s,
     );
@@ -178,7 +178,7 @@ describe('runPlanPersist — flat Story ops', () => {
       },
       opts: {
         skipCleanup: true,
-        writeSpill: false,
+
         planRunId: 'stage3',
       },
     });

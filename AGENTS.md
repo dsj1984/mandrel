@@ -30,7 +30,7 @@ package and materialized into consumer projects' `.agents/` directories by
 > **Ticket hierarchy.** Mandrel ships a **Story-only** ticket model.
 > Acceptance criteria and verification steps are inlined on the Story
 > body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
-> `## Spec` (with spill-to-doc when over budget). `/plan` emits one or
+> `## Spec` (inline only; over-budget Specs mean split or tighten). `/plan` emits one or
 > more `type::story` issues (default N=1); `/deliver` runs each Story
 > via `helpers/deliver-story` on `story-<id>` → PR → `main`. Optional
 > `depends_on` / `plan-run::<id>` edges order rare multi-Story runs.

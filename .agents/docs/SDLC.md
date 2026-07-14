@@ -307,7 +307,7 @@ mode:
 5. **Open the Story (persist step).** `plan-persist.js` renders the
    one-pager into the canonical Story template and opens the Issue with
    **`type::story`** (+ `agent::ready`); the same persist pass folds in
-   the authored `## Spec` (spill-to-doc when over budget).
+   the authored `## Spec` (inline only; over-budget Specs fail closed).
 
 #### Scope triage
 
@@ -479,7 +479,7 @@ warrants spec coverage, remove the label and run `/plan`'s
 
      ```text
      Story (type::story)              ← body carries ## Spec + acceptance[]
-     │                                   + verify[]; spill-to-doc when over budget
+     │                                   + verify[]; Spec inline-only (no docs/ spill)
      └── (optional siblings under plan-run::<id>, linked by depends_on)
      ```
 

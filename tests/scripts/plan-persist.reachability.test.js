@@ -130,7 +130,7 @@ function baseInput(provider, { artifacts = {}, planning, opts = {} } = {}) {
     },
     opts: {
       skipCleanup: true,
-      writeSpill: false,
+
       ...opts,
     },
   };

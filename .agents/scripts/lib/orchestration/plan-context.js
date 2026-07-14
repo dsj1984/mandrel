@@ -400,9 +400,10 @@ export function buildSystemPrompts({
 Emit **exactly one Story** in \`stories.json\` unless the pieces have
 near-zero overlap or sit across an architectural seam. Coupled work stays
 one Story — put intra-session checkpoints in \`## Slicing\` and fold the
-Tech Spec into \`## Spec\` (persist spills over-budget specs to
-\`docs/specs/<slug>.md\`). Do **not** emit \`deliveryShape\`. When N>1,
-every acceptance criterion must belong to exactly one Story.
+Tech Spec into \`## Spec\` (inline only; over-budget Specs mean split or
+tighten — never write under \`docs/\`). Do **not** emit \`deliveryShape\`.
+When N>1, every acceptance criterion must belong to exactly one Story,
+and each Story carries its own \`## Spec\` (no shared techspec.md fold).
 `,
     decompose,
   };

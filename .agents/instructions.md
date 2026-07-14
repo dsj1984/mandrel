@@ -426,8 +426,9 @@ there is no Epic integration branch and no in-script push to `main`.
 
 v2 collapses the ticket model to **Story**. Acceptance criteria and
 verification steps live inline on the Story body (`acceptance[]` /
-`verify[]`); the folded Tech Spec lives in `## Spec` (with spill-to-doc when
-over budget). Optional `depends_on` edges order rare multi-Story plan-runs.
+`verify[]`); the folded Tech Spec lives inline in `## Spec` (over-budget
+Specs fail closed — split or tighten; never write under `docs/`). Optional
+`depends_on` edges order rare multi-Story plan-runs.
 
 - `/plan` emits one or more `type::story` issues (default N=1); N>1 shares a
   `plan-run::<id>` label.

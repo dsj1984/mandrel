@@ -789,8 +789,8 @@ changing its shape (full per-field reference:
 The framework uses a **Story-only** GitHub Issue model with
 label-based typing. Optional `depends_on` / `blocked by #NNN` edges and a
 shared `plan-run::<id>` label order rare multi-Story plans. The folded
-Tech Spec lives on the Story body (`## Spec`, with spill-to-doc when over
-budget):
+Tech Spec lives inline on the Story body (`## Spec` only — over-budget
+Specs fail closed as a sizing smell, never spill to `docs/`):
 
 ```text
 Story (type::story)              ← ## Spec + acceptance[] + verify[]

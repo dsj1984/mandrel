@@ -66,50 +66,59 @@ describe('normalizeStoryTicket', () => {
       /mismatched top-level and body acceptance/,
     );
   });
+
+  it('fills empty body acceptance/verify from top-level (no dual-author)', () => {
+    const n = normalizeStoryTicket({
+      slug: 'solo',
+      title: 'Solo',
+      body: serialize({
+        goal: 'Goal.',
+        changes: [{ path: 'src/a.js', assumption: 'creates' }],
+        acceptance: [],
+        verify: [],
+        reason_to_exist: 'One reason',
+      }),
+      acceptance: ['observable works'],
+      verify: ['npm test (unit)'],
+    });
+    assert.deepEqual(n.bodyObject.acceptance, ['observable works']);
+    assert.deepEqual(n.bodyObject.verify, ['npm test (unit)']);
+  });
 });
 
 describe('foldSpecIntoStoryBody', () => {
   it('keeps a small shared spec inline', () => {
-    const { bodyObject, spill } = foldSpecIntoStoryBody(
+    const { bodyObject } = foldSpecIntoStoryBody(
       { goal: 'g', changes: [], acceptance: [], verify: [], references: [] },
       's1',
-      { sharedSpec: 'short tech spec', write: false },
+      { sharedSpec: 'short tech spec' },
     );
     assert.equal(bodyObject.spec, 'short tech spec');
-    assert.equal(spill.spilled, false);
   });
 
-  it('spills an over-budget spec to a reference', () => {
-    const writes = new Map();
+  it('rejects an over-budget spec instead of spilling to docs/', () => {
     const big = 'x'.repeat((DEFAULT_SPEC_BODY_TOKEN_BUDGET + 50) * 4);
-    const { bodyObject, spill } = foldSpecIntoStoryBody(
-      { goal: 'g', changes: [], acceptance: [], verify: [], references: [] },
-      's1',
-      {
-        sharedSpec: big,
-        write: true,
-        repoRoot: '/repo',
-        fs: {
-          writeFileSync: (p, c) => writes.set(p, c),
-          mkdirSync: () => {},
-        },
-      },
+    assert.throws(
+      () =>
+        foldSpecIntoStoryBody(
+          {
+            goal: 'g',
+            changes: [],
+            acceptance: [],
+            verify: [],
+            references: [],
+          },
+          's1',
+          { sharedSpec: big },
+        ),
+      /never written to docs/,
     );
-    assert.equal(bodyObject.spec, '');
-    assert.equal(spill.spilled, true);
-    assert.deepEqual(bodyObject.references[0], {
-      path: 'docs/specs/s1.md',
-      assumption: 'creates',
-    });
-    assert.equal(writes.has('/repo/docs/specs/s1.md'), true);
   });
 });
 
 describe('assemblePlanStories', () => {
   it('assembles a default-single plan', () => {
-    const { stories } = assemblePlanStories([storyTicket('solo')], {
-      write: false,
-    });
+    const { stories } = assemblePlanStories([storyTicket('solo')]);
     assert.equal(stories.length, 1);
     assert.match(stories[0].body, /## Goal/);
   });
@@ -117,18 +126,25 @@ describe('assemblePlanStories', () => {
   it('refuses cross-Story duplicate acceptance', () => {
     assert.throws(
       () =>
-        assemblePlanStories(
-          [
-            storyTicket('a', {
-              bodyFields: { acceptance: ['shared criterion'] },
-            }),
-            storyTicket('b', {
-              bodyFields: { acceptance: ['shared criterion'] },
-            }),
-          ],
-          { write: false },
-        ),
+        assemblePlanStories([
+          storyTicket('a', {
+            bodyFields: { acceptance: ['shared criterion'] },
+          }),
+          storyTicket('b', {
+            bodyFields: { acceptance: ['shared criterion'] },
+          }),
+        ]),
       /split-policy/,
+    );
+  });
+
+  it('refuses folding one shared techspec into N>1 Stories', () => {
+    assert.throws(
+      () =>
+        assemblePlanStories([storyTicket('a'), storyTicket('b')], {
+          sharedSpec: 'one shared approach for everyone',
+        }),
+      /shared techspec\.md cannot be folded into N>1/,
     );
   });
 });
@@ -145,10 +161,10 @@ describe('createStoryIssues', () => {
         };
       },
     };
-    const { stories } = assemblePlanStories(
-      [storyTicket('a'), storyTicket('b')],
-      { write: false },
-    );
+    const { stories } = assemblePlanStories([
+      storyTicket('a'),
+      storyTicket('b'),
+    ]);
     const { created, planRunLabel: label } = await createStoryIssues({
       provider,
       stories,
@@ -169,13 +185,10 @@ describe('createStoryIssues', () => {
         return { id: 200 + calls.length };
       },
     };
-    const { stories } = assemblePlanStories(
-      [
-        storyTicket('consumer', { depends_on: ['migration'] }),
-        storyTicket('migration'),
-      ],
-      { write: false },
-    );
+    const { stories } = assemblePlanStories([
+      storyTicket('consumer', { depends_on: ['migration'] }),
+      storyTicket('migration'),
+    ]);
     const { created } = await createStoryIssues({
       provider,
       stories,
@@ -196,10 +209,9 @@ describe('createStoryIssues', () => {
         return { id: 1 };
       },
     };
-    const { stories } = assemblePlanStories(
-      [storyTicket('consumer', { depends_on: ['missing'] })],
-      { write: false },
-    );
+    const { stories } = assemblePlanStories([
+      storyTicket('consumer', { depends_on: ['missing'] }),
+    ]);
     await assert.rejects(
       () => createStoryIssues({ provider, stories }),
       /unknown sibling/,

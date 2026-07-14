@@ -67,10 +67,15 @@ Write artifacts under `temp/plan-<slug>/`:
 - `stories.json` — array of Story tickets (**length 1 by default**). Each
   body uses the canonical `story-body` shape (`## Goal`, optional
   `## Slicing`, optional `## Spec`, `## Changes`, `## Acceptance`,
-  `## Verify`, …). Fold the Tech Spec into `## Spec` (or let persist fold a
-  shared `techspec.md`). Over-budget specs spill to `docs/specs/<slug>.md`.
+  `## Verify`, …). The Story is the single executable document: put lean
+  approach prose in `## Spec`, binding criteria in top-level
+  `acceptance[]` / `verify[]` (persist syncs them into the body). Do not
+  restate Goal/Acceptance inside Spec. Over-budget Specs fail closed —
+  split the Story or tighten Spec; never write Specs under `docs/`.
 - `risk-verdict.json` — axes + summary only (**no `deliveryShape`**).
-- optional `techspec.md` — shared Tech Spec prose when not inlined per Story.
+- optional `techspec.md` — **N===1 only** convenience when Spec was authored
+  outside the Story JSON; persist folds it into that Story's `## Spec`.
+  Forbidden for N>1 (each Story must carry its own Spec).
 - optional `acceptance-manifest.json` — plan-level AC list for partition coverage when N>1.
 
 Do **not** Read the retired `epic-plan-decompose-author` skill for a

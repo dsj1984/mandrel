@@ -158,8 +158,6 @@ function riskVerdictCommentBody(riskVerdict) {
  *     planDir?: string,
  *     fanOutCounter?: Function,
  *     cwd?: string,
- *     spillFs?: object,
- *     writeSpill?: boolean,
  *   },
  * }} input
  */
@@ -187,8 +185,6 @@ export async function runPlanPersist({
     planDir = null,
     fanOutCounter = undefined,
     cwd = PROJECT_ROOT,
-    spillFs = undefined,
-    writeSpill = !dryRun,
   } = opts;
 
   if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
@@ -283,14 +279,10 @@ export async function runPlanPersist({
     }
   }
 
-  // Split policy + folded spec (spill) — still before any provider call when
-  // writeSpill is false; production writes spilled docs just before create.
-  const { stories, spills } = assemblePlanStories(rawStories, {
+  // Split policy + inline Spec fold (over-budget Specs fail closed — no docs/).
+  const { stories } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
     planAcceptance: planAcceptance ?? undefined,
-    repoRoot: cwd,
-    write: writeSpill,
-    fs: spillFs,
   });
 
   const planningRisk = deriveRiskEnvelope(riskVerdict);
@@ -357,11 +349,6 @@ export async function runPlanPersist({
             slug: createdStory.slug,
             id: createdStory.id,
           })),
-          spills: spills.map((spill) => ({
-            slug: spill.slug,
-            spilled: spill.spill.spilled,
-            docPath: spill.spill.docPath,
-          })),
         },
       });
     }
@@ -395,7 +382,6 @@ export async function runPlanPersist({
     reviewRouting,
     critics,
     reachability,
-    spills,
     waveTable,
   };
 }

@@ -264,10 +264,9 @@ below applies only to the rare, policy-compliant N>1 runs.
      rare case.
   2. **Story body budget** → reuse the §2 FinOps `maxTokenBudget` +
      section-elision. The folded spec has a soft body target; when the
-     authored spec exceeds it, the heavy sections **spill to a committed
-     `docs/specs/<storyId>.md`** the body links to. This keeps trivial-Story
-     bodies lean *and* gives large Stories back a single canonical spec
-     document (softening loss #4).
+     authored spec exceeds it, persist **fails closed** (split the Story or
+     tighten `## Spec`). Specs stay inline on the Story — never spill to
+     `docs/` (temporary or committed). An over-budget Spec is a sizing smell.
   3. **`retro` role def** → **drop it.** The per-run retro is rare and runs
      as a CLI subprocess (`retro-run.js`), not an `Agent` spawn, so there is
      no spawn to attach a role context to. Delete the unwired 1.7KB
@@ -279,8 +278,11 @@ below applies only to the rare, policy-compliant N>1 runs.
      adds `plan-run-epilogue.js` `follow-up-rollup` over the set. Intent is
      actionable issues, not six-section essay retros. `retro-run.js` +
      `agents/retro.md` deleted.
-  2. **Spec spill** → keep spill-to-`docs/specs/` at persist; durability is
-     the Story PR committing the referenced file.
+  2. **Spec spill** → **revoked (2026-07-14).** Inline-only: over-budget
+     Specs reject at persist. No writes under `docs/specs/`. Shared
+     `techspec.md` fold is N===1 only; N>1 requires per-Story `## Spec`.
+     Top-level `acceptance[]`/`verify[]` sync into the body (no dual-author
+     requirement).
   3. **Run epilogue** → real executor CLI `plan-run-epilogue.js`
      (`audit-roster` · `follow-up-rollup` · `sibling-coherence`). Inert
      planner-only path removed.
@@ -304,7 +306,8 @@ below applies only to the rare, policy-compliant N>1 runs.
 #### Stage 0 — Setup & decisions
 
 - [x] `v2` branch created off `main` (1.94.0)
-- [x] Three open design questions resolved (run epilogue · spec spill-to-doc · drop `retro` role)
+- [x] Three open design questions resolved (run epilogue · Spec budget · drop `retro` role);
+  Spec decision later revised to inline-only fail-closed (no `docs/specs/` spill)
 - [x] Staged checklist committed to `roadmap.md`
 
 #### Stage 1 — New v2 machinery (additive; TDD; breaks nothing)
@@ -316,17 +319,17 @@ below applies only to the rare, policy-compliant N>1 runs.
   sibling fan-out) alongside `goal`/`changes`/`acceptance`/`verify`, via the
   canonical `story-body.js` parser/serializer (round-trip safe; pre-v2 bodies
   serialize byte-identically). `task-body-validator.js` tolerates it (optional).
-  Heavy Tech Spec prose spills to a linked doc (item 3), keeping the body
-  parser-safe. Tests: `story-body.test.js` (+6), `task-body-validator.test.js` (+2).
+  Over-budget Specs fail closed at persist (inline-only). Tests:
+  `story-body.test.js` (+6), `task-body-validator.test.js` (+2).
 - [x] Split-policy validator — plan-time **one-owner-AC split rejector**
   (`split-policy-validator.js` + 12 unit tests): rejects any identical AC
   shared across Stories (coupling signal), with optional manifest-coverage
   checking; single-Story plans always pass. `assertAcceptancePartition`
   throwing-wrapper ready for the Stage-3 persist wiring. Additive.
-- [x] Spec spill-to-doc — `spec-spill.js` (+6 tests): an over-budget folded
-  spec (`estimateTokens` > soft budget) spills to `docs/specs/<storyId>.md`
-  and returns a `references[]` pointer entry; small specs stay inline. Reuses
-  the §2 `estimateTokens` estimator; injectable fs. Additive.
+- [x] Spec budget gate — `spec-spill.js` (budget helper; +tests): an
+  over-budget folded spec (`estimateTokens` > soft budget) **rejects** at
+  persist instead of writing `docs/specs/`. Small specs stay inline. Reuses
+  the §2 `estimateTokens` estimator.
 - [x] Run-epilogue scaffold — `run-epilogue.js` (+6 tests): a pure, inert
   planner enumerating the per-run closeout steps (audit-sweep · retro-rollup ·
   sibling-coherence) for a multi-Story run; a single-Story run is
@@ -355,8 +358,8 @@ below applies only to the rare, policy-compliant N>1 runs.
   `assertAcceptancePartition` wired in `plan-persist` via `assemblePlanStories`.
 - [x] `plan-persist` → flat Story ops (`story-ops.js` + rewritten
   `run-plan-persist.js`): createIssue Stories with folded `## Spec`
-  (spill-to-doc when over budget), `plan-run::` label when N>1, checkpoint on
-  primary Story. Dropped `.agents/schemas/epic-spec.schema.json` (fixture
+  (inline-only; over-budget rejects), `plan-run::` label when N>1, checkpoint
+  on primary Story. Dropped `.agents/schemas/epic-spec.schema.json` (fixture
   retained for Stage-5 reconciler tests).
 
 #### Stage 4 — Delivery collapse

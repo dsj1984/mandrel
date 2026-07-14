@@ -6,9 +6,11 @@
  * no `deliveryShape` mode matrix. Default is **one Story**; N>1 is gated by
  * the Stage-1 split-policy validator (`assertAcceptancePartition`).
  *
- * Each Story body absorbs its folded Tech Spec (`## Spec`). When that prose
- * exceeds the soft token budget, {@link spillSpecIfOverBudget} writes
- * `docs/specs/<slug>.md` and records a `references[]` pointer instead.
+ * Each Story body is the single executable document: Tech Spec stays inline
+ * under `## Spec`. Over-budget Specs fail closed (split / tighten) — never
+ * spill to `docs/`. Top-level `acceptance[]` / `verify[]` are the machine
+ * contract and are synced into the body so the GitHub issue stays complete
+ * without requiring the LLM to dual-author the same lists.
  *
  * @module lib/orchestration/plan-persist/story-ops
  */
@@ -20,7 +22,7 @@ import {
   parse as parseStoryBody,
   serialize as serializeStoryBody,
 } from '../../story-body/story-body.js';
-import { spillSpecIfOverBudget } from '../spec-spill.js';
+import { assertSpecWithinBudget } from '../spec-spill.js';
 import { assertAcceptancePartition } from '../split-policy-validator.js';
 
 /** Label prefix grouping sibling Stories from one plan run (N>1). */
@@ -92,20 +94,32 @@ function normalizeDependsOn(ticket, bodyObject) {
   return Array.isArray(bodyObject.depends_on) ? bodyObject.depends_on : [];
 }
 
-function assertContractFieldMatches(ticket, bodyObject, field) {
+function arraysEqual(a, b) {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+/**
+ * Top-level `acceptance[]` / `verify[]` are the machine contract (validator
+ * SSOT). Sync them into the body so the persisted GitHub issue is complete.
+ * When the body already lists the same items, keep them; when the body is
+ * empty, fill from top-level; when both disagree, fail closed.
+ *
+ * @param {object} ticket
+ * @param {object} bodyObject
+ * @param {'acceptance'|'verify'} field
+ */
+function syncContractFieldFromTopLevel(ticket, bodyObject, field) {
   if (!Array.isArray(ticket[field])) return;
   const topLevel = ticket[field].map(String);
   const bodyValue = Array.isArray(bodyObject[field])
     ? bodyObject[field].map(String)
     : [];
-  if (
-    topLevel.length !== bodyValue.length ||
-    topLevel.some((value, index) => value !== bodyValue[index])
-  ) {
+  if (bodyValue.length > 0 && !arraysEqual(topLevel, bodyValue)) {
     throw new Error(
       `[plan-persist] Story "${ticket.slug ?? ticket.title ?? 'unknown'}" has mismatched top-level and body ${field} arrays`,
     );
   }
+  bodyObject[field] = topLevel;
 }
 
 /**
@@ -133,37 +147,28 @@ export function normalizeStoryTicket(ticket) {
       ? ticket.title.trim()
       : `Story ${slug}`;
   const bodyObject = bodyObjectFromTicket(ticket);
-  assertContractFieldMatches(ticket, bodyObject, 'acceptance');
-  assertContractFieldMatches(ticket, bodyObject, 'verify');
+  syncContractFieldFromTopLevel(ticket, bodyObject, 'acceptance');
+  syncContractFieldFromTopLevel(ticket, bodyObject, 'verify');
   const depends_on = normalizeDependsOn(ticket, bodyObject);
 
   return { slug, title, bodyObject, depends_on };
 }
 
 /**
- * Fold optional shared Tech Spec prose into a Story body and spill when
- * over budget. Mutates a copy — never the caller's object.
+ * Fold optional shared Tech Spec prose into a Story body when the Story has
+ * no inline Spec. Specs stay inline; over-budget Specs throw.
  *
- * Precedence: per-Story `body.spec` wins; otherwise `sharedSpec` is used.
- * When the chosen prose spills, inline `spec` is cleared and a references
- * pointer is appended.
+ * Precedence: per-Story `body.spec` wins; otherwise `sharedSpec` is used
+ * (N===1 convenience only — callers must not share one Spec across N>1).
  *
  * @param {object} bodyObject
  * @param {string} slug
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
- * @param {string} [opts.repoRoot]
- * @param {boolean} [opts.write]
- * @param {object} [opts.fs]
- * @returns {{ bodyObject: object, spill: import('../spec-spill.js').SpecSpillResult|null }}
+ * @returns {{ bodyObject: object }}
  */
 export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
-  const {
-    sharedSpec = null,
-    repoRoot = process.cwd(),
-    write = true,
-    fs: fsAdapter,
-  } = opts;
+  const { sharedSpec = null } = opts;
 
   const next = {
     ...bodyObject,
@@ -180,41 +185,19 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
         : '';
 
   if (inline === '') {
-    return { bodyObject: next, spill: null };
+    return { bodyObject: next };
   }
 
-  const spill = spillSpecIfOverBudget(
-    { storyId: slug, spec: inline },
-    { repoRoot, write, ...(fsAdapter ? { fs: fsAdapter } : {}) },
-  );
-
-  if (spill.spilled && spill.reference) {
-    next.spec = '';
-    const already = next.references.some(
-      (r) =>
-        (typeof r === 'string' && r === spill.reference.path) ||
-        (r && typeof r === 'object' && r.path === spill.reference.path),
-    );
-    if (!already) next.references.push(spill.reference);
-  } else {
-    next.spec = spill.content;
-  }
-
-  return { bodyObject: next, spill };
+  const { content } = assertSpecWithinBudget({ storyId: slug, spec: inline });
+  next.spec = content;
+  return { bodyObject: next };
 }
 
 function assembleOnePlanStory(ticket, opts) {
   const { slug, title, bodyObject, depends_on } = normalizeStoryTicket(ticket);
-  const { bodyObject: folded, spill } = foldSpecIntoStoryBody(
-    bodyObject,
-    slug,
-    {
-      sharedSpec: opts.sharedSpec ?? null,
-      repoRoot: opts.repoRoot,
-      write: opts.write,
-      fs: opts.fs,
-    },
-  );
+  const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
+    sharedSpec: opts.sharedSpec ?? null,
+  });
   const body = serializeStoryBody({ ...folded, depends_on });
   return {
     story: {
@@ -225,22 +208,18 @@ function assembleOnePlanStory(ticket, opts) {
       acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
       depends_on,
     },
-    spill: spill ? { slug, spill } : null,
   };
 }
 
 /**
- * Assemble markdown bodies for every Story: normalize → fold/spill spec →
+ * Assemble markdown bodies for every Story: normalize → fold spec →
  * assertAcceptancePartition → serialize.
  *
  * @param {object[]} tickets
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
  * @param {string[]} [opts.planAcceptance]
- * @param {string} [opts.repoRoot]
- * @param {boolean} [opts.write]
- * @param {object} [opts.fs]
- * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[] }>, spills: object[] }}
+ * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[] }> }}
  */
 export function assemblePlanStories(tickets, opts = {}) {
   if (!Array.isArray(tickets) || tickets.length === 0) {
@@ -249,18 +228,27 @@ export function assemblePlanStories(tickets, opts = {}) {
     );
   }
 
-  const spills = [];
-  const stories = tickets.map((ticket) => {
-    const { story, spill } = assembleOnePlanStory(ticket, opts);
-    if (spill) spills.push(spill);
-    return story;
-  });
+  if (
+    tickets.length > 1 &&
+    typeof opts.sharedSpec === 'string' &&
+    opts.sharedSpec.trim() !== ''
+  ) {
+    throw new Error(
+      '[plan-persist] a shared techspec.md cannot be folded into N>1 Stories — ' +
+        "put each Story's approach in its own ## Spec so every Story stays a " +
+        'complete executable document.',
+    );
+  }
+
+  const stories = tickets.map(
+    (ticket) => assembleOnePlanStory(ticket, opts).story,
+  );
 
   assertAcceptancePartition(stories, {
     planAcceptance: opts.planAcceptance,
   });
 
-  return { stories, spills };
+  return { stories };
 }
 
 function orderStoriesByDependencies(stories) {
