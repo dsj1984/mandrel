@@ -88,6 +88,42 @@ export async function writeCheckpointV2(provider, storyId, state) {
   return state;
 }
 
+function enforceTicketValidation(validated, { config, settings, cwd }) {
+  const validationErrors = validated.errors ?? [];
+  const assumptionFailures = validationErrors.filter((error) =>
+    error.startsWith('File assumption mismatch:'),
+  );
+  const blockingErrors = validationErrors.filter(
+    (error) => !error.startsWith('File assumption mismatch:'),
+  );
+  if (blockingErrors.length > 0) {
+    throw new Error(
+      `[plan-persist] ticket validation failed with ${blockingErrors.length} ` +
+        `hard error(s):\n${blockingErrors.map((error) => `  - ${error}`).join('\n')}`,
+    );
+  }
+  if (assumptionFailures.length === 0) return;
+  const gateBaseRef = config?.baseBranch ?? settings?.baseBranch ?? 'main';
+  const refResolves =
+    gitSpawn(
+      cwd ?? process.cwd(),
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `${gateBaseRef}^{commit}`,
+    ).status === 0;
+  if (refResolves) {
+    throw new Error(
+      `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
+        `mismatch(es):\n${assumptionFailures.map((error) => `  - ${error}`).join('\n')}`,
+    );
+  }
+  Logger.warn(
+    `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
+      `does not resolve — ${assumptionFailures.length} finding(s) downgraded.`,
+  );
+}
+
 /**
  * Execute the flat Story persist end to end.
  *
@@ -184,34 +220,12 @@ export async function runPlanPersist({
   const validated = validateTickets(rawStories, config, {
     fanOutCounter,
     cwd,
+    modelCapacity: config?.planning?.modelCapacity,
+    maxTokenBudget: getLimits(config).maxTokenBudget,
   });
   enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
   surfaceSoftConflictFindings(validated.findings, 'plan-persist');
-
-  const assumptionFailures = (validated.errors ?? []).filter((e) =>
-    e.startsWith('File assumption mismatch:'),
-  );
-  if (assumptionFailures.length > 0) {
-    const gateBaseRef = config?.baseBranch ?? settings?.baseBranch ?? 'main';
-    const refResolves =
-      gitSpawn(
-        cwd ?? process.cwd(),
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        `${gateBaseRef}^{commit}`,
-      ).status === 0;
-    if (refResolves) {
-      throw new Error(
-        `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
-          `mismatch(es):\n${assumptionFailures.map((e) => `  - ${e}`).join('\n')}`,
-      );
-    }
-    Logger.warn(
-      `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
-        `does not resolve — ${assumptionFailures.length} finding(s) downgraded.`,
-    );
-  }
+  enforceTicketValidation(validated, { config, settings, cwd });
 
   const reachability = evaluateDraftReachability({
     tickets: rawStories,

@@ -124,6 +124,50 @@ describe('runPlanPersist — flat Story ops', () => {
     );
   });
 
+  it('rejects hard model-capacity findings before issue creation', async () => {
+    const provider = fakeProvider();
+    const oversized = ticket('oversized');
+    oversized.acceptance = Array.from(
+      { length: 20 },
+      (_, index) => `criterion ${index}`,
+    );
+    oversized.body = serialize({
+      goal: 'A cohesive but oversized session.',
+      changes: [
+        {
+          path: 'tests/scripts/plan-persist.flat-stories.test.js',
+          assumption: 'refactors-existing',
+        },
+      ],
+      acceptance: oversized.acceptance,
+      verify: oversized.verify,
+      reason_to_exist: 'Prove hard capacity is enforced',
+    });
+
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider,
+          artifacts: {
+            stories: [oversized],
+            riskVerdict: VERDICT,
+          },
+          config: {
+            delivery: { maxTokenBudget: 1000 },
+            planning: {
+              modelCapacity: {
+                hardSessionFraction: 0.1,
+                softSessionFraction: 0.05,
+              },
+            },
+          },
+          opts: { skipCleanup: true, writeSpill: false },
+        }),
+      /ticket validation failed.*oversized/s,
+    );
+    assert.equal(provider.issues.size, 0);
+  });
+
   it('labels N>1 Stories with a shared plan-run:: label', async () => {
     const provider = fakeProvider();
     const result = await runPlanPersist({

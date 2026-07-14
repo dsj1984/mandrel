@@ -17,7 +17,10 @@ import {
   planRunLabel,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { DEFAULT_SPEC_BODY_TOKEN_BUDGET } from '../../../.agents/scripts/lib/orchestration/spec-spill.js';
-import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
+import {
+  parse,
+  serialize,
+} from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 function storyTicket(slug, overrides = {}) {
   return {
@@ -52,6 +55,16 @@ describe('normalizeStoryTicket', () => {
     assert.equal(n.slug, 'alpha');
     assert.equal(n.bodyObject.goal, 'Goal of alpha.');
     assert.deepEqual(n.bodyObject.acceptance, ['alpha works']);
+  });
+
+  it('rejects disagreement between top-level and body contracts', () => {
+    assert.throws(
+      () =>
+        normalizeStoryTicket(
+          storyTicket('alpha', { acceptance: ['different contract'] }),
+        ),
+      /mismatched top-level and body acceptance/,
+    );
   });
 });
 
@@ -146,5 +159,51 @@ describe('createStoryIssues', () => {
     assert.ok(calls[0].labels.includes(TYPE_LABELS.STORY));
     assert.ok(calls[0].labels.includes(AGENT_LABELS.READY));
     assert.ok(calls[0].labels.includes(label));
+  });
+
+  it('creates dependencies first and persists numeric blocked-by edges', async () => {
+    const calls = [];
+    const provider = {
+      createIssue: async (payload) => {
+        calls.push(payload);
+        return { id: 200 + calls.length };
+      },
+    };
+    const { stories } = assemblePlanStories(
+      [
+        storyTicket('consumer', { depends_on: ['migration'] }),
+        storyTicket('migration'),
+      ],
+      { write: false },
+    );
+    const { created } = await createStoryIssues({
+      provider,
+      stories,
+      opts: { planRunId: 'ordered' },
+    });
+    assert.deepEqual(
+      created.map((story) => story.slug),
+      ['migration', 'consumer'],
+    );
+    assert.deepEqual(parse(calls[1].body).body.depends_on, ['#201']);
+  });
+
+  it('rejects unknown dependencies before any issue write', async () => {
+    let writes = 0;
+    const provider = {
+      createIssue: async () => {
+        writes += 1;
+        return { id: 1 };
+      },
+    };
+    const { stories } = assemblePlanStories(
+      [storyTicket('consumer', { depends_on: ['missing'] })],
+      { write: false },
+    );
+    await assert.rejects(
+      () => createStoryIssues({ provider, stories }),
+      /unknown sibling/,
+    );
+    assert.equal(writes, 0);
   });
 });

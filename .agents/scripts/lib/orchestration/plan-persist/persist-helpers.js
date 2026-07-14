@@ -2,8 +2,10 @@
  * persist-helpers.js — pure helper surface for the flat Story `/plan` persist.
  *
  * Exports:
- *   - `validateTickets(tickets, config)` — runs the cross-link / freshness
- *     normaliser and the task-body validator in one pass.
+ *   - `validateTickets(tickets, config)` — runs the cross-link, model-capacity,
+ *     freshness, and task-body validators in one pass. Capacity settings are
+ *     explicit inputs so the validator and decomposer share one live delivery
+ *     envelope instead of silently falling back to framework defaults.
  *   - `makeDefaultFanOutCounter({ baseBranchRef, cwd })` — production
  *     fan-out probe used by the conflict policy.
  *
@@ -75,7 +77,7 @@ export function validateTickets(tickets, config, opts = {}) {
   const conflictPolicy = resolveConflictPolicy(config);
   if (typeof opts.fanOutCounter === 'function') {
     conflictPolicy.fanOutCounter = opts.fanOutCounter;
-  } else if (!conflictPolicy.fanOutCounter) {
+  } else {
     conflictPolicy.fanOutCounter = makeDefaultFanOutCounter({
       baseBranchRef,
       cwd: opts.cwd,
@@ -84,6 +86,8 @@ export function validateTickets(tickets, config, opts = {}) {
   const validated = validateAndNormalizeTickets(tickets, {
     baseBranchRef,
     conflictPolicy,
+    modelCapacity: opts.modelCapacity,
+    maxTokenBudget: opts.maxTokenBudget,
     // Thread the repo cwd into the AC-freshness / file-assumption git
     // probes (#4474 PR7) — without it they silently ran against
     // process.cwd(), which is only the repo root by coincidence.
