@@ -185,26 +185,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     timestamp: '2026-05-26T00:00:00.000Z',
   },
   'story.merged': { storyId: 9999, sha: 'abcdef1' },
-  'slice.start': {
-    event: 'slice.start',
-    epicId: 9999,
-    sliceId: 'slice-1',
-    timestamp: '2026-07-13T00:00:00.000Z',
-  },
-  'slice.end': {
-    event: 'slice.end',
-    epicId: 9999,
-    sliceId: 'slice-1',
-    outcome: 'done',
-    timestamp: '2026-07-13T00:00:00.000Z',
-  },
-  'slice.heartbeat': {
-    event: 'slice.heartbeat',
-    epicId: 9999,
-    sliceId: 'slice-1',
-    phase: 'implementing',
-    timestamp: '2026-07-13T00:00:00.000Z',
-  },
 });
 
 function readNdjson(p) {

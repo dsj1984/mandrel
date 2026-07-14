@@ -42,7 +42,9 @@
  * @property {string} [summary]
  *
  * @typedef {Object} RoutedProposalsInput
- * @property {number}                epicId
+ * @property {number}                [epicId]        Legacy alias for `anchorId`.
+ * @property {number}                [anchorId]      Story or run/Epic id in titles.
+ * @property {'epic'|'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `epic`).
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
  * @property {FrictionSignal[]}      [signals]
@@ -143,22 +145,52 @@ function dominantSource(entry) {
 }
 
 /**
+ * @param {'epic'|'story'|'run'} kind
+ * @param {number} id
+ * @returns {string}
+ */
+function formatAnchor(kind, id) {
+  if (kind === 'story') return `Story #${id}`;
+  if (kind === 'run') return `plan-run ${id}`;
+  return `Epic #${id}`;
+}
+
+/** Story scope promotes single-occurrence friction; Epic/run keep ≥2. */
+function isActionableFriction(total, force, anchorKind) {
+  const threshold = anchorKind === 'story' ? 1 : 2;
+  return total >= threshold || Boolean(force);
+}
+
+/**
  * Render the issue body. Plain text — no markdown headings — so the
  * pre-drafted `gh issue create --body-file` heredoc remains a faithful
  * representation of what the operator would paste.
  *
- * @param {{ epicId: number, category: string, occurrences: number, source: "framework"|"consumer" }} args
+ * @param {{
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
+ *   category: string,
+ *   occurrences: number,
+ *   source: "framework"|"consumer",
+ * }} args
  * @returns {string}
  */
-function renderIssueBody({ epicId, category, occurrences, source }) {
+function renderIssueBody({
+  anchorId,
+  anchorKind,
+  category,
+  occurrences,
+  source,
+}) {
+  const anchor = formatAnchor(anchorKind, anchorId);
   return [
-    `Recurring friction category "${category}" surfaced ${occurrences} times during Epic #${epicId}.`,
+    `Recurring friction category "${category}" surfaced ${occurrences} times during ${anchor}.`,
     '',
     `Source classification: ${source}.`,
     '',
-    'Captured by the routed-retro composer (Story #2558). Triage and either:',
+    'Captured by the follow-up composer. Triage and either:',
     `- File a follow-on Story to address the underlying ${source} gap, or`,
-    '- Close with "wont-fix" and document the rationale in the Epic retro thread.',
+    `- Close with "wontfix" and document the rationale on ${anchor}.`,
   ].join('\n');
 }
 
@@ -193,7 +225,8 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
  * Build an actionable RoutedItem for a category.
  *
  * @param {{
- *   epicId: number,
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
  *   category: string,
  *   occurrences: number,
  *   source: "framework"|"consumer",
@@ -203,15 +236,23 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
  * @returns {RoutedItem}
  */
 function buildRoutedItem({
-  epicId,
+  anchorId,
+  anchorKind,
   category,
   occurrences,
   source,
   frameworkRepo,
   consumerRepo,
 }) {
-  const title = `Friction: ${category} recurred ${occurrences} times in Epic #${epicId}`;
-  const body = renderIssueBody({ epicId, category, occurrences, source });
+  const anchor = formatAnchor(anchorKind, anchorId);
+  const title = `Friction: ${category} recurred ${occurrences} times in ${anchor}`;
+  const body = renderIssueBody({
+    anchorId,
+    anchorKind,
+    category,
+    occurrences,
+    source,
+  });
   const repo = source === 'framework' ? frameworkRepo : consumerRepo;
   const metaLabel =
     source === 'framework' ? 'framework-gap' : 'consumer-improvement';
@@ -231,7 +272,8 @@ function buildRoutedItem({
  *
  * @param {unknown} input
  * @returns {{
- *   epicId: number,
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
  *   frameworkRepo: string,
  *   consumerRepo: string,
  *   signals: FrictionSignal[],
@@ -241,13 +283,20 @@ function buildRoutedItem({
 function normaliseInput(input) {
   if (input === null || typeof input !== 'object') return null;
   const record = /** @type {RoutedProposalsInput} */ (input);
-  const epicId = Number(record.epicId);
-  if (!Number.isInteger(epicId) || epicId <= 0) return null;
+  const rawAnchor = record.anchorId ?? record.epicId;
+  const anchorId = Number(rawAnchor);
+  if (!Number.isInteger(anchorId) || anchorId <= 0) return null;
+  const kindRaw = record.anchorKind;
+  const anchorKind =
+    kindRaw === 'story' || kindRaw === 'run' || kindRaw === 'epic'
+      ? kindRaw
+      : 'epic';
   const frameworkRepo = asString(record.frameworkRepo);
   const consumerRepo = asString(record.consumerRepo);
   if (frameworkRepo.length === 0 || consumerRepo.length === 0) return null;
   return {
-    epicId,
+    anchorId,
+    anchorKind,
     frameworkRepo,
     consumerRepo,
     signals: Array.isArray(record.signals) ? record.signals : [],
@@ -274,7 +323,8 @@ export function composeRoutedProposals(input) {
   const normalised = normaliseInput(input);
   if (normalised === null) return emptyResult();
   const {
-    epicId,
+    anchorId,
+    anchorKind,
     frameworkRepo,
     consumerRepo,
     signals,
@@ -310,10 +360,11 @@ export function composeRoutedProposals(input) {
     const { category, total } = entry;
     const force = blockedForceActionable.get(category);
     const source = force ? force.source : dominantSource(entry);
-    const actionable = total >= 2 || Boolean(force);
+    const actionable = isActionableFriction(total, force, anchorKind);
     if (actionable) {
       const item = buildRoutedItem({
-        epicId,
+        anchorId,
+        anchorKind,
         category,
         occurrences: total,
         source,
@@ -324,7 +375,7 @@ export function composeRoutedProposals(input) {
       else consumer.push(item);
       continue;
     }
-    // total === 1 AND no force flag → discarded.
+    // total below threshold AND no force flag → discarded.
     discarded.push({ category, occurrences: total, source });
   }
 
@@ -333,7 +384,8 @@ export function composeRoutedProposals(input) {
   for (const [category, info] of blockedForceActionable) {
     if (byCategory.has(category)) continue;
     const item = buildRoutedItem({
-      epicId,
+      anchorId,
+      anchorKind,
       category,
       occurrences: 0,
       source: info.source,

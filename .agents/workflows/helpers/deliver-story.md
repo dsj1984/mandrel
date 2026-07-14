@@ -24,7 +24,7 @@ large — uses the same machinery:
   → risk-routed ceremony           (acceptance critics · review · audit lenses)
   → single-story-close.js          (gates, push, gh pr create → main, agent::closing)
   → CI watch + fix loop            (until required checks pass + PR merged)
-  → single-story-confirm-merge.js  (PR merged → agent::done)
+  → single-story-confirm-merge.js  (PR merged → agent::done + follow-ups)
 ```
 
 | Trait | v2 `/deliver-story` |

@@ -45,6 +45,7 @@ import { parsePrNumber } from './lib/orchestration/single-story-close/phases/cod
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
+import { withConfirmFollowUps } from './lib/single-story/confirm-merge-follow-ups.js';
 
 const progress = Logger.createProgress('single-story-confirm-merge', {
   stderr: true,
@@ -98,6 +99,22 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
   }
 }
 
+function logConfirmResult(result) {
+  Logger.info(
+    `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  return { success: true, result };
+}
+
+async function resolveConfirmPrNumber({ prParam, cwd, storyBranch, gh }) {
+  const rawPr = prParam ?? readPrFlag();
+  let prNumber = Number.parseInt(String(rawPr ?? ''), 10);
+  if (!Number.isInteger(prNumber) || prNumber <= 0) {
+    prNumber = await resolvePrNumber({ cwd, storyBranch, gh });
+  }
+  return Number.isInteger(prNumber) && prNumber > 0 ? prNumber : null;
+}
+
 /**
  * Confirm a standalone Story's merge. Exported for testing.
  */
@@ -129,30 +146,24 @@ export async function runConfirmMerge({
 
   progress('INIT', `Confirming merge for standalone Story #${storyId}...`);
 
-  // Resolve the PR number: explicit injection wins; otherwise read the
-  // `--pr` CLI flag; otherwise probe `gh pr list`.
-  const rawPr = prParam ?? readPrFlag();
-  let prNumber = Number.parseInt(String(rawPr ?? ''), 10);
-  if (!Number.isInteger(prNumber) || prNumber <= 0) {
-    prNumber = await resolvePrNumber({ cwd, storyBranch, gh });
-  }
-
-  if (!Number.isInteger(prNumber) || prNumber <= 0) {
+  const prNumber = await resolveConfirmPrNumber({
+    prParam,
+    cwd,
+    storyBranch,
+    gh,
+  });
+  if (prNumber == null) {
     progress(
       'CONFIRM',
       `⚠️ No PR found for ${storyBranch}; cannot confirm merge. Story stays at agent::closing.`,
     );
-    const result = {
+    return logConfirmResult({
       storyId,
       standalone: true,
       action: 'pending',
       reason: 'no-pr',
       merged: false,
-    };
-    Logger.info(
-      `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-    );
-    return { success: true, result };
+    });
   }
 
   const confirmation = await confirmStoryMerged({
@@ -168,14 +179,19 @@ export async function runConfirmMerge({
     readPrMergeStateFn: injectedReadPrMergeState,
   });
 
-  const result = { standalone: true, prNumber, ...confirmation };
-  Logger.info(
-    `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
+  const result = await withConfirmFollowUps({
+    confirmation,
+    storyId,
+    prNumber,
+    provider,
+    config,
+    cwd,
+    progress,
+  });
   if (result.action === 'done') {
     progress('DONE', `✅ Standalone Story #${storyId} → agent::done (merged).`);
   }
-  return { success: true, result };
+  return logConfirmResult(result);
 }
 
 runAsCli(import.meta.url, runConfirmMerge, {

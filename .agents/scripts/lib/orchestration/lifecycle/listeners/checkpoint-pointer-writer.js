@@ -81,12 +81,6 @@ export const SUBSCRIBED_END_EVENTS = Object.freeze([
   'epic.snapshot.end',
   'epic.watch.end',
   'retro.end',
-  // Epic #4475 (M4-A) — single-delivery slice boundary. A completed slice is
-  // a resume checkpoint for the one long guarded session (the analogue of
-  // story.dispatch.end for fan-out). Subscribed now so the pointer updates
-  // once the M4-B executor emits slice.end through the bus; inert until then
-  // (nothing emits it in M4-A).
-  'slice.end',
   'story.dispatch.end',
 ]);
 

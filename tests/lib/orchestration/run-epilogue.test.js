@@ -1,5 +1,5 @@
 /**
- * Unit tests for the v2 run-epilogue scaffold (inert per-run ceremony planner).
+ * Unit tests for the v2 run-epilogue planner + executor.
  */
 
 import assert from 'node:assert/strict';
@@ -7,6 +7,7 @@ import { describe, it } from 'node:test';
 import {
   planRunEpilogue,
   RUN_EPILOGUE_STEP_KINDS,
+  runPlanRunEpilogue,
 } from '../../../.agents/scripts/lib/orchestration/run-epilogue.js';
 
 describe('planRunEpilogue — not applicable', () => {
@@ -68,5 +69,59 @@ describe('planRunEpilogue — applicable (N>1)', () => {
   it('is pure — no side effects, deterministic output', () => {
     const args = { planRunId: 'run-9', stories: ['a', 'b'] };
     assert.deepEqual(planRunEpilogue(args), planRunEpilogue(args));
+  });
+});
+
+describe('runPlanRunEpilogue — executor', () => {
+  it('skips execution when not applicable', async () => {
+    const result = await runPlanRunEpilogue({
+      planRunId: 'run-1',
+      stories: [1],
+      provider: {},
+    });
+    assert.equal(result.applicable, false);
+    assert.deepEqual(result.results, []);
+  });
+
+  it('runs sibling-coherence against Story bodies', async () => {
+    const comments = [];
+    const provider = {
+      getTicket: async (id) => ({
+        id,
+        title: `Story ${id}`,
+        body:
+          id === 1
+            ? '## Acceptance\n\n- A\n\n## Spec\n\nshared\n'
+            : '## Spec\n\nshared\n',
+        labels: ['type::story'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        comments.push({ ticketId, body: payload.body });
+        return { commentId: comments.length };
+      },
+      deleteComment: async () => {},
+    };
+    const result = await runPlanRunEpilogue({
+      planRunId: 'stage-x',
+      stories: [1, 2],
+      provider,
+      config: { github: { owner: 'o', repo: 'r' } },
+      cwd: process.cwd(),
+    });
+    assert.equal(result.applicable, true);
+    const coherence = result.results.find(
+      (r) => r.kind === 'sibling-coherence',
+    );
+    assert.ok(coherence);
+    assert.ok(
+      coherence.findings.some((f) => /Acceptance/i.test(f)),
+      'expected missing-Acceptance finding',
+    );
+    assert.ok(
+      coherence.findings.some((f) => /Duplicate/i.test(f)),
+      'expected duplicate Spec finding',
+    );
+    assert.ok(comments.some((c) => /plan-run-sibling-coherence/.test(c.body)));
   });
 });

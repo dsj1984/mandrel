@@ -75,16 +75,16 @@ describe('parseSkillMarkdown', () => {
 });
 
 describe('runSkillSmoke', () => {
-  it('returns pass=true for the epic-plan-spec-author skill (real, on-disk)', async () => {
+  it('returns pass=true for the analyze-execution skill (real, on-disk)', async () => {
     const result = await runSkillSmoke({
-      skillName: 'epic-plan-spec-author',
+      skillName: 'analyze-execution',
     });
     assert.equal(
       result.pass,
       true,
       `Expected pass=true; errors=${JSON.stringify(result.errors)}`,
     );
-    assert.equal(result.skill.name, 'epic-plan-spec-author');
+    assert.equal(result.skill.name, 'analyze-execution');
     assert.ok(Array.isArray(result.skill.allowed_tools));
     assert.ok(result.skill.allowed_tools.length > 0);
   });
@@ -100,7 +100,7 @@ describe('runSkillSmoke', () => {
 
   it('flags missing tools when expectedTools is given', async () => {
     const result = await runSkillSmoke({
-      skillName: 'epic-plan-spec-author',
+      skillName: 'analyze-execution',
       expectedTools: ['Read', 'Write', 'NonExistentTool'],
     });
     assert.equal(result.pass, false);
@@ -113,7 +113,7 @@ describe('runSkillSmoke', () => {
   it('invokes the validator with the parsed skill + fixture', async () => {
     let received = null;
     const result = await runSkillSmoke({
-      skillName: 'epic-plan-spec-author',
+      skillName: 'analyze-execution',
       fixture: fixturePath('epic-1181-sample', 'epic.md'),
       validator: async (ctx) => {
         received = ctx;
@@ -122,13 +122,13 @@ describe('runSkillSmoke', () => {
     });
     assert.equal(result.pass, true);
     assert.ok(received !== null, 'validator must be invoked on the happy path');
-    assert.equal(received.skill.name, 'epic-plan-spec-author');
+    assert.equal(received.skill.name, 'analyze-execution');
     assert.match(received.fixture, /epic\.md$/);
   });
 
   it('surfaces validator-reported failure as errors', async () => {
     const result = await runSkillSmoke({
-      skillName: 'epic-plan-spec-author',
+      skillName: 'analyze-execution',
       validator: async () => ({
         ok: false,
         errors: ['custom validator failure'],

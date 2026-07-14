@@ -74,21 +74,23 @@ v2 Story).
    turn. Default `--concurrency 1` means at most one Story in flight.
 
 5. **Per-run epilogue (N>1 or `--run`).** After the last Story lands,
-   plan the closeout:
+   run the real closeout CLI (not a planner stub):
 
-   ```js
-   // conceptual — host LLM invokes the planner then runs each step
-   import { planRunEpilogue } from
-     '.agents/scripts/lib/orchestration/run-epilogue.js';
-   planRunEpilogue({ planRunId, stories });
+   ```bash
+   node .agents/scripts/plan-run-epilogue.js --run <planRunId>
    ```
 
-   When `applicable: true`, execute the descriptors in order:
-   - `audit-sweep` — cross-Story audit over the combined landed diff
-   - `retro-rollup` — retro + friction roll-up for the run
-   - `sibling-coherence` — spec-coherence check across sibling bodies
+   This executes, in order:
+   - `audit-roster` — selects cross-Story audit lenses over the combined
+     landed tip and posts `plan-run-audit-roster` on the primary Story;
+     the host MUST walk each listed lens against the combined diff
+   - `follow-up-rollup` — friction follow-ups across every Story in the
+     run (files issues when auto-file is on; posts `follow-ups`)
+   - `sibling-coherence` — Spec/Acceptance coherence check across sibling
+     bodies (`plan-run-sibling-coherence`)
 
-   A single-Story run skips the epilogue (`applicable: false`).
+   A single-Story run skips the epilogue — follow-ups are captured on
+   merge confirm instead (`captureStoryFollowUps`).
 
 ## Branch model (authoritative)
 
@@ -108,7 +110,8 @@ to `main`.
 | --- | --- | --- |
 | **Per-Story (always)** | Gates, branch discipline, land-or-block | `deliver-story` / `single-story-close` |
 | **Per-Story (risk-routed)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` — read the Story's `planningRisk` / `risk-verdict` |
-| **Per-run (N>1)** | Audit sweep · retro roll-up · sibling coherence | `planRunEpilogue` once at run end |
+| **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
+| **Per-Story land** | Actionable follow-ups from friction | `captureStoryFollowUps` in confirm-merge |
 
 ## Constraints
 
