@@ -19,6 +19,7 @@ import { runConfirmMergePhase } from './phases/confirm-merge.js';
 import { parseCloseOptions } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
+import { handleCriticalReviewBlock } from './phases/review-block.js';
 import { reapWorktreePhase } from './phases/worktree-reap.js';
 import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 
@@ -128,8 +129,15 @@ async function openAndReviewPr({
     progress,
   });
   if (reviewOutcome.halted) {
+    const criticalCount = reviewOutcome.severity?.critical ?? 0;
+    await handleCriticalReviewBlock({
+      provider,
+      storyId,
+      prUrl,
+      criticalCount,
+    });
     throw new Error(
-      `[single-story-close] Story-scope review reported ${reviewOutcome.severity?.critical ?? 0} critical blocker(s) on PR ${prUrl}. ` +
+      `[single-story-close] Story-scope review reported ${criticalCount} critical blocker(s) on PR ${prUrl}. ` +
         'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/single-story-deliver`.',
     );
   }

@@ -90,9 +90,11 @@ function makeFakeGh(handler) {
 
 function fakeProviderRecorder() {
   const postedComments = [];
+  const updates = [];
   let nextId = 5000;
   return {
     postedComments,
+    updates,
     provider: {
       getTicket: async () => ({
         id: 2839,
@@ -100,7 +102,9 @@ function fakeProviderRecorder() {
         title: 'Story scope review test',
         labels: ['agent::executing'],
       }),
-      updateTicket: async () => {},
+      updateTicket: async (ticketId, payload) => {
+        updates.push({ ticketId, payload });
+      },
       postComment: async (ticketId, payload) => {
         const id = nextId++;
         postedComments.push({ ticketId, payload, id });
@@ -363,6 +367,19 @@ describe('runSingleStoryClose review-halt orchestration', () => {
       ghCalls.find((c) => c[1] === 'merge'),
       undefined,
       'auto-merge gh call must be skipped on review halt',
+    );
+    assert.deepEqual(recorder.updates.at(-1), {
+      ticketId: 2839,
+      payload: {
+        labels: {
+          add: ['agent::blocked'],
+          remove: ['agent::executing', 'agent::ready'],
+        },
+      },
+    });
+    assert.match(
+      recorder.postedComments.at(-1).payload.body,
+      /Code review blocked delivery/,
     );
   });
 });
