@@ -26,7 +26,7 @@ allowed_tools:
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Story's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
 - Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
 - Acceptance MUST NOT prescribe a commit subject starting with a non-Conventional-Commits prefix; the literal `baseline-refresh:` leading token is forbidden (use a body trailer instead — see Epic #2501).
-- A legitimately broad Story (files > `hardFiles`) MUST declare `wide` with a one-line reason (encoded in the serialized body string via the `<!-- meta -->` comment) to lift the `hardFiles` rejection; lead the sizing decision with cohesion, not count. UI-touching Stories MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
+- A Story whose estimated session mass exceeds the hard capacity ceiling MUST declare `wide` with a one-line reason (encoded in the serialized body string via the `<!-- meta -->` comment) to lift the rejection; lead the sizing decision with cohesion, not count. UI-touching Stories MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
 - A Story's `depends_on` references only **sibling Stories within the same Epic**. Apply the cross-cutting-config-file rule (sequential `depends_on` or a late-wave wiring Story) whenever multiple Stories edit a shared root config file.
 - **Authoring-contract altitude (Epic #4131 F8).** `acceptance[]` and `verify[]` are the Story's **binding contract** — the executor MUST satisfy them exactly, and they are the only definition of "done." `changes[]` and `references[]` are an **advisory implementation sketch**: a best-effort prediction of which files the work touches that the executor MAY revise when the codebase tells a different story. Author `acceptance[]`/`verify[]` so they capture the outcome independently of any particular file layout — never bake an incidental implementation detail into them that the advisory sketch is free to change. This does **not** weaken the file-assumption gate: `changes[]` paths are still validated structurally against the base branch (a `creates` against an existing path still fails), the New-File Contract still holds, and the executor's revised approach stays bounded by the inviolable `acceptance[]`/`verify[]` contract and `rules/security-baseline.md`.
 - **Navigate-don't-deep-link acceptance standard (Epic #4131 F5).** For any Story whose acceptance describes a **signed-in** (authenticated) scenario reaching a feature surface, author the acceptance so the persona starts from their authenticated home and **reaches the feature through navigation** (clicking a nav door, menu item, or link the UI exposes) — never by asserting against a hardcoded deep-link URL. A scenario that drops the user straight onto `/some/feature/path` proves the page renders but not that the feature is reachable, masking orphaned surfaces with no nav owner. Phrase signed-in acceptance as "from the signed-in home, the persona navigates to … and sees …", not "loading `/feature/path` shows the feature."
@@ -150,7 +150,7 @@ The authoritative decomposer system-prompt **body** is single-sourced in
 [`decomposer-prompts.js`](../../../scripts/lib/templates/decomposer-prompts.js)
 (`renderDecomposerSystemPrompt`) and delivered to you fully rendered in the
 `systemPrompt` field of `temp/epic-<Epic_ID>/decomposer-context.json` — with
-`maxTickets`, `maxTokenBudget`, the `DEFAULT_TASK_SIZING` thresholds, and the
+`maxTickets`, `maxTokenBudget`, the `DEFAULT_MODEL_CAPACITY` thresholds, and the
 risk heuristics already interpolated. **Apply that rendered string as your
 system prompt.** This SKILL deliberately does **not** embed a second verbatim
 copy of the prompt body (the preamble, the JSON output schema, the hierarchy /
@@ -174,8 +174,8 @@ Story so a single agent can deliver and self-verify it within that budget.
 The sections below are the SKILL's authoring guidance. They do **not** restate
 the rendered prompt body — they record the contract details and sizing
 heuristics you apply when shaping the ticket array. Where a number appears it
-is the `DEFAULT_TASK_SIZING` default; the rendered prompt interpolates the live
-value, which always wins.
+is the `DEFAULT_MODEL_CAPACITY` default; the rendered prompt interpolates the
+live value, which always wins.
 
 ### STORY BODY SHAPE (string body, top-level acceptance/verify)
 
@@ -222,24 +222,24 @@ They are NOT top-level ticket fields.
 
 - `acceptance` items MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix. The allowed leading types are `feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert` (matching `commitlint.config.js` and `release-please-config.json`). Historic ad-hoc subject prefixes — such as the legacy `baseline-refresh` token used as a leading prefix — are FORBIDDEN as subject prescriptions, because they fail the local `commit-msg` hook and the close-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. When a Story needs a baseline-refresh-style classification, prescribe a Conventional-Commits subject (e.g. `chore(baselines): refresh maintainability snapshot`) and, if a machine-readable marker is required, prescribe a body trailer such as `baseline-refresh: true` (note the trailing space and value, not a subject prefix). See Epic #2501 for the rationale.
 
-#### STORY SIZING — DELIVERABLE GRANULARITY, COHESION FIRST (the numeric ceiling is only a backstop)
+#### STORY SIZING — DELIVERABLE GRANULARITY, COHESION FIRST (session capacity is only a backstop)
 
 **Decompose at deliverable granularity, not module/task level.** A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — a shippable slice a reviewer would accept as a single PR, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module. (This definition is the single source of truth in `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js`; the rendered decomposer prompt interpolates the same string — do not restate a divergent version here.)
 
-The first question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial 10-file mechanical rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size. Size against the real one-pass delivery envelope (`maxTokenBudget`): a Story is correctly sized when a single agent can hold its full change, acceptance, and verification in one pass within that budget.
+The first question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial rename from a hard parser+caller+config change — so lead with the change's reason, not its size. Size against the real one-pass delivery envelope (`maxTokenBudget`): a Story is correctly sized when a single agent can hold its full change, acceptance, and verification in one guarded session within that budget. Per-Story file/AC count ceilings are retired.
 
 The envelope also has a **floor**, not just a ceiling: a Story that would plausibly use well under a third of `maxTokenBudget` and is neither parallel-deliverable nor orthogonal to its siblings is a **merge candidate** — modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full per-Story delivery session (hydration, branch, PR, review, CI) per link. This is soft guidance, not a threshold or validator finding; the canonical phrasing lives in `DELIVERABLE_GRANULARITY_GUIDANCE.envelopeFloor` in `ticket-validator-sizing.js`, which the decomposer prompt interpolates — do not restate a divergent version here.
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories.
 - **Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.
-- **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
-- **Declare `wide` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason).
+- **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist (near-zero overlap or an architectural seam).
+- **Declare `wide` with a one-line reason when a change is legitimately broad** (a cohesive cutover whose session mass exceeds the hard capacity ceiling for one reason).
 
-**Numeric backstop.** The thresholds are defined **once**, in the `DEFAULT_TASK_SIZING` constant in `ticket-validator-sizing.js` (operator-overridable via `agentSettings.planning.taskSizing`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. The defaults:
+**Capacity backstop.** The thresholds are defined **once**, in the `DEFAULT_MODEL_CAPACITY` constant in `ticket-validator-sizing.js` (operator-overridable via `planning.modelCapacity`). They are a backstop, not the primary rule — do not restate divergent numbers anywhere else. Absolute ceilings are derived from the live `maxTokenBudget`:
 
-- A Story touching more than **`softFiles` (15)** files emits an advisory width finding — a nudge to check cohesion or declare `wide`.
-- A Story touching more than **`hardFiles` (30)** files is **rejected** unless it declares `wide` with a reason.
-- Acceptance mass is **advisory only**: more than **`softAcceptanceCount` (10)** acceptance items emits an advisory warning. There is NO hard acceptance ceiling — a long binding contract is a signal to re-check cohesion, never a reason to fragment one coherent capability into dependent slices.
+- Soft advisory (`softSessionFraction`) — estimated session mass above this fraction of `maxTokenBudget` emits a nudge to check cohesion or declare `wide`.
+- Hard ceiling (`hardSessionFraction`) — estimated session mass above this fraction is **rejected** unless the Story declares `wide` with a reason.
+- Session mass = authored tokens + `tokensPerAcceptance` per acceptance item + `tokensPerChange` per declared non-glob change path. A long binding contract raises session mass (and may soft-nudge) but is never by itself a reason to fragment one coherent capability into dependent slices.
 
 #### DELIVERY-SCHEDULE SIMULATION (the story count must earn itself)
 
@@ -289,7 +289,7 @@ consolidation critic has to do.
 
 A Story whose footprint is legitimately broad declares `wide` carrying a one-line human-readable reason. Encode it in the `<!-- meta: {"wide": {"reason": "..."}} -->` comment that `serialize()` appends to the body string — e.g. `"wide": { "reason": "hard contract cutover: migrate every <X> call site in one PR" }`.
 
-Declaring `wide` with a non-empty reason **lifts the `hardFiles` rejection** — no Story is rejected for width when it states why it is broad. Omit `wide` for ordinary Stories; a wide footprint with no `wide` declaration emits only an advisory nudge (check cohesion or declare `wide`), never a rejection on its own. Glob entries in `changes[]` (bullets containing `*`) are `unknown-width`: the numeric ceiling is skipped, and a glob Story with no `wide` declaration emits the same advisory nudge.
+Declaring `wide` with a non-empty reason **lifts the hard session-mass rejection** — no Story is rejected for capacity when it states why it is broad. Omit `wide` for ordinary Stories; a session-mass soft-over with no `wide` declaration emits only an advisory nudge (check cohesion or declare `wide`), never a rejection on its own. Glob entries in `changes[]` (bullets containing `*`) are `unknown-width`: the per-file delivery proxy is skipped (authored text still counts), and a glob Story with no `wide` declaration emits the same advisory nudge.
 
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule)
 

@@ -24,6 +24,7 @@ import {
   resolveReviewDepthForEpic,
   runCodeReview,
 } from '../../../.agents/scripts/lib/orchestration/code-review.js';
+import { DEFAULT_DIFF_WIDTH } from '../../../.agents/scripts/lib/orchestration/review-depth.js';
 import { buildCodexReviewPrompt } from '../../../.agents/scripts/lib/orchestration/review-providers/codex.js';
 import {
   DEPTH_DIRECTIVES,
@@ -31,7 +32,6 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/review-providers/review-depth.js';
 import { buildSecurityReviewPrompt } from '../../../.agents/scripts/lib/orchestration/review-providers/security-review.js';
 import { buildUltrareviewMessage } from '../../../.agents/scripts/lib/orchestration/review-providers/ultrareview.js';
-import { DEFAULT_TASK_SIZING } from '../../../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 
 // --- Producer segment: checkpoint → depth ---------------------------------
 
@@ -171,7 +171,7 @@ test('pipeline: low-risk Epic whose diff exceeds hardFiles → deep (width escal
   // a wide low-risk Epic previously got a light review.
   const input = await captureProviderDepth(
     { overallLevel: 'low' },
-    DEFAULT_TASK_SIZING.hardFiles + 1,
+    DEFAULT_DIFF_WIDTH.hardFiles + 1,
   );
   assert.equal(input.depth, 'deep');
 });

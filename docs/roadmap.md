@@ -315,7 +315,13 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 2 — Sizing removal
 
-- [ ] Delete/replace `DEFAULT_TASK_SIZING`; per-Story file/AC ceilings → a model-capacity split advisory; update `ticket-validator-sizing.js` + consumers + tests
+- [x] Delete/replace `DEFAULT_TASK_SIZING` → `DEFAULT_MODEL_CAPACITY`: per-Story
+  file/AC ceilings retired; the validator scores estimated **session mass**
+  (authored tokens + `tokensPerAcceptance` / `tokensPerChange` proxies) against
+  fractions of `maxTokenBudget`. `wide` still lifts the hard session-mass
+  rejection. Review depth decoupled onto `DEFAULT_DIFF_WIDTH` (mechanical diff
+  width). Config key `planning.taskSizing` → `planning.modelCapacity`. Prompt /
+  skills / schema / docs updated; tests rewritten.
 
 #### Stage 3 — Planning collapse
 

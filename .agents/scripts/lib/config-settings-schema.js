@@ -247,27 +247,26 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
 };
 
 /**
- * `planning.taskSizing` — Story-sizing thresholds consumed by
+ * `planning.modelCapacity` — v2 model-capacity split advisory consumed by
  * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
- * `DEFAULT_TASK_SIZING` defaults (softFiles 15, hardFiles 30,
- * softAcceptanceCount 10 — the uniform relaxed profile from Story #3874).
- * Story #3760 collapsed the per-profile matrix and the parallel
- * `testSurface` axis into a flat set of knobs; the `sizingProfile` enum was
- * replaced by an optional body-level `wide` declaration that lifts the
- * `hardFiles` rejection. The hard `maxAcceptance` ceiling was removed after
- * the Epic #4355 decomposition experiment — acceptance mass is advisory-only.
+ * `DEFAULT_MODEL_CAPACITY` defaults. Per-Story file/AC ceilings
+ * (`softFiles` / `hardFiles` / `softAcceptanceCount`) are retired; thresholds
+ * are fractions of the delivery envelope (`maxTokenBudget`) plus plan-time
+ * delivery-cost proxies. Declaring `wide` with a reason lifts the hard
+ * session-mass rejection.
  */
-const TASK_SIZING_SCHEMA = {
+const MODEL_CAPACITY_SCHEMA = {
   type: 'object',
   properties: {
-    softFiles: { type: 'integer', minimum: 1 },
-    hardFiles: { type: 'integer', minimum: 1 },
-    softAcceptanceCount: { type: 'integer', minimum: 1 },
-    // Under-size (merge-candidate) thresholds (Story #4312). A Story whose
-    // footprint is at or below BOTH ceilings and that carries a `depends_on`
-    // edge to a sibling trips the advisory `merge-candidate` soft finding.
-    mergeCandidateMaxFiles: { type: 'integer', minimum: 1 },
-    mergeCandidateMaxAcceptance: { type: 'integer', minimum: 1 },
+    softSessionFraction: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
+    hardSessionFraction: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
+    tokensPerAcceptance: { type: 'integer', minimum: 1 },
+    tokensPerChange: { type: 'integer', minimum: 1 },
+    mergeCandidateMaxSessionFraction: {
+      type: 'number',
+      exclusiveMinimum: 0,
+      maximum: 1,
+    },
   },
   additionalProperties: false,
 };
@@ -278,7 +277,7 @@ const PLANNING_SCHEMA = {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
-    taskSizing: TASK_SIZING_SCHEMA,
+    modelCapacity: MODEL_CAPACITY_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to
     // `true` upgrades the matching finding class to `'hard'`, which routes

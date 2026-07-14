@@ -415,35 +415,36 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
-  it('accepts the collapsed planning.taskSizing flat knobs on both sides (Story #3760)', () => {
+  it('accepts planning.modelCapacity knobs on both sides (v2 Stage 2)', () => {
     assertAgree(
       {
         ...REQ,
         planning: {
-          taskSizing: {
-            softFiles: 6,
-            hardFiles: 18,
-            softAcceptanceCount: 6,
+          modelCapacity: {
+            softSessionFraction: 0.05,
+            hardSessionFraction: 0.12,
+            tokensPerAcceptance: 400,
+            tokensPerChange: 300,
+            mergeCandidateMaxSessionFraction: 0.006,
           },
         },
       },
-      'planning.taskSizing flat knobs',
+      'planning.modelCapacity knobs',
     );
   });
 
-  it('rejects the retired profileCeilings key inside planning.taskSizing on both sides (Story #3760)', () => {
+  it('rejects the retired planning.taskSizing key on both sides (v2 Stage 2)', () => {
     assertAgree(
       {
         ...REQ,
         planning: {
           taskSizing: {
-            profileCeilings: {
-              'mechanical-sweep': { soft: 5, hard: 10 },
-            },
+            softFiles: 15,
+            hardFiles: 30,
           },
         },
       },
-      'retired profileCeilings key in taskSizing',
+      'retired planning.taskSizing key',
     );
   });
 

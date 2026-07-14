@@ -23,7 +23,7 @@ Both `/plan` paths run the
 path-appropriate artifact (an ideation one-pager, an existing Epic body, or a
 drafted Story body) to catch a wrong-sized scope **before** it is committed to
 the wrong pipeline. The rubric is host-LLM judgment anchored **by reference**
-to `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
+to `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_MODEL_CAPACITY` in
 [`ticket-validator-sizing.js`](../../scripts/lib/orchestration/ticket-validator-sizing.js).
 There is **no `--flag`**, no scorer, no schema, and no label transition behind
 the gate. Each referencing path activates the skill by reading its `SKILL.md`

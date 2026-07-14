@@ -97,10 +97,9 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
           );
         }
         // Story #2798 — the maxTickets section MUST not call the budget a
-        // "hard cap" or "hard ceiling". The unrelated task-sizing
-        // validator phrasing (the hardFiles ceiling) stays legitimate, so
-        // the check is scoped to lines that mention maxTickets in the same
-        // sentence.
+        // "hard cap" or "hard ceiling". Capacity-ceiling phrasing on
+        // session mass stays legitimate, so the check is scoped to lines
+        // that mention maxTickets in the same sentence.
         const maxTicketsLines = body
           .split('\n')
           .filter((l) => /maxTickets/.test(l));
@@ -111,35 +110,26 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             );
           }
         }
-        // Story #3760 — sizing thresholds have exactly one definition
-        // (DEFAULT_TASK_SIZING). The Skill body must advertise the remaining
-        // hard ceiling (hardFiles=30 — Story #3874), state that acceptance
-        // mass is advisory-only (the hard maxAcceptance ceiling was removed
-        // after the Epic #4355 decomposition experiment), and name the
-        // single constant.
-        if (/maxAcceptance/.test(body)) {
+        // v2 Stage 2 — capacity thresholds have exactly one definition
+        // (DEFAULT_MODEL_CAPACITY). File/AC ceilings are retired.
+        if (/DEFAULT_TASK_SIZING/.test(body) || /hardFiles/.test(body)) {
           errors.push(
-            'Skill body must not reference the removed maxAcceptance ceiling',
+            'Skill body must not reference the retired DEFAULT_TASK_SIZING / hardFiles file ceilings',
           );
         }
-        if (!/advisory only/i.test(body)) {
+        if (!/DEFAULT_MODEL_CAPACITY/.test(body)) {
           errors.push(
-            'Skill body must state that acceptance mass is advisory-only',
+            'Skill body must name DEFAULT_MODEL_CAPACITY as the single capacity source of truth (v2 Stage 2)',
+          );
+        }
+        if (!/session mass/i.test(body) && !/session-mass/i.test(body)) {
+          errors.push(
+            'Skill body must describe the session-mass capacity backstop',
           );
         }
         if (!/DELIVERY-SCHEDULE SIMULATION/i.test(body)) {
           errors.push(
             'Skill body must mirror the delivery-schedule simulation section',
-          );
-        }
-        if (!(/hardFiles/.test(body) && /\b30\b/.test(body))) {
-          errors.push(
-            'Skill body must advertise the hardFiles ceiling of 30 (Story #3874)',
-          );
-        }
-        if (!/DEFAULT_TASK_SIZING/.test(body)) {
-          errors.push(
-            'Skill body must name DEFAULT_TASK_SIZING as the single sizing source of truth (Story #3760)',
           );
         }
         // Story #3760 — cohesion is the primary heuristic; the numeric ceiling

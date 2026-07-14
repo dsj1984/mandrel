@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  RUN_EPILOGUE_STEP_KINDS,
   planRunEpilogue,
+  RUN_EPILOGUE_STEP_KINDS,
 } from '../../../.agents/scripts/lib/orchestration/run-epilogue.js';
 
 describe('planRunEpilogue — not applicable', () => {

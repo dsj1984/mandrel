@@ -94,24 +94,6 @@ function countChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
 }
 
 /**
- * Resolve the `planning.taskSizing` operator override the same way the ticket
- * validator does, so an operator who retunes sizing retunes the depth
- * thresholds with it. Reads `config.planning.taskSizing` first, then the
- * legacy `config.agentSettings.planning.taskSizing` nest; absent → `undefined`
- * so {@link resolveDepth} falls back to `DEFAULT_TASK_SIZING`.
- *
- * @param {object|null|undefined} config
- * @returns {object|undefined}
- */
-function resolveTaskSizing(config) {
-  return (
-    config?.planning?.taskSizing ??
-    config?.agentSettings?.planning?.taskSizing ??
-    undefined
-  );
-}
-
-/**
  * Producer-side resolver (Story #3937, extended by Story #3938): read an
  * Epic's judged `planningRisk` envelope off its `epic-plan-state` checkpoint
  * and resolve the review depth via the shared {@link resolveDepth} resolver.
@@ -564,15 +546,17 @@ function resolveProviderName(codeReviewConfig) {
  * envelope or the posted comment. Absent risk envelope + unknown width →
  * `standard`. Story #4075 — extracted from `runCodeReview`.
  */
-function buildReviewInput({ opts, config, scope, ticketId, baseRef, headRef }) {
+function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
   const changedFileCount =
     typeof opts.changedFileCount === 'number'
       ? opts.changedFileCount
       : countChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
+  // v2 Stage 2: review depth uses DEFAULT_DIFF_WIDTH (mechanical file count
+  // of the diff under review). It is deliberately decoupled from the
+  // planning model-capacity advisory (`planning.modelCapacity`).
   const depth = resolveDepth({
     overallLevel: opts.planningRisk?.overallLevel,
     changedFileCount,
-    sizing: resolveTaskSizing(config),
   });
   return {
     scope,
@@ -670,7 +654,6 @@ async function executeReviewPipeline({ opts, config, envelope }) {
 
   const reviewInput = buildReviewInput({
     opts,
-    config,
     scope,
     ticketId,
     baseRef,

@@ -556,10 +556,6 @@
       "symbol": "OPERATOR_HANDLE_PLACEHOLDER"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "symbol": "DEFAULT_TASK_SIZING"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "_peekStructuredCommentCache"
     },

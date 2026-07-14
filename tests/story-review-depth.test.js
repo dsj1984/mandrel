@@ -33,12 +33,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runCodeReview } from '../.agents/scripts/lib/orchestration/code-review.js';
+import { DEFAULT_DIFF_WIDTH } from '../.agents/scripts/lib/orchestration/review-depth.js';
 import {
   runStoryCodeReview,
   runStoryReviewCore,
 } from '../.agents/scripts/lib/orchestration/story-close/phases/code-review.js';
 import { resolveParentEpicPlanningRisk } from '../.agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js';
-import { DEFAULT_TASK_SIZING } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 
 const noopProgress = () => {};
 
@@ -223,7 +223,7 @@ test('story-review-depth resolution: Story under a high-risk Epic resolves to de
 test('story-review-depth resolution: small Story under a low-risk Epic resolves to light', async () => {
   const input = await captureStoryScopeDepth(
     { overallLevel: 'low' },
-    DEFAULT_TASK_SIZING.softFiles,
+    DEFAULT_DIFF_WIDTH.softFiles,
   );
   assert.equal(input.depth, 'light');
 });

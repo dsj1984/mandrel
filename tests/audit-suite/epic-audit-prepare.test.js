@@ -457,8 +457,8 @@ test('runEpicAuditPrepare: --help documents the depth field (Story #3939)', asyn
 
 // --- Story #3939: depth-aware audit envelope -------------------------------
 //
-// The default sizing thresholds (DEFAULT_TASK_SIZING) are softFiles=15,
-// hardFiles=30. With the default config (noopConfig → no taskSizing override),
+// Review depth uses DEFAULT_DIFF_WIDTH (softFiles=15, hardFiles=30) — a
+// mechanical review signal decoupled from planning.modelCapacity.
 // `resolveDepth` resolves:
 //   - high risk (any width)                → deep
 //   - low risk + count ≤ 15                 → light

@@ -1,5 +1,14 @@
 {
-  "description": "Sizing constant values each A/B plan was scored against. The `new` block is the SSOT mirror of DEFAULT_TASK_SIZING in .agents/scripts/lib/orchestration/ticket-validator-sizing.js and is drift-gated by tests/sizing-ab-calibration.test.js. The `old` block is the pre-#3874 profile, retained here only as the comparison baseline.",
+  "description": "v2 model-capacity profile mirrored from DEFAULT_MODEL_CAPACITY in ticket-validator-sizing.js and drift-gated by tests/sizing-ab-calibration.test.js. Historical old/new file-ceiling blocks are retained only as archival notes from the pre-v2 A/B (Story #3877).",
+  "capacity": {
+    "softSessionFraction": 0.04,
+    "hardSessionFraction": 0.1,
+    "tokensPerAcceptance": 500,
+    "tokensPerChange": 350,
+    "mergeCandidateMaxSessionFraction": 0.005,
+    "softSessionTokens": 12000,
+    "hardSessionTokens": 30000
+  },
   "old": {
     "softFiles": 5,
     "softAcceptanceCount": 6,

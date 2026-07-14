@@ -126,12 +126,12 @@ const KEY_MEANINGS = Object.freeze({
     'How many recent commits the snapshot summarizes.',
   'planning.riskHeuristics':
     'Phrases that flag a Story as high-risk for HITL escalation.',
-  'planning.taskSizing.softAcceptanceCount':
-    'Acceptance-criteria count above which a Story is flagged as large (advisory-only — there is no hard acceptance ceiling).',
-  'planning.taskSizing.softFiles':
-    'Touched-file count above which a Story is flagged as large.',
-  'planning.taskSizing.hardFiles':
-    'Touched-file count above which a Story is rejected unless it declares `wide` with a reason.',
+  'planning.modelCapacity.softSessionFraction':
+    'Session-mass fraction of maxTokenBudget above which a Story is flagged as large (advisory-only — check cohesion or declare `wide`).',
+  'planning.modelCapacity.hardSessionFraction':
+    'Session-mass fraction of maxTokenBudget above which a Story is rejected unless it declares `wide` with a reason.',
+  'planning.modelCapacity.mergeCandidateMaxSessionFraction':
+    'Session-mass fraction of maxTokenBudget at or below which a depends_on-chained Story is a merge candidate.',
   'planning.failOnSharedEditors':
     'Whether shared-editor conflict findings are promoted to hard errors.',
   'planning.requireExplicitCrossStoryDeps':
@@ -243,7 +243,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ['delivery.lifecycle.timeouts', 'Timeout for a lifecycle-bus phase.'],
   ['delivery.lifecycle', 'Lifecycle-bus configuration.'],
   [
-    'planning.taskSizing',
+    'planning.modelCapacity',
     'Story-sizing threshold for the decompose validator.',
   ],
   [

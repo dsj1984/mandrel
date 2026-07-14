@@ -201,24 +201,6 @@ export async function resolveRiskRoutedLenses({
 }
 
 /**
- * Resolve the operator's `planning.taskSizing` override the same way the
- * ticket validator and the code-review depth resolver do, so retuning sizing
- * retunes the audit-depth thresholds in lockstep. Reads `config.planning`
- * first, then the legacy `config.agentSettings.planning` nest; absent →
- * `undefined` so {@link resolveDepth} falls back to `DEFAULT_TASK_SIZING`.
- *
- * @param {object|null|undefined} config
- * @returns {object|undefined}
- */
-function resolveTaskSizing(config) {
-  return (
-    config?.planning?.taskSizing ??
-    config?.agentSettings?.planning?.taskSizing ??
-    undefined
-  );
-}
-
-/**
  * Resolve the run's audit depth (`light` / `standard` / `deep`) for an Epic
  * via the shared {@link resolveDepth} resolver (Story #3939), folding the
  * model-judged risk envelope's `overallLevel` (read off the Epic's
@@ -232,7 +214,8 @@ function resolveTaskSizing(config) {
  * checkpoint) still gets a passing `standard` pass with no new failure mode.
  * The changed-file count can only escalate a low-risk Epic to `deep` (a wide
  * diff) and never downgrades a high-risk one; an unknown/absent count is the
- * neutral "width unknown" signal {@link resolveDepth} tolerates.
+ * neutral "width unknown" signal {@link resolveDepth} tolerates. Depth uses
+ * `DEFAULT_DIFF_WIDTH` (mechanical), not planning model-capacity.
  *
  * @param {{
  *   epicId: number,
@@ -243,6 +226,18 @@ function resolveTaskSizing(config) {
  * }} params
  * @returns {Promise<import('./lib/orchestration/review-depth.js').ReviewDepth>}
  */
+/**
+ * Depth no longer reads `planning.modelCapacity` (v2 Stage 2). Kept as a
+ * tiny pure helper so callers and tests can still pass a sizing override
+ * through {@link resolveRunDepth} without re-introducing planning coupling.
+ *
+ * @param {object|null|undefined} _config
+ * @returns {undefined}
+ */
+function resolveDepthSizing(_config) {
+  return undefined;
+}
+
 export async function resolveRunDepth({
   epicId,
   provider,
@@ -453,7 +448,7 @@ export async function runEpicAuditPrepare(values, deps = {}) {
     epicId,
     provider,
     changedFileCount: changedFiles.length,
-    sizing: resolveTaskSizing(cfg),
+    sizing: resolveDepthSizing(cfg),
     readPlanState: deps.readPlanState,
   });
 

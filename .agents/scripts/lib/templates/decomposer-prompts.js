@@ -1,8 +1,9 @@
 import { LIMITS_DEFAULTS } from '../config/limits.js';
 import {
   AUTHORING_ALTITUDE_GUIDANCE,
-  DEFAULT_TASK_SIZING,
+  DEFAULT_MODEL_CAPACITY,
   DELIVERABLE_GRANULARITY_GUIDANCE,
+  resolveCapacityCeilings,
 } from '../orchestration/ticket-validator-sizing.js';
 
 /**
@@ -48,9 +49,19 @@ export function renderDecomposerSystemPrompt({
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
 function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
-  // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
-  // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
-  const { softFiles, hardFiles, softAcceptanceCount } = DEFAULT_TASK_SIZING;
+  // Capacity thresholds are sourced from the single DEFAULT_MODEL_CAPACITY
+  // constant (ticket-validator-sizing.js) so the prompt and the validator
+  // cannot drift. Absolute ceilings are derived from the live maxTokenBudget.
+  const {
+    softSessionFraction,
+    hardSessionFraction,
+    tokensPerAcceptance,
+    tokensPerChange,
+  } = DEFAULT_MODEL_CAPACITY;
+  const { softSessionTokens, hardSessionTokens } = resolveCapacityCeilings(
+    DEFAULT_MODEL_CAPACITY,
+    maxTokenBudget,
+  );
   // Deliverable-granularity definition + single-consumer merge rule + the
   // soft envelope-floor heuristic are sourced from the single
   // DELIVERABLE_GRANULARITY_GUIDANCE constant (ticket-validator-sizing.js) so
@@ -157,26 +168,26 @@ ${newFileContract}
 
 ${advisoryCaveat}
 
-#### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
+#### STORY SIZING — COHESION FIRST (session capacity is only a backstop):
 
 **Decompose at deliverable granularity, not module/task level.** ${granularityDefinition}
 
-The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
+The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial rename from a hard parser+caller+config change — so lead with the change's reason, not its size.
 
-**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The numeric file thresholds below are a coarse backstop on top of this envelope, not the primary signal.
+**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The session-mass thresholds below are a coarse backstop on top of this envelope, not the primary signal.
 
 ${envelopeFloor}
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one. State that sentence explicitly in the Story's \`reason_to_exist\` meta field (see STORY BODY RULES) so the consolidate critic can check it.
 - ${singleConsumerRule}
 - **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
-- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.
+- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover whose session mass is high for one reason). Declaring \`wide\` lifts the hard session-mass ceiling — see below.
 
-**Numeric backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_TASK_SIZING\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift:
+**Capacity backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_MODEL_CAPACITY\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift. Absolute ceilings are derived from the live \`maxTokenBudget\`:
 
-- A Story touching more than **${softFiles} files** (\`softFiles\`) emits an advisory width finding — a nudge to check cohesion or declare \`wide\`.
-- A Story touching more than **${hardFiles} files** (\`hardFiles\`) is **rejected** unless it declares \`wide\` with a reason.
-- Acceptance mass is **advisory only**: more than **${softAcceptanceCount} acceptance items** (\`softAcceptanceCount\`) emits an advisory warning. There is NO hard acceptance ceiling — a long binding contract is a signal to re-check cohesion, never a reason to fragment one coherent capability into dependent slices.
+- Soft advisory (\`softSessionFraction = ${softSessionFraction}\` → **${softSessionTokens} tokens**): estimated session mass above this emits a nudge to check cohesion or declare \`wide\`.
+- Hard ceiling (\`hardSessionFraction = ${hardSessionFraction}\` → **${hardSessionTokens} tokens**): estimated session mass above this is **rejected** unless the Story declares \`wide\` with a reason.
+- Session mass = authored tokens + \`${tokensPerAcceptance}\` per acceptance item + \`${tokensPerChange}\` per declared non-glob change path. A long binding contract raises session mass (and may soft-nudge) but is never by itself a reason to fragment one coherent capability into dependent slices.
 
 #### DELIVERY-SCHEDULE SIMULATION — the story count must earn itself:
 
@@ -201,7 +212,7 @@ A Story whose footprint is legitimately broad declares \`wide\` carrying a one-l
 "wide": { "reason": "hard contract cutover: migrate every <X> call site in one PR" }
 \`\`\`
 
-Declaring \`wide\` with a non-empty reason **lifts the \`hardFiles\` rejection** — no Story is rejected for width when it states why it is broad. Omit \`wide\` for ordinary Stories; a wide footprint with no \`wide\` declaration emits only an advisory nudge (check cohesion or declare \`wide\`), never a rejection on its own.
+Declaring \`wide\` with a non-empty reason **lifts the hard session-mass rejection** — no Story is rejected for width when it states why it is broad. Omit \`wide\` for ordinary Stories; a wide footprint with no \`wide\` declaration emits only an advisory nudge (check cohesion or declare \`wide\`), never a rejection on its own.
 
 **Glob entries** in \`changes[]\` (bullets containing \`*\`) mark the Story footprint as \`unknown-width\`: the numeric ceiling cannot bound a glob, so it is skipped. A Story carrying glob changes with no \`wide\` declaration emits an advisory nudge.
 

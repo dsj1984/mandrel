@@ -355,23 +355,26 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     );
   });
 
-  it('advertises the hardFiles ceiling and advisory-only acceptance mass from the single sizing constant (Story #3760, relaxed by Story #3874; hard acceptance ceiling removed)', () => {
-    // The prompt sources its threshold sentence from DEFAULT_TASK_SIZING so
-    // the two surfaces cannot drift. The only remaining hard ceiling is
-    // hardFiles=30; acceptance mass is advisory-only (softAcceptanceCount=10).
+  it('advertises the model-capacity session ceilings from DEFAULT_MODEL_CAPACITY (v2 Stage 2)', () => {
+    // The prompt sources its threshold sentence from DEFAULT_MODEL_CAPACITY so
+    // the two surfaces cannot drift. File/AC ceilings are retired; the hard
+    // backstop is the session-mass fraction of maxTokenBudget.
     const prompt = buildDecomposerSystemPrompt([]);
     assert.ok(
-      !/maxAcceptance/.test(prompt),
-      'prompt must not reference the removed maxAcceptance ceiling',
+      !/hardFiles/.test(prompt),
+      'prompt must not advertise the retired hardFiles file-count ceiling',
     );
     assert.ok(
-      /Acceptance mass is \*\*advisory only\*\*/.test(prompt) &&
-        /NO hard acceptance ceiling/.test(prompt),
-      'prompt must state that acceptance mass is advisory-only with no hard ceiling',
+      !/softFiles/.test(prompt),
+      'prompt must not advertise the retired softFiles file-count ceiling',
     );
     assert.ok(
-      /hardFiles/.test(prompt) && /\b30\b/.test(prompt),
-      'prompt must advertise the hardFiles ceiling of 30',
+      /DEFAULT_MODEL_CAPACITY/.test(prompt),
+      'prompt must name DEFAULT_MODEL_CAPACITY as the capacity SSOT',
+    );
+    assert.ok(
+      /hardSessionFraction/.test(prompt) && /session mass/i.test(prompt),
+      'prompt must advertise the hard session-mass ceiling',
     );
   });
 
@@ -418,8 +421,8 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
       'prompt must describe the wide declaration',
     );
     assert.ok(
-      /lifts the .?hardFiles.? rejection/i.test(prompt),
-      'prompt must say declaring wide lifts the hardFiles rejection',
+      /lifts the hard session-mass rejection/i.test(prompt),
+      'prompt must say declaring wide lifts the hard session-mass rejection',
     );
   });
 

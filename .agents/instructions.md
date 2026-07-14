@@ -474,9 +474,9 @@ To keep the repository clean and avoid polluting the Git history:
 The dispatcher automatically calculates the execution plan for an Epic. A
 Story is a **capability slice a frontier model delivers and self-verifies in
 one pass** — a broad footprint is normal when the change is cohesive. The
-numeric sizing backstop lives in one place: `DEFAULT_TASK_SIZING` in
+session-capacity backstop lives in one place: `DEFAULT_MODEL_CAPACITY` in
 `.agents/scripts/lib/orchestration/ticket-validator-sizing.js` (operator
-override via `planning.taskSizing`). Do not re-slice a capability-sized
+override via `planning.modelCapacity`). Do not re-slice a capability-sized
 Story into per-module fragments just because it touches many files.
 
 ### A. When You See `⚠️ COMPLEXITY WARNING`

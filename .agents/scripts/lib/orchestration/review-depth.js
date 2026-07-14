@@ -10,11 +10,11 @@
  *
  * Tier rules:
  *   - `deep`     — `overallLevel === 'high'` OR the changed-file count exceeds
- *                  the wide-change scale (`sizing.hardFiles`). A wide-footprint
- *                  Epic whose risk was judged low (or never judged) still earns
- *                  a deep pass on size alone.
+ *                  the wide-change scale (`diffWidth.hardFiles`). A wide-
+ *                  footprint Epic whose risk was judged low (or never judged)
+ *                  still earns a deep pass on size alone.
  *   - `light`    — `overallLevel === 'low'` AND the changed-file count is at or
- *                  below the small-change scale (`sizing.softFiles`). An
+ *                  below the small-change scale (`diffWidth.softFiles`). An
  *                  *unknown* count does NOT block `light`: a missing diff width
  *                  is treated as "not wide", so a low-risk Epic with no count
  *                  still resolves to `light` (preserves the #3937 producer
@@ -29,14 +29,25 @@
  * Pure and total: inputs in, tier out. No I/O, no throws. `null` / `undefined`
  * / malformed inputs all degrade to `standard` (or `deep`/`light` only when the
  * width signal unambiguously says so). Callers (e.g. `runCodeReview`) enumerate
- * the changed-file count from the diff they already run and supply it here, and
- * pass the operator's `planning.taskSizing` override as `sizing` so retuning
- * sizing retunes the depth thresholds in lockstep with the ticket validator.
+ * the changed-file count from the diff they already run and supply it here.
+ *
+ * v2 Stage 2: review depth is **decoupled** from the planning model-capacity
+ * advisory. Diff width is a mechanical review signal (files in the landed
+ * diff); planning capacity is a session-mass signal keyed to `maxTokenBudget`.
+ * The two no longer share a constant.
  *
  * @typedef {'light'|'standard'|'deep'} ReviewDepth
  */
 
-import { DEFAULT_TASK_SIZING } from './ticket-validator-sizing.js';
+/**
+ * Mechanical diff-width scales for review-depth tiering. These are **not**
+ * planning Story-sizing ceilings (those are gone in v2) — they only classify
+ * the changed-file count of a diff under review.
+ */
+export const DEFAULT_DIFF_WIDTH = Object.freeze({
+  softFiles: 15,
+  hardFiles: 30,
+});
 
 /**
  * Coerce an arbitrary input into a non-negative integer changed-file count, or
@@ -61,6 +72,7 @@ function normalizeChangedFileCount(value) {
  *   overallLevel?: ('low'|'medium'|'high'|string|null|undefined),
  *   changedFileCount?: (number|null|undefined),
  *   sizing?: { softFiles?: number, hardFiles?: number }|null,
+ *   diffWidth?: { softFiles?: number, hardFiles?: number }|null,
  * }} [input]
  * @returns {ReviewDepth}
  */
@@ -72,11 +84,15 @@ export function resolveDepth(input = {}) {
       ? normalizeChangedFileCount(input.changedFileCount)
       : null;
 
-  const mergedSizing = {
-    ...DEFAULT_TASK_SIZING,
-    ...(input && typeof input === 'object' && input.sizing ? input.sizing : {}),
+  const override =
+    input && typeof input === 'object'
+      ? (input.diffWidth ?? input.sizing ?? {})
+      : {};
+  const mergedWidth = {
+    ...DEFAULT_DIFF_WIDTH,
+    ...override,
   };
-  const { softFiles, hardFiles } = mergedSizing;
+  const { softFiles, hardFiles } = mergedWidth;
 
   // A known count strictly above the wide-change scale is wide.
   const isWide = changedFileCount !== null && changedFileCount > hardFiles;

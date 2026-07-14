@@ -222,15 +222,17 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('accepts the collapsed planning.taskSizing flat knobs (Story #3760)', () => {
+  it('accepts planning.modelCapacity knobs (v2 Stage 2)', () => {
     assert.equal(
       validate({
         ...REQ,
         planning: {
-          taskSizing: {
-            softFiles: 5,
-            hardFiles: 15,
-            softAcceptanceCount: 6,
+          modelCapacity: {
+            softSessionFraction: 0.05,
+            hardSessionFraction: 0.12,
+            tokensPerAcceptance: 400,
+            tokensPerChange: 300,
+            mergeCandidateMaxSessionFraction: 0.006,
           },
         },
       }),
@@ -238,28 +240,28 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('rejects the removed maxAcceptance knob — acceptance mass is advisory-only', () => {
-    // The hard acceptance ceiling was removed after the Epic #4355
-    // decomposition experiment; `additionalProperties: false` on the
-    // taskSizing block now rejects the retired key.
+  it('rejects the retired planning.taskSizing key (v2 Stage 2)', () => {
+    // File/AC ceilings were replaced by modelCapacity; additionalProperties
+    // false on the planning block rejects the retired key.
     expectErrors(
       {
         ...REQ,
         planning: {
-          taskSizing: { maxAcceptance: 14 },
+          taskSizing: { softFiles: 15, hardFiles: 30 },
         },
       },
       /additional propert/i,
     );
   });
 
-  it('rejects the retired per-profile taskSizing keys (Story #3760)', () => {
+  it('rejects retired file-ceiling knobs inside planning.modelCapacity', () => {
     expectErrors(
       {
         ...REQ,
         planning: {
-          taskSizing: {
-            profileCeilings: { '': { soft: 3, hard: 6 } },
+          modelCapacity: {
+            softFiles: 15,
+            hardFiles: 30,
           },
         },
       },

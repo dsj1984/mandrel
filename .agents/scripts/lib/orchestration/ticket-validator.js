@@ -11,13 +11,8 @@ import {
 } from './ticket-validator-conflicts.js';
 import {
   computeSizingFindings,
-  DEFAULT_TASK_SIZING,
   renderHardFindingError,
 } from './ticket-validator-sizing.js';
-
-// Re-exported for callers that want the constants without reaching into the
-// sizing helper module directly.
-export { DEFAULT_TASK_SIZING };
 
 /**
  * Regex matching code-asset paths the freshness gate cares about. The three
@@ -399,7 +394,9 @@ function renderMissLine({ slug, path }) {
  * @param {string}                     [opts.baseBranchRef] - When set, runs `validateAcFreshness` against this ref.
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
  * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
- * @param {object}                     [opts.taskSizing]    - Override the three-layer sizing thresholds. Defaults to `DEFAULT_TASK_SIZING`.
+ * @param {object}                     [opts.modelCapacity] - Override the model-capacity thresholds. Defaults to `DEFAULT_MODEL_CAPACITY`.
+ * @param {object}                     [opts.taskSizing]    - Deprecated synonym for `modelCapacity` (accepted during the Stage-2 sweep).
+ * @param {number}                     [opts.maxTokenBudget] - Delivery envelope used to derive absolute session ceilings.
  * @param {object}                     [opts.conflictPolicy] - Severity controls for cross-Story conflict findings.
  * @param {boolean}                    [opts.conflictPolicy.failOnSharedEditors=false]          - Upgrade `shared-editor` findings to `hard`.
  * @param {boolean}                    [opts.conflictPolicy.requireExplicitCrossStoryDeps=false] - Upgrade `implicit-cross-story-dep` findings to `hard`.
@@ -614,7 +611,8 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   const sizingFindings = computeSizingFindings({
     stories,
-    sizing: opts.taskSizing,
+    capacity: opts.modelCapacity ?? opts.taskSizing,
+    maxTokenBudget: opts.maxTokenBudget,
   });
   // Cross-Story path-conflict pass observes the story-level depends_on
   // graph. Findings are appended to the same `findings` array consumed by

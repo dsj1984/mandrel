@@ -144,7 +144,7 @@ const DELTA_VERB_RE =
  * from the headless path; the attended path keeps the skill-based judgment.
  *
  * The heuristics anchor to the same sizing SSOT the skill anchors to —
- * `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_TASK_SIZING` in
+ * `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_MODEL_CAPACITY` in
  * `ticket-validator-sizing.js` (one Story = one coherent capability slice;
  * multiple independent capabilities = an Epic) — and to the skill's
  * change-request delta rubric. Like the skill, the verdict is **advisory**:

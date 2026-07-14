@@ -10,10 +10,12 @@
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
-import { resolveDepth } from '../.agents/scripts/lib/orchestration/review-depth.js';
-import { DEFAULT_TASK_SIZING } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
+import {
+  DEFAULT_DIFF_WIDTH,
+  resolveDepth,
+} from '../.agents/scripts/lib/orchestration/review-depth.js';
 
-const { softFiles, hardFiles } = DEFAULT_TASK_SIZING;
+const { softFiles, hardFiles } = DEFAULT_DIFF_WIDTH;
 
 describe('resolveDepth — deep tier', () => {
   test('high-risk with a small diff → deep (risk alone)', () => {
@@ -126,19 +128,19 @@ describe('resolveDepth — standard tier (fail toward the middle)', () => {
   });
 });
 
-describe('resolveDepth — custom sizing override (planning.taskSizing)', () => {
+describe('resolveDepth — custom diffWidth override', () => {
   test('a tighter hardFiles makes a previously-standard diff deep', () => {
     // Default: softFiles(15) < 20 ≤ hardFiles(30) → standard for low risk.
     assert.equal(
       resolveDepth({ overallLevel: 'low', changedFileCount: 20 }),
       'standard',
     );
-    // Operator retunes hardFiles down to 5 → the same diff is now wide → deep.
+    // Caller retunes hardFiles down to 5 → the same diff is now wide → deep.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
         changedFileCount: 20,
-        sizing: { hardFiles: 5 },
+        diffWidth: { hardFiles: 5 },
       }),
       'deep',
     );
@@ -150,24 +152,24 @@ describe('resolveDepth — custom sizing override (planning.taskSizing)', () => 
       resolveDepth({ overallLevel: 'low', changedFileCount: 18 }),
       'standard',
     );
-    // Operator retunes softFiles up to 25 → 18 now counts as small → light.
+    // Caller retunes softFiles up to 25 → 18 now counts as small → light.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
         changedFileCount: 18,
-        sizing: { softFiles: 25 },
+        diffWidth: { softFiles: 25 },
       }),
       'light',
     );
   });
 
-  test('partial sizing override merges over DEFAULT_TASK_SIZING', () => {
+  test('partial diffWidth override merges over DEFAULT_DIFF_WIDTH', () => {
     // Only hardFiles overridden; softFiles still defaults to 15.
     assert.equal(
       resolveDepth({
         overallLevel: 'low',
         changedFileCount: softFiles,
-        sizing: { hardFiles: 100 },
+        diffWidth: { hardFiles: 100 },
       }),
       'light',
     );

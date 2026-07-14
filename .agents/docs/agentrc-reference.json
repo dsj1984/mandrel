@@ -89,10 +89,12 @@
       "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
       "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
     ],
-    "taskSizing": {
-      "softFiles": 15,
-      "hardFiles": 30,
-      "softAcceptanceCount": 10
+    "modelCapacity": {
+      "softSessionFraction": 0.04,
+      "hardSessionFraction": 0.1,
+      "tokensPerAcceptance": 500,
+      "tokensPerChange": 350,
+      "mergeCandidateMaxSessionFraction": 0.005
     }
   },
   "delivery": {

@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-11T20:23:35.938Z",
+  "generatedAt": "2026-07-14T14:51:56.278Z",
   "rollup": {
     "*": {
       "min": 70.566,
-      "p50": 97.891,
-      "p95": 126.964
+      "p50": 97.886,
+      "p95": 126.057
     }
   },
   "rows": [
@@ -488,7 +488,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
-      "mi": 90.25
+      "mi": 89.481
     },
     {
       "path": ".agents/scripts/lib/config/gates/bundle-size.schema.js",
@@ -1147,6 +1147,10 @@
       "mi": 105.908
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-context.js",
+      "mi": 82.617
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-review-routing.js",
       "mi": 107.852
     },
@@ -1255,6 +1259,10 @@
       "mi": 73.413
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-depth.js",
+      "mi": 104.15
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-providers/codex.js",
       "mi": 88.129
     },
@@ -1281,6 +1289,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/ultrareview.js",
       "mi": 118.798
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
+      "mi": 86.669
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
@@ -1337,6 +1349,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
       "mi": 95.767
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/spec-spill.js",
+      "mi": 97.275
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
+      "mi": 95.306
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close-recovery.js",
@@ -1432,7 +1452,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "mi": 96.709
+      "mi": 98.541
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "mi": 94.817
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing.js",
@@ -1644,7 +1668,7 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 86.882
+      "mi": 90.221
     },
     {
       "path": ".agents/scripts/lib/story-init/blocker-validator.js",
@@ -1676,7 +1700,7 @@
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 120.302
+      "mi": 107.409
     },
     {
       "path": ".agents/scripts/lib/test-env.js",

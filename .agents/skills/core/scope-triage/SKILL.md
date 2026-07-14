@@ -16,7 +16,7 @@ description:
   artifact under judgment. Never auto-route on the verdict; the verdict is
   **advisory**, and the operator always decides what to do with it.
 - Anchor every sizing judgment to the existing sizing SSOT **by reference**:
-  `DELIVERABLE_GRANULARITY_GUIDANCE` and `DEFAULT_TASK_SIZING` in
+  `DELIVERABLE_GRANULARITY_GUIDANCE` and `DEFAULT_MODEL_CAPACITY` in
   [`ticket-validator-sizing.js`](../../../scripts/lib/orchestration/ticket-validator-sizing.js).
   **Do not restate the numeric thresholds** — read them from that module so the
   rubric cannot drift from the validator that enforces them.
@@ -25,8 +25,8 @@ description:
   it is read-on-demand library content, evaluated with judgment per
   [`.agents/instructions.md` § 1.B](../../../instructions.md).
 - Lead with **cohesion**, the same primary heuristic the sizing SSOT leads
-  with: one Story is *one coherent change with one reason to exist*. The file /
-  acceptance ceilings are the backstop, not the first cut.
+  with: one Story is *one coherent change with one reason to exist*. The
+  session-capacity ceilings are the backstop, not the first cut.
 - Bias toward `epic` only when the work genuinely spans multiple independent
   capabilities, crosses subsystems, or carries a real dependency graph. Being
   wrong in the `epic` direction is cheap — the Phase 8.3 consolidation pass and
@@ -52,13 +52,13 @@ The work is a single shippable capability. Signals:
   `DELIVERABLE_GRANULARITY_GUIDANCE.definition` notion of a Story.
 - **Acceptance fits one Story.** The acceptance-criteria list reads as the
   binding contract of one coherent capability rather than spanning many
-  independent outcomes. Acceptance mass is advisory-only (the
-  `softAcceptanceCount` nudge in `DEFAULT_TASK_SIZING` — there is no hard
-  ceiling), so the question is cohesion, not count.
-- **Footprint fits Story sizing.** The plausible file footprint fits the Story
-  width described by `DEFAULT_TASK_SIZING` (the `softFiles` / `hardFiles`
-  knobs); a legitimately broad-but-cohesive change would declare `wide` rather
-  than being two Stories.
+  independent outcomes. Acceptance mass contributes to estimated session mass
+  (the `DEFAULT_MODEL_CAPACITY` advisory) but is never by itself a hard
+  ceiling — the question is cohesion and one-session deliverability, not count.
+- **Footprint fits session capacity.** The plausible session mass fits the
+  Story capacity described by `DEFAULT_MODEL_CAPACITY` (fractions of
+  `maxTokenBudget`); a legitimately broad-but-cohesive change would declare
+  `wide` rather than being two Stories.
 - **No novel architecture, no high-risk trigger.** The work introduces no novel
   architectural decision and matches none of the `planning.riskHeuristics` in
   `.agentrc.json` (destructive/irreversible changes, shared auth/security,
@@ -108,11 +108,11 @@ as a prompt to re-check, not an automatic `epic` bump.
   corpus hit exists for the touched area, that is a signal the request may
   be reaching into genuinely new territory — re-check the `epic` signals
   below before defaulting to `story`.
-- **Footprint fits Story sizing.** The plausible file footprint and
-  acceptance-criteria count still fit the Story width in
-  `DEFAULT_TASK_SIZING` (per the `story` verdict signals above) — a change
-  request that fans out across independent subsystems is sized like an Epic
-  regardless of how small the originating request sounded.
+- **Footprint fits session capacity.** The plausible session mass still fits
+  the Story capacity in `DEFAULT_MODEL_CAPACITY` (per the `story` verdict
+  signals above) — a change request that fans out across independent
+  subsystems is sized like an Epic regardless of how small the originating
+  request sounded.
 
 ### Story-verdict rationale template
 
@@ -125,7 +125,7 @@ Verdict: story
 Delta: <the existing surface this change targets>
 Corpus hit: <docs digest section / Epic # and Tech Spec excerpt that covers
   this area, or "none — re-checked epic signals, still story-sized">
-Footprint: <rough file/AC count vs DEFAULT_TASK_SIZING>
+Footprint: <rough session-mass estimate vs DEFAULT_MODEL_CAPACITY>
 ```
 
 ### Worked example
@@ -143,8 +143,8 @@ Footprint: <rough file/AC count vs DEFAULT_TASK_SIZING>
 >   Epic) already describes the docs-digest reuse pattern from
 >   orchestration/docs-digest.js.
 > Footprint: one new lib module (planning-corpus.js), one envelope field,
->   one helper-doc instruction — comfortably inside DEFAULT_TASK_SIZING's
->   softFiles/softAcceptanceCount band.
+>   one helper-doc instruction — comfortably inside DEFAULT_MODEL_CAPACITY's
+>   soft session-mass band.
 > ```
 
 ## Handoff & no-re-triage rule
@@ -177,7 +177,7 @@ fit) so the operator can sanity-check the call before acting on it.
 
 ## Anti-patterns to avoid
 
-- **Restating the sizing numbers.** Reference `DEFAULT_TASK_SIZING` /
+- **Restating the sizing numbers.** Reference `DEFAULT_MODEL_CAPACITY` /
   `DELIVERABLE_GRANULARITY_GUIDANCE`; never copy the thresholds into this file
   (they would drift from the validator).
 - **Auto-routing on the verdict.** The verdict is advisory; the operator

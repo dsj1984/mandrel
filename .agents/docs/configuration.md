@@ -105,12 +105,12 @@ top-level keys are validation errors.
 | `codebaseSnapshot.include` | No | `array<string>` | — | — |
 | `codebaseSnapshot.exclude` | No | `array<string>` | — | — |
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
-| `taskSizing` | No | `object` | — | Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection. Story #3874 cut over to one uniform relaxed profile sized for capability slices a frontier model delivers and self-verifies in one pass. |
-| `taskSizing.softFiles` | No | `integer` | — | File-count soft-warn threshold above which a typical-Story width finding fires (default 15). |
-| `taskSizing.hardFiles` | No | `integer` | — | File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30). |
-| `taskSizing.softAcceptanceCount` | No | `integer` | — | Soft-warn threshold on acceptance[] item count (default 10). Acceptance mass is advisory-only — there is no hard acceptance ceiling. |
-| `taskSizing.mergeCandidateMaxFiles` | No | `integer` | — | Under-size threshold (Story #4312): a Story with at most this many declared changes[] files, at most mergeCandidateMaxAcceptance acceptance items, and at least one depends_on edge to a sibling trips the advisory `merge-candidate` soft finding (default 3). |
-| `taskSizing.mergeCandidateMaxAcceptance` | No | `integer` | — | Under-size threshold (Story #4312): the acceptance[] item ceiling of the `merge-candidate` soft finding heuristic (default 4). |
+| `modelCapacity` | No | `object` | — | v2 model-capacity split advisory consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_MODEL_CAPACITY defaults. Per-Story file/AC ceilings are retired; thresholds are fractions of the delivery envelope (maxTokenBudget) plus plan-time delivery-cost proxies. Declaring `wide` with a reason lifts the hard session-mass rejection. |
+| `modelCapacity.softSessionFraction` | No | `number` | — | Fraction of maxTokenBudget above which a Story emits a soft session-pressure advisory (default 0.04). |
+| `modelCapacity.hardSessionFraction` | No | `number` | — | Fraction of maxTokenBudget above which a Story is rejected unless it declares `wide` with a reason (default 0.1). |
+| `modelCapacity.tokensPerAcceptance` | No | `integer` | — | Plan-time delivery-cost proxy (tokens) added to session mass per acceptance criterion (default 500). |
+| `modelCapacity.tokensPerChange` | No | `integer` | — | Plan-time delivery-cost proxy (tokens) added to session mass per declared non-glob change path (default 350). |
+| `modelCapacity.mergeCandidateMaxSessionFraction` | No | `number` | — | Fraction of maxTokenBudget at or below which a depends_on-chained Story is flagged as a merge candidate (default 0.005). |
 | `failOnSharedEditors` | No | `boolean` | — | — |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | — |
 | `failOnRegistryConflicts` | No | `boolean` | — | — |

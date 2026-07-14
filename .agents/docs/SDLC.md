@@ -340,7 +340,7 @@ ceremony (Tech Spec + Acceptance Spec + Story backlog +
 `epic/<id>` integration branch) only to land as a degenerate one-Story
 output. The rubric anchors its sizing judgment **by reference** to
 the existing sizing SSOT (`DELIVERABLE_GRANULARITY_GUIDANCE` /
-`DEFAULT_TASK_SIZING` in `ticket-validator-sizing.js`) and emits one of three
+`DEFAULT_MODEL_CAPACITY` in `ticket-validator-sizing.js`) and emits one of three
 verdicts — `epic` | `story` | `borderline`.
 
 The verdict is **host-LLM judgment** (no scorer, no schema, no label
