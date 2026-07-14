@@ -1,33 +1,21 @@
 /**
- * phases/dashboard-refresh.js — regenerate the dispatch manifest after
- * a Story merges into its Epic branch. Honors `--skip-dashboard` so
- * operators running an out-of-band close can suppress the I/O.
+ * phases/dashboard-refresh.js — retired dispatch-manifest refresh seam.
+ *
+ * The Stage 5 hard cutover deletes the dispatcher/manifest surface; keep this
+ * phase as a no-op so any still-wired post-merge pipeline can drain safely.
  */
-
-import { generateAndSaveManifest } from '../../../../dispatcher.js';
 
 function reapPhaseLogger(progress) {
   return progress ?? (() => {});
 }
 
 export async function dashboardRefreshPhase(ctx) {
-  const {
-    epicId,
-    provider,
-    skipDashboard,
-    progress,
-    generateManifestFn = generateAndSaveManifest,
-  } = ctx;
+  const { skipDashboard, progress } = ctx;
   const log = reapPhaseLogger(progress);
   if (skipDashboard) {
-    log(
-      'DASHBOARD',
-      '⏭️ Skipping dashboard refresh (--skip-dashboard flag set)',
-    );
+    log('DASHBOARD', 'Skipping dashboard refresh (--skip-dashboard flag set)');
     return false;
   }
-  log('DASHBOARD', 'Regenerating dispatch manifest...');
-  await generateManifestFn(epicId, true, { provider });
-  log('DASHBOARD', '✅ Dashboard manifest updated (temp/)');
-  return true;
+  log('DASHBOARD', 'Dispatch manifest refresh retired; no dashboard updated.');
+  return false;
 }

@@ -39,7 +39,7 @@ import {
 import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
 import { runCodeReview } from '../../code-review.js';
-import { emitBlockedCloseResult } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../emit-blocked.js';
 
 /**
  * The review depth the Story-scope local-lens pass runs at. Shift-left

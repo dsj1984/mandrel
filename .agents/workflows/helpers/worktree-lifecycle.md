@@ -88,13 +88,13 @@ set of callers is:
 | Spec / decompose CLI boot (`/plan` helpers)                      | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
 | Story merge (`/deliver` close)                                  | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
 | Story close                                                           | `epic-deliver runner` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
-| Story init (`/deliver <storyId>`)                               | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
+| Story init (`/deliver <storyId>`)                               | `single-story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
 | Epic deliver wave loop (`/deliver`)                              | `/deliver` slash command + `lib/orchestration/epic-runner/*` | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
 | Drain pending-cleanup (operator-driven)                               | `drain-pending-cleanup.js` (run directly — see below)     | n/a         | n/a      | ✅ Yes       | Manual escape hatch; same drain + Windows escalation as the `/plan` and `/deliver` paths.   |
 
 Operator takeaway: if you need to force a sweep/GC without closing a story,
 the most direct path is re-running `/plan` (or rebuilding the dispatch
-manifest via `dispatcher.js`) against the active epic. Running
+manifest via `stories-wave-tick.js`) against the active epic. Running
 `/deliver <storyId>` on its own does **not** clean up orphan worktrees
 or stale locks.
 

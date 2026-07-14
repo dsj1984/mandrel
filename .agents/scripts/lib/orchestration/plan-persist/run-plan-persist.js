@@ -26,11 +26,6 @@ import { rm } from 'node:fs/promises';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
-import {
-  enforceFanOutGate,
-  surfaceSoftConflictFindings,
-} from '../epic-plan-decompose/phases/persist.js';
-import { validateTickets } from '../epic-plan-decompose/phases/persist-helpers.js';
 import { evaluatePlanCritics } from '../plan-critics-evaluate.js';
 import {
   appendCriticSkip,
@@ -45,6 +40,11 @@ import {
 import { resolveReviewRouting } from '../plan-review-routing.js';
 import { deriveRiskEnvelope } from '../planning-risk.js';
 import { upsertStructuredComment } from '../ticketing.js';
+import {
+  enforceFanOutGate,
+  surfaceSoftConflictFindings,
+} from './fan-out-gate.js';
+import { validateTickets } from './persist-helpers.js';
 import { assemblePlanStories, createStoryIssues } from './story-ops.js';
 import {
   buildPlanSummaryCommentBody,

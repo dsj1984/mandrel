@@ -29,7 +29,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { ensureDocsDigest } from '../.agents/scripts/lib/orchestration/docs-digest.js';
-import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
+import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/planning/authoring-context.js';
 
 function stubProvider(body = '## Scope\n\nSome epic body.') {
   return {

@@ -242,9 +242,8 @@ describe('lifecycle-emit ↔ epic.automerge.end schema', () => {
 });
 
 // Story #3904 — `runLifecycleEmit` previously returned `{ event, payload,
-// seqId }` and the CLI always exited 0, even when a listener (e.g. the
-// Finalizer on a `closePlanningTickets` throw, or the AcceptanceReconciler
-// on an unmet AC gap) classified its invocation `failed`. Listeners record
+// seqId }` and the CLI always exited 0 when a listener classified its
+// invocation `failed`. Listeners record
 // `failed` into `this.classifications` rather than throwing, so the bus
 // emit resolves cleanly and the partial-finalize failure was swallowed at
 // the CLI boundary. The fix collects every listener's classifications into
@@ -253,16 +252,18 @@ describe('lifecycle-emit ↔ epic.automerge.end schema', () => {
 describe('runLifecycleEmit failure propagation (Story #3904)', () => {
   it('returns outcomes[] flattened from the listener chain classifications', () => {
     const chain = {
-      acceptanceReconciler: {
-        classifications: [{ event: 'epic.close.end', seqId: 1, outcome: 'ok' }],
+      automergeArmer: {
+        classifications: [
+          { event: 'epic.merge.ready', seqId: 1, outcome: 'ok' },
+        ],
       },
-      finalizer: {
+      mergeWatcher: {
         classifications: [
           {
-            event: 'acceptance.reconcile.ok',
+            event: 'epic.merge.armed',
             seqId: 2,
             outcome: 'failed',
-            reason: 'finalize-threw:boom',
+            reason: 'merge-watch-threw:boom',
           },
         ],
       },
@@ -270,14 +271,14 @@ describe('runLifecycleEmit failure propagation (Story #3904)', () => {
     const outcomes = collectOutcomes(chain);
     assert.equal(outcomes.length, 2);
     assert.deepEqual(outcomes[0], {
-      listener: 'acceptanceReconciler',
-      event: 'epic.close.end',
+      listener: 'automergeArmer',
+      event: 'epic.merge.ready',
       seqId: 1,
       outcome: 'ok',
     });
-    assert.equal(outcomes[1].listener, 'finalizer');
+    assert.equal(outcomes[1].listener, 'mergeWatcher');
     assert.equal(outcomes[1].outcome, 'failed');
-    assert.equal(outcomes[1].reason, 'finalize-threw:boom');
+    assert.equal(outcomes[1].reason, 'merge-watch-threw:boom');
   });
 
   it('collectOutcomes tolerates a null/undefined chain (injected-bus path)', () => {
@@ -304,16 +305,16 @@ describe('runLifecycleEmit failure propagation (Story #3904)', () => {
   it('failing listener → failed:true, outcomes[] surfaced, blocker signal fired', async () => {
     // Inject a bus (so the helper does not wire the real chain) plus a
     // fake chain whose listener classified `failed` — the canonical
-    // partial-finalize shape.
+    // surviving listener failure shape.
     const bus = new Bus();
     const chain = {
-      finalizer: {
+      automergeArmer: {
         classifications: [
           {
-            event: 'acceptance.reconcile.ok',
+            event: 'epic.merge.ready',
             seqId: 1,
             outcome: 'failed',
-            reason: 'finalize-threw:closePlanningTickets',
+            reason: 'automerge-arm-threw:gh',
           },
         ],
       },
@@ -331,7 +332,7 @@ describe('runLifecycleEmit failure propagation (Story #3904)', () => {
 
     assert.equal(out.failed, true);
     assert.equal(out.outcomes.length, 1);
-    assert.equal(out.outcomes[0].listener, 'finalizer');
+    assert.equal(out.outcomes[0].listener, 'automergeArmer');
     assert.equal(out.outcomes[0].outcome, 'failed');
 
     // Operator-visible signal fired with the Epic id + failed outcomes.
@@ -342,10 +343,7 @@ describe('runLifecycleEmit failure propagation (Story #3904)', () => {
     assert.equal(signalArgs.epicId, 4242);
     assert.equal(signalArgs.event, 'epic.close.end');
     assert.equal(signalArgs.failedOutcomes.length, 1);
-    assert.equal(
-      signalArgs.failedOutcomes[0].reason,
-      'finalize-threw:closePlanningTickets',
-    );
+    assert.equal(signalArgs.failedOutcomes[0].reason, 'automerge-arm-threw:gh');
   });
 
   it('ignores an injected chain when no bus is supplied (helper owns the chain)', async () => {
@@ -354,7 +352,7 @@ describe('runLifecycleEmit failure propagation (Story #3904)', () => {
     // With no epicId in the payload the real chain is skipped entirely, so
     // outcomes stay empty and `failed` is false.
     const chain = {
-      finalizer: {
+      automergeArmer: {
         classifications: [{ event: 'x', seqId: 1, outcome: 'failed' }],
       },
     };

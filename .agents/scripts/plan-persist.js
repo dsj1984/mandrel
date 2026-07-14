@@ -40,7 +40,6 @@ import {
 } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { PERSONA_LABEL_PREFIX } from './lib/label-constants.js';
-import { loadRiskVerdict } from './lib/orchestration/epic-plan-spec/phases/risk-verdict.js';
 import {
   readPlanMetrics,
   recordPlanInvocation,
@@ -56,6 +55,7 @@ import {
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './lib/orchestration/plan-persist/summary.js';
+import { loadRiskVerdict } from './lib/orchestration/planning/risk-verdict.js';
 import { createProvider } from './lib/provider-factory.js';
 
 export {

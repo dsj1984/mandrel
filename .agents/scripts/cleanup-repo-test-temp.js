@@ -20,7 +20,12 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { runAsCli } from './lib/cli-utils.js';
-import { isReservedTestEpicTempDirName } from './lib/test-reserved-epic-temp-ids.js';
+
+const RESERVED_TEST_EPIC_TEMP_DIR = /^epic-999\d{3}$/;
+
+function isReservedTestEpicTempDirName(name) {
+  return RESERVED_TEST_EPIC_TEMP_DIR.test(name);
+}
 
 /**
  * @param {object} [opts]

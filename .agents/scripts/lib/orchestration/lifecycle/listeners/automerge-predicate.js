@@ -69,7 +69,6 @@ import { spawnSync } from 'node:child_process';
 import { hasSurvivingCritical } from '../../../audit-suite/findings.js';
 import { getCiDelivery } from '../../../config/ci.js';
 import { parsePrNumberFromUrl } from '../../../github-url.js';
-import * as epicRunStateStore from '../../epic-run-state-store.js';
 import { findStructuredComment } from '../../ticketing.js';
 import { emitMergeUnlanded } from '../emit-merge-unlanded.js';
 import { normalizeCheckState, RECOGNIZED_CHECK_STATES } from './watcher.js';
@@ -654,16 +653,15 @@ function formatReasons(reasons, prefix = '') {
 /**
  * IO-bound entry. Loads all three signal sources from the structured-comment
  * surface on the Epic ticket and hands them to `deriveAutoMergeVerdict`.
- * DI-friendly via the `findCommentFn` and `readRunStateFn` hooks; both
- * default to the production stack (the `epic-run-state-store.read` function
- * replaces the previous `checkpointerFactory` indirection introduced by the
- * now-deleted `Checkpointer` class).
+ * DI-friendly via the `findCommentFn` and `readRunStateFn` hooks. The
+ * run-state default is null after the Stage 5 epic-run-state deletion; callers
+ * that still own a snapshot source can inject `readRunStateFn`.
  *
  * @param {{
  *   provider: object,
  *   epicId: number,
  *   findCommentFn?: typeof findStructuredComment,
- *   readRunStateFn?: typeof epicRunStateStore.read,
+ *   readRunStateFn?: Function,
  * }} opts
  * @returns {Promise<{ clean: boolean, reasons: object[], signals: object }>}
  */
@@ -671,7 +669,7 @@ export async function evaluateAutoMergePredicate({
   provider,
   epicId,
   findCommentFn = findStructuredComment,
-  readRunStateFn = epicRunStateStore.read,
+  readRunStateFn = async () => null,
 }) {
   if (!provider)
     throw new TypeError('evaluateAutoMergePredicate: provider required');

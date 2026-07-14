@@ -12,7 +12,8 @@
  */
 
 import { AGENT_LABELS } from '../../label-constants.js';
-import { WAVE_MARKER_RE } from '../wave-marker.js';
+
+const WAVE_MARKER_RE = /^wave-([0-9]{1,3})-(start|end)$/;
 
 /**
  * Canonical agent-state label triad used by every state mutator. Kept on
@@ -76,7 +77,6 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-run-progress',
   'epic-plan-state',
   'parked-follow-ons',
-  'dispatch-manifest',
   // Story #566 — per-phase wall-clock summary posted by story-close
   // and consumed by the epic-runner progress reporter to surface median /
   // p95 phase timings across completed stories.

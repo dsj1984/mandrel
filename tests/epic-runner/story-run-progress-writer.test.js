@@ -7,7 +7,7 @@ import {
   STORY_PHASE_ORDER,
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js';
+} from '../../.agents/scripts/lib/orchestration/story-progress/story-run-progress-writer.js';
 
 function buildProvider(initialComments = []) {
   const comments = initialComments.map((c, i) => ({ id: c.id ?? i + 1, ...c }));

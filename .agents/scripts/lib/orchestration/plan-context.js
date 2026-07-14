@@ -45,9 +45,9 @@ import {
 } from '../templates/spec-author-prompts.js';
 import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { buildDocsDigest } from './docs-digest.js';
-import { buildDecomposerSystemPrompt } from './epic-plan-decompose/phases/context.js';
-import { buildAuthoringContext } from './epic-plan-spec/phases/authoring-context.js';
 import { read as readPlanState } from './epic-plan-state-store.js';
+import { buildAuthoringContext } from './planning/authoring-context.js';
+import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
 
 /**
  * Envelope byte ceiling (regression guard for the design's named PR2 risk:

@@ -40,7 +40,7 @@ You run as a sub-agent with **no input channel** mid-run.
 
 ## Worktree discipline (MUST)
 
-1. Initialize with `node .agents/scripts/story-init.js --story <storyId>` from
+1. Initialize with `node .agents/scripts/single-story-init.js --story <storyId>` from
    the **main checkout** (the worktree does not exist yet). Invoke it
    **synchronously** with the Bash maximum timeout — a per-worktree install can
    take several minutes; do not background it.
@@ -61,7 +61,7 @@ git -C "<workCwd>" branch --show-current   # MUST print story-<storyId>
 
 If it does **not** report `story-<storyId>`, **STOP** — do not commit. Never
 commit Story work to `main`, to an Epic branch directly, or outside the
-worktree/branch. Re-run `story-init.js` (it is idempotent on partial state) to
+worktree/branch. Re-run `single-story-init.js` (it is idempotent on partial state) to
 restore the branch before proceeding.
 
 ## Commit discipline
