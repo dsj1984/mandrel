@@ -22,11 +22,10 @@
  *      with the seed, so the draft can build on prior art instead of
  *      re-deriving it.
  *
- * The Epic list surface (`provider.getEpics`) maps every issue through
- * `issueToEpicListItem`, which deliberately omits `body` (a list-scale
- * payload trim). Body content therefore requires an **explicit**,
- * bounded per-candidate fetch via `provider.getEpic(id)` — never a
- * silent assumption that the list response carries prose to score
+ * The historical Epic list surface (`provider.getEpics`) returns a
+ * list-scale payload with no `body`. Body content therefore requires an
+ * **explicit**, bounded per-candidate fetch via `provider.getEpic(id)` —
+ * never a silent assumption that the list response carries prose to score
  * against.
  *
  * Relevance scoring reuses the same `tokenize` / `overlapScore` Jaccard
@@ -71,8 +70,8 @@ const CORPUS_EPICS_PAGE_CAP = 5;
 
 /**
  * Rank open Epics by title-overlap with the seed. This is the cheap
- * first pass over the list surface (title only — `issueToEpicListItem`
- * has no `body`), used solely to pick the bounded top-K candidates
+ * first pass over the list surface (title only — no `body`), used solely
+ * to pick the bounded top-K candidates
  * worth an explicit body fetch. It is not the final relevance signal;
  * `extractRelevantSections` re-scores against actual section content.
  *

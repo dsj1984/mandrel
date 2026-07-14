@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-audit-recheck.js — Cross-phase re-trigger selector.
+ * epic-audit-recheck.js — per-run audit sweep recheck selector.
  *
  * Story #2619 (Epic #2586). Read a list of touched files (provided by the
  * caller after the code-review auto-fix loop in
@@ -14,6 +14,11 @@
  * triggers. The auto-fix tail already knows exactly which paths it touched —
  * only file-pattern overlap is relevant for deciding which lenses are stale
  * and need re-invocation.
+ *
+ * Despite the historical filename, any local audit artifacts for the run
+ * resolve under `temp/run-<id>/` through the `epicTempDir` alias to
+ * `runTempDir`; callers should treat the id as the run id for filesystem
+ * purposes.
  *
  * Tier gate (Epic #4405): this is the **Epic-close** re-check, so it emits
  * only non-`local` lenses. A `local`-tier lens is verified shift-left at

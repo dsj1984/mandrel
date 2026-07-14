@@ -109,15 +109,3 @@ export function issueToListItem(issue) {
     state: issue.state,
   };
 }
-
-export function issueToEpicListItem(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    title: issue.title,
-    labels,
-    labelSet: new Set(labels),
-    state: issue.state,
-    state_reason: issue.state_reason,
-  };
-}

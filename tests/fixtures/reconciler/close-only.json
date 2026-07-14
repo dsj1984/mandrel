@@ -5,7 +5,7 @@
     "epic": {
       "id": 9003,
       "title": "Trimming Epic",
-      "labels": ["type::epic"]
+      "labels": ["type::story"]
     },
     "stories": [
       {
@@ -42,7 +42,7 @@
   "ghState": {
     "9003": {
       "title": "Trimming Epic",
-      "labels": ["type::epic"],
+      "labels": ["type::story"],
       "state": "open"
     },
     "201": {

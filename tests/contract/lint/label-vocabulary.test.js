@@ -67,7 +67,7 @@ describe('lint-label-vocabulary — pure scanner contract', () => {
   });
 
   it('passes the canonical `::` separator', () => {
-    const src = '`type::epic` and `agent::ready` are fine.';
+    const src = '`type::story` and `agent::ready` are fine.';
     assert.deepEqual(findVocabularyViolations(src), []);
   });
 

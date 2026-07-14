@@ -106,7 +106,7 @@ test('GitHubProvider: getEpic returns the raw body without linked-issue parsing 
         node_id: 'node_1',
         title: 'Epic Title',
         body: legacyBody,
-        labels: [{ name: 'type::epic' }],
+        labels: [{ name: 'type::story' }],
       },
     },
   });
@@ -333,7 +333,7 @@ test('GitHubProvider: getSubTickets paginates the GraphQL subIssues query', asyn
           node_id: 'epic-node',
           title: 'Parent',
           body: '',
-          labels: [{ name: 'type::epic' }],
+          labels: [{ name: 'type::story' }],
           assignees: [],
           state: 'open',
         }),

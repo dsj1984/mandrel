@@ -80,7 +80,7 @@ describe('resolve-plan-run envelope', () => {
         labels: ['type::story', 'plan-run::abc'],
         body: 'blocked by #101',
       },
-      { number: 102, title: 'epic', labels: ['type::epic'], body: '' },
+      { number: 102, title: 'non-story', labels: ['area::docs'], body: '' },
       {
         number: 101,
         title: 'first',
@@ -105,7 +105,7 @@ describe('resolve-plan-run envelope', () => {
 
   it('builds an empty Story set without throwing when no type::story matches', () => {
     const envelope = buildPlanRunEnvelope(
-      [{ number: 1, labels: ['type::epic'], body: '' }],
+      [{ number: 1, labels: ['area::docs'], body: '' }],
       { planRunId: 'empty', planRunLabel: 'plan-run::empty' },
     );
     assert.deepEqual(envelope.stories, []);

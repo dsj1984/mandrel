@@ -38,7 +38,7 @@ function stubProvider(body = '## Scope\n\nSome epic body.') {
         id,
         title: 'Digest-first planning reads',
         body,
-        labels: ['type::epic'],
+        labels: ['type::story'],
       };
     },
   };

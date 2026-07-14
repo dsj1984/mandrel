@@ -202,7 +202,7 @@ describe('buildAuthoringContext — envelope carries grounding', () => {
           'references `lib/this-path-does-not-exist-4139.js` which is absent',
           'from the source tree.',
         ].join('\n'),
-        labels: ['type::epic'],
+        labels: ['type::story'],
         linkedIssues: { techSpec: null },
       };
     },

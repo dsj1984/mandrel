@@ -127,7 +127,7 @@ describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)'
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-with-tasks',

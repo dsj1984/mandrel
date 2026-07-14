@@ -146,7 +146,7 @@ test('epic-audit-prepare: surfaces the roster on epicCloseLenses (local change-s
         id: EPIC_ID,
         title: 'Shift-left audit tiers',
         body: 'Slim the Epic-close roster.',
-        labels: ['type::epic'],
+        labels: ['type::story'],
       },
     },
   });

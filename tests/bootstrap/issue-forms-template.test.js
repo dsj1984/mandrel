@@ -19,7 +19,6 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   assembleBodyFromFormValues,
   CONFORMANCE_WORKFLOW_RELATIVE_PATH,
-  EPIC_FORM_RELATIVE_PATH,
   ensureIssueForms,
   HUMAN_INTENT_FIELDS,
   renderIssueForm,
@@ -54,12 +53,6 @@ describe('renderIssueForm — field set and labels', () => {
     assert.match(yaml, /^name: Story$/m);
   });
 
-  it('auto-applies the type::epic label on the epic form', () => {
-    const yaml = renderIssueForm('epic');
-    assert.match(yaml, /^ {2}- type::epic$/m);
-    assert.match(yaml, /^name: Epic$/m);
-  });
-
   it('honours a custom entry-state label', () => {
     const yaml = renderIssueForm('story', { entryStateLabel: 'agent::ready' });
     assert.match(yaml, /^ {2}- agent::ready$/m);
@@ -71,10 +64,7 @@ describe('renderIssueForm — field set and labels', () => {
   });
 
   it('throws on an unknown ticket type', () => {
-    assert.throws(
-      () => renderIssueForm('feature'),
-      /must be 'story' or 'epic'/,
-    );
+    assert.throws(() => renderIssueForm('feature'), /must be 'story'/);
   });
 });
 
@@ -146,14 +136,12 @@ describe('ensureIssueForms — materialization', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('creates both forms + the conformance workflow, then is idempotent', () => {
+  it('creates the story form + the conformance workflow, then is idempotent', () => {
     const first = ensureIssueForms({ projectRoot: tmpRoot });
     const byType = Object.fromEntries(first.forms.map((f) => [f.type, f]));
     assert.equal(byType.story.action, 'created');
-    assert.equal(byType.epic.action, 'created');
     assert.equal(byType['conformance-workflow'].action, 'created');
     assert.ok(fs.existsSync(path.join(tmpRoot, STORY_FORM_RELATIVE_PATH)));
-    assert.ok(fs.existsSync(path.join(tmpRoot, EPIC_FORM_RELATIVE_PATH)));
     assert.ok(
       fs.existsSync(path.join(tmpRoot, CONFORMANCE_WORKFLOW_RELATIVE_PATH)),
     );

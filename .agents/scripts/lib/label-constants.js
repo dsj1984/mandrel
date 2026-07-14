@@ -75,7 +75,6 @@ export function isValidTransition(fromState, toState) {
 }
 
 export const TYPE_LABELS = {
-  EPIC: 'type::epic',
   STORY: 'type::story',
 };
 
@@ -85,9 +84,9 @@ export const STATUS_LABELS = {
 
 /**
  * Persona labels are derived at bootstrap time from `.agents/personas/*.md`
- * (see `label-taxonomy.js`), not hard-coded here — the persona file is the
- * source of truth, and ticket hydration resolves the label value to the
- * matching filename.
+ * (see `label-taxonomy.js`), not hard-coded here — the persona filename is
+ * the source of truth. Persona files are one-line role labels, not hydrated
+ * runtime instruction bodies.
  */
 export const PERSONA_LABEL_PREFIX = 'persona::';
 

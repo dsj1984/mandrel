@@ -58,7 +58,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's1',
@@ -89,7 +89,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-with-tasks',
@@ -132,7 +132,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-bad',

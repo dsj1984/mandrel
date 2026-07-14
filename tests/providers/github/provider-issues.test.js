@@ -19,53 +19,41 @@ describe('GitHubProvider — listIssues() & getEpics()', () => {
     {
       number: 101,
       title: 'Epic 1',
-      labels: [{ name: 'type::epic' }],
+      labels: [{ name: 'type::story' }],
       state: 'open',
     },
     {
       number: 102,
       title: 'Epic 2',
-      labels: ['type::epic'],
+      labels: ['type::story'],
       state: 'closed',
       state_reason: 'completed',
     },
     {
       number: 104,
       title: 'A PR',
-      labels: ['type::epic'],
+      labels: ['type::story'],
       state: 'open',
       pull_request: {},
     },
   ];
 
-  it('listIssues() fetches and filters epics correctly', async () => {
+  it('listIssues() returns the story-only getEpics stub result', async () => {
     const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
     const provider = createTestProvider({ gh });
     const epics = await provider.listIssues({ state: 'all' });
 
-    assert.equal(epics.length, 2);
-    assert.equal(epics[0].id, 101);
-    assert.equal(epics[0].title, 'Epic 1');
-    assert.deepEqual(epics[0].labels, ['type::epic']);
-    assert.equal(epics[1].id, 102);
-    assert.equal(epics[1].state, 'closed');
-    assert.equal(epics[1].state_reason, 'completed');
-
-    // Verify the argv shape that gh.api built carries the same encoded
-    // params the old fetch URL had.
-    const firstCall = gh.__exec.calls[0];
-    const endpoint = firstCall.args[3] ?? '';
-    assert.ok(endpoint.includes('labels=type%3A%3Aepic'));
-    assert.ok(endpoint.includes('state=all'));
+    assert.deepEqual(epics, []);
+    assert.equal(gh.__exec.calls.length, 0);
   });
 
-  it('getEpics() returns the same result as listIssues()', async () => {
+  it('getEpics() returns [] without querying a deleted type label', async () => {
     const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
     const provider = createTestProvider({ gh });
     const epics = await provider.getEpics();
 
-    assert.equal(epics.length, 2);
-    assert.equal(epics[0].id, 101);
+    assert.deepEqual(epics, []);
+    assert.equal(gh.__exec.calls.length, 0);
   });
 });
 
@@ -87,7 +75,7 @@ describe('GitHubProvider — getEpic()', () => {
           number: 10,
           title: 'Epic: Build v5',
           body: legacyBody,
-          labels: [{ name: 'type::epic' }],
+          labels: [{ name: 'type::story' }],
         },
       },
     });
@@ -96,7 +84,7 @@ describe('GitHubProvider — getEpic()', () => {
 
     assert.equal(epic.id, 10);
     assert.equal(epic.title, 'Epic: Build v5');
-    assert.deepEqual(epic.labels, ['type::epic']);
+    assert.deepEqual(epic.labels, ['type::story']);
     assert.equal(epic.body, legacyBody);
     assert.equal('linkedIssues' in epic, false);
   });

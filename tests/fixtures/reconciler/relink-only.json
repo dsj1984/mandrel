@@ -5,7 +5,7 @@
     "epic": {
       "id": 9004,
       "title": "Reshuffling Epic",
-      "labels": ["type::epic"]
+      "labels": ["type::story"]
     },
     "stories": [
       {
@@ -65,7 +65,7 @@
   "ghState": {
     "9004": {
       "title": "Reshuffling Epic",
-      "labels": ["type::epic"],
+      "labels": ["type::story"],
       "state": "open"
     },
     "301": {

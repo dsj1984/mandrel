@@ -29,8 +29,8 @@ const PERSONAS_DIR = path.resolve(
 
 /**
  * Discover persona labels from `.agents/personas/*.md`. The filename
- * (without extension) is the label suffix — this is the same value the
- * context hydrator uses to resolve `persona::<name>` to its markdown file.
+ * (without extension) is the label suffix. Persona markdown files are
+ * one-line role labels; discovery does not depend on long persona bodies.
  */
 function buildPersonaLabels() {
   return fs
@@ -49,14 +49,9 @@ function buildPersonaLabels() {
 export const LABEL_TAXONOMY = [
   // Type
   {
-    name: TYPE_LABELS.EPIC,
-    color: LABEL_COLORS.TYPE,
-    description: 'Epic-level work item',
-  },
-  {
     name: TYPE_LABELS.STORY,
     color: LABEL_COLORS.TYPE,
-    description: 'User story under an Epic',
+    description: 'Story work item',
   },
 
   // Agent State

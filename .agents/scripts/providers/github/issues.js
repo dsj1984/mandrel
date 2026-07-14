@@ -16,11 +16,10 @@
  */
 
 import { Logger } from '../../lib/Logger.js';
-import { TYPE_LABELS } from '../../lib/label-constants.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { isNotFoundError } from './branch-protection.js';
 import { withTransientRetry } from './errors.js';
-import { issueToEpic, issueToEpicListItem } from './mappers.js';
+import { issueToEpic } from './mappers.js';
 import {
   defaultRetryWarn,
   paginateRest,
@@ -148,33 +147,13 @@ export class IssuesGateway {
   }
 
   /**
-   * List Epic-typed issues. Filter shape preserved from the old code.
-   *
-   * `filters.pageCap` / `filters.perPage` pass through to `paginateRest`
-   * so a caller that only needs a bounded shortlist (e.g. the
-   * standalone-Story corpus lookup in `planning-corpus.js`, which ranks
-   * candidates down to a top-5 shortlist) can cap the scan instead of
-   * inheriting the default 50-page / 5000-item ceiling. Omitted, both
-   * fall back to `paginateRest`'s own defaults — unchanged behavior for
-   * existing callers (e.g. `duplicate-search.js`).
-   *
-   * @field-manifest /repos/{owner}/{repo}/issues?labels=type::epic: number,
-   *                 title, labels, state, state_reason, pull_request
+   * Historical Epic enumeration surface. Stage 5 removed the Epic type from
+   * the taxonomy; callers that have not yet collapsed their planning corpus
+   * reads receive an empty list rather than querying a deleted label.
    */
   /* node:coverage ignore next */
-  async getEpics(filters = {}) {
-    const params = new URLSearchParams({
-      state: filters.state ?? 'all',
-      labels: TYPE_LABELS.EPIC,
-    });
-    const endpoint = `/repos/${this.owner}/${this.repo}/issues?${params}`;
-    const issues = await paginateRest(this._gh, endpoint, {
-      pageCap: filters.pageCap,
-      perPage: filters.perPage,
-    });
-    return issues
-      .filter((issue) => !issue.pull_request)
-      .map(issueToEpicListItem);
+  async getEpics(_filters = {}) {
+    return [];
   }
 
   /**

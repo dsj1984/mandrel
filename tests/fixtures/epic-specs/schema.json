@@ -19,7 +19,7 @@
     },
     "epic": {
       "$ref": "#/$defs/epic",
-      "description": "The Epic this spec describes. Carries the GH issue number, human title, and structural labels (type::epic plus any project-specific structural tags). Execution-state labels (agent::*) MUST NOT appear here."
+      "description": "The Epic this spec describes. Carries the GH issue number, human title, and structural labels (type::story plus any project-specific structural tags). Execution-state labels (agent::*) MUST NOT appear here."
     },
     "stories": {
       "type": "array",
@@ -41,7 +41,7 @@
     "label": {
       "type": "string",
       "minLength": 1,
-      "description": "A GitHub label name. Structural labels only (e.g. type::epic, type::story, persona::*, area::*). Execution-state labels in the AGENT_LABELS allow-list (agent::*) MUST NOT appear in the spec — they are owned by the wave-runner and the reconciler refuses to write them."
+      "description": "A GitHub label name. Structural labels only (e.g. type::story, type::story, persona::*, area::*). Execution-state labels in the AGENT_LABELS allow-list (agent::*) MUST NOT appear in the spec — they are owned by the wave-runner and the reconciler refuses to write them."
     },
     "labels": {
       "type": "array",
@@ -71,7 +71,7 @@
         },
         "labels": {
           "$ref": "#/$defs/labels",
-          "description": "Structural labels attached to the Epic (e.g. type::epic plus any project-specific structural tags). agent::* labels are forbidden — they are owned by the wave-runner."
+          "description": "Structural labels attached to the Epic (e.g. type::story plus any project-specific structural tags). agent::* labels are forbidden — they are owned by the wave-runner."
         }
       }
     },

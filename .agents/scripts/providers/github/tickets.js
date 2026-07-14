@@ -336,12 +336,9 @@ export class TicketGateway {
       dependencies: ticketData.dependencies ?? [],
     });
 
-    // Mirror the Epic create path (issues.js:160 → `labels: TYPE_LABELS.EPIC`):
-    // inject TYPE_LABELS.STORY so a spec that omits the labels array cannot
+    // Inject TYPE_LABELS.STORY so a spec that omits the labels array cannot
     // produce an unlabeled, undispatchable Story. Dedupe to avoid duplicates
-    // when the caller already carries the label. (Story #4324 retired the
-    // `context::*` ticket classes, so every ticket created through this
-    // factory is a Story.)
+    // when the caller already carries the label.
     const callerLabels = ticketData.labels ?? [];
     const labels = callerLabels.includes(TYPE_LABELS.STORY)
       ? callerLabels

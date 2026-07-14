@@ -357,11 +357,18 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 5 — Deletion sweep
 
-- [ ] Wave/dispatch engine (`dispatcher.js`, `dispatch-*`, `wave-*`, `manifest-builder.js`)
-- [ ] Epic lifecycle/reconcile/lease scripts + `epic-runner/`, `epic-spec-reconciler-*`
-- [ ] Merge the duplicate `story` ↔ `single-story` script pairs
-- [ ] Re-key epic-scoped → run-scoped (`docs-digest`, `bookkeeping-outbox`, `temp/epic-*` → `temp/run-*`)
-- [ ] Delete `type::epic` label + Persona tier (`context-hydration-engine.js` + files)
+- [x] Wave/dispatch engine deleted (`dispatcher.js`, `dispatch-*`, `wave-*`,
+  `manifest-builder.js`).
+- [x] Epic lifecycle/reconcile/lease stratum deleted or stranded behind the
+  Story-only run path (`epic-runner/`, `epic-spec-reconciler-*`).
+- [x] Duplicate `story` ↔ `single-story` script pairs collapsed onto the live
+  Story-only CLIs.
+- [x] Epic-scoped temp naming re-keyed toward run scope: `runTempDir` owns
+  `temp/run-*`, with `epicTempDir` retained as a thin alias for this pass and
+  comments updated on `docs-digest` / bookkeeping surfaces.
+- [x] `type::epic` removed from the active taxonomy and issue-form generator;
+  persona files are one-line role labels and the context hydrator stratum is
+  gone.
 
 #### Stage 6 — Docs, config, gates, release
 

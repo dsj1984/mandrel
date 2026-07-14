@@ -56,7 +56,7 @@ import { LabelTransitioner } from './label-transitioner.js';
 import { MergeWatcher } from './merge-watcher.js';
 
 /**
- * Parse `temp/epic-<id>/lifecycle.ndjson` into `{ tempRoot, epicId }`.
+ * Parse `temp/run-<id>/lifecycle.ndjson` into `{ tempRoot, epicId }`.
  *
  * Throws when the input does not match the canonical layout. The
  * standalone `lifecycle-emit` CLI is the sole production caller and it
@@ -72,19 +72,19 @@ export function parseLedgerPath(ledgerPath) {
       'buildDefaultListenerChain: ledgerPath must be a non-empty string',
     );
   }
-  const epicDir = path.dirname(ledgerPath);
-  const tempRoot = path.dirname(epicDir);
-  const epicDirName = path.basename(epicDir);
-  const m = /^epic-(\d+)$/.exec(epicDirName);
+  const runDir = path.dirname(ledgerPath);
+  const tempRoot = path.dirname(runDir);
+  const runDirName = path.basename(runDir);
+  const m = /^run-(\d+)$/.exec(runDirName);
   if (!m) {
     throw new Error(
-      `buildDefaultListenerChain: ledgerPath does not match temp/epic-<id>/lifecycle.ndjson layout (got ${ledgerPath})`,
+      `buildDefaultListenerChain: ledgerPath does not match temp/run-<id>/lifecycle.ndjson layout (got ${ledgerPath})`,
     );
   }
   const epicId = Number.parseInt(m[1], 10);
   if (!Number.isInteger(epicId) || epicId < 1) {
     throw new Error(
-      `buildDefaultListenerChain: parsed epicId from ledgerPath is not a positive integer (got ${m[1]})`,
+      `buildDefaultListenerChain: parsed run id from ledgerPath is not a positive integer (got ${m[1]})`,
     );
   }
   return { tempRoot, epicId };
@@ -99,7 +99,7 @@ export function parseLedgerPath(ledgerPath) {
  *   `emit`, and the privileged `onEmitted` / `onCompleted` / `onFailed`
  *   hook seam).
  * @param {string} opts.ledgerPath Absolute or repo-relative path to the
- *   Epic's `lifecycle.ndjson`. Decomposed into `{ tempRoot, epicId }`
+ *   run's `lifecycle.ndjson`. Decomposed into `{ tempRoot, epicId }`
  *   for downstream constructors.
  * @param {string} opts.repoRoot Absolute path used as `cwd` for
  *   listeners that shell out (Finalizer, AutomergeArmer, BranchCleaner).

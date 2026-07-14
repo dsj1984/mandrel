@@ -4,7 +4,7 @@
  * Issue-body conformance lint (Story #4227).
  *
  * Runs the canonical `story-body.parse()` against a human-opened
- * `type::story` / `type::epic` issue body and reports whether the body
+ * `type::story` issue body and reports whether the body
  * round-trips. This is the drift guard between the generated GitHub Issue
  * Forms (`lib/bootstrap/issue-forms-template.js`) and the parser: if a
  * human files a ticket whose body `parse()` rejects (or which lacks the
@@ -119,7 +119,7 @@ export function evaluateIssueBody(body) {
   if (result.info.isLegacyStringBody) {
     problems.push(
       'The body has no recognised `## Goal` / `## Acceptance` / `## Verify` sections. ' +
-        'File via the Story/Epic issue form so it round-trips through the parser.',
+        'File via the Story issue form so it round-trips through the parser.',
     );
   }
 
@@ -162,7 +162,7 @@ export function renderConformanceComment(verdict) {
     '',
     ...verdict.problems.map((p) => `- ${p}`),
     '',
-    'The quickest fix is to refile using the **Story** or **Epic** issue form ' +
+    'The quickest fix is to refile using the **Story** issue form ' +
       '(New issue → pick the template), which lays out the required sections.',
   ];
   if (verdict.warnings.length > 0) {
@@ -231,8 +231,7 @@ async function main() {
   ]);
   const { body, labels } = JSON.parse(raw);
   const labelNames = (labels ?? []).map((l) => l.name);
-  const isTicket =
-    labelNames.includes('type::story') || labelNames.includes('type::epic');
+  const isTicket = labelNames.includes('type::story');
 
   if (!isTicket) {
     // Machine-parsable JSON envelope → process.stdout.write (not console.log),

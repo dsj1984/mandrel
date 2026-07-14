@@ -6,7 +6,7 @@
     "epic": {
       "id": 9101,
       "title": "Greenfield 2-tier Epic",
-      "labels": ["type::epic"]
+      "labels": ["type::story"]
     },
     "stories": [
       {
