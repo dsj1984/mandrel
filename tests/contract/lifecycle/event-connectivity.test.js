@@ -150,16 +150,14 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'phase-boundary trace',
   },
 
-  // --- epic automerge wrapper (the §1.1 repair) ---
+  // --- legacy epic automerge wrapper (retained schema/listeners, no v2 emitter) ---
   'epic.automerge.start': {
-    kind: 'connected',
-    emitter: 'deliver-epic.md',
-    subscriber: 'automerge-predicate.js',
+    kind: 'external',
+    why: 'legacy Epic close-tail event retained for schema/listener compatibility; v2 /deliver routes Stories through helpers/deliver-story and emits no production Epic automerge wrapper.',
   },
   'epic.automerge.end': {
-    kind: 'terminal',
-    emitter: 'deliver-epic.md',
-    why: 'phase-wrapper end trace emitted by Phase 8.5 (Story #3901); consumed by wildcard observers + CheckpointPointerWriter SUBSCRIBED_END_EVENTS',
+    kind: 'external',
+    why: 'legacy Epic close-tail event retained for schema compatibility; no production v2 /deliver workflow emits the Epic automerge wrapper end event.',
   },
 
   // --- epic lifecycle ---
@@ -169,9 +167,8 @@ const EVENT_CLASSIFICATION = Object.freeze({
     why: 'blocker signal emitted by AcceptanceReconciler / MergeWatcher; consumed only by the wildcard NotifyDispatcher (dynamic this.events) which fans it to the curated webhook. Its former dedicated subscribers (BlockerHandler / LabelTransitioner) were part of the in-process runner stratum deleted in Story #3908.',
   },
   'epic.close.end': {
-    kind: 'connected',
-    emitter: 'deliver-epic.md',
-    subscriber: 'acceptance-reconciler.js',
+    kind: 'external',
+    why: 'legacy Epic close-tail event retained for listener compatibility; v2 Story delivery closes through single-story-close and PR confirmation instead.',
   },
   'epic.finalize.start': {
     kind: 'terminal',

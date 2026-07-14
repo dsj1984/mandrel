@@ -1,53 +1,43 @@
 ---
 description:
-  Execute a standalone Story (no parent Epic) end-to-end. Creates a branch
-  from main, implements the changes in a worktree, runs gates, pushes, and
-  opens a PR directly against main.
+  Execute one Story end-to-end. Creates story-<id> from main, implements in a
+  worktree (optional ## Slicing checkpoints), runs risk-routed ceremony, opens
+  a PR against main, and lands.
 ---
 
-# /single-story-deliver #[Story ID]
+# /deliver-story #[Story ID]
 
-> **Runtime core.** This file is the always-ingested standalone-Story path:
-> step flow, commands, gate contracts, and the return contract. The lease /
-> sweep mechanics, the worktree-scope safety warning, the CI-recovery
-> procedures, and the Status-column reconciliation live in the sibling
-> [`single-story-deliver-reference.md`](single-story-deliver-reference.md);
-> each moved procedure keeps a one-line pointer at its trigger point below.
-> The reference is not projected to `.claude/commands/` — it is consulted on
-> demand.
+> **Runtime core.** Always-ingested per-Story delivery path. Lease / sweep /
+> CI-recovery detail lives in
+> [`deliver-story-reference.md`](deliver-story-reference.md); consult on demand.
+> Invoked by [`/deliver`](../deliver.md) for every Story (N=1 and N>1).
 
 ## Overview
 
-`/single-story-deliver` is the standalone counterpart to
-[`/deliver`](deliver-stories.md). Use it for a Story that is **not**
-attached to an Epic — refactors carved out of closed Epics, framework
-maintenance, or any work small enough that the Epic-Centric ceremony
-(sectioned Epic body + decomposition + dispatch manifest + cascade) would be
-overhead rather than help.
+`/deliver-story` is the **one** delivery engine in v2. Every Story — trivial or
+large — uses the same machinery:
 
 ```text
-/single-story-deliver <storyId>
+/deliver <storyId>   (or /deliver --run <planRunId> → one Story at a time)
   → single-story-init.js          (branch from main, worktree, agent::executing)
-  → agent implements + commits     (operator works in the worktree)
+  → agent implements + commits     (optional ## Slicing intra-session checkpoints)
+  → risk-routed ceremony           (acceptance critics · review · audit lenses)
   → single-story-close.js          (gates, push, gh pr create → main, agent::closing)
-  → CI watch + fix loop            (until all required checks pass + PR is merged)
-  → single-story-confirm-merge.js  (PR merged → agent::done, issue closes)
+  → CI watch + fix loop            (until required checks pass + PR merged)
+  → single-story-confirm-merge.js  (PR merged → agent::done)
 ```
 
-**When to use `/single-story-deliver` vs. `/deliver`:**
+| Trait | v2 `/deliver-story` |
+| --- | --- |
+| Ticket type | `type::story` only |
+| Branch | `story-<id>` seeded from `project.baseBranch` (`main`) |
+| Merge target | `main` via PR (squash + required checks) |
+| Epic integration branch | **None** — no `epic/<id>`, no `--no-ff` wave merge |
+| Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session |
+| Ceremony | Per-Story risk-routed via `ceremony-routing.js` |
 
-| Trait                         | `/single-story-deliver`                              | `/deliver`                                         |
-| ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
-| Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
-| Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
-| Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
-| Epic-branch integration       | No                                                   | Yes — merged into `epic/<epicId>` at close              |
-| Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
-| Story scope                   | Inline `acceptance[]` / `verify[]` on the Story body | Inline `acceptance[]` / `verify[]` on the Story body    |
-
-If the Story has an `Epic: #N` reference, use `/deliver`. If it
-doesn't, use this workflow (or `/deliver` for several standalone
-Stories at once).
+If the Story still carries an `Epic: #N` reference, **stop** — that is a v1
+Epic-attached ticket; re-plan as a v2 Story or finish it on a pre-v2 checkout.
 
 ## Prerequisites
 
@@ -89,7 +79,7 @@ fetch and branch-seed.
 > heartbeat ledger to judge staleness) — coordinate or pass `--steal`. The
 > sweep is guarded (per-candidate protection + cross-session lock) and
 > never blocks init. See
-> [`single-story-deliver-reference.md` § Step 0 — Lease preflight and merged-sweep](single-story-deliver-reference.md#step-0--lease-preflight-and-merged-sweep)
+> [`deliver-story-reference.md` § Step 0 — Lease preflight and merged-sweep](deliver-story-reference.md#step-0--lease-preflight-and-merged-sweep)
 > for the fail-closed outcomes, the `--steal` contract, and the sweep
 > hardening layers.
 
@@ -118,51 +108,40 @@ All subsequent commands run from this directory.
 > tools — you MUST prefix every such path with the absolute `workCwd` root or
 > risk silently editing the main checkout. Close's wrong-tree guard (Story
 > #3364) is a backstop, not a substitute. See
-> [`single-story-deliver-reference.md` § Worktree scope is not just the Bash cwd](single-story-deliver-reference.md#worktree-scope-is-not-just-the-bash-cwd).
+> [`deliver-story-reference.md` § Worktree scope is not just the Bash cwd](deliver-story-reference.md#worktree-scope-is-not-just-the-bash-cwd).
 
 ---
 
 ## Step 1 — Implementation
 
-A standalone Story is **atomic** — no wave dispatch and no Epic-scoped
-cascade. Work happens in one or more commits on the `story-<id>`
-branch, against the inline `acceptance[]` / `verify[]` arrays on the
-Story body.
+A Story is **atomic** — one `story-<id>` branch, one PR to `main`. Work
+happens in one or more commits against the inline `acceptance[]` /
+`verify[]` arrays (and the folded `## Spec` when present).
 
 Operator/agent responsibilities while in the worktree:
 
 1. Read the Story body. Treat its acceptance criteria as the contract.
 
-   **Docs context — digest-first.** A standalone Story has no parent Epic,
-   so there is usually no per-Epic docs digest to read. If the caller
-   provides a `docsDigestPath` (the per-Epic docs digest at
-   `temp/epic-<epicId>/docs-digest.md`), read that compact outline instead
-   of re-reading the full `project.docsContextFiles` set, and pull
-   individual docs files on demand (jump to the section at the line number
-   the digest names). When no digest path is provided, read a full doc
-   only when the Story's own context points you at one — do not ingest the
-   whole docs set up front. See
-   [`.agents/instructions.md` § 3](../../instructions.md).
+   **Docs context — digest-first.** Read a full doc only when the Story's
+   own context points you at one — do not ingest the whole
+   `project.docsContextFiles` set up front. If the caller provides a
+   `docsDigestPath`, prefer that compact outline and pull individual files
+   on demand. See [`.agents/instructions.md` § 3](../../instructions.md).
 
-   **Write-time audit checklists.** The write-time local-lens checklist
-   threading (Story #4410) is wired on the Epic delivery path via
-   `epic-deliver-prepare.js`, which threads a per-Story `checklistPath` into
-   the maker prompt. When a standalone caller provides a `checklistPath`
-   (the repo-relative path to this Story's footprint-matched **local**-lens
-   authoring checklists, matched via `resolveLensTier(lens) === 'local'` +
-   `matchesAnyFilePattern` against the Story's predicted footprint — never
-   `selectAudits`, so no provider or git diff runs), read it before you
-   write and self-check your change against each listed concern as you
-   author it. When no `checklistPath` is provided, there is nothing extra to
-   read — the lens-aware coverage still runs maker-blind at Story-scope
-   review inside the close subprocess.
-2. Implement the changes.
+   **Write-time audit checklists.** When the caller provides a
+   `checklistPath` (footprint-matched **local**-lens authoring checklists),
+   read it before you write and self-check as you author. When absent,
+   lens-aware coverage still runs maker-blind at Story-scope review inside
+   the close subprocess.
+2. Implement the changes. When the body has a `## Slicing` / Delivery
+   Slicing table, walk rows as **intra-session checkpoints** (commit +
+   flip each row when done) — never as sibling tickets.
 3. Commit on the Story branch. Conventional-commit format is encouraged
    but not enforced — the PR title carries the canonical summary.
 4. Iterate (read tests, run targeted gates, edit, commit) until the
    acceptance criteria are met.
 5. Run the **bounded acceptance self-eval loop** (Step 1a below) before
-   proceeding to close.
+   ceremony / close.
 
 Recommended quick gates while iterating (each is fast enough to run on
 save):
@@ -188,13 +167,13 @@ context critic, `verify[]`-as-evidence, the verdict schema, and the
 proceed / redraft / block decision) is the single-homed include
 [`acceptance-self-eval.md`](acceptance-self-eval.md) — read it and follow it.
 
-Standalone specifics for this path:
+Story-path specifics:
 
 - **Critic evidence-share** (Story #4250). When the critic runs a `verify[]`
   command that is byte-identical to a close gate (`lint` / `typecheck`), it
-  records the pass into the standalone evidence keyspace via `--standalone`
-  (no parent Epic to key on) so Step 3's close short-circuits the gate at
-  unchanged HEAD. Run it in the **Story worktree** (`workCwd` from Step 0):
+  records the pass into the Story evidence keyspace via `--standalone` so
+  Step 3's close short-circuits the gate at unchanged HEAD. Run it in the
+  **Story worktree** (`workCwd` from Step 0):
 
   ```bash
   node <main-repo>/.agents/scripts/evidence-gate.js \
@@ -202,14 +181,14 @@ Standalone specifics for this path:
     --worktree <workCwd> -- npm run lint
   ```
 
-- **Gate invocation** (omit `--epic` — there is no parent Epic):
+- **Gate invocation** (omit `--epic`):
 
   ```bash
   node <main-repo>/.agents/scripts/acceptance-eval.js \
     --story <storyId> --verdict <verdict-path>
   ```
 
-- **On `decision: "proceed"`** → proceed to Step 3 (close).
+- **On `decision: "proceed"`** → proceed to Step 2 (ceremony) then Step 3.
 - **On `decision: "block"`** → **do not proceed to close.** Post a `friction`
   comment naming the unmet criteria, then transition the Story to
   `agent::blocked`:
@@ -222,12 +201,21 @@ Standalone specifics for this path:
 
 ---
 
-## Step 2 — Validate (deferred to close)
+## Step 2 — Risk-routed ceremony
 
-`single-story-close.js` runs the canonical close-validation chain
-(typecheck, lint, test, format, maintainability, coverage, crap) before
-it pushes. Do **not** pre-run those gates here unless interactively
-iterating on a fix.
+Per-Story ceremony is **risk-routed** from the Story's own risk envelope
+(folded plan `planningRisk` / `risk-verdict` on the Story or its plan-run
+context — never an Epic parent). Resolve fresh-vs-inline acceptance critics
+per AC-cluster with
+[`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
+(`high`/`medium`/`missing` → `fresh`; `low` → `inline` unless the
+`freshCriticSampleRate` floor forces `fresh`). Review depth and audit lenses
+follow the same envelope via `review-depth.js` /
+`code-review.js#resolveAuditLenses` inside close.
+
+Hard gates (lint / test / format / coverage / CRAP / maintainability) always
+run in Step 3 — risk never disables them. Do **not** pre-run the full
+close-validation chain here unless interactively iterating on a fix.
 
 ---
 
@@ -249,17 +237,11 @@ with a `Closes #<storyId>` footer, enables GitHub native auto-merge
 (NOT `agent::done` — the issue stays OPEN until Step 5 confirms the merge,
 Story #3385), reaps the worktree, and releases the Story lease.
 
-> **`delivery.ci.autoMerge` policy (shared with the Epic path).** The
-> standalone close honours the same config knob the Epic Phase 8.5 gate
-> reads. Under the default `"trust-ci"`, GitHub native auto-merge is armed
-> and the PR squash-merges once its **required** checks pass (GitHub's
-> `--auto` is the required-check gate — no client-side predicate is needed
-> here, unlike the Epic path, because a standalone Story runs no
-> audit/review/retro phase to gate on). Under `"strict"`, the close **does
-> not arm auto-merge** — the PR opens and waits for an **operator merge**,
-> exactly as `--no-auto-merge` does per-run. This lets a consumer who tightens
-> Epic merges with `"strict"` get the same operator-in-the-loop behaviour for
-> standalone Stories.
+> **`delivery.ci.autoMerge` policy.** Under the default `"trust-ci"`, GitHub
+> native auto-merge is armed and the PR squash-merges once its **required**
+> checks pass. Under `"strict"`, the close **does not arm auto-merge** — the
+> PR opens and waits for an **operator merge**, exactly as `--no-auto-merge`
+> does per-run.
 
 Flags:
 
@@ -297,7 +279,7 @@ Flags:
 > lease release).** For the numbered close pipeline, the base-sync outcome
 > table (no-op / conflict → `agent::blocked` / fetch-failed), and why the
 > issue stays OPEN at `agent::closing`, see
-> [`single-story-deliver-reference.md` § Step 3 — Close pipeline detail](single-story-deliver-reference.md#step-3--close-pipeline-detail).
+> [`deliver-story-reference.md` § Step 3 — Close pipeline detail](deliver-story-reference.md#step-3--close-pipeline-detail).
 
 ---
 
@@ -325,7 +307,7 @@ green-CI outcome, not just the push.
 > `agent::done` → post-merge steps → return the terminal JSON contract.
 > Ending the turn with prose and an unconfirmed merge is a contract
 > violation (the Story #1553 / PR #1554 failure mode). See
-> [`single-story-deliver-reference.md` § The auto-merge wait is an internally-blocking step](single-story-deliver-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
+> [`deliver-story-reference.md` § The auto-merge wait is an internally-blocking step](deliver-story-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
 
 After `single-story-close.js` succeeds, enter the watch + fix loop. Drive
 `pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
@@ -373,7 +355,7 @@ When the watch exits, branch on the exit code:
 > `reapOnSuccess`, pulling the failing job log, fixing coverage/CRAP
 > baselines without re-running close-validation, and the when-to-stop
 > Anti-Thrashing rules, see
-> [`single-story-deliver-reference.md` § Step 4 — CI watch + fix recovery](single-story-deliver-reference.md#step-4--ci-watch--fix-recovery).
+> [`deliver-story-reference.md` § Step 4 — CI watch + fix recovery](deliver-story-reference.md#step-4--ci-watch--fix-recovery).
 
 ---
 
@@ -405,7 +387,7 @@ node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main
 > live PR state and flips to `agent::done` only on a confirmed `MERGED` PR;
 > it is idempotent and safe to re-run while the PR is still open (returns
 > `pending`). See
-> [`single-story-deliver-reference.md` § Step 5 — Merge confirmation detail](single-story-deliver-reference.md#step-5--merge-confirmation-detail).
+> [`deliver-story-reference.md` § Step 5 — Merge confirmation detail](deliver-story-reference.md#step-5--merge-confirmation-detail).
 
 ---
 
@@ -430,7 +412,7 @@ after the manual merge instead.
 > flags (`--poll-attempts`, `--poll-delay-ms`), the `attempts` / `drifted`
 > envelope semantics, and the canonical
 > `--reap-conflicting-workflows` operator fix, see
-> [`single-story-deliver-reference.md` § Step 5.5 — Re-assert Status column detail](single-story-deliver-reference.md#step-55--re-assert-status-column-detail).
+> [`deliver-story-reference.md` § Step 5.5 — Re-assert Status column detail](deliver-story-reference.md#step-55--re-assert-status-column-detail).
 
 ---
 
@@ -461,16 +443,16 @@ run the cleanup after the manual merge lands.
 > **Why local `main` goes stale + per-flag behaviour.** For the stale-`main`
 > mechanism and the full `--fast-forward-main` / `--branches` / `--include`
 > flag semantics, see
-> [`single-story-deliver-reference.md` § Step 6 — Local branch cleanup detail](single-story-deliver-reference.md#step-6--local-branch-cleanup-detail).
+> [`deliver-story-reference.md` § Step 6 — Local branch cleanup detail](deliver-story-reference.md#step-6--local-branch-cleanup-detail).
 
 ---
 
 ## Step 7 — Return contract (**required when dispatched as a sub-agent**) {#return-contract}
 
-When this workflow runs as a per-Story sub-agent (dispatched by `/deliver`
-via [`deliver-stories.md` § 2a/2c](deliver-stories.md)), the **only**
-acceptable way to end your turn is to **return a single terminal JSON status
-object** — never free-form prose:
+When this workflow runs as a per-Story sub-agent (dispatched by
+[`/deliver`](../deliver.md)), the **only** acceptable way to end your turn
+is to **return a single terminal JSON status object** — never free-form
+prose:
 
 ```json
 {
@@ -484,10 +466,8 @@ object** — never free-form prose:
 }
 ```
 
-This is the same envelope [`deliver-stories.md` § 2c](deliver-stories.md)
-mandates; this section is its single-homed restatement for the standalone
-worker so the contract is self-contained when this workflow is the entry
-point.
+This section is the single-homed return contract for the Story worker so it
+is self-contained when this workflow is the entry point.
 
 There is **no fourth "pending" status** — the CI/auto-merge wait is handled
 internally by blocking on `pr-watch-with-update.js` (Step 4) and confirming
@@ -499,7 +479,7 @@ failure (`status: "failed"`).
 > terminal-status contract (what each status requires), why a prose hand-off
 > with an unconfirmed merge is the very bug this workflow prevents, and the
 > report-state-not-process handoff discipline, see
-> [`single-story-deliver-reference.md` § Step 7 — Return-contract detail](single-story-deliver-reference.md#step-7--return-contract-detail).
+> [`deliver-story-reference.md` § Step 7 — Return-contract detail](deliver-story-reference.md#step-7--return-contract-detail).
 
 ---
 
@@ -517,7 +497,7 @@ failure (`status: "failed"`).
 - The PR probe (`gh pr list --head <branch> --state open`) reuses an
   existing open PR rather than opening a duplicate.
 
-Re-running `/single-story-deliver` against an already-closed Story is
+Re-running `/deliver-story` against an already-closed Story is
 safe.
 
 ---
@@ -550,8 +530,7 @@ safe.
 
 ## See also
 
-- [`/deliver`](deliver-stories.md) — several standalone Stories at
-  once (dependency-aware waves).
-- [`/deliver`](deliver-epic.md) — full Epic wave loop.
-- [`single-story-deliver-reference.md`](single-story-deliver-reference.md) —
+- [`/deliver`](../deliver.md) — unified entry point (`<storyId...>` or
+  `--run <planRunId>`; sequences via `depends_on`).
+- [`deliver-story-reference.md`](deliver-story-reference.md) —
   lease, sweep, CI-recovery, and Status-column reference detail.

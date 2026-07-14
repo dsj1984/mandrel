@@ -1,18 +1,18 @@
 ---
 description: >-
-  Reference companion to `helpers/single-story-deliver.md` — the lease and
+  Reference companion to `helpers/deliver-story.md` — the lease and
   sweep detail, worktree-scope warnings, CI-recovery procedures, and
   Status-column reconciliation lifted out of the runtime core so the
   always-ingested standalone-delivery prose stays lean. Not a slash command;
   consulted on demand when the core file points here.
-caller: helpers/single-story-deliver.md
+caller: helpers/deliver-story.md
 ---
 
-# helpers/single-story-deliver — reference (lease, recovery, troubleshooting)
+# helpers/deliver-story — reference (lease, recovery, troubleshooting)
 
 > **Not a slash command, not the runtime path.** This file is the
 > reference companion to
-> [`single-story-deliver.md`](single-story-deliver.md). The core file
+> [`deliver-story.md`](deliver-story.md). The core file
 > carries the step flow, commands, gate contracts, and the return contract a
 > standalone-Story run needs; this file holds the lease/sweep mechanics, the
 > worktree-scope safety warning, the CI-recovery procedures, and the
@@ -85,7 +85,7 @@ The sweep applies two hardening layers (Story #2011):
   operator can see what was preserved.
 - **Cross-session lock.** The sweep acquires a process-scoped lockfile
   at `<tempRoot>/single-story-sweep.lock` before planning. On
-  contention (another `/single-story-deliver` already in the sweep
+  contention (another `/deliver-story` already in the sweep
   step), this run's sweep is **skipped** with a warn log; init
   continues normally. Stale lockfiles (mtime older than the timeout)
   are treated as expired. The timeout defaults to 60 seconds and is
@@ -121,7 +121,7 @@ The `single-story-close.js` script, in order:
 1a. **Syncs the Story branch from `origin/<baseBranch>`** before push
    (Story #2580). Runs `git fetch origin <baseBranch>` followed by
    `git merge --no-edit origin/<baseBranch>` inside the worktree. This
-   defends against the parallel-`/single-story-deliver` race: when
+   defends against the parallel-`/deliver-story` race: when
    multiple sessions run in parallel, the Story that auto-merges first
    bumps `baseBranch`, and without this sync the lagging Stories open
    PRs that are "behind base" and stall against branch-protection's
@@ -133,7 +133,7 @@ The `single-story-close.js` script, in order:
      command set), the Story flips to `agent::blocked`, and close
      throws. Resolve in the worktree (`git merge origin/<base>` + fix
      conflicts + `git commit --no-edit`) and re-run
-     `/single-story-deliver`.
+     `/deliver-story`.
    - **Fetch failed** → close throws with the git stderr; no label
      transition.
 
@@ -162,13 +162,12 @@ The `single-story-close.js` script, in order:
    CI, went `BEHIND` base, or was closed without merging. The Story rests
    at `agent::closing` while the PR is open with auto-merge armed; the
    `agent::done` flip (which closes the issue) is deferred to Step 5.5's
-   `single-story-confirm-merge.js`. This brings the standalone path to
-   parity with the epic path (#2155), where a Story only reaches
-   `agent::done` once its merge into `epic/<id>` is confirmed.
+   `single-story-confirm-merge.js`. A Story only reaches `agent::done` once
+   its PR to `main` is confirmed merged.
 5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
 6. **Releases the Story lease** (Story #3483). Clears the Story assignment
-   that init claimed so the next `/single-story-deliver` run sees an
+   that init claimed so the next `/deliver-story` run sees an
    unclaimed ticket. The release is a no-op when the operator no longer
    holds the claim (a later run took over via reclaim/steal), so a late
    close never yanks a live claim away from its current owner. Best-effort:
@@ -348,7 +347,7 @@ GitHub deletes the **remote** branch on auto-merge (via the
 `--delete-branch` flag `single-story-close.js` passes to `gh pr merge`).
 The **local** `story-<storyId>` ref, however, lingers in the main
 checkout until something prunes it — `single-story-init.js` runs a
-merged-sweep at the start of every *subsequent* `/single-story-deliver`
+merged-sweep at the start of every *subsequent* `/deliver-story`
 invocation, but that's next-run cleanup, not end-of-run cleanup. Stale
 local refs accumulate between sessions, clutter `git branch`, and shadow
 the lessons the sweep is meant to surface.

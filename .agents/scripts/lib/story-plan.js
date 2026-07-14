@@ -222,7 +222,7 @@ export function buildContextEnvelope({
     techStack,
     corpusContext,
     deliverContract: {
-      workflow: '.agents/workflows/helpers/single-story-deliver.md',
+      workflow: '.agents/workflows/helpers/deliver-story.md',
       requiredLabels: ['type::story', `persona::${persona}`],
       forbidden: ['Epic: #N references in the body'],
     },

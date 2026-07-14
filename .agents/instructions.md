@@ -202,18 +202,14 @@ hand back to the operator. Do not paper over the loop with another
 just-in-case retry.
 
 This protocol is not soft-prompt-only — it has a runtime substrate. While
-executing as a Story delivery sub-agent (via `helpers/epic-deliver-story`
-or `helpers/single-story-deliver`), you MUST emit a `story.heartbeat`
-lifecycle event on every Task transition (or whenever you stall on a
-long-running step) so the parent `/deliver` idle watchdog (§ 2e of
-`.agents/workflows/helpers/deliver-epic.md`, re-ticked every 30 minutes via
-`wave-tick.js --check-idle 30`) can distinguish a child still making
-progress from a dead one. If you genuinely cannot proceed, transition to
-`agent::blocked` and exit non-zero — never fall silent. A child with no
-recent `story.heartbeat`, no commit on its `story-<id>` branch, and no
-`agent::blocked` label is exactly the failure mode the idle watchdog is
-built to catch, and the watchdog will re-dispatch (or escalate) the Story
-without your participation.
+executing as a Story delivery sub-agent (via `helpers/deliver-story`), you
+MUST emit a `story.heartbeat` lifecycle event on every Task transition (or
+whenever you stall on a long-running step) so the parent `/deliver`
+sequencer can distinguish a child still making progress from a dead one. If
+you genuinely cannot proceed, transition to `agent::blocked` and exit
+non-zero — never fall silent. A child with no recent `story.heartbeat`, no
+commit on its `story-<id>` branch, and no `agent::blocked` label is exactly
+the stall shape the parent run must detect and escalate.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 
@@ -303,19 +299,13 @@ budget grounds.
      hard cutover: there is no read-every-`docsContextFiles`-file branch
      retained.
    - **Digest-first Reading (`/deliver` story sub-agents)**: A `/deliver`
-     Story delivery sub-agent (dispatched via `helpers/epic-deliver-story` or
-     `helpers/single-story-deliver`) does **not** re-read the full
-     `project.docsContextFiles` set per Story. Instead it reads the **per-Epic
-     docs digest** — the same file and shape described above — that
-     `epic-deliver-prepare.js` writes to
-     `temp/epic-<epicId>/docs-digest.md` and the parent threads into the
-     child prompt as `docsDigestPath`. Use the digest to decide which docs are
-     relevant to the Story at hand, then **pull the full file on demand**
-     (reading the section at the line number the digest names) when a section
-     bears on the change. When `docsDigestPath` is null (the project has no
-     `project.docsContextFiles` configured) there is no digest to read and no
-     per-Story docs mandate — read a full doc only if the Story's own context
-     points you at one. This is the hard cutover from the former
+     Story delivery sub-agent (dispatched via `helpers/deliver-story`) does
+     **not** re-read the full `project.docsContextFiles` set per Story. When
+     the caller threads a `docsDigestPath`, use that compact outline to decide
+     which docs are relevant, then **pull the full file on demand**. When
+     `docsDigestPath` is null there is no digest to read and no per-Story docs
+     mandate — read a full doc only if the Story's own context points you at
+     one. This is the hard cutover from the former
      read-every-file-per-Story rule: delivery children no longer ingest the
      whole docs set up front.
    - **Standalone-Story planning path (`story-plan.js --emit-context`)**:
@@ -405,15 +395,14 @@ canonical reference.
 
 ### A. Branch Naming (Canonical)
 
-Epic execution uses two branch shapes. The runtime creates and maintains
-them automatically; agents commit on the execution branch only.
+v2 delivery uses one branch shape. The runtime creates and maintains it
+via `single-story-init.js`; agents commit on that branch only.
 
-| Purpose          | Format                       | Owner                  | Notes                                                                                         |
-| ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Story implementation commits land here. |
-| Epic integration | `epic/<epicId>`              | `/deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
+| Purpose         | Format            | Owner                   | Notes                                                                 |
+| --------------- | ----------------- | ----------------------- | --------------------------------------------------------------------- |
+| Story execution | `story-<storyId>` | `single-story-init.js`  | Per-Story worktree at `.worktrees/story-<storyId>/`. PR target is `main` (squash + required checks). There is no `epic/<id>` integration branch and no `--no-ff` wave merge. |
 
-- **Verification**: After `story-init.js` returns, confirm
+- **Verification**: After `single-story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
   commits. If it does not, **STOP** and re-init.
 
@@ -429,31 +418,25 @@ prompted.
 
 ### C. History Hygiene
 
-Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
-the Epic branch automatically by `helpers/epic-deliver-story` (via
-`story-close.js`); the Epic branch reaches `main` via the pull request that
-`/deliver` opens at the end of its run — the operator merges through
-the GitHub UI. There is no in-script merge to `main`.
+Every Story reaches `main` via its own PR (`story-<id>` → squash + required
+checks). `helpers/deliver-story` / `single-story-close.js` open that PR;
+there is no Epic integration branch and no in-script push to `main`.
 
-### D. Ticket hierarchy (2-tier)
+### D. Ticket hierarchy (Story-only)
 
-Mandrel uses a **2-tier ticket hierarchy** (Epic → Story).
-Acceptance criteria and verification steps live inline on the Story
-body (`acceptance[]` / `verify[]`); there is no Feature tier and no
-`type::task` ticket layer. Thematic grouping lives as prose in the
-Epic body (which also carries the folded Tech Spec sections).
+v2 collapses the ticket model to **Story**. Acceptance criteria and
+verification steps live inline on the Story body (`acceptance[]` /
+`verify[]`); the folded Tech Spec lives in `## Spec` (with spill-to-doc when
+over budget). Optional `depends_on` edges order rare multi-Story plan-runs.
 
-- The decomposer emits only `type::epic` and `type::story` issues;
-  Stories attach directly to the Epic.
-- Each Story-implementation phase is executed by
-  `helpers/epic-deliver-story` (Epic-attached) or
-  `helpers/single-story-deliver` (standalone). There is no per-Task
-  sub-loop; the agent authors commit subjects directly per
-  [`rules/git-conventions.md`](rules/git-conventions.md) and references
-  the parent Story via `(refs #<storyId>)`.
-- Story branches, the Epic-branch integration target, the wave-loop
-  fan-out, and the `epic/<id>` → `main` PR merge model are the same
-  as Section 5.A.
+- `/plan` emits one or more `type::story` issues (default N=1); N>1 shares a
+  `plan-run::<id>` label.
+- Each Story is executed by `helpers/deliver-story` (invoked from
+  [`/deliver`](workflows/deliver.md)). There is no per-Task sub-loop; the
+  agent authors commit subjects directly per
+  [`rules/git-conventions.md`](rules/git-conventions.md) and references the
+  Story via `(refs #<storyId>)`.
+- Branch model matches Section 5.A (`story-<id>` → PR → `main`).
 
 ---
 
