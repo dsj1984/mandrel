@@ -60,11 +60,10 @@ node .agents/scripts/single-story-init.js --story <storyId>
 Flags: `--dry-run` (no git/ticket mutation), `--steal` (forcibly transfer a
 foreign Story lease to this operator — see the lease note below).
 
-> **Execution mode.** Like `story-init.js`, this command can take 3–6
-> minutes when the worktree's per-tree install runs. Invoke synchronously
-> with `Bash(timeout: 600000)`. Do **not** use `run_in_background` +
-> `Monitor` — a sub-agent that exits mid-install leaves the worktree
-> half-bootstrapped.
+> **Execution mode.** `single-story-init.js` can take 3–6 minutes when the
+> worktree's per-tree install runs. Invoke synchronously with
+> `Bash(timeout: 600000)`. Do **not** use `run_in_background` + `Monitor` —
+> a sub-agent that exits mid-install leaves the worktree half-bootstrapped.
 
 The script validates `type::story`, **acquires the Story lease**, fetches
 `origin`, seeds `story-<id>` from `baseBranch`, materializes a worktree

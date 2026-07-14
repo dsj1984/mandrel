@@ -45,6 +45,30 @@ describe('unified /deliver router', () => {
     assert.match(md, /PR against main|PR to `main`|Merge target \| `main`/);
     assert.match(md, /no `epic\/<id>`/i);
   });
+
+  it('deliver-story stays on the single-story init/close path (no epic/ wave merge)', () => {
+    const md = readFileSync(DELIVER_STORY_MD, 'utf8');
+    assert.match(md, /single-story-init\.js/);
+    assert.match(md, /single-story-close\.js/);
+    assert.match(md, /ceremony-routing\.js/);
+    // Reject the Epic-era CLIs; allow `single-story-init.js` /
+    // `single-story-close.js` (the live v2 path until Stage 5 merges pairs).
+    assert.doesNotMatch(md, /(?<!single-)story-init\.js/);
+    assert.doesNotMatch(md, /(?<!single-)story-close\.js/);
+    assert.match(md, /no `--no-ff` wave merge/);
+    assert.doesNotMatch(md, /helpers\/deliver-epic|git merge --no-ff/);
+  });
+
+  it('router sequences N>1 via resolve-plan-run + stories-wave-tick + planRunEpilogue', () => {
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    assert.match(md, /resolve-plan-run\.js/);
+    assert.match(md, /stories-wave-tick\.js/);
+    assert.match(md, /planRunEpilogue/);
+    assert.doesNotMatch(
+      md,
+      /resolveEpicDeliveryRoute|wave-tick\.js --check-idle/,
+    );
+  });
 });
 
 describe('resolve-plan-run envelope', () => {

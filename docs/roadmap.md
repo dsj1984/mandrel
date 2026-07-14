@@ -341,9 +341,19 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 4 — Delivery collapse
 
-- [ ] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the `deliver-epic*` tier prose
-- [ ] Branch model: `story-<id>` → PR → `main`; delete the epic integration branch + `--no-ff` wave merges
-- [ ] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js`) + the per-run epilogue; minimal `depends_on` sequencer for N>1
+- [x] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the
+  `deliver-epic*` tier prose (`deliver-epic.md` / `deliver-epic-single.md` /
+  `epic-deliver-story.md` / `deliver-stories.md` / `epic-audit.md`).
+  `/deliver` is a Story-only router that always delegates to
+  `helpers/deliver-story.md`.
+- [x] Branch model: `story-<id>` → PR → `main`; epic integration branch +
+  `--no-ff` wave merges removed from active workflow/instructions prose.
+  `single-story-init.js` / `single-story-close.js` remain the live branch/PR
+  path (script-pair merge is Stage 5).
+- [x] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js` in
+  `deliver-story` Step 2 + `acceptance-self-eval`); per-run epilogue via
+  `planRunEpilogue` after `/deliver --run`; N>1 sequencer =
+  `resolve-plan-run.js` + `stories-wave-tick.js` (default concurrency 1).
 
 #### Stage 5 — Deletion sweep
 

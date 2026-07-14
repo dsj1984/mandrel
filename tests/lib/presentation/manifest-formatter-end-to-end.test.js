@@ -92,7 +92,7 @@ function buildE2EFixture() {
       decompositionNotes: [
         {
           kind: 'inferred-file-contention',
-          file: '.agents/workflows/helpers/deliver-epic.md',
+          file: '.agents/workflows/helpers/deliver-story.md',
           stories: [200, 201],
         },
       ],

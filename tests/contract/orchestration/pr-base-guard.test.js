@@ -109,7 +109,7 @@ describe('orchestration/pr-base-guard — assertStoryPrBaseAllowed', () => {
           err.message,
           /Story #2945 is parented by Epic #2880 — merge into epic\/2880, not main\./,
         );
-        assert.match(err.message, /\/single-story-deliver/);
+        assert.match(err.message, /\/deliver|re-plan as a v2 Story/);
         return true;
       },
     );
