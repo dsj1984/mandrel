@@ -181,8 +181,10 @@ Does the implementation match the Story's acceptance criteria and folded Spec?
 The diff under review is `baseRef..headRef`
 (`main..story-<storyId>`, or the configured base branch to the Story
 branch). The Story-scope local-lens pass (Step 1a) has already covered the
-local-tier concerns. The integration view here focuses on cross-cutting
-ripple within the Story and contract drift against the base branch. Look for:
+local-tier concerns. Lens findings and pillar findings share the single
+`verification-results` comment this pass posts (Story #4411). The
+integration view here focuses on cross-cutting ripple within the Story and
+contract drift against the base branch. Look for:
 
 - Contract drift inside the Story (one change's API edit vs. another caller
   in the same branch).
