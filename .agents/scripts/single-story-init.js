@@ -61,6 +61,7 @@ import {
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
 import { verifyRemote } from './lib/orchestration/remote-verifier.js';
 import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
+import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -74,6 +75,7 @@ import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
 // friendly "run npm install" message.
 import { WorktreeManager } from './lib/worktree-manager.js';
 
+export { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 // `makeGhRunner` moved to the shared `single-story-sweep/protection-ctx.js`
 // module (Story #4373) so the three boot callers build an identical
 // protection ctx. Re-exported here to preserve its existing import path.
@@ -505,6 +507,12 @@ export async function runSingleStoryInit({
 
   const story = await provider.getTicket(storyId);
   assertDeliverableStory(story, storyId);
+  await handleRemoteVerificationFailure({
+    provider,
+    storyId,
+    remote,
+    dryRun,
+  });
 
   progress(
     'CONTEXT',
