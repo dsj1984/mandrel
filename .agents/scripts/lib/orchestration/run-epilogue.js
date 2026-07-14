@@ -44,9 +44,25 @@ export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
  */
 
 /**
+ * @param {string|number|{ id?: string|number, slug?: string }} entry
+ * @returns {string|null}
+ */
+function normalizeStoryId(entry) {
+  if (typeof entry === 'string') return entry.trim() || null;
+  if (typeof entry === 'number' && Number.isInteger(entry)) {
+    return String(entry);
+  }
+  if (!entry || typeof entry !== 'object') return null;
+  if (typeof entry.id === 'string' || Number.isInteger(entry.id)) {
+    return String(entry.id).trim() || null;
+  }
+  return typeof entry.slug === 'string' ? entry.slug.trim() || null : null;
+}
+
+/**
  * Normalize the `stories` input to an ordered, deduped list of non-empty ids.
  *
- * @param {Array<string | { id?: string, slug?: string }>} stories
+ * @param {Array<string|number|{ id?: string|number, slug?: string }>} stories
  * @returns {string[]}
  */
 function normalizeStoryIds(stories) {
@@ -54,10 +70,7 @@ function normalizeStoryIds(stories) {
   const seen = new Set();
   const ids = [];
   for (const entry of list) {
-    let id = null;
-    if (typeof entry === 'string') id = entry.trim();
-    else if (entry && typeof entry.id === 'string') id = entry.id.trim();
-    else if (entry && typeof entry.slug === 'string') id = entry.slug.trim();
+    const id = normalizeStoryId(entry);
     if (!id || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
@@ -71,7 +84,7 @@ function normalizeStoryIds(stories) {
  *
  * @param {object} args
  * @param {string} args.planRunId The plan-run id grouping the Stories.
- * @param {Array<string | { id?: string, slug?: string }>} args.stories
+ * @param {Array<string|number|{ id?: string|number, slug?: string }>} args.stories
  *   The run's Stories (ids, slugs, or objects carrying either).
  * @returns {RunEpiloguePlan}
  */

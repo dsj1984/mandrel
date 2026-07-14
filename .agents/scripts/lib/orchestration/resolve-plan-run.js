@@ -7,7 +7,10 @@
 
 import { TYPE_LABELS } from '../label-constants.js';
 import { buildStoryAdjacency } from '../story-adjacency.js';
-import { PLAN_RUN_LABEL_PREFIX } from './plan-persist/story-ops.js';
+import {
+  normalizePlanRunId,
+  PLAN_RUN_LABEL_PREFIX,
+} from './plan-persist/story-ops.js';
 
 /**
  * Normalize a plan-run id into the canonical label `plan-run::<token>`.
@@ -16,10 +19,7 @@ import { PLAN_RUN_LABEL_PREFIX } from './plan-persist/story-ops.js';
  * @returns {string}
  */
 export function normalizePlanRunLabel(raw) {
-  const token = String(raw ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/^plan-run::/, '');
+  const token = normalizePlanRunId(raw);
   if (!token) {
     throw new Error('resolve-plan-run: --run requires a non-empty planRunId');
   }
@@ -52,7 +52,7 @@ export function normalizeIssueLabels(issue) {
 
 /**
  * @param {object} issue
- * @returns {{ id: number, title: string, body: string, url: string|null, labels: string[] }|null}
+ * @returns {{ id: number, title: string, body: string, url: string|null, labels: string[], state: string }|null}
  */
 export function toStoryRecord(issue) {
   const id = Number(issue?.number ?? issue?.id);
@@ -65,6 +65,7 @@ export function toStoryRecord(issue) {
     body: String(issue?.body ?? ''),
     url: issue?.html_url ?? issue?.url ?? null,
     labels,
+    state: String(issue?.state ?? 'open').toLowerCase(),
   };
 }
 
@@ -97,13 +98,20 @@ export function buildPlanRunEnvelope(issues, { planRunId, planRunLabel }) {
     kind: 'plan-run',
     planRunId,
     planRunLabel,
-    stories: stories.map(({ id, title, url, labels }) => ({
+    stories: stories.map(({ id, title, url, labels, state }) => ({
       id,
       title,
       url,
       labels,
+      state,
     })),
     dag: storiesToDag(stories),
+    done: stories
+      .filter(
+        (story) =>
+          story.state === 'closed' || story.labels.includes('agent::done'),
+      )
+      .map((story) => story.id),
   };
 }
 

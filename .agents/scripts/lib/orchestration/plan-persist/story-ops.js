@@ -27,6 +27,21 @@ import { assertAcceptancePartition } from '../split-policy-validator.js';
 export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 
 /**
+ * Normalize a caller-supplied plan-run token. Persistence and resolution
+ * share this helper so human-readable ids map to one canonical label.
+ *
+ * @param {string} id
+ * @returns {string}
+ */
+export function normalizePlanRunId(id) {
+  return String(id ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^plan-run::/, '')
+    .replace(/[^a-z0-9._-]+/g, '-');
+}
+
+/**
  * Build a `plan-run::<id>` label. When `id` is omitted, generates a short
  * random hex token (8 chars) suitable for a rare multi-Story plan.
  *
@@ -36,10 +51,7 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 export function planRunLabel(id) {
   const token =
     typeof id === 'string' && id.trim() !== ''
-      ? id
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9._-]+/g, '-')
+      ? normalizePlanRunId(id)
       : randomBytes(4).toString('hex');
   return `${PLAN_RUN_LABEL_PREFIX}${token}`;
 }

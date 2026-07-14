@@ -56,6 +56,23 @@ function writeEnvelope(envelope, pretty) {
   process.stdout.write(text);
 }
 
+/**
+ * Resolve config once and pass it to the provider factory. Kept as an
+ * injectable seam so the CLI contract is covered without network access.
+ *
+ * @param {object} [deps]
+ * @param {Function} [deps.resolveConfigFn]
+ * @param {Function} [deps.createProviderFn]
+ * @returns {object}
+ */
+export function resolvePlanRunProvider({
+  resolveConfigFn = resolveConfig,
+  createProviderFn = createProvider,
+} = {}) {
+  const config = resolveConfigFn();
+  return createProviderFn(config);
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -80,8 +97,7 @@ async function main() {
   const planRunLabel = normalizePlanRunLabel(values.run);
   const planRunId = planRunIdFromLabel(planRunLabel);
 
-  resolveConfig();
-  const provider = createProvider();
+  const provider = resolvePlanRunProvider();
   const issues = await fetchPlanRunIssues(provider, { planRunLabel, state });
   const envelope = buildPlanRunEnvelope(issues, { planRunId, planRunLabel });
   writeEnvelope(envelope, values.pretty);
