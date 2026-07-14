@@ -1,47 +1,50 @@
 ---
 description: >-
-  Perform a comprehensive code review of a change set scoped to either a Story
-  branch or an Epic branch
+  Perform a comprehensive code review of a Story change set against main
+  before `/deliver` opens or merges the Story PR
 ---
 
 # Code Review (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/deliver` (Story scope) and `/deliver` Phase 5 (Epic scope).
-> To run a review directly, invoke the parent workflow — operators do not
-> call this helper by hand.
+> `/deliver` via `single-story-close.js`. To run a review directly, invoke
+> the parent workflow — operators do not call this helper by hand.
 
 This helper performs a comprehensive code review of a change set before it
-is merged upstream. It runs in two scopes:
+is merged to `main`. The live v2 path is **Story scope only**:
 
-- **Story scope** — reviews the diff between a Story branch and its parent
-  Epic branch, before `story-close.js` merges the Story into the Epic.
-- **Epic scope** — reviews the cumulative diff between an Epic branch and
-  `main`, before `/deliver` opens the integration pull request.
+- **Story scope** — reviews `main...story-<storyId>` (or
+  `project.baseBranch...story-<storyId>`) inside `single-story-close.js`
+  after the PR opens and before auto-merge. Findings post to the PR;
+  critical findings block close (`agent::blocked`).
+
+Legacy `scope: epic` / Epic-branch review text below is retained only for
+historical adapters and is **not** on the `/deliver` hot path.
 
 **Invariant — Story-scope review runs outside the maker's LLM context.**
-The Story-scope review executes inside the `story-close.js` /
-`single-story-close.js` close subprocess, **not** in the delivering
-child's (maker agent's) LLM context. The close pipeline invokes it after
-the delivering child has exited, so the change set is reviewed by a
-process the maker cannot influence. The enforcing code path is
-[`.agents/scripts/lib/orchestration/story-close/phases/code-review.js`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
-(invoked from `runStoryCloseLocked`; both close entry points reach it
-through the shared `runStoryReviewCore` spine). A future refactor MUST
-preserve this isolation: do not move Story-scope review into the maker's
-context or run it as a step of the delivering child.
+The Story-scope review executes inside the `single-story-close.js` close
+subprocess, **not** in the delivering child's (maker agent's) LLM context.
+The close pipeline invokes it after the delivering child has exited, so
+the change set is reviewed by a process the maker cannot influence. The
+enforcing code path is
+[`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
+→ shared
+[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/code-review.js).
+A future refactor MUST preserve this isolation: do not move Story-scope
+review into the maker's context or run it as a step of the delivering
+child.
 
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
 > `core/security-and-hardening`
 
 ## Argument contract
 
-The caller passes the following arguments (`/deliver` Story workflows pass
-`scope: story`; legacy cumulative callers may pass `scope: epic`):
+The caller passes the following arguments (`/deliver` passes
+`scope: story`):
 
 | Argument    | Type                                  | Required | Meaning                                                                                          |
 | ----------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `scope`     | `"story"` \| `"epic"`                 | yes      | Selects the integration-pillar diff base and the structured-comment target ticket.               |
+| `scope`     | `"story"` \| `"epic"`                 | yes      | Live path is `"story"`. `"epic"` remains only for legacy cumulative adapters.                    |
 | `ticketId`  | integer                               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or cumulative ticket (legacy `scope === 'epic'`). |
 | `baseRef`   | string (git ref)                      | yes      | The diff base. Story scope: `main` (or `project.baseBranch`). Legacy cumulative scope: caller-provided base. |
 | `headRef`   | string (git ref)                      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Legacy cumulative scope: caller-provided head. |
@@ -54,18 +57,18 @@ the argument envelope.
 ### Review depth (`depth`)
 
 `depth` is the risk-derived thoroughness lever introduced by Story #3876 and
-made a live consumed signal end to end by Story #3937. The Epic caller
-(`/deliver` Phase 5) resolves it from the Epic's judged `planningRisk`
-envelope via
-[`resolveReviewDepthForEpic`](../../scripts/lib/orchestration/code-review.js)
-(`high` → `deep`, `low` → `light`, everything else — including a missing
-`epic-plan-state` checkpoint — → `standard`) and passes it in this envelope.
+made a live consumed signal end to end by Story #3937. The live `/deliver`
+close path resolves it from the Story's judged `planningRisk` envelope
+(read from the per-Story `story-plan-state` checkpoint via
+[`resolveStoryPlanningRisk`](../../scripts/lib/orchestration/story-plan-state.js);
+`high` → `deep`, `low` → `light`, everything else — including a missing
+checkpoint — → `standard`) and passes it into `runCodeReview`.
 `runCodeReview` forwards `depth` to every provider's `runReview` input.
 
 It is an **input-only** signal: it changes *how thorough* the review is, never
 the findings envelope (`{ status, severity, posted, report, halted,
 blockerReason }`) nor the posted `verification-results` structured-comment body. An
-absent or malformed `depth` is treated as `standard`, so an Epic that skipped
+absent or malformed `depth` is treated as `standard`, so a Story that skipped
 `/plan` still gets a passing review with no new failure mode.
 
 How each tier changes the review protocol:
@@ -89,17 +92,13 @@ review yourself, honor the `depth` semantics above directly.
 
 ## Step 0 — Resolve Context
 
-1. Resolve `[TICKET_ID]` from `ticketId` (Story or Epic depending on `scope`).
+1. Resolve `[TICKET_ID]` from `ticketId` (the Story for live `scope: story`).
 2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
-3. Fetch the `[TICKET_ID]` ticket and resolve the planning context:
-   - **Story scope** — read the parent Epic from the Story body, then load
-     the Epic body (including its `## User Stories` section and its folded
-     Tech Spec sections).
-   - **Epic scope** — read the Epic body directly; its managed sections
-     carry the Tech Spec.
-4. Read the Epic body fully (including its Tech Spec sections) to
-   understand the intended
-   scope, architectural decisions, and acceptance criteria.
+3. Fetch the Story ticket and resolve the planning context from its own
+   body: folded `## Spec` / `## Slicing`, acceptance criteria, and the
+   `story-plan-state` / `risk-verdict` structured comments when present.
+4. Read that Spec fully to understand the intended scope, architectural
+   decisions, and acceptance criteria. Do **not** look for a parent Epic.
 
 ## Step 1 — Automated Audit (Pre-Review)
 
@@ -142,18 +141,15 @@ A diff that matches no local lens adds **no** lens work (the roster is empty and
 or materialization failure degrades to a skipped envelope and never blocks the
 close.
 
-Both close entry points —
-[`runStoryCodeReview`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
-(Epic-attached) and
+The live close entry point —
 [`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
-(standalone) — reach this pass through the single `runStoryReviewCore` spine, so
-standalone Stories gain local-lens coverage for the first time. Because the pass
-lives inside the close subprocess (invoked after the delivering child exits), it
-honors the maker-blind invariant above: a maker never runs its own local-lens
-review. This step does not apply to `scope: epic`, whose lens roster is the
-cumulative + global + risk-routed set resolved at Epic close (Step 1b).
+— reaches this pass through the shared `runStoryReviewCore` spine. Because
+the pass lives inside the close subprocess (invoked after the delivering
+child exits), it honors the maker-blind invariant above: a maker never runs
+its own local-lens review. This step does not apply to legacy `scope: epic`
+(Step 1b).
 
-### Step 1b — Epic-close lens roster (`scope: epic` only, Epic #4405)
+### Step 1b — Legacy Epic-close lens roster (`scope: epic` only; not on `/deliver`)
 
 When `scope === 'epic'`, the cumulative Epic diff is walked **once** at close:
 the Epic-close lens roster is executed as **dimensions of this same review
@@ -205,12 +201,11 @@ never reduced to a scan.
 
 ### Pillar 1: Spec Adherence
 
-Does the implementation match the Epic's requirements and Tech Spec architecture?
+Does the implementation match the Story's acceptance criteria and folded Spec?
 
-- Compare each completed Story/Task against its stated acceptance criteria.
+- Compare the completed Story against its stated acceptance criteria.
 - Flag any undocumented deviations, missing features, or scope creep.
-- Verify API contracts, data models, and interface boundaries match the Tech
-  Spec.
+- Verify API contracts, data models, and interface boundaries match the Spec.
 
 ### Pillar 2: Integration Review
 
@@ -574,7 +569,7 @@ to the next phase of the parent workflow.
   the scope is set by the caller, and reviewing against the wrong base
   produces either a hollow review (too small a diff) or noise (too large a
   diff that includes unrelated history).
-- **Always** read the Epic body and Tech Spec before reviewing code. Findings without
+- **Always** read the Story body and folded Spec before reviewing code. Findings without
   spec context are noise.
 - **Never** implement fixes unless the operator explicitly requests it. The
   default mode is read-only audit.

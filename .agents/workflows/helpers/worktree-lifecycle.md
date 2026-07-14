@@ -7,16 +7,15 @@ description: >-
 
 # Worktree-per-Story Lifecycle
 
-Parallel epic execution can race when multiple story agents share one working
+Parallel Story delivery can race when multiple agents share one working
 tree: rapid `git checkout` swaps cause `git add` to sweep another agent's WIP
-into the wrong commit. Epic #229 moves each dispatched story into its own
-`git worktree` at `.worktrees/story-<id>/` so branch swaps, staging, and reflog
-activity are isolated per-story. The main checkout stays quiet.
+into the wrong commit. Each Story runs in its own `git worktree` at
+`.worktrees/story-<id>/` so branch swaps, staging, and reflog activity are
+isolated per-Story. The main checkout stays quiet.
 
 This document is the operator and reviewer reference. See
 [`/deliver`](../deliver.md) and [`helpers/deliver-story`](deliver-story.md)
-for the broader execution flow and the Epic-229 Tech Spec for architectural
-rationale.
+for the broader execution flow.
 
 ## Configuration
 
@@ -47,20 +46,20 @@ are all rejected at config-load time.
 
 | Phase           | When                                                                          | What happens                                                                                                                                                |
 | --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sweep**       | Dispatch-manifest build (`/plan`) and `/deliver` | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
-| **GC**          | Dispatch-manifest build (`/plan`) and `/deliver` | Orphan `.worktrees/story-*` whose stories are closed are reaped if clean.                                                                                   |
-| **Force-drain** | `/plan` boot (`worktree-sweep.js` via `drainPendingCleanupAtBoot`), `story-close` post-merge (`forceDrainPendingCleanup`), `/deliver` Phase 7 | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
-| **Ensure**      | `story-init` (entry for `/deliver`)                  | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
-| **Run**         | During story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
-| **Reap**        | After successful story merge (in `story-close`)                              | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
+| **Sweep**       | `/deliver` boot / Story init                                                  | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
+| **GC**          | `/deliver` boot / Story init                                                  | Orphan `.worktrees/story-*` whose Stories are closed are reaped if clean.                                                                                   |
+| **Force-drain** | `/deliver` boot (`worktree-sweep.js` via `drainPendingCleanupAtBoot`), `single-story-close` post-merge | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
+| **Ensure**      | `single-story-init.js` (entry for `/deliver`)                                 | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
+| **Run**         | During Story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
+| **Reap**        | After successful Story merge (in `single-story-close`)                        | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
 
 The `WorktreeManager` (`.agents/scripts/lib/worktree-manager.js`) is the single
 authority for `ensure`, `reap`, `list`, `isSafeToRemove`, `gc`, `prune`, and
 `sweepStaleLocks`. No other script may call `git worktree` directly.
 
-Managed story worktrees are only eligible for `reap`/`gc` when the caller
-provides the expected Epic branch, so cleanup cannot silently skip the merge
-verification step.
+Managed Story worktrees are only eligible for `reap`/`gc` when the Story is
+merged (or otherwise confirmed closed) so cleanup cannot silently drop an
+unlanded branch.
 
 ### Stale-lock sweep
 

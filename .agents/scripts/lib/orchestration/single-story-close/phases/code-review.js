@@ -21,13 +21,14 @@
  * the caller raises that to a thrown error so auto-merge is not enabled.
  *
  * Delegates the `runCodeReview` invocation to `runStoryReviewCore`
- * (exported from `story-close/phases/code-review.js`) so both the
- * Epic-attached and standalone close paths share a single invocation
- * pattern (Story #3653).
+ * (exported from `story-close/phases/code-review.js`) so the close path
+ * shares a single invocation pattern (Story #3653). When `planningRisk`
+ * is omitted, loads it from the Story's `story-plan-state` checkpoint.
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { runStoryReviewCore } from '../../story-close/phases/code-review.js';
+import { resolveStoryPlanningRisk } from '../../story-plan-state.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**
@@ -71,6 +72,79 @@ export function buildStoryReviewCrossRefBody({
   );
 }
 
+async function invokeStoryReviewCore({
+  storyId,
+  storyBranch,
+  baseBranch,
+  prNumber,
+  provider,
+  planningRisk,
+  runCodeReviewFn,
+  runLocalLensReviewFn,
+  progress,
+}) {
+  return runStoryReviewCore({
+    storyId,
+    baseRef: baseBranch,
+    headRef: storyBranch,
+    commentTargetId: prNumber,
+    provider,
+    planningRisk: await resolveStoryPlanningRisk({
+      provider,
+      storyId,
+      planningRisk,
+    }),
+    progress,
+    progressTag: 'REVIEW',
+    runCodeReviewFn,
+    // Forward the seam only when the caller injects it; otherwise
+    // `runStoryReviewCore` uses its default local-lens pass. `undefined`
+    // deep-merges to the default via the destructuring default there.
+    ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
+  });
+}
+
+async function postStoryReviewCrossRef({
+  provider,
+  storyId,
+  prUrl,
+  prNumber,
+  result,
+  severity,
+  progress,
+}) {
+  if (result.posted && Number.isInteger(result.postedCommentId)) {
+    const commentUrl = `${prUrl}#issuecomment-${result.postedCommentId}`;
+    const body = buildStoryReviewCrossRefBody({
+      prUrl,
+      prNumber,
+      commentUrl,
+      severity,
+    });
+    try {
+      await postStructuredComment(provider, storyId, 'notification', body);
+      progress(
+        'REVIEW',
+        `📝 Cross-reference comment posted on Story #${storyId} → ${commentUrl}`,
+      );
+      return true;
+    } catch (err) {
+      progress(
+        'REVIEW',
+        `⚠️ Failed to post Story cross-reference comment: ${err?.message ?? err}`,
+      );
+      return false;
+    }
+  }
+  if (!result.posted) {
+    progress(
+      'REVIEW',
+      '⚠️ Skipping Story cross-reference comment: PR-side review comment did not post.',
+    );
+  }
+  return false;
+}
+
 /**
  * Run the Story-scope code review against `main`, post the structured
  * findings comment to the PR, and add a one-line cross-reference comment
@@ -93,6 +167,7 @@ export function buildStoryReviewCrossRefBody({
  *   prUrl: string,
  *   prNumber: number|null,
  *   provider: object,
+ *   planningRisk?: object|null, // omit to load from story-plan-state
  *   runCodeReviewFn: Function,
  *   runLocalLensReviewFn?: Function,
  *   progress: (tag: string, msg: string) => void,
@@ -115,6 +190,7 @@ export async function runStoryScopeReview({
   prUrl,
   prNumber,
   provider,
+  planningRisk,
   runCodeReviewFn,
   runLocalLensReviewFn,
   progress,
@@ -132,19 +208,16 @@ export async function runStoryScopeReview({
     `Running Story-scope code review for Story #${storyId} (${baseBranch}...${storyBranch}) → PR #${prNumber}...`,
   );
 
-  const result = await runStoryReviewCore({
+  const result = await invokeStoryReviewCore({
     storyId,
-    baseRef: baseBranch,
-    headRef: storyBranch,
-    commentTargetId: prNumber,
+    storyBranch,
+    baseBranch,
+    prNumber,
     provider,
-    progress,
-    progressTag: 'REVIEW',
+    planningRisk,
     runCodeReviewFn,
-    // Forward the seam only when the caller injects it; otherwise
-    // `runStoryReviewCore` uses its default local-lens pass. `undefined`
-    // deep-merges to the default via the destructuring default there.
-    ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
+    runLocalLensReviewFn,
+    progress,
   });
 
   const sev = result.severity ?? {
@@ -158,34 +231,15 @@ export async function runStoryScopeReview({
     `Findings — critical:${sev.critical} high:${sev.high} medium:${sev.medium} suggestion:${sev.suggestion}. Posted to PR #${prNumber}: ${result.posted}.`,
   );
 
-  let crossRefPosted = false;
-  if (result.posted && Number.isInteger(result.postedCommentId)) {
-    const commentUrl = `${prUrl}#issuecomment-${result.postedCommentId}`;
-    const body = buildStoryReviewCrossRefBody({
-      prUrl,
-      prNumber,
-      commentUrl,
-      severity: sev,
-    });
-    try {
-      await postStructuredComment(provider, storyId, 'notification', body);
-      crossRefPosted = true;
-      progress(
-        'REVIEW',
-        `📝 Cross-reference comment posted on Story #${storyId} → ${commentUrl}`,
-      );
-    } catch (err) {
-      progress(
-        'REVIEW',
-        `⚠️ Failed to post Story cross-reference comment: ${err?.message ?? err}`,
-      );
-    }
-  } else if (!result.posted) {
-    progress(
-      'REVIEW',
-      '⚠️ Skipping Story cross-reference comment: PR-side review comment did not post.',
-    );
-  }
+  const crossRefPosted = await postStoryReviewCrossRef({
+    provider,
+    storyId,
+    prUrl,
+    prNumber,
+    result,
+    severity: sev,
+    progress,
+  });
 
   return {
     halted: !!result.halted,

@@ -27,6 +27,25 @@ import { assertAcceptancePartition } from '../split-policy-validator.js';
 export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 
 /**
+ * Normalize a caller-supplied plan-run token. Persistence and resolution
+ * share this helper so human-readable ids map to one canonical label.
+ *
+ * @param {string} id
+ * @returns {string}
+ */
+export function normalizePlanRunId(id) {
+  const token = String(id ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^plan-run::/, '')
+    .replace(/[^a-z0-9._-]+/g, '-');
+  if (!token) {
+    throw new Error('plan-run id requires a non-empty planRunId');
+  }
+  return token;
+}
+
+/**
  * Build a `plan-run::<id>` label. When `id` is omitted, generates a short
  * random hex token (8 chars) suitable for a rare multi-Story plan.
  *
@@ -36,10 +55,7 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 export function planRunLabel(id) {
   const token =
     typeof id === 'string' && id.trim() !== ''
-      ? id
-          .trim()
-          .toLowerCase()
-          .replace(/[^a-z0-9._-]+/g, '-')
+      ? normalizePlanRunId(id)
       : randomBytes(4).toString('hex');
   return `${PLAN_RUN_LABEL_PREFIX}${token}`;
 }
@@ -76,6 +92,22 @@ function normalizeDependsOn(ticket, bodyObject) {
   return Array.isArray(bodyObject.depends_on) ? bodyObject.depends_on : [];
 }
 
+function assertContractFieldMatches(ticket, bodyObject, field) {
+  if (!Array.isArray(ticket[field])) return;
+  const topLevel = ticket[field].map(String);
+  const bodyValue = Array.isArray(bodyObject[field])
+    ? bodyObject[field].map(String)
+    : [];
+  if (
+    topLevel.length !== bodyValue.length ||
+    topLevel.some((value, index) => value !== bodyValue[index])
+  ) {
+    throw new Error(
+      `[plan-persist] Story "${ticket.slug ?? ticket.title ?? 'unknown'}" has mismatched top-level and body ${field} arrays`,
+    );
+  }
+}
+
 /**
  * Normalize a plan Story ticket into `{ slug, title, bodyObject }`.
  * Accepts either a serialized markdown `body` string or a structured body.
@@ -101,6 +133,8 @@ export function normalizeStoryTicket(ticket) {
       ? ticket.title.trim()
       : `Story ${slug}`;
   const bodyObject = bodyObjectFromTicket(ticket);
+  assertContractFieldMatches(ticket, bodyObject, 'acceptance');
+  assertContractFieldMatches(ticket, bodyObject, 'verify');
   const depends_on = normalizeDependsOn(ticket, bodyObject);
 
   return { slug, title, bodyObject, depends_on };
@@ -187,6 +221,7 @@ function assembleOnePlanStory(ticket, opts) {
       slug,
       title,
       body,
+      bodyObject: { ...folded, depends_on },
       acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
       depends_on,
     },
@@ -226,6 +261,36 @@ export function assemblePlanStories(tickets, opts = {}) {
   });
 
   return { stories, spills };
+}
+
+function orderStoriesByDependencies(stories) {
+  const list = Array.isArray(stories) ? stories : [];
+  const known = new Set(list.map((story) => story.slug));
+  for (const story of list) {
+    const unknown = story.depends_on.filter((slug) => !known.has(slug));
+    if (unknown.length > 0) {
+      throw new Error(
+        `[plan-persist] Story "${story.slug}" depends on unknown sibling(s): ${unknown.join(', ')}`,
+      );
+    }
+  }
+  const ordered = [];
+  const scheduled = new Set();
+  const pending = [...list];
+  while (pending.length > 0) {
+    const index = pending.findIndex((story) =>
+      story.depends_on.every((slug) => scheduled.has(slug)),
+    );
+    if (index === -1) {
+      throw new Error(
+        `[plan-persist] dependency cycle prevents Story creation: ${pending.map((story) => story.slug).join(', ')}`,
+      );
+    }
+    const [story] = pending.splice(index, 1);
+    ordered.push(story);
+    scheduled.add(story.slug);
+  }
+  return ordered;
 }
 
 /**
@@ -272,10 +337,21 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const created = [];
-  for (const story of list) {
+  const createdBySlug = new Map();
+  for (const story of orderStoriesByDependencies(list)) {
+    const dependencyRefs = story.depends_on.map(
+      (slug) => `#${createdBySlug.get(slug)}`,
+    );
+    const body =
+      dependencyRefs.length === 0
+        ? story.body
+        : serializeStoryBody(
+            { ...story.bodyObject, depends_on: dependencyRefs },
+            { includeFooter: true },
+          );
     const result = await provider.createIssue({
       title: story.title,
-      body: story.body,
+      body,
       labels: [...labels],
     });
     const id = result?.id ?? result?.number;
@@ -290,6 +366,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       title: story.title,
       url: result.url,
     });
+    createdBySlug.set(story.slug, id);
   }
 
   return { created, planRunLabel: planLabel };

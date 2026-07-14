@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * single-story-close.js — Close a standalone Story (no parent Epic).
+ * single-story-close.js — Close a Story against `main` (v2 `/deliver` path).
  *
- * Thin CLI entry for the `/single-story-deliver` workflow. Counterpart to
- * `story-close.js`, but skips the Epic-attached machinery (epic-merge-lock,
- * dispatchRecovery, auto-refresh, post-merge pipeline) because a standalone
- * Story has no parent to cascade to and reaches `main` via a human-approved
- * PR rather than an in-script merge.
+ * Thin CLI entry for `/deliver` / `helpers/deliver-story`. Opens a PR from
+ * `story-<id>` to `project.baseBranch`, runs Story-scope review, and arms
+ * auto-merge. There is no Epic parent, epic-merge-lock, or wave merge.
  *
  * Pipeline (each step is a phase under
  * `./lib/orchestration/single-story-close/phases/`):
@@ -44,18 +42,17 @@
  *                              [--wait-merge | --no-wait-merge]
  *
  * `--wait-merge` is the headless must-land signal (Story #4428, Epic
- * #4425): the invoking surface (a headless `/single-story-deliver` run, a
- * CI-driven wrapper, or `/deliver`'s standalone multi-Story fan-out) opts
- * in explicitly — attended runs never pass it, so the default exit shape
- * (rest at `agent::closing`, issue OPEN) is unchanged. `--no-wait-merge` is
- * the explicit opt-out that always wins over `--wait-merge`, for a caller
- * that wants to manage merge confirmation externally even in an otherwise
- * headless context.
+ * #4425): the invoking surface (a headless `/deliver` run or a CI-driven
+ * wrapper) opts in explicitly — attended runs never pass it, so the default
+ * exit shape (rest at `agent::closing`, issue OPEN) is unchanged.
+ * `--no-wait-merge` is the explicit opt-out that always wins over
+ * `--wait-merge`, for a caller that wants to manage merge confirmation
+ * externally even in an otherwise headless context.
  *
  * Exit codes: 0 ok, 1 error (including a headless `--wait-merge` run that
  * gave up without a confirmed merge — see phase 9 above).
  *
- * @see .agents/workflows/helpers/single-story-deliver.md
+ * @see .agents/workflows/helpers/deliver-story.md
  */
 
 import { runAsCli } from './lib/cli-utils.js';

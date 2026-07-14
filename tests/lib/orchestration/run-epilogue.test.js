@@ -56,6 +56,15 @@ describe('planRunEpilogue — applicable (N>1)', () => {
     assert.deepEqual(plan.stories, ['s1', 's2', 's3']);
   });
 
+  it('accepts numeric Story ids from resolve-plan-run envelopes', () => {
+    const plan = planRunEpilogue({
+      planRunId: 'run-8',
+      stories: [{ id: 101 }, { id: 102 }, 103],
+    });
+    assert.equal(plan.applicable, true);
+    assert.deepEqual(plan.stories, ['101', '102', '103']);
+  });
+
   it('is pure — no side effects, deterministic output', () => {
     const args = { planRunId: 'run-9', stories: ['a', 'b'] };
     assert.deepEqual(planRunEpilogue(args), planRunEpilogue(args));

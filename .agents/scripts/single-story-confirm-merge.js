@@ -10,7 +10,7 @@
  * auto-merge completes *asynchronously* after the close script exits, so
  * the `agent::done` flip (which closes the issue) is deferred to this
  * confirmation step, invoked by the CI-watch loop in
- * `single-story-deliver.md` Step 5 once `pr-watch-with-update.js` exits.
+ * `helpers/deliver-story.md` once `pr-watch-with-update.js` exits.
  *
  * The script:
  *   1. Resolves the PR number (`--pr <n>`, or probes
@@ -32,7 +32,7 @@
  *
  * Exit codes: 0 ok (merged, pending, or noop), 1 error.
  *
- * @see .agents/workflows/helpers/single-story-deliver.md § Step 5
+ * @see .agents/workflows/helpers/deliver-story.md
  */
 
 import { parseArgs } from 'node:util';
