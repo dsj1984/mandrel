@@ -280,23 +280,21 @@ function buildRoutedItem({
  *   unresolvedBlockedEvents: BlockedEvent[],
  * } | null}
  */
+function normalizeAnchorKind(kind) {
+  return kind === 'story' || kind === 'run' || kind === 'epic' ? kind : 'epic';
+}
+
 function normaliseInput(input) {
   if (input === null || typeof input !== 'object') return null;
   const record = /** @type {RoutedProposalsInput} */ (input);
-  const rawAnchor = record.anchorId ?? record.epicId;
-  const anchorId = Number(rawAnchor);
+  const anchorId = Number(record.anchorId ?? record.epicId);
   if (!Number.isInteger(anchorId) || anchorId <= 0) return null;
-  const kindRaw = record.anchorKind;
-  const anchorKind =
-    kindRaw === 'story' || kindRaw === 'run' || kindRaw === 'epic'
-      ? kindRaw
-      : 'epic';
   const frameworkRepo = asString(record.frameworkRepo);
   const consumerRepo = asString(record.consumerRepo);
-  if (frameworkRepo.length === 0 || consumerRepo.length === 0) return null;
+  if (!frameworkRepo || !consumerRepo) return null;
   return {
     anchorId,
-    anchorKind,
+    anchorKind: normalizeAnchorKind(record.anchorKind),
     frameworkRepo,
     consumerRepo,
     signals: Array.isArray(record.signals) ? record.signals : [],
@@ -304,6 +302,80 @@ function normaliseInput(input) {
       ? record.unresolvedBlockedEvents
       : [],
   };
+}
+
+function blockedForceMap(unresolvedBlockedEvents) {
+  /** @type {Map<string, { source: "framework"|"consumer" }>} */
+  const blockedForceActionable = new Map();
+  for (const evt of unresolvedBlockedEvents) {
+    if (evt === null || typeof evt !== 'object') continue;
+    const category = asString(evt.category);
+    if (category.length === 0) continue;
+    const source = evt.source === 'framework' ? 'framework' : 'consumer';
+    if (!blockedForceActionable.has(category)) {
+      blockedForceActionable.set(category, { source });
+    }
+  }
+  return blockedForceActionable;
+}
+
+function pushRouted(buckets, source, item) {
+  if (source === 'framework') buckets.framework.push(item);
+  else buckets.consumer.push(item);
+}
+
+function routeCategoryBuckets({
+  byCategory,
+  blockedForceActionable,
+  anchorId,
+  anchorKind,
+  frameworkRepo,
+  consumerRepo,
+}) {
+  /** @type {RoutedProposals} */
+  const buckets = { framework: [], consumer: [], discarded: [] };
+  for (const entry of byCategory.values()) {
+    const { category, total } = entry;
+    const force = blockedForceActionable.get(category);
+    const source = force ? force.source : dominantSource(entry);
+    if (!isActionableFriction(total, force, anchorKind)) {
+      buckets.discarded.push({ category, occurrences: total, source });
+      continue;
+    }
+    pushRouted(
+      buckets,
+      source,
+      buildRoutedItem({
+        anchorId,
+        anchorKind,
+        category,
+        occurrences: total,
+        source,
+        frameworkRepo,
+        consumerRepo,
+      }),
+    );
+  }
+  for (const [category, info] of blockedForceActionable) {
+    if (byCategory.has(category)) continue;
+    pushRouted(
+      buckets,
+      info.source,
+      buildRoutedItem({
+        anchorId,
+        anchorKind,
+        category,
+        occurrences: 0,
+        source: info.source,
+        frameworkRepo,
+        consumerRepo,
+      }),
+    );
+  }
+  buckets.framework.sort((a, b) => a.category.localeCompare(b.category));
+  buckets.consumer.sort((a, b) => a.category.localeCompare(b.category));
+  buckets.discarded.sort((a, b) => a.category.localeCompare(b.category));
+  return buckets;
 }
 
 /**
@@ -331,74 +403,12 @@ export function composeRoutedProposals(input) {
     unresolvedBlockedEvents,
   } = normalised;
 
-  const byCategory = aggregateByCategory(signals);
-
-  // Unresolved agent::blocked events always promote their category to
-  // actionable — even if the friction count is < 2. The event itself
-  // doesn't count as a friction occurrence; we treat it as a force-flag.
-  /** @type {Map<string, { source: "framework"|"consumer" }>} */
-  const blockedForceActionable = new Map();
-  for (const evt of unresolvedBlockedEvents) {
-    if (evt === null || typeof evt !== 'object') continue;
-    const category = asString(evt.category);
-    if (category.length === 0) continue;
-    const source = evt.source === 'framework' ? 'framework' : 'consumer';
-    if (!blockedForceActionable.has(category)) {
-      blockedForceActionable.set(category, { source });
-    }
-  }
-
-  /** @type {RoutedItem[]} */
-  const framework = [];
-  /** @type {RoutedItem[]} */
-  const consumer = [];
-  /** @type {DiscardedItem[]} */
-  const discarded = [];
-
-  // Walk categories present in friction signals first.
-  for (const entry of byCategory.values()) {
-    const { category, total } = entry;
-    const force = blockedForceActionable.get(category);
-    const source = force ? force.source : dominantSource(entry);
-    const actionable = isActionableFriction(total, force, anchorKind);
-    if (actionable) {
-      const item = buildRoutedItem({
-        anchorId,
-        anchorKind,
-        category,
-        occurrences: total,
-        source,
-        frameworkRepo,
-        consumerRepo,
-      });
-      if (source === 'framework') framework.push(item);
-      else consumer.push(item);
-      continue;
-    }
-    // total below threshold AND no force flag → discarded.
-    discarded.push({ category, occurrences: total, source });
-  }
-
-  // Walk blocked-force categories that had NO friction signal at all —
-  // these still need an issue proposal (the blocker is the trigger).
-  for (const [category, info] of blockedForceActionable) {
-    if (byCategory.has(category)) continue;
-    const item = buildRoutedItem({
-      anchorId,
-      anchorKind,
-      category,
-      occurrences: 0,
-      source: info.source,
-      frameworkRepo,
-      consumerRepo,
-    });
-    if (info.source === 'framework') framework.push(item);
-    else consumer.push(item);
-  }
-
-  framework.sort((a, b) => a.category.localeCompare(b.category));
-  consumer.sort((a, b) => a.category.localeCompare(b.category));
-  discarded.sort((a, b) => a.category.localeCompare(b.category));
-
-  return { framework, consumer, discarded };
+  return routeCategoryBuckets({
+    byCategory: aggregateByCategory(signals),
+    blockedForceActionable: blockedForceMap(unresolvedBlockedEvents),
+    anchorId,
+    anchorKind,
+    frameworkRepo,
+    consumerRepo,
+  });
 }
