@@ -242,9 +242,9 @@ Symlink strategy:
   content-addressable store at `~/.local/share/pnpm/store` (or the platform
   equivalent) — reused packages are hard-linked into the worktree instead of
   re-downloaded and re-extracted. First-run on a cold store is no faster than
-  `per-worktree`, and the plan healthcheck (`epic-plan-healthcheck.js
-  --prime-install`, an opt-in manual run) primes the store in the
-  main checkout to avoid paying that cost in parallel story windows.
+  `per-worktree`. Operators can prime the store once in the main
+  checkout (`pnpm install --frozen-lockfile`) to avoid paying first-run
+  cost in parallel story windows.
 
 ## Windows notes
 

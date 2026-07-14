@@ -577,9 +577,9 @@ downstream, so callers do not need their own cooldown logic.
 ### Problem
 
 `validateOrchestrationConfig` is wired into `resolveConfig()`, but CLI
-launchers (`epic-plan-healthcheck.js`, `bootstrap.js`,
+launchers (`plan-context.js`, `bootstrap.js`,
 `agents-bootstrap-github.js`, `plan-context.js`, `plan-persist.js`,
-`epic-plan-clarity.js`) call `resolveConfig()` and immediately dispatch
+`plan-persist.js`) call `resolveConfig()` and immediately dispatch
 to long-running flows. A schema-invalid `.agentrc.json` would otherwise
 surface deep inside the dispatch chain instead of at launcher startup,
 producing a confusing stack trace instead of a clear schema error.

@@ -3,13 +3,11 @@
  * the persist surface (Epic #4474 PR6, design §4: the 8.4 reachability
  * critic demoted from a fresh-context sub-agent to a persist-side scan).
  *
- * Mirrors the mechanics of the existing `--paranoid` F7 healthcheck
- * (`epic-plan-healthcheck.js#checkReachability`) — route-glob scan of the
- * paths a Story declares vs the `planning.navigation.navRegistry` token
- * list — but runs it over the **draft** ticket set inside `plan-persist.js`
- * step 4.5, before any provider call, so an orphaned surface is caught
- * while a one-line targeted amend is still free (nothing has been written
- * to GitHub yet).
+ * Route-glob scan of the paths a Story declares vs the
+ * `planning.navigation.navRegistry` token list, run over the **draft**
+ * ticket set inside `plan-persist.js` step 4.5, before any provider call,
+ * so an orphaned surface is caught while a one-line targeted amend is
+ * still free (nothing has been written to GitHub yet).
  *
  * Plan-level coverage semantics (the convergence contract): a route-adding
  * story that never references the nav registry produces orphan surfaces —
@@ -20,9 +18,8 @@
  * registry) in one targeted amend, and the re-run persist passes.
  *
  * Silent no-op when `planning.navigation` is unconfigured (`routeGlobs`
- * empty) — same opt-in contract as F7 / AC-13 — reported as
- * `status: 'skipped'` so the caller can append the audit record to the
- * plan-metrics ledger.
+ * empty) — reported as `status: 'skipped'` so the caller can append the
+ * audit record to the plan-metrics ledger.
  *
  * Pure over its inputs (tickets + resolved config), no I/O.
  */
@@ -31,12 +28,10 @@ import {
   extractStoryPaths,
   globToRegExp,
   resolveNavConfig,
-} from '../../epic-plan-healthcheck.js';
+} from './plan-navigation.js';
 
 /**
- * Fallback tokens when `navRegistry` is unconfigured but `routeGlobs` is —
- * identical to the F7 healthcheck's fallback, so the two checks agree on
- * what counts as a registry reference.
+ * Fallback tokens when `navRegistry` is unconfigured but `routeGlobs` is.
  */
 const FALLBACK_REGISTRY_TOKENS = ['nav registry', 'navigation'];
 

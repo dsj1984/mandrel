@@ -120,7 +120,7 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   unit-tested hydration engine; end-to-end coverage requires a real
   provider tree and Story prompt context, which lives in integration
   tests.
-- `plan-context.js`, `plan-persist.js`, `epic-plan-healthcheck.js` —
+- `plan-context.js`, `plan-persist.js` —
   `/plan` CLI shells with no unit-test seam; the meaningful
   orchestration logic lives in `lib/orchestration/plan-context.js`,
   `lib/orchestration/plan-persist/*`, and the plan phase modules, and is

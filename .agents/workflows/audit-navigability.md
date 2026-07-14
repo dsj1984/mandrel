@@ -61,8 +61,9 @@ Read the consumer's navigability config (resolved from `.agentrc.json`):
 
 - `delivery.quality.navigability.routeGlobs` — globs identifying the
   route-adding files / route tree (e.g. `pages/**`, `app/**/route.ts`). Drives
-  both the route-tree enumeration here and the route-added routing in
-  [`epic-audit-prepare.js`](../scripts/epic-audit-prepare.js).
+  both the route-tree enumeration here and the plan-persist draft
+  reachability gate
+  ([`plan-reachability.js`](../scripts/lib/orchestration/plan-reachability.js)).
 - `delivery.quality.navigability.navRegistry` — path(s) to the consumer's
   nav-registry SSOT this lens reads.
 

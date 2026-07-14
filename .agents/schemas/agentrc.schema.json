@@ -396,7 +396,7 @@
         },
         "navigation": {
           "type": "object",
-          "description": "Navigability-reachability config consumed by the plan-persist draft reachability gate (Epic #4474 PR6; also the manual epic-plan-healthcheck --paranoid re-check). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "description": "Navigability-reachability config consumed by the plan-persist draft reachability gate (Epic #4474 PR6). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
           "properties": {
             "routeGlobs": {
               "type": "array",

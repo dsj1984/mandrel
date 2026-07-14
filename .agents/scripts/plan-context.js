@@ -5,30 +5,21 @@
  * plan-context.js — step 1 of the collapsed `/plan` pipeline (Epic #4474,
  * M3 PR2): the single emit-context CLI.
  *
- * Folds the retired 12-phase pipeline's two emit-context halves plus
- * the three previously-no-CLI library calls
- * (`findSimilarOpenEpics`, clarity scoring, re-plan detection) into ONE
- * stdout-pure JSON envelope. The PR7 cutover retired the delegate CLIs —
- * this is the only emit-context surface.
+ * Emits one stdout-pure JSON envelope for the `/plan` authoring middle.
+ * Existing-Epic mode (`--epic`) retired with the v2 Story-only cutover.
  *
- * Three entry forms (exactly one is required):
+ * Two entry forms (exactly one is required):
  *
- *   --epic <id>          Existing-Epic mode. Envelope carries `epic`,
- *                        `clarity` (Epic Clarity Gate rubric), `replan`
- *                        (already-planned signals) and `planState`.
- *
- *   --one-pager <path>   Ideation mode — the Epic does not exist yet
- *                        (creation moves to the persist half). Envelope
+ *   --one-pager <path>   Ideation mode — the parent ticket does not exist
+ *                        yet (creation moves to the persist half). Envelope
  *                        carries `onePager` and `duplicates[]` (cross-Epic
- *                        dup search). No clarity score: the ideation path
- *                        is definitionally clear.
+ *                        dup search).
  *
  *   --seed "<text>"      Headless ideation entry (#4496 fix 1) — neither
- *                        the Epic nor the one-pager exists yet. The dup
- *                        search runs off the raw seed text, and the
- *                        envelope additively carries `seed`, `scopeTriage`
- *                        (the scope-triage rubric applied CLI-side — fix 6)
- *                        and `onePagerSpec`, so the one-pager sections are
+ *                        the parent ticket nor the one-pager exists yet.
+ *                        The dup search runs off the raw seed text, and the
+ *                        envelope additively carries `seed` and
+ *                        `onePagerSpec`, so the one-pager sections are
  *                        authored in the same batched write as the spec
  *                        artifacts.
  *
@@ -67,8 +58,7 @@ import { createProvider } from './lib/provider-factory.js';
  * captured output is exactly one `JSON.parse`-able payload.
  *
  * @param {{
- *   mode: 'epic'|'one-pager'|'seed',
- *   epicId?: number,
+ *   mode: 'one-pager'|'seed',
  *   onePagerPath?: string,
  *   onePagerContent?: string,
  *   seedText?: string,
@@ -84,7 +74,6 @@ import { createProvider } from './lib/provider-factory.js';
  */
 export async function emitPlanContext({
   mode,
-  epicId,
   onePagerPath,
   onePagerContent,
   seedText,
@@ -98,7 +87,6 @@ export async function emitPlanContext({
 }) {
   const envelope = await buildPlanContext({
     mode,
-    epicId,
     onePagerPath,
     onePagerContent,
     seedText,
@@ -118,7 +106,6 @@ export async function emitPlanContext({
 async function main() {
   const { values } = parseArgs({
     options: {
-      epic: { type: 'string' },
       'one-pager': { type: 'string' },
       seed: { type: 'string' },
       pretty: { type: 'boolean', default: false },
@@ -127,29 +114,17 @@ async function main() {
     strict: true,
   });
 
-  const hasEpic = typeof values.epic === 'string' && values.epic.length > 0;
   const hasOnePager =
     typeof values['one-pager'] === 'string' && values['one-pager'].length > 0;
   const hasSeed = typeof values.seed === 'string' && values.seed.length > 0;
-  const entryForms = [hasEpic, hasOnePager, hasSeed].filter(Boolean).length;
+  const entryForms = [hasOnePager, hasSeed].filter(Boolean).length;
   if (entryForms !== 1) {
     throw new Error(
-      'Pass exactly one of --epic <id>, --one-pager <path> or --seed "<text>". ' +
-        '(--epic: existing-Epic mode; --one-pager: ideation mode; ' +
-        '--seed: headless ideation entry.)',
+      'Pass exactly one of --one-pager <path> or --seed "<text>". ' +
+        '(--one-pager: ideation mode; --seed: headless ideation entry.)',
     );
   }
-  const mode = hasEpic ? 'epic' : hasOnePager ? 'one-pager' : 'seed';
-
-  let epicId;
-  if (hasEpic) {
-    epicId = Number.parseInt(values.epic, 10);
-    if (!Number.isInteger(epicId)) {
-      throw new Error(
-        `--epic must be a numeric issue id (got "${values.epic}").`,
-      );
-    }
-  }
+  const mode = hasOnePager ? 'one-pager' : 'seed';
 
   // stdout is reserved for the JSON envelope: flip every Logger sink that
   // could land on stdout to stderr BEFORE any pipeline code runs
@@ -177,19 +152,18 @@ async function main() {
 
   // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode so the folded
   // emit surface is measured against the 12-phase baseline. One-pager and
-  // seed modes have no Epic yet, so the record routes to the standalone
-  // stream (epicId null) exactly like `story-plan.js`.
+  // seed modes have no parent ticket yet, so the record routes to the
+  // standalone stream (epicId null).
   await recordPlanInvocation(
     {
       cli: 'plan-context',
       mode,
-      epicId: hasEpic ? epicId : null,
+      epicId: null,
       config,
     },
     () =>
       emitPlanContext({
         mode,
-        epicId,
         onePagerPath: hasOnePager ? values['one-pager'] : undefined,
         seedText: hasSeed ? values.seed : undefined,
         provider,

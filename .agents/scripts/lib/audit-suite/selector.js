@@ -160,7 +160,7 @@ export function resolveLensTier(lens) {
  * every path) matches every change set here, so its concern is verified at
  * BOTH innermost tiers — the
  * write-time checklist threading and this Story-scope lens pass — and excluded
- * from Epic close (a local lens is dropped by {@link selectEpicCloseLenses}).
+ * from the retired Epic-close roster (local lenses stay Story-scope only).
  * A local lens with an empty `filePatterns` list matches nothing here, so a
  * diff matching no local lens's patterns yields an empty roster and adds no
  * lens work.

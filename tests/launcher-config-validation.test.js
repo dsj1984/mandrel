@@ -19,7 +19,7 @@ const SCRIPTS = [
   {
     name: 'plan-context',
     relPath: '.agents/scripts/plan-context.js',
-    args: ['--epic', '1'],
+    args: ['--seed', 'launcher config validation seed'],
   },
   {
     name: 'plan-persist',

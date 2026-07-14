@@ -210,7 +210,7 @@ per AC-cluster with
 (`high`/`medium`/`missing` → `fresh`; `low` → `inline` unless the
 `freshCriticSampleRate` floor forces `fresh`). Review depth and audit lenses
 follow the same envelope via `review-depth.js` /
-`code-review.js#resolveAuditLenses` inside close.
+`audit-lens-routing.js#resolveAuditLenses` inside close.
 
 Hard gates (lint / test / format / coverage / CRAP / maintainability) always
 run in Step 3 — risk never disables them. Do **not** pre-run the full

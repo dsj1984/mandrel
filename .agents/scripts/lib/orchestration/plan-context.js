@@ -2,31 +2,20 @@
  * plan-context.js — single planner-context envelope build (Epic #4474, M3
  * PR2 — `/plan` collapse step 1).
  *
- * Folds the two `--emit-context` halves of the 12-phase pipeline
- * (`buildAuthoringContext` from `epic-plan-spec/phases/authoring-context.js`
- * and `buildDecompositionContext` from
- * `epic-plan-decompose/phases/context.js`) plus the three currently-no-CLI
- * library calls (`findSimilarOpenEpics`, clarity scoring, re-plan
- * detection) into ONE JSON envelope, so the authoring middle reads a single
- * file instead of shim-scripting library imports (the bench measured
- * ~12–15 turns of shim-writing for the dup search alone).
+ * Folds the authoring-context builders plus the cross-Epic dup search into
+ * ONE JSON envelope, so the authoring middle reads a single file instead of
+ * shim-scripting library imports.
  *
- * Three modes (the design's mode matrix + the #4496 seed entry):
- *   - `epic`      — the Epic exists. Carries `epic`, `clarity` (the Epic
- *                   Clarity Gate rubric — free, same body fetch), `replan`
- *                   (already-planned signals) and `planState`.
- *   - `one-pager` — ideation; the Epic does not exist yet (creation moves
- *                   to the persist half). Carries `onePager` and
- *                   `duplicates[]` (cross-Epic dup search). Clarity is not
- *                   scored — the ideation path is definitionally clear.
+ * Two modes (v2 Story-only cutover — existing-Epic mode retired):
+ *   - `one-pager` — ideation; the parent ticket does not exist yet
+ *                   (creation moves to the persist half). Carries
+ *                   `onePager` and `duplicates[]` (cross-Epic dup search).
  *   - `seed`      — headless ideation entry (#4496 fix 1): the one-pager
  *                   does not exist yet either. The dup search runs off the
  *                   raw seed text, and the envelope additively carries
- *                   `seed`, `scopeTriage` (the scope-triage rubric applied
- *                   CLI-side — no skill Reads on the headless path) and
- *                   `onePagerSpec` (the canonical one-pager sections, so
- *                   the authoring pass writes the one-pager in the SAME
- *                   batched write as the spec artifacts).
+ *                   `seed` and `onePagerSpec` (the canonical one-pager
+ *                   sections, so the authoring pass writes the one-pager in
+ *                   the SAME batched write as the spec artifacts).
  *
  * All fields are JSON-serialisable; the module performs no GitHub writes.
  * The only I/O surfaces are the injected `provider` (reads) and the
@@ -36,8 +25,6 @@
 import { readFile } from 'node:fs/promises';
 import { getLimits, resolvePreflightCeilings } from '../config-resolver.js';
 import { findSimilarOpenEpics } from '../duplicate-search.js';
-import { hasEpicSection, hasTechSpecContent } from '../epic-body-sections.js';
-import { scoreEpicBody } from '../epic-plan-clarity.js';
 import { Logger } from '../Logger.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -45,7 +32,6 @@ import {
 } from '../templates/spec-author-prompts.js';
 import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { buildDocsDigest } from './docs-digest.js';
-import { read as readPlanState } from './epic-plan-state-store.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
 import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
 
@@ -55,7 +41,7 @@ import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
  * the `applyBudget`-capped body (`planningContext.maxBytes` = 50 KB), the
  * tier-capped codebase snapshot (~35 KB skinny on this repo), the three
  * rendered system prompts (~15 KB), and the digest-first `docsContext`
- * (outline-only, pointer in epic mode). Measured folded envelopes on this
+ * (outline-only, or inline digest in one-pager/seed mode). Measured folded envelopes on this
  * repo land at ~42 KB; 256 KB (~64K tokens at the ≈4-chars/token estimate)
  * gives >2× headroom over a worst-case budgeted body + medium-tier snapshot
  * while staying an order of magnitude under the session budget. The test
@@ -332,43 +318,6 @@ export function buildDeliveryShapeSignal({ body } = {}) {
 }
 
 /**
- * Re-plan detection signals (folds the workflow's Phase 5 into the
- * envelope): the Tech Spec sections alone are the already-planned signal;
- * the open-Story count and section presence let the authoring middle (and
- * the persist half's `--force` prompt) cite concrete numbers.
- *
- * `openStoryCount` is best-effort: a provider listing failure degrades to
- * `null` rather than aborting the envelope build.
- *
- * @param {{ epicBody: string, provider: object, epicId: number }} args
- * @returns {Promise<{
- *   alreadyPlanned: boolean,
- *   planningSections: { techSpec: boolean, acceptanceTable: boolean },
- *   openStoryCount: number|null,
- * }>}
- */
-export async function buildReplanSignal({ epicBody, provider, epicId }) {
-  const body = epicBody ?? '';
-  let openStoryCount = null;
-  try {
-    const tickets = await provider.getTickets(epicId, { state: 'open' });
-    if (Array.isArray(tickets)) openStoryCount = tickets.length;
-  } catch (err) {
-    Logger.warn(
-      `[plan-context] open-children listing skipped: ${err?.message ?? err}`,
-    );
-  }
-  return {
-    alreadyPlanned: hasTechSpecContent(body),
-    planningSections: {
-      techSpec: hasEpicSection(body, 'techSpec'),
-      acceptanceTable: hasEpicSection(body, 'acceptanceTable'),
-    },
-    openStoryCount,
-  };
-}
-
-/**
  * Render the three authoring system prompts the collapsed pipeline's
  * single authoring pass consumes. The spec/acceptance prompts render from
  * `lib/templates/spec-author-prompts.js` (the M3/M8 handshake — envelope
@@ -406,89 +355,6 @@ When N>1, every acceptance criterion must belong to exactly one Story,
 and each Story carries its own \`## Spec\` (no shared techspec.md fold).
 `,
     decompose,
-  };
-}
-
-/**
- * Read the `epic-plan-state` structured comment, degrading to `null` when
- * the comment is missing/unparseable or the provider fetch fails (same
- * tolerance the decompose context applies).
- *
- * @param {{ provider: object, epicId: number }} args
- * @returns {Promise<object|null>}
- */
-async function readPlanStateTolerant({ provider, epicId }) {
-  try {
-    return await readPlanState({ provider, epicId });
-  } catch (_err) {
-    return null;
-  }
-}
-
-/**
- * Build the epic-mode envelope. One Epic fetch feeds everything: the
- * authoring context (prefetch seam on `buildAuthoringContext`), clarity
- * scoring, re-plan detection, and the delivery-shape heuristics — the
- * fetch-twice shape of the split pipeline is gone.
- */
-async function buildEpicModeEnvelope({
-  epicId,
-  provider,
-  config,
-  settings,
-  fullContext,
-  cwd,
-}) {
-  const epic = await provider.getEpic(epicId);
-  if (!epic) {
-    throw new Error(`[plan-context] Epic #${epicId} not found.`);
-  }
-  const body = epic.body ?? '';
-
-  const authoringOpts = {
-    epic,
-    fullContext,
-    github: config.github ?? null,
-  };
-  if (cwd) authoringOpts.cwd = cwd;
-  const authoring = await buildAuthoringContext(
-    epicId,
-    provider,
-    settings,
-    authoringOpts,
-  );
-
-  const limits = getLimits(config);
-  const heuristics = resolveRiskHeuristics(config);
-  const clarityScore = scoreEpicBody({ body });
-  const [replan, planState] = await Promise.all([
-    buildReplanSignal({ epicBody: body, provider, epicId }),
-    readPlanStateTolerant({ provider, epicId }),
-  ]);
-
-  return {
-    mode: 'epic',
-    epic: authoring.epic,
-    clarity: clarityScore,
-    replan,
-    docsContext: authoring.docsContext,
-    codebaseSnapshot: authoring.codebaseSnapshot,
-    bddRunner: authoring.bddRunner,
-    bddScenarios: authoring.bddScenarios,
-    memoryFreshness: authoring.memoryFreshness,
-    priorFeedback: authoring.priorFeedback,
-    ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
-    maxTickets: limits.maxTickets,
-    maxTokenBudget: limits.maxTokenBudget,
-    preflightCeilings: resolvePreflightCeilings(config),
-    riskHeuristics: heuristics,
-    systemPrompts: buildSystemPrompts({
-      heuristics,
-      maxTickets: limits.maxTickets,
-      maxTokenBudget: limits.maxTokenBudget,
-      epicId,
-    }),
-    planState,
   };
 }
 
@@ -638,8 +504,7 @@ async function buildSeedModeEnvelope({
  * Build the single planner-context envelope.
  *
  * @param {{
- *   mode: 'epic'|'one-pager'|'seed',
- *   epicId?: number,
+ *   mode: 'one-pager'|'seed',
  *   onePagerPath?: string,
  *   onePagerContent?: string,
  *   seedText?: string,
@@ -652,7 +517,6 @@ async function buildSeedModeEnvelope({
  */
 export async function buildPlanContext({
   mode,
-  epicId,
   onePagerPath,
   onePagerContent,
   seedText,
@@ -662,19 +526,6 @@ export async function buildPlanContext({
   fullContext = false,
   cwd,
 }) {
-  if (mode === 'epic') {
-    if (!Number.isInteger(epicId)) {
-      throw new Error('[plan-context] epic mode requires a numeric epicId.');
-    }
-    return buildEpicModeEnvelope({
-      epicId,
-      provider,
-      config,
-      settings,
-      fullContext,
-      cwd,
-    });
-  }
   if (mode === 'one-pager') {
     if (!onePagerPath && typeof onePagerContent !== 'string') {
       throw new Error(
@@ -702,6 +553,6 @@ export async function buildPlanContext({
     });
   }
   throw new Error(
-    `[plan-context] unknown mode "${mode}" — expected "epic", "one-pager" or "seed".`,
+    `[plan-context] unknown mode "${mode}" — expected "one-pager" or "seed".`,
   );
 }

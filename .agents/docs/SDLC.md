@@ -515,9 +515,9 @@ hopeful signal.
   the Epic's child-Story backlog and written the spec to
   `.agents/epics/<epicId>.yaml`. The `epic-plan-state` checkpoint
   comment records `phase: ready`.
-- **Healthcheck green.** The inline `epic-plan-healthcheck` pass run
-  by the persist CLI returned `ok: true`. A failing healthcheck
-  blocks the handoff — there is no advisory degrade-mode for
+- **Persist green.** The plan-persist draft reachability gate and
+  ticket-create path completed without a blocking failure. A failing
+  persist blocks the handoff — there is no advisory degrade-mode for
   `agent::ready`.
 - **Summary posted.** The persist CLI has posted the `plan-summary`
   structured comment (backlog stats + the dry-run wave table) so the
@@ -773,7 +773,9 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
 2. **Epic-close lens roster (Phase 4).** Resolves — does not walk — the slim
    Epic-close lens roster (`epicCloseLenses`): the `gate3` change-set selection
    plus the risk-routed lenses, restricted to the **cumulative + global +
-   risk-routed** tiers via `selectEpicCloseLenses`. Every **local-tier**
+   risk-routed** tiers via `selectAudits` / `resolveAuditLenses` (the
+   retired `selectEpicCloseLenses` helper was deleted with the Epic-close
+   CLI). Every **local-tier**
    change-set lens is excluded because its concern is already verified
    shift-left — the write-time distilled checklist threaded into the Story
    prompt (Story #4410) and the maker-blind Story-scope local-lens pass in
@@ -1108,7 +1110,7 @@ on so re-runs short-circuit when state has not changed.
 | ------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------ |
 | Tier 1 — write-time       | During Story implementation                          | Local-tier lens checklists threaded into the Story prompt (clean-code, etc.)             | advisory  | Distilled checklist in the hydrated Story prompt (Story #4410)           |
 | Tier 2 — Story-scope      | `story-close` (maker-blind subprocess)               | Local-tier lens roster over the Story diff (`selectLocalLenses`)                          | advisory  | `verification-results` structured comment on the Story                   |
-| Tier 3 — Epic-close       | `/deliver` Phase 4→5 (code-review pass)              | Slim roster: cumulative + global + risk-routed lenses (`selectEpicCloseLenses`) + pillars | blocking  | `verification-results` structured comment on Epic, keyed by Epic HEAD SHA |
+| Tier 3 — Run closeout     | `/deliver` / `plan-run-epilogue`                     | Cumulative + global + risk-routed lenses (`selectAudits` / `resolveAuditLenses`) + pillars | blocking  | `verification-results` structured comment on the run tip SHA |
 | Gate 4                    | `/deliver` `delivery.finalize` state (pre-PR)   | `audit-sre` production readiness gate                                                     | blocking  | `audit-sre` structured comment on Epic, keyed by Epic HEAD SHA            |
 | Close-validation          | `/deliver` `delivery.close-validation` state    | lint + test + maintainability + CRAP + coverage ratchets via `evidence-gate.js`           | blocking  | `evidence-gate` cache entry keyed by `git rev-parse HEAD`                 |
 | Pre-push                  | Local `.husky/pre-push` hook on every push           | Diff-scoped quality preview + coverage/CRAP ratchet                                       | blocking  | Working-tree SHA + staged-diff hash (per push)                            |
@@ -1131,9 +1133,9 @@ exactly one tier**, chosen by the lens's `scope` field in `audit-rules.json`
 - **Risk-routed** lenses run at Epic close regardless of tier, because a
   high-risk axis (or a route-adding change set) explicitly demands them.
 
-The Epic-close roster (`selectEpicCloseLenses`) is deliberately **slim**: it
-excludes every local-tier change-set lens so the outermost tier — where a fix
-is most expensive — does not re-verify a concern already covered shift-left.
+The run-closeout roster is deliberately **slim**: it excludes every
+local-tier change-set lens so the outermost tier — where a fix is most
+expensive — does not re-verify a concern already covered shift-left.
 The Epic-close remediation threshold reflects this (`delivery.epicAudit.autoFixSeverity`
 defaults to `high`): 🟡 Medium code-quality findings are remediated at the
 innermost tiers, not re-remediated at close.

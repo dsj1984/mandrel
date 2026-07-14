@@ -113,13 +113,10 @@ export const META_LABELS = {
 
 /**
  * Planning-axis labels (Epic #2880 F7). Currently scoped to the
- * `planning::healthcheck-waived` operator-applied waiver, which is the
- * documented escape hatch for the inline post-plan readiness
- * healthcheck (`runPlanHealthcheck`). The persist surface
- * (`plan-persist.js`) refuses to flip an Epic to `agent::ready`
- * when the healthcheck returned `ok: false` unless this label is
- * present — see `.agents/docs/SDLC.md` § "`agent::ready` exit conditions"
- * for the full handoff contract.
+ * `planning::healthcheck-waived` operator-applied waiver — a historical
+ * escape hatch for the retired post-plan readiness healthcheck. The
+ * label remains in the taxonomy for tickets that still carry it; the
+ * healthcheck CLI itself was deleted in the v2 epic-scripts sweep.
  *
  * Future planning-axis waivers (one per failing exit condition) extend
  * this enum so consumers can reference them by symbol.

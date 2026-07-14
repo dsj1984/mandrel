@@ -672,18 +672,14 @@ resident listener.
 ### Risk-routed audit lenses
 
 During the risk-routed review/audit ceremony, `/deliver` resolves audit lenses
-inline with the Story review path. `epic-audit-prepare.js` wraps the
-audit-suite `selectAudits` SDK: it selects the audit lenses whose file patterns
-or keyword triggers match the change-set, unions in lenses mapped from the
-Story's model-judged high-risk axes (Story #3889), and resolves an audit depth
-(`light` / `standard` / `deep`, Story #3939). Findings feed a
-bounded auto-fix loop governed by `delivery.epicAudit`
-(`maxFixAttempts` retry cap per finding; `maxFixScopeFiles` files per
-auto-fix before escalating to `agent::blocked`).
-`epic-audit-recheck.js` re-selects only the lenses whose patterns
-overlap files touched by the later code-review auto-fix tail. Operators
-can skip the stage with `--skip-epic-audit` (logged override; for
-known-irrelevant change-sets such as docs-only Epics).
+inline with the Story review path. `plan-run-epilogue` / the Story close path
+call the audit-suite `selectAudits` SDK: it selects the audit lenses whose
+file patterns or keyword triggers match the change-set, unions in lenses
+mapped from the Story's model-judged high-risk axes (Story #3889 —
+`resolveAuditLenses`), and resolves an audit depth (`light` / `standard` /
+`deep`, Story #3939). Findings feed a bounded auto-fix loop. The retired
+`epic-audit-prepare.js` / `epic-audit-recheck.js` CLIs were deleted with the
+v2 Story-only cutover.
 
 ### HITL touchpoints
 

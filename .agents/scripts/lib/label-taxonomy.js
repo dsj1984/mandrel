@@ -76,15 +76,13 @@ export const LABEL_TAXONOMY = [
   },
 
   // Planning axis — operator-applied waivers for the planning → delivery
-  // handoff gates. Currently the sole entry is the `healthcheck-waived`
-  // override consumed by `plan-persist.js` when the inline healthcheck
-  // (`runPlanHealthcheck`) returned `ok: false` for a reason the
-  // operator has triaged and accepted.
+  // handoff gates. `healthcheck-waived` remains for tickets that still
+  // carry the historical label; the healthcheck CLI was retired.
   {
     name: PLANNING_LABELS.HEALTHCHECK_WAIVED,
     color: LABEL_COLORS.PLANNING,
     description:
-      'Operator override — allows agent::ready handoff despite a failing post-plan healthcheck',
+      'Historical operator override for the retired post-plan healthcheck',
   },
 
   // Delivery routing — applied by `plan-persist.js` when the risk verdict

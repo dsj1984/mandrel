@@ -6,8 +6,8 @@
  *  - stdout purity: everything the emit path writes to stdout is exactly
  *    one `JSON.parse`-able payload (Logger output routed to stderr).
  *  - envelope schema snapshot: the sorted key set per mode.
- *  - mode-specific field presence: `clarity`/`replan` only in epic mode;
- *    `duplicates`/`onePager` only in one-pager mode.
+ *  - mode-specific field presence: `duplicates`/`onePager` only in
+ *    one-pager mode; seed carries `seed`/`onePagerSpec`.
  *  - dup-search fold parity: envelope `duplicates[]` deep-equals a direct
  *    `findSimilarOpenEpics` call over the same provider + one-pager.
  *  - envelope byte ceiling: serialized envelopes stay under
@@ -27,7 +27,6 @@ import { findSimilarOpenEpics } from '../.agents/scripts/lib/duplicate-search.js
 import {
   buildDeliveryShapeSignal,
   buildPlanContext,
-  buildReplanSignal,
   buildScopeTriageSignal,
   buildSystemPrompts,
   ONE_PAGER_AUTHORING_SPEC,
@@ -110,26 +109,6 @@ function buildProvider({ body = CLEAR_EPIC_BODY, openStories = [] } = {}) {
   };
 }
 
-const EPIC_MODE_KEYS = [
-  'bddRunner',
-  'bddScenarios',
-  'clarity',
-  'codebaseSnapshot',
-  'docsContext',
-  'epic',
-  'maxTickets',
-  'maxTokenBudget',
-  'memoryFreshness',
-  'mode',
-  'planState',
-  'preflightCeilings',
-  'priorFeedback',
-  'replan',
-  'riskHeuristics',
-  'systemPrompts',
-  'ticketSchema',
-];
-
 const SEED_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
@@ -170,19 +149,6 @@ const ONE_PAGER_MODE_KEYS = [
 ];
 
 describe('plan-context envelope schema (design §1 step 1)', () => {
-  it('epic mode emits exactly the epic-mode key set', async () => {
-    const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
-    assert.deepEqual(Object.keys(env).sort(), EPIC_MODE_KEYS);
-    assert.equal(env.mode, 'epic');
-    assert.equal(env.epic.id, 7);
-  });
-
   it('one-pager mode emits exactly the one-pager-mode key set', async () => {
     const env = await buildPlanContext({
       mode: 'one-pager',
@@ -224,14 +190,10 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     ]);
   });
 
-  it('rejects an unknown mode, a non-numeric epic id, and an empty seed', async () => {
+  it('rejects an unknown mode and an empty seed', async () => {
     await assert.rejects(
       () => buildPlanContext({ mode: 'bogus', provider: buildProvider() }),
       /unknown mode/,
-    );
-    await assert.rejects(
-      () => buildPlanContext({ mode: 'epic', provider: buildProvider() }),
-      /numeric epicId/,
     );
     await assert.rejects(
       () =>
@@ -246,25 +208,7 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
 });
 
 describe('plan-context mode-specific field presence', () => {
-  it('clarity and replan appear only in epic mode', async () => {
-    const epicEnv = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
-    assert.equal(epicEnv.clarity.verdict, 'clear');
-    assert.equal(epicEnv.replan.alreadyPlanned, false);
-    assert.ok(
-      !('duplicates' in epicEnv),
-      'duplicates must not leak into epic mode',
-    );
-    assert.ok(
-      !('onePager' in epicEnv),
-      'onePager must not leak into epic mode',
-    );
-
+  it('one-pager mode carries duplicates/onePager and omits seed fields', async () => {
     const opEnv = await buildPlanContext({
       mode: 'one-pager',
       onePagerContent: ONE_PAGER,
@@ -272,28 +216,21 @@ describe('plan-context mode-specific field presence', () => {
       config: {},
       settings: {},
     });
+    assert.ok(Array.isArray(opEnv.duplicates));
+    assert.equal(opEnv.onePager.content, ONE_PAGER);
+    assert.ok(!('seed' in opEnv), 'seed must not leak into one-pager mode');
+    assert.ok(
+      !('onePagerSpec' in opEnv),
+      'onePagerSpec must not leak into one-pager mode',
+    );
     assert.ok(
       !('clarity' in opEnv),
-      'clarity must not leak into one-pager mode',
+      'retired epic-mode clarity must not leak into one-pager mode',
     );
-    assert.ok(!('replan' in opEnv), 'replan must not leak into one-pager mode');
-    assert.ok(Array.isArray(opEnv.duplicates));
-  });
-
-  it('epic mode flags an already-planned Epic via replan signals', async () => {
-    const plannedBody = `${CLEAR_EPIC_BODY}\n## Delivery Slicing\n\n| Slice | What ships | Independent? |\n|---|---|---|\n| Foundation | core | Yes |\n| Surface | api | Yes |\n| Polish | docs | Yes |\n`;
-    const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider({
-        body: plannedBody,
-        openStories: [{ id: 101 }, { id: 102 }],
-      }),
-      config: {},
-      settings: {},
-    });
-    assert.equal(env.replan.alreadyPlanned, true);
-    assert.equal(env.replan.openStoryCount, 2);
+    assert.ok(
+      !('replan' in opEnv),
+      'retired epic-mode replan must not leak into one-pager mode',
+    );
   });
 });
 
@@ -357,8 +294,8 @@ describe('plan-context dup-search fold parity vs library', () => {
 describe('plan-context systemPrompts fold', () => {
   it('renders spec/acceptance/story/decompose from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
+      mode: 'one-pager',
+      onePagerContent: ONE_PAGER,
       provider: buildProvider(),
       config: { planning: { riskHeuristics: ['touches auth'] } },
       settings: {},
@@ -373,7 +310,7 @@ describe('plan-context systemPrompts fold', () => {
       buildDecomposerSystemPrompt(['touches auth'], {
         maxTickets: env.maxTickets,
         maxTokenBudget: env.maxTokenBudget,
-        epicId: 7,
+        epicId: null,
       }),
     );
     assert.deepEqual(env.riskHeuristics, ['touches auth']);
@@ -393,7 +330,7 @@ describe('plan-context systemPrompts fold', () => {
         heuristics: ['touches auth'],
         maxTickets: env.maxTickets,
         maxTokenBudget: env.maxTokenBudget,
-        epicId: 7,
+        epicId: null,
       }),
     );
     assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
@@ -441,22 +378,6 @@ describe('plan-context deliveryShapeSignal (advisory, #4475 heuristics)', () => 
   });
 });
 
-describe('plan-context replan signal tolerance', () => {
-  it('degrades openStoryCount to null when the children listing fails', async () => {
-    const provider = buildProvider();
-    provider.getTickets = async () => {
-      throw new Error('boom');
-    };
-    const signal = await buildReplanSignal({
-      epicBody: CLEAR_EPIC_BODY,
-      provider,
-      epicId: 7,
-    });
-    assert.equal(signal.openStoryCount, null);
-    assert.equal(signal.alreadyPlanned, false);
-  });
-});
-
 describe('plan-context stdout purity (Story #2278 discipline)', () => {
   it('the emit path writes exactly one JSON.parse-able payload to stdout', async () => {
     // Capture everything that would land on the process stdout fd —
@@ -481,8 +402,8 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     let envelope;
     try {
       envelope = await emitPlanContext({
-        mode: 'epic',
-        epicId: 7,
+        mode: 'one-pager',
+        onePagerContent: ONE_PAGER,
         provider: buildProvider(),
         config: {},
         settings: {},
@@ -501,19 +422,12 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     assert.equal(lines.length, 1, 'exactly one stdout line');
     const parsed = JSON.parse(lines[0]);
     assert.deepEqual(parsed, JSON.parse(JSON.stringify(envelope)));
-    assert.equal(parsed.mode, 'epic');
+    assert.equal(parsed.mode, 'one-pager');
   });
 });
 
 describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
-  it('epic-mode and one-pager-mode envelopes stay under the ceiling', async () => {
-    const epicEnv = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
+  it('one-pager and seed envelopes stay under the ceiling', async () => {
     const opEnv = await buildPlanContext({
       mode: 'one-pager',
       onePagerContent: ONE_PAGER,
@@ -521,9 +435,16 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       config: {},
       settings: {},
     });
+    const seedEnv = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
     for (const [name, env] of [
-      ['epic', epicEnv],
       ['one-pager', opEnv],
+      ['seed', seedEnv],
     ]) {
       const bytes = Buffer.byteLength(JSON.stringify(env), 'utf-8');
       assert.ok(
@@ -533,15 +454,15 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
     }
   });
 
-  it('holds even when the Epic body sits at the planning-context budget cap', async () => {
+  it('holds even when the one-pager sits at the planning-context budget cap', async () => {
     // A body larger than planningContext.maxBytes (50 KB default) downgrades
     // to the applyBudget summary representation — the ceiling must hold for
     // the worst legal case, not just tiny fixtures.
     const hugeBody = `${CLEAR_EPIC_BODY}\n## Appendix\n\n${'lorem ipsum dolor sit amet consectetur. '.repeat(4000)}`;
     const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider({ body: hugeBody }),
+      mode: 'one-pager',
+      onePagerContent: hugeBody,
+      provider: buildProvider(),
       config: {},
       settings: {},
     });
@@ -550,9 +471,10 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       bytes < PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
       `budget-capped envelope is ${bytes} bytes — ceiling is ${PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}`,
     );
-    // The budget must have engaged (body over 50 KB cannot ride through full).
-    assert.equal(env.epic.body, null);
-    assert.ok(env.epic.bodySummary, 'expected the applyBudget summary mode');
+    // One-pager mode keeps the raw content on the envelope; the budget
+    // engages on the authoring-context fold (snapshot / docs), not by
+    // nulling `onePager.content`.
+    assert.equal(env.onePager.content, hugeBody);
   });
 });
 

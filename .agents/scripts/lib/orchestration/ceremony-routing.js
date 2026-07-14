@@ -3,7 +3,7 @@
  * resolver (Epic #4478, M7-B, Part 2).
  *
  * The sibling of `review-depth.js` (risk → review depth) and
- * `code-review.js#resolveAuditLenses` (risk → audit lens): it folds the
+ * `audit-lens-routing.js#resolveAuditLenses` (risk → audit lens): it folds the
  * planner-judged risk envelope into a per-cluster ceremony decision for the
  * single-delivery acceptance critic — **fresh-context spawn** vs the
  * contract-identical **inline** critic. It does NOT invent a new risk score

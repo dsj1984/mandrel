@@ -172,8 +172,9 @@ alone, plus ~2.2k lines of workflow prose):**
 
 **Re-keys — epic-scoped becomes run-scoped (mechanical):**
 
-- `docs-digest.js` (per-epic digest → per-run), `epic-plan-clarity.js`,
-  `epic-plan-healthcheck.js`, `epic-audit-prepare.js`/`epic-audit-recheck.js`
+- ~~`docs-digest.js` (per-epic digest → per-run), `epic-plan-clarity.js`,
+  `epic-plan-healthcheck.js`, `epic-audit-prepare.js`/`epic-audit-recheck.js`~~
+  (deleted / consolidated in the v2 epic-scripts sweep)
   (→ the per-run audit sweep), `bookkeeping-outbox.js` (per-epic outbox →
   per-run), retro roll-up (`retro/`, `retro-runner.js` — per-run),
   `temp/epic-<id>/` namespace → `temp/run-<id>/`.
