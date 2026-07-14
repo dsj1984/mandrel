@@ -28,6 +28,10 @@ describe('plan-run label normalization', () => {
     assert.equal(normalizePlanRunLabel('My Run'), 'plan-run::my-run');
     assert.equal(normalizePlanRunLabel('plan-run::My Run'), 'plan-run::my-run');
   });
+
+  it('rejects an empty run token', () => {
+    assert.throws(() => normalizePlanRunLabel('  '), /non-empty planRunId/);
+  });
 });
 
 describe('resolvePlanRunFromIssues', () => {
