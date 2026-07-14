@@ -341,7 +341,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     const out = await gateway.createIssue({
       title: 'bare issue',
       body: '# Bare issue body',
-      labels: ['type::epic'],
+      labels: ['type::story'],
     });
     assert.equal(out.id, 400);
     assert.equal(out.number, 400);
@@ -355,7 +355,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     const posted = JSON.parse(post.input);
     assert.equal(posted.body, '# Bare issue body');
     assert.equal(posted.title, 'bare issue');
-    assert.deepEqual(posted.labels, ['type::epic']);
+    assert.deepEqual(posted.labels, ['type::story']);
   });
 
   it('createIssue: skips the board add cleanly when no project number is configured (Story #3822)', async () => {

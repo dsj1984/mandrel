@@ -649,14 +649,14 @@ describe('runWrongTreeGuardPhase — fail-open on main-checkout probe error', ()
 // AC-2: helper workflow doc states the path-based edit-tool scope requirement.
 // ---------------------------------------------------------------------------
 
-describe('AC-2: single-story-deliver doc clarifies path-based edit scope', () => {
+describe('AC-2: deliver-story doc clarifies path-based edit scope', () => {
   it('Step 0.5 instructs prefixing Edit/Write paths with the worktree root', () => {
     const docPath = path.join(
       REPO_ROOT,
       '.agents',
       'workflows',
       'helpers',
-      'single-story-deliver.md',
+      'deliver-story.md',
     );
     const doc = nodeFs.readFileSync(docPath, 'utf8');
     // The doc must mention the path-based Edit/Write tools (not only Bash cwd).

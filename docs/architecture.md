@@ -486,8 +486,7 @@ Mandrel runs Claude-Code-in-session: `/deliver` fans out via the
 implementation loop directly from the Story worktree. There is no separate
 adapter abstraction — `lib/orchestration/manifest-builder.js` synthesizes
 the `{ taskId, dispatchId, status }` record inline at the dispatch site,
-and the **dispatch manifest** (md + structured comment, schema
-[`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
+and the **dispatch manifest** (md + structured comment, formerly schema-backed)
 is the load-bearing artifact downstream tooling (and operators) read.
 The manifest is the cross-runtime contract: any future host that wants
 to replay or audit a Mandrel dispatch consumes the manifest, not an
@@ -608,18 +607,15 @@ sequenceDiagram
 
 ---
 
-## Epic Deliver Runner
+## Deliver Runner
 
-The `/deliver <epicId>` slash command is the sole entry point for
-Epic delivery. It runs end-to-end inside the operator's Claude session,
-composing the orchestration primitives into a nine-phase execution
-coordinator (Phases 1–9, with the Phase 8.5 auto-merge gate between
-watch-and-iterate and cleanup — see
-[`helpers/deliver-epic.md`](../.agents/workflows/helpers/deliver-epic.md))
-with the lifecycle bus chain at its core. There is no
-remote-trigger surface — delivery only ever runs locally, in the
-operator's session, with Story sub-agents launched through the Agent
-tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
+The `/deliver <storyId...>` slash command is the sole entry point for Story
+delivery. It runs end-to-end inside the operator's Claude session, composing the
+orchestration primitives into a Story-sequencing coordinator (see
+[`workflows/deliver.md`](../.agents/workflows/deliver.md)) with the lifecycle
+bus chain at its core. There is no remote-trigger surface — delivery only ever
+runs locally, in the operator's session, with Story sub-agents launched through
+the Agent tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
 wrapper; the slash command supplants it entirely.
 
 The bus is the **single canonical runner model** under Epic #2172:
@@ -686,16 +682,14 @@ deleted with the in-process stratum (#3908); `agent::blocked` remains the
 sole runtime pause point, enforced by the workflow prose rather than a
 resident listener.
 
-### Phase 4 — epic-audit (change-set lenses)
+### Risk-routed audit lenses
 
-Between close-validation (Phase 3) and code-review (Phase 5), `/deliver`
-runs an inline **epic-audit** stage
-([`helpers/epic-audit.md`](../.agents/workflows/helpers/epic-audit.md)).
-`epic-audit-prepare.js` wraps the audit-suite `selectAudits` SDK: it
-diffs `main..epic/<id>`, selects the audit lenses whose file patterns or
-keyword triggers match the change-set, unions in lenses mapped from the
-Epic's model-judged high-risk axes (Story #3889), and resolves an audit
-depth (`light` / `standard` / `deep`, Story #3939). Findings feed a
+During the risk-routed review/audit ceremony, `/deliver` resolves audit lenses
+inline with the Story review path. `epic-audit-prepare.js` wraps the
+audit-suite `selectAudits` SDK: it selects the audit lenses whose file patterns
+or keyword triggers match the change-set, unions in lenses mapped from the
+Story's model-judged high-risk axes (Story #3889), and resolves an audit depth
+(`light` / `standard` / `deep`, Story #3939). Findings feed a
 bounded auto-fix loop governed by `delivery.epicAudit`
 (`maxFixAttempts` retry cap per finding; `maxFixScopeFiles` files per
 auto-fix before escalating to `agent::blocked`).
@@ -717,14 +711,12 @@ Either way, required status checks gate the squash onto `main`.
 
 ### Per-Story acceptance self-eval
 
-Inside each Story delivery (Epic-attached `helpers/epic-deliver-story`
-Step 1a, and the standalone path alike), a bounded **acceptance
-self-eval** loop runs after the implementation commits land and before
-the Story proceeds to close. A **fresh-context critic** sub-agent —
+Inside each Story delivery (`helpers/deliver-story` Step 1a), a bounded
+**acceptance self-eval** loop runs after the implementation commits land and
+before the Story proceeds to close. A **fresh-context critic** sub-agent —
 independent of the implementing turn — scores the working diff against
 each inline `acceptance[]` item, using `verify[]` as evidence;
-`acceptance-eval.js` records the per-criterion verdict (pass `--epic` on
-the Epic-attached path so the signal lands on the Epic-scoped stream).
+`acceptance-eval.js` records the per-criterion verdict.
 On `proceed` the Story flips to `closing`; unmet criteria trigger a
 redraft round, bounded by `delivery.acceptanceEval.maxRounds`
 (default 2, clamped into `[1, hard ceiling]` — the loop cannot be
@@ -733,15 +725,13 @@ Story escalates: `agent::blocked`, a `friction` comment naming the unmet
 criteria, and a non-zero exit. The single prose home for the mechanic is
 [`helpers/acceptance-self-eval.md`](../.agents/workflows/helpers/acceptance-self-eval.md).
 
-### Standalone multi-Story delivery (no Epic)
+### Multi-Story delivery (no Epic)
 
-Stories without an `Epic: #N` reference do not enter the Epic wave loop.
-`/deliver <id> [<id>...]` routes them to
-[`helpers/deliver-stories.md`](../.agents/workflows/helpers/deliver-stories.md),
-which builds a dependency-aware wave plan and fans out one
-`helpers/single-story-deliver` Agent call per Story per wave — parallel
-within a wave, serialised across waves. The script surface parallels the
-Epic-attached trio (`story-init.js` / `wave-tick.js` / `story-close.js`):
+Stories without an `Epic: #N` reference are the only valid `/deliver` inputs.
+`/deliver <id> [<id>...]` routes them through
+[`helpers/deliver-story.md`](../.agents/workflows/helpers/deliver-story.md),
+building a dependency-aware plan and running one Story delivery worker per ready
+Story. The script surface is:
 
 | Script                         | Responsibility                                                                                                   |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -796,25 +786,20 @@ changing its shape (full per-field reference:
 
 ## Ticket Hierarchy
 
-The framework uses a **2-tier GitHub Issue hierarchy**
-(Epic → Story) with label-based typing and `blocked by #NNN`
-dependency wiring. Thematic grouping lives as prose in the Epic body —
-the single planning document, which also carries the folded Tech Spec
-sections and the `## Acceptance Table` (Story #4324) — never as a
-ticket:
+The framework uses a **Story-only** GitHub Issue model with
+label-based typing. Optional `depends_on` / `blocked by #NNN` edges and a
+shared `plan-run::<id>` label order rare multi-Story plans. The folded
+Tech Spec lives on the Story body (`## Spec`, with spill-to-doc when over
+budget):
 
 ```text
-Epic (type::epic)                ← body carries the folded Tech Spec
-│                                  sections + ## Acceptance Table
-├── Story (type::story)
-│   ├── acceptance[]            ← inline on Story body
-│   └── verify[]                ← inline on Story body
-└── Story (type::story)
+Story (type::story)              ← ## Spec + acceptance[] + verify[]
+└── (optional siblings under plan-run::<id>)
 ```
 
-`/deliver` runs a single Story-implementation phase per Story.
-The state machine, cascade behavior, and worktree-isolation contract
-documented below apply at the Story tier.
+`/deliver` runs a single Story-implementation phase per Story on
+`story-<id>` → PR → `main`. The state machine and worktree-isolation
+contract documented below apply at the Story tier.
 
 ### State Machine
 
@@ -823,8 +808,8 @@ Each Story progresses through a label-driven state machine:
 ```mermaid
 stateDiagram-v2
     [*] --> agent_ready: Created by decomposer
-    agent_ready --> agent_executing: Dispatcher picks up
-    agent_executing --> agent_done: story-close.js fires
+    agent_ready --> agent_executing: /deliver picks up
+    agent_executing --> agent_done: single-story-close.js fires
     agent_done --> [*]
 
     agent_executing --> agent_ready: Hotfix rollback
@@ -832,24 +817,12 @@ stateDiagram-v2
 
 ### Cascade Behavior
 
-When a Story transitions to `agent::done`, `cascadeCompletion()` walks
-upward through the hierarchy and closes parents whose children are all
-done. The cascade is **not** uniform across tiers — the table below is
-the authoritative contract:
-
-| Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
-| ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Epic (`type::epic`)                             | **No** — cascade stops.  | The `/deliver` PR merges — auto-merge when the Phase 8.5 clean-run gate armed it, otherwise the operator merges via the GitHub UI. |
-
-**Why the Epic tier never auto-closes.** Epics gate on a real
-pull-request merge — cascade must not pre-empt the operator's
-required-checks review. (Story #4324 retired the planning
-context-ticket tier; legacy `context::*` artifacts on historical Epics
-still close via cascade as a hygiene path.)
-
-Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
-— `cascadeCompletion()` explicitly skips `type::epic` parents; every
-other parent tier is eligible. The
+v2 has no parent ticket tier above Story. Closing a Story is owned by
+`helpers/deliver-story` / `single-story-close.js` (PR to `main`, required
+checks, squash). Legacy `cascadeCompletion()` hygiene for historical
+parent issues remains in
+[`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
+but is not part of the active Story-only delivery path. The
 `fromState` lookup inside `transitionTicketState()` has a deliberate
 try/catch — a network flake reading the prior state label must not block a
 legitimate transition; failures emit a `debug`-level log instead of swallowing
@@ -1358,8 +1331,7 @@ conventions to follow.
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
 - **Execution path:** Claude-Code-in-session; the dispatch record is
   synthesized inline at `lib/orchestration/manifest-builder.js` and the
-  [dispatch manifest](../.agents/schemas/dispatch-manifest.json) is the
-  cross-runtime contract. Epic #2646 removed the previous
+  dispatch manifest is the cross-runtime contract. Epic #2646 removed the previous
   `IExecutionAdapter` abstraction as a hard cutover.
 - **Config resolution:** `.agents/scripts/lib/config-resolver.js` +
   `config-schema.js` (shell-metacharacter injection guards built in)

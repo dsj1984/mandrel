@@ -2,7 +2,11 @@
 /* node:coverage ignore file */
 
 /**
- * epic-plan-clarity.js — Phase 6 Epic Clarity Gate CLI.
+ * epic-plan-clarity.js — historical-name clarity gate CLI.
+ *
+ * Stage 5 keeps the filename for compatibility with existing launchers, but
+ * the gate no longer implies an active Epic type label; it scores
+ * the planning issue body fetched by id.
  *
  * Two modes:
  *

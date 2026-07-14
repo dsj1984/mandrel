@@ -21,7 +21,7 @@
  *      the configured Projects V2 board — Story #3822) with
  *      `type::story` + the chosen persona label, falling back to
  *      `gh issue create` when the provider lacks a createIssue
- *      analogue. Prints `Next: /single-story-deliver <id>`.
+ *      analogue. Prints `Next: /deliver <id>`.
  *   3. `--dry-run` — same as persist but exits without touching
  *      GitHub. Echoes the rendered body and the `gh` argv it would
  *      have run.
@@ -264,7 +264,7 @@ async function runPersist({
   }
 
   write(`${JSON.stringify({ issueNumber, title, labels }, null, 2)}\n`);
-  Logger.info(`Next: /single-story-deliver ${issueNumber}`);
+  Logger.info(`Next: /deliver ${issueNumber}`);
 }
 
 /* node:coverage ignore next */

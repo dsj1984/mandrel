@@ -5,9 +5,6 @@
  *   - `lib/story-adjacency.js#buildStoryAdjacency` is the single home for
  *     turning Story records into the `Map<storyId, deps[]>` shape the
  *     `lib/Graph.js` kernel consumes.
- *   - The two Epic-path wave-computation wrappers (`build-wave-dag.js`,
- *     `dispatch-pipeline.js#buildStoryDispatchGraph`) consume it and produce
- *     identical wave numbering for the same representative dependency DAG.
  *   - The standalone `stories-wave-tick.js` adapter (Story #4156 routed it
  *     through `lib/wave-runner/ready-set.js#selectReadySet`, which re-derives
  *     adjacency from the **same** `buildStoryAdjacency` builder) agrees with
@@ -21,8 +18,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { computeWaves } from '../../.agents/scripts/lib/Graph.js';
-import { buildStoryDispatchGraph } from '../../.agents/scripts/lib/orchestration/dispatch-pipeline.js';
-import { runBuildWaveDagPhase } from '../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { buildStoryAdjacency } from '../../.agents/scripts/lib/story-adjacency.js';
 import { runStoriesWaveTick } from '../../.agents/scripts/stories-wave-tick.js';
 
@@ -120,25 +115,7 @@ describe('lib/story-adjacency — buildStoryAdjacency', () => {
   });
 });
 
-describe('lib/story-adjacency — wave-numbering parity across the three wrappers', () => {
-  it('build-wave-dag (computeWaves) produces the expected waves', async () => {
-    const stories = ticketStories();
-    const provider = {
-      async getSubTickets(id) {
-        return id === 1 ? stories : [];
-      },
-    };
-    const state = await runBuildWaveDagPhase({ epicId: 1, provider }, {}, {});
-    const waves = state.waves.map((w) => w.map((t) => t.id));
-    assert.deepEqual(sortedWaves(waves), EXPECTED_WAVES);
-  });
-
-  it('dispatch-pipeline (buildStoryDispatchGraph) produces the expected waves', () => {
-    const { allWaves } = buildStoryDispatchGraph(ticketStories());
-    const waves = allWaves.map((w) => w.map((t) => t.id));
-    assert.deepEqual(sortedWaves(waves), EXPECTED_WAVES);
-  });
-
+describe('lib/story-adjacency — wave-numbering parity', () => {
   it('stories-wave-tick (continuous ready-set) reveals the expected strata in order', () => {
     // The standalone adapter now selects continuously through the shared
     // ready-set core rather than emitting a static wave plan. Driving it

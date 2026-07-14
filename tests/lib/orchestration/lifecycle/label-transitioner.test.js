@@ -39,7 +39,7 @@ function createRecordingProvider() {
       return {
         id,
         number: id,
-        labels: ['type::epic', STATE_LABELS.EXECUTING],
+        labels: ['type::story', STATE_LABELS.EXECUTING],
       };
     },
     async getSubTickets() {

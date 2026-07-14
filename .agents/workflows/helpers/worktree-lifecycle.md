@@ -14,9 +14,9 @@ into the wrong commit. Epic #229 moves each dispatched story into its own
 activity are isolated per-story. The main checkout stays quiet.
 
 This document is the operator and reviewer reference. See
-[`epic-deliver`](deliver-epic.md) and [`story-deliver`](deliver-stories.md)
-for the broader execution flow and the Epic-229 Tech Spec for
-architectural rationale.
+[`/deliver`](../deliver.md) and [`helpers/deliver-story`](deliver-story.md)
+for the broader execution flow and the Epic-229 Tech Spec for architectural
+rationale.
 
 ## Configuration
 
@@ -88,13 +88,13 @@ set of callers is:
 | Spec / decompose CLI boot (`/plan` helpers)                      | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
 | Story merge (`/deliver` close)                                  | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
 | Story close                                                           | `epic-deliver runner` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
-| Story init (`/deliver <storyId>`)                               | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
+| Story init (`/deliver <storyId>`)                               | `single-story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
 | Epic deliver wave loop (`/deliver`)                              | `/deliver` slash command + `lib/orchestration/epic-runner/*` | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
 | Drain pending-cleanup (operator-driven)                               | `drain-pending-cleanup.js` (run directly — see below)     | n/a         | n/a      | ✅ Yes       | Manual escape hatch; same drain + Windows escalation as the `/plan` and `/deliver` paths.   |
 
 Operator takeaway: if you need to force a sweep/GC without closing a story,
 the most direct path is re-running `/plan` (or rebuilding the dispatch
-manifest via `dispatcher.js`) against the active epic. Running
+manifest via `stories-wave-tick.js`) against the active epic. Running
 `/deliver <storyId>` on its own does **not** clean up orphan worktrees
 or stale locks.
 
@@ -102,7 +102,8 @@ or stale locks.
 
 `.worktrees/.pending-cleanup.json` accumulates entries when
 `story-close.js` cannot remove a worktree on Windows because of an
-EBUSY-class lock. Plan boot ([`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js), run by `plan-persist.js` → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
+EBUSY-class lock. Plan boot (`drainPendingCleanupAtBoot`, run by
+`plan-persist.js` → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
 retries the entries — but if the holder
 is a long-lived user-mode process (a stranded test runner, a lingering
 biome/tsc, a node REPL), the lock never clears and the entry pins.
@@ -126,9 +127,9 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 
 | Trigger          | Caller                                                                       |
 | ---------------- | ---------------------------------------------------------------------------- |
-| `/deliver`    | [`Cleaner` lifecycle listener](../../scripts/lib/orchestration/lifecycle/listeners/cleaner.js) at the close-tail cleanup phase (before `wm.gc()`)   |
-| `/plan`     | [`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js) (run by `plan-persist.js`) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
-| Story merge close | [`story-close.js`](../../scripts/story-close.js) (`drainPendingCleanupAfterClose`) |
+| `/deliver`    | Close-tail cleanup phase (before `wm.gc()`) |
+| `/plan`     | `drainPendingCleanupAtBoot` (run by `plan-persist.js`) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
+| Story merge close | `story-close.js` (`drainPendingCleanupAfterClose`) |
 
 All automatic paths call `forceDrainPendingCleanup()` (or are folded into
 `sweepStaleStoryWorktrees`, which calls it first).

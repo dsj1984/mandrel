@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.94.0...mandrel-v2.0.0) (2026-07-14)
+
+
+### ⚠ BREAKING CHANGES
+
+* **v2 Story collapse:** one ticket type (`type::story`), one delivery
+  path (`/deliver` → `helpers/deliver-story`), one branch model
+  (`story-<id>` → PR → `main`). `type::epic`, the epic integration
+  branch, wave/dispatch fan-out, and `delivery.routing.singleDelivery`
+  are removed. Per-Story file/AC ceilings are replaced by
+  `planning.modelCapacity` session-mass thresholds. In-flight v1 Epics
+  must land before upgrading.
+
+
+### Features
+
+* collapse `/plan` to a single flat-Story path and retire epic/story routers
+* collapse delivery onto `helpers/deliver-story` with plan-run sequencing
+* deletion sweep for wave/dispatch, epic-runner, and epic lifecycle strata
+* re-key run temp to `temp/run-<id>/`; slim personas and drop `type::epic`
+* drop `delivery.routing.singleDelivery`; land Story-only docs freshness
+
+
+### Documentation
+
+* refresh always-loaded hierarchy prose (`AGENTS.md`, `CLAUDE.md`,
+  `instructions.md` §5, `SDLC.md`, `architecture.md`, consumer README)
+* regenerate `.agents/docs/configuration.md` without the inert
+  `singleDelivery` cell
+
 ## [1.94.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.93.0...mandrel-v1.94.0) (2026-07-13)
 
 

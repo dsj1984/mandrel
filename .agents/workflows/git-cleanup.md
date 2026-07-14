@@ -226,10 +226,9 @@ The merged-branch sweep recognizes three detection signals, in order:
    `git merge-tree --write-tree <base> <branch>` (git ≥ 2.38) produces a
    tree identical to `<base>`'s own tree — i.e. applying the branch's
    changes on top of `<base>` is a content no-op. This catches
-   `story-<id>` branches merged into `epic/<id>` whose Epic PR
-   **squash-merged** to `main` (the story commits are not ancestors of
-   `main` and the story branch usually has no PR of its own), and any
-   other branch whose content landed via a different route (a renamed
+   `story-<id>` branches whose PR **squash-merged** to `main` (the story
+   commits are not ancestors of `main`), and any other branch whose content
+   landed via a different route (a renamed
    head, a cherry-pick, a manual `merge --squash`). When git rejects
    `--write-tree` (git < 2.38) or the simulated merge conflicts, the
    probe is inconclusive and the branch keeps its existing `not-merged`

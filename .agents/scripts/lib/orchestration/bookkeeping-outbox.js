@@ -37,24 +37,27 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 
-import { epicTempDir } from '../config/temp-paths.js';
+import { runTempDir } from '../config/temp-paths.js';
 import { STATE_LABELS } from './ticketing/reads.js';
 import { upsertStructuredComment } from './ticketing/state.js';
 import { transitionTicketState } from './ticketing/transition.js';
 
-/** Canonical basename for the per-Epic bookkeeping outbox. */
+/** Canonical basename for the per-run bookkeeping outbox. */
 const OUTBOX_BASENAME = 'bookkeeping-outbox.ndjson';
 
 /**
- * Resolve the canonical outbox path for an Epic:
- * `temp/epic-<id>/bookkeeping-outbox.ndjson`.
+ * Resolve the canonical outbox path for a run:
+ * `temp/run-<id>/bookkeeping-outbox.ndjson`.
+ *
+ * Uses `runTempDir` directly; callers may still pass an `epicId`-named
+ * variable while the broader file/flag rename remains out of this pass.
  *
  * @param {number} epicId
  * @param {object} [config] Resolved config (tempRoot).
  * @returns {string}
  */
 export function outboxPathFor(epicId, config) {
-  return path.join(epicTempDir(epicId, config), OUTBOX_BASENAME);
+  return path.join(runTempDir(epicId, config), OUTBOX_BASENAME);
 }
 
 /**

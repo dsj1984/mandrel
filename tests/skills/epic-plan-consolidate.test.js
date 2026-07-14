@@ -42,9 +42,9 @@ describe('skill:epic-plan-consolidate — smoke', () => {
         const errors = [];
 
         // Reads the draft tickets.json and writes a consolidated one + report.
-        if (!/temp\/epic-<Epic_ID>\/tickets\.json/.test(body)) {
+        if (!/temp\/run-<Epic_ID>\/tickets\.json/.test(body)) {
           errors.push(
-            'Skill body must reference the temp/epic-<Epic_ID>/tickets.json artifact',
+            'Skill body must reference the temp/run-<Epic_ID>/tickets.json artifact',
           );
         }
         if (!/consolidation-report\.md/.test(body)) {

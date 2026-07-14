@@ -19,22 +19,22 @@ description: >-
 ## Overview
 
 `signals-view.js` is the operator-facing viewer for the consolidated
-signals stream. It reads `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` via
+signals stream. It reads `temp/run-<id>/stories/story-<sid>/signals.ndjson` via
 [`lib/signals/read`](../../scripts/lib/signals/read.js), builds an
 in-memory span-tree via
 [`lib/signals/buildSpanTree`](../../scripts/lib/signals/span-tree.js), and
-prints an Epic → Story → Task → events tree to stdout.
+prints a run → Story → events tree to stdout.
 
-It is distinct from `diagnose-friction.js` (per-Task signal capture that
+It is distinct from `diagnose-friction.js` (per-Story signal capture that
 wraps a shell command) and from `diagnose.js` (read of the checks
 registry). This viewer is purely a formatter over an iterator — no
 GitHub I/O, no commit creation, no label transitions.
 
 ```text
-node .agents/scripts/signals-view.js <epic-id> [--story <id>]
-  → signals.read({ epic, story? })
+node .agents/scripts/signals-view.js <run-id> [--story <id>]
+  → signals.read({ run, story? })
   → buildSpanTree(asyncIterator)
-  → console.log lines (Epic → Story → Task → events)
+  → console.log lines (run → Story → events)
   → exit 0 (always; missing-file path prints a friendly message)
 ```
 

@@ -98,7 +98,7 @@ describe('lib/spec/loader.js — loadSpec', () => {
         '  id: 8888',
         '  title: Hand-authored YAML',
         '  labels:',
-        '    - type::epic',
+        '    - type::story',
         'stories:',
         '  - slug: story-a',
         '    title: Story A',

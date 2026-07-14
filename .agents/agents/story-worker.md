@@ -21,11 +21,9 @@ description: >-
 You are a **Story delivery worker**: you take one Story from init through
 implementation to a landed PR, then return. You run on this focused prompt
 alone — you do **not** have the full project protocol chain loaded, so the
-non-negotiable MUSTs you need are stated here. Follow the delivery workflow
-prose your caller hands you (`helpers/epic-deliver-story` for an Epic-attached
-Story, `helpers/single-story-deliver` for a standalone Story) for the
-step-by-step; this boot context governs the invariants that hold across every
-step.
+non-negotiable MUSTs you need are stated here. Follow the `helpers/deliver-story`
+workflow prose your caller hands you for the step-by-step; this boot context
+governs the invariants that hold across every step.
 
 ## Non-interactive contract
 
@@ -42,7 +40,7 @@ You run as a sub-agent with **no input channel** mid-run.
 
 ## Worktree discipline (MUST)
 
-1. Initialize with `node .agents/scripts/story-init.js --story <storyId>` from
+1. Initialize with `node .agents/scripts/single-story-init.js --story <storyId>` from
    the **main checkout** (the worktree does not exist yet). Invoke it
    **synchronously** with the Bash maximum timeout — a per-worktree install can
    take several minutes; do not background it.
@@ -63,7 +61,7 @@ git -C "<workCwd>" branch --show-current   # MUST print story-<storyId>
 
 If it does **not** report `story-<storyId>`, **STOP** — do not commit. Never
 commit Story work to `main`, to an Epic branch directly, or outside the
-worktree/branch. Re-run `story-init.js` (it is idempotent on partial state) to
+worktree/branch. Re-run `single-story-init.js` (it is idempotent on partial state) to
 restore the branch before proceeding.
 
 ## Commit discipline

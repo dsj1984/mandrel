@@ -4,7 +4,7 @@ description: >-
   Run a holistic, pre-persist consolidation pass over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/plan`, after `epic-plan-decompose-author` writes
-  `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js`
+  `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js`
   validates and persists it. Reconciles the draft against the Tech Spec
   "Delivery Slicing" ceiling via scope-preserving operations only.
 allowed_tools:
@@ -17,8 +17,8 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only after `epic-plan-decompose-author` has written `temp/epic-<Epic_ID>/tickets.json`; fail loudly if the draft array is missing. Read the sectioned Epic body (which carries the folded Tech Spec sections) from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
-- Emit exactly two artifacts inside `temp/epic-<Epic_ID>/`: the **consolidated** `tickets.json` (overwriting the draft array in place) and a human-readable `consolidation-report.md` (the rationale + before/after diff the operator reviews at the HITL gate). Both MUST exist before returning.
+- Run only after `epic-plan-decompose-author` has written `temp/run-<Epic_ID>/tickets.json`; fail loudly if the draft array is missing. Read the sectioned Epic body (which carries the folded Tech Spec sections) from `temp/run-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
+- Emit exactly two artifacts inside `temp/run-<Epic_ID>/`: the **consolidated** `tickets.json` (overwriting the draft array in place) and a human-readable `consolidation-report.md` (the rationale + before/after diff the operator reviews at the HITL gate). Both MUST exist before returning.
 - **Scope conservation is the load-bearing invariant.** You are a *critic*, not a second author: you MUST NOT add scope, invent tickets, or drop acceptance criteria. Every acceptance item and every `verify` entry present in the draft MUST survive into the consolidated array (possibly re-homed onto a merged Story). **This is your contract, not a machine guarantee:** there is **no runtime acceptance-union diff** on your output. The only deterministic runtime backstop the validator applies after you run is the standard ticket-structure validation — it does not re-derive the pre-consolidation acceptance/verify union, so a critic that silently dropped an acceptance item would **not** be caught downstream. (The repo's unit test exercises a *pure model* of the merge over an over-fragmented fixture to document the intended invariant; it does not inspect this Skill's actual output.) Conserve scope yourself, deliberately, on every merge.
 - Your operations are constrained to exactly two shapes: **(1) merge two or more Stories** into one (union their `changes`/`acceptance`/`verify`/`references`, keep one coherent `goal`); **(2) rewire `depends_on`** so the edges still reference surviving sibling-Story slugs. No other mutation is permitted.
 - Consume the Tech Spec **"Delivery Slicing"** section as a **ceiling, not a target**, when one is present: the Architect's proposed N shippable Stories is an *upper bound*, not a floor. Cluster the draft's Stories toward that grouping, and go **below** N when slices form dependent single-consumer chains — a slice whose "Independent? No" row carries no justification (parallelism, risk isolation, or delivery-envelope pressure) folds into its consumer. You **never** split above N. When the section is **absent**, degrade gracefully — apply only the cohesion rules below and leave the rest of the draft shape intact.
@@ -47,7 +47,7 @@ critic cannot grade its own homework.
 
 `/plan` Phase 8, as the **8.3 — Holistic Consolidation** sub-step:
 immediately after `epic-plan-decompose-author` writes
-`temp/epic-<Epic_ID>/tickets.json` and **before**
+`temp/run-<Epic_ID>/tickets.json` and **before**
 `plan-persist.js --tickets …` validates and persists. The pass operates
 on the temp artifact so the holistic adjustment happens before the GitHub
 write; the deterministic validator runs *after* it, so the critic can never
@@ -58,9 +58,9 @@ emit a plan the validator would reject.
 The `/plan` workflow dispatches this skill inside a fresh-context sub-agent,
 passing the Epic ID as the Skill argument. The Skill itself reads:
 
-- `temp/epic-<Epic_ID>/tickets.json` — the **draft** Story array the
+- `temp/run-<Epic_ID>/tickets.json` — the **draft** Story array the
   `epic-plan-decompose-author` Skill wrote. This is the consolidation input.
-- `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope
+- `temp/run-<Epic_ID>/decomposer-context.json` — the authoring envelope
   emitted by `plan-context.js --epic <Epic_ID>`. Read `epicBody`
   from it — the sectioned Epic body carrying the folded Tech Spec
   sections (there is no separate `techSpec` key — Story #4324). The
@@ -71,12 +71,12 @@ passing the Epic ID as the Skill argument. The Skill itself reads:
 
 ## Outputs
 
-- `temp/epic-<Epic_ID>/tickets.json` — the **consolidated** array, overwriting
+- `temp/run-<Epic_ID>/tickets.json` — the **consolidated** array, overwriting
   the draft. Same schema as the author skill emits (flat Story array; Stories
   carry top-level `acceptance[]` / `verify[]`; `body` is a serialized string).
   The downstream `plan-persist.js --tickets …` validator is the final
   gate — author for its rules, not for "looks right."
-- `temp/epic-<Epic_ID>/consolidation-report.md` — a human-readable
+- `temp/run-<Epic_ID>/consolidation-report.md` — a human-readable
   rationale + before/after diff. This is the artifact the workflow shows the
   operator at the HITL diff gate before the persist call.
 
@@ -86,8 +86,8 @@ Both files MUST exist before the Skill returns.
 
 ### Step 1 — Load the draft and the ceiling
 
-Read `temp/epic-<Epic_ID>/tickets.json` (the draft array) and
-`temp/epic-<Epic_ID>/decomposer-context.json` (for the `epicBody`, which
+Read `temp/run-<Epic_ID>/tickets.json` (the draft array) and
+`temp/run-<Epic_ID>/decomposer-context.json` (for the `epicBody`, which
 carries the Tech Spec sections). Locate
 the **"Delivery Slicing"** section. Pin two facts before mutating
 anything:
@@ -139,9 +139,9 @@ After applying the operations:
 
 ### Step 4 — Write both artifacts
 
-Write the consolidated array to `temp/epic-<Epic_ID>/tickets.json` (2-space
+Write the consolidated array to `temp/run-<Epic_ID>/tickets.json` (2-space
 indent, machine-consumed) and the rationale + before/after diff to
-`temp/epic-<Epic_ID>/consolidation-report.md`. When the consolidated count
+`temp/run-<Epic_ID>/consolidation-report.md`. When the consolidated count
 landed **below** the Delivery-Slicing ceiling, the report MUST call that out
 explicitly — a `Below ceiling: N (Delivery Slicing) → M (consolidated)` line
 plus a one-line rationale per below-ceiling merge (which dependent
@@ -153,18 +153,18 @@ so the operator sees the coarsening at the Phase 8.3 advisory diff.
 Return control. The workflow shows the operator the consolidation report at the
 HITL diff gate; on approval it runs
 `node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
-temp/epic-<Epic_ID>/tickets.json`, which validates the consolidated array,
+temp/run-<Epic_ID>/tickets.json`, which validates the consolidated array,
 persists the hierarchy, and flips the Epic to `agent::ready`.
 
 ## Constraints
 
 - Do **not** call the GitHub API from this Skill. It reads two temp artifacts
   and writes two temp artifacts; persistence belongs to the script.
-- Do **not** write outside `temp/epic-<Epic_ID>/`.
+- Do **not** write outside `temp/run-<Epic_ID>/`.
 - Do **not** add scope or invent tickets. The two permitted operations (merge
   Stories, rewire `depends_on`) are exhaustive — anything else is out of
   contract.
-- If `temp/epic-<Epic_ID>/tickets.json` is missing, fail loudly and instruct
+- If `temp/run-<Epic_ID>/tickets.json` is missing, fail loudly and instruct
   the caller to run the `epic-plan-decompose-author` Skill first.
 - The validator
   ([`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js))

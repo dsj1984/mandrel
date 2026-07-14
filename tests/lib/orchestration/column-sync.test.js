@@ -66,7 +66,7 @@ describe('columnForLabels', () => {
   });
 
   it('returns null for labels with no mapping', () => {
-    assert.equal(columnForLabels(['type::epic']), null);
+    assert.equal(columnForLabels(['area::docs']), null);
     assert.equal(columnForLabels(['agent::planning']), null);
     assert.equal(columnForLabels(['agent::dispatching']), null);
     assert.equal(columnForLabels([]), null);
@@ -156,7 +156,7 @@ describe('ColumnSync.sync', () => {
   it('no-ops when the label has no column mapping', async () => {
     const provider = providerWithProject();
     const sync = makeSync({ provider });
-    const res = await sync.sync(321, ['type::epic']);
+    const res = await sync.sync(321, ['area::docs']);
     assert.equal(res.status, 'skipped');
     assert.equal(res.reason, 'no-matching-label');
   });

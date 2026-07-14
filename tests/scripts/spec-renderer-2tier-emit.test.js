@@ -52,7 +52,7 @@ const EPIC = {
   id: 3163,
   title: 'Hotfix bootstrap — 2-tier spec rendering',
   body: 'Bootstrap fixture.',
-  labels: ['type::epic'],
+  labels: ['type::story'],
 };
 
 function build3TierTickets() {

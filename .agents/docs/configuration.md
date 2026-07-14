@@ -133,7 +133,7 @@ top-level keys are validation errors.
 | `docsFreshness` | No | `object` | — | Nested configuration block. |
 | `docsFreshness.paths` | No | `array` | — | — |
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
-| `deliverRunner.concurrencyCap` | No | `integer` | — | Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design — keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md § Phase 2b for the dispatch model and the throughput tradeoff discussion. |
+| `deliverRunner.concurrencyCap` | No | `integer` | — | Maximum ready Stories dispatched by /deliver at once. Default 1. Conservative by design — keeps host-quota consumption predictable and avoids GitHub API saturation. Operators running multi-Story plan-runs on hosts with adequate parallel-agent quota can raise this value to reduce wall-clock time where dependencies allow. See deliver.md for the sequencing model and throughput tradeoff. |
 | `deliverRunner.progressReportIntervalSec` | No | `integer` | — | — |
 | `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
@@ -263,10 +263,10 @@ top-level keys are validation errors.
 | `quality.baselineEpsilon.bundle-size` | No | `number` | — | — |
 | `quality.baselineEpsilon.duplication` | No | `number` | — | — |
 | `quality.requireBaselines` | No | `boolean` | — | Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture, analogous to delivery.ci.requireChecks). |
-| `quality.navigability` | No | `object` | — | Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
+| `quality.navigability` | No | `object` | — | Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's risk-routed ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
 | `quality.navigability.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against. |
 | `quality.navigability.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against. |
-| `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite the deliver-epic.md Phase 6.5 post-wave integration gate runs. |
+| `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs. |
 | `lifecycle` | No | `object` | — | Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories. |
 | `lifecycle.timeouts` | No | `object<map>` | — | — |
 | `lifecycle.heartbeatWarnSeconds` | No | `integer` | — | — |
@@ -274,7 +274,7 @@ top-level keys are validation errors.
 | `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
 | `epicAudit` | No | `object` | — | Nested configuration block. |
-| `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
+| `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding during /deliver's risk-routed review/audit ceremony. 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `epicAudit.autoFixSeverity` | No | `"high"` \| `"medium"` | `"high"` | Severity threshold for on-branch remediation of the Epic-close lens findings walked inside the /deliver Phase 5 code-review pass (Story #4412 folded the former Phase 4 lens walk into that single cumulative-diff pass). `high` (default) routes only 🔴 Critical / 🟠 High lens findings into the host-LLM remediation loop while 🟡 Medium and 🟢 Suggestion findings graduate to follow-up issues (🟡 Medium concerns are already remediated shift-left at the write-time and Story-scope tiers); `medium` opts back into routing 🔴/🟠/🟡 (Mediums batched per lens). Hard cutover — no back-compat flag. |
 | `codeReview` | No | `object` | — | Nested configuration block. |
@@ -303,8 +303,7 @@ top-level keys are validation errors.
 | `ci.watch.maxResumes` | No | `integer` | — | — |
 | `ci.autoMerge` | No | `"trust-ci"` \| `"strict"` | — | Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate. |
 | `ci.requireChecks` | No | `boolean` | — | Story #4472. Fail-closed-without-checks policy. When true, the AutomergePredicate refuses to arm merge in a repo that reports zero required checks ('no checks reported'), treating the absent CI gate as a hard block. Defaults to false so a checks-less repo with green close-validation gates lands headlessly instead of parking on the operator-merges path. |
-| `routing` | No | `object` | — | Epic #4475 (M4-A). Delivery-route selection for epic-shaped work. |
-| `routing.singleDelivery` | No | `boolean` | — | Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet. |
+| `routing` | No | `object` | — | v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6. |
 | `routing.roleScopedAgents` | No | `boolean` | — | Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure (≈50KB → ≈8KB per spawn — the payoff of the context diet). When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate. |
 | `routing.freshCriticSampleRate` | No | `number` | — | Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Risk-routed ceremony sends a low-risk acceptance cluster down the contract-identical inline critic path, but this fraction of low-risk clusters is still forced through a fresh-context critic so low risk never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js). |
 | `preflight` | No | `object` | — | Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked. |
@@ -705,7 +704,7 @@ missing entries fall back to in-listener defaults.
 
 ### `delivery.epicAudit`
 
-`/deliver` Phase 4 (epic-audit) auto-fix budget.
+`/deliver` risk-routed review/audit auto-fix budget.
 
 | Field              | Required | Default | Purpose                                                              |
 | ------------------ | -------- | ------- | -------------------------------------------------------------------- |
@@ -738,12 +737,11 @@ configuration, and sets the auto-fix budget enforced at each close scope.
 `maxFixAttempts` and `maxFixScopeFiles` are enforced at two distinct
 points in the SDLC, using the **same configured values** for both scopes:
 
-- **Story-close** — `story-close.js` runs `runCodeReview()` against the
-  Story branch's diff and applies the budget per finding before merging
-  into `epic/<epicId>`.
-- **Epic-close** — `/deliver` Phase 5 runs `runCodeReview()` against
-  the integrated Epic branch and applies the same per-finding budget
-  before opening the PR to `main`.
+- **Story-close** — `single-story-close.js` runs `runCodeReview()` against the
+  Story branch's diff and applies the budget per finding before opening the PR
+  to `main`.
+- **Run close** — `/deliver` applies the same per-finding budget while each
+  Story runs through the risk-routed review/audit ceremony.
 
 Setting `maxFixAttempts: 0` disables auto-fix at both scopes; there is no
 per-scope override.

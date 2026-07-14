@@ -241,7 +241,7 @@ describe('buildContextEnvelope', () => {
     });
     assert.equal(
       envelope.deliverContract.workflow,
-      '.agents/workflows/helpers/single-story-deliver.md',
+      '.agents/workflows/helpers/deliver-story.md',
     );
     assert.ok(envelope.deliverContract.requiredLabels.includes('type::story'));
     assert.ok(

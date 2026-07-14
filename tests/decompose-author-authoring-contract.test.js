@@ -9,10 +9,9 @@
  *     `changes[]` / `references[]` are an advisory sketch the executor may
  *     revise (AC-9), and documents the navigate-don't-deep-link standard for
  *     signed-in acceptance scenarios (AC-6).
- *   - `.agents/personas/engineer.md` grants the executor explicit latitude to
- *     deviate from the suggested approach when the rationale is logged, and
- *     states the latitude never overrides `acceptance[]` / `verify[]` or the
- *     security baseline (AC-9 / AC-14).
+ *   - `.agents/personas/engineer.md` is intentionally collapsed to a one-line
+ *     prose-only role label; implementation-latitude prose now lives with the
+ *     Story authoring skill contract.
  *
  * This is a structural assertion over the authored documentation source — it
  * does not execute the planning flow. It also guards the additive-only
@@ -130,51 +129,11 @@ describe("epic-plan-decompose-author navigate-don't-deep-link standard (F5)", ()
   });
 });
 
-describe('engineer persona executor latitude (F8 / AC-14)', () => {
-  it('grants explicit latitude to deviate from the suggested approach', () => {
-    assert.match(
-      engineer,
-      /Implementation Latitude/,
-      'engineer.md must carry an Implementation Latitude section',
-    );
-    assert.match(
-      engineer,
-      /MAY\s+deviate\s+from\s+the\s+suggested\s+approach/,
-      'engineer.md must grant latitude to deviate from the suggested approach',
-    );
-  });
-
-  it('requires the deviation rationale to be logged', () => {
-    assert.match(
-      engineer,
-      /record\s+the\s+rationale/i,
-      'engineer.md must require recording the deviation rationale',
-    );
-  });
-
-  it('treats changes[]/references[] as advisory and acceptance[]/verify[] as binding', () => {
-    assert.match(
-      engineer,
-      /advisory implementation\s+sketch/i,
-      'engineer.md must call changes[]/references[] an advisory sketch',
-    );
-    assert.match(
-      engineer,
-      /binding\s+contract/i,
-      'engineer.md must call acceptance[]/verify[] the binding contract',
-    );
-  });
-
-  it('states the latitude never overrides acceptance/verify or the security baseline', () => {
-    assert.match(
-      engineer,
-      /does\s+\*\*not\*\*\s+license\s+deviating\s+from\s+`acceptance\[\]`\s+\/\s+`verify\[\]`/,
-      'engineer.md must say latitude does not override acceptance[]/verify[]',
-    );
-    assert.match(
-      engineer,
-      /security-baseline\.md/,
-      'engineer.md must bound the latitude by the security baseline',
+describe('engineer persona zero-runtime label (Stage 5)', () => {
+  it('is a one-line prose-only role label', () => {
+    assert.equal(
+      engineer.trim(),
+      '# engineer — default builder persona (prose-only role label; zero runtime cost)',
     );
   });
 });

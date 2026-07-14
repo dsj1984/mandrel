@@ -64,7 +64,7 @@ function captureStdout() {
 }
 
 async function writeSignalsFile(rootDir, epic, story, events) {
-  const dir = path.join(rootDir, `epic-${epic}`, 'stories', `story-${story}`);
+  const dir = path.join(rootDir, `run-${epic}`, 'stories', `story-${story}`);
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, 'signals.ndjson');
   await fs.writeFile(

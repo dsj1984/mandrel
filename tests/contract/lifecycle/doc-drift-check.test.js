@@ -369,8 +369,8 @@ describe('check-lifecycle-doc-drift — listener loader', () => {
       !names.includes('Index'),
       `loader should skip index.js (got ${names.join(',')})`,
     );
-    assert.ok(names.includes('AcceptanceReconciler'));
     assert.ok(names.includes('AutomergeArmer'));
+    assert.ok(names.includes('CheckpointPointerWriter'));
   });
 
   it('every listener with a literal subscription appears in the doc table', () => {

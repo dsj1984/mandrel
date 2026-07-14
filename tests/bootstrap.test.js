@@ -101,10 +101,9 @@ class MockProvider extends ITicketingProvider {
 describe('Bootstrap — LABEL_TAXONOMY', () => {
   it('contains all required type labels', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
-    // Story #4041 / Epic #3078 — the retired Feature and Task tier
-    // labels are gone; the type axis is exactly Epic + Story.
+    // Stage 5 hard cutover — the type axis is Story-only.
     const typeLabels = names.filter((n) => n.startsWith('type::')).sort();
-    assert.deepEqual(typeLabels, ['type::epic', 'type::story']);
+    assert.deepEqual(typeLabels, ['type::story']);
   });
 
   it('contains all required agent state labels', () => {
@@ -154,7 +153,7 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // (planning content folded into managed Epic-body sections).
     // Epic #4474 PR4 — added `delivery::single` (single-delivery routing
     // marker applied by plan-persist.js; inert until #4475).
-    const nonPersonaBase = 11;
+    const nonPersonaBase = 10;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

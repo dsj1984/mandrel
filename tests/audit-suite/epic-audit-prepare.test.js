@@ -35,7 +35,7 @@ function makeProvider() {
         id: EPIC_ID,
         title: 'Smart change-set audits at Epic finalize',
         body: 'Wire selectAudits into a new Phase 4 helper.',
-        labels: ['type::epic'],
+        labels: ['type::story'],
       },
     },
   });

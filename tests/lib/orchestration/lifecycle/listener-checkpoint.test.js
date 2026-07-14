@@ -6,7 +6,7 @@
  * Acceptance contract:
  *   - Subscribes to every `*.end` event in the lifecycle taxonomy.
  *   - After each `*.end` writes
- *     `temp/epic-<id>/checkpoint.json` with
+ *     `temp/run-<id>/checkpoint.json` with
  *     `{ lastCompletedSeqId, phase }` where `lastCompletedSeqId`
  *     monotonically increases.
  *   - Self-emits `checkpoint.written` exactly once per observed
@@ -44,10 +44,10 @@ function readPointer(pointerPath) {
 }
 
 describe('resolvePointerPath', () => {
-  it('builds <tempRoot>/epic-<id>/checkpoint.json', () => {
+  it('builds <tempRoot>/run-<id>/checkpoint.json', () => {
     assert.equal(
       resolvePointerPath({ tempRoot: '/t', epicId: 2172 }),
-      path.join('/t', 'epic-2172', POINTER_FILENAME),
+      path.join('/t', 'run-2172', POINTER_FILENAME),
     );
   });
 

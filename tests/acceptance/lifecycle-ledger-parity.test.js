@@ -202,7 +202,7 @@ describe('Epic #2307 — Acceptance Criterion 8 (lifecycle ledger parity)', () =
       writeFileSync(
         BASELINE_PATH,
         readFileSync(
-          path.join(tempRoot, `epic-${FIXTURE_EPIC_ID}`, 'lifecycle.ndjson'),
+          path.join(tempRoot, `run-${FIXTURE_EPIC_ID}`, 'lifecycle.ndjson'),
           'utf8',
         ),
         'utf8',

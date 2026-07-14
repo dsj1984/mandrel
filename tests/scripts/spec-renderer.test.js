@@ -121,7 +121,7 @@ const FIXTURE_EPIC = {
   id: 1182,
   title: 'v6 Epic D — Declarative epic.yaml + reconciler',
   body: 'Structural SSOT migration.',
-  labels: ['type::epic', 'agent::executing'],
+  labels: ['type::story', 'agent::executing'],
 };
 
 describe('lib/orchestration/spec-renderer.js — basic projection', () => {
@@ -132,7 +132,7 @@ describe('lib/orchestration/spec-renderer.js — basic projection', () => {
       spec.epic.title,
       'v6 Epic D — Declarative epic.yaml + reconciler',
     );
-    assert.deepEqual(spec.epic.labels, ['type::epic']); // agent::* stripped
+    assert.deepEqual(spec.epic.labels, ['type::story']); // agent::* stripped
     assert.equal(spec.stories.length, 3);
     assert.deepEqual(
       spec.stories.map((st) => st.slug),

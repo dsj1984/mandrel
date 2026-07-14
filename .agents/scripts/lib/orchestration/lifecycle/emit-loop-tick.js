@@ -40,7 +40,7 @@
  * `ledgerPath` (the host-loop case — the loop owns where its ledger
  * lives) OR an `epicId`, in which case the canonical
  * `epicLedgerPath(epicId)` is used so an Epic-scoped loop's ticks land
- * in the same `temp/epic-<id>/lifecycle.ndjson` the rest of the run
+ * in the same `temp/run-<id>/lifecycle.ndjson` the rest of the run
  * reads. Exactly one of the two MUST be supplied.
  */
 
@@ -65,8 +65,8 @@ const SCHEMA_DIR = path.resolve(
 const VALID_STATUSES = new Set(['running', 'done', 'blocked']);
 
 /**
- * Parse `temp/epic-<id>/lifecycle.ndjson` (or any
- * `<dir>/epic-<id>/lifecycle.ndjson`) back into `{ tempRoot, epicId }`
+ * Parse `temp/run-<id>/lifecycle.ndjson` (or any
+ * `<dir>/run-<id>/lifecycle.ndjson`) back into `{ tempRoot, epicId }`
  * so a LedgerWriter — which is constructed from `{ epicId, tempRoot }`
  * rather than a raw path — can be bound to the supplied ledger path.
  *
@@ -79,13 +79,13 @@ const VALID_STATUSES = new Set(['running', 'done', 'blocked']);
  * @returns {{ tempRoot: string, epicId: number }}
  */
 function decomposeLedgerPath(ledgerPath) {
-  const epicDir = path.dirname(ledgerPath);
-  const tempRoot = path.dirname(epicDir);
-  const epicDirName = path.basename(epicDir);
-  const m = /^epic-(\d+)$/.exec(epicDirName);
+  const runDir = path.dirname(ledgerPath);
+  const tempRoot = path.dirname(runDir);
+  const runDirName = path.basename(runDir);
+  const m = /^run-(\d+)$/.exec(runDirName);
   if (!m) {
     throw new Error(
-      `emitLoopTick: ledgerPath does not match <tempRoot>/epic-<id>/lifecycle.ndjson layout (got ${ledgerPath})`,
+      `emitLoopTick: ledgerPath does not match <tempRoot>/run-<id>/lifecycle.ndjson layout (got ${ledgerPath})`,
     );
   }
   const epicId = Number.parseInt(m[1], 10);

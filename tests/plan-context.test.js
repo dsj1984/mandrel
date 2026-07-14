@@ -24,7 +24,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { findSimilarOpenEpics } from '../.agents/scripts/lib/duplicate-search.js';
-import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
 import {
   buildDeliveryShapeSignal,
   buildPlanContext,
@@ -35,6 +34,7 @@ import {
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
+import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,

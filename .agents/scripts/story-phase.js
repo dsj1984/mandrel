@@ -50,12 +50,12 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { emitStoryHeartbeat } from './lib/orchestration/lifecycle/emit-story-heartbeat.js';
 import {
   defaultStoryPhases,
   STORY_PHASE_ORDER,
   upsertStoryRunProgress,
-} from './lib/orchestration/epic-runner/story-run-progress-writer.js';
-import { emitStoryHeartbeat } from './lib/orchestration/lifecycle/emit-story-heartbeat.js';
+} from './lib/orchestration/story-progress/story-run-progress-writer.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { normalizeOperatorHandle } from './lib/orchestration/ticket-lease.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';

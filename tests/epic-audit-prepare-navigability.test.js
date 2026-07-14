@@ -40,7 +40,7 @@ function makeProvider() {
         id: EPIC_ID,
         title: 'Navigability audit lens',
         body: 'Whole route tree + nav registry evaluation.',
-        labels: ['type::epic'],
+        labels: ['type::story'],
       },
     },
   });

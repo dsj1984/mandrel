@@ -4,7 +4,7 @@
   "epic": {
     "id": 3078,
     "title": "2-tier collapse fixture Epic",
-    "labels": ["type::epic"]
+    "labels": ["type::story"]
   },
   "stories": [
     {

@@ -66,7 +66,7 @@ beforeEach(async () => {
   cfg = { project: { paths: { tempRoot: workRoot } } };
   const dir = path.join(
     workRoot,
-    `epic-${EPIC_ID}`,
+    `run-${EPIC_ID}`,
     'stories',
     `story-${STORY_ID}`,
   );
@@ -80,7 +80,7 @@ afterEach(() => {
 async function writeSignals(events) {
   const target = path.join(
     workRoot,
-    `epic-${EPIC_ID}`,
+    `run-${EPIC_ID}`,
     'stories',
     `story-${STORY_ID}`,
     'signals.ndjson',

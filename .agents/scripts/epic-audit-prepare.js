@@ -2,12 +2,17 @@
 /* node:coverage ignore file */
 
 /**
- * epic-audit-prepare.js — Phase 4 prepare CLI for `/deliver`.
+ * epic-audit-prepare.js — per-run audit sweep seed CLI for `/deliver`.
  *
  * Thin glue around the audit-suite `selectAudits` SDK. Reads the Epic
  * ticket, runs the change-set selector against the Epic branch diff
  * (`main..epic/<id>`), and emits a JSON envelope on stdout that the
  * inline `helpers/epic-audit.md` consumes.
+ *
+ * Despite the historical filename, local artifacts for this audit sweep
+ * resolve under `temp/run-<id>/` through the `epicTempDir` alias to
+ * `runTempDir`; callers should treat the id as the run id for filesystem
+ * purposes.
  *
  * The CLI carries no business logic beyond:
  *   1. validating `--epic <id>`,

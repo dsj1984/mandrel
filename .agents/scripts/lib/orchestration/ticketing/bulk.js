@@ -20,7 +20,6 @@
  */
 
 import { Logger } from '../../Logger.js';
-import { TYPE_LABELS } from '../../label-constants.js';
 import { ALL_STATES, STATE_LABELS } from './reads.js';
 import {
   postStructuredComment,
@@ -289,30 +288,6 @@ async function processCascadeParentLocked(
       (st) => st.labels.includes(STATE_LABELS.DONE) || st.state === 'closed',
     );
     if (!allDone) return { cascadedTo, failed };
-
-    // EXCLUSION: Epics do not auto-close via cascade. Epics close via
-    // formal /deliver (its own machinery handles branch merges,
-    // PR-driven `Closes #N` auto-close, and a recovery transition in
-    // `epic-deliver-finalize.js`).
-    //
-    // Legacy planning tickets (pre-#4324 `context::*` artifacts on
-    // historical Epics) DO close via cascade (Story #1951): leaving
-    // them open as native sub-issues of the Epic blocks GitHub from
-    // honoring the Epic's `Closes #N` footer. New Epics carry their
-    // planning content on the Epic body itself, so this branch is
-    // purely a legacy-hygiene path.
-    //
-    // Reuse the parentSnapshot from the idempotency check above — it is
-    // a fresh read (cache was invalidated before the getTicket call) and
-    // the parent's type label is invariant within a single cascade lock
-    // hold, so a second getTicket is wasteful and redundant.
-    const isEpic = parentSnapshot.labels.includes(TYPE_LABELS.EPIC);
-    if (isEpic) {
-      logger.warn(
-        `[Ticketing] Cascade reached Epic #${parentId}. Skipping auto-close (Epics close via the operator's PR merge).`,
-      );
-      return { cascadedTo, failed };
-    }
 
     // Retry the parent transition on transient `gh` failures (rate limit,
     // 5xx, transport timeouts). Permanent failures fall through to the

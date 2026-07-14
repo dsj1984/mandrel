@@ -17,7 +17,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { buildAuthoringContext } from '../../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
+import { buildAuthoringContext } from '../../.agents/scripts/lib/orchestration/planning/authoring-context.js';
 
 function makeProvider() {
   return {

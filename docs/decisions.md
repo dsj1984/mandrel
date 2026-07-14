@@ -169,9 +169,8 @@ cheap and safe; bus where the resume contract is load-bearing" — the audit's
 target end-state, reached by subtraction rather than by a rewrite.
 
 **The audit's one concrete safety motive is already satisfied without the
-rewrite.** Story #3901 shipped
-[`tests/contract/lifecycle/event-connectivity.test.js`](../tests/contract/lifecycle/event-connectivity.test.js):
-a contract test asserting **every schema'd event has ≥1 production emitter and
+rewrite.** Story #3901 shipped an event-connectivity contract test asserting
+**every schema'd event has ≥1 production emitter and
 ≥1 production subscriber (or an explicitly classified terminal/external
 rationale)**. That is the mechanical "no dead wire / no wrong emit" guard the
 audit said a direct call graph would provide — now enforced in CI against the
@@ -185,8 +184,7 @@ own "~100 LOC new code" framing and churning the surfaces #3901/#3904 stabilized
 days earlier. That is the opposite of a clean hard cutover.
 
 **2. The steady-state wave-loop collapse is ALREADY DONE by the merged
-dependencies.** The loop is a single stateless `tick()` planner
-([`lib/wave-runner/tick.js`](../.agents/scripts/lib/wave-runner/tick.js)) →
+dependencies.** The loop is a single stateless tick planner →
 fan-out → `epic-execute-record-wave.js` (the only advancer of `currentWave`) →
 loop. Story #3909 already retired the write-only wave **bus** events with no
 reader (`wave-tick`, `epic-complete`), consolidating durable wave progress to
@@ -320,8 +318,8 @@ call graph and found it does not hold:
 
 - The **three automatic callers** —
   the in-process `epic-runner.js` Phase 7 (since retired in Epic #3823 —
-  the live `/epic-deliver` loop owns this via the `Cleaner` lifecycle
-  listener), [`story-close.js`](../.agents/scripts/story-close.js)
+  the live `/epic-deliver` loop owns this via the close-tail cleanup path),
+  `story-close.js`
   (`drainPendingCleanupAfterClose`), and
   [`worktree-sweep.js`](../.agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js)
   (via `drainPendingCleanupAtBoot`) — all invoke
@@ -698,8 +696,7 @@ status }` at the two consuming call sites
 (`wave-dispatcher.js`, `manifest-builder.js`). The manifest's
 `executor` field is fixed to the string literal `'claude-code'`.
 
-The **dispatch manifest** (md + structured comment, schema
-[`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
+The **dispatch manifest** (md + structured comment, formerly schema-backed)
 is the cross-runtime contract. Any future host that wants to replay,
 audit, or interoperate with a Mandrel dispatch consumes the manifest,
 not an in-process interface.

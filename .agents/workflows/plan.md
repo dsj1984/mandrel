@@ -98,7 +98,7 @@ node .agents/scripts/plan-persist.js \
 
 Persist creates Story issue(s) with `type::story` + `agent::ready`. When
 N>1 it also applies a shared `plan-run::<id>` label. Ends by naming
-`/deliver <storyId>` (or Stage 4 `/deliver --run <planRunId>` for N>1).
+`/deliver <storyId>` (or `/deliver --run <planRunId>` for N>1).
 
 ## Constraints
 

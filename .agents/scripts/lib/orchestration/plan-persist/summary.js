@@ -108,7 +108,7 @@ export function buildPlanSummaryCommentBody({
     : [];
 
   const runLine = planRunLabel
-    ? `- Plan-run label: \`${planRunLabel}\` (N>1 — deliver with \`/deliver --run\` once Stage 4 wires it).`
+    ? `- Plan-run label: \`${planRunLabel}\` (N>1 — deliver with \`/deliver --run <planRunId>\`).`
     : '- Plan-run: single Story (default).';
 
   return [
@@ -128,6 +128,6 @@ export function buildPlanSummaryCommentBody({
     '',
     ...renderWaveTableLines(waveTable),
     '',
-    '_Preview only — Stage 4 sequences multi-Story runs; N=1 delivers via `/deliver <storyId>`._',
+    '_Deliver with `/deliver <storyId>` (N=1) or `/deliver --run <planRunId>` (N>1)._',
   ].join('\n');
 }

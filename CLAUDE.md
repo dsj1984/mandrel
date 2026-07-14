@@ -33,15 +33,13 @@
 
 ## Ticket hierarchy
 
-> Mandrel uses a **2-tier ticket hierarchy** (Epic → Story),
-> with acceptance criteria and verification steps inlined on the Story
-> body (`acceptance[]` / `verify[]`). All delivery flows through
-> `/deliver`, which routes Epic vs standalone-Story input — Epic-attached
-> Stories are delivered as part of their Epic (the Epic path fans out
-> `helpers/epic-deliver-story` per wave). There is no `type::task`
-> ticket layer, no per-Task `agent::*` lifecycle, and no `task-commit.js`
-> ceremony. Commits land on `story-<storyId>` directly from the agent and
-> reference the parent Story via `(refs #<storyId>)`. See
+> Mandrel uses a **Story-only** ticket model. Acceptance criteria and
+> verification steps are inlined on the Story body (`acceptance[]` /
+> `verify[]`); the folded Tech Spec lives in `## Spec`. `/plan` emits
+> one or more `type::story` issues (default N=1); `/deliver` runs each
+> Story via `helpers/deliver-story` on `story-<id>` → PR → `main`.
+> Commits land on `story-<storyId>` and reference the Story via
+> `(refs #<storyId>)`. There is no `type::epic` / `type::task` layer and
+> no per-Task commit ceremony. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the full
-> contract.
+> [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md) for the full contract.

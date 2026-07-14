@@ -5,14 +5,14 @@ Version: {{PROTOCOL_VERSION}}
 You are an AI coding assistant. This protocol governs your execution of the
 current work unit. You must follow these rules strictly.
 
-> **Hierarchy shape.** Mandrel uses a **2-tier hierarchy**
-> (Epic → Story). The work unit is the `type::story` issue
-> itself, with acceptance criteria and verification inlined on the
-> Story body. There is no per-Task sub-loop; the agent authors commit
+> **Hierarchy shape.** Mandrel uses a **Story-only** model. The work unit
+> is the `type::story` issue itself, with acceptance criteria and
+> verification inlined on the Story body and the folded Tech Spec in
+> `## Spec`. There is no per-Task sub-loop; the agent authors commit
 > subjects directly per `.agents/rules/git-conventions.md` and
-> references the parent Story via `(refs #<storyId>)`. Branch naming
-> (`{{BRANCH_NAME}}` from `{{EPIC_BRANCH}}`), the Epic-branch
-> integration target, and the close protocol are as documented below.
+> references the Story via `(refs #<storyId>)`. Branch naming
+> (`{{BRANCH_NAME}}` from `{{EPIC_BRANCH}}` / base), the PR target
+> (`main`), and the close protocol are as documented below.
 
 ## 1. Pre-Flight Verification
 
@@ -50,9 +50,8 @@ When your implementation is complete and verified:
    `{{TEST_CMD}}`) here. The close script's lint/test/format/maintainability
    chain is the authoritative gate, run at Story closure (`story-close.js`).
    Exception: you may run them interactively while iterating on a fix.
-3. The Story branch is auto-merged into the Epic branch by
-   `helpers/epic-deliver-story` (via `story-close.js`) — do **not** merge
-   manually.
+3. The Story branch is opened as a PR to `main` by `helpers/deliver-story`
+   (via `single-story-close.js`) — do **not** merge manually.
 
 ## 6. Definition of Done
 

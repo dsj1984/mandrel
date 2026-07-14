@@ -3,7 +3,7 @@
 /**
  * bookkeeping-reconcile.js — Epic #4476 (M5).
  *
- * Drain the per-Epic bookkeeping outbox (buffered structured-comment upserts
+ * Drain the per-run bookkeeping outbox (buffered structured-comment upserts
  * and `agent::*` label flips accumulated during an unattended run) to GitHub,
  * once, at finalize. GitHub becomes the source of truth at rest; the outbox is
  * cleared only when the whole batch lands (crash-recovery: a partial drain
@@ -39,7 +39,7 @@ import { createProvider } from './lib/provider-factory.js';
 const HELP = `Usage: node .agents/scripts/bookkeeping-reconcile.js \\
   --epic <id> [--provider github]
 
-Drains temp/epic-<id>/bookkeeping-outbox.ndjson (buffered comment upserts +
+Drains temp/run-<id>/bookkeeping-outbox.ndjson (buffered comment upserts +
 label flips from an unattended run) to GitHub once, at finalize. Idempotent.
 
 Flags:

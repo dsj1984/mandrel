@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { LIMITS_DEFAULTS } from '../.agents/scripts/lib/config/limits.js';
 import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
-import { buildDecompositionContext } from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
+import { buildDecompositionContext } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
 
 // ---------------------------------------------------------------------------
 // Story #3875 — the decomposition context envelope carries the real

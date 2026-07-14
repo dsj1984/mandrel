@@ -148,7 +148,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
           '',
           '<!-- mandrel:tech-spec:end -->',
         ].join('\n'),
-        labels: ['type::epic'],
+        labels: ['type::story'],
       },
     });
     const gitPort = fakeGitPort({
@@ -210,7 +210,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
 
   it('returns empty feature/impl defaults when none are supplied', async () => {
     const githubPort = fakeGithubPort({
-      42: { body: 'no planning links here', labels: ['type::epic'] },
+      42: { body: 'no planning links here', labels: ['type::story'] },
     });
     const gitPort = fakeGitPort();
 

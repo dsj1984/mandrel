@@ -56,9 +56,9 @@ describe('skill:epic-plan-spec-author — smoke', () => {
         // Story #4314 — the PRD artifact class is retired; the Skill no longer
         // authors prd.md and its User Stories section now lives inline in the
         // Epic body, so the prd.md / "## Overview" checks are dropped.
-        if (!/temp\/epic-<Epic_ID>\/techspec\.md/.test(body)) {
+        if (!/temp\/run-<Epic_ID>\/techspec\.md/.test(body)) {
           errors.push(
-            'Skill body must reference temp/epic-<Epic_ID>/techspec.md output path',
+            'Skill body must reference temp/run-<Epic_ID>/techspec.md output path',
           );
         }
         // Epic #4479 (M8) — the Tech Spec system prompt is single-sourced in

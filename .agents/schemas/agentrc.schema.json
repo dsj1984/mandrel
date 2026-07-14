@@ -488,7 +488,7 @@
         "concurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design \u2014 keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md \u00a7 Phase 2b for the dispatch model and the throughput tradeoff discussion."
+          "description": "Maximum ready Stories dispatched by /deliver at once. Default 1. Conservative by design \u2014 keeps host-quota consumption predictable and avoids GitHub API saturation. Operators running multi-Story plan-runs on hosts with adequate parallel-agent quota can raise this value to reduce wall-clock time where dependencies allow. See deliver.md for the sequencing model and throughput tradeoff."
         },
         "progressReportIntervalSec": {
           "type": "integer",
@@ -539,7 +539,7 @@
         "maxFixAttempts": {
           "type": "integer",
           "minimum": 0,
-          "description": "Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3."
+          "description": "Maximum auto-fix retry attempts per finding during /deliver's risk-routed review/audit ceremony. 0 disables auto-fix. Default 3."
         },
         "maxFixScopeFiles": {
           "type": "integer",
@@ -1334,7 +1334,7 @@
         },
         "navigability": {
           "type": "object",
-          "description": "Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "description": "Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's risk-routed ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
           "properties": {
             "routeGlobs": {
               "type": "array",
@@ -1348,7 +1348,7 @@
             },
             "journeySuite": {
               "type": "string",
-              "description": "Path or command for the per-persona journey suite the deliver-epic.md Phase 6.5 post-wave integration gate runs."
+              "description": "Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs."
             }
           },
           "additionalProperties": false
@@ -1478,12 +1478,8 @@
         },
         "routing": {
           "type": "object",
-          "description": "Epic #4475 (M4-A). Delivery-route selection for epic-shaped work.",
+          "description": "v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6.",
           "properties": {
-            "singleDelivery": {
-              "type": "boolean",
-              "description": "Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet."
-            },
             "roleScopedAgents": {
               "type": "boolean",
               "description": "Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure (≈50KB → ≈8KB per spawn — the payoff of the context diet). When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate."

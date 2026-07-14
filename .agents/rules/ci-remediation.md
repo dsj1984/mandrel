@@ -1,12 +1,11 @@
 # CI Failure Triage & Remediation
 
 This rule applies when a delivery path is watching a pull request's CI checks
-and a required check is red (or repeatedly slow) — the Epic Phase 8
-watch-and-iterate loop
-([`deliver-epic.md`](../workflows/helpers/deliver-epic.md)) and the standalone
+and a required check is red (or repeatedly slow) — the `/deliver` router
+([`deliver.md`](../workflows/deliver.md)) runs each Story through the
 single-Story Step 4 CI watch + fix loop
-([`single-story-deliver.md`](../workflows/helpers/single-story-deliver.md))
-both hand off to it. It is the single triage brain those mechanisms defer to:
+([`deliver-story.md`](../workflows/helpers/deliver-story.md)), which hands off
+to it. It is the single triage brain that mechanism defers to:
 the watcher (`pr-watch-with-update.js`) surfaces the failing check, the run
 link, and the failure signature; this rule decides what to do next.
 
@@ -50,18 +49,15 @@ path) or surfaces it inline (standalone path) — start from that digest.
 A deterministic failure caused by the diff is remediated at source. Use the
 existing per-check fix table — do **not** duplicate it here:
 
-- **Epic Phase 8**:
-  [`deliver-epic-reference.md` § Phase 8 — Watch-and-iterate remediation](../workflows/helpers/deliver-epic-reference.md#phase-8--watch-and-iterate-remediation)
-  (§ 8.1 Remediation).
-- **Standalone Step 4**:
-  [`single-story-deliver-reference.md` § Step 4 — CI watch + fix recovery](../workflows/helpers/single-story-deliver-reference.md#step-4--ci-watch--fix-recovery).
+- **Story Step 4**:
+  [`deliver-story-reference.md` § Step 4 — CI watch + fix recovery](../workflows/helpers/deliver-story-reference.md#step-4--ci-watch--fix-recovery).
 
 In short: lint/format → `npm run lint` + biome apply; maintainability/crap
 baseline drift → re-run the ratcheted script and fix at source (refresh a
 baseline only when the diff demonstrably can't be covered); test failure →
 reproduce with `npm test`, fix source or test; coverage threshold → add tests.
-Commit the fix on the delivery branch (`epic/<epicId>` or `story-<storyId>`),
-push, and re-run the watcher. Auto-merge stays armed across retries.
+Commit the fix on the delivery branch (`story-<storyId>`), push, and re-run the
+watcher. Auto-merge stays armed across retries.
 
 ## Infra, transient, and flaky failures ARE root-cause defects
 

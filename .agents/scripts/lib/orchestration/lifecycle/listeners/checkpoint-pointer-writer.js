@@ -1,7 +1,7 @@
 // .agents/scripts/lib/orchestration/lifecycle/listeners/checkpoint-pointer-writer.js
 /**
  * CheckpointPointerWriter — lifecycle listener that maintains a
- * minimal pointer file at `temp/epic-<id>/checkpoint.json` after every
+ * minimal pointer file at `temp/run-<id>/checkpoint.json` after every
  * `*.end` lifecycle event (Story #2266 / Task #2268, Epic #2172).
  *
  * The writer replaces the legacy `epic-runner/checkpointer.js`
@@ -42,7 +42,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
- * The pointer file name under `temp/epic-<id>/`. Stable and grep-able
+ * The pointer file name under `temp/run-<id>/`. Stable and grep-able
  * so future tooling can locate the file without re-deriving the path.
  */
 export const POINTER_FILENAME = 'checkpoint.json';
@@ -105,7 +105,7 @@ export function resolvePointerPath({ tempRoot, epicId }) {
       'resolvePointerPath: epicId must be a positive integer',
     );
   }
-  return path.join(tempRoot, `epic-${epicId}`, POINTER_FILENAME);
+  return path.join(tempRoot, `run-${epicId}`, POINTER_FILENAME);
 }
 
 /**
@@ -128,7 +128,7 @@ export class CheckpointPointerWriter {
    * @param {object} opts.bus Lifecycle bus exposing `on()` + `emit()`.
    * @param {number} opts.epicId Epic ticket id.
    * @param {string} opts.tempRoot Absolute or repo-relative path; the
-   *   listener resolves `<tempRoot>/epic-<id>/checkpoint.json`.
+   *   listener resolves `<tempRoot>/run-<id>/checkpoint.json`.
    * @param {typeof writeFileSync} [opts.writeFn] Injectable writer for
    *   tests.
    * @param {typeof mkdirSync} [opts.mkdirFn] Injectable directory

@@ -12,9 +12,9 @@
  * MUST invoke before shelling out.
  *
  * Scope: the guard fires only when the Story body declares an
- * `Epic: #N` (or `Parent: #N`) reference. Stand-alone Stories — the
- * `/single-story-deliver` surface — are unaffected because they have no
- * parent reference to detect.
+ * `Epic: #N` (or `Parent: #N`) reference. v2 Stories have no Epic parent
+ * and are unaffected; a remaining Epic-attached body is a pre-v2 ticket
+ * that must not PR to `main`.
  */
 
 import { resolveStoryHierarchy } from '../story-lifecycle.js';
@@ -42,6 +42,6 @@ export function assertStoryPrBaseAllowed({ storyId, storyBody, baseBranch }) {
   if (baseBranch === expected) return;
   throw new Error(
     `Story #${storyId} is parented by Epic #${epicId} — merge into ${expected}, not ${baseBranch}. ` +
-      'To bypass, use /single-story-deliver explicitly.',
+      'Pre-v2 Epic-attached Stories cannot use /deliver against main — finish on a pre-v2 checkout or re-plan as a v2 Story.',
   );
 }

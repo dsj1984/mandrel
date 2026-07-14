@@ -15,7 +15,6 @@ import {
   forEachLine,
 } from '../../../observability/signals-writer.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
-import { read as readEpicRunState } from '../../epic-run-state-store.js';
 import { composeRoutedProposals } from '../../retro-proposals.js';
 import { parseFencedJsonComment } from '../../structured-comment-parser.js';
 import { findStructuredComment } from '../../ticketing.js';
@@ -97,7 +96,7 @@ function accumulateSignalRecord(parsed, routedSignals) {
  *   epicId: number,
  *   provider: object,
  *   logger?: { warn?: Function },
- *   readFn: typeof readEpicRunState,
+ *   readFn: Function,
  * }} args
  * @returns {Promise<Array<{ ticketId?: number, category: string, source: 'framework'|'consumer' }>>}
  */
@@ -245,7 +244,7 @@ export async function gatherRetroSignals({
   consumerRepo,
   forEachLineFn = forEachLine,
   forEachEpicLineFn = forEachEpicLine,
-  epicRunStateReadFn = readEpicRunState,
+  epicRunStateReadFn = async () => null,
   composeRoutedProposalsFn = composeRoutedProposals,
 }) {
   const descendants = await collectDescendants(provider, epicId);

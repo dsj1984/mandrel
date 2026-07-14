@@ -1,200 +1,126 @@
 ---
 description:
-  Unified delivery entry point. Inspects the ticket type(s) and
-  Epic-reference state of the supplied IDs, composes a sequential segment
-  plan over any mix of Epics and standalone Stories, then delegates each
-  segment to the Epic wave loop or the standalone multi-Story fan-out —
-  preserving every flag and the parallel-delivery contract of the retired
-  commands.
+  Unified delivery entry point. Delivers one or more Stories via the single
+  deliver-story engine — story-<id> → PR → main. Sequences N>1 by depends_on
+  and runs the per-run epilogue once at the end.
 ---
 
-# /deliver [Epic IDs...] | [Story IDs...]
+# /deliver <storyId...> | --run <planRunId>
 
 ## Role
 
-Router. `/deliver` owns input classification, segment-plan composition, and
-path selection only — all phase content lives in the two path helpers:
+Single delivery path. `/deliver` owns input resolution and sequencing only —
+every Story runs through
+[`helpers/deliver-story.md`](helpers/deliver-story.md) (the evolved
+single-Story engine). There is no Epic wave loop, no `epic/<id>` integration
+branch, and no `--no-ff` wave merges.
 
-- [`helpers/deliver-epic.md`](helpers/deliver-epic.md) — the full Epic
-  delivery loop (preflight, wave loop fanning out
-  [`helpers/epic-deliver-story`](helpers/epic-deliver-story.md),
-  close-validation, epic-audit, code-review, retro, finalize, watch,
-  auto-merge gate, cleanup).
-- [`helpers/deliver-stories.md`](helpers/deliver-stories.md) — the
-  standalone multi-Story path (`stories-wave-tick.js` continuous ready-set
-  loop, operator confirmation, parallel fan-out to
-  [`helpers/single-story-deliver`](helpers/single-story-deliver.md)).
+## Inputs
 
-## Input matrix (authoritative)
-
-Fetch each supplied ID's labels and body (`type::*` label, `Epic: #N`
-reference) before routing:
-
-| Input | Route |
+| Invocation | Behavior |
 | --- | --- |
-| Exactly one `type::epic` ID | **Epic path** — resolve the Epic's delivery route (see [Epic delivery-route resolution](#epic-delivery-route-resolution) below), then run the selected helper's phases unchanged (single-segment plan; no confirmation prompt). |
-| One or more `type::story` IDs, none carrying an `Epic: #N` reference | **Standalone path** — run [`helpers/deliver-stories.md`](helpers/deliver-stories.md) Phases 0–3 (single-segment plan; no confirmation prompt). |
-| Any combination of ≥1 `type::epic` IDs and ≥0 standalone `type::story` IDs | **Segment plan** — compose and execute the sequential segment plan below. |
-| Any Story carrying an `Epic: #N` reference (alone or mixed into an otherwise-valid set) | **Error**, naming every affected ID and the fix: `Story #<id> belongs to Epic #<n> — run /deliver <n>`. |
+| `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`. |
+| `/deliver <storyId> <storyId> ...` | Sequence Stories in `depends_on` order via `stories-wave-tick.js`; each ready Story runs `deliver-story`. Default concurrency is **1** (sequential). |
+| `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<planRunId>`, then sequence as above; after the last Story lands, run the per-run epilogue (`planRunEpilogue`). |
 
-Per-ID classification is unchanged: fetch the `type::*` label and probe the
-body for an `Epic: #N` reference before routing. Never guess a route.
+Any ticket that is not `type::story`, or that still carries an `Epic: #N`
+reference, is a hard error naming the ID and the fix (close or re-plan as a
+v2 Story).
 
-## Epic delivery-route resolution
+## Flags
 
-Every `type::epic` segment resolves to one of two delivery shapes before its
-helper runs. The routing is a pure function of the Epic's labels, its
-`epic-plan-state` checkpoint, and the config kill-switch — implemented in
-[`lib/orchestration/deliver-route.js`](../scripts/lib/orchestration/deliver-route.js)
-(`resolveEpicDeliveryRoute(epic, checkpoint, config)`), mirroring how the
-code-review depth resolver reads `planningRisk`/`decompose` off the same
-checkpoint. Fetch the Epic's labels and read its `epic-plan-state` structured
-comment, then apply the precedence (highest wins):
-
-1. **Kill-switch — overrides all.** `delivery.routing.singleDelivery === false`
-   (default `true`, read via `getDeliveryRouting`) forces **fan-out** for
-   *every* Epic, even a single-marked one. This is the instant, per-consumer
-   global revert that ships before the default flips — no code rollback, no
-   re-plan.
-2. **Single marker → single route.** The `delivery::single` label (primary)
-   **or** `decompose.shape === "single"` on the checkpoint (secondary). A
-   spec-only plan authored no Story tree; its `## Delivery Slicing` table is
-   the audit trail.
-3. **No marker → fan-out.** A legacy Epic (no marker, an authored Story tree)
-   or a genuinely-wide DAG. Deliver-time width only *advises* — it never
-   reroutes a single-marked Epic (that would orphan a tree that does not
-   exist; re-route = re-plan).
-
-**Route dispatch.**
-
-- **`fan-out`** → run [`helpers/deliver-epic.md`](helpers/deliver-epic.md)
-  Phases 1–9 unchanged (the wave loop fanning out per-Story sub-agents).
-- **`single`** → run
-  [`helpers/deliver-epic-single.md`](helpers/deliver-epic-single.md) (the
-  live flip, M4-B): a one-worktree in-session slice walk (prepare `--single` →
-  ordered `## Delivery Slicing` walk on `epic/<id>` → per-AC-cluster
-  acceptance critics) that **reuses `helpers/deliver-epic.md` Phases 3–9
-  byte-for-byte** for the merge tail. This is now the **default** shape for a
-  single-marked Epic. The kill-switch (`delivery.routing.singleDelivery=false`)
-  still forces this verdict back to `fan-out` — an instant global revert with
-  no code rollback.
-
-## Segment plan (mixed / multi-Epic input)
-
-When the supplied IDs span more than one Epic, or mix Epics with standalone
-Stories, the router composes a **segment plan** and executes the segments
-**strictly sequentially**:
-
-1. **Standalone segment first** (when any standalone Story IDs are
-   present): the full standalone-Story set forms **one** segment,
-   delivered via [`helpers/deliver-stories.md`](helpers/deliver-stories.md)
-   Phases 0–3 unchanged. It runs first because it is fast, each Story
-   merges to `main` independently, and each subsequent Epic segment's
-   Phase 7.0 base-sync then integrates those merges naturally instead of
-   the Epic PR opening behind base.
-2. **Epic segments in input order**: each `type::epic` ID forms its own
-   segment. Resolve its delivery route (see [Epic delivery-route
-   resolution](#epic-delivery-route-resolution)) and run the selected helper
-   unchanged — the `fan-out` route dispatches
-   [`helpers/deliver-epic.md`](helpers/deliver-epic.md) Phases 1–9, the
-   `single` route dispatches
-   [`helpers/deliver-epic-single.md`](helpers/deliver-epic-single.md) (which
-   reuses that helper's Phases 3–9 for the merge tail).
-
-Sequential execution is a deliberate design decision: the Epic path assumes
-a single main checkout (prepare's checkout guard, Phase 7.0
-`git checkout epic/<id>`), holds a per-Epic lease, serializes same-machine
-sessions via `epic-merge-lock.js`, and constrains dispatch to one wave at a
-time. Segments are never interleaved or parallelized; running them one at a
-time keeps both helpers' machinery untouched.
-
-**Confirmation gate.** When the composed plan has more than one segment,
-present it to the operator before dispatching — the segments, the IDs in
-each, and the execution order — and wait for confirmation. `--yes`
-suppresses this prompt. Single-segment plans route directly with today's
-behavior (no new prompt; the standalone path's own Phase 1 confirmation
-still applies as before).
-
-**Failure policy.** A segment that ends non-complete (blocked, failed, or
-halted at a gate) **stops the run** — no subsequent segment dispatches.
-Report the terminal state: which segments completed, which segment halted
-(and why), and which segments never started. Name the resume command:
-re-running `/deliver` with the same IDs — both path helpers short-circuit
-already-done work (the Epic path resumes idempotently from its checkpoint;
-merged standalone Stories no-op).
-
-## Flags (scoped per segment)
-
-| Path | Flags |
+| Flag | Meaning |
 | --- | --- |
-| Epic | `--skip-epic-audit`, `--skip-code-review`, `--skip-retro`, `--full-retro`, `--steal`, `--as <handle>` |
-| Story | `--dep <from>:<to>`, `--yes`, `--concurrency <n>` |
-
-In a segment plan, Epic-path flags apply to **every** Epic segment;
-Story-path flags apply to the standalone segment. `--yes` additionally
-suppresses the router's segment-plan confirmation gate above. A flag with
-no applicable segment in the plan is reported once as a no-op warning and
-ignored — never an error (the existing convention, restated for segment
-plans).
-
-**Multi-Story parallel contract (preserved verbatim).**
-
-```text
-/deliver <id> <id> … --dep <from>:<to> --concurrency <n> --yes
-```
-
-preserves the retired multi-Story command's full surface — the same flags,
-the same operator confirmation gate (suppressed by `--yes`), and the same
-parallel fan-out to
-[`helpers/single-story-deliver`](helpers/single-story-deliver.md) — but
-schedules through `stories-wave-tick.js`'s **continuous ready-set loop**
-(the shared `selectReadySet` core) rather than a static wave plan: each
-Story dispatches the instant its own dependencies are done, capped by the
-resolved global `concurrencyCap` and guarded against file-overlap
-co-dispatch, exactly as the Epic path is. The parallelism lives **inside**
-the standalone segment; segments themselves remain strictly sequential.
+| `--run <planRunId>` | Deliver every Story in the plan-run (label `plan-run::<id>`). |
+| `--dep <from>:<to>` | Extra operator dependency edge (Story id → Story id). |
+| `--concurrency <n>` | Ready-set fan-out cap (default **1** — sequential). |
+| `--yes` | Suppress the multi-Story confirmation gate. |
+| `--steal` | Forwarded to `single-story-init.js` / lease steal. |
+| `--wait-merge` | Headless must-land (forwarded into each Story close). |
 
 ## Procedure
 
-1. **Parse args.** At least one positive-integer ID is required.
-2. **Classify.** Fetch each ticket's labels + body and apply the input
-   matrix above. Any Epic-attached Story ID is a hard error naming the
-   affected IDs and the fix — never guess a route.
-3. **Compose the segment plan.** Standalone-Story set (when present) as
-   one segment, then one segment per Epic ID in input order. For a
-   multi-segment plan, present it and wait for operator confirmation
-   (`--yes` suppresses).
-4. **Execute segments sequentially.** For each segment in order, read the
-   selected path helper **in full** and execute it from its entry phase,
-   forwarding the segment's scoped flags. The helper's phase numbering,
-   watchdogs, gates, and scripts are unchanged — this router adds no phase
-   content. Stop on the first non-complete segment per the failure policy.
-5. **Report.** On completion (or halt), summarize per-segment outcomes and,
-   when halted, the resume command.
+1. **Resolve the Story set.**
+   - Positional IDs → use them.
+   - `--run <planRunId>` →
+
+     ```bash
+     node .agents/scripts/resolve-plan-run.js --run <planRunId>
+     ```
+
+     Capture `stories[]` (numeric ids) from the envelope.
+
+2. **Build the DAG.** For each Story, read `depends_on` / `blocked by` from
+   the body (`buildStoryAdjacency` / body footer). Merge `--dep` edges.
+   Emit a JSON DAG for `stories-wave-tick.js`:
+
+   ```json
+   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
+   ```
+
+3. **Confirm (N>1).** Present the order and wait unless `--yes`.
+
+4. **Sequence.** Loop until every Story is done:
+
+   ```bash
+   node .agents/scripts/stories-wave-tick.js \
+     --dag '<json>' --done <csv> --in-flight <n> --concurrency <n>
+   ```
+
+   For each `ready` Story id, read
+   [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and
+   execute it (init → implement → ceremony → close → PR → land). Under
+   `--yes` / injected helper content, execute directly without a re-read
+   turn. Default `--concurrency 1` means at most one Story in flight.
+
+5. **Per-run epilogue (N>1 or `--run`).** After the last Story lands,
+   plan the closeout:
+
+   ```js
+   // conceptual — host LLM invokes the planner then runs each step
+   import { planRunEpilogue } from
+     '.agents/scripts/lib/orchestration/run-epilogue.js';
+   planRunEpilogue({ planRunId, stories });
+   ```
+
+   When `applicable: true`, execute the descriptors in order:
+   - `audit-sweep` — cross-Story audit over the combined landed diff
+   - `retro-rollup` — retro + friction roll-up for the run
+   - `sibling-coherence` — spec-coherence check across sibling bodies
+
+   A single-Story run skips the epilogue (`applicable: false`).
+
+## Branch model (authoritative)
+
+Every Story:
+
+```text
+story-<id>  →  PR  →  main (squash + required checks)
+```
+
+There is no `epic/<id>` integration branch and no `--no-ff` wave merge.
+Dependent Stories land sequentially so each builds on the previous merge
+to `main`.
+
+## Ceremony (two scopes)
+
+| Scope | What runs | Mechanism |
+| --- | --- | --- |
+| **Per-Story (always)** | Gates, branch discipline, land-or-block | `deliver-story` / `single-story-close` |
+| **Per-Story (risk-routed)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` — read the Story's `planningRisk` / `risk-verdict` |
+| **Per-run (N>1)** | Audit sweep · retro roll-up · sibling coherence | `planRunEpilogue` once at run end |
 
 ## Constraints
 
-- **Land or block — never a silent local build (issue #4483).** The
-  helpers' orchestration path (worktrees, `story-<id>`/`epic/<id>` branches,
-  close-validation, PR) is the ONLY sanctioned delivery mechanism.
-  Executing story slices inline in this session and/or committing the
-  delivery to local `main` is expressly forbidden, regardless of how the
-  environment looks. Each path surfaces verified remote evidence
-  (`remoteVerified`) at entry; on `false`, transition the ticket to
-  `agent::blocked` quoting `remoteProbe.detail` and halt.
-- `/deliver` requires planned tickets: Epics at `agent::ready` (the
-  Epic helper's preflight enforces this, per segment) or well-formed
-  standalone Stories. Planning happens in [`/plan`](plan.md); the
-  plan-review gate between the two commands is a hard boundary.
-- The router performs no git or label mutations itself; the path helpers
-  own every script invocation.
-- Segments execute strictly sequentially — never interleave a standalone
-  Story fan-out with an Epic wave loop, and never run two Epic segments
-  concurrently.
+- **Land or block — never a silent local build.** Worktrees, `story-<id>`
+  branches, close-validation, and PR-to-`main` are the only sanctioned
+  delivery mechanism.
+- `/deliver` never plans — tickets come from [`/plan`](plan.md).
+- The router performs no git/label mutations; `deliver-story` owns every
+  script invocation per Story.
 
 ## See also
 
-- [`/plan`](plan.md) — the unified planning entry point.
-- [`helpers/deliver-epic.md`](helpers/deliver-epic.md) /
-  [`helpers/deliver-stories.md`](helpers/deliver-stories.md) — the path
-  helpers, delegated to per segment.
+- [`/plan`](plan.md) — unified planning entry point.
+- [`helpers/deliver-story.md`](helpers/deliver-story.md) — the one Story
+  delivery engine.

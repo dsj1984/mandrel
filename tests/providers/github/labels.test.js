@@ -76,17 +76,17 @@ describe('providers/github/labels.js — LabelGateway', () => {
       },
       listResult: {
         stdout: JSON.stringify([
-          { name: 'type::task' },
-          { name: 'type::epic' },
+          { name: 'area::docs' },
+          { name: 'type::story' },
         ]),
       },
     });
     const gw = new LabelGateway({ gh, owner: 'o', repo: 'r' });
     const out = await gw.ensureLabels([
-      { name: 'type::task', color: '#abcdef', description: 'task' },
-      { name: 'type::epic', color: 'fedcba', description: 'epic' },
+      { name: 'area::docs', color: '#abcdef', description: 'docs' },
+      { name: 'type::story', color: 'fedcba', description: 'story' },
     ]);
-    assert.deepEqual(out.created.sort(), ['type::epic', 'type::task']);
+    assert.deepEqual(out.created.sort(), ['area::docs', 'type::story']);
     assert.deepEqual(out.skipped, []);
     assert.deepEqual(out.missing, []);
     assert.equal(createCalls.length, 2);
@@ -97,26 +97,26 @@ describe('providers/github/labels.js — LabelGateway', () => {
   it('ensureLabels: classifies "already exists" errors as skipped', async () => {
     const gh = makeFakeGh({
       onCreate: (name) => {
-        if (name === 'type::task') {
+        if (name === 'area::docs') {
           const err = new Error('already_exists');
-          err.stderr = 'Label "type::task" already exists';
+          err.stderr = 'Label "area::docs" already exists';
           throw err;
         }
       },
       listResult: {
         stdout: JSON.stringify([
-          { name: 'type::task' },
-          { name: 'type::epic' },
+          { name: 'area::docs' },
+          { name: 'type::story' },
         ]),
       },
     });
     const gw = new LabelGateway({ gh, owner: 'o', repo: 'r' });
     const out = await gw.ensureLabels([
-      { name: 'type::task', color: '#aaaaaa' },
-      { name: 'type::epic', color: '#bbbbbb' },
+      { name: 'area::docs', color: '#aaaaaa' },
+      { name: 'type::story', color: '#bbbbbb' },
     ]);
-    assert.deepEqual(out.created, ['type::epic']);
-    assert.deepEqual(out.skipped, ['type::task']);
+    assert.deepEqual(out.created, ['type::story']);
+    assert.deepEqual(out.skipped, ['area::docs']);
     assert.deepEqual(out.missing, []);
   });
 
@@ -125,16 +125,16 @@ describe('providers/github/labels.js — LabelGateway', () => {
       onCreate: () => {
         // Claims success but the live label set proves otherwise.
       },
-      listResult: { stdout: JSON.stringify([{ name: 'type::epic' }]) },
+      listResult: { stdout: JSON.stringify([{ name: 'type::story' }]) },
     });
     const gw = new LabelGateway({ gh, owner: 'o', repo: 'r' });
     const out = await gw.ensureLabels([
       { name: 'type::task', color: '#aaaaaa' },
-      { name: 'type::epic', color: '#bbbbbb' },
+      { name: 'type::story', color: '#bbbbbb' },
     ]);
     // The honest math: task isn't on the remote, so it leaves created[]
     // and lands in missing[].
-    assert.deepEqual(out.created, ['type::epic']);
+    assert.deepEqual(out.created, ['type::story']);
     assert.deepEqual(out.skipped, []);
     assert.deepEqual(out.missing, ['type::task']);
   });

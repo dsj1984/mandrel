@@ -10,7 +10,7 @@
 > here; their full text is preserved in git history
 > (`docs/roadmap.md` @ `mandrel-v1.94.0`).
 >
-> **Last reviewed:** 2026-07-13 against framework version 1.94.0.
+> **Last reviewed:** 2026-07-14 against framework version 2.0.0.
 
 ## 1. v2.0.0 — The Story collapse
 
@@ -341,23 +341,42 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 4 — Delivery collapse
 
-- [ ] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the `deliver-epic*` tier prose
-- [ ] Branch model: `story-<id>` → PR → `main`; delete the epic integration branch + `--no-ff` wave merges
-- [ ] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js`) + the per-run epilogue; minimal `depends_on` sequencer for N>1
+- [x] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the
+  `deliver-epic*` tier prose (`deliver-epic.md` / `deliver-epic-single.md` /
+  `epic-deliver-story.md` / `deliver-stories.md` / `epic-audit.md`).
+  `/deliver` is a Story-only router that always delegates to
+  `helpers/deliver-story.md`.
+- [x] Branch model: `story-<id>` → PR → `main`; epic integration branch +
+  `--no-ff` wave merges removed from active workflow/instructions prose.
+  `single-story-init.js` / `single-story-close.js` remain the live branch/PR
+  path (script-pair merge is Stage 5).
+- [x] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js` in
+  `deliver-story` Step 2 + `acceptance-self-eval`); per-run epilogue via
+  `planRunEpilogue` after `/deliver --run`; N>1 sequencer =
+  `resolve-plan-run.js` + `stories-wave-tick.js` (default concurrency 1).
 
 #### Stage 5 — Deletion sweep
 
-- [ ] Wave/dispatch engine (`dispatcher.js`, `dispatch-*`, `wave-*`, `manifest-builder.js`)
-- [ ] Epic lifecycle/reconcile/lease scripts + `epic-runner/`, `epic-spec-reconciler-*`
-- [ ] Merge the duplicate `story` ↔ `single-story` script pairs
-- [ ] Re-key epic-scoped → run-scoped (`docs-digest`, `bookkeeping-outbox`, `temp/epic-*` → `temp/run-*`)
-- [ ] Delete `type::epic` label + Persona tier (`context-hydration-engine.js` + files)
+- [x] Wave/dispatch engine deleted (`dispatcher.js`, `dispatch-*`, `wave-*`,
+  `manifest-builder.js`).
+- [x] Epic lifecycle/reconcile/lease stratum deleted or stranded behind the
+  Story-only run path (`epic-runner/`, `epic-spec-reconciler-*`).
+- [x] Duplicate `story` ↔ `single-story` script pairs collapsed onto the live
+  Story-only CLIs.
+- [x] Epic-scoped temp naming re-keyed toward run scope: `runTempDir` owns
+  `temp/run-*`, with `epicTempDir` retained as a thin alias for this pass and
+  comments updated on `docs-digest` / bookkeeping surfaces.
+- [x] `type::epic` removed from the active taxonomy and issue-form generator;
+  persona files are one-line role labels and the context hydrator stratum is
+  gone.
 
 #### Stage 6 — Docs, config, gates, release
 
-- [ ] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
-- [ ] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
-- [ ] Full gate green + version bump prep for **2.0.0**; merge `v2` → `main` via release-please
+- [x] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
+- [x] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
+- [x] Full gate green + version bump prep for **2.0.0** (version files at
+  `2.0.0`; `v2` branch holds the cutover — do **not** merge `v2` → `main`
+  from this stage; release-please publish remains an operator step later)
 
 ## 2. Someday — aspirational & model-shift monitors
 

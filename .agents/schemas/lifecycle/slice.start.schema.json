@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/slice.start.schema.json",
   "title": "slice.start",
-  "description": "Emitted by the single-delivery executor (deliver-epic-single.md, M4-B) as it begins implementing one Delivery-Slicing slice inside the single guarded session on epic/<id>. The single-delivery analogue of story.dispatch.start (one per Story per attempt): a slice is the leaf work unit of a spec-only plan that authored no Story tickets, so the ledger carries the slice id + position instead of a storyId. Introduced INERT in Epic #4475 M4-A alongside the slice-map checkpoint; the executor that emits it lands in M4-B.",
+  "description": "Emitted by the legacy single-delivery slice executor design as it begins implementing one Delivery-Slicing slice inside a guarded session. The single-delivery analogue of story.dispatch.start (one per Story per attempt): a slice is the leaf work unit of a spec-only plan that authored no Story tickets, so the ledger carries the slice id + position instead of a storyId. Introduced INERT in Epic #4475 M4-A alongside the slice-map checkpoint; current /deliver Story delivery uses helpers/deliver-story instead.",
   "type": "object",
   "required": ["event", "epicId", "sliceId", "timestamp"],
   "properties": {

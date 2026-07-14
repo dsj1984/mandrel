@@ -11,8 +11,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   evaluateIssueBody,
+  isStoryTicket,
   LINT_COMMENT_MARKER,
   renderConformanceComment,
+  runLintIssueBody,
 } from '../../.agents/scripts/lint-issue-body.js';
 
 describe('evaluateIssueBody — conformant bodies', () => {
@@ -108,5 +110,76 @@ describe('renderConformanceComment', () => {
     for (const problem of verdict.problems) {
       assert.ok(comment.includes(problem));
     }
+  });
+});
+
+describe('isStoryTicket / runLintIssueBody', () => {
+  it('accepts type::story only', () => {
+    assert.equal(isStoryTicket(['type::story']), true);
+    assert.equal(isStoryTicket(['type::epic']), false);
+    assert.equal(isStoryTicket(null), false);
+  });
+
+  it('skips non-story tickets without posting', () => {
+    const calls = [];
+    const out = [];
+    const result = runLintIssueBody({
+      issue: 9,
+      ghFn: (args) => {
+        calls.push(args);
+        return JSON.stringify({
+          body: '',
+          labels: [{ name: 'type::epic' }],
+        });
+      },
+      write: (s) => out.push(s),
+    });
+    assert.equal(result.skipped, 'not-a-ticket');
+    assert.equal(calls.length, 1);
+    assert.match(out.join(''), /not-a-ticket/);
+  });
+
+  it('evaluates a story body and posts on non-conformance', () => {
+    const calls = [];
+    const result = runLintIssueBody({
+      issue: 3,
+      dryRun: false,
+      ghFn: (args) => {
+        calls.push(args);
+        if (args[0] === 'issue' && args[1] === 'view') {
+          return JSON.stringify({
+            body: '## Goal\nonly a goal',
+            labels: [{ name: 'type::story' }],
+          });
+        }
+        return '';
+      },
+      write: () => {},
+    });
+    assert.equal(result.conformant, false);
+    assert.equal(
+      calls.some((a) => a[1] === 'comment'),
+      true,
+    );
+  });
+
+  it('dry-run skips the comment post', () => {
+    const calls = [];
+    runLintIssueBody({
+      issue: 3,
+      dryRun: true,
+      ghFn: (args) => {
+        calls.push(args);
+        return JSON.stringify({
+          body: '## Goal\nonly a goal',
+          labels: [{ name: 'type::story' }],
+        });
+      },
+      write: () => {},
+    });
+    assert.equal(
+      calls.some((a) => a[1] === 'comment'),
+      false,
+    );
   });
 });

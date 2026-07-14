@@ -36,15 +36,15 @@ context or run it as a step of the delivering child.
 
 ## Argument contract
 
-The caller passes the following arguments (Story workflows pass
-`scope: story`; Epic workflows pass `scope: epic`):
+The caller passes the following arguments (`/deliver` Story workflows pass
+`scope: story`; legacy cumulative callers may pass `scope: epic`):
 
 | Argument    | Type                                  | Required | Meaning                                                                                          |
 | ----------- | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
 | `scope`     | `"story"` \| `"epic"`                 | yes      | Selects the integration-pillar diff base and the structured-comment target ticket.               |
-| `ticketId`  | integer                               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or Epic (when `scope === 'epic'`).   |
-| `baseRef`   | string (git ref)                      | yes      | The diff base. Story scope: `epic/<epicId>`. Epic scope: `main` (or `project.baseBranch`).       |
-| `headRef`   | string (git ref)                      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Epic scope: `epic/<epicId>`.        |
+| `ticketId`  | integer                               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or cumulative ticket (legacy `scope === 'epic'`). |
+| `baseRef`   | string (git ref)                      | yes      | The diff base. Story scope: `main` (or `project.baseBranch`). Legacy cumulative scope: caller-provided base. |
+| `headRef`   | string (git ref)                      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Legacy cumulative scope: caller-provided head. |
 | `depth`     | `"light"` \| `"standard"` \| `"deep"` | no       | Risk-derived review thoroughness lever. Absent → `standard`. See **Review depth** below.         |
 
 All scope-dependent behavior in this helper branches off the first four
@@ -160,20 +160,19 @@ the Epic-close lens roster is executed as **dimensions of this same review
 pass**, not as a separate Phase 4 walk (Story #4412 folded the standalone
 epic-audit lens walk into this pass). Resolve and walk the roster inline:
 
-1. Resolve the roster via [`helpers/epic-audit.md`](epic-audit.md) Step 1 —
-   run `epic-audit-prepare.js --gate gate3` and take its **`epicCloseLenses`**
-   field: the slim roster of cumulative + global + risk-routed lenses, with
-   every local-tier change-set lens excluded (routed off `resolveLensTier` in
+1. Resolve the roster by running `epic-audit-prepare.js --gate gate3` and take
+   its **`epicCloseLenses`** field: the slim roster of cumulative + global +
+   risk-routed lenses, with every local-tier change-set lens excluded (routed
+   off `resolveLensTier` in
    [`selectEpicCloseLenses`](../../scripts/lib/orchestration/code-review.js)).
    Local-tier concerns are already verified shift-left (write-time checklists +
    the Story-scope local-lens pass), so they are **not** re-run here.
 2. Materialize each rostered lens via
    [`runAuditSuite`](../../scripts/lib/audit-suite/index.js) at the envelope's
    `depth`, applying the `{{changedFiles}}` substitution, and walk each lens's
-   `.agents/workflows/audit-<lens>.md` procedure over the cumulative
-   `main..epic/<epicId>` diff. Global lenses (`globalLenses`, e.g.
-   `audit-navigability`) run against the WHOLE route tree, exempt from the
-   change-set narrowing.
+   `.agents/workflows/audit-<lens>.md` procedure over the caller-provided
+   cumulative diff. Global lenses (`globalLenses`, e.g. `audit-navigability`)
+   run against the WHOLE route tree, exempt from the change-set narrowing.
 3. Fold the lens findings into this pass's severity aggregate **alongside** the
    Step 2 review pillars — one walk of the cumulative diff, one aggregate, one
    `verification-results` comment (Step 4). An empty `epicCloseLenses` roster
@@ -182,7 +181,7 @@ epic-audit lens walk into this pass). Resolve and walk the roster inline:
 
 This step does not apply to `scope: story` (its roster is the local-tier set of
 Step 1a) and is skipped when `epic-audit-prepare.js` returns `degraded: true`
-(propagate the reason and STOP, per `epic-audit.md`).
+(propagate the reason and STOP).
 
 ## Step 2 — Review Pillars
 
@@ -219,20 +218,19 @@ The integration view depends on `scope`. The diff under review is always
 `baseRef..headRef`, but the **set of upstream audit signals** to integrate
 against differs:
 
-- **`scope: story`** — the diff is `epic/<epicId>..story-<storyId>` (i.e.
-  one Story's contribution to the Epic). The Story-scope local-lens pass
-  (Step 1a) has already covered the local-tier concerns; the Epic-close lens
-  roster has not run for this change set (it runs once at Epic close). The
-  integration view here focuses on cross-Task ripple within the Story and
-  contract drift against the Epic branch tip. Look for:
+- **`scope: story`** — the diff is `main..story-<storyId>` (or the configured
+  base branch to the Story branch). The Story-scope local-lens pass (Step 1a)
+  has already covered the local-tier concerns. The integration view here
+  focuses on cross-Task ripple within the Story and contract drift against the
+  base branch. Look for:
   - Cross-Task contract drift inside the Story (one Task's API change vs.
     another Task's caller in the same branch).
-  - Shared-module ripple effects from this Story onto siblings already
-    merged into `epic/<epicId>`.
+  - Shared-module ripple effects from this Story onto code already merged to
+    `main`.
   - Spec deviations that the per-Task commits papered over.
 
-- **`scope: epic`** — the diff is `main..epic/<epicId>` (the cumulative
-  Epic change set). The Epic-close lens roster (`epicCloseLenses`) is walked
+- **`scope: epic`** — the diff is the caller-provided cumulative change set.
+  The Epic-close lens roster (`epicCloseLenses`) is walked
   **inline as part of this pass** (Step 1b) — the cumulative diff is read once,
   and the security, privacy, performance, code-quality, and test-coverage
   findings the rostered lenses produce feed this pass's aggregate directly.

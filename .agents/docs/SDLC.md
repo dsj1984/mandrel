@@ -54,53 +54,43 @@ From zero to shipped:
       `type::story` + `agent::ready`, closing with a `plan-summary` on the
       primary Story.
 
-2. **Deliver the Epic.** Run `/deliver <epicId>` in your IDE. The
-   skill drives the merged execute + close flow end-to-end.
+2. **Deliver the Story.** Run `/deliver <storyId>` (or `/deliver --run
+   <planRunId>` for a multi-Story plan-run) in your IDE. The skill
+   always delegates to [`helpers/deliver-story`](../workflows/helpers/deliver-story.md).
 
    > **Phase numbering note.** The numbered phases below refer to
-   > `/deliver`'s **internal** phases (1–9), not the SDLC-level
+   > `/deliver`'s **internal** phases, not the SDLC-level
    > Phase 0–4 used by the Mermaid diagram in [§ End-to-End
    > Process](#end-to-end-process). When prose elsewhere in this
    > document says "Phase 7", it always means the internal
    > `/deliver` phase unless explicitly prefixed with "SDLC".
 
-   1. **Phase 1 — prepare** — snapshot the Epic, build the wave DAG,
-      initialise the `epic-run-state` checkpoint.
-   2. **Phase 2 — wave loop** — fan one `/deliver` Agent-tool
-      sub-agent out per Story per wave (capped at `concurrencyCap`).
-      Stories run in parallel inside the operator's Claude session
-      against your Max subscription quota; no subprocess worker sessions
-      for Story execution, no GitHub Actions minutes. Deterministic
-      Node CLIs remain the state-mutation contract.
-   3. **Phase 3 — close-validation** — lint, test, and the project's
-      ratcheted baselines run against the Epic branch. Evidence is
+   1. **Prepare** — lease the Story, cut `story-<id>` via
+      `single-story-init.js`, hydrate the worktree.
+   2. **Implement** — the agent delivers the Story in one guarded
+      session (risk-routed ceremony; see `ceremony-routing.js`).
+   3. **Close-validation** — lint, test, and the project's
+      ratcheted baselines run against the Story branch. Evidence is
       cached by HEAD SHA so re-runs short-circuit.
-   4. **Phase 4 — Epic-close lens roster** — resolves (does not walk) the
-      slim Epic-close lens roster: the change-set `gate3` selection plus the
-      risk-routed lenses, restricted to the **cumulative + global +
-      risk-routed** tiers via `selectEpicCloseLenses` (every local-tier
-      change-set lens is excluded — already verified shift-left). The roster is
-      handed to Phase 5.
-   5. **Phase 5 — code-review** — auto-invokes the in-process
-      `lib/orchestration/code-review.js`; walks the cumulative Epic diff
-      **once**, executing the Phase 4 lens roster as review dimensions
-      **alongside** the review pillars (Story #4412 folded the standalone lens
-      walk into this pass). Findings persist as the single unified
-      `verification-results` structured comment on the Epic. Critical findings
-      halt the run.
-   6. **Phase 6 — retro** — auto-invokes the in-process
-      `lib/orchestration/retro-runner.js` (extracted from the old
-      retro helper) and posts the structured retro comment on the
-      Epic. The retro fires **before** the PR is opened so it has
-      full env access in the operator's local session.
-   7. **Phase 7 — finalize** — pushes `epic/<epicId>` to `origin`,
-      opens a pull request to `main`, sets the required-checks
-      expectation from `github.branchProtection.requiredChecks`, and
-      posts the hand-off comment naming the PR URL. The Epic stays
-      at `agent::executing` until the PR merges; the standard
-      label-transition pathway flips it to `agent::done` on merge.
-      Finalize hands off to the watch / auto-merge / cleanup tail
-      below — it does **not** stop the run.
+   4. **Close lenses** — resolves (does not walk) the
+      slim close lens roster: the change-set `gate3` selection plus the
+      risk-routed lenses (local-tier change-set lenses are excluded —
+      already verified shift-left).
+   5. **Code-review** — auto-invokes the in-process
+      `lib/orchestration/code-review.js`; walks the Story diff once with
+      the lens roster alongside the review pillars. Findings persist as
+      the `verification-results` structured comment on the Story.
+      Critical findings halt the run.
+   6. **Retro** — auto-invokes the in-process
+      `lib/orchestration/retro-runner.js` and posts the structured retro
+      comment on the Story before the PR opens.
+   7. **Phase 7 — finalize** — each ready Story opens a pull request from
+      `story-<id>` to `main`, sets the required-checks expectation from
+      `github.branchProtection.requiredChecks`, and posts the hand-off
+      comment naming the PR URL. The Story stays at `agent::closing` until
+      the PR merges; the standard label-transition pathway flips it to
+      `agent::done` on merge. Finalize hands off to the watch / auto-merge /
+      cleanup tail below — it does **not** stop the run.
    8. **Phase 8 — watch-and-iterate** — watches CI on the open PR
       until checks turn green (or a failure surfaces for human
       remediation).
@@ -109,19 +99,16 @@ From zero to shipped:
       required checks have passed so the PR lands without a second
       operator visit. The operator can disarm auto-merge in the
       GitHub UI if they want to gate the merge manually.
-   10. **Phase 9 — cleanup** — reaps local Story/Epic branch refs and
-       worktrees after the PR merges so the workspace returns to a
-       clean state for the next Epic.
+   10. **Phase 9 — cleanup** — reaps local Story branch refs and worktrees
+       after the PR merges so the workspace returns to a clean state for the
+       next Story.
 
-   For a single Epic-attached Story (re-driving a hotfix, resuming after
-   a halt), re-run `/deliver <epicId>` — the wave loop picks up
-   incomplete Stories from the dispatch manifest automatically. Standalone
-   Stories (no `Epic: #N` reference) use `/deliver <storyId>` instead.
-   Mixed input — several Epics, or Epics plus standalone Stories — is
-   accepted in one invocation: `/deliver` composes a **sequential segment
-   plan** (the standalone-Story set as one segment, delivered first, then
-   each Epic as its own segment in input order) and executes the segments
-   one at a time through the same two path helpers, never interleaved.
+   For a single Story, run `/deliver <storyId>`. For a planned Story set,
+   run `/deliver <storyId> <storyId> ...` or `/deliver --run <planRunId>`;
+   `/deliver` sequences ready Stories by `depends_on` and sends each one
+   through `helpers/deliver-story`. A ticket that still carries an
+   `Epic: #N` reference is refused and must be closed or re-planned as a v2
+   Story.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit gates — that you only need when the
@@ -143,17 +130,15 @@ default flow requires adjustment.
 - **Provider Abstraction.** Orchestration flows through `ITicketingProvider`, an
   abstract interface with a shipped GitHub implementation.
 - **Story-Level Branching.** All work for a Story lands on the shared
-  `story-<id>` branch. Stories merge into `epic/<epicId>`; the Epic
-  branch reaches `main` only via a pull request the operator merges
-  through the GitHub UI.
+  `story-<id>` branch. Each Story reaches `main` through its own PR
+  (squash + required checks); there is no `epic/<id>` integration branch
+  and no `--no-ff` wave merge.
 - **Hierarchy-aligned skills.** Execution is split along the ticket
-  hierarchy: `/plan` builds the backlog (with optional ideation
-  entry), `/deliver` owns the merged wave-loop + close-tail, and
-  `/deliver` delivers one or more standalone Stories end-to-end.
-  `helpers/epic-deliver-story` and `helpers/single-story-deliver` are the
-  per-Story workers called by those two commands respectively. All share
-  the same primitives (`Graph.computeWaves`, `cascadeCompletion`,
-  `ticketing.js`, `WorktreeManager`).
+  hierarchy: `/plan` builds Story tickets (with optional ideation entry),
+  and `/deliver` routes one or more Stories through
+  `helpers/deliver-story`. All share the same primitives
+  (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
+  `WorktreeManager`).
 - **Single-session fan-out.** `/deliver` launches Story sub-agents via
   the Agent tool — every Story runs inside the operator's Claude session,
   with no subprocess boundary. Worktree filesystem isolation is preserved;
@@ -319,11 +304,10 @@ mode:
 4. **Confirm at gate #1.** The one-pager, the triage verdict, and the
    duplicate review fold into one operator confirmation at the exit of
    the interrogate step.
-5. **Open the Epic (persist step).** `plan-persist.js` renders the
-   one-pager into the canonical Epic-from-idea template and opens the
-   Issue with **only** the `type::epic` label — no `state::*` label at
-   creation; the same persist pass folds in the authored sections and
-   flips the Epic straight to `agent::ready`.
+5. **Open the Story (persist step).** `plan-persist.js` renders the
+   one-pager into the canonical Story template and opens the Issue with
+   **`type::story`** (+ `agent::ready`); the same persist pass folds in
+   the authored `## Spec` (spill-to-doc when over budget).
 
 #### Scope triage
 
@@ -490,36 +474,28 @@ The waiver is binary — there is no partial opt-out. If an Epic later
 warrants spec coverage, remove the label and run `/plan`'s
 `planning.spec-authoring` state to author the spec.
 
-1. **Ticket Decomposer** (the fan-out half of `plan-persist.js`):
-   - Decomposes specs into the **2-tier hierarchy**
-     (Epic → Story):
+1. **Ticket authoring** (`plan-persist.js`):
+   - Emits the **Story-only** hierarchy (default N=1):
 
      ```text
-     Epic (type::epic)                ← body carries the folded Tech Spec
-     │                                  sections + ## Acceptance Table
-     ├── Story (type::story)
-     │   ├── acceptance[]            ← inline on Story body
-     │   └── verify[]                ← inline on Story body
-     └── Story (type::story)
+     Story (type::story)              ← body carries ## Spec + acceptance[]
+     │                                   + verify[]; spill-to-doc when over budget
+     └── (optional siblings under plan-run::<id>, linked by depends_on)
      ```
 
-   - **Wiring.** Each ticket is linked using `blocked by #NNN` syntax and
-     GitHub's native sub-issues API.
-   - **Metadata.** Each Story is stamped with persona, estimated files,
-     and agent prompts, plus the inline `acceptance[]` / `verify[]`
-     arrays the executing sub-agent reads.
+   - **Wiring.** Sibling Stories in a rare N>1 plan-run share a
+     `plan-run::<id>` label and optional `depends_on` / `blocked by #NNN`
+     edges.
+   - **Metadata.** Each Story carries persona, session-capacity sizing,
+     and the inline `acceptance[]` / `verify[]` arrays the executing
+     agent reads.
 
-`/deliver` runs a **single** Story-implementation phase per
-Story. The wave-loop fan-out in `/deliver` and the
-Story-branch → Epic-branch merge model are unchanged; the Feature and
-Task layers are gone, and thematic grouping lives as prose in the Epic
-body (which also carries the folded Tech Spec sections).
+`/deliver` runs a **single** Story-implementation phase per Story on
+`story-<id>` → PR → `main`. There is no epic integration branch and no
+wave-merge model.
 
-When the persist step completes the Epic flips to `agent::ready` and the
-`plan-summary` structured comment (with the dry-run wave table) lands on
-the Epic. The live wave manifest is written at deliver time by the
-prepare phase — planning posts no separate dispatch-manifest comment
-(Epic #4474).
+When the persist step completes, each Story is `agent::ready` and a
+`plan-summary` structured comment lands on the primary Story.
 
 ### `agent::ready` exit conditions
 
@@ -574,7 +550,7 @@ the side effects. See
 [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus contract,
 event taxonomy, ledger format, and listener model — every phase
 transition, ticket-state flip, and webhook fan-out now flows through
-that bus, and the on-disk ledger at `temp/epic-<id>/lifecycle.ndjson`
+that bus, and the on-disk ledger at `temp/run-<id>/lifecycle.ndjson`
 is the canonical resume target. Safety gates (auto-merge arming,
 acceptance-spec reconciliation, blocker handling) are listener
 side-effects rather than inline calls at phase boundaries; the
@@ -582,9 +558,8 @@ side-effects rather than inline calls at phase boundaries; the
 `AutomergeArmer` listener.
 
 > **Acceptance start gate.** Before a single wave fans out,
-> `/deliver`'s `delivery.snapshot` state
-> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
-> asserts that the Epic either (a) carries the `acceptance::n-a`
+> `/deliver`'s `delivery.snapshot` state asserts that the Epic either
+> (a) carries the `acceptance::n-a`
 > waiver label, or (b) carries the `## Acceptance Table` managed
 > section in its body (Story #4324). Presence is sufficient — the
 > reviewer's OK during `/plan`'s `planning.spec-authoring` state is
@@ -597,23 +572,22 @@ side-effects rather than inline calls at phase boundaries; the
 
 ### Invocation modes
 
-| Mode                             | Entry point                                              | When to use                                                                                    |
-| -------------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **Whole Epic**                   | `/deliver <epicId>`                                 | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main.  |
-| **Epic-attached Story (worker)** | *helper* `helpers/epic-deliver-story <storyId>`          | Per-Story sub-agent called internally by `/deliver`'s wave fan-out; not an operator slash command. |
-| **Standalone Story — plan**      | `/plan`                                            | Plan a one-off Story that does not belong to an Epic backlog.                                  |
-| **Standalone Story — deliver**   | `/deliver <storyId> [<storyId>...]`                | Deliver one or more standalone Stories authored by `/plan`.                             |
-| **Standalone Story (worker)**    | *helper* `helpers/single-story-deliver <storyId>`        | Per-Story sub-agent called internally by `/deliver`; not an operator slash command.      |
-| **Mixed set**                    | `/deliver <ids...>`                                | Any mix of ≥1 Epics and standalone Stories. The router composes a sequential segment plan — standalone segment first, then Epic segments in input order — delegating each segment to the path helpers above. |
+| Mode                           | Entry point                               | When to use                                                                                                  |
+| ------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Story — plan**               | `/plan`                                   | Plan a Story that does not carry an `Epic: #N` reference.                                                     |
+| **Single Story — deliver**     | `/deliver <storyId>`                      | Deliver one Story end-to-end through `helpers/deliver-story`; ends with a PR open to `main`.                 |
+| **Story set — deliver**        | `/deliver <storyId> [<storyId>...]`       | Deliver multiple Stories in dependency order; each Story lands through its own PR to `main`.                 |
+| **Plan-run — deliver**         | `/deliver --run <planRunId>`              | Resolve Stories labeled `plan-run::<id>` and sequence them as above; run the per-run epilogue after the set. |
+| **Story worker (internal)**    | *helper* `helpers/deliver-story <storyId>` | Per-Story engine called internally by `/deliver`; not an operator slash command.                             |
 
-The single operator-facing entry point is `/deliver` — it routes a lone
-Epic, a standalone-Story set, or a mixed set (via the sequential segment
-plan) to the right path helper(s). The `helpers/` layer sits below it and
-is never invoked directly by the operator.
+The single operator-facing entry point is `/deliver` — it resolves a Story
+set, sequences by `depends_on`, and invokes `helpers/deliver-story` for each
+Story. The `helpers/` layer sits below it and is never invoked directly by the
+operator.
 
 ### Story-centric branching
 
-- **Format**: `story-<storyId>` (merges into `epic/<epicId>`).
+- **Format**: `story-<storyId>` (opens a PR directly to `main`).
 - **Goal**: minimize merge conflicts and consolidation waves by grouping
   related work on one context slice.
 
@@ -669,17 +643,15 @@ Whether the Story is launched directly by the operator or fanned out by
    finalize.
 3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
-   - Merges the Story branch into `epic/<epicId>`.
-   - Transitions the Story → `agent::done`. There is no upward
-     auto-cascade — the Epic flips only when the operator merges the
-     `epic/<id>` PR to `main`.
+   - Opens or updates the Story branch PR to `main`.
+   - Transitions the Story → `agent::closing`; `agent::done` is set only
+     after the PR merge is confirmed.
    - Reaps the Story worktree and cleans up the merged Story branch.
 
 ### Context hydration
 
-When a sub-agent runs `helpers/epic-deliver-story <storyId>` (for
-Epic-attached Stories) or `helpers/single-story-deliver <storyId>` (for
-standalone Stories), the Context Hydrator assembles a self-contained prompt:
+When a sub-agent runs `helpers/deliver-story <storyId>`, the Context Hydrator
+assembles a self-contained prompt:
 
 1. `agent-protocol.md` (universal rules).
 2. Persona and skill directives (from Task labels).
@@ -716,11 +688,10 @@ dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
 ### Story assignment (deterministic)
 
-`helpers/epic-deliver-story` requires an explicit Story id. The parent
-`/deliver` wave loop picks Story ids off the frozen dispatch manifest
-deterministically and launches one Agent-tool sub-agent (calling
-`helpers/epic-deliver-story`) per id per wave; sibling sub-agents never
-race on the same Story.
+`helpers/deliver-story` requires an explicit Story id. The parent `/deliver`
+router picks Story ids from the resolved set deterministically and launches
+one Agent-tool sub-agent (calling `helpers/deliver-story`) per ready Story;
+sibling sub-agents never race on the same Story.
 
 `runtime.sessionId` survives as a stable per-process identity surfaced in
 the startup `[ENV]` log line for operator correlation. It is a 12-char
@@ -728,23 +699,19 @@ short-id derived from hostname+pid+random.
 
 ### Launch-time dependency guard
 
-Before any branch operation, `story-init.js` reads the Epic's
-dispatch manifest and verifies the target story's blockers are all merged.
+Before any branch operation, `single-story-init.js` reads the resolved Story's
+dependency metadata and verifies the target Story's blockers are all merged.
 Unmerged blockers print each blocker's id, state, and URL; the session exits
-0 (operator-error, not a system error) without touching any branches. A
-missing or stale-format manifest emits a warning and proceeds — the guard is
-a footgun-prevention layer, not a strict gate.
+0 (operator-error, not a system error) without touching any branches. The guard
+is a footgun-prevention layer, not a strict gate.
 
 The guard runs identically on web and local.
 
 ### Concurrent close — push retry
 
-`story-close.js` merges the Story branch into `epic/<epicId>` locally
-and pushes. With multiple sessions closing into the same Epic branch from
-separate clones, a non-fast-forward rejection is expected. The push step is
-wrapped in a bounded retry: on rejection the script fetches
-`origin/epic/<id>`, replays the Story merge on top of the new remote tip,
-and pushes again. Bounds:
+`single-story-close.js` pushes the Story branch and opens or locates the PR to
+`main`. With multiple sessions working from separate clones, the close path
+rebases or refreshes against the latest `main` before pushing. Bounds:
 
 - `DEFAULT_STORY_MERGE_RETRY.maxAttempts` (framework-internal constant in
   `.agents/scripts/lib/config/runners.js`) — 3.
@@ -756,41 +723,31 @@ manual resolution. The retry path is a wrapper around the existing happy path.
 
 ### Cross-clone coordination
 
-Concurrent runs are serialised by **two distinct layers**, and the
-distinction matters: getting it wrong leaves two clones racing on the same
-Epic with no guard between them.
+Concurrent runs are serialised by **two distinct layers**, and the distinction
+matters: getting it wrong leaves two clones racing on the same Story with no
+guard between them.
 
-**Filesystem locks are same-machine-only.** The Epic merge lock
-(`.agents/scripts/lib/epic-merge-lock.js`) lives at
-`<gitCommonDir>/epic-<epicId>.merge.lock` inside `.git/`, and the
-single-story sweep lock (`.agents/scripts/lib/single-story-sweep/sweep-lock.js`)
-is a single-file rendezvous on the local filesystem. Both decide staleness
-by probing a recorded **process PID** with `process.kill(pid, 0)` and by
-comparing a local-filesystem mtime against a TTL. Because a PID is only
-meaningful on the machine that owns it and `.git/` is never committed,
-**these locks coordinate only the worktrees and sessions on a single
-machine/clone. They do NOT coordinate across clones.** Two operators on
-two separate clones (or two CI runners) will each acquire their *own*
-merge lock and never see the other's — the locks are invisible to each
-other. The only cross-clone safety the merge step itself has is the
-bounded push-retry described above, which recovers from the
-non-fast-forward rejection *after* the race has already happened.
+**Filesystem locks are same-machine-only.** The single-story sweep lock
+(`.agents/scripts/lib/single-story-sweep/sweep-lock.js`) is a single-file
+rendezvous on the local filesystem. It decides staleness by probing a recorded
+**process PID** with `process.kill(pid, 0)` and by comparing a local-filesystem
+mtime against a TTL. Because a PID is only meaningful on the machine that owns
+it and `.git/` is never committed, **these locks coordinate only the worktrees
+and sessions on a single machine/clone. They do NOT coordinate across clones.**
+Two operators on two separate clones (or two CI runners) will each acquire
+their *own* local locks and never see the other's — the locks are invisible to
+each other.
 
 **The assignee-as-lease is the cross-clone layer.** To stop two clones
-from both *starting* to drive the same Epic or Story, the framework takes
+from both *starting* to drive the same Story, the framework takes
 an exclusive, time-bounded claim on the ticket via
 [`ticket-lease.js`](../scripts/lib/orchestration/ticket-lease.js). The lease
 rides the ticket's GitHub `assignees` field — a substrate every clone can
 read — so a live foreign claim is visible to, and refuses, a second
-operator regardless of which machine they are on. All three delivery and
-planning entry points take the claim: `/plan`'s persist CLI acquires the
-Epic lease before its first mutation and releases it on every exit path,
-`/deliver` acquires the Epic lease in its prepare guard, and
-`/single-story-deliver` acquires the Story lease at init. For
-`/deliver` and `/single-story-deliver`, liveness is decided by the
-owner's most-recent `story.heartbeat` against `delivery.lease.ttlMs`;
-because planning emits no `story.heartbeat`, `/plan` has no
-live-heartbeat source and treats **any** foreign assignee as a live claim.
+operator regardless of which machine they are on. `/deliver` runs each Story
+through `helpers/deliver-story`, which acquires the Story lease at init. For
+delivery, liveness is decided by the owner's most-recent `story.heartbeat`
+against `delivery.lease.ttlMs`.
 A live foreign claim fails the preflight closed (refuse-and-exit, naming
 the owner); `--steal` is the only override. See
 [`README.md` § Multi-developer coordination](../README.md#multi-developer-coordination)
@@ -823,11 +780,11 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    `story-close` (Story #4409). The roster is handed to Phase 5; there is no
    standalone Phase 4 walk and no separate `audit-results` comment (Story
    #4412).
-3. **Code-review (Phase 5) — cumulative diff walked once.**
-   `lib/orchestration/code-review.js` walks `main..epic/<id>` a single time,
-   executing the Phase 4 lens roster as review **dimensions** alongside the
+3. **Code-review (Phase 5) — Story diff walked once.**
+   `lib/orchestration/code-review.js` walks the Story PR diff a single time,
+   executing the risk-routed lens roster as review **dimensions** alongside the
    review pillars, and posts the unified `verification-results` structured
-   comment on the Epic (Story #4411 unified the former `code-review` and
+   comment on the Story (Story #4411 unified the former `code-review` and
    `audit-results` contracts; Story #4412 folded the lens walk into this pass).
    Remediation is **tier-aware and split by finding class** (Story #4412): the
    review-pillar findings route off `delivery.codeReview.autoFixSeverity`
@@ -852,7 +809,7 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    `epicRetroMirrorPath`) so operators can read the retro without
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
-5. **Finalize (Phase 7).** `/deliver` fires `epic.close.end` via
+5. **Finalize (Phase 7).** `/deliver` fires the close lifecycle event via
    `lifecycle-emit.js`; the `AcceptanceReconciler` → `Finalizer`
    listener chain owns every close-time side effect end to end
    (Story #2894 — bus-owned finalize). The chain runs three
@@ -871,14 +828,13 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
       Skipped (`status: 'waived'`) when the Epic carries
       `acceptance::n-a`.
    2. **PR open (bus-owned, Story #2894).** On
-      `acceptance.reconcile.ok`, the `Finalizer` listener invokes
-      `openOrLocatePr({ epicId, headBranch: 'epic/<id>', baseBranch:
-      'main' })`. The helper probes for an existing open PR on the
-      head branch first (idempotent locate path) and only runs
-      `gh pr create` when the head branch has no open PR. The
-      Finalizer does **not** arm auto-merge — it emits
-      `epic.merge.ready` carrying `{ prNumber, epicId, prUrl }` and
-      hands off to the auto-merge gate. The sole production caller
+      `acceptance.reconcile.ok`, the close listener opens or locates a PR from
+      `story-<id>` to `main`. The helper probes for an existing open PR on the
+      head branch first (idempotent locate path) and only runs `gh pr create`
+      when the head branch has no open PR. The Finalizer does **not** arm
+      auto-merge — it emits the merge-ready lifecycle event carrying
+      `{ prNumber, storyId, prUrl }` and hands off to the auto-merge gate. The
+      sole production caller
       authorised to shell `gh pr merge` in the entire codebase is
       the `AutomergeArmer` listener at the `delivery.automerge` state
       (enforced by the merge-lockout rule in
@@ -969,14 +925,13 @@ required checks fail.
 
 ---
 
-## Epic Deliver Runner internals
+## Deliver router internals
 
-`/deliver` drives the long-running coordinator inside the operator's
-Claude session. The slash command composes the submodules listed below;
-`helpers/epic-deliver-story` is launched as an Agent-tool sub-agent of
-`/deliver`'s wave loop — no subprocess worker sessions for Story
-execution, no GitHub Actions runner. Deterministic Node CLIs remain the
-state-mutation contract.
+`/deliver` drives the long-running coordinator inside the operator's Claude
+session. The slash command composes the submodules listed below;
+`helpers/deliver-story` is launched as an Agent-tool sub-agent for each ready
+Story — no subprocess worker sessions for Story execution, no GitHub Actions
+runner. Deterministic Node CLIs remain the state-mutation contract.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -1011,25 +966,21 @@ the project's `CI / CD` workflow. Two mitigations:
 
 ## Phase 4: PR merge (auto by default)
 
-Once the wave loop, close-validation, code-review, and retro have all
-completed, `/deliver` opens a pull request from `epic/<epicId>` to
-`main` and arms GitHub native auto-merge. When the required checks pass
-the PR lands without further intervention; the operator can disarm
-auto-merge in the GitHub UI to make the final merge an explicit human
-action.
+Once a Story's close-validation, code-review, and retro have completed,
+`/deliver` opens a pull request from `story-<id>` to `main` and arms GitHub
+native auto-merge. When the required checks pass the PR lands without further
+intervention; the operator can disarm auto-merge in the GitHub UI to make the
+final merge an explicit human action.
 
-1. **Story merging.** Stories merge into `epic/<epicId>` automatically
-   during Story closure (`story-close.js`). The Epic branch is the rolling
-   integration target.
-2. **Completion.** Each Story flips to `agent::done` at its own closure
-   (`story-close.js`); the wave loop tracks Epic-level progress as
-   Stories complete. There is no upward auto-cascade — Epics and
-   Tech Specs are never flipped by Story closure; the Epic only flips to
-   `agent::done` when the operator merges the PR to `main`.
+1. **Story PR.** Stories open PRs to `main` during Story closure
+   (`single-story-close.js`). There is no rolling Epic integration branch.
+2. **Completion.** Each Story flips to `agent::done` only after
+   `single-story-confirm-merge.js` confirms the PR merged. There is no upward
+   auto-cascade from Story closure.
 
 3. **PR merge — the sole promotion gate.** When the PR merges (auto or
    manual):
-   - the Epic-to-`main` merge lands as a real PR merge with a real
+   - the Story-to-`main` merge lands as a real PR merge with a real
      reviewer-trail and required-checks history;
    - the standard label-transition pathway flips the Epic to
      `agent::done`;
@@ -1341,8 +1292,8 @@ workflow edits.
 
 ### Worktree config shadow
 
-`helpers/epic-deliver-story` and `helpers/single-story-deliver` run inside
-per-Story worktrees under `.worktrees/story-<id>/`. A git worktree checks out the
+`helpers/deliver-story` runs inside per-Story worktrees under
+`.worktrees/story-<id>/`. A git worktree checks out the
 **Story branch's own copy** of every repo-tracked file — including
 `.agentrc.json`, `package.json`, `release-please-config.json`, and any
 other config under version control. **Operator edits made in the main
@@ -1394,11 +1345,10 @@ For Stories already in flight, use one of the three options above.
 | `/plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then Tech Spec + decomposition.                                                                                 |
 | `/plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/plan <epicId>`                            | Existing-Epic mode — Tech Spec + decomposition for an Epic Issue already opened.                                                                                             |
-| `/deliver <epicId>`                                      | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                       |
-| `/deliver <storyId> [<storyId>...]`                     | Deliver one or more standalone Stories (no `Epic: #N` reference). Builds a dependency-aware wave plan and fans out one worker per Story per wave.                              |
+| `/deliver <storyId> [<storyId>...]`                     | Deliver one or more Stories (no `Epic: #N` reference). Builds a dependency-aware plan and runs each Story through its own PR to `main`.                                         |
+| `/deliver --run <planRunId>`                            | Resolve Stories labeled `plan-run::<id>`, sequence them by dependencies, and run the per-run epilogue after the set lands.                                                     |
 | `/plan`                                                 | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
-| *helper* `workflows/helpers/epic-deliver-story`               | Per-Story worker called by `/deliver`'s wave loop; not an operator slash command. See [`helpers/epic-deliver-story.md`](../workflows/helpers/epic-deliver-story.md).         |
-| *helper* `workflows/helpers/single-story-deliver`             | Per-Story worker called by `/deliver`; not an operator slash command. See [`helpers/single-story-deliver.md`](../workflows/helpers/single-story-deliver.md).                |
+| *helper* `workflows/helpers/deliver-story`                    | Per-Story worker called by `/deliver`; not an operator slash command. See [`helpers/deliver-story.md`](../workflows/helpers/deliver-story.md).                               |
 | *helper* `workflows/helpers/code-review.md`                   | Auto-invoked by `/deliver`'s `delivery.code-review` state (scope: epic); not a slash command.                                                                            |
 | `/git-deliver`                                   | Ad-hoc delivery of working-tree changes — detects the git setup and escalates to commit, commit + push, or commit + push + PR (auto-merge armed).                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
