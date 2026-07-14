@@ -39,7 +39,6 @@ import { statSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { epicTempDir } from '../config/temp-paths.js';
-import { emitSliceHeartbeat } from '../orchestration/lifecycle/emit-slice-lifecycle.js';
 import { emitStoryHeartbeat } from '../orchestration/lifecycle/emit-story-heartbeat.js';
 
 /**
@@ -53,25 +52,22 @@ const HEARTBEAT_MIN_INTERVAL_MS = 60_000;
 /**
  * Resolve the heartbeat target from the active-Story / active-slice env vars.
  *
- * Precedence: a present `CC_STORY_ID` (fan-out Story child) wins over
- * `CC_SLICE_ID` (single-delivery session) — the two are never set together in
- * practice, but the ordering keeps the resolution deterministic if they were.
- *
  * A `story.heartbeat` requires a parent `epicId` (its schema pins
  * `epicId >= 1`), so a **standalone** Story (`CC_STORY_ID` set, `CC_EPIC_ID`
  * absent) yields `null` — there is no Epic-scoped ledger to write to and the
  * standalone path is not watched by the Epic idle watchdog. The trace hook
  * still records that context's traces; only the heartbeat is skipped.
  *
+ * Inert `slice.*` lifecycle (and `CC_SLICE_ID` heartbeats) were removed in
+ * the v2 ceremony lock-in — `## Slicing` is prose-only.
+ *
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {{ kind: 'story', epicId: number, storyId: number, operator?: string }
- *          | { kind: 'slice', epicId: number, sliceId: string, operator?: string }
  *          | null}
  */
 export function resolveHeartbeatTarget(env = process.env) {
   const epicRaw = env.CC_EPIC_ID;
   const storyRaw = env.CC_STORY_ID;
-  const sliceRaw = env.CC_SLICE_ID;
   const operator =
     typeof env.CC_OPERATOR === 'string' && env.CC_OPERATOR.length > 0
       ? env.CC_OPERATOR
@@ -93,17 +89,6 @@ export function resolveHeartbeatTarget(env = process.env) {
     };
   }
 
-  if (sliceRaw) {
-    if (typeof sliceRaw !== 'string' || sliceRaw.length === 0) return null;
-    if (!epicOk) return null;
-    return {
-      kind: 'slice',
-      epicId,
-      sliceId: sliceRaw,
-      ...(operator ? { operator } : {}),
-    };
-  }
-
   return null;
 }
 
@@ -115,11 +100,7 @@ export function resolveHeartbeatTarget(env = process.env) {
  * @returns {string}
  */
 export function heartbeatMarkerName(target) {
-  const key =
-    target.kind === 'story'
-      ? `story-${target.storyId}`
-      : `slice-${String(target.sliceId).replace(/[^A-Za-z0-9._-]/g, '_')}`;
-  return `.heartbeat-${key}`;
+  return `.heartbeat-story-${target.storyId}`;
 }
 
 /**
@@ -191,26 +172,14 @@ export function emitHeartbeatFromHook({
     }
 
     const timestamp = now.toISOString();
-    let res;
-    if (target.kind === 'story') {
-      res = emitStoryHeartbeat({
-        epicId: target.epicId,
-        storyId: target.storyId,
-        phase: 'implementing',
-        timestamp,
-        ...(target.operator ? { operator: target.operator } : {}),
-        config: config ?? undefined,
-      });
-    } else {
-      res = emitSliceHeartbeat({
-        epicId: target.epicId,
-        sliceId: target.sliceId,
-        phase: 'implementing',
-        timestamp,
-        ...(target.operator ? { operator: target.operator } : {}),
-        config: config ?? undefined,
-      });
-    }
+    const res = emitStoryHeartbeat({
+      epicId: target.epicId,
+      storyId: target.storyId,
+      phase: 'implementing',
+      timestamp,
+      ...(target.operator ? { operator: target.operator } : {}),
+      config: config ?? undefined,
+    });
     touchMarker(markerPath, now);
     return { emitted: true, kind: target.kind, ledgerPath: res?.ledgerPath };
   } catch {

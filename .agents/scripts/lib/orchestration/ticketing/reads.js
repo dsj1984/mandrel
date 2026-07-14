@@ -73,6 +73,11 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'verification-results',
   'retro',
   'retro-partial',
+  // v2 Story closeout — actionable follow-ups from friction signals
+  'follow-ups',
+  // v2 plan-run epilogue artifacts (posted on the primary Story)
+  'plan-run-audit-roster',
+  'plan-run-sibling-coherence',
   'epic-run-state',
   'epic-run-progress',
   'epic-plan-state',

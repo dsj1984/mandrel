@@ -273,6 +273,26 @@ below applies only to the rare, policy-compliant N>1 runs.
      no spawn to attach a role context to. Delete the unwired 1.7KB
      `retro.md`; re-add only if retro ever becomes an agent spawn.
 
+- **Ceremony lock-in (2026-07-14) — no placeholder scaffolding on `v2`:**
+  1. **Follow-ups (replaces Epic retro)** → every Story land runs
+     `captureStoryFollowUps` (friction → filed/`follow-ups` comment). N>1
+     adds `plan-run-epilogue.js` `follow-up-rollup` over the set. Intent is
+     actionable issues, not six-section essay retros. `retro-run.js` +
+     `agents/retro.md` deleted.
+  2. **Spec spill** → keep spill-to-`docs/specs/` at persist; durability is
+     the Story PR committing the referenced file.
+  3. **Run epilogue** → real executor CLI `plan-run-epilogue.js`
+     (`audit-roster` · `follow-up-rollup` · `sibling-coherence`). Inert
+     planner-only path removed.
+  4. **Risk-routed critics/lenses** → critical review + acceptance `block`
+     stay blocking; local/audit lenses stay advisory.
+  5. **Epic surface** → hard-delete unwired epic-plan skills, orphan CLIs
+     (`standalone-feedback-rollup`, `bookkeeping-reconcile`), and
+     `helpers/epic-testing.md`. Keep libraries still used by `/plan`.
+  6. **`single-story-*` rename** → deferred (cosmetic).
+  7. **`slice.*` lifecycle** → deleted (inert). `## Slicing` remains
+     in-session prose checkpoints only.
+
 ### Build progress (living checklist)
 
 > Work happens on the long-lived **`v2`** branch — never through `/plan` or

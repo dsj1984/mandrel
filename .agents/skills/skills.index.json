@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T20:48:55.222Z",
+  "generatedAt": "2026-07-14T21:42:10.296Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -70,46 +70,6 @@
       "description": "Records decisions and documentation. Use when making architectural decisions, changing public APIs, shipping features, or when you need to record context that future engineers and agents will need to understand the codebase.",
       "policyCapsuleBullets": 9,
       "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "epic-plan-consolidate",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
-      "policyCapsuleBullets": 9,
-      "allowedTools": ["Read", "Write", "Bash"],
-      "vendor": null
-    },
-    {
-      "name": "epic-plan-decompose-author",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
-      "description": "Author the Story ticket JSON for an Epic from the decomposer authoring context emitted by `plan-context.js --epic <Epic_ID>`. Use during Phase 8 of `/plan` when the host LLM needs to write the ticket array before `plan-persist.js` validates and persists it.",
-      "policyCapsuleBullets": 15,
-      "allowedTools": ["Read", "Write", "Bash"],
-      "vendor": null
-    },
-    {
-      "name": "epic-plan-premortem",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
-      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
-      "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Write", "Bash", "Grep"],
-      "vendor": null
-    },
-    {
-      "name": "epic-plan-spec-author",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
-      "description": "Author the Tech Spec, Acceptance Table markdown, and risk-verdict JSON for an Epic from the planner authoring context emitted by `plan-context.js --epic <Epic_ID>`. Use during Phase 7 of `/plan` when the host LLM needs to write the three artifacts before `plan-persist.js` folds them into the Epic body's managed sections.",
-      "policyCapsuleBullets": 14,
-      "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
     },
     {
