@@ -14541,8 +14541,7 @@
       "path": ".agents/scripts/lib/spec/loader.js",
       "method": "sortKeysDeep",
       "startLine": 336,
-      "crap": 4.058261265361857,
-      "coverage": 0.8461538461538461
+      "crap": 4.058261265361857
     },
     {
       "path": ".agents/scripts/lib/spec/loader.js",
