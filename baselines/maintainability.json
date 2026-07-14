@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-14T14:51:56.278Z",
+  "generatedAt": "2026-07-14T15:34:56.290Z",
   "rollup": {
     "*": {
       "min": 70.566,
@@ -916,7 +916,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/persist.js",
-      "mi": 86.429
+      "mi": 89.909
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-plan-decompose/phases/planning-artifacts.js",
@@ -1151,6 +1151,18 @@
       "mi": 82.617
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
+      "mi": 80.085
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "mi": 86.259
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/summary.js",
+      "mi": 106.965
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-review-routing.js",
       "mi": 107.852
     },
@@ -1348,7 +1360,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "mi": 95.767
+      "mi": 99.096
     },
     {
       "path": ".agents/scripts/lib/orchestration/spec-spill.js",
@@ -1861,6 +1873,10 @@
     {
       "path": ".agents/scripts/notify.js",
       "mi": 89.701
+    },
+    {
+      "path": ".agents/scripts/plan-persist.js",
+      "mi": 75.577
     },
     {
       "path": ".agents/scripts/post-structured-comment.js",

@@ -24,7 +24,9 @@ const SCRIPTS = [
   {
     name: 'plan-persist',
     relPath: '.agents/scripts/plan-persist.js',
-    args: ['--epic', '1'],
+    // v2 Stage 3: flat Story CLI — flags only need to clear parseArgs so
+    // config validation runs before any file/provider I/O.
+    args: ['--stories', 'stories.json', '--risk-verdict', 'risk.json'],
   },
 ];
 

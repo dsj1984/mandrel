@@ -12,6 +12,7 @@
  * {
  *   goal:                string,           // one-sentence purpose
  *   slicing:             string,           // v2 intra-Story delivery slice plan (optional; '' when absent)
+ *   spec:                string,           // folded Tech Spec text block (optional; '' when absent)
  *   changes:             PathEntry[],      // files/globs this Story touches
  *   acceptance:          string[],         // observable criteria
  *   verify:              string[],         // exact commands / tier annotation
@@ -71,6 +72,8 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
 /**
  * @typedef {object} StoryBody
  * @property {string}        goal                - One-sentence purpose statement.
+ * @property {string}        slicing             - Optional v2 intra-Story delivery slice plan text block; '' when absent.
+ * @property {string}        spec                - Optional folded Tech Spec text block; '' when absent.
  * @property {ChangeEntry[]} changes             - Files / globs this Story modifies.
  * @property {string[]}      acceptance          - Observable acceptance criteria.
  * @property {string[]}      verify              - Exact commands with tier annotation.
@@ -100,6 +103,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {boolean} hasReferencesSection - Whether a `## References` section was found.
  * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
  * @property {boolean} hasSlicingSection    - Whether a `## Slicing` section was found (v2 folded slice plan).
+ * @property {boolean} hasSpecSection       - Whether a `## Spec` section was found (folded Tech Spec).
  * @property {boolean} isLegacyStringBody   - True when no structured sections were found.
  */
 
@@ -142,6 +146,7 @@ export class StoryBodyParseError extends Error {
 const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
   ['slicing', 'slicing'],
+  ['spec', 'spec'],
   ['changes', 'changes'],
   ['acceptance', 'acceptance'],
   ['verify', 'verify'],
@@ -480,6 +485,8 @@ function parseLegacyStringBody(input, preamble, footer) {
   ];
   const body = {
     goal: preamble || input.trim(),
+    slicing: '',
+    spec: '',
     changes: [],
     acceptance: [],
     verify: [],
@@ -502,6 +509,8 @@ function parseLegacyStringBody(input, preamble, footer) {
       hasVerifySection: false,
       hasReferencesSection: false,
       hasNonGoalsSection: false,
+      hasSlicingSection: false,
+      hasSpecSection: false,
       isLegacyStringBody: true,
     },
   };
@@ -522,10 +531,10 @@ function parseGoalSection(lines) {
 }
 
 /**
- * Parse a verbatim text-block section (the v2 `## Slicing` slice plan) into a
+ * Parse a verbatim text-block section (`## Slicing` or `## Spec`) into a
  * newline-joined string. Unlike {@link parseGoalSection}, line breaks are
- * preserved so a bullet list or compact table survives the round-trip; only
- * blank lines and trailing whitespace are normalized.
+ * preserved so a bullet list, compact table, or folded Tech Spec survives the
+ * round-trip; only blank lines and trailing whitespace are normalized.
  *
  * @param {string[]} lines
  * @returns {string}
@@ -621,6 +630,7 @@ export function parse(input) {
   const hasReferencesSection = sections.has('references');
   const hasNonGoalsSection = sections.has('non_goals');
   const hasSlicingSection = sections.has('slicing');
+  const hasSpecSection = sections.has('spec');
 
   // If no structured sections found, treat as legacy string body.
   const isLegacyStringBody =
@@ -637,9 +647,10 @@ export function parse(input) {
   // Optional v2 intra-Story delivery slice plan (`## Slicing`). Preserved as
   // a verbatim text block — a large Story (what v1 called an Epic) folds its
   // Delivery Slicing here instead of fanning out into sibling Stories; a
-  // trivial Story omits it entirely. Parsed like `## Goal` (non-empty content
-  // lines joined) so a bullet list or compact table round-trips.
+  // trivial Story omits it entirely. Parsed as a text block so a bullet list
+  // or compact table round-trips.
   const slicing = parseTextBlockSection(sections.get('slicing') ?? []);
+  const spec = parseTextBlockSection(sections.get('spec') ?? []);
   const changes = parsePathEntrySection(
     sections.get('changes') ?? [],
     warnings,
@@ -671,6 +682,7 @@ export function parse(input) {
   const body = {
     goal,
     slicing,
+    spec,
     changes,
     acceptance,
     verify,
@@ -695,6 +707,7 @@ export function parse(input) {
       hasReferencesSection,
       hasNonGoalsSection,
       hasSlicingSection,
+      hasSpecSection,
       isLegacyStringBody: false,
     },
   };
@@ -715,6 +728,9 @@ function parseStructuredObject(obj) {
 
   // slicing — optional v2 intra-Story delivery slice plan (verbatim text).
   const slicing = typeof obj.slicing === 'string' ? obj.slicing.trim() : '';
+
+  // spec — optional folded Tech Spec (verbatim text).
+  const spec = typeof obj.spec === 'string' ? obj.spec.trim() : '';
 
   // changes
   const rawChanges = Array.isArray(obj.changes) ? obj.changes : [];
@@ -779,6 +795,7 @@ function parseStructuredObject(obj) {
   const body = {
     goal,
     slicing,
+    spec,
     changes,
     acceptance,
     verify,
@@ -803,6 +820,7 @@ function parseStructuredObject(obj) {
       hasReferencesSection: 'references' in obj,
       hasNonGoalsSection: 'non_goals' in obj,
       hasSlicingSection: 'slicing' in obj,
+      hasSpecSection: 'spec' in obj,
       isLegacyStringBody: false,
     },
   };
@@ -826,10 +844,10 @@ function serializePathEntry(entry) {
 
 /**
  * Descriptor table for the human-readable Story-body sections, in canonical
- * emit order (`## Goal`, `## Changes`, `## Acceptance`, `## Verify`,
- * `## References`, `## Non-Goals`). Each descriptor reads one body field and returns the
- * section's markdown block when the field is present and non-empty, or `null`
- * to omit the section.
+ * emit order (`## Goal`, `## Slicing`, `## Spec`, `## Changes`,
+ * `## Acceptance`, `## Verify`, `## References`, `## Non-Goals`). Each
+ * descriptor reads one body field and returns the section's markdown block
+ * when the field is present and non-empty, or `null` to omit the section.
  *
  * Standardising the section ladder as a single data table makes adding a new
  * optional section a one-line edit here rather than a new control-flow branch
@@ -854,6 +872,15 @@ const SERIALIZE_SECTIONS = [
     render: (slicing) =>
       typeof slicing === 'string' && slicing.trim().length > 0
         ? `## Slicing\n${slicing.trim()}`
+        : null,
+  },
+  {
+    // Optional folded Tech Spec. Like `## Slicing`, this is a verbatim text
+    // block and emits nothing for absent/empty pre-v2 bodies.
+    field: 'spec',
+    render: (spec) =>
+      typeof spec === 'string' && spec.trim().length > 0
+        ? `## Spec\n${spec.trim()}`
         : null,
   },
   {
@@ -982,8 +1009,8 @@ function serializeFooter(body, opts) {
  * format written to GitHub issue bodies.
  *
  * The output matches the section order the spec-renderer uses:
- * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`,
- * `## Non-Goals` (each omitted when empty).
+ * `## Goal`, `## Slicing`, `## Spec`, `## Changes`, `## Acceptance`,
+ * `## Verify`, `## References`, `## Non-Goals` (each omitted when empty).
  *
  * `wide`, `reason_to_exist`, and `estimated_test_files` are emitted as a
  * fenced `<!-- meta -->` comment block so round-trips preserve them without

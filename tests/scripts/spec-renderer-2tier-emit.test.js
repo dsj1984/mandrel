@@ -33,11 +33,13 @@ import addFormats from 'ajv-formats';
 
 import { renderSpec } from '../../.agents/scripts/lib/orchestration/spec-renderer.js';
 
+// v2 Stage 3: production schema dropped; fixture retained until Stage 5.
 const SCHEMA_PATH = path.resolve(
   process.cwd(),
-  '.agents',
-  'schemas',
-  'epic-spec.schema.json',
+  'tests',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 
 function buildAjv() {

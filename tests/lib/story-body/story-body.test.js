@@ -15,6 +15,7 @@
  *   - serialize(): includes footer when opts.includeFooter = true
  *   - serialize(): meta comment block for wide / estimated_test_files
  *   - serialize(): omits empty sections
+ *   - parse()/serialize(): optional `## Spec` folded Tech Spec text block
  *   - extractChangePaths(): flags glob entries
  *   - round-trip: parse(serialize(body)) reproduces body
  *   - test-surface-unestimated warning on absent estimated_test_files
@@ -731,5 +732,88 @@ Deliver the widget end to end.
       verify: ['npm test (unit)'],
     });
     assert.equal(body.slicing, '- slice 1: x');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stage 3 — optional `## Spec` section (folded Tech Spec)
+// ---------------------------------------------------------------------------
+
+describe('parse()/serialize() — `## Spec` section', () => {
+  const SPEC_MARKDOWN = `## Goal
+Deliver the widget end to end.
+
+## Slicing
+- slice 1: schema + migration
+
+## Spec
+Use the existing widget repository seam.
+- Persist widget state through the existing store.
+- Reuse the current route registration flow.
+
+## Changes
+- ${JSON.stringify({ path: 'src/widget.ts', assumption: 'creates' })}
+
+## Acceptance
+- [ ] widget renders
+
+## Verify
+- npm test (unit)`;
+
+  it('parse() captures the folded Tech Spec verbatim and flags the section', () => {
+    const { body, info } = parse(SPEC_MARKDOWN);
+    assert.equal(
+      body.spec,
+      'Use the existing widget repository seam.\n- Persist widget state through the existing store.\n- Reuse the current route registration flow.',
+    );
+    assert.equal(info.hasSpecSection, true);
+  });
+
+  it('parse() yields empty spec and false flag when the section is absent', () => {
+    const { body, info } = parse(CANONICAL_MARKDOWN);
+    assert.equal(body.spec, '');
+    assert.equal(info.hasSpecSection, false);
+  });
+
+  it('serialize() emits `## Spec` after `## Slicing` and before `## Changes` when present', () => {
+    const md = serialize({
+      goal: 'g',
+      slicing: '- slice 1: do the thing',
+      spec: 'Implementation notes\n- Keep the existing seam',
+      changes: [{ path: 'src/a.ts', assumption: 'creates' }],
+      acceptance: ['done'],
+      verify: ['npm test (unit)'],
+    });
+    assert.match(
+      md,
+      /## Goal\ng\n\n## Slicing\n- slice 1: do the thing\n\n## Spec\nImplementation notes\n- Keep the existing seam\n\n## Changes/,
+    );
+  });
+
+  it('serialize() omits absent or empty spec so pre-v2 bodies round-trip byte-identically', () => {
+    const withoutField = serialize(CANONICAL_BODY);
+    const withEmptyField = serialize({ ...CANONICAL_BODY, spec: '' });
+    assert.equal(withEmptyField, withoutField);
+    assert.doesNotMatch(withoutField, /## Spec/);
+    assert.equal(serialize(parse(CANONICAL_MARKDOWN).body), CANONICAL_MARKDOWN);
+  });
+
+  it('round-trips: parse(serialize(body)) preserves the folded Tech Spec', () => {
+    const { body } = parse(SPEC_MARKDOWN);
+    const reparsed = parse(serialize(body)).body;
+    assert.equal(reparsed.spec, body.spec);
+    assert.equal(serialize(reparsed), serialize(body));
+  });
+
+  it('structured-object parse preserves an inline spec string', () => {
+    const { body, info } = parse({
+      goal: 'g',
+      spec: 'Use the existing story-body serializer.',
+      changes: [{ path: 'src/a.ts', assumption: 'creates' }],
+      acceptance: ['a'],
+      verify: ['npm test (unit)'],
+    });
+    assert.equal(body.spec, 'Use the existing story-body serializer.');
+    assert.equal(info.hasSpecSection, true);
   });
 });

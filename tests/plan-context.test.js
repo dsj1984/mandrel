@@ -14,10 +14,11 @@
  *    `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`, including with a body at the
  *    planning-context budget cap.
  *  - systemPrompts fold: spec/acceptance render verbatim from
- *    `lib/templates/spec-author-prompts.js`; decompose matches the existing
+ *    `lib/templates/spec-author-prompts.js`; story includes the v2
+ *    default-single policy; decompose matches the existing
  *    `buildDecomposerSystemPrompt` carrier.
- *  - deliveryShapeSignal: advisory recommendation + reasons per the
- *    slicing-table / scope-enumeration heuristics, fan-out by default.
+ *  - legacy advisory helpers: deliveryShape/scopeTriage helpers remain
+ *    exported for now, but are not embedded in any v2 Stage 3 envelope.
  */
 
 import assert from 'node:assert/strict';
@@ -114,7 +115,6 @@ const EPIC_MODE_KEYS = [
   'bddScenarios',
   'clarity',
   'codebaseSnapshot',
-  'deliveryShapeSignal',
   'docsContext',
   'epic',
   'maxTickets',
@@ -134,7 +134,6 @@ const SEED_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
   'codebaseSnapshot',
-  'deliveryShapeSignal',
   'docsContext',
   'duplicates',
   'maxTickets',
@@ -146,7 +145,6 @@ const SEED_MODE_KEYS = [
   'preflightCeilings',
   'priorFeedback',
   'riskHeuristics',
-  'scopeTriage',
   'seed',
   'systemPrompts',
   'ticketSchema',
@@ -156,7 +154,6 @@ const ONE_PAGER_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
   'codebaseSnapshot',
-  'deliveryShapeSignal',
   'docsContext',
   'duplicates',
   'maxTickets',
@@ -358,7 +355,7 @@ describe('plan-context dup-search fold parity vs library', () => {
 });
 
 describe('plan-context systemPrompts fold', () => {
-  it('renders spec/acceptance from spec-author-prompts.js and decompose from the existing carrier', async () => {
+  it('renders spec/acceptance/story/decompose from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
       mode: 'epic',
       epicId: 7,
@@ -382,6 +379,11 @@ describe('plan-context systemPrompts fold', () => {
     assert.deepEqual(env.riskHeuristics, ['touches auth']);
     assert.match(env.systemPrompts.spec, /Engineering Architect/);
     assert.match(env.systemPrompts.acceptance, /Acceptance Engineer/);
+    assert.match(env.systemPrompts.story, /v2 DEFAULT-SINGLE SPLIT POLICY/);
+    assert.match(
+      env.systemPrompts.story,
+      /Do \*\*not\*\* emit `deliveryShape`/,
+    );
     // The envelope's systemPrompts are exactly what the exported helper
     // renders for the same inputs, and the ticketSchema is the shared
     // frozen descriptor.
@@ -554,8 +556,8 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
   });
 });
 
-describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', () => {
-  it('is embedded in the seed envelope as an advisory, cli-applied verdict', async () => {
+describe('plan-context scopeTriage helper (exported only, #4496 fix 6)', () => {
+  it('is not embedded in the seed envelope after the v2 Stage 3 planning cutover', async () => {
     const env = await buildPlanContext({
       mode: 'seed',
       seedText: ONE_PAGER,
@@ -564,12 +566,9 @@ describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', ()
       settings: {},
     });
     assert.ok(
-      ['epic', 'story', 'borderline'].includes(env.scopeTriage.verdict),
-      'verdict must be one of the three canonical scope-triage verdicts',
+      !('scopeTriage' in env),
+      'scopeTriage must not be embedded in seed-mode envelopes',
     );
-    assert.equal(env.scopeTriage.advisory, true);
-    assert.equal(env.scopeTriage.appliedBy, 'cli');
-    assert.ok(env.scopeTriage.reasons.length > 0);
   });
 
   it('verdicts epic when the seed enumerates 3+ candidate capabilities', () => {

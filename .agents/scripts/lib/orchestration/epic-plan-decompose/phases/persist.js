@@ -304,7 +304,7 @@ export function surfaceSoftConflictFindings(
   }
 }
 
-export async function runHealthcheckGate({
+async function runHealthcheckGate({
   epicId,
   epic,
   runHealthcheckFn,

@@ -284,11 +284,10 @@ For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
 keeps it current) and loads as a bare `/<command>` slash command — e.g.
-`/plan`, `/plan`, `/deliver`, `/audit-security`. The
-commands load in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks
-an end-to-end Epic; standalone Stories pair
-[`/plan`](workflows/helpers/plan-story.md) (idea → drafted Story
-Issue) with [`/deliver`](workflows/helpers/deliver-stories.md) (Story Issue → merged
+`/plan`, `/deliver`, `/audit-security`. The commands load in every Claude Code
+environment. The [SDLC guide](docs/SDLC.md) walks end-to-end planning and
+delivery; Stories pair [`/plan`](workflows/plan.md) (idea → drafted Story Issue)
+with [`/deliver`](workflows/helpers/deliver-stories.md) (Story Issue → merged
 PR).
 
 ---

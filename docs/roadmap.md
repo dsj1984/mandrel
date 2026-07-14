@@ -325,9 +325,19 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 3 — Planning collapse
 
-- [ ] `/plan` → single path: delete the `plan-epic.md`/`plan-story.md` fork, the scope-triage `epic|story` verdict, and `deliveryShape`
-- [ ] Author step emits **1 Story by default**; split policy wired to the Stage-1 validator
-- [ ] `plan-persist` → flat Story ops (drop epic tree cascades); Story body absorbs the folded spec; drop `epic-spec.schema.json`
+- [x] `/plan` → single path: deleted `plan-epic.md` / `plan-story.md` /
+  `scope-triage-gate.md` / `plan-epic-reference.md`; `plan.md` is the sole
+  3-step procedure. Scope-triage skill reduced to a split advisory (no
+  `epic|story` routing). `deliveryShape` removed from
+  `risk-verdict.schema.json` and plan-context envelopes.
+- [x] Author step emits **1 Story by default** (decomposer prompt +
+  `systemPrompts.story`); N>1 only under the split policy.
+  `assertAcceptancePartition` wired in `plan-persist` via `assemblePlanStories`.
+- [x] `plan-persist` → flat Story ops (`story-ops.js` + rewritten
+  `run-plan-persist.js`): createIssue Stories with folded `## Spec`
+  (spill-to-doc when over budget), `plan-run::` label when N>1, checkpoint on
+  primary Story. Dropped `.agents/schemas/epic-spec.schema.json` (fixture
+  retained for Stage-5 reconciler tests).
 
 #### Stage 4 — Delivery collapse
 

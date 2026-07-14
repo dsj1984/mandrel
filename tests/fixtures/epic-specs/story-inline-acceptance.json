@@ -1,5 +1,5 @@
 {
-  "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "$schema": "./schema.json",
   "version": "4.0.0",
   "epic": {
     "id": 3078,

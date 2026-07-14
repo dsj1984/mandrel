@@ -261,8 +261,8 @@ issue 4482.)
 
 ## See also
 
-- [`/plan`](helpers/plan-epic.md) — the planning pipeline `/audit-to-stories`
-  chains into for the Single-Epic grouping mode.
+- [`/plan`](plan.md) — the planning pipeline `/audit-to-stories`
+  chains into for Story creation.
 - [`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js) —
   the shared fingerprint/dedup/route helper this workflow and `qa-explore`
   both consume. There is no second dedup implementation.

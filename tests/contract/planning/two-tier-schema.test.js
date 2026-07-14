@@ -31,14 +31,14 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// v2 Stage 3: production schema dropped; fixture retained until Stage 5.
 const SCHEMA_PATH = path.resolve(
   __dirname,
   '..',
   '..',
-  '..',
-  '.agents',
-  'schemas',
-  'epic-spec.schema.json',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 
 function compileSchema() {

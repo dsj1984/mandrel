@@ -562,7 +562,7 @@ describe('ticket-decomposer prompt single-sourcing (Story #4162)', () => {
     'SKILL.md',
   );
   const FULL_BODY_MARKER =
-    'You are an expert Senior Project Manager and Orchestrator.\nYour job is to take an Epic (including its inline User Stories) and a Technical Specification and decompose them into a flat list of Story tickets';
+    'You are an expert Senior Project Manager and Orchestrator.\nYour job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.';
 
   it('the JS template carries the full decomposer system-prompt body', () => {
     const prompt = renderDecomposerSystemPrompt();

@@ -384,14 +384,27 @@ export function buildSystemPrompts({
   maxTokenBudget,
   epicId = null,
 } = {}) {
+  const decompose = buildDecomposerSystemPrompt(heuristics, {
+    maxTickets,
+    maxTokenBudget,
+    epicId,
+  });
   return {
     spec: renderTechSpecSystemPrompt(),
     acceptance: renderAcceptanceSpecSystemPrompt(),
-    decompose: buildDecomposerSystemPrompt(heuristics, {
-      maxTickets,
-      maxTokenBudget,
-      epicId,
-    }),
+    // v2 Stage 3: default-single author prompt (decompose text + split policy).
+    story: `${decompose}
+
+#### v2 DEFAULT-SINGLE SPLIT POLICY:
+
+Emit **exactly one Story** in \`stories.json\` unless the pieces have
+near-zero overlap or sit across an architectural seam. Coupled work stays
+one Story — put intra-session checkpoints in \`## Slicing\` and fold the
+Tech Spec into \`## Spec\` (persist spills over-budget specs to
+\`docs/specs/<slug>.md\`). Do **not** emit \`deliveryShape\`. When N>1,
+every acceptance criterion must belong to exactly one Story.
+`,
+    decompose,
   };
 }
 
@@ -474,7 +487,6 @@ async function buildEpicModeEnvelope({
       maxTokenBudget: limits.maxTokenBudget,
       epicId,
     }),
-    deliveryShapeSignal: buildDeliveryShapeSignal({ body }),
     planState,
   };
 }
@@ -577,7 +589,6 @@ async function buildOnePagerModeEnvelope({
       maxTokenBudget: limits.maxTokenBudget,
       epicId: null,
     }),
-    deliveryShapeSignal: buildDeliveryShapeSignal({ body: content }),
     planState: null,
   };
 }
@@ -618,7 +629,6 @@ async function buildSeedModeEnvelope({
     ...rest,
     mode: 'seed',
     seed: { text: seedText },
-    scopeTriage: buildScopeTriageSignal({ seedText }),
     onePagerSpec: ONE_PAGER_AUTHORING_SPEC,
   };
 }

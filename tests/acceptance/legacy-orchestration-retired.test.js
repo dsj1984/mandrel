@@ -99,8 +99,8 @@ const AC1_ALLOWED_RESIDUAL = [
   // /plan workflow comment describing planning-ticket auto-close
   // behavior. Refers to the historical close point; not an invocation.
   {
-    file: '.agents/workflows/helpers/plan-epic.md',
-    marker: 'closed automatically by',
+    file: '.agents/workflows/plan.md',
+    marker: 'never starts delivery',
   },
   // The following entries are inline JSDoc/comment references inside
   // production .js files that describe historic ownership ("this used

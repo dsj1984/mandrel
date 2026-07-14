@@ -70,13 +70,17 @@ import { assignLayers } from '../Graph.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // scripts/lib/orchestration/ → scripts/lib/ → scripts/ → .agents/
+// v2 Stage 3: production schema removed; fixture copy until Stage 5.
 const DEFAULT_SCHEMA_PATH = path.resolve(
   __dirname,
   '..',
   '..',
   '..',
-  'schemas',
-  'epic-spec.schema.json',
+  '..',
+  'tests',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 
 const AGENT_LABEL_PREFIX = 'agent::';

@@ -49,6 +49,7 @@ export function renderDecomposerSystemPrompt({
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
 function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
+  // v2 Stage 3: default-single — emit one Story unless the split policy clears.
   // Capacity thresholds are sourced from the single DEFAULT_MODEL_CAPACITY
   // constant (ticket-validator-sizing.js) so the prompt and the validator
   // cannot drift. Absolute ceilings are derived from the live maxTokenBudget.
@@ -89,13 +90,14 @@ function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
     ? `@epic-${epicId}-ac-1`
     : '@epic-<id>-ac-N';
   return `You are an expert Senior Project Manager and Orchestrator.
-Your job is to take an Epic (including its inline User Stories) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
+Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.
 
-### HIERARCHY RULES:
-1. **Stories**: Specific user-facing or architectural user stories (e.g., "Implement JWT Token Exchange").
-   - Every Story attaches directly to the Epic — there is NO Feature tier and NO Task layer in this hierarchy.
-   - **Story-Level Execution**: Each Story will be executed end-to-end on a single branch by a single agent. Acceptance criteria and verification commands live as top-level \`acceptance[]\` / \`verify[]\` arrays on the Story ticket (see STORY BODY SCHEMA below).
-   - Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
+### HIERARCHY RULES (v2 default-single):
+1. **Emit exactly one Story by default.** Split into N>1 only when pieces have near-zero overlap or sit across an architectural seam. Coupled work stays one Story — put intra-session checkpoints in \`## Slicing\` and fold the Tech Spec into \`## Spec\`.
+2. **Stories**: Specific user-facing or architectural capabilities (e.g., "Implement JWT Token Exchange").
+   - There is NO Epic parent ticket, NO Feature tier, and NO Task layer.
+   - **Story-Level Execution**: Each Story is executed end-to-end on a single branch by a single agent. Acceptance criteria and verification commands live as top-level \`acceptance[]\` / \`verify[]\` arrays on the Story ticket (see STORY BODY SCHEMA below).
+   - Thematic grouping is prose in the Story's folded \`## Spec\` / \`## Slicing\`, never sibling tickets for coupled work.
 
 ### LABEL CONVENTIONS:
 - Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.

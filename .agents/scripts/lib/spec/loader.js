@@ -61,10 +61,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // scripts/lib/spec/ → scripts/lib/ → scripts/ → .agents/
 const PROJECT_AGENTS_DIR = path.resolve(__dirname, '..', '..', '..');
+// v2 Stage 3 dropped `.agents/schemas/epic-spec.schema.json` from the
+// distributed product (plan-persist is flat Story ops). Legacy reconciler
+// tests still validate against a fixture copy until Stage 5 deletes the
+// reconciler cluster.
 const DEFAULT_SCHEMA_PATH = path.join(
   PROJECT_AGENTS_DIR,
-  'schemas',
-  'epic-spec.schema.json',
+  '..',
+  'tests',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 
 // Resolve the default per-Epic spec directory under `temp/epic-<id>/`.

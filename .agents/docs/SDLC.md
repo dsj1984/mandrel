@@ -32,33 +32,27 @@ From zero to shipped:
    - With **`<epicId>`**, the workflow interrogates against an Epic Issue
      you have already opened.
 
-   > **Step note.** `/plan`'s Epic path runs **three steps** (Epic #4474):
-   > all GitHub reads happen in `plan-context.js`, all GitHub writes in
+   > **Step note.** `/plan` is a **single path** (v2 Stage 3): all GitHub
+   > reads happen in `plan-context.js`, all GitHub writes in
    > `plan-persist.js`, and two HITL gates bracket the authoring middle.
+   > There is no Epic/Story router, no scope-triage routing verdict, and no
+   > `deliveryShape`.
 
-   1. **Interrogate** — the `idea-refinement` skill (ideation) or the
-      envelope's clarity/re-plan signals (existing Epic) drive a
-      question-at-a-time interrogation; `plan-context.js` emits the single
-      authoring envelope (duplicate candidates, clarity rubric, re-plan
-      signals, codebase snapshot, system prompts, delivery-shape signal).
-      The scope-triage verdict, duplicate review, and re-plan / refined-body
-      decisions fold into **gate #1**, one operator confirm at the step's
-      exit.
-   2. **Author** — the `epic-plan-spec-author` skill writes the Tech Spec
-      (opening `## Delivery Slicing`), the risk verdict (with its
-      `deliveryShape`), and the Acceptance Table; the
-      `epic-plan-decompose-author` skill writes `tickets.json` in fan-out
-      shape (a single-delivery plan authors no tickets). Fresh-context
-      consolidation and pre-mortem critics run conditionally before the
-      review.
-   3. **Persist** — **gate #2** (risk-routed) shows spec + tickets + risk +
-      `deliveryShape` in one view; then `plan-persist.js` runs every
-      deterministic gate in one ordered, fail-closed pass (section gate,
-      ticket validator, file-assumption gate, DAG, budget, Epic lease,
-      managed sections, story creation or the `delivery::single` marker,
-      inline healthcheck) and flips the Epic to `agent::ready` **once** —
-      no intermediate `agent::review-spec` — closing with a `plan-summary`
-      comment that carries the dry-run wave table.
+   1. **Interrogate** — `plan-context.js` emits the single authoring
+      envelope (duplicate candidates, codebase snapshot, system prompts
+      including `systemPrompts.story`). Duplicate review folds into
+      **gate #1**, one operator confirm at the step's exit.
+   2. **Author** — write `stories.json` (**one Story by default**) with a
+      folded Tech Spec in `## Spec` / `## Slicing`, plus
+      `risk-verdict.json` (axes + summary only). Split into N>1 only under
+      the default-single split policy. Fresh-context critics run
+      conditionally before the review.
+   3. **Persist** — **gate #2** (risk-routed) shows spec + stories + risk in
+      one view; then `plan-persist.js` runs every deterministic gate
+      (ticket validator, file-assumption, DAG, budget, split-policy
+      partition, spec spill) and creates Story issue(s) with
+      `type::story` + `agent::ready`, closing with a `plan-summary` on the
+      primary Story.
 
 2. **Deliver the Epic.** Run `/deliver <epicId>` in your IDE. The
    skill drives the merged execute + close flow end-to-end.
@@ -333,61 +327,17 @@ mode:
 
 #### Scope triage
 
-The `/plan` Epic path's interrogate step runs the
-[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric over the
-sharpened one-pager so a story-sized scope is not pushed through the full Epic
-ceremony (Tech Spec + Acceptance Spec + Story backlog +
-`epic/<id>` integration branch) only to land as a degenerate one-Story
-output. The rubric anchors its sizing judgment **by reference** to
-the existing sizing SSOT (`DELIVERABLE_GRANULARITY_GUIDANCE` /
-`DEFAULT_MODEL_CAPACITY` in `ticket-validator-sizing.js`) and emits one of three
-verdicts — `epic` | `story` | `borderline`.
+Stage 3 collapsed `/plan` into a single Story-authoring path:
+[`/plan`](../workflows/plan.md) no longer has an Epic/Story router, no
+scope-triage `epic|story` verdict is embedded in the planning envelope, and no
+scope-triage handoff controls persistence.
 
-The verdict is **host-LLM judgment** (no scorer, no schema, no label
-transition) and **advisory** — the operator always decides. It folds into the
-existing gate #1 confirmation rather than adding a second stop: an `epic`
-verdict proceeds with a plain confirm, while a `story` / `borderline` verdict
-offers a three-way choice (single Story / plan as Epic anyway / abort). On an
-accepted `story`, `/plan` hands the one-pager off to
-`/plan --from-notes` as a scope-triage handoff and exits. The ideation triage is
-skipped when `/plan` is itself entered via a scope-triage handoff, so the
-two workflows never ping-pong a settled decision.
-
-The same rubric also guards the **existing-Epic entry** (1b) as the
-**story-sized advisory**, which catches a story-sized scope that was
-hand-opened directly as a `type::epic` issue (the Epic Clarity Gate rubric
-scores section *presence*, not scope *size*, so a clear-but-thin Epic would
-otherwise sail through). The advisory fires **only** when the envelope's
-re-plan signal found no folded Tech Spec sections **and** the Epic has no
-open Story children, so
-it never re-triages an Epic that is being re-planned. An `epic` verdict
-proceeds silently; a `story` / `borderline` verdict STOPs with the same
-three-way choice (convert to a standalone Story / proceed as Epic anyway /
-abort). Converting is **close-and-recreate** — a `type::epic` body cannot
-satisfy `validateStoryBody`, and editing the issue in place would violate the
-"do not modify existing issues without explicit permission" rule — so, only
-after the operator confirms, the Epic body seeds a notes file,
-`/plan --from-notes` opens a replacement Story (identified as a
-scope-triage handoff so it skips its own gate, with a `## Notes` back-link to
-the Epic), and the Epic is closed with `gh issue close --comment` cross-linking
-the replacement. No deterministic scorer, no schema, and no label transition
-sit behind either gate.
-
-The rubric also runs in the **escalation direction** — the symmetric
-counterpart in [`/plan`](../workflows/helpers/plan-story.md). After `/plan`
-Phase 2 drafts a standalone Story body (the draft, not the seed, is the honest
-basis for the judgment), the same `core/scope-triage` rubric judges whether the
-scope is actually Epic-sized. The verdict folds into the existing Phase 2
-draft-confirmation HITL stop with no extra stop on a `story` verdict; an `epic`
-verdict offers a three-way choice (escalate to `/plan --idea` as a
-scope-triage handoff / persist as a standalone Story anyway / abort). On an
-accepted escalation, `/plan` abandons the draft and hands the notes off to
-`/plan --idea`, marked as a handoff so `/plan` skips its own ideation
-triage gate. This gate is itself skipped when `/plan` was entered via a
-scope-triage handoff (from the Epic path's ideation triage or its
-story-sized conversion path), so the two workflows never ping-pong a settled decision. As with the
-inbound gates, the verdict is advisory and host-LLM judgment — no auto-routing,
-no scorer, no schema, and no label transition.
+The [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) rubric remains
+available as optional split-advisory notes only. Use it when a human-facing
+planning discussion needs help deciding whether the default-single split policy
+should produce one Story or a rare N>1 plan, but the deterministic contract is
+the workflow's split policy plus `plan-persist` validation. No scorer, schema
+field, label transition, or helper workflow sits behind the advisory.
 
 ### 1b. Existing-Epic entry
 
