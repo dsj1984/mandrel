@@ -805,6 +805,40 @@ Use the existing widget repository seam.
     assert.equal(serialize(reparsed), serialize(body));
   });
 
+  it('preserves nested headings and interior blank lines inside the folded spec', () => {
+    const markdown = `## Goal
+Ship the widget.
+
+## Spec
+Overview paragraph.
+
+## Architecture
+Use the existing repository.
+
+### Risks
+- Migration ordering.
+
+## Acceptance
+- [ ] widget ships
+
+## Verify
+- npm test (unit)`;
+    const { body } = parse(markdown);
+    assert.equal(
+      body.spec,
+      [
+        'Overview paragraph.',
+        '',
+        '## Architecture',
+        'Use the existing repository.',
+        '',
+        '### Risks',
+        '- Migration ordering.',
+      ].join('\n'),
+    );
+    assert.deepEqual(body.acceptance, ['widget ships']);
+  });
+
   it('structured-object parse preserves an inline spec string', () => {
     const { body, info } = parse({
       goal: 'g',
