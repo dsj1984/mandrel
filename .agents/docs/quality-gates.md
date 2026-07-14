@@ -36,10 +36,9 @@ it once and reuse the context as you read through any individual gate.
 
 ## Concurrent close safety
 
-`/deliver`'s wave loop may close multiple Stories into the same
-`epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
-on a non-fast-forward rejection — fetch, replay the story merge on top of
-the new remote tip, push again — bounded by
+`/deliver` may close multiple Stories from separate Story branches in quick
+succession. The push step inside `single-story-close.js` refreshes against the
+latest `main` and retries a rejected Story-branch push — bounded by
 `DEFAULT_STORY_MERGE_RETRY.maxAttempts` (3) and
 `DEFAULT_STORY_MERGE_RETRY.backoffMs` (`[250, 500, 1000]`) from
 `.agents/scripts/lib/config/runners.js`.
@@ -261,9 +260,8 @@ the trace.
 After a Story's implementation commits land and **before** the Story
 proceeds to close, delivery runs a bounded acceptance self-eval loop
 (Step 1a of
-[`helpers/epic-deliver-story`](../workflows/helpers/epic-deliver-story.md)
-and `helpers/single-story-deliver`; the shared per-round mechanic lives
-in
+[`helpers/deliver-story`](../workflows/helpers/deliver-story.md); the shared
+per-round mechanic lives in
 [`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md),
 with the gate CLI at
 [`.agents/scripts/acceptance-eval.js`](../scripts/acceptance-eval.js)).

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/slice.end.schema.json",
   "title": "slice.end",
-  "description": "Appended to the Epic ledger by the single-delivery executor (deliver-epic-single.md, M4-B) when a Delivery-Slicing slice finishes — the single-delivery analogue of story.dispatch.end. A `done` outcome is what the slice-map checkpoint flips `slices[id].status` to before the walk advances; resume skips `done` slices because the epic/<id> branch already carries the work. Introduced INERT in Epic #4475 M4-A; the executor that emits it lands in M4-B.",
+  "description": "Appended to the Epic ledger by the legacy single-delivery slice executor design when a Delivery-Slicing slice finishes — the single-delivery analogue of story.dispatch.end. A `done` outcome is what the slice-map checkpoint flips `slices[id].status` to before the walk advances. Introduced INERT in Epic #4475 M4-A; current /deliver Story delivery uses helpers/deliver-story instead.",
   "type": "object",
   "required": ["event", "epicId", "sliceId", "outcome", "timestamp"],
   "properties": {

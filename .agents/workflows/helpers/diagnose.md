@@ -80,12 +80,12 @@ Exactly one line. Schema:
   "scope": "diagnose",
   "findings": [
     {
-      "id": "stale-origin-epic",
+      "id": "stale-origin-main",
       "severity": "blocker",
-      "scope": "story-close",
-      "summary": "Local epic/<id> is ahead of origin/epic/<id>",
-      "detail": "Push the epic branch before re-running story-close.",
-      "fixCommand": "git push origin epic/<id>",
+      "scope": "single-story-close",
+      "summary": "Local main is behind origin/main",
+      "detail": "Fast-forward main before re-running single-story-close.",
+      "fixCommand": "git fetch origin main; git merge --ff-only origin/main",
       "autoCorrectable": false
     }
   ]

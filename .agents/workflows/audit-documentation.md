@@ -174,7 +174,7 @@ and check each one:
    renames).
 3. **Workflow & Contract Descriptions:** Described workflows, label
    taxonomies (`agent::*`, `type::*`, `meta::*`), branch shapes
-   (`story-<id>`, `epic/<id>`), and artifact contracts match how the
+   (`story-<id>`), and artifact contracts match how the
    current scripts actually behave — read the implementation when the
    prose makes a behavioural claim.
 4. **Version & Topology Claims:** Version numbers, package names, release

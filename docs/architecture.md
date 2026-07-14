@@ -608,18 +608,15 @@ sequenceDiagram
 
 ---
 
-## Epic Deliver Runner
+## Deliver Runner
 
-The `/deliver <epicId>` slash command is the sole entry point for
-Epic delivery. It runs end-to-end inside the operator's Claude session,
-composing the orchestration primitives into a nine-phase execution
-coordinator (Phases 1–9, with the Phase 8.5 auto-merge gate between
-watch-and-iterate and cleanup — see
-[`helpers/deliver-epic.md`](../.agents/workflows/helpers/deliver-epic.md))
-with the lifecycle bus chain at its core. There is no
-remote-trigger surface — delivery only ever runs locally, in the
-operator's session, with Story sub-agents launched through the Agent
-tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
+The `/deliver <storyId...>` slash command is the sole entry point for Story
+delivery. It runs end-to-end inside the operator's Claude session, composing the
+orchestration primitives into a Story-sequencing coordinator (see
+[`workflows/deliver.md`](../.agents/workflows/deliver.md)) with the lifecycle
+bus chain at its core. There is no remote-trigger surface — delivery only ever
+runs locally, in the operator's session, with Story sub-agents launched through
+the Agent tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
 wrapper; the slash command supplants it entirely.
 
 The bus is the **single canonical runner model** under Epic #2172:
@@ -686,16 +683,14 @@ deleted with the in-process stratum (#3908); `agent::blocked` remains the
 sole runtime pause point, enforced by the workflow prose rather than a
 resident listener.
 
-### Phase 4 — epic-audit (change-set lenses)
+### Risk-routed audit lenses
 
-Between close-validation (Phase 3) and code-review (Phase 5), `/deliver`
-runs an inline **epic-audit** stage
-([`helpers/epic-audit.md`](../.agents/workflows/helpers/epic-audit.md)).
-`epic-audit-prepare.js` wraps the audit-suite `selectAudits` SDK: it
-diffs `main..epic/<id>`, selects the audit lenses whose file patterns or
-keyword triggers match the change-set, unions in lenses mapped from the
-Epic's model-judged high-risk axes (Story #3889), and resolves an audit
-depth (`light` / `standard` / `deep`, Story #3939). Findings feed a
+During the risk-routed review/audit ceremony, `/deliver` resolves audit lenses
+inline with the Story review path. `epic-audit-prepare.js` wraps the
+audit-suite `selectAudits` SDK: it selects the audit lenses whose file patterns
+or keyword triggers match the change-set, unions in lenses mapped from the
+Story's model-judged high-risk axes (Story #3889), and resolves an audit depth
+(`light` / `standard` / `deep`, Story #3939). Findings feed a
 bounded auto-fix loop governed by `delivery.epicAudit`
 (`maxFixAttempts` retry cap per finding; `maxFixScopeFiles` files per
 auto-fix before escalating to `agent::blocked`).
@@ -717,14 +712,12 @@ Either way, required status checks gate the squash onto `main`.
 
 ### Per-Story acceptance self-eval
 
-Inside each Story delivery (Epic-attached `helpers/epic-deliver-story`
-Step 1a, and the standalone path alike), a bounded **acceptance
-self-eval** loop runs after the implementation commits land and before
-the Story proceeds to close. A **fresh-context critic** sub-agent —
+Inside each Story delivery (`helpers/deliver-story` Step 1a), a bounded
+**acceptance self-eval** loop runs after the implementation commits land and
+before the Story proceeds to close. A **fresh-context critic** sub-agent —
 independent of the implementing turn — scores the working diff against
 each inline `acceptance[]` item, using `verify[]` as evidence;
-`acceptance-eval.js` records the per-criterion verdict (pass `--epic` on
-the Epic-attached path so the signal lands on the Epic-scoped stream).
+`acceptance-eval.js` records the per-criterion verdict.
 On `proceed` the Story flips to `closing`; unmet criteria trigger a
 redraft round, bounded by `delivery.acceptanceEval.maxRounds`
 (default 2, clamped into `[1, hard ceiling]` — the loop cannot be
@@ -733,15 +726,13 @@ Story escalates: `agent::blocked`, a `friction` comment naming the unmet
 criteria, and a non-zero exit. The single prose home for the mechanic is
 [`helpers/acceptance-self-eval.md`](../.agents/workflows/helpers/acceptance-self-eval.md).
 
-### Standalone multi-Story delivery (no Epic)
+### Multi-Story delivery (no Epic)
 
-Stories without an `Epic: #N` reference do not enter the Epic wave loop.
-`/deliver <id> [<id>...]` routes them to
-[`helpers/deliver-stories.md`](../.agents/workflows/helpers/deliver-stories.md),
-which builds a dependency-aware wave plan and fans out one
-`helpers/single-story-deliver` Agent call per Story per wave — parallel
-within a wave, serialised across waves. The script surface parallels the
-Epic-attached trio (`story-init.js` / `wave-tick.js` / `story-close.js`):
+Stories without an `Epic: #N` reference are the only valid `/deliver` inputs.
+`/deliver <id> [<id>...]` routes them through
+[`helpers/deliver-story.md`](../.agents/workflows/helpers/deliver-story.md),
+building a dependency-aware plan and running one Story delivery worker per ready
+Story. The script surface is:
 
 | Script                         | Responsibility                                                                                                   |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |

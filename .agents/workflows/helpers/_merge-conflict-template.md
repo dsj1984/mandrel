@@ -1,7 +1,7 @@
 # Merge Conflict Resolution — Shared Procedure
 
 Canonical, workflow-agnostic procedure for resolving merge / rebase conflicts.
-Referenced by `deliver-stories.md` and `deliver-epic.md`.
+Referenced by `deliver.md` and `helpers/deliver-story.md`.
 
 ## Procedure
 
