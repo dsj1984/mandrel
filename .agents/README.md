@@ -226,8 +226,6 @@ read-when-relevant pattern skills use).
 **Always-load (the recommended core):**
 
 - [`instructions.md`](instructions.md) — the core agent protocol.
-- [`personas/engineer.md`](personas/engineer.md) — the default persona (swap in
-  another persona when the task calls for it).
 - [`rules/security-baseline.md`](rules/security-baseline.md) — inviolable
   security MUSTs, relevant to every change.
 - [`rules/git-conventions.md`](rules/git-conventions.md) — every commit,
@@ -347,7 +345,7 @@ for the execution-model contract.
 | [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/plan` and `/deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`agentrc-reference.json`](docs/agentrc-reference.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
-| [`personas/`](personas/) | Role-specific behavior packs selected by task persona or explicit user instruction. |
+| [`agents/`](agents/) | Optional role-scoped spawn boot contexts (`delivery.routing.roleScopedAgents`). |
 | [`rules/`](rules/) | Domain-agnostic coding, security, testing, shell, git, and workflow rules. |
 | [`skills/core/`](skills/core/) | Universal process skills such as debugging, TDD, security, documentation, and code review. |
 | [`skills/stack/`](skills/stack/) | Stack-specific guardrails for frameworks, services, and testing tools. |
@@ -371,7 +369,7 @@ for the execution-model contract.
 | Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`.agents/docs/quality-gates.md`](docs/quality-gates.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Render the signals span-tree (debug helper) | [`workflows/helpers/signals.md`](workflows/helpers/signals.md) |
-| Persona behavior packs | [`personas/`](personas/) |
+| Role-scoped spawn boot contexts | [`agents/`](agents/) |
 | Domain-agnostic baseline rules | [`rules/`](rules/) |
 | Skill library (core process + stack guardrails) | [`skills/core/`](skills/core/) · [`skills/stack/`](skills/stack/) |
 | Decision rule: should this be a Skill or a Script? | [§ When to use a Skill vs a Script](#when-to-use-a-skill-vs-a-script) |

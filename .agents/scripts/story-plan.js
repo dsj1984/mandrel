@@ -54,9 +54,9 @@ import {
 const HELP = `\
 Usage:
   story-plan.js --emit-context (--idea "<seed>" | --from-notes <file>) \\
-    [--persona <name>] [--refine | --no-refine] [--pretty]
+    [--refine | --no-refine] [--pretty]
 
-  story-plan.js --body <file> [--persona <name>] [--dry-run]
+  story-plan.js --body <file> [--dry-run]
 
   story-plan.js --help
 
@@ -66,12 +66,11 @@ Modes:
                    draft body using the envelope and the body template.
   --body <file>    Persist a pre-authored body. Validates shape (required
                    sections, no Epic: ref, AC checklist non-empty) and
-                   calls \`gh issue create\` with type::story + persona.
+                   calls \`gh issue create\` with type::story.
   --dry-run        With --body: print the body and the gh argv that would
                    be invoked, then exit 0. No GitHub mutations.
 
 Options:
-  --persona <name>   Persona label (default: engineer).
   --refine           Force the idea-refinement hint on regardless of seed
                      length. Default heuristic: refine when seed < 200
                      chars.
@@ -152,7 +151,6 @@ async function runEmitContext({
   });
   const override = values.refine ? 'on' : values['no-refine'] ? 'off' : null;
   const refine = shouldRefine({ seed, override });
-  const persona = values.persona ?? 'engineer';
 
   // Corpus lookup uses the raw (un-defaulted) docsContextFiles list, same
   // as the `/deliver` per-Epic digest builder: `config.project` fills in
@@ -186,7 +184,6 @@ async function runEmitContext({
   const envelope = buildContextEnvelope({
     seed,
     refine,
-    persona,
     bodyTemplate,
     duplicateCandidates,
     techStack,
@@ -221,8 +218,7 @@ async function runPersist({
   }
 
   const title = extractTitle(body);
-  const persona = values.persona ?? 'engineer';
-  const labels = [TYPE_LABELS.STORY, `persona::${persona}`];
+  const labels = [TYPE_LABELS.STORY];
   const argv = renderGhArgv({ title, bodyPath, labels });
 
   if (dryRun) {
@@ -275,7 +271,6 @@ async function main() {
       idea: { type: 'string' },
       'from-notes': { type: 'string' },
       body: { type: 'string' },
-      persona: { type: 'string' },
       refine: { type: 'boolean', default: false },
       'no-refine': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },

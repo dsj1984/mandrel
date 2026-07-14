@@ -12,14 +12,14 @@
         "slug": "story-one",
         "title": "First Story",
         "wave": 0,
-        "labels": ["type::story", "persona::engineer"]
+        "labels": ["type::story"]
       },
       {
         "slug": "story-two",
         "title": "Second Story",
         "wave": 1,
         "dependsOn": ["story-one"],
-        "labels": ["type::story", "persona::engineer"]
+        "labels": ["type::story"]
       }
     ]
   },

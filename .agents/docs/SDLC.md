@@ -486,7 +486,7 @@ warrants spec coverage, remove the label and run `/plan`'s
    - **Wiring.** Sibling Stories in a rare N>1 plan-run share a
      `plan-run::<id>` label and optional `depends_on` / `blocked by #NNN`
      edges.
-   - **Metadata.** Each Story carries persona, session-capacity sizing,
+   - **Metadata.** Each Story carries session-capacity sizing,
      and the inline `acceptance[]` / `verify[]` arrays the executing
      agent reads.
 
@@ -1016,7 +1016,7 @@ epic evidence by
 ### QA workflows: explore, assist, and run-harness
 
 Three complementary QA workflows sit alongside the automated test pyramid, all
-adopting the `qa-engineer` persona and all reading the consumer's `qa.*`
+applying QA skill guidance and all reading the consumer's `qa.*`
 project contract from `.agentrc.json`. The first two are exploratory siblings
 that differ on **who drives** the session; the third steps a known scenario
 set:

@@ -80,7 +80,7 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
     body: 'string — serialized Story-body markdown (never a JSON object)',
     acceptance: 'string[] — top-level testable criteria (not nested in body)',
     verify: 'string[] — top-level exact commands/test paths with (<tier>)',
-    labels: "string[] — must include 'type::story' and one 'persona::*'",
+    labels: "string[] — must include 'type::story' (no persona::* axis)",
     depends_on: 'string[]? — sibling Story slugs that block execution',
   }),
   validatedBy:

@@ -155,12 +155,13 @@ alone, plus ~2.2k lines of workflow prose):**
   simplify to flat Story ops.
 - Taxonomy/schema: `type::epic` label and the Epic body schema; the
   epic-keyed lifecycle events (`slice.*` naming reviewed — one event family).
-- **Persona tier (pulled in from Someday):** the idle hydration seam
-  (`context-hydration-engine.js` — invoked by zero workflows) is deleted;
-  the 7 remaining persona files retire or reduce to the one-line role
-  labels workflow headers already carry (prose-only, zero runtime cost),
-  with any security/release review lens folded into the risk-routed
-  ceremony. Built-but-unwired code is exactly what v2 removes.
+- **Persona tier (pulled in from Someday, then deleted cleanly):** the idle
+  hydration seam (`context-hydration-engine.js` — invoked by zero workflows)
+  is deleted. Stage 5 first reduced persona files to one-line stubs; a later
+  cleanup **removes** `.agents/personas/` and the `persona::*` label axis
+  entirely. Role framing lives in instructions / rules / skills / optional
+  `.agents/agents/` boot contexts. (`qa.personas` auth fixtures are unrelated
+  and stay.)
 
 **Merges — duplicate pairs collapse to one:**
 
@@ -390,8 +391,8 @@ below applies only to the rare, policy-compliant N>1 runs.
   `temp/run-*`, with `epicTempDir` retained as a thin alias for this pass and
   comments updated on `docs-digest` / bookkeeping surfaces.
 - [x] `type::epic` removed from the active taxonomy and issue-form generator;
-  persona files are one-line role labels and the context hydrator stratum is
-  gone.
+  context hydrator stratum is gone. (Follow-up: `.agents/personas/` and
+  `persona::*` labels deleted entirely — stubs were a dead ceremony.)
 
 #### Stage 6 — Docs, config, gates, release
 

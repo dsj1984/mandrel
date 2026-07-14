@@ -37,16 +37,14 @@ and dedup/route decisions. The agent never invents those decisions in prose.
 > a structured agent-driven bug-hunt the operator wants captured into a
 > triageable ledger.
 >
-> **Persona**: `qa-engineer` · **Skills**: `core/qa-coverage-mapping`,
-> `stack/qa/qa-explore-driving`
+> **Skills**: `core/qa-coverage-mapping`, `stack/qa/qa-explore-driving`
 
-## Persona
+## Role framing
 
-Adopt the **`qa-engineer`** persona
-([`.agents/personas/qa-engineer.md`](../personas/qa-engineer.md)) for the whole
-run. You are the quality gatekeeper: you value coverage, hermetic
-environments, and deterministic results. Re-read that persona file as your
-first action so the Plan/Capture/Triage loop is governed by it.
+You are the quality gatekeeper for this run: value coverage, hermetic
+environments, and deterministic results. Do **not** invent signal — capture
+what the surface shows. Apply the QA skills below; there is no separate
+persona pack.
 
 ## Driving conventions skill
 
@@ -89,10 +87,10 @@ ledger**; do not switch methods mid-surface without a new Plan note.
 | --------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
 | `surface` | yes      | `feature:login`, `area:onboarding` | A human label for the single surface to explore. Recorded as each ledger item's `coverage`. |
 
-If no `surface` is supplied, **stop and ask** the operator to name one — the
-`qa-engineer` Golden Rule forbids inventing scope. `/qa-explore` is **bounded
-to one surface per session**: explore exactly the named surface, do not wander
-into adjacent surfaces, and start a fresh session for a different surface.
+If no `surface` is supplied, **stop and ask** the operator to name one — do
+not invent scope. `/qa-explore` is **bounded to one surface per session**:
+explore exactly the named surface, do not wander into adjacent surfaces, and
+start a fresh session for a different surface.
 
 ## Project contract
 
@@ -161,7 +159,7 @@ advances phases autonomously. If the operator does not confirm, stop and hold.
 Goal: agree on **what** will be explored and **how the agent will drive it**
 before touching the surface.
 
-1. Re-read the `qa-engineer` persona and the
+1. Re-read the
    [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)
    skill, and resolve the `qa` contract and session (above).
 2. **Resolve the target environment** via

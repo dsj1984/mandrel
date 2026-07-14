@@ -43,7 +43,6 @@ graph TB
     subgraph Framework [".agents/ — Distributed Bundle"]
         direction TB
         INS["instructions.md"]:::infra
-        PER["Personas"]:::infra
         RUL["Rules"]:::infra
         SKL["Skills (core/ + stack/)"]:::infra
         WFL["Workflows (slash commands)"]:::infra
@@ -62,7 +61,7 @@ graph TB
     H -->|"/plan (ideation or existing Epic)"| IDE
     H -->|"/deliver"| IDE
     IDE --> INS
-    INS --> PER & RUL & SKL
+    INS --> RUL & SKL
     IDE --> SCR
     SCR -->|"API calls"| ISS
     SCR -->|"Links hierarchy"| SUB
@@ -83,7 +82,7 @@ mandrel/
 │   ├── README.md             ← Consumer documentation
 │   ├── starter-agentrc.json ← Bootstrap delta-seed (copy to .agentrc.json)
 │   │
-│   ├── personas/             ← Role-specific behavior files
+│   ├── agents/               ← Role-scoped spawn boot contexts (optional)
 │   ├── rules/                ← Domain-agnostic coding standards
 │   ├── skills/               ← Two-tier skill library
 │   │   ├── core/             ←   Universal process skills
@@ -121,22 +120,10 @@ The instruction layer defines **what agents are** and **how they must behave**.
 | Component     | Path                           | Purpose                                                                                                                                         |
 | ------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | System Prompt | `.agents/instructions.md`      | Master behavioral contract — guardrails, FinOps, shell protocol, philosophy, quality discipline, Git conventions.                                |
-| Personas      | `.agents/personas/*.md`        | Role-specific constraint files (architect, engineer, qa-engineer, etc.) that override default behavior when activated.                          |
 | Rules         | `.agents/rules/*.md`           | Domain-agnostic coding standards (API conventions, git conventions, security baseline, testing, etc.).                                          |
 | Skills        | `.agents/skills/{core,stack}/` | Two-tier library of callable capabilities.                                                                                                       |
+| Role agents   | `.agents/agents/*.md`          | Optional role-scoped spawn boot contexts (`delivery.routing.roleScopedAgents`). No `persona::*` GitHub label axis.                              |
 
-#### Persona Routing
-
-```mermaid
-graph LR
-    classDef active fill:#c4f9d0,stroke:#333,color:#000
-
-    S["Story Ticket"] --> L{"persona label?"}
-    L -->|"architect"| A["architect.md"]:::active
-    L -->|"engineer"| E["engineer.md"]:::active
-    L -->|"qa-engineer"| Q["qa-engineer.md"]:::active
-    L -->|"missing"| D["engineer.md (default)"]:::active
-```
 
 #### Skill Architecture
 
@@ -1263,7 +1250,7 @@ Consumer Project/
 │   └── mandrel/  ← installed package (pinned, provenance-signed)
 ├── .agents/          ← materialized by `mandrel sync` (copy-only, never a symlink)
 │   ├── instructions.md
-│   ├── personas/
+│   ├── agents/
 │   ├── rules/
 │   ├── skills/
 │   ├── workflows/

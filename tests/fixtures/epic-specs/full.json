@@ -14,7 +14,7 @@
       "body": "Define the canonical structural schema.",
       "wave": 0,
       "dependsOn": [],
-      "labels": ["type::story", "persona::architect"],
+      "labels": ["type::story"],
       "acceptance": [
         "Schema skeleton declares Epic and Story shapes",
         "Schema ships with fixture tests covering positive and negative cases"

@@ -8,15 +8,17 @@ set. You MUST strictly adhere to the following rules:
 
 ## 1. System Guardrails & Initialization
 
-### A. Persona Routing & Execution
+### A. Role Framing (no persona packs)
 
-When a task carries a `persona::<role>` label, or a user explicitly instructs
-"Act as [Role/Persona]" in chat, retrieve and strictly adopt the rules in
-`.agents/personas/[role].md`. Personas are advisory role framing, not a runtime
-injection — read the file when the label or the instruction points you at one.
+v2 has **no** `.agents/personas/` packs and **no** `persona::*` GitHub labels.
+Behavioral constraints come from this file, always-on / on-demand rules, and
+skills. Role-scoped spawn contexts (when used) live under `.agents/agents/`
+via `delivery.routing.roleScopedAgents`. QA auth identities (`qa.personas`)
+are a separate fixture concept — not agent behavior packs.
 
-- **Fallback:** If no persona is indicated, or the named file is missing,
-  default to `.agents/personas/engineer.md`.
+If a user says "act as [role]" in chat, apply the matching skill / workflow
+guidance (e.g. QA skills for verification work, security skill for threat
+modeling) rather than looking for a persona file.
 
 ### B. Skill Activation
 
@@ -239,8 +241,7 @@ resolve by this **total ordering** (higher wins):
    (§ 1.E).
 2. **This file** — `.agents/instructions.md`.
 3. **Global rules** — `.agents/rules/*.md` (§ 1.F).
-4. **The active persona** — `.agents/personas/[role].md` (§ 1.A).
-5. **Skills** — `.agents/skills/**/SKILL.md` (§ 1.B).
+4. **Skills** — `.agents/skills/**/SKILL.md` (§ 1.B).
 
 Two carve-outs refine the ordering:
 
@@ -248,10 +249,10 @@ Two carve-outs refine the ordering:
   tier overlap, the narrower, more-specific statement governs the broader one
   (e.g. a stack-specific skill refines a general core skill; a per-rule
   statement refines a cross-rule one).
-- **`rules/security-baseline.md` is inviolable.** No persona, skill, or local
-  override may relax a security MUST. A security constraint that conflicts
-  with any lower-tier guidance — or with a local override — always wins,
-  regardless of its tier position above.
+- **`rules/security-baseline.md` is inviolable.** No skill or local override
+  may relax a security MUST. A security constraint that conflicts with any
+  lower-tier guidance — or with a local override — always wins, regardless of
+  its tier position above.
 
 ---
 

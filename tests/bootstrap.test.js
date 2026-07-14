@@ -6,18 +6,12 @@
  */
 
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const PERSONAS_DIR = path.join(ROOT, '.agents', 'personas');
-const PERSONA_NAMES = fs
-  .readdirSync(PERSONAS_DIR)
-  .filter((f) => f.endsWith('.md'))
-  .map((f) => f.slice(0, -3));
 
 const { runBootstrap } = await import(
   pathToFileURL(
@@ -132,14 +126,14 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     assert.ok(names.includes('acceptance::n-a'));
   });
 
-  it('derives one persona label per file in .agents/personas/', () => {
+  it('does not provision persona::* labels (concept deleted in v2)', () => {
     const personaLabels = LABEL_TAXONOMY.filter((l) =>
       l.name.startsWith('persona::'),
-    ).map((l) => l.name.slice('persona::'.length));
-    assert.deepEqual(personaLabels.sort(), [...PERSONA_NAMES].sort());
+    );
+    assert.deepEqual(personaLabels, []);
   });
 
-  it('label count = non-persona taxonomy + one per persona file', () => {
+  it('label count matches the Story-only taxonomy (no persona axis)', () => {
     // Story #2144 — added `agent::closing` to the taxonomy as the
     // intermediate state between executing and done.
     // Story #2921 (Epic #2880 F7) — added `planning::healthcheck-waived`
@@ -153,8 +147,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     // (planning content folded into managed Epic-body sections).
     // Epic #4474 PR4 — added `delivery::single` (single-delivery routing
     // marker applied by plan-persist.js; inert until #4475).
-    const nonPersonaBase = 10;
-    assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
+    // v2 persona deletion — removed the `persona::*` axis entirely.
+    const taxonomyBase = 10;
+    assert.equal(LABEL_TAXONOMY.length, taxonomyBase);
   });
 
   it('contains the parking planning-phase agent labels', () => {

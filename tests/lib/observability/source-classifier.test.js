@@ -19,7 +19,7 @@ describe('source-classifier — framework classification by failingPath', () => 
       'framework',
     );
     assert.equal(
-      classifyPathSource('repo/.agents/personas/engineer.md', ''),
+      classifyPathSource('repo/.agents/rules/security-baseline.md', ''),
       'framework',
     );
   });

@@ -78,18 +78,11 @@ test('scanReadmeVersionClaims: no literal next to VERSION passes', () => {
 // claims a count, it must match disk; the slim README simply doesn't make
 // the claim, so the tests pass vacuously when the claim is absent.
 
-test('.agents/README.md persona count, when claimed, matches personas/ directory', () => {
-  const content = fs.readFileSync(README_PATH, 'utf8');
-  const claimed = scanReadmeCount(
-    content,
-    /personas\/[^\n]*?(\d+)\s+role-specific/,
-  );
-  if (claimed === null) return; // slim README makes no claim — vacuous pass
-  const actual = countMarkdownFiles(path.join(AGENTS_DIR, 'personas'));
+test('.agents/personas/ directory is deleted (no persona pack inventory)', () => {
   assert.strictEqual(
-    claimed,
-    actual,
-    `README claims ${claimed} personas; .agents/personas/ has ${actual} .md files`,
+    fs.existsSync(path.join(AGENTS_DIR, 'personas')),
+    false,
+    '.agents/personas/ must not exist after the v2 persona concept deletion',
   );
 });
 

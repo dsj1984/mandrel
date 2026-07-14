@@ -41,7 +41,7 @@
     "label": {
       "type": "string",
       "minLength": 1,
-      "description": "A GitHub label name. Structural labels only (e.g. type::story, type::story, persona::*, area::*). Execution-state labels in the AGENT_LABELS allow-list (agent::*) MUST NOT appear in the spec — they are owned by the wave-runner and the reconciler refuses to write them."
+      "description": "A GitHub label name. Structural labels only (e.g. type::story, type::story, area::*). Execution-state labels in the AGENT_LABELS allow-list (agent::*) MUST NOT appear in the spec — they are owned by the wave-runner and the reconciler refuses to write them."
     },
     "labels": {
       "type": "array",
@@ -110,7 +110,7 @@
         },
         "labels": {
           "$ref": "#/$defs/labels",
-          "description": "Structural labels attached to this Story (e.g. type::story, persona::*). agent::* labels are forbidden — they are owned by the wave-runner at dispatch time."
+          "description": "Structural labels attached to this Story (e.g. type::story). agent::* labels are forbidden — they are owned by the wave-runner at dispatch time."
         },
         "acceptance": {
           "type": "array",

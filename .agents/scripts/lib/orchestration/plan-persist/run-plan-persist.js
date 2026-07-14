@@ -153,7 +153,6 @@ function riskVerdictCommentBody(riskVerdict) {
  *     allowLargeFanOut?: boolean,
  *     skipCleanup?: boolean,
  *     dryRun?: boolean,
- *     personaLabel?: string,
  *     planRunId?: string,
  *     planDir?: string,
  *     fanOutCounter?: Function,
@@ -180,7 +179,6 @@ export async function runPlanPersist({
     allowLargeFanOut = false,
     skipCleanup = false,
     dryRun = false,
-    personaLabel,
     planRunId,
     planDir = null,
     fanOutCounter = undefined,
@@ -294,7 +292,7 @@ export async function runPlanPersist({
   const { created, planRunLabel } = await createStoryIssues({
     provider,
     stories,
-    opts: { personaLabel, planRunId, dryRun },
+    opts: { planRunId, dryRun },
   });
 
   const primary = created[0];

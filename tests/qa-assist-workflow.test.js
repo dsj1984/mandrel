@@ -66,16 +66,16 @@ describe('qa-assist workflow contract', () => {
     assert.match(source, /##\s+Phase 3 — Record/, 'missing Record section');
   });
 
-  it('adopts the qa-engineer persona', () => {
+  it('frames the agent as a quality gatekeeper without a persona pack', () => {
     assert.match(
       source,
-      /qa-engineer/,
-      'workflow must adopt the qa-engineer persona',
+      /quality gatekeeper/i,
+      'workflow must frame QA role in prose',
     );
-    assert.match(
+    assert.doesNotMatch(
       source,
       /personas\/qa-engineer\.md/,
-      'workflow must reference the qa-engineer persona file by path',
+      'workflow must not reference deleted persona files',
     );
   });
 

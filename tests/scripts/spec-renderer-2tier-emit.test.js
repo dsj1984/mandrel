@@ -67,7 +67,7 @@ function build3TierTickets() {
         'Spec validates against epic-spec.schema.json v3.0.0',
       ],
       verify: ['node --test tests/scripts/spec-renderer-2tier-emit.test.js'],
-      labels: ['type::story', 'persona::engineer'],
+      labels: ['type::story', 'meta::framework-gap'],
       depends_on: [],
     },
     {

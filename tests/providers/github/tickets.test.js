@@ -526,7 +526,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     await gateway.createTicket(10, {
       title: 'Story with type::story already',
       body: '',
-      labels: ['type::story', 'persona::backend'],
+      labels: ['type::story', 'meta::framework-gap'],
     });
     const posted = JSON.parse(
       gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
@@ -539,7 +539,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       1,
       `type::story must appear exactly once; got: ${JSON.stringify(posted.labels)}`,
     );
-    assert.ok(posted.labels.includes('persona::backend'));
+    assert.ok(posted.labels.includes('meta::framework-gap'));
   });
 
   it('createTicket: always injects type::story — the context:: skip branch is retired (Story #4324)', async () => {

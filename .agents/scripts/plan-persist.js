@@ -20,7 +20,6 @@
  *   --tech-spec <file>       Optional shared Tech Spec folded into each Story
  *   --plan-dir <dir>         Optional temp dir deleted at terminal success
  *   --plan-acceptance <file> Optional JSON string[] for partition coverage
- *   --persona <name>         Optional persona:: label
  *   --plan-run-id <id>       Optional plan-run token when N>1
  *   --dry-run                Assemble + validate without GitHub writes
  *   --force-review           Record operator-forced review routing
@@ -40,7 +39,6 @@ import {
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { PERSONA_LABEL_PREFIX } from './lib/label-constants.js';
 import {
   readPlanMetrics,
   recordPlanInvocation,
@@ -73,7 +71,6 @@ const CLI_OPTIONS = {
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
   'plan-acceptance': { type: 'string' },
-  persona: { type: 'string' },
   'plan-run-id': { type: 'string' },
   'dry-run': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
@@ -84,7 +81,7 @@ const CLI_OPTIONS = {
 const USAGE =
   'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-acceptance <file>] ' +
-  '[--persona <name>] [--plan-run-id <id>] [--dry-run] [--force-review] ' +
+  '[--plan-run-id <id>] [--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
 async function readOptional(filePath, { required }) {
@@ -134,24 +131,12 @@ async function loadArtifacts(paths) {
   return { stories, riskVerdict, techSpecContent, planAcceptance };
 }
 
-function resolvePersonaLabel(personaValue) {
-  const persona =
-    typeof personaValue === 'string' && personaValue.trim() !== ''
-      ? personaValue.trim()
-      : null;
-  if (!persona) return undefined;
-  return persona.startsWith(PERSONA_LABEL_PREFIX)
-    ? persona
-    : `${PERSONA_LABEL_PREFIX}${persona}`;
-}
-
 function buildPersistOptions(values, paths) {
   return {
     forceReview: values['force-review'],
     allowOverBudget: values['allow-over-budget'],
     allowLargeFanOut: values['allow-large-fan-out'],
     dryRun: values['dry-run'],
-    personaLabel: resolvePersonaLabel(values.persona),
     planRunId: values['plan-run-id'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],

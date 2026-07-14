@@ -33,7 +33,6 @@ spec.
 | `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
 | `--dry-run` | Author + validate without GitHub writes. |
-| `--persona <name>` | Persona label on the drafted Story (default: engineer). |
 
 ## Default-single split policy
 
@@ -95,7 +94,6 @@ node .agents/scripts/plan-persist.js \
   --risk-verdict temp/plan-<slug>/risk-verdict.json \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--plan-dir temp/plan-<slug>] \
-  [--persona <name>] \
   [--dry-run] \
   [--force-review] \
   [--allow-over-budget]

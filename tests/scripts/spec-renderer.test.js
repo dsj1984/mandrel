@@ -83,7 +83,7 @@ function buildFixtureTickets() {
       type: 'story',
       title: 'Author epic-spec.schema.json',
       body: 'Define the canonical structural schema.',
-      labels: ['type::story', 'persona::architect', 'agent::done'],
+      labels: ['type::story', 'meta::framework-gap', 'agent::done'],
       depends_on: [],
       acceptance: ['Schema parses as JSON', 'Top-level required keys set'],
       verify: ['node --test tests/scripts/epic-spec-schema.test.js'],
@@ -101,7 +101,7 @@ function buildFixtureTickets() {
         acceptance: ['diff is pure (no I/O)'],
         verify: ['npm test (unit)'],
       },
-      labels: ['type::story', 'persona::engineer'],
+      labels: ['type::story', 'meta::consumer-improvement'],
       depends_on: ['schema-author'],
     },
     {
@@ -367,7 +367,7 @@ describe('lib/orchestration/spec-renderer.js — round-trip via loader', () => {
     const schemaAuthor = reloaded.stories[0];
     assert.deepEqual(schemaAuthor.labels, [
       'type::story',
-      'persona::architect',
+      'meta::framework-gap',
     ]);
     assert.ok(
       !schemaAuthor.labels.some((l) => l.startsWith('agent::')),

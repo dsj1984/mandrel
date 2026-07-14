@@ -4,46 +4,22 @@
  *
  * All label names are sourced from `label-constants.js` so renames only need
  * to happen in one place. Colors come from `LABEL_COLORS` in the same module.
+ *
+ * v2 deleted the behavioral persona concept (`.agents/personas/` +
+ * `persona::*` labels). Role framing for spawns lives in `.agents/agents/`
+ * via `delivery.routing.roleScopedAgents`; QA auth identities live in
+ * `qa.personas` — neither is a GitHub label axis.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   ACCEPTANCE_LABELS,
   AGENT_LABELS,
   DELIVERY_LABELS,
   LABEL_COLORS,
-  PERSONA_LABEL_PREFIX,
   PLANNING_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
 } from './label-constants.js';
-
-const PERSONAS_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  'personas',
-);
-
-/**
- * Discover persona labels from `.agents/personas/*.md`. The filename
- * (without extension) is the label suffix. Persona markdown files are
- * one-line role labels; discovery does not depend on long persona bodies.
- */
-function buildPersonaLabels() {
-  return fs
-    .readdirSync(PERSONAS_DIR)
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => f.slice(0, -3))
-    .sort()
-    .map((name) => ({
-      name: `${PERSONA_LABEL_PREFIX}${name}`,
-      color: LABEL_COLORS.PERSONA,
-      description: `${name} persona`,
-    }));
-}
 
 /** @type {Array<{ name: string, color: string, description: string }>} */
 export const LABEL_TAXONOMY = [
@@ -89,9 +65,6 @@ export const LABEL_TAXONOMY = [
     color: LABEL_COLORS.STATUS_BLOCKED,
     description: 'Blocked by a dependency',
   },
-
-  // Persona — dynamically derived from .agents/personas/*.md
-  ...buildPersonaLabels(),
 
   // Acceptance axis — explicit opt-out signal for Epics that
   // intentionally have no acceptance-table coverage (waives the Epic

@@ -65,36 +65,13 @@ describe('Core .agents/ files', () => {
     );
   });
 
-  const personasDir = agentsPath('personas');
-  if (fs.existsSync(personasDir)) {
-    const personas = fs
-      .readdirSync(personasDir)
-      .filter((file) => file.endsWith('.md'));
-
-    assert.ok(
-      personas.length > 0,
-      '.agents/personas/ contains no markdown files',
+  it('does not ship a personas/ directory (concept deleted in v2)', () => {
+    assert.equal(
+      fs.existsSync(agentsPath('personas')),
+      false,
+      '.agents/personas/ must not exist — behavioral personas and persona::* labels were removed',
     );
-
-    for (const personaFile of personas) {
-      it(`Persona ${personaFile} has structural integrity (role label)`, () => {
-        const content = fs.readFileSync(
-          agentsPath('personas', personaFile),
-          'utf8',
-        );
-        assert.ok(
-          /^# .+ persona .*prose-only role label; zero runtime cost\)\s*$/s.test(
-            content,
-          ),
-          `Persona ${personaFile} must be a one-line prose-only role label`,
-        );
-      });
-    }
-  } else {
-    it('personas/ directory exists', () => {
-      assert.fail('Missing .agents/personas/ directory');
-    });
-  }
+  });
 });
 
 // ---------------------------------------------------------------------------

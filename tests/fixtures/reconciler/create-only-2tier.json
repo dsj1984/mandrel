@@ -13,7 +13,7 @@
         "slug": "story-one",
         "title": "First Story (2-tier inline)",
         "wave": 0,
-        "labels": ["type::story", "persona::engineer"],
+        "labels": ["type::story"],
         "acceptance": ["A specific observable passes"],
         "verify": ["node --test tests/foo.test.js (contract)"]
       }

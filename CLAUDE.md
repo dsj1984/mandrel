@@ -7,10 +7,6 @@
 
 @.agents/instructions.md
 
-## Default Persona (Engineer)
-
-@.agents/personas/engineer.md
-
 ## Global Rules (always active)
 
 <!--
@@ -28,8 +24,8 @@
 > is for loading convenience only; when two governance documents conflict, the
 > authoritative resolution order is declared once in
 > [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md)
-> (local overrides → `instructions.md` → `rules/` → active persona → `skills/`,
-> with security-baseline inviolable).
+> (local overrides → `instructions.md` → `rules/` → `skills/`, with
+> security-baseline inviolable).
 
 ## Ticket hierarchy
 
@@ -38,8 +34,6 @@
 > `verify[]`); the folded Tech Spec lives in `## Spec`. `/plan` emits
 > one or more `type::story` issues (default N=1); `/deliver` runs each
 > Story via `helpers/deliver-story` on `story-<id>` → PR → `main`.
-> Commits land on `story-<storyId>` and reference the Story via
-> `(refs #<storyId>)`. There is no `type::epic` / `type::task` layer and
-> no per-Task commit ceremony. See
+> There is no Epic parent tier and no `persona::*` label axis. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
-> [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md) for the full contract.
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md).

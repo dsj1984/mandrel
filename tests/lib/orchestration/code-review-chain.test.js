@@ -126,9 +126,9 @@ test('runCodeReview: ticketLabels opt is forwarded into ReviewInput.labels', asy
     reviewProvider: adapter,
     resolveConfigFn: baseConfig,
     upsertCommentFn: noopUpsert(),
-    ticketLabels: ['risk::high', 'persona::engineer'],
+    ticketLabels: ['risk::high', 'meta::framework-gap'],
   });
-  assert.deepEqual(seen[0], ['risk::high', 'persona::engineer']);
+  assert.deepEqual(seen[0], ['risk::high', 'meta::framework-gap']);
 });
 
 test('runCodeReview: chain critical finding triggers halted=true', async () => {

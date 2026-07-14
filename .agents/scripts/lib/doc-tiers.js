@@ -7,8 +7,8 @@
  *
  *   - `alwaysLoaded`  — `CLAUDE.md` plus the transitive closure of its
  *                       `@`-import references (`@AGENTS.md`,
- *                       `@.agents/instructions.md`, the persona, the always-on
- *                       rules, …). This is the context every session re-pays
+ *                       `@.agents/instructions.md`, the always-on rules, …).
+ *                       This is the context every session re-pays
  *                       on every subagent spawn (instructions.md § 4), so it is
  *                       the primary budget the context-budget ratchet gates.
  *   - `mandatoryRead` — the resolved `project.docsContextFiles` set (prefixed

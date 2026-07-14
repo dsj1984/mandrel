@@ -134,7 +134,7 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       body: 'child body',
       state: 'OPEN',
       labels: {
-        nodes: [{ name: 'type::task' }, { name: 'persona::engineer' }],
+        nodes: [{ name: 'type::task' }, { name: 'meta::framework-gap' }],
       },
       assignees: { nodes: [{ login: 'carol' }] },
     };
@@ -145,8 +145,8 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       nodeId: 'GQL_NODE',
       title: 'Child',
       body: 'child body',
-      labels: ['type::task', 'persona::engineer'],
-      labelSet: new Set(['type::task', 'persona::engineer']),
+      labels: ['type::task', 'meta::framework-gap'],
+      labelSet: new Set(['type::task', 'meta::framework-gap']),
       assignees: ['carol'],
       state: 'open',
     });

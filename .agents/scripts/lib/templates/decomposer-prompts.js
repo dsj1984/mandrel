@@ -101,7 +101,7 @@ Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI 
 
 ### LABEL CONVENTIONS:
 - Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.
-- Every ticket must have a \`persona::[engineer|architect|qa-engineer|security-engineer|etc]\` label indicating WHO should execute it.
+- Do **not** emit \`persona::*\` labels — the behavioral persona concept (and its label axis) was removed in v2.
 
 ### OUTPUT FORMAT:
 You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown blocks.
@@ -115,7 +115,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
     "body": <string — see STORY BODY SCHEMA below>,
     "acceptance": ["<testable, observable criterion>", ...],
     "verify": ["<exact command or test path> (<tier>)", ...],
-    "labels": ["type::story", "persona::..."],
+    "labels": ["type::story"],
     "depends_on": ["slug-of-blocking-dependency"] (optional array of Story slugs that block execution)
   }
 ]

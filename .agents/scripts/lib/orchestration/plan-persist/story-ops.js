@@ -290,13 +290,12 @@ function orderStoriesByDependencies(stories) {
 
 /**
  * Create Story issues via `provider.createIssue`. Applies `type::story`,
- * `agent::ready`, optional persona, and — when N>1 — a shared plan-run label.
+ * `agent::ready`, and — when N>1 — a shared plan-run label.
  *
  * @param {object} args
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
- * @param {string} [args.opts.personaLabel]
  * @param {string} [args.opts.planRunId]
  * @param {boolean} [args.opts.dryRun=false]
  * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string }>, planRunLabel: string|null }>}
@@ -311,12 +310,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   const list = Array.isArray(stories) ? stories : [];
   const planLabel = list.length > 1 ? planRunLabel(opts.planRunId) : null;
   const labels = [TYPE_LABELS.STORY, AGENT_LABELS.READY];
-  if (
-    typeof opts.personaLabel === 'string' &&
-    opts.personaLabel.trim() !== ''
-  ) {
-    labels.push(opts.personaLabel.trim());
-  }
   if (planLabel) labels.push(planLabel);
 
   if (opts.dryRun) {

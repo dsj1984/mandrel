@@ -83,14 +83,6 @@ export const STATUS_LABELS = {
 };
 
 /**
- * Persona labels are derived at bootstrap time from `.agents/personas/*.md`
- * (see `label-taxonomy.js`), not hard-coded here — the persona filename is
- * the source of truth. Persona files are one-line role labels, not hydrated
- * runtime instruction bodies.
- */
-export const PERSONA_LABEL_PREFIX = 'persona::';
-
-/**
  * Acceptance-axis labels for opt-out signalling on Epics that
  * intentionally have no acceptance-table coverage. (Story #4324 retired
  * the `context::tech-spec` / `context::acceptance-spec` label classes —
@@ -165,7 +157,6 @@ export const LABEL_COLORS = {
   TYPE: '#7057FF',
   AGENT: '#0E8A16',
   STATUS_BLOCKED: '#D93F0B',
-  PERSONA: '#C5DEF5',
   ACCEPTANCE: '#FBCA04',
   PLANNING: '#FEF2C0',
   DELIVERY: '#BFD4F2',

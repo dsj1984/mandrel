@@ -13,7 +13,7 @@
 ## Project Overview
 
 **Mandrel** is a Claude Code-first opinionated workflow framework: a
-collection of instructions, personas, skills, and SDLC workflows that
+collection of instructions, skills, rules, and SDLC workflows that
 govern AI coding assistants. The `.claude/` / hook / skill surface
 leans in on Claude Code as the reference runtime, and the dispatcher
 under `.agents/scripts/` treats the dispatch manifest (md + structured
@@ -46,7 +46,7 @@ package and materialized into consumer projects' `.agents/` directories by
 mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── instructions.md       # ★ Primary system prompt — load this first
-│   ├── personas/             # Role-specific behavior constraints
+│   ├── agents/               # Role-scoped spawn boot contexts (optional)
 │   ├── rules/                # Domain-agnostic coding/ops rules
 │   ├── skills/               # Two-tier skill library (core/ + stack/)
 │   ├── workflows/            # SDLC & audit slash-command workflows
@@ -79,10 +79,7 @@ mandrel/
    [`docs/architecture.md`](docs/architecture.md) under the **Tech Stack**
    section, not in the JSON config.
 
-3. **Adopt a persona when instructed:** Persona files live in
-   `.agents/personas/`. Default is `engineer.md`.
-
-4. **Activate skills and on-demand rules as needed:** Read the relevant
+3. **Activate skills and on-demand rules as needed:** Read the relevant
    `SKILL.md` from `.agents/skills/core/[name]/` (universal process skills) or
    `.agents/skills/stack/[category]/[name]/` (tech-stack-specific) before
    writing domain-specific code. The `.agents/rules/` set is likewise split
@@ -92,7 +89,9 @@ mandrel/
    task engages them. See
    [`.agents/README.md` § What to always-load vs read on-demand](.agents/README.md)
    and [`.agents/instructions.md` § 1.F](.agents/instructions.md) for the full
-   split.
+   split. There is no `.agents/personas/` pack and no `persona::*` label
+   axis — role framing comes from instructions, rules, skills, and optional
+   `.agents/agents/` boot contexts.
 
 ---
 

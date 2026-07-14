@@ -8,7 +8,7 @@
  * @module lib/orchestration/context-envelope
  */
 
-/** @typedef {'protocolPolicy' | 'persona' | 'skillCapsules' | 'hierarchy' | 'acceptanceCriteria' | 'verificationCommands' | 'taskInstructions'} SectionName */
+/** @typedef {'protocolPolicy' | 'skillCapsules' | 'hierarchy' | 'acceptanceCriteria' | 'verificationCommands' | 'taskInstructions'} SectionName */
 
 /**
  * @typedef {object} SectionSource
@@ -37,7 +37,7 @@
 /**
  * @typedef {object} ContextEnvelope
  * @property {'1'} schemaVersion
- * @property {{ id: number, title: string, persona?: string, skills?: string[], protocolVersion?: string }} task
+ * @property {{ id: number, title: string, skills?: string[], protocolVersion?: string }} task
  * @property {Section[]} sections
  * @property {TicketSnapshot[]} provenance
  * @property {{ maxTokens: number, used: number, elided: string[] }} budget
@@ -51,7 +51,6 @@ export const PROMPT_SECTION_SEPARATOR =
 /** Rendering order for {@link envelopeToPrompt} (not elision priority). */
 export const SECTION_RENDER_ORDER = Object.freeze([
   'protocolPolicy',
-  'persona',
   'skillCapsules',
   'hierarchy',
   'acceptanceCriteria',
@@ -65,7 +64,6 @@ export const DEFAULT_SECTION_PRIORITIES = Object.freeze({
   hierarchy: 20,
   acceptanceCriteria: 30,
   verificationCommands: 40,
-  persona: 50,
   protocolPolicy: 80,
   taskInstructions: 100,
 });
@@ -76,7 +74,6 @@ export const DEFAULT_ELIDE_POLICIES = Object.freeze({
   hierarchy: 'summarize',
   acceptanceCriteria: 'summarize',
   verificationCommands: 'drop',
-  persona: 'summarize',
   protocolPolicy: 'drop',
   taskInstructions: 'drop',
 });

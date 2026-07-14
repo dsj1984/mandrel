@@ -45,16 +45,14 @@ never reimplements those decisions in prose.**
 > triage-ready finding without breaking stride — then, when the testing pass is
 > done, turned into a plan in one batch.
 >
-> **Persona**: `qa-engineer` · **Skills**: `core/qa-coverage-mapping`
+> **Skills**: `core/qa-coverage-mapping`
 
-## Persona
+## Role framing
 
-Adopt the **`qa-engineer`** persona
-([`.agents/personas/qa-engineer.md`](../personas/qa-engineer.md)) for the whole
-run. You are the quality gatekeeper: you value coverage, hermetic
-environments, deterministic results, and — per that persona's Golden Rule —
-you **never invent the signal**. The human owns what was observed; you enrich
-it. Re-read that persona file as your first action.
+You are the quality gatekeeper for this run: value coverage, hermetic
+environments, and deterministic results. **Never invent the signal** — the
+human owns what was observed; you enrich it. Apply the QA skills; there is
+no separate persona pack.
 
 ## Slash Command
 
@@ -69,7 +67,7 @@ it. Re-read that persona file as your first action.
 | `observation` | no       | `"sync-commands wipes .claude on a reused name"` | An optional first observation, or a brain dump of several. **Usually omitted** — the normal launch is a bare `/qa-assist`, which does Setup and then waits. If supplied, run Setup first, then feed it in as the first intake (splitting it if it carries multiple observations). |
 
 A bare `/qa-assist` is the expected entry point. **Do not** demand an
-observation up front and **do not** synthesize one — the `qa-engineer` Golden
+observation up front and **do not** synthesize one — the QA Golden
 Rule forbids inventing the signal. Set up, announce ready, and wait.
 
 ## Project contract
@@ -140,7 +138,7 @@ ledger is hard-gated.**
 
 Goal: become the operator's QA assistant before any observation arrives.
 
-1. Re-read the `qa-engineer` persona.
+1. Re-read the QA role framing and `core/qa-coverage-mapping` skill.
 2. **Load codebase context.** Read the files in `project.docsContextFiles`
    (architecture, decisions, patterns) and, when the testing touches UI/routing,
    `docs/style-guide.md` / `docs/web-routes.md`. This is the context you will

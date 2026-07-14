@@ -12,7 +12,7 @@
       "title": "Story carries inline acceptance/verify (2-tier shape)",
       "wave": 0,
       "dependsOn": [],
-      "labels": ["type::story", "persona::engineer"],
+      "labels": ["type::story"],
       "acceptance": [
         "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
         "A Story object whose tasks[] field is set is rejected by the schema"
