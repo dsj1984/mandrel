@@ -34,11 +34,15 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
  * @returns {string}
  */
 export function normalizePlanRunId(id) {
-  return String(id ?? '')
+  const token = String(id ?? '')
     .trim()
     .toLowerCase()
     .replace(/^plan-run::/, '')
     .replace(/[^a-z0-9._-]+/g, '-');
+  if (!token) {
+    throw new Error('plan-run id requires a non-empty planRunId');
+  }
+  return token;
 }
 
 /**

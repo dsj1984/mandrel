@@ -20,9 +20,6 @@ import {
  */
 export function normalizePlanRunLabel(raw) {
   const token = normalizePlanRunId(raw);
-  if (!token) {
-    throw new Error('resolve-plan-run: --run requires a non-empty planRunId');
-  }
   return `${PLAN_RUN_LABEL_PREFIX}${token}`;
 }
 
