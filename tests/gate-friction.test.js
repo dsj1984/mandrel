@@ -69,7 +69,7 @@ describe('emitFrictionSignal', () => {
 
     const signalsPath = path.join(
       tmpRoot,
-      'epic-7',
+      'run-7',
       'stories',
       'story-42',
       'signals.ndjson',

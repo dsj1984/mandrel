@@ -102,7 +102,8 @@ or stale locks.
 
 `.worktrees/.pending-cleanup.json` accumulates entries when
 `story-close.js` cannot remove a worktree on Windows because of an
-EBUSY-class lock. Plan boot ([`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js), run by `plan-persist.js` → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
+EBUSY-class lock. Plan boot (`drainPendingCleanupAtBoot`, run by
+`plan-persist.js` → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
 retries the entries — but if the holder
 is a long-lived user-mode process (a stranded test runner, a lingering
 biome/tsc, a node REPL), the lock never clears and the entry pins.
@@ -126,9 +127,9 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 
 | Trigger          | Caller                                                                       |
 | ---------------- | ---------------------------------------------------------------------------- |
-| `/deliver`    | [`Cleaner` lifecycle listener](../../scripts/lib/orchestration/lifecycle/listeners/cleaner.js) at the close-tail cleanup phase (before `wm.gc()`)   |
-| `/plan`     | [`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js) (run by `plan-persist.js`) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
-| Story merge close | [`story-close.js`](../../scripts/story-close.js) (`drainPendingCleanupAfterClose`) |
+| `/deliver`    | Close-tail cleanup phase (before `wm.gc()`) |
+| `/plan`     | `drainPendingCleanupAtBoot` (run by `plan-persist.js`) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
+| Story merge close | `story-close.js` (`drainPendingCleanupAfterClose`) |
 
 All automatic paths call `forceDrainPendingCleanup()` (or are folded into
 `sweepStaleStoryWorktrees`, which calls it first).

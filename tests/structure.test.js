@@ -77,14 +77,16 @@ describe('Core .agents/ files', () => {
     );
 
     for (const personaFile of personas) {
-      it(`Persona ${personaFile} has structural integrity (# Role:)`, () => {
+      it(`Persona ${personaFile} has structural integrity (role label)`, () => {
         const content = fs.readFileSync(
           agentsPath('personas', personaFile),
           'utf8',
         );
         assert.ok(
-          content.includes('# Role:'),
-          `Persona ${personaFile} is missing the required '# Role:' header`,
+          /^# .+ persona .*prose-only role label; zero runtime cost\)\s*$/s.test(
+            content,
+          ),
+          `Persona ${personaFile} must be a one-line prose-only role label`,
         );
       });
     }

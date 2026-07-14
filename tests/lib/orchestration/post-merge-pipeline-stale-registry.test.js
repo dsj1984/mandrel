@@ -24,7 +24,7 @@ function readFrictionSignals(epicId, storyId) {
   const p = path.join(
     workRoot,
     'temp',
-    `epic-${epicId}`,
+    `run-${epicId}`,
     `story-${storyId}`,
     'signals.ndjson',
   );

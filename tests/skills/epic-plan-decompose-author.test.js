@@ -59,12 +59,12 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
       validator: async ({ body }) => {
         const errors = [];
         // The downstream validator in lib/orchestration/ticket-validator.js
-        // reads back temp/epic-<Epic_ID>/tickets.json. The Skill must keep
+        // reads back temp/run-<Epic_ID>/tickets.json. The Skill must keep
         // that path documented, or the persist half will hunt the wrong
         // artifact.
-        if (!/temp\/epic-<Epic_ID>\/tickets\.json/.test(body)) {
+        if (!/temp\/run-<Epic_ID>\/tickets\.json/.test(body)) {
           errors.push(
-            'Skill body must reference temp/epic-<Epic_ID>/tickets.json output path',
+            'Skill body must reference temp/run-<Epic_ID>/tickets.json output path',
           );
         }
         // The Story level is the only ticket tier the validator accepts

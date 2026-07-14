@@ -38,12 +38,12 @@ const ORIGINAL_ENV = { ...process.env };
 // The hook calls appendTrace without a `config` arg, so the writer
 // resolves tempRoot via the project default of `'temp'` relative to
 // process.cwd(). We chdir into `workRoot` per-test, so the on-disk
-// layout is `<workRoot>/temp/epic-<eid>/stories/story-<sid>/...`.
+// layout is `<workRoot>/temp/run-<eid>/stories/story-<sid>/...`.
 const tracesPath = (eid, sid) =>
   path.join(
     workRoot,
     'temp',
-    `epic-${eid}`,
+    `run-${eid}`,
     'stories',
     `story-${sid}`,
     'traces.ndjson',
@@ -52,7 +52,7 @@ const signalsPath = (eid, sid) =>
   path.join(
     workRoot,
     'temp',
-    `epic-${eid}`,
+    `run-${eid}`,
     'stories',
     `story-${sid}`,
     'signals.ndjson',
@@ -137,7 +137,7 @@ describe('tool-trace-hook — env-var no-op (zero filesystem calls)', () => {
     });
 
     // No `temp/` directory should have been created. (`workRoot` is the
-    // process cwd; the writer would create `temp/epic-1030/...` here on
+    // process cwd; the writer would create `temp/run-1030/...` here on
     // any append.)
     assert.equal(existsSync(path.join(workRoot, 'temp')), false);
   });
@@ -183,7 +183,7 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -223,7 +223,7 @@ describe('tool-trace-hook — Pre/Post pairing', () => {
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -297,7 +297,7 @@ describe('tool-trace-hook — hashing & privacy', () => {
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -333,7 +333,7 @@ describe('tool-trace-hook — hashing & privacy', () => {
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -439,7 +439,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -485,7 +485,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -534,7 +534,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -570,7 +570,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -610,7 +610,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -655,7 +655,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',
@@ -687,7 +687,7 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
       path.join(
         workRoot,
         'temp',
-        'epic-1030',
+        'run-1030',
         'stories',
         'story-1043',
         'traces.ndjson',

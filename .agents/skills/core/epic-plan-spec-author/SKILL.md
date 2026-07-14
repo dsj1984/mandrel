@@ -23,7 +23,7 @@ allowed_tools:
 >
 > **Context tickets retired (Story #4324).** The `context::tech-spec` /
 > `context::acceptance-spec` ticket classes are retired too. The artifacts
-> this Skill authors still land in `temp/epic-<Epic_ID>/` under the same
+> this Skill authors still land in `temp/run-<Epic_ID>/` under the same
 > filenames, but the persist half folds them into **managed sections of the
 > Epic body** — the `## Delivery Slicing`-led Tech Spec sections and the
 > `## Acceptance Table` AC-ID table — instead of creating separate tickets.
@@ -32,9 +32,9 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only during `/plan` Phase 7, after `plan-context.js --epic <Epic_ID>` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
-- Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All three MUST exist on disk before returning.
-- **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the persist call rejecting an artifact (e.g. a missing `## Delivery Slicing` heading, a schema-invalid risk verdict) — apply **targeted edits** to the existing `temp/epic-<Epic_ID>/` artifact that fix only what the rejection named; do NOT rewrite an artifact wholesale from a blank draft. The `/plan` workflow bounds this to **one refinement pass** per invocation — do not loop.
+- Run only during `/plan` Phase 7, after `plan-context.js --epic <Epic_ID>` has written `temp/run-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
+- Write exactly three artifacts and only inside `temp/run-<Epic_ID>/`: `techspec.md`, `risk-verdict.json`, `acceptance-spec.md`. All three MUST exist on disk before returning.
+- **Re-emit rule (amend, don't regenerate — Story #4431).** On a re-emit — the persist call rejecting an artifact (e.g. a missing `## Delivery Slicing` heading, a schema-invalid risk verdict) — apply **targeted edits** to the existing `temp/run-<Epic_ID>/` artifact that fix only what the rejection named; do NOT rewrite an artifact wholesale from a blank draft. The `/plan` workflow bounds this to **one refinement pass** per invocation — do not loop.
 - Start each markdown artifact at the correct `##` heading (Tech Spec → `## Delivery Slicing`, Acceptance Spec → `## Acceptance Table` — never the Epic's own `## Acceptance Criteria` heading, which stays the ideation bullets) — never emit a top-level `#` heading. `risk-verdict.json` is raw JSON conforming to `.agents/schemas/risk-verdict.schema.json`.
 - The Tech Spec MUST open with `## Delivery Slicing` and MUST NOT restate the Epic's Context, Goal, or Scope — your output lands as sections of the same Epic body, which travels into every downstream story agent's prompt, so any restatement is duplication and a drift risk. A `## Technical Overview` section is optional and, when present, is a 2–3 sentence orientation of the *technical approach* only (which subsystems are touched and reused), never a re-narration of the problem statement, goals, or scope.
 - Judge risk from what the change *does* (the Epic body / Tech Spec you just wrote), never from keyword presence — "out of scope: billing" is not a billing change; "rotate the credential vault" is high-risk even without a security keyword.
@@ -58,12 +58,12 @@ the Tech Spec to produce the Acceptance Spec).
 ## When to use
 
 `/plan` Phase 7, immediately after `plan-context.js --epic <Epic_ID>`
-writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
+writes `temp/run-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the Tech Spec" step from the legacy workflow body — the calling
 workflow dispatches this Skill via the `Skill` tool, supplies the Epic ID, and
-on completion has `temp/epic-<Epic_ID>/techspec.md`,
-`temp/epic-<Epic_ID>/risk-verdict.json`, and
-`temp/epic-<Epic_ID>/acceptance-spec.md` ready for the persist half of
+on completion has `temp/run-<Epic_ID>/techspec.md`,
+`temp/run-<Epic_ID>/risk-verdict.json`, and
+`temp/run-<Epic_ID>/acceptance-spec.md` ready for the persist half of
 the script.
 
 ## Inputs
@@ -71,7 +71,7 @@ the script.
 The dispatcher passes the Epic ID as the Skill argument. The Skill itself
 reads:
 
-- `temp/epic-<Epic_ID>/planner-context.json` — produced by
+- `temp/run-<Epic_ID>/planner-context.json` — produced by
   `node .agents/scripts/plan-context.js --epic <Epic_ID>`.
   Fields:
   - `epic.id`, `epic.title`, `epic.body` (or `epic.bodySummary` when the
@@ -140,13 +140,13 @@ reads:
 
 ## Outputs
 
-- `temp/epic-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
+- `temp/run-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
   `## Delivery Slicing` (no `<h1>`; an optional 2–3 sentence
   `## Technical Overview` may follow, never restating Epic context).
-- `temp/epic-<Epic_ID>/risk-verdict.json` — planner risk verdict JSON
+- `temp/run-<Epic_ID>/risk-verdict.json` — planner risk verdict JSON
   conforming to `.agents/schemas/risk-verdict.schema.json`:
   `{ axes: [{ axis, level, rationale }], summary }`.
-- `temp/epic-<Epic_ID>/acceptance-spec.md` — Acceptance Spec markdown
+- `temp/run-<Epic_ID>/acceptance-spec.md` — Acceptance Spec markdown
   starting with `## Acceptance Table` (no `<h1>`).
 
 All three files MUST exist on disk before this Skill returns control. The
@@ -159,7 +159,7 @@ or (for the verdict) schema-invalid.
 
 ### Step 1 — Load the context
 
-Read `temp/epic-<Epic_ID>/planner-context.json` with the `Read` tool. Pull
+Read `temp/run-<Epic_ID>/planner-context.json` with the `Read` tool. Pull
 the Epic title, body (or body summary, including the Epic's `## User Stories`
 section), and the `docsContext` digest pointer (`digestPath`, or `null`).
 When non-null, read the digest file at `digestPath` next — that outline,
@@ -174,7 +174,7 @@ demand), and the `codebaseSnapshot` envelope (so the spec is
 grounded in the actual codebase, not hallucinated patterns). Cite module
 and file names from `codebaseSnapshot.files` / `codebaseSnapshot.signatures`
 before reaching for names that appear only in the documentation. Write to
-`temp/epic-<Epic_ID>/techspec.md`. The Tech Spec MUST:
+`temp/run-<Epic_ID>/techspec.md`. The Tech Spec MUST:
 
 - **Open with `## Delivery Slicing`** (see below) — never a top-level `#`
   heading, and never an Epic-context recap. The Delivery Slicing section is
@@ -229,7 +229,7 @@ Architecture, Data Models, API Changes, Core Components, Security), forbids
 
 Judge the change described by the Epic body and Tech Spec you just wrote —
 grounded in `codebaseSnapshot` where it helps — and write
-`temp/epic-<Epic_ID>/risk-verdict.json` with the `Write` tool. The file
+`temp/run-<Epic_ID>/risk-verdict.json` with the `Write` tool. The file
 MUST be valid JSON conforming to
 `.agents/schemas/risk-verdict.schema.json`:
 
@@ -294,11 +294,11 @@ Branch on the acceptance disposition your Step 3 verdict derives (see the
 derivation rules there): `required` and `recommended` author the spec
 normally per the rules below. `not-applicable` authorizes the persist half
 to apply `acceptance::n-a` on the Epic; in that case write a one-paragraph
-waiver rationale to `temp/epic-<Epic_ID>/acceptance-spec.md` instead of
+waiver rationale to `temp/run-<Epic_ID>/acceptance-spec.md` instead of
 the AC table so the audit trail still exists, and start the file with
 `## Acceptance Table — waived (planner-selected)`.
 
-Write to `temp/epic-<Epic_ID>/acceptance-spec.md`. The Acceptance Spec
+Write to `temp/run-<Epic_ID>/acceptance-spec.md`. The Acceptance Spec
 MUST:
 
 - Start with `## Acceptance Table` — never a top-level `#` heading, and
@@ -358,9 +358,9 @@ auditable anchor coverage, and Conventional-Commits subjects (no
 
 All three files exist; return. The caller will run
 `node .agents/scripts/plan-persist.js --epic <Epic_ID>
---tech-spec temp/epic-<Epic_ID>/techspec.md
---risk-verdict temp/epic-<Epic_ID>/risk-verdict.json
---acceptance-table temp/epic-<Epic_ID>/acceptance-spec.md`, which validates
+--tech-spec temp/run-<Epic_ID>/techspec.md
+--risk-verdict temp/run-<Epic_ID>/risk-verdict.json
+--acceptance-table temp/run-<Epic_ID>/acceptance-spec.md`, which validates
 the risk verdict, derives the planningRisk envelope, folds the authored
 content into the Epic body's managed sections (`## Delivery Slicing`-led
 Tech Spec sections + the `## Acceptance Table`), records the
@@ -372,10 +372,10 @@ are created (Story #4324).
 
 - Do **not** modify GitHub issues from this Skill. Persistence is the
   script's job; the Skill is pure markdown authoring.
-- Do **not** open files outside `temp/epic-<Epic_ID>/` for write. Reads
+- Do **not** open files outside `temp/run-<Epic_ID>/` for write. Reads
   may cover anything `docsContext` references plus the planner-context
   JSON itself.
-- If `temp/epic-<Epic_ID>/planner-context.json` is missing, **fail
+- If `temp/run-<Epic_ID>/planner-context.json` is missing, **fail
   loudly** — instruct the caller to run `--emit-context` first. Do not
   silently fabricate a context.
 - Respect the planning-context budget: when `epic.body` is `null` and

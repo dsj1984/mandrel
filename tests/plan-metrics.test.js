@@ -39,10 +39,10 @@ afterEach(() => {
 });
 
 describe('planMetricsPath', () => {
-  it('routes an Epic-scoped ledger under temp/epic-<id>/', () => {
+  it('routes an Epic-scoped ledger under temp/run-<id>/', () => {
     assert.equal(
       planMetricsPath(4474, config),
-      path.join(workRoot, 'epic-4474', PLAN_METRICS_BASENAME),
+      path.join(workRoot, 'run-4474', PLAN_METRICS_BASENAME),
     );
   });
 

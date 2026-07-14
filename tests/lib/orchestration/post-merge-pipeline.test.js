@@ -26,7 +26,7 @@ import {
 /**
  * Friction signals land on disk as NDJSON via
  * `signals-writer.appendSignal` (Epic #1030 Story #1042), which
- * resolves `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` relative to
+ * resolves `temp/run-<eid>/stories/story-<sid>/signals.ndjson` relative to
  * `process.cwd()`. The reap-failure tests below switch cwd to a fresh
  * tmpdir so the asserted writes never collide with the repo's real
  * `temp/` tree.
@@ -38,7 +38,7 @@ function readFrictionSignals(epicId, storyId) {
   const p = path.join(
     workRoot,
     'temp',
-    `epic-${epicId}`,
+    `run-${epicId}`,
     'stories',
     `story-${storyId}`,
     'signals.ndjson',
@@ -490,7 +490,7 @@ describe('worktreeReapPhase', () => {
 
       const configuredPath = path.join(
         configuredTempRoot,
-        'epic-9',
+        'run-9',
         'stories',
         'story-1',
         'signals.ndjson',
@@ -503,7 +503,7 @@ describe('worktreeReapPhase', () => {
       const leakedPath = path.join(
         workRoot,
         'temp',
-        'epic-9',
+        'run-9',
         'story-1',
         'signals.ndjson',
       );
@@ -569,21 +569,19 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
     assert.equal(called, 0);
   });
 
-  it('dashboardRefreshPhase invokes generator and returns true otherwise', async () => {
-    let captured;
+  it('dashboardRefreshPhase is retired and does not invoke the generator', async () => {
+    let called = 0;
     const result = await dashboardRefreshPhase({
       epicId: 9,
       provider: { tag: 'p' },
       skipDashboard: false,
       progress: () => {},
-      generateManifestFn: async (epicId, fresh, opts) => {
-        captured = { epicId, fresh, opts };
+      generateManifestFn: async () => {
+        called += 1;
       },
     });
-    assert.equal(result, true);
-    assert.equal(captured.epicId, 9);
-    assert.equal(captured.fresh, true);
-    assert.equal(captured.opts.provider.tag, 'p');
+    assert.equal(result, false);
+    assert.equal(called, 0);
   });
 
   it('notificationPhase passes ticket count from state to the message', async () => {
@@ -697,21 +695,21 @@ describe('tempCleanupPhase', () => {
         throw err;
       },
     });
-    // Per-Epic: epic-200/stories/story-100/manifest.{md,json} (2)
+    // Per-Epic: run-200/stories/story-100/manifest.{md,json} (2)
     // Legacy:   story-manifest-100.{md,json} (2)
     assert.equal(attempted.length, 4);
     assert.ok(
       attempted.some((p) =>
         p
           .replaceAll('\\', '/')
-          .endsWith('epic-200/stories/story-100/manifest.md'),
+          .endsWith('run-200/stories/story-100/manifest.md'),
       ),
     );
     assert.ok(
       attempted.some((p) =>
         p
           .replaceAll('\\', '/')
-          .endsWith('epic-200/stories/story-100/manifest.json'),
+          .endsWith('run-200/stories/story-100/manifest.json'),
       ),
     );
     assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));
@@ -744,7 +742,7 @@ describe('perfSummaryPhase', () => {
     const result = await perfSummaryPhase({
       storyId: 100,
       epicId: 200,
-      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      phaseTimingsPath: '/repo/temp/run-200/story-100/phase-timings.json',
       projectRoot: '/repo',
       progress: () => {},
       logger: makeLogger(),
@@ -767,7 +765,7 @@ describe('perfSummaryPhase', () => {
     assert.equal(args[3], '--epic');
     assert.equal(args[4], '200');
     assert.equal(args[5], '--phase-timings');
-    assert.equal(args[6], '/repo/temp/epic-200/story-100/phase-timings.json');
+    assert.equal(args[6], '/repo/temp/run-200/story-100/phase-timings.json');
   });
 
   it('skips when phaseTimingsPath is missing (returns status=skipped)', async () => {
@@ -795,7 +793,7 @@ describe('perfSummaryPhase', () => {
     const result = await perfSummaryPhase({
       storyId: 100,
       epicId: 200,
-      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      phaseTimingsPath: '/repo/temp/run-200/story-100/phase-timings.json',
       projectRoot: '/repo',
       progress: () => {},
       logger,

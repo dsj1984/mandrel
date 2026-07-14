@@ -58,11 +58,11 @@ function baseOpts(extra = {}) {
   };
 }
 
-test('evidencePath() resolves a Story-scoped path under temp/epic-<eid>/stories/story-<sid>/', () => {
+test('evidencePath() resolves a Story-scoped path under temp/run-<eid>/stories/story-<sid>/', () => {
   const expected = path.join(
     FAKE_CWD,
     'temp',
-    'epic-802',
+    'run-802',
     'stories',
     'story-901',
     'validation-evidence.json',
@@ -77,7 +77,7 @@ test('evidencePath() resolves an Epic-scoped path when scopeId === epicId', () =
   const expected = path.join(
     FAKE_CWD,
     'temp',
-    'epic-802',
+    'run-802',
     'validation-evidence.json',
   );
   assert.equal(
@@ -121,8 +121,8 @@ test('evidencePath() ignores epicId when standalone is set (Story #4250)', () =>
     `standalone path must anchor on storyId, got: ${standalonePath}`,
   );
   assert.ok(
-    !standalonePath.includes('epic-99'),
-    'standalone path must not include the epic-<id> segment',
+    !standalonePath.includes('run-99'),
+    'standalone path must not include the run-<id> segment',
   );
 });
 

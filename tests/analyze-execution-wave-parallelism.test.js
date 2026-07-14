@@ -59,7 +59,7 @@ afterEach(() => {
 });
 
 async function seedEpicSignals(eid, lines) {
-  const dir = path.join(workRoot, `epic-${eid}`);
+  const dir = path.join(workRoot, `run-${eid}`);
   await fs.mkdir(dir, { recursive: true });
   const body = `${lines.map((l) => JSON.stringify(l)).join('\n')}\n`;
   await fs.writeFile(path.join(dir, 'signals.ndjson'), body);

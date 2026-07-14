@@ -25,6 +25,7 @@
 
 import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { runTempDir } from '../../config/temp-paths.js';
 
 /**
  * Static deny-list pulled from the Tech Spec § Security & Privacy. Keys
@@ -85,7 +86,7 @@ export class LedgerWriter {
    * @param {object} opts
    * @param {number} opts.epicId
    * @param {string} opts.tempRoot - absolute or repo-relative path; the
-   *   writer resolves `temp/epic-<id>/lifecycle.ndjson` underneath.
+   *   writer resolves `temp/run-<id>/lifecycle.ndjson` underneath.
    * @param {() => number} [opts.now] - injectable clock for tests.
    */
   constructor(opts) {
@@ -101,7 +102,9 @@ export class LedgerWriter {
     }
     this._epicId = opts.epicId;
     this._tempRoot = opts.tempRoot;
-    this._epicDir = path.join(this._tempRoot, `epic-${this._epicId}`);
+    this._epicDir = runTempDir(this._epicId, {
+      project: { paths: { tempRoot: this._tempRoot } },
+    });
     this._ledgerPath = path.join(this._epicDir, 'lifecycle.ndjson');
     this._now = typeof opts.now === 'function' ? opts.now : Date.now;
   }
@@ -127,7 +130,7 @@ export class LedgerWriter {
    * The naive optimization (cache "ensured" after the first call) is
    * unsound when a listener moves the ledger directory mid-handler —
    * which is exactly what the Cleaner does on Wave 8 (Story #2259):
-   * it renames `temp/epic-<id>/` under `archive/` between the listener
+   * it renames `temp/run-<id>/` under `archive/` between the listener
    * body and the bus's `onCompleted` hook fire-time, and the next
    * append (the `completed` record for the outer event) would land
    * in a vanished directory. `mkdirSync({recursive: true})` is

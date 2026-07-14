@@ -237,7 +237,7 @@ watch item, not a work item.
 
 #### P2 — push-epic retry → align on the shared retry shape
 
-- **File:** [`lib/push-epic-retry.js`](../.agents/scripts/lib/push-epic-retry.js).
+- **File:** `lib/push-epic-retry.js` (retired).
 - **Today:** a bounded retry loop for non-fast-forward `git push` rejections:
   classify the stderr, fetch + reset + reapply, retry up to a cap, throw
   `PushRetryConflictError` on a real content conflict.
@@ -277,9 +277,8 @@ watch item, not a work item.
 
 #### P4 — idle watchdog re-tick → keep bespoke (watch item, not work item)
 
-- **File:** [`wave-tick.js --check-idle`](../.agents/scripts/wave-tick.js) (the
-  `runCheckIdle` path) and its core in
-  [`lib/wave-runner/tick.js`](../.agents/scripts/lib/wave-runner/tick.js).
+- **File:** `wave-tick.js --check-idle` (retired) and its former
+  `lib/wave-runner/tick.js` core.
 - **Today:** the watchdog itself is **deliberately stateless** — "the tick is
   stateless; *loop until terminal* is the caller's job (today: the markdown's
   wave loop)." The *re-tick every 30 minutes* cadence lives in the `/deliver`
@@ -295,7 +294,7 @@ watch item, not a work item.
 #### P5 — ready-set scheduler → keep bespoke (watch item, not work item)
 
 - **File:** [`lib/wave-runner/ready-set.js`](../.agents/scripts/lib/wave-runner/ready-set.js)
-  and the [`tick.js`](../.agents/scripts/lib/wave-runner/tick.js) adapter.
+  and the former `tick.js` adapter.
 - **Today:** `selectReadySet()` is a **pure, side-effect-free** single-beat
   selector — it "neither reads GitHub, the lifecycle ledger, nor a checkpoint,
   and dispatches nothing." It is explicitly *not* a loop: the continuous-tick

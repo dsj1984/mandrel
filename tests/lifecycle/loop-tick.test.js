@@ -49,7 +49,7 @@ function makeLedger(epicId) {
   const root = mkdtempSync(path.join(tmpdir(), 'loop-tick-'));
   return {
     root,
-    ledgerPath: path.join(root, `epic-${epicId}`, 'lifecycle.ndjson'),
+    ledgerPath: path.join(root, `run-${epicId}`, 'lifecycle.ndjson'),
   };
 }
 

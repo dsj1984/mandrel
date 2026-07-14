@@ -77,7 +77,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-consolidate/SKILL.md",
-      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
+      "description": "Run a holistic, pre-persist consolidation pass over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` writes `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reconciles the draft against the Tech Spec \"Delivery Slicing\" ceiling via scope-preserving operations only.",
       "policyCapsuleBullets": 9,
       "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
@@ -97,7 +97,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/epic-plan-premortem/SKILL.md",
-      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
+      "description": "Run a fresh-context, code-reading pre-mortem critic over the draft Story ticket array an Epic's decompose phase produced. Use during Phase 8 of `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js` validates and persists it. Reads the sectioned Epic body AND the cited code surfaces, then emits predicted-rework findings before any GitHub write.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Write", "Bash", "Grep"],
       "vendor": null

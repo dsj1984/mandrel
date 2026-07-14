@@ -568,7 +568,7 @@ the side effects. See
 [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus contract,
 event taxonomy, ledger format, and listener model — every phase
 transition, ticket-state flip, and webhook fan-out now flows through
-that bus, and the on-disk ledger at `temp/epic-<id>/lifecycle.ndjson`
+that bus, and the on-disk ledger at `temp/run-<id>/lifecycle.ndjson`
 is the canonical resume target. Safety gates (auto-merge arming,
 acceptance-spec reconciliation, blocker handling) are listener
 side-effects rather than inline calls at phase boundaries; the
@@ -576,9 +576,8 @@ side-effects rather than inline calls at phase boundaries; the
 `AutomergeArmer` listener.
 
 > **Acceptance start gate.** Before a single wave fans out,
-> `/deliver`'s `delivery.snapshot` state
-> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
-> asserts that the Epic either (a) carries the `acceptance::n-a`
+> `/deliver`'s `delivery.snapshot` state asserts that the Epic either
+> (a) carries the `acceptance::n-a`
 > waiver label, or (b) carries the `## Acceptance Table` managed
 > section in its body (Story #4324). Presence is sufficient — the
 > reviewer's OK during `/plan`'s `planning.spec-authoring` state is

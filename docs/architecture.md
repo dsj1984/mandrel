@@ -486,8 +486,7 @@ Mandrel runs Claude-Code-in-session: `/deliver` fans out via the
 implementation loop directly from the Story worktree. There is no separate
 adapter abstraction — `lib/orchestration/manifest-builder.js` synthesizes
 the `{ taskId, dispatchId, status }` record inline at the dispatch site,
-and the **dispatch manifest** (md + structured comment, schema
-[`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
+and the **dispatch manifest** (md + structured comment, formerly schema-backed)
 is the load-bearing artifact downstream tooling (and operators) read.
 The manifest is the cross-runtime contract: any future host that wants
 to replay or audit a Mandrel dispatch consumes the manifest, not an
@@ -1349,8 +1348,7 @@ conventions to follow.
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
 - **Execution path:** Claude-Code-in-session; the dispatch record is
   synthesized inline at `lib/orchestration/manifest-builder.js` and the
-  [dispatch manifest](../.agents/schemas/dispatch-manifest.json) is the
-  cross-runtime contract. Epic #2646 removed the previous
+  dispatch manifest is the cross-runtime contract. Epic #2646 removed the previous
   `IExecutionAdapter` abstraction as a hard cutover.
 - **Config resolution:** `.agents/scripts/lib/config-resolver.js` +
   `config-schema.js` (shell-metacharacter injection guards built in)

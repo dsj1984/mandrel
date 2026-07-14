@@ -872,7 +872,7 @@ yanks the claim back from whoever legitimately took over.
   the lease has no owner to record.
 - **`/plan`** acquires the lease on the **Epic** ticket before Phase 7
   (spec) and releases it after Phase 8 (decompose)
-  ([`epic-plan-lease-guard.js`](scripts/lib/orchestration/epic-plan-lease-guard.js)).
+  (`epic-plan-lease-guard.js`, now folded into the shared lease-guard path).
   Because planning emits no `story.heartbeat` (heartbeats are a
   delivery-time signal), the plan path has no live-heartbeat source and so
   **fails closed**: any foreign assignee is treated as a live claim and

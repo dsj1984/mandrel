@@ -4,7 +4,7 @@ description: >-
   Run a fresh-context, code-reading pre-mortem critic over the draft Story
   ticket array an Epic's decompose phase produced. Use during Phase 8 of
   `/plan`, after `epic-plan-decompose-author` / `epic-plan-consolidate` write
-  `temp/epic-<Epic_ID>/tickets.json` and before `plan-persist.js`
+  `temp/run-<Epic_ID>/tickets.json` and before `plan-persist.js`
   validates and persists it. Reads the sectioned Epic body AND the cited
   code surfaces, then emits predicted-rework findings before any GitHub write.
 allowed_tools:
@@ -18,9 +18,9 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Run only after a draft `temp/epic-<Epic_ID>/tickets.json` exists (authored by `epic-plan-decompose-author`, and consolidated by `epic-plan-consolidate` if that pass ran); fail loudly if the draft array is missing. Read the sectioned Epic body from `temp/epic-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
+- Run only after a draft `temp/run-<Epic_ID>/tickets.json` exists (authored by `epic-plan-decompose-author`, and consolidated by `epic-plan-consolidate` if that pass ran); fail loudly if the draft array is missing. Read the sectioned Epic body from `temp/run-<Epic_ID>/decomposer-context.json` (the same envelope the author skill consumed) — never re-fetch from GitHub, and never call the GitHub API from this Skill.
 - **You MUST read the actual cited code surfaces.** For every Story, open the files named in its `changes[]` / `references[]` (resolve each path against the repo root; use `Read` / `Grep`) and read enough of each to judge whether the Story's `acceptance[]` is verifiable against the real code and whether its `changes[]` assumptions hold. This is the load-bearing difference between this critic and the structural file-assumption gate: that gate proves a path **exists** (or does not); this critic reads what the file actually **contains**. A pre-mortem that did not open the cited files has not run.
-- Emit exactly one artifact: a human-readable `temp/epic-<Epic_ID>/premortem-report.md` — the predicted-rework findings the operator reviews at the Phase 8 HITL diff. It MUST exist before returning.
+- Emit exactly one artifact: a human-readable `temp/run-<Epic_ID>/premortem-report.md` — the predicted-rework findings the operator reviews at the Phase 8 HITL diff. It MUST exist before returning.
 - **This critic never writes to GitHub and never persists `tickets.json`.** It is read-and-report only: it does NOT mutate the draft array, does NOT create issues, and does NOT flip any label. Re-authoring on its findings is the author skill's job (the workflow re-runs `epic-plan-decompose-author` on the report before the persist call).
 - **You are not scope-preserving.** Unlike `epic-plan-consolidate` (merge-and-rewire only), this critic MAY recommend splitting an under-specified Story, tightening or rewording an acceptance criterion, or flagging an over-specified Story — because it only *recommends* in a report; it never applies the change itself. The conservation invariant belongs to consolidation; this pass is deliberately a separate, additive-recommendation lens.
 - Hunt for the three predicted-rework finding classes the structural gates cannot catch: **(1) unverifiable acceptance criteria** (an AC no `verify[]` command or readable code state can prove); **(2) over- or under-specified Stories** (a Story whose `acceptance[]` is far broader or narrower than its `changes[]` footprint and the cited code support); **(3) semantically-wrong assumptions** (the cited file exists but does not contain the seam / export / shape the Story assumes — the file-assumption gate passes, the work would still rework).
@@ -47,7 +47,7 @@ independent of the draft it grades.
 
 `/plan` Phase 8, as the **8.5 — Planning Pre-Mortem Critic** sub-step:
 after `epic-plan-decompose-author` writes (and, when present,
-`epic-plan-consolidate` consolidates) `temp/epic-<Epic_ID>/tickets.json`, after
+`epic-plan-consolidate` consolidates) `temp/run-<Epic_ID>/tickets.json`, after
 the reachability completeness critic (8.4), and **before**
 `plan-persist.js --tickets …` validates and persists. The pass operates
 on the temp artifact and emits a report so the operator sees predicted rework in
@@ -60,9 +60,9 @@ surfaces reaches GitHub unreviewed.
 The `/plan` workflow dispatches this skill inside a fresh-context sub-agent,
 passing the Epic ID as the Skill argument. The Skill itself reads:
 
-- `temp/epic-<Epic_ID>/tickets.json` — the **draft** (or consolidated) Story
+- `temp/run-<Epic_ID>/tickets.json` — the **draft** (or consolidated) Story
   array. This is the pre-mortem subject.
-- `temp/epic-<Epic_ID>/decomposer-context.json` — the authoring envelope emitted
+- `temp/run-<Epic_ID>/decomposer-context.json` — the authoring envelope emitted
   by `plan-context.js --epic <Epic_ID>`. Read `epicBody` from it —
   the sectioned Epic body carrying the folded Tech Spec sections
   (there is no separate `techSpec` key — Story #4324).
@@ -71,7 +71,7 @@ passing the Epic ID as the Skill argument. The Skill itself reads:
 
 ## Outputs
 
-- `temp/epic-<Epic_ID>/premortem-report.md` — a human-readable findings report.
+- `temp/run-<Epic_ID>/premortem-report.md` — a human-readable findings report.
   Each finding names its Story, the cited surface it read, the finding class
   (unverifiable-AC / over-or-under-specified / wrong-assumption), a one-line
   rationale grounded in what the file actually contains, and a recommended
@@ -85,8 +85,8 @@ artifact and mutates **no** GitHub state.
 
 ### Step 1 — Load the draft and the spec
 
-Read `temp/epic-<Epic_ID>/tickets.json` (the Story array) and
-`temp/epic-<Epic_ID>/decomposer-context.json` (for the `epicBody`). If the
+Read `temp/run-<Epic_ID>/tickets.json` (the Story array) and
+`temp/run-<Epic_ID>/decomposer-context.json` (for the `epicBody`). If the
 draft array is missing, fail loudly and instruct the caller to run the
 `epic-plan-decompose-author` Skill first.
 
@@ -118,7 +118,7 @@ recommended action.
 
 ### Step 4 — Write the report
 
-Write all findings to `temp/epic-<Epic_ID>/premortem-report.md` with the verdict
+Write all findings to `temp/run-<Epic_ID>/premortem-report.md` with the verdict
 line. Paste identifiers and short rationale only — never full source bodies.
 
 ### Step 5 — Hand back to `/plan`
@@ -127,18 +127,18 @@ Return control. The workflow shows the operator the pre-mortem report at the
 Phase 8 HITL diff; on operator approval it re-runs
 `epic-plan-decompose-author` on the findings **before** the persist call
 (`node .agents/scripts/plan-persist.js --epic <Epic_ID> --tickets
-temp/epic-<Epic_ID>/tickets.json`). This Skill itself persists nothing.
+temp/run-<Epic_ID>/tickets.json`). This Skill itself persists nothing.
 
 ## Constraints
 
 - Do **not** call the GitHub API from this Skill. It reads temp artifacts plus
   the working tree and writes one temp report; persistence belongs to the
   script, re-authoring belongs to `epic-plan-decompose-author`.
-- Do **not** write outside `temp/epic-<Epic_ID>/`, and do **not** mutate
-  `temp/epic-<Epic_ID>/tickets.json` — this critic is report-only.
+- Do **not** write outside `temp/run-<Epic_ID>/`, and do **not** mutate
+  `temp/run-<Epic_ID>/tickets.json` — this critic is report-only.
 - Do **not** log full source bodies, persona data, or secrets into the report
   (per `rules/security-baseline.md`). Identifiers and short rationale only.
-- If `temp/epic-<Epic_ID>/tickets.json` is missing, fail loudly and instruct the
+- If `temp/run-<Epic_ID>/tickets.json` is missing, fail loudly and instruct the
   caller to run the `epic-plan-decompose-author` Skill first.
 - The validator
   ([`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js))

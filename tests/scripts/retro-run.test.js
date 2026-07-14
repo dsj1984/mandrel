@@ -78,7 +78,7 @@ describe('runRetroCli', () => {
       injectedProvider: { kind: 'fake' },
       busFactory: () => fakeBus,
       ledgerFactory: ({ epicId, tempRoot }) => ({
-        ledgerPath: `${tempRoot}/epic-${epicId}/lifecycle.ndjson`,
+        ledgerPath: `${tempRoot}/run-${epicId}/lifecycle.ndjson`,
         register(bus) {
           registeredBuses.push(bus);
         },
@@ -99,7 +99,7 @@ describe('runRetroCli', () => {
       epicId: 2172,
       posted: true,
       compact: true,
-      ledgerPath: 'temp/epic-2172/lifecycle.ndjson',
+      ledgerPath: 'temp/run-2172/lifecycle.ndjson',
       commentId: 999,
     });
     // The ledger writer was registered against the same bus runRetro used.
