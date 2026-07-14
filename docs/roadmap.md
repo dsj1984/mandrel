@@ -10,7 +10,7 @@
 > here; their full text is preserved in git history
 > (`docs/roadmap.md` @ `mandrel-v1.94.0`).
 >
-> **Last reviewed:** 2026-07-13 against framework version 1.94.0.
+> **Last reviewed:** 2026-07-14 against framework version 2.0.0.
 
 ## 1. v2.0.0 — The Story collapse
 
@@ -372,9 +372,11 @@ below applies only to the rare, policy-compliant N>1 runs.
 
 #### Stage 6 — Docs, config, gates, release
 
-- [ ] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
-- [ ] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
-- [ ] Full gate green + version bump prep for **2.0.0**; merge `v2` → `main` via release-please
+- [x] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
+- [x] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
+- [x] Full gate green + version bump prep for **2.0.0** (version files at
+  `2.0.0`; `v2` branch holds the cutover — do **not** merge `v2` → `main`
+  from this stage; release-please publish remains an operator step later)
 
 ## 2. Someday — aspirational & model-shift monitors
 

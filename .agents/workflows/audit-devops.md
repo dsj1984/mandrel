@@ -15,10 +15,10 @@ infrastructure, developer experience (DX) tooling, and CI/CD pipelines. Your
 goal is to identify inefficiencies, security risks, and areas for modernization
 without making any immediate changes.
 
-## Scope (Epic mode)
+## Scope (Story / plan-run mode)
 
-When this lens is invoked from `/deliver` Phase 4 (epic-audit), the
-following block is populated with the Epic's change-set file list.
+When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
+following block is populated with the Story (or plan-run) change-set file list.
 Otherwise — for any manual `/audit-<dimension>` invocation — the block
 renders the literal substitution token and you MUST treat it as **no
 scope filter — run the lens codebase-wide** exactly as you would have

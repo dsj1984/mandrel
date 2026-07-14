@@ -68,7 +68,7 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
           );
         }
         // The Story level is the only ticket tier the validator accepts
-        // (2-tier: Epic → Story, no Feature or Task tier).
+        // (Story-only hierarchy; no Feature or Task tier).
         if (!/\bStories\b/.test(body)) {
           errors.push(
             'Skill body must describe the "Stories" level of the hierarchy',

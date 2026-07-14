@@ -786,25 +786,20 @@ changing its shape (full per-field reference:
 
 ## Ticket Hierarchy
 
-The framework uses a **2-tier GitHub Issue hierarchy**
-(Epic → Story) with label-based typing and `blocked by #NNN`
-dependency wiring. Thematic grouping lives as prose in the Epic body —
-the single planning document, which also carries the folded Tech Spec
-sections and the `## Acceptance Table` (Story #4324) — never as a
-ticket:
+The framework uses a **Story-only** GitHub Issue model with
+label-based typing. Optional `depends_on` / `blocked by #NNN` edges and a
+shared `plan-run::<id>` label order rare multi-Story plans. The folded
+Tech Spec lives on the Story body (`## Spec`, with spill-to-doc when over
+budget):
 
 ```text
-Epic (type::epic)                ← body carries the folded Tech Spec
-│                                  sections + ## Acceptance Table
-├── Story (type::story)
-│   ├── acceptance[]            ← inline on Story body
-│   └── verify[]                ← inline on Story body
-└── Story (type::story)
+Story (type::story)              ← ## Spec + acceptance[] + verify[]
+└── (optional siblings under plan-run::<id>)
 ```
 
-`/deliver` runs a single Story-implementation phase per Story.
-The state machine, cascade behavior, and worktree-isolation contract
-documented below apply at the Story tier.
+`/deliver` runs a single Story-implementation phase per Story on
+`story-<id>` → PR → `main`. The state machine and worktree-isolation
+contract documented below apply at the Story tier.
 
 ### State Machine
 
@@ -813,8 +808,8 @@ Each Story progresses through a label-driven state machine:
 ```mermaid
 stateDiagram-v2
     [*] --> agent_ready: Created by decomposer
-    agent_ready --> agent_executing: Dispatcher picks up
-    agent_executing --> agent_done: story-close.js fires
+    agent_ready --> agent_executing: /deliver picks up
+    agent_executing --> agent_done: single-story-close.js fires
     agent_done --> [*]
 
     agent_executing --> agent_ready: Hotfix rollback
@@ -822,24 +817,12 @@ stateDiagram-v2
 
 ### Cascade Behavior
 
-When a Story transitions to `agent::done`, `cascadeCompletion()` walks
-upward through the hierarchy and closes parents whose children are all
-done. The cascade is **not** uniform across tiers — the table below is
-the authoritative contract:
-
-| Parent tier                                     | Auto-closes via cascade? | How it closes                                                    |
-| ----------------------------------------------- | ------------------------ | ---------------------------------------------------------------- |
-| Epic (`type::epic`)                             | **No** — cascade stops.  | The `/deliver` PR merges — auto-merge when the Phase 8.5 clean-run gate armed it, otherwise the operator merges via the GitHub UI. |
-
-**Why the Epic tier never auto-closes.** Epics gate on a real
-pull-request merge — cascade must not pre-empt the operator's
-required-checks review. (Story #4324 retired the planning
-context-ticket tier; legacy `context::*` artifacts on historical Epics
-still close via cascade as a hygiene path.)
-
-Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
-— `cascadeCompletion()` explicitly skips `type::epic` parents; every
-other parent tier is eligible. The
+v2 has no parent ticket tier above Story. Closing a Story is owned by
+`helpers/deliver-story` / `single-story-close.js` (PR to `main`, required
+checks, squash). Legacy `cascadeCompletion()` hygiene for historical
+parent issues remains in
+[`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
+but is not part of the active Story-only delivery path. The
 `fromState` lookup inside `transitionTicketState()` has a deliberate
 try/catch — a network flake reading the prior state label must not block a
 legitimate transition; failures emit a `debug`-level log instead of swallowing

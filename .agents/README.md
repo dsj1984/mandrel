@@ -1,13 +1,13 @@
 # Mandrel Framework
 
 An opinionated workflow framework for AI coding assistants built on
-Epic-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
+Story-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
 
 This is the consumer README inside the distributed `.agents/` bundle. It explains what each part of the bundle is for and captures the cross-directory authoring conventions. The process narrative for
 `/plan` and `/deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
-npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Story plans on GitHub.
+npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Story-only plans on GitHub.
 
 The framework version is the version of the installed [`mandrel`](https://www.npmjs.com/package/mandrel) npm package — run `npm ls mandrel` (or read `package.json`), not a
 count here.
@@ -330,9 +330,12 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Mandrel uses a **2-tier hierarchy** (Epic → Story) with inline `acceptance[]` / `verify[]` on story bodies.
+Mandrel uses a **Story-only** model: `type::story` issues carry inline
+`acceptance[]` / `verify[]` and a folded `## Spec`. `/plan` defaults to one
+Story; `/deliver` runs `helpers/deliver-story` on `story-<id>` → PR → `main`.
 
-See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execution-model implications.
+See [`docs/SDLC.md`](docs/SDLC.md) and [`instructions.md` § 5.D](instructions.md)
+for the execution-model contract.
 
 ---
 

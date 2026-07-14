@@ -1478,12 +1478,8 @@
         },
         "routing": {
           "type": "object",
-          "description": "Epic #4475 (M4-A). Delivery-route selection for epic-shaped work.",
+          "description": "v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6.",
           "properties": {
-            "singleDelivery": {
-              "type": "boolean",
-              "description": "Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet."
-            },
             "roleScopedAgents": {
               "type": "boolean",
               "description": "Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure (≈50KB → ≈8KB per spawn — the payoff of the context diet). When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate."

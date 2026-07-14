@@ -395,7 +395,6 @@ function renderMissLine({ slug, path }) {
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
  * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
  * @param {object}                     [opts.modelCapacity] - Override the model-capacity thresholds. Defaults to `DEFAULT_MODEL_CAPACITY`.
- * @param {object}                     [opts.taskSizing]    - Deprecated synonym for `modelCapacity` (accepted during the Stage-2 sweep).
  * @param {number}                     [opts.maxTokenBudget] - Delivery envelope used to derive absolute session ceilings.
  * @param {object}                     [opts.conflictPolicy] - Severity controls for cross-Story conflict findings.
  * @param {boolean}                    [opts.conflictPolicy.failOnSharedEditors=false]          - Upgrade `shared-editor` findings to `hard`.
@@ -611,7 +610,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   const sizingFindings = computeSizingFindings({
     stories,
-    capacity: opts.modelCapacity ?? opts.taskSizing,
+    capacity: opts.modelCapacity,
     maxTokenBudget: opts.maxTokenBudget,
   });
   // Cross-Story path-conflict pass observes the story-level depends_on

@@ -233,16 +233,8 @@ const EPIC_AUDIT_SCHEMA = {
   additionalProperties: false,
 };
 
-// Epic #4475 (M4-A) — single-delivery routing kill-switch.
-// `delivery.routing.singleDelivery` (default true via getDeliveryRouting) is
-// the global kill-switch for the single-delivery route. When true (the
-// default), an Epic marked `delivery::single` at plan time routes to the
-// single-delivery helper; when false, EVERY Epic — even a single-marked one —
-// is forced down the fan-out path (the instant, code-rollback-free per-consumer
-// revert). Shipped INERT in M4-A: the router's single verdict falls through to
-// fan-out until M4-B wires the executor, so the knob has no observable effect
-// yet.
 // Epic #4478 (M7-B) — role-scoped-agent kill-switch + maker-checker floor.
+// Stage 6 dropped `delivery.routing.singleDelivery` (v1 epic route switch).
 // `delivery.routing.roleScopedAgents` (default true via getDeliveryRouting)
 // flips converted delivery spawns onto their `.claude/agents/<role>.md` boot
 // context; false falls back to `subagent_type: general-purpose` (the instant
@@ -253,7 +245,6 @@ const EPIC_AUDIT_SCHEMA = {
 const ROUTING_SCHEMA = {
   type: 'object',
   properties: {
-    singleDelivery: { type: 'boolean' },
     roleScopedAgents: { type: 'boolean' },
     freshCriticSampleRate: { type: 'number', minimum: 0, maximum: 1 },
   },

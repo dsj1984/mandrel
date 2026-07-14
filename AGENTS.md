@@ -27,16 +27,16 @@ package and materialized into consumer projects' `.agents/` directories by
   consumer project)
 - **License:** MIT
 
-> **Ticket hierarchy.** Mandrel ships a **2-tier ticket hierarchy**
-> (Epic → Story). Acceptance criteria and verification
-> steps are inlined on the Story body (`acceptance[]` / `verify[]`).
-> All delivery flows through `/deliver`, which routes Epic vs
-> standalone-Story input — Epic-attached Stories are delivered as part
-> of their Epic (the Epic path fans out `helpers/epic-deliver-story`
-> per wave). There is no `type::task` ticket layer and no
-> per-Task commit ceremony. See
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the
-> diagram and execution-model implications.
+> **Ticket hierarchy.** Mandrel ships a **Story-only** ticket model.
+> Acceptance criteria and verification steps are inlined on the Story
+> body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
+> `## Spec` (with spill-to-doc when over budget). `/plan` emits one or
+> more `type::story` issues (default N=1); `/deliver` runs each Story
+> via `helpers/deliver-story` on `story-<id>` → PR → `main`. Optional
+> `depends_on` / `plan-run::<id>` edges order rare multi-Story runs.
+> There is no `type::epic` / `type::task` layer and no per-Task commit
+> ceremony. See [`.agents/instructions.md` § 5.D](.agents/instructions.md)
+> and [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md) for the contract.
 
 ---
 

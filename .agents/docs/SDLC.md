@@ -54,45 +54,36 @@ From zero to shipped:
       `type::story` + `agent::ready`, closing with a `plan-summary` on the
       primary Story.
 
-2. **Deliver the Epic.** Run `/deliver <epicId>` in your IDE. The
-   skill drives the merged execute + close flow end-to-end.
+2. **Deliver the Story.** Run `/deliver <storyId>` (or `/deliver --run
+   <planRunId>` for a multi-Story plan-run) in your IDE. The skill
+   always delegates to [`helpers/deliver-story`](../workflows/helpers/deliver-story.md).
 
    > **Phase numbering note.** The numbered phases below refer to
-   > `/deliver`'s **internal** phases (1–9), not the SDLC-level
+   > `/deliver`'s **internal** phases, not the SDLC-level
    > Phase 0–4 used by the Mermaid diagram in [§ End-to-End
    > Process](#end-to-end-process). When prose elsewhere in this
    > document says "Phase 7", it always means the internal
    > `/deliver` phase unless explicitly prefixed with "SDLC".
 
-   1. **Phase 1 — prepare** — snapshot the Epic, build the wave DAG,
-      initialise the `epic-run-state` checkpoint.
-   2. **Phase 2 — wave loop** — fan one `/deliver` Agent-tool
-      sub-agent out per Story per wave (capped at `concurrencyCap`).
-      Stories run in parallel inside the operator's Claude session
-      against your Max subscription quota; no subprocess worker sessions
-      for Story execution, no GitHub Actions minutes. Deterministic
-      Node CLIs remain the state-mutation contract.
-   3. **Phase 3 — close-validation** — lint, test, and the project's
-      ratcheted baselines run against the Epic branch. Evidence is
+   1. **Prepare** — lease the Story, cut `story-<id>` via
+      `single-story-init.js`, hydrate the worktree.
+   2. **Implement** — the agent delivers the Story in one guarded
+      session (risk-routed ceremony; see `ceremony-routing.js`).
+   3. **Close-validation** — lint, test, and the project's
+      ratcheted baselines run against the Story branch. Evidence is
       cached by HEAD SHA so re-runs short-circuit.
-   4. **Phase 4 — Epic-close lens roster** — resolves (does not walk) the
-      slim Epic-close lens roster: the change-set `gate3` selection plus the
-      risk-routed lenses, restricted to the **cumulative + global +
-      risk-routed** tiers via `selectEpicCloseLenses` (every local-tier
-      change-set lens is excluded — already verified shift-left). The roster is
-      handed to Phase 5.
-   5. **Phase 5 — code-review** — auto-invokes the in-process
-      `lib/orchestration/code-review.js`; walks the cumulative Epic diff
-      **once**, executing the Phase 4 lens roster as review dimensions
-      **alongside** the review pillars (Story #4412 folded the standalone lens
-      walk into this pass). Findings persist as the single unified
-      `verification-results` structured comment on the Epic. Critical findings
-      halt the run.
-   6. **Phase 6 — retro** — auto-invokes the in-process
-      `lib/orchestration/retro-runner.js` (extracted from the old
-      retro helper) and posts the structured retro comment on the
-      Epic. The retro fires **before** the PR is opened so it has
-      full env access in the operator's local session.
+   4. **Close lenses** — resolves (does not walk) the
+      slim close lens roster: the change-set `gate3` selection plus the
+      risk-routed lenses (local-tier change-set lenses are excluded —
+      already verified shift-left).
+   5. **Code-review** — auto-invokes the in-process
+      `lib/orchestration/code-review.js`; walks the Story diff once with
+      the lens roster alongside the review pillars. Findings persist as
+      the `verification-results` structured comment on the Story.
+      Critical findings halt the run.
+   6. **Retro** — auto-invokes the in-process
+      `lib/orchestration/retro-runner.js` and posts the structured retro
+      comment on the Story before the PR opens.
    7. **Phase 7 — finalize** — each ready Story opens a pull request from
       `story-<id>` to `main`, sets the required-checks expectation from
       `github.branchProtection.requiredChecks`, and posts the hand-off
@@ -313,11 +304,10 @@ mode:
 4. **Confirm at gate #1.** The one-pager, the triage verdict, and the
    duplicate review fold into one operator confirmation at the exit of
    the interrogate step.
-5. **Open the Epic (persist step).** `plan-persist.js` renders the
-   one-pager into the canonical Epic-from-idea template and opens the
-   Issue with **only** the `type::epic` label — no `state::*` label at
-   creation; the same persist pass folds in the authored sections and
-   flips the Epic straight to `agent::ready`.
+5. **Open the Story (persist step).** `plan-persist.js` renders the
+   one-pager into the canonical Story template and opens the Issue with
+   **`type::story`** (+ `agent::ready`); the same persist pass folds in
+   the authored `## Spec` (spill-to-doc when over budget).
 
 #### Scope triage
 
@@ -484,36 +474,28 @@ The waiver is binary — there is no partial opt-out. If an Epic later
 warrants spec coverage, remove the label and run `/plan`'s
 `planning.spec-authoring` state to author the spec.
 
-1. **Ticket Decomposer** (the fan-out half of `plan-persist.js`):
-   - Decomposes specs into the **2-tier hierarchy**
-     (Epic → Story):
+1. **Ticket authoring** (`plan-persist.js`):
+   - Emits the **Story-only** hierarchy (default N=1):
 
      ```text
-     Epic (type::epic)                ← body carries the folded Tech Spec
-     │                                  sections + ## Acceptance Table
-     ├── Story (type::story)
-     │   ├── acceptance[]            ← inline on Story body
-     │   └── verify[]                ← inline on Story body
-     └── Story (type::story)
+     Story (type::story)              ← body carries ## Spec + acceptance[]
+     │                                   + verify[]; spill-to-doc when over budget
+     └── (optional siblings under plan-run::<id>, linked by depends_on)
      ```
 
-   - **Wiring.** Each ticket is linked using `blocked by #NNN` syntax and
-     GitHub's native sub-issues API.
-   - **Metadata.** Each Story is stamped with persona, estimated files,
-     and agent prompts, plus the inline `acceptance[]` / `verify[]`
-     arrays the executing sub-agent reads.
+   - **Wiring.** Sibling Stories in a rare N>1 plan-run share a
+     `plan-run::<id>` label and optional `depends_on` / `blocked by #NNN`
+     edges.
+   - **Metadata.** Each Story carries persona, session-capacity sizing,
+     and the inline `acceptance[]` / `verify[]` arrays the executing
+     agent reads.
 
-`/deliver` runs a **single** Story-implementation phase per
-Story. The wave-loop fan-out in `/deliver` and the
-Story-branch → Epic-branch merge model are unchanged; the Feature and
-Task layers are gone, and thematic grouping lives as prose in the Epic
-body (which also carries the folded Tech Spec sections).
+`/deliver` runs a **single** Story-implementation phase per Story on
+`story-<id>` → PR → `main`. There is no epic integration branch and no
+wave-merge model.
 
-When the persist step completes the Epic flips to `agent::ready` and the
-`plan-summary` structured comment (with the dry-run wave table) lands on
-the Epic. The live wave manifest is written at deliver time by the
-prepare phase — planning posts no separate dispatch-manifest comment
-(Epic #4474).
+When the persist step completes, each Story is `agent::ready` and a
+`plan-summary` structured comment lands on the primary Story.
 
 ### `agent::ready` exit conditions
 

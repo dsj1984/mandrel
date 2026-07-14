@@ -386,10 +386,10 @@ budget grounds.
 
 ---
 
-## 5. Git & Epic Protocol (Strict Standards)
+## 5. Git & Story Protocol (Strict Standards)
 
 To maintain a clean and readable repository history, you MUST follow these
-strict conventions for all epic-related Git operations. See
+strict conventions for all Story-related Git operations. See
 [`.agents/rules/git-conventions.md`](rules/git-conventions.md) for the full
 canonical reference.
 
@@ -454,10 +454,10 @@ To keep the repository clean and avoid polluting the Git history:
 
 ## 7. Complexity-Aware Execution
 
-The dispatcher automatically calculates the execution plan for an Epic. A
-Story is a **capability slice a frontier model delivers and self-verifies in
-one pass** — a broad footprint is normal when the change is cohesive. The
-session-capacity backstop lives in one place: `DEFAULT_MODEL_CAPACITY` in
+`/plan` sizes each Story as a **capability slice a frontier model delivers
+and self-verifies in one pass** — a broad footprint is normal when the
+change is cohesive. The session-capacity backstop lives in one place:
+`DEFAULT_MODEL_CAPACITY` in
 `.agents/scripts/lib/orchestration/ticket-validator-sizing.js` (operator
 override via `planning.modelCapacity`). Do not re-slice a capability-sized
 Story into per-module fragments just because it touches many files.
