@@ -76,6 +76,17 @@ describe('buildEnvelope', () => {
 });
 
 describe('elideEnvelope', () => {
+  it('is a no-op when already under budget', () => {
+    const envelope = buildEnvelope({
+      task: { id: 1, title: 'T' },
+      sections: [section('taskInstructions', 'small')],
+      maxTokens: 500,
+    });
+    const elided = elideEnvelope(envelope, 500);
+    assert.deepEqual(elided.budget.elided, []);
+    assert.equal(elided.sections[0].content, 'small');
+  });
+
   it('elides sections in ascending priority order and records elided names', () => {
     const long = 'x'.repeat(400);
     const envelope = buildEnvelope({
