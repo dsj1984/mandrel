@@ -263,6 +263,72 @@ describe('runStoryScopeReview (direct)', () => {
     assert.match(recorder.postedComments[0].payload.body, /critical:2/);
   });
 
+  it('forwards Story planning risk into review depth resolution', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    let seenRisk = null;
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      planningRisk: { overallLevel: 'high', axes: [] },
+      runCodeReviewFn: async (opts) => {
+        seenRisk = opts.planningRisk;
+        return {
+          severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+          posted: false,
+          halted: false,
+        };
+      },
+      runLocalLensReviewFn: async () => ({ skipped: true }),
+      progress: () => {},
+    });
+    assert.deepEqual(seenRisk, { overallLevel: 'high', axes: [] });
+  });
+
+  it('loads planningRisk from story-plan-state when omitted', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const planningRisk = { overallLevel: 'high', axes: [] };
+    const recorder = fakeProviderRecorder();
+    recorder.provider.getTicketComments = async () => [
+      {
+        body: [
+          '<!-- ap:structured-comment type="story-plan-state" -->',
+          '### story-plan-state',
+          '',
+          '```json',
+          JSON.stringify({ version: 2, storyId: 2839, planningRisk }),
+          '```',
+        ].join('\n'),
+      },
+    ];
+    let seenRisk = null;
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      runCodeReviewFn: async (opts) => {
+        seenRisk = opts.planningRisk;
+        return {
+          severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+          posted: false,
+          halted: false,
+        };
+      },
+      runLocalLensReviewFn: async () => ({ skipped: true }),
+      progress: () => {},
+    });
+    assert.deepEqual(seenRisk, planningRisk);
+  });
+
   it('skips when prNumber is null', async () => {
     const { runStoryScopeReview } = await import(SUT_URL);
     const recorder = fakeProviderRecorder();

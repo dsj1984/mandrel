@@ -10,8 +10,8 @@
  *   4. Split-policy partition (`assertAcceptancePartition`) + spec fold/spill
  *   5. Create Story issues (`type::story` + `agent::ready`; `plan-run::`
  *      label when N>1)
- *   6. Upsert `risk-verdict` + `plan-summary` (+ `story-plan-state`) on the
- *      primary Story
+ *   6. Upsert `risk-verdict` + `story-plan-state` on every created Story;
+ *      upsert `plan-summary` on the primary Story
  *   7. Temp cleanup at terminal success only
  *
  * Hard cutover: no Epic parent, no reconciler, no `deliveryShape`, no
@@ -59,7 +59,7 @@ const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
 const STORY_PLAN_STATE_TYPE = 'story-plan-state';
 
 /**
- * Write the `story-plan-state` checkpoint on the primary Story.
+ * Write the `story-plan-state` checkpoint on a Story.
  *
  * @param {object} provider
  * @param {number} storyId
@@ -122,6 +122,16 @@ function enforceTicketValidation(validated, { config, settings, cwd }) {
     `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
       `does not resolve — ${assumptionFailures.length} finding(s) downgraded.`,
   );
+}
+
+function riskVerdictCommentBody(riskVerdict) {
+  return [
+    '### risk-verdict',
+    '',
+    '```json',
+    JSON.stringify(riskVerdict, null, 2),
+    '```',
+  ].join('\n');
 }
 
 /**
@@ -327,40 +337,40 @@ export async function runPlanPersist({
   });
 
   if (!dryRun) {
-    await upsertStructuredComment(
-      provider,
-      primary.id,
-      'risk-verdict',
-      [
-        '### risk-verdict',
-        '',
-        '```json',
-        JSON.stringify(riskVerdict, null, 2),
-        '```',
-      ].join('\n'),
-    );
+    for (const story of created) {
+      await upsertStructuredComment(
+        provider,
+        story.id,
+        'risk-verdict',
+        riskVerdictCommentBody(riskVerdict),
+      );
+      await writeCheckpointV2(provider, story.id, {
+        planningRisk,
+        riskVerdict,
+        reviewRouting,
+        persist: {
+          completedAt: new Date().toISOString(),
+          storyCount: created.length,
+          planRunLabel,
+          primaryStoryId: primary.id,
+          stories: created.map((createdStory) => ({
+            slug: createdStory.slug,
+            id: createdStory.id,
+          })),
+          spills: spills.map((spill) => ({
+            slug: spill.slug,
+            spilled: spill.spill.spilled,
+            docPath: spill.spill.docPath,
+          })),
+        },
+      });
+    }
     await upsertStructuredComment(
       provider,
       primary.id,
       PLAN_SUMMARY_COMMENT_TYPE,
       summaryBody,
     );
-    await writeCheckpointV2(provider, primary.id, {
-      planningRisk,
-      riskVerdict,
-      reviewRouting,
-      persist: {
-        completedAt: new Date().toISOString(),
-        storyCount: created.length,
-        planRunLabel,
-        stories: created.map((c) => ({ slug: c.slug, id: c.id })),
-        spills: spills.map((s) => ({
-          slug: s.slug,
-          spilled: s.spill.spilled,
-          docPath: s.spill.docPath,
-        })),
-      },
-    });
   }
 
   if (!skipCleanup && planDir) {

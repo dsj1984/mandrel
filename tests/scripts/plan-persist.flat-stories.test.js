@@ -187,6 +187,12 @@ describe('runPlanPersist — flat Story ops', () => {
     for (const s of result.stories) {
       const issue = provider.issues.get(s.id);
       assert.ok(issue.labels.includes('plan-run::stage3'));
+      const storyComments = provider.comments
+        .filter((comment) => comment.issueNumber === s.id)
+        .map((comment) => comment.body)
+        .join('\n');
+      assert.match(storyComments, /risk-verdict/);
+      assert.match(storyComments, /story-plan-state/);
     }
   });
 });
