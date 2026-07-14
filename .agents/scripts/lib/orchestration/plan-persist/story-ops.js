@@ -212,6 +212,23 @@ function assembleOnePlanStory(ticket, opts) {
 }
 
 /**
+ * Shared techspec.md is an N===1 convenience only — folding one Spec into
+ * every sibling duplicates approach prose and breaks Story-as-SSOT.
+ *
+ * @param {object[]} tickets
+ * @param {string|null|undefined} sharedSpec
+ */
+function assertSharedSpecAllowed(tickets, sharedSpec) {
+  if (tickets.length <= 1) return;
+  if (typeof sharedSpec !== 'string' || sharedSpec.trim() === '') return;
+  throw new Error(
+    '[plan-persist] a shared techspec.md cannot be folded into N>1 Stories — ' +
+      "put each Story's approach in its own ## Spec so every Story stays a " +
+      'complete executable document.',
+  );
+}
+
+/**
  * Assemble markdown bodies for every Story: normalize → fold spec →
  * assertAcceptancePartition → serialize.
  *
@@ -228,17 +245,7 @@ export function assemblePlanStories(tickets, opts = {}) {
     );
   }
 
-  if (
-    tickets.length > 1 &&
-    typeof opts.sharedSpec === 'string' &&
-    opts.sharedSpec.trim() !== ''
-  ) {
-    throw new Error(
-      '[plan-persist] a shared techspec.md cannot be folded into N>1 Stories — ' +
-        "put each Story's approach in its own ## Spec so every Story stays a " +
-        'complete executable document.',
-    );
-  }
+  assertSharedSpecAllowed(tickets, opts.sharedSpec);
 
   const stories = tickets.map(
     (ticket) => assembleOnePlanStory(ticket, opts).story,

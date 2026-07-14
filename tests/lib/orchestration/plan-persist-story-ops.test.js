@@ -147,6 +147,14 @@ describe('assemblePlanStories', () => {
       /shared techspec\.md cannot be folded into N>1/,
     );
   });
+
+  it('allows N>1 when sharedSpec is absent or blank', () => {
+    const { stories } = assemblePlanStories(
+      [storyTicket('a'), storyTicket('b')],
+      { sharedSpec: '   ' },
+    );
+    assert.equal(stories.length, 2);
+  });
 });
 
 describe('createStoryIssues', () => {
