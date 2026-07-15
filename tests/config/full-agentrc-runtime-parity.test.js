@@ -155,10 +155,10 @@ describe('full-agentrc-runtime-parity', () => {
     const wi = ref.delivery.worktreeIsolation;
     assert.equal(wi.enabled, WORKTREE_ISOLATION_DEFAULTS.enabled);
     assert.equal(wi.root, WORKTREE_ISOLATION_DEFAULTS.root);
-    assert.equal(
-      wi.nodeModulesStrategy,
-      WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy,
-    );
+    // Reference JSON pins the cross-platform documented default (`clone`).
+    // WORKTREE_ISOLATION_DEFAULTS.nodeModulesStrategy is evaluated at import
+    // time and becomes `per-worktree` on win32 — do not compare those.
+    assert.equal(wi.nodeModulesStrategy, 'clone');
     assert.equal(wi.primeFromPath, WORKTREE_ISOLATION_DEFAULTS.primeFromPath);
     assert.equal(
       wi.allowSymlinkOnWindows,
