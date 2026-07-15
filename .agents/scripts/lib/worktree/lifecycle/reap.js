@@ -65,7 +65,7 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
   if (!local.safe) return local;
   if (local.reason === 'path-missing') return local;
 
-  const epicRef = opts.epicBranch ?? null;
+  const epicRef = opts.epicBranch ?? opts.epicRef ?? null;
   if (!epicRef) return { safe: true };
 
   return checkMergeReachability(ctx, wtPath, local.branch, epicRef);

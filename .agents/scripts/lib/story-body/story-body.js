@@ -246,8 +246,11 @@ function extractBlockedBy(footerBlock) {
   return deps;
 }
 
-// Matches the trailing `<!-- meta: {...} -->` block serialize() emits.
-const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
+// Matches any trailing `<!-- meta: … -->` block. Object payloads are the
+// canonical serialize() shape; non-object / malformed payloads are still
+// recognized so section parsing can skip them and extractMeta can degrade.
+const META_BLOCK_RE = /<!--\s*meta:\s*([\s\S]*?)\s*-->/;
+const META_OBJECT_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
 
 /**
  * Extract the `wide` / `estimated_test_files` fields from the trailing
@@ -276,7 +279,7 @@ function extractMeta(markdown) {
     mandrel_version: null,
     authored_at: null,
   };
-  const match = markdown.match(META_BLOCK_RE);
+  const match = markdown.match(META_OBJECT_RE) ?? markdown.match(META_BLOCK_RE);
   if (!match) return result;
 
   let parsed;
@@ -286,7 +289,10 @@ function extractMeta(markdown) {
     // Malformed meta comment — degrade to defaults rather than corrupt the body.
     return result;
   }
-  if (parsed === null || typeof parsed !== 'object') return result;
+  // Non-object JSON (array / scalar / null) is treated as absent meta.
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return result;
+  }
 
   result.wide = normalizeWide(parsed.wide);
   result.reason_to_exist = normalizeReasonToExist(parsed.reason_to_exist);
