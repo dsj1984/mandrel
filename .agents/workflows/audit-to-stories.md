@@ -117,23 +117,23 @@ Ask:
 
 > How would you like these `<M>` Stories created?
 >
-> - **Single Epic via `/plan`** **[Recommended]** — opens one Epic,
->   then chains into `/plan --idea` so the standard spec-and-WBS
->   authoring handles decomposition. Grouped Stories become the
->   seed for the authoring step's decomposition.
+> - **Single plan via `/plan`** **[Recommended]** — chains into
+>   `/plan --seed` so the standard spec-and-WBS authoring handles
+>   decomposition. Grouped Stories become the seed for the
+>   authoring step's decomposition.
 > - **Individual standalone Stories** — opens one GitHub Issue per
 >   group directly, no Epic wrapper.
 
 **STOP** until the operator picks.
 
-## Phase 5a — Single-Epic path
+## Phase 5a — Single-plan path
 
-Build the `/plan` idea seed from the filtered plan envelope:
+Build the `/plan` seed from the filtered plan envelope:
 
 ```bash
-node .agents/scripts/audit-to-stories.js --emit-epic-seed \
+node .agents/scripts/audit-to-stories.js --emit-plan-seed \
   --plan temp/audits/audit-to-stories-plan.json \
-  --out "temp/audits/audit-epic-seed-$(date +%Y%m%dT%H%M%S).md"
+  --out "temp/audits/audit-plan-seed-$(date +%Y%m%dT%H%M%S).md"
 ```
 
 The seed renders the canonical one-pager sections — Problem Statement,
@@ -144,11 +144,11 @@ authoring step has concrete anchors), Not Doing.
 Chain into the existing planning entrypoint:
 
 ```text
-/plan --idea "<path-to-seed>"
+/plan --seed "$(cat <path-to-seed>)"
 ```
 
-`/plan` then runs its 3-step Epic path (interrogate → author →
-persist), as documented in its workflow.
+(or persist the seed and pass it via `--one-pager <path>`). `/plan`
+then runs its author → persist path, as documented in its workflow.
 Each Story it spawns from the seed carries `context::audit:
 <reportLink>` and `audit-fingerprint: <sha>` in its body so future
 Phase 6 idempotency works on the next run.

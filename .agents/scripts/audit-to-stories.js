@@ -12,7 +12,7 @@
  *     Emits a single `audit-to-stories-plan.json` envelope to --out (or
  *     stdout when --json is set).
  *
- *   --emit-epic-seed --plan <plan.json> --out <path>
+ *   --emit-plan-seed --plan <plan.json> --out <path>
  *     Read the plan envelope from disk, render the `/plan --idea`
  *     seed markdown, persist to --out.
  *
@@ -37,7 +37,7 @@ import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-again
 import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
-import { buildEpicSeedMarkdown } from './lib/audit-to-stories/seed-epic-from-findings.js';
+import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
@@ -291,7 +291,7 @@ async function main() {
     args: process.argv.slice(2),
     options: {
       scan: { type: 'boolean' },
-      'emit-epic-seed': { type: 'boolean' },
+      'emit-plan-seed': { type: 'boolean' },
       'emit-stories': { type: 'boolean' },
       glob: { type: 'string' },
       severity: { type: 'string' },
@@ -315,9 +315,9 @@ async function main() {
     return;
   }
 
-  if (values['emit-epic-seed']) {
+  if (values['emit-plan-seed']) {
     const plan = loadPlan(values.plan);
-    const md = buildEpicSeedMarkdown({
+    const md = buildPlanSeedMarkdown({
       groups: plan.groups ?? [],
       findings: plan.findings ?? [],
       sourceReports: plan.sourceReports ?? [],
@@ -346,7 +346,7 @@ async function main() {
   }
 
   throw new Error(
-    'Usage: node audit-to-stories.js (--scan | --emit-epic-seed | --emit-stories) [options]',
+    'Usage: node audit-to-stories.js (--scan | --emit-plan-seed | --emit-stories) [options]',
   );
 }
 

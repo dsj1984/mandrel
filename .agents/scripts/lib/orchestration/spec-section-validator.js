@@ -32,7 +32,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { DELIVERY_SLICING_RE } from '../epic-body-sections.js';
+import { DELIVERY_SLICING_RE } from '../ticket-body-sections.js';
 
 /**
  * The single required Tech Spec section, with the heading variants the

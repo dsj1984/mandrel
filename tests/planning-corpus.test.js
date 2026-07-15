@@ -20,7 +20,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import * as duplicateSearch from '../.agents/scripts/lib/duplicate-search.js';
-import { upsertEpicSection } from '../.agents/scripts/lib/epic-body-sections.js';
 import {
   buildCorpusContext,
   DEFAULT_CORPUS_BODY_FETCH_TOP_K,
@@ -28,6 +27,7 @@ import {
   fetchCandidateBodies,
   rankCandidateEpics,
 } from '../.agents/scripts/lib/planning-corpus.js';
+import { upsertTicketSection } from '../.agents/scripts/lib/ticket-body-sections.js';
 
 describe('rankCandidateEpics', () => {
   it('ranks higher title-overlap Epics first', () => {
@@ -187,7 +187,7 @@ describe('fetchCandidateBodies', () => {
 
 describe('extractRelevantSections', () => {
   it('extracts and scores the managed Tech Spec region when present', () => {
-    const body = upsertEpicSection(
+    const body = upsertTicketSection(
       '# Some Epic\n\n## Goal\n\nUnrelated preamble.\n',
       'techSpec',
       '## Delivery Slicing\n\nStandalone-Story corpus context assembly and rubric work.\n',
@@ -291,7 +291,7 @@ describe('buildCorpusContext', () => {
   });
 
   it('fetches candidate bodies explicitly and ranks relevant sections end-to-end, against a fake provider whose list surface returns no bodies', async () => {
-    const techSpecBody = upsertEpicSection(
+    const techSpecBody = upsertTicketSection(
       '# Change-request triage Epic\n\n## Goal\n\nRoute deltas.\n',
       'techSpec',
       '## Delivery Slicing\n\nCorpus-aware standalone-Story planning path rubric assembly.\n',

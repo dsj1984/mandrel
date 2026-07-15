@@ -6,7 +6,7 @@ import url from 'node:url';
 import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
-import { buildEpicSeedMarkdown } from '../../.agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js';
+import { buildPlanSeedMarkdown } from '../../.agents/scripts/lib/audit-to-stories/seed-from-findings.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,10 +23,10 @@ function loadAll() {
   }));
 }
 
-test('buildEpicSeedMarkdown emits all canonical one-pager sections', () => {
+test('buildPlanSeedMarkdown emits all canonical one-pager sections', () => {
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);
-  const md = buildEpicSeedMarkdown({
+  const md = buildPlanSeedMarkdown({
     groups,
     findings,
     sourceReports: loadAll().map((r) => r.sourceReport),
@@ -44,10 +44,10 @@ test('buildEpicSeedMarkdown emits all canonical one-pager sections', () => {
   }
 });
 
-test('buildEpicSeedMarkdown references concrete files in Key Files', () => {
+test('buildPlanSeedMarkdown references concrete files in Key Files', () => {
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);
-  const md = buildEpicSeedMarkdown({
+  const md = buildPlanSeedMarkdown({
     groups,
     findings,
     sourceReports: loadAll().map((r) => r.sourceReport),
@@ -56,10 +56,10 @@ test('buildEpicSeedMarkdown references concrete files in Key Files', () => {
   assert.ok(md.includes('src/middleware/error-handler.js'));
 });
 
-test('buildEpicSeedMarkdown problem statement counts findings and severities', () => {
+test('buildPlanSeedMarkdown problem statement counts findings and severities', () => {
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);
-  const md = buildEpicSeedMarkdown({
+  const md = buildPlanSeedMarkdown({
     groups,
     findings,
     sourceReports: loadAll().map((r) => r.sourceReport),
@@ -68,11 +68,11 @@ test('buildEpicSeedMarkdown problem statement counts findings and severities', (
   assert.ok(/High/i.test(md));
 });
 
-test('buildEpicSeedMarkdown lists every source report in Key Assumptions', () => {
+test('buildPlanSeedMarkdown lists every source report in Key Assumptions', () => {
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);
   const reports = loadAll().map((r) => r.sourceReport);
-  const md = buildEpicSeedMarkdown({
+  const md = buildPlanSeedMarkdown({
     groups,
     findings,
     sourceReports: reports,
@@ -82,14 +82,14 @@ test('buildEpicSeedMarkdown lists every source report in Key Assumptions', () =>
   }
 });
 
-test('buildEpicSeedMarkdown throws on bad input', () => {
+test('buildPlanSeedMarkdown throws on bad input', () => {
   assert.throws(() =>
-    buildEpicSeedMarkdown({ groups: null, findings: [], sourceReports: [] }),
+    buildPlanSeedMarkdown({ groups: null, findings: [], sourceReports: [] }),
   );
 });
 
-test('buildEpicSeedMarkdown handles zero findings gracefully', () => {
-  const md = buildEpicSeedMarkdown({
+test('buildPlanSeedMarkdown handles zero findings gracefully', () => {
+  const md = buildPlanSeedMarkdown({
     groups: [],
     findings: [],
     sourceReports: [],

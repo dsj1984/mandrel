@@ -1,17 +1,17 @@
 /**
- * lib/audit-to-stories/seed-epic-from-findings.js
+ * lib/audit-to-stories/seed-from-findings.js
  *
- * Build the `--idea`-shaped seed markdown that `/plan` Phase 1
- * consumes when the operator picks the Single-Epic grouping mode.
+ * Build the `/plan --seed`-shaped one-pager markdown that the audit-to-
+ * stories Single-plan grouping path emits for `/plan` to consume.
  *
- * The seed renders the canonical one-pager sections so the idea-refinement
- * skill can sharpen it without having to invent context:
+ * The seed renders the canonical one-pager sections so the authoring
+ * pass can sharpen it without having to invent context:
  *   - Problem Statement (aggregated severity profile)
  *   - Recommended Direction (rollup of recommendations by dimension)
  *   - Key Assumptions (carries the source-report links forward)
  *   - MVP Scope (the proposed Stories, one bullet per group)
- *   - Key Files (explicit file paths so /plan Phase 7 decompose
- *     has concrete anchors)
+ *   - Key Files (explicit file paths so `/plan` authoring has concrete
+ *     anchors)
  *   - Not Doing (out-of-scope items by convention)
  *
  * Pure: returns a string. The caller decides where to persist it.
@@ -112,14 +112,14 @@ function formatKeyAssumptions(sourceReports) {
  * @param {string[]} params.sourceReports — list of source report paths.
  * @returns {string}
  */
-export function buildEpicSeedMarkdown({ groups, findings, sourceReports }) {
+export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
   if (
     !Array.isArray(groups) ||
     !Array.isArray(findings) ||
     !Array.isArray(sourceReports)
   ) {
     throw new Error(
-      'buildEpicSeedMarkdown: groups, findings, sourceReports must all be arrays',
+      'buildPlanSeedMarkdown: groups, findings, sourceReports must all be arrays',
     );
   }
   const problem = formatProblemStatement(findings);

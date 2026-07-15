@@ -35,9 +35,12 @@
  */
 
 import { overlapScore, tokenize } from './duplicate-search.js';
-import { extractEpicSection, hasEpicSection } from './epic-body-sections.js';
 import { Logger } from './Logger.js';
 import { buildDocsDigest } from './orchestration/docs-digest.js';
+import {
+  extractTicketSection,
+  hasTicketSection,
+} from './ticket-body-sections.js';
 
 /** Top-K Epics kept after the cheap title-only ranking pass. */
 const DEFAULT_CORPUS_MAX_CANDIDATES = 5;
@@ -178,8 +181,11 @@ export async function fetchCandidateBodies({
  * @returns {{ kind:'techSpec'|'lede', content:string }}
  */
 function extractScoreableExcerpt(body) {
-  if (hasEpicSection(body, 'techSpec')) {
-    return { kind: 'techSpec', content: extractEpicSection(body, 'techSpec') };
+  if (hasTicketSection(body, 'techSpec')) {
+    return {
+      kind: 'techSpec',
+      content: extractTicketSection(body, 'techSpec'),
+    };
   }
   const lede = (body ?? '').split(/^##\s+/m)[0].trim();
   return { kind: 'lede', content: lede };

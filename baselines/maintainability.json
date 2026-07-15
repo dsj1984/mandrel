@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-14T23:40:31.826Z",
+  "generatedAt": "2026-07-15T00:16:58.847Z",
   "rollup": {
     "*": {
       "min": 68.911,
@@ -203,7 +203,7 @@
       "mi": 90.456
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "mi": 105.693
     },
     {
@@ -723,14 +723,6 @@
       "mi": 100.328
     },
     {
-      "path": ".agents/scripts/lib/epic-body-sections.js",
-      "mi": 90.536
-    },
-    {
-      "path": ".agents/scripts/lib/epic-plan-clarity.js",
-      "mi": 104.244
-    },
-    {
       "path": ".agents/scripts/lib/error-redactor.js",
       "mi": 99.894
     },
@@ -943,6 +935,10 @@
       "mi": 92.454
     },
     {
+      "path": ".agents/scripts/lib/orchestration/audit-lens-routing.js",
+      "mi": 104.473
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/auto-merge-cwd.js",
       "mi": 97.315
     },
@@ -1009,10 +1005,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/docs-digest.js",
       "mi": 93.747
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "mi": 107.055
     },
     {
       "path": ".agents/scripts/lib/orchestration/error-journal.js",
@@ -1751,6 +1743,10 @@
       "mi": 105.613
     },
     {
+      "path": ".agents/scripts/lib/ticket-body-sections.js",
+      "mi": 90.536
+    },
+    {
       "path": ".agents/scripts/lib/transpile.js",
       "mi": 101.416
     },
@@ -1888,7 +1884,7 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "mi": 85.414
+      "mi": 89.313
     },
     {
       "path": ".agents/scripts/plan-persist.js",

@@ -16,10 +16,10 @@ import {
 import { scanBddScenarios } from '../../bdd-scenario-scanner.js';
 import { buildCodebaseSnapshot } from '../../codebase-snapshot.js';
 import { getLimits, getPaths, PROJECT_ROOT } from '../../config-resolver.js';
-import { hasEpicSection } from '../../epic-body-sections.js';
 import { scanMemoryFreshness } from '../../feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from '../../feedback-loop/prior-feedback-fetcher.js';
 import { Logger } from '../../Logger.js';
+import { hasTicketSection } from '../../ticket-body-sections.js';
 import { ensureDocsDigest } from '../docs-digest.js';
 import { applyBudget } from '../planning-context-budget.js';
 import { collectReferences, hasNewFileCue } from '../spec-freshness.js';
@@ -256,8 +256,8 @@ export async function buildAuthoringContext(
       // inside `body` (managed sections), which is how the author keeps
       // AC IDs stable across re-plans.
       planningSections: {
-        techSpec: hasEpicSection(epic.body ?? '', 'techSpec'),
-        acceptanceTable: hasEpicSection(epic.body ?? '', 'acceptanceTable'),
+        techSpec: hasTicketSection(epic.body ?? '', 'techSpec'),
+        acceptanceTable: hasTicketSection(epic.body ?? '', 'acceptanceTable'),
       },
     },
     docsContext,

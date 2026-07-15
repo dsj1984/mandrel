@@ -1,19 +1,19 @@
 /**
- * epic-body-sections.js — marker-delimited managed sections of the Epic body.
+ * ticket-body-sections.js — marker-delimited managed sections of a
+ * planning ticket body.
  *
  * Story #4324 retired the `context::tech-spec` / `context::acceptance-spec`
- * ticket classes: the Epic body is now the single planning document. The
- * Tech Spec (opening with `## Delivery Slicing`, per #4316) and the
- * Acceptance Spec's AC-ID table (`## Acceptance Table`, Outcomes keyed to
- * Epic AC bullets per #4315) land as **managed sections** of the Epic body,
- * delimited by invisible HTML comment markers so each writer can update
- * *only its own region* without rewriting the rest of the body.
+ * ticket classes: the planning ticket body is the single planning document.
+ * The Tech Spec (opening with `## Delivery Slicing`, per #4316) and the
+ * Acceptance Spec's AC-ID table (`## Acceptance Table`) land as **managed
+ * sections**, delimited by invisible HTML comment markers so each writer
+ * can update *only its own region* without rewriting the rest of the body.
  *
  * Section-scoped writes are the load-bearing contract (extending the
  * single-writer discipline #4303 established for the body trailer):
  *
- *   - The Phase 7 spec persist path (`epic-plan-spec/phases/plan-epic.js`)
- *     upserts the `techSpec` and `acceptanceTable` regions.
+ *   - The `/plan` persist path upserts the `techSpec` and `acceptanceTable`
+ *     regions.
  *   - The close-time acceptance reconciler
  *     (`acceptance-spec-reconciler.js`) reads and rewrites the
  *     `acceptanceTable` region only (verification dispositions).
@@ -32,7 +32,7 @@
  *
  * @type {Readonly<Record<'techSpec'|'acceptanceTable', { start: string, end: string, label: string }>>}
  */
-export const EPIC_BODY_SECTIONS = Object.freeze({
+export const TICKET_BODY_SECTIONS = Object.freeze({
   techSpec: Object.freeze({
     start: '<!-- mandrel:tech-spec:start -->',
     end: '<!-- mandrel:tech-spec:end -->',
@@ -47,7 +47,7 @@ export const EPIC_BODY_SECTIONS = Object.freeze({
 
 /**
  * Canonical heading the acceptance-table region opens with. Distinct from
- * the Epic's ideation `## Acceptance Criteria` bullets (which remain the
+ * the ticket's ideation `## Acceptance Criteria` bullets (which remain the
  * SSOT for *what* the table verifies — the table anchors to those bullets).
  */
 export const ACCEPTANCE_TABLE_HEADING = '## Acceptance Table';
@@ -56,7 +56,7 @@ export const ACCEPTANCE_TABLE_HEADING = '## Acceptance Table';
  * Regex matching the Tech Spec's required opening heading (same variants
  * `spec-section-validator.js` accepts). Exported so it is the single
  * source of truth for this pattern — `spec-section-validator.js`,
- * `epic-plan-clarity.js`, and `consolidation-precondition.js` all import
+ * `consolidation-precondition.js` all import
  * it rather than each carrying their own copy.
  */
 export const DELIVERY_SLICING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/im;
@@ -66,10 +66,10 @@ export const DELIVERY_SLICING_RE = /^##\s+(?:Delivery\s+)?Slicing\s*$/im;
  * @returns {{ start: string, end: string, label: string }}
  */
 function descriptor(kind) {
-  const d = EPIC_BODY_SECTIONS[kind];
+  const d = TICKET_BODY_SECTIONS[kind];
   if (!d) {
     throw new TypeError(
-      `epic-body-sections: unknown section kind "${kind}" (expected ${Object.keys(EPIC_BODY_SECTIONS).join(' | ')})`,
+      `ticket-body-sections: unknown section kind "${kind}" (expected ${Object.keys(TICKET_BODY_SECTIONS).join(' | ')})`,
     );
   }
   return d;
@@ -103,7 +103,7 @@ function locate(body, kind) {
  * @param {'techSpec'|'acceptanceTable'} kind
  * @returns {boolean}
  */
-export function hasEpicSection(body, kind) {
+export function hasTicketSection(body, kind) {
   return locate(body, kind) !== null;
 }
 
@@ -115,7 +115,7 @@ export function hasEpicSection(body, kind) {
  * @param {'techSpec'|'acceptanceTable'} kind
  * @returns {string|null}
  */
-export function extractEpicSection(body, kind) {
+export function extractTicketSection(body, kind) {
   const loc = locate(body, kind);
   if (!loc) return null;
   return body.slice(loc.contentStart, loc.contentEnd).trim();
@@ -136,7 +136,7 @@ export function extractEpicSection(body, kind) {
  * @param {string} content Section content (headings included).
  * @returns {string}
  */
-export function upsertEpicSection(body, kind, content) {
+export function upsertTicketSection(body, kind, content) {
   const { start, end } = descriptor(kind);
   const safeBody = typeof body === 'string' ? body : '';
   const trimmedContent = typeof content === 'string' ? content.trim() : '';
@@ -179,7 +179,7 @@ export function upsertEpicSection(body, kind, content) {
  * @param {'techSpec'|'acceptanceTable'} kind
  * @returns {string}
  */
-export function stripEpicSection(body, kind) {
+export function stripTicketSection(body, kind) {
   const { end } = descriptor(kind);
   const loc = locate(body, kind);
   if (!loc) return typeof body === 'string' ? body : '';
@@ -189,7 +189,7 @@ export function stripEpicSection(body, kind) {
 }
 
 /**
- * Re-plan / decompose detection: true when the Epic body carries folded
+ * Re-plan / decompose detection: true when the ticket body carries folded
  * Tech Spec content — the managed region, or (defence in depth for a
  * hand-authored body) a bare `## Delivery Slicing` heading.
  *
@@ -197,7 +197,7 @@ export function stripEpicSection(body, kind) {
  * @returns {boolean}
  */
 export function hasTechSpecContent(body) {
-  if (hasEpicSection(body, 'techSpec')) return true;
+  if (hasTicketSection(body, 'techSpec')) return true;
   return typeof body === 'string' && DELIVERY_SLICING_RE.test(body);
 }
 
@@ -217,9 +217,9 @@ const DELIVERY_DROP_HEADINGS = new Set([
 ]);
 
 /**
- * Slice an Epic body down to the sections a delivery story agent acts on.
+ * Slice a planning ticket body down to the sections a delivery story agent acts on.
  *
- * KEEP: the Epic title / preamble before the first `##`, `## Goal`,
+ * KEEP: the ticket title / preamble before the first `##`, `## Goal`,
  * `## Non-Goals`, `## User Stories`, the `techSpec` managed region, and —
  * fail-open — any unknown / operator-authored `##` section not in the drop
  * list. DROP: `## Context`, `## Scope`, `## Acceptance Criteria`, and the
@@ -236,12 +236,12 @@ const DELIVERY_DROP_HEADINGS = new Set([
  * @param {string} body
  * @returns {string}
  */
-export function sliceEpicBodyForDelivery(body) {
+export function sliceTicketBodyForDelivery(body) {
   if (typeof body !== 'string' || body.length === 0) return '';
 
   // 1. Drop the acceptance-table managed region outright (authoring/close
   //    machinery, never delivery context).
-  let working = stripEpicSection(body, 'acceptanceTable');
+  let working = stripTicketSection(body, 'acceptanceTable');
 
   // 2. Protect the techSpec managed region from heading-boundary slicing by
   //    lifting it out behind an opaque placeholder, then restoring it after
@@ -261,7 +261,7 @@ export function sliceEpicBodyForDelivery(body) {
 
   // 3. Slice plain `##` sections by heading boundaries, dropping only the
   //    known ideation/authoring headings. The preamble before the first
-  //    `##` (Epic title / lede) is always kept.
+  //    `##` (ticket title / lede) is always kept.
   const kept = [];
   let dropping = false;
   for (const line of working.split('\n')) {
@@ -291,7 +291,7 @@ export function sliceEpicBodyForDelivery(body) {
 
 /**
  * Strip the retired machine-managed `## Planning Artifacts` checklist from
- * an Epic body (the section that linked the now-retired context tickets).
+ * a planning ticket body (the section that linked the now-retired context tickets).
  * The slice ends at the next `## ` heading, a managed-region marker, or
  * EOF. Historical bodies without the section pass through untouched.
  *

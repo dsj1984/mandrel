@@ -1116,49 +1116,49 @@
       "crap": 15.2014736256683
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "tallySeverities",
       "startLine": 37,
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "tallyDimensions",
       "startLine": 45,
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "formatProblemStatement",
       "startLine": 53,
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "formatRecommendedDirection",
       "startLine": 67,
       "crap": 4
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "formatMVPScope",
       "startLine": 82,
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "formatKeyFiles",
       "startLine": 92,
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "formatKeyAssumptions",
       "startLine": 102,
       "crap": 2
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "method": "buildEpicSeedMarkdown",
       "startLine": 115,
       "crap": 6

@@ -1,5 +1,5 @@
 /**
- * tests/epic-body-sections.test.js — marker-delimited managed sections of
+ * tests/ticket-body-sections.test.js — marker-delimited managed sections of
  * the Epic body (Story #4324).
  *
  * The section-scoped-writes guardrail lives here at the unit tier: every
@@ -13,15 +13,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   ACCEPTANCE_TABLE_HEADING,
-  EPIC_BODY_SECTIONS,
-  extractEpicSection,
-  hasEpicSection,
+  extractTicketSection,
   hasTechSpecContent,
-  sliceEpicBodyForDelivery,
-  stripEpicSection,
+  hasTicketSection,
+  sliceTicketBodyForDelivery,
   stripPlanningArtifactsSection,
-  upsertEpicSection,
-} from '../.agents/scripts/lib/epic-body-sections.js';
+  stripTicketSection,
+  TICKET_BODY_SECTIONS,
+  upsertTicketSection,
+} from '../.agents/scripts/lib/ticket-body-sections.js';
 
 const IDEATION_BODY = [
   '## Context',
@@ -49,20 +49,24 @@ const ACCEPTANCE_TABLE = [
   '| AC-1 | Epic AC 1: it works | tests/features/x.feature | works | new |',
 ].join('\n');
 
-describe('epic-body-sections', () => {
-  describe('upsertEpicSection', () => {
+describe('ticket-body-sections', () => {
+  describe('upsertTicketSection', () => {
     it('appends a marker-delimited region when absent', () => {
-      const out = upsertEpicSection(IDEATION_BODY, 'techSpec', TECH_SPEC);
-      assert.ok(out.includes(EPIC_BODY_SECTIONS.techSpec.start));
-      assert.ok(out.includes(EPIC_BODY_SECTIONS.techSpec.end));
-      assert.equal(extractEpicSection(out, 'techSpec'), TECH_SPEC);
+      const out = upsertTicketSection(IDEATION_BODY, 'techSpec', TECH_SPEC);
+      assert.ok(out.includes(TICKET_BODY_SECTIONS.techSpec.start));
+      assert.ok(out.includes(TICKET_BODY_SECTIONS.techSpec.end));
+      assert.equal(extractTicketSection(out, 'techSpec'), TECH_SPEC);
       // Everything before the appended region is byte-preserved.
       assert.ok(out.startsWith(IDEATION_BODY));
     });
 
     it('replaces only the region content on re-upsert (section-scoped write)', () => {
-      const withSpec = upsertEpicSection(IDEATION_BODY, 'techSpec', TECH_SPEC);
-      const withBoth = upsertEpicSection(
+      const withSpec = upsertTicketSection(
+        IDEATION_BODY,
+        'techSpec',
+        TECH_SPEC,
+      );
+      const withBoth = upsertTicketSection(
         withSpec,
         'acceptanceTable',
         ACCEPTANCE_TABLE,
@@ -72,81 +76,84 @@ describe('epic-body-sections', () => {
         'Some context.',
         'Some context. SENTINEL-EDIT-42',
       );
-      const rewritten = upsertEpicSection(
+      const rewritten = upsertTicketSection(
         sentinel,
         'techSpec',
         `${TECH_SPEC}\n| Transport | seam | No |`,
       );
       assert.ok(rewritten.includes('SENTINEL-EDIT-42'));
       assert.equal(
-        extractEpicSection(rewritten, 'acceptanceTable'),
+        extractTicketSection(rewritten, 'acceptanceTable'),
         ACCEPTANCE_TABLE,
       );
       assert.ok(
-        extractEpicSection(rewritten, 'techSpec').includes('Transport'),
+        extractTicketSection(rewritten, 'techSpec').includes('Transport'),
       );
     });
 
     it('keeps canonical order: techSpec inserts before an existing acceptanceTable', () => {
-      const acceptanceFirst = upsertEpicSection(
+      const acceptanceFirst = upsertTicketSection(
         IDEATION_BODY,
         'acceptanceTable',
         ACCEPTANCE_TABLE,
       );
-      const out = upsertEpicSection(acceptanceFirst, 'techSpec', TECH_SPEC);
+      const out = upsertTicketSection(acceptanceFirst, 'techSpec', TECH_SPEC);
       assert.ok(
-        out.indexOf(EPIC_BODY_SECTIONS.techSpec.start) <
-          out.indexOf(EPIC_BODY_SECTIONS.acceptanceTable.start),
+        out.indexOf(TICKET_BODY_SECTIONS.techSpec.start) <
+          out.indexOf(TICKET_BODY_SECTIONS.acceptanceTable.start),
       );
       assert.equal(
-        extractEpicSection(out, 'acceptanceTable'),
+        extractTicketSection(out, 'acceptanceTable'),
         ACCEPTANCE_TABLE,
       );
     });
 
     it('is idempotent: same content twice yields the same body', () => {
-      const once = upsertEpicSection(IDEATION_BODY, 'techSpec', TECH_SPEC);
-      const twice = upsertEpicSection(once, 'techSpec', TECH_SPEC);
+      const once = upsertTicketSection(IDEATION_BODY, 'techSpec', TECH_SPEC);
+      const twice = upsertTicketSection(once, 'techSpec', TECH_SPEC);
       assert.equal(twice, once);
     });
   });
 
   describe('extract / has / strip', () => {
-    it('extractEpicSection returns null when absent', () => {
-      assert.equal(extractEpicSection(IDEATION_BODY, 'techSpec'), null);
-      assert.equal(extractEpicSection('', 'acceptanceTable'), null);
+    it('extractTicketSection returns null when absent', () => {
+      assert.equal(extractTicketSection(IDEATION_BODY, 'techSpec'), null);
+      assert.equal(extractTicketSection('', 'acceptanceTable'), null);
     });
 
-    it('hasEpicSection detects only well-formed regions', () => {
-      const out = upsertEpicSection(
+    it('hasTicketSection detects only well-formed regions', () => {
+      const out = upsertTicketSection(
         IDEATION_BODY,
         'acceptanceTable',
         ACCEPTANCE_TABLE,
       );
-      assert.equal(hasEpicSection(out, 'acceptanceTable'), true);
-      assert.equal(hasEpicSection(out, 'techSpec'), false);
+      assert.equal(hasTicketSection(out, 'acceptanceTable'), true);
+      assert.equal(hasTicketSection(out, 'techSpec'), false);
       // Orphaned start marker (no end) is treated as absent.
-      const malformed = `${IDEATION_BODY}\n${EPIC_BODY_SECTIONS.techSpec.start}\ndangling`;
-      assert.equal(hasEpicSection(malformed, 'techSpec'), false);
+      const malformed = `${IDEATION_BODY}\n${TICKET_BODY_SECTIONS.techSpec.start}\ndangling`;
+      assert.equal(hasTicketSection(malformed, 'techSpec'), false);
     });
 
-    it('stripEpicSection removes the region and preserves the rest', () => {
-      const withBoth = upsertEpicSection(
-        upsertEpicSection(IDEATION_BODY, 'techSpec', TECH_SPEC),
+    it('stripTicketSection removes the region and preserves the rest', () => {
+      const withBoth = upsertTicketSection(
+        upsertTicketSection(IDEATION_BODY, 'techSpec', TECH_SPEC),
         'acceptanceTable',
         ACCEPTANCE_TABLE,
       );
-      const stripped = stripEpicSection(withBoth, 'acceptanceTable');
-      assert.equal(hasEpicSection(stripped, 'acceptanceTable'), false);
-      assert.equal(extractEpicSection(stripped, 'techSpec'), TECH_SPEC);
+      const stripped = stripTicketSection(withBoth, 'acceptanceTable');
+      assert.equal(hasTicketSection(stripped, 'acceptanceTable'), false);
+      assert.equal(extractTicketSection(stripped, 'techSpec'), TECH_SPEC);
       assert.ok(stripped.includes('- [ ] bullet two'));
       // No-op when absent.
-      assert.equal(stripEpicSection(IDEATION_BODY, 'techSpec'), IDEATION_BODY);
+      assert.equal(
+        stripTicketSection(IDEATION_BODY, 'techSpec'),
+        IDEATION_BODY,
+      );
     });
 
     it('throws on an unknown section kind', () => {
       assert.throws(
-        () => extractEpicSection(IDEATION_BODY, 'prd'),
+        () => extractTicketSection(IDEATION_BODY, 'prd'),
         /unknown section kind/,
       );
     });
@@ -157,7 +164,7 @@ describe('epic-body-sections', () => {
       assert.equal(hasTechSpecContent(IDEATION_BODY), false);
       assert.equal(
         hasTechSpecContent(
-          upsertEpicSection(IDEATION_BODY, 'techSpec', TECH_SPEC),
+          upsertTicketSection(IDEATION_BODY, 'techSpec', TECH_SPEC),
         ),
         true,
       );
@@ -189,14 +196,14 @@ describe('epic-body-sections', () => {
     });
 
     it('stops at a managed-region marker boundary', () => {
-      const withSpec = upsertEpicSection(
+      const withSpec = upsertTicketSection(
         `${IDEATION_BODY}\n\n## Planning Artifacts\n- [ ] Tech Spec: #4001`,
         'techSpec',
         TECH_SPEC,
       );
       const out = stripPlanningArtifactsSection(withSpec);
       assert.ok(!out.includes('#4001'));
-      assert.equal(extractEpicSection(out, 'techSpec'), TECH_SPEC);
+      assert.equal(extractTicketSection(out, 'techSpec'), TECH_SPEC);
     });
 
     it('passes bodies without the section through untouched', () => {
@@ -205,7 +212,7 @@ describe('epic-body-sections', () => {
     });
   });
 
-  describe('sliceEpicBodyForDelivery', () => {
+  describe('sliceTicketBodyForDelivery', () => {
     // A full Epic body with the keep/drop matrix, the techSpec managed
     // region (inner ## Delivery Slicing heading), the acceptanceTable
     // managed region, and an unknown operator-authored section.
@@ -233,24 +240,24 @@ describe('epic-body-sections', () => {
       '## Operator Notes',
       'Hand-authored content that must survive.',
       '',
-      EPIC_BODY_SECTIONS.techSpec.start,
+      TICKET_BODY_SECTIONS.techSpec.start,
       '',
       '## Delivery Slicing',
       '| Slice | What ships | Independent? |',
       '| --- | --- | --- |',
       '| S1 | the widget | yes |',
       '',
-      EPIC_BODY_SECTIONS.techSpec.end,
+      TICKET_BODY_SECTIONS.techSpec.end,
       '',
-      EPIC_BODY_SECTIONS.acceptanceTable.start,
+      TICKET_BODY_SECTIONS.acceptanceTable.start,
       '',
       ACCEPTANCE_TABLE,
       '',
-      EPIC_BODY_SECTIONS.acceptanceTable.end,
+      TICKET_BODY_SECTIONS.acceptanceTable.end,
     ].join('\n');
 
     it('keeps title/Goal/Non-Goals/User Stories and drops Context/Scope/Acceptance Criteria', () => {
-      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      const out = sliceTicketBodyForDelivery(FULL_BODY);
       // KEEP
       assert.ok(out.includes('Epic #1 — Deliver the widget'));
       assert.ok(out.includes('## Goal'));
@@ -269,7 +276,7 @@ describe('epic-body-sections', () => {
     });
 
     it('keeps the techSpec managed region (inner Delivery Slicing heading) and drops the acceptanceTable region', () => {
-      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      const out = sliceTicketBodyForDelivery(FULL_BODY);
       assert.ok(out.includes('## Delivery Slicing'));
       assert.ok(out.includes('| S1 | the widget | yes |'));
       // acceptanceTable region and its AC-ID rows are gone.
@@ -278,7 +285,7 @@ describe('epic-body-sections', () => {
     });
 
     it('preserves unknown / operator-authored sections (fail-open)', () => {
-      const out = sliceEpicBodyForDelivery(FULL_BODY);
+      const out = sliceTicketBodyForDelivery(FULL_BODY);
       assert.ok(out.includes('## Operator Notes'));
       assert.ok(out.includes('Hand-authored content that must survive.'));
     });
@@ -294,7 +301,7 @@ describe('epic-body-sections', () => {
         '## User Stories',
         '- story',
       ].join('\n');
-      const out = sliceEpicBodyForDelivery(plain);
+      const out = sliceTicketBodyForDelivery(plain);
       assert.ok(out.includes('## Goal'));
       assert.ok(out.includes('## User Stories'));
       assert.ok(!out.includes('## Context'));
@@ -302,9 +309,9 @@ describe('epic-body-sections', () => {
     });
 
     it('returns empty string for empty / non-string input', () => {
-      assert.equal(sliceEpicBodyForDelivery(''), '');
-      assert.equal(sliceEpicBodyForDelivery(null), '');
-      assert.equal(sliceEpicBodyForDelivery(undefined), '');
+      assert.equal(sliceTicketBodyForDelivery(''), '');
+      assert.equal(sliceTicketBodyForDelivery(null), '');
+      assert.equal(sliceTicketBodyForDelivery(undefined), '');
     });
   });
 });

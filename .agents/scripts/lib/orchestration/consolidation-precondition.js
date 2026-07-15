@@ -30,7 +30,7 @@
  * Epic body off disk / the GitHub API.
  */
 
-import { DELIVERY_SLICING_RE as DELIVERY_SLICING_HEADING_RE } from '../epic-body-sections.js';
+import { DELIVERY_SLICING_RE as DELIVERY_SLICING_HEADING_RE } from '../ticket-body-sections.js';
 
 /** A row is a markdown table line: starts with `|` once trimmed. */
 const TABLE_ROW_RE = /^\|/;
