@@ -148,7 +148,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema accepts new delivery.lifecycle keys', () => {
+  it('agentrc.schema rejects retired delivery.lifecycle keys', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -170,7 +170,7 @@ describe('lifecycle/schema-registry', () => {
         },
       },
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(ok, false);
   });
 
   it('agentrc.schema accepts delivery.mergeWatch.intervalSeconds and maxBudgetSeconds', () => {
@@ -230,7 +230,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema rejects unknown delivery.lifecycle key', () => {
+  it('agentrc.schema rejects unknown delivery.mergeWatch key', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -243,7 +243,7 @@ describe('lifecycle/schema-registry', () => {
         },
       },
       delivery: {
-        lifecycle: { bogus: true },
+        mergeWatch: { bogus: true },
       },
     });
     assert.equal(ok, false);

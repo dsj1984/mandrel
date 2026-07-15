@@ -38,7 +38,6 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
  */
 const DEFAULT_DELIVER_RUNNER = Object.freeze({
   concurrencyCap: 3,
-  progressReportIntervalSec: 120,
   verifyConcurrencyCap: 4,
 });
 
@@ -78,7 +77,7 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  *
  * @param {object | null | undefined} config
  * @returns {{
- *   deliverRunner: { concurrencyCap: number, progressReportIntervalSec: number, verifyConcurrencyCap: number },
+ *   deliverRunner: { concurrencyCap: number, verifyConcurrencyCap: number },
  *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
  *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
  *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
@@ -94,9 +93,6 @@ export function getRunners(config) {
       concurrencyCap:
         deliverRunnerUser.concurrencyCap ??
         DEFAULT_DELIVER_RUNNER.concurrencyCap,
-      progressReportIntervalSec:
-        deliverRunnerUser.progressReportIntervalSec ??
-        DEFAULT_DELIVER_RUNNER.progressReportIntervalSec,
       verifyConcurrencyCap:
         deliverRunnerUser.verifyConcurrencyCap ??
         DEFAULT_DELIVER_RUNNER.verifyConcurrencyCap,

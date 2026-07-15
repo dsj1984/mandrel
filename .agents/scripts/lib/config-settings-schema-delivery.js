@@ -64,40 +64,14 @@ const DELIVER_RUNNER_SCHEMA = {
   type: 'object',
   properties: {
     concurrencyCap: { type: 'integer', minimum: 1 },
-    progressReportIntervalSec: { type: 'integer', minimum: 0 },
     verifyConcurrencyCap: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };
 
 /**
- * `delivery.retro.perfThresholds` (Story #3042, Task #3043) — operator-tunable
- * gates for the retro perf-signals classifier. Defaults are documented inline
- * here and mirrored in `lib/orchestration/retro-perf-heuristics.js
- * (DEFAULT_RETRO_PERF_THRESHOLDS)` and the static schema mirror.
- *
- * `utilisation` / `bootstrapShare` are unit-interval ratios; values outside
- * [0, 1] fall back to defaults at the resolver. `capBindingRunLength` is a
- * positive integer count of consecutive cap-binding waves.
+ * `delivery.worktreeIsolation` — per-Story git worktree provisioning.
  */
-const RETRO_PERF_THRESHOLDS_SCHEMA = {
-  type: 'object',
-  properties: {
-    utilisation: { type: 'number', minimum: 0, maximum: 1 },
-    bootstrapShare: { type: 'number', minimum: 0, maximum: 1 },
-    capBindingRunLength: { type: 'integer', minimum: 1 },
-  },
-  additionalProperties: false,
-};
-
-const RETRO_SCHEMA = {
-  type: 'object',
-  properties: {
-    perfThresholds: RETRO_PERF_THRESHOLDS_SCHEMA,
-  },
-  additionalProperties: false,
-};
-
 const WORKTREE_ISOLATION_SCHEMA = {
   type: 'object',
   properties: {
@@ -110,11 +84,15 @@ const WORKTREE_ISOLATION_SCHEMA = {
     primeFromPath: { type: ['string', 'null'], minLength: 1 },
     allowSymlinkOnWindows: { type: 'boolean' },
     reapOnSuccess: { type: 'boolean' },
-    reapOnCancel: { type: 'boolean' },
     bootstrapFiles: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
-      default: ['.env', '.mcp.json'],
+      default: [
+        '.env',
+        '.mcp.json',
+        '.agentrc.local.json',
+        '.agents/instructions.local.md',
+      ],
     },
   },
   additionalProperties: false,
@@ -132,20 +110,14 @@ const WORKTREE_ISOLATION_SCHEMA = {
 };
 
 /**
- * `delivery.signals` — detector thresholds for the three surviving
- * performance-signal categories. `churn` and `idle` were dropped (low
- * signal-to-noise). Each block is shallow-merged by the resolver.
+ * `delivery.signals` — detector thresholds for the surviving
+ * performance-signal categories. `hotspot` was retired with its detector
+ * (Epic #4406); `churn` and `idle` were dropped earlier (low signal-to-noise).
+ * Each block is shallow-merged by the resolver.
  */
 const SIGNALS_SCHEMA = {
   type: 'object',
   properties: {
-    hotspot: {
-      type: 'object',
-      properties: {
-        p95Multiplier: { type: 'number', minimum: 0 },
-      },
-      additionalProperties: false,
-    },
     rework: {
       type: 'object',
       properties: {
@@ -160,26 +132,6 @@ const SIGNALS_SCHEMA = {
       },
       additionalProperties: false,
     },
-  },
-  additionalProperties: false,
-};
-
-/**
- * `delivery.lifecycle` — knobs consumed by the lifecycle event bus
- * (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds)
- * used by Story 11's `TimeoutWatchdog` listener; missing entries fall back
- * to in-listener defaults. `heartbeatWarnSeconds` is the no-progress
- * threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the
- * keys; consumers land in later stories.
- */
-const LIFECYCLE_SCHEMA = {
-  type: 'object',
-  properties: {
-    timeouts: {
-      type: 'object',
-      additionalProperties: { type: 'integer', minimum: 1 },
-    },
-    heartbeatWarnSeconds: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };
@@ -256,13 +208,6 @@ const ROUTING_SCHEMA = {
   additionalProperties: false,
 };
 
-// Story #2899 (Epic #2880) — performance defaults + preflight (F13).
-// `delivery.ci.skipForStoryPushes` (default true via getCiDelivery): when
-// true, pre-push tooling appends a `[skip ci]` trailer to Story-branch
-// commit subjects so intermediate pushes do not stampede the CI fleet.
-// The Epic-branch merge commit produced by story-close.js's merge
-// runner never carries the marker, regardless of this flag.
-//
 // Story #4356 (Epic #4355) — CI-aware delivery namespace. `earlyPr` gates
 // whether /deliver opens the Epic PR early (before every Story merges) so CI
 // starts warming while later waves run; defaults to `true` via getCiDelivery.
@@ -283,7 +228,6 @@ const CI_WATCH_SCHEMA = {
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
-    skipForStoryPushes: { type: 'boolean' },
     earlyPr: { type: 'boolean' },
     watch: CI_WATCH_SCHEMA,
     autoMerge: { type: 'string', enum: ['trust-ci', 'strict'] },
@@ -404,24 +348,15 @@ export const DELIVERY_SCHEMA = {
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
-    lifecycle: LIFECYCLE_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
     epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
-    retro: RETRO_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     routing: ROUTING_SCHEMA,
     preflight: PREFLIGHT_SCHEMA,
-    // Cross-Story concurrency-hazard gate (Story #2297). When true,
-    // `epic-deliver-prepare` refuses to flip the Epic to
-    // `agent::executing` if the upcoming waves still carry any conflict
-    // finding (Story #2296). Off by default; operators using the gate
-    // also need to wire findings into prepare via the runtime injection
-    // surface.
-    failOnConcurrencyHazards: { type: 'boolean' },
   },
   additionalProperties: false,
 };

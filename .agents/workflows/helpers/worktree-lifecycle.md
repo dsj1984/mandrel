@@ -23,18 +23,22 @@ All knobs live under `delivery.worktreeIsolation` in `.agentrc.json`:
 
 ```jsonc
 {
-  "orchestration": {
+  "delivery": {
     "worktreeIsolation": {
       "enabled": true, // master switch; false = single-tree (v5.5.1)
       "root": ".worktrees", // relative to repo root; must stay inside it
-      "nodeModulesStrategy": "per-worktree", // per-worktree | symlink | pnpm-store
+      "nodeModulesStrategy": "clone", // clone | per-worktree | symlink | pnpm-store
       "primeFromPath": null, // required when strategy = "symlink"
       "allowSymlinkOnWindows": false, // explicit opt-in for symlink on win32
       "reapOnSuccess": true, // remove worktree after successful story merge
-      "reapOnCancel": true, // remove worktree when story is cancelled
-      "windowsPathLengthWarnThreshold": 240, // pre-flight warning threshold (MAX_PATH=260)
-    },
-  },
+      "bootstrapFiles": [
+        ".env",
+        ".mcp.json",
+        ".agentrc.local.json",
+        ".agents/instructions.local.md"
+      ]
+    }
+  }
 }
 ```
 

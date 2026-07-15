@@ -1,18 +1,13 @@
 // tests/contract/delivery/schema-ci-preflight.test.js
 /**
- * Contract test — Story #2899 Task #2926 (Epic #2880, F13).
+ * Contract test — Story #2899 Task #2926 (Epic #2880, F13) + Story #4356.
  *
- * The AJV `.agentrc.json` schema MUST accept both new delivery blocks
- * introduced for the performance-defaults + preflight Story:
+ * The AJV `.agentrc.json` schema MUST accept the delivery.preflight and
+ * delivery.ci blocks. `delivery.ci.skipForStoryPushes` was retired; the
+ * surviving ci knobs are earlyPr / watch / autoMerge / requireChecks.
  *
- *   - `delivery.ci.skipForStoryPushes` (boolean, default true via getCiDelivery)
- *   - `delivery.preflight.maxStories` (integer ≥ 1) and the four sibling
- *     `max*` threshold keys.
- *
- * The starter delta-seed (`.agents/starter-agentrc.json`) MUST carry the
- * `delivery.ci.skipForStoryPushes: true` default at the top level of the
- * delivery object so a `npx mandrel init`-style bootstrap inherits the
- * safe CI-firehose mitigation without an operator opt-in.
+ * The starter delta-seed (`.agents/starter-agentrc.json`) no longer carries
+ * a delivery.ci block — CI defaults come from getCiDelivery.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,7 +28,19 @@ const STARTER_PATH = path.join(REPO_ROOT, '.agents/starter-agentrc.json');
 
 describe('contract/delivery/schema-ci-preflight', () => {
   describe('AJV schema acceptance', () => {
-    it('accepts delivery.ci.skipForStoryPushes: false', () => {
+    it('accepts delivery.ci.earlyPr: false', () => {
+      const validate = getAgentrcValidator();
+      const doc = {
+        project: {
+          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        },
+        delivery: { ci: { earlyPr: false } },
+      };
+      const ok = validate(doc);
+      assert.equal(ok, true, JSON.stringify(validate.errors));
+    });
+
+    it('rejects retired delivery.ci.skipForStoryPushes', () => {
       const validate = getAgentrcValidator();
       const doc = {
         project: {
@@ -42,7 +49,7 @@ describe('contract/delivery/schema-ci-preflight', () => {
         delivery: { ci: { skipForStoryPushes: false } },
       };
       const ok = validate(doc);
-      assert.equal(ok, true, JSON.stringify(validate.errors));
+      assert.equal(ok, false);
     });
 
     it('accepts delivery.preflight.maxStories: 100', () => {
@@ -64,7 +71,7 @@ describe('contract/delivery/schema-ci-preflight', () => {
           paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
         },
         delivery: {
-          ci: { skipForStoryPushes: false },
+          ci: { earlyPr: false, autoMerge: 'strict' },
           preflight: {
             maxStories: 100,
             maxWaves: 5,
@@ -104,27 +111,26 @@ describe('contract/delivery/schema-ci-preflight', () => {
   });
 
   describe('starter-agentrc.json default', () => {
-    it('ships delivery.ci.skipForStoryPushes: true at the top of delivery', () => {
+    it('does not ship the retired delivery.ci.skipForStoryPushes key', () => {
       const raw = JSON.parse(readFileSync(STARTER_PATH, 'utf8'));
-      assert.equal(typeof raw.delivery, 'object');
-      assert.equal(raw.delivery?.ci?.skipForStoryPushes, true);
+      assert.equal(raw.delivery?.ci?.skipForStoryPushes, undefined);
     });
   });
 
   describe('config accessors', () => {
-    it('getCiDelivery returns the framework default when the block is omitted', () => {
+    it('getCiDelivery returns the framework defaults when the block is omitted', () => {
       const merged = getCiDelivery({ delivery: {} });
-      assert.equal(
-        merged.skipForStoryPushes,
-        CI_DELIVERY_DEFAULTS.skipForStoryPushes,
-      );
+      assert.equal(merged.earlyPr, CI_DELIVERY_DEFAULTS.earlyPr);
+      assert.equal(merged.autoMerge, CI_DELIVERY_DEFAULTS.autoMerge);
+      assert.equal(merged.requireChecks, CI_DELIVERY_DEFAULTS.requireChecks);
+      assert.equal('skipForStoryPushes' in merged, false);
     });
 
-    it('getCiDelivery honors an explicit false override', () => {
+    it('getCiDelivery honors an explicit earlyPr false override', () => {
       const merged = getCiDelivery({
-        delivery: { ci: { skipForStoryPushes: false } },
+        delivery: { ci: { earlyPr: false } },
       });
-      assert.equal(merged.skipForStoryPushes, false);
+      assert.equal(merged.earlyPr, false);
     });
 
     it('getPreflight returns null floors when the block is omitted', () => {

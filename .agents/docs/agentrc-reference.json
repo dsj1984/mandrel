@@ -27,11 +27,11 @@
     "projectNumber": null,
     "projectOwner": null,
     "operatorHandle": "@[USERNAME]",
+    "defaultTimeoutMs": 60000,
     "branchProtection": {
       "enforce": true,
       "requiredChecks": [
         { "name": "lint", "cmd": ["npm", "run", "lint"] },
-        { "name": "format:check", "cmd": ["npm", "run", "format:check"] },
         { "name": "test", "cmd": ["npm", "test"] },
         {
           "name": "baselines",
@@ -76,6 +76,8 @@
         "**/node_modules/**",
         "**/dist/**",
         "**/build/**",
+        "**/.next/**",
+        "**/.turbo/**",
         "**/coverage/**",
         "**/*.test.*",
         "**/*.spec.*"
@@ -95,6 +97,20 @@
       "tokensPerAcceptance": 500,
       "tokensPerChange": 350,
       "mergeCandidateMaxSessionFraction": 0.005
+    },
+    "failOnSharedEditors": false,
+    "requireExplicitCrossStoryDeps": false,
+    "failOnRegistryConflicts": false,
+    "failOnLargeFanOut": false,
+    "largeFanOutThreshold": 10,
+    "crossCuttingRegistries": [
+      "lib/orchestration/lifecycle/listeners/index.js",
+      "**/listeners/index.js",
+      "**/handlers/index.js"
+    ],
+    "navigation": {
+      "routeGlobs": [],
+      "navRegistry": []
     }
   },
   "delivery": {
@@ -102,44 +118,48 @@
     "maxTokenBudget": 300000,
     "lease": { "ttlMs": 900000 },
     "ci": {
-      "skipForStoryPushes": true,
       "earlyPr": true,
       "watch": {
-        "pollIntervalMs": 30000,
-        "maxPolls": 120,
+        "pollIntervalMs": 10000,
+        "maxPolls": 180,
         "maxResumes": 3
       },
-      "autoMerge": "trust-ci"
-    },
-    "preflight": {
-      "maxStories": 50,
-      "maxWaves": 10,
-      "maxInstallCostSeconds": 600,
-      "maxGithubApiRequests": 5000,
-      "maxClaudeQuotaTokens": 2000000
+      "autoMerge": "trust-ci",
+      "requireChecks": false
     },
     "docsFreshness": {
       "paths": ["README.md"]
     },
     "deliverRunner": {
       "concurrencyCap": 3,
-      "progressReportIntervalSec": 120,
       "verifyConcurrencyCap": 4
     },
     "worktreeIsolation": {
       "enabled": true,
       "root": ".worktrees",
-      "nodeModulesStrategy": "pnpm-store",
+      "nodeModulesStrategy": "clone",
       "primeFromPath": null,
       "allowSymlinkOnWindows": false,
       "reapOnSuccess": true,
-      "reapOnCancel": true,
-      "bootstrapFiles": [".env", ".mcp.json"]
+      "bootstrapFiles": [
+        ".env",
+        ".mcp.json",
+        ".agentrc.local.json",
+        ".agents/instructions.local.md"
+      ]
     },
     "signals": {
-      "hotspot": { "p95Multiplier": 1.25 },
       "rework": { "editsPerFile": 5 },
       "retry": { "repeatCount": 3 }
+    },
+    "mergeWatch": {
+      "intervalSeconds": 30,
+      "maxBudgetSeconds": 3600
+    },
+    "epicAudit": {
+      "maxFixAttempts": 3,
+      "maxFixScopeFiles": 5,
+      "autoFixSeverity": "high"
     },
     "codeReview": {
       "providers": [
@@ -153,7 +173,18 @@
         }
       ],
       "maxFixAttempts": 3,
-      "maxFixScopeFiles": 5
+      "maxFixScopeFiles": 5,
+      "autoFixSeverity": "medium"
+    },
+    "routing": {
+      "roleScopedAgents": true,
+      "freshCriticSampleRate": 0.2,
+      "ceremonyProfile": "standard",
+      "closeAndLand": true
+    },
+    "feedbackLoop": {
+      "auditResultsAutoFile": true,
+      "retroProposals": true
     },
     "quality": {
       "gateScoping": { "scope": "diff", "diffRef": "main" },
@@ -182,15 +213,17 @@
           "requireCoverage": true,
           "friction": { "markerKey": "crap-baseline-regression" },
           "refreshTag": "baseline-refresh:",
-          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
+          "refreshTimeoutMs": 60000,
+          "ignoreGlobs": []
         },
         "maintainability": {
           "enabled": true,
           "baselinePath": "baselines/maintainability.json",
           "tolerance": { "kind": "absolute", "value": 0.5 },
-          "floors": { "*": { "min": 70, "p50": 80 } },
-          "targetDirs": ["src", "tests"],
-          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
+          "floors": { "*": { "min": 70 } },
+          "targetDirs": [],
+          "refreshTimeoutMs": 60000,
+          "ignoreGlobs": []
         },
         "mutation": {
           "enabled": true,
@@ -228,8 +261,11 @@
           "floors": { "*": { "percentage": 25 } },
           "targetDirs": ["src"],
           "refreshTimeoutMs": 60000,
-          "ignoreGlobs": ["**/fixtures/**", "**/*.generated.ts"]
+          "ignoreGlobs": []
         }
+      },
+      "formatAutofix": {
+        "timeoutMs": 60000
       },
       "codingGuardrails": {
         "cyclomaticFlag": 8,
@@ -252,21 +288,19 @@
         "lighthouse": 1,
         "bundle-size": 1024,
         "duplication": 0.5
-      }
-    },
-    "lifecycle": {
-      "timeouts": {
-        "acceptance.reconcile": 600,
-        "epic.finalize": 600,
-        "epic.watch": 1800
       },
-      "heartbeatWarnSeconds": 60
+      "requireBaselines": false,
+      "navigability": {
+        "routeGlobs": [],
+        "navRegistry": []
+      }
     },
     "refactorStage": {
       "enabled": false
     },
     "acceptanceEval": {
-      "maxRounds": 2
+      "maxRounds": 2,
+      "clusterCeiling": 4
     }
   },
   "qa": {

@@ -33,7 +33,6 @@ export const WORKTREE_ISOLATION_DEFAULTS = Object.freeze({
   primeFromPath: null,
   allowSymlinkOnWindows: false,
   reapOnSuccess: true,
-  reapOnCancel: true,
   // Gitignored workspace files copied into each new worktree. Includes the
   // operator's local-override files (`.agentrc.local.json`,
   // `.agents/instructions.local.md`) so a worktree-isolated agent honors the
@@ -84,10 +83,6 @@ export function getWorktreeIsolation(config) {
       typeof wi.reapOnSuccess === 'boolean'
         ? wi.reapOnSuccess
         : WORKTREE_ISOLATION_DEFAULTS.reapOnSuccess,
-    reapOnCancel:
-      typeof wi.reapOnCancel === 'boolean'
-        ? wi.reapOnCancel
-        : WORKTREE_ISOLATION_DEFAULTS.reapOnCancel,
     bootstrapFiles: Array.isArray(wi.bootstrapFiles)
       ? wi.bootstrapFiles
       : [...WORKTREE_ISOLATION_DEFAULTS.bootstrapFiles],

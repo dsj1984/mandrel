@@ -935,8 +935,7 @@ runner. Deterministic Node CLIs remain the state-mutation contract.
 | `notification-hook` | Fire-and-forget webhook for blocker / wave-transition events.                                                           |
 | `wave-observer`     | Emits `wave-N-start` / `wave-N-end` comments and reads each Story's `story-run-progress` snapshot.                      |
 | `column-sync`       | Syncs the Projects v2 Status column from `agent::` labels.                                                              |
-| `code-review`       | `lib/orchestration/code-review.js` — `delivery.code-review` inline audit; halts on critical findings.                   |
-| `retro-runner`      | `lib/orchestration/retro-runner.js` — `delivery.retro` authoring; posts structured retro comment.                       |
+| `code-review`       | `lib/orchestration/code-review.js` — `delivery.codeReview` inline audit; halts on critical findings.                   |
 
 ### Claude Max quota
 

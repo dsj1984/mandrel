@@ -13,10 +13,5 @@
     "repo": "[REPO]",
     "operatorHandle": "@[USERNAME]",
     "projectNumber": null
-  },
-  "delivery": {
-    "ci": {
-      "skipForStoryPushes": true
-    }
   }
 }

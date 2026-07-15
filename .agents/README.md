@@ -776,15 +776,16 @@ each with different cost/portability trade-offs:
 
 | Strategy       | When to use                                                      | Cold-start cost          | Notes                                                                                                       |
 | -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `per-worktree` | Default-safe — no host setup, no symlink semantics to worry about. | Full `npm ci` per Story. | Slowest. Each worktree gets an independent `node_modules`.                                                  |
+| `clone`        | **Shipped default on darwin/linux** — copy-on-write clone of donor `node_modules`. | Near-zero on APFS/reflink FS. | Falls back to `per-worktree` on unsupported filesystems or cross-volume clones. |
+| `per-worktree` | Default on Windows; also the safe fallback everywhere.           | Full `npm ci` per Story. | Each worktree gets an independent `node_modules`.                                                           |
 | `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
-| `pnpm-store`   | pnpm repos. **Shipped consumer default in `agentrc-reference.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
+| `pnpm-store`   | pnpm repos. **Opt-in.**                                          | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
 
 The **shipped consumer default in
-[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) remains
-`pnpm-store`**. Repos that do not use pnpm should opt in to `symlink`
-explicitly in their root `.agentrc.json`; this repo dogfoods that
-configuration.
+[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) is
+`clone`** (Windows resolves to `per-worktree` via the platform-aware
+accessor). Repos that use pnpm or want symlink semantics should set
+`nodeModulesStrategy` explicitly in their root `.agentrc.json`.
 
 ### Symlink opt-in (npm / yarn)
 

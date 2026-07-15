@@ -17,9 +17,9 @@ describe('getRunners', () => {
   it('returns defaulted shape for null/undefined/empty config', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
-      // deliverRunner falls back to framework constants (3 / 120s).
+      // deliverRunner falls back to framework constants (concurrencyCap 3).
       assert.equal(r.deliverRunner.concurrencyCap, 3);
-      assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
+      assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
       assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
     }
@@ -28,14 +28,13 @@ describe('getRunners', () => {
   it('reads delivery.deliverRunner from the post-reshape config', () => {
     const config = {
       delivery: {
-        deliverRunner: { concurrencyCap: 5, progressReportIntervalSec: 60 },
+        deliverRunner: { concurrencyCap: 5, verifyConcurrencyCap: 8 },
       },
     };
     const r = getRunners(config);
     assert.deepEqual(r.deliverRunner, {
       concurrencyCap: 5,
-      progressReportIntervalSec: 60,
-      verifyConcurrencyCap: 4,
+      verifyConcurrencyCap: 8,
     });
   });
 
@@ -43,14 +42,14 @@ describe('getRunners', () => {
     const config = {
       orchestration: {
         runners: {
-          deliverRunner: { concurrencyCap: 2, progressReportIntervalSec: 30 },
+          deliverRunner: { concurrencyCap: 2, verifyConcurrencyCap: 1 },
         },
       },
     };
     const r = getRunners(config);
     // Legacy reads dropped: fall through to framework defaults.
     assert.equal(r.deliverRunner.concurrencyCap, 3);
-    assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
+    assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
   });
 
   it('exposes the hardcoded story-merge-retry defaults', () => {

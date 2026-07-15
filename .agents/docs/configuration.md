@@ -39,7 +39,7 @@ top-level keys are validation errors.
 | `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydration files. |
 | `github`      | No       | Ticketing provider config: owner/repo, branch protection, merge methods, notifications. |
 | `planning`    | No       | `/plan` tuning: ticket budget, risk heuristics, codebase snapshot, context cap. |
-| `delivery`    | No       | `/deliver` and `/deliver` tuning: quality gates, worktree isolation, runners, lifecycle. |
+| `delivery`    | No       | `/deliver` tuning: quality gates, worktree isolation, runners, CI watch. |
 | `$schema`     | No       | JSON Schema pointer for editor tooling.                                            |
 
 ---
@@ -134,7 +134,6 @@ top-level keys are validation errors.
 | `docsFreshness.paths` | No | `array` | — | — |
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
 | `deliverRunner.concurrencyCap` | No | `integer` | — | Maximum ready Stories dispatched by /deliver at once. Default 3. Moderate by design — keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff. |
-| `deliverRunner.progressReportIntervalSec` | No | `integer` | — | — |
 | `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
 | `worktreeIsolation.enabled` | No | `boolean` | — | — |
@@ -143,11 +142,8 @@ top-level keys are validation errors.
 | `worktreeIsolation.primeFromPath` | No | `string` \| `null` | — | — |
 | `worktreeIsolation.allowSymlinkOnWindows` | No | `boolean` | — | — |
 | `worktreeIsolation.reapOnSuccess` | No | `boolean` | — | — |
-| `worktreeIsolation.reapOnCancel` | No | `boolean` | — | — |
-| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json"]` | — |
+| `worktreeIsolation.bootstrapFiles` | No | `array<string>` | `[".env",".mcp.json",".agentrc.local.json",".agents/instructions.local.md"]` | — |
 | `signals` | No | `object` | — | Nested configuration block. |
-| `signals.hotspot` | No | `object` | — | Nested configuration block. |
-| `signals.hotspot.p95Multiplier` | No | `number` | — | — |
 | `signals.rework` | No | `object` | — | Nested configuration block. |
 | `signals.rework.editsPerFile` | No | `integer` | — | — |
 | `signals.retry` | No | `object` | — | Nested configuration block. |
@@ -267,9 +263,6 @@ top-level keys are validation errors.
 | `quality.navigability.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against. |
 | `quality.navigability.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against. |
 | `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs. |
-| `lifecycle` | No | `object` | — | Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories. |
-| `lifecycle.timeouts` | No | `object<map>` | — | — |
-| `lifecycle.heartbeatWarnSeconds` | No | `integer` | — | — |
 | `mergeWatch` | No | `object` | — | Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`. |
 | `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
@@ -284,18 +277,12 @@ top-level keys are validation errors.
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `codeReview.autoFixSeverity` | No | `"high"` \| `"medium"` | `"medium"` | Severity threshold for on-branch remediation in /deliver Phase 5 (code-review). `medium` (default) routes 🔴/🟠/🟡 findings into the host-LLM focused-fix routing (Mediums batched per lens: one commit per lens, a single validation + rescan at the end) while 🟢 suggestions still graduate to follow-up issues; `high` reproduces the pre-4399 Critical/High-only routing. Hard cutover — no back-compat flag. |
-| `retro` | No | `object` | — | Story #3042 (Epic #3019). Operator-tunable retro behaviour. Currently exposes `perfThresholds`, the gates the retro perf-signals classifier uses to decide which signals to surface in the `## Performance Signals` / `## Recommended Follow-Ons` retro sections. |
-| `retro.perfThresholds` | No | `object` | — | Gates for `classifyPerfSignals` (lib/orchestration/retro-perf-heuristics.js). Defaults are 0.6 / 0.4 / 2. |
-| `retro.perfThresholds.utilisation` | No | `number` | — | Per-wave utilisation threshold. Waves whose `utilisation` is strictly below this value emit a `low-utilisation` signal. Default 0.6. |
-| `retro.perfThresholds.bootstrapShare` | No | `number` | — | Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4. |
-| `retro.perfThresholds.capBindingRunLength` | No | `integer` | — | Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2. |
 | `refactorStage` | No | `object` | — | Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics. |
 | `refactorStage.enabled` | No | `boolean` | `false` | When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged. |
 | `acceptanceEval` | No | `object` | — | Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the working diff against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds, then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the loop is a hard cutover (always on). |
 | `acceptanceEval.maxRounds` | No | `integer` | — | Maximum number of redraft rounds before escalation. Default 2; clamped into [1, hard ceiling] by lib/config/acceptance-eval.js so the cap can never be disabled (maxRounds: 0 clamps up to 1). |
 | `acceptanceEval.clusterCeiling` | No | `integer` | — | Epic #4475 (M4-B). Max acceptance criteria one single-delivery acceptance critic scores in a single fresh-context pass. Single delivery clusters the Epic ## Acceptance Table ACs into ceil(totalACs / clusterCeiling) groups and spawns one maker-blind critic per cluster, restoring the distributed acceptance coverage the per-Story critic fan-out gave for free. Default 4; clamped into [1, 8] by lib/config/acceptance-eval.js so a large value cannot collapse the fan-out to a single diluted critic. Ignored on the fan-out route. |
 | `ci` | No | `object` | — | Nested configuration block. |
-| `ci.skipForStoryPushes` | No | `boolean` | — | Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag. |
 | `ci.earlyPr` | No | `boolean` | — | Story #4356 (Epic #4355). When true (default), /deliver opens the Epic PR early — before every Story merges — so CI starts warming while later waves run. Set false to defer PR creation until the Epic branch is complete. |
 | `ci.watch` | No | `object` | — | Story #4356 (Epic #4355). Poll-loop tuning for the merge/CI watch. pollIntervalMs is the cadence between check probes; maxPolls caps total probes before the watcher gives up; maxResumes caps how many times the watcher may resume after a transient stall. |
 | `ci.watch.pollIntervalMs` | No | `integer` | — | — |
@@ -314,7 +301,6 @@ top-level keys are validation errors.
 | `preflight.maxInstallCostSeconds` | No | `integer` | — | — |
 | `preflight.maxGithubApiRequests` | No | `integer` | — | — |
 | `preflight.maxClaudeQuotaTokens` | No | `integer` | — | — |
-| `failOnConcurrencyHazards` | No | `boolean` | — | — |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
 | `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
 | `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
@@ -532,7 +518,7 @@ fall back to documented defaults (or are no-ops when omitted).
 | Field                       | Required | Default | Purpose                                          |
 | --------------------------- | -------- | ------- | ------------------------------------------------ |
 | `concurrencyCap`            | No       | `3`     | Max parallel Story sub-agents per wave.          |
-| `progressReportIntervalSec` | No       | `120`   | Progress-report cadence (seconds).               |
+| `verifyConcurrencyCap`      | No       | `4`     | Max parallel verify steps per wave.              |
 
 ### `delivery.worktreeIsolation`
 
@@ -548,8 +534,7 @@ checkout's HEAD.
 | `primeFromPath`         | No              | `null`           | Optional source path used to prime `node_modules`.            |
 | `allowSymlinkOnWindows` | No              | `false`          | Permit symlink strategy on Windows (requires admin/dev mode). |
 | `reapOnSuccess`         | No              | `true`           | Reap the worktree after a successful Story close.            |
-| `reapOnCancel`          | No              | `true`           | Reap the worktree if the Story is cancelled.                 |
-| `bootstrapFiles`        | No              | `[".env", ".mcp.json"]` | Untracked files copied into each new worktree. |
+| `bootstrapFiles`        | No              | `[".env", ".mcp.json", ".agentrc.local.json", ".agents/instructions.local.md"]` | Untracked files copied into each new worktree (local overrides included). |
 
 ### `delivery.signals`
 
@@ -557,7 +542,6 @@ Friction-detector thresholds consumed by progress-signal listeners.
 
 | Field                  | Required | Default | Purpose                                                                  |
 | ---------------------- | -------- | ------- | ------------------------------------------------------------------------ |
-| `hotspot.p95Multiplier`| No       | (none)  | Hot-file threshold expressed as a multiplier of the p95 edit frequency.   |
 | `rework.editsPerFile`  | No       | (none)  | Edits to the same file before a rework signal fires.                      |
 | `retry.repeatCount`    | No       | (none)  | Identical retried commands before a retry signal fires.                   |
 
@@ -693,16 +677,6 @@ baseline.
 | `lighthouse`      | No       | (none)  | Epsilon for Lighthouse rows.           |
 | `bundle-size`     | No       | (none)  | Epsilon for bundle-size rows.          |
 
-### `delivery.lifecycle`
-
-Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a
-per-event budget map (eventName → seconds) used by `TimeoutWatchdog`;
-missing entries fall back to in-listener defaults.
-
-| Field                  | Required | Default | Purpose                                                |
-| ---------------------- | -------- | ------- | ------------------------------------------------------ |
-| `timeouts`             | No       | `{}`    | `{ <eventName>: <seconds> }` watchdog budgets.         |
-| `heartbeatWarnSeconds` | No       | (none)  | No-progress threshold consumed by `HeartbeatMonitor`.  |
 
 ### `delivery.epicAudit`
 
@@ -748,12 +722,6 @@ points in the SDLC, using the **same configured values** for both scopes:
 Setting `maxFixAttempts: 0` disables auto-fix at both scopes; there is no
 per-scope override.
 
-### `delivery.failOnConcurrencyHazards`
-
-| Field                       | Required | Default | Purpose                                                                                         |
-| --------------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------- |
-| `failOnConcurrencyHazards`  | No       | (none)  | When `true`, hard-fail the plan if Phase 7 detects shared-editor or unsequenced cross-Story deps. |
-
 ### `delivery.feedbackLoop`
 
 | Field                   | Required | Default | Purpose                                                                                                                                  |
@@ -782,7 +750,7 @@ number of keys.
 | `delivery.quality.gates.crap.targetDirs`             | `[".agents/scripts"]`                 | `["src"]`                                  | Same reason as maintainability above.                                                                                            |
 | `github.owner` / `.repo` / `.projectNumber` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` | Shared repo identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
 | `github.operatorHandle` | Committed as the `@[USERNAME]` placeholder; each contributor overrides it in gitignored `.agentrc.local.json` | `@[USERNAME]` | Schema-required, but per-contributor: the committed placeholder resolves to null and the lease guards fail closed until you set your own handle locally (see [Per-machine local overrides](#per-machine-local-overrides)). |
-| `delivery.worktreeIsolation.nodeModulesStrategy`     | `per-worktree`                        | `per-worktree`                             | npm-only repo (`package-lock.json`); worktree init runs `npm ci` per tree.                                                       |
+| `delivery.worktreeIsolation.nodeModulesStrategy`     | `clone`                               | `clone`                                    | Platform default on darwin/linux (copy-on-write clone of donor `node_modules`); Windows dogfood/template use `per-worktree`.     |
 
 When a consumer runs `/mandrel-update`, the
 [`mandrel-sync-config`](../workflows/helpers/mandrel-sync-config.md)

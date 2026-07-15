@@ -54,7 +54,6 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const validate = makeValidator();
     const ok = validate(
       withCi({
-        skipForStoryPushes: true,
         earlyPr: true,
         watch: { pollIntervalMs: 30000, maxPolls: 120, maxResumes: 3 },
         autoMerge: 'trust-ci',
@@ -128,7 +127,7 @@ describe('getCiDelivery defaults (Story #4356)', () => {
     const resolved = getCiDelivery({});
     assert.equal(resolved.earlyPr, true);
     assert.equal(resolved.autoMerge, 'trust-ci');
-    assert.equal(resolved.skipForStoryPushes, true);
+    assert.equal('skipForStoryPushes' in resolved, false);
   });
 
   it('mirrors the frozen default constants', () => {

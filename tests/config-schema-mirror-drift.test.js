@@ -131,14 +131,13 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
           execution: { timeoutMs: 600000 },
           maxTokenBudget: 200000,
           docsFreshness: { paths: ['README.md'] },
-          deliverRunner: { concurrencyCap: 3, progressReportIntervalSec: 120 },
+          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
           worktreeIsolation: {
             enabled: true,
             root: '.worktrees',
             nodeModulesStrategy: 'per-worktree',
           },
           signals: {
-            hotspot: { p95Multiplier: 1.25 },
             rework: { editsPerFile: 5 },
             retry: { repeatCount: 3 },
           },
@@ -156,7 +155,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
                 enabled: true,
                 baselinePath: 'baselines/crap.json',
                 tolerance: { kind: 'absolute', value: 0.05 },
-                floors: { '*': { crap: 20 } },
+                floors: { '*': { max: 30, p95: 20, methodsAbove20: 50 } },
                 targetDirs: ['src'],
                 newMethodCeiling: 30,
                 requireCoverage: true,
@@ -392,6 +391,16 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         },
       },
       'coveragePath ownership moved to coverage gate',
+    );
+  });
+
+  it('rejects dropped signals.hotspot on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
+      },
+      'dropped signals.hotspot',
     );
   });
 

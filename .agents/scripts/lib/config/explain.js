@@ -90,6 +90,8 @@ const KEY_MEANINGS = Object.freeze({
   'github.projectOwner': 'Owner of the GitHub Projects board.',
   'github.operatorHandle':
     'GitHub @handle mentioned when a run needs operator attention.',
+  'github.defaultTimeoutMs':
+    'Default timeout (ms) for GitHub CLI / API calls when a caller does not supply one.',
   'github.branchProtection.enforce':
     'Whether the framework applies branch-protection rules.',
   'github.branchProtection.requiredChecks':
@@ -130,12 +132,28 @@ const KEY_MEANINGS = Object.freeze({
     'Session-mass fraction of maxTokenBudget above which a Story is flagged as large (advisory-only — check cohesion or declare `wide`).',
   'planning.modelCapacity.hardSessionFraction':
     'Session-mass fraction of maxTokenBudget above which a Story is rejected unless it declares `wide` with a reason.',
+  'planning.modelCapacity.tokensPerAcceptance':
+    'Plan-time delivery-cost proxy (tokens) added to session mass per acceptance criterion.',
+  'planning.modelCapacity.tokensPerChange':
+    'Plan-time delivery-cost proxy (tokens) added to session mass per declared non-glob change path.',
   'planning.modelCapacity.mergeCandidateMaxSessionFraction':
     'Session-mass fraction of maxTokenBudget at or below which a depends_on-chained Story is a merge candidate.',
   'planning.failOnSharedEditors':
     'Whether shared-editor conflict findings are promoted to hard errors.',
   'planning.requireExplicitCrossStoryDeps':
     'Whether implicit cross-Story dependencies are promoted to hard errors.',
+  'planning.failOnRegistryConflicts':
+    'Whether cross-cutting registry conflict findings are promoted to hard errors.',
+  'planning.failOnLargeFanOut':
+    'Whether large fan-out findings are promoted to hard errors.',
+  'planning.largeFanOutThreshold':
+    'Story count above which a plan is flagged as a large fan-out.',
+  'planning.crossCuttingRegistries':
+    'Glob patterns naming cross-cutting registry files the planner conflict-checks.',
+  'planning.navigation.routeGlobs':
+    'Glob patterns marking paths that add a user-facing route (plan-time reachability gate).',
+  'planning.navigation.navRegistry':
+    'Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.',
 
   // delivery.*
   'delivery.execution.timeoutMs':
@@ -144,8 +162,6 @@ const KEY_MEANINGS = Object.freeze({
     'Cap on the hydrated task-prompt size handed to an agent.',
   'delivery.lease.ttlMs':
     'Time-to-live for the Epic lease before a stale claim is reclaimable.',
-  'delivery.ci.skipForStoryPushes':
-    'Whether Story-branch pushes carry a [skip ci] trailer.',
   'delivery.ci.earlyPr':
     'Whether /deliver opens the Epic PR early so CI warms during later waves.',
   'delivery.ci.watch.pollIntervalMs':
@@ -156,6 +172,8 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum times the CI watch may resume after a transient stall.',
   'delivery.ci.autoMerge':
     'Merge posture: trust-ci merges on green checks; strict also requires a clean review gate.',
+  'delivery.ci.requireChecks':
+    'When true, refuse to arm merge if the repo reports zero required checks (fail-closed-without-checks).',
   'delivery.preflight.maxStories':
     'Pre-dispatch ceiling on estimated Story count (no cap when unset).',
   'delivery.preflight.maxWaves':
@@ -170,8 +188,6 @@ const KEY_MEANINGS = Object.freeze({
     'Docs whose freshness is checked at delivery time.',
   'delivery.deliverRunner.concurrencyCap':
     'Maximum Stories dispatched in parallel within one wave. Default 3 — conservative by design to keep host-quota consumption predictable. Operators running wide-wave Epics with adequate parallel-agent quota should raise this to reduce wall-clock time proportionally.',
-  'delivery.deliverRunner.progressReportIntervalSec':
-    'Cadence for delivery progress reporting.',
   'delivery.deliverRunner.verifyConcurrencyCap':
     'Maximum verify steps run in parallel.',
   'delivery.worktreeIsolation.enabled':
@@ -179,17 +195,25 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.worktreeIsolation.root':
     'Directory under which per-Story worktrees are created.',
   'delivery.worktreeIsolation.nodeModulesStrategy':
-    'How node_modules is provisioned per worktree.',
+    'How node_modules is provisioned per worktree (default clone on darwin/linux; per-worktree on win32).',
   'delivery.worktreeIsolation.primeFromPath':
     'Source path a worktree primes its node_modules from.',
   'delivery.worktreeIsolation.allowSymlinkOnWindows':
     'Whether symlink node_modules strategy is allowed on Windows.',
   'delivery.worktreeIsolation.reapOnSuccess':
     'Whether a worktree is removed after a Story closes cleanly.',
-  'delivery.worktreeIsolation.reapOnCancel':
-    'Whether a worktree is removed after a cancelled run.',
   'delivery.worktreeIsolation.bootstrapFiles':
-    'Files copied into each new worktree (e.g. .env, .mcp.json).',
+    'Files copied into each new worktree (e.g. .env, .mcp.json, local overrides).',
+  'delivery.mergeWatch.intervalSeconds':
+    'Poll cadence (seconds) for MergeWatcher after epic.merge.armed.',
+  'delivery.mergeWatch.maxBudgetSeconds':
+    'Wall-clock budget (seconds) before MergeWatcher surfaces budget-exceeded.',
+  'delivery.epicAudit.maxFixAttempts':
+    'Maximum auto-fix retry attempts per epic-audit finding (0 disables auto-fix).',
+  'delivery.epicAudit.maxFixScopeFiles':
+    'Maximum files a single epic-audit auto-fix may touch before escalating.',
+  'delivery.epicAudit.autoFixSeverity':
+    'Severity threshold for on-branch epic-audit remediation (high = 🔴/🟠 only; medium also fixes 🟡; default high).',
   'delivery.codeReview.providers':
     'Ordered provider chain the code-review phase consults.',
   'delivery.codeReview.maxFixAttempts':
@@ -198,8 +222,28 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum files an auto-fix may touch in one attempt.',
   'delivery.codeReview.autoFixSeverity':
     'Severity threshold for on-branch code-review remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
-  'delivery.epicAudit.autoFixSeverity':
-    'Severity threshold for on-branch epic-audit remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
+  'delivery.routing.roleScopedAgents':
+    'Whether delivery spawns boot on role-scoped .claude/agents/<role>.md contexts.',
+  'delivery.routing.freshCriticSampleRate':
+    'Fraction of low-risk acceptance clusters forced through a fresh-context critic (maker-checker floor).',
+  'delivery.routing.ceremonyProfile':
+    'Acceptance-ceremony depth: minimal (always inline), standard (risk-routed), or strict (always fresh).',
+  'delivery.routing.closeAndLand':
+    'When true, single-story-close lands through merge in one close (opt out with --no-wait-merge).',
+  'delivery.feedbackLoop.auditResultsAutoFile':
+    'When true, auto-file non-blocking audit findings as follow-up issues.',
+  'delivery.feedbackLoop.retroProposals':
+    'When true, auto-file actionable retro proposals as follow-up issues.',
+  'delivery.quality.formatAutofix.timeoutMs':
+    'Bounded timeout (ms) for the close-time format autofix spawn.',
+  'delivery.quality.requireBaselines':
+    'When true, absent baseline artifacts fail close-validation instead of skipping cleanly.',
+  'delivery.quality.navigability.routeGlobs':
+    'Glob patterns marking user-facing routes for the navigability lens / journey gate.',
+  'delivery.quality.navigability.navRegistry':
+    'Tokens identifying the nav-registry SSOT the navigability lens expects.',
+  'delivery.quality.navigability.journeySuite':
+    'Optional journey-suite path the post-wave navigability integration gate runs.',
   'delivery.refactorStage.enabled':
     'Whether a dedicated refactor stage runs during delivery.',
   'delivery.acceptanceEval.maxRounds':
@@ -240,11 +284,24 @@ const PREFIX_MEANINGS = Object.freeze([
   ],
   ['delivery.quality', 'Delivery-time quality configuration.'],
   ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
-  ['delivery.lifecycle.timeouts', 'Timeout for a lifecycle-bus phase.'],
-  ['delivery.lifecycle', 'Lifecycle-bus configuration.'],
+  ['delivery.mergeWatch', 'MergeWatcher poll cadence and wall-clock budget.'],
+  ['delivery.epicAudit', 'Bounded-retry knobs for /deliver epic-audit.'],
+  [
+    'delivery.feedbackLoop',
+    'Opt-out toggles for auto-filing non-blocking findings.',
+  ],
+  [
+    'delivery.routing',
+    'Delivery-spawn routing and acceptance-ceremony profile.',
+  ],
+  ['delivery.ci', 'CI-aware delivery namespace (early PR, watch, auto-merge).'],
   [
     'planning.modelCapacity',
     'Story-sizing threshold for the decompose validator.',
+  ],
+  [
+    'planning.navigation',
+    'Plan-time navigability reachability gate (route globs + nav registry).',
   ],
   [
     'qa.environments',
@@ -264,7 +321,7 @@ const BLOCK_MEANINGS = Object.freeze({
   github: 'GitHub provider identity and merge/notification policy.',
   planning: 'Inputs and guardrails for /epic-plan.',
   delivery:
-    'Execution, isolation, quality, and lifecycle settings for delivery.',
+    'Execution, isolation, quality, and CI settings for delivery.',
   qa: 'Agent-driven QA harness contract.',
 });
 

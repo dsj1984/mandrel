@@ -1,11 +1,5 @@
 /**
- * `delivery.ci` accessor + framework defaults — Story #2899 (Epic #2880, F13)
- * and Story #4356 (Epic #4355).
- *
- * `delivery.ci.skipForStoryPushes` defaults to `true` so per-Task Story-branch
- * commits append a `[skip ci]` trailer out of the box. The Epic-branch merge
- * commit produced by `story-close.js`'s merge runner never carries the
- * marker — that path is the one consumers actually want CI to evaluate.
+ * `delivery.ci` accessor + framework defaults — Story #4356 (Epic #4355).
  *
  * Story #4356 adds the CI-aware delivery knobs: `earlyPr` (default `true`)
  * gates whether /deliver opens the Epic PR early so CI warms while later
@@ -21,7 +15,6 @@
  */
 
 export const CI_DELIVERY_DEFAULTS = Object.freeze({
-  skipForStoryPushes: true,
   earlyPr: true,
   autoMerge: 'trust-ci',
   requireChecks: false,
@@ -35,15 +28,11 @@ export const CI_DELIVERY_DEFAULTS = Object.freeze({
  * defaults; only the scalar knobs carry framework defaults here.
  *
  * @param {object | null | undefined} config
- * @returns {{ skipForStoryPushes: boolean, earlyPr: boolean, autoMerge: 'trust-ci' | 'strict', requireChecks: boolean, watch: object | undefined }}
+ * @returns {{ earlyPr: boolean, autoMerge: 'trust-ci' | 'strict', requireChecks: boolean, watch: object | undefined }}
  */
 export function getCiDelivery(config) {
   const ci = config?.delivery?.ci ?? config?.ci ?? config ?? {};
   return {
-    skipForStoryPushes:
-      typeof ci.skipForStoryPushes === 'boolean'
-        ? ci.skipForStoryPushes
-        : CI_DELIVERY_DEFAULTS.skipForStoryPushes,
     earlyPr:
       typeof ci.earlyPr === 'boolean'
         ? ci.earlyPr

@@ -10,9 +10,8 @@ import {
 
 // ---------------------------------------------------------------------------
 // Post-reshape (Epic #1720 Story #1739) — the signals taxonomy is trimmed
-// to three detectors (hotspot, rework, retry) and reads from
-// `delivery.signals.*`. The legacy `agentSettings.limits.signals` location
-// is gone. Other limits move:
+// to two detectors (rework, retry) and reads from `delivery.signals.*`.
+// `hotspot` was retired with its detector (Epic #4406). Other limits move:
 //   - planning.context.{maxBytes,summaryMode}
 //   - delivery.maxTokenBudget / delivery.execution.timeoutMs
 //
@@ -26,16 +25,14 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('SIGNALS_DEFAULTS export', () => {
-  it('exports only the three surviving detector blocks', () => {
+  it('exports only the two surviving detector blocks', () => {
     assert.deepEqual(Object.keys(SIGNALS_DEFAULTS).sort(), [
-      'hotspot',
       'retry',
       'rework',
     ]);
   });
 
   it('matches the Tech Spec threshold values', () => {
-    assert.equal(SIGNALS_DEFAULTS.hotspot.p95Multiplier, 1.25);
     assert.equal(SIGNALS_DEFAULTS.rework.editsPerFile, 5);
     assert.equal(SIGNALS_DEFAULTS.retry.repeatCount, 3);
   });
@@ -43,7 +40,7 @@ describe('SIGNALS_DEFAULTS export', () => {
   it('is the same frozen reference as LIMITS_DEFAULTS.signals (no drift)', () => {
     assert.equal(SIGNALS_DEFAULTS, LIMITS_DEFAULTS.signals);
     assert.equal(Object.isFrozen(SIGNALS_DEFAULTS), true);
-    assert.equal(Object.isFrozen(SIGNALS_DEFAULTS.hotspot), true);
+    assert.equal(Object.isFrozen(SIGNALS_DEFAULTS.rework), true);
   });
 });
 
@@ -51,7 +48,6 @@ describe('resolveLimits — signals fallback', () => {
   it('returns SIGNALS_DEFAULTS values when config is undefined', () => {
     const merged = resolveLimits(undefined);
     assert.deepEqual(merged.signals, {
-      hotspot: { p95Multiplier: 1.25 },
       rework: { editsPerFile: 5 },
       retry: { repeatCount: 3 },
     });
@@ -62,14 +58,13 @@ describe('resolveLimits — signals fallback', () => {
       planning: { maxTickets: 80 },
       delivery: {},
     });
-    assert.equal(merged.signals.hotspot.p95Multiplier, 1.25);
     assert.equal(merged.signals.rework.editsPerFile, 5);
     assert.equal(merged.signals.retry.repeatCount, 3);
   });
 
   it('treats a non-object signals value as missing (defaults applied)', () => {
     const fromNull = resolveLimits({ delivery: { signals: null } });
-    assert.equal(fromNull.signals.hotspot.p95Multiplier, 1.25);
+    assert.equal(fromNull.signals.rework.editsPerFile, 5);
 
     const fromScalar = resolveLimits({ delivery: { signals: 42 } });
     assert.equal(fromScalar.signals.retry.repeatCount, 3);
@@ -79,10 +74,9 @@ describe('resolveLimits — signals fallback', () => {
 describe('resolveLimits — per-detector override merge', () => {
   it('overrides a single detector key without dropping siblings', () => {
     const merged = resolveLimits({
-      delivery: { signals: { hotspot: { p95Multiplier: 1.5 } } },
+      delivery: { signals: { rework: { editsPerFile: 7 } } },
     });
-    assert.equal(merged.signals.hotspot.p95Multiplier, 1.5);
-    assert.equal(merged.signals.rework.editsPerFile, 5);
+    assert.equal(merged.signals.rework.editsPerFile, 7);
     assert.equal(merged.signals.retry.repeatCount, 3);
   });
 
@@ -90,14 +84,13 @@ describe('resolveLimits — per-detector override merge', () => {
     const merged = resolveLimits({
       delivery: {
         signals: {
-          hotspot: { p95Multiplier: 2.0 },
+          rework: { editsPerFile: 9 },
           retry: { repeatCount: 7 },
         },
       },
     });
-    assert.equal(merged.signals.hotspot.p95Multiplier, 2.0);
+    assert.equal(merged.signals.rework.editsPerFile, 9);
     assert.equal(merged.signals.retry.repeatCount, 7);
-    assert.equal(merged.signals.rework.editsPerFile, 5);
   });
 
   it('ignores unknown detector keys (closed taxonomy)', () => {
@@ -106,7 +99,6 @@ describe('resolveLimits — per-detector override merge', () => {
     });
     assert.equal('bogus' in merged.signals, false);
     assert.deepEqual(Object.keys(merged.signals).sort(), [
-      'hotspot',
       'retry',
       'rework',
     ]);
@@ -115,7 +107,7 @@ describe('resolveLimits — per-detector override merge', () => {
   it('returns a fresh signals object on each call (not the frozen default)', () => {
     const merged = resolveLimits({});
     assert.notEqual(merged.signals, SIGNALS_DEFAULTS);
-    assert.notEqual(merged.signals.hotspot, SIGNALS_DEFAULTS.hotspot);
+    assert.notEqual(merged.signals.rework, SIGNALS_DEFAULTS.rework);
   });
 });
 
@@ -157,9 +149,9 @@ describe('resolveLimits — maxTickets is a framework constant (Story #4163)', (
 describe('getLimits / getSignals accessors (post-reshape)', () => {
   it('getLimits reads delivery.signals from the new top-level shape', () => {
     const limits = getLimits({
-      delivery: { signals: { hotspot: { p95Multiplier: 1.75 } } },
+      delivery: { signals: { rework: { editsPerFile: 11 } } },
     });
-    assert.equal(limits.signals.hotspot.p95Multiplier, 1.75);
+    assert.equal(limits.signals.rework.editsPerFile, 11);
   });
 
   it('getSignals returns the same shape as getLimits(config).signals', () => {
@@ -172,7 +164,6 @@ describe('getLimits / getSignals accessors (post-reshape)', () => {
 
   it('getSignals returns defaults when no config is supplied', () => {
     assert.deepEqual(getSignals(null), {
-      hotspot: { p95Multiplier: 1.25 },
       rework: { editsPerFile: 5 },
       retry: { repeatCount: 3 },
     });

@@ -12,7 +12,7 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 //   - planning.context.{maxBytes, summaryMode}
 //   - delivery.maxTokenBudget
 //   - delivery.execution.timeoutMs
-//   - delivery.signals.{hotspot, rework, retry}
+//   - delivery.signals.{rework, retry}
 //
 // This guard keeps `.agents/docs/agentrc-reference.json` aligned with
 // `LIMITS_DEFAULTS` so the exhaustive reference template documents the
@@ -56,14 +56,10 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     );
   });
 
-  it('declares the three surviving detector blocks under delivery.signals', () => {
+  it('declares the two surviving detector blocks under delivery.signals', () => {
     const sig = parsed?.delivery?.signals;
     assert.ok(sig, 'delivery.signals must be present');
-    assert.deepEqual(Object.keys(sig).sort(), ['hotspot', 'retry', 'rework']);
-    assert.equal(
-      sig.hotspot.p95Multiplier,
-      LIMITS_DEFAULTS.signals.hotspot.p95Multiplier,
-    );
+    assert.deepEqual(Object.keys(sig).sort(), ['retry', 'rework']);
     assert.equal(
       sig.rework.editsPerFile,
       LIMITS_DEFAULTS.signals.rework.editsPerFile,

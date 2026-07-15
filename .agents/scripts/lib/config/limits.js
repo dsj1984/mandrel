@@ -9,8 +9,8 @@
  *   - `delivery.maxTokenBudget` (task-prompt hydration cap)
  *   - `delivery.execution.timeoutMs` (per-process execution timeout)
  *   - `delivery.lease.ttlMs` (assignee-as-lease staleness window — Story #3480)
- *   - `delivery.signals.{hotspot, rework, retry}` (performance-signal
- *     detector thresholds — `churn` and `idle` dropped)
+ *   - `delivery.signals.{rework, retry}` (performance-signal detector
+ *     thresholds — `hotspot` retired with Epic #4406; `churn`/`idle` dropped)
  *
  * `maxTickets` (the decomposer reviewability budget) is a **framework
  * constant** — Story #4163 collapsed the never-overridden
@@ -34,11 +34,11 @@
 import { getPreflight } from './preflight.js';
 
 /**
- * Framework defaults for the performance-signal detector thresholds. The two
- * dropped detectors (`churn`, `idle`) are omitted entirely.
+ * Framework defaults for the performance-signal detector thresholds.
+ * `hotspot` was retired with its detector (Epic #4406); `churn` and `idle`
+ * were dropped earlier.
  */
 export const SIGNALS_DEFAULTS = Object.freeze({
-  hotspot: Object.freeze({ p95Multiplier: 1.25 }),
   rework: Object.freeze({ editsPerFile: 5 }),
   retry: Object.freeze({ repeatCount: 3 }),
 });
@@ -79,7 +79,7 @@ export const LIMITS_DEFAULTS = Object.freeze({
  * operator can override a single threshold without re-listing the others.
  *
  * @param {object|undefined} userSignals
- * @returns {{ hotspot: {p95Multiplier: number}, rework: {editsPerFile: number}, retry: {repeatCount: number} }}
+ * @returns {{ rework: {editsPerFile: number}, retry: {repeatCount: number} }}
  */
 function mergeSignals(userSignals) {
   const user =

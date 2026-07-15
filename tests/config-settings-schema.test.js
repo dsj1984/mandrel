@@ -328,7 +328,7 @@ describe('delivery.* shape', () => {
       validate({
         ...REQ,
         delivery: {
-          deliverRunner: { concurrencyCap: 3, progressReportIntervalSec: 120 },
+          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
         },
       }),
       true,
@@ -377,19 +377,28 @@ describe('delivery.* shape', () => {
     );
   });
 
-  it('accepts delivery.signals.{hotspot,rework,retry}', () => {
+  it('accepts delivery.signals.{rework,retry}', () => {
     assert.equal(
       validate({
         ...REQ,
         delivery: {
           signals: {
-            hotspot: { p95Multiplier: 1.25 },
             rework: { editsPerFile: 5 },
             retry: { repeatCount: 3 },
           },
         },
       }),
       true,
+    );
+  });
+
+  it('rejects retired signals.hotspot detector', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
+      },
+      /additional properties/,
     );
   });
 
@@ -433,7 +442,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       enabled: true,
       baselinePath: 'baselines/crap.json',
       tolerance: { kind: 'absolute', value: 0.05 },
-      floors: { '*': { crap: 20 } },
+      floors: { '*': { max: 30, p95: 20, methodsAbove20: 50 } },
       targetDirs: ['src'],
       newMethodCeiling: 30,
       requireCoverage: true,
