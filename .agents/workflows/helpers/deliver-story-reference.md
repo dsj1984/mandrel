@@ -414,8 +414,7 @@ prose hand-off.
 > with essential terminal state only (mirroring the fields
 > `single-story-close.js` / `story-phase.js` already emit). Do not narrate the
 > steps you took, and do not prescribe how the next stage should work. Prose
-> process commentary only bloats the hydrated prompt
-> (`delivery.maxTokenBudget` elision). When run **interactively** (no parent
+> process commentary only bloats the hydrated prompt. When run **interactively** (no parent
 > aggregator), this JSON envelope is optional — relay terminal state to the
 > operator in prose instead — but the **no-park rule still holds**: never end
 > an interactive turn with an unconfirmed merge either; block on the watch,

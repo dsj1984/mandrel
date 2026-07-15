@@ -13,7 +13,6 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { LIMITS_DEFAULTS } from '../.agents/scripts/lib/config/limits.js';
 import {
   computeSizingFindings,
   DEFAULT_MODEL_CAPACITY,
@@ -29,17 +28,13 @@ function loadJson(name) {
 
 const newPlan = loadJson('plan.new.json');
 const profiles = loadJson('profiles.json');
-const ceilings = resolveCapacityCeilings(
-  DEFAULT_MODEL_CAPACITY,
-  LIMITS_DEFAULTS.maxTokenBudget,
-);
+const ceilings = resolveCapacityCeilings(DEFAULT_MODEL_CAPACITY);
 
 /** Hard `oversized-task` findings under the live capacity profile. */
 function hardOversizedFindings(plan) {
   return computeSizingFindings({
     stories: plan.stories,
     capacity: DEFAULT_MODEL_CAPACITY,
-    maxTokenBudget: LIMITS_DEFAULTS.maxTokenBudget,
   }).filter(
     (finding) =>
       finding.kind === 'oversized-task' && finding.severity === 'hard',
@@ -60,24 +55,16 @@ describe('sizing capacity calibration (v2 Stage 2)', () => {
     // Drift gate: if a future calibration tunes the live constants, this
     // fixture must be updated in the same change.
     assert.equal(
-      profiles.capacity.softSessionFraction,
-      DEFAULT_MODEL_CAPACITY.softSessionFraction,
+      profiles.capacity.softSessionTokens,
+      DEFAULT_MODEL_CAPACITY.softSessionTokens,
     );
     assert.equal(
-      profiles.capacity.hardSessionFraction,
-      DEFAULT_MODEL_CAPACITY.hardSessionFraction,
+      profiles.capacity.hardSessionTokens,
+      DEFAULT_MODEL_CAPACITY.hardSessionTokens,
     );
     assert.equal(
-      profiles.capacity.tokensPerAcceptance,
-      DEFAULT_MODEL_CAPACITY.tokensPerAcceptance,
-    );
-    assert.equal(
-      profiles.capacity.tokensPerChange,
-      DEFAULT_MODEL_CAPACITY.tokensPerChange,
-    );
-    assert.equal(
-      profiles.capacity.mergeCandidateMaxSessionFraction,
-      DEFAULT_MODEL_CAPACITY.mergeCandidateMaxSessionFraction,
+      profiles.capacity.mergeCandidateMaxSessionTokens,
+      DEFAULT_MODEL_CAPACITY.mergeCandidateMaxSessionTokens,
     );
     assert.equal(
       profiles.capacity.softSessionTokens,
@@ -89,10 +76,12 @@ describe('sizing capacity calibration (v2 Stage 2)', () => {
     );
   });
 
-  it('retired file-ceiling knobs are absent from the live capacity constant', () => {
+  it('retired file-ceiling and delivery-cost proxy knobs are absent', () => {
     assert.equal(DEFAULT_MODEL_CAPACITY.softFiles, undefined);
     assert.equal(DEFAULT_MODEL_CAPACITY.hardFiles, undefined);
     assert.equal(DEFAULT_MODEL_CAPACITY.softAcceptanceCount, undefined);
     assert.equal(DEFAULT_MODEL_CAPACITY.maxAcceptance, undefined);
+    assert.equal(DEFAULT_MODEL_CAPACITY.tokensPerAcceptance, undefined);
+    assert.equal(DEFAULT_MODEL_CAPACITY.tokensPerChange, undefined);
   });
 });

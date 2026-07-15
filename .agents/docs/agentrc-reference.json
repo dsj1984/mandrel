@@ -31,11 +31,27 @@
     "branchProtection": {
       "enforce": true,
       "requiredChecks": [
-        { "name": "lint", "cmd": ["npm", "run", "lint"] },
-        { "name": "test", "cmd": ["npm", "test"] },
+        {
+          "name": "lint",
+          "cmd": [
+            "npm",
+            "run",
+            "lint"
+          ]
+        },
+        {
+          "name": "test",
+          "cmd": [
+            "npm",
+            "test"
+          ]
+        },
         {
           "name": "baselines",
-          "cmd": ["node", ".agents/scripts/check-baselines.js"]
+          "cmd": [
+            "node",
+            ".agents/scripts/check-baselines.js"
+          ]
         }
       ]
     },
@@ -48,7 +64,11 @@
     },
     "notifications": {
       "mentionOperator": false,
-      "commentEvents": ["state-transition", "story-merged", "operator-message"],
+      "commentEvents": [
+        "state-transition",
+        "story-merged",
+        "operator-message"
+      ],
       "webhookEvents": [
         "epic-started",
         "epic-progress",
@@ -91,13 +111,6 @@
       "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
       "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
     ],
-    "modelCapacity": {
-      "softSessionFraction": 0.04,
-      "hardSessionFraction": 0.1,
-      "tokensPerAcceptance": 500,
-      "tokensPerChange": 350,
-      "mergeCandidateMaxSessionFraction": 0.005
-    },
     "failOnSharedEditors": false,
     "requireExplicitCrossStoryDeps": false,
     "failOnRegistryConflicts": false,
@@ -114,21 +127,24 @@
     }
   },
   "delivery": {
-    "execution": { "timeoutMs": 600000 },
-    "maxTokenBudget": 300000,
-    "lease": { "ttlMs": 900000 },
+    "execution": {
+      "timeoutMs": 600000
+    },
+    "lease": {
+      "ttlMs": 900000
+    },
     "ci": {
-      "earlyPr": true,
       "watch": {
         "pollIntervalMs": 10000,
         "maxPolls": 180,
         "maxResumes": 3
       },
-      "autoMerge": "trust-ci",
-      "requireChecks": false
+      "autoMerge": "trust-ci"
     },
     "docsFreshness": {
-      "paths": ["README.md"]
+      "paths": [
+        "README.md"
+      ]
     },
     "deliverRunner": {
       "concurrencyCap": 3,
@@ -149,27 +165,38 @@
       ]
     },
     "signals": {
-      "rework": { "editsPerFile": 5 },
-      "retry": { "repeatCount": 3 }
+      "rework": {
+        "editsPerFile": 5
+      },
+      "retry": {
+        "repeatCount": 3
+      }
     },
     "mergeWatch": {
       "intervalSeconds": 30,
       "maxBudgetSeconds": 3600
     },
-    "epicAudit": {
-      "maxFixAttempts": 3,
-      "maxFixScopeFiles": 5,
-      "autoFixSeverity": "high"
-    },
     "codeReview": {
       "providers": [
-        { "name": "native" },
-        { "name": "security-review", "scopes": ["epic"], "optional": true },
+        {
+          "name": "native"
+        },
+        {
+          "name": "security-review",
+          "scopes": [
+            "epic"
+          ],
+          "optional": true
+        },
         {
           "name": "ultrareview",
-          "scopes": ["epic"],
+          "scopes": [
+            "epic"
+          ],
           "manualPrompt": true,
-          "when": { "label": "risk::high" }
+          "when": {
+            "label": "risk::high"
+          }
         }
       ],
       "maxFixAttempts": 3,
@@ -187,31 +214,63 @@
       "retroProposals": true
     },
     "quality": {
-      "gateScoping": { "scope": "diff", "diffRef": "main" },
+      "gateScoping": {
+        "scope": "diff",
+        "diffRef": "main"
+      },
       "gates": {
         "lint": {
           "enabled": true,
           "baselinePath": "baselines/lint.json",
-          "tolerance": { "kind": "absolute", "value": 0 },
-          "floors": { "*": { "errorCount": 0 } }
+          "tolerance": {
+            "kind": "absolute",
+            "value": 0
+          },
+          "floors": {
+            "*": {
+              "errorCount": 0
+            }
+          }
         },
         "coverage": {
           "enabled": true,
           "baselinePath": "baselines/coverage.json",
-          "tolerance": { "kind": "absolute", "value": 0 },
-          "floors": { "*": { "lines": 90, "branches": 85, "functions": 90 } },
+          "tolerance": {
+            "kind": "absolute",
+            "value": 0
+          },
+          "floors": {
+            "*": {
+              "lines": 90,
+              "branches": 85,
+              "functions": 90
+            }
+          },
           "coveragePath": "coverage/coverage-final.json",
           "timeoutMs": 600000
         },
         "crap": {
           "enabled": true,
           "baselinePath": "baselines/crap.json",
-          "tolerance": { "kind": "absolute", "value": 0.05 },
-          "floors": { "*": { "max": 30, "p95": 20, "methodsAbove20": 50 } },
-          "targetDirs": ["src"],
+          "tolerance": {
+            "kind": "absolute",
+            "value": 0.05
+          },
+          "floors": {
+            "*": {
+              "max": 30,
+              "p95": 20,
+              "methodsAbove20": 50
+            }
+          },
+          "targetDirs": [
+            "src"
+          ],
           "newMethodCeiling": 30,
           "requireCoverage": true,
-          "friction": { "markerKey": "crap-baseline-regression" },
+          "friction": {
+            "markerKey": "crap-baseline-regression"
+          },
           "refreshTag": "baseline-refresh:",
           "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
@@ -219,8 +278,15 @@
         "maintainability": {
           "enabled": true,
           "baselinePath": "baselines/maintainability.json",
-          "tolerance": { "kind": "absolute", "value": 0.5 },
-          "floors": { "*": { "min": 70 } },
+          "tolerance": {
+            "kind": "absolute",
+            "value": 0.5
+          },
+          "floors": {
+            "*": {
+              "min": 70
+            }
+          },
           "targetDirs": [],
           "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
@@ -228,14 +294,24 @@
         "mutation": {
           "enabled": true,
           "baselinePath": "baselines/mutation.json",
-          "tolerance": { "kind": "percent", "value": 0 },
-          "floors": { "*": { "score": 60 } },
+          "tolerance": {
+            "kind": "percent",
+            "value": 0
+          },
+          "floors": {
+            "*": {
+              "score": 60
+            }
+          },
           "strykerConfigPath": null
         },
         "lighthouse": {
           "enabled": false,
           "baselinePath": "baselines/lighthouse.json",
-          "tolerance": { "kind": "absolute", "value": 0 },
+          "tolerance": {
+            "kind": "absolute",
+            "value": 0
+          },
           "floors": {
             "*": {
               "performance": 0,
@@ -250,16 +326,30 @@
         "bundle-size": {
           "enabled": false,
           "baselinePath": "baselines/bundle-size.json",
-          "tolerance": { "kind": "percent", "value": 0 },
-          "floors": { "*": {} },
+          "tolerance": {
+            "kind": "percent",
+            "value": 0
+          },
+          "floors": {
+            "*": {}
+          },
           "bundles": []
         },
         "duplication": {
           "enabled": false,
           "baselinePath": "baselines/duplication.json",
-          "tolerance": { "kind": "absolute", "value": 1 },
-          "floors": { "*": { "percentage": 25 } },
-          "targetDirs": ["src"],
+          "tolerance": {
+            "kind": "absolute",
+            "value": 1
+          },
+          "floors": {
+            "*": {
+              "percentage": 25
+            }
+          },
+          "targetDirs": [
+            "src"
+          ],
           "refreshTimeoutMs": 60000,
           "ignoreGlobs": []
         }
@@ -309,19 +399,30 @@
     "environments": {
       "local": {
         "baseUrl": "http://localhost:3000",
-        "signInSeam": { "urlTemplate": "/dev/sign-in-as/{persona}" }
+        "signInSeam": {
+          "urlTemplate": "/dev/sign-in-as/{persona}"
+        }
       },
       "staging": {
         "baseUrl": "https://staging.example.test",
-        "signInSeam": { "skill": "stack/qa/sign-in" },
+        "signInSeam": {
+          "skill": "stack/qa/sign-in"
+        },
         "allowWrites": false
       }
     },
     "personas": {
-      "admin": { "credentialRef": "QA_ADMIN_CREDENTIAL" },
-      "member": { "signInSkill": "stack/qa/sign-in-member" }
+      "admin": {
+        "credentialRef": "QA_ADMIN_CREDENTIAL"
+      },
+      "member": {
+        "signInSkill": "stack/qa/sign-in-member"
+      }
     },
-    "consoleAllowlist": ["Download the React DevTools", "[HMR]"],
+    "consoleAllowlist": [
+      "Download the React DevTools",
+      "[HMR]"
+    ],
     "designTokens": "src/styles/tokens.css"
   }
 }

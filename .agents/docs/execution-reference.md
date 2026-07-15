@@ -55,23 +55,17 @@ schema mechanics are in [§ Friction telemetry](#friction-telemetry) above.
 ## FinOps & token budgeting (economic guardrails)
 
 Mandrel does **not** enforce live LLM spend from response metadata. The
-framework limits **hydrated prompt size** and optional **pre-dispatch
-estimates**; your host runtime (editor / CLI) owns session quota and hard
-stops. Consult this section when reasoning about why a task prompt was elided
-or why `/deliver` refused a fan-out on budget grounds.
+framework limits **hydrated prompt size** via section-aware elision
+(`elideEnvelope`) and optional **pre-dispatch estimates**; your host
+runtime (editor / CLI) owns session quota and hard stops. Consult this
+section when reasoning about why a task prompt was elided or why `/deliver`
+refused a fan-out on budget grounds.
 
-### Token budget (hydration + pre-dispatch estimates)
+### Session-mass capacity (plan-time sizing)
 
-- **`delivery.maxTokenBudget`** (`.agentrc.json`, resolved via
-  `lib/config/limits.js`): caps the task prompt built by
-  `hydrate-context` / `hydrateContext`. The pipeline uses a rough token
-  estimate (≈4 characters per token) and applies section-aware elision
-  (`elideEnvelope`) so oversized envelopes drop or summarize lower-priority
-  sections before you receive the prompt.
-- **`delivery.preflight.*`** (optional): before `/deliver` fan-out,
-  `epic-deliver-preflight.js` compares **estimated** story count, waves,
-  install time, GitHub API volume, and Claude quota tokens against configured
-  ceilings (`maxClaudeQuotaTokens`, etc.). A breach surfaces via
-  `agent::blocked`; there is no per-tool-call metering.
+- **`DEFAULT_MODEL_CAPACITY`** (`lib/orchestration/ticket-validator-sizing.js`):
+  absolute authored-token ceilings for plan-time Story sizing (soft 30k /
+  hard 75k). Not operator-configurable via `.agentrc.json`; programmatic
+  override via `opts.modelCapacity` on validateTickets / runPlanPersist only.
 - **Host runtime**: session billing, quota exhaustion, and operator overrides
   are enforced by your provider (e.g. Claude Code), not by Mandrel scripts.

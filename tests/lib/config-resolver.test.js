@@ -95,14 +95,14 @@ describe('config-resolver — loading + legacy shim', () => {
         project: { ...REQ.project, baseBranch: 'develop' },
         github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
         planning: { riskHeuristics: ['no destructive ops'] },
-        delivery: { maxTokenBudget: 100000 },
+        delivery: { execution: { timeoutMs: 100000 } },
       }),
     );
     const config = resolveConfig({ bustCache: true });
     assert.equal(config.project.baseBranch, 'develop');
     assert.equal(config.github.owner, 'org');
     assert.deepEqual(config.planning.riskHeuristics, ['no destructive ops']);
-    assert.equal(config.delivery.maxTokenBudget, 100000);
+    assert.equal(config.delivery.execution.timeoutMs, 100000);
   });
 
   it('caches per resolved root path', () => {
@@ -211,9 +211,9 @@ describe('helper accessors against the post-reshape shape', () => {
         signals: { rework: { editsPerFile: 9 } },
       },
     });
-    // maxTickets is the framework constant (Story #4163), not configurable.
+    // maxTickets is a framework constant, not configurable; maxTokenBudget retired.
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
-    assert.equal(lim.maxTokenBudget, 50000);
+    assert.equal('maxTokenBudget' in lim, false);
     assert.equal(lim.executionTimeoutMs, 1234);
     assert.equal(lim.signals.rework.editsPerFile, 9);
     assert.equal(lim.signals.retry.repeatCount, 3);

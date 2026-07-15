@@ -126,13 +126,11 @@ const SEED_MODE_KEYS = [
   'docsContext',
   'duplicates',
   'maxTickets',
-  'maxTokenBudget',
   'memoryFreshness',
   'mode',
   'onePagerSpec',
   'planProfile',
   'planState',
-  'preflightCeilings',
   'priorFeedback',
   'riskHeuristics',
   'seed',
@@ -147,13 +145,11 @@ const ONE_PAGER_MODE_KEYS = [
   'docsContext',
   'duplicates',
   'maxTickets',
-  'maxTokenBudget',
   'memoryFreshness',
   'mode',
   'onePager',
   'planProfile',
   'planState',
-  'preflightCeilings',
   'priorFeedback',
   'riskHeuristics',
   'systemPrompts',
@@ -321,7 +317,6 @@ describe('plan-context systemPrompts fold', () => {
       env.systemPrompts.decompose,
       buildDecomposerSystemPrompt(['touches auth'], {
         maxTickets: env.maxTickets,
-        maxTokenBudget: env.maxTokenBudget,
         epicId: null,
       }),
     );
@@ -341,7 +336,6 @@ describe('plan-context systemPrompts fold', () => {
       buildSystemPrompts({
         heuristics: ['touches auth'],
         maxTickets: env.maxTickets,
-        maxTokenBudget: env.maxTokenBudget,
         epicId: null,
       }),
     );

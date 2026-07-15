@@ -129,7 +129,6 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         },
         delivery: {
           execution: { timeoutMs: 600000 },
-          maxTokenBudget: 200000,
           docsFreshness: { paths: ['README.md'] },
           deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
           worktreeIsolation: {
@@ -275,12 +274,11 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
-  it('accepts delivery.epicAudit/codeReview.autoFixSeverity on both sides (Story #4399)', () => {
+  it('accepts delivery.codeReview.autoFixSeverity on both sides (Story #4399)', () => {
     assertAgree(
       {
         ...REQ,
         delivery: {
-          epicAudit: { autoFixSeverity: 'high' },
           codeReview: { autoFixSeverity: 'medium' },
         },
       },
@@ -288,13 +286,65 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('rejects delivery.epicAudit on both sides (removed on v2)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          epicAudit: { autoFixSeverity: 'high' },
+        },
+      },
+      'removed delivery.epicAudit block',
+    );
+  });
+
   it('rejects an unknown autoFixSeverity value on both sides (Story #4399)', () => {
     assertAgree(
       {
         ...REQ,
-        delivery: { epicAudit: { autoFixSeverity: 'low' } },
+        delivery: { codeReview: { autoFixSeverity: 'low' } },
       },
       'autoFixSeverity enum high|medium only',
+    );
+  });
+
+  it('rejects delivery.maxTokenBudget on both sides (framework constant)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { maxTokenBudget: 200000 },
+      },
+      'removed delivery.maxTokenBudget knob',
+    );
+  });
+
+  it('rejects delivery.preflight on both sides (module removed)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { preflight: { maxStories: 100 } },
+      },
+      'removed delivery.preflight block',
+    );
+  });
+
+  it('rejects delivery.ci.earlyPr on both sides (Story #4356)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { ci: { earlyPr: false } },
+      },
+      'removed delivery.ci.earlyPr knob',
+    );
+  });
+
+  it('rejects delivery.ci.requireChecks on both sides (Story #4356)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { ci: { requireChecks: true } },
+      },
+      'removed delivery.ci.requireChecks knob',
     );
   });
 
@@ -424,21 +474,18 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
-  it('accepts planning.modelCapacity knobs on both sides (v2 Stage 2)', () => {
+  it('rejects planning.modelCapacity on both sides (framework constant)', () => {
     assertAgree(
       {
         ...REQ,
         planning: {
           modelCapacity: {
-            softSessionFraction: 0.05,
-            hardSessionFraction: 0.12,
-            tokensPerAcceptance: 400,
-            tokensPerChange: 300,
-            mergeCandidateMaxSessionFraction: 0.006,
+            softSessionTokens: 20000,
+            hardSessionTokens: 60000,
           },
         },
       },
-      'planning.modelCapacity knobs',
+      'collapsed planning.modelCapacity key',
     );
   });
 

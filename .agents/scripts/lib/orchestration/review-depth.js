@@ -33,7 +33,7 @@
  *
  * v2 Stage 2: review depth is **decoupled** from the planning model-capacity
  * advisory. Diff width is a mechanical review signal (files in the landed
- * diff); planning capacity is a session-mass signal keyed to `maxTokenBudget`.
+ * diff); planning capacity is an absolute authored-token session-mass signal.
  * The two no longer share a constant.
  *
  * @typedef {'light'|'standard'|'deep'} ReviewDepth

@@ -71,7 +71,7 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
         planning: { context: { maxBytes: 40000 } },
-        delivery: { maxTokenBudget: 100000, execution: { timeoutMs: 900000 } },
+        delivery: { execution: { timeoutMs: 900000 } },
       },
       local: {
         planning: { context: { maxBytes: 12000 } },
@@ -80,7 +80,6 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
     assert.equal(config.planning.context.maxBytes, 12000);
-    assert.equal(config.delivery.maxTokenBudget, 100000);
     assert.equal(config.delivery.execution.timeoutMs, 900000);
     assert.match(
       config.source,

@@ -246,64 +246,80 @@ const CODEBASE_SNAPSHOT_SCHEMA = {
   additionalProperties: false,
 };
 
-/**
- * `planning.modelCapacity` — v2 model-capacity split advisory consumed by
- * `ticket-validator-sizing.js`. Operator overrides shallow-merge with
- * `DEFAULT_MODEL_CAPACITY` defaults. Per-Story file/AC ceilings
- * (`softFiles` / `hardFiles` / `softAcceptanceCount`) are retired; thresholds
- * are fractions of the delivery envelope (`maxTokenBudget`) plus plan-time
- * delivery-cost proxies. Declaring `wide` with a reason lifts the hard
- * session-mass rejection.
- */
-const MODEL_CAPACITY_SCHEMA = {
-  type: 'object',
-  properties: {
-    softSessionFraction: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
-    hardSessionFraction: { type: 'number', exclusiveMinimum: 0, maximum: 1 },
-    tokensPerAcceptance: { type: 'integer', minimum: 1 },
-    tokensPerChange: { type: 'integer', minimum: 1 },
-    mergeCandidateMaxSessionFraction: {
-      type: 'number',
-      exclusiveMinimum: 0,
-      maximum: 1,
-    },
-  },
-  additionalProperties: false,
-};
-
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
-    modelCapacity: MODEL_CAPACITY_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to
     // `true` upgrades the matching finding class to `'hard'`, which routes
     // it through the validator's `errors[]` channel and trips the bounded
     // decompose loop's re-prompt gate.
-    failOnSharedEditors: { type: 'boolean' },
-    requireExplicitCrossStoryDeps: { type: 'boolean' },
+    // `planning.modelCapacity` was collapsed to the framework constant
+    // `DEFAULT_MODEL_CAPACITY` in ticket-validator-sizing.js (authored-
+    // tokens-only mass); setting it in a config is rejected as an
+    // additional property.
+    failOnSharedEditors: {
+      type: 'boolean',
+      description:
+        'When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only).',
+    },
+    requireExplicitCrossStoryDeps: {
+      type: 'boolean',
+      description:
+        'When true, upgrade implicit cross-Story dependency findings to hard errors (default false — advisory soft findings only).',
+    },
     // Cross-cutting registry conflict knobs consumed by
     // `ticket-validator-conflicts.js` (wired through
     // `epic-plan-decompose/phases/planning-artifacts.js`).
     // `crossCuttingRegistries` names the registry paths whose concurrent
     // edits are flagged; `failOnRegistryConflicts` upgrades that finding to
     // `'hard'`. `failOnLargeFanOut` / `largeFanOutThreshold` gate the
-    // single-Story fan-out finding.
-    crossCuttingRegistries: LIST_OR_EXTENDER_OF_STRINGS,
-    failOnRegistryConflicts: { type: 'boolean' },
-    failOnLargeFanOut: { type: 'boolean' },
-    largeFanOutThreshold: { type: 'integer', minimum: 0 },
+    // delete blast-radius finding (call sites of a module a Story marks
+    // `assumption: "deletes"`).
+    crossCuttingRegistries: {
+      ...LIST_OR_EXTENDER_OF_STRINGS,
+      description:
+        'Registry path patterns whose concurrent edits across Stories are flagged as conflicts. Defaults to the framework listener/handler index patterns when omitted.',
+    },
+    failOnRegistryConflicts: {
+      type: 'boolean',
+      description:
+        'When true, upgrade cross-cutting registry conflict findings to hard errors (default false).',
+    },
+    failOnLargeFanOut: {
+      type: 'boolean',
+      description:
+        'When true, upgrade fan-out-warning findings (delete blast radius) to hard errors (default false — soft advisory).',
+    },
+    largeFanOutThreshold: {
+      type: 'integer',
+      minimum: 0,
+      description:
+        'Call-site count above which a Story that deletes a module emits a fan-out-warning. Counts base-branch references to the deleted path basename. Soft by default; does not size or reject Stories. Default 10.',
+    },
     // Navigability-reachability config consumed by the plan-persist draft
     // reachability gate (Epic #4131 F7; demoted into persist by #4474 PR6).
     // Opt-in: absent or empty routeGlobs degrades to a silent no-op.
     navigation: {
       type: 'object',
+      description:
+        'Opt-in navigability reachability gate. Absent or empty routeGlobs is a silent no-op.',
       properties: {
-        routeGlobs: { type: 'array', items: { type: 'string' } },
-        navRegistry: { type: 'array', items: { type: 'string' } },
+        routeGlobs: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Glob patterns (e.g. pages/**, app/**/route.ts) marking paths that add a user-facing route.',
+        },
+        navRegistry: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.',
+        },
       },
       additionalProperties: false,
     },

@@ -1,19 +1,8 @@
 // .agents/scripts/lib/__tests__/config-settings-schema-delivery-ci.test.js
 /**
  * Unit tests for the `delivery.ci.*` config namespace — Story #4356
- * (Epic #4355).
- *
- * Covers the binding acceptance contract:
- *   1. A config object setting every delivery.ci.* key resolves through the
- *      runtime AJV validator with no error.
- *   2. An unknown key under delivery.ci is rejected by the runtime validator.
- *   3. With delivery.ci unset, getCiDelivery yields earlyPr=true and
- *      autoMerge="trust-ci".
- *   4. delivery.ci.autoMerge accepts only "trust-ci" and "strict".
- *
- * The runtime schema is exercised through the same Ajv instance the resolver
- * compiles (AGENTRC_SCHEMA), so these assertions bind the actual validation
- * path — not a mirror.
+ * (Epic #4355). `earlyPr` / `requireChecks` were retired on v2 (no
+ * production readers); surviving knobs are `watch` + `autoMerge`.
  */
 
 import assert from 'node:assert/strict';
@@ -21,14 +10,10 @@ import { describe, it } from 'node:test';
 import { CI_DELIVERY_DEFAULTS, getCiDelivery } from '../config/ci.js';
 import { getAgentrcValidator } from '../config-settings-schema.js';
 
-// Bind the actual resolver validation path (the same compiled Ajv instance
-// config-resolver.js uses), not a re-compiled mirror.
 function makeValidator() {
   return getAgentrcValidator();
 }
 
-// Minimal top-level skeleton so `project` (the only top-level required key)
-// satisfies the schema; each case supplies its own `delivery.ci` block.
 const PROJECT_SKELETON = {
   paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
 };
@@ -42,7 +27,6 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const validate = makeValidator();
     const ok = validate(
       withCi({
-        earlyPr: false,
         watch: { pollIntervalMs: 15000, maxPolls: 200, maxResumes: 5 },
         autoMerge: 'strict',
       }),
@@ -54,8 +38,7 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const validate = makeValidator();
     const ok = validate(
       withCi({
-        earlyPr: true,
-        watch: { pollIntervalMs: 30000, maxPolls: 120, maxResumes: 3 },
+        watch: { pollIntervalMs: 10000, maxPolls: 180, maxResumes: 3 },
         autoMerge: 'trust-ci',
       }),
     );
@@ -70,6 +53,12 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
       validate.errors.some((e) => e.keyword === 'additionalProperties'),
       'expected an additionalProperties violation',
     );
+  });
+
+  it('rejects retired earlyPr / requireChecks keys', () => {
+    const validate = makeValidator();
+    assert.equal(validate(withCi({ earlyPr: false })), false);
+    assert.equal(validate(withCi({ requireChecks: true })), false);
   });
 
   it('rejects an unknown key under delivery.ci.watch', () => {
@@ -109,43 +98,31 @@ describe('delivery.ci.* runtime AJV schema (Story #4356)', () => {
     const ok = validate(withCi({ watch: { pollIntervalMs: 1.5 } }));
     assert.equal(ok, false);
   });
-
-  it('accepts a boolean requireChecks (Story #4472)', () => {
-    const validate = makeValidator();
-    assert.equal(validate(withCi({ requireChecks: true })), true);
-    assert.equal(validate(withCi({ requireChecks: false })), true);
-  });
-
-  it('rejects a non-boolean requireChecks', () => {
-    const validate = makeValidator();
-    assert.equal(validate(withCi({ requireChecks: 'yes' })), false);
-  });
 });
 
 describe('getCiDelivery defaults (Story #4356)', () => {
-  it('yields earlyPr=true and autoMerge="trust-ci" when delivery.ci is unset', () => {
+  it('yields autoMerge="trust-ci" when delivery.ci is unset', () => {
     const resolved = getCiDelivery({});
-    assert.equal(resolved.earlyPr, true);
     assert.equal(resolved.autoMerge, 'trust-ci');
-    assert.equal('skipForStoryPushes' in resolved, false);
+    assert.equal('earlyPr' in resolved, false);
+    assert.equal('requireChecks' in resolved, false);
   });
 
   it('mirrors the frozen default constants', () => {
-    assert.equal(CI_DELIVERY_DEFAULTS.earlyPr, true);
     assert.equal(CI_DELIVERY_DEFAULTS.autoMerge, 'trust-ci');
+    assert.equal(CI_DELIVERY_DEFAULTS.earlyPr, undefined);
+    assert.equal(CI_DELIVERY_DEFAULTS.requireChecks, undefined);
   });
 
   it('passes through operator overrides', () => {
     const resolved = getCiDelivery({
       delivery: {
         ci: {
-          earlyPr: false,
           autoMerge: 'strict',
           watch: { pollIntervalMs: 5000 },
         },
       },
     });
-    assert.equal(resolved.earlyPr, false);
     assert.equal(resolved.autoMerge, 'strict');
     assert.deepEqual(resolved.watch, { pollIntervalMs: 5000 });
   });
@@ -153,15 +130,5 @@ describe('getCiDelivery defaults (Story #4356)', () => {
   it('falls back to trust-ci for an invalid autoMerge value', () => {
     const resolved = getCiDelivery({ delivery: { ci: { autoMerge: 'nope' } } });
     assert.equal(resolved.autoMerge, 'trust-ci');
-  });
-
-  it('defaults requireChecks to false and passes through the override (Story #4472)', () => {
-    assert.equal(getCiDelivery({}).requireChecks, false);
-    assert.equal(CI_DELIVERY_DEFAULTS.requireChecks, false);
-    assert.equal(
-      getCiDelivery({ delivery: { ci: { requireChecks: true } } })
-        .requireChecks,
-      true,
-    );
   });
 });

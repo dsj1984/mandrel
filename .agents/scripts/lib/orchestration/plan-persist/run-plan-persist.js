@@ -224,8 +224,7 @@ export async function runPlanPersist({
   const validated = validateTickets(rawStories, config, {
     fanOutCounter,
     cwd,
-    modelCapacity: config?.planning?.modelCapacity,
-    maxTokenBudget: getLimits(config).maxTokenBudget,
+    modelCapacity: opts.modelCapacity,
   });
   enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
   surfaceSoftConflictFindings(validated.findings, 'plan-persist');

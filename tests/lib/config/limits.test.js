@@ -13,7 +13,7 @@ import {
 // to two detectors (rework, retry) and reads from `delivery.signals.*`.
 // `hotspot` was retired with its detector (Epic #4406). Other limits move:
 //   - planning.context.{maxBytes,summaryMode}
-//   - delivery.maxTokenBudget / delivery.execution.timeoutMs
+//   - delivery.execution.timeoutMs
 //
 // `maxTickets` is no longer an operator knob (Story #4163) — it is the
 // framework constant LIMITS_DEFAULTS.maxTickets (default 80) and
@@ -112,18 +112,17 @@ describe('resolveLimits — per-detector override merge', () => {
 });
 
 describe('resolveLimits — surviving budget surface', () => {
-  it('reads delivery.maxTokenBudget + execution.timeoutMs', () => {
+  it('reads delivery.execution.timeoutMs and omits the retired maxTokenBudget', () => {
     const lim = resolveLimits({
       delivery: { maxTokenBudget: 50000, execution: { timeoutMs: 1234 } },
     });
-    assert.equal(lim.maxTokenBudget, 50000);
+    assert.equal('maxTokenBudget' in lim, false);
     assert.equal(lim.executionTimeoutMs, 1234);
   });
 
   it('applies defaults when fields are absent', () => {
     const lim = resolveLimits({});
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
-    assert.equal(lim.maxTokenBudget, LIMITS_DEFAULTS.maxTokenBudget);
     assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
   });
 });

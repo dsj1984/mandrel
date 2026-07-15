@@ -326,7 +326,7 @@ function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
       : countChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
   // v2 Stage 2: review depth uses DEFAULT_DIFF_WIDTH (mechanical file count
   // of the diff under review). It is deliberately decoupled from the
-  // planning model-capacity advisory (`planning.modelCapacity`).
+  // planning model-capacity advisory (`DEFAULT_MODEL_CAPACITY`).
   const depth = resolveDepth({
     overallLevel: opts.planningRisk?.overallLevel,
     changedFileCount,

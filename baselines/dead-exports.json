@@ -196,10 +196,6 @@
       "symbol": "DEFAULT_CODE_REVIEW"
     },
     {
-      "file": ".agents/scripts/lib/config/runners.js",
-      "symbol": "DEFAULT_EPIC_AUDIT"
-    },
-    {
       "file": ".agents/scripts/lib/config/sync-agentrc.js",
       "symbol": "isLeafSchemaRemovable"
     },

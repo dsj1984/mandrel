@@ -514,7 +514,7 @@ safe.
   envelopes, the `story-run-progress` snapshot) rather than inventing a new
   contract. Do not narrate the steps you took, and do not prescribe how the
   next stage should do its work. Prose process commentary only bloats the
-  hydrated prompt (`delivery.maxTokenBudget` elision).
+  hydrated prompt.
 - **Label transitions**: drive every `agent::*` state change through
   `node .agents/scripts/update-ticket-state.js --ticket <id> --state <state>`.
   This CLI is the authoritative mechanism — there is no separate

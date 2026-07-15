@@ -11,8 +11,8 @@ asserts every Story in `plan.new.json` fits `DEFAULT_MODEL_CAPACITY`.
 `profiles.json` → `capacity` mirrors `DEFAULT_MODEL_CAPACITY` in
 `.agents/scripts/lib/orchestration/ticket-validator-sizing.js` and is
 drift-gated by `tests/sizing-ab-calibration.test.js`. Absolute token
-ceilings are derived from the default `maxTokenBudget` (300000).
+ceilings are fixed authored-token counts (soft 30k / hard 75k).
 
 Per-Story file/AC ceilings (`softFiles` / `hardFiles` /
 `softAcceptanceCount`) are retired. The validator scores estimated
-**session mass** against fractions of the delivery envelope.
+**session mass** against those absolute ceilings.

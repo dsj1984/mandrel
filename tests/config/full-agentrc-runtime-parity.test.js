@@ -30,7 +30,6 @@ import {
 } from '../../.agents/scripts/lib/config/github.js';
 import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 import { PATHS_DEFAULTS } from '../../.agents/scripts/lib/config/paths.js';
-import { PREFLIGHT_DEFAULTS } from '../../.agents/scripts/lib/config/preflight.js';
 import {
   BASELINE_EPSILON_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,
@@ -40,7 +39,6 @@ import {
 } from '../../.agents/scripts/lib/config/quality.js';
 import {
   DEFAULT_CODE_REVIEW,
-  DEFAULT_EPIC_AUDIT,
   getRunners,
 } from '../../.agents/scripts/lib/config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from '../../.agents/scripts/lib/config/worktree-isolation.js';
@@ -108,10 +106,11 @@ describe('full-agentrc-runtime-parity', () => {
     });
   });
 
-  it('planning.modelCapacity matches DEFAULT_MODEL_CAPACITY', () => {
-    assert.deepEqual(ref.planning.modelCapacity, {
-      ...DEFAULT_MODEL_CAPACITY,
-    });
+  it('omits planning.modelCapacity (framework constant DEFAULT_MODEL_CAPACITY)', () => {
+    assert.equal(ref.planning.modelCapacity, undefined);
+    assert.equal(DEFAULT_MODEL_CAPACITY.softSessionTokens, 30000);
+    assert.equal(DEFAULT_MODEL_CAPACITY.hardSessionTokens, 75000);
+    assert.equal(DEFAULT_MODEL_CAPACITY.mergeCandidateMaxSessionTokens, 1500);
   });
 
   it('planning.crossCuttingRegistries matches DEFAULT_REGISTRY_PATTERNS', () => {
@@ -126,8 +125,12 @@ describe('full-agentrc-runtime-parity', () => {
     );
   });
 
-  it('delivery budgets/signals match LIMITS_DEFAULTS', () => {
-    assert.equal(ref.delivery.maxTokenBudget, LIMITS_DEFAULTS.maxTokenBudget);
+  it('omits delivery.maxTokenBudget (retired envelope)', () => {
+    assert.equal(ref.delivery.maxTokenBudget, undefined);
+    assert.equal('maxTokenBudget' in LIMITS_DEFAULTS, false);
+  });
+
+  it('delivery execution/lease/signals match LIMITS_DEFAULTS', () => {
     assert.equal(
       ref.delivery.execution.timeoutMs,
       LIMITS_DEFAULTS.executionTimeoutMs,
@@ -136,24 +139,8 @@ describe('full-agentrc-runtime-parity', () => {
     assert.deepEqual(ref.delivery.signals, { ...LIMITS_DEFAULTS.signals });
   });
 
-  it('omits delivery.preflight so PREFLIGHT_DEFAULTS (all null) apply', () => {
-    assert.equal(ref.delivery.preflight, undefined);
-    assert.deepEqual(PREFLIGHT_DEFAULTS, {
-      maxStories: null,
-      maxWaves: null,
-      maxInstallCostSeconds: null,
-      maxGithubApiRequests: null,
-      maxClaudeQuotaTokens: null,
-    });
-  });
-
-  it('delivery.ci scalar knobs match CI_DELIVERY_DEFAULTS', () => {
-    assert.equal(ref.delivery.ci.earlyPr, CI_DELIVERY_DEFAULTS.earlyPr);
+  it('delivery.ci.autoMerge matches CI_DELIVERY_DEFAULTS', () => {
     assert.equal(ref.delivery.ci.autoMerge, CI_DELIVERY_DEFAULTS.autoMerge);
-    assert.equal(
-      ref.delivery.ci.requireChecks,
-      CI_DELIVERY_DEFAULTS.requireChecks,
-    );
   });
 
   it('delivery.ci.watch matches WATCH_DEFAULTS (poll/maxPolls/maxResumes)', () => {
@@ -185,12 +172,9 @@ describe('full-agentrc-runtime-parity', () => {
     assert.equal('reapOnCancel' in wi, false);
   });
 
-  it('delivery.deliverRunner / epicAudit / codeReview match getRunners defaults', () => {
+  it('delivery.deliverRunner / codeReview match getRunners defaults', () => {
     const runners = getRunners({});
     assert.deepEqual(ref.delivery.deliverRunner, runners.deliverRunner);
-    assert.deepEqual(ref.delivery.epicAudit, {
-      ...DEFAULT_EPIC_AUDIT,
-    });
     assert.equal(
       ref.delivery.codeReview.maxFixAttempts,
       DEFAULT_CODE_REVIEW.maxFixAttempts,
@@ -272,6 +256,11 @@ describe('full-agentrc-runtime-parity', () => {
       'delivery.failOnConcurrencyHazards',
       'delivery.signals.hotspot',
       'delivery.ci.skipForStoryPushes',
+      'delivery.ci.earlyPr',
+      'delivery.ci.requireChecks',
+      'delivery.maxTokenBudget',
+      'delivery.preflight',
+      'delivery.epicAudit',
       'delivery.deliverRunner.progressReportIntervalSec',
       'delivery.worktreeIsolation.reapOnCancel',
       'planning.taskSizing',
@@ -287,6 +276,5 @@ describe('full-agentrc-runtime-parity', () => {
   it('documents AGENT_READ_ONLY_PREFIXES so inventory keys are intentional', () => {
     assert.ok(AGENT_READ_ONLY_PREFIXES.length > 5);
     assert.ok(isAgentReadOnly('qa.featureRoot'));
-    assert.equal(isAgentReadOnly('delivery.maxTokenBudget'), false);
   });
 });

@@ -87,7 +87,6 @@ export function validateTickets(tickets, config, opts = {}) {
     baseBranchRef,
     conflictPolicy,
     modelCapacity: opts.modelCapacity,
-    maxTokenBudget: opts.maxTokenBudget,
     // Thread the repo cwd into the AC-freshness / file-assumption git
     // probes (#4474 PR7) — without it they silently ran against
     // process.cwd(), which is only the repo root by coincidence.

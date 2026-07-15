@@ -259,8 +259,8 @@ Two carve-outs refine the ordering:
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
 Mandrel does **not** enforce live LLM spend from response metadata. It caps
-**hydrated prompt size** (`delivery.maxTokenBudget`, section-aware elision) and
-runs optional **pre-dispatch estimates** (`delivery.preflight.*`); your host
+**planning context budget** (`planning.context.maxBytes`) and related
+envelopes; your host
 runtime owns session quota and hard stops. The config keys, the ≈4-char/token
 estimate, and the elision behaviour are reference detail — see
 [`docs/execution-reference.md` § FinOps & token budgeting](docs/execution-reference.md#finops--token-budgeting-economic-guardrails).
@@ -460,8 +460,8 @@ To keep the repository clean and avoid polluting the Git history:
 and self-verifies in one pass** — a broad footprint is normal when the
 change is cohesive. The session-capacity backstop lives in one place:
 `DEFAULT_MODEL_CAPACITY` in
-`.agents/scripts/lib/orchestration/ticket-validator-sizing.js` (operator
-override via `planning.modelCapacity`). Do not re-slice a capability-sized
+`.agents/scripts/lib/orchestration/ticket-validator-sizing.js` (framework
+constant — not operator-tunable). Do not re-slice a capability-sized
 Story into per-module fragments just because it touches many files.
 
 ### A. When You See `⚠️ COMPLEXITY WARNING`

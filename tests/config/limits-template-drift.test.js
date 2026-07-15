@@ -10,7 +10,6 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 // The surviving operator-configurable budget/timeout keys are spread across
 // the new top-level blocks rather than a single `agentSettings.limits` block:
 //   - planning.context.{maxBytes, summaryMode}
-//   - delivery.maxTokenBudget
 //   - delivery.execution.timeoutMs
 //   - delivery.signals.{rework, retry}
 //
@@ -42,11 +41,13 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     });
   });
 
-  it('declares delivery.maxTokenBudget matching LIMITS_DEFAULTS.maxTokenBudget', () => {
+  it('does not declare the removed delivery.maxTokenBudget knob', () => {
     assert.equal(
-      parsed?.delivery?.maxTokenBudget,
-      LIMITS_DEFAULTS.maxTokenBudget,
+      'maxTokenBudget' in (parsed?.delivery ?? {}),
+      false,
+      'agentrc-reference.json must not document the removed delivery.maxTokenBudget knob',
     );
+    assert.equal('maxTokenBudget' in LIMITS_DEFAULTS, false);
   });
 
   it('declares delivery.execution.timeoutMs matching LIMITS_DEFAULTS.executionTimeoutMs', () => {

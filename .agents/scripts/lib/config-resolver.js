@@ -42,10 +42,8 @@ export { NOTIFICATIONS_DEFAULTS } from './config/github.js';
 export {
   getLimits,
   LIMITS_DEFAULTS,
-  resolvePreflightCeilings,
 } from './config/limits.js';
 export { getPaths } from './config/paths.js';
-export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   CODING_GUARDRAILS_DEFAULTS,
   getQuality,
@@ -106,9 +104,8 @@ function applyDeliveryDefaults(rawDelivery) {
   delivery.worktreeIsolation = getWorktreeIsolation({
     worktreeIsolation: delivery.worktreeIsolation,
   });
-  // Story #4356 — `delivery.ci` always carries earlyPr / autoMerge /
-  // requireChecks defaults so CI-aware delivery knobs resolve without
-  // operator opt-in.
+  // `delivery.ci` always carries autoMerge (and passes watch through) so
+  // CI-aware delivery knobs resolve without operator opt-in.
   delivery.ci = getCiDelivery({ ci: delivery.ci });
   return delivery;
 }

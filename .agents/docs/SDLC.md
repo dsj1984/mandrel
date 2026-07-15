@@ -782,9 +782,10 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    Remediation is **tier-aware and split by finding class** (Story #4412): the
    review-pillar findings route off `delivery.codeReview.autoFixSeverity`
    (default `medium` — 🔴/🟠/🟡 on-branch, 🟢 stays on the comment), while the
-   Epic-close lens findings route off `delivery.epicAudit.autoFixSeverity`
-   (default **`high`** — only 🔴/🟠 on-branch; 🟡/🟢 graduate, because 🟡
-   Medium concerns were already remediated shift-left). Fixed findings land
+   Epic-close lens findings use the same
+   `delivery.codeReview.autoFixSeverity` knob (only 🔴/🟠 on-branch at close;
+   🟡/🟢 graduate, because 🟡 Medium concerns were already remediated
+   shift-left). Fixed findings land
    under the comment's `## Fixed on-branch` section so the graduator skips
    them. The severity gate is unchanged: surviving 🔴 Critical findings halt
    the run; surviving 🟠/🟡/🟢 flow through as non-blocking.
@@ -1126,8 +1127,8 @@ exactly one tier**, chosen by the lens's `scope` field in `audit-rules.json`
 The run-closeout roster is deliberately **slim**: it excludes every
 local-tier change-set lens so the outermost tier — where a fix is most
 expensive — does not re-verify a concern already covered shift-left.
-The Epic-close remediation threshold reflects this (`delivery.epicAudit.autoFixSeverity`
-defaults to `high`): 🟡 Medium code-quality findings are remediated at the
+The Epic-close remediation threshold reflects this (`delivery.codeReview.autoFixSeverity`
+defaults to `medium`): 🟡 Medium code-quality findings are remediated at the
 innermost tiers, not re-remediated at close.
 
 ### Review & feedback loop

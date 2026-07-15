@@ -128,16 +128,6 @@ const KEY_MEANINGS = Object.freeze({
     'How many recent commits the snapshot summarizes.',
   'planning.riskHeuristics':
     'Phrases that flag a Story as high-risk for HITL escalation.',
-  'planning.modelCapacity.softSessionFraction':
-    'Session-mass fraction of maxTokenBudget above which a Story is flagged as large (advisory-only — check cohesion or declare `wide`).',
-  'planning.modelCapacity.hardSessionFraction':
-    'Session-mass fraction of maxTokenBudget above which a Story is rejected unless it declares `wide` with a reason.',
-  'planning.modelCapacity.tokensPerAcceptance':
-    'Plan-time delivery-cost proxy (tokens) added to session mass per acceptance criterion.',
-  'planning.modelCapacity.tokensPerChange':
-    'Plan-time delivery-cost proxy (tokens) added to session mass per declared non-glob change path.',
-  'planning.modelCapacity.mergeCandidateMaxSessionFraction':
-    'Session-mass fraction of maxTokenBudget at or below which a depends_on-chained Story is a merge candidate.',
   'planning.failOnSharedEditors':
     'Whether shared-editor conflict findings are promoted to hard errors.',
   'planning.requireExplicitCrossStoryDeps':
@@ -158,12 +148,8 @@ const KEY_MEANINGS = Object.freeze({
   // delivery.*
   'delivery.execution.timeoutMs':
     'Per-execution timeout for orchestrated delivery steps.',
-  'delivery.maxTokenBudget':
-    'Cap on the hydrated task-prompt size handed to an agent.',
   'delivery.lease.ttlMs':
     'Time-to-live for the Epic lease before a stale claim is reclaimable.',
-  'delivery.ci.earlyPr':
-    'Whether /deliver opens the Epic PR early so CI warms during later waves.',
   'delivery.ci.watch.pollIntervalMs':
     'Poll cadence (ms) for the merge/CI watch loop.',
   'delivery.ci.watch.maxPolls':
@@ -172,18 +158,6 @@ const KEY_MEANINGS = Object.freeze({
     'Maximum times the CI watch may resume after a transient stall.',
   'delivery.ci.autoMerge':
     'Merge posture: trust-ci merges on green checks; strict also requires a clean review gate.',
-  'delivery.ci.requireChecks':
-    'When true, refuse to arm merge if the repo reports zero required checks (fail-closed-without-checks).',
-  'delivery.preflight.maxStories':
-    'Pre-dispatch ceiling on estimated Story count (no cap when unset).',
-  'delivery.preflight.maxWaves':
-    'Pre-dispatch ceiling on estimated wave count.',
-  'delivery.preflight.maxInstallCostSeconds':
-    'Pre-dispatch ceiling on estimated dependency-install seconds.',
-  'delivery.preflight.maxGithubApiRequests':
-    'Pre-dispatch ceiling on estimated GitHub API request volume.',
-  'delivery.preflight.maxClaudeQuotaTokens':
-    'Pre-dispatch ceiling on estimated Claude quota-token burn.',
   'delivery.docsFreshness.paths':
     'Docs whose freshness is checked at delivery time.',
   'delivery.deliverRunner.concurrencyCap':
@@ -208,12 +182,6 @@ const KEY_MEANINGS = Object.freeze({
     'Poll cadence (seconds) for MergeWatcher after epic.merge.armed.',
   'delivery.mergeWatch.maxBudgetSeconds':
     'Wall-clock budget (seconds) before MergeWatcher surfaces budget-exceeded.',
-  'delivery.epicAudit.maxFixAttempts':
-    'Maximum auto-fix retry attempts per epic-audit finding (0 disables auto-fix).',
-  'delivery.epicAudit.maxFixScopeFiles':
-    'Maximum files a single epic-audit auto-fix may touch before escalating.',
-  'delivery.epicAudit.autoFixSeverity':
-    'Severity threshold for on-branch epic-audit remediation (high = 🔴/🟠 only; medium also fixes 🟡; default high).',
   'delivery.codeReview.providers':
     'Ordered provider chain the code-review phase consults.',
   'delivery.codeReview.maxFixAttempts':
@@ -285,7 +253,6 @@ const PREFIX_MEANINGS = Object.freeze([
   ['delivery.quality', 'Delivery-time quality configuration.'],
   ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
   ['delivery.mergeWatch', 'MergeWatcher poll cadence and wall-clock budget.'],
-  ['delivery.epicAudit', 'Bounded-retry knobs for /deliver epic-audit.'],
   [
     'delivery.feedbackLoop',
     'Opt-out toggles for auto-filing non-blocking findings.',
@@ -294,11 +261,7 @@ const PREFIX_MEANINGS = Object.freeze([
     'delivery.routing',
     'Delivery-spawn routing and acceptance-ceremony profile.',
   ],
-  ['delivery.ci', 'CI-aware delivery namespace (early PR, watch, auto-merge).'],
-  [
-    'planning.modelCapacity',
-    'Story-sizing threshold for the decompose validator.',
-  ],
+  ['delivery.ci', 'CI-aware delivery namespace (watch, auto-merge).'],
   [
     'planning.navigation',
     'Plan-time navigability reachability gate (route globs + nav registry).',

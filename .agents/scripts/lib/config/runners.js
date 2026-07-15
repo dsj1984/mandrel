@@ -1,10 +1,12 @@
 /**
  * Runner accessor (Epic #1720 Story #1739 — top-level reshape).
  *
- * Post-reshape, only `delivery.deliverRunner`, `delivery.epicAudit`, and
- * `delivery.codeReview` are configurable; everything else lives in
- * framework-internal constants exported alongside (`DEFAULT_STORY_MERGE_RETRY`,
- * `DEFAULT_DECOMPOSER`).
+ * Post-reshape, only `delivery.deliverRunner` and `delivery.codeReview` are
+ * configurable via this accessor; everything else lives in framework-internal
+ * constants exported alongside (`DEFAULT_STORY_MERGE_RETRY`,
+ * `DEFAULT_DECOMPOSER`). `delivery.epicAudit` was removed on v2 (Story-only
+ * delivery — no epic-audit runner; remediation policy lives on
+ * `delivery.codeReview`).
  */
 
 /** Hardcoded story-merge retry policy (was `orchestration.runners.storyMergeRetry`). */
@@ -42,30 +44,10 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
 });
 
 /**
- * Default auto-fix loop ceilings for /deliver Phase 4 (epic-audit)
- * and Phase 5 (code-review). Operators override via
- * `delivery.epicAudit.*` and `delivery.codeReview.*` in `.agentrc.json`
- * (Story #2611, Epic #2586).
- *
- * `autoFixSeverity` is **tier-aware** (Story #4412, Epic #4405). The
- * Epic-close audit tier (`DEFAULT_EPIC_AUDIT`) defaults to `'high'` —
- * remediating only 🔴 Critical + 🟠 High findings on-branch while 🟡 Medium
- * and 🟢 Suggestion findings graduate to follow-up issues. This is the
- * three-tier model's slim outermost tier: 🟡 Medium code-quality concerns are
- * already routed into on-branch remediation shift-left (the write-time
- * checklist threading of Story #4410 and the Story-scope local-lens pass of
- * Story #4409), so the Epic-close tier stops paying to re-remediate them where
- * a fix is most expensive. The code-review tier (`DEFAULT_CODE_REVIEW`) keeps
- * the `'medium'` default introduced by Story #4399. Both are hard cutovers per
- * `rules/git-conventions.md` — no back-compat flag; an operator opts back into
- * the wider routing by setting `delivery.epicAudit.autoFixSeverity: 'medium'`.
+ * Default auto-fix loop ceilings for /deliver code-review. Operators
+ * override via `delivery.codeReview.*` in `.agentrc.json` (Story #2611,
+ * Epic #2586; `autoFixSeverity` default `'medium'` per Story #4399).
  */
-export const DEFAULT_EPIC_AUDIT = Object.freeze({
-  maxFixAttempts: 3,
-  maxFixScopeFiles: 5,
-  autoFixSeverity: 'high',
-});
-
 export const DEFAULT_CODE_REVIEW = Object.freeze({
   maxFixAttempts: 3,
   maxFixScopeFiles: 5,
@@ -78,7 +60,6 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  * @param {object | null | undefined} config
  * @returns {{
  *   deliverRunner: { concurrencyCap: number, verifyConcurrencyCap: number },
- *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
  *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
  *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
  *   decomposer: { concurrencyCap: number },
@@ -86,7 +67,6 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  */
 export function getRunners(config) {
   const deliverRunnerUser = config?.delivery?.deliverRunner ?? {};
-  const epicAuditUser = config?.delivery?.epicAudit ?? {};
   const codeReviewUser = config?.delivery?.codeReview ?? {};
   return {
     deliverRunner: {
@@ -96,14 +76,6 @@ export function getRunners(config) {
       verifyConcurrencyCap:
         deliverRunnerUser.verifyConcurrencyCap ??
         DEFAULT_DELIVER_RUNNER.verifyConcurrencyCap,
-    },
-    epicAudit: {
-      maxFixAttempts:
-        epicAuditUser.maxFixAttempts ?? DEFAULT_EPIC_AUDIT.maxFixAttempts,
-      maxFixScopeFiles:
-        epicAuditUser.maxFixScopeFiles ?? DEFAULT_EPIC_AUDIT.maxFixScopeFiles,
-      autoFixSeverity:
-        epicAuditUser.autoFixSeverity ?? DEFAULT_EPIC_AUDIT.autoFixSeverity,
     },
     codeReview: {
       maxFixAttempts:

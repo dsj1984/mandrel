@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LIMITS_DEFAULTS } from '../../../.agents/scripts/lib/config/limits.js';
 import { validateAndNormalizeTickets } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 import {
   DEFAULT_MODEL_CAPACITY,
@@ -12,16 +11,18 @@ import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/st
 /**
  * Sizing validator fixtures for the v2 model-capacity split advisory.
  *
- * File/AC ceilings are gone. The model scores estimated **session mass**
- * (authored tokens + per-AC / per-file delivery proxies) against fractions of
- * `maxTokenBudget`. Declaring `wide` with a reason lifts the hard session-mass
- * rejection.
+ * File/AC ceilings and AC/file delivery-cost proxies are gone. The model
+ * scores **authored tokens only** against absolute session-mass ceilings.
+ * Declaring `wide` with a reason lifts the hard session-mass rejection.
  */
 
-const CEILINGS = resolveCapacityCeilings(
-  DEFAULT_MODEL_CAPACITY,
-  LIMITS_DEFAULTS.maxTokenBudget,
-);
+const CEILINGS = resolveCapacityCeilings(DEFAULT_MODEL_CAPACITY);
+
+/** Pad a Spec so authored session mass lands above `targetTokens`. */
+function specAbove(targetTokens) {
+  // estimateTokens = ceil(length / 4); leave headroom for other body fields.
+  return 'x'.repeat((targetTokens + 200) * 4);
+}
 
 function makeStory(slug = 's-sizing', body) {
   const structured = {
@@ -65,7 +66,6 @@ function validateStory(story, opts) {
   return validateAndNormalizeTickets([story, SIBLING_FILLER], opts);
 }
 
-/** Build a Story whose session mass lands in a target band via file count. */
 function storyWithFileCount(slug, fileCount, extras = {}) {
   return makeStory(slug, {
     changes: changes(fileCount),
@@ -74,32 +74,48 @@ function storyWithFileCount(slug, fileCount, extras = {}) {
   });
 }
 
+function storyAboveSoft(slug, extras = {}) {
+  return makeStory(slug, {
+    spec: specAbove(CEILINGS.softSessionTokens),
+    ...extras,
+  });
+}
+
+function storyAboveHard(slug, extras = {}) {
+  return makeStory(slug, {
+    spec: specAbove(CEILINGS.hardSessionTokens),
+    ...extras,
+  });
+}
+
 // ---------------------------------------------------------------------------
-// Capacity ceilings — derived from maxTokenBudget
+// Capacity ceilings — absolute authored-token counts
 // ---------------------------------------------------------------------------
 
-test('resolveCapacityCeilings derives absolute tokens from maxTokenBudget fractions', () => {
-  assert.equal(CEILINGS.maxTokenBudget, 300000);
-  assert.equal(CEILINGS.softSessionTokens, 12000);
-  assert.equal(CEILINGS.hardSessionTokens, 30000);
+test('resolveCapacityCeilings returns DEFAULT_MODEL_CAPACITY absolute token ceilings', () => {
+  assert.equal(CEILINGS.softSessionTokens, 30000);
+  assert.equal(CEILINGS.hardSessionTokens, 75000);
   assert.equal(CEILINGS.mergeCandidateMaxSessionTokens, 1500);
 });
 
-test('estimateStorySessionMass folds authored tokens + AC/change proxies', () => {
+test('DEFAULT_MODEL_CAPACITY has no AC/file delivery-cost proxies', () => {
+  assert.equal(DEFAULT_MODEL_CAPACITY.tokensPerAcceptance, undefined);
+  assert.equal(DEFAULT_MODEL_CAPACITY.tokensPerChange, undefined);
+  assert.equal(DEFAULT_MODEL_CAPACITY.softFiles, undefined);
+  assert.equal(DEFAULT_MODEL_CAPACITY.hardFiles, undefined);
+});
+
+test('estimateStorySessionMass is authored tokens only', () => {
   const story = makeStory('t-mass', {
     changes: changes(4),
     acceptance: ['a', 'b'],
+    spec: 'short approach',
   });
   const mass = estimateStorySessionMass(story);
   assert.equal(mass.fileCount, 4);
   assert.equal(mass.acceptanceCount, 2);
   assert.ok(mass.authoredTokens > 0);
-  assert.equal(
-    mass.sessionMass,
-    mass.authoredTokens +
-      2 * DEFAULT_MODEL_CAPACITY.tokensPerAcceptance +
-      4 * DEFAULT_MODEL_CAPACITY.tokensPerChange,
-  );
+  assert.equal(mass.sessionMass, mass.authoredTokens);
 });
 
 // ---------------------------------------------------------------------------
@@ -122,23 +138,38 @@ test('narrow Story with no wide declaration produces no capacity findings', () =
   assert.deepEqual(result.errors, []);
 });
 
-test('file count alone no longer hard-rejects — 31 files stay under hard ceiling', () => {
-  // Under the retired DEFAULT_TASK_SIZING this was a hard reject. Under
-  // model capacity, 31 files × 350 ≈ 10.8k + AC proxy is still well under
-  // the 30k hard session ceiling.
-  const result = validateStory(storyWithFileCount('t-31files-ok', 31));
+test('file count alone never hard-rejects — 90 files stay under hard ceiling', () => {
+  const result = validateStory(storyWithFileCount('t-90files-ok', 90));
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
 });
 
+test('many acceptance criteria alone never soft-nudge or hard-reject', () => {
+  // Authored AC text for 50 short criteria is far below the 30k soft ceiling.
+  const result = validateStory(
+    makeStory('t-50ac', {
+      changes: ['src/a.js: edit'],
+      acceptance: Array.from({ length: 50 }, (_, i) => `criterion ${i}`),
+    }),
+  );
+  assert.deepEqual(
+    result.findings.filter((f) =>
+      ['oversized-task', 'wide-undeclared', 'soft-session-pressure'].includes(
+        f.kind,
+      ),
+    ),
+    [],
+  );
+  assert.deepEqual(result.errors, []);
+});
+
 // ---------------------------------------------------------------------------
-// Soft / hard session-mass ceilings
+// Soft / hard session-mass ceilings (authored Spec padding)
 // ---------------------------------------------------------------------------
 
 test('session mass above soft ceiling with no wide emits wide-undeclared', () => {
-  // ~40 files × 350 = 14_000 > soft 12_000.
-  const result = validateStory(storyWithFileCount('t-soft', 40));
+  const result = validateStory(storyAboveSoft('t-soft'));
   const hard = result.findings.filter((f) => f.severity === 'hard');
   assert.deepEqual(hard, []);
   assert.deepEqual(result.errors, []);
@@ -149,8 +180,7 @@ test('session mass above soft ceiling with no wide emits wide-undeclared', () =>
 });
 
 test('session mass above hard ceiling with no wide trips oversized-task', () => {
-  // ~90 files × 350 = 31_500 > hard 30_000.
-  const result = validateStory(storyWithFileCount('t-hard', 90));
+  const result = validateStory(storyAboveHard('t-hard'));
   const hard = result.findings.filter(
     (f) => f.kind === 'oversized-task' && f.field === 'sessionMass',
   );
@@ -165,7 +195,7 @@ test('session mass above hard ceiling with no wide trips oversized-task', () => 
 
 test('wide declaration lifts the hard session-mass ceiling (soft pressure only)', () => {
   const result = validateStory(
-    storyWithFileCount('t-hard-wide', 90, {
+    storyAboveHard('t-hard-wide', {
       wide: { reason: 'hard contract cutover across every call site' },
     }),
   );
@@ -181,7 +211,7 @@ test('wide declaration lifts the hard session-mass ceiling (soft pressure only)'
 
 test('soft-over with wide emits soft-session-pressure, not wide-undeclared', () => {
   const result = validateStory(
-    storyWithFileCount('t-soft-wide', 40, {
+    storyAboveSoft('t-soft-wide', {
       wide: { reason: 'legitimately broad: scaffold a new package skeleton' },
     }),
   );
@@ -198,7 +228,7 @@ test('soft-over with wide emits soft-session-pressure, not wide-undeclared', () 
 
 test('a wide declaration with an empty reason does NOT lift the hard ceiling', () => {
   const result = validateStory(
-    storyWithFileCount('t-wide-empty-reason', 90, {
+    storyAboveHard('t-wide-empty-reason', {
       wide: { reason: '   ' },
     }),
   );
@@ -208,35 +238,8 @@ test('a wide declaration with an empty reason does NOT lift the hard ceiling', (
   assert.equal(hard.length, 1);
 });
 
-test('acceptance mass contributes to session mass (many ACs can soft-nudge)', () => {
-  // 30 ACs × 500 = 15_000 > soft 12_000, with a single file.
-  const result = validateStory(
-    makeStory('t-many-ac', {
-      changes: ['src/a.js: edit'],
-      acceptance: Array.from({ length: 30 }, (_, i) => `criterion ${i}`),
-    }),
-  );
-  const hard = result.findings.filter((f) => f.severity === 'hard');
-  assert.deepEqual(hard, []);
-  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
-  assert.equal(nudge.length, 1);
-});
-
-test('acceptance mass alone never hard-rejects below the session ceiling', () => {
-  // 50 ACs × 500 = 25_000 < hard 30_000 — soft nudge only.
-  const result = validateStory(
-    makeStory('t-50ac', {
-      changes: ['src/a.js: edit'],
-      acceptance: Array.from({ length: 50 }, (_, i) => `criterion ${i}`),
-    }),
-  );
-  const hard = result.findings.filter((f) => f.kind === 'oversized-task');
-  assert.deepEqual(hard, []);
-  assert.deepEqual(result.errors, []);
-});
-
 // ---------------------------------------------------------------------------
-// Glob-aware sizing — unknown-width skips the per-file proxy
+// Glob-aware sizing — unknown-width still nudges for wide
 // ---------------------------------------------------------------------------
 
 test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
@@ -266,7 +269,7 @@ test('glob entry WITH a wide declaration produces no wide-undeclared finding', (
   assert.deepEqual(result.errors, []);
 });
 
-test('glob entries skip the per-file proxy — many globs alone do not trip hard', () => {
+test('many glob paths alone do not trip hard (authored mass stays small)', () => {
   const result = validateStory(
     makeStory('t-glob-many', {
       changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
@@ -275,25 +278,6 @@ test('glob entries skip the per-file proxy — many globs alone do not trip hard
   );
   const hard = result.findings.filter((f) => f.kind === 'oversized-task');
   assert.deepEqual(hard, []);
-});
-
-// ---------------------------------------------------------------------------
-// PathEntry object form
-// ---------------------------------------------------------------------------
-
-test('changes[] with PathEntry object form counts toward session mass', () => {
-  const result = validateStory(
-    makeStory('t-pathentry', {
-      changes: Array.from({ length: 40 }, (_, i) => ({
-        path: `src/file${i}.js`,
-        assumption: i === 0 ? 'creates' : 'refactors-existing',
-      })),
-      acceptance: ['criterion 1'],
-    }),
-  );
-  const nudge = result.findings.filter((f) => f.kind === 'wide-undeclared');
-  assert.equal(nudge.length, 1);
-  assert.ok(nudge[0].sessionMass > CEILINGS.softSessionTokens);
 });
 
 // ---------------------------------------------------------------------------
@@ -342,10 +326,7 @@ function makeStringStory(slug, body = {}) {
 test('string body: over-hard session mass trips oversized-task', () => {
   const result = validateStory(
     makeStringStory('t-str-hard', {
-      changes: Array.from({ length: 90 }, (_, i) => ({
-        path: `src/file${i}.js`,
-        assumption: 'refactors-existing',
-      })),
+      spec: specAbove(CEILINGS.hardSessionTokens),
       acceptance: ['criterion 1'],
     }),
   );
@@ -369,10 +350,7 @@ test('string body: unanchored-constant fires identically to the object case', ()
 test('string body: a declared wide reason lifts the hard session ceiling', () => {
   const result = validateStory(
     makeStringStory('t-str-hard-wide', {
-      changes: Array.from({ length: 90 }, (_, i) => ({
-        path: `src/file${i}.js`,
-        assumption: 'refactors-existing',
-      })),
+      spec: specAbove(CEILINGS.hardSessionTokens),
       acceptance: ['criterion 1'],
       wide: { reason: 'hard contract cutover across every call site' },
     }),
@@ -388,13 +366,13 @@ test('string body: a declared wide reason lifts the hard session ceiling', () =>
 });
 
 test('session mass reads the authoritative top-level story.acceptance', () => {
-  // Top-level acceptance carries 30 items; body carries only 2. Mass MUST
-  // use the top-level binding contract.
+  // Top-level acceptance carries a long padded criterion; body carries a
+  // short one. Mass MUST use the top-level binding contract.
   const result = validateStory({
     type: 'story',
     slug: 't-toplevel-ac',
     title: 'Top-level acceptance authority',
-    acceptance: Array.from({ length: 30 }, (_, i) => `top criterion ${i}`),
+    acceptance: [specAbove(CEILINGS.softSessionTokens)],
     verify: ['npm test (unit)'],
     body: {
       goal: 'Goal.',
@@ -461,6 +439,7 @@ test('silent on a tiny ORPHAN Story (no depends_on edge)', () => {
 
 test('silent on a normal-sized chained Story (mass above merge ceiling)', () => {
   const story = makeStory('t-merge-normal', {
+    spec: specAbove(CEILINGS.mergeCandidateMaxSessionTokens),
     changes: changes(8),
     acceptance: ['criterion 1', 'criterion 2'],
   });
@@ -472,9 +451,12 @@ test('silent on a normal-sized chained Story (mass above merge ceiling)', () => 
   );
 });
 
-test('respects a planning.modelCapacity threshold override', () => {
+test('respects a programmatic capacity threshold override', () => {
+  // Mid-mass chained Story: above the default merge ceiling (1.5k) so
+  // silent by default; raising mergeCandidateMaxSessionTokens to 6k flags it.
   const makeChained = (slug) => {
     const s = makeStory(slug, {
+      spec: specAbove(2000),
       changes: changes(4),
       acceptance: ['criterion 1'],
     });
@@ -486,16 +468,16 @@ test('respects a planning.modelCapacity threshold override', () => {
   assert.deepEqual(
     defaultResult.findings.filter((f) => f.kind === 'merge-candidate'),
     [],
-    'default merge ceiling leaves a 4-file Story silent',
+    'default merge ceiling leaves a mid-mass Story silent',
   );
 
   const overrideResult = validateStory(makeChained('t-merge-override'), {
-    modelCapacity: { mergeCandidateMaxSessionFraction: 0.02 },
+    modelCapacity: { mergeCandidateMaxSessionTokens: 6000 },
   });
   assert.equal(
     overrideResult.findings.filter((f) => f.kind === 'merge-candidate').length,
     1,
-    'raising the merge fraction flags the same Story',
+    'raising the merge ceiling flags the same Story',
   );
 });
 
@@ -512,14 +494,15 @@ test('silent on a chained Story that carries a glob change (unknown width)', () 
   );
 });
 
-test('maxTokenBudget override retunes the absolute ceilings', () => {
-  // Budget where hard = 0.1 * 20000 = 2000. A 10-file Story exceeds it;
-  // the filler sibling (~1 file) stays under, so only one hard finding fires.
-  const result = validateStory(storyWithFileCount('t-budget', 10), {
-    maxTokenBudget: 20000,
-  });
+test('modelCapacity override retunes the absolute ceilings', () => {
+  const result = validateStory(
+    makeStory('t-capacity', {
+      spec: specAbove(500),
+    }),
+    { modelCapacity: { hardSessionTokens: 500 } },
+  );
   const hard = result.findings.filter((f) => f.kind === 'oversized-task');
   assert.equal(hard.length, 1);
-  assert.equal(hard[0].ceiling, 2000);
-  assert.equal(hard[0].ticketSlug, 't-budget');
+  assert.equal(hard[0].ceiling, 500);
+  assert.equal(hard[0].ticketSlug, 't-capacity');
 });

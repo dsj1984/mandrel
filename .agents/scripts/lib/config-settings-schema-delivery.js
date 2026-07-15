@@ -155,35 +155,10 @@ const MERGE_WATCH_SCHEMA = {
 };
 
 /**
- * `delivery.epicAudit` — bounded-retry knobs for /deliver Phase 4
- * (epic-audit). `maxFixAttempts` caps how many times the auto-fix loop
- * retries a single finding (Story #2611, Epic #2586). `maxFixScopeFiles`
- * caps how many files a single auto-fix may touch before escalating to
- * `agent::blocked` (default 5) — a deliberately narrow bound for
- * unattended auto-fixes, independent of the Story-sizing thresholds in
- * `ticket-validator-sizing.js`.
- *
- * `autoFixSeverity` (Story #4399) is the threshold that governs which findings
- * the Epic-close host-LLM remediation loop fixes on-branch. It is **tier-aware**
- * (Story #4412, Epic #4405): the Epic-close audit tier defaults to `high`
- * (route only 🔴 Critical + 🟠 High into remediation; 🟡 Medium + 🟢 Suggestion
- * graduate to follow-up issues) because 🟡 Medium code-quality concerns are
- * already remediated shift-left at the write-time and Story-scope tiers — the
- * slim outermost tier stops re-paying to fix them where a fix is most
- * expensive. Setting `medium` opts back into routing 🔴/🟠/🟡 on-branch. The
- * enum is the single validation seam: a configured value round-trips through
- * the resolver, and any value outside `['high', 'medium']` is rejected at load.
- * Hard cutover per `rules/git-conventions.md` — there is no back-compat flag.
+ * `delivery.epicAudit` was removed on v2 (Story-only delivery — no
+ * epic-audit runner). Remediation policy lives on `delivery.codeReview`
+ * (`CODE_REVIEW_SCHEMA` imported from the quality schema module).
  */
-const EPIC_AUDIT_SCHEMA = {
-  type: 'object',
-  properties: {
-    maxFixAttempts: { type: 'integer', minimum: 0 },
-    maxFixScopeFiles: { type: 'integer', minimum: 1 },
-    autoFixSeverity: { type: 'string', enum: ['high', 'medium'] },
-  },
-  additionalProperties: false,
-};
 
 // Epic #4478 (M7-B) — role-scoped-agent kill-switch + maker-checker floor.
 // Stage 6 dropped `delivery.routing.singleDelivery` (v1 epic route switch).
@@ -208,13 +183,10 @@ const ROUTING_SCHEMA = {
   additionalProperties: false,
 };
 
-// Story #4356 (Epic #4355) — CI-aware delivery namespace. `earlyPr` gates
-// whether /deliver opens the Epic PR early (before every Story merges) so CI
-// starts warming while later waves run; defaults to `true` via getCiDelivery.
-// `watch.*` tunes the merge/CI watch poll loop (poll cadence, poll cap, and
-// how many times the watcher may resume after a transient stall).
-// `autoMerge` selects the merge posture: `"trust-ci"` (default) merges once
-// required checks pass, `"strict"` additionally requires a clean review gate.
+// Story #4356 (Epic #4355) — CI-aware delivery namespace. `watch.*` tunes
+// the merge/CI watch poll loop; `autoMerge` selects the merge posture.
+// Retired: `earlyPr` (Epic early-PR warmup) and `requireChecks` (no
+// AutomergePredicate reader on v2).
 const CI_WATCH_SCHEMA = {
   type: 'object',
   properties: {
@@ -228,32 +200,8 @@ const CI_WATCH_SCHEMA = {
 const CI_DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
-    earlyPr: { type: 'boolean' },
     watch: CI_WATCH_SCHEMA,
     autoMerge: { type: 'string', enum: ['trust-ci', 'strict'] },
-    // Story #4472 — fail-closed-without-checks policy. When `true`, the
-    // AutomergePredicate refuses to arm merge in a repo that reports zero
-    // required checks ("no checks reported"), treating the absence of a CI
-    // gate as a hard block instead of green. Defaults to `false` so a
-    // checks-less repo with green close-validation gates lands headlessly
-    // rather than parking on the operator-merges path.
-    requireChecks: { type: 'boolean' },
-  },
-  additionalProperties: false,
-};
-
-// Story #2899 (Epic #2880) — `delivery.preflight.*` thresholds consumed
-// by `epic-deliver-preflight.js`. When any value is exceeded the CLI
-// surfaces a breach in its envelope and the workflow flips the Epic to
-// `agent::blocked` (see /deliver Phase 1 prelude).
-const PREFLIGHT_SCHEMA = {
-  type: 'object',
-  properties: {
-    maxStories: { type: 'integer', minimum: 1 },
-    maxWaves: { type: 'integer', minimum: 1 },
-    maxInstallCostSeconds: { type: 'integer', minimum: 1 },
-    maxGithubApiRequests: { type: 'integer', minimum: 1 },
-    maxClaudeQuotaTokens: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };
@@ -341,7 +289,6 @@ export const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
     execution: EXECUTION_SCHEMA,
-    maxTokenBudget: { type: 'integer', minimum: 1 },
     lease: LEASE_SCHEMA,
     docsFreshness: DOCS_FRESHNESS_SCHEMA,
     deliverRunner: DELIVER_RUNNER_SCHEMA,
@@ -349,14 +296,12 @@ export const DELIVERY_SCHEMA = {
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
-    epicAudit: EPIC_AUDIT_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     routing: ROUTING_SCHEMA,
-    preflight: PREFLIGHT_SCHEMA,
   },
   additionalProperties: false,
 };

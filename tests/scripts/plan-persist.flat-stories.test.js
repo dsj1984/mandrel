@@ -126,13 +126,12 @@ describe('runPlanPersist — flat Story ops', () => {
 
   it('rejects hard model-capacity findings before issue creation', async () => {
     const provider = fakeProvider();
+    // Authored-tokens-only mass: pad Spec above hardSessionTokens: 100.
     const oversized = ticket('oversized');
-    oversized.acceptance = Array.from(
-      { length: 20 },
-      (_, index) => `criterion ${index}`,
-    );
+    const verboseSpec = 'x'.repeat(1200);
     oversized.body = serialize({
       goal: 'A cohesive but oversized session.',
+      spec: verboseSpec,
       changes: [
         {
           path: 'tests/scripts/plan-persist.flat-stories.test.js',
@@ -152,16 +151,10 @@ describe('runPlanPersist — flat Story ops', () => {
             stories: [oversized],
             riskVerdict: VERDICT,
           },
-          config: {
-            delivery: { maxTokenBudget: 1000 },
-            planning: {
-              modelCapacity: {
-                hardSessionFraction: 0.1,
-                softSessionFraction: 0.05,
-              },
-            },
+          opts: {
+            modelCapacity: { hardSessionTokens: 100, softSessionTokens: 50 },
+            skipCleanup: true,
           },
-          opts: { skipCleanup: true },
         }),
       /ticket validation failed.*oversized/s,
     );

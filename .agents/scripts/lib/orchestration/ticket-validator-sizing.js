@@ -2,11 +2,10 @@
  * Story sizing model — v2 model-capacity split advisory.
  *
  * Per-Story file/AC ceilings (`DEFAULT_TASK_SIZING.softFiles` /
- * `hardFiles` / `softAcceptanceCount`) are gone. A Story is
- * **session-capacity-sized**: the backstop asks whether one guarded session
- * can deliver and self-verify the Story at the current tier, keyed to the
- * delivery envelope (`maxTokenBudget`), not raw file counts. See
- * `docs/roadmap.md` § v2.0.0 design decision 2.
+ * `hardFiles` / `softAcceptanceCount`) are gone. A Story is sized by
+ * **cohesion first**; the numeric backstop only asks whether the authored
+ * Story ticket itself is pathologically verbose. See `docs/roadmap.md`
+ * § v2.0.0 design decision 2.
  *
  * Co-located with `ticket-validator.js`, but kept as its own module so the
  * validator's primary file stays under the maintainability ceiling. The
@@ -19,21 +18,17 @@
  * SKILL (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`) reference
  * these numbers rather than restating divergent ones — the prompt generates
  * its threshold sentence from this constant so the two surfaces cannot drift.
- * Keep it in lockstep with `.agents/schemas/agentrc.schema.json`
- * (`$defs.modelCapacity`) and the JS mirror in
- * `.agents/scripts/lib/config-settings-schema.js`.
  *
- * Capacity model (v2 Stage 2):
- *   - Plan-time **session mass** = authored tokens (`estimateTokens` of the
- *     Story's goal/reason/acceptance/verify/slicing/change paths) plus
- *     delivery-cost proxies (`tokensPerAcceptance` × AC count,
- *     `tokensPerChange` × declared non-glob file count).
- *   - Soft / hard ceilings are fractions of `maxTokenBudget`.
+ * Capacity model:
+ *   - Plan-time **session mass** = authored tokens only (`estimateTokens` of
+ *     the Story's goal/reason/acceptance/verify/slicing/spec/change paths).
+ *   - Soft / hard ceilings are **absolute** authored-token counts (no
+ *     `maxTokenBudget` denominator — that envelope was retired).
  *   - The optional `wide` declaration lifts the hard session-mass rejection.
- *   - Cohesion remains the primary heuristic; capacity is the backstop.
+ *   - Cohesion remains the primary heuristic; capacity is a pathological-
+ *     verbosity backstop only (not an operator-tunable agentrc knob).
  */
 
-import { LIMITS_DEFAULTS } from '../config/limits.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { estimateTokens } from './context-envelope.js';
 
@@ -102,59 +97,39 @@ function resolveDependsOn(story) {
 }
 
 /**
- * v2 model-capacity split advisory — replaces the retired file/AC
- * `DEFAULT_TASK_SIZING` ceilings. Thresholds are fractions of the delivery
- * envelope (`maxTokenBudget`): what one guarded session can deliver and
- * self-verify at the current tier.
+ * Framework capacity constant — not operator-tunable via `.agentrc.json`
+ * (same collapse pattern as `maxTickets` / Story #4163).
  *
- * Operator-overridable via `planning.modelCapacity`.
+ * Absolute authored-token ceilings (no delivery-envelope denominator):
+ *
+ * - Soft 30_000: cohesion check when the ticket itself is already a
+ *   substantial document. Normal capability Stories stay silent.
+ * - Hard 75_000: reject Spec novels unless `wide`.
+ * - Merge candidate 1_500: thin `depends_on` fragment (soft only).
+ *
+ * Cohesion / split policy / conflict advisories remain the primary sizing
+ * signal; these ceilings catch pathological ticket verbosity only.
  */
 export const DEFAULT_MODEL_CAPACITY = Object.freeze({
-  // Soft advisory: session mass above this fraction of maxTokenBudget
-  // nudges the author to check cohesion or declare `wide`.
-  // At the default 300k envelope → 12_000 tokens.
-  softSessionFraction: 0.04,
-  // Hard ceiling: session mass above this fraction rejects unless `wide`
-  // is declared. At the default 300k envelope → 30_000 tokens.
-  hardSessionFraction: 0.1,
-  // Plan-time delivery-cost proxies folded into session mass. Authored
-  // prose is counted via estimateTokens; these add the approximate
-  // per-AC / per-file cost of implementing and self-verifying in one pass.
-  tokensPerAcceptance: 500,
-  tokensPerChange: 350,
-  // Under-size (merge-candidate) ceiling as a fraction of maxTokenBudget.
-  // At the default 300k envelope → 1_500 tokens. A Story at or below this
-  // mass that also carries a `depends_on` edge looks like a dependent
-  // fragment. Soft advisory only.
-  mergeCandidateMaxSessionFraction: 0.005,
+  softSessionTokens: 30000,
+  hardSessionTokens: 75000,
+  mergeCandidateMaxSessionTokens: 1500,
 });
 
 /**
- * Absolute token ceilings derived from a capacity profile and the live
- * delivery envelope. Pure; used by the validator and the decomposer prompt.
+ * Resolve capacity ceilings, shallow-merging an optional override bag
+ * (tests / programmatic only). Pure; used by the validator and the
+ * decomposer prompt.
  *
  * @param {object} [capacity]
- * @param {number} [maxTokenBudget]
- * @returns {{ softSessionTokens: number, hardSessionTokens: number, mergeCandidateMaxSessionTokens: number, maxTokenBudget: number }}
+ * @returns {{ softSessionTokens: number, hardSessionTokens: number, mergeCandidateMaxSessionTokens: number }}
  */
-export function resolveCapacityCeilings(
-  capacity = DEFAULT_MODEL_CAPACITY,
-  maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
-) {
+export function resolveCapacityCeilings(capacity = DEFAULT_MODEL_CAPACITY) {
   const merged = { ...DEFAULT_MODEL_CAPACITY, ...(capacity ?? {}) };
-  const budget =
-    typeof maxTokenBudget === 'number' &&
-    Number.isFinite(maxTokenBudget) &&
-    maxTokenBudget > 0
-      ? maxTokenBudget
-      : LIMITS_DEFAULTS.maxTokenBudget;
   return {
-    softSessionTokens: Math.floor(budget * merged.softSessionFraction),
-    hardSessionTokens: Math.floor(budget * merged.hardSessionFraction),
-    mergeCandidateMaxSessionTokens: Math.floor(
-      budget * merged.mergeCandidateMaxSessionFraction,
-    ),
-    maxTokenBudget: budget,
+    softSessionTokens: merged.softSessionTokens,
+    hardSessionTokens: merged.hardSessionTokens,
+    mergeCandidateMaxSessionTokens: merged.mergeCandidateMaxSessionTokens,
   };
 }
 
@@ -170,7 +145,7 @@ export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   singleConsumerRule:
     '**Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.',
   envelopeFloor:
-    '**Envelope floor — under-utilizing the envelope is a merge signal.** A Story that would plausibly consume well under a third of the delivery envelope (`maxTokenBudget`) and is neither parallel-deliverable nor orthogonal to its siblings should be **merged into its consumer**. The fraction is illustrative, not a threshold — the point is that modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full delivery session (hydration, branch, PR, review, CI) per link. Merge such links up unless a parallelism or orthogonality reason justifies the separate slice.',
+    '**Thin dependent slices are a merge signal.** A Story that is neither parallel-deliverable nor orthogonal to its siblings — especially a short `depends_on` fragment whose only job is to feed one consumer — should be **merged into its consumer**. Modern frontier models one-shot capability-sized changes, so a chain of small dependent Stories needlessly pays a full delivery session (branch, PR, review, CI) per link. Merge such links up unless a parallelism or orthogonality reason justifies the separate slice.',
 });
 
 /**
@@ -301,20 +276,21 @@ function analyseChanges(changes) {
 /**
  * Estimate the plan-time session mass (tokens) for a Story.
  *
- * Authored prose is counted via {@link estimateTokens}; acceptance and
- * change-footprint proxies add the approximate delivery cost of implementing
- * and self-verifying in one guarded session. Glob entries contribute their
- * text to authored mass but not the per-file proxy (unknown width).
+ * Session mass is **authored prose only** — `estimateTokens` of the Story's
+ * goal / reason / acceptance / verify / slicing / spec / change-path text.
+ * File count and AC count do not add delivery-cost proxies (those recreated
+ * the retired count ceilings). Glob entries contribute their text but do not
+ * imply known width.
  *
  * @param {object} story
- * @param {object} capacity Merged capacity knobs.
+ * @param {object} [_capacity] Unused; retained so call sites that still pass
+ *   a capacity bag keep working. Mass no longer depends on capacity knobs.
  * @returns {{ sessionMass: number, authoredTokens: number, acceptanceCount: number, fileCount: number, hasGlobs: boolean, changesAnalysis: object }}
  */
 export function estimateStorySessionMass(
   story,
-  capacity = DEFAULT_MODEL_CAPACITY,
+  _capacity = DEFAULT_MODEL_CAPACITY,
 ) {
-  const merged = { ...DEFAULT_MODEL_CAPACITY, ...(capacity ?? {}) };
   const body = resolveStoryBody(story);
   const acceptance = resolveAcceptance(story);
   const verify = resolveVerify(story);
@@ -324,6 +300,7 @@ export function estimateStorySessionMass(
   const authoredParts = [
     body?.goal,
     body?.reason_to_exist,
+    typeof body?.spec === 'string' ? body.spec : '',
     ...acceptance.map((a) => String(a ?? '')),
     ...verify.map((v) => String(v ?? '')),
     typeof body?.slicing === 'string' ? body.slicing : '',
@@ -331,19 +308,11 @@ export function estimateStorySessionMass(
   ].filter((p) => typeof p === 'string' && p.length > 0);
 
   const authoredTokens = estimateTokens(authoredParts.join('\n'));
-  const acceptanceCount = acceptance.length;
-  const changeContribution = changesAnalysis.hasGlobs
-    ? 0
-    : changesAnalysis.fileCount * merged.tokensPerChange;
-  const sessionMass =
-    authoredTokens +
-    acceptanceCount * merged.tokensPerAcceptance +
-    changeContribution;
 
   return {
-    sessionMass,
+    sessionMass: authoredTokens,
     authoredTokens,
-    acceptanceCount,
+    acceptanceCount: acceptance.length,
     fileCount: changesAnalysis.fileCount,
     hasGlobs: changesAnalysis.hasGlobs,
     changesAnalysis,
@@ -406,8 +375,7 @@ function computeStorySizingFindings(story, capacity, ceilings) {
   out.push(...computeMissingReasonToExistFinding(story));
   out.push(...computeMergeCandidateFinding(story, mass, ceilings));
 
-  // Glob entries mark the change footprint as unknown-width: the per-file
-  // proxy is skipped (already reflected in sessionMass). A non-wide Story
+  // Glob entries mark the change footprint as unknown-width. A non-wide Story
   // carrying globs still gets an informational nudge to declare `wide` when
   // the authored mass alone does not already trip a capacity finding.
   if (mass.hasGlobs && !declaredWide) {
@@ -450,23 +418,19 @@ function computeStorySizingFindings(story, capacity, ceilings) {
  * Compute the full structured findings array for a normalized ticket
  * hierarchy.
  *
- * @param {{ stories: object[], sizing?: object, capacity?: object, maxTokenBudget?: number }} input
+ * @param {{ stories: object[], sizing?: object, capacity?: object }} input
  * @returns {object[]}
  */
-export function computeSizingFindings({
-  stories,
-  sizing,
-  capacity,
-  maxTokenBudget,
-}) {
+export function computeSizingFindings({ stories, sizing, capacity }) {
   // `sizing` remains accepted as a synonym for `capacity` so call sites that
-  // still pass the historical option name keep working during the Stage-2
-  // consumer sweep; new code should pass `capacity`.
+  // still pass the historical option name keep working; new code should pass
+  // `capacity`. Capacity overrides are test / programmatic only — not read
+  // from `.agentrc.json`.
   const merged = {
     ...DEFAULT_MODEL_CAPACITY,
     ...(capacity ?? sizing ?? {}),
   };
-  const ceilings = resolveCapacityCeilings(merged, maxTokenBudget);
+  const ceilings = resolveCapacityCeilings(merged);
   const findings = [];
   for (const story of stories ?? []) {
     findings.push(...computeStorySizingFindings(story, merged, ceilings));

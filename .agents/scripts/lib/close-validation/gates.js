@@ -146,7 +146,7 @@ function enabledBaselineKinds(config) {
  * `delivery.quality.requireBaselines: true`. Default false — a consumer that
  * enables baseline gates but has not committed baseline artifacts gets a
  * clean skip (see `probeBaselinesGate`) rather than a deterministic first-try
- * close failure. Mirrors the `delivery.ci.requireChecks` escape hatch (#4472).
+ * close failure. Fail-closed baseline posture (#4495).
  *
  * @param {object|undefined|null} config
  * @returns {boolean}

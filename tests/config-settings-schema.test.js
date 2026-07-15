@@ -222,47 +222,32 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('accepts planning.modelCapacity knobs (v2 Stage 2)', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: {
-          modelCapacity: {
-            softSessionFraction: 0.05,
-            hardSessionFraction: 0.12,
-            tokensPerAcceptance: 400,
-            tokensPerChange: 300,
-            mergeCandidateMaxSessionFraction: 0.006,
-          },
-        },
-      }),
-      true,
-    );
-  });
-
-  it('rejects the retired planning.taskSizing key (v2 Stage 2)', () => {
-    // File/AC ceilings were replaced by modelCapacity; additionalProperties
-    // false on the planning block rejects the retired key.
+  it('rejects planning.modelCapacity — collapsed to a framework constant', () => {
+    // Session-capacity thresholds live only as DEFAULT_MODEL_CAPACITY.
+    // `additionalProperties: false` on the planning block rejects the
+    // removed key (same pattern as planning.maxTickets / Story #4163).
     expectErrors(
       {
         ...REQ,
         planning: {
-          taskSizing: { softFiles: 15, hardFiles: 30 },
+          modelCapacity: {
+            softSessionTokens: 20000,
+            hardSessionTokens: 60000,
+          },
         },
       },
       /additional propert/i,
     );
   });
 
-  it('rejects retired file-ceiling knobs inside planning.modelCapacity', () => {
+  it('rejects the retired planning.taskSizing key (v2 Stage 2)', () => {
+    // File/AC ceilings were replaced by DEFAULT_MODEL_CAPACITY; additionalProperties
+    // false on the planning block rejects the retired key.
     expectErrors(
       {
         ...REQ,
         planning: {
-          modelCapacity: {
-            softFiles: 15,
-            hardFiles: 30,
-          },
+          taskSizing: { softFiles: 15, hardFiles: 30 },
         },
       },
       /additional propert/i,

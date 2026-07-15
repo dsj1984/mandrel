@@ -1,13 +1,9 @@
 {
-  "description": "v2 model-capacity profile mirrored from DEFAULT_MODEL_CAPACITY in ticket-validator-sizing.js and drift-gated by tests/sizing-ab-calibration.test.js. Historical old/new file-ceiling blocks are retained only as archival notes from the pre-v2 A/B (Story #3877).",
+  "description": "v2 model-capacity profile mirrored from DEFAULT_MODEL_CAPACITY in ticket-validator-sizing.js and drift-gated by tests/sizing-ab-calibration.test.js. Historical old/new file-ceiling blocks are retained only as archival notes from the pre-v2 A/B (Story #3877). AC/file delivery-cost proxies were retired; session mass is authored tokens only.",
   "capacity": {
-    "softSessionFraction": 0.04,
-    "hardSessionFraction": 0.1,
-    "tokensPerAcceptance": 500,
-    "tokensPerChange": 350,
-    "mergeCandidateMaxSessionFraction": 0.005,
-    "softSessionTokens": 12000,
-    "hardSessionTokens": 30000
+    "softSessionTokens": 30000,
+    "hardSessionTokens": 75000,
+    "mergeCandidateMaxSessionTokens": 1500
   },
   "old": {
     "softFiles": 5,

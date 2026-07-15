@@ -20,7 +20,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { getLimits, resolvePreflightCeilings } from '../config-resolver.js';
+import { getLimits } from '../config-resolver.js';
 import { findSimilarOpenStories } from '../duplicate-search.js';
 import { Logger } from '../Logger.js';
 import {
@@ -321,18 +321,16 @@ export function buildDeliveryShapeSignal({ body } = {}) {
  * authoritative from day one); the decompose prompt reuses the existing
  * Story #4162 carrier including the risk-heuristics suffix.
  *
- * @param {{ heuristics?: string[], maxTickets?: number, maxTokenBudget?: number, epicId?: number|null }} args
+ * @param {{ heuristics?: string[], maxTickets?: number, epicId?: number|null }} args
  * @returns {{ spec: string, acceptance: string, decompose: string }}
  */
 export function buildSystemPrompts({
   heuristics = [],
   maxTickets,
-  maxTokenBudget,
   epicId = null,
 } = {}) {
   const decompose = buildDecomposerSystemPrompt(heuristics, {
     maxTickets,
-    maxTokenBudget,
     epicId,
   });
   return {
@@ -465,13 +463,10 @@ async function buildOnePagerModeEnvelope({
     priorFeedback: authoring.priorFeedback,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
     maxTickets: limits.maxTickets,
-    maxTokenBudget: limits.maxTokenBudget,
-    preflightCeilings: resolvePreflightCeilings(config),
     riskHeuristics: heuristics,
     systemPrompts: buildSystemPrompts({
       heuristics,
       maxTickets: limits.maxTickets,
-      maxTokenBudget: limits.maxTokenBudget,
       epicId: null,
     }),
     planState: null,
@@ -626,13 +621,10 @@ async function buildTicketsModeEnvelope({
     priorFeedback: authoring.priorFeedback,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
     maxTickets: limits.maxTickets,
-    maxTokenBudget: limits.maxTokenBudget,
-    preflightCeilings: resolvePreflightCeilings(config),
     riskHeuristics: heuristics,
     systemPrompts: buildSystemPrompts({
       heuristics,
       maxTickets: limits.maxTickets,
-      maxTokenBudget: limits.maxTokenBudget,
       epicId: null,
     }),
     planState: null,

@@ -26,20 +26,12 @@ import {
  * `epic-plan-decompose/phases/context.js`) instead, so the two surfaces cannot
  * drift. A guard test (`tests/ticket-decomposer.test.js`) fails if the SKILL
  * re-grows a full copy of the prompt preamble.
- *
- * **Token-budget sizing input (Story #4162).** `maxTokenBudget` is the real
- * one-pass delivery envelope (the task-prompt hydration cap surfaced into the
- * authoring envelope by `context.js`, Story #3875). It is threaded into the
- * rendered prompt as a sizing input so the planner sizes Stories against the
- * envelope a single agent can actually deliver in one pass, rather than leading
- * with the file-count proxy alone.
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
-  maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
   epicId = null,
 } = {}) {
-  return render2TierPrompt({ maxTickets, maxTokenBudget, epicId });
+  return render2TierPrompt({ maxTickets, epicId });
 }
 
 /**
@@ -48,23 +40,16 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
+function render2TierPrompt({ maxTickets, epicId = null }) {
   // v2 Stage 3: default-single — emit one Story unless the split policy clears.
   // Capacity thresholds are sourced from the single DEFAULT_MODEL_CAPACITY
   // constant (ticket-validator-sizing.js) so the prompt and the validator
-  // cannot drift. Absolute ceilings are derived from the live maxTokenBudget.
-  const {
-    softSessionFraction,
-    hardSessionFraction,
-    tokensPerAcceptance,
-    tokensPerChange,
-  } = DEFAULT_MODEL_CAPACITY;
+  // cannot drift.
   const { softSessionTokens, hardSessionTokens } = resolveCapacityCeilings(
     DEFAULT_MODEL_CAPACITY,
-    maxTokenBudget,
   );
   // Deliverable-granularity definition + single-consumer merge rule + the
-  // soft envelope-floor heuristic are sourced from the single
+  // thin-dependent merge heuristic are sourced from the single
   // DELIVERABLE_GRANULARITY_GUIDANCE constant (ticket-validator-sizing.js) so
   // the prompt and the authoring SKILL cannot drift (Story #3777; the
   // envelope-floor sentence added by Story #4313).
@@ -182,33 +167,31 @@ ${advisoryCaveat}
 
 **Decompose at deliverable granularity, not module/task level.** ${granularityDefinition}
 
-The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial rename from a hard parser+caller+config change — so lead with the change's reason, not its size.
-
-**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The session-mass thresholds below are a coarse backstop on top of this envelope, not the primary signal.
+The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial rename from a hard parser+caller+config change — so lead with the change's reason, not its size. Frontier models one-shot capability-sized work in a single pass — do not fragment a coherent capability into dependent slices just to stay "small."
 
 ${envelopeFloor}
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one. State that sentence explicitly in the Story's \`reason_to_exist\` meta field (see STORY BODY RULES) so the consolidate critic can check it.
 - ${singleConsumerRule}
 - **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
-- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover whose session mass is high for one reason). Declaring \`wide\` lifts the hard session-mass ceiling — see below.
+- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover whose authored ticket mass is high for one reason). Declaring \`wide\` lifts the hard session-mass ceiling — see below.
 
-**Capacity backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_MODEL_CAPACITY\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift. Absolute ceilings are derived from the live \`maxTokenBudget\`:
+**Capacity backstop (validator-enforced).** Absolute authored-token ceilings from the single \`DEFAULT_MODEL_CAPACITY\` constant in \`ticket-validator-sizing.js\` — not operator-tunable. They catch Spec novels, not capability-sized Stories:
 
-- Soft advisory (\`softSessionFraction = ${softSessionFraction}\` → **${softSessionTokens} tokens**): estimated session mass above this emits a nudge to check cohesion or declare \`wide\`.
-- Hard ceiling (\`hardSessionFraction = ${hardSessionFraction}\` → **${hardSessionTokens} tokens**): estimated session mass above this is **rejected** unless the Story declares \`wide\` with a reason.
-- Session mass = authored tokens + \`${tokensPerAcceptance}\` per acceptance item + \`${tokensPerChange}\` per declared non-glob change path. A long binding contract raises session mass (and may soft-nudge) but is never by itself a reason to fragment one coherent capability into dependent slices.
+- Soft advisory (**${softSessionTokens} tokens**): authored session mass above this emits a nudge to check cohesion or declare \`wide\`.
+- Hard ceiling (**${hardSessionTokens} tokens**): authored session mass above this is **rejected** unless the Story declares \`wide\` with a reason.
+- Session mass = **authored tokens only** (goal / reason / Spec / acceptance / verify / slicing / change-path text). File count and AC count do **not** inflate mass — a long binding contract or a broad file footprint is never by itself a reason to fragment one coherent capability into dependent slices.
 
 #### DELIVERY-SCHEDULE SIMULATION — the story count must earn itself:
 
 Before emitting, simulate the delivery schedule your plan implies, and judge the plan by its schedule — not by how tidy the taxonomy looks:
 
 1. **Build the wave schedule.** A Story runs only after every \`depends_on\` completes, and two Stories that name the same file in \`changes[]\` cannot run in the same wave (the scheduler serializes file-overlapping Stories even when no \`depends_on\` edge links them).
-2. **Compute the parallelism yield**: story count ÷ critical-path length in waves. A yield near 1.0 means the plan is a serial chain — N Stories that deliver no faster than one Story while paying N delivery sessions (hydration, branch, PR, review, CI).
+2. **Compute the parallelism yield**: story count ÷ critical-path length in waves. A yield near 1.0 means the plan is a serial chain — N Stories that deliver no faster than one Story while paying N delivery sessions (branch, PR, review, CI).
 3. **Every Story must earn its slot** by at least one of:
    - **(a) parallelism** — it actually runs concurrently with a sibling in the schedule you just built ("logically independent" does not count; *schedule*-independent does);
    - **(b) risk isolation** — it isolates a consumer-facing behavior change or high-risk cutover into its own reviewable, revertable unit;
-   - **(c) envelope pressure** — merged into its neighbor it would exceed the one-pass delivery envelope (\`maxTokenBudget\`).
+   - **(c) cohesion break** — merged into its neighbor it would no longer be one coherent change with one reason to exist.
 4. **A dependent link with none of those justifications merges into its consumer.** This generalizes the single-consumer merge rule from pairs to chains.
 5. **Hot-file rule.** When one file appears in the \`changes[]\` of more than a third of your Stories, the slicing axis cuts across a shared seam — merge the Stories that co-edit it, or re-slice along the seam so each Story owns its files.
 

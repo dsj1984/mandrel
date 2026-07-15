@@ -13,11 +13,10 @@ import { renderDecomposerSystemPrompt } from '../../templates/decomposer-prompts
 
 export function buildDecomposerSystemPrompt(
   heuristics = [],
-  { maxTickets, maxTokenBudget, epicId } = {},
+  { maxTickets, epicId } = {},
 ) {
   const base = renderDecomposerSystemPrompt({
     maxTickets,
-    maxTokenBudget,
     epicId,
   });
   const heuristicsStr =
