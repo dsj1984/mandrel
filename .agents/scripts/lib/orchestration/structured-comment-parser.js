@@ -2,7 +2,7 @@
  * structured-comment-parser.js — shared parser for fenced-JSON structured
  * comments.
  *
- * Several callers (epic-runner Checkpointer, ProgressReporter
+ * Several callers (the deleted epic-runner Checkpointer/ProgressReporter,
  * `parseStoryRunProgressComment` / `parsePhaseTimingsComment`, wave-gate's
  * local `extractJsonBlock`) need to extract the `{...}` payload from the
  * fenced ```json``` block of a structured comment body. They had each open-

@@ -29,8 +29,8 @@
 import {
   applyEpsilon as bundleSizeApplyEpsilon,
   compare as bundleSizeCompare,
-  keyField as bundleSizeKeyField,
   kernelVersion as bundleSizeKernelVersion,
+  keyField as bundleSizeKeyField,
   mergeRows as bundleSizeMergeRows,
   name as bundleSizeName,
   projectRow as bundleSizeProjectRow,
@@ -40,8 +40,8 @@ import {
 import {
   applyEpsilon as coverageApplyEpsilon,
   compare as coverageCompare,
-  keyField as coverageKeyField,
   kernelVersion as coverageKernelVersion,
+  keyField as coverageKeyField,
   mergeRows as coverageMergeRows,
   name as coverageName,
   projectRow as coverageProjectRow,
@@ -51,8 +51,8 @@ import {
 import {
   applyEpsilon as crapApplyEpsilon,
   compare as crapCompare,
-  keyField as crapKeyField,
   kernelVersion as crapKernelVersion,
+  keyField as crapKeyField,
   mergeRows as crapMergeRows,
   name as crapName,
   projectRow as crapProjectRow,
@@ -62,8 +62,8 @@ import {
 import {
   applyEpsilon as duplicationApplyEpsilon,
   compare as duplicationCompare,
-  keyField as duplicationKeyField,
   kernelVersion as duplicationKernelVersion,
+  keyField as duplicationKeyField,
   mergeRows as duplicationMergeRows,
   name as duplicationName,
   projectRow as duplicationProjectRow,
@@ -73,8 +73,8 @@ import {
 import {
   applyEpsilon as lighthouseApplyEpsilon,
   compare as lighthouseCompare,
-  keyField as lighthouseKeyField,
   kernelVersion as lighthouseKernelVersion,
+  keyField as lighthouseKeyField,
   mergeRows as lighthouseMergeRows,
   name as lighthouseName,
   projectRow as lighthouseProjectRow,
@@ -84,8 +84,8 @@ import {
 import {
   applyEpsilon as lintApplyEpsilon,
   compare as lintCompare,
-  keyField as lintKeyField,
   kernelVersion as lintKernelVersion,
+  keyField as lintKeyField,
   mergeRows as lintMergeRows,
   name as lintName,
   projectRow as lintProjectRow,
@@ -95,8 +95,8 @@ import {
 import {
   applyEpsilon as maintainabilityApplyEpsilon,
   compare as maintainabilityCompare,
-  keyField as maintainabilityKeyField,
   kernelVersion as maintainabilityKernelVersion,
+  keyField as maintainabilityKeyField,
   mergeRows as maintainabilityMergeRows,
   name as maintainabilityName,
   projectRow as maintainabilityProjectRow,
@@ -106,8 +106,8 @@ import {
 import {
   applyEpsilon as mutationApplyEpsilon,
   compare as mutationCompare,
-  keyField as mutationKeyField,
   kernelVersion as mutationKernelVersion,
+  keyField as mutationKeyField,
   mergeRows as mutationMergeRows,
   name as mutationName,
   projectRow as mutationProjectRow,

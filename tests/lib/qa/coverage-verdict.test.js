@@ -159,10 +159,7 @@ describe('skip / pending awareness', () => {
   });
 
   it('isSkipped detects a @skip tag in a whitespace string', () => {
-    assert.equal(
-      isSkipped({ path: 'a.feature', tags: '@smoke @skip' }),
-      true,
-    );
+    assert.equal(isSkipped({ path: 'a.feature', tags: '@smoke @skip' }), true);
   });
 
   it('isSkipped honors explicit skipped / pending boolean flags', () => {

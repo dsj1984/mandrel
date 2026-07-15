@@ -2,8 +2,8 @@
  * emit-story-heartbeat.js — Story #3057.
  *
  * Programmatic helper that appends a single `story.heartbeat` NDJSON
- * record to `temp/epic-<id>/lifecycle.ndjson` during a Story's
- * implementation loop. Story-implementation phases can run for many
+ * record to the Story lifecycle ledger (`temp/.../lifecycle.ndjson` via
+ * `lib/config/temp-paths.js`) during a Story's implementation loop. Story-implementation phases can run for many
  * minutes between dispatch and merge; `story.heartbeat` is the
  * inspectable in-progress signal the host-loop reconciler reads to
  * confirm forward progress.

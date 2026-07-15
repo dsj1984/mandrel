@@ -7,7 +7,7 @@
  *    one `JSON.parse`-able payload (Logger output routed to stderr).
  *  - envelope schema snapshot: the sorted key set per mode.
  *  - mode-specific field presence: `duplicates`/`seed` in seed-file mode
- *    (`seed.content`); seed mode carries `seed.text`/`onePagerSpec`.
+ *    (`seed.content`); seed mode carries `seed.text`.
  *  - dup-search fold parity: envelope `duplicates[]` deep-equals a direct
  *    `findSimilarOpenStories` call over the same provider + seed.
  *  - envelope byte ceiling: serialized envelopes stay under
@@ -29,7 +29,6 @@ import {
   buildPlanContext,
   buildScopeTriageSignal,
   buildSystemPrompts,
-  ONE_PAGER_AUTHORING_SPEC,
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
@@ -128,7 +127,6 @@ const SEED_MODE_KEYS = [
   'maxTickets',
   'memoryFreshness',
   'mode',
-  'onePagerSpec',
   'planProfile',
   'planState',
   'priorFeedback',
@@ -172,7 +170,7 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.equal(env.planState, null);
   });
 
-  it('seed mode emits the one-pager key set plus the additive seed fields (#4496)', async () => {
+  it('seed mode emits the seed-mode key set (#4496)', async () => {
     const env = await buildPlanContext({
       mode: 'seed',
       seedText: ONE_PAGER,
@@ -187,15 +185,11 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
       !('onePager' in env),
       'the legacy onePager field must not appear in seed mode',
     );
+    assert.ok(
+      !('onePagerSpec' in env),
+      'the retired onePagerSpec descriptor must not appear in seed mode',
+    );
     assert.equal(env.planState, null);
-    assert.deepEqual(env.onePagerSpec, ONE_PAGER_AUTHORING_SPEC);
-    assert.deepEqual(env.onePagerSpec.sections, [
-      'Problem Statement',
-      'Recommended Direction',
-      'Key Assumptions',
-      'MVP Scope',
-      'Not Doing',
-    ]);
   });
 
   it('rejects an unknown mode and an empty seed', async () => {
@@ -226,7 +220,10 @@ describe('plan-context mode-specific field presence', () => {
     });
     assert.ok(Array.isArray(opEnv.duplicates));
     assert.equal(opEnv.seed.content, ONE_PAGER);
-    assert.ok(!('text' in opEnv.seed), 'seed.text must not leak into seed-file mode');
+    assert.ok(
+      !('text' in opEnv.seed),
+      'seed.text must not leak into seed-file mode',
+    );
     assert.ok(
       !('onePagerSpec' in opEnv),
       'onePagerSpec must not leak into seed-file mode',

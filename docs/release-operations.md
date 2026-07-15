@@ -193,23 +193,25 @@ published — release-please still tags `main` and creates the GitHub
 Release regardless, so a publish failure here does not block the release
 itself, only the npm artifact.
 
-### Major-version policy
+### Versioning policy
 
-`release-please-config.json` sets `"versioning": "always-bump-minor"`,
-which caps automatic bumps at the minor axis even when commits carry
-`BREAKING CHANGE:` footers or `!` markers. Major versions require
-**manual operator intervention**:
+`release-please-config.json` uses the default **node** versioning strategy
+(standard Conventional Commits):
 
-1. Land the breaking work on `main` as usual (Conventional Commits).
-2. On the release PR that release-please opens, either:
-   - **Edit `package.json`, `.release-please-manifest.json`, and
-     `docs/CHANGELOG.md` in-place** on the release branch to set the
-     major version (release-please will respect the edits and tag
-     accordingly), OR
-   - **Add a one-shot commit on `main`** with `Release-As: X.0.0` in
-     the trailer — release-please will adopt that as the proposed
-     version on its next run.
+| Commit signal | Bump |
+| ------------- | ---- |
+| `fix:` / `perf:` (no breaking marker) | patch |
+| `feat:` (no breaking marker) | minor |
+| `BREAKING CHANGE:` footer or `feat!:` / `fix!:` | major |
 
-The cap is intentional: it prevents an inadvertent `BREAKING CHANGE:`
-footer from auto-tagging a major release without an explicit human
-decision.
+v2.0.0 was cut by landing the Story-collapse work with an explicit
+`BREAKING CHANGE` changelog section and version files already at `2.0.0`.
+Subsequent releases follow the table above automatically — no
+`always-bump-minor` cap and no required `Release-As:` trailer for majors.
+
+Operators who want to **force** a specific next version (skip a bump, or
+re-cut after a mistaken tag) can still:
+
+1. Edit `package.json`, `.release-please-manifest.json`, and
+   `docs/CHANGELOG.md` on the release PR branch, or
+2. Land a one-shot commit with `Release-As: X.Y.Z` in the trailer.

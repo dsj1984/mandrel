@@ -655,8 +655,6 @@ Important schema groups:
 - Runtime reports: audit results, CRAP and maintainability reports,
   performance summaries, friction and signal events, and validation
   evidence.
-- Dispatch: `dispatch-manifest.json`, the dispatch manifest schema
-  written by `dispatcher.js`.
 
 Schema conventions:
 
@@ -686,10 +684,10 @@ the factory defaults to `[{ name: "native" }]`.
     "codeReview": {
       "providers": [
         { "name": "native" },
-        { "name": "security-review", "scopes": ["epic"], "optional": true },
+        { "name": "security-review", "scopes": ["story"], "optional": true },
         {
           "name": "ultrareview",
-          "scopes": ["epic"],
+          "scopes": ["story"],
           "manualPrompt": true,
           "when": { "label": "risk::high" }
         }
@@ -811,13 +809,13 @@ To opt in, set three fields on `delivery.worktreeIsolation` in your root
 - **`primeFromPath`** — relative path (from the repo root) to the donor
   worktree whose `node_modules/` is reused. `"."` means the root
   checkout, which must already have `node_modules/` populated before a
-  Story initializes. `story-init.js` enforces this with a pre-check.
+  Story initializes. `single-story-init.js` enforces this with a pre-check.
 - **`allowSymlinkOnWindows`** — required on Windows. The strategy uses
   junctions (no admin rights needed) on Windows when this is `true`; it
   refuses with an explanatory error otherwise, because symlink semantics
   vary by Windows version.
 
-Once these are set, `story-init.js` skips `npm ci` in the worktree and
+Once these are set, `single-story-init.js` skips `npm ci` in the worktree and
 junctions/symlinks `node_modules` from the donor — typical cold-start
 falls from minutes to under a second.
 

@@ -145,11 +145,11 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
 /**
  * Mirror the post-flip label set onto the GitHub Projects v2 Status
  * column. Story #2548 — wiring this here makes every caller of
- * `transitionTicketState` (story-init, story-close, story-phase,
- * the LabelTransitioner lifecycle listener, the update-ticket-state CLI,
- * batch transitions) update the board automatically. Prior to #2548 the
- * sync was only wired from the epic-runner against the Epic ticket, so
- * Stories and Tasks never had their `agent::executing` /
+ * `transitionTicketState` (`single-story-init.js`, `single-story-close.js`,
+ * `story-phase.js`, the LabelTransitioner lifecycle listener, the
+ * update-ticket-state CLI, batch transitions) update the board automatically.
+ * Prior to #2548 the sync was only wired from the deleted epic-runner against
+ * the Epic ticket, so Stories and Tasks never had their `agent::executing` /
  * `agent::blocked` flips reflected on the board.
  *
  * Best-effort: a project-board misconfig, missing scope, or transient

@@ -25,7 +25,8 @@ describe('maxTokenBudget absent from LIMITS_DEFAULTS (Story #3875)', () => {
     assert.equal('maxTokenBudget' in resolveLimits({}), false);
     assert.equal('maxTokenBudget' in resolveLimits(undefined), false);
     assert.equal(
-      'maxTokenBudget' in resolveLimits({ delivery: { maxTokenBudget: 12345 } }),
+      'maxTokenBudget' in
+        resolveLimits({ delivery: { maxTokenBudget: 12345 } }),
       false,
     );
   });

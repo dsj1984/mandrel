@@ -85,7 +85,9 @@ describe('collectTaskBodyErrors — path-shape and string-bullet rejection', () 
       }),
     ]);
     assert.ok(
-      errs.some((e) => /must declare at least one \{ path, assumption \} object/.test(e)),
+      errs.some((e) =>
+        /must declare at least one \{ path, assumption \} object/.test(e),
+      ),
       errs.join('\n'),
     );
   });
@@ -107,7 +109,9 @@ describe('collectTaskBodyErrors — path-shape and string-bullet rejection', () 
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
-        changes: [{ path: 'src/components/Form.tsx', assumption: 'refactors-existing' }],
+        changes: [
+          { path: 'src/components/Form.tsx', assumption: 'refactors-existing' },
+        ],
       }),
     ]);
     assert.deepEqual(errs, []);
@@ -117,7 +121,9 @@ describe('collectTaskBodyErrors — path-shape and string-bullet rejection', () 
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
-        changes: [{ path: 'tests/e2e/*.spec.ts', assumption: 'refactors-existing' }],
+        changes: [
+          { path: 'tests/e2e/*.spec.ts', assumption: 'refactors-existing' },
+        ],
       }),
     ]);
     assert.deepEqual(errs, []);
@@ -282,7 +288,10 @@ describe('validateTaskBodyShape (predicate)', () => {
       name: 'changes plain string bullet rejected',
       body: {
         ...validStoryBody,
-        changes: ['clean up things', { path: 'src/x.ts', assumption: 'refactors-existing' }],
+        changes: [
+          'clean up things',
+          { path: 'src/x.ts', assumption: 'refactors-existing' },
+        ],
       },
       expectIncludes: 'plain string bullets are no longer accepted',
     },

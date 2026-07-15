@@ -89,7 +89,9 @@ describe('parseStandardCliArgs — per-flag coercion (one assertion per flag)', 
 
 describe('parseStandardCliArgs — ticket coercion edge cases', () => {
   it('invalid ticket values resolve to null (not NaN)', () => {
-    const { values } = parseStandardCliArgs({ argv: ['--epic', 'not-a-number'] });
+    const { values } = parseStandardCliArgs({
+      argv: ['--epic', 'not-a-number'],
+    });
     assert.equal(values.epicId, null);
   });
 

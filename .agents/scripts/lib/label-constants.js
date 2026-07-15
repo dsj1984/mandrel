@@ -1,8 +1,8 @@
 /**
  * Central source of truth for all GitHub label names used by the orchestrator.
  *
- * Every other module (label-taxonomy, dispatch-engine, story-close,
- * etc.) should import from here rather than using string literals. Renames
+ * Every other module (label-taxonomy, single-story-close.js,
+ * stories-wave-tick.js, etc.) should import from here rather than using string literals. Renames
  * land in one place.
  */
 

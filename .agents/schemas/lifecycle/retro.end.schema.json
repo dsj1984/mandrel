@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/retro.end.schema.json",
   "title": "retro.end",
-  "description": "Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/epic-<id>/ when written. Story #2252.",
+  "description": "Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/run-<id>/ when written. Story #2252.",
   "type": "object",
   "required": ["epicId", "posted"],
   "properties": {

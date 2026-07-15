@@ -313,7 +313,7 @@ ratchet.
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. Wired into `post-merge-pipeline` (Story mode) and Epic close Phase 6.0 (Epic mode) in Epic #1114. |
+| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (and the historical `epic-perf-report` shape when reading archived Epic-mode ledgers). Wired from `helpers/deliver-story` / `single-story-close` on the live Story path. |
 | `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
 
 ---
@@ -347,7 +347,7 @@ authoritative SDK.
 | `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
 | `hydrate-context.js`                       | CLI      | `hydrate-context.js --ticket <id> [--epic <id>]` emits the `{"prompt": …}` JSON envelope. `--emit envelope` emits the raw envelope; `--emit prompt` writes the raw hydrated prompt (no JSON wrapper). The only supported hydration entry point. |
 | `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story reaches `agent::done`.                                    |
-| `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/plan` Phase 3.                                                           |
+| `dispatcher.js`                            | CLI      | **Deleted in v2.** Pre-v2 DAG / wave / dispatch-manifest CLI. Multi-Story ordering now uses `stories-wave-tick.js` + `lib/wave-runner/ready-set.js`. |
 | `process.env`-only secrets resolution      | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is not consulted as a secrets backstop.       |
 
 ---
@@ -412,9 +412,14 @@ before it reaches disk.
 
 ---
 
-## Retro Heuristic
+## Retro Heuristic (historical)
+
+> **Removed in v2.** The `epic-retro` helper and `lib/orchestration/retro-heuristics.js`
+> (`isCleanManifest`) were deleted with the Epic delivery path. Compact vs full
+> retro branching no longer applies; keep this section only as a glossary for
+> archived docs that still name the predicate.
 
 | Term                       | Kind     | Definition                                                                                                                                                |
 | -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of the `epic-retro` helper. |
-| `--full-retro`             | CLI flag | `/deliver` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |
+| `isCleanManifest(signals)` | Predicate | *(deleted)* Formerly returned `true` iff friction/parked/recuts/hotfixes/hitl were all zero. |
+| `--full-retro`             | CLI flag | *(deleted)* Former `/deliver` override forcing the six-section retro body. |

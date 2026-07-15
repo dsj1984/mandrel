@@ -102,7 +102,9 @@ export function parseSprintArgs(args = process.argv) {
       null,
     recutOf: parseTicketId(values['recut-of']),
     // Story #4253: pre-resolved Epic linkage threaded by the /deliver
-    // fan-out so `story-init.js` can skip the per-Story `getEpic` round-trip.
+    // fan-out so `single-story-init.js` can skip redundant Epic lookups when
+    // the parent already threaded Epic context (pre-v2; field retained for
+    // CLI compatibility).
     resume: values.resume ?? false,
     restart: values.restart ?? false,
     noEvidence: values['no-evidence'] ?? false,

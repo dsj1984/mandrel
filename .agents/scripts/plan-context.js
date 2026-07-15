@@ -9,8 +9,7 @@
  * Two operator modes (exactly one is required):
  *
  *   --seed "<text>"           Chat/text ideation. Dup search runs off the
- *                             raw seed; envelope carries `seed` +
- *                             `onePagerSpec`.
+ *                             raw seed; envelope carries `seed`.
  *
  *   --seed-file <path>        Same as --seed, but the corpus is read from
  *                             disk (audit-to-stories handoff, notes).

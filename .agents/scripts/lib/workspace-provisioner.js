@@ -145,7 +145,7 @@ export function provision({
 /**
  * Throw if any required workspace file is missing from `worktree`. Used as a
  * runtime guard (called right after every worktree create in
- * `story-init.js`) and as a test oracle.
+ * `single-story-init.js`) and as a test oracle.
  *
  * When `sourceRoot` is supplied, the thrown error carries the missing target
  * path and an exact `cp`/`copy` command the operator can paste to remediate.

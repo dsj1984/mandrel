@@ -52,10 +52,20 @@ function makeStory(slug, body = {}, extras = {}) {
 test('emits shared-editor finding when two Stories in the same wave write the same path', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
     }),
     makeStory('s-b', {
-      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
     }),
   ];
   const result = validateAndNormalizeTickets(tickets);
@@ -74,11 +84,23 @@ test('emits shared-editor finding when two Stories in the same wave write the sa
 test('does not emit shared-editor finding when depends_on serialises the writers', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
     }),
     makeStory(
       's-b',
-      { changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }] },
+      {
+        changes: [
+          {
+            path: '.github/workflows/quality.yml',
+            assumption: 'refactors-existing',
+          },
+        ],
+      },
       { depends_on: ['s-a'] },
     ),
   ];
@@ -95,7 +117,10 @@ test("emits implicit-cross-story-dep when a Story verifies against another Story
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
+        {
+          path: '.agents/schemas/baselines/coverage.schema.json',
+          assumption: 'refactors-existing',
+        },
       ],
     }),
     makeStory('s-consumer', {
@@ -128,7 +153,10 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
+        {
+          path: '.agents/schemas/baselines/coverage.schema.json',
+          assumption: 'refactors-existing',
+        },
       ],
     }),
     makeStory(
@@ -139,7 +167,9 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
     makeStory(
       's-consumer',
       {
-        changes: [{ path: 'src/consumer.js', assumption: 'refactors-existing' }],
+        changes: [
+          { path: 'src/consumer.js', assumption: 'refactors-existing' },
+        ],
         verify: [
           'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
         ],
@@ -161,10 +191,20 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
 test('failOnSharedEditors=true upgrades shared-editor findings to hard severity', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
     }),
     makeStory('s-b', {
-      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
+      changes: [
+        {
+          path: '.github/workflows/quality.yml',
+          assumption: 'refactors-existing',
+        },
+      ],
     }),
   ];
   const result = validateAndNormalizeTickets(tickets, {
@@ -182,7 +222,10 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
+        {
+          path: '.agents/schemas/baselines/coverage.schema.json',
+          assumption: 'refactors-existing',
+        },
       ],
     }),
     makeStory('s-consumer', {
@@ -211,8 +254,12 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
 
 test('emits no conflict findings on a spec with non-overlapping paths', () => {
   const tickets = [
-    makeStory('s-a', { changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }] }),
-    makeStory('s-b', { changes: [{ path: 'src/b.js', assumption: 'refactors-existing' }] }),
+    makeStory('s-a', {
+      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
+    }),
+    makeStory('s-b', {
+      changes: [{ path: 'src/b.js', assumption: 'refactors-existing' }],
+    }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const conflict = result.findings.filter(
@@ -283,7 +330,9 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
     },
     // Valid sibling Story — the inline-contract gate is what fires.
     makeStory('s-conf-sibling', {
-      changes: [{ path: 'src/sibling-conf.js', assumption: 'refactors-existing' }],
+      changes: [
+        { path: 'src/sibling-conf.js', assumption: 'refactors-existing' },
+      ],
     }),
   ];
   assert.throws(
@@ -551,7 +600,9 @@ test('emits implicit-cross-story-dep when a consumer verifies a path created obj
 test('object-form bodies on the same path surface as shared-editor producers', () => {
   const tickets = [
     makeStory('s-legacy', {
-      changes: [{ path: 'packages/config/index.ts', assumption: 'refactors-existing' }],
+      changes: [
+        { path: 'packages/config/index.ts', assumption: 'refactors-existing' },
+      ],
     }),
     makeStory('s-object', {
       changes: [

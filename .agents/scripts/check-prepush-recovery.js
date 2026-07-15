@@ -3,7 +3,7 @@
  * check-prepush-recovery.js — gate decision for the pre-push coverage step.
  *
  * Story #3162. The pre-push hook normally runs `coverage-capture.js` +
- * `crap:check` on every push. During a `story-close.js` recovery (operator
+ * `crap:check` on every push. During a pre-v2 `story-close.js` recovery (operator
  * pushing `epic/<id>` to unblock a run after a merge-orchestrator failure),
  * a pre-existing coverage regression on `epic/<id>` — unrelated to the
  * Story under recovery — hard-blocks the push and forces a `--no-verify`

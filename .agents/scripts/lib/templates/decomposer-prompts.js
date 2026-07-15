@@ -19,13 +19,10 @@ import {
  * asks the planner to carry acceptance/verify as top-level ticket arrays.
  *
  * **Single source of the prompt body (Story #4162).** This module is the sole
- * carrier of the full decomposer system-prompt body. The
- * `epic-plan-decompose-author` SKILL no longer embeds a second verbatim copy —
- * it references this rendered prompt (delivered to the host LLM in the
- * `systemPrompt` field of the authoring context envelope built by
- * `epic-plan-decompose/phases/context.js`) instead, so the two surfaces cannot
- * drift. A guard test (`tests/ticket-decomposer.test.js`) fails if the SKILL
- * re-grows a full copy of the prompt preamble.
+ * carrier of the full decomposer system-prompt body, delivered to the host
+ * LLM in the `systemPrompts.decompose` field of the `/plan` context envelope
+ * (via `lib/orchestration/planning/decomposer-context.js`), so no second
+ * verbatim copy can drift.
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,

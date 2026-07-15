@@ -27,7 +27,7 @@
  * NDJSON for a Story, no children for an Epic) so the close pipelines
  * never block on observability output. Hard failures (bad CLI args,
  * provider error, schema-violating payload) exit non-zero — the call
- * sites in post-merge-pipeline / `/deliver` Phase 5 treat that
+ * sites in `single-story-close.js` / `helpers/deliver-story.md` treat that
  * as a non-fatal warning.
  *
  * This file is a thin CLI: it wires the I/O readers from

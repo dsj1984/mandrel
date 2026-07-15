@@ -696,7 +696,6 @@ baseline.
 | `lighthouse`      | No       | (none)  | Epsilon for Lighthouse rows.           |
 | `bundle-size`     | No       | (none)  | Epsilon for bundle-size rows.          |
 
-
 ### `delivery.codeReview`
 
 Configuration block for the code-review pipeline that runs during Story

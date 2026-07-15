@@ -116,10 +116,6 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   whose meaningful logic (label taxonomy + project field defs) lives
   in `lib/label-taxonomy.js` and is unit-tested there. The CLI shell
   itself is integration-only against a live GitHub repo.
-- `.agents/scripts/hydrate-context.js` — thin wrapper around the
-  unit-tested hydration engine; end-to-end coverage requires a real
-  provider tree and Story prompt context, which lives in integration
-  tests.
 - `plan-context.js`, `plan-persist.js` —
   `/plan` CLI shells with no unit-test seam; the meaningful
   orchestration logic lives in `lib/orchestration/plan-context.js`,
@@ -127,7 +123,7 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   unit-tested there.
 - A larger Story #1702 carve-out of top-level CLI gates, orchestration
   CLIs, git-manipulation CLIs, and `lib/*` glue (e.g. `lint-baseline.js`,
-  `story-close.js`, `dispatcher.js`, `run-tests.js`,
+  `single-story-init.js`, `run-tests.js`,
   `lib/config-schema.js`) — see the `.c8rc.cjs` header comment for the
   per-category rationale and the authoritative entry list.
 

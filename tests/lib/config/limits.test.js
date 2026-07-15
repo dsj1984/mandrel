@@ -26,10 +26,7 @@ import {
 
 describe('SIGNALS_DEFAULTS export', () => {
   it('exports only the two surviving detector blocks', () => {
-    assert.deepEqual(Object.keys(SIGNALS_DEFAULTS).sort(), [
-      'retry',
-      'rework',
-    ]);
+    assert.deepEqual(Object.keys(SIGNALS_DEFAULTS).sort(), ['retry', 'rework']);
   });
 
   it('matches the Tech Spec threshold values', () => {
@@ -98,10 +95,7 @@ describe('resolveLimits — per-detector override merge', () => {
       delivery: { signals: { bogus: { foo: 1 } } },
     });
     assert.equal('bogus' in merged.signals, false);
-    assert.deepEqual(Object.keys(merged.signals).sort(), [
-      'retry',
-      'rework',
-    ]);
+    assert.deepEqual(Object.keys(merged.signals).sort(), ['retry', 'rework']);
   });
 
   it('returns a fresh signals object on each call (not the frozen default)', () => {

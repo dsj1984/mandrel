@@ -283,8 +283,7 @@ const BLOCK_MEANINGS = Object.freeze({
   project: 'Project identity, paths, and command configuration.',
   github: 'GitHub provider identity and merge/notification policy.',
   planning: 'Inputs and guardrails for /epic-plan.',
-  delivery:
-    'Execution, isolation, quality, and CI settings for delivery.',
+  delivery: 'Execution, isolation, quality, and CI settings for delivery.',
   qa: 'Agent-driven QA harness contract.',
 });
 

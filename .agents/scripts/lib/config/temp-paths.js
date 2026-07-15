@@ -15,7 +15,7 @@
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
  *     ├─ perf-report.md       (analyzer output, Epic-level)
  *     ├─ lifecycle.ndjson     (lifecycle bus ledger)
- *     ├─ checkpoints/...      (epic-runner state store)
+ *     ├─ checkpoints/...      (pre-v2 epic-runner state store; retained layout)
  *     ├─ <name>               (epicArtifactPath escape hatch)
  *     └─ stories/
  *        └─ story-<sid>/

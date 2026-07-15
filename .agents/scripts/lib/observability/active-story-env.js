@@ -7,7 +7,7 @@
  * This module is the single writer/clearer of those vars:
  *
  *   - `setActiveStoryEnv({ epicId, storyId, workCwd })` is called from
- *     `story-init.js` after the worktree is materialised. It sets the
+ *     `single-story-init.js` after the worktree is materialised. It sets the
  *     vars on the current `process.env` (so any child commands the
  *     orchestrator spawns inherit them) and exports them to a sibling
  *     `.env.local` inside the worktree. The harness re-spawns the

@@ -1,7 +1,7 @@
 # Architecture
 
 This document describes the internal architecture of Mandrel — a
-framework of instructions, personas, skills, and SDLC workflows that govern AI
+framework of instructions, skills, rules, and SDLC workflows that govern AI
 coding assistants. It is the authoritative reference for how the system is
 structured, how components interact, and where to find each subsystem.
 
@@ -24,11 +24,13 @@ structured, how components interact, and where to find each subsystem.
 
 ## High-Level Overview
 
-Mandrel follows an **Epic-Centric GitHub Orchestration** model where
+Mandrel follows a **Story-only GitHub Orchestration** model where
 GitHub Issues, Labels, and Projects V2 serve as the Single Source of Truth
-(SSOT). The framework decomposes product initiatives (Epics) into executable
-agent tasks, dispatches them across parallel waves, and integrates the results —
-all without local state files.
+(SSOT). `/plan` authors one or more `type::story` tickets; `/deliver` runs
+each Story on `story-<id>` → PR → `main` via `helpers/deliver-story`, with
+optional `depends_on` / `plan-run::<id>` edges ordering rare multi-Story
+runs. An Epic is at most an optional untyped human umbrella issue outside
+orchestration — there is no `type::epic` delivery path.
 
 ```mermaid
 graph TB
@@ -54,17 +56,15 @@ graph TB
     subgraph GitHub ["GitHub Platform"]
         direction TB
         ISS["Issues & Labels"]:::data
-        SUB["Sub-Issues API"]:::data
         PRJ["Projects V2"]:::data
     end
 
-    H -->|"/plan (ideation or existing Epic)"| IDE
+    H -->|"/plan"| IDE
     H -->|"/deliver"| IDE
     IDE --> INS
     INS --> RUL & SKL
     IDE --> SCR
     SCR -->|"API calls"| ISS
-    SCR -->|"Links hierarchy"| SUB
     SCR -.->|"Validates"| SCH
 ```
 
@@ -174,11 +174,10 @@ graph TB
     subgraph Scripts ["Orchestration Scripts"]
         EP["plan-context.js"]:::script
         TD["plan-persist.js"]:::script
-        DI["dispatcher.js"]:::script
-        EDP["epic-deliver-prepare.js"]:::script
-        LE["lifecycle-emit.js"]:::script
-        SI["story-init.js"]:::script
-        SC["story-close.js"]:::script
+        SSI["single-story-init.js"]:::script
+        SWT["stories-wave-tick.js"]:::script
+        SSC["single-story-close.js"]:::script
+        SCM["single-story-confirm-merge.js"]:::script
         CH["hydrate-context.js"]:::script
         NO["notify.js"]:::script
         UTS["update-ticket-state.js"]:::script
@@ -189,7 +188,6 @@ graph TB
         PF["provider-factory.js"]:::lib
         GH["Graph.js (DAG)"]:::lib
         DP["dependency-parser.js"]:::lib
-        GMO["git-merge-orchestrator.js"]:::lib
         GU["git-utils.js"]:::lib
         LG["Logger.js"]:::lib
     end
@@ -202,7 +200,9 @@ graph TB
         GHP["providers/github.js"]:::script
     end
 
-    DI --> CR & PF & GH & DP & CH
+    SSI --> CR & PF & GU
+    SWT --> CR & PF & GH & DP
+    SSC --> CR & PF & GU
     EP --> CR & PF
     TD --> CR & PF & DP
 
@@ -212,47 +212,38 @@ graph TB
 
 #### Key Scripts
 
-| Script                       | Responsibility                                                                                                                                                                              |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan-context.js`            | Single authoring-envelope emitter for `/plan` (Epic #4474): Epic body / one-pager + docs digest + `codebaseSnapshot` (Story #2634, see below) + duplicate search + clarity + rendered system prompts, so the authoring skills cite real modules instead of doc-only names. |
-| `plan-persist.js`            | Single GitHub-write surface for `/plan`: section gate, risk verdict, ticket validator + file-assumption + DAG + budget gates, story creation, inline healthcheck, one terminal `agent::ready` flip, `plan-summary` comment, `epic-plan-state` checkpoint. |
-| `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/deliver`).                                                                                   |
-| `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/deliver` Phase 1.                                                            |
-| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/deliver` Phase 7 / 8.5 / 9 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
-| `story-init.js`              | Initialises a Story worktree and flips the Story to `agent::executing`.                                                                                                                     |
-| `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
-| `hydrate-context.js`         | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. The only supported hydration CLI. |
-| `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
-| `notify.js`                  | Dispatches notifications via @mention and webhook channels.                                                                                                                                   |
-| `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/deliver` Phase 6.           |
+| Script                           | Responsibility                                                                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan-context.js`                | Single authoring-envelope emitter for `/plan`: Story brief + docs digest + `codebaseSnapshot` + duplicate search + clarity + rendered system prompts. |
+| `plan-persist.js`                | Single GitHub-write surface for `/plan`: section gate, risk verdict, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, `plan-summary` comment. |
+| `single-story-init.js`           | Validates a standalone Story, branches from `main`, creates the worktree, flips `agent::executing`. |
+| `stories-wave-tick.js`           | Ready-set planner for multi-Story `/deliver` (shared `selectReadySet` core; default concurrency 3). |
+| `single-story-close.js`          | Close-validation gate chain, opens PR to `main` with auto-merge armed, rests Story at `agent::closing`. |
+| `single-story-confirm-merge.js`  | Post-merge confirmation: after checks go green and the PR merges, flips `agent::closing → agent::done`. |
+| `hydrate-context.js`             | Assembles self-contained prompts (protocol + skills + hierarchy). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. |
+| `update-ticket-state.js`         | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`). |
+| `notify.js`                      | Dispatches notifications via @mention and webhook channels. |
+| `analyze-execution.js`           | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (wired from `helpers/deliver-story` / close path). |
 
 #### In-process orchestration modules
 
-These modules fold the close-tail into the deliver runner so
-`/deliver` runs end-to-end without spawning helper sessions:
-
 | Module                                   | Role                                                                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/code-review.js`       | Phase 5 inline review. Companion to `helpers/code-review.md`; halts the runner on critical findings and persists results as a `code-review` structured comment. |
-| `lib/orchestration/retro-runner.js`      | Phase 6 retro authoring. Extracted from the (now-deleted) retro helper; aggregates perf signals, friction, hotfixes, recuts, parked stories, and HITL count.        |
-| `lib/duplicate-search.js`                | `/plan` ideation entry — cross-Epic title + body keyword search; returns a ranked list of overlapping open Epics or `[]`.                                     |
+| `lib/orchestration/code-review.js`       | Inline review companion to `helpers/code-review.md`; persists results as a `code-review` structured comment. |
+| `lib/duplicate-search.js`                | `/plan` ideation entry — title + body keyword search across open Stories; returns a ranked list or `[]`. |
 
-#### Dispatch Engine Submodules
+#### Ready-set / DAG helpers
 
-`lib/orchestration/dispatch-engine.js` is a coordinator for the 2-tier
-dispatch path. Consumers (`dispatcher.js`, tests) import `dispatch`,
-`resolveAndDispatch`, and the `AGENT_*` constants from the coordinator
-path. Every Epic is 2-tier (Epic → Story); `dispatch()`
-computes a Story-level wave plan and emits a 2-tier manifest. The legacy
-The retired 4-tier dispatch runtime (legacy fetcher, wave fan-out, and
-Epic-completion detector) was removed in Epic #3163; per-Story
-execution is owned by `/deliver`
-(`story-init` → `story-close`).
+Multi-Story ordering for `/deliver` uses `lib/wave-runner/ready-set.js`
+(`selectReadySet`) driven by `stories-wave-tick.js`. Pre-v2
+`dispatch-engine.js` / `dispatcher.js` entry scripts are deleted; residual
+DAG helpers under `lib/orchestration/` remain only where live paths still
+import them.
 
-| Submodule                     | Responsibility                                                                            |
+| Helper                        | Responsibility                                                                            |
 | ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile Story/Feature hierarchy, build the Story DAG.       |
-| `risk-gate-handler.js`        | Risk labels are metadata only; no runtime gate.                                            |
+| `lib/wave-runner/ready-set.js` | Select the next ready Story set given deps + concurrency. |
+| `dependency-parser.js`        | Parse `depends_on` / `blocked by #N` edges from Story bodies. |
 
 #### Presentation Layer Submodules
 
@@ -261,15 +252,11 @@ execution is owned by `/deliver`
 | Submodule                 | Responsibility                                                                                     |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `manifest-formatter.js`   | Pure Markdown / CLI rendering (`formatManifestMarkdown`, `printStoryDispatchTable`). No fs access. |
-| `manifest-persistence.js` | File I/O — writes dispatch and story manifests to `temp/`.                                         |
+| `manifest-persistence.js` | File I/O — writes plan-run artefacts to `temp/`.                                         |
 
-The data-shape owner (`lib/orchestration/manifest-builder.js`) is unchanged.
-Only the façade file is part of the stable public surface — downstream
-consumers continue to import `renderManifestMarkdown`,
-`renderStoryManifestMarkdown`, `persistManifest`, `printStoryDispatchTable`,
-`postManifestEpicComment`, and `postParkedFollowOnsComment` from
-`lib/presentation/manifest-renderer.js`.
-
+The data-shape owner (`lib/orchestration/manifest-builder.js`) is unchanged
+for residual plan-run envelopes. Pre-v2 Epic dispatch-manifest consumers
+are gone; `/deliver` no longer posts an Epic-scoped dispatch manifest.
 #### ErrorJournal
 
 `ErrorJournal` (`lib/orchestration/error-journal.js`) writes structured
@@ -389,8 +376,9 @@ machine-enforceable:
 or CI pipelines and must remain at their `.agents/scripts/<name>` paths
 (because agents and hooks resolve them via that stable path):
 
-- `story-init.js`, `story-close.js` — Story worktree lifecycle
-- `stories-wave-tick.js` — multi-Story ready-set sequencer (standalone `/deliver`)
+- `single-story-init.js`, `single-story-close.js`,
+  `single-story-confirm-merge.js` — Story worktree + PR lifecycle
+- `stories-wave-tick.js` — multi-Story ready-set sequencer (`/deliver`)
 - `update-ticket-state.js` — GitHub label transitions
 - And all other scripts under `.agents/scripts/` not listed above
 
@@ -717,47 +705,44 @@ Story. The script surface is:
 | `single-story-close.js`        | Runs the canonical close-validation gate chain against the base branch, opens the PR straight to `main` with auto-merge armed, and rests the Story at `agent::closing`. |
 | `single-story-confirm-merge.js` | Post-merge confirmation: once `gh pr checks --watch` exits green and the PR merges, flips `agent::closing → agent::done` and closes the issue. |
 
-The exit contract differs from the Epic path: each standalone Story
-reaches `main` via its own human-visible PR (auto-merge armed at close),
-and the deferred confirm-merge step — not an in-script merge — performs
-the terminal label flip after GitHub's asynchronous auto-merge completes.
+The exit contract: each Story reaches `main` via its own human-visible PR
+(auto-merge armed at close), and the deferred confirm-merge step — not an
+in-script merge — performs the terminal label flip after GitHub's
+asynchronous auto-merge completes.
 
 ### Operator-tunable delivery knobs
 
-Several schema-declared `delivery.*` blocks tune the runner without
+Several schema-declared `delivery.*` blocks tune delivery without
 changing its shape (full per-field reference:
 [`.agents/docs/configuration.md`](../.agents/docs/configuration.md)):
 
 - **`delivery.codeReview.providers` / `providerConfig`** —
-  pluggable review backend for Phase 5. `providers: []` sequences one or
+  pluggable review backend for Story close. `providers: []` sequences one or
   more of `native` / `codex` / `security-review` (plus optional
   `ultrareview` manual-prompt entries) with per-entry scopes and label
   conditions; unset/empty defaults to `[{ name: "native" }]`.
   `providerConfig` is an open-shape escape hatch for adapter-specific
-  options. Tune when you want an
-  external or layered review chain instead of the native single pass.
+  options.
 - **`delivery.mergeWatch.{intervalSeconds,maxBudgetSeconds}`** — poll
-  cadence and total wall-clock budget for the `MergeWatcher` lifecycle
-  listener after `epic.merge.armed` (defaults 30s / 3600s); exceeding
-  the budget surfaces `agent::blocked` with reason `budget-exceeded`.
-  Tune on repos with slow required checks.
+  cadence and total wall-clock budget for merge confirmation after
+  auto-merge is armed (defaults 30s / 3600s); exceeding the budget
+  surfaces `agent::blocked` with reason `budget-exceeded`. Tune on repos
+  with slow required checks.
 - **`delivery.refactorStage.enabled`** — opt-in (default off) advisory
-  post-green refactor checkpoint in story-deliver (the
+  post-green refactor checkpoint in Story delivery (the
   `core/code-review-and-quality` skill's Post-Green Refactor Pass); never
   alters close-validation gate semantics.
 - **`delivery.feedbackLoop.auditResultsAutoFile`** —
-  both default `true`: the Epic finalize listener auto-files
-  non-blocking code-review / audit findings as follow-up issues (routed
-  via `lib/feedback-loop/`). Set `false` to keep findings only in the
-  Epic's structured comments.
+  default `true`: non-blocking code-review / audit findings may be
+  auto-filed as follow-up issues (routed via `lib/feedback-loop/`). Set
+  `false` to keep findings only in structured comments.
 - **`delivery.ci.skipForStoryPushes`** — default `true`: pre-push
   tooling appends `[skip ci]` to Story-branch commit subjects so
-  intermediate pushes don't stampede CI; the Epic-branch merge commit
-  never carries the marker.
-- **`delivery.failOnConcurrencyHazards`** — default off: when `true`,
-  `epic-deliver-prepare` refuses to flip the Epic to `agent::executing`
-  while the upcoming waves carry an unresolved conflict finding.
-
+  intermediate pushes don't stampede CI; the final PR to `main` never
+  carries the marker for the merge commit GitHub creates.
+- **`delivery.routing.closeAndLand`** — default `true`: `single-story-close`
+  arms auto-merge and may poll to confirmation; set `false` to stop at
+  PR-open for operator-driven merge.
 ---
 
 ## Ticket Hierarchy
@@ -1224,9 +1209,11 @@ live LLM metering:
 - **`delivery.maxTokenBudget`**: caps hydrated task prompts. `hydrate-context`
   estimates tokens (≈4 characters per token) and elides sections when the
   envelope exceeds the cap (`elideEnvelope` in `context-envelope.js`).
-- **`delivery.preflight.*`** (optional): `epic-deliver-preflight.js` compares
-  pre-dispatch estimates (stories, waves, install time, GitHub API calls,
-  Claude quota tokens) to configured ceilings before `/deliver` fan-out.
+- **`delivery.preflight.*`** (optional): preflight helpers compare
+  estimates (Stories, install time, GitHub API calls, Claude quota
+  tokens) to configured ceilings before `/deliver` fan-out. Live entry
+  is via `single-story-init.js` / `helpers/deliver-story` (the pre-v2
+  `epic-deliver-preflight.js` entry is deleted).
 - **Host runtime**: session quota and billing hard stops are enforced by the
   operator's editor / CLI provider, not by Mandrel scripts.
 

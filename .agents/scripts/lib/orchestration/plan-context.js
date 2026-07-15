@@ -72,33 +72,6 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
 });
 
 /**
- * Canonical one-pager authoring descriptor for the `seed` envelope
- * (#4496 fix 1). The section names are the ones `plan-epic.md`'s ideation
- * entry has always named, chosen so the authored headings parse against
- * the `SECTION_RE` map in `lib/epic-plan-ideation.js` (which renders the
- * Epic body from the one-pager at persist time via
- * `.agents/templates/epic-from-idea.md`).
- */
-export const ONE_PAGER_AUTHORING_SPEC = Object.freeze({
-  sections: Object.freeze([
-    'Problem Statement',
-    'Recommended Direction',
-    'Key Assumptions',
-    'MVP Scope',
-    'Not Doing',
-  ]),
-  instruction:
-    'Author the one-pager markdown (the canonical sections above, as `## ` ' +
-    'headings) in the SAME batched write as the other planning artifacts — ' +
-    'no separate ideation pass and no idea-refinement skill activation on ' +
-    'this path. Every unresolved unknown lands in Key Assumptions instead ' +
-    'of a question.',
-  consumedBy:
-    'plan-persist.js --one-pager (ideation Epic creation via ' +
-    '.agents/templates/epic-from-idea.md)',
-});
-
-/**
  * Count top-level enumerated items (`- `, `* `, `1. `) anywhere in a
  * free-form seed text. Unlike {@link countScopeItems} this does not require
  * a scope-shaped heading — a raw `--seed` text rarely has one.
@@ -474,9 +447,7 @@ async function buildSeedFileModeEnvelope({
 /**
  * Build the seed-mode (chat text) envelope. The seed-file does not exist
  * yet: the dup search and the authoring-context fold both run off the raw
- * seed text, and the envelope additively carries `onePagerSpec` so the
- * sharpened sections are authored in the same batched write as the Story
- * artifacts (N=1 default — no Epic-scale decompose).
+ * seed text (N=1 default — no Epic-scale decompose).
  */
 async function buildSeedModeEnvelope({
   seedText,
@@ -506,7 +477,6 @@ async function buildSeedModeEnvelope({
     ...rest,
     mode: 'seed',
     seed: { text: seedText, path: null },
-    onePagerSpec: ONE_PAGER_AUTHORING_SPEC,
   };
 }
 

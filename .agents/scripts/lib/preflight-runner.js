@@ -3,7 +3,7 @@
  *
  * This module is the single implementation of the "run the registry, fail
  * fast on blockers, log auto-fixes" pattern. The consumer entry points
- * (story-close.js, epic-deliver-preflight.js, the npm test wrapper, and
+ * (`single-story-close.js`, `mandrel-update-preflight.js`, the npm test wrapper, and
  * the bootstrap scripts) call `runPreflight({ scope })` instead of
  * re-implementing the same assemble+run+format+exit-2 dance.
  *
@@ -13,7 +13,7 @@
  *         auto-fixes. The wrapper prints a human-readable blocker table
  *         (`id · summary · fixCommand`) before returning. Code 2 is the
  *         project-wide "preflight refused" reservation — see
- *         .agents/workflows/helpers/deliver-epic.md for the rationale.
+ *         `.agents/workflows/helpers/deliver-story.md` for the rationale.
  *
  * Auto-fixes are logged via `logFixes` before the blocker check so the
  * operator sees the "we corrected X" line even when a separate blocker

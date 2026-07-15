@@ -379,7 +379,7 @@ export function buildDefaultGates({
 /**
  * Default gate list resolved with no consumer config — uses the
  * `npm run typecheck` fallback for the typecheck gate. Call sites that have a
- * resolved config object in scope (e.g. `story-close.js`) should
+ * resolved config object in scope (e.g. `single-story-close.js`) should
  * prefer `buildDefaultGates({ config })` so a configured
  * `project.commands.typecheck` is honoured.
  *

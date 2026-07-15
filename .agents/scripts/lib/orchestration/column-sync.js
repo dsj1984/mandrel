@@ -28,7 +28,7 @@
  * Located at `lib/orchestration/column-sync.js` (Story #2548) so the
  * canonical state mutator `transitionTicketState`
  * (`lib/orchestration/ticketing/state.js`) can invoke it without an
- * upward dependency into `epic-runner/`. Prior to #2548 this module
+ * upward dependency into the deleted `epic-runner/` tree. Prior to #2548 this module
  * lived under `epic-runner/` and was only wired against the Epic
  * ticket — Stories and Tasks never updated their Projects v2 Status
  * column on label flips.

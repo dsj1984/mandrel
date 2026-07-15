@@ -1,11 +1,11 @@
 /**
  * hook-heartbeat.js — Epic #4476 (M5): heartbeats OFF the token stream.
  *
- * Today the `story.heartbeat` / `slice.heartbeat` forward-progress signal the
- * `/deliver` §2e Idle Watchdog (`wave-tick.js --check-idle 30`) reads is an
- * **LLM obligation**: the delivery workflow instructs the agent to run
+ * Before M5, the `story.heartbeat` / `slice.heartbeat` forward-progress
+ * signal that idle-watchdog consumers read from the lifecycle ledger was an
+ * **LLM obligation**: the delivery workflow instructed the agent to run
  * `story-phase.js` / `slice-phase.js --event heartbeat` at least once per
- * meaningful step, and every such call is a full-priced LLM turn re-reading
+ * meaningful step, and every such call was a full-priced LLM turn re-reading
  * ~100k of cached context just to append one NDJSON line.
  *
  * This module makes that liveness signal a **free byproduct of the agent
@@ -19,11 +19,10 @@
  * mechanism moves off the token stream.
  *
  * ## Robustness contract (mirrors `tool-trace-hook.js`)
- *   - **No-op outside an active Story / slice.** When neither a valid
- *     `{ CC_EPIC_ID, CC_STORY_ID }` (fan-out child) nor a valid
- *     `{ CC_EPIC_ID, CC_SLICE_ID }` (single-delivery session) pair is present
- *     in the environment, `emitHeartbeatFromHook` returns without touching the
- *     filesystem.
+ *   - **No-op outside an active Story with an Epic-scoped ledger.** When a
+ *     valid `{ CC_EPIC_ID, CC_STORY_ID }` pair is not present in the
+ *     environment (v2 standalone Stories omit `CC_EPIC_ID`), `emitHeartbeatFromHook`
+ *     returns without touching the filesystem.
  *   - **Best-effort.** Every failure is swallowed. A heartbeat is
  *     observability, not state; a hook must never block tool execution.
  *   - **Throttled across processes.** Command hooks are spawned as fresh

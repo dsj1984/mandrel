@@ -968,46 +968,33 @@ observability surface. Three principles:
 - Future perf retuning becomes a decision comment + a default-file
   edit, not a code archaeology exercise.
 
-## Compact-path short-circuit with escape hatch
+## Compact-path short-circuit with escape hatch (historical)
 
 ### Context
 
 `helpers/epic-retro.md` historically walked through six sections
 regardless of sprint shape. On clean-manifest Epics (zero friction,
 zero parked, zero recuts, zero hotfixes, zero HITL) four of those
-sections degenerate to "nothing notable" boilerplate, burning minutes
-of agent time for no retrospective value.
+sections degenerated to "nothing notable" boilerplate.
 
-### Solution
+### Solution (pre-v2)
 
-A cheap predicate decides the branch up-front; the verbose path stays
+A cheap predicate decided the branch up-front; the verbose path stayed
 one flag away.
 
 1. **Pure-function predicate.** `isCleanManifest({ friction, parked,
-   recuts, hotfixes, hitl })` returns `true` iff every signal is zero.
-   Extracted into `lib/orchestration/retro-heuristics.js` so a future
-   automated retro agent uses the same truth.
-2. **Preserved downstream contract.** The compact body is still a
-   `type: 'retro'` comment and still ends with `<!-- retro-complete:
-   <ISO> -->`. `/deliver` Phase 6's completion gate is
-   unchanged. No consumer sees a shape difference beyond length.
-3. **Operator override.** A new `--full-retro` flag on `/deliver`
-   (and a note in the helper) forces the six-section body when the
-   operator disagrees with the predicate. Mirrors `--skip-retro` /
-   `--skip-code-review`.
+   recuts, hotfixes, hitl })` returned `true` iff every signal was zero.
+   Lived in `lib/orchestration/retro-heuristics.js` (deleted in v2 with
+   the Epic retro path).
+2. **Preserved downstream contract.** The compact body was still a
+   `type: 'retro'` comment ending with `<!-- retro-complete: <ISO> -->`.
+3. **Operator override.** `--full-retro` forced the six-section body.
 
-### When to reach for this pattern
+### When this pattern still applies
 
-The pattern generalises to any stage whose body is mechanically
-populated from signals that are usually (but not always) zero. The
-ingredients:
-
-- A predicate that is a pure function of existing data (no new
-  source-of-truth).
-- A shorter body template that preserves the downstream contract
-  (markers, comment types, downstream parsers).
-- An operator flag that forces the verbose path without changing the
-  predicate.
+The *pattern* (predicate + shorter body + escape hatch) generalises to
+any stage whose body is mechanically populated from usually-zero
+signals. The Epic-retro *instance* of the pattern is gone in v2.
 
 Use only when (a) the short path genuinely produces less work, not
 less signal, and (b) the short path is the common case. If "clean" is

@@ -3,7 +3,8 @@
  *
  * Consolidates the "does this branch exist locally / remotely?" and
  * "ensure this branch exists and is checked out" logic that
- * `story-init.js` and `dispatch-engine.js` had each re-implemented.
+ * `single-story-init.js` centralizes (formerly duplicated across the deleted
+ * `story-init.js` and `dispatch-engine.js` entry seams).
  *
  * All helpers take an explicit `cwd`. Callers with worktree isolation
  * enabled pass the worktree path; single-tree callers pass `PROJECT_ROOT`.
@@ -87,18 +88,16 @@ export function branchExistsViaTrackingRef(branch, cwd) {
 
 /**
  * Pure: classify how a `story-<id>` branch should be seeded from the (local,
- * remote) ref-presence matrix. This is the single source of truth shared by
- * both story-init paths (Story #3513):
- *   - `single-story-init.js#decideStoryBranchSeed` (standalone path)
- *   - `story-init/branch-initializer.js#planStoryBranchSeed` (Epic path)
+ * remote) ref-presence matrix. This is the single source of truth for
+ * `single-story-init.js#decideStoryBranchSeed` (v2 `/deliver` path).
  *
- * Both call sites previously re-implemented the same `local → no-op, remote →
- * fetch, else create` decision tree; they now delegate here so the branching
- * logic lives in exactly one place. The two callers keep their own keyword for
+ * The init path previously re-implemented the same `local → no-op, remote →
+ * fetch, else create` decision tree; it now delegates here so the branching
+ * logic lives in exactly one place. The caller keeps its own keyword for
  * the "local ref already exists" outcome (`reuse` vs `none`) — synonyms for
- * "do not re-create / do not re-seed" preserved for their existing public/test
- * contracts — so this classifier returns the neutral `'local'` keyword and
- * each caller maps it onto its own vocabulary.
+ * "do not re-create / do not re-seed" preserved for its existing public/test
+ * contract — so this classifier returns the neutral `'local'` keyword and
+ * the caller maps it onto its own vocabulary.
  *
  * @param {{ localHas: boolean, remoteHas: boolean }} presence
  * @returns {'local'|'fetch'|'create'}
@@ -116,22 +115,18 @@ export function classifyBranchSeed({ localHas, remoteHas }) {
 
 /**
  * Single-home for the story-branch seed-action *switch shell* that
- * `single-story-init.js#seedStoryBranch` (standalone path) and
- * `story-init/branch-initializer.js#ensureStoryBranchSeed` (Epic path) had
- * each re-implemented (Story #4255). Both already delegated the (local,
- * remote) decision to `classifyBranchSeed`; only the act-on-the-decision
- * shell (reuse / fetch / create) was duplicated, and that shell was the
- * drift surface for the seed-decision contract.
+ * `single-story-init.js#seedStoryBranch` owns (Story #4255). The deleted
+ * Epic `story-init/branch-initializer.js` path had duplicated the same
+ * shell before v2 cutover.
  *
  * The two callers differ in exactly two behavioural axes, both of which are
  * parameters here — no other conditional branching is introduced:
- *   - **`baseRef`** — the ref to branch from on `create` (`main` for the
- *     standalone path, the Epic branch for the Epic path).
+ *   - **`baseRef`** — the ref to branch from on `create` (`main` for v2
+ *     `/deliver`; pre-v2 Epic close used the Epic branch).
  *   - **`swallowCreateRace`** — when `true`, a `git branch` that exits
  *     non-zero with an "already exists" stderr is treated as reuse rather
- *     than a fatal error (closes the probe→create race the Epic path runs
- *     under concurrent wave dispatch). When `false`, any create failure
- *     throws (the standalone path has no concurrent creator to race).
+ *     than a fatal error (pre-v2 concurrent wave dispatch). When `false`, any create failure
+ *     throws (the v2 standalone path has no concurrent creator to race).
  *
  * The asymmetric surrounding wrappers (merged-sweep, fast-forward,
  * donor-prime, workspace-verify, phase-timer) are deliberately NOT folded

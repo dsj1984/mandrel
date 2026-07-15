@@ -1,27 +1,24 @@
 /**
  * lib/story-adjacency.js — the single story-level adjacency builder.
  *
- * Both Epic-path wave-computation wrappers bottom out in the shared
+ * Both pre-v2 Epic wave wrappers and the v2 `/deliver` ready-set path bottom out in the shared
  * `lib/Graph.js` kernel (`detectCycle` / `assignLayers` / `computeWaves`),
  * but each historically re-implemented the step that turns a list of Story
  * records into the `Map<storyId, number[]>` adjacency the kernel consumes.
- * This module is now the one home for that step; the consumers are:
+ * This module is now the one home for that step; the live consumer is:
  *
- *   - `lib/orchestration/epic-runner/phases/build-wave-dag.js`
- *     (`buildStoryDag` → `computeWaves`)
- *   - `lib/orchestration/dispatch-pipeline.js`
- *     (`buildStoryDispatchGraph` → `computeStoryWaves`)
  *   - `lib/wave-runner/ready-set.js` (`selectReadySet`, the path-agnostic
- *     continuous scheduler the standalone `stories-wave-tick.js` adapter
- *     and the Epic path both dispatch through)
+ *     continuous scheduler the `stories-wave-tick.js` adapter dispatches through)
  *   - `stories-wave-tick.js` (for cycle detection, before delegating
  *     selection to `selectReadySet`)
  *
- * Dependency source order (must stay aligned with manifest-builder.js so
- * the dispatch manifest and runtime wave scheduling never disagree):
+ * (Pre-v2: `epic-runner/phases/build-wave-dag.js` and `dispatch-pipeline.js`
+ * also called here; both entry seams were deleted.)
+ *
+ * Dependency source order (must stay aligned with `manifest-builder.js` and
+ * `helpers/deliver-story.md` so planning and runtime scheduling never disagree):
  *   1. Canonical: `blocked by #NNN` / `depends on #NNN` parsed from the
- *      Story body via `parseBlockedBy` (the same parser the dispatcher
- *      uses).
+ *      Story body via `parseBlockedBy` (the same parser planning uses).
  *   2. Fallback: an explicit `dependencies` (ticket shape) or
  *      `dependsOn` (operator-DAG shape) array on the Story record.
  *
@@ -46,9 +43,9 @@ import { parseBlockedBy } from './dependency-parser.js';
  *   DAG nodes).
  * @param {object} [opts]
  * @param {boolean} [opts.dropForeign=true] When true (the default,
- *   matching the Epic-scoped wrappers), edges pointing at ids outside
+ *   matching pre-v2 Epic-scoped wrappers), edges pointing at ids outside
  *   the supplied story set are dropped so the DAG stays closed over the
- *   scheduled set. The standalone path (`stories-wave-tick.js` and the
+ *   scheduled set. The v2 `/deliver` path (`stories-wave-tick.js` and the
  *   `selectReadySet` core) passes `false` to preserve the operator-DAG
  *   contract, where a dependency on an id absent from the input is treated
  *   as not-yet-done and withholds the dependent until it completes.

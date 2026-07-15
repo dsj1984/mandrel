@@ -2,8 +2,9 @@
  * dependency-parser.js — Shared Dependency & Metadata Parsing Utilities
  *
  * Canonical implementation of dependency-related regex parsing and
- * ticket metadata extraction. Eliminates duplicated implementations
- * across dispatcher.js, verify-prereqs.js, and providers/github.js.
+ * ticket metadata extraction, shared by the ticketing provider and the
+ * orchestration layer (e.g. providers/github/tickets.js,
+ * lib/story-adjacency.js, lib/branch-name-guard.js).
  */
 
 /**

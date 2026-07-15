@@ -13,9 +13,9 @@
  *
  * The renderer survives because its `{ body, payload }` output still feeds
  * two non-comment contracts: the `renderedBody` markdown the `/deliver`
- * and `single-story-deliver` CLIs (`story-phase.js`, the inline `story-init.js` prepare step)
- * relay to chat so the operator sees the phase table inline, and the snapshot
- * payload returned in those CLIs' JSON envelopes. `upsertStoryRunProgress`
+ * workflow (`helpers/deliver-story.md`, `story-phase.js`) relays to chat so
+ * the operator sees the phase table inline, and the snapshot payload returned
+ * in those CLIs' JSON envelopes. `upsertStoryRunProgress`
  * therefore renders-only: it computes the body/payload and (optionally) mirrors
  * a low-severity webhook event, but writes no GitHub comment.
  *

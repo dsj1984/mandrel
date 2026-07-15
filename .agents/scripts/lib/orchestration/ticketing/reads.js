@@ -82,8 +82,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-run-progress',
   'epic-plan-state',
   'parked-follow-ons',
-  // Story #566 — per-phase wall-clock summary posted by story-close
-  // and consumed by the epic-runner progress reporter to surface median /
+  // Story #566 — per-phase wall-clock summary posted by single-story-close.js
+  // and consumed by analyze-execution / perf tooling to surface median /
   // p95 phase timings across completed stories.
   'phase-timings',
   // Story #831 — story-init upserts a `story-init` comment that
@@ -93,7 +93,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'story-init',
   // Story #908 — /deliver upserts a `story-run-progress` snapshot
   // on each Story per Task transition. The /deliver aggregator and
-  // the epic-runner progress reporter both read this comment to derive
+  // `analyze-execution.js` both read this comment to derive
   // Story-level state without re-fetching ticket labels.
   'story-run-progress',
   // Story #1123 — analyze-execution.js upserts perf summaries at close
@@ -130,24 +130,24 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // ticket. Re-invocations upsert the same marker rather than appending
   // duplicates.
   'epic-handoff',
-  // Story #2899 (Epic #2880, F13) — `epic-deliver-preflight.js` upserts a
-  // `delivery-preflight` comment on the Epic at the start of
-  // /deliver Phase 1, surfacing estimated story count, install cost,
+  // Story #2899 (Epic #2880, F13) — the deleted `epic-deliver-preflight.js`
+  // upserted a `delivery-preflight` comment on the Epic at the start of
+  // pre-v2 Epic `/deliver` Phase 1, surfacing estimated story count, install cost,
   // wave count, GitHub API request volume, Claude quota burn, and any
   // threshold breaches against `delivery.preflight.max*`. One entry per
   // Epic; re-runs replace prior content.
   'delivery-preflight',
-  // Story #3062 (Epic #3051) — `wave-tick.js` upserts a
+  // Story #3062 (Epic #3051) — the deleted `wave-tick.js` upserted a
   // `recurring-failure-class` comment on the Epic when the cross-Story
   // detector finds two or more Stories that hit the same `failedGate` in
   // `close-validate.end`. One entry per Epic; re-ticks with the same
   // findings upsert in place (`upsertStructuredComment` diffs by body).
   'recurring-failure-class',
-  // Story #3061 (Epic #3051) — the /deliver §2e Idle Watchdog
-  // subsection instructs the parent host LLM to upsert a `wave-stall`
-  // comment on the Epic whenever an in-flight Story has been silent for
-  // longer than the configured cadence. `wave-tick.js --check-idle`
-  // emits the matching envelope; registering the kind here is what makes
+  // Story #3061 (Epic #3051) — the pre-v2 `/deliver` idle-watchdog prose
+  // instructed the parent host LLM to upsert a `wave-stall` comment on the
+  // Epic whenever an in-flight Story had been silent for longer than the
+  // configured cadence. The deleted `wave-tick.js --check-idle` CLI emitted
+  // the matching envelope; registering the kind here keeps historical
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',

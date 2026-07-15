@@ -180,11 +180,17 @@ Do the thing.
 describe('parse() — rejects legacy string path entries', () => {
   it('throws StoryBodyParseError for bare string bullets in markdown', () => {
     const md = `## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js: extract handler\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
-    assert.throws(() => parse(md), (err) => {
-      assert.ok(err instanceof StoryBodyParseError);
-      assert.match(err.message, /plain string bullets are no longer accepted/);
-      return true;
-    });
+    assert.throws(
+      () => parse(md),
+      (err) => {
+        assert.ok(err instanceof StoryBodyParseError);
+        assert.match(
+          err.message,
+          /plain string bullets are no longer accepted/,
+        );
+        return true;
+      },
+    );
   });
 
   it('throws StoryBodyParseError for string entries in structured object input', () => {
@@ -616,11 +622,17 @@ g
 
 ## Acceptance
 - [ ] x`;
-    assert.throws(() => parse(md), (err) => {
-      assert.ok(err instanceof StoryBodyParseError);
-      assert.match(err.message, /plain string bullets are no longer accepted/);
-      return true;
-    });
+    assert.throws(
+      () => parse(md),
+      (err) => {
+        assert.ok(err instanceof StoryBodyParseError);
+        assert.match(
+          err.message,
+          /plain string bullets are no longer accepted/,
+        );
+        return true;
+      },
+    );
   });
 
   it('parses object-form reference entries', () => {

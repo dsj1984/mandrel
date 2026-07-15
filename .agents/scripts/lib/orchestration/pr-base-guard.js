@@ -22,7 +22,11 @@ import { resolveStoryHierarchy } from '../story-lifecycle.js';
  *   unused once an Epic/parent footer is detected (any base is refused).
  * @throws {Error} when the Story body declares an Epic or Parent footer.
  */
-export function assertStoryPrBaseAllowed({ storyId, storyBody, baseBranch: _baseBranch }) {
+export function assertStoryPrBaseAllowed({
+  storyId,
+  storyBody,
+  baseBranch: _baseBranch,
+}) {
   if (!storyBody) return;
   const { epicId } = resolveStoryHierarchy(storyBody);
   if (epicId == null) return;

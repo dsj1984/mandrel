@@ -1,10 +1,10 @@
 /**
  * preflight-cache.js — Epic #3019 / Story #3027.
  *
- * Cache adapter for the snapshot/DAG envelope produced by
- * `epic-deliver-preflight.js` so `epic-deliver-prepare.js` can skip the
- * second walk of Epic → Story when the underlying Epic ticket
- * has not drifted between the two operator invocations.
+ * Legacy cache adapter for the snapshot/DAG envelope the deleted
+ * `epic-deliver-preflight.js` / `epic-deliver-prepare.js` pair produced
+ * (pre-v2 Epic `/deliver`). Retained so fingerprint helpers and tests stay
+ * stable; no live v2 entry seam reads or writes this cache.
  *
  * Contract:
  *   - Cache file lives at `<cwd>/temp/epic-<epicId>/preflight-snapshot.json`.
@@ -107,7 +107,7 @@ export function computeBaseSha(epic, stories = []) {
  * miss and fall back to a fresh snapshot/DAG pass.
  *
  * The function intentionally swallows `ENOENT` and JSON-parse errors so
- * a stale or partially-written file does not poison `epic-deliver-prepare`.
+ * a stale or partially-written file does not poison legacy Epic prepare callers.
  *
  * @param {{ epicId: number, cwd?: string }} args
  * @returns {Promise<object | null>}

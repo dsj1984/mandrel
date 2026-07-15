@@ -11,7 +11,7 @@
  * emits the set of Stories safe to dispatch **on this beat** — a Story
  * becomes dispatchable the instant its own dependencies are done, under the
  * same global concurrency cap and the same file-overlap co-dispatch guard
- * the Epic path uses. There is no wave barrier: this no longer batches
+ * `lib/wave-runner/ready-set.js` applies everywhere. There is no wave barrier: this no longer batches
  * Stories into fully-draining waves; it selects continuously.
  *
  * The previous static wave-batch plan (group N must fully drain before
@@ -50,9 +50,9 @@
  * `/deliver` uses — `resolveConfig` + `getRunners` reading
  * `delivery.deliverRunner.concurrencyCap` (default 3) — so a
  * `.agentrc.local.json` override is honored. A `--concurrency <n>` CLI flag
- * overrides the config-resolved value for that run only. This puts both the
- * standalone (`/deliver`) and Epic (`/deliver`) delivery paths on one
- * deterministic config source **and** one scheduling kernel.
+ * overrides the config-resolved value for that run only. This shares one
+ * deterministic config source (`delivery.deliverRunner.concurrencyCap`) and
+ * one scheduling kernel with every `/deliver` multi-Story invocation.
  *
  * On cycle detection, exits with code 2 and sets cycleError in the envelope.
  */
@@ -74,7 +74,7 @@ Continuous ready-set planner for standalone Story delivery. Consumes a
 dependency graph of Story IDs plus the live run progress and emits the set
 of Stories safe to dispatch on this beat — a Story is dispatchable the
 instant its own dependencies are done — plus the resolved per-beat
-concurrency cap and the same file-overlap guard the Epic path uses.
+concurrency cap and the same file-overlap guard as `selectReadySet`.
 
 Input DAG format (JSON array):
   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
@@ -257,7 +257,7 @@ export function parseConcurrencyOverride(raw) {
 /**
  * Resolve the per-beat concurrency cap.
  *
- * Mirrors the `/deliver` seam (`epic-deliver-prepare.js`): resolve the
+ * Mirrors the `/deliver` multi-Story seam (`helpers/deliver-story.md`): resolve the
  * project config (which deep-merges `.agentrc.local.json` over `.agentrc.json`)
  * then read `delivery.deliverRunner.concurrencyCap` via `getRunners` (default
  * 3). An explicit `override` (the `--concurrency <n>` CLI flag) wins over

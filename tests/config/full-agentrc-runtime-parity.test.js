@@ -13,18 +13,18 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { CODEBASE_SNAPSHOT_TIERS } from '../../.agents/scripts/lib/codebase-snapshot.js';
+import { ACCEPTANCE_EVAL_DEFAULTS } from '../../.agents/scripts/lib/config/acceptance-eval.js';
+import { CI_DELIVERY_DEFAULTS } from '../../.agents/scripts/lib/config/ci.js';
+import { COMMANDS_DEFAULTS } from '../../.agents/scripts/lib/config/commands.js';
 import {
   getAgentrcDefaults,
   lookupPath,
 } from '../../.agents/scripts/lib/config/defaults.js';
-import { ACCEPTANCE_EVAL_DEFAULTS } from '../../.agents/scripts/lib/config/acceptance-eval.js';
-import { CI_DELIVERY_DEFAULTS } from '../../.agents/scripts/lib/config/ci.js';
-import { COMMANDS_DEFAULTS } from '../../.agents/scripts/lib/config/commands.js';
 import { DELIVERY_ROUTING_DEFAULTS } from '../../.agents/scripts/lib/config/delivery-routing.js';
 import {
-  DEFAULT_REQUIRED_CHECKS,
   BRANCH_PROTECTION_DEFAULTS,
+  DEFAULT_REQUIRED_CHECKS,
   MERGE_METHODS_DEFAULTS,
   NOTIFICATIONS_DEFAULTS,
 } from '../../.agents/scripts/lib/config/github.js';
@@ -42,9 +42,8 @@ import {
   getRunners,
 } from '../../.agents/scripts/lib/config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from '../../.agents/scripts/lib/config/worktree-isolation.js';
-import { DEFAULT_MODEL_CAPACITY } from '../../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { DEFAULT_REGISTRY_PATTERNS } from '../../.agents/scripts/lib/orchestration/ticket-validator-conflicts.js';
-import { CODEBASE_SNAPSHOT_TIERS } from '../../.agents/scripts/lib/codebase-snapshot.js';
+import { DEFAULT_MODEL_CAPACITY } from '../../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { WATCH_DEFAULTS } from '../../.agents/scripts/pr-watch-with-update.js';
 
 /** Prefixes intentionally absent from runtime *_DEFAULTS (agent/workflow-read). */
@@ -207,7 +206,10 @@ describe('full-agentrc-runtime-parity', () => {
         cmd: [...c.cmd],
       })),
     );
-    assert.equal(ref.github.branchProtection.enforce, BRANCH_PROTECTION_DEFAULTS.enforce);
+    assert.equal(
+      ref.github.branchProtection.enforce,
+      BRANCH_PROTECTION_DEFAULTS.enforce,
+    );
     assert.ok(
       !ref.github.branchProtection.requiredChecks.some(
         (c) => c.name === 'format:check',
@@ -237,10 +239,9 @@ describe('full-agentrc-runtime-parity', () => {
       ref.delivery.quality.gates.maintainability.floors,
       MAINTAINABILITY_GATE_DEFAULTS.floors,
     );
-    assert.deepEqual(
-      ref.delivery.quality.gates.maintainability.targetDirs,
-      [...MAINTAINABILITY_GATE_DEFAULTS.targetDirs],
-    );
+    assert.deepEqual(ref.delivery.quality.gates.maintainability.targetDirs, [
+      ...MAINTAINABILITY_GATE_DEFAULTS.targetDirs,
+    ]);
     assert.deepEqual(ref.delivery.quality.codingGuardrails, {
       ...CODING_GUARDRAILS_DEFAULTS,
     });

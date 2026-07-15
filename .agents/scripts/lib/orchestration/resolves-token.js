@@ -2,7 +2,7 @@
  * resolves-token.js — single source of truth for the `(resolves #N)`
  * Story-merge integration marker.
  *
- * Background. `story-close.js` integrates each Story branch into its
+ * Background. The deleted `story-close.js` integrated each Story branch into its
  * parent Epic branch with `git merge --no-ff` and a Conventional-Commit
  * subject that carries a ` (resolves #<storyId>)` trailer. That trailer is
  * the *durable* proof a Story landed on `epic/<id>`: the local/remote

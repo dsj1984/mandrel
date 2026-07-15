@@ -59,7 +59,9 @@ const SIBLING_FILLER = Object.freeze({
   body: {
     goal: 'Filler sibling so the Feature has two Stories.',
     reason_to_exist: 'Benign filler sibling so the Feature has two Stories.',
-    changes: [{ path: 'src/_sizing-filler.js', assumption: 'refactors-existing' }],
+    changes: [
+      { path: 'src/_sizing-filler.js', assumption: 'refactors-existing' },
+    ],
     acceptance: ['filler observable criterion'],
     verify: ['npm test (unit)'],
   },
@@ -128,7 +130,11 @@ test('estimateStorySessionMass is authored tokens only', () => {
 test('narrow Story with no wide declaration produces no capacity findings', () => {
   const result = validateStory(
     makeStory('t-narrow', {
-      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }, { path: 'src/b.js', assumption: 'refactors-existing' }, { path: 'src/c.js', assumption: 'refactors-existing' }],
+      changes: [
+        { path: 'src/a.js', assumption: 'refactors-existing' },
+        { path: 'src/b.js', assumption: 'refactors-existing' },
+        { path: 'src/c.js', assumption: 'refactors-existing' },
+      ],
       acceptance: ['criterion 1', 'criterion 2'],
     }),
   );
@@ -298,7 +304,10 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
           type: 'story',
           slug: 's-no-contract',
           title: 'Story without inline contract',
-          body: { goal: 'Goal.', changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }] },
+          body: {
+            goal: 'Goal.',
+            changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
+          },
         },
         SIBLING_FILLER,
       ]),

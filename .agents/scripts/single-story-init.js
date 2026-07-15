@@ -492,8 +492,8 @@ export async function runSingleStoryInit({
   );
   progress('INIT', `Initializing standalone Story #${storyId}...`);
 
-  // Issue #4483 — deterministic remote evidence at the standalone entry
-  // seam (the counterpart to `epic-deliver-preflight.js`'s probe). The
+  // Issue #4483 — deterministic remote evidence at the v2 `/deliver` entry
+  // seam (`single-story-init.js`). The
   // probe is read-only, so it runs under --dry-run too. The CLI records
   // the fact; the workflow owns the `agent::blocked` transition on
   // `remoteVerified: false` — inline delivery to local `main` is never a

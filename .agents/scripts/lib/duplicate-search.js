@@ -19,8 +19,8 @@
  *    or operator-visible failure.
  */
 
-import { TYPE_LABELS } from './label-constants.js';
 import { Logger } from './Logger.js';
+import { TYPE_LABELS } from './label-constants.js';
 
 const STOPWORDS = new Set([
   'a',
