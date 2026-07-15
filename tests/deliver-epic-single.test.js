@@ -63,7 +63,7 @@ describe('unified /deliver router', () => {
     const md = readFileSync(DELIVER_MD, 'utf8');
     assert.match(md, /resolve-plan-run\.js/);
     assert.match(md, /stories-wave-tick\.js/);
-    assert.match(md, /planRunEpilogue/);
+    assert.match(md, /plan-run-epilogue\.js/);
     assert.doesNotMatch(
       md,
       /resolveEpicDeliveryRoute|wave-tick\.js --check-idle/,

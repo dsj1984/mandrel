@@ -10,9 +10,9 @@
  */
 
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
+import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
 import { Logger } from '../Logger.js';
 import { forEachLine } from '../observability/signals-writer.js';
-import { DEFAULT_FRAMEWORK_REPO } from './retro/phases/gather-signals.js';
 import { composeRoutedProposals } from './retro-proposals.js';
 import { upsertStructuredComment } from './ticketing.js';
 

@@ -369,8 +369,9 @@ describe('check-lifecycle-doc-drift — listener loader', () => {
       !names.includes('Index'),
       `loader should skip index.js (got ${names.join(',')})`,
     );
-    assert.ok(names.includes('AutomergeArmer'));
-    assert.ok(names.includes('CheckpointPointerWriter'));
+    // v2 keeps helper listeners used by Story CI-watch / close-and-land.
+    assert.ok(names.includes('Watcher'));
+    assert.ok(names.includes('MergeWatcher'));
   });
 
   it('every listener with a literal subscription appears in the doc table', () => {

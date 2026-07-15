@@ -98,35 +98,37 @@ export function planRunEpilogue({ planRunId, stories } = {}) {
     };
   }
 
-  if (runId === null) {
-    return {
-      applicable: false,
-      planRunId: null,
-      stories: ids,
-      steps: [],
-      reason: 'multi-Story run requires a planRunId to anchor the epilogue',
-    };
-  }
+  // Positional `/deliver 101 102` has no plan-run label. Synthesize a
+  // stable adhoc id from the sorted Story set so the epilogue still
+  // anchors comments / audit roster without requiring `--run`.
+  const effectiveRunId =
+    runId ??
+    `adhoc-${[...ids].sort((a, b) => Number(a) - Number(b)).join('-')}`;
 
   const steps = [
     {
       kind: 'audit-roster',
-      description: `Select cross-Story audit lenses for run ${runId}`,
+      description: `Select cross-Story audit lenses for run ${effectiveRunId}`,
       stories: ids,
     },
     {
       kind: 'follow-up-rollup',
-      description: `Friction follow-up roll-up for run ${runId}`,
+      description: `Friction follow-up roll-up for run ${effectiveRunId}`,
       stories: ids,
     },
     {
       kind: 'sibling-coherence',
-      description: `Sibling-coherence check across the ${ids.length} Story specs of run ${runId}`,
+      description: `Sibling-coherence check across the ${ids.length} Story specs of run ${effectiveRunId}`,
       stories: ids,
     },
   ];
 
-  return { applicable: true, planRunId: runId, stories: ids, steps };
+  return {
+    applicable: true,
+    planRunId: effectiveRunId,
+    stories: ids,
+    steps,
+  };
 }
 
 async function listChangedFiles(cwd, baseRef = 'origin/main') {

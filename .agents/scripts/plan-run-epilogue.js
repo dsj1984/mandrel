@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 /**
  * plan-run-epilogue.js — execute the real per-run closeout for
- * `/deliver --run <planRunId>`.
+ * `/deliver --run <planRunId>` and positional multi-Story delivers.
  *
  * Usage:
  *   node .agents/scripts/plan-run-epilogue.js --run <planRunId>
  *   node .agents/scripts/plan-run-epilogue.js --run <planRunId> --stories 1,2,3
+ *   node .agents/scripts/plan-run-epilogue.js --stories 1,2,3
  *
- * When `--stories` is omitted, resolves the set via plan-run labels
- * (`state=all` so landed Stories are included).
+ * When `--stories` is omitted, `--run` is required and the set is resolved
+ * via plan-run labels (`state=all` so landed Stories are included).
+ * When `--stories` is supplied without `--run`, an adhoc planRunId is
+ * synthesized from the sorted Story ids.
  */
 
 import './lib/runtime-deps/ensure-installed.js';
@@ -41,10 +44,12 @@ export async function main(argv = process.argv.slice(2)) {
     options: CLI_OPTIONS,
     strict: false,
   });
-  const planRunId = typeof values.run === 'string' ? values.run.trim() : '';
-  if (!planRunId) {
+  const runFlag = typeof values.run === 'string' ? values.run.trim() : '';
+  const hasStoriesFlag =
+    typeof values.stories === 'string' && values.stories.trim().length > 0;
+  if (!runFlag && !hasStoriesFlag) {
     throw new Error(
-      'Usage: node plan-run-epilogue.js --run <planRunId> [--stories 1,2,3]',
+      'Usage: node plan-run-epilogue.js (--run <planRunId> | --stories 1,2,3) [--stories 1,2,3]',
     );
   }
   const cwd =
@@ -55,22 +60,25 @@ export async function main(argv = process.argv.slice(2)) {
   const provider = createProvider(config);
 
   let stories = [];
-  if (typeof values.stories === 'string' && values.stories.trim()) {
+  if (hasStoriesFlag) {
     stories = values.stories
       .split(',')
       .map((s) => Number(s.trim()))
       .filter((n) => Number.isInteger(n) && n > 0);
   } else {
-    const planRunLabel = normalizePlanRunLabel(planRunId);
+    const planRunLabel = normalizePlanRunLabel(runFlag);
     const issues = await fetchPlanRunIssues(provider, {
       planRunLabel,
       state: 'all',
     });
-    const envelope = resolvePlanRunFromIssues({ run: planRunId, issues });
+    const envelope = resolvePlanRunFromIssues({ run: runFlag, issues });
     stories = (envelope.stories ?? [])
       .map((s) => Number(s?.id ?? s))
       .filter((n) => Number.isInteger(n) && n > 0);
   }
+
+  const planRunId =
+    runFlag || `adhoc-${[...stories].sort((a, b) => a - b).join('-')}`;
 
   const result = await runPlanRunEpilogue({
     planRunId,

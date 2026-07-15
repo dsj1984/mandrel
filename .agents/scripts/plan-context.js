@@ -2,26 +2,27 @@
 /* node:coverage ignore file */
 
 /**
- * plan-context.js — step 1 of the collapsed `/plan` pipeline (Epic #4474,
- * M3 PR2): the single emit-context CLI.
+ * plan-context.js — step 1 of the collapsed `/plan` pipeline.
  *
  * Emits one stdout-pure JSON envelope for the `/plan` authoring middle.
- * Existing-Epic mode (`--epic`) retired with the v2 Story-only cutover.
  *
- * Two entry forms (exactly one is required):
+ * Two operator modes (exactly one is required):
  *
- *   --one-pager <path>   Ideation mode — the parent ticket does not exist
- *                        yet (creation moves to the persist half). Envelope
- *                        carries `onePager` and `duplicates[]` (cross-Epic
- *                        dup search).
+ *   --seed "<text>"           Chat/text ideation. Dup search runs off the
+ *                             raw seed; envelope carries `seed` +
+ *                             `onePagerSpec`.
  *
- *   --seed "<text>"      Headless ideation entry (#4496 fix 1) — neither
- *                        the parent ticket nor the one-pager exists yet.
- *                        The dup search runs off the raw seed text, and the
- *                        envelope additively carries `seed` and
- *                        `onePagerSpec`, so the one-pager sections are
- *                        authored in the same batched write as the spec
- *                        artifacts.
+ *   --seed-file <path>        Same as --seed, but the corpus is read from
+ *                             disk (audit-to-stories handoff, notes).
+ *                             Aliases: --one-pager, --from-notes.
+ *
+ *   --tickets 123[,456…]      Analyze existing issue(s) into proper
+ *                             Stories. Envelope carries `sourceTickets[]`.
+ *
+ * Deprecated aliases (still accepted):
+ *   --idea "<text>"           → --seed
+ *   --one-pager <path>        → --seed-file
+ *   --from-notes <path>       → --seed-file
  *
  * Flags:
  *   --pretty         Pretty-print the JSON envelope.
@@ -52,24 +53,33 @@ import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
 
 /**
- * Build the envelope and write it to `stdout` as a single JSON line
- * (or pretty-printed with --pretty). Exported for tests: the stdout-purity
- * test injects a fake provider and a capture stream and asserts the
- * captured output is exactly one `JSON.parse`-able payload.
+ * Parse a comma-/space-separated ticket id list into positive integers.
  *
- * @param {{
- *   mode: 'one-pager'|'seed',
- *   onePagerPath?: string,
- *   onePagerContent?: string,
- *   seedText?: string,
- *   provider: object,
- *   config: object,
- *   settings: object,
- *   fullContext?: boolean,
- *   pretty?: boolean,
- *   cwd?: string,
- *   stdout?: { write: (chunk: string) => void },
- * }} args
+ * @param {string} raw
+ * @returns {number[]}
+ */
+export function parseTicketIds(raw) {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    throw new Error('--tickets requires one or more positive issue ids.');
+  }
+  const ids = raw
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => Number(s));
+  if (ids.some((n) => !Number.isInteger(n) || n <= 0)) {
+    throw new Error(
+      `--tickets expects positive integer ids; got ${JSON.stringify(raw)}`,
+    );
+  }
+  return [...new Set(ids)];
+}
+
+/**
+ * Build the envelope and write it to `stdout` as a single JSON line
+ * (or pretty-printed with --pretty). Exported for tests.
+ *
+ * @param {object} args
  * @returns {Promise<object>} the emitted envelope.
  */
 export async function emitPlanContext({
@@ -77,6 +87,7 @@ export async function emitPlanContext({
   onePagerPath,
   onePagerContent,
   seedText,
+  ticketIds,
   provider,
   config,
   settings,
@@ -90,6 +101,7 @@ export async function emitPlanContext({
     onePagerPath,
     onePagerContent,
     seedText,
+    ticketIds,
     provider,
     config,
     settings,
@@ -106,25 +118,49 @@ export async function emitPlanContext({
 async function main() {
   const { values } = parseArgs({
     options: {
-      'one-pager': { type: 'string' },
       seed: { type: 'string' },
+      idea: { type: 'string' },
+      'seed-file': { type: 'string' },
+      'one-pager': { type: 'string' },
+      'from-notes': { type: 'string' },
+      tickets: { type: 'string' },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
     },
     strict: true,
   });
 
-  const hasOnePager =
-    typeof values['one-pager'] === 'string' && values['one-pager'].length > 0;
-  const hasSeed = typeof values.seed === 'string' && values.seed.length > 0;
-  const entryForms = [hasOnePager, hasSeed].filter(Boolean).length;
+  const seedText = values.seed || values.idea || null;
+  const seedFilePath =
+    values['seed-file'] || values['one-pager'] || values['from-notes'] || null;
+  const hasSeed = typeof seedText === 'string' && seedText.length > 0;
+  const hasSeedFile =
+    typeof seedFilePath === 'string' && seedFilePath.length > 0;
+  const hasTickets =
+    typeof values.tickets === 'string' && values.tickets.trim().length > 0;
+  const entryForms = [hasSeed, hasSeedFile, hasTickets].filter(Boolean).length;
   if (entryForms !== 1) {
     throw new Error(
-      'Pass exactly one of --one-pager <path> or --seed "<text>". ' +
-        '(--one-pager: ideation mode; --seed: headless ideation entry.)',
+      'Pass exactly one of --seed "<text>", --seed-file <path>, or --tickets <ids>. ' +
+        '(Aliases: --idea → --seed; --one-pager / --from-notes → --seed-file.)',
     );
   }
-  const mode = hasOnePager ? 'one-pager' : 'seed';
+
+  let mode;
+  let ticketIds;
+  if (hasTickets) {
+    mode = 'tickets';
+    ticketIds = parseTicketIds(values.tickets);
+  } else if (hasSeedFile) {
+    // Preserve legacy mode label when the operator used --one-pager so
+    // existing envelope consumers / tests keep working.
+    mode =
+      values['one-pager'] && !values['seed-file'] && !values['from-notes']
+        ? 'one-pager'
+        : 'seed-file';
+  } else {
+    mode = 'seed';
+  }
 
   // stdout is reserved for the JSON envelope: flip every Logger sink that
   // could land on stdout to stderr BEFORE any pipeline code runs
@@ -150,10 +186,6 @@ async function main() {
   }
   const provider = createProvider(config);
 
-  // Plan-metrics ledger (#4474 PR1): stamp entry/exit + mode so the folded
-  // emit surface is measured against the 12-phase baseline. One-pager and
-  // seed modes have no parent ticket yet, so the record routes to the
-  // standalone stream (epicId null).
   await recordPlanInvocation(
     {
       cli: 'plan-context',
@@ -164,8 +196,9 @@ async function main() {
     () =>
       emitPlanContext({
         mode,
-        onePagerPath: hasOnePager ? values['one-pager'] : undefined,
-        seedText: hasSeed ? values.seed : undefined,
+        onePagerPath: hasSeedFile ? seedFilePath : undefined,
+        seedText: hasSeed ? seedText : undefined,
+        ticketIds,
         provider,
         config,
         settings,

@@ -3,7 +3,7 @@ description:
   Convert findings produced by the audit-* workflows into actionable
   GitHub Stories. Reads temp/audits/audit-*-results.md, groups findings
   cross-audit, deduplicates against existing Issues by fingerprint, and
-  either chains into /plan --idea or opens standalone Stories.
+  either chains into /plan --seed-file or opens standalone Stories.
 ---
 
 # /audit-to-stories [audit-file-or-glob]
@@ -22,8 +22,8 @@ Dimension / Category, Current State, Recommendation, Agent Prompt).
 `/audit-to-stories` closes the loop: it parses those reports, groups
 related findings (including across audit dimensions), classifies each
 group as eligible-to-create or already-tracked, and — at the operator's
-choice — either chains into `/plan --idea` for a single planned
-Epic or opens standalone Stories directly.
+choice — either chains into `/plan --seed-file` for a planned Story
+(or N>1 under the split policy) or opens standalone Stories directly.
 
 The audit producers themselves are **not modified** by this workflow.
 They remain read-only emitters of audit reports.
@@ -118,11 +118,11 @@ Ask:
 > How would you like these `<M>` Stories created?
 >
 > - **Single plan via `/plan`** **[Recommended]** — chains into
->   `/plan --seed` so the standard spec-and-WBS authoring handles
->   decomposition. Grouped Stories become the seed for the
->   authoring step's decomposition.
+>   `/plan --seed-file <emitted.md>` so the standard Story authoring
+>   handles the seed. Prefer one Story; split only under the
+>   default-single policy.
 > - **Individual standalone Stories** — opens one GitHub Issue per
->   group directly, no Epic wrapper.
+>   group directly (no plan ceremony).
 
 **STOP** until the operator picks.
 
@@ -144,10 +144,10 @@ authoring step has concrete anchors), Not Doing.
 Chain into the existing planning entrypoint:
 
 ```text
-/plan --seed "$(cat <path-to-seed>)"
+/plan --seed-file <path-to-seed>
 ```
 
-(or persist the seed and pass it via `--one-pager <path>`). `/plan`
+(`/plan --seed "$(cat <path>)"` also works for small seeds). `/plan`
 then runs its author → persist path, as documented in its workflow.
 Each Story it spawns from the seed carries `context::audit:
 <reportLink>` and `audit-fingerprint: <sha>` in its body so future
@@ -220,13 +220,13 @@ Persist `temp/audits/audit-to-stories-$(date +%Y%m%dT%H%M%S).md`
 summarising the run:
 
 - Per-group breakdown: which findings merged, fingerprints, dependency
-  edges, created/skipped Issue link (or new Epic link).
+  edges, created/skipped Issue link (or plan-run / Story links).
 - The severity threshold and grouping mode the operator chose.
 - Final tally: `"<M> groups planned · <K> created · <J> skipped (open)
   · <L> skipped (re-occurring)"`.
 
-When the Single-Epic path ran, link the Epic the chained `/plan`
-opened. When the Standalone-Stories path ran, list every Issue URL.
+When the single-plan path ran, link the Story (or plan-run) the chained
+`/plan` opened. When the Standalone-Stories path ran, list every Issue URL.
 
 ## Constraints
 

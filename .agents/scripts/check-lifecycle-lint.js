@@ -80,17 +80,14 @@ const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
  * auto-merge call could re-enter the codebase.
  */
 const MERGE_LOCKOUT_ALLOWED_SUFFIXES = Object.freeze([
-  // Story #2256 / #2336 — the predicate-gated AutomergeArmer listener is
-  // now the SOLE production code path authorized to call `gh pr merge`.
-  // The legacy `.agents/scripts/epic-deliver-automerge.js` exemption was
-  // removed in Story #2336 / Task #2340 once the CLI was reduced to a
-  // pure `epic.automerge.start` emit shim.
+  // v2 Story close path — the sole production code path authorized to
+  // call `gh pr merge` after the Epic AutomergeArmer listener was removed.
   path.join(
     'lib',
     'orchestration',
-    'lifecycle',
-    'listeners',
-    'automerge-armer.js',
+    'single-story-close',
+    'phases',
+    'auto-merge.js',
   ),
 ]);
 
@@ -339,7 +336,7 @@ export function findMergeLockoutViolations(
           violations.push({
             file,
             line: i + 1,
-            hint: `String literal containing '${FORBIDDEN}' is forbidden outside automerge-armer.js (Story #2253 review High-1). Auto-merge enablement must flow through the AutomergeArmer listener so blocker/review predicates gate the call.`,
+            hint: `String literal containing '${FORBIDDEN}' is forbidden outside single-story-close/phases/auto-merge.js. Auto-merge enablement must flow through the Story close path.`,
           });
           break; // one violation per line is enough
         }

@@ -1,27 +1,32 @@
 /**
- * tests/lib/duplicate-search.test.js — unit tests for the cross-Epic
- * duplicate detector used by `/plan` Phase 0b.
+ * tests/lib/duplicate-search.test.js — unit tests for the cross-Story
+ * duplicate detector used by `/plan`.
  *
  * Covers:
  *  - overlap scoring (Jaccard) returns expected ordering and respects
  *    stopword filtering
  *  - empty/no-match short-circuit returns []
  *  - provider errors propagate verbatim
- *  - input validation rejects missing onePager / provider
+ *  - input validation rejects missing seed / provider
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  findSimilarOpenEpics,
+  findSimilarOpenStories,
   overlapScore,
   tokenize,
 } from '../../.agents/scripts/lib/duplicate-search.js';
 
-function makeProvider(epics) {
+function makeProvider(stories) {
   return {
-    async getEpics(_filters) {
-      return epics;
+    async listIssuesByLabel(_filters) {
+      return stories.map((s) => ({
+        number: s.id,
+        title: s.title,
+        body: s.body,
+        html_url: s.url,
+      }));
     },
   };
 }
@@ -73,7 +78,7 @@ describe('duplicate-search', () => {
     });
   });
 
-  describe('findSimilarOpenEpics — ranking', () => {
+  describe('findSimilarOpenStories — ranking', () => {
     it('returns ranked candidates above the minScore floor with URLs', async () => {
       const provider = makeProvider([
         {
@@ -93,23 +98,19 @@ describe('duplicate-search', () => {
         },
       ]);
 
-      const onePager =
-        'Detect duplicate webhook payloads via fingerprint hashing.';
+      const seed = 'Detect duplicate webhook payloads via fingerprint hashing.';
 
-      const out = await findSimilarOpenEpics({
-        onePager,
+      const out = await findSimilarOpenStories({
+        seed,
         provider,
         owner: 'acme',
         repo: 'core',
       });
 
       assert.ok(out.length >= 1, 'at least one match expected');
-      // Both webhook epics should be ranked above the marketing one (which
-      // should not appear at all).
       const ids = out.map((c) => c.id);
       assert.ok(ids.includes(101) || ids.includes(103));
-      assert.ok(!ids.includes(102), 'unrelated epic must be filtered out');
-      // URL is built from owner/repo
+      assert.ok(!ids.includes(102), 'unrelated Story must be filtered out');
       for (const c of out) {
         assert.ok(
           c.url.startsWith('https://github.com/acme/core/issues/'),
@@ -117,18 +118,39 @@ describe('duplicate-search', () => {
         );
         assert.ok(typeof c.score === 'number' && c.score > 0);
       }
-      // Highest score ranks first
       for (let i = 1; i < out.length; i += 1) {
         assert.ok(out[i - 1].score >= out[i].score);
       }
     });
+
+    it('excludes source ticket ids from the ranking', async () => {
+      const provider = makeProvider([
+        {
+          id: 101,
+          title: 'Webhook duplicate detection for incoming events',
+          body: 'Detect duplicate webhook payloads by hashing the body.',
+        },
+        {
+          id: 103,
+          title: 'Webhook duplicate detection for incoming events',
+          body: 'Detect duplicate webhook payloads by hashing the body.',
+        },
+      ]);
+      const out = await findSimilarOpenStories({
+        seed: 'Detect duplicate webhook payloads via fingerprint hashing.',
+        provider,
+        excludeIds: [101],
+      });
+      assert.ok(!out.some((c) => c.id === 101));
+      assert.ok(out.some((c) => c.id === 103));
+    });
   });
 
-  describe('findSimilarOpenEpics — no-match short-circuit', () => {
-    it('returns [] when the provider has no open epics', async () => {
+  describe('findSimilarOpenStories — no-match short-circuit', () => {
+    it('returns [] when the provider has no open Stories', async () => {
       const provider = makeProvider([]);
-      const out = await findSimilarOpenEpics({
-        onePager: 'A perfectly novel idea no one has ever proposed.',
+      const out = await findSimilarOpenStories({
+        seed: 'A perfectly novel idea no one has ever proposed.',
         provider,
       });
       assert.deepEqual(out, []);
@@ -142,60 +164,60 @@ describe('duplicate-search', () => {
           body: 'Nothing here resembles the seed at all.',
         },
       ]);
-      const out = await findSimilarOpenEpics({
-        onePager: 'Webhook fingerprint hashing service',
+      const out = await findSimilarOpenStories({
+        seed: 'Webhook fingerprint hashing service',
         provider,
         minScore: 0.5,
       });
       assert.deepEqual(out, []);
     });
 
-    it('returns [] when the onePager has no scoreable tokens', async () => {
+    it('returns [] when the seed has no scoreable tokens', async () => {
       const provider = makeProvider([
-        { id: 1, title: 'Some Epic', body: 'with content' },
+        { id: 1, title: 'Some Story', body: 'with content' },
       ]);
-      const out = await findSimilarOpenEpics({
-        onePager: 'a an the of', // all stopwords
+      const out = await findSimilarOpenStories({
+        seed: 'a an the of', // all stopwords
         provider,
       });
       assert.deepEqual(out, []);
     });
   });
 
-  describe('findSimilarOpenEpics — error propagation', () => {
+  describe('findSimilarOpenStories — error propagation', () => {
     it('propagates provider errors verbatim', async () => {
       const boom = new Error('GitHub API rate limit exceeded');
       const provider = {
-        async getEpics() {
+        async listIssuesByLabel() {
           throw boom;
         },
       };
       await assert.rejects(
         () =>
-          findSimilarOpenEpics({
-            onePager: 'something',
+          findSimilarOpenStories({
+            seed: 'something',
             provider,
           }),
         (err) => err === boom,
       );
     });
 
-    it('rejects missing onePager', async () => {
+    it('rejects missing seed', async () => {
       const provider = makeProvider([]);
       await assert.rejects(
-        () => findSimilarOpenEpics({ onePager: '', provider }),
-        /onePager must be a non-empty string/,
+        () => findSimilarOpenStories({ seed: '', provider }),
+        /seed must be a non-empty string/,
       );
     });
 
-    it('rejects providers without getEpics', async () => {
+    it('rejects providers without listIssuesByLabel', async () => {
       await assert.rejects(
         () =>
-          findSimilarOpenEpics({
-            onePager: 'something',
+          findSimilarOpenStories({
+            seed: 'something',
             provider: {},
           }),
-        /provider must implement getEpics/,
+        /provider must implement listIssuesByLabel/,
       );
     });
   });

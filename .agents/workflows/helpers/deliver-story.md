@@ -200,14 +200,16 @@ Story-path specifics:
 
 ---
 
-## Step 2 — Risk-routed ceremony
+## Step 2 — Ceremony (profile + risk)
 
-Per-Story ceremony is **risk-routed** from the Story's own risk envelope
-(folded plan `planningRisk` / `risk-verdict` on the Story or its plan-run
-context — never an Epic parent). Resolve fresh-vs-inline acceptance critics
-per AC-cluster with
+Per-Story ceremony is selected by `delivery.routing.ceremonyProfile`
+(`minimal` | `standard` | `strict`, default `standard`) and the Story's
+own risk envelope (folded plan `planningRisk` / `risk-verdict` on the
+Story or its plan-run context — never an Epic parent). Resolve
+fresh-vs-inline acceptance critics per AC-cluster with
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
-(`high`/`medium`/`missing` → `fresh`; `low` → `inline` unless the
+(`minimal` → always inline; `strict` → always fresh; `standard` →
+`high`/`medium`/`missing` → `fresh`, `low` → `inline` unless the
 `freshCriticSampleRate` floor forces `fresh`). Review depth and audit lenses
 follow the same envelope via `review-depth.js` /
 `audit-lens-routing.js#resolveAuditLenses` inside close.
@@ -251,28 +253,21 @@ Flags:
 - `--no-auto-merge` — disable auto-merge. Use when the PR materially changes
   behaviour and warrants a pre-merge eyeball; the operator then merges via
   the GitHub UI.
-- `--wait-merge` — **headless must-land** (Story #4428, Epic #4425). Pass
-  this flag when driving `single-story-close.js` from an unattended /
-  headless context (no operator available to run Step 5 by hand — a CI
-  job, a scheduled `/loop`, or any wrapper that cannot rely on a human to
-  invoke `single-story-confirm-merge.js` later). Instead of resting at
-  `agent::closing` after arming, close polls the armed PR to merge
-  confirmation on the `delivery.mergeWatch.*` cadence (reusing the same
-  `confirmStoryMerged` flip logic Step 5 calls) and flips `agent::done`
-  itself. If the arm fails, the PR closes without merging, or the poll
-  budget is exhausted first, close classifies the block
+- `--wait-merge` — **close-and-land** (Story #4428). Forces close to poll
+  the armed PR to merge confirmation on the `delivery.mergeWatch.*`
+  cadence (reusing the same `confirmStoryMerged` flip logic) and flip
+  `agent::done` itself. If the arm fails, the PR closes without merging,
+  or the poll budget is exhausted first, close classifies the block
   (`checks-pending-timeout` \| `branch-protection-human-required` \|
   `arm-failure` \| `api-race-other`), emits a `merge.unlanded` lifecycle
   event, posts a `friction` comment, transitions the Story to
   `agent::blocked`, and exits non-zero — never a silent `agent::closing`
-  rest. **Attended runs must not pass this flag** — the default (no flag)
-  preserves the exit-at-`agent::closing` behaviour documented in Step 3
-  and Step 5 below.
-- `--no-wait-merge` — explicit opt-out that always wins over `--wait-merge`
-  (including for a caller that otherwise defaults to headless mode). Use
-  when a headless wrapper still wants to manage merge confirmation itself
-  (e.g. via its own `single-story-confirm-merge.js` invocation) rather than
-  have close block the turn.
+  rest. When neither land flag is passed, close defaults from
+  `delivery.routing.closeAndLand` (**true**): attended and headless
+  delivers share the land-in-one-close happy path.
+- `--no-wait-merge` — explicit opt-out that always wins. Use when the
+  operator wants the PR left at `agent::closing` for a human land (or a
+  wrapper that will invoke `single-story-confirm-merge.js` itself).
 
 > **Full close pipeline (base-sync outcomes, `agent::closing` rationale,
 > lease release).** For the numbered close pipeline, the base-sync outcome
@@ -284,13 +279,14 @@ Flags:
 
 ## Step 4 — CI watch + fix loop (**required, not optional**)
 
-> **Headless (`--wait-merge`) runs skip Steps 4 and 5.** When Step 3 passed
-> `--wait-merge`, `single-story-close.js` already polled the PR to a
-> confirmed merge (flipping `agent::done` itself) or exited non-zero after
-> transitioning the Story to `agent::blocked` with a `merge.unlanded`
-> event — there is no separate CI-watch turn or manual confirm step to run.
-> Proceed straight to Step 5.5. Attended runs (the default) still own
-> Steps 4 and 5 as documented below.
+> **Close-and-land runs skip Steps 4 and 5.** When Step 3 lands through
+> merge (`--wait-merge` or the `closeAndLand` default),
+> `single-story-close.js` already polled the PR to a confirmed merge
+> (flipping `agent::done` itself) or exited non-zero after transitioning
+> the Story to `agent::blocked` with a `merge.unlanded` event — there is
+> no separate CI-watch turn or manual confirm step to run. Proceed
+> straight to Step 5.5. Only `--no-wait-merge` runs still own Steps 4
+> and 5 as documented below.
 
 The Story is **not done** when `single-story-close.js` returns. Auto-merge
 only fires when every required CI check turns green. Local close-validation

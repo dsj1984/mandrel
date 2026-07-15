@@ -23,14 +23,13 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
  * `delivery.deliverRunner.*` in `.agentrc.json`.
  *
  * **Throughput tradeoff — `concurrencyCap`.**
- * The default of 3 is intentionally conservative: it keeps host-quota
- * consumption low for Epics with small waves and avoids saturating the
- * GitHub API with concurrent label writes. For wide-wave Epics where the
- * host has adequate parallel-agent quota, operators should raise
- * `delivery.deliverRunner.concurrencyCap` — wall-clock time falls
- * proportionally to the extra concurrency. The safe default is a tuning
- * knob, not a performance ceiling. See `helpers/deliver-epic.md` § Phase 2b and
- * `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap` for details.
+ * The default of 3 is intentionally moderate: it keeps host-quota
+ * consumption predictable for multi-Story plan-runs and avoids saturating
+ * the GitHub API with concurrent label writes, while still allowing a
+ * small ready-set fan-out. Operators who want strictly sequential delivery
+ * should set `delivery.deliverRunner.concurrencyCap: 1`. Raising the cap
+ * reduces wall-clock time where dependencies allow. See `deliver.md` and
+ * `agentrc-reference.json` `delivery.deliverRunner.concurrencyCap`.
  *
  * **`verifyConcurrencyCap`** (Epic #3019 Tech Spec §1.4 / Story #3024) is a
  * separate knob that bounds the `verifyWaveResults` loop independently of
