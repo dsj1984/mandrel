@@ -200,7 +200,6 @@ export async function loadBodyTemplate(projectRoot) {
 export function buildContextEnvelope({
   seed,
   refine,
-  persona,
   bodyTemplate,
   duplicateCandidates,
   techStack = null,
@@ -212,7 +211,6 @@ export function buildContextEnvelope({
     version: 1,
     seed,
     refine,
-    persona,
     bodyTemplate,
     requiredSections: [...REQUIRED_SECTIONS],
     duplicateCandidates: {
@@ -222,8 +220,8 @@ export function buildContextEnvelope({
     techStack,
     corpusContext,
     deliverContract: {
-      workflow: '.agents/workflows/helpers/single-story-deliver.md',
-      requiredLabels: ['type::story', `persona::${persona}`],
+      workflow: '.agents/workflows/helpers/deliver-story.md',
+      requiredLabels: ['type::story'],
       forbidden: ['Epic: #N references in the body'],
     },
   };

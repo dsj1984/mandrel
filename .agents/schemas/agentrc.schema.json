@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json",
   "title": "Mandrel .agentrc",
-  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating \u2014 every property exposed here corresponds to a canonical reader in the post-reshape config layer. Epic #2880 Story #2935 finalized the cutover by deleting the resolver-side output shim that surfaced agentSettings/orchestration pointers; legacy-shaped documents are rejected by root additionalProperties:false and the canonical blocks are the only supported reads.",
+  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}. Quality gate reshape: Epic #1720 Story #1737 introduced the uniform delivery.quality.gates.<tier> shape with seven gates (lint, coverage, crap, maintainability, mutation, lighthouse, bundleSize), object-shaped { kind, value } tolerances, and workspace-keyed floors objects. Story #2687 (Epic #2646) confirmed that the schema carries no field whose sole purpose is to keep pre-cutover documents validating — every property exposed here corresponds to a canonical reader in the post-reshape config layer. Epic #2880 Story #2935 finalized the cutover by deleting the resolver-side output shim that surfaced agentSettings/orchestration pointers; legacy-shaped documents are rejected by root additionalProperties:false and the canonical blocks are the only supported reads.",
   "type": "object",
   "additionalProperties": false,
   "required": ["project"],
@@ -325,38 +325,6 @@
       },
       "additionalProperties": false
     },
-    "taskSizing": {
-      "type": "object",
-      "description": "Story-sizing thresholds consumed by ticket-validator-sizing.js. Operator overrides shallow-merge with DEFAULT_TASK_SIZING defaults. Story #3760 collapsed the per-profile matrix and the parallel testSurface axis into a flat set of knobs; the sizingProfile enum was replaced by an optional body-level `wide` declaration that lifts the hardFiles rejection. Story #3874 cut over to one uniform relaxed profile sized for capability slices a frontier model delivers and self-verifies in one pass.",
-      "properties": {
-        "softFiles": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "File-count soft-warn threshold above which a typical-Story width finding fires (default 15)."
-        },
-        "hardFiles": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "File-count hard ceiling: a Story exceeding it is rejected unless it declares `wide` with a reason (default 30)."
-        },
-        "softAcceptanceCount": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Soft-warn threshold on acceptance[] item count (default 10). Acceptance mass is advisory-only — there is no hard acceptance ceiling."
-        },
-        "mergeCandidateMaxFiles": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Under-size threshold (Story #4312): a Story with at most this many declared changes[] files, at most mergeCandidateMaxAcceptance acceptance items, and at least one depends_on edge to a sibling trips the advisory `merge-candidate` soft finding (default 3)."
-        },
-        "mergeCandidateMaxAcceptance": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Under-size threshold (Story #4312): the acceptance[] item ceiling of the `merge-candidate` soft finding heuristic (default 4)."
-        }
-      },
-      "additionalProperties": false
-    },
     "planning": {
       "type": "object",
       "properties": {
@@ -369,41 +337,48 @@
         "codebaseSnapshot": {
           "$ref": "#/$defs/codebaseSnapshot"
         },
-        "taskSizing": {
-          "$ref": "#/$defs/taskSizing"
-        },
         "failOnSharedEditors": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only)."
         },
         "requireExplicitCrossStoryDeps": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "When true, upgrade implicit cross-Story dependency findings to hard errors (default false — advisory soft findings only)."
         },
         "failOnRegistryConflicts": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "When true, upgrade cross-cutting registry conflict findings to hard errors (default false)."
         },
         "failOnLargeFanOut": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "When true, upgrade fan-out-warning findings (delete blast radius) to hard errors (default false — soft advisory)."
         },
         "largeFanOutThreshold": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 0,
+          "description": "Call-site count above which a Story that deletes a module emits a fan-out-warning. Counts base-branch references to the deleted path basename. Soft by default; does not size or reject Stories. Default 10."
         },
         "crossCuttingRegistries": {
-          "$ref": "#/$defs/listOrExtenderOfStrings"
+          "$ref": "#/$defs/listOrExtenderOfStrings",
+          "description": "Registry path patterns whose concurrent edits across Stories are flagged as conflicts. Defaults to the framework listener/handler index patterns when omitted."
         },
         "navigation": {
           "type": "object",
-          "description": "Navigability-reachability config consumed by the plan-persist draft reachability gate (Epic #4474 PR6; also the manual epic-plan-healthcheck --paranoid re-check). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "description": "Opt-in navigability reachability gate. Absent or empty routeGlobs is a silent no-op.",
           "properties": {
             "routeGlobs": {
               "type": "array",
-              "description": "Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route.",
-              "items": { "type": "string" }
+              "description": "Glob patterns (e.g. pages/**, app/**/route.ts) marking paths that add a user-facing route.",
+              "items": {
+                "type": "string"
+              }
             },
             "navRegistry": {
               "type": "array",
               "description": "Tokens identifying the nav-registry SSOT a route-adding Story is expected to reference.",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false
@@ -451,7 +426,7 @@
     },
     "lease": {
       "type": "object",
-      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window \u2014 a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
+      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
       "properties": {
         "ttlMs": {
           "type": "integer",
@@ -485,69 +460,12 @@
         "concurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum Stories dispatched in parallel within one wave. Default 3. Conservative by design \u2014 keeps host-quota consumption predictable on small waves and avoids GitHub API saturation. Operators running wide-wave Epics on hosts with adequate parallel-agent quota should raise this value to reduce wall-clock time proportionally. See epic-deliver.md \u00a7 Phase 2b for the dispatch model and the throughput tradeoff discussion."
-        },
-        "progressReportIntervalSec": {
-          "type": "integer",
-          "minimum": 0
+          "description": "Maximum ready Stories dispatched by /deliver at once. Default 3. Moderate by design — keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff."
         },
         "verifyConcurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec \u00a71.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
-        }
-      },
-      "additionalProperties": false
-    },
-    "retro": {
-      "type": "object",
-      "description": "Story #3042 (Epic #3019). Operator-tunable retro behaviour. Currently exposes `perfThresholds`, the gates the retro perf-signals classifier uses to decide which signals to surface in the `## Performance Signals` / `## Recommended Follow-Ons` retro sections.",
-      "properties": {
-        "perfThresholds": {
-          "type": "object",
-          "description": "Gates for `classifyPerfSignals` (lib/orchestration/retro-perf-heuristics.js). Defaults are 0.6 / 0.4 / 2.",
-          "properties": {
-            "utilisation": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1,
-              "description": "Per-wave utilisation threshold. Waves whose `utilisation` is strictly below this value emit a `low-utilisation` signal. Default 0.6."
-            },
-            "bootstrapShare": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1,
-              "description": "Maximum acceptable share of cumulative Story execution time spent in the story-init phase. When exceeded the retro emits a `high-bootstrap-share` signal. Default 0.4."
-            },
-            "capBindingRunLength": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Minimum run length of consecutive cap-binding waves before the retro emits a `cap-binding-run` signal. Default 2."
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "epicAudit": {
-      "type": "object",
-      "properties": {
-        "maxFixAttempts": {
-          "type": "integer",
-          "minimum": 0,
-          "description": "Maximum auto-fix retry attempts per finding in /deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3."
-        },
-        "maxFixScopeFiles": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5."
-        },
-        "autoFixSeverity": {
-          "type": "string",
-          "enum": ["high", "medium"],
-          "default": "high",
-          "description": "Severity threshold for on-branch remediation of the Epic-close lens findings walked inside the /deliver Phase 5 code-review pass (Story #4412 folded the former Phase 4 lens walk into that single cumulative-diff pass). `high` (default) routes only 🔴 Critical / 🟠 High lens findings into the host-LLM remediation loop while 🟡 Medium and 🟢 Suggestion findings graduate to follow-up issues (🟡 Medium concerns are already remediated shift-left at the write-time and Story-scope tiers); `medium` opts back into routing 🔴/🟠/🟡 (Mediums batched per lens). Hard cutover — no back-compat flag."
+          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
         }
       },
       "additionalProperties": false
@@ -555,15 +473,9 @@
     "codeReview": {
       "type": "object",
       "properties": {
-        "provider": {
-          "type": "string",
-          "enum": ["native", "codex", "security-review"],
-          "default": "native",
-          "description": "Legacy single-adapter selection. ReviewProvider that produces the Finding[] consumed by runCodeReview(). Story #2833 registered `native` (in-process maintainability/lint); Story #2830 added `codex` (invokes `/codex:review` plugin); Story #2871 added `security-review` (shells out to `claude --print /security-review`). When `providers` (chain shape) is set this field is ignored with a warning. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain."
-        },
         "providers": {
           "type": "array",
-          "description": "Multi-provider chain (Story #2871). When set and non-empty, takes precedence over the legacy `provider` field. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section.",
+          "description": "Review-provider chain (Story #2871). When unset or empty, defaults to [{ name: \"native\" }]. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
           "items": {
             "type": "object",
             "required": ["name"],
@@ -664,16 +576,18 @@
         "reapOnSuccess": {
           "type": "boolean"
         },
-        "reapOnCancel": {
-          "type": "boolean"
-        },
         "bootstrapFiles": {
           "type": "array",
           "items": {
             "type": "string",
             "minLength": 1
           },
-          "default": [".env", ".mcp.json"]
+          "default": [
+            ".env",
+            ".mcp.json",
+            ".agentrc.local.json",
+            ".agents/instructions.local.md"
+          ]
         }
       },
       "additionalProperties": false,
@@ -696,16 +610,6 @@
     "signals": {
       "type": "object",
       "properties": {
-        "hotspot": {
-          "type": "object",
-          "properties": {
-            "p95Multiplier": {
-              "type": "number",
-              "minimum": 0
-            }
-          },
-          "additionalProperties": false
-        },
         "rework": {
           "type": "object",
           "properties": {
@@ -900,7 +804,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) \u2014 a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
+          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from CRAP discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
         }
       },
       "additionalProperties": false
@@ -945,7 +849,7 @@
             "type": "string",
             "minLength": 1
           },
-          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) \u2014 a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
+          "description": "Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217)."
         }
       },
       "additionalProperties": false
@@ -1267,24 +1171,6 @@
       },
       "additionalProperties": false
     },
-    "lifecycle": {
-      "type": "object",
-      "description": "Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName \u2192 seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories.",
-      "properties": {
-        "timeouts": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "integer",
-            "minimum": 1
-          }
-        },
-        "heartbeatWarnSeconds": {
-          "type": "integer",
-          "minimum": 1
-        }
-      },
-      "additionalProperties": false
-    },
     "mergeWatch": {
       "type": "object",
       "description": "Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`.",
@@ -1327,25 +1213,29 @@
         },
         "requireBaselines": {
           "type": "boolean",
-          "description": "Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture, analogous to delivery.ci.requireChecks)."
+          "description": "Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture)."
         },
         "navigability": {
           "type": "object",
-          "description": "Navigability lens + post-wave integration gate config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and the deliver-epic.md Phase 6.5 gate (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "description": "Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's risk-routed ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
           "properties": {
             "routeGlobs": {
               "type": "array",
               "description": "Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against.",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "navRegistry": {
               "type": "array",
               "description": "Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against.",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             },
             "journeySuite": {
               "type": "string",
-              "description": "Path or command for the per-persona journey suite the deliver-epic.md Phase 6.5 post-wave integration gate runs."
+              "description": "Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs."
             }
           },
           "additionalProperties": false
@@ -1355,19 +1245,19 @@
     },
     "refactorStage": {
       "type": "object",
-      "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only \u2014 never changes existing close-validation gate semantics.",
+      "description": "Opt-in, config-gated post-green refactor checkpoint wired into story-deliver (Story #3430, Epic #3418). Strictly additive and default-OFF: when disabled, story-deliver behaves exactly as before. Advisory only — never changes existing close-validation gate semantics.",
       "properties": {
         "enabled": {
           "type": "boolean",
           "default": false,
-          "description": "When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false \u2014 when unset the stage is skipped and close-validation gate semantics are unchanged."
+          "description": "When true, story-deliver runs an advisory post-green refactor stage (core/code-review-and-quality skill, Post-Green Refactor Pass) after the suite is green. Default false — when unset the stage is skipped and close-validation gate semantics are unchanged."
         }
       },
       "additionalProperties": false
     },
     "acceptanceEval": {
       "type": "object",
-      "description": "Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the working diff against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates \u2014 capped at `maxRounds` redraft rounds, then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the loop is a hard cutover (always on).",
+      "description": "Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the working diff against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds, then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the loop is a hard cutover (always on).",
       "properties": {
         "maxRounds": {
           "type": "integer",
@@ -1388,10 +1278,6 @@
         "execution": {
           "$ref": "#/$defs/execution"
         },
-        "maxTokenBudget": {
-          "type": "integer",
-          "minimum": 1
-        },
         "lease": {
           "$ref": "#/$defs/lease"
         },
@@ -1410,20 +1296,11 @@
         "quality": {
           "$ref": "#/$defs/quality"
         },
-        "lifecycle": {
-          "$ref": "#/$defs/lifecycle"
-        },
         "mergeWatch": {
           "$ref": "#/$defs/mergeWatch"
         },
-        "epicAudit": {
-          "$ref": "#/$defs/epicAudit"
-        },
         "codeReview": {
           "$ref": "#/$defs/codeReview"
-        },
-        "retro": {
-          "$ref": "#/$defs/retro"
         },
         "refactorStage": {
           "$ref": "#/$defs/refactorStage"
@@ -1434,14 +1311,6 @@
         "ci": {
           "type": "object",
           "properties": {
-            "skipForStoryPushes": {
-              "type": "boolean",
-              "description": "Story #2899 (Epic #2880, F13). When true (default), pre-push tooling appends a '[skip ci]' trailer to Story-branch commit subjects so intermediate pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
-            },
-            "earlyPr": {
-              "type": "boolean",
-              "description": "Story #4356 (Epic #4355). When true (default), /deliver opens the Epic PR early — before every Story merges — so CI starts warming while later waves run. Set false to defer PR creation until the Epic branch is complete."
-            },
             "watch": {
               "type": "object",
               "description": "Story #4356 (Epic #4355). Poll-loop tuning for the merge/CI watch. pollIntervalMs is the cadence between check probes; maxPolls caps total probes before the watcher gives up; maxResumes caps how many times the watcher may resume after a transient stall.",
@@ -1465,22 +1334,14 @@
               "type": "string",
               "enum": ["trust-ci", "strict"],
               "description": "Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate."
-            },
-            "requireChecks": {
-              "type": "boolean",
-              "description": "Story #4472. Fail-closed-without-checks policy. When true, the AutomergePredicate refuses to arm merge in a repo that reports zero required checks ('no checks reported'), treating the absent CI gate as a hard block. Defaults to false so a checks-less repo with green close-validation gates lands headlessly instead of parking on the operator-merges path."
             }
           },
           "additionalProperties": false
         },
         "routing": {
           "type": "object",
-          "description": "Epic #4475 (M4-A). Delivery-route selection for epic-shaped work.",
+          "description": "v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6.",
           "properties": {
-            "singleDelivery": {
-              "type": "boolean",
-              "description": "Epic #4475 (M4-A). Global kill-switch for the single-delivery route. When true (default), an Epic marked `delivery::single` at plan time routes to the single-delivery helper; when false, EVERY Epic — even a single-marked one — is forced down the fan-out path (the instant, code-rollback-free per-consumer revert). Shipped INERT in M4-A: the router's single verdict falls through to fan-out until M4-B wires the executor, so the knob has no observable effect yet."
-            },
             "roleScopedAgents": {
               "type": "boolean",
               "description": "Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure (≈50KB → ≈8KB per spawn — the payoff of the context diet). When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate."
@@ -1490,39 +1351,18 @@
               "minimum": 0,
               "maximum": 1,
               "description": "Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Risk-routed ceremony sends a low-risk acceptance cluster down the contract-identical inline critic path, but this fraction of low-risk clusters is still forced through a fresh-context critic so low risk never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js)."
+            },
+            "ceremonyProfile": {
+              "type": "string",
+              "enum": ["minimal", "standard", "strict"],
+              "description": "Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = risk-routed with the maker-checker sampling floor."
+            },
+            "closeAndLand": {
+              "type": "boolean",
+              "description": "When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge."
             }
           },
           "additionalProperties": false
-        },
-        "preflight": {
-          "type": "object",
-          "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /deliver Phase 1 surfaces it via agent::blocked.",
-          "properties": {
-            "maxStories": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "maxWaves": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "maxInstallCostSeconds": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "maxGithubApiRequests": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "maxClaudeQuotaTokens": {
-              "type": "integer",
-              "minimum": 1
-            }
-          },
-          "additionalProperties": false
-        },
-        "failOnConcurrencyHazards": {
-          "type": "boolean"
         },
         "feedbackLoop": {
           "type": "object",
@@ -1610,7 +1450,7 @@
       }
     },
     "qaPersonas": {
-      "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names \u2014 the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
+      "description": "Personas the QA-harness sign-in seam accepts. Two accepted shapes: (1) a plain array of persona names — the honest shape for a `urlTemplate` dev-impersonation seam, where the persona name is the sole input the workflow consumes; (2) the object-map form keyed by persona name, where each entry carries per-persona auth material (`credentialRef` or `signInSkill`) consulted only under a `skill`/credential seam.",
       "oneOf": [
         {
           "type": "array",

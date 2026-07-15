@@ -90,7 +90,7 @@ function makeFakeGh(handler) {
 function gitUtilsMock() {
   return {
     namedExports: {
-      getStoryBranch: (_e, s) => `story-${Number(s)}`,
+      getStoryBranch: (s) => `story-${Number(s)}`,
       gitSync: () => ({ status: 0, stdout: '', stderr: '' }),
       // refs #3685 — single-story-close reaches base-sync / changed-files
       // through the lazily-imported runner, i.e. only after this mock is
@@ -312,6 +312,7 @@ describe('runSingleStoryClose — sync integration', () => {
       () =>
         runSingleStoryClose({
           storyId: 4242,
+          noWaitForMerge: true,
           cwd: REPO_ROOT,
           injectedProvider: provider,
           injectedConfig: fakeConfig(),
@@ -355,6 +356,7 @@ describe('runSingleStoryClose — sync integration', () => {
     const provider = fakeProvider();
     const out = await runSingleStoryClose({
       storyId: 4242,
+      noWaitForMerge: true,
       cwd: REPO_ROOT,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
@@ -395,6 +397,7 @@ describe('runSingleStoryClose — sync integration', () => {
       injectedProvider: fakeProvider(),
       injectedConfig: fakeConfig(),
       skipSync: true,
+      noWaitForMerge: true,
       injectedSync: async () => {
         syncInvoked = true;
         return { synced: true, kind: 'fast-forward' };

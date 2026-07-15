@@ -365,12 +365,11 @@ describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () =>
     assert.equal(validate({ ...REQ, delivery: {} }), true);
   });
 
-  it('accepts a fully-populated three-detector signals block', () => {
+  it('accepts a fully-populated two-detector signals block', () => {
     const ok = validate({
       ...REQ,
       delivery: {
         signals: {
-          hotspot: { p95Multiplier: 1.25 },
           rework: { editsPerFile: 5 },
           retry: { repeatCount: 3 },
         },
@@ -395,10 +394,18 @@ describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () =>
     assert.equal(ok, false);
   });
 
+  it('rejects the retired hotspot detector', () => {
+    const ok = validate({
+      ...REQ,
+      delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
+    });
+    assert.equal(ok, false);
+  });
+
   it('accepts a partial signals block (single detector override)', () => {
     const ok = validate({
       ...REQ,
-      delivery: { signals: { hotspot: { p95Multiplier: 1.5 } } },
+      delivery: { signals: { rework: { editsPerFile: 7 } } },
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
@@ -406,7 +413,7 @@ describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () =>
   it('rejects a typo under signals.* (additionalProperties: false)', () => {
     const ok = validate({
       ...REQ,
-      delivery: { signals: { hotpsot: { p95Multiplier: 1 } } },
+      delivery: { signals: { rewrk: { editsPerFile: 1 } } },
     });
     assert.equal(ok, false);
   });
@@ -414,15 +421,7 @@ describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () =>
   it('rejects a typo inside a detector block', () => {
     const ok = validate({
       ...REQ,
-      limits: { signals: { hotspot: { p95multiplier: 1.25 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('rejects non-numeric p95Multiplier', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { hotspot: { p95Multiplier: 'high' } } },
+      delivery: { signals: { rework: { editsPerFil: 5 } } },
     });
     assert.equal(ok, false);
   });

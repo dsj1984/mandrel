@@ -72,7 +72,7 @@ Options:
  * returns the sweep envelope so no caller can be blocked by a failure.
  *
  * DI-friendly: `injectedConfig` / `injectedProvider` let a caller (e.g.
- * `epic-deliver-prepare.js`) reuse an already-resolved config + provider,
+ * `single-story-init.js`) reuse an already-resolved config + provider,
  * and `injectedSweep` swaps the engine for unit tests.
  *
  * @param {{

@@ -11,12 +11,12 @@
  * conformance is a contract-tier concern, so the assertions live here rather
  * than in the unit suite alongside the runner.
  *
- * The runner's `migrations` registry currently ships **empty** (the project
- * sits on the 1.x line under `always-bump-minor`; no real contract break has
- * landed yet). To exercise the cross-version machinery end-to-end against a
- * real schema target, the test injects *fixture* migration steps via the
- * runner's documented `registry` seam. The fixture steps transform the older
- * config into a shape the current schema accepts:
+ * The runner's `migrations` registry currently ships **empty** (v2.0.0 did
+ * not register a config migration step; consumers re-sync `.agents/` and
+ * re-seed `.agentrc.json`). To exercise the cross-version machinery
+ * end-to-end against a real schema target, the test injects *fixture*
+ * migration steps via the runner's documented `registry` seam. The fixture
+ * steps transform the older config into a shape the current schema accepts:
  *
  *   1. `1.30.0` — add the `project.paths.tempRoot` key the current schema
  *      now requires (older configs predate it).

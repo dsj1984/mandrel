@@ -169,7 +169,7 @@ test('AC2: workflows/helpers/<name>.md is NOT projected (neither flat nor namesp
   const run = runSyncIsolated({
     payloadFiles: {
       'loops/converge.md': LOOP_UNIT,
-      'helpers/epic-deliver-story.md': HELPER_FILE,
+      'helpers/deliver-story.md': HELPER_FILE,
     },
   });
   try {
@@ -181,15 +181,15 @@ test('AC2: workflows/helpers/<name>.md is NOT projected (neither flat nor namesp
     );
     // ...but the helper does NOT, under any path shape.
     assert.ok(
-      !run.commands['epic-deliver-story.md'],
+      !run.commands['deliver-story.md'],
       'helper must not be projected flat',
     );
     assert.ok(
-      !run.commands['helpers/epic-deliver-story.md'],
+      !run.commands['helpers/deliver-story.md'],
       'helper must not be projected under a helpers/ namespace',
     );
     assert.ok(
-      !run.commands['loops/epic-deliver-story.md'],
+      !run.commands['loops/deliver-story.md'],
       'helper must not leak into the loops/ namespace',
     );
   } finally {

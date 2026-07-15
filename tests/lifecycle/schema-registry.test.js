@@ -36,11 +36,6 @@ const REQUIRED_EVENTS = Object.freeze([
   'story.dispatch.end',
   'story.merged',
   'story.blocked',
-  // Epic #4475 (M4-A) — single-delivery slice lifecycle (introduced inert;
-  // the executor that emits them lands in M4-B).
-  'slice.start',
-  'slice.end',
-  'slice.heartbeat',
   'epic.blocked',
   'epic.close.end',
   'acceptance.reconcile.start',
@@ -153,7 +148,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema accepts new delivery.lifecycle keys', () => {
+  it('agentrc.schema rejects retired delivery.lifecycle keys', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -175,7 +170,7 @@ describe('lifecycle/schema-registry', () => {
         },
       },
     });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
+    assert.equal(ok, false);
   });
 
   it('agentrc.schema accepts delivery.mergeWatch.intervalSeconds and maxBudgetSeconds', () => {
@@ -235,7 +230,7 @@ describe('lifecycle/schema-registry', () => {
     assert.equal(ok, false);
   });
 
-  it('agentrc.schema rejects unknown delivery.lifecycle key', () => {
+  it('agentrc.schema rejects unknown delivery.mergeWatch key', () => {
     const ajv = new Ajv2020({ allErrors: true });
     addFormats(ajv);
     const validate = ajv.compile(AGENTRC_SCHEMA);
@@ -248,7 +243,7 @@ describe('lifecycle/schema-registry', () => {
         },
       },
       delivery: {
-        lifecycle: { bogus: true },
+        mergeWatch: { bogus: true },
       },
     });
     assert.equal(ok, false);

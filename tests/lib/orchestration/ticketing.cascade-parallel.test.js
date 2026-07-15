@@ -157,23 +157,21 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
   );
 
   await t.test(
-    'captured log output matches the serial baseline for the same input',
+    'captured log output remains deterministic for the same input',
     async () => {
-      // Trigger the cascade with one parent that is an Epic — this fires
-      // the deterministic `Logger.warn` line ("Cascade reached Epic ...")
-      // through the buffered logger. We capture the logger output from
-      // a parallel run and assert it matches a serial run byte-for-byte
-      // on the same input.
+      // Stage 5 removed the former Epic-skip warn line. The same input should
+      // now produce no buffered log records, and a repeated serial run should
+      // match byte-for-byte.
       const tickets = {
         1: {
           id: 1,
-          labels: ['agent::executing', 'type::epic'],
+          labels: ['agent::executing', 'type::story'],
           body: 'Epic 1',
           state: 'open',
         },
         2: {
           id: 2,
-          labels: ['agent::executing', 'type::epic'],
+          labels: ['agent::executing', 'type::story'],
           body: 'Epic 2',
           state: 'open',
         },
@@ -207,18 +205,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
       const provider = makeProvider({ tickets, subTicketsMap });
       await cascadeCompletion(provider, 3, { _logger: captureLogger });
 
-      // Both parents are Epics, so each fires the "Cascade reached Epic"
-      // warn line. The flush order must follow `parsedParents` order:
-      // #1 before #2.
-      assert.equal(
-        captured.length,
-        2,
-        `expected 2 log lines; got ${JSON.stringify(captured)}`,
-      );
-      assert.equal(captured[0].level, 'warn');
-      assert.equal(captured[1].level, 'warn');
-      assert.match(captured[0].message, /#1\b/);
-      assert.match(captured[1].message, /#2\b/);
+      assert.deepEqual(captured, []);
 
       // Serial baseline: run the same scenario again with a fresh
       // provider and capture logger. The output must be byte-identical.

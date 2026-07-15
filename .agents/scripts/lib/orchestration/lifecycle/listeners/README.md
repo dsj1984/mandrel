@@ -1,45 +1,23 @@
 # Lifecycle Listeners
 
 Each listener in this directory subscribes to one or more lifecycle bus
-events and performs a single side effect. The canonical close-tail roster
-— in registration order — is wired by
-[`index.js`](./index.js) (`buildDefaultListenerChain`), the production
-entrypoint the standalone `lifecycle-emit.js` CLI shells in for
-`/deliver`'s Phase 6 / 7.5 / 8 / 8.5 markdown invocations:
+events and performs a single side effect. The full close-tail roster and
+event taxonomy live in [`docs/LIFECYCLE.md`](../../../../../../docs/LIFECYCLE.md)
+— that document is the SSOT. This README only indexes the **files that still
+live in this folder**.
 
-- `ledger-writer.js` — privileged `onEmitted` hook that lands every
-  `emitted` record on disk before any listener body runs (MUST be first).
-- `acceptance-reconciler.js` — gates Finalize on close-time acceptance
-  coverage (`epic.close.end → acceptance.reconcile.*`).
-- `finalizer.js` — opens the PR on `acceptance.reconcile.{ok,waived}` and
-  emits `epic.merge.ready`.
-- `automerge-armer.js` — arms `gh pr merge --auto --squash --delete-branch`
-  on `epic.merge.ready`.
-- `automerge-predicate.js` — evaluates the clean-sprint predicate and
-  emits `epic.merge.{ready,blocked}`.
-- `branch-cleaner.js` — reaps story/epic branches on `epic.cleanup.start`.
-- `merge-watcher.js` — polls `gh pr view` after `epic.merge.armed` until
-  the PR's `mergeCommit` is observed, then emits `epic.merge.confirmed`.
-- `cleaner.js` — archives `temp/epic-<id>/` and emits the terminal
-  `epic.cleanup.* → epic.complete` sequence on `epic.merge.confirmed`.
-- `label-transitioner.js` — flips the Epic ticket to `agent::done` (and
-  closes it as completed, idempotently) on `epic.complete`. Skipped when
-  no provider is wired. Re-homed onto this chain after the 2026-07-11
-  incident (merged Epics stranding at `agent::executing`): the original
-  LabelTransitioner died with the in-process runner stratum (#3936) and
-  the flip had no owner.
-- `checkpoint-pointer-writer.js` — persists `{ lastCompletedSeqId, phase }`
-  on every `*.end` event.
+## Files here
 
-Two further listeners are activated outside the close-tail chain by their
-own CLI entrypoints rather than `buildDefaultListenerChain`:
+- [`merge-watcher.js`](./merge-watcher.js) — polls `gh pr view` after
+  auto-merge is armed until the PR's `mergeCommit` is observed, then emits
+  the merge-confirmed event.
+- [`watcher.js`](./watcher.js) — the CI-poll loop (`watchPrToTerminal`)
+  driven by `pr-watch-with-update.js`.
 
-- `notify-dispatcher.js` — fans out the curated webhook event subset
-  (driven by `notify.js`).
-- `intervention-recorder.js` — appends operator-intervention payloads to
-  the epic-run-state (driven by `epic-deliver-note-intervention.js`).
-- `watcher.js` — the CI-poll loop (`watchPrToTerminal`) driven by
-  `pr-watch-with-update.js`.
+Other close-tail side effects (ledger write, finalize/PR open, automerge
+arm, branch cleanup, label transition) are owned by the Story delivery
+path (`helpers/deliver-story` / `single-story-close.js`) rather than a
+`buildDefaultListenerChain` factory in this directory.
 
 ## Idempotency contract
 
@@ -50,10 +28,6 @@ canonical pattern is a per-instance `Set<seqId>` checked at the top of
 the listener body; the second invocation returns early without mutating
 external state.
 
-The seqId guard is the only correctness requirement we surface from the
-bus contract — downstream idempotency primitives (label-state diff,
-marker-keyed upsert, NDJSON dedupe by seqId) layer on top of it.
-
 ## Side-effect firewall
 
 Listeners MAY:
@@ -61,13 +35,13 @@ Listeners MAY:
 - read tickets via the injected `provider`,
 - write tickets via the injected `transitionTicketState`,
 - upsert structured comments via the injected `upsertStructuredComment`,
-- append to per-Epic ledger / signals files under `tempRoot`.
+- append to per-run ledger / signals files under `tempRoot`.
 
 Listeners MUST NOT:
 
 - `bus.emit()` from inside a listener body (sequential mediator
-  contract — the bus cannot re-entry safely),
-- import the runner state directly,
+  contract — the bus cannot re-enter safely),
+- import runner state directly,
 - mutate cross-cutting globals.
 
 Trace observers (`bus.on('*', fn)`) live under

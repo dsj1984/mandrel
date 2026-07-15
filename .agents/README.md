@@ -1,13 +1,13 @@
 # Mandrel Framework
 
 An opinionated workflow framework for AI coding assistants built on
-Epic-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
+Story-centric GitHub orchestration. Planning, execution, and state all live natively in GitHub Issues, Labels, and Projects V2.
 
 This is the consumer README inside the distributed `.agents/` bundle. It explains what each part of the bundle is for and captures the cross-directory authoring conventions. The process narrative for
 `/plan` and `/deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
-npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Epic → Story plans on GitHub.
+npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Story-centric plans on GitHub (`/plan` → Stories, `/deliver` → `story-*` → `main`).
 
 The framework version is the version of the installed [`mandrel`](https://www.npmjs.com/package/mandrel) npm package — run `npm ls mandrel` (or read `package.json`), not a
 count here.
@@ -226,8 +226,6 @@ read-when-relevant pattern skills use).
 **Always-load (the recommended core):**
 
 - [`instructions.md`](instructions.md) — the core agent protocol.
-- [`personas/engineer.md`](personas/engineer.md) — the default persona (swap in
-  another persona when the task calls for it).
 - [`rules/security-baseline.md`](rules/security-baseline.md) — inviolable
   security MUSTs, relevant to every change.
 - [`rules/git-conventions.md`](rules/git-conventions.md) — every commit,
@@ -284,11 +282,10 @@ For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 After bootstrap, every Mandrel command is generated into a flat
 `.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
 keeps it current) and loads as a bare `/<command>` slash command — e.g.
-`/plan`, `/plan`, `/deliver`, `/audit-security`. The
-commands load in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks
-an end-to-end Epic; standalone Stories pair
-[`/plan`](workflows/helpers/plan-story.md) (idea → drafted Story
-Issue) with [`/deliver`](workflows/helpers/deliver-stories.md) (Story Issue → merged
+`/plan`, `/deliver`, `/audit-security`. The commands load in every Claude Code
+environment. The [SDLC guide](docs/SDLC.md) walks end-to-end planning and
+delivery; Stories pair [`/plan`](workflows/plan.md) (idea → drafted Story Issue)
+with [`/deliver`](workflows/deliver.md) (Story Issue → merged
 PR).
 
 ---
@@ -331,9 +328,18 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Mandrel uses a **2-tier hierarchy** (Epic → Story) with inline `acceptance[]` / `verify[]` on story bodies.
+Orchestration and planning are **Story-only** (`type::story`): `/plan`
+persists Stories with inline `acceptance[]` / `verify[]` and a folded
+`## Spec`; `/deliver` runs `helpers/deliver-story` on
+`story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
+label and no Epic issue form — an Epic is at most an optional untyped
+human umbrella issue outside orchestration. There is no Epic wave /
+`epic/<id>` integration branch. Tickets that still carry an `Epic: #N`
+footer are refused by `/deliver` and must be closed or re-planned as
+v2 Stories.
 
-See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execution-model implications.
+See [`docs/SDLC.md`](docs/SDLC.md) and [`instructions.md` § 5.D](instructions.md)
+for the execution-model contract.
 
 ---
 
@@ -345,7 +351,7 @@ See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execu
 | [`docs/SDLC.md`](docs/SDLC.md) | Operator process for `/plan` and `/deliver`. |
 | [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
 | [`agentrc-reference.json`](docs/agentrc-reference.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
-| [`personas/`](personas/) | Role-specific behavior packs selected by task persona or explicit user instruction. |
+| [`agents/`](agents/) | Optional role-scoped spawn boot contexts (`delivery.routing.roleScopedAgents`). |
 | [`rules/`](rules/) | Domain-agnostic coding, security, testing, shell, git, and workflow rules. |
 | [`skills/core/`](skills/core/) | Universal process skills such as debugging, TDD, security, documentation, and code review. |
 | [`skills/stack/`](skills/stack/) | Stack-specific guardrails for frameworks, services, and testing tools. |
@@ -369,7 +375,7 @@ See [`docs/SDLC.md` § Ticket hierarchy](docs/SDLC.md) for the diagram and execu
 | Quality-gate runbooks (CRAP, MI, lint, friction) plus the baseline envelope, component model, and writer/reader contract | [`.agents/docs/quality-gates.md`](docs/quality-gates.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Render the signals span-tree (debug helper) | [`workflows/helpers/signals.md`](workflows/helpers/signals.md) |
-| Persona behavior packs | [`personas/`](personas/) |
+| Role-scoped spawn boot contexts | [`agents/`](agents/) |
 | Domain-agnostic baseline rules | [`rules/`](rules/) |
 | Skill library (core process + stack guardrails) | [`skills/core/`](skills/core/) · [`skills/stack/`](skills/stack/) |
 | Decision rule: should this be a Skill or a Script? | [§ When to use a Skill vs a Script](#when-to-use-a-skill-vs-a-script) |
@@ -543,7 +549,7 @@ sessions, `gh auth login` is sufficient.
 ## Self-Healing Checks
 
 `scripts/lib/checks/` is the discovery-based registry of named checks
-consumed by preflight guards (`/deliver`, `/story-close`, `npm test`),
+consumed by preflight guards (`/deliver`, `single-story-close`, `npm test`),
 the `diagnose.js` ad-hoc viewer, and the retro surface. Use one check per
 file. The runner (`index.js`) loads checks at process start and filters by
 scope at each call site.
@@ -552,9 +558,9 @@ Each check module default-exports an object with this shape:
 
 ```js
 export default {
-  id: 'stale-origin-epic',
+  id: 'stale-origin-main',
   severity: 'blocker', // 'blocker' | 'warning' | 'info'
-  scope: ['epic-deliver', 'story-close', 'retro'],
+  scope: ['deliver', 'single-story-close', 'retro'],
   autoCorrect: 'refuse-and-print', // 'auto' | 'refuse-and-print'
   detect(state) {
     return null;
@@ -636,21 +642,19 @@ follow-up **Epic #1943**.
 
 `schemas/` contains JSON Schema draft 2020-12 contracts consumed by the
 orchestration layer. Each schema describes one structured artefact:
-configuration, structural Epic specs, runtime reports, dispatch
-manifests, or persisted state. Where a runtime AJV schema also exists,
-the JSON file is a mirror kept in sync by a drift test.
+configuration, runtime reports, dispatch manifests, or persisted state.
+Where a runtime AJV schema also exists, the JSON file is a mirror kept
+in sync by a drift test.
 
 Important schema groups:
 
-- Structural specs: `epic-spec.schema.json` for the declarative
-  `epic.yaml` plus reconciler flow.
 - Configuration: `agentrc.schema.json`, mirrored from the runtime config
   schemas.
+- Story / signal contracts: `signal-event.schema.json`, acceptance-eval
+  verdicts, and related runtime envelopes.
 - Runtime reports: audit results, CRAP and maintainability reports,
   performance summaries, friction and signal events, and validation
   evidence.
-- Dispatch: `dispatch-manifest.json`, the per-Epic dispatch manifest
-  schema written by `dispatcher.js`.
 
 Schema conventions:
 
@@ -666,18 +670,13 @@ Schema conventions:
 
 ## Code review providers (pluggable chain)
 
-`runCodeReview()` (invoked at the end of `helpers/epic-deliver-story`,
-`helpers/single-story-deliver`, and `/deliver`'s `delivery.code-review`
-state) loads its review backend through a pluggable registry. Two configuration shapes are supported:
-
-- **Legacy single provider** — `delivery.codeReview.provider: "native"`
-  (default), `"codex"`, or `"security-review"`. Returns one adapter; one
-  set of findings; one structured comment.
-- **Provider chain** (Story #2871) — `delivery.codeReview.providers: []`
-  iterates a declared list of entries, merges every inline adapter's
-  `Finding[]` in declaration order, and appends a non-blocking
-  "Manual Review Suggestions" section for any manual-prompt entries
-  that contributed text. When both fields are set, `providers` wins.
+`runCodeReview()` (invoked from `helpers/deliver-story` and `/deliver`'s
+risk-routed ceremony) loads its review backend through a pluggable registry.
+Configure a provider chain via `delivery.codeReview.providers` — an array
+of entries iterated in declaration order. Inline adapters merge their
+`Finding[]`; manual-prompt entries append a non-blocking
+"Manual Review Suggestions" section. When `providers` is unset or empty,
+the factory defaults to `[{ name: "native" }]`.
 
 ```json
 {
@@ -685,10 +684,10 @@ state) loads its review backend through a pluggable registry. Two configuration 
     "codeReview": {
       "providers": [
         { "name": "native" },
-        { "name": "security-review", "scopes": ["epic"], "optional": true },
+        { "name": "security-review", "scopes": ["story"], "optional": true },
         {
           "name": "ultrareview",
-          "scopes": ["epic"],
+          "scopes": ["story"],
           "manualPrompt": true,
           "when": { "label": "risk::high" }
         }
@@ -733,9 +732,9 @@ chain, `security-review`, and `ultrareview` were added in Story #2871.
 
 ## Feedback loop — verification-results auto-graduation
 
-When the Epic finalize listener runs, non-blocking findings (severity
-`high`, `medium`, or `suggestion`) that survived merge are auto-graduated
-into follow-up issues in a SINGLE pass over the unified
+When a Story (or plan-run) finalize path runs, non-blocking findings
+(severity `high`, `medium`, or `suggestion`) that survived merge are
+auto-graduated into follow-up issues in a SINGLE pass over the unified
 `verification-results` structured comment (Story #4411 folded the former
 `code-review` and `audit-results` comments into one), routed by source
 classification into the framework repo or the consumer repo. The toggle
@@ -759,7 +758,7 @@ stabilization window), set the toggle to `false` in your root
 ```
 
 When disabled, the listener short-circuits and leaves the
-`verification-results` comment on the Epic ticket untouched. Re-enabling
+`verification-results` comment on the Story ticket untouched. Re-enabling
 the toggle is safe: the graduator embeds a content-derived idempotency
 marker in each filed issue body, so re-runs skip findings that already
 have an issue.
@@ -776,15 +775,16 @@ each with different cost/portability trade-offs:
 
 | Strategy       | When to use                                                      | Cold-start cost          | Notes                                                                                                       |
 | -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `per-worktree` | Default-safe — no host setup, no symlink semantics to worry about. | Full `npm ci` per Story. | Slowest. Each worktree gets an independent `node_modules`.                                                  |
+| `clone`        | **Shipped default on darwin/linux** — copy-on-write clone of donor `node_modules`. | Near-zero on APFS/reflink FS. | Falls back to `per-worktree` on unsupported filesystems or cross-volume clones. |
+| `per-worktree` | Default on Windows; also the safe fallback everywhere.           | Full `npm ci` per Story. | Each worktree gets an independent `node_modules`.                                                           |
 | `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
-| `pnpm-store`   | pnpm repos. **Shipped consumer default in `agentrc-reference.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
+| `pnpm-store`   | pnpm repos. **Opt-in.**                                          | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
 
 The **shipped consumer default in
-[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) remains
-`pnpm-store`**. Repos that do not use pnpm should opt in to `symlink`
-explicitly in their root `.agentrc.json`; this repo dogfoods that
-configuration.
+[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) is
+`clone`** (Windows resolves to `per-worktree` via the platform-aware
+accessor). Repos that use pnpm or want symlink semantics should set
+`nodeModulesStrategy` explicitly in their root `.agentrc.json`.
 
 ### Symlink opt-in (npm / yarn)
 
@@ -809,13 +809,13 @@ To opt in, set three fields on `delivery.worktreeIsolation` in your root
 - **`primeFromPath`** — relative path (from the repo root) to the donor
   worktree whose `node_modules/` is reused. `"."` means the root
   checkout, which must already have `node_modules/` populated before a
-  Story initializes. `story-init.js` enforces this with a pre-check.
+  Story initializes. `single-story-init.js` enforces this with a pre-check.
 - **`allowSymlinkOnWindows`** — required on Windows. The strategy uses
   junctions (no admin rights needed) on Windows when this is `true`; it
   refuses with an explanatory error otherwise, because symlink semantics
   vary by Windows version.
 
-Once these are set, `story-init.js` skips `npm ci` in the worktree and
+Once these are set, `single-story-init.js` skips `npm ci` in the worktree and
 junctions/symlinks `node_modules` from the donor — typical cold-start
 falls from minutes to under a second.
 
@@ -823,9 +823,8 @@ falls from minutes to under a second.
 
 ## Multi-developer coordination
 
-Two operators can drive the same repository at once — one running
-`/deliver <id>`, another running `/single-story-deliver <id>`, or two
-operators on the same Epic from separate clones. The framework keeps those
+Two operators can drive the same repository at once — for example, two
+`/deliver <storyId>` runs from separate clones. The framework keeps those
 runs from clobbering one another with **two distinct coordination layers**.
 They solve different problems and must not be confused:
 
@@ -866,28 +865,15 @@ yanks the claim back from whoever legitimately took over.
 
 **Where it's wired:**
 
-- **`/deliver`** acquires the lease on the **Epic** ticket during its
-  prepare phase, before any mutating git work
-  ([`epic-deliver-lease-guard.js`](scripts/lib/orchestration/epic-deliver-lease-guard.js)).
-  A live foreign claim refuses the run; pass `--steal` to override and
-  `--as <handle>` to claim under a specific identity. The operator is
-  resolved from `--as`, then `github.operatorHandle`, then
-  `git config user.email`; when none resolve, the lease step is skipped
-  (the checkout-safety guard still runs).
-- **`/single-story-deliver`** acquires the lease on the **Story** ticket at
-  init and releases it at close
+- **`/deliver`** runs each Story through `helpers/deliver-story`, which
+  acquires the lease on the **Story** ticket at init and releases it at close
   ([`single-story-lease-guard.js`](scripts/lib/orchestration/single-story-lease-guard.js)).
-  The standalone path requires `github.operatorHandle` to be set — without
-  an operator identity the lease has no owner to record.
-- **`/plan`** acquires the lease on the **Epic** ticket before Phase 7
-  (spec) and releases it after Phase 8 (decompose)
-  ([`epic-plan-lease-guard.js`](scripts/lib/orchestration/epic-plan-lease-guard.js)).
-  Because planning emits no `story.heartbeat` (heartbeats are a
-  delivery-time signal), the plan path has no live-heartbeat source and so
-  **fails closed**: any foreign assignee is treated as a live claim and
-  refuses the run unless `--steal` transfers it. Unassigned or self-held
-  Epics proceed. When `github.operatorHandle` is unset the lease cannot be
-  keyed and the preflight degrades to a no-op.
+  A live foreign claim refuses the run; pass `--steal` to override. The Story
+  path requires `github.operatorHandle` to be set — without an operator identity
+  the lease has no owner to record.
+- **`/plan`** does not take a planning lease on an Epic ticket. Planning is a
+  short authoring ceremony over Stories; concurrent `/plan` runs coordinate
+  via ordinary GitHub issue creation, not an Epic lease guard.
 
 ---
 

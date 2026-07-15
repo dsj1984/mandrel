@@ -26,23 +26,23 @@
  *     the renderer can attribute the run-length back to the deliver-runner
  *     concurrency cap.
  *
- * Threshold contract (`.agentrc.json → delivery.retro.perfThresholds`):
+ * Threshold contract (code constants only — not operator-tunable via
+ * `.agentrc.json`; the former `delivery.retro.perfThresholds` key was
+ * retired):
  *
  *   - `utilisation`: number in [0, 1]. Default 0.6.
  *   - `bootstrapShare`: number in [0, 1]. Default 0.4.
  *   - `capBindingRunLength`: positive integer. Default 2.
  *
  * The function is total: it never throws on malformed input. A missing or
- * malformed `report` returns `[]`. A missing `thresholds` falls back to the
- * documented defaults.
+ * malformed `report` returns `[]`. A missing `thresholds` falls back to
+ * `DEFAULT_RETRO_PERF_THRESHOLDS` below.
  */
 
 /**
- * Defaults mirroring `.agentrc.json → delivery.retro.perfThresholds` so
- * callers (and tests) can omit `thresholds` and get the same behaviour as
- * a resolved config with no overrides. Keep in lockstep with
- * `lib/config/runners.js` (or wherever the resolver default lives) and the
- * `agentrc.schema.json` defaults stanza.
+ * Framework-fixed defaults for `classifyPerfSignals`. Callers (and tests)
+ * can omit `thresholds` and get these values. Not sourced from agentrc —
+ * edit this constant (and keep tests in lockstep) to change the gates.
  */
 export const DEFAULT_RETRO_PERF_THRESHOLDS = Object.freeze({
   utilisation: 0.6,

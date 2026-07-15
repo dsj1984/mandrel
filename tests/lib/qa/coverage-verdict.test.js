@@ -158,11 +158,8 @@ describe('skip / pending awareness', () => {
     );
   });
 
-  it('isSkipped detects a @pending tag in a whitespace string', () => {
-    assert.equal(
-      isSkipped({ path: 'a.feature', tags: '@smoke @pending' }),
-      true,
-    );
+  it('isSkipped detects a @skip tag in a whitespace string', () => {
+    assert.equal(isSkipped({ path: 'a.feature', tags: '@smoke @skip' }), true);
   });
 
   it('isSkipped honors explicit skipped / pending boolean flags', () => {
@@ -211,9 +208,9 @@ describe('skip / pending awareness', () => {
     assert.equal(verdict.acceptance.status, 'absent');
   });
 
-  it('counts a @pending unit test as absent for the unit tier', () => {
+  it('counts a @skip unit test as absent for the unit tier', () => {
     const verdict = coverageVerdict({
-      tests: [{ path: 'a.test.js', tags: '@pending' }],
+      tests: [{ path: 'a.test.js', tags: '@skip' }],
     });
     assert.equal(verdict.unit.status, 'absent');
   });

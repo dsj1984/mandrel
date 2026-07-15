@@ -1,17 +1,17 @@
 /**
  * story-init-not-backgrounded — refuse-and-print check.
  *
- * Detects orchestration call sites that invoke `story-init.js` via the
- * Bash tool's `run_in_background: true` mode (with subsequent `Monitor`
+ * Detects orchestration call sites that invoke `single-story-init.js` via
+ * the Bash tool's `run_in_background: true` mode (with subsequent `Monitor`
  * waiting on completion) instead of a synchronous Bash call with a
  * 10-minute timeout. This guards the failure mode where `Monitor`'s wait
  * is not equivalent to script exit — a sub-agent that exits during a
- * Monitor wait kills `story-init.js` mid-batch, leaving a half-initialized
- * worktree and a failed wave aggregator.
+ * Monitor wait kills `single-story-init.js` mid-run, leaving a
+ * half-initialized worktree.
  *
  * Scope: 'epic-deliver', 'story-close', 'retro'. The check runs at every
- * preflight surface that has the opportunity to invoke story-init —
- * primarily `epic-deliver`'s wave loop — and surfaces as a retro audit
+ * preflight surface that has the opportunity to invoke Story init —
+ * primarily `/deliver`'s init step — and surfaces as a retro audit
  * signal if the failure mode resurfaces during a sprint.
  *
  * The check is `refuse-and-print`. Auto-rewriting an orchestration call
@@ -20,7 +20,8 @@
  * synchronous-call replacement pattern so they can apply it deliberately.
  *
  * Implementation note: we scan `.agents/` (markdown + js) for the
- * juxtaposition of a `story-init.js` reference and a backgrounding token
+ * juxtaposition of a `story-init.js` reference (which also matches
+ * `single-story-init.js` as a suffix) and a backgrounding token
  * (`run_in_background: true`, the literal `Monitor` tool name as a
  * fan-out target, or `&` shell backgrounding) within a small line window.
  */
@@ -39,7 +40,8 @@ const WINDOW_LINES = 20;
  * - `run_in_background: true` — Bash tool's backgrounding flag.
  * - `detached: true` — child_process.spawn options that detach the
  *   subprocess from the parent's lifecycle, equivalent to backgrounding.
- * - `story-init.js &` — POSIX shell ampersand backgrounding.
+ * - `single-story-init.js &` — POSIX shell ampersand backgrounding
+ *   (the pattern matches the `story-init.js` suffix of both names).
  */
 const BACKGROUND_TOKENS = [
   /run_in_background\s*:\s*true/,
@@ -85,12 +87,12 @@ function walkSources(dir) {
 
 /**
  * For one file, return an array of `{ line, kind }` offences: every line
- * referencing `story-init.js` that has a backgrounding token in the same
- * ±WINDOW_LINES window.
+ * referencing `story-init.js` (including `single-story-init.js`) that has
+ * a backgrounding token in the same ±WINDOW_LINES window.
  *
- * The check explicitly excludes the `story-init.js` file itself and any
- * dedicated check module (this file): the source-of-truth implementation
- * legitimately mentions itself.
+ * The check explicitly excludes the `single-story-init.js` file itself and
+ * any dedicated check module (this file): the source-of-truth
+ * implementation legitimately mentions itself.
  *
  * @param {string} file
  * @param {string} src
@@ -100,12 +102,12 @@ function scanFile(file, src) {
   const offences = [];
   // Don't flag the actual story-init script, self-references, or the
   // parallel-tooling helper — the helper documents both Rule 2
-  // (run_in_background) and the story-init.js anti-pattern in adjacent
-  // bullets, which collides with the scanner's ±20-line window even
-  // though there is no real invocation in the prose.
+  // (run_in_background) and the story-init backgrounding anti-pattern in
+  // adjacent bullets, which collides with the scanner's ±20-line window
+  // even though there is no real invocation in the prose.
   const basename = path.basename(file);
   if (
-    basename === 'story-init.js' ||
+    basename === 'single-story-init.js' ||
     basename === 'story-init-not-backgrounded.js' ||
     basename === 'story-init-not-backgrounded.test.js' ||
     basename === 'parallel-tooling.md'
@@ -129,13 +131,13 @@ function scanFile(file, src) {
 }
 
 const FIX_COMMAND = [
-  '# Invoke story-init.js synchronously with a 10-minute timeout. The',
-  '# script is idempotent on partial state, so re-running after a',
+  '# Invoke single-story-init.js synchronously with a 10-minute timeout.',
+  '# The script is idempotent on partial state, so re-running after a',
   '# half-initialized worktree is safe — but blocking on the Bash call',
   '# is what prevents the half-init state in the first place.',
   '#',
   '# Replacement pattern (Bash tool):',
-  '#   Bash(timeout: 600000, command: "node .agents/scripts/story-init.js --story <id>")',
+  '#   Bash(timeout: 600000, command: "node .agents/scripts/single-story-init.js --story <id>")',
   '#',
   '# Do NOT use:',
   '#   Bash(run_in_background: true, ...) + Monitor(...)',
@@ -177,7 +179,7 @@ export default {
       id: 'story-init-not-backgrounded',
       severity: 'blocker',
       scope: state?.scope ?? 'epic-deliver',
-      summary: `${offences.length} orchestration call site(s) invoke story-init.js with Monitor backgrounding`,
+      summary: `${offences.length} orchestration call site(s) invoke single-story-init.js with Monitor backgrounding`,
       detail,
       fixCommand: FIX_COMMAND,
       autoCorrectable: false,

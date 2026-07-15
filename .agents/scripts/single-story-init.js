@@ -2,14 +2,12 @@
 /* node:coverage ignore file */
 
 /**
- * single-story-init.js — Initialize a standalone Story (no parent Epic).
+ * single-story-init.js — Initialize a Story for v2 `/deliver`.
  *
- * Counterpart to `story-init.js` for the `/single-story-deliver` workflow.
- * The framework's main `story-init.js` requires an `Epic: #N` reference in
- * the Story body to trace hierarchy, seed the Story branch from
- * `epic/<id>`, and gate execution on the epic's dispatch manifest. None of
- * that applies to a standalone Story — a top-level work unit that branches
- * directly from `main` and opens its PR straight to `main`.
+ * Seeds `story-<id>` from `project.baseBranch` (default `main`), materialises
+ * the per-Story worktree when isolation is enabled, upserts a `story-init`
+ * structured comment, and flips the Story to `agent::executing`. There is no
+ * Epic parent, epic branch, or dispatch-manifest gate.
  *
  * What this script does:
  *   1. Validate the Story (type::story, not closed).
@@ -22,17 +20,14 @@
  *      `standalone: true`.
  *   6. Flip the Story to `agent::executing`.
  *
- * What this script does NOT do (and why):
- *   - Skips `validateBlockers` against the body's `Blocked by:` markers —
- *     pre-flight is still the operator's responsibility, but the Epic-scope
- *     blocker chain doesn't fit.
- *   - Skips child-Task transitions — a standalone Story is treated as
- *     atomic (one branch, one commit-set, one PR).
+ * What this script does NOT do:
+ *   - Child-Task transitions — a Story is atomic (one branch, one
+ *     commit-set, one PR to `main`).
  *
  * Usage: `node single-story-init.js --story <STORY_ID> [--dry-run]`
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/helpers/single-story-deliver.md
+ * @see .agents/workflows/helpers/deliver-story.md
  */
 
 import { existsSync } from 'node:fs';
@@ -61,6 +56,7 @@ import {
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
 import { verifyRemote } from './lib/orchestration/remote-verifier.js';
 import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
+import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 import {
   STATE_LABELS,
   transitionTicketState,
@@ -74,6 +70,7 @@ import { buildProtectionCtx } from './lib/single-story-sweep/protection-ctx.js';
 // friendly "run npm install" message.
 import { WorktreeManager } from './lib/worktree-manager.js';
 
+export { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 // `makeGhRunner` moved to the shared `single-story-sweep/protection-ctx.js`
 // module (Story #4373) so the three boot callers build an identical
 // protection ctx. Re-exported here to preserve its existing import path.
@@ -114,11 +111,19 @@ const progress = Logger.createProgress('single-story-init', { stderr: true });
 export function assertDeliverableStory(story, storyId) {
   if (!story.labels.includes(TYPE_LABELS.STORY)) {
     throw new Error(
-      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /deliver or /deliver for Epic-attached work.`,
+      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). ` +
+        'v2 /deliver accepts type::story tickets only.',
     );
   }
   if (story.state === 'closed') {
     throw new Error(`Story #${storyId} is already closed.`);
+  }
+  const body = typeof story.body === 'string' ? story.body : '';
+  if (/\b(?:Epic|Parent):\s*#\d+/i.test(body)) {
+    throw new Error(
+      `Story #${storyId} still declares an Epic/Parent footer. ` +
+        'v2 delivery is Story-only — re-plan as a standalone Story before /deliver.',
+    );
   }
 }
 
@@ -478,9 +483,7 @@ export async function runSingleStoryInit({
   const provider = injectedProvider || createProvider(config);
 
   const baseBranch = config.project?.baseBranch ?? 'main';
-  // The first arg is unused (legacy epicId slot); pass 0 to satisfy the
-  // numeric-validation guard.
-  const storyBranch = getStoryBranch(0, storyId);
+  const storyBranch = getStoryBranch(storyId);
 
   const runtime = resolveRuntime({ config });
   progress(
@@ -489,8 +492,8 @@ export async function runSingleStoryInit({
   );
   progress('INIT', `Initializing standalone Story #${storyId}...`);
 
-  // Issue #4483 — deterministic remote evidence at the standalone entry
-  // seam (the counterpart to `epic-deliver-preflight.js`'s probe). The
+  // Issue #4483 — deterministic remote evidence at the v2 `/deliver` entry
+  // seam (`single-story-init.js`). The
   // probe is read-only, so it runs under --dry-run too. The CLI records
   // the fact; the workflow owns the `agent::blocked` transition on
   // `remoteVerified: false` — inline delivery to local `main` is never a
@@ -505,6 +508,12 @@ export async function runSingleStoryInit({
 
   const story = await provider.getTicket(storyId);
   assertDeliverableStory(story, storyId);
+  await handleRemoteVerificationFailure({
+    provider,
+    storyId,
+    remote,
+    dryRun,
+  });
 
   progress(
     'CONTEXT',

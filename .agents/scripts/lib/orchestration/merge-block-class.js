@@ -38,7 +38,7 @@
  *                                         a red/pending required check, an
  *                                         unreadable check probe, a dirty
  *                                         structured-signal verdict, or a
- *                                         `delivery.ci.requireChecks` policy
+ *                                         (retired `requireChecks` policy
  *                                         block on a checks-less repo (#4472).
  *                                         The must-land contract previously
  *                                         only covered post-arm poll

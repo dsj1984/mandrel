@@ -7,10 +7,6 @@
 
 @.agents/instructions.md
 
-## Default Persona (Engineer)
-
-@.agents/personas/engineer.md
-
 ## Global Rules (always active)
 
 <!--
@@ -28,20 +24,19 @@
 > is for loading convenience only; when two governance documents conflict, the
 > authoritative resolution order is declared once in
 > [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md)
-> (local overrides → `instructions.md` → `rules/` → active persona → `skills/`,
-> with security-baseline inviolable).
+> (local overrides → `instructions.md` → `rules/` → `skills/`, with
+> security-baseline inviolable).
 
 ## Ticket hierarchy
 
-> Mandrel uses a **2-tier ticket hierarchy** (Epic → Story),
-> with acceptance criteria and verification steps inlined on the Story
-> body (`acceptance[]` / `verify[]`). All delivery flows through
-> `/deliver`, which routes Epic vs standalone-Story input — Epic-attached
-> Stories are delivered as part of their Epic (the Epic path fans out
-> `helpers/epic-deliver-story` per wave). There is no `type::task`
-> ticket layer, no per-Task `agent::*` lifecycle, and no `task-commit.js`
-> ceremony. Commits land on `story-<storyId>` directly from the agent and
-> reference the parent Story via `(refs #<storyId>)`. See
+> Orchestration and planning are **Story-only** (`type::story`).
+> Acceptance criteria and verification steps are inlined on the Story
+> body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
+> `## Spec`. `/plan` emits one or more `type::story` issues (default N=1);
+> `/deliver` runs each Story via `helpers/deliver-story` on
+> `story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
+> label, no Epic issue form, and no `persona::*` axis — an Epic is at most
+> an optional untyped human umbrella issue outside orchestration.
+> `/deliver` refuses `Epic: #N` footers. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the full
-> contract.
+> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md).

@@ -1,5 +1,5 @@
 /**
- * docs-digest.js — per-Epic docs digest builder (Story #4338).
+ * docs-digest.js — per-run docs digest builder (Story #4338).
  *
  * `/deliver` story sub-agents previously re-read every file in
  * `project.docsContextFiles` on every Story, re-paying the full docs payload
@@ -16,8 +16,8 @@
  * Story #4433 extends this module with {@link ensureDocsDigest}, a shared
  * generate-and-write export so the planner-context surface
  * (`plan-context.js` / `authoring-context.js`) can produce a session docs
- * digest without duplicating the mkdir+writeFile plumbing
- * `epic-deliver-prepare.js` already owns for the delivery-children digest.
+ * digest without duplicating the mkdir+writeFile plumbing shared by
+ * `plan-context.js` / `authoring-context.js` and the `/deliver` workflow.
  */
 
 import fs from 'node:fs';
@@ -110,7 +110,7 @@ function renderDocSection(doc) {
 }
 
 /**
- * Build the per-Epic docs digest markdown from the configured docs context
+ * Build the per-run docs digest markdown from the configured docs context
  * files. Missing files are skipped silently (the read seam returns only the
  * files it could stat + read). Returns `null` when there is nothing to digest
  * — i.e. `docsContextFiles` is empty/unset — so callers surface a null
@@ -130,7 +130,7 @@ export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
   const header = [
     '# Docs digest',
     '',
-    'Per-Epic outline of the project docs context set. Each entry lists the',
+    'Per-run outline of the project docs context set. Each entry lists the',
     'file path, byte size, and its heading outline (with line numbers) plus',
     'the first paragraph under each `##` section. Read the full file on demand',
     'when a section looks relevant — do **not** ingest the whole set per Story.',
@@ -144,10 +144,10 @@ export async function buildDocsDigest({ docsContextFiles, docsRoot } = {}) {
 /**
  * Build the docs digest and write it to `outputPath`, returning `null` (no
  * write) when there is nothing to digest. This is the single shared
- * generate-and-persist export both digest producers call: the per-Epic
- * delivery-children digest (`epic-deliver-prepare.js`) and the planner-
+ * generate-and-persist export both digest producers call: the per-run
+ * `/deliver` docs digest (`helpers/deliver-story.md`) and the planner-
  * context digest (`plan-context.js` → `authoring-context.js`, Story
- * #4433). Callers own path construction (temp-root layout, epic id, etc.)
+ * #4433). Callers own path construction (temp-root layout, run id, etc.)
  * so both surfaces can keep — or deliberately share — their own convention;
  * this function only owns "build digest, ensure parent dir, write file".
  *

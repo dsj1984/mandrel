@@ -163,11 +163,8 @@ describe('Logger lazy level resolution (Story #3329)', () => {
     assert.equal(console.error.mock.calls.length, 2);
   });
 
-  it('debug level behaves identically to verbose (alias)', () => {
-    setLevel('debug');
-    Logger.debug('D');
-    Logger.error('E');
-    assert.equal(console.error.mock.calls.length, 2);
+  it('setLevel rejects debug as an unrecognized level', () => {
+    assert.throws(() => setLevel('debug'), RangeError);
   });
 
   it('info suppresses debug but emits info/warn/error (in-process)', () => {

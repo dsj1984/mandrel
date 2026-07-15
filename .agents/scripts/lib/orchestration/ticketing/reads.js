@@ -12,7 +12,8 @@
  */
 
 import { AGENT_LABELS } from '../../label-constants.js';
-import { WAVE_MARKER_RE } from '../wave-marker.js';
+
+const WAVE_MARKER_RE = /^wave-([0-9]{1,3})-(start|end)$/;
 
 /**
  * Canonical agent-state label triad used by every state mutator. Kept on
@@ -23,7 +24,7 @@ export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
   // Story #2144 — intermediate state held by a Story between successful
-  // close-preflight and a confirmed merge into `epic/<id>`. Included in
+  // close-preflight and a confirmed Story PR merge into `main`. Included in
   // the state enum so `transitionTicketState` can apply the label via
   // the canonical one-state-at-a-time path (which removes every other
   // `agent::*` label in the same call) and so the read-side `ALL_STATES`
@@ -72,13 +73,17 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'verification-results',
   'retro',
   'retro-partial',
+  // v2 Story closeout — actionable follow-ups from friction signals
+  'follow-ups',
+  // v2 plan-run epilogue artifacts (posted on the primary Story)
+  'plan-run-audit-roster',
+  'plan-run-sibling-coherence',
   'epic-run-state',
   'epic-run-progress',
   'epic-plan-state',
   'parked-follow-ons',
-  'dispatch-manifest',
-  // Story #566 — per-phase wall-clock summary posted by story-close
-  // and consumed by the epic-runner progress reporter to surface median /
+  // Story #566 — per-phase wall-clock summary posted by single-story-close.js
+  // and consumed by analyze-execution / perf tooling to surface median /
   // p95 phase timings across completed stories.
   'phase-timings',
   // Story #831 — story-init upserts a `story-init` comment that
@@ -88,7 +93,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'story-init',
   // Story #908 — /deliver upserts a `story-run-progress` snapshot
   // on each Story per Task transition. The /deliver aggregator and
-  // the epic-runner progress reporter both read this comment to derive
+  // `analyze-execution.js` both read this comment to derive
   // Story-level state without re-fetching ticket labels.
   'story-run-progress',
   // Story #1123 — analyze-execution.js upserts perf summaries at close
@@ -98,9 +103,8 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // surface (Epic #1030).
   'story-perf-summary',
   'epic-perf-report',
-  // Story #2128 — Phase 6 Epic Clarity Gate. `epic-plan-clarity.js` upserts
-  // a `clarity-gate-update` comment on the Epic when the operator approves
-  // a sharpened body rewrite, recording the persistence event for audit.
+  // Story #2128 — Phase 6 Epic Clarity Gate (CLI retired). Historical
+  // `clarity-gate-update` comments may still exist on older tickets.
   'clarity-gate-update',
   // Story #2635 — Tech Spec freshness check. `plan-persist.js`
   // upserts a `spec-freshness` comment on the Epic listing any
@@ -126,24 +130,24 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // ticket. Re-invocations upsert the same marker rather than appending
   // duplicates.
   'epic-handoff',
-  // Story #2899 (Epic #2880, F13) — `epic-deliver-preflight.js` upserts a
-  // `delivery-preflight` comment on the Epic at the start of
-  // /deliver Phase 1, surfacing estimated story count, install cost,
+  // Story #2899 (Epic #2880, F13) — the deleted `epic-deliver-preflight.js`
+  // upserted a `delivery-preflight` comment on the Epic at the start of
+  // pre-v2 Epic `/deliver` Phase 1, surfacing estimated story count, install cost,
   // wave count, GitHub API request volume, Claude quota burn, and any
   // threshold breaches against `delivery.preflight.max*`. One entry per
   // Epic; re-runs replace prior content.
   'delivery-preflight',
-  // Story #3062 (Epic #3051) — `wave-tick.js` upserts a
+  // Story #3062 (Epic #3051) — the deleted `wave-tick.js` upserted a
   // `recurring-failure-class` comment on the Epic when the cross-Story
   // detector finds two or more Stories that hit the same `failedGate` in
   // `close-validate.end`. One entry per Epic; re-ticks with the same
   // findings upsert in place (`upsertStructuredComment` diffs by body).
   'recurring-failure-class',
-  // Story #3061 (Epic #3051) — the /deliver §2e Idle Watchdog
-  // subsection instructs the parent host LLM to upsert a `wave-stall`
-  // comment on the Epic whenever an in-flight Story has been silent for
-  // longer than the configured cadence. `wave-tick.js --check-idle`
-  // emits the matching envelope; registering the kind here is what makes
+  // Story #3061 (Epic #3051) — the pre-v2 `/deliver` idle-watchdog prose
+  // instructed the parent host LLM to upsert a `wave-stall` comment on the
+  // Epic whenever an in-flight Story had been silent for longer than the
+  // configured cadence. The deleted `wave-tick.js --check-idle` CLI emitted
+  // the matching envelope; registering the kind here keeps historical
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
@@ -171,15 +175,14 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // `graduator="audit-results|code-review"` attr so the two graduators
   // upsert independent comments; re-runs upsert in place.
   'cross-repo-deferred',
-  // Epic #4474 (PR3) — `plan-persist.js` upserts a single `plan-summary`
-  // comment on the Epic at terminal persist success, carrying the risk /
-  // routing / freshness / healthcheck receipts and the dry-run wave table
-  // as closing text. Replaces the retired plan-time `dispatch-manifest`
-  // comment (whose claimed consumer did not exist — the live manifest is
-  // written at deliver time by `wave-record-io.js`) and the Phase 12
-  // notify round-trip. One entry per Epic; a --force/--resume re-persist
-  // upserts in place.
+  // Epic #4474 (PR3) / v2 Stage 3 — `plan-persist.js` upserts a single
+  // `plan-summary` comment on the primary Story at terminal persist
+  // success, carrying risk / routing receipts and the depends_on order
+  // table. One entry per plan; a re-persist upserts in place.
   'plan-summary',
+  // v2 Stage 3 — flat Story persist checkpoint on every created Story
+  // (replaces epic-plan-state for new plans). plan-summary stays primary-only.
+  'story-plan-state',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

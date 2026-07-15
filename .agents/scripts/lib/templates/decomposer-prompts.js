@@ -1,8 +1,9 @@
 import { LIMITS_DEFAULTS } from '../config/limits.js';
 import {
   AUTHORING_ALTITUDE_GUIDANCE,
-  DEFAULT_TASK_SIZING,
+  DEFAULT_MODEL_CAPACITY,
   DELIVERABLE_GRANULARITY_GUIDANCE,
+  resolveCapacityCeilings,
 } from '../orchestration/ticket-validator-sizing.js';
 
 /**
@@ -18,27 +19,16 @@ import {
  * asks the planner to carry acceptance/verify as top-level ticket arrays.
  *
  * **Single source of the prompt body (Story #4162).** This module is the sole
- * carrier of the full decomposer system-prompt body. The
- * `epic-plan-decompose-author` SKILL no longer embeds a second verbatim copy —
- * it references this rendered prompt (delivered to the host LLM in the
- * `systemPrompt` field of the authoring context envelope built by
- * `epic-plan-decompose/phases/context.js`) instead, so the two surfaces cannot
- * drift. A guard test (`tests/ticket-decomposer.test.js`) fails if the SKILL
- * re-grows a full copy of the prompt preamble.
- *
- * **Token-budget sizing input (Story #4162).** `maxTokenBudget` is the real
- * one-pass delivery envelope (the task-prompt hydration cap surfaced into the
- * authoring envelope by `context.js`, Story #3875). It is threaded into the
- * rendered prompt as a sizing input so the planner sizes Stories against the
- * envelope a single agent can actually deliver in one pass, rather than leading
- * with the file-count proxy alone.
+ * carrier of the full decomposer system-prompt body, delivered to the host
+ * LLM in the `systemPrompts.decompose` field of the `/plan` context envelope
+ * (via `lib/orchestration/planning/decomposer-context.js`), so no second
+ * verbatim copy can drift.
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
-  maxTokenBudget = LIMITS_DEFAULTS.maxTokenBudget,
   epicId = null,
 } = {}) {
-  return render2TierPrompt({ maxTickets, maxTokenBudget, epicId });
+  return render2TierPrompt({ maxTickets, epicId });
 }
 
 /**
@@ -47,12 +37,16 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
-  // Sizing thresholds are sourced from the single DEFAULT_TASK_SIZING constant
-  // (ticket-validator-sizing.js) so the prompt and the validator cannot drift.
-  const { softFiles, hardFiles, softAcceptanceCount } = DEFAULT_TASK_SIZING;
+function render2TierPrompt({ maxTickets, epicId = null }) {
+  // v2 Stage 3: default-single — emit one Story unless the split policy clears.
+  // Capacity thresholds are sourced from the single DEFAULT_MODEL_CAPACITY
+  // constant (ticket-validator-sizing.js) so the prompt and the validator
+  // cannot drift.
+  const { softSessionTokens, hardSessionTokens } = resolveCapacityCeilings(
+    DEFAULT_MODEL_CAPACITY,
+  );
   // Deliverable-granularity definition + single-consumer merge rule + the
-  // soft envelope-floor heuristic are sourced from the single
+  // thin-dependent merge heuristic are sourced from the single
   // DELIVERABLE_GRANULARITY_GUIDANCE constant (ticket-validator-sizing.js) so
   // the prompt and the authoring SKILL cannot drift (Story #3777; the
   // envelope-floor sentence added by Story #4313).
@@ -78,17 +72,18 @@ function render2TierPrompt({ maxTickets, maxTokenBudget, epicId = null }) {
     ? `@epic-${epicId}-ac-1`
     : '@epic-<id>-ac-N';
   return `You are an expert Senior Project Manager and Orchestrator.
-Your job is to take an Epic (including its inline User Stories) and a Technical Specification and decompose them into a flat list of Story tickets for an AI Agent to execute.
+Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.
 
-### HIERARCHY RULES:
-1. **Stories**: Specific user-facing or architectural user stories (e.g., "Implement JWT Token Exchange").
-   - Every Story attaches directly to the Epic — there is NO Feature tier and NO Task layer in this hierarchy.
-   - **Story-Level Execution**: Each Story will be executed end-to-end on a single branch by a single agent. Acceptance criteria and verification commands live as top-level \`acceptance[]\` / \`verify[]\` arrays on the Story ticket (see STORY BODY SCHEMA below).
-   - Thematic grouping is prose in the Epic body / Tech Spec, never a ticket.
+### HIERARCHY RULES (v2 default-single):
+1. **Emit exactly one Story by default.** Split into N>1 only when pieces have near-zero overlap or sit across an architectural seam. Coupled work stays one Story — put intra-session checkpoints in \`## Slicing\` and fold the Tech Spec into \`## Spec\`.
+2. **Stories**: Specific user-facing or architectural capabilities (e.g., "Implement JWT Token Exchange").
+   - There is NO Epic parent ticket, NO Feature tier, and NO Task layer.
+   - **Story-Level Execution**: Each Story is executed end-to-end on a single branch by a single agent. Acceptance criteria and verification commands live as top-level \`acceptance[]\` / \`verify[]\` arrays on the Story ticket (see STORY BODY SCHEMA below).
+   - Thematic grouping is prose in the Story's folded \`## Spec\` / \`## Slicing\`, never sibling tickets for coupled work.
 
 ### LABEL CONVENTIONS:
 - Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.
-- Every ticket must have a \`persona::[engineer|architect|qa-engineer|security-engineer|etc]\` label indicating WHO should execute it.
+- Do **not** emit \`persona::*\` labels — the behavioral persona concept (and its label axis) was removed in v2.
 
 ### OUTPUT FORMAT:
 You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown blocks.
@@ -102,7 +97,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
     "body": <string — see STORY BODY SCHEMA below>,
     "acceptance": ["<testable, observable criterion>", ...],
     "verify": ["<exact command or test path> (<tier>)", ...],
-    "labels": ["type::story", "persona::..."],
+    "labels": ["type::story"],
     "depends_on": ["slug-of-blocking-dependency"] (optional array of Story slugs that block execution)
   }
 ]
@@ -112,12 +107,18 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 \`body\` MUST be a **string** — the serialized markdown produced by \`serialize()\` from \`lib/story-body/story-body.js\`. Do NOT emit \`body\` as a JSON object: an object body throws \`StoryBodyParseError\` in the reconciler (Story #3302) and is discarded by the GitHub provider, producing an empty issue body. Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
 
-The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object (not nested inside \`body\`). The validator reads \`story.acceptance\` and \`story.verify\` directly — nesting them inside the body makes them invisible to the validator and the decompose is rejected.
+The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object — that is the machine contract the validator reads. Persist syncs those arrays into the body's \`## Acceptance\` / \`## Verify\` sections so the GitHub issue stays a complete executable document. Prefer authoring the lists **once at top-level** and omitting those sections from the authored \`body\` string (or mirroring the exact same items). Do **not** invent a second criteria list inside \`## Spec\`, and do not author a separate Acceptance Spec / PRD artifact.
 
 The serialized \`body\` string renders these markdown sections (in order):
 
     ## Goal
-    <one sentence — why this Story exists within the Epic>
+    <one sentence — why this Story exists>
+
+    ## Slicing
+    <optional ordered intra-session checkpoints — not a second Spec or AC table>
+
+    ## Spec
+    <optional lean technical approach — do NOT restate Goal / Acceptance / Verify>
 
     ## Changes
     - {"path": "<file path>", "assumption": "creates" | "refactors-existing" | "deletes"}
@@ -141,7 +142,9 @@ The serialized \`body\` string renders these markdown sections (in order):
 
 #### STORY BODY RULES:
 
-- **goal** (in body string): One sentence stating WHY this story exists within the Epic.
+- **goal** (in body string): One sentence stating WHY this Story exists.
+- **spec** (optional, in body string as \`## Spec\`): Lean technical approach only. If the Spec is large enough to feel like its own document, the Story is probably too big — split it. Persist keeps Specs inline and rejects over-budget Specs (never writes them under \`docs/\`).
+- **slicing** (optional): Ordered intra-session checkpoints for one Story. Not a fan-out table and not a duplicate of Acceptance.
 - **changes** (in body string): Each entry is an object \`{ path, assumption }\` where \`assumption\` is one of \`creates | refactors-existing | deletes\`. Acceptable path shapes include explicit files (\`src/components/Foo.tsx\`), glob patterns (\`tests/e2e/*.spec.ts\`, \`**/*.astro\`), and module identifiers that resolve to files. Use \`refactors-existing\` for in-place edits to a file already on \`main\`; \`creates\` for net-new files; \`deletes\` for removals.
 - **acceptance** (top-level array on the ticket object): Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
 - **verify** (top-level array on the ticket object): Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
@@ -157,37 +160,35 @@ ${newFileContract}
 
 ${advisoryCaveat}
 
-#### STORY SIZING — COHESION FIRST (the numeric ceiling is only a backstop):
+#### STORY SIZING — COHESION FIRST (session capacity is only a backstop):
 
 **Decompose at deliverable granularity, not module/task level.** ${granularityDefinition}
 
-The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial ${softFiles}-file rename from a hard 3-file parser+caller+config change — so lead with the change's reason, not its size.
-
-**Size against the real one-pass delivery envelope.** Each Story is delivered and self-verified by a single agent in one pass, whose context is capped by the delivery token budget \`maxTokenBudget = ${maxTokenBudget}\` tokens (the task-prompt hydration cap). Use that envelope — not the file count alone — as the leading sizing input: a Story is correctly sized when one agent can hold its full change, acceptance, and verification in a single pass within \`maxTokenBudget\`. The numeric file thresholds below are a coarse backstop on top of this envelope, not the primary signal.
+The primary question is **cohesion, not count**: *is this one coherent change with one reason to exist?* File count cannot tell a trivial rename from a hard parser+caller+config change — so lead with the change's reason, not its size. Frontier models one-shot capability-sized work in a single pass — do not fragment a coherent capability into dependent slices just to stay "small."
 
 ${envelopeFloor}
 
 - **One Story = one coherent change with one reason to exist.** If you cannot state that reason in a sentence, the Story is probably two Stories — or two Stories that should be one. State that sentence explicitly in the Story's \`reason_to_exist\` meta field (see STORY BODY RULES) so the consolidate critic can check it.
 - ${singleConsumerRule}
 - **Split independent, parallelizable work** into sibling Stories — but only when the pieces genuinely have separate reasons to exist.
-- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover that spans many files for one reason). Declaring \`wide\` lifts the hard file-width ceiling — see below.
+- **Declare \`wide\` with a one-line reason when a change is legitimately broad** (a cohesive cutover whose authored ticket mass is high for one reason). Declaring \`wide\` lifts the hard session-mass ceiling — see below.
 
-**Numeric backstop (validator-enforced).** These thresholds are sourced from the single \`DEFAULT_TASK_SIZING\` constant in \`ticket-validator-sizing.js\` — there is no second copy to drift:
+**Capacity backstop (validator-enforced).** Absolute authored-token ceilings from the single \`DEFAULT_MODEL_CAPACITY\` constant in \`ticket-validator-sizing.js\` — not operator-tunable. They catch Spec novels, not capability-sized Stories:
 
-- A Story touching more than **${softFiles} files** (\`softFiles\`) emits an advisory width finding — a nudge to check cohesion or declare \`wide\`.
-- A Story touching more than **${hardFiles} files** (\`hardFiles\`) is **rejected** unless it declares \`wide\` with a reason.
-- Acceptance mass is **advisory only**: more than **${softAcceptanceCount} acceptance items** (\`softAcceptanceCount\`) emits an advisory warning. There is NO hard acceptance ceiling — a long binding contract is a signal to re-check cohesion, never a reason to fragment one coherent capability into dependent slices.
+- Soft advisory (**${softSessionTokens} tokens**): authored session mass above this emits a nudge to check cohesion or declare \`wide\`.
+- Hard ceiling (**${hardSessionTokens} tokens**): authored session mass above this is **rejected** unless the Story declares \`wide\` with a reason.
+- Session mass = **authored tokens only** (goal / reason / Spec / acceptance / verify / slicing / change-path text). File count and AC count do **not** inflate mass — a long binding contract or a broad file footprint is never by itself a reason to fragment one coherent capability into dependent slices.
 
 #### DELIVERY-SCHEDULE SIMULATION — the story count must earn itself:
 
 Before emitting, simulate the delivery schedule your plan implies, and judge the plan by its schedule — not by how tidy the taxonomy looks:
 
 1. **Build the wave schedule.** A Story runs only after every \`depends_on\` completes, and two Stories that name the same file in \`changes[]\` cannot run in the same wave (the scheduler serializes file-overlapping Stories even when no \`depends_on\` edge links them).
-2. **Compute the parallelism yield**: story count ÷ critical-path length in waves. A yield near 1.0 means the plan is a serial chain — N Stories that deliver no faster than one Story while paying N delivery sessions (hydration, branch, PR, review, CI).
+2. **Compute the parallelism yield**: story count ÷ critical-path length in waves. A yield near 1.0 means the plan is a serial chain — N Stories that deliver no faster than one Story while paying N delivery sessions (branch, PR, review, CI).
 3. **Every Story must earn its slot** by at least one of:
    - **(a) parallelism** — it actually runs concurrently with a sibling in the schedule you just built ("logically independent" does not count; *schedule*-independent does);
    - **(b) risk isolation** — it isolates a consumer-facing behavior change or high-risk cutover into its own reviewable, revertable unit;
-   - **(c) envelope pressure** — merged into its neighbor it would exceed the one-pass delivery envelope (\`maxTokenBudget\`).
+   - **(c) cohesion break** — merged into its neighbor it would no longer be one coherent change with one reason to exist.
 4. **A dependent link with none of those justifications merges into its consumer.** This generalizes the single-consumer merge rule from pairs to chains.
 5. **Hot-file rule.** When one file appears in the \`changes[]\` of more than a third of your Stories, the slicing axis cuts across a shared seam — merge the Stories that co-edit it, or re-slice along the seam so each Story owns its files.
 
@@ -201,7 +202,7 @@ A Story whose footprint is legitimately broad declares \`wide\` carrying a one-l
 "wide": { "reason": "hard contract cutover: migrate every <X> call site in one PR" }
 \`\`\`
 
-Declaring \`wide\` with a non-empty reason **lifts the \`hardFiles\` rejection** — no Story is rejected for width when it states why it is broad. Omit \`wide\` for ordinary Stories; a wide footprint with no \`wide\` declaration emits only an advisory nudge (check cohesion or declare \`wide\`), never a rejection on its own.
+Declaring \`wide\` with a non-empty reason **lifts the hard session-mass rejection** — no Story is rejected for width when it states why it is broad. Omit \`wide\` for ordinary Stories; a wide footprint with no \`wide\` declaration emits only an advisory nudge (check cohesion or declare \`wide\`), never a rejection on its own.
 
 **Glob entries** in \`changes[]\` (bullets containing \`*\`) mark the Story footprint as \`unknown-width\`: the numeric ceiling cannot bound a glob, so it is skipped. A Story carrying glob changes with no \`wide\` declaration emits an advisory nudge.
 

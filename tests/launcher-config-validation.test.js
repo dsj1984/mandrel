@@ -19,12 +19,14 @@ const SCRIPTS = [
   {
     name: 'plan-context',
     relPath: '.agents/scripts/plan-context.js',
-    args: ['--epic', '1'],
+    args: ['--seed', 'launcher config validation seed'],
   },
   {
     name: 'plan-persist',
     relPath: '.agents/scripts/plan-persist.js',
-    args: ['--epic', '1'],
+    // v2 Stage 3: flat Story CLI — flags only need to clear parseArgs so
+    // config validation runs before any file/provider I/O.
+    args: ['--stories', 'stories.json', '--risk-verdict', 'risk.json'],
   },
 ];
 

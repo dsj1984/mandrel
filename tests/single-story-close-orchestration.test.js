@@ -169,7 +169,7 @@ function fakeConfig({
 function defaultGitUtilsMock({ pushImpl } = {}) {
   return {
     namedExports: {
-      getStoryBranch: (_epicId, storyId) => `story-${Number(storyId)}`,
+      getStoryBranch: (storyId) => `story-${Number(storyId)}`,
       gitSync:
         pushImpl ?? ((..._args) => ({ status: 0, stdout: '', stderr: '' })),
       // Story #2580 sync-from-base imports these at module load. Even
@@ -395,6 +395,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: provider,
       injectedConfig: config,
       injectedRunCodeReview: noopReview(),
@@ -471,6 +472,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
@@ -503,6 +505,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       noAutoMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
@@ -543,6 +546,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       // noAutoMerge NOT set — the skip is driven purely by the config policy.
       injectedProvider: makeFakeProvider({
         initialStory: {
@@ -581,6 +585,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: { id: 1, state: 'open', title: '', labels: [] },
       }),
@@ -618,6 +623,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: { id: 55, state: 'open', title: 'AM fails', labels: [] },
       }),
@@ -665,6 +671,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: false,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
           id: 8,
@@ -724,6 +731,7 @@ describe('runSingleStoryClose orchestration', () => {
         cwd: '/repo',
         skipValidation: false,
         skipSync: true,
+        noWaitForMerge: true,
         injectedProvider: makeFakeProvider({
           initialStory: {
             id: 11,
@@ -762,6 +770,7 @@ describe('runSingleStoryClose orchestration', () => {
         cwd: '/repo',
         skipValidation: true,
         skipSync: true,
+        noWaitForMerge: true,
         injectedProvider: makeFakeProvider({
           initialStory: {
             id: 22,
@@ -859,6 +868,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
       injectedRunCodeReview: noopReview(),
@@ -897,6 +907,7 @@ describe('runSingleStoryClose orchestration', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      noWaitForMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
           id: 33,
@@ -940,6 +951,9 @@ describe('runSingleStoryClose story-closing notify dispatch', () => {
       cwd: '/repo',
       skipValidation: true,
       skipSync: true,
+      // Opt out of close-and-land so these tests keep asserting the
+      // exit-at-agent::closing / story-closing notify shape.
+      noWaitForMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: story,
         updateThrows,
@@ -1055,6 +1069,7 @@ describe('runSingleStoryClose — lease release on recoverable-blocked exits (St
           cwd: '/repo',
           skipValidation: true,
           skipSync: true,
+          noWaitForMerge: true,
           injectedProvider: makeFakeProvider({
             initialStory: {
               id: 4257,

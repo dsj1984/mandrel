@@ -26,28 +26,215 @@
  * @module lib/baselines/kernel
  */
 
-import * as bundleSize from './kinds/bundle-size.js';
-import * as coverage from './kinds/coverage.js';
-import * as crap from './kinds/crap.js';
-import * as duplication from './kinds/duplication.js';
-import * as lighthouse from './kinds/lighthouse.js';
-import * as lint from './kinds/lint.js';
-import * as maintainability from './kinds/maintainability.js';
-import * as mutation from './kinds/mutation.js';
+import {
+  applyEpsilon as bundleSizeApplyEpsilon,
+  compare as bundleSizeCompare,
+  kernelVersion as bundleSizeKernelVersion,
+  keyField as bundleSizeKeyField,
+  mergeRows as bundleSizeMergeRows,
+  name as bundleSizeName,
+  projectRow as bundleSizeProjectRow,
+  rollup as bundleSizeRollup,
+  sortRows as bundleSizeSortRows,
+} from './kinds/bundle-size.js';
+import {
+  applyEpsilon as coverageApplyEpsilon,
+  compare as coverageCompare,
+  kernelVersion as coverageKernelVersion,
+  keyField as coverageKeyField,
+  mergeRows as coverageMergeRows,
+  name as coverageName,
+  projectRow as coverageProjectRow,
+  rollup as coverageRollup,
+  sortRows as coverageSortRows,
+} from './kinds/coverage.js';
+import {
+  applyEpsilon as crapApplyEpsilon,
+  compare as crapCompare,
+  kernelVersion as crapKernelVersion,
+  keyField as crapKeyField,
+  mergeRows as crapMergeRows,
+  name as crapName,
+  projectRow as crapProjectRow,
+  rollup as crapRollup,
+  sortRows as crapSortRows,
+} from './kinds/crap.js';
+import {
+  applyEpsilon as duplicationApplyEpsilon,
+  compare as duplicationCompare,
+  kernelVersion as duplicationKernelVersion,
+  keyField as duplicationKeyField,
+  mergeRows as duplicationMergeRows,
+  name as duplicationName,
+  projectRow as duplicationProjectRow,
+  rollup as duplicationRollup,
+  sortRows as duplicationSortRows,
+} from './kinds/duplication.js';
+import {
+  applyEpsilon as lighthouseApplyEpsilon,
+  compare as lighthouseCompare,
+  kernelVersion as lighthouseKernelVersion,
+  keyField as lighthouseKeyField,
+  mergeRows as lighthouseMergeRows,
+  name as lighthouseName,
+  projectRow as lighthouseProjectRow,
+  rollup as lighthouseRollup,
+  sortRows as lighthouseSortRows,
+} from './kinds/lighthouse.js';
+import {
+  applyEpsilon as lintApplyEpsilon,
+  compare as lintCompare,
+  kernelVersion as lintKernelVersion,
+  keyField as lintKeyField,
+  mergeRows as lintMergeRows,
+  name as lintName,
+  projectRow as lintProjectRow,
+  rollup as lintRollup,
+  sortRows as lintSortRows,
+} from './kinds/lint.js';
+import {
+  applyEpsilon as maintainabilityApplyEpsilon,
+  compare as maintainabilityCompare,
+  kernelVersion as maintainabilityKernelVersion,
+  keyField as maintainabilityKeyField,
+  mergeRows as maintainabilityMergeRows,
+  name as maintainabilityName,
+  projectRow as maintainabilityProjectRow,
+  rollup as maintainabilityRollup,
+  sortRows as maintainabilitySortRows,
+} from './kinds/maintainability.js';
+import {
+  applyEpsilon as mutationApplyEpsilon,
+  compare as mutationCompare,
+  kernelVersion as mutationKernelVersion,
+  keyField as mutationKeyField,
+  mergeRows as mutationMergeRows,
+  name as mutationName,
+  projectRow as mutationProjectRow,
+  rollup as mutationRollup,
+  sortRows as mutationSortRows,
+} from './kinds/mutation.js';
+
+/**
+ * Assemble the kind-module protocol from named imports.
+ *
+ * Prefer named imports over `import * as kind` here: knip (and the
+ * dead-exports ratchet) cannot see members reached only through
+ * `getKindModule(kind).projectRow(...)` after a namespace import, so
+ * star-imports of `kinds/*.js` produced systematic false-positive dead
+ * exports for the protocol surface (`name`, `keyField`, `kernelVersion`,
+ * `projectRow`, `sortRows`, `rollup`, …).
+ *
+ * @param {object} members
+ * @returns {object}
+ */
+function bindKindModule(members) {
+  return Object.freeze({
+    name: members.name,
+    keyField: members.keyField,
+    kernelVersion: members.kernelVersion,
+    projectRow: members.projectRow,
+    sortRows: members.sortRows,
+    rollup: members.rollup,
+    compare: members.compare,
+    applyEpsilon: members.applyEpsilon,
+    mergeRows: members.mergeRows,
+  });
+}
 
 /**
  * Registry of every shipped kind module. Keys mirror the per-kind schema
  * filenames so a future "list all kinds" iterator can stay declarative.
  */
 const KIND_MODULES = Object.freeze({
-  lint,
-  coverage,
-  crap,
-  maintainability,
-  mutation,
-  lighthouse,
-  'bundle-size': bundleSize,
-  duplication,
+  lint: bindKindModule({
+    name: lintName,
+    keyField: lintKeyField,
+    kernelVersion: lintKernelVersion,
+    projectRow: lintProjectRow,
+    sortRows: lintSortRows,
+    rollup: lintRollup,
+    compare: lintCompare,
+    applyEpsilon: lintApplyEpsilon,
+    mergeRows: lintMergeRows,
+  }),
+  coverage: bindKindModule({
+    name: coverageName,
+    keyField: coverageKeyField,
+    kernelVersion: coverageKernelVersion,
+    projectRow: coverageProjectRow,
+    sortRows: coverageSortRows,
+    rollup: coverageRollup,
+    compare: coverageCompare,
+    applyEpsilon: coverageApplyEpsilon,
+    mergeRows: coverageMergeRows,
+  }),
+  crap: bindKindModule({
+    name: crapName,
+    keyField: crapKeyField,
+    kernelVersion: crapKernelVersion,
+    projectRow: crapProjectRow,
+    sortRows: crapSortRows,
+    rollup: crapRollup,
+    compare: crapCompare,
+    applyEpsilon: crapApplyEpsilon,
+    mergeRows: crapMergeRows,
+  }),
+  maintainability: bindKindModule({
+    name: maintainabilityName,
+    keyField: maintainabilityKeyField,
+    kernelVersion: maintainabilityKernelVersion,
+    projectRow: maintainabilityProjectRow,
+    sortRows: maintainabilitySortRows,
+    rollup: maintainabilityRollup,
+    compare: maintainabilityCompare,
+    applyEpsilon: maintainabilityApplyEpsilon,
+    mergeRows: maintainabilityMergeRows,
+  }),
+  mutation: bindKindModule({
+    name: mutationName,
+    keyField: mutationKeyField,
+    kernelVersion: mutationKernelVersion,
+    projectRow: mutationProjectRow,
+    sortRows: mutationSortRows,
+    rollup: mutationRollup,
+    compare: mutationCompare,
+    applyEpsilon: mutationApplyEpsilon,
+    mergeRows: mutationMergeRows,
+  }),
+  lighthouse: bindKindModule({
+    name: lighthouseName,
+    keyField: lighthouseKeyField,
+    kernelVersion: lighthouseKernelVersion,
+    projectRow: lighthouseProjectRow,
+    sortRows: lighthouseSortRows,
+    rollup: lighthouseRollup,
+    compare: lighthouseCompare,
+    applyEpsilon: lighthouseApplyEpsilon,
+    mergeRows: lighthouseMergeRows,
+  }),
+  'bundle-size': bindKindModule({
+    name: bundleSizeName,
+    keyField: bundleSizeKeyField,
+    kernelVersion: bundleSizeKernelVersion,
+    projectRow: bundleSizeProjectRow,
+    sortRows: bundleSizeSortRows,
+    rollup: bundleSizeRollup,
+    compare: bundleSizeCompare,
+    applyEpsilon: bundleSizeApplyEpsilon,
+    mergeRows: bundleSizeMergeRows,
+  }),
+  duplication: bindKindModule({
+    name: duplicationName,
+    keyField: duplicationKeyField,
+    kernelVersion: duplicationKernelVersion,
+    projectRow: duplicationProjectRow,
+    sortRows: duplicationSortRows,
+    rollup: duplicationRollup,
+    compare: duplicationCompare,
+    applyEpsilon: duplicationApplyEpsilon,
+    mergeRows: duplicationMergeRows,
+  }),
 });
 
 /**
@@ -55,10 +242,11 @@ const KIND_MODULES = Object.freeze({
  * callers can't silently fall through to undefined behaviour.
  *
  * @param {string} kind
- * @returns {{ name: string, kernelVersion: () => string, keyField: string,
+ * @returns {{ name: string, keyField: string, kernelVersion: () => string,
  *           projectRow: (row: object) => object,
  *           sortRows: (rows: object[]) => object[],
- *           rollup: (rows: object[], components?: object[]) => object }}
+ *           rollup: (rows: object[], components?: object[]) => object,
+ *           compare?: Function, applyEpsilon?: Function, mergeRows?: Function }}
  */
 export function getKindModule(kind) {
   const mod = KIND_MODULES[kind];

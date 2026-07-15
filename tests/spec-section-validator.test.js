@@ -120,11 +120,11 @@ describe('validateSpecSections — Delivery Slicing heading detection', () => {
 describe('formatMissingSectionMessage', () => {
   it('names the missing section and the spec path', () => {
     const msg = formatMissingSectionMessage({
-      techspecPath: 'temp/epic-18/techspec.md',
+      techspecPath: 'temp/run-18/techspec.md',
       missing: ['Delivery Slicing'],
     });
     assert.match(msg, /## Delivery Slicing/);
-    assert.match(msg, /temp\/epic-18\/techspec\.md/);
+    assert.match(msg, /temp\/run-18\/techspec\.md/);
   });
 
   it('tells the operator to re-author or add the section manually', () => {

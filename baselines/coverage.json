@@ -209,7 +209,7 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js",
+      "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "lines": 100,
       "branches": 97.3,
       "functions": 100

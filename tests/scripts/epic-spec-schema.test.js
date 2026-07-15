@@ -25,13 +25,13 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// v2 Stage 3: production schema dropped; fixture retained until Stage 5.
 const SCHEMA_PATH = path.resolve(
   __dirname,
   '..',
-  '..',
-  '.agents',
-  'schemas',
-  'epic-spec.schema.json',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 const FIXTURE_DIR = path.resolve(__dirname, '..', 'fixtures', 'epic-specs');
 
@@ -127,7 +127,7 @@ describe('epic-spec.schema.json — Story inline acceptance/verify (Epic #3078)'
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-with-tasks',

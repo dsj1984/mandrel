@@ -167,7 +167,8 @@ the action is `custom-hook-skip` and the helper returns the snippet to
 append by hand), **scripts** (backfill `quality:preview` /
 `quality:watch` only when absent), **config** (seed missing
 `delivery.quality.*` defaults — operator overrides survive). The baselines
-step relocates per-Epic snapshots under `temp/epic/<id>/baselines/`; the
+step migrates legacy per-Epic snapshot layouts into the ephemeral
+`temp/epic/<id>/baselines/` namespace when upgrading from pre-v2 shapes; the
 main-tracked root baselines are never touched. A second run reports
 `no-change` on every path — the idempotence contract this workflow
 requires.

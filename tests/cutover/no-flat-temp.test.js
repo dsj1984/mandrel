@@ -1,9 +1,9 @@
 /**
- * Cutover smoke test — flat `temp/<artifact>-epic-<id>.<ext>` path absence.
+ * Cutover smoke test — flat `temp/<artifact>-run-<id>.<ext>` path absence.
  *
  * Asserts that no source file under `.agents/scripts/` writes to a flat
  * per-Epic temp path. Per Tech Spec #1032 (`tempRoot rationalization`,
- * AC13), every Epic-scoped artifact moves under `temp/epic-<id>/`. The
+ * AC13), every Epic-scoped artifact moves under `temp/run-<id>/`. The
  * helper `lib/config/temp-paths.js` is the single canonical writer and
  * consumes this regex as its grep target.
  *
@@ -92,7 +92,7 @@ function scan(files) {
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
-describe('cutover: no flat `temp/<artifact>-epic-<id>` paths', () => {
+describe('cutover: no flat `temp/<artifact>-run-<id>` paths', () => {
   const files = walkJsFiles(SCRIPTS_DIR);
 
   it('finds at least one .js file under .agents/scripts/ to scan', () => {
@@ -102,7 +102,7 @@ describe('cutover: no flat `temp/<artifact>-epic-<id>` paths', () => {
     );
   });
 
-  it('no source writes to a flat `temp/<artifact>-epic-<id>.<ext>` path', () => {
+  it('no source writes to a flat `temp/<artifact>-run-<id>.<ext>` path', () => {
     const hits = scan(files);
     assert.equal(
       hits.length,

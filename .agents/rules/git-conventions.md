@@ -12,28 +12,22 @@ live in the on-demand
 **before** doing the matching work; the core below is sufficient for every
 routine commit, branch, and PR.
 
-## Canonical Branching (v5 Orchestration)
+## Canonical Branching (v2)
 
-### Epic Base Branch
+### Story branch → PR → main
 
-Each Epic operates on a dedicated **Epic base branch** named `epic/[EPIC_ID]`
-(e.g., `epic/98`). This branch is created from the project's base branch
-(`main` by default) and serves as the integration target for all Stories
-within that Epic.
+Every Story lands on a dedicated **Story branch** named `story-<storyId>`
+(e.g., `story-104`), seeded from `project.baseBranch` (`main` by default).
+The runtime owns branch creation via `single-story-init.js`; agents commit
+on that branch only. Close opens a PR against `main` (squash + required
+checks). There is **no** `epic/<id>` integration branch and no `--no-ff`
+wave merge.
 
-### Story-Level Branching
-
-All tasks within a Story MUST be committed to a shared **Story branch**:
-`story-<storyId>` (e.g., `story-104`). The runtime owns Story branch
-creation via `story-init.js`; agents commit on the active Story branch only.
-
-> **Commit subjects.** Under the 2-tier hierarchy
-> (Epic → Story), Stories have no child tickets. Commits
-> land on `story-<storyId>` directly from the agent and the
-> Conventional Commit subject references the parent Story via
-> `(refs #<storyId>)`. See
-> [`.agents/instructions.md` § 5.D](../instructions.md) for the
-> full hierarchy contract.
+> **Commit subjects.** Stories have no child tickets. Commits land on
+> `story-<storyId>` directly from the agent and the Conventional Commit
+> subject references the Story via `(refs #<storyId>)`. See
+> [`.agents/instructions.md` § 5.D](../instructions.md) for the hierarchy
+> contract.
 
 ## Conventional Commits
 

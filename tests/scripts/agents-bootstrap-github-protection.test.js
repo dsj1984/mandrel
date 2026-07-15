@@ -86,8 +86,11 @@ function makeSettings({
   enforce = true,
   checks = [
     { name: 'lint', cmd: ['npm', 'run', 'lint'] },
-    { name: 'format:check', cmd: ['npm', 'run', 'format:check'] },
     { name: 'test', cmd: ['npm', 'test'] },
+    {
+      name: 'baselines',
+      cmd: ['node', '.agents/scripts/check-baselines.js'],
+    },
   ],
 } = {}) {
   return {
@@ -108,12 +111,12 @@ describe('applyBranchProtection (Epic #1142 Story #1157 contract)', () => {
       log: (m) => log.push(m),
     });
     assert.equal(result.status, 'created');
-    assert.deepEqual(result.added, ['lint', 'format:check', 'test']);
+    assert.deepEqual(result.added, ['lint', 'test', 'baselines']);
     assert.deepEqual(result.existing, []);
     assert.equal(provider.calls.setBranchProtection.length, 1);
     const call = provider.calls.setBranchProtection[0];
     assert.equal(call.branch, 'main');
-    assert.deepEqual(call.opts.contexts, ['lint', 'format:check', 'test']);
+    assert.deepEqual(call.opts.contexts, ['lint', 'test', 'baselines']);
   });
 
   it('additive merge: preserves existing operator contexts and appends only missing names', async () => {
@@ -139,7 +142,7 @@ describe('applyBranchProtection (Epic #1142 Story #1157 contract)', () => {
     assert.equal(result.status, 'merged');
     // `lint` was already present → not in `added`.
     // `security/scan` and `license/check` were operator-set → preserved.
-    assert.deepEqual(result.added, ['format:check', 'test']);
+    assert.deepEqual(result.added, ['test', 'baselines']);
     assert.deepEqual(result.existing, [
       'lint',
       'security/scan',

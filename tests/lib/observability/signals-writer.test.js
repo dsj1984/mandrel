@@ -38,19 +38,13 @@ afterEach(() => {
 const signalsPath = (eid, sid) =>
   path.join(
     workRoot,
-    `epic-${eid}`,
+    `run-${eid}`,
     'stories',
     `story-${sid}`,
     'signals.ndjson',
   );
 const tracesPath = (eid, sid) =>
-  path.join(
-    workRoot,
-    `epic-${eid}`,
-    'stories',
-    `story-${sid}`,
-    'traces.ndjson',
-  );
+  path.join(workRoot, `run-${eid}`, 'stories', `story-${sid}`, 'traces.ndjson');
 
 // Canonical friction record helper (Epic #4406). The writer now validates
 // every record against `signal-event.schema.json` before appending, so
@@ -300,7 +294,7 @@ describe('signals-writer — source tagging (framework/consumer classifier)', ()
       config: cfg,
     });
     const raw = await fs.readFile(
-      path.join(workRoot, 'epic-200', 'signals.ndjson'),
+      path.join(workRoot, 'run-200', 'signals.ndjson'),
       'utf8',
     );
     const parsed = JSON.parse(raw.trim());
@@ -320,7 +314,7 @@ describe('signals-writer — source tagging (framework/consumer classifier)', ()
       config: cfg,
     });
     const raw = await fs.readFile(
-      path.join(workRoot, 'epic-201', 'signals.ndjson'),
+      path.join(workRoot, 'run-201', 'signals.ndjson'),
       'utf8',
     );
     const parsed = JSON.parse(raw.trim());

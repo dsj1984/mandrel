@@ -4,59 +4,30 @@
  *
  * All label names are sourced from `label-constants.js` so renames only need
  * to happen in one place. Colors come from `LABEL_COLORS` in the same module.
+ *
+ * v2 deleted the behavioral persona concept (`.agents/personas/` +
+ * `persona::*` labels). Role framing for spawns lives in `.agents/agents/`
+ * via `delivery.routing.roleScopedAgents`; QA auth identities live in
+ * `qa.personas` — neither is a GitHub label axis.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   ACCEPTANCE_LABELS,
   AGENT_LABELS,
   DELIVERY_LABELS,
   LABEL_COLORS,
-  PERSONA_LABEL_PREFIX,
   PLANNING_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
 } from './label-constants.js';
 
-const PERSONAS_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  'personas',
-);
-
-/**
- * Discover persona labels from `.agents/personas/*.md`. The filename
- * (without extension) is the label suffix — this is the same value the
- * context hydrator uses to resolve `persona::<name>` to its markdown file.
- */
-function buildPersonaLabels() {
-  return fs
-    .readdirSync(PERSONAS_DIR)
-    .filter((f) => f.endsWith('.md'))
-    .map((f) => f.slice(0, -3))
-    .sort()
-    .map((name) => ({
-      name: `${PERSONA_LABEL_PREFIX}${name}`,
-      color: LABEL_COLORS.PERSONA,
-      description: `${name} persona`,
-    }));
-}
-
 /** @type {Array<{ name: string, color: string, description: string }>} */
 export const LABEL_TAXONOMY = [
   // Type
   {
-    name: TYPE_LABELS.EPIC,
-    color: LABEL_COLORS.TYPE,
-    description: 'Epic-level work item',
-  },
-  {
     name: TYPE_LABELS.STORY,
     color: LABEL_COLORS.TYPE,
-    description: 'User story under an Epic',
+    description: 'Story work item',
   },
 
   // Agent State
@@ -95,9 +66,6 @@ export const LABEL_TAXONOMY = [
     description: 'Blocked by a dependency',
   },
 
-  // Persona — dynamically derived from .agents/personas/*.md
-  ...buildPersonaLabels(),
-
   // Acceptance axis — explicit opt-out signal for Epics that
   // intentionally have no acceptance-table coverage (waives the Epic
   // body's ## Acceptance Table section — Story #4324).
@@ -108,15 +76,13 @@ export const LABEL_TAXONOMY = [
   },
 
   // Planning axis — operator-applied waivers for the planning → delivery
-  // handoff gates. Currently the sole entry is the `healthcheck-waived`
-  // override consumed by `plan-persist.js` when the inline healthcheck
-  // (`runPlanHealthcheck`) returned `ok: false` for a reason the
-  // operator has triaged and accepted.
+  // handoff gates. `healthcheck-waived` remains for tickets that still
+  // carry the historical label; the healthcheck CLI was retired.
   {
     name: PLANNING_LABELS.HEALTHCHECK_WAIVED,
     color: LABEL_COLORS.PLANNING,
     description:
-      'Operator override — allows agent::ready handoff despite a failing post-plan healthcheck',
+      'Historical operator override for the retired post-plan healthcheck',
   },
 
   // Delivery routing — applied by `plan-persist.js` when the risk verdict

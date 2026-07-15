@@ -23,7 +23,7 @@ const CONSUMER_REPO = 'dsj1984/domio';
 
 function baseInput(overrides = {}) {
   return {
-    epicId: 2547,
+    anchorId: 2547,
     frameworkRepo: FRAMEWORK_REPO,
     consumerRepo: CONSUMER_REPO,
     signals: [],
@@ -48,7 +48,7 @@ test('composeRoutedProposals: returns empty arrays for null/undefined/invalid in
     consumer: [],
     discarded: [],
   });
-  // Missing epicId
+  // Missing anchorId
   assert.deepEqual(
     composeRoutedProposals({
       frameworkRepo: 'a/b',
@@ -57,7 +57,7 @@ test('composeRoutedProposals: returns empty arrays for null/undefined/invalid in
     { framework: [], consumer: [], discarded: [] },
   );
   // Missing repos
-  assert.deepEqual(composeRoutedProposals({ epicId: 1 }), {
+  assert.deepEqual(composeRoutedProposals({ anchorId: 1 }), {
     framework: [],
     consumer: [],
     discarded: [],

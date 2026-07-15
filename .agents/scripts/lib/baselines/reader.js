@@ -86,15 +86,10 @@ function resolveBaselinePath(kind, opts = {}) {
       cwd,
       configPath: opts.configPath,
     });
-    const gateBlock =
-      resolved?.agentSettings?.delivery?.quality?.gates?.[kind] ??
-      resolved?.delivery?.quality?.gates?.[kind] ??
-      null;
+    const gateBlock = resolved?.delivery?.quality?.gates?.[kind] ?? null;
     if (gateBlock?.baselinePath) {
       configured = gateBlock.baselinePath;
     } else {
-      // Fall through to the legacy {lint, crap, maintainability} envelope
-      // exposed by getBaselines.
       const flat = getBaselines(resolved ?? {});
       if (kind === 'lint' || kind === 'crap' || kind === 'maintainability') {
         configured = flat[kind]?.path ?? null;

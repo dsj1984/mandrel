@@ -1,10 +1,10 @@
 {
-  "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "$schema": "./schema.json",
   "version": "4.0.0",
   "epic": {
     "id": 3078,
     "title": "2-tier collapse fixture Epic",
-    "labels": ["type::epic"]
+    "labels": ["type::story"]
   },
   "stories": [
     {
@@ -12,7 +12,7 @@
       "title": "Story carries inline acceptance/verify (2-tier shape)",
       "wave": 0,
       "dependsOn": [],
-      "labels": ["type::story", "persona::engineer"],
+      "labels": ["type::story"],
       "acceptance": [
         "A Story object containing inline acceptance[] and verify[] string arrays validates against the schema",
         "A Story object whose tasks[] field is set is rejected by the schema"

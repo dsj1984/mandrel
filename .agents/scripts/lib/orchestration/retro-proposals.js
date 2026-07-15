@@ -42,7 +42,8 @@
  * @property {string} [summary]
  *
  * @typedef {Object} RoutedProposalsInput
- * @property {number}                epicId
+ * @property {number}                anchorId      Story or run/Epic id in titles.
+ * @property {'epic'|'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `epic`).
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
  * @property {FrictionSignal[]}      [signals]
@@ -143,22 +144,52 @@ function dominantSource(entry) {
 }
 
 /**
+ * @param {'epic'|'story'|'run'} kind
+ * @param {number} id
+ * @returns {string}
+ */
+function formatAnchor(kind, id) {
+  if (kind === 'story') return `Story #${id}`;
+  if (kind === 'run') return `plan-run ${id}`;
+  return `Epic #${id}`;
+}
+
+/** Story scope promotes single-occurrence friction; Epic/run keep ≥2. */
+function isActionableFriction(total, force, anchorKind) {
+  const threshold = anchorKind === 'story' ? 1 : 2;
+  return total >= threshold || Boolean(force);
+}
+
+/**
  * Render the issue body. Plain text — no markdown headings — so the
  * pre-drafted `gh issue create --body-file` heredoc remains a faithful
  * representation of what the operator would paste.
  *
- * @param {{ epicId: number, category: string, occurrences: number, source: "framework"|"consumer" }} args
+ * @param {{
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
+ *   category: string,
+ *   occurrences: number,
+ *   source: "framework"|"consumer",
+ * }} args
  * @returns {string}
  */
-function renderIssueBody({ epicId, category, occurrences, source }) {
+function renderIssueBody({
+  anchorId,
+  anchorKind,
+  category,
+  occurrences,
+  source,
+}) {
+  const anchor = formatAnchor(anchorKind, anchorId);
   return [
-    `Recurring friction category "${category}" surfaced ${occurrences} times during Epic #${epicId}.`,
+    `Recurring friction category "${category}" surfaced ${occurrences} times during ${anchor}.`,
     '',
     `Source classification: ${source}.`,
     '',
-    'Captured by the routed-retro composer (Story #2558). Triage and either:',
+    'Captured by the follow-up composer. Triage and either:',
     `- File a follow-on Story to address the underlying ${source} gap, or`,
-    '- Close with "wont-fix" and document the rationale in the Epic retro thread.',
+    `- Close with "wontfix" and document the rationale on ${anchor}.`,
   ].join('\n');
 }
 
@@ -193,7 +224,8 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
  * Build an actionable RoutedItem for a category.
  *
  * @param {{
- *   epicId: number,
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
  *   category: string,
  *   occurrences: number,
  *   source: "framework"|"consumer",
@@ -203,15 +235,23 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
  * @returns {RoutedItem}
  */
 function buildRoutedItem({
-  epicId,
+  anchorId,
+  anchorKind,
   category,
   occurrences,
   source,
   frameworkRepo,
   consumerRepo,
 }) {
-  const title = `Friction: ${category} recurred ${occurrences} times in Epic #${epicId}`;
-  const body = renderIssueBody({ epicId, category, occurrences, source });
+  const anchor = formatAnchor(anchorKind, anchorId);
+  const title = `Friction: ${category} recurred ${occurrences} times in ${anchor}`;
+  const body = renderIssueBody({
+    anchorId,
+    anchorKind,
+    category,
+    occurrences,
+    source,
+  });
   const repo = source === 'framework' ? frameworkRepo : consumerRepo;
   const metaLabel =
     source === 'framework' ? 'framework-gap' : 'consumer-improvement';
@@ -231,23 +271,29 @@ function buildRoutedItem({
  *
  * @param {unknown} input
  * @returns {{
- *   epicId: number,
+ *   anchorId: number,
+ *   anchorKind: 'epic'|'story'|'run',
  *   frameworkRepo: string,
  *   consumerRepo: string,
  *   signals: FrictionSignal[],
  *   unresolvedBlockedEvents: BlockedEvent[],
  * } | null}
  */
+function normalizeAnchorKind(kind) {
+  return kind === 'story' || kind === 'run' || kind === 'epic' ? kind : 'epic';
+}
+
 function normaliseInput(input) {
   if (input === null || typeof input !== 'object') return null;
   const record = /** @type {RoutedProposalsInput} */ (input);
-  const epicId = Number(record.epicId);
-  if (!Number.isInteger(epicId) || epicId <= 0) return null;
+  const anchorId = Number(record.anchorId);
+  if (!Number.isInteger(anchorId) || anchorId <= 0) return null;
   const frameworkRepo = asString(record.frameworkRepo);
   const consumerRepo = asString(record.consumerRepo);
-  if (frameworkRepo.length === 0 || consumerRepo.length === 0) return null;
+  if (!frameworkRepo || !consumerRepo) return null;
   return {
-    epicId,
+    anchorId,
+    anchorKind: normalizeAnchorKind(record.anchorKind),
     frameworkRepo,
     consumerRepo,
     signals: Array.isArray(record.signals) ? record.signals : [],
@@ -255,6 +301,80 @@ function normaliseInput(input) {
       ? record.unresolvedBlockedEvents
       : [],
   };
+}
+
+function blockedForceMap(unresolvedBlockedEvents) {
+  /** @type {Map<string, { source: "framework"|"consumer" }>} */
+  const blockedForceActionable = new Map();
+  for (const evt of unresolvedBlockedEvents) {
+    if (evt === null || typeof evt !== 'object') continue;
+    const category = asString(evt.category);
+    if (category.length === 0) continue;
+    const source = evt.source === 'framework' ? 'framework' : 'consumer';
+    if (!blockedForceActionable.has(category)) {
+      blockedForceActionable.set(category, { source });
+    }
+  }
+  return blockedForceActionable;
+}
+
+function pushRouted(buckets, source, item) {
+  if (source === 'framework') buckets.framework.push(item);
+  else buckets.consumer.push(item);
+}
+
+function routeCategoryBuckets({
+  byCategory,
+  blockedForceActionable,
+  anchorId,
+  anchorKind,
+  frameworkRepo,
+  consumerRepo,
+}) {
+  /** @type {RoutedProposals} */
+  const buckets = { framework: [], consumer: [], discarded: [] };
+  for (const entry of byCategory.values()) {
+    const { category, total } = entry;
+    const force = blockedForceActionable.get(category);
+    const source = force ? force.source : dominantSource(entry);
+    if (!isActionableFriction(total, force, anchorKind)) {
+      buckets.discarded.push({ category, occurrences: total, source });
+      continue;
+    }
+    pushRouted(
+      buckets,
+      source,
+      buildRoutedItem({
+        anchorId,
+        anchorKind,
+        category,
+        occurrences: total,
+        source,
+        frameworkRepo,
+        consumerRepo,
+      }),
+    );
+  }
+  for (const [category, info] of blockedForceActionable) {
+    if (byCategory.has(category)) continue;
+    pushRouted(
+      buckets,
+      info.source,
+      buildRoutedItem({
+        anchorId,
+        anchorKind,
+        category,
+        occurrences: 0,
+        source: info.source,
+        frameworkRepo,
+        consumerRepo,
+      }),
+    );
+  }
+  buckets.framework.sort((a, b) => a.category.localeCompare(b.category));
+  buckets.consumer.sort((a, b) => a.category.localeCompare(b.category));
+  buckets.discarded.sort((a, b) => a.category.localeCompare(b.category));
+  return buckets;
 }
 
 /**
@@ -274,79 +394,20 @@ export function composeRoutedProposals(input) {
   const normalised = normaliseInput(input);
   if (normalised === null) return emptyResult();
   const {
-    epicId,
+    anchorId,
+    anchorKind,
     frameworkRepo,
     consumerRepo,
     signals,
     unresolvedBlockedEvents,
   } = normalised;
 
-  const byCategory = aggregateByCategory(signals);
-
-  // Unresolved agent::blocked events always promote their category to
-  // actionable — even if the friction count is < 2. The event itself
-  // doesn't count as a friction occurrence; we treat it as a force-flag.
-  /** @type {Map<string, { source: "framework"|"consumer" }>} */
-  const blockedForceActionable = new Map();
-  for (const evt of unresolvedBlockedEvents) {
-    if (evt === null || typeof evt !== 'object') continue;
-    const category = asString(evt.category);
-    if (category.length === 0) continue;
-    const source = evt.source === 'framework' ? 'framework' : 'consumer';
-    if (!blockedForceActionable.has(category)) {
-      blockedForceActionable.set(category, { source });
-    }
-  }
-
-  /** @type {RoutedItem[]} */
-  const framework = [];
-  /** @type {RoutedItem[]} */
-  const consumer = [];
-  /** @type {DiscardedItem[]} */
-  const discarded = [];
-
-  // Walk categories present in friction signals first.
-  for (const entry of byCategory.values()) {
-    const { category, total } = entry;
-    const force = blockedForceActionable.get(category);
-    const source = force ? force.source : dominantSource(entry);
-    const actionable = total >= 2 || Boolean(force);
-    if (actionable) {
-      const item = buildRoutedItem({
-        epicId,
-        category,
-        occurrences: total,
-        source,
-        frameworkRepo,
-        consumerRepo,
-      });
-      if (source === 'framework') framework.push(item);
-      else consumer.push(item);
-      continue;
-    }
-    // total === 1 AND no force flag → discarded.
-    discarded.push({ category, occurrences: total, source });
-  }
-
-  // Walk blocked-force categories that had NO friction signal at all —
-  // these still need an issue proposal (the blocker is the trigger).
-  for (const [category, info] of blockedForceActionable) {
-    if (byCategory.has(category)) continue;
-    const item = buildRoutedItem({
-      epicId,
-      category,
-      occurrences: 0,
-      source: info.source,
-      frameworkRepo,
-      consumerRepo,
-    });
-    if (info.source === 'framework') framework.push(item);
-    else consumer.push(item);
-  }
-
-  framework.sort((a, b) => a.category.localeCompare(b.category));
-  consumer.sort((a, b) => a.category.localeCompare(b.category));
-  discarded.sort((a, b) => a.category.localeCompare(b.category));
-
-  return { framework, consumer, discarded };
+  return routeCategoryBuckets({
+    byCategory: aggregateByCategory(signals),
+    blockedForceActionable: blockedForceMap(unresolvedBlockedEvents),
+    anchorId,
+    anchorKind,
+    frameworkRepo,
+    consumerRepo,
+  });
 }

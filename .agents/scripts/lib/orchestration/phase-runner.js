@@ -1,8 +1,9 @@
 /**
  * phase-runner.js — Lightweight wrappers for "named phase" error handling.
  *
- * Many orchestration entry points (story-init, story-close,
- * the epic-runner submodules) repeat the same `try { ... } catch (err) {
+ * Many orchestration entry points (`single-story-init.js`,
+ * `single-story-close.js`, and other phase modules) repeat the same
+ * `try { ... } catch (err) {
  * logger.error('[phase=foo] ' + err.message); ... }` block. These two
  * helpers consolidate that pattern.
  *

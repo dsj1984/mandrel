@@ -57,7 +57,7 @@ const DEFAULT_COVERAGE_FLOORS = Object.freeze({
   '*': Object.freeze({ lines: 90, branches: 85, functions: 90 }),
 });
 const DEFAULT_CRAP_FLOORS = Object.freeze({
-  '*': Object.freeze({ crap: 20 }),
+  '*': Object.freeze({ max: 30, p95: 20, methodsAbove20: 50 }),
 });
 /**
  * Story #2193 — maintainability rollups expose the `min` / `p50` / `p95`

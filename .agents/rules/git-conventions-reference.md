@@ -79,15 +79,14 @@ checkout — reaping its own merged refs and fast-forwarding the base branch.
 `/git-cleanup` is a recovery tool, not a routine chore.** The mechanics behind
 that invariant:
 
-Every flow that lands work — `/deliver` (Epic and standalone-Story paths),
-`/git-deliver` — is responsible for leaving the local checkout tidy without
+Every flow that lands work — `/deliver` and `/git-deliver` — is responsible
+for leaving the local checkout tidy without
 operator intervention:
 
-- **Fast-forwarding the base branch is owned by the flow.** The standalone
-  multi-Story path fast-forwards `main` itself in its summary phase (via
-  `git-cleanup.js --fast-forward-main --execute --yes`); the Epic path
-  fast-forwards `epic/<id>` / `main` on its merge-and-reap beat. No workflow
-  ends by telling the operator to "run `/git-cleanup` afterwards to catch up".
+- **Fast-forwarding the base branch is owned by the flow.** `/deliver`
+  fast-forwards `main` itself in its cleanup phase (via
+  `git-cleanup.js --fast-forward-main --execute --yes`). No workflow ends by
+  telling the operator to "run `/git-cleanup` afterwards to catch up".
 - **Reaping merged local refs is owned by the flow's next boot.** `/plan` and
   `/git-deliver` open with a **protected boot sweep**
   (`boot-sweep.js`) that fast-forwards `main`, prunes stale remote-tracking

@@ -4,8 +4,8 @@ This is the consumer-facing reference for the quality gates the framework
 runs against your repo: the lint baseline ratchet, the maintainability
 ratchet, the CRAP per-method gate, the **absolute quality floors**
 (90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
-and the concurrent close-safety retry that protects the Epic branch when
-multiple Stories close in quick succession.
+and the concurrent close-safety retry that protects Story-branch pushes
+when multiple Stories close in quick succession.
 
 The floor + ratchet duo is intentional: the ratchet protects against
 regressions on touched files; the floor enforces an absolute threshold
@@ -36,10 +36,9 @@ it once and reuse the context as you read through any individual gate.
 
 ## Concurrent close safety
 
-`/deliver`'s wave loop may close multiple Stories into the same
-`epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
-on a non-fast-forward rejection — fetch, replay the story merge on top of
-the new remote tip, push again — bounded by
+`/deliver` may close multiple Stories from separate Story branches in quick
+succession. The push step inside `single-story-close.js` refreshes against the
+latest `main` and retries a rejected Story-branch push — bounded by
 `DEFAULT_STORY_MERGE_RETRY.maxAttempts` (3) and
 `DEFAULT_STORY_MERGE_RETRY.backoffMs` (`[250, 500, 1000]`) from
 `.agents/scripts/lib/config/runners.js`.
@@ -117,18 +116,14 @@ The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
   whose meaningful logic (label taxonomy + project field defs) lives
   in `lib/label-taxonomy.js` and is unit-tested there. The CLI shell
   itself is integration-only against a live GitHub repo.
-- `.agents/scripts/hydrate-context.js` — thin wrapper around the
-  unit-tested hydration engine; end-to-end coverage requires a real
-  provider tree and Story prompt context, which lives in integration
-  tests.
-- `plan-context.js`, `plan-persist.js`, `epic-plan-healthcheck.js` —
+- `plan-context.js`, `plan-persist.js` —
   `/plan` CLI shells with no unit-test seam; the meaningful
   orchestration logic lives in `lib/orchestration/plan-context.js`,
   `lib/orchestration/plan-persist/*`, and the plan phase modules, and is
   unit-tested there.
 - A larger Story #1702 carve-out of top-level CLI gates, orchestration
   CLIs, git-manipulation CLIs, and `lib/*` glue (e.g. `lint-baseline.js`,
-  `story-close.js`, `dispatcher.js`, `run-tests.js`,
+  `single-story-init.js`, `run-tests.js`,
   `lib/config-schema.js`) — see the `.c8rc.cjs` header comment for the
   per-category rationale and the authoritative entry list.
 
@@ -251,7 +246,7 @@ file. When any threshold under
 the qualitative anti-thrashing cues in
 [`.agents/instructions.md`](../instructions.md) are tripped, the
 friction logger flips the Story to `agent::blocked` and
-posts a structured `friction` comment on the Task so the operator has
+posts a structured `friction` comment on the Story so the operator has
 the trace.
 
 ---
@@ -261,9 +256,8 @@ the trace.
 After a Story's implementation commits land and **before** the Story
 proceeds to close, delivery runs a bounded acceptance self-eval loop
 (Step 1a of
-[`helpers/epic-deliver-story`](../workflows/helpers/epic-deliver-story.md)
-and `helpers/single-story-deliver`; the shared per-round mechanic lives
-in
+[`helpers/deliver-story`](../workflows/helpers/deliver-story.md); the shared
+per-round mechanic lives in
 [`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md),
 with the gate CLI at
 [`.agents/scripts/acceptance-eval.js`](../scripts/acceptance-eval.js)).
@@ -293,8 +287,8 @@ the `delivery.acceptanceEval` field reference.
 > Baseline envelope, axes, and component model: see the
 > [Baseline reference](#baseline-reference) section below.
 
-The lint baseline engine enforces zero-deterioration during Epic
-workflows. Integrations fail if new lint warnings are introduced, and the
+The lint baseline engine enforces zero-deterioration during Story
+delivery. Integrations fail if new lint warnings are introduced, and the
 baseline automatically tightens when the codebase improves.
 
 The canonical baseline file lives at `baselines/lint.json` (override via
@@ -319,7 +313,7 @@ this was removed in a pre-npm-era release; the operator is now the gate.
 A per-file maintainability scoring engine computes composite scores based
 on cyclomatic complexity, file length, and dependency counts. The
 `baselines/maintainability.json` baseline prevents score degradation
-between Epics.
+between Stories.
 
 Refresh with `npm run maintainability:update`.
 

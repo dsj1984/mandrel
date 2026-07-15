@@ -6,34 +6,33 @@
  *  - stdout purity: everything the emit path writes to stdout is exactly
  *    one `JSON.parse`-able payload (Logger output routed to stderr).
  *  - envelope schema snapshot: the sorted key set per mode.
- *  - mode-specific field presence: `clarity`/`replan` only in epic mode;
- *    `duplicates`/`onePager` only in one-pager mode.
+ *  - mode-specific field presence: `duplicates`/`seed` in seed-file mode
+ *    (`seed.content`); seed mode carries `seed.text`.
  *  - dup-search fold parity: envelope `duplicates[]` deep-equals a direct
- *    `findSimilarOpenEpics` call over the same provider + one-pager.
+ *    `findSimilarOpenStories` call over the same provider + seed.
  *  - envelope byte ceiling: serialized envelopes stay under
  *    `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`, including with a body at the
  *    planning-context budget cap.
  *  - systemPrompts fold: spec/acceptance render verbatim from
- *    `lib/templates/spec-author-prompts.js`; decompose matches the existing
+ *    `lib/templates/spec-author-prompts.js`; story includes the v2
+ *    default-single policy; decompose matches the existing
  *    `buildDecomposerSystemPrompt` carrier.
- *  - deliveryShapeSignal: advisory recommendation + reasons per the
- *    slicing-table / scope-enumeration heuristics, fan-out by default.
+ *  - legacy advisory helpers: deliveryShape/scopeTriage helpers remain
+ *    exported for now, but are not embedded in any v2 Stage 3 envelope.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findSimilarOpenEpics } from '../.agents/scripts/lib/duplicate-search.js';
-import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/context.js';
+import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
 import {
   buildDeliveryShapeSignal,
   buildPlanContext,
-  buildReplanSignal,
   buildScopeTriageSignal,
   buildSystemPrompts,
-  ONE_PAGER_AUTHORING_SPEC,
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
+import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
@@ -78,7 +77,7 @@ Users drop off during onboarding.
 - activation email
 `;
 
-const OPEN_EPICS = [
+const OPEN_STORIES = [
   {
     id: 9,
     title: 'Improve widget onboarding flow',
@@ -92,16 +91,26 @@ const OPEN_EPICS = [
 ];
 
 /** Minimal provider double covering every read the envelope build makes. */
-function buildProvider({ body = CLEAR_EPIC_BODY, openStories = [] } = {}) {
+function buildProvider({
+  body = CLEAR_EPIC_BODY,
+  openStories = OPEN_STORIES,
+} = {}) {
   return {
     async getEpic(id) {
       return { id, title: 'Widget Epic', body };
     },
+    async getTicket(id) {
+      return { id, number: id, title: 'Source ticket', body, labels: [] };
+    },
     async getTickets(_epicId, _filters) {
       return openStories;
     },
-    async getEpics(_filters) {
-      return OPEN_EPICS;
+    async listIssuesByLabel(_filters) {
+      return openStories.map((s) => ({
+        number: s.id,
+        title: s.title,
+        body: s.body,
+      }));
     },
     async getTicketComments(_id) {
       return [];
@@ -109,99 +118,59 @@ function buildProvider({ body = CLEAR_EPIC_BODY, openStories = [] } = {}) {
   };
 }
 
-const EPIC_MODE_KEYS = [
-  'bddRunner',
-  'bddScenarios',
-  'clarity',
-  'codebaseSnapshot',
-  'deliveryShapeSignal',
-  'docsContext',
-  'epic',
-  'maxTickets',
-  'maxTokenBudget',
-  'memoryFreshness',
-  'mode',
-  'planState',
-  'preflightCeilings',
-  'priorFeedback',
-  'replan',
-  'riskHeuristics',
-  'systemPrompts',
-  'ticketSchema',
-];
-
 const SEED_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
   'codebaseSnapshot',
-  'deliveryShapeSignal',
   'docsContext',
   'duplicates',
   'maxTickets',
-  'maxTokenBudget',
   'memoryFreshness',
   'mode',
-  'onePagerSpec',
+  'planProfile',
   'planState',
-  'preflightCeilings',
   'priorFeedback',
   'riskHeuristics',
-  'scopeTriage',
   'seed',
   'systemPrompts',
   'ticketSchema',
 ];
 
-const ONE_PAGER_MODE_KEYS = [
+const SEED_FILE_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
   'codebaseSnapshot',
-  'deliveryShapeSignal',
   'docsContext',
   'duplicates',
   'maxTickets',
-  'maxTokenBudget',
   'memoryFreshness',
   'mode',
-  'onePager',
+  'planProfile',
   'planState',
-  'preflightCeilings',
   'priorFeedback',
   'riskHeuristics',
+  'seed',
   'systemPrompts',
   'ticketSchema',
 ];
 
 describe('plan-context envelope schema (design §1 step 1)', () => {
-  it('epic mode emits exactly the epic-mode key set', async () => {
+  it('seed-file mode emits exactly the seed-file-mode key set', async () => {
     const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
-    assert.deepEqual(Object.keys(env).sort(), EPIC_MODE_KEYS);
-    assert.equal(env.mode, 'epic');
-    assert.equal(env.epic.id, 7);
-  });
-
-  it('one-pager mode emits exactly the one-pager-mode key set', async () => {
-    const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
-      onePagerPath: 'temp/one-pager.md',
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
+      seedFilePath: 'temp/seed-file.md',
       provider: buildProvider(),
       config: { github: { owner: 'o', repo: 'r' } },
       settings: {},
     });
-    assert.deepEqual(Object.keys(env).sort(), ONE_PAGER_MODE_KEYS);
-    assert.equal(env.mode, 'one-pager');
-    assert.equal(env.onePager.content, ONE_PAGER);
+    assert.deepEqual(Object.keys(env).sort(), SEED_FILE_MODE_KEYS);
+    assert.equal(env.mode, 'seed-file');
+    assert.equal(env.seed.content, ONE_PAGER);
     assert.equal(env.planState, null);
   });
 
-  it('seed mode emits the one-pager key set plus the additive seed fields (#4496)', async () => {
+  it('seed mode emits the seed-mode key set (#4496)', async () => {
     const env = await buildPlanContext({
       mode: 'seed',
       seedText: ONE_PAGER,
@@ -214,27 +183,19 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.equal(env.seed.text, ONE_PAGER);
     assert.ok(
       !('onePager' in env),
-      'the one-pager does not exist yet in seed mode',
+      'the legacy onePager field must not appear in seed mode',
+    );
+    assert.ok(
+      !('onePagerSpec' in env),
+      'the retired onePagerSpec descriptor must not appear in seed mode',
     );
     assert.equal(env.planState, null);
-    assert.deepEqual(env.onePagerSpec, ONE_PAGER_AUTHORING_SPEC);
-    assert.deepEqual(env.onePagerSpec.sections, [
-      'Problem Statement',
-      'Recommended Direction',
-      'Key Assumptions',
-      'MVP Scope',
-      'Not Doing',
-    ]);
   });
 
-  it('rejects an unknown mode, a non-numeric epic id, and an empty seed', async () => {
+  it('rejects an unknown mode and an empty seed', async () => {
     await assert.rejects(
       () => buildPlanContext({ mode: 'bogus', provider: buildProvider() }),
       /unknown mode/,
-    );
-    await assert.rejects(
-      () => buildPlanContext({ mode: 'epic', provider: buildProvider() }),
-      /numeric epicId/,
     );
     await assert.rejects(
       () =>
@@ -249,70 +210,48 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
 });
 
 describe('plan-context mode-specific field presence', () => {
-  it('clarity and replan appear only in epic mode', async () => {
-    const epicEnv = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
-    assert.equal(epicEnv.clarity.verdict, 'clear');
-    assert.equal(epicEnv.replan.alreadyPlanned, false);
-    assert.ok(
-      !('duplicates' in epicEnv),
-      'duplicates must not leak into epic mode',
-    );
-    assert.ok(
-      !('onePager' in epicEnv),
-      'onePager must not leak into epic mode',
-    );
-
+  it('seed-file mode carries duplicates/seed.content and omits onePagerSpec', async () => {
     const opEnv = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: {},
       settings: {},
     });
+    assert.ok(Array.isArray(opEnv.duplicates));
+    assert.equal(opEnv.seed.content, ONE_PAGER);
+    assert.ok(
+      !('text' in opEnv.seed),
+      'seed.text must not leak into seed-file mode',
+    );
+    assert.ok(
+      !('onePagerSpec' in opEnv),
+      'onePagerSpec must not leak into seed-file mode',
+    );
     assert.ok(
       !('clarity' in opEnv),
-      'clarity must not leak into one-pager mode',
+      'retired epic-mode clarity must not leak into seed-file mode',
     );
-    assert.ok(!('replan' in opEnv), 'replan must not leak into one-pager mode');
-    assert.ok(Array.isArray(opEnv.duplicates));
-  });
-
-  it('epic mode flags an already-planned Epic via replan signals', async () => {
-    const plannedBody = `${CLEAR_EPIC_BODY}\n## Delivery Slicing\n\n| Slice | What ships | Independent? |\n|---|---|---|\n| Foundation | core | Yes |\n| Surface | api | Yes |\n| Polish | docs | Yes |\n`;
-    const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider({
-        body: plannedBody,
-        openStories: [{ id: 101 }, { id: 102 }],
-      }),
-      config: {},
-      settings: {},
-    });
-    assert.equal(env.replan.alreadyPlanned, true);
-    assert.equal(env.replan.openStoryCount, 2);
+    assert.ok(
+      !('replan' in opEnv),
+      'retired epic-mode replan must not leak into seed-file mode',
+    );
   });
 });
 
 describe('plan-context dup-search fold parity vs library', () => {
-  it('envelope duplicates[] deep-equals a direct findSimilarOpenEpics call', async () => {
+  it('envelope duplicates[] deep-equals a direct findSimilarOpenStories call', async () => {
     const provider = buildProvider();
     const config = { github: { owner: 'o', repo: 'r' } };
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider,
       config,
       settings: {},
     });
-    const direct = await findSimilarOpenEpics({
-      onePager: ONE_PAGER,
+    const direct = await findSimilarOpenStories({
+      seed: ONE_PAGER,
       provider,
       owner: 'o',
       repo: 'r',
@@ -331,8 +270,8 @@ describe('plan-context dup-search fold parity vs library', () => {
       config,
       settings: {},
     });
-    const direct = await findSimilarOpenEpics({
-      onePager: ONE_PAGER,
+    const direct = await findSimilarOpenStories({
+      seed: ONE_PAGER,
       provider,
       owner: 'o',
       repo: 'r',
@@ -343,12 +282,12 @@ describe('plan-context dup-search fold parity vs library', () => {
 
   it('degrades to an empty duplicates[] when the provider listing fails', async () => {
     const provider = buildProvider();
-    provider.getEpics = async () => {
+    provider.listIssuesByLabel = async () => {
       throw new Error('rate limited');
     };
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider,
       config: {},
       settings: {},
@@ -358,10 +297,10 @@ describe('plan-context dup-search fold parity vs library', () => {
 });
 
 describe('plan-context systemPrompts fold', () => {
-  it('renders spec/acceptance from spec-author-prompts.js and decompose from the existing carrier', async () => {
+  it('renders spec/acceptance/story/decompose from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: { planning: { riskHeuristics: ['touches auth'] } },
       settings: {},
@@ -375,13 +314,17 @@ describe('plan-context systemPrompts fold', () => {
       env.systemPrompts.decompose,
       buildDecomposerSystemPrompt(['touches auth'], {
         maxTickets: env.maxTickets,
-        maxTokenBudget: env.maxTokenBudget,
-        epicId: 7,
+        epicId: null,
       }),
     );
     assert.deepEqual(env.riskHeuristics, ['touches auth']);
     assert.match(env.systemPrompts.spec, /Engineering Architect/);
     assert.match(env.systemPrompts.acceptance, /Acceptance Engineer/);
+    assert.match(env.systemPrompts.story, /v2 DEFAULT-SINGLE SPLIT POLICY/);
+    assert.match(
+      env.systemPrompts.story,
+      /Do \*\*not\*\* emit `deliveryShape`/,
+    );
     // The envelope's systemPrompts are exactly what the exported helper
     // renders for the same inputs, and the ticketSchema is the shared
     // frozen descriptor.
@@ -390,8 +333,7 @@ describe('plan-context systemPrompts fold', () => {
       buildSystemPrompts({
         heuristics: ['touches auth'],
         maxTickets: env.maxTickets,
-        maxTokenBudget: env.maxTokenBudget,
-        epicId: 7,
+        epicId: null,
       }),
     );
     assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
@@ -439,22 +381,6 @@ describe('plan-context deliveryShapeSignal (advisory, #4475 heuristics)', () => 
   });
 });
 
-describe('plan-context replan signal tolerance', () => {
-  it('degrades openStoryCount to null when the children listing fails', async () => {
-    const provider = buildProvider();
-    provider.getTickets = async () => {
-      throw new Error('boom');
-    };
-    const signal = await buildReplanSignal({
-      epicBody: CLEAR_EPIC_BODY,
-      provider,
-      epicId: 7,
-    });
-    assert.equal(signal.openStoryCount, null);
-    assert.equal(signal.alreadyPlanned, false);
-  });
-});
-
 describe('plan-context stdout purity (Story #2278 discipline)', () => {
   it('the emit path writes exactly one JSON.parse-able payload to stdout', async () => {
     // Capture everything that would land on the process stdout fd —
@@ -479,8 +405,8 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     let envelope;
     try {
       envelope = await emitPlanContext({
-        mode: 'epic',
-        epicId: 7,
+        mode: 'seed-file',
+        seedFileContent: ONE_PAGER,
         provider: buildProvider(),
         config: {},
         settings: {},
@@ -499,29 +425,29 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     assert.equal(lines.length, 1, 'exactly one stdout line');
     const parsed = JSON.parse(lines[0]);
     assert.deepEqual(parsed, JSON.parse(JSON.stringify(envelope)));
-    assert.equal(parsed.mode, 'epic');
+    assert.equal(parsed.mode, 'seed-file');
   });
 });
 
 describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
-  it('epic-mode and one-pager-mode envelopes stay under the ceiling', async () => {
-    const epicEnv = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
+  it('seed-file and seed envelopes stay under the ceiling', async () => {
+    const seedFileEnv = await buildPlanContext({
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: {},
       settings: {},
     });
-    const opEnv = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+    const seedEnv = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
       provider: buildProvider(),
       config: {},
       settings: {},
     });
     for (const [name, env] of [
-      ['epic', epicEnv],
-      ['one-pager', opEnv],
+      ['seed-file', seedFileEnv],
+      ['seed', seedEnv],
     ]) {
       const bytes = Buffer.byteLength(JSON.stringify(env), 'utf-8');
       assert.ok(
@@ -531,15 +457,15 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
     }
   });
 
-  it('holds even when the Epic body sits at the planning-context budget cap', async () => {
+  it('holds even when the seed-file corpus sits at the planning-context budget cap', async () => {
     // A body larger than planningContext.maxBytes (50 KB default) downgrades
     // to the applyBudget summary representation — the ceiling must hold for
     // the worst legal case, not just tiny fixtures.
     const hugeBody = `${CLEAR_EPIC_BODY}\n## Appendix\n\n${'lorem ipsum dolor sit amet consectetur. '.repeat(4000)}`;
     const env = await buildPlanContext({
-      mode: 'epic',
-      epicId: 7,
-      provider: buildProvider({ body: hugeBody }),
+      mode: 'seed-file',
+      seedFileContent: hugeBody,
+      provider: buildProvider(),
       config: {},
       settings: {},
     });
@@ -548,14 +474,15 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       bytes < PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
       `budget-capped envelope is ${bytes} bytes — ceiling is ${PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}`,
     );
-    // The budget must have engaged (body over 50 KB cannot ride through full).
-    assert.equal(env.epic.body, null);
-    assert.ok(env.epic.bodySummary, 'expected the applyBudget summary mode');
+    // Seed-file mode keeps the raw content on the envelope; the budget
+    // engages on the authoring-context fold (snapshot / docs), not by
+    // nulling `seed.content`.
+    assert.equal(env.seed.content, hugeBody);
   });
 });
 
-describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', () => {
-  it('is embedded in the seed envelope as an advisory, cli-applied verdict', async () => {
+describe('plan-context scopeTriage helper (exported only, #4496 fix 6)', () => {
+  it('is not embedded in the seed envelope after the v2 Stage 3 planning cutover', async () => {
     const env = await buildPlanContext({
       mode: 'seed',
       seedText: ONE_PAGER,
@@ -564,12 +491,9 @@ describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', ()
       settings: {},
     });
     assert.ok(
-      ['epic', 'story', 'borderline'].includes(env.scopeTriage.verdict),
-      'verdict must be one of the three canonical scope-triage verdicts',
+      !('scopeTriage' in env),
+      'scopeTriage must not be embedded in seed-mode envelopes',
     );
-    assert.equal(env.scopeTriage.advisory, true);
-    assert.equal(env.scopeTriage.appliedBy, 'cli');
-    assert.ok(env.scopeTriage.reasons.length > 0);
   });
 
   it('verdicts epic when the seed enumerates 3+ candidate capabilities', () => {
@@ -609,5 +533,100 @@ describe('plan-context scopeTriage signal (CLI-applied rubric, #4496 fix 6)', ()
     });
     assert.equal(signal.verdict, 'epic');
     assert.match(signal.reasons[0], /broad prose seed/);
+  });
+});
+
+describe('plan-context tickets mode — concurrent source-ticket fetch', () => {
+  function deferred() {
+    let resolve;
+    const promise = new Promise((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it('hydrates multiple ticket ids concurrently and preserves order', async () => {
+    const ids = [101, 102, 103, 104];
+    let inFlight = 0;
+    let peak = 0;
+    const release = deferred();
+    const allStarted = deferred();
+
+    const provider = buildProvider();
+    provider.getTicket = async (id) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      if (peak >= ids.length) allStarted.resolve();
+      await release.promise;
+      inFlight--;
+      return {
+        id,
+        number: id,
+        title: `Ticket ${id}`,
+        body: `Body for ${id}`,
+        labels: ['type::story'],
+        html_url: `https://github.com/o/r/issues/${id}`,
+        state: 'open',
+      };
+    };
+
+    const pending = buildPlanContext({
+      mode: 'tickets',
+      ticketIds: ids,
+      provider,
+      config: { github: { owner: 'o', repo: 'r' } },
+      settings: {},
+    });
+
+    await Promise.race([
+      allStarted.promise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `timed out waiting for concurrent getTicket (peak=${peak})`,
+              ),
+            ),
+          2000,
+        ),
+      ),
+    ]);
+    assert.equal(peak, ids.length, 'expected all ids to fetch concurrently');
+    release.resolve();
+
+    const env = await pending;
+    assert.equal(env.mode, 'tickets');
+    assert.deepEqual(
+      env.sourceTickets.map((t) => t.id),
+      ids,
+    );
+    assert.deepEqual(
+      env.sourceTickets.map((t) => t.title),
+      ids.map((id) => `Ticket ${id}`),
+    );
+    for (const t of env.sourceTickets) {
+      assert.deepEqual(t.labels, ['type::story']);
+      assert.equal(t.url, `https://github.com/o/r/issues/${t.id}`);
+      assert.equal(t.state, 'open');
+    }
+  });
+
+  it('throws ticket #N not found when getTicket returns null', async () => {
+    const provider = buildProvider();
+    provider.getTicket = async (id) =>
+      id === 202 ? null : { id, title: `T${id}`, body: '', labels: [] };
+
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'tickets',
+          ticketIds: [201, 202, 203],
+          provider,
+          config: {},
+          settings: {},
+        }),
+      /ticket #202 not found/,
+    );
   });
 });

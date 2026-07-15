@@ -190,7 +190,7 @@ class ThreeLevelMock extends ITicketingProvider {
     super();
     this.updates = [];
     this.comments = [];
-    // Hierarchy: Epic 100 ← Story 10 ← Tasks 1, 2
+    // Hierarchy: Run parent 100 ← Story 10 ← Tasks 1, 2
     this.tickets = {
       1: {
         id: 1,
@@ -212,8 +212,8 @@ class ThreeLevelMock extends ITicketingProvider {
       },
       100: {
         id: 100,
-        labels: ['agent::ready', 'type::epic'],
-        body: 'Epic\n- [ ] #10',
+        labels: ['agent::ready', 'type::story'],
+        body: 'Run parent\n- [ ] #10',
         state: 'open',
       },
     };
@@ -264,7 +264,7 @@ describe('ticketing/bulk — cascadeParentState (Story #2676)', () => {
     __setCascadeRetryDelays({ delays: [] });
   });
 
-  it('bubbles executing up through Story and Epic when a Task starts work', async () => {
+  it('bubbles executing up through Story and run parent when a Task starts work', async () => {
     mock.tickets[1].labels = ['agent::executing', 'type::task'];
     const result = await cascadeParentState(mock, 1);
     assert.equal(
@@ -275,7 +275,7 @@ describe('ticketing/bulk — cascadeParentState (Story #2676)', () => {
     assert.equal(
       mock.tickets[100].labels.includes(STATE_LABELS.EXECUTING),
       true,
-      'Epic should flip to agent::executing',
+      'Run parent should flip to agent::executing',
     );
     assert.ok(result.cascadedTo.includes(10));
     assert.ok(result.cascadedTo.includes(100));
@@ -316,7 +316,7 @@ describe('ticketing/bulk — cascadeParentState (Story #2676)', () => {
 
   it('is a no-op when the parent is already in the derived state', async () => {
     mock.tickets[10].labels = ['agent::executing', 'type::story'];
-    mock.tickets[100].labels = ['agent::executing', 'type::epic'];
+    mock.tickets[100].labels = ['agent::executing', 'type::story'];
     mock.tickets[1].labels = ['agent::executing', 'type::task'];
     const prevUpdates = mock.updates.length;
     const result = await cascadeParentState(mock, 1);
@@ -467,12 +467,12 @@ describe('ticketing/bulk — cascadeCompletion native parent fallback (Story #29
 
 /**
  * Story #3097 (Wave-0 additive, Epic #3078 Strategy B) — Storyless
- * cascade fixtures. In 2-tier mode (Epic → Story, no Task
+ * cascade fixtures. In 2-tier mode (run parent → Story, no Task
  * children) a Story that flips to `agent::done` must still cascade
  * upward without throwing when `getSubTickets(storyId)` returns the
  * empty array. `deriveParentState([])` returns `null` (no-op), which is
  * the documented "leave parent unchanged" signal — but the cascade walk
- * up the parent chain (Feature → Epic) must still complete. The fixture
+ * up the parent chain (Feature → run parent) must still complete. The fixture
  * pins three load-bearing invariants:
  *   1. Reading a Story snapshot with zero child Tasks succeeds (no
  *      thrown error from `getSubTickets`).
@@ -485,7 +485,7 @@ class StorylessHierarchyMock extends ITicketingProvider {
     super();
     this.updates = [];
     this.comments = [];
-    // 2-tier hierarchy: Epic 300 ← Feature 30 ← Story 3 (NO Tasks).
+    // 2-tier hierarchy: Run parent 300 ← Feature 30 ← Story 3 (NO Tasks).
     this.tickets = {
       3: {
         id: 3,
@@ -501,8 +501,8 @@ class StorylessHierarchyMock extends ITicketingProvider {
       },
       300: {
         id: 300,
-        labels: ['agent::executing', 'type::epic'],
-        body: 'Epic body\n- [ ] #30',
+        labels: ['agent::executing', 'type::story'],
+        body: 'Run parent body\n- [ ] #30',
         state: 'open',
       },
     };

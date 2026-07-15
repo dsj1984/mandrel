@@ -123,12 +123,11 @@ export const QUALITY_SCHEMA = {
 };
 
 /**
- * `delivery.codeReview` — sibling to `delivery.epicAudit`. Same bounded
- * retry + scope cap, applied to /deliver Phase 5 (code-review).
+ * `delivery.codeReview` — review-provider chain + bounded-retry knobs for
+ * the /deliver code-review ceremony (Story-close and plan-run close).
  *
- * `autoFixSeverity` (Story #4399) is the sibling of
- * `delivery.epicAudit.autoFixSeverity`: the threshold that governs which
- * Phase 5 findings the host-LLM focused-fix routing remediates on-branch —
+ * `autoFixSeverity` (Story #4399) is the threshold that governs which
+ * findings the host-LLM focused-fix routing remediates on-branch —
  * `medium` (default) routes 🔴/🟠/🟡 while 🟢 still graduates, `high`
  * reproduces the pre-4399 Critical/High-only routing.
  */
@@ -144,15 +143,10 @@ export const CODE_REVIEW_SCHEMA = {
     // hatch reserved for adapter-specific options.
     //
     // Story #2871 added `security-review` to the inline registry plus
-    // a multi-provider `providers: []` chain shape. When `providers` is
-    // set and non-empty, it wins over the legacy single-string
-    // `provider` field. Chain entries can also reference the
-    // `ultrareview` manual-prompt provider via `manualPrompt: true`.
-    provider: {
-      type: 'string',
-      enum: ['native', 'codex', 'security-review'],
-      default: 'native',
-    },
+    // the `providers: []` chain shape. Chain entries can also reference
+    // the `ultrareview` manual-prompt provider via `manualPrompt: true`.
+    // When `providers` is unset or empty, the factory defaults to
+    // `[{ name: 'native' }]`.
     providers: {
       type: 'array',
       items: {

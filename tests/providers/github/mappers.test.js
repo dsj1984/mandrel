@@ -1,11 +1,10 @@
 /**
  * Unit tests for `.agents/scripts/providers/github/mappers.js`.
  *
- * Covers the REST and GraphQL payload shapes for all five mappers:
+ * Covers the REST and GraphQL payload shapes for the live mappers:
  *   - issueToTicket           (REST Issue → normalized ticket)
  *   - issueToEpic             (REST Issue → Epic; raw body, no link parsing)
  *   - issueToListItem         (REST Issue → list item)
- *   - issueToEpicListItem     (REST Issue → epic list item with state_reason)
  *   - subIssueNodeToTicket    (GraphQL node → ticket; labels.nodes shape)
  *
  * Mappers are pure — this suite must run without `gh` installed (no I/O,
@@ -26,13 +25,8 @@ const mappersMod = await import(
   ).href
 );
 
-const {
-  issueToTicket,
-  issueToEpic,
-  issueToListItem,
-  issueToEpicListItem,
-  subIssueNodeToTicket,
-} = mappersMod;
+const { issueToTicket, issueToEpic, issueToListItem, subIssueNodeToTicket } =
+  mappersMod;
 
 describe('providers/github/mappers.js — REST payload shapes', () => {
   it('issueToTicket maps REST Issue with array-of-objects labels', () => {
@@ -93,7 +87,7 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       node_id: 'EPIC_NODE',
       title: 'Epic title',
       body: legacyBody,
-      labels: [{ name: 'type::epic' }],
+      labels: [{ name: 'type::story' }],
     });
     assert.strictEqual(epic.id, 100);
     assert.strictEqual(epic.title, 'Epic title');
@@ -128,23 +122,6 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     assert.strictEqual(li.state, 'open');
     assert.strictEqual(Object.hasOwn(li, 'assignees'), false);
   });
-
-  it('issueToEpicListItem carries state_reason', () => {
-    const eli = issueToEpicListItem({
-      number: 8,
-      title: 'closed epic',
-      labels: [{ name: 'type::epic' }],
-      state: 'closed',
-      state_reason: 'completed',
-    });
-    assert.strictEqual(eli.id, 8);
-    assert.strictEqual(eli.state, 'closed');
-    assert.strictEqual(eli.state_reason, 'completed');
-    // Epic list items do NOT carry internalId/nodeId/body — that is the
-    // narrower shape the dashboard regen expects.
-    assert.strictEqual(Object.hasOwn(eli, 'internalId'), false);
-    assert.strictEqual(Object.hasOwn(eli, 'body'), false);
-  });
 });
 
 describe('providers/github/mappers.js — GraphQL payload shapes', () => {
@@ -157,7 +134,7 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       body: 'child body',
       state: 'OPEN',
       labels: {
-        nodes: [{ name: 'type::task' }, { name: 'persona::engineer' }],
+        nodes: [{ name: 'type::task' }, { name: 'meta::framework-gap' }],
       },
       assignees: { nodes: [{ login: 'carol' }] },
     };
@@ -168,8 +145,8 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       nodeId: 'GQL_NODE',
       title: 'Child',
       body: 'child body',
-      labels: ['type::task', 'persona::engineer'],
-      labelSet: new Set(['type::task', 'persona::engineer']),
+      labels: ['type::task', 'meta::framework-gap'],
+      labelSet: new Set(['type::task', 'meta::framework-gap']),
       assignees: ['carol'],
       state: 'open',
     });

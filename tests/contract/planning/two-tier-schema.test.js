@@ -31,14 +31,14 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// v2 Stage 3: production schema dropped; fixture retained until Stage 5.
 const SCHEMA_PATH = path.resolve(
   __dirname,
   '..',
   '..',
-  '..',
-  '.agents',
-  'schemas',
-  'epic-spec.schema.json',
+  'fixtures',
+  'epic-specs',
+  'schema.json',
 );
 
 function compileSchema() {
@@ -58,7 +58,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's1',
@@ -89,7 +89,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-with-tasks',
@@ -132,7 +132,7 @@ describe('epic-spec.schema.json — 2-tier Story shape (Story #3136)', () => {
     const validate = compileSchema();
     const spec = {
       version: '4.0.0',
-      epic: { id: 3078, title: 'E', labels: ['type::epic'] },
+      epic: { id: 3078, title: 'E', labels: ['type::story'] },
       stories: [
         {
           slug: 's-bad',

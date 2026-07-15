@@ -9,7 +9,7 @@ description: >-
 
 > **Helper, not a slash command.** Files under `workflows/helpers/` are not
 > projected into the mandrel plugin command tree. The same `lib/checks/` registry runs
-> automatically as preflight inside `/deliver`, `/story-close`, and
+> automatically as preflight inside `/deliver`, `single-story-close`, and
 > `npm test` — this viewer exists only for ad-hoc inspection. Invoke the
 > backing script directly: `node .agents/scripts/diagnose.js [args]`.
 
@@ -18,8 +18,8 @@ description: >-
 `diagnose.js` runs the checks registry assembled under
 `.agents/scripts/lib/checks/` in read-only mode and surfaces every
 finding declared on the requested scope. It is the operator-facing read
-of the same registry that preflight guards (`epic-deliver`,
-`story-close`), the retro hook, and `npm test` consult — but with
+of the same registry that preflight guards (`/deliver`,
+`single-story-close`), the retro hook, and `npm test` consult — but with
 `autoFix: false` always, no remote GitHub writes, and no commits.
 
 It is distinct from `diagnose-friction.js` (the per-Task signal capture
@@ -37,7 +37,7 @@ node .agents/scripts/diagnose.js [--scope <scope>] [--fail-on-blocker] [--json]
 
 | Flag                 | Default      | Description                                                                                                                                                                                                          |
 | -------------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--scope <s>`        | `diagnose`   | Filter checks by declared scope. Use `all` to disable the filter and run every registered check. Other surface scopes (`epic-deliver`, `story-close`, `retro`) are accepted verbatim — checks whose `scope[]` includes the value will fire. |
+| `--scope <s>`        | `diagnose`   | Filter checks by declared scope. Use `all` to disable the filter and run every registered check. Other surface scopes (`deliver`, `single-story-close`, `retro`) are accepted verbatim — checks whose `scope[]` includes the value will fire. |
 | `--fail-on-blocker`  | off          | Exit `2` when at least one finding has `severity === 'blocker'`. Without this flag the command always exits `0` even when blockers are present (it is by default an advisory read).                              |
 | `--json`             | off          | Emit a single line of JSON shaped as `{ scope, findings: [...] }` to stdout in place of the human table. Findings preserve the registry's `Finding` shape (id, severity, scope, summary, fixCommand, detail?, autoCorrectable). |
 
@@ -59,7 +59,7 @@ node .agents/scripts/diagnose.js
 node .agents/scripts/diagnose.js --scope all --json
 
 # Use inside a preflight script that should block on a blocker.
-node .agents/scripts/diagnose.js --scope story-close --fail-on-blocker
+node .agents/scripts/diagnose.js --scope single-story-close --fail-on-blocker
 ```
 
 ## Output shape
@@ -80,12 +80,12 @@ Exactly one line. Schema:
   "scope": "diagnose",
   "findings": [
     {
-      "id": "stale-origin-epic",
+      "id": "stale-origin-main",
       "severity": "blocker",
-      "scope": "story-close",
-      "summary": "Local epic/<id> is ahead of origin/epic/<id>",
-      "detail": "Push the epic branch before re-running story-close.",
-      "fixCommand": "git push origin epic/<id>",
+      "scope": "single-story-close",
+      "summary": "Local main is behind origin/main",
+      "detail": "Fast-forward main before re-running single-story-close.",
+      "fixCommand": "git fetch origin main; git merge --ff-only origin/main",
       "autoCorrectable": false
     }
   ]

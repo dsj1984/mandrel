@@ -46,14 +46,14 @@ async function readLens(name) {
   return fs.readFile(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
 }
 
-test('manual-mode regression: every lens contains exactly one Scope (Epic mode) block', async () => {
+test('manual-mode regression: every lens contains exactly one Scope (Story / plan-run mode) block', async () => {
   for (const lens of LENSES) {
     const body = await readLens(lens);
-    const matches = body.match(/^## Scope \(Epic mode\)$/gm) || [];
+    const matches = body.match(/^## Scope \(Story \/ plan-run mode\)$/gm) || [];
     assert.equal(
       matches.length,
       1,
-      `${lens}.md must contain exactly one "## Scope (Epic mode)" header`,
+      `${lens}.md must contain exactly one "## Scope (Story / plan-run mode)" header`,
     );
   }
 });

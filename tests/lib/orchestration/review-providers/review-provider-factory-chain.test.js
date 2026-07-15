@@ -12,7 +12,6 @@
  *   - `when.label` and `when.labelAny` gate invocation against the
  *     ticket label set carried on the ReviewInput.
  *   - `scopes` filters by current invocation scope.
- *   - Both `provider` and `providers` set → `providers` wins.
  */
 
 import assert from 'node:assert/strict';
@@ -81,37 +80,29 @@ test('isScopeApplicable: filters by declared list', () => {
   assert.equal(isScopeApplicable(['story', 'epic'], 'story'), true);
 });
 
-test('createReviewProvider: providers chain wins over legacy provider', async () => {
+test('createReviewProvider: empty providers defaults to native chain', async () => {
+  const provider = createReviewProvider({ providers: [] });
+  assert.equal(typeof provider.runReview, 'function');
+  assert.equal(typeof provider.getPromptMessages, 'function');
+  assert.equal(provider.chain.inline.length, 1);
+  assert.equal(provider.chain.inline[0].name, 'native');
+});
+
+test('createReviewProvider: providers chain returns ChainProvider', async () => {
   const inline = inlineRegistry({
     fake: () => stubInline([{ severity: 'medium', title: 't', body: 'b' }]),
   });
-  const warnings = [];
   const provider = createReviewProvider(
-    { provider: 'native', providers: [{ name: 'fake' }] },
+    { providers: [{ name: 'fake' }] },
     {
       inlineRegistry: inline,
       promptRegistry: promptRegistry({}),
-      logger: { warn: (m) => warnings.push(m) },
     },
   );
   assert.equal(typeof provider.runReview, 'function');
   assert.equal(typeof provider.getPromptMessages, 'function');
-  assert.ok(warnings.some((m) => /provider.*providers/i.test(m)));
   const findings = await provider.runReview(INPUT);
   assert.equal(findings.length, 1);
-});
-
-test('createReviewProvider: legacy single-string provider still returns a single adapter', async () => {
-  const provider = createReviewProvider(
-    { provider: 'fake' },
-    {
-      inlineRegistry: inlineRegistry({ fake: () => stubInline([]) }),
-      promptRegistry: promptRegistry({}),
-    },
-  );
-  assert.equal(typeof provider.runReview, 'function');
-  // Legacy adapter does NOT carry getPromptMessages.
-  assert.equal(provider.getPromptMessages, undefined);
 });
 
 test('chain: inline providers run in declaration order, findings merged', async () => {

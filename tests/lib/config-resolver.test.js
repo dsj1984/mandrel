@@ -95,14 +95,14 @@ describe('config-resolver — loading + legacy shim', () => {
         project: { ...REQ.project, baseBranch: 'develop' },
         github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
         planning: { riskHeuristics: ['no destructive ops'] },
-        delivery: { maxTokenBudget: 100000 },
+        delivery: { execution: { timeoutMs: 100000 } },
       }),
     );
     const config = resolveConfig({ bustCache: true });
     assert.equal(config.project.baseBranch, 'develop');
     assert.equal(config.github.owner, 'org');
     assert.deepEqual(config.planning.riskHeuristics, ['no destructive ops']);
-    assert.equal(config.delivery.maxTokenBudget, 100000);
+    assert.equal(config.delivery.execution.timeoutMs, 100000);
   });
 
   it('caches per resolved root path', () => {
@@ -208,15 +208,15 @@ describe('helper accessors against the post-reshape shape', () => {
       delivery: {
         maxTokenBudget: 50000,
         execution: { timeoutMs: 1234 },
-        signals: { hotspot: { p95Multiplier: 2 } },
+        signals: { rework: { editsPerFile: 9 } },
       },
     });
-    // maxTickets is the framework constant (Story #4163), not configurable.
+    // maxTickets is a framework constant, not configurable; maxTokenBudget retired.
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
-    assert.equal(lim.maxTokenBudget, 50000);
+    assert.equal('maxTokenBudget' in lim, false);
     assert.equal(lim.executionTimeoutMs, 1234);
-    assert.equal(lim.signals.hotspot.p95Multiplier, 2);
-    assert.equal(lim.signals.rework.editsPerFile, 5);
+    assert.equal(lim.signals.rework.editsPerFile, 9);
+    assert.equal(lim.signals.retry.repeatCount, 3);
   });
 
   it('getLimits applies framework defaults for empty config', () => {
@@ -316,7 +316,9 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
       assert.deepEqual(q.gates.coverage.floors, {
         '*': { lines: 90, branches: 85, functions: 90 },
       });
-      assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      assert.deepEqual(q.gates.crap.floors, {
+        '*': { max: 30, p95: 20, methodsAbove20: 50 },
+      });
       // Story #2193: default MI floor targets the rollup `min` axis (the
       // legacy `maintainability` key silently no-oped because the rollup
       // exposes `min` / `p50` / `p95`, not `maintainability`).
@@ -331,7 +333,7 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
           coverage: {
             floors: { '*': { lines: 80, branches: 70, functions: 75 } },
           },
-          crap: { floors: { '*': { crap: 25 } } },
+          crap: { floors: { '*': { max: 25, p95: 15, methodsAbove20: 40 } } },
           maintainability: { floors: { '*': { maintainability: 60 } } },
         },
       });
@@ -340,7 +342,11 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
         branches: 70,
         functions: 75,
       });
-      assert.deepEqual(q.gates.crap.floors['*'], { crap: 25 });
+      assert.deepEqual(q.gates.crap.floors['*'], {
+        max: 25,
+        p95: 15,
+        methodsAbove20: 40,
+      });
       assert.deepEqual(q.gates.maintainability.floors['*'], {
         maintainability: 60,
       });
@@ -388,7 +394,9 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
       assert.deepEqual(q.gates.crap.targetDirs, ['src']);
       assert.deepEqual(q.gates.maintainability.targetDirs, ['src', 'tests']);
       // Floors still get defaults injected.
-      assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      assert.deepEqual(q.gates.crap.floors, {
+        '*': { max: 30, p95: 20, methodsAbove20: 50 },
+      });
       // Story #2193: maintainability default targets rollup `min` axis.
       assert.deepEqual(q.gates.maintainability.floors, {
         '*': { min: 70 },

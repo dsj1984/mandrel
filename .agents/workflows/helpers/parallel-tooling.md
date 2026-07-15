@@ -42,7 +42,7 @@ the full duration and blocks every other parallel opportunity.
   fetches, anything you would have prefixed with `nohup` in a terminal.
 - **Anti-pattern:** synchronous `Bash` with a 600 000 ms timeout used as a
   blocker — that pattern is reserved for scripts whose exit is the
-  signal-to-proceed (e.g., `story-init.js`'s per-tree install, which the
+  signal-to-proceed (e.g., `single-story-init.js`'s per-tree install, which the
   parent skill calls out explicitly).
 - **Don't poll with `sleep`:** `Monitor` returns on each stdout line. Loop
   on `until <condition>; do sleep 2; done` only when no event stream is

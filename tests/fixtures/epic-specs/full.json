@@ -1,11 +1,11 @@
 {
-  "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "$schema": "./schema.json",
   "version": "4.0.0",
   "epic": {
     "id": 1182,
     "title": "v6 Epic D \u2014 Declarative epic.yaml + reconciler",
     "body": "Structural SSOT migration. See PRD #1482 / Tech Spec #1483.",
-    "labels": ["type::epic"]
+    "labels": ["type::story"]
   },
   "stories": [
     {
@@ -14,7 +14,7 @@
       "body": "Define the canonical structural schema.",
       "wave": 0,
       "dependsOn": [],
-      "labels": ["type::story", "persona::architect"],
+      "labels": ["type::story"],
       "acceptance": [
         "Schema skeleton declares Epic and Story shapes",
         "Schema ships with fixture tests covering positive and negative cases"

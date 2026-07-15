@@ -61,10 +61,11 @@ describe('Logger LEVEL resolution', () => {
     assert.equal(r.sink.error.length, 2);
   });
 
-  it('AGENT_LOG_LEVEL=debug behaves identically to verbose', () => {
+  it('AGENT_LOG_LEVEL=debug is rejected and falls back to info', () => {
     const r = runHarness({ AGENT_LOG_LEVEL: 'debug' });
-    assert.equal(r.level, 'debug');
-    assert.equal(r.sink.error.length, 2);
+    assert.equal(r.level, 'info');
+    assert.equal(r.sink.log.length, 1);
+    assert.equal(r.sink.error.length, 1);
   });
 
   it('AGENT_LOG_LEVEL=info suppresses debug, emits info/warn/error', () => {

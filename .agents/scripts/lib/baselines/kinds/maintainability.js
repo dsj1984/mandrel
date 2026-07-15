@@ -62,10 +62,6 @@ export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
     // escomplex: "this[node.callee.type] is not a function" — the cyclomatic
     // visitor lacks a handler for one of the quality-watch CLI's call shapes.
     '.agents/scripts/quality-watch.js',
-    // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
-    // same family as acceptance-spec-reconciler. The audit recheck CLI uses
-    // the same regex-property scan helpers.
-    '.agents/scripts/epic-audit-recheck.js',
     // escomplex: parse-fails (MI=0) on the spec-freshness phase's optional-
     // chained destructuring fallthrough. Same upstream family as the other
     // "pattern" / destructuring failures; carve-out so the phase split of

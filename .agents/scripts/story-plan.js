@@ -2,33 +2,17 @@
 /* node:coverage ignore file */
 
 /**
- * story-plan.js — Local `/plan` wrapper.
+ * story-plan.js — QA helper for promote round-trips and `--emit-context`
+ * envelope emission.
  *
- * Standalone counterpart to `/plan` for Stories that do **not**
- * attach to an Epic. The script is deliberately a thin CLI around the
- * pure helpers in `lib/story-plan.js`:
+ * Canonical operator planning is `plan-context.js` + `plan-persist.js` (see
+ * `.agents/workflows/plan.md`). Use this CLI only for QA promote
+ * round-trips (`--body` / `--dry-run`) or test harnesses that need the
+ * standalone envelope shape.
  *
- *   1. `--emit-context` mode — given a `--idea`/`--from-notes` seed,
- *      build the context envelope (seed, refine heuristic, persona,
- *      body template, duplicate candidates, tech-stack summary, and a
- *      corpus-aware `corpusContext` — the docs digest plus relevant
- *      existing-Epic Tech Spec excerpts, Story #4432) and print it as
- *      JSON on stdout. Logs route to stderr so the envelope is
- *      byte-clean for `JSON.parse`.
- *   2. Persist mode — given a `--body <file>` authored by the host
- *      LLM after operator confirmation, validate the shape and persist
- *      via `provider.createIssue` (which also adds the new Story to
- *      the configured Projects V2 board — Story #3822) with
- *      `type::story` + the chosen persona label, falling back to
- *      `gh issue create` when the provider lacks a createIssue
- *      analogue. Prints `Next: /single-story-deliver <id>`.
- *   3. `--dry-run` — same as persist but exits without touching
- *      GitHub. Echoes the rendered body and the `gh` argv it would
- *      have run.
- *
- * Mirrors the `/plan` pattern: deterministic Node I/O wrappers
- * with HITL gating handled by the host LLM in chat. No external LLM
- * APIs are called from this script.
+ * Operator planning:
+ *   node .agents/scripts/plan-context.js --seed "…" | --seed-file <path> | --tickets <ids>
+ *   node .agents/scripts/plan-persist.js --stories … --risk-verdict …
  */
 
 import { readFile } from 'node:fs/promises';
@@ -53,10 +37,10 @@ import {
 
 const HELP = `\
 Usage:
-  story-plan.js --emit-context (--idea "<seed>" | --from-notes <file>) \\
-    [--persona <name>] [--refine | --no-refine] [--pretty]
+  story-plan.js --emit-context (--seed "<seed>" | --seed-file <file>) \\
+    [--refine | --no-refine] [--pretty]
 
-  story-plan.js --body <file> [--persona <name>] [--dry-run]
+  story-plan.js --body <file> [--dry-run]
 
   story-plan.js --help
 
@@ -66,12 +50,11 @@ Modes:
                    draft body using the envelope and the body template.
   --body <file>    Persist a pre-authored body. Validates shape (required
                    sections, no Epic: ref, AC checklist non-empty) and
-                   calls \`gh issue create\` with type::story + persona.
+                   calls \`gh issue create\` with type::story.
   --dry-run        With --body: print the body and the gh argv that would
                    be invoked, then exit 0. No GitHub mutations.
 
 Options:
-  --persona <name>   Persona label (default: engineer).
   --refine           Force the idea-refinement hint on regardless of seed
                      length. Default heuristic: refine when seed < 200
                      chars.
@@ -80,17 +63,17 @@ Options:
 `;
 
 /**
- * Resolve the seed string from --idea or --from-notes. One of the two
+ * Resolve the seed string from --seed or --seed-file. One of the two
  * must be present in --emit-context mode.
  */
-async function resolveSeed({ idea, fromNotes }) {
-  if (idea && fromNotes) {
-    throw new Error('Pass either --idea or --from-notes, not both.');
+async function resolveSeed({ seed, seedFile }) {
+  if (seed && seedFile) {
+    throw new Error('Pass either --seed or --seed-file, not both.');
   }
-  if (idea) return idea;
-  if (fromNotes) return (await readFile(fromNotes, 'utf8')).trim();
+  if (seed) return seed;
+  if (seedFile) return (await readFile(seedFile, 'utf8')).trim();
   throw new Error(
-    '--emit-context requires --idea "<seed>" or --from-notes <file>.',
+    '--emit-context requires --seed "<seed>" or --seed-file <file>.',
   );
 }
 
@@ -147,12 +130,11 @@ async function runEmitContext({
   write = (s) => process.stdout.write(s),
 }) {
   const seed = await resolveSeed({
-    idea: values.idea,
-    fromNotes: values['from-notes'],
+    seed: values.seed,
+    seedFile: values['seed-file'],
   });
   const override = values.refine ? 'on' : values['no-refine'] ? 'off' : null;
   const refine = shouldRefine({ seed, override });
-  const persona = values.persona ?? 'engineer';
 
   // Corpus lookup uses the raw (un-defaulted) docsContextFiles list, same
   // as the `/deliver` per-Epic digest builder: `config.project` fills in
@@ -186,7 +168,6 @@ async function runEmitContext({
   const envelope = buildContextEnvelope({
     seed,
     refine,
-    persona,
     bodyTemplate,
     duplicateCandidates,
     techStack,
@@ -221,8 +202,7 @@ async function runPersist({
   }
 
   const title = extractTitle(body);
-  const persona = values.persona ?? 'engineer';
-  const labels = [TYPE_LABELS.STORY, `persona::${persona}`];
+  const labels = [TYPE_LABELS.STORY];
   const argv = renderGhArgv({ title, bodyPath, labels });
 
   if (dryRun) {
@@ -264,7 +244,7 @@ async function runPersist({
   }
 
   write(`${JSON.stringify({ issueNumber, title, labels }, null, 2)}\n`);
-  Logger.info(`Next: /single-story-deliver ${issueNumber}`);
+  Logger.info(`Next: /deliver ${issueNumber}`);
 }
 
 /* node:coverage ignore next */
@@ -272,10 +252,9 @@ async function main() {
   const { values } = parseArgs({
     options: {
       'emit-context': { type: 'boolean', default: false },
-      idea: { type: 'string' },
-      'from-notes': { type: 'string' },
+      seed: { type: 'string' },
+      'seed-file': { type: 'string' },
       body: { type: 'string' },
-      persona: { type: 'string' },
       refine: { type: 'boolean', default: false },
       'no-refine': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },

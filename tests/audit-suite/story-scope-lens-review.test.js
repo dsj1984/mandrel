@@ -14,12 +14,9 @@
  *   - The lens pass runs inside `runStoryReviewCore`, and BOTH close entry
  *     points (`runStoryCodeReview` epic-attached, `runStoryScopeReview`
  *     standalone) reach it through that single shared spine.
- *   - The lens pass is absent from the maker dispatch path — the dispatch /
- *     hydration modules carry no reference to the spine or the lens pass.
  */
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -340,30 +337,4 @@ test('standalone close (runStoryScopeReview) reaches the lens pass through the s
   assert.equal(lensSpy.calls[0].baseRef, 'main');
   assert.equal(lensSpy.calls[0].headRef, 'story-4409');
   assert.deepEqual(out.localLensReview, lensReview);
-});
-
-// ---------------------------------------------------------------------------
-// Maker-blind invariant — the lens pass is absent from the maker dispatch path.
-// ---------------------------------------------------------------------------
-
-test('the maker dispatch/hydration path carries no reference to the lens pass', () => {
-  const dispatchSurface = [
-    '.agents/scripts/lib/orchestration/context-hydration-engine.js',
-    '.agents/scripts/lib/orchestration/dispatch-engine.js',
-    '.agents/scripts/lib/orchestration/dispatch-pipeline.js',
-  ];
-  const forbidden = [
-    'runStoryReviewCore',
-    'runLocalLensReview',
-    'selectLocalLenses',
-  ];
-  for (const rel of dispatchSurface) {
-    const src = readFileSync(path.join(REPO_ROOT, rel), 'utf8');
-    for (const symbol of forbidden) {
-      assert.ok(
-        !src.includes(symbol),
-        `${rel} must not reference '${symbol}' — the lens pass runs only inside the story-close spine, never in the maker dispatch path`,
-      );
-    }
-  }
 });

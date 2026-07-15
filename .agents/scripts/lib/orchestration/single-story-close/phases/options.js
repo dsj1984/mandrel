@@ -10,6 +10,7 @@
 
 import path from 'node:path';
 import { parseSprintArgs } from '../../../cli-args.js';
+import { getDeliveryRouting } from '../../../config/delivery-routing.js';
 import { PROJECT_ROOT } from '../../../project-root.js';
 
 /**
@@ -27,11 +28,12 @@ function resolveFlag(paramValue, parsedValue, defaultValue) {
 }
 
 /**
- * Resolve the `waitForMerge` option: an explicit `--no-wait-merge` opt-out
- * always wins (preserves the pre-Story-#4428 exit shape even if a future
- * headless wrapper defaults to waiting); otherwise the explicit
- * `--wait-merge` / injected value governs, defaulting to `false` so
- * attended (non-headless) invocations are byte-identical to before.
+ * Resolve the `waitForMerge` option:
+ *   1. `--no-wait-merge` / injected opt-out always wins (stop at
+ *      `agent::closing`).
+ *   2. Explicit `--wait-merge` / injected true forces land-in-close.
+ *   3. Otherwise default from `delivery.routing.closeAndLand` (true) so
+ *      attended and headless delivers share the close-and-land happy path.
  *
  * @param {{ waitForMergeParam, noWaitForMergeParam, parsed }} raw
  * @returns {boolean}
@@ -41,13 +43,12 @@ function resolveWaitForMerge({
   noWaitForMergeParam,
   parsed,
 }) {
-  const optedOut = resolveFlag(
-    noWaitForMergeParam,
-    parsed.noWaitForMerge,
-    false,
-  );
-  if (optedOut) return false;
-  return resolveFlag(waitForMergeParam, parsed.waitForMerge, false);
+  if (resolveFlag(noWaitForMergeParam, parsed.noWaitForMerge, false)) {
+    return false;
+  }
+  const explicit = waitForMergeParam ?? parsed.waitForMerge;
+  if (typeof explicit === 'boolean') return explicit;
+  return getDeliveryRouting().closeAndLand;
 }
 
 /**
@@ -75,7 +76,9 @@ export function parseCloseOptions({
           skipSync: !!skipSyncParam,
           noAutoMerge: !!noAutoMergeParam,
           noFullScopeCrap: !!noFullScopeCrapParam,
-          waitForMerge: !!waitForMergeParam,
+          // Preserve undefined so resolveWaitForMerge can apply the
+          // closeAndLand config default when neither flag was injected.
+          waitForMerge: waitForMergeParam,
           noWaitForMerge: !!noWaitForMergeParam,
         }
       : parseSprintArgs();

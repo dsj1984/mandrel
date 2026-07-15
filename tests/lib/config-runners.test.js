@@ -6,36 +6,34 @@ import {
   getRunners,
 } from '../../.agents/scripts/lib/config/runners.js';
 
-// Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner`,
-// `delivery.epicAudit`, and `delivery.codeReview` are configurable; the
-// legacy `planRunner`, `concurrency`, `storyMergeRetry`, and `decomposer`
-// sub-blocks moved to framework-internal constants. Story #2687 dropped
-// the legacy `config.deliverRunner` / `config.orchestration.runners.*`
-// fallback reads — `delivery.deliverRunner` is the only supported shape.
+// Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner` and
+// `delivery.codeReview` are configurable via getRunners; `delivery.epicAudit`
+// was removed on v2 (Story-only delivery). Legacy `planRunner`,
+// `concurrency`, `storyMergeRetry`, and `decomposer` sub-blocks moved to
+// framework-internal constants.
 
 describe('getRunners', () => {
   it('returns defaulted shape for null/undefined/empty config', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
-      // deliverRunner falls back to framework constants (3 / 120s).
       assert.equal(r.deliverRunner.concurrencyCap, 3);
-      assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
+      assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
       assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
+      assert.equal(r.epicAudit, undefined);
     }
   });
 
   it('reads delivery.deliverRunner from the post-reshape config', () => {
     const config = {
       delivery: {
-        deliverRunner: { concurrencyCap: 5, progressReportIntervalSec: 60 },
+        deliverRunner: { concurrencyCap: 5, verifyConcurrencyCap: 8 },
       },
     };
     const r = getRunners(config);
     assert.deepEqual(r.deliverRunner, {
       concurrencyCap: 5,
-      progressReportIntervalSec: 60,
-      verifyConcurrencyCap: 4,
+      verifyConcurrencyCap: 8,
     });
   });
 
@@ -43,14 +41,13 @@ describe('getRunners', () => {
     const config = {
       orchestration: {
         runners: {
-          deliverRunner: { concurrencyCap: 2, progressReportIntervalSec: 30 },
+          deliverRunner: { concurrencyCap: 2, verifyConcurrencyCap: 1 },
         },
       },
     };
     const r = getRunners(config);
-    // Legacy reads dropped: fall through to framework defaults.
     assert.equal(r.deliverRunner.concurrencyCap, 3);
-    assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
+    assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
   });
 
   it('exposes the hardcoded story-merge-retry defaults', () => {
@@ -64,19 +61,6 @@ describe('getRunners', () => {
     assert.equal(r.decomposer.concurrencyCap, 3);
   });
 
-  it('returns documented defaults for delivery.epicAudit (Story #2611; autoFixSeverity high per Story #4412)', () => {
-    for (const input of [null, undefined, {}, { delivery: {} }]) {
-      const r = getRunners(input);
-      assert.deepEqual(r.epicAudit, {
-        maxFixAttempts: 3,
-        maxFixScopeFiles: 5,
-        // Story #4412 — the slim Epic-close tier defaults to `high`; 🟡 Medium
-        // concerns are remediated shift-left, not re-remediated at close.
-        autoFixSeverity: 'high',
-      });
-    }
-  });
-
   it('returns documented defaults for delivery.codeReview (Story #2611)', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
@@ -88,17 +72,6 @@ describe('getRunners', () => {
     }
   });
 
-  it('reads delivery.epicAudit overrides from config', () => {
-    const r = getRunners({
-      delivery: { epicAudit: { maxFixAttempts: 1, maxFixScopeFiles: 10 } },
-    });
-    assert.deepEqual(r.epicAudit, {
-      maxFixAttempts: 1,
-      maxFixScopeFiles: 10,
-      autoFixSeverity: 'high',
-    });
-  });
-
   it('reads delivery.codeReview overrides from config', () => {
     const r = getRunners({
       delivery: { codeReview: { maxFixAttempts: 0, maxFixScopeFiles: 2 } },
@@ -108,15 +81,6 @@ describe('getRunners', () => {
       maxFixScopeFiles: 2,
       autoFixSeverity: 'medium',
     });
-  });
-
-  it('reads delivery.epicAudit.autoFixSeverity override (Story #4399; default flipped to high in #4412)', () => {
-    // Override to `medium` (the non-default) to prove the read — `high` is now
-    // the default, so overriding to `high` would not distinguish the two.
-    const r = getRunners({
-      delivery: { epicAudit: { autoFixSeverity: 'medium' } },
-    });
-    assert.equal(r.epicAudit.autoFixSeverity, 'medium');
   });
 
   it('reads delivery.codeReview.autoFixSeverity override (Story #4399)', () => {

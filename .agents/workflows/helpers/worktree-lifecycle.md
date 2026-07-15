@@ -7,16 +7,15 @@ description: >-
 
 # Worktree-per-Story Lifecycle
 
-Parallel epic execution can race when multiple story agents share one working
+Parallel Story delivery can race when multiple agents share one working
 tree: rapid `git checkout` swaps cause `git add` to sweep another agent's WIP
-into the wrong commit. Epic #229 moves each dispatched story into its own
-`git worktree` at `.worktrees/story-<id>/` so branch swaps, staging, and reflog
-activity are isolated per-story. The main checkout stays quiet.
+into the wrong commit. Each Story runs in its own `git worktree` at
+`.worktrees/story-<id>/` so branch swaps, staging, and reflog activity are
+isolated per-Story. The main checkout stays quiet.
 
 This document is the operator and reviewer reference. See
-[`epic-deliver`](deliver-epic.md) and [`story-deliver`](deliver-stories.md)
-for the broader execution flow and the Epic-229 Tech Spec for
-architectural rationale.
+[`/deliver`](../deliver.md) and [`helpers/deliver-story`](deliver-story.md)
+for the broader execution flow.
 
 ## Configuration
 
@@ -24,18 +23,22 @@ All knobs live under `delivery.worktreeIsolation` in `.agentrc.json`:
 
 ```jsonc
 {
-  "orchestration": {
+  "delivery": {
     "worktreeIsolation": {
       "enabled": true, // master switch; false = single-tree (v5.5.1)
       "root": ".worktrees", // relative to repo root; must stay inside it
-      "nodeModulesStrategy": "per-worktree", // per-worktree | symlink | pnpm-store
+      "nodeModulesStrategy": "clone", // clone | per-worktree | symlink | pnpm-store
       "primeFromPath": null, // required when strategy = "symlink"
       "allowSymlinkOnWindows": false, // explicit opt-in for symlink on win32
       "reapOnSuccess": true, // remove worktree after successful story merge
-      "reapOnCancel": true, // remove worktree when story is cancelled
-      "windowsPathLengthWarnThreshold": 240, // pre-flight warning threshold (MAX_PATH=260)
-    },
-  },
+      "bootstrapFiles": [
+        ".env",
+        ".mcp.json",
+        ".agentrc.local.json",
+        ".agents/instructions.local.md"
+      ]
+    }
+  }
 }
 ```
 
@@ -47,20 +50,20 @@ are all rejected at config-load time.
 
 | Phase           | When                                                                          | What happens                                                                                                                                                |
 | --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sweep**       | Dispatch-manifest build (`/plan`) and `/deliver` | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
-| **GC**          | Dispatch-manifest build (`/plan`) and `/deliver` | Orphan `.worktrees/story-*` whose stories are closed are reaped if clean.                                                                                   |
-| **Force-drain** | `/plan` boot (`worktree-sweep.js` via `drainPendingCleanupAtBoot`), `story-close` post-merge (`forceDrainPendingCleanup`), `/deliver` Phase 7 | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
-| **Ensure**      | `story-init` (entry for `/deliver`)                  | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
-| **Run**         | During story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
-| **Reap**        | After successful story merge (in `story-close`)                              | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
+| **Sweep**       | Operator-driven (`WorktreeManager.sweepStaleLocks`)                           | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
+| **GC**          | Operator-driven (`WorktreeManager.gc`)                                        | Orphan `.worktrees/story-*` whose Stories are closed are reaped if clean.                                                                                   |
+| **Force-drain** | Operator-driven (`drain-pending-cleanup.js`)                                  | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
+| **Ensure**      | `single-story-init.js` (entry for `/deliver`)                                 | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
+| **Run**         | During Story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
+| **Reap**        | After successful Story merge (in `single-story-close`)                        | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
 
 The `WorktreeManager` (`.agents/scripts/lib/worktree-manager.js`) is the single
 authority for `ensure`, `reap`, `list`, `isSafeToRemove`, `gc`, `prune`, and
 `sweepStaleLocks`. No other script may call `git worktree` directly.
 
-Managed story worktrees are only eligible for `reap`/`gc` when the caller
-provides the expected Epic branch, so cleanup cannot silently skip the merge
-verification step.
+Managed Story worktrees are only eligible for `reap`/`gc` when the Story is
+merged (or otherwise confirmed closed) so cleanup cannot silently drop an
+unlanded branch.
 
 ### Stale-lock sweep
 
@@ -78,34 +81,28 @@ entry points (see table below).
 
 ### Sweep & GC entry points
 
-Sweep and GC do **not** run at every Epic entry point — in particular,
-`story-init` (the entry for `/deliver`) does not invoke them. The full
-set of callers is:
+Under the v2 single-Story delivery loop, `sweepStaleLocks` and `gc`
+remain `WorktreeManager` methods but have **no automatic caller** — the
+wave-era dispatch/close hooks that invoked them were deleted with the
+epic-runner. The lifecycle surfaces that do run automatically are:
 
-| Entry point                                                           | Script / caller                                           | Runs sweep? | Runs GC? | Force-drain? | Notes                                                                                               |
-| --------------------------------------------------------------------- | --------------------------------------------------------- | ----------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| Dispatch manifest build (`/plan` Phase 9)                        | `lib/orchestration/dispatch-pipeline.js::runWorktreeGc`   | ✅ Yes      | ✅ Yes   | ✅ Yes       | Called from `dispatch-engine.js::dispatch()`. Scoped to the epic being dispatched.                  |
-| Spec / decompose CLI boot (`/plan` helpers)                      | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
-| Story merge (`/deliver` close)                                  | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
-| Story close                                                           | `epic-deliver runner` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
-| Story init (`/deliver <storyId>`)                               | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
-| Epic deliver wave loop (`/deliver`)                              | `/deliver` slash command + `lib/orchestration/epic-runner/*` | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
-| Drain pending-cleanup (operator-driven)                               | `drain-pending-cleanup.js` (run directly — see below)     | n/a         | n/a      | ✅ Yes       | Manual escape hatch; same drain + Windows escalation as the `/plan` and `/deliver` paths.   |
+| Entry point                       | Script / caller                                                      | What it cleans                                                                                                          |
+| --------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Story init (`/deliver <storyId>`) | `single-story-init.js` boot sweep (`sweepMergedStoryBranches`)        | Merged/closed `story-*` branches (local + origin) from prior runs; it then creates only its own worktree.                 |
+| Story close (`/deliver` close)    | `single-story-close.js` worktree-reap phase (`WorktreeManager.reap`)  | The per-Story worktree; on a Windows EBUSY-class lock the entry is deferred into `.worktrees/.pending-cleanup.json`.       |
+| Drain pending-cleanup (operator)  | `drain-pending-cleanup.js` (run directly — see below)                 | The pending-cleanup ledger, with optional Windows handle-holder escalation. This is the only path that drains the ledger. |
 
-Operator takeaway: if you need to force a sweep/GC without closing a story,
-the most direct path is re-running `/plan` (or rebuilding the dispatch
-manifest via `dispatcher.js`) against the active epic. Running
-`/deliver <storyId>` on its own does **not** clean up orphan worktrees
-or stale locks.
+Operator takeaway: if worktrees or stale locks accumulate, run
+`node .agents/scripts/drain-pending-cleanup.js` — nothing in the
+`/plan` → `/deliver` loop force-sweeps or GCs on your behalf.
 
 ## Draining the pending-cleanup ledger
 
 `.worktrees/.pending-cleanup.json` accumulates entries when
-`story-close.js` cannot remove a worktree on Windows because of an
-EBUSY-class lock. Plan boot ([`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js), run by `plan-persist.js` → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
-retries the entries — but if the holder
-is a long-lived user-mode process (a stranded test runner, a lingering
-biome/tsc, a node REPL), the lock never clears and the entry pins.
+`single-story-close.js` cannot remove a worktree on Windows because of
+an EBUSY-class lock. If the holder is a long-lived user-mode process (a
+stranded test runner, a lingering biome/tsc, a node REPL), the lock
+never clears and the entry pins.
 
 [`drain-pending-cleanup.js`](../../scripts/drain-pending-cleanup.js)
 runs the standard drain *and* enumerates handle holders via
@@ -116,22 +113,9 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 > `/drain-pending-cleanup` slash command — it was demoted to a
 > directly-runnable script (Story #3706, overturning the
 > `docs/decisions.md` matrix row that originally kept it as a command).
-> The three automatic callers — `/deliver` runner Phase 7,
-> `story-close.js`, and `worktree-sweep.js` — invoke
-> `drain-pending-cleanup.js` **directly**, so the demotion does not touch
-> them. The manual path survives unchanged as
+> The wave-era automatic callers were deleted with the epic-runner in
+> the v2 cutover, so the drain is now operator-driven:
 > `node .agents/scripts/drain-pending-cleanup.js`.
-
-### When it runs automatically
-
-| Trigger          | Caller                                                                       |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `/deliver`    | [`Cleaner` lifecycle listener](../../scripts/lib/orchestration/lifecycle/listeners/cleaner.js) at the close-tail cleanup phase (before `wm.gc()`)   |
-| `/plan`     | [`drainPendingCleanupAtBoot`](../../scripts/lib/orchestration/epic-plan-spec/phases/drain.js) (run by `plan-persist.js`) → [`worktree-sweep.js`](../../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
-| Story merge close | [`story-close.js`](../../scripts/story-close.js) (`drainPendingCleanupAfterClose`) |
-
-All automatic paths call `forceDrainPendingCleanup()` (or are folded into
-`sweepStaleStoryWorktrees`, which calls it first).
 
 ### When to run it manually
 
@@ -242,9 +226,9 @@ Symlink strategy:
   content-addressable store at `~/.local/share/pnpm/store` (or the platform
   equivalent) — reused packages are hard-linked into the worktree instead of
   re-downloaded and re-extracted. First-run on a cold store is no faster than
-  `per-worktree`, and the plan healthcheck (`epic-plan-healthcheck.js
-  --prime-install`, an opt-in manual run) primes the store in the
-  main checkout to avoid paying that cost in parallel story windows.
+  `per-worktree`. Operators can prime the store once in the main
+  checkout (`pnpm install --frozen-lockfile`) to avoid paying first-run
+  cost in parallel story windows.
 
 ## Windows notes
 

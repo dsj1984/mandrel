@@ -47,10 +47,10 @@ generator", not "edit the doc". Auto-generated changelog files
 (`docs/CHANGELOG.md`, release-please-owned) are likewise excluded from
 semantic review beyond Step 1's deterministic checks.
 
-## Scope (Epic mode)
+## Scope (Story / plan-run mode)
 
-When this lens is invoked from `/deliver` Phase 4 (epic-audit), the
-following block is populated with the Epic's change-set file list.
+When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
+following block is populated with the Story (or plan-run) change-set file list.
 Otherwise — for any manual `/audit-<dimension>` invocation — the block
 renders the literal substitution token and you MUST treat it as **no
 scope filter — run the lens codebase-wide** exactly as you would have
@@ -174,7 +174,7 @@ and check each one:
    renames).
 3. **Workflow & Contract Descriptions:** Described workflows, label
    taxonomies (`agent::*`, `type::*`, `meta::*`), branch shapes
-   (`story-<id>`, `epic/<id>`), and artifact contracts match how the
+   (`story-<id>`), and artifact contracts match how the
    current scripts actually behave — read the implementation when the
    prose makes a behavioural claim.
 4. **Version & Topology Claims:** Version numbers, package names, release
@@ -293,7 +293,7 @@ recurring cadence so the drift is caught before it compounds:
 Route the resulting `audit-documentation-results.md` through
 [`/audit-to-stories`](audit-to-stories.md), which groups the findings,
 deduplicates them against existing Issues by fingerprint, and opens
-remediation Stories (or chains into `/plan --idea`) so the Context-Economy
+remediation Stories (or chains into `/plan --seed`) so the Context-Economy
 findings land as actionable, tracked work rather than a report nobody reads.
 
 ## Constraint

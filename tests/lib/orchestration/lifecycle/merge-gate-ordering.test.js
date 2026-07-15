@@ -160,8 +160,8 @@ describe('assertMergeGateOrdering (lifecycle invariant)', () => {
   });
 });
 
-describe('merge-gate-ordering: gh pr merge appears only in automerge-armer.js', () => {
-  it('repo-wide grep confirms the literal is confined to the armer', () => {
+describe('merge-gate-ordering: gh pr merge appears only in auto-merge.js', () => {
+  it('repo-wide grep confirms the literal is confined to the Story close path', () => {
     // The lint backstop already enforces this at `npm run lint`
     // time; this contract test calls the same helper independently
     // so a future divergence between lint and contract is caught.
@@ -180,28 +180,26 @@ describe('merge-gate-ordering: gh pr merge appears only in automerge-armer.js', 
     );
   });
 
-  it('automerge-armer.js itself DOES contain the literal (production sanity)', () => {
+  it('auto-merge.js itself DOES contain the literal (production sanity)', () => {
     // The whole point of the lockout is that ONE file legitimately
-    // calls `gh pr merge`. If the armer doesn't carry the literal
-    // anymore, the safety chain is broken in the other direction —
-    // the listener can't arm. This sanity assertion catches a
-    // pathological refactor that deletes the call site.
+    // calls `gh pr merge`. If the Story close auto-merge phase doesn't
+    // carry the literal anymore, the safety chain is broken.
     const armerPath = path.join(
       REPO_ROOT,
       '.agents',
       'scripts',
       'lib',
       'orchestration',
-      'lifecycle',
-      'listeners',
-      'automerge-armer.js',
+      'single-story-close',
+      'phases',
+      'auto-merge.js',
     );
     const text = readFileSync(armerPath, 'utf8');
     const stripped = stripComments(text);
     assert.match(
       stripped,
       /gh.*pr.*merge/,
-      'automerge-armer.js MUST contain a gh pr merge call site',
+      'auto-merge.js MUST contain a gh pr merge call site',
     );
   });
 });

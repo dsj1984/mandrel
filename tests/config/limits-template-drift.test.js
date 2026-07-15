@@ -10,9 +10,8 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 // The surviving operator-configurable budget/timeout keys are spread across
 // the new top-level blocks rather than a single `agentSettings.limits` block:
 //   - planning.context.{maxBytes, summaryMode}
-//   - delivery.maxTokenBudget
 //   - delivery.execution.timeoutMs
-//   - delivery.signals.{hotspot, rework, retry}
+//   - delivery.signals.{rework, retry}
 //
 // This guard keeps `.agents/docs/agentrc-reference.json` aligned with
 // `LIMITS_DEFAULTS` so the exhaustive reference template documents the
@@ -42,11 +41,13 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     });
   });
 
-  it('declares delivery.maxTokenBudget matching LIMITS_DEFAULTS.maxTokenBudget', () => {
+  it('does not declare the removed delivery.maxTokenBudget knob', () => {
     assert.equal(
-      parsed?.delivery?.maxTokenBudget,
-      LIMITS_DEFAULTS.maxTokenBudget,
+      'maxTokenBudget' in (parsed?.delivery ?? {}),
+      false,
+      'agentrc-reference.json must not document the removed delivery.maxTokenBudget knob',
     );
+    assert.equal('maxTokenBudget' in LIMITS_DEFAULTS, false);
   });
 
   it('declares delivery.execution.timeoutMs matching LIMITS_DEFAULTS.executionTimeoutMs', () => {
@@ -56,14 +57,10 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     );
   });
 
-  it('declares the three surviving detector blocks under delivery.signals', () => {
+  it('declares the two surviving detector blocks under delivery.signals', () => {
     const sig = parsed?.delivery?.signals;
     assert.ok(sig, 'delivery.signals must be present');
-    assert.deepEqual(Object.keys(sig).sort(), ['hotspot', 'retry', 'rework']);
-    assert.equal(
-      sig.hotspot.p95Multiplier,
-      LIMITS_DEFAULTS.signals.hotspot.p95Multiplier,
-    );
+    assert.deepEqual(Object.keys(sig).sort(), ['retry', 'rework']);
     assert.equal(
       sig.rework.editsPerFile,
       LIMITS_DEFAULTS.signals.rework.editsPerFile,

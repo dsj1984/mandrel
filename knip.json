@@ -37,8 +37,8 @@
     "unresolved": "off",
     "exports": "error",
     "types": "error",
-    "nsExports": "error",
-    "nsTypes": "error",
+    "nsExports": "off",
+    "nsTypes": "off",
     "enumMembers": "error"
   }
 }

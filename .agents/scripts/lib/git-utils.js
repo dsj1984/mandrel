@@ -44,6 +44,18 @@ let _execFileSync = execFileSync;
 let _spawnSync = spawnSync;
 
 /**
+ * Memoized cleaned env shared by every `gitSync` / `gitSpawn` /
+ * `createGitInterface` invocation in this process. Built lazily on first
+ * use so cold imports pay nothing. Call sites pass the object through to
+ * `child_process` only — none mutate `GIT_*` (or any other key) between
+ * git calls, so reuse is safe. Tests that mutate `process.env` and need
+ * a fresh snapshot must call {@link __resetCleanGitEnv}.
+ *
+ * @type {NodeJS.ProcessEnv | null}
+ */
+let _cleanGitEnv = null;
+
+/**
  * Build a child-process env that drops every `GIT_*` variable inherited from
  * the parent. When this module's helpers run inside a git hook (e.g. husky
  * pre-push) the parent git invocation exports GIT_DIR / GIT_WORK_TREE /
@@ -53,13 +65,28 @@ let _spawnSync = spawnSync;
  * that spin up real git fixtures break reproducibly under that shape.
  *
  * Stripping every `GIT_*` is broader than strictly necessary but cheap and
- * impossible to drift out of sync with future git releases. Author/committer
- * identity is restored via per-call `env:` overrides where required.
+ * impossible to drift out of sync with future git releases. The result is
+ * memoized per process (see `_cleanGitEnv`); author/committer identity is
+ * restored via per-call `env:` overrides where required.
+ *
+ * @returns {NodeJS.ProcessEnv}
  */
 function cleanGitEnv() {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+  if (_cleanGitEnv) return _cleanGitEnv;
+  _cleanGitEnv = Object.freeze(
+    Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+    ),
   );
+  return _cleanGitEnv;
+}
+
+/**
+ * Drop the memoized cleaned env so the next git call rebuilds from
+ * `process.env`. Testing-only seam — not part of the stable API.
+ */
+export function __resetCleanGitEnv() {
+  _cleanGitEnv = null;
 }
 
 /**
@@ -321,11 +348,10 @@ export function slugify(text) {
 /**
  * Resolves the canonical branch name for a Story.
  * v5 Standard: story-[STORY_ID]
- * @param {string|number} _epicId - Unused; retained for back-compat call sites.
  * @param {string|number} storyId
  * @returns {string}
  */
-export function getStoryBranch(_epicId, storyId) {
+export function getStoryBranch(storyId) {
   const id =
     typeof storyId === 'number' ? storyId : Number.parseInt(storyId, 10);
   if (!Number.isFinite(id) || id <= 0) {

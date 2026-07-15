@@ -1,25 +1,26 @@
 # Mandrel Roadmap
 
-> **Two sections.** (1) **v2.0.0** — the committed next major: collapse the
+> **Two sections.** (1) **v2.0.0** — **shipped**: collapse the
 > ticket model to a single type (Story) and the delivery surface to a single
-> path, with everything that rides along. (2) **Someday** — strictly
-> aspirational items and monitors that re-price on ~10x shifts in model
-> capability, platforms, or economics. Operational dependency trip-wires
-> live in the appendix. Prior roadmap analyses (the model-evolution audit,
-> the product-readiness backlog, the orchestration evidence) are compressed
-> here; their full text is preserved in git history
+> path, with everything that rides along. This section is the design
+> record for that cutover (kept for operators upgrading from 1.x).
+> (2) **Someday** — strictly aspirational items and monitors that re-price
+> on ~10x shifts in model capability, platforms, or economics. Operational
+> dependency trip-wires live in the appendix. Prior roadmap analyses (the
+> model-evolution audit, the product-readiness backlog, the orchestration
+> evidence) are compressed here; their full text is preserved in git history
 > (`docs/roadmap.md` @ `mandrel-v1.94.0`).
 >
-> **Last reviewed:** 2026-07-13 against framework version 1.94.0.
+> **Last reviewed:** 2026-07-15 against framework version 2.0.0.
 
-## 1. v2.0.0 — The Story collapse
+## 1. v2.0.0 — The Story collapse (shipped)
 
 ### Why
 
 v1.94.0 made single-delivery the default: an epic-sized plan now ships as a
 **spec-only Epic with zero child tickets**, delivered in one guarded session.
-That end-state exposes the remaining fork: a spec-only Epic *is structurally a
-Story with a bigger body*, yet the codebase still carries two ticket types and
+That end-state exposed the remaining fork: a spec-only Epic *was structurally a
+Story with a bigger body*, yet the codebase still carried two ticket types and
 two parallel stacks to serve them —
 
 - two planning paths (`plan-epic.md` + `plan-story.md`, plus the scope-triage
@@ -155,12 +156,13 @@ alone, plus ~2.2k lines of workflow prose):**
   simplify to flat Story ops.
 - Taxonomy/schema: `type::epic` label and the Epic body schema; the
   epic-keyed lifecycle events (`slice.*` naming reviewed — one event family).
-- **Persona tier (pulled in from Someday):** the idle hydration seam
-  (`context-hydration-engine.js` — invoked by zero workflows) is deleted;
-  the 7 remaining persona files retire or reduce to the one-line role
-  labels workflow headers already carry (prose-only, zero runtime cost),
-  with any security/release review lens folded into the risk-routed
-  ceremony. Built-but-unwired code is exactly what v2 removes.
+- **Persona tier (pulled in from Someday, then deleted cleanly):** the idle
+  hydration seam (`context-hydration-engine.js` — invoked by zero workflows)
+  is deleted. Stage 5 first reduced persona files to one-line stubs; a later
+  cleanup **removes** `.agents/personas/` and the `persona::*` label axis
+  entirely. Role framing lives in instructions / rules / skills / optional
+  `.agents/agents/` boot contexts. (`qa.personas` auth fixtures are unrelated
+  and stay.)
 
 **Merges — duplicate pairs collapse to one:**
 
@@ -171,8 +173,9 @@ alone, plus ~2.2k lines of workflow prose):**
 
 **Re-keys — epic-scoped becomes run-scoped (mechanical):**
 
-- `docs-digest.js` (per-epic digest → per-run), `epic-plan-clarity.js`,
-  `epic-plan-healthcheck.js`, `epic-audit-prepare.js`/`epic-audit-recheck.js`
+- ~~`docs-digest.js` (per-epic digest → per-run), `epic-plan-clarity.js`,
+  `epic-plan-healthcheck.js`, `epic-audit-prepare.js`/`epic-audit-recheck.js`~~
+  (deleted / consolidated in the v2 epic-scripts sweep)
   (→ the per-run audit sweep), `bookkeeping-outbox.js` (per-epic outbox →
   per-run), retro roll-up (`retro/`, `retro-runner.js` — per-run),
   `temp/epic-<id>/` namespace → `temp/run-<id>/`.
@@ -255,14 +258,151 @@ below applies only to the rare, policy-compliant N>1 runs.
   - Doc-freshness fix already found pending: `configuration.md` still
     describes `delivery.routing.singleDelivery` as "shipped inert" (stale
     since M4-B; the key itself dies in v2).
-- **Open questions for the design pass** (the only unresolved items):
-  1. Run-scoped ceremony trigger — what mechanically fires the per-run sweep
-     after the last Story lands (the last Story's close hook vs a
-     `/deliver --run` epilogue)?
-  2. Story body budget — the folded-spec pattern needs a size ceiling so
-     "spec in the body" doesn't recreate 22KB issue bodies on trivial work.
-  3. `retro` role def (staged unwired in 1.94.0) — wire it to the per-run
-     retro or drop it.
+- **Design decisions resolved (2026-07-13), formerly open:**
+  1. **Run-scoped ceremony trigger** → a **`/deliver --run <planRunId>`
+     epilogue step**, no new watchdog/hook. The deliver invocation that
+     sequences a multi-Story run owns the closeout after its last Story's PR
+     merges. A single-Story run (the common case) has no run scope — the
+     Story's own close is the end. No run-state machinery is built for the
+     rare case.
+  2. **Story body budget** → reuse the §2 FinOps `maxTokenBudget` +
+     section-elision. The folded spec has a soft body target; when the
+     authored spec exceeds it, persist **fails closed** (split the Story or
+     tighten `## Spec`). Specs stay inline on the Story — never spill to
+     `docs/` (temporary or committed). An over-budget Spec is a sizing smell.
+  3. **`retro` role def** → **drop it.** The per-run retro is rare and runs
+     as a CLI subprocess (`retro-run.js`), not an `Agent` spawn, so there is
+     no spawn to attach a role context to. Delete the unwired 1.7KB
+     `retro.md`; re-add only if retro ever becomes an agent spawn.
+
+- **Ceremony lock-in (2026-07-14) — no placeholder scaffolding on `v2`:**
+  1. **Follow-ups (replaces Epic retro)** → every Story land runs
+     `captureStoryFollowUps` (friction → filed/`follow-ups` comment). N>1
+     adds `plan-run-epilogue.js` `follow-up-rollup` over the set. Intent is
+     actionable issues, not six-section essay retros. `retro-run.js` +
+     `agents/retro.md` deleted.
+  2. **Spec spill** → **revoked (2026-07-14).** Inline-only: over-budget
+     Specs reject at persist. No writes under `docs/specs/`. Shared
+     `techspec.md` fold is N===1 only; N>1 requires per-Story `## Spec`.
+     Top-level `acceptance[]`/`verify[]` sync into the body (no dual-author
+     requirement).
+  3. **Run epilogue** → real executor CLI `plan-run-epilogue.js`
+     (`audit-roster` · `follow-up-rollup` · `sibling-coherence`). Inert
+     planner-only path removed.
+  4. **Risk-routed critics/lenses** → critical review + acceptance `block`
+     stay blocking; local/audit lenses stay advisory.
+  5. **Epic surface** → hard-delete unwired epic-plan skills, orphan CLIs
+     (`standalone-feedback-rollup`, `bookkeeping-reconcile`), and
+     `helpers/epic-testing.md`. Keep libraries still used by `/plan`.
+  6. **`single-story-*` rename** → deferred (cosmetic).
+  7. **`slice.*` lifecycle** → deleted (inert). `## Slicing` remains
+     in-session prose checkpoints only.
+
+### Build progress (living checklist)
+
+> Work happens on the long-lived **`v2`** branch — never through `/plan` or
+> `/deliver` (they are being rewritten). Commit and test after each item;
+> **kill nothing until its replacement passes the same tests.** Each stage
+> must end green (`npm test`, `lint`, `docs:check`, `check:context-budget`,
+> `check-dead-exports`). Deletion inventory grounded against `mandrel-v1.94.0`.
+
+#### Stage 0 — Setup & decisions
+
+- [x] `v2` branch created off `main` (1.94.0)
+- [x] Three open design questions resolved (run epilogue · Spec budget · drop `retro` role);
+  Spec decision later revised to inline-only fail-closed (no `docs/specs/` spill)
+- [x] Staged checklist committed to `roadmap.md`
+
+#### Stage 1 — New v2 machinery (additive; TDD; breaks nothing)
+
+*Data contract first — the validators and planner below all consume it.*
+
+- [x] **v2 Story body contract** — the Story body now carries an optional
+  `## Slicing` section (the intra-Story delivery slice plan that replaces
+  sibling fan-out) alongside `goal`/`changes`/`acceptance`/`verify`, via the
+  canonical `story-body.js` parser/serializer (round-trip safe; pre-v2 bodies
+  serialize byte-identically). `task-body-validator.js` tolerates it (optional).
+  Over-budget Specs fail closed at persist (inline-only). Tests:
+  `story-body.test.js` (+6), `task-body-validator.test.js` (+2).
+- [x] Split-policy validator — plan-time **one-owner-AC split rejector**
+  (`split-policy-validator.js` + 12 unit tests): rejects any identical AC
+  shared across Stories (coupling signal), with optional manifest-coverage
+  checking; single-Story plans always pass. `assertAcceptancePartition`
+  throwing-wrapper ready for the Stage-3 persist wiring. Additive.
+- [x] Spec budget gate — `spec-spill.js` (budget helper; +tests): an
+  over-budget folded spec (`estimateTokens` > soft budget) **rejects** at
+  persist instead of writing `docs/specs/`. Small specs stay inline. Reuses
+  the §2 `estimateTokens` estimator.
+- [x] Run-epilogue scaffold — `run-epilogue.js` (+6 tests): a pure, inert
+  planner enumerating the per-run closeout steps (audit-sweep · retro-rollup ·
+  sibling-coherence) for a multi-Story run; a single-Story run is
+  `applicable: false` (no run scope). Stage 4 wires the descriptors into
+  `/deliver --run`.
+
+#### Stage 2 — Sizing removal
+
+- [x] Delete/replace `DEFAULT_TASK_SIZING` → `DEFAULT_MODEL_CAPACITY`: per-Story
+  file/AC ceilings retired; the validator scores estimated **session mass**
+  (authored tokens + `tokensPerAcceptance` / `tokensPerChange` proxies) against
+  fractions of `maxTokenBudget`. `wide` still lifts the hard session-mass
+  rejection. Review depth decoupled onto `DEFAULT_DIFF_WIDTH` (mechanical diff
+  width). Config key `planning.taskSizing` → `planning.modelCapacity`. Prompt /
+  skills / schema / docs updated; tests rewritten.
+
+#### Stage 3 — Planning collapse
+
+- [x] `/plan` → single path: deleted `plan-epic.md` / `plan-story.md` /
+  `scope-triage-gate.md` / `plan-epic-reference.md`; `plan.md` is the sole
+  3-step procedure. Scope-triage skill reduced to a split advisory (no
+  `epic|story` routing). `deliveryShape` removed from
+  `risk-verdict.schema.json` and plan-context envelopes.
+- [x] Author step emits **1 Story by default** (decomposer prompt +
+  `systemPrompts.story`); N>1 only under the split policy.
+  `assertAcceptancePartition` wired in `plan-persist` via `assemblePlanStories`.
+- [x] `plan-persist` → flat Story ops (`story-ops.js` + rewritten
+  `run-plan-persist.js`): createIssue Stories with folded `## Spec`
+  (inline-only; over-budget rejects), `plan-run::` label when N>1, checkpoint
+  on primary Story. Dropped `.agents/schemas/epic-spec.schema.json` (fixture
+  retained for Stage-5 reconciler tests).
+
+#### Stage 4 — Delivery collapse
+
+- [x] One engine: evolve `single-story-deliver.md` → `deliver-story`; delete the
+  `deliver-epic*` tier prose (`deliver-epic.md` / `deliver-epic-single.md` /
+  `epic-deliver-story.md` / `deliver-stories.md` / `epic-audit.md`).
+  `/deliver` is a Story-only router that always delegates to
+  `helpers/deliver-story.md`.
+- [x] Branch model: `story-<id>` → PR → `main`; epic integration branch +
+  `--no-ff` wave merges removed from active workflow/instructions prose.
+  `single-story-init.js` / `single-story-close.js` remain the live branch/PR
+  path (script-pair merge is Stage 5).
+- [x] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js` in
+  `deliver-story` Step 2 + `acceptance-self-eval`); per-run epilogue via
+  `planRunEpilogue` after `/deliver --run`; N>1 sequencer =
+  `resolve-plan-run.js` + `stories-wave-tick.js` (default concurrency 1).
+
+#### Stage 5 — Deletion sweep
+
+- [x] Wave/dispatch engine deleted (`dispatcher.js`, `dispatch-*`, `wave-*`,
+  `manifest-builder.js`).
+- [x] Epic lifecycle/reconcile/lease stratum deleted or stranded behind the
+  Story-only run path (`epic-runner/`, `epic-spec-reconciler-*`).
+- [x] Duplicate `story` ↔ `single-story` script pairs collapsed onto the live
+  Story-only CLIs.
+- [x] Epic-scoped temp naming re-keyed toward run scope: `runTempDir` owns
+  `temp/run-*`, with `epicTempDir` retained as a thin alias for this pass and
+  comments updated on `docs-digest` / bookkeeping surfaces.
+- [x] `type::epic` removed from the active taxonomy and issue-form generator;
+  context hydrator stratum is gone. (Follow-up: `.agents/personas/` and
+  `persona::*` labels deleted entirely — stubs were a dead ceremony.)
+
+#### Stage 6 — Docs, config, gates, release
+
+- [x] `.agents` docs freshness for v2 (workflows, `instructions.md` §5.D hierarchy, the stale `configuration.md` cell)
+- [x] Config: drop `delivery.routing.singleDelivery`; land the sizing-config change
+- [x] Full gate green + version bump prep for **2.0.0** (version files at
+  `2.0.0`; `v2` branch holds the cutover — do **not** merge `v2` → `main`
+  from this stage; release-please publish remains an operator step later)
 
 ## 2. Someday — aspirational & model-shift monitors
 

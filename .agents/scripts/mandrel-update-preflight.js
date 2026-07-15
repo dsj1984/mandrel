@@ -25,7 +25,7 @@
  *      friendlier "you're offline" signal before any version probe.
  *
  * Severity is consistent with framework preflight conventions
- * (cf. `story-close.js` runStoryClosePreflight, `epic-deliver-preflight.js`):
+ * (cf. `single-story-close.js` runStoryClosePreflight, `mandrel-update-preflight.js`):
  * the consumer-shape check is a hard stop (blocker), dirty-index and offline
  * are warn-only and never block the run.
  *

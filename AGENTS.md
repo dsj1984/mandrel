@@ -13,7 +13,7 @@
 ## Project Overview
 
 **Mandrel** is a Claude Code-first opinionated workflow framework: a
-collection of instructions, personas, skills, and SDLC workflows that
+collection of instructions, skills, rules, and SDLC workflows that
 govern AI coding assistants. The `.claude/` / hook / skill surface
 leans in on Claude Code as the reference runtime, and the dispatcher
 under `.agents/scripts/` treats the dispatch manifest (md + structured
@@ -27,16 +27,19 @@ package and materialized into consumer projects' `.agents/` directories by
   consumer project)
 - **License:** MIT
 
-> **Ticket hierarchy.** Mandrel ships a **2-tier ticket hierarchy**
-> (Epic → Story). Acceptance criteria and verification
-> steps are inlined on the Story body (`acceptance[]` / `verify[]`).
-> All delivery flows through `/deliver`, which routes Epic vs
-> standalone-Story input — Epic-attached Stories are delivered as part
-> of their Epic (the Epic path fans out `helpers/epic-deliver-story`
-> per wave). There is no `type::task` ticket layer and no
-> per-Task commit ceremony. See
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md) for the
-> diagram and execution-model implications.
+> **Ticket hierarchy.** Orchestration and planning are **Story-only**
+> (`type::story`). Acceptance criteria and verification steps are inlined
+> on the Story body (`acceptance[]` / `verify[]`); the folded Tech Spec
+> lives in `## Spec` (inline only; over-budget Specs mean split or
+> tighten). `/plan` emits one or more `type::story` issues (default N=1);
+> `/deliver` runs each Story via `helpers/deliver-story` on
+> `story-<id>` → PR → `main`. Optional `depends_on` / `plan-run::<id>`
+> edges order rare multi-Story runs. There is no `type::epic` /
+> `type::task` label, no Epic issue form, and no per-Task commit ceremony —
+> an Epic is at most an optional untyped human umbrella issue outside
+> orchestration. `/deliver` refuses tickets that still carry an
+> `Epic: #N` footer. See [`.agents/instructions.md` § 5.D](.agents/instructions.md)
+> and [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md) for the contract.
 
 ---
 
@@ -46,7 +49,7 @@ package and materialized into consumer projects' `.agents/` directories by
 mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── instructions.md       # ★ Primary system prompt — load this first
-│   ├── personas/             # Role-specific behavior constraints
+│   ├── agents/               # Role-scoped spawn boot contexts (optional)
 │   ├── rules/                # Domain-agnostic coding/ops rules
 │   ├── skills/               # Two-tier skill library (core/ + stack/)
 │   ├── workflows/            # SDLC & audit slash-command workflows
@@ -79,10 +82,7 @@ mandrel/
    [`docs/architecture.md`](docs/architecture.md) under the **Tech Stack**
    section, not in the JSON config.
 
-3. **Adopt a persona when instructed:** Persona files live in
-   `.agents/personas/`. Default is `engineer.md`.
-
-4. **Activate skills and on-demand rules as needed:** Read the relevant
+3. **Activate skills and on-demand rules as needed:** Read the relevant
    `SKILL.md` from `.agents/skills/core/[name]/` (universal process skills) or
    `.agents/skills/stack/[category]/[name]/` (tech-stack-specific) before
    writing domain-specific code. The `.agents/rules/` set is likewise split
@@ -92,7 +92,9 @@ mandrel/
    task engages them. See
    [`.agents/README.md` § What to always-load vs read on-demand](.agents/README.md)
    and [`.agents/instructions.md` § 1.F](.agents/instructions.md) for the full
-   split.
+   split. There is no `.agents/personas/` pack and no `persona::*` label
+   axis — role framing comes from instructions, rules, skills, and optional
+   `.agents/agents/` boot contexts.
 
 ---
 

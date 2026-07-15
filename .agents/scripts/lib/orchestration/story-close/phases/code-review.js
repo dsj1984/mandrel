@@ -2,10 +2,12 @@
  * phases/code-review.js — Story-scope code-review phase
  * (Story #2840, Epic #2815 — Pluggable Code Review + Story-Level Review).
  *
- * Sits between the close-validation gate chain and the merge into
- * `epic/<id>` inside `runStoryCloseLocked` (locked-pipeline.js). The
- * configured ReviewProvider runs against the
- * `epic/<id>`…`story-<id>` diff. The unified `verification-results`
+ * Sits between the close-validation gate chain and merge in the deleted
+ * pre-v2 Epic close path (`runStoryCloseLocked` / `locked-pipeline.js`,
+ * merge target `epic/<id>`). The v2 `/deliver` path
+ * (`single-story-close.js`) reviews `main`…`story-<id>` instead. The
+ * configured ReviewProvider runs against the supplied base…head diff. The
+ * unified `verification-results`
  * structured comment is posted to the Story issue (default
  * `commentTargetId === ticketId` inside `runCodeReview`). Outcomes:
  *
@@ -39,7 +41,7 @@ import {
 import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
 import { runCodeReview } from '../../code-review.js';
-import { emitBlockedCloseResult } from '../merge-runner.js';
+import { emitBlockedCloseResult } from '../emit-blocked.js';
 
 /**
  * The review depth the Story-scope local-lens pass runs at. Shift-left
@@ -282,17 +284,18 @@ export async function runStoryReviewCore({
 }
 
 /**
- * Run a Story-scope code review against the `epic/<id>`…`story-<id>`
- * diff and post the structured `code-review` comment to the Story
- * issue. Returns `{ blocked }` where `blocked` is either `null`
- * (caller proceeds to merge) or the blocked-envelope (caller returns
- * it verbatim and the CLI exits 1).
+ * Run a Story-scope code review against the supplied base…head diff
+ * (v2: `main`…`story-<id>` via `single-story-close.js`; pre-v2 Epic
+ * close: `epic/<id>`…`story-<id>`) and post the structured
+ * `code-review` comment to the Story issue. Returns `{ blocked }` where
+ * `blocked` is either `null` (caller proceeds to open/merge the PR) or the
+ * blocked-envelope (caller returns it verbatim and the CLI exits 1).
  *
  * The optional `planningRisk` envelope (Story #3940) is the parent Epic's
  * judged risk, read best-effort off the `epic-plan-state` checkpoint by the
  * locked pipeline. It is forwarded into `runCodeReview` so the review depth is
- * resolved from BOTH the Epic-judged risk and the Story's own
- * `epic/<id>...story-<id>` changed-file count — a small Story under a
+ * resolved from BOTH the parent Epic's judged risk (pre-v2) and the Story's own
+ * base…head changed-file count — a small Story under a
  * high-risk Epic still earns `deep`, a small Story under a low-risk Epic gets
  * `light`, and an absent envelope resolves `standard` (today's behaviour).
  * Depth is input-only: it never changes `{ blocked }` or the posted comment.

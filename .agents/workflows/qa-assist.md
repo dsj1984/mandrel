@@ -45,16 +45,14 @@ never reimplements those decisions in prose.**
 > triage-ready finding without breaking stride — then, when the testing pass is
 > done, turned into a plan in one batch.
 >
-> **Persona**: `qa-engineer` · **Skills**: `core/qa-coverage-mapping`
+> **Skills**: `core/qa-coverage-mapping`
 
-## Persona
+## Role framing
 
-Adopt the **`qa-engineer`** persona
-([`.agents/personas/qa-engineer.md`](../personas/qa-engineer.md)) for the whole
-run. You are the quality gatekeeper: you value coverage, hermetic
-environments, deterministic results, and — per that persona's Golden Rule —
-you **never invent the signal**. The human owns what was observed; you enrich
-it. Re-read that persona file as your first action.
+You are the quality gatekeeper for this run: value coverage, hermetic
+environments, and deterministic results. **Never invent the signal** — the
+human owns what was observed; you enrich it. Apply the QA skills; there is
+no separate persona pack.
 
 ## Slash Command
 
@@ -69,7 +67,7 @@ it. Re-read that persona file as your first action.
 | `observation` | no       | `"sync-commands wipes .claude on a reused name"` | An optional first observation, or a brain dump of several. **Usually omitted** — the normal launch is a bare `/qa-assist`, which does Setup and then waits. If supplied, run Setup first, then feed it in as the first intake (splitting it if it carries multiple observations). |
 
 A bare `/qa-assist` is the expected entry point. **Do not** demand an
-observation up front and **do not** synthesize one — the `qa-engineer` Golden
+observation up front and **do not** synthesize one — the QA Golden
 Rule forbids inventing the signal. Set up, announce ready, and wait.
 
 ## Project contract
@@ -140,7 +138,7 @@ ledger is hard-gated.**
 
 Goal: become the operator's QA assistant before any observation arrives.
 
-1. Re-read the `qa-engineer` persona.
+1. Re-read the QA role framing and `core/qa-coverage-mapping` skill.
 2. **Load codebase context.** Read the files in `project.docsContextFiles`
    (architecture, decisions, patterns) and, when the testing touches UI/routing,
    `docs/style-guide.md` / `docs/web-routes.md`. This is the context you will
@@ -321,32 +319,28 @@ its transition is **explicitly operator-gated**.
    import { promoteFindings } from '../scripts/lib/findings/promote-finding.js';
    const { promotions } = await promoteFindings(ledgerItems, {
      searchIssues, // GitHub provider, open + closed
-     createStory, // tight cluster (≤2 surfaces): render seed → /plan --from-notes
-     createEpic, // broad cluster (>2 surfaces): render seed → /plan --idea
+     createStory, // tight cluster (≤2 surfaces): seed → /plan --seed-file
+     createEpic, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
    });
    ```
 
    - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
      `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
      distinct coverage surfaces routes to `createStory`; **>2** routes to
-     `createEpic`. Do not re-cluster, re-size, or re-dedup in the workflow —
+     `createEpic`. Neither port opens an Epic ticket — both chain
+     `/plan --seed-file`. Do not re-cluster, re-size, or re-dedup in the
+     workflow —
      [`route-finding.js`](../scripts/lib/findings/route-finding.js) /
      [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) are the
      single implementation.
-   - **`createStory` (`/plan --from-notes`)** — render a **redacted**
-     `--from-notes` seed from the cluster (reuse the `/audit-to-stories`
-     Phase 5b notes shape; redaction already ran in Phase 2), **stamp the
+   - **`createStory` / `createEpic` (`/plan --seed-file`)** — render a
+     **redacted** plan seed from the cluster (reuse the `/audit-to-stories`
+     Phase 5a seed shape; redaction already ran in Phase 2), **stamp the
      cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then
-     chain `/plan --from-notes <seed>`. The footer must survive into the issue
-     body the Story create path writes — it round-trips through
-     `story-plan.js --body <file> --dry-run` unchanged (asserted by the
-     deterministic round-trip test under `tests/`) so a later `routeFinding`
-     dedups the same finding instead of re-filing it.
-   - **`createEpic` (`/plan --idea`)** — carry the cluster's
-     `fingerprintFooter(sha)` into the `/plan --idea` seed, then chain
-     `/plan --idea <seed>`. **Known limitation (not solved here):**
-     per-child-Story fingerprint propagation through full Epic decomposition is
-     *not* guaranteed — the fingerprint is carried in the Epic seed only.
+     chain `/plan --seed-file <seed>`. Prefer one Story; split only under
+     the default-single policy. The footer must survive into the issue body
+     so a later `routeFinding` dedups the same finding instead of re-filing
+     it.
    - **A `file` disposition never opens a raw GitHub Issue.** Every `file`
      finding flows through `promoteFindings` → `/plan`; only `defer` (carry
      forward as backlog) and `dismiss` (non-actionable) skip the handoff.
@@ -359,8 +353,8 @@ its transition is **explicitly operator-gated**.
 
 After planning, summarize: the findings recorded, the route/promotion decisions
 (`new`/`update-existing`/`duplicate`/`regression-of-closed`), whether each
-cluster became a Story (`/plan --from-notes`) or Epic (`/plan --idea`), and any
-`defer` backlog a resumed session will pick up.
+cluster became a Story via `/plan --seed-file`, and any `defer` backlog a
+resumed session will pick up.
 
 ---
 
@@ -404,7 +398,7 @@ cluster became a Story (`/plan --from-notes`) or Epic (`/plan --idea`), and any
   are deterministic — never re-derive them in prose.
 - **Promote through `/plan`, never a raw Issue.** A `file`-dispositioned
   finding is promoted via `promoteFindings`, which chains into
-  [`/plan`](plan.md) (`--from-notes` for a tight cluster, `--idea` for a broad
+  [`/plan`](plan.md) (`--seed-file` for a tight cluster, `--seed` for a broad
   one) — mirroring [`/audit-to-stories`](audit-to-stories.md). `/qa-assist`
   never opens a bare GitHub Issue for a `file` finding. The cluster's
   `fingerprintFooter(sha)` is stamped verbatim into the seed so a future
@@ -413,7 +407,7 @@ cluster became a Story (`/plan --from-notes`) or Epic (`/plan --idea`), and any
 ## See also
 
 - [`/plan`](plan.md) — the planning pipeline `/qa-assist` chains into in
-  Phase 4 (`--from-notes` for a Story, `--idea` for an Epic). The plan→deliver
+  Phase 4 (`--seed-file` / `--seed`). The plan→deliver
   hard stop is preserved across the handoff.
 - [`/qa-explore`](qa-explore.md) — the agent-led sibling that drives a named
   surface and triages through the same `/plan` handoff.

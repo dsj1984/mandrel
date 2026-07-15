@@ -22,10 +22,9 @@
  * retired; `runSpecPhase` (`phases/run-spec-phase.js`) now calls
  * `validateSpecSections` directly against the in-memory authored content as
  * part of its input validation, before any GitHub mutation. This is the
- * Phase 8-side counterpart to the Phase 6 Epic Clarity Gate
- * ({@link ../epic-plan-clarity.js#scoreEpicBody}) — same detect-then-prompt
- * pattern, one phase later, but a hard gate (fail closed) rather than an
- * advisory rubric.
+ * Phase 8-side counterpart to the retired Phase 6 Epic Clarity Gate —
+ * same detect-then-prompt pattern, one phase later, but a hard gate
+ * (fail closed) rather than an advisory rubric.
  *
  * `validateSpecSections` and `formatMissingSectionMessage` are pure, I/O-free
  * helpers. `validateSpecFile` is a thin disk-reading convenience for callers
@@ -33,7 +32,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { DELIVERY_SLICING_RE } from '../epic-body-sections.js';
+import { DELIVERY_SLICING_RE } from '../ticket-body-sections.js';
 
 /**
  * The single required Tech Spec section, with the heading variants the

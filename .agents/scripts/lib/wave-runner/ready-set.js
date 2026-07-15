@@ -2,8 +2,8 @@
  * lib/wave-runner/ready-set.js — the path-agnostic ready-set scheduling
  * core.
  *
- * This module is the scheduling kernel both the Epic and standalone
- * delivery paths dispatch through. It replaces wave-*batch* selection
+ * This module is the scheduling kernel the v2 `/deliver` multi-Story path
+ * dispatches through (`stories-wave-tick.js`). It replaces wave-*batch* selection
  * (group N must fully drain before group N+1 opens) with *continuous*,
  * dependency-driven selection: a Story becomes dispatchable the instant
  * **its own** dependencies are satisfied, regardless of whether unrelated
@@ -15,14 +15,14 @@
  * reads GitHub, the lifecycle ledger, nor a checkpoint, and it dispatches
  * nothing. Callers supply the live Story records (already fetched), the
  * resolved `inFlight` count, and the `globalCap`, and receive back the set
- * of Stories that are safe to dispatch on this beat. Later Stories wire the
- * Epic / standalone adapters on top of this core; this Story ships the core
- * alone and does not modify `tick.js` or `stories-wave-tick.js`.
+ * of Stories that are safe to dispatch on this beat. The
+ * `stories-wave-tick.js` adapter wires this core; this module does not
+ * modify that CLI surface.
  *
  * Three exports:
  *   - `classifyStory(story)` — live-label classifier mapping a Story
  *     record's labels + issue state to one of `done | blocked | executing |
- *     ready`. Mirrors the done-predicate `tick.js` already uses
+ *     ready`. Mirrors the done-predicate this module uses
  *     (`agent::done` OR closed issue) so a Story closed manually through
  *     the GitHub UI is recognised as done.
  *   - `storiesOverlap(a, b)` — the file-overlap co-dispatch guard: true

@@ -347,7 +347,7 @@ test('ticketing.js', async (t) => {
       // allowlist model `transitionTicketState` suppresses low-severity
       // (untyped or task) dispatches at the emit point, so the cascade
       // would otherwise silently drop every fire. Both intermediate
-      // tickets are tagged `type::story` rather than `type::epic` because
+      // tickets are tagged `type::story` rather than the retired Epic type because
       // `cascadeCompletion` deliberately *skips* auto-close on Epics
       // (their close path is `/deliver`, not the cascade).
       mock.tickets[1].labels = ['agent::executing', 'type::story'];
@@ -405,7 +405,6 @@ test('ticketing.js', async (t) => {
         'epic-run-progress',
         'epic-plan-state',
         'parked-follow-ons',
-        'dispatch-manifest',
         // Story #566 — phase-timings summary posted by story-close.
         'phase-timings',
       ]) {
@@ -741,21 +740,15 @@ test('ticketing.js', async (t) => {
   );
 
   await t.test(
-    'cascadeCompletion auto-closes Feature but not Epic (AC-05 regression)',
+    'cascadeCompletion auto-closes the full story-only parent chain',
     async () => {
-      // Build a typed hierarchy: Epic E > Feature F > Story S > Task T.
-      // The authoritative contract (docs/architecture.md § Cascade Behavior
-      // and the comment in ticketing.js::cascadeCompletion) is:
-      //   - Story auto-closes via cascade
-      //   - Feature auto-closes via cascade (pinned behavior — Features are
-      //     purely hierarchical groupings with no standalone branch/merge)
-      //   - Epic does NOT auto-close via cascade (reserved for /deliver)
-      // This test pins that contract so a future edit that adds Feature to
-      // the exclusion list or drops Epic from it fails loudly.
+      // Build a typed hierarchy: parent P > Feature F > Story S > Task T.
+      // Stage 5 removed the Epic-type exclusion, so the story-only cascade
+      // now walks and closes every all-done parent in the chain.
       mock.tickets[10] = {
         id: 10,
-        labels: ['agent::executing', 'type::epic'],
-        body: 'Epic body\n- [ ] #11',
+        labels: ['agent::executing', 'type::story'],
+        body: 'Parent body\n- [ ] #11',
         state: 'open',
       };
       mock.tickets[11] = {
@@ -801,20 +794,14 @@ test('ticketing.js', async (t) => {
         'Feature must auto-close via cascade (pinned behavior)',
       );
       assert.ok(
-        !mock.tickets[10].labels.includes('agent::done'),
-        'Epic must NOT auto-close via cascade — reserved for /deliver',
-      );
-      assert.ok(
-        mock.tickets[10].labels.includes('agent::executing'),
-        'Epic must retain its prior state label when cascade stops',
+        mock.tickets[10].labels.includes('agent::done'),
+        'Parent must auto-close once every child is done',
       );
 
-      // Parent-checkbox toggling should still happen up to the Epic —
-      // cascade walks upward, ticks the box, then bails on the type::epic
-      // exclusion. Verifies the checkbox pass runs before the exclusion.
+      // Parent-checkbox toggling should still happen up the chain.
       assert.ok(
         mock.tickets[10].body.includes('- [x] #11'),
-        'Epic checkbox for Feature must be ticked even though Epic stays open',
+        'Parent checkbox for Feature must be ticked',
       );
     },
   );

@@ -2,7 +2,8 @@
  * Unit tests for `review-provider-factory.js`.
  *
  * Story #2825 (Epic #2815) — verifies:
- *   - Unset `codeReview.provider` defaults to `native`.
+ *   - Unset / empty `codeReview.providers` defaults to a single-entry
+ *     `native` chain.
  *   - Unknown provider name throws an Error whose message names the
  *     unknown value, lists the supported values, and points the
  *     operator at `.agentrc.json` for remediation.
@@ -22,31 +23,38 @@ import {
   listRegisteredProviders,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 
-test('createReviewProvider: defaults to native when codeReview is unset', () => {
+test('createReviewProvider: defaults to native chain when codeReview is unset', () => {
   const provider = createReviewProvider(undefined);
   assert.equal(typeof provider.runReview, 'function');
+  assert.equal(typeof provider.getPromptMessages, 'function');
+  assert.equal(provider.chain.inline.length, 1);
+  assert.equal(provider.chain.inline[0].name, 'native');
 });
 
-test('createReviewProvider: defaults to native when provider field is missing', () => {
-  const provider = createReviewProvider({ providerConfig: {} });
-  assert.equal(typeof provider.runReview, 'function');
+test('createReviewProvider: defaults to native chain when providers is missing or empty', () => {
+  for (const config of [{ providerConfig: {} }, { providers: [] }]) {
+    const provider = createReviewProvider(config);
+    assert.equal(typeof provider.runReview, 'function');
+    assert.equal(provider.chain.inline.length, 1);
+    assert.equal(provider.chain.inline[0].name, 'native');
+  }
 });
 
-test('createReviewProvider: explicit native selection returns a provider', () => {
-  const provider = createReviewProvider({ provider: 'native' });
+test('createReviewProvider: explicit native chain entry returns a provider', () => {
+  const provider = createReviewProvider({ providers: [{ name: 'native' }] });
   assert.equal(typeof provider.runReview, 'function');
 });
 
 test('createReviewProvider: throws with remediation text on unknown provider', () => {
   assert.throws(
-    () => createReviewProvider({ provider: 'gemini' }),
+    () => createReviewProvider({ providers: [{ name: 'gemini' }] }),
     (err) => {
       assert.ok(err instanceof Error);
-      assert.match(err.message, /Unknown codeReview\.provider "gemini"/);
-      assert.match(err.message, /Supported values:/);
+      assert.match(err.message, /Unknown inline provider "gemini"/);
+      assert.match(err.message, /Supported values for this slot:/);
       assert.match(err.message, /native/);
       assert.match(err.message, /codex/);
-      assert.match(err.message, /\.agentrc\.json/);
+      assert.match(err.message, /codeReview\.providers chain/);
       return true;
     },
   );
@@ -61,7 +69,7 @@ test('createReviewProvider: codex is a registered provider name', () => {
 
 test('createReviewProvider: codex selection with present probe returns a provider', () => {
   const provider = createReviewProvider(
-    { provider: 'codex' },
+    { providers: [{ name: 'codex' }] },
     {
       registry: {
         codex: () => createCodexProvider({ probeFn: () => true }),
@@ -78,7 +86,7 @@ test('createReviewProvider: codex selection hard-fails when probe reports absent
   assert.throws(
     () =>
       createReviewProvider(
-        { provider: 'codex' },
+        { providers: [{ name: 'codex' }] },
         {
           registry: {
             codex: () => createCodexProvider({ probeFn: () => false }),
@@ -100,10 +108,10 @@ test('createReviewProvider: codex selection hard-fails when probe reports absent
 test('createReviewProvider: honors injected registry for adapter tests', async () => {
   const sentinel = { runReview: async () => [] };
   const provider = createReviewProvider(
-    { provider: 'fake' },
+    { providers: [{ name: 'fake' }] },
     { registry: { fake: () => sentinel } },
   );
-  assert.strictEqual(provider, sentinel);
+  assert.strictEqual(provider.chain.inline[0].provider, sentinel);
   // Smoke-call the stub to keep the contract intact.
   const findings = await provider.runReview({
     scope: 'story',

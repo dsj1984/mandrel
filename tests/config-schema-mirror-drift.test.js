@@ -129,16 +129,14 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         },
         delivery: {
           execution: { timeoutMs: 600000 },
-          maxTokenBudget: 200000,
           docsFreshness: { paths: ['README.md'] },
-          deliverRunner: { concurrencyCap: 3, progressReportIntervalSec: 120 },
+          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
           worktreeIsolation: {
             enabled: true,
             root: '.worktrees',
             nodeModulesStrategy: 'per-worktree',
           },
           signals: {
-            hotspot: { p95Multiplier: 1.25 },
             rework: { editsPerFile: 5 },
             retry: { repeatCount: 3 },
           },
@@ -156,7 +154,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
                 enabled: true,
                 baselinePath: 'baselines/crap.json',
                 tolerance: { kind: 'absolute', value: 0.05 },
-                floors: { '*': { crap: 20 } },
+                floors: { '*': { max: 30, p95: 20, methodsAbove20: 50 } },
                 targetDirs: ['src'],
                 newMethodCeiling: 30,
                 requireCoverage: true,
@@ -276,12 +274,11 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
-  it('accepts delivery.epicAudit/codeReview.autoFixSeverity on both sides (Story #4399)', () => {
+  it('accepts delivery.codeReview.autoFixSeverity on both sides (Story #4399)', () => {
     assertAgree(
       {
         ...REQ,
         delivery: {
-          epicAudit: { autoFixSeverity: 'high' },
           codeReview: { autoFixSeverity: 'medium' },
         },
       },
@@ -289,13 +286,65 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('rejects delivery.epicAudit on both sides (removed on v2)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          epicAudit: { autoFixSeverity: 'high' },
+        },
+      },
+      'removed delivery.epicAudit block',
+    );
+  });
+
   it('rejects an unknown autoFixSeverity value on both sides (Story #4399)', () => {
     assertAgree(
       {
         ...REQ,
-        delivery: { epicAudit: { autoFixSeverity: 'low' } },
+        delivery: { codeReview: { autoFixSeverity: 'low' } },
       },
       'autoFixSeverity enum high|medium only',
+    );
+  });
+
+  it('rejects delivery.maxTokenBudget on both sides (framework constant)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { maxTokenBudget: 200000 },
+      },
+      'removed delivery.maxTokenBudget knob',
+    );
+  });
+
+  it('rejects delivery.preflight on both sides (module removed)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { preflight: { maxStories: 100 } },
+      },
+      'removed delivery.preflight block',
+    );
+  });
+
+  it('rejects delivery.ci.earlyPr on both sides (Story #4356)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { ci: { earlyPr: false } },
+      },
+      'removed delivery.ci.earlyPr knob',
+    );
+  });
+
+  it('rejects delivery.ci.requireChecks on both sides (Story #4356)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { ci: { requireChecks: true } },
+      },
+      'removed delivery.ci.requireChecks knob',
     );
   });
 
@@ -395,6 +444,16 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('rejects dropped signals.hotspot on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
+      },
+      'dropped signals.hotspot',
+    );
+  });
+
   it('rejects dropped signals.churn on both sides', () => {
     assertAgree(
       {
@@ -415,35 +474,33 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
-  it('accepts the collapsed planning.taskSizing flat knobs on both sides (Story #3760)', () => {
+  it('rejects planning.modelCapacity on both sides (framework constant)', () => {
     assertAgree(
       {
         ...REQ,
         planning: {
-          taskSizing: {
-            softFiles: 6,
-            hardFiles: 18,
-            softAcceptanceCount: 6,
+          modelCapacity: {
+            softSessionTokens: 20000,
+            hardSessionTokens: 60000,
           },
         },
       },
-      'planning.taskSizing flat knobs',
+      'collapsed planning.modelCapacity key',
     );
   });
 
-  it('rejects the retired profileCeilings key inside planning.taskSizing on both sides (Story #3760)', () => {
+  it('rejects the retired planning.taskSizing key on both sides (v2 Stage 2)', () => {
     assertAgree(
       {
         ...REQ,
         planning: {
           taskSizing: {
-            profileCeilings: {
-              'mechanical-sweep': { soft: 5, hard: 10 },
-            },
+            softFiles: 15,
+            hardFiles: 30,
           },
         },
       },
-      'retired profileCeilings key in taskSizing',
+      'retired planning.taskSizing key',
     );
   });
 

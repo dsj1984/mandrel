@@ -57,7 +57,7 @@ function toScanString(value) {
 /**
  * Return true when `haystack` contains any framework prefix as a
  * substring. We use `includes` (not `startsWith`) because a command line
- * like `node .agents/scripts/story-init.js` carries the prefix in the
+ * like `node .agents/scripts/single-story-init.js` carries the prefix in the
  * middle, and a failing-path like `repo/.agents/foo.js` may carry an
  * absolute prefix.
  *
@@ -83,13 +83,13 @@ function containsFrameworkPrefix(haystack) {
  * Framework-wins: if either input matches a framework prefix, the result
  * is `"framework"` even when the other input looks consumer-shaped. This
  * matters for mixed cases like a consumer test invoking
- * `node .agents/scripts/story-init.js` — that's framework friction even
+ * `node .agents/scripts/single-story-init.js` — that's framework friction even
  * though the failing test path lives under the consumer.
  *
  * @param {unknown} failingPath  The path of the file or directory the
  *                               signal blames (e.g. `"tests/foo.test.js"`).
  * @param {unknown} command       The command line the signal blames
- *                                (e.g. `"node .agents/scripts/story-init.js"`).
+ *                                (e.g. `"node .agents/scripts/single-story-init.js"`).
  * @returns {"framework"|"consumer"}
  */
 export function classifyPathSource(failingPath, command) {

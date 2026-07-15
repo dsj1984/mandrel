@@ -218,7 +218,6 @@ describe('buildContextEnvelope', () => {
     const envelope = buildContextEnvelope({
       seed: 'seed text',
       refine: { refine: true, reason: 'seed-shorter-than-200-chars' },
-      persona: 'engineer',
       bodyTemplate: '# {{title}}\n',
       duplicateCandidates: [{ id: 1, title: 't', score: 0.42 }],
       techStack: '## Tech Stack\nNode 22',
@@ -231,7 +230,7 @@ describe('buildContextEnvelope', () => {
     assert.equal(envelope.kind, 'story-plan-context');
     assert.equal(envelope.version, 1);
     assert.equal(envelope.seed, 'seed text');
-    assert.equal(envelope.persona, 'engineer');
+    assert.equal(envelope.persona, undefined);
     assert.deepEqual(envelope.requiredSections, REQUIRED_SECTIONS);
     assert.equal(envelope.duplicateCandidates.candidates.length, 1);
     assert.equal(envelope.techStack, '## Tech Stack\nNode 22');
@@ -241,19 +240,15 @@ describe('buildContextEnvelope', () => {
     });
     assert.equal(
       envelope.deliverContract.workflow,
-      '.agents/workflows/helpers/single-story-deliver.md',
+      '.agents/workflows/helpers/deliver-story.md',
     );
-    assert.ok(envelope.deliverContract.requiredLabels.includes('type::story'));
-    assert.ok(
-      envelope.deliverContract.requiredLabels.includes('persona::engineer'),
-    );
+    assert.deepEqual(envelope.deliverContract.requiredLabels, ['type::story']);
   });
 
   it('passes through a null techStack', () => {
     const envelope = buildContextEnvelope({
       seed: 'x',
       refine: { refine: false, reason: 'x' },
-      persona: 'engineer',
       bodyTemplate: '',
       duplicateCandidates: [],
     });
@@ -264,7 +259,6 @@ describe('buildContextEnvelope', () => {
     const envelope = buildContextEnvelope({
       seed: 'x',
       refine: { refine: false, reason: 'x' },
-      persona: 'engineer',
       bodyTemplate: '',
       duplicateCandidates: [],
     });
@@ -286,37 +280,37 @@ describe('extractTitle', () => {
 });
 
 describe('resolveSeed', () => {
-  it('returns the --idea seed verbatim', async () => {
+  it('returns the --seed seed verbatim', async () => {
     const seed = await resolveSeed({
-      idea: 'a seed idea',
-      fromNotes: undefined,
+      seed: 'a seed idea',
+      seedFile: undefined,
     });
     assert.equal(seed, 'a seed idea');
   });
 
-  it('reads and trims the --from-notes file', async () => {
+  it('reads and trims the --seed-file file', async () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-seed-'));
     try {
       const notesPath = path.join(tmp, 'notes.md');
       writeFileSync(notesPath, '  seed from a file  \n');
-      const seed = await resolveSeed({ idea: undefined, fromNotes: notesPath });
+      const seed = await resolveSeed({ seed: undefined, seedFile: notesPath });
       assert.equal(seed, 'seed from a file');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  it('throws when both --idea and --from-notes are passed', async () => {
+  it('throws when both --seed and --seed-file are passed', async () => {
     await assert.rejects(
-      () => resolveSeed({ idea: 'x', fromNotes: 'y.md' }),
-      /Pass either --idea or --from-notes, not both/,
+      () => resolveSeed({ seed: 'x', seedFile: 'y.md' }),
+      /Pass either --seed or --seed-file, not both/,
     );
   });
 
-  it('throws when neither --idea nor --from-notes is passed', async () => {
+  it('throws when neither --seed nor --seed-file is passed', async () => {
     await assert.rejects(
-      () => resolveSeed({ idea: undefined, fromNotes: undefined }),
-      /requires --idea .* or --from-notes/,
+      () => resolveSeed({ seed: undefined, seedFile: undefined }),
+      /requires --seed .* or --seed-file/,
     );
   });
 });
@@ -331,7 +325,7 @@ describe('runEmitContext', () => {
     };
 
     await runEmitContext({
-      values: { idea: 'a small standalone change', pretty: false },
+      values: { seed: 'a small standalone change', pretty: false },
       provider: stubProvider,
       projectRoot: PROJECT_ROOT,
       config: stubConfig,
@@ -365,7 +359,7 @@ describe('runEmitContext', () => {
     process.chdir(tmpCwd);
     try {
       await runEmitContext({
-        values: { idea: 'a small standalone change', pretty: false },
+        values: { seed: 'a small standalone change', pretty: false },
         provider: stubProvider,
         projectRoot: PROJECT_ROOT,
         config: stubConfig,
@@ -417,11 +411,10 @@ describe('story-plan.js CLI: --dry-run --body', () => {
   it('prints the gh argv it would have run, never touches GitHub', () => {
     const bodyPath = path.join(tmp, 'draft.md');
     writeFileSync(bodyPath, VALID_BODY);
-    const r = spawnSync(
-      'node',
-      [CLI, '--body', bodyPath, '--dry-run', '--persona', 'engineer'],
-      { cwd: PROJECT_ROOT, encoding: 'utf8' },
-    );
+    const r = spawnSync('node', [CLI, '--body', bodyPath, '--dry-run'], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+    });
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // The persist-mode summary lands on stdout as JSON.
     const lines = r.stdout
@@ -433,8 +426,7 @@ describe('story-plan.js CLI: --dry-run --body', () => {
     const parsed = JSON.parse(r.stdout.slice(r.stdout.indexOf('{')));
     assert.equal(parsed.dryRun, true);
     assert.equal(parsed.title, 'Test standalone story');
-    assert.ok(parsed.labels.includes('type::story'));
-    assert.ok(parsed.labels.includes('persona::engineer'));
+    assert.deepEqual(parsed.labels, ['type::story']);
     // The argv shape must match what gh-exec would receive.
     assert.deepEqual(parsed.argv, [
       'issue',
@@ -445,8 +437,6 @@ describe('story-plan.js CLI: --dry-run --body', () => {
       bodyPath,
       '--label',
       'type::story',
-      '--label',
-      'persona::engineer',
     ]);
   });
 
@@ -532,7 +522,7 @@ describe('story-plan.js runPersist: Projects V2 board membership (Story #3822)',
     const summaries = [];
 
     await runPersist({
-      values: { body: bodyPath, persona: 'engineer' },
+      values: { body: bodyPath },
       provider,
       dryRun: false,
       // Capture the summary JSON via the injectable stdout port so raw
@@ -552,7 +542,7 @@ describe('story-plan.js runPersist: Projects V2 board membership (Story #3822)',
     const summaries = [];
 
     await runPersist({
-      values: { body: bodyPath, persona: 'engineer' },
+      values: { body: bodyPath },
       provider,
       dryRun: false,
       write: (s) => summaries.push(s),

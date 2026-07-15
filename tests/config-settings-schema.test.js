@@ -222,45 +222,32 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('accepts the collapsed planning.taskSizing flat knobs (Story #3760)', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: {
-          taskSizing: {
-            softFiles: 5,
-            hardFiles: 15,
-            softAcceptanceCount: 6,
-          },
-        },
-      }),
-      true,
-    );
-  });
-
-  it('rejects the removed maxAcceptance knob — acceptance mass is advisory-only', () => {
-    // The hard acceptance ceiling was removed after the Epic #4355
-    // decomposition experiment; `additionalProperties: false` on the
-    // taskSizing block now rejects the retired key.
+  it('rejects planning.modelCapacity — collapsed to a framework constant', () => {
+    // Session-capacity thresholds live only as DEFAULT_MODEL_CAPACITY.
+    // `additionalProperties: false` on the planning block rejects the
+    // removed key (same pattern as planning.maxTickets / Story #4163).
     expectErrors(
       {
         ...REQ,
         planning: {
-          taskSizing: { maxAcceptance: 14 },
+          modelCapacity: {
+            softSessionTokens: 20000,
+            hardSessionTokens: 60000,
+          },
         },
       },
       /additional propert/i,
     );
   });
 
-  it('rejects the retired per-profile taskSizing keys (Story #3760)', () => {
+  it('rejects the retired planning.taskSizing key (v2 Stage 2)', () => {
+    // File/AC ceilings were replaced by DEFAULT_MODEL_CAPACITY; additionalProperties
+    // false on the planning block rejects the retired key.
     expectErrors(
       {
         ...REQ,
         planning: {
-          taskSizing: {
-            profileCeilings: { '': { soft: 3, hard: 6 } },
-          },
+          taskSizing: { softFiles: 15, hardFiles: 30 },
         },
       },
       /additional propert/i,
@@ -326,7 +313,7 @@ describe('delivery.* shape', () => {
       validate({
         ...REQ,
         delivery: {
-          deliverRunner: { concurrencyCap: 3, progressReportIntervalSec: 120 },
+          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
         },
       }),
       true,
@@ -375,19 +362,28 @@ describe('delivery.* shape', () => {
     );
   });
 
-  it('accepts delivery.signals.{hotspot,rework,retry}', () => {
+  it('accepts delivery.signals.{rework,retry}', () => {
     assert.equal(
       validate({
         ...REQ,
         delivery: {
           signals: {
-            hotspot: { p95Multiplier: 1.25 },
             rework: { editsPerFile: 5 },
             retry: { repeatCount: 3 },
           },
         },
       }),
       true,
+    );
+  });
+
+  it('rejects retired signals.hotspot detector', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
+      },
+      /additional properties/,
     );
   });
 
@@ -431,7 +427,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       enabled: true,
       baselinePath: 'baselines/crap.json',
       tolerance: { kind: 'absolute', value: 0.05 },
-      floors: { '*': { crap: 20 } },
+      floors: { '*': { max: 30, p95: 20, methodsAbove20: 50 } },
       targetDirs: ['src'],
       newMethodCeiling: 30,
       requireCoverage: true,
@@ -725,12 +721,12 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
   });
 });
 
-describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => {
-  it('accepts provider: "native"', () => {
+describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () => {
+  it('accepts providers: [{ name: "native" }]', () => {
     assert.equal(
       validate({
         ...REQ,
-        delivery: { codeReview: { provider: 'native' } },
+        delivery: { codeReview: { providers: [{ name: 'native' }] } },
       }),
       true,
     );
@@ -764,26 +760,26 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
     );
   });
 
-  it('accepts provider: "codex" (Story #2830 — codex ReviewProvider adapter)', () => {
+  it('accepts providers: [{ name: "codex" }] (Story #2830 — codex ReviewProvider adapter)', () => {
     assert.equal(
       validate({
         ...REQ,
-        delivery: { codeReview: { provider: 'codex' } },
+        delivery: { codeReview: { providers: [{ name: 'codex' }] } },
       }),
       true,
     );
   });
 
-  it('rejects provider: "gemini" (not registered)', () => {
+  it('rejects legacy provider field (hard cutover)', () => {
     expectErrors(
-      { ...REQ, delivery: { codeReview: { provider: 'gemini' } } },
-      /must be equal to one of the allowed values|enum/,
+      { ...REQ, delivery: { codeReview: { provider: 'native' } } },
+      /additional properties/,
     );
   });
 
-  it('rejects an unknown provider string', () => {
+  it('rejects providers entry with unknown name', () => {
     expectErrors(
-      { ...REQ, delivery: { codeReview: { provider: 'bogus' } } },
+      { ...REQ, delivery: { codeReview: { providers: [{ name: 'gemini' }] } } },
       /must be equal to one of the allowed values|enum/,
     );
   });
@@ -811,7 +807,7 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
         ...REQ,
         delivery: {
           codeReview: {
-            provider: 'native',
+            providers: [{ name: 'native' }],
             providerConfig: {},
             maxFixAttempts: 3,
             maxFixScopeFiles: 5,

@@ -15,6 +15,33 @@ import {
   sampledFresh,
 } from '../../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 
+describe('resolveCeremonyForRisk — ceremony profiles', () => {
+  test('minimal → always inline regardless of risk', () => {
+    for (const overallLevel of ['low', 'medium', 'high', undefined]) {
+      const d = resolveCeremonyForRisk({
+        overallLevel,
+        clusterIndex: 0,
+        ceremonyProfile: 'minimal',
+        freshCriticSampleRate: 1,
+      });
+      assert.equal(d.mode, 'inline');
+      assert.equal(d.profile, 'minimal');
+      assert.equal(d.sampled, false);
+    }
+  });
+
+  test('strict → always fresh regardless of risk', () => {
+    const d = resolveCeremonyForRisk({
+      overallLevel: 'low',
+      clusterIndex: 1,
+      ceremonyProfile: 'strict',
+      freshCriticSampleRate: 0,
+    });
+    assert.equal(d.mode, 'fresh');
+    assert.equal(d.profile, 'strict');
+  });
+});
+
 describe('resolveCeremonyForRisk — per-cluster tier rules', () => {
   test('high risk → fresh', () => {
     const d = resolveCeremonyForRisk({ overallLevel: 'high', clusterIndex: 0 });

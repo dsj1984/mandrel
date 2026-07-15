@@ -62,9 +62,7 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
 /**
  * Shared set of tag tokens that mean "this scenario does not yet satisfy
  * its AC — treat coverage as pending, not satisfied." Sourced from every
- * `pendingTag` value in `BDD_RUNNER_TAG_TABLE` plus the historical
- * `@pending` literal for backward compatibility with feature files
- * authored before runner-aware detection.
+ * pending-tag value in `BDD_RUNNER_TAG_TABLE` (today `@skip` / `skip`).
  *
  * Both the prefixed (`@skip`) and the unprefixed (`skip`) form of each
  * tag are included so consumers can look up either the raw tag string
@@ -75,18 +73,16 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
  *   - `acceptance-spec-reconciler.classifyCoverage` — membership check
  *     against parsed scenario tag sets.
  *   - Contract tests that walk `BDD_RUNNER_TAG_TABLE` and assert each
- *     `pendingTag` is registered here, guarding against drift when a
+ *     pending tag is registered here, guarding against drift when a
  *     new runner is added.
  */
 export const PENDING_TAGS = Object.freeze(
-  new Set([
-    ...Object.values(BDD_RUNNER_TAG_TABLE).flatMap((tag) => [
+  new Set(
+    Object.values(BDD_RUNNER_TAG_TABLE).flatMap((tag) => [
       tag,
       tag.startsWith('@') ? tag.slice(1) : `@${tag}`,
     ]),
-    '@pending',
-    'pending',
-  ]),
+  ),
 );
 
 /**

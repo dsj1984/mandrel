@@ -8,9 +8,8 @@
  * 1. **Version resolution.** Under npm distribution the root `package.json`
  *    is the canonical version marker. {@link resolveFrameworkVersion} reads it
  *    and degrades to `'unknown'` (never throws) so a missing/unreadable
- *    manifest can never crash an authoring or hydration path. The private
- *    `getVersion()` in `lib/orchestration/context-hydration-engine.js`
- *    delegates here (DRY — one manifest reader).
+ *    manifest can never crash an authoring path. All ticket-body stamp
+ *    producers delegate here (DRY — one manifest reader).
  *
  * 2. **Ticket-body stamp.** Epics and Stories are stamped **once at authoring
  *    time** with the running version and the authoring date, via a hybrid

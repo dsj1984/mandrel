@@ -7,19 +7,19 @@ import {
 } from '../.agents/scripts/lib/plan-phase-cleanup.js';
 
 describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
-  it('returns per-Epic paths under temp/epic-<id>/ for the spec phase', () => {
+  it('returns per-Epic paths under temp/run-<id>/ for the spec phase', () => {
     const paths = resolvePhaseTempPaths('spec', 441, '/repo');
     assert.equal(paths.length, PHASE_TEMP_BASENAMES.spec.length);
-    assert.ok(paths.every((p) => p.includes('epic-441')));
+    assert.ok(paths.every((p) => p.includes('run-441')));
     assert.ok(paths.some((p) => p.endsWith('techspec.md')));
     assert.ok(paths.some((p) => p.endsWith('acceptance-spec.md')));
     assert.ok(paths.some((p) => p.endsWith('planner-context.json')));
   });
 
-  it('returns per-Epic paths under temp/epic-<id>/ for the decompose phase', () => {
+  it('returns per-Epic paths under temp/run-<id>/ for the decompose phase', () => {
     const paths = resolvePhaseTempPaths('decompose', 999_007, '/repo');
     assert.equal(paths.length, PHASE_TEMP_BASENAMES.decompose.length);
-    assert.ok(paths.every((p) => p.includes('epic-999007')));
+    assert.ok(paths.every((p) => p.includes('run-999007')));
     assert.ok(paths.some((p) => p.endsWith('tickets.json')));
     assert.ok(paths.some((p) => p.endsWith('decomposer-context.json')));
   });

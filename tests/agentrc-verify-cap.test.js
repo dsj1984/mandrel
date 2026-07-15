@@ -56,11 +56,10 @@ describe('delivery.deliverRunner.verifyConcurrencyCap (Story #3024)', () => {
     assert.equal(
       validate({
         concurrencyCap: 3,
-        progressReportIntervalSec: 120,
         verifyConcurrencyCap: 8,
       }),
       true,
-      'all three keys together should validate',
+      'concurrencyCap + verifyConcurrencyCap together should validate',
     );
   });
 

@@ -745,7 +745,7 @@ describe('runUninstall — preserves a pre-existing .agentrc.json (Story #3895)'
     const handAuthored = {
       $schema: './.agents/schemas/agentrc.schema.json',
       github: { owner: 'operator', repo: 'their-repo' },
-      delivery: { maxTokenBudget: 99999 }, // operator-specific tuning
+      delivery: { deliverRunner: { concurrencyCap: 1 } }, // operator-specific tuning
     };
     writeJson(path.join(tmpRoot, '.agentrc.json'), handAuthored);
     writeLedger(tmpRoot, {

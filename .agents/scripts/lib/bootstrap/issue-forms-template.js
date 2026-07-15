@@ -1,10 +1,10 @@
 /**
  * bootstrap/issue-forms-template — Story #4227 (framework-gap)
  *
- * Generates GitHub **Issue Forms** (`.github/ISSUE_TEMPLATE/story.yml` and
- * `epic.yml`) derived from the canonical Story-body SSOT
+ * Generates the GitHub **Story Issue Form**
+ * (`.github/ISSUE_TEMPLATE/story.yml`) derived from the canonical Story-body SSOT
  * (`lib/story-body/story-body.js`). The forms exist so a human filing a
- * Story/Epic in the GitHub web UI produces a body that round-trips through
+ * Story in the GitHub web UI produces a body that round-trips through
  * the same `story-body.parse()` agents rely on — closing the
  * human↔agent ticket-shape gap.
  *
@@ -57,12 +57,11 @@ import path from 'node:path';
 const ISSUE_TEMPLATE_RELATIVE_DIR = '.github/ISSUE_TEMPLATE';
 
 /**
- * Relative paths of the two generated forms, surfaced as constants so tests
- * and the bootstrap caller assert the canonical write targets without
- * re-deriving them.
+ * Relative path of the generated Story form, surfaced as a constant so tests
+ * and the bootstrap caller assert the canonical write target without
+ * re-deriving it.
  */
 export const STORY_FORM_RELATIVE_PATH = `${ISSUE_TEMPLATE_RELATIVE_DIR}/story.yml`;
-export const EPIC_FORM_RELATIVE_PATH = `${ISSUE_TEMPLATE_RELATIVE_DIR}/epic.yml`;
 
 /**
  * The human **intent subset** of the Story-body schema, in canonical
@@ -102,8 +101,12 @@ export const HUMAN_INTENT_FIELDS = [
     heading: 'Changes',
     label: 'Changes',
     description:
-      'Files or globs this work touches, one per line (e.g. `- src/foo.js: add handler`). Advisory — the binding contract is Acceptance/Verify.',
-    placeholder: '- src/foo.js: add the handler\n- tests/foo.test.js: cover it',
+      'Files this work touches, one per line as JSON objects: ' +
+      '`{ "path": "…", "assumption": "creates"|"refactors-existing"|"exists"|"deletes" }`. ' +
+      'Advisory — the binding contract is Acceptance/Verify.',
+    placeholder:
+      '- {"path":"src/foo.js","assumption":"creates"}\n' +
+      '- {"path":"tests/foo.test.js","assumption":"creates"}',
     required: false,
     kind: 'textarea',
   },
@@ -132,8 +135,10 @@ export const HUMAN_INTENT_FIELDS = [
     id: 'references',
     heading: 'References',
     label: 'References',
-    description: 'Read-only paths worth consulting, one per line. Optional.',
-    placeholder: '- docs/architecture.md',
+    description:
+      'Read-only paths worth consulting, one per line as JSON objects ' +
+      '`{ "path": "…", "assumption": "exists" }`. Optional.',
+    placeholder: '- {"path":"docs/architecture.md","assumption":"exists"}',
     required: false,
     kind: 'textarea',
   },
@@ -220,27 +225,26 @@ const GENERATED_BANNER =
   '# (lint-issue-body.js) is the drift guard between this form and the parser.';
 
 /**
- * Render the GitHub Issue Form YAML for a given ticket type (`story` or
- * `epic`). Both forms share the identical human-intent field set — the
- * difference is the `type::` label and the form name/description — because
- * `parse()` is type-agnostic over the body shape.
+ * Render the GitHub Issue Form YAML for Stories. Epics are no longer a
+ * ticket type in the label taxonomy, so the generated human-entry surface
+ * is story-only.
  *
  * The output is deterministic so the round-trip + idempotency tests assert
  * on its exact shape.
  *
- * @param {'story'|'epic'} ticketType
+ * @param {'story'} ticketType
  * @param {IssueFormOptions} [opts]
  * @returns {string}
  */
 export function renderIssueForm(ticketType, opts = {}) {
-  if (ticketType !== 'story' && ticketType !== 'epic') {
+  if (ticketType !== 'story') {
     throw new Error(
-      `renderIssueForm: ticketType must be 'story' or 'epic', got ${ticketType}`,
+      `renderIssueForm: ticketType must be 'story', got ${ticketType}`,
     );
   }
   const entryStateLabel = opts.entryStateLabel ?? 'agent::review-spec';
-  const typeLabel = `type::${ticketType}`;
-  const titleCase = ticketType === 'story' ? 'Story' : 'Epic';
+  const typeLabel = 'type::story';
+  const titleCase = 'Story';
   const projectSuffix = opts.projectName ? ` for ${opts.projectName}` : '';
 
   const fieldBlocks = HUMAN_INTENT_FIELDS.map(renderFieldBlock).join('\n');
@@ -309,8 +313,8 @@ export const CONFORMANCE_WORKFLOW_RELATIVE_PATH =
 
 /**
  * Render the CI workflow that runs the issue-body conformance lint
- * (`lint-issue-body.js`) on opened/edited `type::story` / `type::epic`
- * issues. This is the mechanism that prevents the generated forms and
+ * (`lint-issue-body.js`) on opened/edited `type::story` issues. This is
+ * the mechanism that prevents the generated form and
  * `story-body.parse()` from silently drifting (Story #4227 acceptance).
  * Deterministic so the bootstrap test asserts its exact shape. Internal —
  * exposed to consumers only through {@link ensureIssueForms}.
@@ -321,7 +325,7 @@ function renderConformanceWorkflow() {
   return `# Issue-body conformance lint (Story #4227).
 #
 # Generated by agents-bootstrap-github. Runs the canonical story-body parser
-# against human-opened type::story / type::epic issues and comments when the
+# against human-opened type::story issues and comments when the
 # body does not round-trip, instead of letting the supported human entry
 # points (e.g. /plan from an existing Epic ID) fail silently later. The lint
 # informs; it never fails the issue. Re-run /agents-bootstrap-github to refresh.
@@ -362,7 +366,7 @@ jobs:
 }
 
 /**
- * Write (or refresh) both issue forms into a project checkout. Idempotent at
+ * Write (or refresh) the Story issue form into a project checkout. Idempotent at
  * the byte level — mirrors {@link ensureCiWorkflow}'s contract:
  *
  * - file absent → `created`
@@ -378,7 +382,7 @@ jobs:
  * @param {IssueFormOptions} [args.options]
  * @param {boolean} [args.write=true] - When `false`, compute the would-be
  *   actions without touching disk (dry-run).
- * @returns {{ forms: Array<{ type: 'story'|'epic'|'conformance-workflow',
+ * @returns {{ forms: Array<{ type: 'story'|'conformance-workflow',
  *             action: 'created'|'unchanged'|'custom-skip',
  *             path: string, rendered: string }> }}
  */
@@ -387,19 +391,14 @@ export function ensureIssueForms(args) {
   const options = args.options ?? {};
   const write = args.write !== false;
 
-  // Each target pairs a ticket-type key with the rendered body. The
-  // conformance workflow is materialized alongside the forms because it is
-  // the forms' drift guard — they ship as one unit.
+  // Each target pairs a type key with the rendered body. The conformance
+  // workflow is materialized alongside the form because it is the form's
+  // drift guard — they ship as one unit.
   const targets = [
     {
       type: 'story',
       rel: STORY_FORM_RELATIVE_PATH,
       rendered: renderIssueForm('story', options),
-    },
-    {
-      type: 'epic',
-      rel: EPIC_FORM_RELATIVE_PATH,
-      rendered: renderIssueForm('epic', options),
     },
     {
       type: 'conformance-workflow',

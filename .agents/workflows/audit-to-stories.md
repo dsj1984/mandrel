@@ -3,7 +3,7 @@ description:
   Convert findings produced by the audit-* workflows into actionable
   GitHub Stories. Reads temp/audits/audit-*-results.md, groups findings
   cross-audit, deduplicates against existing Issues by fingerprint, and
-  either chains into /plan --idea or opens standalone Stories.
+  either chains into /plan --seed-file or opens standalone Stories.
 ---
 
 # /audit-to-stories [audit-file-or-glob]
@@ -22,8 +22,8 @@ Dimension / Category, Current State, Recommendation, Agent Prompt).
 `/audit-to-stories` closes the loop: it parses those reports, groups
 related findings (including across audit dimensions), classifies each
 group as eligible-to-create or already-tracked, and — at the operator's
-choice — either chains into `/plan --idea` for a single planned
-Epic or opens standalone Stories directly.
+choice — either chains into `/plan --seed-file` for a planned Story
+(or N>1 under the split policy) or opens standalone Stories directly.
 
 The audit producers themselves are **not modified** by this workflow.
 They remain read-only emitters of audit reports.
@@ -117,23 +117,23 @@ Ask:
 
 > How would you like these `<M>` Stories created?
 >
-> - **Single Epic via `/plan`** **[Recommended]** — opens one Epic,
->   then chains into `/plan --idea` so the standard spec-and-WBS
->   authoring handles decomposition. Grouped Stories become the
->   seed for the authoring step's decomposition.
+> - **Single plan via `/plan`** **[Recommended]** — chains into
+>   `/plan --seed-file <emitted.md>` so the standard Story authoring
+>   handles the seed. Prefer one Story; split only under the
+>   default-single policy.
 > - **Individual standalone Stories** — opens one GitHub Issue per
->   group directly, no Epic wrapper.
+>   group directly (no plan ceremony).
 
 **STOP** until the operator picks.
 
-## Phase 5a — Single-Epic path
+## Phase 5a — Single-plan path
 
-Build the `/plan` idea seed from the filtered plan envelope:
+Build the `/plan` seed from the filtered plan envelope:
 
 ```bash
-node .agents/scripts/audit-to-stories.js --emit-epic-seed \
+node .agents/scripts/audit-to-stories.js --emit-plan-seed \
   --plan temp/audits/audit-to-stories-plan.json \
-  --out "temp/audits/audit-epic-seed-$(date +%Y%m%dT%H%M%S).md"
+  --out "temp/audits/audit-plan-seed-$(date +%Y%m%dT%H%M%S).md"
 ```
 
 The seed renders the canonical one-pager sections — Problem Statement,
@@ -144,11 +144,11 @@ authoring step has concrete anchors), Not Doing.
 Chain into the existing planning entrypoint:
 
 ```text
-/plan --idea "<path-to-seed>"
+/plan --seed-file <path-to-seed>
 ```
 
-`/plan` then runs its 3-step Epic path (interrogate → author →
-persist), as documented in its workflow.
+(`/plan --seed "$(cat <path>)"` also works for small seeds). `/plan`
+then runs its author → persist path, as documented in its workflow.
 Each Story it spawns from the seed carries `context::audit:
 <reportLink>` and `audit-fingerprint: <sha>` in its body so future
 Phase 6 idempotency works on the next run.
@@ -220,13 +220,13 @@ Persist `temp/audits/audit-to-stories-$(date +%Y%m%dT%H%M%S).md`
 summarising the run:
 
 - Per-group breakdown: which findings merged, fingerprints, dependency
-  edges, created/skipped Issue link (or new Epic link).
+  edges, created/skipped Issue link (or plan-run / Story links).
 - The severity threshold and grouping mode the operator chose.
 - Final tally: `"<M> groups planned · <K> created · <J> skipped (open)
   · <L> skipped (re-occurring)"`.
 
-When the Single-Epic path ran, link the Epic the chained `/plan`
-opened. When the Standalone-Stories path ran, list every Issue URL.
+When the single-plan path ran, link the Story (or plan-run) the chained
+`/plan` opened. When the Standalone-Stories path ran, list every Issue URL.
 
 ## Constraints
 
@@ -261,8 +261,8 @@ issue 4482.)
 
 ## See also
 
-- [`/plan`](helpers/plan-epic.md) — the planning pipeline `/audit-to-stories`
-  chains into for the Single-Epic grouping mode.
+- [`/plan`](plan.md) — the planning pipeline `/audit-to-stories`
+  chains into for Story creation.
 - [`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js) —
   the shared fingerprint/dedup/route helper this workflow and `qa-explore`
   both consume. There is no second dedup implementation.

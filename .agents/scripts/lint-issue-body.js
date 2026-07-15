@@ -4,7 +4,7 @@
  * Issue-body conformance lint (Story #4227).
  *
  * Runs the canonical `story-body.parse()` against a human-opened
- * `type::story` / `type::epic` issue body and reports whether the body
+ * `type::story` issue body and reports whether the body
  * round-trips. This is the drift guard between the generated GitHub Issue
  * Forms (`lib/bootstrap/issue-forms-template.js`) and the parser: if a
  * human files a ticket whose body `parse()` rejects (or which lacks the
@@ -114,12 +114,12 @@ export function evaluateIssueBody(body) {
 
   const problems = [];
 
-  // A legacy string body parses but carries no structured sections — that
+  // An unstructured body parses but carries no structured sections — that
   // is exactly the human-filed shape this lint exists to catch.
-  if (result.info.isLegacyStringBody) {
+  if (result.info.isUnstructuredBody) {
     problems.push(
       'The body has no recognised `## Goal` / `## Acceptance` / `## Verify` sections. ' +
-        'File via the Story/Epic issue form so it round-trips through the parser.',
+        'File via the Story issue form so it round-trips through the parser.',
     );
   }
 
@@ -162,7 +162,7 @@ export function renderConformanceComment(verdict) {
     '',
     ...verdict.problems.map((p) => `- ${p}`),
     '',
-    'The quickest fix is to refile using the **Story** or **Epic** issue form ' +
+    'The quickest fix is to refile using the **Story** issue form ' +
       '(New issue → pick the template), which lays out the required sections.',
   ];
   if (verdict.warnings.length > 0) {
@@ -196,32 +196,40 @@ function gh(args) {
 }
 
 /**
- * CLI entry. Reads the target issue (number from `--issue` or the
- * `ISSUE_NUMBER` env), fetches its body + labels, and — when the body is
- * non-conformant — upserts a single marker comment. Always exits 0 (the
- * lint *informs*, it does not block), unless an unexpected I/O error occurs.
+ * Stage 5: only `type::story` tickets are in scope (type::epic retired).
  *
- * Flags:
- *   --issue <n>   Issue number (defaults to env ISSUE_NUMBER).
- *   --repo <o/r>  owner/repo (defaults to env GITHUB_REPOSITORY).
- *   --dry-run     Evaluate + print the verdict, never touch GitHub.
+ * @param {string[]} labelNames
+ * @returns {boolean}
  */
-async function main() {
-  const args = process.argv.slice(2);
-  const get = (flag) => {
-    const i = args.indexOf(flag);
-    return i >= 0 ? args[i + 1] : undefined;
-  };
-  const dryRun = args.includes('--dry-run');
-  const issue = get('--issue') ?? process.env.ISSUE_NUMBER;
-  const repo = get('--repo') ?? process.env.GITHUB_REPOSITORY;
+export function isStoryTicket(labelNames) {
+  return Array.isArray(labelNames) && labelNames.includes('type::story');
+}
 
-  if (!issue) {
-    throw new Error('lint-issue-body: --issue <n> or ISSUE_NUMBER is required');
-  }
-
+/**
+ * Evaluate an issue payload and optionally post a conformance comment.
+ * Pure with respect to GitHub when `ghFn` is injected — the CLI `main`
+ * is a thin argv wrapper around this helper.
+ *
+ * @param {{
+ *   issue: string|number,
+ *   repo?: string,
+ *   dryRun?: boolean,
+ *   ghFn?: (args: string[]) => string,
+ *   write?: (s: string) => void,
+ * }} opts
+ * @returns {{ skipped?: string, conformant?: boolean, problems?: string[] }}
+ */
+export function runLintIssueBody({
+  issue,
+  repo,
+  dryRun = false,
+  ghFn = gh,
+  write = (s) => {
+    process.stdout.write(s);
+  },
+}) {
   const repoArgs = repo ? ['--repo', repo] : [];
-  const raw = gh([
+  const raw = ghFn([
     'issue',
     'view',
     String(issue),
@@ -231,20 +239,14 @@ async function main() {
   ]);
   const { body, labels } = JSON.parse(raw);
   const labelNames = (labels ?? []).map((l) => l.name);
-  const isTicket =
-    labelNames.includes('type::story') || labelNames.includes('type::epic');
-
-  if (!isTicket) {
-    // Machine-parsable JSON envelope → process.stdout.write (not console.log),
-    // per the .agents/scripts logging contract (tests/enforcement/no-console).
-    process.stdout.write(
-      `${JSON.stringify({ issue: Number(issue), skipped: 'not-a-ticket' })}\n`,
-    );
-    return;
+  if (!isStoryTicket(labelNames)) {
+    const envelope = { issue: Number(issue), skipped: 'not-a-ticket' };
+    write(`${JSON.stringify(envelope)}\n`);
+    return envelope;
   }
 
   const verdict = evaluateIssueBody(body ?? '');
-  process.stdout.write(
+  write(
     `${JSON.stringify({
       issue: Number(issue),
       conformant: verdict.conformant,
@@ -252,10 +254,39 @@ async function main() {
     })}\n`,
   );
 
-  if (verdict.conformant || dryRun) return;
+  if (verdict.conformant || dryRun) {
+    return {
+      conformant: verdict.conformant,
+      problems: verdict.problems,
+    };
+  }
 
   const comment = renderConformanceComment(verdict);
-  gh(['issue', 'comment', String(issue), ...repoArgs, '--body', comment]);
+  ghFn(['issue', 'comment', String(issue), ...repoArgs, '--body', comment]);
+  return { conformant: false, problems: verdict.problems };
+}
+
+/**
+ * CLI entry. Reads the target issue (number from `--issue` or the
+ * `ISSUE_NUMBER` env), fetches its body + labels, and — when the body is
+ * non-conformant — upserts a single marker comment. Always exits 0 (the
+ * lint *informs*, it does not block), unless an unexpected I/O error occurs.
+ */
+async function main() {
+  const args = process.argv.slice(2);
+  const get = (flag) => {
+    const i = args.indexOf(flag);
+    return i >= 0 ? args[i + 1] : undefined;
+  };
+  const issue = get('--issue') ?? process.env.ISSUE_NUMBER;
+  if (!issue) {
+    throw new Error('lint-issue-body: --issue <n> or ISSUE_NUMBER is required');
+  }
+  runLintIssueBody({
+    issue,
+    repo: get('--repo') ?? process.env.GITHUB_REPOSITORY,
+    dryRun: args.includes('--dry-run'),
+  });
 }
 
 runAsCli(import.meta.url, main, { source: 'lint-issue-body' });

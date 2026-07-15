@@ -65,11 +65,11 @@ let cfg;
 beforeEach(async () => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'epic-perf-report-hotspot-'));
   cfg = { project: { paths: { tempRoot: workRoot } } };
-  // The per-Epic stream lives at `temp/epic-<eid>/signals.ndjson` (sibling
+  // The per-Epic stream lives at `temp/run-<eid>/signals.ndjson` (sibling
   // to per-Story dirs). The reader's `listEpicStorySignalsFiles` looks for
   // the top-level signals.ndjson before walking story dirs, so we author
   // the hotspot events at that scope (mirrors `appendEpicSignal`).
-  await fs.mkdir(path.join(workRoot, `epic-${EPIC_ID}`), { recursive: true });
+  await fs.mkdir(path.join(workRoot, `run-${EPIC_ID}`), { recursive: true });
 });
 
 afterEach(() => {
@@ -77,7 +77,7 @@ afterEach(() => {
 });
 
 async function writeEpicSignals(events) {
-  const target = path.join(workRoot, `epic-${EPIC_ID}`, 'signals.ndjson');
+  const target = path.join(workRoot, `run-${EPIC_ID}`, 'signals.ndjson');
   const body = events.map((e) => JSON.stringify(e)).join('\n');
   await fs.writeFile(target, `${body}\n`, 'utf8');
 }
@@ -85,7 +85,7 @@ async function writeEpicSignals(events) {
 async function writeStorySignals(events) {
   const dir = path.join(
     workRoot,
-    `epic-${EPIC_ID}`,
+    `run-${EPIC_ID}`,
     'stories',
     `story-${STORY_ID}`,
   );

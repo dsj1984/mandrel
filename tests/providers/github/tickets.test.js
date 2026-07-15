@@ -341,7 +341,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     const out = await gateway.createIssue({
       title: 'bare issue',
       body: '# Bare issue body',
-      labels: ['type::epic'],
+      labels: ['type::story'],
     });
     assert.equal(out.id, 400);
     assert.equal(out.number, 400);
@@ -355,7 +355,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     const posted = JSON.parse(post.input);
     assert.equal(posted.body, '# Bare issue body');
     assert.equal(posted.title, 'bare issue');
-    assert.deepEqual(posted.labels, ['type::epic']);
+    assert.deepEqual(posted.labels, ['type::story']);
   });
 
   it('createIssue: skips the board add cleanly when no project number is configured (Story #3822)', async () => {
@@ -526,7 +526,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
     await gateway.createTicket(10, {
       title: 'Story with type::story already',
       body: '',
-      labels: ['type::story', 'persona::backend'],
+      labels: ['type::story', 'meta::framework-gap'],
     });
     const posted = JSON.parse(
       gh.__exec.calls.find((c) => c.args[2] === 'POST').input,
@@ -539,7 +539,7 @@ describe('providers/github/tickets.js — TicketGateway', () => {
       1,
       `type::story must appear exactly once; got: ${JSON.stringify(posted.labels)}`,
     );
-    assert.ok(posted.labels.includes('persona::backend'));
+    assert.ok(posted.labels.includes('meta::framework-gap'));
   });
 
   it('createTicket: always injects type::story — the context:: skip branch is retired (Story #4324)', async () => {

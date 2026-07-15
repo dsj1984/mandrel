@@ -11,6 +11,8 @@
  * ```js
  * {
  *   goal:                string,           // one-sentence purpose
+ *   slicing:             string,           // v2 intra-Story delivery slice plan (optional; '' when absent)
+ *   spec:                string,           // folded Tech Spec text block (optional; '' when absent)
  *   changes:             PathEntry[],      // files/globs this Story touches
  *   acceptance:          string[],         // observable criteria
  *   verify:              string[],         // exact commands / tier annotation
@@ -23,10 +25,9 @@
  * }
  * ```
  *
- * Where `PathEntry` is one of:
+ * Where `PathEntry` is:
  *   - `{ path: string, assumption: "creates"|"refactors-existing"|"exists"|"deletes" }`
- *     (canonical form)
- *   - `string` (legacy form — emits a `legacy-path-entry` warning)
+ *     (canonical form — string bullets are rejected at parse time)
  *
  * ## Round-trip contract
  *
@@ -61,16 +62,15 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  */
 
 /**
- * @typedef {PathEntry | string} ChangeEntry
- *   Canonical: PathEntry object.
- *   Legacy: bare string bullet (emits a `legacy-path-entry` warning via
- *   the `warnings` array on {@link ParseResult}).
+ * @typedef {PathEntry} ChangeEntry
  */
 
 /**
  * @typedef {object} StoryBody
  * @property {string}        goal                - One-sentence purpose statement.
- * @property {ChangeEntry[]} changes             - Files / globs this Story modifies.
+ * @property {string}        slicing             - Optional v2 intra-Story delivery slice plan text block; '' when absent.
+ * @property {string}        spec                - Optional folded Tech Spec text block; '' when absent.
+ * @property {PathEntry[]}   changes             - Files / globs this Story modifies.
  * @property {string[]}      acceptance          - Observable acceptance criteria.
  * @property {string[]}      verify              - Exact commands with tier annotation.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
@@ -86,7 +86,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
 /**
  * @typedef {object} ParseResult
  * @property {StoryBody}  body      - The parsed structured body.
- * @property {string[]}   warnings  - Non-fatal issues (e.g. legacy-path-entry).
+ * @property {string[]}   warnings  - Non-fatal issues (e.g. unstructured-body).
  * @property {ParseInfo}  info      - Metadata about the parse.
  */
 
@@ -98,7 +98,9 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {boolean} hasVerifySection     - Whether a `## Verify` section was found.
  * @property {boolean} hasReferencesSection - Whether a `## References` section was found.
  * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
- * @property {boolean} isLegacyStringBody   - True when no structured sections were found.
+ * @property {boolean} hasSlicingSection    - Whether a `## Slicing` section was found (v2 folded slice plan).
+ * @property {boolean} hasSpecSection       - Whether a `## Spec` section was found (folded Tech Spec).
+ * @property {boolean} isUnstructuredBody   - True when no structured sections were found.
  */
 
 /**
@@ -139,12 +141,15 @@ export class StoryBodyParseError extends Error {
 // maps to the `non_goals` field.
 const HEADING_TO_FIELD = new Map([
   ['goal', 'goal'],
+  ['slicing', 'slicing'],
+  ['spec', 'spec'],
   ['changes', 'changes'],
   ['acceptance', 'acceptance'],
   ['verify', 'verify'],
   ['references', 'references'],
   ['non_goals', 'non_goals'],
 ]);
+const TEXT_BLOCK_FIELDS = new Set(['slicing', 'spec']);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,19 +167,16 @@ function stripListMarker(line) {
 }
 
 /**
- * Parse a single `changes` / `references` bullet into a `PathEntry` or
- * legacy string. Emits a `legacy-path-entry` warning for string form.
+ * Parse a single `changes` / `references` bullet into a `PathEntry`.
  *
  * Object form: `{ path: "...", assumption: "creates" }` (stored as
  * `- { "path": "...", "assumption": "..." }` or just recognized from the
  * structured body directly — when deserializing from a structured object
  * that was never serialized to markdown, the entry arrives as-is).
  *
- * String form: `src/foo.js: create handleSubmit`
- *
  * @param {string|object} raw
  * @param {string[]} warnings
- * @returns {PathEntry | string}
+ * @returns {PathEntry}
  */
 function parsePathEntry(raw, warnings) {
   // Already a structured object (from a parsed JSON body, not markdown).
@@ -218,15 +220,14 @@ function parsePathEntry(raw, warnings) {
     } catch (err) {
       // Re-throw StoryBodyParseError so it propagates.
       if (err instanceof StoryBodyParseError) throw err;
-      // JSON parse failed — fall through to legacy string handling.
+      // JSON parse failed — fall through to reject plain-string form.
     }
   }
 
-  // Legacy string form — warn but accept.
-  warnings.push(
-    `legacy-path-entry: change entry "${str.slice(0, 80)}" is a plain string; prefer { path, assumption } object form.`,
+  throw new StoryBodyParseError(
+    `changes/references entry must be a { path, assumption } object; plain string bullets are no longer accepted: ${str.slice(0, 120)}`,
+    { field: 'changes', raw: str },
   );
-  return str;
 }
 
 /**
@@ -245,8 +246,11 @@ function extractBlockedBy(footerBlock) {
   return deps;
 }
 
-// Matches the trailing `<!-- meta: {...} -->` block serialize() emits.
-const META_BLOCK_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
+// Matches any trailing `<!-- meta: … -->` block. Object payloads are the
+// canonical serialize() shape; non-object / malformed payloads are still
+// recognized so section parsing can skip them and extractMeta can degrade.
+const META_BLOCK_RE = /<!--\s*meta:\s*([\s\S]*?)\s*-->/;
+const META_OBJECT_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
 
 /**
  * Extract the `wide` / `estimated_test_files` fields from the trailing
@@ -275,7 +279,7 @@ function extractMeta(markdown) {
     mandrel_version: null,
     authored_at: null,
   };
-  const match = markdown.match(META_BLOCK_RE);
+  const match = markdown.match(META_OBJECT_RE) ?? markdown.match(META_BLOCK_RE);
   if (!match) return result;
 
   let parsed;
@@ -285,7 +289,10 @@ function extractMeta(markdown) {
     // Malformed meta comment — degrade to defaults rather than corrupt the body.
     return result;
   }
-  if (parsed === null || typeof parsed !== 'object') return result;
+  // Non-object JSON (array / scalar / null) is treated as absent meta.
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return result;
+  }
 
   result.wide = normalizeWide(parsed.wide);
   result.reason_to_exist = normalizeReasonToExist(parsed.reason_to_exist);
@@ -385,27 +392,11 @@ function splitSections(markdown) {
     // below, which closes the open section. The chosen canonical spelling is
     // therefore the hyphenated single token `## Non-Goals`.
     const fieldHeadingMatch = line.match(/^#{2,3}\s+([\w-]+)\s*$/i);
-    if (fieldHeadingMatch) {
-      const name = fieldHeadingMatch[1].toLowerCase().replace(/-/g, '_');
-      if (HEADING_TO_FIELD.has(name)) {
-        inPreamble = false;
-        currentSection = name;
-        if (!sections.has(currentSection)) sections.set(currentSection, []);
-        continue;
-      }
-      // A heading that matches the canonical `## Word` shape but is not a
-      // recognized field name (e.g. a trailing free-form `## Notes`) closes
-      // the currently-open section. Without this reset, the unknown heading
-      // and its bullets bleed into the previously-recognized section,
-      // silently corrupting `verify[]` / `acceptance[]`. We do NOT re-enter
-      // the preamble (`inPreamble` stays false), so a later recognized
-      // heading still registers normally; we only stop appending to the
-      // closed section. The heading line and its body are dropped from all
-      // sections. (Multi-word free-form headings like `## Out of Scope` —
-      // with internal spaces — do not match the `[\w-]+` single-token shape
-      // and reach this branch too. The hyphenated single-token canonical
-      // negative-scope heading is `## Non-Goals`, which IS recognized above.)
-      currentSection = null;
+    const fieldName = fieldHeadingMatch?.[1]?.toLowerCase().replace(/-/g, '_');
+    if (HEADING_TO_FIELD.has(fieldName)) {
+      inPreamble = false;
+      currentSection = fieldName;
+      if (!sections.has(currentSection)) sections.set(currentSection, []);
       continue;
     }
 
@@ -418,7 +409,11 @@ function splitSections(markdown) {
     // lines were silently absorbed into `verify[]` / `acceptance[]`. The
     // heading and everything under it is dropped from structured parsing
     // (it is extended, non-canonical markdown).
-    if (!inPreamble && /^#{1,6}\s+\S/.test(line)) {
+    if (
+      !inPreamble &&
+      /^#{1,6}\s+\S/.test(line) &&
+      !TEXT_BLOCK_FIELDS.has(currentSection)
+    ) {
       currentSection = null;
       continue;
     }
@@ -442,10 +437,7 @@ function splitSections(markdown) {
     if (inPreamble) {
       preambleLines.push(line);
     } else if (currentSection !== null) {
-      const trimmed = line.trim();
-      if (trimmed.length > 0) {
-        sections.get(currentSection).push(line);
-      }
+      sections.get(currentSection).push(line);
     }
   }
 
@@ -460,7 +452,7 @@ function splitSections(markdown) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the minimal {@link ParseResult} returned for a legacy string body —
+ * Build the minimal {@link ParseResult} returned for an unstructured body —
  * markdown that carries no recognised structured section. The goal falls
  * back to the preamble text (or the whole trimmed input), `depends_on` is
  * still recovered from the footer, and all section arrays are empty.
@@ -470,13 +462,15 @@ function splitSections(markdown) {
  * @param {string} footer - Footer block text (from splitSections).
  * @returns {ParseResult}
  */
-function parseLegacyStringBody(input, preamble, footer) {
+function parseUnstructuredBody(input, preamble, footer) {
   const warnings = [
-    'legacy-string-body: no structured sections found; returning minimal body from preamble text.',
+    'unstructured-body: no structured sections found; returning minimal body from preamble text.',
     'test-surface-unestimated: estimated_test_files not present.',
   ];
   const body = {
     goal: preamble || input.trim(),
+    slicing: '',
+    spec: '',
     changes: [],
     acceptance: [],
     verify: [],
@@ -499,7 +493,9 @@ function parseLegacyStringBody(input, preamble, footer) {
       hasVerifySection: false,
       hasReferencesSection: false,
       hasNonGoalsSection: false,
-      isLegacyStringBody: true,
+      hasSlicingSection: false,
+      hasSpecSection: false,
+      isUnstructuredBody: true,
     },
   };
 }
@@ -519,14 +515,29 @@ function parseGoalSection(lines) {
 }
 
 /**
+ * Parse a verbatim text-block section (`## Slicing` or `## Spec`) into a
+ * newline-joined string. Unlike {@link parseGoalSection}, line breaks are
+ * preserved so a bullet list, compact table, or folded Tech Spec survives the
+ * round-trip; only blank lines and trailing whitespace are normalized.
+ *
+ * @param {string[]} lines
+ * @returns {string}
+ */
+function parseTextBlockSection(lines) {
+  return lines
+    .map((line) => line.replace(/\s+$/, ''))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '');
+}
+
+/**
  * Parse a `## Changes` / `## References` section into a list of
- * `PathEntry | string` entries. List markers are stripped, blank entries are
- * dropped, and each surviving entry is normalized via {@link parsePathEntry}
- * (which appends `legacy-path-entry` warnings for bare-string bullets).
+ * `PathEntry` entries. List markers are stripped, blank entries are
+ * dropped, and each surviving entry is normalized via {@link parsePathEntry}.
  *
  * @param {string[]} lines - Raw content lines under the heading.
  * @param {string[]} warnings - Mutable warnings sink.
- * @returns {Array<PathEntry|string>}
+ * @returns {PathEntry[]}
  */
 function parsePathEntrySection(lines, warnings) {
   const entries = [];
@@ -601,19 +612,28 @@ export function parse(input) {
   const hasVerifySection = sections.has('verify');
   const hasReferencesSection = sections.has('references');
   const hasNonGoalsSection = sections.has('non_goals');
+  const hasSlicingSection = sections.has('slicing');
+  const hasSpecSection = sections.has('spec');
 
-  // If no structured sections found, treat as legacy string body.
-  const isLegacyStringBody =
+  // If no structured sections found, treat as unstructured body.
+  const isUnstructuredBody =
     !hasGoalSection &&
     !hasChangesSection &&
     !hasAcceptanceSection &&
     !hasVerifySection;
 
-  if (isLegacyStringBody) {
-    return parseLegacyStringBody(input, preamble, footer);
+  if (isUnstructuredBody) {
+    return parseUnstructuredBody(input, preamble, footer);
   }
 
   const goal = parseGoalSection(sections.get('goal') ?? []);
+  // Optional v2 intra-Story delivery slice plan (`## Slicing`). Preserved as
+  // a verbatim text block — a large Story (what v1 called an Epic) folds its
+  // Delivery Slicing here instead of fanning out into sibling Stories; a
+  // trivial Story omits it entirely. Parsed as a text block so a bullet list
+  // or compact table round-trips.
+  const slicing = parseTextBlockSection(sections.get('slicing') ?? []);
+  const spec = parseTextBlockSection(sections.get('spec') ?? []);
   const changes = parsePathEntrySection(
     sections.get('changes') ?? [],
     warnings,
@@ -644,6 +664,8 @@ export function parse(input) {
 
   const body = {
     goal,
+    slicing,
+    spec,
     changes,
     acceptance,
     verify,
@@ -667,7 +689,9 @@ export function parse(input) {
       hasVerifySection,
       hasReferencesSection,
       hasNonGoalsSection,
-      isLegacyStringBody: false,
+      hasSlicingSection,
+      hasSpecSection,
+      isUnstructuredBody: false,
     },
   };
 }
@@ -684,6 +708,12 @@ function parseStructuredObject(obj) {
   const warnings = [];
 
   const goal = typeof obj.goal === 'string' ? obj.goal.trim() : '';
+
+  // slicing — optional v2 intra-Story delivery slice plan (verbatim text).
+  const slicing = typeof obj.slicing === 'string' ? obj.slicing.trim() : '';
+
+  // spec — optional folded Tech Spec (verbatim text).
+  const spec = typeof obj.spec === 'string' ? obj.spec.trim() : '';
 
   // changes
   const rawChanges = Array.isArray(obj.changes) ? obj.changes : [];
@@ -747,6 +777,8 @@ function parseStructuredObject(obj) {
 
   const body = {
     goal,
+    slicing,
+    spec,
     changes,
     acceptance,
     verify,
@@ -770,7 +802,9 @@ function parseStructuredObject(obj) {
       hasVerifySection: 'verify' in obj,
       hasReferencesSection: 'references' in obj,
       hasNonGoalsSection: 'non_goals' in obj,
-      isLegacyStringBody: false,
+      hasSlicingSection: 'slicing' in obj,
+      hasSpecSection: 'spec' in obj,
+      isUnstructuredBody: false,
     },
   };
 }
@@ -793,10 +827,10 @@ function serializePathEntry(entry) {
 
 /**
  * Descriptor table for the human-readable Story-body sections, in canonical
- * emit order (`## Goal`, `## Changes`, `## Acceptance`, `## Verify`,
- * `## References`, `## Non-Goals`). Each descriptor reads one body field and returns the
- * section's markdown block when the field is present and non-empty, or `null`
- * to omit the section.
+ * emit order (`## Goal`, `## Slicing`, `## Spec`, `## Changes`,
+ * `## Acceptance`, `## Verify`, `## References`, `## Non-Goals`). Each
+ * descriptor reads one body field and returns the section's markdown block
+ * when the field is present and non-empty, or `null` to omit the section.
  *
  * Standardising the section ladder as a single data table makes adding a new
  * optional section a one-line edit here rather than a new control-flow branch
@@ -810,6 +844,26 @@ const SERIALIZE_SECTIONS = [
     render: (goal) =>
       typeof goal === 'string' && goal.trim().length > 0
         ? `## Goal\n${goal.trim()}`
+        : null,
+  },
+  {
+    // Optional v2 intra-Story delivery slice plan. Single-token `## Slicing`
+    // heading (recognized by the `[\w-]+` field-heading regex). Verbatim text
+    // block. Render-when-non-empty: an absent/empty `slicing` emits nothing,
+    // so every pre-v2 body round-trips byte-identically.
+    field: 'slicing',
+    render: (slicing) =>
+      typeof slicing === 'string' && slicing.trim().length > 0
+        ? `## Slicing\n${slicing.trim()}`
+        : null,
+  },
+  {
+    // Optional folded Tech Spec. Like `## Slicing`, this is a verbatim text
+    // block and emits nothing for absent/empty pre-v2 bodies.
+    field: 'spec',
+    render: (spec) =>
+      typeof spec === 'string' && spec.trim().length > 0
+        ? `## Spec\n${spec.trim()}`
         : null,
   },
   {
@@ -938,8 +992,8 @@ function serializeFooter(body, opts) {
  * format written to GitHub issue bodies.
  *
  * The output matches the section order the spec-renderer uses:
- * `## Goal`, `## Changes`, `## Acceptance`, `## Verify`, `## References`,
- * `## Non-Goals` (each omitted when empty).
+ * `## Goal`, `## Slicing`, `## Spec`, `## Changes`, `## Acceptance`,
+ * `## Verify`, `## References`, `## Non-Goals` (each omitted when empty).
  *
  * `wide`, `reason_to_exist`, and `estimated_test_files` are emitted as a
  * fenced `<!-- meta -->` comment block so round-trips preserve them without

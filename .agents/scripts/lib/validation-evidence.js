@@ -336,7 +336,7 @@ export function shouldSkip(
 }
 
 /**
- * Delete the evidence file for `scopeId`. Called by `story-init.js` at the
+ * Delete the evidence file for `scopeId`. Called by `single-story-init.js` at the
  * start of each Story so a re-run always starts clean. Idempotent —
  * absent file is not an error.
  *

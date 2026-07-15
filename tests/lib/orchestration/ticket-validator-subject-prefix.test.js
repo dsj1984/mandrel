@@ -22,7 +22,7 @@ function makeHierarchy(storyAcceptance) {
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S1.',
-        changes: ['.agents/scripts/foo.js: add helper'],
+        changes: [{ path: '.agents/scripts/foo.js', assumption: 'creates' }],
         acceptance: storyAcceptance,
         verify: ['npm test (validate)'],
       },
@@ -38,7 +38,7 @@ function makeHierarchy(storyAcceptance) {
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S2.',
-        changes: ['.agents/scripts/bar.js: add helper'],
+        changes: [{ path: '.agents/scripts/bar.js', assumption: 'creates' }],
         acceptance: ['npm test exits 0'],
         verify: ['npm test (validate)'],
       },
@@ -174,7 +174,7 @@ test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptan
       title: 'Story without inline contract',
       body: {
         goal: 'Make a change for S1.',
-        changes: ['.agents/scripts/foo.js: add helper'],
+        changes: [{ path: '.agents/scripts/foo.js', assumption: 'creates' }],
       },
     },
     // Valid sibling Story — the inline-contract gate is what fires.
@@ -186,7 +186,7 @@ test('validateAndNormalizeTickets: rejects a Story that lacks an inline acceptan
       verify: ['npm test (validate)'],
       body: {
         goal: 'Make a change for S2.',
-        changes: ['.agents/scripts/bar.js: add helper'],
+        changes: [{ path: '.agents/scripts/bar.js', assumption: 'creates' }],
         acceptance: ['npm test exits 0'],
         verify: ['npm test (validate)'],
       },

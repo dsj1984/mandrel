@@ -25,7 +25,7 @@ import {
 
 describe('parseStandardCliArgs — deterministic shape', () => {
   it('returns every supported flag with a stable default when argv is empty', () => {
-    const { values, positionals } = parseStandardCliArgs([]);
+    const { values, positionals } = parseStandardCliArgs({ argv: [] });
     assert.deepEqual(positionals, []);
     assert.equal(values.epicId, null);
     assert.equal(values.storyId, null);
@@ -36,7 +36,7 @@ describe('parseStandardCliArgs — deterministic shape', () => {
   });
 
   it('values keys exactly match the alias declared in SUPPORTED_FLAGS', () => {
-    const { values } = parseStandardCliArgs([]);
+    const { values } = parseStandardCliArgs({ argv: [] });
     const expectedKeys = FLAG_NAMES.map((n) => SUPPORTED_FLAGS[n].key).sort();
     assert.deepEqual(Object.keys(values).sort(), expectedKeys);
   });
@@ -47,7 +47,7 @@ describe('parseStandardCliArgs — deterministic shape', () => {
     assert.equal(Object.hasOwn(SUPPORTED_FLAGS, 'task'), false);
     assert.equal(FLAG_NAMES.includes('task'), false);
     assert.throws(
-      () => parseStandardCliArgs(['--task', '2474']),
+      () => parseStandardCliArgs({ argv: ['--task', '2474'] }),
       (err) => err.code === 'UNKNOWN_FLAG' && err.flag === 'task',
     );
   });
@@ -55,54 +55,55 @@ describe('parseStandardCliArgs — deterministic shape', () => {
 
 describe('parseStandardCliArgs — per-flag coercion (one assertion per flag)', () => {
   it('--epic coerces to a positive integer (ticket)', () => {
-    const { values } = parseStandardCliArgs(['--epic', '2453']);
+    const { values } = parseStandardCliArgs({ argv: ['--epic', '2453'] });
     assert.equal(values.epicId, 2453);
   });
 
   it('--story coerces to a positive integer (ticket) and strips a leading #', () => {
-    const { values } = parseStandardCliArgs(['--story', '#2460']);
+    const { values } = parseStandardCliArgs({ argv: ['--story', '#2460'] });
     assert.equal(values.storyId, 2460);
   });
 
   it('--changed-since preserves the raw string (string)', () => {
-    const { values } = parseStandardCliArgs(['--changed-since', 'origin/main']);
+    const { values } = parseStandardCliArgs({
+      argv: ['--changed-since', 'origin/main'],
+    });
     assert.equal(values.changedSince, 'origin/main');
   });
 
   it('--json toggles a boolean (bare flag → true)', () => {
-    const { values } = parseStandardCliArgs(['--json']);
+    const { values } = parseStandardCliArgs({ argv: ['--json'] });
     assert.equal(values.json, true);
   });
 
   it('--full-scope toggles a boolean (bare flag → true)', () => {
-    const { values } = parseStandardCliArgs(['--full-scope']);
+    const { values } = parseStandardCliArgs({ argv: ['--full-scope'] });
     assert.equal(values.fullScope, true);
   });
 
   it('--dry-run toggles a boolean (bare flag → true)', () => {
-    const { values } = parseStandardCliArgs(['--dry-run']);
+    const { values } = parseStandardCliArgs({ argv: ['--dry-run'] });
     assert.equal(values.dryRun, true);
   });
 });
 
 describe('parseStandardCliArgs — ticket coercion edge cases', () => {
   it('invalid ticket values resolve to null (not NaN)', () => {
-    const { values } = parseStandardCliArgs(['--epic', 'not-a-number']);
+    const { values } = parseStandardCliArgs({
+      argv: ['--epic', 'not-a-number'],
+    });
     assert.equal(values.epicId, null);
   });
 
   it('negative ticket values resolve to null', () => {
-    const { values } = parseStandardCliArgs(['--story', '-7']);
+    const { values } = parseStandardCliArgs({ argv: ['--story', '-7'] });
     assert.equal(values.storyId, null);
   });
 
   it('accepts multiple ticket flags side by side', () => {
-    const { values } = parseStandardCliArgs([
-      '--epic',
-      '2453',
-      '--story',
-      '2460',
-    ]);
+    const { values } = parseStandardCliArgs({
+      argv: ['--epic', '2453', '--story', '2460'],
+    });
     assert.equal(values.epicId, 2453);
     assert.equal(values.storyId, 2460);
   });
@@ -110,19 +111,17 @@ describe('parseStandardCliArgs — ticket coercion edge cases', () => {
 
 describe('parseStandardCliArgs — positional pass-through', () => {
   it('preserves positional arguments after a `--` separator', () => {
-    const { values, positionals } = parseStandardCliArgs([
-      '--epic',
-      '2453',
-      '--',
-      'first',
-      'second',
-    ]);
+    const { values, positionals } = parseStandardCliArgs({
+      argv: ['--epic', '2453', '--', 'first', 'second'],
+    });
     assert.equal(values.epicId, 2453);
     assert.deepEqual(positionals, ['first', 'second']);
   });
 
   it('collects bare positionals when no `--` separator is present', () => {
-    const { positionals } = parseStandardCliArgs(['some-positional']);
+    const { positionals } = parseStandardCliArgs({
+      argv: ['some-positional'],
+    });
     assert.deepEqual(positionals, ['some-positional']);
   });
 });
@@ -130,7 +129,11 @@ describe('parseStandardCliArgs — positional pass-through', () => {
 describe('parseStandardCliArgs — required-field enforcement', () => {
   it('throws MISSING_REQUIRED_FLAG when a ticket flag is required but absent', () => {
     assert.throws(
-      () => parseStandardCliArgs([], { story: { required: true } }),
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          schema: { story: { required: true } },
+        }),
       (err) => {
         assert.equal(err.code, 'MISSING_REQUIRED_FLAG');
         assert.equal(err.flag, 'story');
@@ -142,8 +145,9 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
   it('throws MISSING_REQUIRED_FLAG when an unparseable ticket is supplied for a required flag', () => {
     assert.throws(
       () =>
-        parseStandardCliArgs(['--story', 'garbage'], {
-          story: { required: true },
+        parseStandardCliArgs({
+          argv: ['--story', 'garbage'],
+          schema: { story: { required: true } },
         }),
       (err) => {
         assert.equal(err.code, 'MISSING_REQUIRED_FLAG');
@@ -154,7 +158,11 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
 
   it('throws MISSING_REQUIRED_FLAG for a missing required string flag', () => {
     assert.throws(
-      () => parseStandardCliArgs([], { 'changed-since': { required: true } }),
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          schema: { 'changed-since': { required: true } },
+        }),
       (err) =>
         err.code === 'MISSING_REQUIRED_FLAG' && err.flag === 'changed-since',
     );
@@ -162,20 +170,24 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
 
   it('throws MISSING_REQUIRED_FLAG for a required boolean flag that is absent', () => {
     assert.throws(
-      () => parseStandardCliArgs([], { 'dry-run': { required: true } }),
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          schema: { 'dry-run': { required: true } },
+        }),
       (err) => err.code === 'MISSING_REQUIRED_FLAG' && err.flag === 'dry-run',
     );
   });
 
   it('does not throw when every required flag is satisfied', () => {
-    const { values } = parseStandardCliArgs(
-      ['--story', '2460', '--changed-since', 'HEAD', '--dry-run'],
-      {
+    const { values } = parseStandardCliArgs({
+      argv: ['--story', '2460', '--changed-since', 'HEAD', '--dry-run'],
+      schema: {
         story: { required: true },
         'changed-since': { required: true },
         'dry-run': { required: true },
       },
-    );
+    });
     assert.equal(values.storyId, 2460);
     assert.equal(values.changedSince, 'HEAD');
     assert.equal(values.dryRun, true);
@@ -183,7 +195,11 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
 
   it('rejects schemas referencing unsupported flags so typos surface loudly', () => {
     assert.throws(
-      () => parseStandardCliArgs([], { 'changed-sinec': { required: true } }),
+      () =>
+        parseStandardCliArgs({
+          argv: [],
+          schema: { 'changed-sinec': { required: true } },
+        }),
       (err) => err.code === 'UNKNOWN_FLAG_IN_SCHEMA',
     );
   });
@@ -291,7 +307,7 @@ describe('parseStandardCliArgs — extras (caller-defined flags)', () => {
 describe('parseStandardCliArgs — unknown-flag rejection', () => {
   it('throws UNKNOWN_FLAG on a `--foo` token whose name is not supported', () => {
     assert.throws(
-      () => parseStandardCliArgs(['--unsupported', 'value']),
+      () => parseStandardCliArgs({ argv: ['--unsupported', 'value'] }),
       (err) => {
         assert.equal(err.code, 'UNKNOWN_FLAG');
         assert.equal(err.flag, 'unsupported');
@@ -302,14 +318,21 @@ describe('parseStandardCliArgs — unknown-flag rejection', () => {
 
   it('throws UNKNOWN_FLAG on a `--foo=bar` shape too', () => {
     assert.throws(
-      () => parseStandardCliArgs(['--mystery=42']),
+      () => parseStandardCliArgs({ argv: ['--mystery=42'] }),
       (err) => err.code === 'UNKNOWN_FLAG' && err.flag === 'mystery',
+    );
+  });
+
+  it('rejects a positional argv array passed without the object wrapper', () => {
+    assert.throws(
+      () => parseStandardCliArgs(['--story', '2460']),
+      /options must be a plain object/,
     );
   });
 
   it('rejects argv that is not an array', () => {
     assert.throws(
-      () => parseStandardCliArgs('--story 2460'),
+      () => parseStandardCliArgs({ argv: '--story 2460' }),
       /argv must be an array/,
     );
   });
@@ -317,12 +340,9 @@ describe('parseStandardCliArgs — unknown-flag rejection', () => {
   it('stops scanning for unknown flags after a `--` separator', () => {
     // Tokens after `--` are positionals; even if shaped like flags they
     // should not trip the unknown-flag walker.
-    const { positionals } = parseStandardCliArgs([
-      '--story',
-      '2460',
-      '--',
-      '--would-be-unknown',
-    ]);
+    const { positionals } = parseStandardCliArgs({
+      argv: ['--story', '2460', '--', '--would-be-unknown'],
+    });
     assert.deepEqual(positionals, ['--would-be-unknown']);
   });
 });

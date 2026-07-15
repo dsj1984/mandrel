@@ -2,7 +2,7 @@
  * git-branch-cleanup.js — Shared branch deletion helpers (local + remote).
  *
  * Consolidates the "delete this branch from local and/or origin" pattern
- * used by `story-close.js` and other branch-reaping flows. Originally
+ * used by `single-story-close.js` and other branch-reaping flows. Originally
  * carved out when more than one caller re-implemented the same idempotency
  * rules with subtle drift.
  *
@@ -116,15 +116,6 @@ export function deleteBranchEverywhere(name, opts = {}) {
   else reason = 'error';
   return { deleted: bothOk, reason, local, remote };
 }
-
-/**
- * Backwards-compatible alias for `deleteBranchEverywhere`. Older call
- * sites and tests imported this name; keeping the alias avoids touching
- * them in the migration.
- *
- * @deprecated prefer `deleteBranchEverywhere`.
- */
-export const deleteBranchBoth = deleteBranchEverywhere;
 
 /**
  * Delete N branches in a single batched git call (push --delete X Y Z, or

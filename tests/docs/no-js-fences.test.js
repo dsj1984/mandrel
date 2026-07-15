@@ -7,10 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
-const TARGETS = [
-  '.agents/workflows/helpers/deliver-epic.md',
-  '.agents/workflows/helpers/deliver-stories.md',
-];
+const TARGETS = ['.agents/workflows/helpers/deliver-story.md'];
 
 const JS_FENCE_RE = /^```(js|javascript)\b/m;
 

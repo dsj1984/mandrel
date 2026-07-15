@@ -1,7 +1,8 @@
 /**
  * phases/worktree-reap.js — post-merge worktree reap phase.
  *
- * After a Story branch is merged into the Epic branch, this phase removes
+ * After a Story branch is merged (pre-v2: into the Epic branch; v2:
+ * squash-merged to `main` via `single-story-close.js`), this phase removes
  * the per-Story worktree at `.worktrees/story-<id>/`. The reap is split
  * into three concerns:
  *
@@ -376,7 +377,7 @@ function applyStillRegisteredState({
     try {
       manifestEntry = recordPendingCleanupFn(worktreeRoot, {
         storyId: Number(storyId),
-        branch: getStoryBranch(null, storyId),
+        branch: getStoryBranch(storyId),
         path: stillRegistered.path,
         push: false,
       });

@@ -37,7 +37,7 @@ import {
 import {
   planAuditLenses,
   resolveAuditLenses,
-} from '../.agents/scripts/lib/orchestration/code-review.js';
+} from '../.agents/scripts/lib/orchestration/audit-lens-routing.js';
 
 /**
  * Read the canonical risk-verdict axis enum so the routing guard below can

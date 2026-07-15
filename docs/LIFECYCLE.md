@@ -1,17 +1,19 @@
 # Lifecycle Event Bus — Reference
 
-This document is the canonical reference for the `/deliver` lifecycle
-event bus introduced by Epic #2172. It supersedes the prior "runner CLI
-shells emit comments inline" model: a single typed event bus inside the
-operator's session is now the only authorised emitter of phase
-transitions, and a fixed roster of single-purpose listeners maps those
+This document is the canonical reference for the lifecycle event bus
+introduced by Epic #2172 (and retained through the v2 Story collapse).
+A typed event bus inside the operator's session is the authorised
+emitter of phase transitions for delivery runs; listeners map those
 events to ticket state, structured comments, notifications, and the
 on-disk audit ledger.
 
-The bus is the operational system-of-record for an Epic run. Resume,
-observability, and safety gates all read from the ledger it writes; no
-side-effecting code is permitted to fire without first traversing the
-bus.
+> **v2 note.** Live delivery is **Story-only**
+> (`helpers/deliver-story` → `single-story-init` / `single-story-close` /
+> `single-story-confirm-merge`). Epic-scoped listener chains
+> (`lifecycle-emit.js`, AutomergeArmer, Finalizer, Cleaner, …) were
+> removed. Schemas for historical `epic.*` events remain so old ledgers
+> and structured comments stay parseable; new runs write under
+> `temp/run-<id>/`.
 
 ---
 
@@ -67,78 +69,34 @@ The full set of typed events is the union of all
 not an event). Each event has exactly one schema; the schema is the
 contract.
 
-### Epic phase events
+### Live Story delivery events
 
 | Event                       | Emitted when                                                |
 | --------------------------- | ----------------------------------------------------------- |
-| `epic.plan.start`           | `/plan` Phase 1 begins.                                |
-| `epic.plan.end`             | `/plan` Phase 7 closes the planning run.               |
-| `epic.snapshot.start`       | `/deliver` Phase 1 — snapshot phase opens.             |
-| `epic.snapshot.end`         | Snapshot complete; wave plan persisted.                     |
-| `epic.finalize.start`       | Phase 6 finalize begins (PR-open).                          |
-| `epic.finalize.end`         | Finalize completed; PR opened (or skipped).                 |
-| `epic.close.end`            | Close-validation chain completes.                           |
-| `epic.automerge.start`      | Phase 8.5 auto-merge gate fires (AutomergePredicate).       |
-| `epic.automerge.end`        | Automerge phase concludes.                                  |
-| `epic.cleanup.start`        | Phase 8 cleanup shim fires.                                 |
-| `epic.cleanup.end`          | Cleanup archive + branch reap complete.                     |
-| `epic.complete`             | Terminal event — Epic merged, cleaned, retro posted.        |
-| `epic.blocked`              | Epic enters `agent::blocked` (HITL gate).                   |
-| `epic.watch.start`          | `Watcher` begins polling `gh pr checks`.                    |
-| `epic.watch.end`            | `Watcher` resolves a terminal check verdict.                |
-| `epic.merge.ready`          | `AutomergePredicate` clean — armed-merge authorised.        |
-| `epic.merge.blocked`        | `AutomergePredicate` dirty — operator-merges-button path.   |
-| `epic.merge.armed`          | `AutomergeArmer` armed GitHub native auto-merge.            |
-| `merge.unlanded`            | A headless delivery run (epic-path or standalone story-path) finished without a confirmed merge; carries a block-class diagnosis (`scope` distinguishes which path reported it). |
-
-### Wave + Story events
-
-| Event                       | Emitted when                                                |
-| --------------------------- | ----------------------------------------------------------- |
-| `story.dispatch.start`      | A Story sub-agent is launched.                              |
-| `story.dispatch.end`        | A Story sub-agent returned (done / blocked / failed).       |
-| `story.merged`              | Story branch merged into `epic/<epicId>`.                   |
+| `story.dispatch.start`      | A Story delivery worker is launched.                        |
+| `story.dispatch.end`        | A Story delivery worker returned (done / blocked / failed). |
+| `story.heartbeat`           | Story-phase heartbeat during implementation.                |
 | `story.blocked`             | Story transitioned to `agent::blocked`.                     |
-| `loop.tick`                 | One pass of a host-driven loop completed (idle-watchdog visibility). |
+| `close-validate.start` / `.end` | Close-validation gates open / close.                    |
+| `code-review.start` / `.end` | Inline review sub-phase.                                   |
+| `pr.created`                | `gh pr create` returned a PR URL.                           |
+| `merge.unlanded`            | Headless Story delivery finished without a confirmed merge. |
+| `loop.tick`                 | One pass of a host-driven loop (idle-watchdog visibility).  |
+| `notification.emitted`      | Notify path fanned a webhook event.                         |
+| `checkpoint.written`        | Resume pointer persisted.                                   |
 
-> **Story-only heartbeats.** Stories have no child Task tickets;
-> `story.heartbeat` carries phase info only. Wave + Story events
-> (`wave.*`, `story.dispatch.*`, `story.merged`, `story.blocked`)
-> operate at the Story tier.
+### Historical Epic events (schemas retained)
 
-> **Loop ticks vs Story heartbeats.** `loop.tick` is a **distinct** event
-> from `story.heartbeat`: it is emitted once per pass of a host-driven
-> loop (a `/loop`-style recurring command or a long-running poll), not
-> tied to any Story tier. It carries a free-form `loopName`, a monotonic
-> `round` counter, the loop's configured `cadence` label, and a per-round
-> `status` (`running` | `done` | `blocked`) so the `/deliver` idle
-> watchdog sees forward progress and a host loop never runs silently.
-> Emit it through the bus via
+Pre-v2 Epic delivery emitted `epic.*`, `story.merged` (into `epic/<id>`),
+`acceptance.reconcile.*`, `retro.*`, and related events. Those schemas
+remain under `.agents/schemas/lifecycle/` so archived
+`temp/run-<id>/lifecycle.ndjson` (and older `temp/epic-<id>/` trees)
+stay readable. They are **not** part of the active Story-only path.
+
+> **Loop ticks vs Story heartbeats.** `loop.tick` is distinct from
+> `story.heartbeat`: it is emitted once per pass of a host-driven loop,
+> not tied to any Story tier. Emit it through
 > [`emit-loop-tick.js`](../.agents/scripts/lib/orchestration/lifecycle/emit-loop-tick.js).
-
-### Reconciliation + supporting events
-
-| Event                          | Emitted when                                             |
-| ------------------------------ | -------------------------------------------------------- |
-| `acceptance.reconcile.start`   | Acceptance-spec reconciler begins.                       |
-| `acceptance.reconcile.ok`      | Reconcile completed with no diff vs spec.                |
-| `acceptance.reconcile.failed`  | Reconcile completed but the spec drifted; halt or warn.  |
-| `acceptance.reconcile.waived`  | Reconciler waived by `acceptance::n-a` label (Finalizer routes to PR). |
-| `acceptance.reconcile.skipped` | Reconciler skipped (empty Acceptance Spec; no PR).        |
-| `close-validate.start`         | Close-validation gates open.                             |
-| `close-validate.end`           | Close-validation gates close (pass or fail).             |
-| `code-review.start`            | Phase 4 inline audit opens.                              |
-| `code-review.end`              | Audit completed.                                         |
-| `retro.start`                  | Phase 5 retro authoring opens.                           |
-| `retro.end`                    | Retro persisted.                                         |
-| `pr.created`                   | `gh pr create` returned a PR URL.                        |
-| `checkpoint.written`           | `CheckpointPointerWriter` persisted a resume pointer.    |
-| `notification.emitted`         | `NotifyDispatcher` fanned a webhook event.               |
-
-The numeric count of typed events is the file count under
-`.agents/schemas/lifecycle/` minus `ledger-record.schema.json`. Treat the
-schema directory — not this table — as the source of truth when adding a
-new event.
 
 ### Schema-backed roster
 
@@ -182,16 +140,13 @@ a lifecycle schema; the drift gate is
 | `epic.watch.end` | [`epic.watch.end.schema.json`](../.agents/schemas/lifecycle/epic.watch.end.schema.json) | Emitted by Watcher when required checks settle. checkOutcomes maps check-name → terminal state (success \| failure \| timed_out \| skipped) or the slow-but-not-failed sentinel `still-running` (Story #4358: the poll cap fired with the check still pending after the resume budget was exhausted — distinct from a genuine `failure`). AutomergePredicate subscribes to this event (test-only Watcher path; the production Phase 8.5 boundary is epic.automerge.start). | `prUrl`, `checkOutcomes` |
 | `epic.watch.start` | [`epic.watch.start.schema.json`](../.agents/schemas/lifecycle/epic.watch.start.schema.json) | Emitted by Watcher when required-check polling begins. Required-check names are resolved from GitHub at runtime via gh pr checks, not from .agentrc.json. | `prUrl`, `requiredChecks` |
 | `intervention.recorded` | [`intervention.recorded.schema.json`](../.agents/schemas/lifecycle/intervention.recorded.schema.json) | Emitted whenever the host LLM performs an out-of-band manual intervention during an Epic delivery (e.g., AskUserQuestion, manual git restore/reset, --no-ff recovery merge, story-close --skipValidation). The InterventionRecorder listener appends the payload to the epic-run-state-store's manualInterventions array; a non-empty array disqualifies the Epic from auto-merge. | `epicId`, `reason` |
-| `ledger-record` | [`ledger-record.schema.json`](../.agents/schemas/lifecycle/ledger-record.schema.json) | Append-only NDJSON record shape for temp/epic-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, the ledger-diff assertion helpers, TraceLogger) discriminate on `kind`. | — |
+| `ledger-record` | [`ledger-record.schema.json`](../.agents/schemas/lifecycle/ledger-record.schema.json) | Append-only NDJSON record shape for temp/run-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, the ledger-diff assertion helpers, TraceLogger) discriminate on `kind`. | — |
 | `loop.tick` | [`loop.tick.schema.json`](../.agents/schemas/lifecycle/loop.tick.schema.json) | Emitted once per pass of a host-driven loop (e.g. a recurring loop command or a long-running poll) so each round lands an inspectable ledger record. Surfaces the loop as forward-progress evidence the /deliver idle watchdog already scans — distinct from story.heartbeat, which carries Story-phase info for a single in-flight Story. A loop is not tied to a Story tier: loop.tick carries a free-form loopName, a monotonic round counter, the configured cadence, and a status so a host loop never runs silently. cadence is the loop's configured interval label (e.g. '5m', 'self-paced'); status is the per-round verdict (running while the loop continues, done when it terminates normally, blocked when it stalls). | `event`, `loopName`, `round`, `cadence`, `status`, `timestamp` |
 | `merge.unlanded` | [`merge.unlanded.schema.json`](../.agents/schemas/lifecycle/merge.unlanded.schema.json) | Emitted whenever a headless delivery run (the epic-path finalize flow or the standalone single-story-close flow) finishes its work without a confirmed merge, so a work-complete-but-unmerged terminal state is precisely attributable from the lifecycle ledger instead of diffing origin/main after the fact (Epic #4425). scope distinguishes the epic-path (ticketId = epicId) from the standalone story-path (ticketId = storyId); blockClass is produced by the shared classifier in merge-block-class.js. | `event`, `scope`, `ticketId`, `prNumber`, `blockClass`, `reason`, `elapsedSeconds` |
 | `notification.emitted` | [`notification.emitted.schema.json`](../.agents/schemas/lifecycle/notification.emitted.schema.json) | Self-emitted by NotifyDispatcher after each webhook/comment dispatch. Carries the upstream event name, the channel, the severity, and the ok flag for trace fidelity. | `event`, `channel`, `severity`, `ok` |
 | `pr.created` | [`pr.created.schema.json`](../.agents/schemas/lifecycle/pr.created.schema.json) | Emitted by Finalizer immediately after gh pr create (or short-circuit). Must be preceded by acceptance.reconcile.ok from the same run. | `prUrl`, `head`, `base` |
-| `retro.end` | [`retro.end.schema.json`](../.agents/schemas/lifecycle/retro.end.schema.json) | Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/epic-<id>/ when written. Story #2252. | `epicId`, `posted` |
+| `retro.end` | [`retro.end.schema.json`](../.agents/schemas/lifecycle/retro.end.schema.json) | Emitted at the end of the retro sub-phase. `posted` indicates whether the retro structured comment was upserted onto the Epic; `retroPath` is the local mirror path under temp/run-<id>/ when written. Story #2252. | `epicId`, `posted` |
 | `retro.start` | [`retro.start.schema.json`](../.agents/schemas/lifecycle/retro.start.schema.json) | Emitted at the start of the retro sub-phase (Phase E of the close-tail). Story #2252. | `epicId` |
-| `slice.end` | [`slice.end.schema.json`](../.agents/schemas/lifecycle/slice.end.schema.json) | Appended to the Epic ledger by the single-delivery executor (deliver-epic-single.md, M4-B) when a Delivery-Slicing slice finishes — the single-delivery analogue of story.dispatch.end. A `done` outcome is what the slice-map checkpoint flips `slices[id].status` to before the walk advances; resume skips `done` slices because the epic/<id> branch already carries the work. Introduced INERT in Epic #4475 M4-A; the executor that emits it lands in M4-B. | `event`, `epicId`, `sliceId`, `outcome`, `timestamp` |
-| `slice.heartbeat` | [`slice.heartbeat.schema.json`](../.agents/schemas/lifecycle/slice.heartbeat.schema.json) | Emitted from inside a slice's implementation loop in the single-delivery executor (deliver-epic-single.md, M4-B). Single-delivery collapses the whole Epic into one long guarded session, so the idle watchdog cannot lean on per-Story story.heartbeat to tell a live session from a dead one — slice.heartbeat is that forward-progress signal for the single session. The single-delivery analogue of story.heartbeat; carries phase info only (a spec-only plan has no child tickets). The optional operator field records the handle holding the assignee-as-lease claim on the Epic. Introduced INERT in Epic #4475 M4-A; the executor that emits it lands in M4-B. | `event`, `epicId`, `sliceId`, `phase`, `timestamp` |
-| `slice.start` | [`slice.start.schema.json`](../.agents/schemas/lifecycle/slice.start.schema.json) | Emitted by the single-delivery executor (deliver-epic-single.md, M4-B) as it begins implementing one Delivery-Slicing slice inside the single guarded session on epic/<id>. The single-delivery analogue of story.dispatch.start (one per Story per attempt): a slice is the leaf work unit of a spec-only plan that authored no Story tickets, so the ledger carries the slice id + position instead of a storyId. Introduced INERT in Epic #4475 M4-A alongside the slice-map checkpoint; the executor that emits it lands in M4-B. | `event`, `epicId`, `sliceId`, `timestamp` |
 | `story.blocked` | [`story.blocked.schema.json`](../.agents/schemas/lifecycle/story.blocked.schema.json) | Emitted from the story-close path when a Story transitions to agent::blocked. | `storyId`, `reason` |
 | `story.dispatch.end` | [`story.dispatch.end.schema.json`](../.agents/schemas/lifecycle/story.dispatch.end.schema.json) | Appended to the Epic ledger by emit-story-dispatch-end.js when a child story sub-agent returns, so /deliver's idle watchdog can subtract completed Stories from the in-flight set. Subscribed by CheckpointPointerWriter via SUBSCRIBED_END_EVENTS. Sibling ordering within a wave is not guaranteed; ordering between waves is. | `storyId`, `outcome`, `durationMs` |
 | `story.dispatch.start` | [`story.dispatch.start.schema.json`](../.agents/schemas/lifecycle/story.dispatch.start.schema.json) | Emitted before a story is handed to the host-LLM for Agent-tool fanout. lifecycle-emit-story-dispatch.js appends the {storyId, waveIndex, dispatchedAt, attempt} shape to the Epic ledger so /deliver's host loop can durably ledger every dispatch attempt for in-flight reconciliation (Story #2891). | `storyId`, `waveIndex` |
@@ -204,8 +159,10 @@ a lifecycle schema; the drift gate is
 
 ## 3. Ledger format
 
-The bus writes two on-disk artifacts per Epic run, both rooted at
-`temp/epic-<id>/`:
+The bus writes two on-disk artifacts per run, both rooted at
+`temp/run-<id>/` (resolved by
+[`runTempDir`](../.agents/scripts/lib/config/temp-paths.js); the
+deprecated `epicTempDir` alias still forwards here):
 
 ### Canonical NDJSON: `lifecycle.ndjson`
 
@@ -239,7 +196,7 @@ NDJSON.
 ### Resume
 
 Resume is ledger-driven. The resume helper reads
-`temp/epic-<id>/lifecycle.ndjson`, finds the highest seqId with a
+`temp/run-<id>/lifecycle.ndjson`, finds the highest seqId with a
 terminal record (`completed` or `failed`), and replays the bus from
 that point. Idempotent listeners (`Set<seqId>` guard) make the replay
 safe — the NDJSON ledger is the sole source of truth for resume.
@@ -251,76 +208,54 @@ safe — the NDJSON ledger is the sole source of truth for resume.
 Listeners live in
 [`lib/orchestration/lifecycle/listeners/`](../.agents/scripts/lib/orchestration/lifecycle/listeners/).
 Each listener does exactly one thing in response to its subscribed
-events. The runner factory composes them in a fixed order so the ledger
-boundary is always the first writer.
+events.
 
 | Listener                     | Subscribes to                                                                                  | Side effect                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `LedgerWriter`               | `*` (registered first on every event)                                                          | Append `emitted` / `completed` / `failed` rows to `lifecycle.ndjson`.|
-| `TraceLogger`                | `*` (wildcard trace observer)                                                                  | Re-render the `lifecycle.md` companion.                              |
-| `NotifyDispatcher`           | `*` (dynamic; `epic.snapshot.start`, `epic.blocked`, `epic.complete` via `LIFECYCLE_TO_WEBHOOK_EVENT`) | Fan out the @mention + webhook channels via `notify.js`.             |
-| `CheckpointPointerWriter`    | `*` (dynamic `*.end` events sourced from `SUBSCRIBED_END_EVENTS`)                              | Persist a resume pointer in `epic-run-state`.                        |
-| `AcceptanceReconciler`       | `epic.close.end` (gated by waiver label)                                                       | Reconcile AC IDs against the linked acceptance-spec ticket.          |
-| `Finalizer`                  | `acceptance.reconcile.ok`, `acceptance.reconcile.waived`                                       | Open or locate the Epic PR, close planning tickets, post the handoff comment; emit `pr.created` then `epic.finalize.end`. Stops there (Story #3367) — does NOT emit `epic.merge.ready`, so `epic.close.end` cannot cascade into the auto-merge arm + branch reap. |
-| `MergeWatcher`               | `epic.merge.armed`                                                                             | Poll `gh pr view` until `mergeCommit` is non-null; emit `epic.merge.confirmed`. |
-| `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
-| `AutomergePredicate`         | `epic.automerge.start`, `epic.watch.end`                                                       | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. Subscribes to `epic.automerge.start` (the production Phase 8.5 boundary `lifecycle-emit.js` fires; no `checkOutcomes`, so the CI-freshness gate is skipped — CI is already green per Phase 8) and `epic.watch.end` (test-only `Watcher` path, carries `checkOutcomes`). Story #3901. |
-| `AutomergeArmer`             | `epic.merge.ready` **only**                                                                    | Arm GitHub native auto-merge — the SOLE production code path authorised to call `gh pr merge`. |
-| `Cleaner`                    | `epic.merge.confirmed`                                                                         | Archive `temp/epic-<id>/`; emit `epic.cleanup.start` / `epic.cleanup.end` / `epic.complete`. |
-| `LabelTransitioner`          | `epic.complete`                                                                                | Flip the Epic ticket to `agent::done` via `transitionTicketState` (also closes the issue as completed, idempotently). Skipped when no provider is wired. |
-| `BranchCleaner`              | `epic.cleanup.start`                                                                           | Reap local `story-<id>` and `epic/<id>` refs; prune remote tracking. Story #3367: keeps the `epic/<id>` ref + its remote tracking ref when an open, unmerged PR is on that head (probe fails closed). |
-| `InterventionRecorder`       | `intervention.recorded`                                                                        | Append manual-intervention entries to `epic-run-state` (disqualifies auto-merge). |
+| `MergeWatcher`               | `epic.merge.armed`                                                                             | Poll helpers (`deriveChecksStatus`) reused by Story close-and-land. |
+| `Watcher`                    | `pr.created`                                                                                   | `watchPrToTerminal` — CI watch used by `pr-watch-with-update.js`. |
 
+> **v2 note.** The Epic lifecycle listener chain (`AutomergeArmer`,
+> `AutomergePredicate`, `Finalizer`, `Cleaner`, …) was removed. Story
+> delivery arms merge and confirms land via `single-story-close`
+> (`phases/auto-merge.js` + `confirm-merge.js`). Helper exports from
+> `merge-watcher.js` / `watcher.js` remain; `MergeWatcher` still
+> documents the historical `epic.merge.armed` subscription for archived
+> ledgers / helper reuse.
 ### Side-effect firewall
 
 Listeners MAY read tickets via the injected provider, write tickets via
 `transitionTicketState`, upsert structured comments, and append to the
-per-Epic ledger / signals files. Listeners MUST NOT call `bus.emit()`
+per-run ledger / signals files. Listeners MUST NOT call `bus.emit()`
 from inside a listener body, import runner state directly, or mutate
 cross-cutting globals.
 
 The "merge-lockout" lint rule
 ([`.agents/scripts/check-lifecycle-lint.js`](../.agents/scripts/check-lifecycle-lint.js))
 enforces that the literal `gh pr merge` call lives only inside
-`AutomergeArmer`. Any other module that re-introduces the string fails
-lint.
+`single-story-close/phases/auto-merge.js`. Any other module that
+re-introduces the string fails lint.
 
 ---
 
 ## 5. Emit boundaries
 
-The lifecycle bus is the sole runtime; every side effect at a phase
-boundary is owned by a listener that subscribes to a typed event. The
-`/deliver` workflow markdown reaches the bus through a single
-generic CLI — there are no per-phase shim scripts.
+Live Story close-and-land —
+[`.agents/scripts/single-story-close.js`](../.agents/scripts/single-story-close.js)
+— arms auto-merge and optionally polls to merge confirmation
+(`delivery.routing.closeAndLand`, default true).
 
-- [`.agents/scripts/lifecycle-emit.js`](../.agents/scripts/lifecycle-emit.js)
-  — generic argv-driven emit helper. Phase 6 fires `epic.close.end`,
-  Phase 7.5 fires `epic.automerge.start`, Phase 8 fires
-  `epic.merge.armed`. Schema validation in the bus catches missing or
-  malformed payload fields before any listener runs.
-- [`.agents/scripts/notify.js`](../.agents/scripts/notify.js) — single
-  dispatch entry point for webhook / @mention channels. The canonical
-  caller is the `NotifyDispatcher` listener; out-of-band operator
-  invocations (smoke-testing a channel, replaying a missed notification)
-  remain supported.
-
-Inside the session, the runner factory wires the listener roster onto
-the bus before the wave loop starts; emits from `lifecycle-emit.js`
-re-enter the same chain. The ledger writes (`emitted` → listener fan-out
-→ `completed` / `failed`) make the replay deterministic.
+[`.agents/scripts/notify.js`](../.agents/scripts/notify.js) remains the
+single dispatch entry point for webhook / @mention channels.
 
 ---
 
 ## 6. Related references
 
-- [`docs/architecture.md`](architecture.md) — system overview; the
-  Orchestration Engine and Epic Deliver Runner sections describe how
-  the bus fits into the larger SDL.
-- [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — end-to-end SDLC narrative;
-  the Phase 3 (Delivery) section names the bus as the runtime
-  coordinator.
-- [`.agents/workflows/helpers/deliver-epic.md`](../.agents/workflows/helpers/deliver-epic.md)
-  — operator-facing `/deliver` runbook.
+- [`docs/architecture.md`](architecture.md) — system overview; Story
+  delivery scripts and operator-tunable knobs.
+- [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md) — end-to-end SDLC narrative.
+- [`.agents/workflows/deliver.md`](../.agents/workflows/deliver.md)
+  — operator-facing `/deliver` router.
 - [`docs/decisions.md`](decisions.md) — architectural decisions log;
   the Epic #2172 entry records the rationale for the bus refit.

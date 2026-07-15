@@ -243,7 +243,7 @@
       "title": "Raise the token budget and thread preflight ceilings into the decomposer",
       "body": {
         "acceptance": [
-          "maxTokenBudget is 300000 in the resolved limits",
+          "DEFAULT_MODEL_CAPACITY absolute session-mass ceilings apply at persist time",
           "preflight ceilings are threaded into the decomposer context",
           "a preflight breach surfaces via agent::blocked"
         ],

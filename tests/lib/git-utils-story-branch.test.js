@@ -13,7 +13,7 @@ describe('git-utils — parseStoryBranch', () => {
   });
 
   it('round-trips with getStoryBranch', () => {
-    const branch = getStoryBranch(null, 42);
+    const branch = getStoryBranch(42);
     assert.equal(parseStoryBranch(branch), 42);
   });
 

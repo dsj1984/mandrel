@@ -4,7 +4,7 @@
  * Shared builder for the `evaluateProtection` context the boot-sweep
  * engine ([`sweepMergedBranches`](../single-story-sweep.js)) threads into
  * every candidate protection check. Single-homed here so the three boot
- * callers — `single-story-init.js`, `epic-deliver-prepare.js`, and the
+ * callers — `single-story-init.js` and the
  * `boot-sweep.js` CLI — build an identical ctx instead of each re-wiring
  * the git/gh/ticket ports.
  *

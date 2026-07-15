@@ -325,24 +325,28 @@ accumulate as clutter.
 
 **Consumers in the delivery flow:**
 
-| Type                 | Writer                      | Purpose                                                     |
-| -------------------- | --------------------------- | ----------------------------------------------------------- |
-| `epic-run-state`     | `lib/orchestration/epic-run-state-store.js` (advanced by `epic-execute-record-wave.js`) | JSON checkpoint (`currentWave`, `phase`, wave history). |
-| `wave-<N>-start` / `wave-<N>-end` | `/deliver` wave loop (markers parsed by `lib/orchestration/wave-marker.js`) | Per-wave boundary records on the Epic ticket. |
-| `dispatch-manifest`  | `epic-plan` / dispatcher    | Frozen Story manifest consumed by the wave loop (`wave-tick.js`, `dispatcher.js`). |
-| `parked-follow-ons`  | dispatcher                  | Out-of-manifest Stories surfaced at the deliver-tail gate.  |
-| `retro`              | `lib/orchestration/retro-runner.js` | Final retrospective body with `retro-complete` marker. |
-| `code-review`        | `lib/orchestration/code-review.js`  | Findings report from the in-process Phase 4 module.    |
+| Type                        | Writer                                                                 | Purpose                                                                 |
+| --------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `story-plan-state`          | `plan-persist.js` (`writeCheckpointV2`)                                | Per-Story planning checkpoint (risk envelope, routing receipts).        |
+| `risk-verdict` / `plan-summary` | `plan-persist.js`                                                  | Planner-authored risk + primary-Story persist receipt.                  |
+| `story-init`                | `single-story-init.js`                                                 | Init snapshot (worktree, deps, remote probe).                           |
+| `friction`                  | single-story init/close phases                                         | Blockers / HITL telemetry on the Story issue.                           |
+| `verification-results`      | `lib/orchestration/code-review.js`                                     | Unified code-review / lens findings (often on the PR).                  |
+| `notification`              | `single-story-close` code-review phase                                 | Story-issue cross-link to PR-side verification results.                 |
+| `follow-ups`                | `story-follow-ups.js` / confirm-merge + `run-epilogue.js`              | Routed follow-up proposals after land / plan-run rollup.                |
+| `plan-run-audit-roster` / `plan-run-sibling-coherence` | `lib/orchestration/run-epilogue.js`               | Rare N>1 plan-run cross-Story audit + coherence artifacts.              |
 
 **When to reach for this pattern:** orchestrator state that must
 survive restarts, be human-readable on the issue, and be
-machine-parseable by downstream tooling (wave-tick, retro aggregator).
-Prefer a local file only when the state is ephemeral and recoverable
-(e.g. `temp/dispatch-manifest-<id>.{md,json}` is a view, not an SSOT).
+machine-parseable by downstream tooling (`stories-wave-tick` sequencing,
+close-validation, follow-up capture). Prefer a local file only when the
+state is ephemeral and recoverable (e.g. `temp/run-<id>/manifest.md` is a
+view, not an SSOT).
 
 **When NOT to use it:** high-frequency state updates (sub-second or
 sub-minute) — the delete-then-post cycle has rate-limit cost. For those
-cases, compute a running total and upsert at wave boundaries instead.
+cases, append to the lifecycle / signals NDJSON ledger and upsert a
+summary at Story close instead.
 
 ---
 
@@ -545,7 +549,7 @@ being captured.
 
 `lib/observability/signals-writer.js#appendSignal` appends one
 newline-terminated JSON record per friction event to
-`temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Records are best-effort
+`temp/run-<eid>/stories/story-<sid>/signals.ndjson`. Records are best-effort
 (any fs failure is logged via `Logger.warn` and swallowed — observability
 must not halt the runner) and are picked up out-of-band by the analyzer
 (Epic #1030).
@@ -577,9 +581,9 @@ downstream, so callers do not need their own cooldown logic.
 ### Problem
 
 `validateOrchestrationConfig` is wired into `resolveConfig()`, but CLI
-launchers (`epic-plan-healthcheck.js`, `bootstrap.js`,
+launchers (`plan-context.js`, `bootstrap.js`,
 `agents-bootstrap-github.js`, `plan-context.js`, `plan-persist.js`,
-`epic-plan-clarity.js`) call `resolveConfig()` and immediately dispatch
+`plan-persist.js`) call `resolveConfig()` and immediately dispatch
 to long-running flows. A schema-invalid `.agentrc.json` would otherwise
 surface deep inside the dispatch chain instead of at launcher startup,
 producing a confusing stack trace instead of a clear schema error.
@@ -964,46 +968,33 @@ observability surface. Three principles:
 - Future perf retuning becomes a decision comment + a default-file
   edit, not a code archaeology exercise.
 
-## Compact-path short-circuit with escape hatch
+## Compact-path short-circuit with escape hatch (historical)
 
 ### Context
 
 `helpers/epic-retro.md` historically walked through six sections
 regardless of sprint shape. On clean-manifest Epics (zero friction,
 zero parked, zero recuts, zero hotfixes, zero HITL) four of those
-sections degenerate to "nothing notable" boilerplate, burning minutes
-of agent time for no retrospective value.
+sections degenerated to "nothing notable" boilerplate.
 
-### Solution
+### Solution (pre-v2)
 
-A cheap predicate decides the branch up-front; the verbose path stays
+A cheap predicate decided the branch up-front; the verbose path stayed
 one flag away.
 
 1. **Pure-function predicate.** `isCleanManifest({ friction, parked,
-   recuts, hotfixes, hitl })` returns `true` iff every signal is zero.
-   Extracted into `lib/orchestration/retro-heuristics.js` so a future
-   automated retro agent uses the same truth.
-2. **Preserved downstream contract.** The compact body is still a
-   `type: 'retro'` comment and still ends with `<!-- retro-complete:
-   <ISO> -->`. `/deliver` Phase 6's completion gate is
-   unchanged. No consumer sees a shape difference beyond length.
-3. **Operator override.** A new `--full-retro` flag on `/deliver`
-   (and a note in the helper) forces the six-section body when the
-   operator disagrees with the predicate. Mirrors `--skip-retro` /
-   `--skip-code-review`.
+   recuts, hotfixes, hitl })` returned `true` iff every signal was zero.
+   Lived in `lib/orchestration/retro-heuristics.js` (deleted in v2 with
+   the Epic retro path).
+2. **Preserved downstream contract.** The compact body was still a
+   `type: 'retro'` comment ending with `<!-- retro-complete: <ISO> -->`.
+3. **Operator override.** `--full-retro` forced the six-section body.
 
-### When to reach for this pattern
+### When this pattern still applies
 
-The pattern generalises to any stage whose body is mechanically
-populated from signals that are usually (but not always) zero. The
-ingredients:
-
-- A predicate that is a pure function of existing data (no new
-  source-of-truth).
-- A shorter body template that preserves the downstream contract
-  (markers, comment types, downstream parsers).
-- An operator flag that forces the verbose path without changing the
-  predicate.
+The *pattern* (predicate + shorter body + escape hatch) generalises to
+any stage whose body is mechanically populated from usually-zero
+signals. The Epic-retro *instance* of the pattern is gone in v2.
 
 Use only when (a) the short path genuinely produces less work, not
 less signal, and (b) the short path is the common case. If "clean" is
@@ -1079,12 +1070,13 @@ does not apply.
 When the same lint/test/format/maintainability/CRAP command is invoked
 across phases against the same tree, the framework wraps each invocation
 in `evidence-gate.js`. On success the wrapper writes
-`{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
-tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
-`temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
-(Story-scoped). The next caller reads the record, compares against `git
-rev-parse HEAD` and the resolved command config, and skips when both
-match.
+`{ gateName, commitSha, commandConfigHash, timestamp }` under the run
+tree at `temp/run-<id>/validation-evidence.json` (run-scoped) or
+`temp/run-<id>/stories/story-<storyId>/validation-evidence.json`
+(Story-scoped; standalone Stories use
+`temp/standalone/stories/story-<storyId>/`). The next caller reads the
+record, compares against `git rev-parse HEAD` and the resolved command
+config, and skips when both match.
 
 Pattern shape:
 

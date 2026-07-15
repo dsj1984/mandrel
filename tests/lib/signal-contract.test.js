@@ -265,7 +265,7 @@ describe('signal contract — round-trips through live consumers', () => {
       { category: 'one-off', source: 'consumer' },
     ];
     const routed = composeRoutedProposals({
-      epicId: 4406,
+      anchorId: 4406,
       frameworkRepo: 'dsj1984/mandrel',
       consumerRepo: 'acme/app',
       signals,
@@ -406,7 +406,7 @@ describe('signal contract — write-time validation + reject tally (item 6)', ()
       'reject tally increments under the Epic temp tree',
     );
     // Cross-process readable: the tally lives as a JSON file on disk.
-    const tallyPath = path.join(workRoot, 'epic-4406', 'signal-rejects.json');
+    const tallyPath = path.join(workRoot, 'run-4406', 'signal-rejects.json');
     const raw = JSON.parse(await fs.readFile(tallyPath, 'utf8'));
     assert.equal(raw.count, after);
     assert.equal(typeof raw.lastField, 'string');

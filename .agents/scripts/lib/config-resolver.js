@@ -27,7 +27,6 @@ import path from 'node:path';
 import { getCiDelivery } from './config/ci.js';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
-import { getLifecycle } from './config/lifecycle.js';
 import { resolvePaths } from './config/paths.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
 import { getWorktreeIsolation } from './config/worktree-isolation.js';
@@ -43,10 +42,8 @@ export { NOTIFICATIONS_DEFAULTS } from './config/github.js';
 export {
   getLimits,
   LIMITS_DEFAULTS,
-  resolvePreflightCeilings,
 } from './config/limits.js';
 export { getPaths } from './config/paths.js';
-export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   CODING_GUARDRAILS_DEFAULTS,
   getQuality,
@@ -107,10 +104,8 @@ function applyDeliveryDefaults(rawDelivery) {
   delivery.worktreeIsolation = getWorktreeIsolation({
     worktreeIsolation: delivery.worktreeIsolation,
   });
-  delivery.lifecycle = getLifecycle({ lifecycle: delivery.lifecycle });
-  // Story #2899 (Epic #2880) — `delivery.ci` always carries
-  // `skipForStoryPushes: true` by default so Story-branch commit
-  // tooling applies the `[skip ci]` trailer without operator opt-in.
+  // `delivery.ci` always carries autoMerge (and passes watch through) so
+  // CI-aware delivery knobs resolve without operator opt-in.
   delivery.ci = getCiDelivery({ ci: delivery.ci });
   return delivery;
 }

@@ -1,8 +1,8 @@
 /**
  * Central source of truth for all GitHub label names used by the orchestrator.
  *
- * Every other module (label-taxonomy, dispatch-engine, story-close,
- * etc.) should import from here rather than using string literals. Renames
+ * Every other module (label-taxonomy, single-story-close.js,
+ * stories-wave-tick.js, etc.) should import from here rather than using string literals. Renames
  * land in one place.
  */
 
@@ -10,12 +10,12 @@ export const AGENT_LABELS = {
   REVIEW_SPEC: 'agent::review-spec',
   READY: 'agent::ready',
   EXECUTING: 'agent::executing',
-  // Story #2144 — intermediate state owned by `story-close.js`. A Story
+  // Story #2144 — intermediate state owned by `single-story-close.js`. A Story
   // flips to `agent::closing` after preflight validation succeeds and
-  // before the merge into `epic/<id>` is attempted. It flips to
-  // `agent::done` only after the post-merge pipeline confirms the merge
+  // the Story PR is opened against `main`. It flips to
+  // `agent::done` only after the close pipeline confirms the PR merge
   // landed; if the close is killed mid-flight, the Story remains at
-  // `agent::closing` so a `/story-execute --resume` can pick up at the
+  // `agent::closing` so `/deliver` can pick up at the
   // post-merge phase rather than re-running preflight. The label is the
   // distinguishing signal between "hung close" and "finished work".
   CLOSING: 'agent::closing',
@@ -75,21 +75,12 @@ export function isValidTransition(fromState, toState) {
 }
 
 export const TYPE_LABELS = {
-  EPIC: 'type::epic',
   STORY: 'type::story',
 };
 
 export const STATUS_LABELS = {
   BLOCKED: 'status::blocked',
 };
-
-/**
- * Persona labels are derived at bootstrap time from `.agents/personas/*.md`
- * (see `label-taxonomy.js`), not hard-coded here — the persona file is the
- * source of truth, and ticket hydration resolves the label value to the
- * matching filename.
- */
-export const PERSONA_LABEL_PREFIX = 'persona::';
 
 /**
  * Acceptance-axis labels for opt-out signalling on Epics that
@@ -122,13 +113,10 @@ export const META_LABELS = {
 
 /**
  * Planning-axis labels (Epic #2880 F7). Currently scoped to the
- * `planning::healthcheck-waived` operator-applied waiver, which is the
- * documented escape hatch for the inline post-plan readiness
- * healthcheck (`runPlanHealthcheck`). The persist surface
- * (`plan-persist.js`) refuses to flip an Epic to `agent::ready`
- * when the healthcheck returned `ok: false` unless this label is
- * present — see `.agents/docs/SDLC.md` § "`agent::ready` exit conditions"
- * for the full handoff contract.
+ * `planning::healthcheck-waived` operator-applied waiver — a historical
+ * escape hatch for the retired post-plan readiness healthcheck. The
+ * label remains in the taxonomy for tickets that still carry it; the
+ * healthcheck CLI itself was deleted in the v2 epic-scripts sweep.
  *
  * Future planning-axis waivers (one per failing exit condition) extend
  * this enum so consumers can reference them by symbol.
@@ -166,7 +154,6 @@ export const LABEL_COLORS = {
   TYPE: '#7057FF',
   AGENT: '#0E8A16',
   STATUS_BLOCKED: '#D93F0B',
-  PERSONA: '#C5DEF5',
   ACCEPTANCE: '#FBCA04',
   PLANNING: '#FEF2C0',
   DELIVERY: '#BFD4F2',

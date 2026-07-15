@@ -33,7 +33,8 @@
  *      (% progress + blockers), not the firehose of per-story transitions;
  *      the default allowlist is the five `epic-*` events. Payload envelope:
  *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
- *      `text` always populated for back-compat with `{text}`-only consumers.
+ *      `text` is the primary human-readable body (Slack-style incoming
+ *      webhooks read this field).
  *
  * Each channel filters independently — no fallback chain. Severity is
  * carried as envelope metadata (so Slack consumers can color-code by it
@@ -93,8 +94,8 @@ function buildWebhookPayload({
       : '';
   const text = `${prefix}${ticketPart}: ${cleanMessage}`;
 
-  // `text` first for back-compat with `{text}`-only consumers (Slack-style
-  // incoming webhooks). Typed fields follow for routable subscribers.
+  // `text` is the primary human-readable body; typed fields follow for
+  // routable subscribers.
   const envelope = { text, severity };
   if (Number.isFinite(numericTicketId) && numericTicketId > 0) {
     envelope.ticketId = numericTicketId;

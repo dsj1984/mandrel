@@ -21,13 +21,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/authoring-context.js';
+import { buildAuthoringContext } from '../.agents/scripts/lib/orchestration/planning/authoring-context.js';
 import {
   buildAuthoringGrounding,
   buildTruncationSignal,
   findCitedButAbsent,
   MAX_CITED_ABSENT,
-} from '../.agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-authoring-grounding.js';
+} from '../.agents/scripts/lib/orchestration/planning/spec-authoring-grounding.js';
 import {
   collectReferences,
   hasNewFileCue,
@@ -202,7 +202,7 @@ describe('buildAuthoringContext — envelope carries grounding', () => {
           'references `lib/this-path-does-not-exist-4139.js` which is absent',
           'from the source tree.',
         ].join('\n'),
-        labels: ['type::epic'],
+        labels: ['type::story'],
         linkedIssues: { techSpec: null },
       };
     },

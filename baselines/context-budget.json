@@ -1,10 +1,10 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-07-13T15:29:26.584Z",
+  "generatedAt": "2026-07-14T23:07:38.061Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
-      "totalBytes": 50852,
+      "totalBytes": 48357,
       "files": [
         {
           "path": ".agentrc.json",
@@ -12,15 +12,11 @@
         },
         {
           "path": ".agents/instructions.md",
-          "bytes": 25856
-        },
-        {
-          "path": ".agents/personas/engineer.md",
-          "bytes": 1780
+          "bytes": 25430
         },
         {
           "path": ".agents/rules/git-conventions.md",
-          "bytes": 5154
+          "bytes": 4983
         },
         {
           "path": ".agents/rules/security-baseline.md",
@@ -28,20 +24,20 @@
         },
         {
           "path": "AGENTS.md",
-          "bytes": 9769
+          "bytes": 9956
         },
         {
           "path": "CLAUDE.md",
-          "bytes": 1860
+          "bytes": 1555
         }
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 370060,
+      "totalBytes": 367723,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 86808
+          "bytes": 84738
         },
         {
           "path": "docs/data-dictionary.md",
@@ -49,7 +45,7 @@
         },
         {
           "path": "docs/decisions.md",
-          "bytes": 185330
+          "bytes": 185063
         },
         {
           "path": "docs/patterns.md",
@@ -66,12 +62,8 @@
         "bytes": 5456
       },
       {
-        "path": ".agents/agents/retro.md",
-        "bytes": 1769
-      },
-      {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7976
+        "bytes": 7892
       }
     ]
   }

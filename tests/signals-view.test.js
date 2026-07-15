@@ -4,7 +4,7 @@
  *
  * AC coverage (per Task ticket #1464):
  *   1. Happy path: a checked-in (synthesised in `beforeEach`) signals
- *      stream renders an Epic → Story → Task tree to stdout.
+ *      stream renders a run → Story tree to stdout.
  *   2. Missing-file friendly message: when no signals.ndjson exists, the
  *      viewer prints a friendly "no signals found" line and exits 0
  *      (NOT a stack trace).
@@ -64,7 +64,7 @@ function captureStdout() {
 }
 
 async function writeSignalsFile(rootDir, epic, story, events) {
-  const dir = path.join(rootDir, `epic-${epic}`, 'stories', `story-${story}`);
+  const dir = path.join(rootDir, `run-${epic}`, 'stories', `story-${story}`);
   await fs.mkdir(dir, { recursive: true });
   const target = path.join(dir, 'signals.ndjson');
   await fs.writeFile(
@@ -76,26 +76,26 @@ async function writeSignalsFile(rootDir, epic, story, events) {
 }
 
 describe('signals-view — argument parsing', () => {
-  it('rejects missing epic-id', () => {
+  it('rejects missing run-id', () => {
     const r = parseArgs([]);
     assert.equal(r.ok, false);
-    assert.match(r.error, /missing <epic-id>/);
+    assert.match(r.error, /missing <run-id>/);
   });
 
-  it('rejects non-integer epic-id', () => {
+  it('rejects non-integer run-id', () => {
     const r = parseArgs(['abc']);
     assert.equal(r.ok, false);
-    assert.match(r.error, /<epic-id>/);
+    assert.match(r.error, /<run-id>/);
   });
 
-  it('rejects negative or zero epic-id', () => {
+  it('rejects negative or zero run-id', () => {
     const r1 = parseArgs(['0']);
     const r2 = parseArgs(['-7']);
     assert.equal(r1.ok, false);
     assert.equal(r2.ok, false);
   });
 
-  it('accepts positive epic-id alone', () => {
+  it('accepts positive run-id alone', () => {
     const r = parseArgs(['1181']);
     assert.deepEqual(r, { ok: true, epic: 1181, story: null, tempRoot: null });
   });
@@ -152,7 +152,7 @@ describe('signals-view — happy path', () => {
     }
     const out = cap.output();
     assert.equal(exitCode, 0);
-    assert.match(out, /Epic #1181/);
+    assert.match(out, /Run #1181/);
     assert.match(out, /Story #1438/);
     // Duration is computed from wave-start → wave-end (60s).
     assert.match(out, /1m0\.0s/);
@@ -207,7 +207,7 @@ describe('signals-view — missing-file friendly message', () => {
     );
     assert.match(
       out,
-      /No signals found for Epic #9999/,
+      /No signals found for run #9999/,
       `expected friendly missing-file message; got:\n${out}`,
     );
     // Negative control: never a stack trace.
@@ -233,7 +233,7 @@ describe('signals-view — missing-file friendly message', () => {
       cap.restore();
     }
     assert.equal(exitCode, 0);
-    assert.match(cap.output(), /No signals found for Epic #9999 \(Story #2\)/);
+    assert.match(cap.output(), /No signals found for run #9999 \(Story #2\)/);
   });
 });
 
@@ -295,7 +295,7 @@ describe('signals-view — tempRoot honour (memory: phase_timings_uses_project_r
         cap.restore();
       }
       assert.equal(exitCode, 0);
-      assert.match(cap.output(), /No signals found for Epic #1181/);
+      assert.match(cap.output(), /No signals found for run #1181/);
     } finally {
       rmSync(otherRoot, { recursive: true, force: true });
     }

@@ -18,7 +18,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runCodeReview } from '../.agents/scripts/lib/orchestration/code-review.js';
-import { DEFAULT_TASK_SIZING } from '../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
+import { DEFAULT_DIFF_WIDTH } from '../.agents/scripts/lib/orchestration/review-depth.js';
 
 // --- Test seams -----------------------------------------------------------
 
@@ -107,7 +107,7 @@ test('runCodeReview: threads a deep depth for a low-risk but wide diff', async (
   const opts = buildOpts({
     captured,
     planningRisk: { overallLevel: 'low' },
-    changedFileCount: DEFAULT_TASK_SIZING.hardFiles + 1,
+    changedFileCount: DEFAULT_DIFF_WIDTH.hardFiles + 1,
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'deep');
@@ -118,7 +118,7 @@ test('runCodeReview: threads a light depth for a low-risk small diff', async () 
   const opts = buildOpts({
     captured,
     planningRisk: { overallLevel: 'low' },
-    changedFileCount: DEFAULT_TASK_SIZING.softFiles,
+    changedFileCount: DEFAULT_DIFF_WIDTH.softFiles,
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'light');

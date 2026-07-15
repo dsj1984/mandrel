@@ -9,7 +9,7 @@
  *
  * The `--force` flag is intentional. By the time a Story is `agent::done`
  * its branch has already been merged into the Epic branch (via
- * `story-close.js`), so any residue left in the worktree — dirty
+ * `single-story-close.js`), so any residue left in the worktree — dirty
  * build artifacts, an interrupted rebase, a stray Windows lock — is noise.
  * The safety rails in `WorktreeManager.reap` exist for the _active_ close
  * path; at plan time we already know the Story is done and want the

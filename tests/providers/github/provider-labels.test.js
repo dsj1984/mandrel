@@ -47,22 +47,22 @@ describe('GitHubProvider — ensureLabels()', () => {
 
   it('creates missing labels and skips ones that already exist', async () => {
     const gh = makeLabelGh([
-      { ok: true }, // type::epic — pretend GitHub side has no rule yet
+      { ok: true },
       {
         error: {
           message: 'gh-exec: gh exited with code 422',
-          stderr: '! Label "type::task" already exists',
+          stderr: '! Label "area::docs" already exists',
         },
       },
     ]);
     const provider = createTestProvider({ gh });
     const result = await provider.ensureLabels([
-      { name: 'type::epic', color: '#7057FF', description: 'Epic' },
-      { name: 'type::task', color: '#7057FF', description: 'Task' },
+      { name: 'type::story', color: '#7057FF', description: 'Story' },
+      { name: 'area::docs', color: '#7057FF', description: 'Docs' },
     ]);
 
-    assert.deepEqual(result.created, ['type::epic']);
-    assert.deepEqual(result.skipped, ['type::task']);
+    assert.deepEqual(result.created, ['type::story']);
+    assert.deepEqual(result.skipped, ['area::docs']);
     // Post-loop verification was unable to read live labels (test mock
     // returns empty stdout), so the missing-reconcile is best-effort and
     // returns []. Story #2018 (Bug 2) added this envelope key.
@@ -74,13 +74,13 @@ describe('GitHubProvider — ensureLabels()', () => {
     assert.deepEqual(gh.__exec.calls[0].args, [
       'label',
       'create',
-      'type::epic',
+      'type::story',
       '--color',
       '7057FF',
       '--description',
-      'Epic',
+      'Story',
     ]);
-    assert.equal(gh.__exec.calls[1].args[2], 'type::task');
+    assert.equal(gh.__exec.calls[1].args[2], 'area::docs');
     assert.equal(gh.__exec.calls[2].args[0], 'label');
     assert.equal(gh.__exec.calls[2].args[1], 'list');
   });
@@ -153,16 +153,16 @@ describe('GitHubProvider — ensureLabels()', () => {
       // the second must end up in `missing[]` and be stripped from `created`.
       const gh = makeReconcileGh({
         createResponses: [{ ok: true }, { ok: true }],
-        listStdout: JSON.stringify([{ name: 'type::epic' }]),
+        listStdout: JSON.stringify([{ name: 'type::story' }]),
       });
       const provider = createTestProvider({ gh });
       const result = await provider.ensureLabels([
-        { name: 'type::epic', color: '#7057FF', description: 'Epic' },
-        { name: 'type::task', color: '#7057FF', description: 'Task' },
+        { name: 'type::story', color: '#7057FF', description: 'Story' },
+        { name: 'area::docs', color: '#7057FF', description: 'Docs' },
       ]);
-      assert.deepEqual(result.created, ['type::epic']);
+      assert.deepEqual(result.created, ['type::story']);
       assert.deepEqual(result.skipped, []);
-      assert.deepEqual(result.missing, ['type::task']);
+      assert.deepEqual(result.missing, ['area::docs']);
     });
 
     it('surfaces labels misclassified as skipped that are not actually present', async () => {
@@ -174,25 +174,25 @@ describe('GitHubProvider — ensureLabels()', () => {
           {
             error: {
               message: 'gh-exec: gh exited with code 422',
-              stderr: '! Label "type::epic" already exists',
+              stderr: '! Label "type::story" already exists',
             },
           },
           {
             error: {
               message: 'gh-exec: gh exited with code 422',
-              stderr: '! Label "type::task" already exists',
+              stderr: '! Label "area::docs" already exists',
             },
           },
         ],
-        listStdout: JSON.stringify([{ name: 'type::epic' }]),
+        listStdout: JSON.stringify([{ name: 'type::story' }]),
       });
       const provider = createTestProvider({ gh });
       const result = await provider.ensureLabels([
-        { name: 'type::epic', color: '#7057FF', description: 'Epic' },
-        { name: 'type::task', color: '#7057FF', description: 'Task' },
+        { name: 'type::story', color: '#7057FF', description: 'Story' },
+        { name: 'area::docs', color: '#7057FF', description: 'Docs' },
       ]);
-      assert.deepEqual(result.skipped, ['type::epic']);
-      assert.deepEqual(result.missing, ['type::task']);
+      assert.deepEqual(result.skipped, ['type::story']);
+      assert.deepEqual(result.missing, ['area::docs']);
     });
 
     it('returns empty missing[] when listing fails (best-effort verification)', async () => {
@@ -215,9 +215,9 @@ describe('GitHubProvider — ensureLabels()', () => {
       gh.__exec = exec;
       const provider = createTestProvider({ gh });
       const result = await provider.ensureLabels([
-        { name: 'type::epic', color: '#7057FF', description: 'Epic' },
+        { name: 'type::story', color: '#7057FF', description: 'Story' },
       ]);
-      assert.deepEqual(result.created, ['type::epic']);
+      assert.deepEqual(result.created, ['type::story']);
       assert.deepEqual(result.missing, []);
       assert.equal(createIdx, 1);
     });
@@ -240,7 +240,7 @@ describe('GitHubProvider — ensureLabels()', () => {
       const provider = createTestProvider({ gh });
       await assert.rejects(
         provider.ensureLabels([
-          { name: 'type::epic', color: '#7057FF', description: 'Epic' },
+          { name: 'type::story', color: '#7057FF', description: 'Story' },
         ]),
         /code 500/,
       );

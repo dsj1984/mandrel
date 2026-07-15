@@ -33,7 +33,7 @@ describe('estimateTokens', () => {
 describe('buildEnvelope', () => {
   it('returns required top-level fields', () => {
     const envelope = buildEnvelope({
-      task: { id: 99, title: 'Fix bug', persona: 'engineer', skills: [] },
+      task: { id: 99, title: 'Fix bug', skills: [] },
       sections: [section('taskInstructions', 'Do the thing')],
       provenance: [
         {
@@ -64,8 +64,8 @@ describe('buildEnvelope', () => {
       task: { id: 1, title: 'T' },
       sections: [
         {
-          name: 'persona',
-          priority: 50,
+          name: 'skillCapsules',
+          priority: 10,
           elideWhenOverBudget: 'summarize',
           content: 'hello',
         },
@@ -76,6 +76,17 @@ describe('buildEnvelope', () => {
 });
 
 describe('elideEnvelope', () => {
+  it('is a no-op when already under budget', () => {
+    const envelope = buildEnvelope({
+      task: { id: 1, title: 'T' },
+      sections: [section('taskInstructions', 'small')],
+      maxTokens: 500,
+    });
+    const elided = elideEnvelope(envelope, 500);
+    assert.deepEqual(elided.budget.elided, []);
+    assert.equal(elided.sections[0].content, 'small');
+  });
+
   it('elides sections in ascending priority order and records elided names', () => {
     const long = 'x'.repeat(400);
     const envelope = buildEnvelope({
@@ -151,7 +162,7 @@ describe('envelopeToPrompt', () => {
       task: { id: 42, title: 'Ship it' },
       sections: [
         section('protocolPolicy', 'Protocol body'),
-        section('persona', 'Engineer persona'),
+        section('skillCapsules', 'Skill capsule body'),
         section('taskInstructions', '## Task\n\nFix the bug'),
       ],
       warnings: ['⚠️ version drift'],
@@ -162,7 +173,7 @@ describe('envelopeToPrompt', () => {
 
     assert.equal(first, second);
     assert.ok(first.includes('Protocol body'));
-    assert.ok(first.includes('Engineer persona'));
+    assert.ok(first.includes('Skill capsule body'));
     assert.ok(first.includes('Fix the bug'));
     assert.ok(first.startsWith('⚠️ version drift'));
     assert.ok(first.includes(PROMPT_SECTION_SEPARATOR));

@@ -8,7 +8,8 @@ Mandrel orchestration engine.
 ## SignalEvent (`signals.ndjson` line)
 
 One newline-terminated JSON object emitted by `signals-writer.appendSignal`
-to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` (and a sibling
+to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories:
+`temp/standalone/stories/story-<sid>/signals.ndjson`; and a sibling
 `traces.ndjson` for `kind: trace`). Closed taxonomy of seven record kinds —
 `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace` — defined
 by Epic #1030. Schema lives at
@@ -24,7 +25,7 @@ summaries-on-tickets rationale.
 | `ts`       | `ISO8601 date-time` | Yes      | Event timestamp in UTC.                                                                                                    |
 | `kind`     | `enum`              | Yes      | One of `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace`. Drives detector dispatch and analyzer rollup.   |
 | `source`   | `object`            | Yes      | `{ tool: string, script?: string }`. `tool` is the originating surface (`Bash`, `Edit`, `Write`, `Read`, `Grep`, `Glob`, or a script name for derived signals). |
-| `epicId`   | `integer ≥ 1`       | Yes      | Epic the event belongs to. Pins the on-disk path to `temp/epic-<epicId>/`.                                                 |
+| `epicId`   | `integer ≥ 1`       | Yes      | Run / parent id the event belongs to (field name retained for schema compat). Pins the on-disk path to `temp/run-<epicId>/` (standalone Stories: `temp/standalone/`). |
 | `storyId`  | `integer ≥ 1`       | Yes      | Story the event was sampled inside. Pins the on-disk path to `story-<storyId>/`.                                           |
 | `taskId`   | `integer ≥ 1` \| `null` | No   | Legacy field name; GitHub issue number when the event is scoped below Epic level. `null` for Story-wide events.              |
 | `phase`    | `string` \| `null`  | No       | Execution phase the event was sampled inside (`bootstrap`, `implement`, `test`, `close`, …). `null` for raw traces outside a phase boundary. |
@@ -74,7 +75,8 @@ into one rolled-up report. Schema lives at
 
 ## FrictionEvent (`friction` NDJSON signal)
 
-Appended to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` by
+Appended to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (or
+`temp/standalone/stories/story-<sid>/signals.ndjson`) by
 `signals-writer.appendSignal` when detector or gate-failure paths
 trip. (Pre Epic #1030 Story #1042 the same payload was posted as a
 GitHub structured comment by the now-deleted in-process emitter.)
@@ -247,10 +249,10 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
 | `hierarchy-gate.js`                                 | Script   | Standalone hierarchy-completeness CLI (`node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>`). Walks the Epic's live Story sub-issue graph (2-tier: Epic → Story, Story #4041 — `getSubTickets(<storyId>)` returns `[]`, so the walk terminates at the Story) and requires every Story closed; legacy `context::*` artifacts on historical Epics are ignored (Story #4324 folded planning content into the Epic body). Exits 0 when every descendant is closed, 1 when any is open, 2 on configuration/provider error. |
-| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `analyze-execution.js`, and the retro signal gatherer (`lib/orchestration/retro/phases/gather-signals.js`). Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
+| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone: `temp/standalone/stories/story-<sid>/`). Consumers: `diagnose-friction.js`, Story close / follow-up capture, `analyze-execution.js`. Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint | `/deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
-| Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` (from `lib/config/validate-orchestration.js`) runs at launcher startup in `plan-context.js`, `plan-persist.js`, `epic-plan-clarity.js`, `epic-plan-healthcheck.js`, `bootstrap.js`, and `agents-bootstrap-github.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
+| Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` (from `lib/config/validate-orchestration.js`) runs at launcher startup in `plan-context.js`, `plan-persist.js`, `bootstrap.js`, and `agents-bootstrap-github.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
 
 ---
 
@@ -311,7 +313,7 @@ ratchet.
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. Wired into `post-merge-pipeline` (Story mode) and Epic close Phase 6.0 (Epic mode) in Epic #1114. |
+| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (and the historical `epic-perf-report` shape when reading archived Epic-mode ledgers). Wired from `helpers/deliver-story` / `single-story-close` on the live Story path. |
 | `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
 
 ---
@@ -345,7 +347,7 @@ authoritative SDK.
 | `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
 | `hydrate-context.js`                       | CLI      | `hydrate-context.js --ticket <id> [--epic <id>]` emits the `{"prompt": …}` JSON envelope. `--emit envelope` emits the raw envelope; `--emit prompt` writes the raw hydrated prompt (no JSON wrapper). The only supported hydration entry point. |
 | `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story reaches `agent::done`.                                    |
-| `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/plan` Phase 3.                                                           |
+| `dispatcher.js`                            | CLI      | **Deleted in v2.** Pre-v2 DAG / wave / dispatch-manifest CLI. Multi-Story ordering now uses `stories-wave-tick.js` + `lib/wave-runner/ready-set.js`. |
 | `process.env`-only secrets resolution      | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is not consulted as a secrets backstop.       |
 
 ---
@@ -364,30 +366,30 @@ Evidence is per-clone, gitignored, and never committed.
 | `timestamp`         | ISO-8601 UTC timestamp of the successful run.                                        |
 | `exitCode`          | The wrapped command's exit code (always `0` for skip-eligible records).               |
 
-Evidence is keyed on `{ scopeId, gateName }` and lives under the per-Epic
-tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
-`temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
-(Story-scoped). Callers must thread both the scope id and the owning Epic
-id through the wrapper. The wrapper at `evidence-gate.js` is the only
-writer; close-validation, `epic-code-review`, and `/deliver` Phase 4
-are the readers. `--no-evidence` on any wrapper invocation forces a re-run
+Evidence is keyed on `{ scopeId, gateName }` and lives under the run
+tree at `temp/run-<id>/validation-evidence.json` (run-scoped) or
+`temp/run-<id>/stories/story-<storyId>/validation-evidence.json`
+(Story-scoped; standalone Stories use
+`temp/standalone/stories/story-<storyId>/validation-evidence.json`).
+Callers must thread both the scope id and the owning run id through the
+wrapper. The wrapper at `evidence-gate.js` is the only writer;
+close-validation, code-review, and `/deliver` Story close are the
+readers. `--no-evidence` on any wrapper invocation forces a re-run
 and overwrites the record on success.
 
 ---
 
 ## Health-Monitor Refresh Cadence
 
-Post-reshape the Epic Health (`epic-run-progress`) structured comment is
-composed and upserted at wave-boundary by
-`lib/orchestration/epic-runner/progress-reporter/composition.js`
-(`upsertEpicRunProgress`, invoked via `epic-execute-record-wave.js`).
-The historic `every-close` / `every-n-closes` cadence selector is no
-longer operator-tunable, and the former lifecycle-bus
-`structured-comment-poster` listener is deleted — the live listener
-roster under `lib/orchestration/lifecycle/listeners/` is:
-acceptance-reconciler, automerge-armer, automerge-predicate,
-branch-cleaner, checkpoint-pointer-writer, cleaner, finalizer,
-intervention-recorder, merge-watcher, notify-dispatcher, watcher.
+> **Historical.** The Epic Health (`epic-run-progress`) structured comment
+> and `lib/orchestration/epic-runner/progress-reporter/` were deleted with
+> the in-process epic-runner stratum (PR #3936 / #3908). v2 Story delivery
+> does not refresh an Epic health comment on a wave cadence.
+>
+> Live progress surfaces are Story-scoped structured comments
+> (`story-init`, `friction`, `verification-results`, `follow-ups`) plus the
+> lifecycle ledger under `temp/run-<id>/`. The former lifecycle-bus
+> `structured-comment-poster` listener is also deleted.
 
 ---
 
@@ -410,9 +412,14 @@ before it reaches disk.
 
 ---
 
-## Retro Heuristic
+## Retro Heuristic (historical)
+
+> **Removed in v2.** The `epic-retro` helper and `lib/orchestration/retro-heuristics.js`
+> (`isCleanManifest`) were deleted with the Epic delivery path. Compact vs full
+> retro branching no longer applies; keep this section only as a glossary for
+> archived docs that still name the predicate.
 
 | Term                       | Kind     | Definition                                                                                                                                                |
 | -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of the `epic-retro` helper. |
-| `--full-retro`             | CLI flag | `/deliver` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |
+| `isCleanManifest(signals)` | Predicate | *(deleted)* Formerly returned `true` iff friction/parked/recuts/hotfixes/hitl were all zero. |
+| `--full-retro`             | CLI flag | *(deleted)* Former `/deliver` override forcing the six-section retro body. |

@@ -1,10 +1,10 @@
 /**
  * lib/orchestration/lint-baseline-service.js
  *
- * Captures the Epic lint baseline (see `lint-baseline.js capture`). Extracted
- * from the inline implementation that used to live in `dispatch-engine.js`
- * so the coordinator no longer reaches into `node:child_process` or
- * `node:fs` directly. Tests can exercise the service with a stubbed exec
+ * Captures the lint baseline (see `lint-baseline.js capture`). Extracted
+ * from the inline implementation that used to live in the deleted
+ * `dispatch-engine.js` entry seam so the coordinator no longer reaches into
+ * `node:child_process` or `node:fs` directly. Tests can exercise the service with a stubbed exec
  * adapter and no filesystem interaction.
  */
 

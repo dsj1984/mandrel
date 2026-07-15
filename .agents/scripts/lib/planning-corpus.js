@@ -2,7 +2,7 @@
  * planning-corpus.js — corpus-aware context for the standalone-Story
  * planning path (Story #4432).
  *
- * `/plan --idea` previously drafted a standalone Story from a blank
+ * `/plan --seed` previously drafted a standalone Story from a blank
  * slate: the seed, the body template, and a title-only duplicate scan.
  * For a change request that is really a small delta against an
  * already-delivered surface, that blank slate throws away context the
@@ -22,11 +22,10 @@
  *      with the seed, so the draft can build on prior art instead of
  *      re-deriving it.
  *
- * The Epic list surface (`provider.getEpics`) maps every issue through
- * `issueToEpicListItem`, which deliberately omits `body` (a list-scale
- * payload trim). Body content therefore requires an **explicit**,
- * bounded per-candidate fetch via `provider.getEpic(id)` — never a
- * silent assumption that the list response carries prose to score
+ * The historical Epic list surface (`provider.getEpics`) returns a
+ * list-scale payload with no `body`. Body content therefore requires an
+ * **explicit**, bounded per-candidate fetch via `provider.getEpic(id)` —
+ * never a silent assumption that the list response carries prose to score
  * against.
  *
  * Relevance scoring reuses the same `tokenize` / `overlapScore` Jaccard
@@ -36,9 +35,12 @@
  */
 
 import { overlapScore, tokenize } from './duplicate-search.js';
-import { extractEpicSection, hasEpicSection } from './epic-body-sections.js';
 import { Logger } from './Logger.js';
 import { buildDocsDigest } from './orchestration/docs-digest.js';
+import {
+  extractTicketSection,
+  hasTicketSection,
+} from './ticket-body-sections.js';
 
 /** Top-K Epics kept after the cheap title-only ranking pass. */
 const DEFAULT_CORPUS_MAX_CANDIDATES = 5;
@@ -71,8 +73,8 @@ const CORPUS_EPICS_PAGE_CAP = 5;
 
 /**
  * Rank open Epics by title-overlap with the seed. This is the cheap
- * first pass over the list surface (title only — `issueToEpicListItem`
- * has no `body`), used solely to pick the bounded top-K candidates
+ * first pass over the list surface (title only — no `body`), used solely
+ * to pick the bounded top-K candidates
  * worth an explicit body fetch. It is not the final relevance signal;
  * `extractRelevantSections` re-scores against actual section content.
  *
@@ -179,8 +181,11 @@ export async function fetchCandidateBodies({
  * @returns {{ kind:'techSpec'|'lede', content:string }}
  */
 function extractScoreableExcerpt(body) {
-  if (hasEpicSection(body, 'techSpec')) {
-    return { kind: 'techSpec', content: extractEpicSection(body, 'techSpec') };
+  if (hasTicketSection(body, 'techSpec')) {
+    return {
+      kind: 'techSpec',
+      content: extractTicketSection(body, 'techSpec'),
+    };
   }
   const lede = (body ?? '').split(/^##\s+/m)[0].trim();
   return { kind: 'lede', content: lede };

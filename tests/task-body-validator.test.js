@@ -33,7 +33,7 @@ function story(slug, body) {
 
 const validStoryBody = {
   goal: 'Wire X up to Y per story s1.',
-  changes: ['src/x.ts: extract handleSubmit'],
+  changes: [{ path: 'src/x.ts', assumption: 'refactors-existing' }],
   acceptance: ['npm run test exits 0'],
   verify: ['npm run test -- src/x.test.ts (unit)'],
 };
@@ -76,21 +76,23 @@ describe('collectTaskBodyErrors — empty section detection', () => {
   });
 });
 
-describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => {
-  it('rejects bullets with no path-shaped token', () => {
+describe('collectTaskBodyErrors — path-shape and string-bullet rejection', () => {
+  it('rejects changes with no valid object entries', () => {
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
-        changes: ['the form should be cleaner'],
+        changes: [{ path: '   ', assumption: 'creates' }],
       }),
     ]);
     assert.ok(
-      errs.some((e) => /name no path-shaped token/.test(e)),
+      errs.some((e) =>
+        /must declare at least one \{ path, assumption \} object/.test(e),
+      ),
       errs.join('\n'),
     );
   });
 
-  it('rejects vague verb without a path target', () => {
+  it('rejects plain string change bullets', () => {
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
@@ -98,7 +100,7 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
       }),
     ]);
     assert.ok(
-      errs.some((e) => /vague verb "clean up"/.test(e)),
+      errs.some((e) => /plain string bullets are no longer accepted/.test(e)),
       errs.join('\n'),
     );
   });
@@ -107,7 +109,9 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
-        changes: ['src/components/Form.tsx: refactor handleSubmit'],
+        changes: [
+          { path: 'src/components/Form.tsx', assumption: 'refactors-existing' },
+        ],
       }),
     ]);
     assert.deepEqual(errs, []);
@@ -117,7 +121,9 @@ describe('collectTaskBodyErrors — path-shape and vague-verb detection', () => 
     const errs = collectTaskBodyErrors([
       story('t1', {
         ...validStoryBody,
-        changes: ['tests/e2e/*.spec.ts: add testid coverage'],
+        changes: [
+          { path: 'tests/e2e/*.spec.ts', assumption: 'refactors-existing' },
+        ],
       }),
     ]);
     assert.deepEqual(errs, []);
@@ -274,17 +280,20 @@ describe('validateTaskBodyShape (predicate)', () => {
       expectIncludes: 'body.changes must list at least one bullet',
     },
     {
-      name: 'changes bullets name no path',
-      body: { ...validStoryBody, changes: ['do the thing'] },
-      expectIncludes: 'name no path-shaped token',
+      name: 'changes with no valid object entries',
+      body: { ...validStoryBody, changes: [{ assumption: 'creates' }] },
+      expectIncludes: 'must declare at least one { path, assumption } object',
     },
     {
-      name: 'changes bullet uses vague verb without target',
+      name: 'changes plain string bullet rejected',
       body: {
         ...validStoryBody,
-        changes: ['clean up things', 'src/x.ts: extract handleSubmit'],
+        changes: [
+          'clean up things',
+          { path: 'src/x.ts', assumption: 'refactors-existing' },
+        ],
       },
-      expectIncludes: 'vague verb "clean up"',
+      expectIncludes: 'plain string bullets are no longer accepted',
     },
     {
       name: 'acceptance empty array',
@@ -336,4 +345,28 @@ describe('validateTaskBodyShape (predicate)', () => {
       }
     });
   }
+});
+
+describe('v2 — optional `## Slicing` slice plan', () => {
+  it('validates clean when a Story carries a folded slice plan', () => {
+    const withSlicing = {
+      ...validStoryBody,
+      slicing: '- slice 1: schema\n- slice 2: handler on the schema',
+    };
+    assert.deepEqual(
+      collectTaskBodyErrors([story('s-slice', withSlicing)]),
+      [],
+    );
+  });
+
+  it('validates clean through the serialized (string) body path', () => {
+    const md = serialize({
+      goal: 'Deliver the widget.',
+      slicing: '- slice 1: do it',
+      changes: [{ path: 'src/w.ts', assumption: 'creates' }],
+      acceptance: ['widget renders'],
+      verify: ['npm test (unit)'],
+    });
+    assert.deepEqual(validateTaskBodyShape(story('s-slice-md', md)), []);
+  });
 });
