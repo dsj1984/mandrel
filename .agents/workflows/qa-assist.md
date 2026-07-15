@@ -398,7 +398,7 @@ resumed session will pick up.
   are deterministic — never re-derive them in prose.
 - **Promote through `/plan`, never a raw Issue.** A `file`-dispositioned
   finding is promoted via `promoteFindings`, which chains into
-  [`/plan`](plan.md) (`--from-notes` for a tight cluster, `--idea` for a broad
+  [`/plan`](plan.md) (`--seed-file` for a tight cluster, `--seed` for a broad
   one) — mirroring [`/audit-to-stories`](audit-to-stories.md). `/qa-assist`
   never opens a bare GitHub Issue for a `file` finding. The cluster's
   `fingerprintFooter(sha)` is stamped verbatim into the seed so a future
@@ -407,7 +407,7 @@ resumed session will pick up.
 ## See also
 
 - [`/plan`](plan.md) — the planning pipeline `/qa-assist` chains into in
-  Phase 4 (`--from-notes` for a Story, `--idea` for an Epic). The plan→deliver
+  Phase 4 (`--seed-file` / `--seed`). The plan→deliver
   hard stop is preserved across the handoff.
 - [`/qa-explore`](qa-explore.md) — the agent-led sibling that drives a named
   surface and triages through the same `/plan` handoff.

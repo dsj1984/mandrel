@@ -7,7 +7,7 @@ This is the consumer README inside the distributed `.agents/` bundle. It explain
 `/plan` and `/deliver` stays in [`docs/SDLC.md`](docs/SDLC.md).
 
 The framework payload (`.agents/`) is consumed by host repos. It ships inside the [`mandrel`](https://www.npmjs.com/package/mandrel)
-npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Story-only plans on GitHub.
+npm package and is materialized into a consumer's `./.agents/` directory by `mandrel sync`. It carries a system prompt, a baseline rule pack, a two-tier skill library, a slash-command workflow set, and the orchestration engine that runs Story-centric plans on GitHub (`/plan` → Stories, `/deliver` → `story-*` → `main`).
 
 The framework version is the version of the installed [`mandrel`](https://www.npmjs.com/package/mandrel) npm package — run `npm ls mandrel` (or read `package.json`), not a
 count here.
@@ -328,9 +328,13 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Mandrel uses a **Story-only** model: `type::story` issues carry inline
-`acceptance[]` / `verify[]` and a folded `## Spec`. `/plan` defaults to one
-Story; `/deliver` runs `helpers/deliver-story` on `story-<id>` → PR → `main`.
+Mandrel uses a **2-tier** model (Epic → Story) for human-facing tickets,
+but **orchestration is Story-centric**: `/plan` persists `type::story`
+issues with inline `acceptance[]` / `verify[]` and a folded `## Spec`;
+`/deliver` runs `helpers/deliver-story` on `story-<id>` → PR → `main`.
+There is no `type::task` layer and no Epic wave / `epic/<id>` integration
+branch. Tickets that still carry an `Epic: #N` footer are refused by
+`/deliver` and must be closed or re-planned as v2 Stories.
 
 See [`docs/SDLC.md`](docs/SDLC.md) and [`instructions.md` § 5.D](instructions.md)
 for the execution-model contract.
@@ -636,21 +640,21 @@ follow-up **Epic #1943**.
 
 `schemas/` contains JSON Schema draft 2020-12 contracts consumed by the
 orchestration layer. Each schema describes one structured artefact:
-configuration, structural Epic specs, runtime reports, dispatch
-manifests, or persisted state. Where a runtime AJV schema also exists,
-the JSON file is a mirror kept in sync by a drift test.
+configuration, runtime reports, dispatch manifests, or persisted state.
+Where a runtime AJV schema also exists, the JSON file is a mirror kept
+in sync by a drift test.
 
 Important schema groups:
 
-- Structural specs: `epic-spec.schema.json` for the declarative
-  `epic.yaml` plus reconciler flow.
 - Configuration: `agentrc.schema.json`, mirrored from the runtime config
   schemas.
+- Story / signal contracts: `signal-event.schema.json`, acceptance-eval
+  verdicts, and related runtime envelopes.
 - Runtime reports: audit results, CRAP and maintainability reports,
   performance summaries, friction and signal events, and validation
   evidence.
-- Dispatch: `dispatch-manifest.json`, the per-Epic dispatch manifest
-  schema written by `dispatcher.js`.
+- Dispatch: `dispatch-manifest.json`, the dispatch manifest schema
+  written by `dispatcher.js`.
 
 Schema conventions:
 
@@ -728,9 +732,9 @@ chain, `security-review`, and `ultrareview` were added in Story #2871.
 
 ## Feedback loop — verification-results auto-graduation
 
-When the Epic finalize listener runs, non-blocking findings (severity
-`high`, `medium`, or `suggestion`) that survived merge are auto-graduated
-into follow-up issues in a SINGLE pass over the unified
+When a Story (or plan-run) finalize path runs, non-blocking findings
+(severity `high`, `medium`, or `suggestion`) that survived merge are
+auto-graduated into follow-up issues in a SINGLE pass over the unified
 `verification-results` structured comment (Story #4411 folded the former
 `code-review` and `audit-results` comments into one), routed by source
 classification into the framework repo or the consumer repo. The toggle
@@ -754,7 +758,7 @@ stabilization window), set the toggle to `false` in your root
 ```
 
 When disabled, the listener short-circuits and leaves the
-`verification-results` comment on the Epic ticket untouched. Re-enabling
+`verification-results` comment on the Story ticket untouched. Re-enabling
 the toggle is safe: the graduator embeds a content-derived idempotency
 marker in each filed issue body, so re-runs skip findings that already
 have an issue.
@@ -867,15 +871,9 @@ yanks the claim back from whoever legitimately took over.
   A live foreign claim refuses the run; pass `--steal` to override. The Story
   path requires `github.operatorHandle` to be set — without an operator identity
   the lease has no owner to record.
-- **`/plan`** acquires the lease on the **Epic** ticket before Phase 7
-  (spec) and releases it after Phase 8 (decompose)
-  (`epic-plan-lease-guard.js`, now folded into the shared lease-guard path).
-  Because planning emits no `story.heartbeat` (heartbeats are a
-  delivery-time signal), the plan path has no live-heartbeat source and so
-  **fails closed**: any foreign assignee is treated as a live claim and
-  refuses the run unless `--steal` transfers it. Unassigned or self-held
-  Epics proceed. When `github.operatorHandle` is unset the lease cannot be
-  keyed and the preflight degrades to a no-op.
+- **`/plan`** does not take a planning lease on an Epic ticket. Planning is a
+  short authoring ceremony over Stories; concurrent `/plan` runs coordinate
+  via ordinary GitHub issue creation, not an Epic lease guard.
 
 ---
 

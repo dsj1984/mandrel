@@ -35,12 +35,12 @@ structured divergent and convergent thinking.
 
 ## Activation
 
-Called from `/plan` Phase 1 (ideation entry, when no `<epic#>` is
-supplied or `--idea "<seed>"` is passed) and Phase 6 (Epic Clarity Gate,
-when an existing Epic body fails the section-presence rubric). In Phase 6
-the skill is seeded from the **current Epic body** — not a blank seed —
-with the rubric gap list (`missingOrPlaceholder`) as the convergence
-target.
+Called from [`/plan`](../../../workflows/plan.md) during ideation when the
+operator supplies `--seed "<text>"` (or runs ideation with no seed and
+the host collects one interactively). The skill sharpens freeform intent
+into canonical planning sections that `/plan` then folds into a Story.
+There is no separate Epic Clarity Gate path in v2 — N=1 Story authoring
+with a folded `## Spec` is the lean default.
 
 ## Usage
 

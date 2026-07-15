@@ -4,8 +4,8 @@ This is the consumer-facing reference for the quality gates the framework
 runs against your repo: the lint baseline ratchet, the maintainability
 ratchet, the CRAP per-method gate, the **absolute quality floors**
 (90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
-and the concurrent close-safety retry that protects the Epic branch when
-multiple Stories close in quick succession.
+and the concurrent close-safety retry that protects Story-branch pushes
+when multiple Stories close in quick succession.
 
 The floor + ratchet duo is intentional: the ratchet protects against
 regressions on touched files; the floor enforces an absolute threshold
@@ -250,7 +250,7 @@ file. When any threshold under
 the qualitative anti-thrashing cues in
 [`.agents/instructions.md`](../instructions.md) are tripped, the
 friction logger flips the Story to `agent::blocked` and
-posts a structured `friction` comment on the Task so the operator has
+posts a structured `friction` comment on the Story so the operator has
 the trace.
 
 ---
@@ -291,8 +291,8 @@ the `delivery.acceptanceEval` field reference.
 > Baseline envelope, axes, and component model: see the
 > [Baseline reference](#baseline-reference) section below.
 
-The lint baseline engine enforces zero-deterioration during Epic
-workflows. Integrations fail if new lint warnings are introduced, and the
+The lint baseline engine enforces zero-deterioration during Story
+delivery. Integrations fail if new lint warnings are introduced, and the
 baseline automatically tightens when the codebase improves.
 
 The canonical baseline file lives at `baselines/lint.json` (override via
@@ -317,7 +317,7 @@ this was removed in a pre-npm-era release; the operator is now the gate.
 A per-file maintainability scoring engine computes composite scores based
 on cyclomatic complexity, file length, and dependency counts. The
 `baselines/maintainability.json` baseline prevents score degradation
-between Epics.
+between Stories.
 
 Refresh with `npm run maintainability:update`.
 

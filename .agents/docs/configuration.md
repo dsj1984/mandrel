@@ -38,8 +38,8 @@ top-level keys are validation errors.
 | ------------- | -------- | ---------------------------------------------------------------------------------- |
 | `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydration files. |
 | `github`      | No       | Ticketing provider config: owner/repo, branch protection, merge methods, notifications. |
-| `planning`    | No       | `/plan` tuning: model-capacity sizing, conflict advisories, codebase snapshot, context cap. |
-| `delivery`    | No       | `/deliver` tuning: quality gates, worktree isolation, runners, CI watch. |
+| `planning`    | No       | `/plan` tuning: conflict advisories, codebase snapshot, context cap. (Story sizing ceilings are code-absolute — not agentrc.) |
+| `delivery`    | No       | `/deliver` tuning: quality gates, worktree isolation, runners, CI watch, code-review providers. |
 | `$schema`     | No       | JSON Schema pointer for editor tooling.                                            |
 
 ---
@@ -260,7 +260,7 @@ top-level keys are validation errors.
 | `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
 | `codeReview` | No | `object` | — | Nested configuration block. |
-| `codeReview.providers[]` | No | `array<object>` | `[{ name: "native" }]` | Review-provider chain (Story #2871). When unset or empty, defaults to a single `native` entry. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Each item has: name, scopes, optional, manualPrompt, when. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. |
+| `codeReview.providers[]` | No | `array<object>` | — | Review-provider chain (Story #2871). When unset or empty, defaults to [{ name: "native" }]. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain. Each item has: name, scopes, optional, manualPrompt, when. |
 | `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
@@ -699,44 +699,33 @@ baseline.
 
 ### `delivery.codeReview`
 
-Configuration block for the code-review pipeline that runs at **both**
-Story-close (`story-close.js`) and Epic-close (`/deliver` Phase 5).
-Selects the review backend, exposes an escape-hatch for adapter-specific
-configuration, and sets the auto-fix budget enforced at each close scope.
+Configuration block for the code-review pipeline that runs during Story
+delivery (`helpers/deliver-story` / `runCodeReview()`). Select providers
+via the `providers[]` chain (generated table above); when unset or empty,
+the factory defaults to `[{ name: "native" }]`. See
+[`.agents/README.md` § Code review providers](../README.md#code-review-providers-pluggable-chain)
+for chain-entry fields (`name`, `scopes`, `optional`, `manualPrompt`, `when`).
 
-| Field              | Required | Default    | Purpose                                                              |
-| ------------------ | -------- | ---------- | -------------------------------------------------------------------- |
-| `provider`         | No       | `"native"` | ReviewProvider adapter that produces the `Finding[]` consumed by `runCodeReview()`. See enum values below. |
-| `providerConfig`   | No       | `{}`       | Optional escape hatch for adapter-specific configuration. Reserved so future adapters can be configured without another schema migration; no documented keys in Epic #2815. |
-| `maxFixAttempts`   | No       | `3`        | Max auto-fix retry attempts per finding. `0` disables auto-fix. Applied at **both** Story-close and Epic-close. |
-| `maxFixScopeFiles` | No       | `5`        | Max file count a single auto-fix may modify before escalating to `agent::blocked`. Applied at **both** Story-close and Epic-close. |
-
-#### `provider` enum
-
-| Value      | Behaviour                                                                                                                                                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `native`   | Default. In-process maintainability/lint pass that runs without any external plugin. Always available.                                                                                                                                                              |
-| `codex`    | Invokes the `/codex:review` Claude Code plugin via the [`codex-plugin-cc`](https://github.com/openai/codex-plugin-cc) backend. Selecting `codex` when the plugin is not installed hard-fails at factory construction with remediation guidance — there is no silent fallback to `native`. |
+| Field              | Required | Default | Purpose                                                              |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------- |
+| `providers`        | No       | `[{ name: "native" }]` | Review-provider chain. Inline adapters merge `Finding[]`; manual-prompt entries append suggestions. |
+| `providerConfig`   | No       | `{}`    | Optional escape hatch for adapter-specific configuration. Reserved; no documented keys yet. |
+| `maxFixAttempts`   | No       | `3`     | Max auto-fix retry attempts per finding. `0` disables auto-fix. |
+| `maxFixScopeFiles` | No       | `5`     | Max file count a single auto-fix may modify before escalating to `agent::blocked`. |
+| `autoFixSeverity`  | No       | `"medium"` | Severity threshold for on-branch remediation (`medium` or `high`). |
 
 #### Dual-scope fix budget
 
-`maxFixAttempts` and `maxFixScopeFiles` are enforced at two distinct
-points in the SDLC, using the **same configured values** for both scopes:
-
-- **Story-close** — `single-story-close.js` runs `runCodeReview()` against the
-  Story branch's diff and applies the budget per finding before opening the PR
-  to `main`.
-- **Run close** — `/deliver` applies the same per-finding budget while each
-  Story runs through the risk-routed review/audit ceremony.
-
-Setting `maxFixAttempts: 0` disables auto-fix at both scopes; there is no
-per-scope override.
+`maxFixAttempts` and `maxFixScopeFiles` are enforced during the risk-routed
+Story review ceremony using the same configured values for every Story in
+a `/deliver` run. Setting `maxFixAttempts: 0` disables auto-fix; there is
+no per-Story override.
 
 ### `delivery.feedbackLoop`
 
 | Field                   | Required | Default | Purpose                                                                                                                                  |
 | ----------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `auditResultsAutoFile`  | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking findings from the unified `verification-results` comment as follow-up issues routed by source classification. (The former `codeReviewAutoFile` key was retired with its graduator when Story #4411 unified the pass; a config carrying it fails validation.) |
+| `auditResultsAutoFile`  | No       | `true`  | When `true`, the deliver finalize path auto-files non-blocking findings from the unified `verification-results` comment as follow-up issues routed by source classification. (The former `codeReviewAutoFile` key was retired with its graduator when Story #4411 unified the pass; a config carrying it fails validation.) |
 | `retroProposals`        | No       | `true`  | When `true`, auto-file the retro's actionable routed proposals as GitHub follow-up issues (Story #4418). |
 
 ---
@@ -749,7 +738,7 @@ number of keys.
 
 | File                              | Audience                            | Role                                                                                                                                |
 | --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/deliver` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/plan` and `/deliver` against this repo. Exercises the framework end-to-end on its own source tree. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos           | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys only.      |
 | `.agents/docs/agentrc-reference.json`       | Operators and reviewers             | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                             |
 

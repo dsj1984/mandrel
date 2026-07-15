@@ -37,5 +37,7 @@ the documented gate set:
 
 This set is cross-referenced by
 [`.agentrc.json`](../.agentrc.json) `github.branchProtection.requiredChecks`
-and the operator notes in `AGENTS.md` (§ Install Matrix release gate) and
-`install-matrix.yml`. Keep all four in sync when the check names change.
+and the operator notes in
+[`docs/release-operations.md`](../docs/release-operations.md)
+(§ Install Matrix release gate) and `install-matrix.yml`. Keep all four in
+sync when the check names change.

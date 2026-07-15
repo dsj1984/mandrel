@@ -3,7 +3,7 @@
 [![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
 
 An opinionated workflow framework for AI coding assistants built on
-Epic-centric GitHub orchestration. Planning, execution, and state all live
+Story-centric GitHub orchestration. Planning, execution, and state all live
 natively in GitHub Issues, Labels, and Projects V2.
 
 ## Prerequisites
@@ -35,7 +35,8 @@ npx mandrel init        # install mandrel → sync → prompt → bootstrap → 
 
 ```text
 # then, inside Claude Code (commands load from .claude/commands/):
-/plan          # ideation -> PRD/Tech Spec -> Epic with child Stories
+/plan --seed "…"   # interrogate → author one Story (default) → persist
+/deliver <id>      # story-<id> → PR → main
 ```
 
 `npx mandrel init` installs `mandrel` (when `./.agents/` is absent),
@@ -47,9 +48,9 @@ any time to configure). Pass `--assume-yes` for a non-interactive run that
 proceeds straight to configure (and forwards the flag to bootstrap). When
 `./.agents/` is already present (you ran `npm install mandrel` first), `init`
 skips the install/sync and goes straight to the prompt. Once `mandrel init`
-completes, you land at the `/plan` handoff — run `/plan --idea "<seed>"` to
-start planning your first Epic, then deliver it with `/deliver <id>` (wave
-loop → validation → review → retro → open PR).
+completes, you land at the `/plan` handoff — run `/plan --seed "<idea>"` to
+author your first Story, then deliver it with `/deliver <storyId>`
+(`story-<id>` → PR → `main`).
 
 ### Manual equivalent
 

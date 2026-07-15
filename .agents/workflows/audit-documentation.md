@@ -293,7 +293,7 @@ recurring cadence so the drift is caught before it compounds:
 Route the resulting `audit-documentation-results.md` through
 [`/audit-to-stories`](audit-to-stories.md), which groups the findings,
 deduplicates them against existing Issues by fingerprint, and opens
-remediation Stories (or chains into `/plan --idea`) so the Context-Economy
+remediation Stories (or chains into `/plan --seed`) so the Context-Economy
 findings land as actionable, tracked work rather than a report nobody reads.
 
 ## Constraint

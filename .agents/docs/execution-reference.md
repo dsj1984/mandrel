@@ -41,8 +41,11 @@ the `AGENT_LOG_LEVEL` environment variable:
 - `silent` — only `fatal` emits; useful for script embedding where the caller
   owns presentation.
 - `info` — default. Emits `info` / `warn` / `error` / `fatal`.
-- `verbose` — adds `debug` trace output on top of the `info` set. `debug` is
-  accepted as a backward-compatible alias.
+- `verbose` — adds `debug` trace output (`Logger.debug`) on top of the `info`
+  set.
+
+Unrecognized `AGENT_LOG_LEVEL` values fall back to `info`. There is no
+`debug` level alias.
 
 This is a diagnostic knob: set it when you need quieter script embedding
 (`silent`) or a deeper trace (`verbose`). The friction-telemetry MUST it sits

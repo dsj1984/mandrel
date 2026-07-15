@@ -1052,8 +1052,8 @@ reaped together with the worktree on `WorktreeManager.reap`. See
 - `silent`  — only `fatal` emits.
 - `info`    — default. `info` / `warn` / `error` / `fatal` emit; `debug` is
   suppressed.
-- `verbose` — all levels emit, including `debug` trace output. `debug` is
-  accepted as a backward-compatible alias for `verbose`.
+- `verbose` — all levels emit, including `debug` trace output. There is no
+  `debug` level alias; unrecognized values fall back to `info`.
 
 ### Notification System
 
