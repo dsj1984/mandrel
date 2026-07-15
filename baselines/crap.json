@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-15T01:05:11.988Z",
+  "generatedAt": "2026-07-15T01:10:26.908Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -9446,8 +9446,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
       "method": "resolveWaitForMerge",
-      "startLine": 39,
-      "crap": 2
+      "startLine": 41,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
