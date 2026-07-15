@@ -325,24 +325,28 @@ accumulate as clutter.
 
 **Consumers in the delivery flow:**
 
-| Type                 | Writer                      | Purpose                                                     |
-| -------------------- | --------------------------- | ----------------------------------------------------------- |
-| `epic-run-state`     | `lib/orchestration/epic-run-state-store.js` (advanced by `epic-execute-record-wave.js`) | JSON checkpoint (`currentWave`, `phase`, wave history). |
-| `wave-<N>-start` / `wave-<N>-end` | `/deliver` wave loop (markers parsed by `lib/orchestration/wave-marker.js`) | Per-wave boundary records on the Epic ticket. |
-| `dispatch-manifest`  | `epic-plan` / dispatcher    | Frozen Story manifest consumed by the wave loop (`wave-tick.js`, `dispatcher.js`). |
-| `parked-follow-ons`  | dispatcher                  | Out-of-manifest Stories surfaced at the deliver-tail gate.  |
-| `retro`              | `lib/orchestration/retro-runner.js` | Final retrospective body with `retro-complete` marker. |
-| `code-review`        | `lib/orchestration/code-review.js`  | Findings report from the in-process Phase 4 module.    |
+| Type                        | Writer                                                                 | Purpose                                                                 |
+| --------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `story-plan-state`          | `plan-persist.js` (`writeCheckpointV2`)                                | Per-Story planning checkpoint (risk envelope, routing receipts).        |
+| `risk-verdict` / `plan-summary` | `plan-persist.js`                                                  | Planner-authored risk + primary-Story persist receipt.                  |
+| `story-init`                | `single-story-init.js`                                                 | Init snapshot (worktree, deps, remote probe).                           |
+| `friction`                  | single-story init/close phases                                         | Blockers / HITL telemetry on the Story issue.                           |
+| `verification-results`      | `lib/orchestration/code-review.js`                                     | Unified code-review / lens findings (often on the PR).                  |
+| `notification`              | `single-story-close` code-review phase                                 | Story-issue cross-link to PR-side verification results.                 |
+| `follow-ups`                | `story-follow-ups.js` / confirm-merge + `run-epilogue.js`              | Routed follow-up proposals after land / plan-run rollup.                |
+| `plan-run-audit-roster` / `plan-run-sibling-coherence` | `lib/orchestration/run-epilogue.js`               | Rare N>1 plan-run cross-Story audit + coherence artifacts.              |
 
 **When to reach for this pattern:** orchestrator state that must
 survive restarts, be human-readable on the issue, and be
-machine-parseable by downstream tooling (wave-tick, retro aggregator).
-Prefer a local file only when the state is ephemeral and recoverable
-(e.g. `temp/dispatch-manifest-<id>.{md,json}` is a view, not an SSOT).
+machine-parseable by downstream tooling (`stories-wave-tick` sequencing,
+close-validation, follow-up capture). Prefer a local file only when the
+state is ephemeral and recoverable (e.g. `temp/run-<id>/manifest.md` is a
+view, not an SSOT).
 
 **When NOT to use it:** high-frequency state updates (sub-second or
 sub-minute) — the delete-then-post cycle has rate-limit cost. For those
-cases, compute a running total and upsert at wave boundaries instead.
+cases, append to the lifecycle / signals NDJSON ledger and upsert a
+summary at Story close instead.
 
 ---
 
@@ -545,7 +549,7 @@ being captured.
 
 `lib/observability/signals-writer.js#appendSignal` appends one
 newline-terminated JSON record per friction event to
-`temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. Records are best-effort
+`temp/run-<eid>/stories/story-<sid>/signals.ndjson`. Records are best-effort
 (any fs failure is logged via `Logger.warn` and swallowed — observability
 must not halt the runner) and are picked up out-of-band by the analyzer
 (Epic #1030).
@@ -1079,12 +1083,13 @@ does not apply.
 When the same lint/test/format/maintainability/CRAP command is invoked
 across phases against the same tree, the framework wraps each invocation
 in `evidence-gate.js`. On success the wrapper writes
-`{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
-tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
-`temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
-(Story-scoped). The next caller reads the record, compares against `git
-rev-parse HEAD` and the resolved command config, and skips when both
-match.
+`{ gateName, commitSha, commandConfigHash, timestamp }` under the run
+tree at `temp/run-<id>/validation-evidence.json` (run-scoped) or
+`temp/run-<id>/stories/story-<storyId>/validation-evidence.json`
+(Story-scoped; standalone Stories use
+`temp/standalone/stories/story-<storyId>/`). The next caller reads the
+record, compares against `git rev-parse HEAD` and the resolved command
+config, and skips when both match.
 
 Pattern shape:
 

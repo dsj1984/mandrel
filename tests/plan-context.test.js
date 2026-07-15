@@ -538,3 +538,98 @@ describe('plan-context scopeTriage helper (exported only, #4496 fix 6)', () => {
     assert.match(signal.reasons[0], /broad prose seed/);
   });
 });
+
+describe('plan-context tickets mode — concurrent source-ticket fetch', () => {
+  function deferred() {
+    let resolve;
+    const promise = new Promise((r) => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  }
+
+  it('hydrates multiple ticket ids concurrently and preserves order', async () => {
+    const ids = [101, 102, 103, 104];
+    let inFlight = 0;
+    let peak = 0;
+    const release = deferred();
+    const allStarted = deferred();
+
+    const provider = buildProvider();
+    provider.getTicket = async (id) => {
+      inFlight++;
+      peak = Math.max(peak, inFlight);
+      if (peak >= ids.length) allStarted.resolve();
+      await release.promise;
+      inFlight--;
+      return {
+        id,
+        number: id,
+        title: `Ticket ${id}`,
+        body: `Body for ${id}`,
+        labels: ['type::story'],
+        html_url: `https://github.com/o/r/issues/${id}`,
+        state: 'open',
+      };
+    };
+
+    const pending = buildPlanContext({
+      mode: 'tickets',
+      ticketIds: ids,
+      provider,
+      config: { github: { owner: 'o', repo: 'r' } },
+      settings: {},
+    });
+
+    await Promise.race([
+      allStarted.promise,
+      new Promise((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                `timed out waiting for concurrent getTicket (peak=${peak})`,
+              ),
+            ),
+          2000,
+        ),
+      ),
+    ]);
+    assert.equal(peak, ids.length, 'expected all ids to fetch concurrently');
+    release.resolve();
+
+    const env = await pending;
+    assert.equal(env.mode, 'tickets');
+    assert.deepEqual(
+      env.sourceTickets.map((t) => t.id),
+      ids,
+    );
+    assert.deepEqual(
+      env.sourceTickets.map((t) => t.title),
+      ids.map((id) => `Ticket ${id}`),
+    );
+    for (const t of env.sourceTickets) {
+      assert.deepEqual(t.labels, ['type::story']);
+      assert.equal(t.url, `https://github.com/o/r/issues/${t.id}`);
+      assert.equal(t.state, 'open');
+    }
+  });
+
+  it('throws ticket #N not found when getTicket returns null', async () => {
+    const provider = buildProvider();
+    provider.getTicket = async (id) =>
+      id === 202 ? null : { id, title: `T${id}`, body: '', labels: [] };
+
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'tickets',
+          ticketIds: [201, 202, 203],
+          provider,
+          config: {},
+          settings: {},
+        }),
+      /ticket #202 not found/,
+    );
+  });
+});

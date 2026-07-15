@@ -218,9 +218,9 @@ against malicious lifecycle scripts in compromised transitive packages
 install scripts for a specific install, run
 `npm install --ignore-scripts=false` for that invocation only.
 
-CRAP and Maintainability gates fire at every checkpoint (keystroke,
-pre-commit, pre-push, story-close, CI, Epic merge) against the same
-thresholds from `delivery.quality.*` in `.agentrc.json`.
+CRAP and Maintainability gates fire at three sites — close-validation
+(story close), `.husky/pre-push`, and CI (`ci.yml`, push + PR) — against
+the same thresholds from `delivery.quality.*` in `.agentrc.json`.
 
 ## License
 

@@ -1,25 +1,26 @@
 # Mandrel Roadmap
 
-> **Two sections.** (1) **v2.0.0** — the committed next major: collapse the
+> **Two sections.** (1) **v2.0.0** — **shipped**: collapse the
 > ticket model to a single type (Story) and the delivery surface to a single
-> path, with everything that rides along. (2) **Someday** — strictly
-> aspirational items and monitors that re-price on ~10x shifts in model
-> capability, platforms, or economics. Operational dependency trip-wires
-> live in the appendix. Prior roadmap analyses (the model-evolution audit,
-> the product-readiness backlog, the orchestration evidence) are compressed
-> here; their full text is preserved in git history
+> path, with everything that rides along. This section is the design
+> record for that cutover (kept for operators upgrading from 1.x).
+> (2) **Someday** — strictly aspirational items and monitors that re-price
+> on ~10x shifts in model capability, platforms, or economics. Operational
+> dependency trip-wires live in the appendix. Prior roadmap analyses (the
+> model-evolution audit, the product-readiness backlog, the orchestration
+> evidence) are compressed here; their full text is preserved in git history
 > (`docs/roadmap.md` @ `mandrel-v1.94.0`).
 >
-> **Last reviewed:** 2026-07-14 against framework version 2.0.0.
+> **Last reviewed:** 2026-07-15 against framework version 2.0.0.
 
-## 1. v2.0.0 — The Story collapse
+## 1. v2.0.0 — The Story collapse (shipped)
 
 ### Why
 
 v1.94.0 made single-delivery the default: an epic-sized plan now ships as a
 **spec-only Epic with zero child tickets**, delivered in one guarded session.
-That end-state exposes the remaining fork: a spec-only Epic *is structurally a
-Story with a bigger body*, yet the codebase still carries two ticket types and
+That end-state exposed the remaining fork: a spec-only Epic *was structurally a
+Story with a bigger body*, yet the codebase still carried two ticket types and
 two parallel stacks to serve them —
 
 - two planning paths (`plan-epic.md` + `plan-story.md`, plus the scope-triage

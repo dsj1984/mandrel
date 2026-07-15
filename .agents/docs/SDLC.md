@@ -6,9 +6,10 @@ Labels, and Projects V2 are the Single Source of Truth. Plans persist as
 each Story is delivered on its own `story-<id>` branch and reaches `main`
 through its own PR.
 
-`Epic → Story` may still exist as GitHub **issue-form** types for humans
-who like an epic umbrella issue, but **delivery and planning
-orchestration are Story-centric**: there is no Epic wave loop, no
+An Epic may still exist as an **optional untyped human umbrella issue**
+(no `type::epic` label and no shipped Epic issue form — only
+`.github/ISSUE_TEMPLATE/story.yml`), but **delivery and planning
+orchestration are Story-only**: there is no Epic wave loop, no
 `epic/<id>` integration branch, no `epic.yaml` reconciler, and any ticket
 that still carries an `Epic: #N` footer is **refused** by `/deliver`
 (close it or re-plan it as a v2 Story).

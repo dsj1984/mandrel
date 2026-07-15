@@ -6,19 +6,23 @@
  *  - overlap scoring (Jaccard) returns expected ordering and respects
  *    stopword filtering
  *  - empty/no-match short-circuit returns []
- *  - provider errors propagate verbatim
- *  - input validation rejects missing seed / provider
+ *  - search-narrowed path prefers provider.searchIssues
+ *  - listIssuesByLabel fallback when search errors
+ *  - provider errors propagate verbatim on the list path
+ *  - input validation rejects missing seed / provider ports
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildOpenStorySearchQuery,
   findSimilarOpenStories,
   overlapScore,
+  pickSearchTokens,
   tokenize,
 } from '../../.agents/scripts/lib/duplicate-search.js';
 
-function makeProvider(stories) {
+function makeListProvider(stories) {
   return {
     async listIssuesByLabel(_filters) {
       return stories.map((s) => ({
@@ -30,6 +34,43 @@ function makeProvider(stories) {
     },
   };
 }
+
+function makeSearchProvider(stories, { onSearch, failSearch } = {}) {
+  return {
+    async searchIssues({ query }) {
+      if (onSearch) onSearch(query);
+      if (failSearch) throw failSearch;
+      return stories.map((s) => ({
+        number: s.id,
+        title: s.title,
+        body: s.body,
+        state: 'open',
+        html_url: s.url,
+      }));
+    },
+    async listIssuesByLabel() {
+      throw new Error('listIssuesByLabel should not be called on search path');
+    },
+  };
+}
+
+const WEBHOOK_STORIES = [
+  {
+    id: 101,
+    title: 'Webhook duplicate detection for incoming events',
+    body: 'Detect duplicate webhook payloads by hashing the body.',
+  },
+  {
+    id: 102,
+    title: 'Marketing landing page redesign',
+    body: 'Refresh hero copy and call-to-action buttons.',
+  },
+  {
+    id: 103,
+    title: 'Webhook payload deduplication store',
+    body: 'Store webhook fingerprints to short-circuit duplicates.',
+  },
+];
 
 describe('duplicate-search', () => {
   describe('tokenize', () => {
@@ -49,6 +90,29 @@ describe('duplicate-search', () => {
       assert.equal(tokenize(null).size, 0);
       assert.equal(tokenize(undefined).size, 0);
       assert.equal(tokenize(42).size, 0);
+    });
+  });
+
+  describe('pickSearchTokens / buildOpenStorySearchQuery', () => {
+    it('prefers longer tokens and caps at N', () => {
+      const tokens = pickSearchTokens(
+        'webhook fingerprint hashing service for duplicate payloads',
+        3,
+      );
+      assert.equal(tokens.length, 3);
+      assert.ok(tokens.every((t) => typeof t === 'string' && t.length >= 3));
+      // Longer tokens sort first
+      assert.ok(tokens[0].length >= tokens[1].length);
+    });
+
+    it('builds a label + state + free-text Search query', () => {
+      const q = buildOpenStorySearchQuery(
+        'Detect duplicate webhook payloads via fingerprint hashing.',
+      );
+      assert.match(q, /label:"type::story"/);
+      assert.match(q, /\bstate:open\b/);
+      assert.match(q, /webhook/);
+      assert.match(q, /fingerprint|hashing|duplicate|payloads/);
     });
   });
 
@@ -80,23 +144,7 @@ describe('duplicate-search', () => {
 
   describe('findSimilarOpenStories — ranking', () => {
     it('returns ranked candidates above the minScore floor with URLs', async () => {
-      const provider = makeProvider([
-        {
-          id: 101,
-          title: 'Webhook duplicate detection for incoming events',
-          body: 'Detect duplicate webhook payloads by hashing the body.',
-        },
-        {
-          id: 102,
-          title: 'Marketing landing page redesign',
-          body: 'Refresh hero copy and call-to-action buttons.',
-        },
-        {
-          id: 103,
-          title: 'Webhook payload deduplication store',
-          body: 'Store webhook fingerprints to short-circuit duplicates.',
-        },
-      ]);
+      const provider = makeListProvider(WEBHOOK_STORIES);
 
       const seed = 'Detect duplicate webhook payloads via fingerprint hashing.';
 
@@ -124,7 +172,7 @@ describe('duplicate-search', () => {
     });
 
     it('excludes source ticket ids from the ranking', async () => {
-      const provider = makeProvider([
+      const provider = makeListProvider([
         {
           id: 101,
           title: 'Webhook duplicate detection for incoming events',
@@ -146,9 +194,91 @@ describe('duplicate-search', () => {
     });
   });
 
+  describe('findSimilarOpenStories — search-narrowed path', () => {
+    it('queries searchIssues with label/state/seed tokens and ranks that set', async () => {
+      let seenQuery;
+      const provider = makeSearchProvider(WEBHOOK_STORIES, {
+        onSearch: (q) => {
+          seenQuery = q;
+        },
+      });
+
+      const seed = 'Detect duplicate webhook payloads via fingerprint hashing.';
+      const out = await findSimilarOpenStories({
+        seed,
+        provider,
+        owner: 'acme',
+        repo: 'core',
+      });
+
+      assert.match(seenQuery, /label:"type::story"/);
+      assert.match(seenQuery, /\bstate:open\b/);
+      assert.match(seenQuery, /webhook/);
+      assert.ok(out.length >= 1);
+      assert.ok(out.some((c) => c.id === 101 || c.id === 103));
+      assert.ok(!out.some((c) => c.id === 102));
+      assert.ok(out.every((c) => typeof c.score === 'number'));
+    });
+
+    it('does not call listIssuesByLabel when search succeeds', async () => {
+      let listCalled = false;
+      const provider = {
+        async searchIssues() {
+          return [
+            {
+              number: 101,
+              title: 'Webhook duplicate detection for incoming events',
+              body: 'Detect duplicate webhook payloads by hashing the body.',
+              state: 'open',
+            },
+          ];
+        },
+        async listIssuesByLabel() {
+          listCalled = true;
+          return [];
+        },
+      };
+      await findSimilarOpenStories({
+        seed: 'Detect duplicate webhook payloads via fingerprint hashing.',
+        provider,
+      });
+      assert.equal(listCalled, false);
+    });
+  });
+
+  describe('findSimilarOpenStories — search → list fallback', () => {
+    it('falls back to listIssuesByLabel when searchIssues throws', async () => {
+      let listCalled = false;
+      const provider = {
+        async searchIssues() {
+          throw new Error('Search API unavailable');
+        },
+        async listIssuesByLabel(_filters) {
+          listCalled = true;
+          return WEBHOOK_STORIES.map((s) => ({
+            number: s.id,
+            title: s.title,
+            body: s.body,
+          }));
+        },
+      };
+
+      const out = await findSimilarOpenStories({
+        seed: 'Detect duplicate webhook payloads via fingerprint hashing.',
+        provider,
+        owner: 'acme',
+        repo: 'core',
+      });
+
+      assert.equal(listCalled, true);
+      assert.ok(out.length >= 1);
+      assert.ok(out.some((c) => c.id === 101 || c.id === 103));
+    });
+  });
+
   describe('findSimilarOpenStories — no-match short-circuit', () => {
     it('returns [] when the provider has no open Stories', async () => {
-      const provider = makeProvider([]);
+      const provider = makeListProvider([]);
       const out = await findSimilarOpenStories({
         seed: 'A perfectly novel idea no one has ever proposed.',
         provider,
@@ -157,7 +287,7 @@ describe('duplicate-search', () => {
     });
 
     it('returns [] when nothing crosses the minScore threshold', async () => {
-      const provider = makeProvider([
+      const provider = makeListProvider([
         {
           id: 200,
           title: 'Completely unrelated topic',
@@ -173,19 +303,24 @@ describe('duplicate-search', () => {
     });
 
     it('returns [] when the seed has no scoreable tokens', async () => {
-      const provider = makeProvider([
-        { id: 1, title: 'Some Story', body: 'with content' },
-      ]);
+      let fetched = false;
+      const provider = {
+        async listIssuesByLabel() {
+          fetched = true;
+          return [{ number: 1, title: 'Some Story', body: 'with content' }];
+        },
+      };
       const out = await findSimilarOpenStories({
         seed: 'a an the of', // all stopwords
         provider,
       });
       assert.deepEqual(out, []);
+      assert.equal(fetched, false, 'must not hit the network for empty seeds');
     });
   });
 
   describe('findSimilarOpenStories — error propagation', () => {
-    it('propagates provider errors verbatim', async () => {
+    it('propagates listIssuesByLabel errors when search is unavailable', async () => {
       const boom = new Error('GitHub API rate limit exceeded');
       const provider = {
         async listIssuesByLabel() {
@@ -195,7 +330,24 @@ describe('duplicate-search', () => {
       await assert.rejects(
         () =>
           findSimilarOpenStories({
-            seed: 'something',
+            seed: 'something meaningful enough',
+            provider,
+          }),
+        (err) => err === boom,
+      );
+    });
+
+    it('propagates search errors when listIssuesByLabel is missing', async () => {
+      const boom = new Error('Search API rate limit exceeded');
+      const provider = {
+        async searchIssues() {
+          throw boom;
+        },
+      };
+      await assert.rejects(
+        () =>
+          findSimilarOpenStories({
+            seed: 'something meaningful enough',
             provider,
           }),
         (err) => err === boom,
@@ -203,21 +355,21 @@ describe('duplicate-search', () => {
     });
 
     it('rejects missing seed', async () => {
-      const provider = makeProvider([]);
+      const provider = makeListProvider([]);
       await assert.rejects(
         () => findSimilarOpenStories({ seed: '', provider }),
         /seed must be a non-empty string/,
       );
     });
 
-    it('rejects providers without listIssuesByLabel', async () => {
+    it('rejects providers without searchIssues or listIssuesByLabel', async () => {
       await assert.rejects(
         () =>
           findSimilarOpenStories({
-            seed: 'something',
+            seed: 'something meaningful enough',
             provider: {},
           }),
-        /provider must implement listIssuesByLabel/,
+        /provider must implement searchIssues\(\) or listIssuesByLabel/,
       );
     });
   });

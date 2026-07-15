@@ -7,17 +7,20 @@
  * LLM can pause for HITL confirmation.
  *
  * Design notes:
- *  - The provider abstraction (`listIssuesByLabel` for `type::story`) is
- *    the only I/O surface; the scoring routine is pure and trivially
- *    testable in isolation.
+ *  - Prefer `provider.searchIssues` to narrow open Stories server-side
+ *    (`label:"type::story" state:open` + top seed tokens), capped at
+ *    ~100 hits, then rank that set. Fall back to `listIssuesByLabel`
+ *    when search errors or is unavailable (same try/catch pattern as
+ *    `TicketGateway.getTickets`).
  *  - Scoring is intentionally simple (token Jaccard over title + body).
  *    It is a triage signal, not a semantic-search replacement.
- *  - Provider errors propagate verbatim — the caller is responsible
- *    for translating them into a friction comment or operator-visible
- *    failure.
+ *  - Provider errors on the list fallback propagate verbatim — the
+ *    caller is responsible for translating them into a friction comment
+ *    or operator-visible failure.
  */
 
 import { TYPE_LABELS } from './label-constants.js';
+import { Logger } from './Logger.js';
 
 const STOPWORDS = new Set([
   'a',
@@ -76,6 +79,10 @@ const STOPWORDS = new Set([
 
 const DEFAULT_MIN_SCORE = 0.15;
 const DEFAULT_MAX_RESULTS = 5;
+/** How many seed tokens to pass as free-text search terms. */
+const DEFAULT_SEARCH_TOKEN_CAP = 8;
+/** Hard cap on search hits ranked client-side (~one Search API page). */
+const SEARCH_RESULT_CAP = 100;
 
 /**
  * Tokenize freeform text into a deduplicated set of meaningful words.
@@ -91,6 +98,33 @@ export function tokenize(text) {
     .split(/\s+/)
     .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
   return new Set(tokens);
+}
+
+/**
+ * Pick the highest-signal seed tokens for a Search API free-text query.
+ * Longer tokens first (specificity proxy), then alphabetical for stability.
+ *
+ * @param {string} seed
+ * @param {number} [maxTokens]
+ * @returns {string[]}
+ */
+export function pickSearchTokens(seed, maxTokens = DEFAULT_SEARCH_TOKEN_CAP) {
+  const tokens = tokenize(seed);
+  return [...tokens]
+    .sort((a, b) => b.length - a.length || a.localeCompare(b))
+    .slice(0, maxTokens);
+}
+
+/**
+ * Build the `/search/issues` query for open Stories overlapping a seed.
+ * Repo scoping is left to `provider.searchIssues`.
+ *
+ * @param {string} seed
+ * @returns {string}
+ */
+export function buildOpenStorySearchQuery(seed) {
+  const tokens = pickSearchTokens(seed);
+  return [`label:"${TYPE_LABELS.STORY}"`, 'state:open', ...tokens].join(' ');
 }
 
 /**
@@ -123,6 +157,21 @@ function buildIssueUrl(id, opts = {}) {
     return `https://github.com/${owner}/${repo}/issues/${id}`;
   }
   return `#${id}`;
+}
+
+/**
+ * Normalize a provider issue (list or search hit) into the ranking shape.
+ *
+ * @param {object} issue
+ * @returns {{ id: number, title: string, body: string, url?: string }}
+ */
+function normalizeIssue(issue) {
+  return {
+    id: Number(issue.number ?? issue.id),
+    title: issue.title ?? '',
+    body: issue.body ?? '',
+    url: issue.html_url ?? issue.url ?? undefined,
+  };
 }
 
 /**
@@ -186,13 +235,27 @@ export function rankOpenStoryDuplicates({
 }
 
 /**
- * Fetch open Stories via the ticketing provider.
+ * Server-narrowed open-Story fetch via `/search/issues`.
+ *
+ * @param {object} provider
+ * @param {string} seed
+ * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
+ */
+async function fetchOpenStoriesViaSearch(provider, seed) {
+  const query = buildOpenStorySearchQuery(seed);
+  const hits = await provider.searchIssues({ query });
+  if (!Array.isArray(hits)) return [];
+  return hits.slice(0, SEARCH_RESULT_CAP).map(normalizeIssue);
+}
+
+/**
+ * Full open-Story backlog via label listing (fallback path).
  *
  * @param {object} provider
  * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
  */
-async function fetchOpenStories(provider) {
-  if (!provider || typeof provider.listIssuesByLabel !== 'function') {
+async function fetchOpenStoriesViaList(provider) {
+  if (typeof provider.listIssuesByLabel !== 'function') {
     throw new Error(
       'findSimilarOpenStories: provider must implement listIssuesByLabel()',
     );
@@ -202,12 +265,44 @@ async function fetchOpenStories(provider) {
     labels: TYPE_LABELS.STORY,
   });
   if (!Array.isArray(issues)) return [];
-  return issues.map((issue) => ({
-    id: Number(issue.number ?? issue.id),
-    title: issue.title ?? '',
-    body: issue.body ?? '',
-    url: issue.html_url ?? issue.url ?? undefined,
-  }));
+  return issues.map(normalizeIssue);
+}
+
+/**
+ * Fetch open-Story candidates: prefer Search API narrowing, fall back to
+ * `listIssuesByLabel` when search errors or is unavailable.
+ *
+ * @param {object} provider
+ * @param {string} seed
+ * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
+ */
+async function fetchOpenStoryCandidates(provider, seed) {
+  if (!provider || typeof provider !== 'object') {
+    throw new Error('findSimilarOpenStories: provider is required');
+  }
+
+  const hasSearch = typeof provider.searchIssues === 'function';
+  const hasList = typeof provider.listIssuesByLabel === 'function';
+  if (!hasSearch && !hasList) {
+    throw new Error(
+      'findSimilarOpenStories: provider must implement searchIssues() or listIssuesByLabel()',
+    );
+  }
+
+  if (hasSearch) {
+    try {
+      return await fetchOpenStoriesViaSearch(provider, seed);
+    } catch (err) {
+      if (!hasList) throw err;
+      const msg = typeof err?.message === 'string' ? err.message : String(err);
+      Logger.warn(
+        `[duplicate-search] search-based candidate fetch failed (${msg}); ` +
+          'falling back to listIssuesByLabel',
+      );
+    }
+  }
+
+  return fetchOpenStoriesViaList(provider);
 }
 
 /**
@@ -238,7 +333,10 @@ export async function findSimilarOpenStories({
     throw new Error('findSimilarOpenStories: seed must be a non-empty string');
   }
 
-  const openStories = await fetchOpenStories(provider);
+  // Avoid a network round-trip when the seed cannot produce a score.
+  if (tokenize(seed).size === 0) return [];
+
+  const openStories = await fetchOpenStoryCandidates(provider, seed);
   return rankOpenStoryDuplicates({
     seed,
     openStories,
@@ -254,6 +352,8 @@ export const __test = {
   STOPWORDS,
   DEFAULT_MIN_SCORE,
   DEFAULT_MAX_RESULTS,
+  DEFAULT_SEARCH_TOKEN_CAP,
+  SEARCH_RESULT_CAP,
   buildIssueUrl,
   buildEpicUrl: buildIssueUrl,
 };

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { after, describe, it } from 'node:test';
+import { after, afterEach, describe, it } from 'node:test';
 import {
+  __resetCleanGitEnv,
   __setGitRunners,
   gitSpawn,
   gitSync,
@@ -9,7 +10,14 @@ import {
 
 // Restore real git runners after this suite so any later test in the same
 // worker process is not contaminated by the mocks installed below.
-after(() => __setGitRunners(execFileSync, spawnSync));
+after(() => {
+  __setGitRunners(execFileSync, spawnSync);
+  __resetCleanGitEnv();
+});
+
+afterEach(() => {
+  __resetCleanGitEnv();
+});
 
 describe('git-utils — explicit cwd is forwarded to the child process', () => {
   it('gitSync passes cwd through to execFileSync', () => {
@@ -56,5 +64,82 @@ describe('git-utils — explicit cwd is forwarded to the child process', () => {
     gitSync('/tmp/worktree-Y', 'rev-parse', 'HEAD');
 
     assert.deepEqual(observed, ['/tmp/worktree-X', '/tmp/worktree-Y']);
+  });
+});
+
+describe('git-utils — cleanGitEnv memoization', () => {
+  it('reuses one cleaned env object across gitSync/gitSpawn calls', () => {
+    const observed = [];
+    __setGitRunners(
+      (_cmd, _args, opts) => {
+        observed.push(opts.env);
+        return '';
+      },
+      (_cmd, _args, opts) => {
+        observed.push(opts.env);
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    );
+
+    gitSync('/tmp/a', 'status');
+    gitSpawn('/tmp/b', 'status');
+    gitSync('/tmp/c', 'status');
+
+    assert.equal(observed.length, 3);
+    assert.equal(observed[0], observed[1]);
+    assert.equal(observed[1], observed[2]);
+    assert.ok(
+      Object.isFrozen(observed[0]),
+      'memoized env must be frozen against accidental mutation',
+    );
+  });
+
+  it('strips GIT_* from the cleaned env and ignores later process.env.GIT_*', () => {
+    const prev = process.env.GIT_DIR;
+    process.env.GIT_DIR = '/tmp/should-not-leak';
+    try {
+      __resetCleanGitEnv();
+      let env;
+      __setGitRunners(
+        (_cmd, _args, opts) => {
+          env = opts.env;
+          return '';
+        },
+        () => ({ status: 0, stdout: '', stderr: '' }),
+      );
+      gitSync('/tmp/a', 'status');
+      assert.equal(env.GIT_DIR, undefined);
+      // A later GIT_* mutation on process.env must not appear either —
+      // the memoized snapshot never carried GIT_* keys.
+      process.env.GIT_WORK_TREE = '/tmp/also-should-not-leak';
+      gitSync('/tmp/b', 'status');
+      assert.equal(env.GIT_WORK_TREE, undefined);
+    } finally {
+      if (prev === undefined) delete process.env.GIT_DIR;
+      else process.env.GIT_DIR = prev;
+      delete process.env.GIT_WORK_TREE;
+    }
+  });
+
+  it('__resetCleanGitEnv forces a rebuild on the next call', () => {
+    const marker = `MANDREL_CLEAN_GIT_ENV_${Date.now()}`;
+    const observed = [];
+    __setGitRunners(
+      (_cmd, _args, opts) => {
+        observed.push(opts.env);
+        return '';
+      },
+      () => ({ status: 0, stdout: '', stderr: '' }),
+    );
+
+    gitSync('/tmp/a', 'status');
+    process.env[marker] = '1';
+    __resetCleanGitEnv();
+    gitSync('/tmp/b', 'status');
+    delete process.env[marker];
+
+    assert.notEqual(observed[0], observed[1]);
+    assert.equal(observed[0][marker], undefined);
+    assert.equal(observed[1][marker], '1');
   });
 });

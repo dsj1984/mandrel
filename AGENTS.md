@@ -27,15 +27,18 @@ package and materialized into consumer projects' `.agents/` directories by
   consumer project)
 - **License:** MIT
 
-> **Ticket hierarchy.** Mandrel ships a **Story-only** ticket model.
-> Acceptance criteria and verification steps are inlined on the Story
-> body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
-> `## Spec` (inline only; over-budget Specs mean split or tighten). `/plan` emits one or
-> more `type::story` issues (default N=1); `/deliver` runs each Story
-> via `helpers/deliver-story` on `story-<id>` → PR → `main`. Optional
-> `depends_on` / `plan-run::<id>` edges order rare multi-Story runs.
-> There is no `type::epic` / `type::task` layer and no per-Task commit
-> ceremony. See [`.agents/instructions.md` § 5.D](.agents/instructions.md)
+> **Ticket hierarchy.** Orchestration and planning are **Story-only**
+> (`type::story`). Acceptance criteria and verification steps are inlined
+> on the Story body (`acceptance[]` / `verify[]`); the folded Tech Spec
+> lives in `## Spec` (inline only; over-budget Specs mean split or
+> tighten). `/plan` emits one or more `type::story` issues (default N=1);
+> `/deliver` runs each Story via `helpers/deliver-story` on
+> `story-<id>` → PR → `main`. Optional `depends_on` / `plan-run::<id>`
+> edges order rare multi-Story runs. There is no `type::epic` /
+> `type::task` label, no Epic issue form, and no per-Task commit ceremony —
+> an Epic is at most an optional untyped human umbrella issue outside
+> orchestration. `/deliver` refuses tickets that still carry an
+> `Epic: #N` footer. See [`.agents/instructions.md` § 5.D](.agents/instructions.md)
 > and [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md) for the contract.
 
 ---

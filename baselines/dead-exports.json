@@ -1,11 +1,47 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
-  "kernelVersion": "6.14.0",
-  "generatedAt": "2026-07-14T17:16:31.562Z",
+  "kernelVersion": "6.17.1",
+  "generatedAt": "2026-07-15T14:51:53.493Z",
   "rows": [
     {
-      "file": ".agents/scripts/lib/Logger.js",
-      "symbol": "STDERR_LOGGER"
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "GLOBAL_LENS_ALLOWLIST"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "isGlobalLens"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "NAVIGABILITY_LENS"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "resolveNavigabilityRouteGlobs"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "routesNavigabilityLens"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "GLOBAL_LENS_ALLOWLIST"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "isGlobalLens"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "NAVIGABILITY_LENS"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "resolveNavigabilityRouteGlobs"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "routesNavigabilityLens"
     },
     {
       "file": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
@@ -38,30 +74,6 @@
     {
       "file": ".agents/scripts/lib/baselines/envelope.js",
       "symbol": "KNOWN_KINDS"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "kernelVersion"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "keyField"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "name"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "projectRow"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "rollup"
-    },
-    {
-      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "symbol": "sortRows"
     },
     {
       "file": ".agents/scripts/lib/baselines/reader.js",
@@ -184,18 +196,6 @@
       "symbol": "TOLERANCE_SCHEMA"
     },
     {
-      "file": ".agents/scripts/lib/config/paths.js",
-      "symbol": "PATHS_DEFAULTS"
-    },
-    {
-      "file": ".agents/scripts/lib/config/retro.js",
-      "symbol": "DEFAULT_RETRO"
-    },
-    {
-      "file": ".agents/scripts/lib/config/runners.js",
-      "symbol": "DEFAULT_CODE_REVIEW"
-    },
-    {
       "file": ".agents/scripts/lib/config/sync-agentrc.js",
       "symbol": "isLeafSchemaRemovable"
     },
@@ -214,6 +214,10 @@
     {
       "file": ".agents/scripts/lib/duplicate-search.js",
       "symbol": "__test"
+    },
+    {
+      "file": ".agents/scripts/lib/duplicate-search.js",
+      "symbol": "rankOpenStoryDuplicates"
     },
     {
       "file": ".agents/scripts/lib/dynamic-workflow/report-contract-core.js",
@@ -256,6 +260,10 @@
       "symbol": "default"
     },
     {
+      "file": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
+      "symbol": "extractRecurringDefectClasses"
+    },
+    {
       "file": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
       "symbol": "buildContentMarker"
     },
@@ -276,10 +284,6 @@
       "symbol": "__testing"
     },
     {
-      "file": ".agents/scripts/lib/git-branch-cleanup.js",
-      "symbol": "deleteBranchEverywhere"
-    },
-    {
       "file": ".agents/scripts/lib/git-utils.js",
       "symbol": "getEpicBranch"
     },
@@ -290,6 +294,10 @@
     {
       "file": ".agents/scripts/lib/install-cmd-parser.js",
       "symbol": "parseInstallCmd"
+    },
+    {
+      "file": ".agents/scripts/lib/Logger.js",
+      "symbol": "STDERR_LOGGER"
     },
     {
       "file": ".agents/scripts/lib/observability/hook-heartbeat.js",
@@ -305,15 +313,19 @@
     },
     {
       "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "STORY_PERF_MARKER"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
       "symbol": "renderBaselineRefreshRateRow"
     },
     {
       "file": ".agents/scripts/lib/observability/perf-report-render.js",
       "symbol": "renderQualityGateFrictionBlock"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/perf-report-render.js",
+      "symbol": "STORY_PERF_MARKER"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/signals-writer.js",
+      "symbol": "forEachEpicLine"
     },
     {
       "file": ".agents/scripts/lib/observability/source-classifier.js",
@@ -322,6 +334,14 @@
     {
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "symbol": "runFromStdin"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ceremony-routing.js",
+      "symbol": "CEREMONY_PROFILES"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ceremony-routing.js",
+      "symbol": "normalizeCeremonyProfile"
     },
     {
       "file": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -352,38 +372,6 @@
       "symbol": "executeStashPhase"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js",
-      "symbol": "ghPrViewAutoMerge"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "AUTOMERGE_VERDICT_TRAILER_RE"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "REASON_CATEGORY"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "TRUST_CI_BLOCKING_CATEGORIES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "applyAutoMergePolicy"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "classifyRequiredChecksProbe"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "symbol": "probeRequiredChecks"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/index.js",
-      "symbol": "parseLedgerPath"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
       "symbol": "appendAttempt"
     },
@@ -396,8 +384,8 @@
       "symbol": "ghPrViewMerge"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
-      "symbol": "STILL_RUNNING"
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
+      "symbol": "parsePrNumberFromUrl"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
@@ -406,6 +394,14 @@
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "promotePendingToStillRunning"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
+      "symbol": "RECOGNIZED_CHECK_STATES"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
+      "symbol": "STILL_RUNNING"
     },
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
@@ -420,8 +416,8 @@
       "symbol": "RISK_VERDICT_SCHEMA_PATH"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "symbol": "detectorsPhase"
+      "file": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
+      "symbol": "createWorktreeReapState"
     },
     {
       "file": ".agents/scripts/lib/orchestration/reassert-status-column.js",
@@ -444,8 +440,12 @@
       "symbol": "toStoryRecord"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/retro/phases/compose-body.js",
-      "symbol": "hasActionableProposals"
+      "file": ".agents/scripts/lib/orchestration/resolves-token.js",
+      "symbol": "resolvesOrRefsGrepArgs"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
+      "symbol": "buildCodexReviewPrompt"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/codex.js",
@@ -465,11 +465,11 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",
-      "symbol": "normalizeDepth"
+      "symbol": "DEPTH_DIRECTIVES"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
-      "symbol": "SECURITY_REVIEW_INVOKE_PROMPT"
+      "file": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",
+      "symbol": "normalizeDepth"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
@@ -478,6 +478,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
       "symbol": "defaultProbeClaudeCli"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
+      "symbol": "SECURITY_REVIEW_INVOKE_PROMPT"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
@@ -512,14 +516,6 @@
       "symbol": "pickDominantType"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/spec-freshness.js",
-      "symbol": "renderSpecFreshnessComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/spec-freshness.js",
-      "symbol": "validateSpecFreshness"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "symbol": "commitDirtyPaths"
     },
@@ -534,6 +530,22 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "symbol": "resolveFormatterCmd"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-follow-ups.js",
+      "symbol": "captureStoryFollowUps"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-follow-ups.js",
+      "symbol": "FOLLOW_UPS_COMMENT_TYPE"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-follow-ups.js",
+      "symbol": "gatherStoryFrictionSignals"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/story-plan-state.js",
+      "symbol": "readStoryPlanState"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
@@ -557,19 +569,19 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "symbol": "CLAIM_TYPE_PATTERN"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "symbol": "LIFECYCLE_TYPE_PATTERN"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "symbol": "_rawCommentsCache"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
       "symbol": "_structuredCommentCache"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "symbol": "CLAIM_TYPE_PATTERN"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "symbol": "LIFECYCLE_TYPE_PATTERN"
     },
     {
       "file": ".agents/scripts/lib/preflight-runner.js",
@@ -606,26 +618,6 @@
     {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",
       "symbol": "walkSkillFiles"
-    },
-    {
-      "file": ".agents/scripts/lib/spec/index.js",
-      "symbol": "writeSpec"
-    },
-    {
-      "file": ".agents/scripts/lib/spec/loader.js",
-      "symbol": "_resetValidatorCacheForTests"
-    },
-    {
-      "file": ".agents/scripts/lib/spec/loader.js",
-      "symbol": "renderStateJson"
-    },
-    {
-      "file": ".agents/scripts/lib/spec/loader.js",
-      "symbol": "sortKeysDeep"
-    },
-    {
-      "file": ".agents/scripts/lib/spec/loader.js",
-      "symbol": "writeSpec"
     },
     {
       "file": ".agents/scripts/lib/story-plan.js",
@@ -709,11 +701,11 @@
     },
     {
       "file": ".agents/scripts/providers/github/issues.js",
-      "symbol": "SUBTICKET_HYDRATION_CONCURRENCY"
+      "symbol": "paginateRest"
     },
     {
       "file": ".agents/scripts/providers/github/issues.js",
-      "symbol": "paginateRest"
+      "symbol": "SUBTICKET_HYDRATION_CONCURRENCY"
     },
     {
       "file": ".agents/scripts/providers/github/labels.js",

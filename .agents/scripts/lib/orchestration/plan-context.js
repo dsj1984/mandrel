@@ -25,11 +25,14 @@ import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
 } from '../templates/spec-author-prompts.js';
+import { concurrentMap } from '../util/concurrent-map.js';
 import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { buildDocsDigest } from './docs-digest.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
 import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
 
+/** Bounded concurrency for `--tickets` source-ticket hydration. */
+const SOURCE_TICKET_FETCH_CONCURRENCY = 4;
 /**
  * Envelope byte ceiling (regression guard for the design's named PR2 risk:
  * two envelopes → one bigger one). The folded envelope's bounded parts are:
@@ -509,6 +512,7 @@ async function buildSeedModeEnvelope({
 
 /**
  * Fetch source tickets for `--tickets` mode.
+ * Hydrates ids concurrently (bounded) while preserving input order.
  *
  * @param {number[]} ticketIds
  * @param {object} provider
@@ -520,26 +524,28 @@ async function fetchSourceTickets(ticketIds, provider) {
       '[plan-context] tickets mode requires provider.getTicket()',
     );
   }
-  const out = [];
-  for (const id of ticketIds) {
-    const ticket = await provider.getTicket(id);
-    if (!ticket) {
-      throw new Error(`[plan-context] ticket #${id} not found`);
-    }
-    out.push({
-      id: Number(ticket.id ?? ticket.number ?? id),
-      title: ticket.title ?? '',
-      body: ticket.body ?? '',
-      labels: Array.isArray(ticket.labels)
-        ? ticket.labels
-            .map((l) => (typeof l === 'string' ? l : l?.name))
-            .filter(Boolean)
-        : [],
-      url: ticket.html_url ?? ticket.url ?? undefined,
-      state: ticket.state ?? undefined,
-    });
-  }
-  return out;
+  return concurrentMap(
+    ticketIds,
+    async (id) => {
+      const ticket = await provider.getTicket(id);
+      if (!ticket) {
+        throw new Error(`[plan-context] ticket #${id} not found`);
+      }
+      return {
+        id: Number(ticket.id ?? ticket.number ?? id),
+        title: ticket.title ?? '',
+        body: ticket.body ?? '',
+        labels: Array.isArray(ticket.labels)
+          ? ticket.labels
+              .map((l) => (typeof l === 'string' ? l : l?.name))
+              .filter(Boolean)
+          : [],
+        url: ticket.html_url ?? ticket.url ?? undefined,
+        state: ticket.state ?? undefined,
+      };
+    },
+    { concurrency: SOURCE_TICKET_FETCH_CONCURRENCY },
+  );
 }
 
 /**

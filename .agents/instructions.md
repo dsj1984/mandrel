@@ -280,7 +280,7 @@ budget grounds.
      ensures (generates or reuses) a per-Epic docs digest — a single compact
      outline (path, byte size, heading outline with line numbers, and the
      first paragraph under each `##`) built from `project.docsContextFiles`
-     — at `temp/epic-<epicId>/docs-digest.md` (`plan-context.js`, via the
+     — at `temp/run-<id>/docs-digest.md` (`plan-context.js`, via the
      shared generator in
      `.agents/scripts/lib/orchestration/docs-digest.js`; the same file the
      `/deliver` story sub-agents below already consume). Use the digest to
@@ -439,6 +439,10 @@ Specs fail closed — split or tighten; never write under `docs/`). Optional
   [`rules/git-conventions.md`](rules/git-conventions.md) and references the
   Story via `(refs #<storyId>)`.
 - Branch model matches Section 5.A (`story-<id>` → PR → `main`).
+- There is no `type::epic` / `type::task` label and no Epic issue form. An
+  Epic is at most an optional untyped human umbrella issue outside
+  orchestration; `/deliver` refuses tickets that still carry an
+  `Epic: #N` footer.
 
 ---
 

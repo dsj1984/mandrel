@@ -328,13 +328,15 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Mandrel uses a **2-tier** model (Epic → Story) for human-facing tickets,
-but **orchestration is Story-centric**: `/plan` persists `type::story`
-issues with inline `acceptance[]` / `verify[]` and a folded `## Spec`;
-`/deliver` runs `helpers/deliver-story` on `story-<id>` → PR → `main`.
-There is no `type::task` layer and no Epic wave / `epic/<id>` integration
-branch. Tickets that still carry an `Epic: #N` footer are refused by
-`/deliver` and must be closed or re-planned as v2 Stories.
+Orchestration and planning are **Story-only** (`type::story`): `/plan`
+persists Stories with inline `acceptance[]` / `verify[]` and a folded
+`## Spec`; `/deliver` runs `helpers/deliver-story` on
+`story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
+label and no Epic issue form — an Epic is at most an optional untyped
+human umbrella issue outside orchestration. There is no Epic wave /
+`epic/<id>` integration branch. Tickets that still carry an `Epic: #N`
+footer are refused by `/deliver` and must be closed or re-planned as
+v2 Stories.
 
 See [`docs/SDLC.md`](docs/SDLC.md) and [`instructions.md` § 5.D](instructions.md)
 for the execution-model contract.

@@ -29,11 +29,14 @@
 
 ## Ticket hierarchy
 
-> Mandrel uses a **Story-only** ticket model. Acceptance criteria and
-> verification steps are inlined on the Story body (`acceptance[]` /
-> `verify[]`); the folded Tech Spec lives in `## Spec`. `/plan` emits
-> one or more `type::story` issues (default N=1); `/deliver` runs each
-> Story via `helpers/deliver-story` on `story-<id>` → PR → `main`.
-> There is no Epic parent tier and no `persona::*` label axis. See
+> Orchestration and planning are **Story-only** (`type::story`).
+> Acceptance criteria and verification steps are inlined on the Story
+> body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
+> `## Spec`. `/plan` emits one or more `type::story` issues (default N=1);
+> `/deliver` runs each Story via `helpers/deliver-story` on
+> `story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
+> label, no Epic issue form, and no `persona::*` axis — an Epic is at most
+> an optional untyped human umbrella issue outside orchestration.
+> `/deliver` refuses `Epic: #N` footers. See
 > [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
 > [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md).
