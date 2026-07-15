@@ -75,16 +75,16 @@ describe('findMergeLockoutViolations', () => {
     assert.match(violations[0].file, /epic-deliver-finalize\.js$/);
     assert.equal(violations[0].line, 1);
     assert.match(violations[0].hint, /gh pr merge/);
-    assert.match(violations[0].hint, /automerge-armer\.js/);
+    assert.match(violations[0].hint, /auto-merge\.js/);
   });
 
-  it('does NOT flag the same literal inside automerge-armer.js (allow-list)', () => {
+  it('does NOT flag the same literal inside auto-merge.js (allow-list)', () => {
     const armerRel = path.join(
       'lib',
       'orchestration',
-      'lifecycle',
-      'listeners',
-      'automerge-armer.js',
+      'single-story-close',
+      'phases',
+      'auto-merge.js',
     );
     const root = makeFixtureTree({
       [armerRel]:
@@ -94,7 +94,7 @@ describe('findMergeLockoutViolations', () => {
     assert.equal(
       violations.length,
       0,
-      'automerge-armer.js is exempt — zero violations',
+      'auto-merge.js is exempt — zero violations',
     );
   });
 

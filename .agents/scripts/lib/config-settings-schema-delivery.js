@@ -247,6 +247,11 @@ const ROUTING_SCHEMA = {
   properties: {
     roleScopedAgents: { type: 'boolean' },
     freshCriticSampleRate: { type: 'number', minimum: 0, maximum: 1 },
+    ceremonyProfile: {
+      type: 'string',
+      enum: ['minimal', 'standard', 'strict'],
+    },
+    closeAndLand: { type: 'boolean' },
   },
   additionalProperties: false,
 };

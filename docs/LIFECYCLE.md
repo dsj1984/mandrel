@@ -253,15 +253,15 @@ boundary is always the first writer.
 
 | Listener                     | Subscribes to                                                                                  | Side effect                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `LedgerWriter`               | `*` (registered first on every event)                                                          | Append `emitted` / `completed` / `failed` rows to `lifecycle.ndjson`.|
-| `TraceLogger`                | `*` (wildcard trace observer)                                                                  | Re-render the `lifecycle.md` companion.                              |
-| `NotifyDispatcher`           | `*` (dynamic; `epic.snapshot.start`, `epic.blocked`, `epic.complete` via `LIFECYCLE_TO_WEBHOOK_EVENT`) | Fan out the @mention + webhook channels via `notify.js`.             |
-| `CheckpointPointerWriter`    | `*` (dynamic `*.end` events sourced from `SUBSCRIBED_END_EVENTS`)                              | Persist a resume pointer in `epic-run-state`.                        |
-| `MergeWatcher`               | `epic.merge.armed`                                                                             | Poll `gh pr view` until `mergeCommit` is non-null; emit `epic.merge.confirmed`. |
-| `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
-| `AutomergePredicate`         | `epic.automerge.start`, `epic.watch.end`                                                       | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. Subscribes to `epic.automerge.start` (the production Phase 8.5 boundary `lifecycle-emit.js` fires; no `checkOutcomes`, so the CI-freshness gate is skipped — CI is already green per Phase 8) and `epic.watch.end` (test-only `Watcher` path, carries `checkOutcomes`). Story #3901. |
-| `AutomergeArmer`             | `epic.merge.ready` **only**                                                                    | Arm GitHub native auto-merge — the SOLE production code path authorised to call `gh pr merge`. |
-| `LabelTransitioner`          | `epic.complete`                                                                                | Flip the Epic ticket to `agent::done` via `transitionTicketState` (also closes the issue as completed, idempotently). Skipped when no provider is wired. |
+| `MergeWatcher`               | `epic.merge.armed`                                                                             | Poll helpers (`deriveChecksStatus`) reused by Story close-and-land. |
+| `Watcher`                    | `pr.created`                                                                                   | `watchPrToTerminal` — CI watch used by `pr-watch-with-update.js`. |
+
+> **v2 note.** The Epic lifecycle listener chain (`lifecycle-emit.js`,
+> `AutomergeArmer`, `AutomergePredicate`, `LabelTransitioner`,
+> `NotifyDispatcher`, `CheckpointPointerWriter`, `LedgerWriter` bus
+> wiring) was removed. Story delivery arms merge and confirms land via
+> `single-story-close` (`phases/auto-merge.js` + `confirm-merge.js`).
+> Helper exports from `merge-watcher.js` / `watcher.js` remain.
 
 ### Side-effect firewall
 
@@ -274,8 +274,8 @@ cross-cutting globals.
 The "merge-lockout" lint rule
 ([`.agents/scripts/check-lifecycle-lint.js`](../.agents/scripts/check-lifecycle-lint.js))
 enforces that the literal `gh pr merge` call lives only inside
-`AutomergeArmer`. Any other module that re-introduces the string fails
-lint.
+`single-story-close/phases/auto-merge.js`. Any other module that
+re-introduces the string fails lint.
 
 ---
 
@@ -286,11 +286,10 @@ boundary is owned by a listener that subscribes to a typed event. The
 `/deliver` workflow markdown reaches the bus through a single
 generic CLI — there are no per-phase shim scripts.
 
-- [`.agents/scripts/lifecycle-emit.js`](../.agents/scripts/lifecycle-emit.js)
-  — generic argv-driven emit helper. Phase 6 fires `epic.close.end`,
-  Phase 7.5 fires `epic.automerge.start`, Phase 8 fires
-  `epic.merge.armed`. Schema validation in the bus catches missing or
-  malformed payload fields before any listener runs.
+- Story close-and-land —
+  [`.agents/scripts/single-story-close.js`](../.agents/scripts/single-story-close.js)
+  — arms auto-merge and optionally polls to merge confirmation
+  (`delivery.routing.closeAndLand`, default true).
 - [`.agents/scripts/notify.js`](../.agents/scripts/notify.js) — single
   dispatch entry point for webhook / @mention channels. The canonical
   caller is the `NotifyDispatcher` listener; out-of-band operator

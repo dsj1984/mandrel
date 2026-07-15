@@ -2,33 +2,16 @@
 /* node:coverage ignore file */
 
 /**
- * story-plan.js — Local `/plan` wrapper.
+ * story-plan.js — DEPRECATED as a `/plan` entrypoint.
  *
- * Standalone counterpart to `/plan` for Stories that do **not**
- * attach to an Epic. The script is deliberately a thin CLI around the
- * pure helpers in `lib/story-plan.js`:
+ * Canonical planning is `plan-context.js` + `plan-persist.js` (see
+ * `.agents/workflows/plan.md`). This CLI remains as a thin helper for
+ * QA promote round-trips (`--body` / `--dry-run`) and legacy
+ * `--emit-context` callers; new operator flows must not invoke it.
  *
- *   1. `--emit-context` mode — given a `--idea`/`--from-notes` seed,
- *      build the context envelope (seed, refine heuristic, persona,
- *      body template, duplicate candidates, tech-stack summary, and a
- *      corpus-aware `corpusContext` — the docs digest plus relevant
- *      existing-Epic Tech Spec excerpts, Story #4432) and print it as
- *      JSON on stdout. Logs route to stderr so the envelope is
- *      byte-clean for `JSON.parse`.
- *   2. Persist mode — given a `--body <file>` authored by the host
- *      LLM after operator confirmation, validate the shape and persist
- *      via `provider.createIssue` (which also adds the new Story to
- *      the configured Projects V2 board — Story #3822) with
- *      `type::story` + the chosen persona label, falling back to
- *      `gh issue create` when the provider lacks a createIssue
- *      analogue. Prints `Next: /deliver <id>`.
- *   3. `--dry-run` — same as persist but exits without touching
- *      GitHub. Echoes the rendered body and the `gh` argv it would
- *      have run.
- *
- * Mirrors the `/plan` pattern: deterministic Node I/O wrappers
- * with HITL gating handled by the host LLM in chat. No external LLM
- * APIs are called from this script.
+ * Prefer:
+ *   node .agents/scripts/plan-context.js --seed "…" | --seed-file <path> | --tickets <ids>
+ *   node .agents/scripts/plan-persist.js --stories … --risk-verdict …
  */
 
 import { readFile } from 'node:fs/promises';

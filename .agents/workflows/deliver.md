@@ -20,8 +20,8 @@ branch, and no `--no-ff` wave merges.
 | Invocation | Behavior |
 | --- | --- |
 | `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`. |
-| `/deliver <storyId> <storyId> ...` | Sequence Stories in `depends_on` order via `stories-wave-tick.js`; each ready Story runs `deliver-story`. Default concurrency is **1** (sequential). |
-| `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<planRunId>`, then sequence as above; after the last Story lands, run the per-run epilogue (`planRunEpilogue`). |
+| `/deliver <storyId> <storyId> ...` | Sequence Stories in `depends_on` order via `stories-wave-tick.js`; each ready Story runs `deliver-story`. Default concurrency is **3**. |
+| `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<planRunId>` (envelope includes `dag` + `done`); sequence as above; after the last Story lands, run the per-run epilogue. |
 
 Any ticket that is not `type::story`, or that still carries an `Epic: #N`
 reference, is a hard error naming the ID and the fix (close or re-plan as a
@@ -33,10 +33,11 @@ v2 Story).
 | --- | --- |
 | `--run <planRunId>` | Deliver every Story in the plan-run (label `plan-run::<id>`). |
 | `--dep <from>:<to>` | Extra operator dependency edge (Story id → Story id). |
-| `--concurrency <n>` | Ready-set fan-out cap (default **1** — sequential). |
+| `--concurrency <n>` | Ready-set fan-out cap (default **3** from `delivery.deliverRunner.concurrencyCap`; set `1` for sequential). |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
-| `--wait-merge` | Headless must-land (forwarded into each Story close). |
+| `--wait-merge` | Force close-and-land (default when `delivery.routing.closeAndLand` is true). |
+| `--no-wait-merge` | Opt out of close-and-land; stop at `agent::closing` for a human land. |
 
 ## Procedure
 
@@ -48,11 +49,12 @@ v2 Story).
      node .agents/scripts/resolve-plan-run.js --run <planRunId>
      ```
 
-     Capture `stories[]` (numeric ids) from the envelope.
+     Capture `stories[]`, `dag[]`, and `done[]` from the envelope. Prefer
+     the emitted `dag` — do **not** rebuild it by hand when `--run` was used.
 
-2. **Build the DAG.** For each Story, read `depends_on` / `blocked by` from
-   the body (`buildStoryAdjacency` / body footer). Merge `--dep` edges.
-   Emit a JSON DAG for `stories-wave-tick.js`:
+2. **Build the DAG (positional only).** When delivering positional IDs
+   (no `--run`), read `depends_on` / `blocked by` from each body and merge
+   `--dep` edges into a JSON DAG for `stories-wave-tick.js`:
 
    ```json
    [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
@@ -69,15 +71,18 @@ v2 Story).
 
    For each `ready` Story id, read
    [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and
-   execute it (init → implement → ceremony → close → PR → land). Under
+   execute it (init → implement → ceremony → close-and-land). Under
    `--yes` / injected helper content, execute directly without a re-read
-   turn. Default `--concurrency 1` means at most one Story in flight.
+   turn.
 
-5. **Per-run epilogue (N>1 or `--run`).** After the last Story lands,
-   run the real closeout CLI (not a planner stub):
+5. **Per-run epilogue (N>1).** After the last Story lands:
 
    ```bash
+   # Plan-run label path:
    node .agents/scripts/plan-run-epilogue.js --run <planRunId>
+
+   # Positional multi-Story path (synthesizes an adhoc planRunId):
+   node .agents/scripts/plan-run-epilogue.js --stories 101,102
    ```
 
    This executes, in order:
@@ -104,12 +109,22 @@ There is no `epic/<id>` integration branch and no `--no-ff` wave merge.
 Dependent Stories land sequentially so each builds on the previous merge
 to `main`.
 
-## Ceremony (two scopes)
+## Ceremony (profiles + two scopes)
+
+Ceremony depth is selected by `delivery.routing.ceremonyProfile`
+(`minimal` | `standard` | `strict`, default `standard`) and the Story's
+planning risk:
+
+| Profile | Acceptance critic | When to use |
+| --- | --- | --- |
+| `minimal` | Always inline | Tiny trusted N=1 Stories |
+| `standard` | Risk-routed (+ sampling floor) | Default |
+| `strict` | Always fresh-context | High-assurance / regulated surfaces |
 
 | Scope | What runs | Mechanism |
 | --- | --- | --- |
-| **Per-Story (always)** | Gates, branch discipline, land-or-block | `deliver-story` / `single-story-close` |
-| **Per-Story (risk-routed)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` — read the Story's `planningRisk` / `risk-verdict` |
+| **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
+| **Per-Story (profile + risk)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
 | **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
 | **Per-Story land** | Actionable follow-ups from friction | `captureStoryFollowUps` in confirm-merge |
 
@@ -117,7 +132,9 @@ to `main`.
 
 - **Land or block — never a silent local build.** Worktrees, `story-<id>`
   branches, close-validation, and PR-to-`main` are the only sanctioned
-  delivery mechanism.
+  delivery mechanism. Attended delivers default to close-and-land
+  (`delivery.routing.closeAndLand: true`); use `--no-wait-merge` only when
+  a human will land the PR.
 - `/deliver` never plans — tickets come from [`/plan`](plan.md).
 - The router performs no git/label mutations; `deliver-story` owns every
   script invocation per Story.
@@ -127,3 +144,5 @@ to `main`.
 - [`/plan`](plan.md) — unified planning entry point.
 - [`helpers/deliver-story.md`](helpers/deliver-story.md) — the one Story
   delivery engine.
+- Placeholder design Story for a fully deterministic deliver-run
+  orchestrator: [#4521](https://github.com/dsj1984/mandrel/issues/4521).

@@ -1,21 +1,18 @@
 /**
- * plan-context.js — single planner-context envelope build (Epic #4474, M3
- * PR2 — `/plan` collapse step 1).
+ * plan-context.js — single planner-context envelope build for `/plan`.
  *
- * Folds the authoring-context builders plus the cross-Epic dup search into
+ * Folds the authoring-context builders plus the cross-Story dup search into
  * ONE JSON envelope, so the authoring middle reads a single file instead of
  * shim-scripting library imports.
  *
- * Two modes (v2 Story-only cutover — existing-Epic mode retired):
- *   - `one-pager` — ideation; the parent ticket does not exist yet
- *                   (creation moves to the persist half). Carries
- *                   `onePager` and `duplicates[]` (cross-Epic dup search).
- *   - `seed`      — headless ideation entry (#4496 fix 1): the one-pager
- *                   does not exist yet either. The dup search runs off the
- *                   raw seed text, and the envelope additively carries
- *                   `seed` and `onePagerSpec` (the canonical one-pager
- *                   sections, so the authoring pass writes the one-pager in
- *                   the SAME batched write as the spec artifacts).
+ * Two operator modes (v2 Story-only):
+ *   - `seed` / `seed-file` — freeform text (chat or on-disk). Carries
+ *     `seed` / `onePager` plus `duplicates[]` (open-Story dup search).
+ *   - `tickets` — one or more existing issue ids to analyze into proper
+ *     Stories. Carries `sourceTickets[]` plus `duplicates[]` (excluding
+ *     the source ids themselves).
+ *
+ * Internal mode aliases: `one-pager` ≡ `seed-file` (legacy CLI name).
  *
  * All fields are JSON-serialisable; the module performs no GitHub writes.
  * The only I/O surfaces are the injected `provider` (reads) and the
@@ -24,7 +21,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { getLimits, resolvePreflightCeilings } from '../config-resolver.js';
-import { findSimilarOpenEpics } from '../duplicate-search.js';
+import { findSimilarOpenStories } from '../duplicate-search.js';
 import { Logger } from '../Logger.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -359,12 +356,44 @@ and each Story carries its own \`## Spec\` (no shared techspec.md fold).
 }
 
 /**
- * Build the one-pager (ideation) envelope. The Epic does not exist yet —
- * creation moves to the persist half — so there is no clarity score, no
- * re-plan signal, and no plan state; the dup search replaces them as the
- * mode's gating input. `docsContext` is inline-digest (the standalone
- * `story-plan.js --emit-context` convention): there is no per-Epic temp
- * directory to anchor a digest file to yet.
+ * Run the open-Story duplicate search. Failures degrade to [] — triage
+ * signal, not a gate.
+ *
+ * @param {{
+ *   seed: string,
+ *   provider: object,
+ *   config: object,
+ *   excludeIds?: Iterable<number|string>,
+ * }} args
+ * @returns {Promise<Array<object>>}
+ */
+async function searchStoryDuplicates({
+  seed,
+  provider,
+  config,
+  excludeIds = [],
+}) {
+  try {
+    return await findSimilarOpenStories({
+      seed,
+      provider,
+      owner: config.github?.owner,
+      repo: config.github?.repo,
+      excludeIds,
+    });
+  } catch (err) {
+    Logger.warn(
+      `[plan-context] duplicate search degraded to no candidates: ${err?.message ?? err}`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Build the seed-file / one-pager (ideation) envelope. No parent ticket
+ * exists yet — creation moves to the persist half — so the open-Story
+ * dup search is the mode's gating input. `docsContext` is inline-digest:
+ * there is no plan temp directory to anchor a digest file to yet.
  */
 async function buildOnePagerModeEnvelope({
   onePagerPath,
@@ -374,54 +403,38 @@ async function buildOnePagerModeEnvelope({
   settings,
   fullContext,
   cwd,
+  modeLabel = 'seed-file',
 }) {
   const content =
     onePagerContent ?? (await readFile(onePagerPath ?? '', 'utf-8'));
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error(
-      `[plan-context] one-pager at ${onePagerPath} is empty — nothing to plan from.`,
+      `[plan-context] seed-file at ${onePagerPath ?? '(inline)'} is empty — nothing to plan from.`,
     );
   }
 
-  let duplicates = [];
-  try {
-    duplicates = await findSimilarOpenEpics({
-      onePager: content,
-      provider,
-      owner: config.github?.owner,
-      repo: config.github?.repo,
-    });
-  } catch (err) {
-    // The dup search is a triage signal, not a gate: a provider listing
-    // failure must not abort the envelope build. Surface the degradation
-    // on stderr; the authoring middle sees an empty candidate list.
-    Logger.warn(
-      `[plan-context] duplicate search degraded to no candidates: ${err?.message ?? err}`,
-    );
-    duplicates = [];
-  }
+  const duplicates = await searchStoryDuplicates({
+    seed: content,
+    provider,
+    config,
+  });
 
-  // Fold the same authoring-context builders the epic path uses, grounded
-  // in the one-pager prose instead of an Epic body. Reuse
-  // `buildAuthoringContext` via the prefetch seam so the fold has exactly
-  // one implementation of the snapshot/BDD/memory/feedback pipeline to
-  // drift from. `docsContextFiles` is emptied for this call: the per-Epic
-  // digest-file path needs an Epic id (and a temp directory) that does not
-  // exist yet — the inline digest below replaces it.
+  // Fold the authoring-context builders grounded in the seed prose.
+  // `docsContextFiles` is emptied for this call: the per-plan digest-file
+  // path needs a plan id that does not exist yet — the inline digest
+  // below replaces it.
   const authoring = await buildAuthoringContext(
     0,
     /* provider (unused behind the prefetch seam) */ {},
     { ...settings, docsContextFiles: [] },
     {
-      epic: { id: 0, title: onePagerPath ?? 'one-pager', body: content },
+      epic: { id: 0, title: onePagerPath ?? 'seed', body: content },
       fullContext,
       github: config.github ?? null,
       cwd,
     },
   );
 
-  // Replace the per-Epic digest-file pointer with an inline digest — the
-  // Epic (and its temp directory) does not exist yet.
   const paths = settings?.paths ?? {};
   const inlineDigest = await buildDocsDigest({
     docsContextFiles: settings?.docsContextFiles,
@@ -435,8 +448,13 @@ async function buildOnePagerModeEnvelope({
   const limits = getLimits(config);
   const heuristics = resolveRiskHeuristics(config);
 
+  // Keep `onePager` on the envelope for backward-compatible authoring
+  // consumers; `mode` reports the canonical v2 name (`seed-file`).
+  // Legacy callers that still pass mode `one-pager` get that label back.
+  // Do NOT also embed the full content under `seed` here — that would
+  // double a budget-capped corpus in the serialized envelope.
   return {
-    mode: 'one-pager',
+    mode: modeLabel,
     onePager: { path: onePagerPath ?? null, content },
     duplicates,
     docsContext,
@@ -457,17 +475,17 @@ async function buildOnePagerModeEnvelope({
       epicId: null,
     }),
     planState: null,
+    // N=1 default: author one Story; skip Epic-scale decompose ceremony.
+    planProfile: 'story-default',
   };
 }
 
 /**
- * Build the seed-mode (headless ideation) envelope — #4496 fix 1. The
- * one-pager does not exist yet: the dup search and the authoring-context
- * fold both run off the raw seed text (the same builders the one-pager mode
- * uses), and the envelope additively carries `seed`, the CLI-applied
- * `scopeTriage` verdict (fix 6 — no skill Reads on the headless path), and
- * `onePagerSpec` so the one-pager sections are authored in the same batched
- * write as the spec artifacts.
+ * Build the seed-mode (chat text) envelope. The seed-file does not exist
+ * yet: the dup search and the authoring-context fold both run off the raw
+ * seed text, and the envelope additively carries `onePagerSpec` so the
+ * sharpened sections are authored in the same batched write as the Story
+ * artifacts (N=1 default — no Epic-scale decompose).
  */
 async function buildSeedModeEnvelope({
   seedText,
@@ -490,13 +508,141 @@ async function buildSeedModeEnvelope({
     settings,
     fullContext,
     cwd,
+    modeLabel: 'seed',
   });
   const { onePager: _onePager, ...rest } = base;
   return {
     ...rest,
     mode: 'seed',
-    seed: { text: seedText },
+    seed: { text: seedText, path: null },
     onePagerSpec: ONE_PAGER_AUTHORING_SPEC,
+  };
+}
+
+/**
+ * Fetch source tickets for `--tickets` mode.
+ *
+ * @param {number[]} ticketIds
+ * @param {object} provider
+ * @returns {Promise<Array<{ id:number, title:string, body:string, labels:string[], url?:string }>>}
+ */
+async function fetchSourceTickets(ticketIds, provider) {
+  if (!provider || typeof provider.getTicket !== 'function') {
+    throw new Error(
+      '[plan-context] tickets mode requires provider.getTicket()',
+    );
+  }
+  const out = [];
+  for (const id of ticketIds) {
+    const ticket = await provider.getTicket(id);
+    if (!ticket) {
+      throw new Error(`[plan-context] ticket #${id} not found`);
+    }
+    out.push({
+      id: Number(ticket.id ?? ticket.number ?? id),
+      title: ticket.title ?? '',
+      body: ticket.body ?? '',
+      labels: Array.isArray(ticket.labels)
+        ? ticket.labels
+            .map((l) => (typeof l === 'string' ? l : l?.name))
+            .filter(Boolean)
+        : [],
+      url: ticket.html_url ?? ticket.url ?? undefined,
+      state: ticket.state ?? undefined,
+    });
+  }
+  return out;
+}
+
+/**
+ * Build the tickets-mode envelope — analyze existing issue(s) into proper
+ * Stories. Dup search excludes the source ids so a ticket is not reported
+ * as a duplicate of itself.
+ */
+async function buildTicketsModeEnvelope({
+  ticketIds,
+  provider,
+  config,
+  settings,
+  fullContext,
+  cwd,
+}) {
+  if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
+    throw new Error(
+      '[plan-context] --tickets requires one or more positive issue ids.',
+    );
+  }
+  const sourceTickets = await fetchSourceTickets(ticketIds, provider);
+  const seed = sourceTickets
+    .map((t) => `# ${t.title}\n\n${t.body}`)
+    .join('\n\n---\n\n');
+
+  const duplicates = await searchStoryDuplicates({
+    seed,
+    provider,
+    config,
+    excludeIds: ticketIds,
+  });
+
+  const authoring = await buildAuthoringContext(
+    0,
+    {},
+    { ...settings, docsContextFiles: [] },
+    {
+      epic: {
+        id: 0,
+        title: sourceTickets[0]?.title ?? 'tickets',
+        body: seed,
+      },
+      fullContext,
+      github: config.github ?? null,
+      cwd,
+    },
+  );
+
+  const paths = settings?.paths ?? {};
+  const inlineDigest = await buildDocsDigest({
+    docsContextFiles: settings?.docsContextFiles,
+    docsRoot: paths.docsRoot,
+  });
+  const docsContext =
+    inlineDigest == null
+      ? null
+      : { mode: 'digest-inline', digest: inlineDigest };
+
+  const limits = getLimits(config);
+  const heuristics = resolveRiskHeuristics(config);
+
+  return {
+    mode: 'tickets',
+    sourceTickets,
+    seed: { text: seed, path: null },
+    duplicates,
+    docsContext,
+    codebaseSnapshot: authoring.codebaseSnapshot,
+    bddRunner: authoring.bddRunner,
+    bddScenarios: authoring.bddScenarios,
+    memoryFreshness: authoring.memoryFreshness,
+    priorFeedback: authoring.priorFeedback,
+    ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
+    maxTickets: limits.maxTickets,
+    maxTokenBudget: limits.maxTokenBudget,
+    preflightCeilings: resolvePreflightCeilings(config),
+    riskHeuristics: heuristics,
+    systemPrompts: buildSystemPrompts({
+      heuristics,
+      maxTickets: limits.maxTickets,
+      maxTokenBudget: limits.maxTokenBudget,
+      epicId: null,
+    }),
+    planState: null,
+    planProfile:
+      ticketIds.length === 1 ? 'story-default' : 'story-from-tickets',
+    instruction:
+      'Analyze the source ticket(s) and author proper type::story ' +
+      'ticket(s) under the default-single split policy. Prefer rewriting ' +
+      'the source into one well-formed Story (N=1) unless the split policy ' +
+      'applies. Do not open an Epic.',
   };
 }
 
@@ -504,10 +650,11 @@ async function buildSeedModeEnvelope({
  * Build the single planner-context envelope.
  *
  * @param {{
- *   mode: 'one-pager'|'seed',
+ *   mode: 'one-pager'|'seed-file'|'seed'|'tickets',
  *   onePagerPath?: string,
  *   onePagerContent?: string,
  *   seedText?: string,
+ *   ticketIds?: number[],
  *   provider: object,
  *   config: object,
  *   settings: object,
@@ -520,16 +667,17 @@ export async function buildPlanContext({
   onePagerPath,
   onePagerContent,
   seedText,
+  ticketIds,
   provider,
   config = {},
   settings = {},
   fullContext = false,
   cwd,
 }) {
-  if (mode === 'one-pager') {
+  if (mode === 'one-pager' || mode === 'seed-file') {
     if (!onePagerPath && typeof onePagerContent !== 'string') {
       throw new Error(
-        '[plan-context] one-pager mode requires --one-pager <path>.',
+        '[plan-context] seed-file mode requires --seed-file <path> (alias: --one-pager).',
       );
     }
     return buildOnePagerModeEnvelope({
@@ -540,6 +688,8 @@ export async function buildPlanContext({
       settings,
       fullContext,
       cwd,
+      // Preserve legacy mode label when callers still pass `one-pager`.
+      modeLabel: mode === 'one-pager' ? 'one-pager' : 'seed-file',
     });
   }
   if (mode === 'seed') {
@@ -552,7 +702,17 @@ export async function buildPlanContext({
       cwd,
     });
   }
+  if (mode === 'tickets') {
+    return buildTicketsModeEnvelope({
+      ticketIds,
+      provider,
+      config,
+      settings,
+      fullContext,
+      cwd,
+    });
+  }
   throw new Error(
-    `[plan-context] unknown mode "${mode}" — expected "one-pager" or "seed".`,
+    `[plan-context] unknown mode "${mode}" — expected "seed", "seed-file", or "tickets".`,
   );
 }

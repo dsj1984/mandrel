@@ -312,6 +312,7 @@ describe('runSingleStoryClose — sync integration', () => {
       () =>
         runSingleStoryClose({
           storyId: 4242,
+          noWaitForMerge: true,
           cwd: REPO_ROOT,
           injectedProvider: provider,
           injectedConfig: fakeConfig(),
@@ -355,6 +356,7 @@ describe('runSingleStoryClose — sync integration', () => {
     const provider = fakeProvider();
     const out = await runSingleStoryClose({
       storyId: 4242,
+      noWaitForMerge: true,
       cwd: REPO_ROOT,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
@@ -395,6 +397,7 @@ describe('runSingleStoryClose — sync integration', () => {
       injectedProvider: fakeProvider(),
       injectedConfig: fakeConfig(),
       skipSync: true,
+      noWaitForMerge: true,
       injectedSync: async () => {
         syncInvoked = true;
         return { synced: true, kind: 'fast-forward' };

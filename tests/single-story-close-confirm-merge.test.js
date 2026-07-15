@@ -430,9 +430,9 @@ describe('runConfirmMergePhase — best-effort side effects never mask the block
 });
 
 describe('parseCloseOptions — --wait-merge / --no-wait-merge (AC3)', () => {
-  it('defaults waitForMerge to false (attended behaviour preserved)', () => {
+  it('defaults waitForMerge from delivery.routing.closeAndLand (true)', () => {
     const opts = parseCloseOptions({ storyIdParam: 4428, cwdParam: '/repo' });
-    assert.equal(opts.waitForMerge, false);
+    assert.equal(opts.waitForMerge, true);
   });
 
   it('injecting waitForMergeParam:true opts into headless wait', () => {

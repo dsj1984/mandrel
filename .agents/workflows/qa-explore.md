@@ -337,33 +337,26 @@ For each untriaged ledger item:
    import { promoteFindings } from '../scripts/lib/findings/promote-finding.js';
    const { promotions } = await promoteFindings(ledgerItems, {
      searchIssues, // GitHub provider, open + closed
-     createStory, // tight cluster (≤2 surfaces): render seed → /plan --from-notes
-     createEpic, // broad cluster (>2 surfaces): render seed → /plan --idea
+     createStory, // tight cluster (≤2 surfaces): seed → /plan --seed-file
+     createEpic, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
    });
    ```
 
    - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
      `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
      distinct coverage surfaces routes to `createStory`; **>2** routes to
-     `createEpic`. The workflow introduces no new sizing, clustering, or dedup
-     logic — `route-finding.js` / `promote-finding.js` remain the single
-     implementation.
-   - **`createStory` (`/plan --from-notes`)** — render a **redacted**
-     `--from-notes` seed from the cluster (reuse the `/audit-to-stories`
-     Phase 5b notes shape; redaction already ran in Capture), **stamp the
+     `createEpic`. Neither port opens an Epic ticket — both chain
+     `/plan --seed-file`. The workflow introduces no new sizing, clustering,
+     or dedup logic — `route-finding.js` / `promote-finding.js` remain the
+     single implementation.
+   - **`createStory` / `createEpic` (`/plan --seed-file`)** — render a
+     **redacted** plan seed from the cluster (reuse the `/audit-to-stories`
+     Phase 5a seed shape; redaction already ran in Capture), **stamp the
      cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then
-     chain `/plan --from-notes <seed>`. The footer must survive into the issue
-     body the Story create path writes — it round-trips through
-     `story-plan.js --body <file> --dry-run` unchanged (asserted by the
-     deterministic round-trip test under `tests/`) so a later `routeFinding`
-     dedups the same finding instead of re-filing it.
-   - **`createEpic` (`/plan --idea`)** — carry the cluster's
-     `fingerprintFooter(sha)` into the `/plan --idea` seed, then chain
-     `/plan --idea <seed>`. **Known limitation (not solved here):**
-     per-child-Story fingerprint propagation through full Epic decomposition is
-     *not* guaranteed — the fingerprint is carried in the Epic seed only; the
-     child Stories `/plan` spawns from that seed are not individually
-     footer-stamped.
+     chain `/plan --seed-file <seed>`. Prefer one Story; split only under
+     the default-single policy. The footer must survive into the issue body
+     so a later `routeFinding` dedups the same finding instead of re-filing
+     it.
    - **A `file` disposition never opens a raw GitHub Issue.** Every `file`
      finding flows through `promoteFindings` → `/plan`; only `defer` and
      `dismiss` skip the `/plan` handoff.
@@ -377,8 +370,8 @@ For each untriaged ledger item:
 After triage, write the updated dispositions back to the ledger (still under
 `temp/qa/`), and summarize: items captured, the driving method used, classes,
 routes (`new`/`update-existing`/`duplicate`/`regression-of-closed`), the
-Stories (`/plan --from-notes`) and Epics (`/plan --idea`) promoted, and the
-deferred rolling backlog that a resumed session will pick up.
+Stories (`/plan --seed-file`) promoted, and the deferred rolling backlog
+that a resumed session will pick up.
 
 ---
 

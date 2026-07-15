@@ -9,7 +9,7 @@
  *  - mode-specific field presence: `duplicates`/`onePager` only in
  *    one-pager mode; seed carries `seed`/`onePagerSpec`.
  *  - dup-search fold parity: envelope `duplicates[]` deep-equals a direct
- *    `findSimilarOpenEpics` call over the same provider + one-pager.
+ *    `findSimilarOpenStories` call over the same provider + seed.
  *  - envelope byte ceiling: serialized envelopes stay under
  *    `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`, including with a body at the
  *    planning-context budget cap.
@@ -23,7 +23,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { findSimilarOpenEpics } from '../.agents/scripts/lib/duplicate-search.js';
+import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
 import {
   buildDeliveryShapeSignal,
   buildPlanContext,
@@ -78,7 +78,7 @@ Users drop off during onboarding.
 - activation email
 `;
 
-const OPEN_EPICS = [
+const OPEN_STORIES = [
   {
     id: 9,
     title: 'Improve widget onboarding flow',
@@ -92,16 +92,26 @@ const OPEN_EPICS = [
 ];
 
 /** Minimal provider double covering every read the envelope build makes. */
-function buildProvider({ body = CLEAR_EPIC_BODY, openStories = [] } = {}) {
+function buildProvider({
+  body = CLEAR_EPIC_BODY,
+  openStories = OPEN_STORIES,
+} = {}) {
   return {
     async getEpic(id) {
       return { id, title: 'Widget Epic', body };
     },
+    async getTicket(id) {
+      return { id, number: id, title: 'Source ticket', body, labels: [] };
+    },
     async getTickets(_epicId, _filters) {
       return openStories;
     },
-    async getEpics(_filters) {
-      return OPEN_EPICS;
+    async listIssuesByLabel(_filters) {
+      return openStories.map((s) => ({
+        number: s.id,
+        title: s.title,
+        body: s.body,
+      }));
     },
     async getTicketComments(_id) {
       return [];
@@ -120,6 +130,7 @@ const SEED_MODE_KEYS = [
   'memoryFreshness',
   'mode',
   'onePagerSpec',
+  'planProfile',
   'planState',
   'preflightCeilings',
   'priorFeedback',
@@ -140,6 +151,7 @@ const ONE_PAGER_MODE_KEYS = [
   'memoryFreshness',
   'mode',
   'onePager',
+  'planProfile',
   'planState',
   'preflightCeilings',
   'priorFeedback',
@@ -208,7 +220,7 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
 });
 
 describe('plan-context mode-specific field presence', () => {
-  it('one-pager mode carries duplicates/onePager and omits seed fields', async () => {
+  it('one-pager mode carries duplicates/onePager and omits seed/onePagerSpec', async () => {
     const opEnv = await buildPlanContext({
       mode: 'one-pager',
       onePagerContent: ONE_PAGER,
@@ -235,7 +247,7 @@ describe('plan-context mode-specific field presence', () => {
 });
 
 describe('plan-context dup-search fold parity vs library', () => {
-  it('envelope duplicates[] deep-equals a direct findSimilarOpenEpics call', async () => {
+  it('envelope duplicates[] deep-equals a direct findSimilarOpenStories call', async () => {
     const provider = buildProvider();
     const config = { github: { owner: 'o', repo: 'r' } };
     const env = await buildPlanContext({
@@ -245,8 +257,8 @@ describe('plan-context dup-search fold parity vs library', () => {
       config,
       settings: {},
     });
-    const direct = await findSimilarOpenEpics({
-      onePager: ONE_PAGER,
+    const direct = await findSimilarOpenStories({
+      seed: ONE_PAGER,
       provider,
       owner: 'o',
       repo: 'r',
@@ -265,8 +277,8 @@ describe('plan-context dup-search fold parity vs library', () => {
       config,
       settings: {},
     });
-    const direct = await findSimilarOpenEpics({
-      onePager: ONE_PAGER,
+    const direct = await findSimilarOpenStories({
+      seed: ONE_PAGER,
       provider,
       owner: 'o',
       repo: 'r',
@@ -277,7 +289,7 @@ describe('plan-context dup-search fold parity vs library', () => {
 
   it('degrades to an empty duplicates[] when the provider listing fails', async () => {
     const provider = buildProvider();
-    provider.getEpics = async () => {
+    provider.listIssuesByLabel = async () => {
       throw new Error('rate limited');
     };
     const env = await buildPlanContext({

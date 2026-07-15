@@ -1,10 +1,9 @@
 # Software Development Life Cycle (SDLC) Workflow
 
-Mandrel uses **Epic-Centric GitHub Orchestration** — GitHub Issues,
-Labels, and Projects V2 are the Single Source of Truth, fronted by a
-declarative `epic.yaml` artifact that makes plans diff-able and
-reconcilable. No per-iteration directories, no JSON state files for
-ticket data.
+Mandrel uses **Story-centric GitHub orchestration** — GitHub Issues,
+Labels, and Projects V2 are the Single Source of Truth. Plans persist as
+`type::story` tickets (optionally grouped by a `plan-run::<id>` label).
+There is no Epic ticket, no `epic.yaml`, and no reconciler.
 
 The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
 the slash-command surface lean in on Claude Code as the reference
@@ -19,40 +18,32 @@ ADR 20260512-coupling-stance in [`../docs/decisions.md`](../../docs/decisions.md
 From zero to shipped:
 
 1. **Plan the work.** Run `/plan` in your agentic IDE. The framework
-   authors a Tech Spec and an Acceptance Table and folds both into the
-   Epic body as managed sections (the Epic is the single planning
-   document — the PRD and context-ticket artifact classes were
-   retired), decomposes the work into the flat Story backlog under the
-   Epic, and transitions the Epic to `agent::ready`.
+   authors **one Story by default** (folded Tech Spec in `## Spec`),
+   with N>1 only under the default-single split policy.
 
-   The entry point you use selects where the run begins:
-   - With **no arguments** (or `--idea "<seed>"`), the workflow enters the
-     ideation form of the interrogate step; the Epic Issue itself is opened
-     by the persist step.
-   - With **`<epicId>`**, the workflow interrogates against an Epic Issue
-     you have already opened.
+   Two operator modes:
+   - `/plan --seed "<text>"` or `/plan --seed-file <path>` — freeform
+     text (chat or on-disk; audit-to-stories hands off via `--seed-file`).
+   - `/plan --tickets 123[,456…]` — analyze existing issue(s) into
+     proper Stories.
 
-   > **Step note.** `/plan` is a **single path** (v2 Stage 3): all GitHub
-   > reads happen in `plan-context.js`, all GitHub writes in
-   > `plan-persist.js`, and two HITL gates bracket the authoring middle.
-   > There is no Epic/Story router, no scope-triage routing verdict, and no
-   > `deliveryShape`.
+   > **Step note.** `/plan` is a **single path**: all GitHub reads happen
+   > in `plan-context.js`, all GitHub writes in `plan-persist.js`, and
+   > two HITL gates bracket the authoring middle. Duplicate search
+   > targets open **Stories**, not Epics. N=1 skips Epic-scale
+   > decompose/clarity/reconciler ceremony.
 
    1. **Interrogate** — `plan-context.js` emits the single authoring
-      envelope (duplicate candidates, codebase snapshot, system prompts
-      including `systemPrompts.story`). Duplicate review folds into
-      **gate #1**, one operator confirm at the step's exit.
+      envelope (open-Story duplicate candidates, codebase snapshot,
+      system prompts including `systemPrompts.story`). Duplicate review
+      folds into **gate #1**.
    2. **Author** — write `stories.json` (**one Story by default**) with a
       folded Tech Spec in `## Spec` / `## Slicing`, plus
       `risk-verdict.json` (axes + summary only). Split into N>1 only under
-      the default-single split policy. Fresh-context critics run
-      conditionally before the review.
-   3. **Persist** — **gate #2** (risk-routed) shows spec + stories + risk in
-      one view; then `plan-persist.js` runs every deterministic gate
-      (ticket validator, file-assumption, DAG, budget, split-policy
-      partition, spec spill) and creates Story issue(s) with
-      `type::story` + `agent::ready`, closing with a `plan-summary` on the
-      primary Story.
+      the default-single split policy.
+   3. **Persist** — **gate #2** (risk-routed; often skipped for N=1
+      low-risk) then `plan-persist.js` runs every deterministic gate and
+      creates Story issue(s) with `type::story` + `agent::ready`.
 
 2. **Deliver the Story.** Run `/deliver <storyId>` (or `/deliver --run
    <planRunId>` for a multi-Story plan-run) in your IDE. The skill

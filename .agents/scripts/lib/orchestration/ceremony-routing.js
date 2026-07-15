@@ -1,25 +1,33 @@
 /**
- * lib/orchestration/ceremony-routing.js — risk-routed acceptance ceremony
- * resolver (Epic #4478, M7-B, Part 2).
+ * lib/orchestration/ceremony-routing.js — ceremony-profile + risk-routed
+ * acceptance ceremony resolver.
  *
  * The sibling of `review-depth.js` (risk → review depth) and
  * `audit-lens-routing.js#resolveAuditLenses` (risk → audit lens): it folds the
- * planner-judged risk envelope into a per-cluster ceremony decision for the
- * single-delivery acceptance critic — **fresh-context spawn** vs the
- * contract-identical **inline** critic. It does NOT invent a new risk score
- * and it does NOT own clustering.
+ * operator ceremony profile and the planner-judged risk envelope into a
+ * per-cluster ceremony decision for the single-delivery acceptance critic —
+ * **fresh-context spawn** vs the contract-identical **inline** critic. It
+ * does NOT invent a new risk score and it does NOT own clustering.
+ *
+ * ## Ceremony profiles (`delivery.routing.ceremonyProfile`)
+ *
+ *   - `minimal`  — always `inline` (skip fresh critic + sampling floor).
+ *                  Use for tiny N=1 Stories the operator trusts.
+ *   - `standard` — risk-routed (default). Low → inline (+ sampling floor);
+ *                  medium/high → fresh.
+ *   - `strict`   — always `fresh` regardless of risk.
  *
  * ## The load-bearing invariant (M4-B acceptance floor — DO NOT VIOLATE)
  *
  * Risk-routing chooses fresh-vs-inline **PER CLUSTER**. It NEVER changes the
  * cluster COUNT. The cluster count is `ceil(totalACs / clusterCeiling)` with
  * the non-disableable `[1, 8]` clamp, owned entirely by
- * `acceptance-clusters.js` and untouched here. A low-risk Epic still gets one
+ * `acceptance-clusters.js` and untouched here. A low-risk Story still gets one
  * verdict per cluster — just possibly authored inline instead of by a fresh
  * sub-agent. This module takes the cluster index as an INPUT and returns a
  * decision for that one cluster; it has no way to add or remove clusters.
  *
- * ## Tier rules (per cluster)
+ * ## Tier rules (per cluster, `standard` profile)
  *
  *   - `high` risk        → `fresh`   (a fresh-context maker-blind spawn).
  *   - `medium` risk      → `fresh`   (fail toward more ceremony, never less —
@@ -27,7 +35,7 @@
  *   - `low` risk         → `inline`  (the contract-identical inline critic),
  *                                     UNLESS the maker-checker sampling floor
  *                                     selects this cluster → `fresh`.
- *   - missing / unknown  → `fresh`   (fail-safe: an Epic that skipped `/plan`
+ *   - missing / unknown  → `fresh`   (fail-safe: a Story that skipped `/plan`
  *                                     has no risk verdict; treat it as needing
  *                                     the full fresh-context ceremony, exactly
  *                                     as `review-depth` degrades to `standard`
@@ -36,18 +44,42 @@
  *
  * ## Maker-checker sampling floor
  *
- * Even at `low` risk, a fraction of clusters (`freshCriticSampleRate`, default
- * 0.2) is forced `fresh` so low risk never means zero independent checking. The
- * selection is **deterministic** in the cluster index (a fixed stride), so it
- * is stable across re-runs and — critically — never changes the cluster count:
- * it only re-labels which of the fixed set of clusters run fresh.
+ * Even at `low` risk under `standard`, a fraction of clusters
+ * (`freshCriticSampleRate`, default 0.2) is forced `fresh` so low risk never
+ * means zero independent checking. The selection is **deterministic** in the
+ * cluster index (a fixed stride), so it is stable across re-runs and —
+ * critically — never changes the cluster count: it only re-labels which of
+ * the fixed set of clusters run fresh. Profiles `minimal` and `strict`
+ * ignore the sampling floor.
  *
  * Pure and total: inputs in, decision out. No I/O, no throws. `null` /
  * `undefined` / malformed inputs degrade to `fresh` + `full` ceremony.
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
  * @typedef {'low'|'medium'|'high'} RiskLevel
+ * @typedef {'minimal'|'standard'|'strict'} CeremonyProfile
  */
+
+/** @type {readonly CeremonyProfile[]} */
+export const CEREMONY_PROFILES = Object.freeze([
+  'minimal',
+  'standard',
+  'strict',
+]);
+
+/**
+ * Normalize an operator/config ceremony profile. Unknown values degrade to
+ * `standard` (fail toward the documented default, not toward less ceremony).
+ *
+ * @param {unknown} value
+ * @returns {CeremonyProfile}
+ */
+export function normalizeCeremonyProfile(value) {
+  if (value === 'minimal' || value === 'standard' || value === 'strict') {
+    return value;
+  }
+  return 'standard';
+}
 
 /**
  * Decide whether the sampling floor forces this low-risk cluster fresh.
@@ -79,16 +111,22 @@ export function sampledFresh(clusterIndex, rate) {
 }
 
 /**
- * Resolve the acceptance ceremony for one cluster from the judged risk level
- * and the maker-checker sampling floor. See the module header for the tier
- * rules and the untouchable cluster-count invariant.
+ * Resolve the acceptance ceremony for one cluster from the ceremony profile,
+ * judged risk level, and the maker-checker sampling floor. See the module
+ * header for the tier rules and the untouchable cluster-count invariant.
  *
  * @param {{
  *   overallLevel?: (RiskLevel|string|null|undefined),
  *   clusterIndex?: (number|null|undefined),
  *   freshCriticSampleRate?: (number|null|undefined),
+ *   ceremonyProfile?: (CeremonyProfile|string|null|undefined),
  * }} [input]
- * @returns {{ mode: CeremonyMode, reason: string, sampled: boolean }}
+ * @returns {{
+ *   mode: CeremonyMode,
+ *   reason: string,
+ *   sampled: boolean,
+ *   profile: CeremonyProfile,
+ * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
   const overallLevel =
@@ -99,12 +137,33 @@ export function resolveCeremonyForRisk(input = {}) {
     input && typeof input === 'object'
       ? input.freshCriticSampleRate
       : undefined;
+  const profile = normalizeCeremonyProfile(
+    input && typeof input === 'object' ? input.ceremonyProfile : undefined,
+  );
+
+  if (profile === 'minimal') {
+    return {
+      mode: 'inline',
+      reason: 'ceremonyProfile=minimal: inline critic (no fresh spawn)',
+      sampled: false,
+      profile,
+    };
+  }
+  if (profile === 'strict') {
+    return {
+      mode: 'fresh',
+      reason: 'ceremonyProfile=strict: fresh-context critic',
+      sampled: false,
+      profile,
+    };
+  }
 
   if (overallLevel === 'high') {
     return {
       mode: 'fresh',
       reason: 'high-risk: fresh-context critic',
       sampled: false,
+      profile,
     };
   }
   if (overallLevel === 'medium') {
@@ -112,6 +171,7 @@ export function resolveCeremonyForRisk(input = {}) {
       mode: 'fresh',
       reason: 'medium-risk: fresh-context critic (fail toward more ceremony)',
       sampled: false,
+      profile,
     };
   }
   if (overallLevel === 'low') {
@@ -121,21 +181,24 @@ export function resolveCeremonyForRisk(input = {}) {
         reason:
           'low-risk cluster forced fresh by the maker-checker sampling floor',
         sampled: true,
+        profile,
       };
     }
     return {
       mode: 'inline',
       reason: 'low-risk: contract-identical inline critic',
       sampled: false,
+      profile,
     };
   }
   // Missing / unknown / malformed risk → fail-safe fresh + full ceremony,
   // matching how review-depth.js and deriveRiskEnvelope degrade on an
-  // unjudged Epic.
+  // unjudged Story.
   return {
     mode: 'fresh',
     reason:
       'risk absent/unknown: fail-safe fresh-context critic + full ceremony',
     sampled: false,
+    profile,
   };
 }

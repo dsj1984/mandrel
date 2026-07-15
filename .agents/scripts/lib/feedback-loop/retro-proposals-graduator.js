@@ -30,8 +30,8 @@
  * failure path is captured in `errors[]`.
  */
 
+import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
 import { META_LABELS } from '../label-constants.js';
-import { DEFAULT_FRAMEWORK_REPO } from '../orchestration/retro/phases/gather-signals.js';
 import {
   contentFingerprint,
   DEFAULT_MAX_FILINGS_PER_RUN,

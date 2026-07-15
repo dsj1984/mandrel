@@ -24,10 +24,11 @@ describe('planRunEpilogue — not applicable', () => {
     assert.match(plan.reason, /no Stories/);
   });
 
-  it('is inapplicable for a multi-Story run with no planRunId', () => {
-    const plan = planRunEpilogue({ stories: ['s1', 's2'] });
-    assert.equal(plan.applicable, false);
-    assert.match(plan.reason, /requires a planRunId/);
+  it('synthesizes an adhoc planRunId for positional multi-Story runs', () => {
+    const plan = planRunEpilogue({ stories: ['102', '101'] });
+    assert.equal(plan.applicable, true);
+    assert.equal(plan.planRunId, 'adhoc-101-102');
+    assert.equal(plan.steps.length, 3);
   });
 });
 

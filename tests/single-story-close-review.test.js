@@ -403,6 +403,7 @@ describe('runSingleStoryClose review-halt orchestration', () => {
     await assert.rejects(
       runSingleStoryClose({
         storyId: 2839,
+        noWaitForMerge: true,
         cwd: '/repo',
         skipValidation: true,
         skipSync: true,

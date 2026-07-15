@@ -1,22 +1,23 @@
 /**
- * duplicate-search.js — Cross-Epic Duplicate Detection
+ * duplicate-search.js — Cross-Story Duplicate Detection
  *
- * Used by `/plan` Phase 2 (s-plan-ideation) to surface open Epics
- * whose scope overlaps with a sharpened one-pager before a new Epic is
- * created. Returns ranked candidates with an overlap score and URL so
- * the host LLM can pause for HITL confirmation.
+ * Used by `/plan` to surface open Stories whose scope overlaps with a
+ * seed / seed-file / tickets corpus before new Stories are created.
+ * Returns ranked candidates with an overlap score and URL so the host
+ * LLM can pause for HITL confirmation.
  *
  * Design notes:
- *  - The provider abstraction (`ITicketingProvider#getEpics`) is the
- *    only I/O surface; the scoring routine is pure and trivially
+ *  - The provider abstraction (`listIssuesByLabel` for `type::story`) is
+ *    the only I/O surface; the scoring routine is pure and trivially
  *    testable in isolation.
- *  - Scoring is intentionally simple (token Jaccard over title +
- *    structured one-pager sections). It is a triage signal, not a
- *    semantic-search replacement.
+ *  - Scoring is intentionally simple (token Jaccard over title + body).
+ *    It is a triage signal, not a semantic-search replacement.
  *  - Provider errors propagate verbatim — the caller is responsible
  *    for translating them into a friction comment or operator-visible
  *    failure.
  */
+
+import { TYPE_LABELS } from './label-constants.js';
 
 const STOPWORDS = new Set([
   'a',
@@ -108,14 +109,14 @@ export function overlapScore(a, b) {
 }
 
 /**
- * Build the Epic URL for an issue id. The candidate exposes the URL so
- * the HITL pause can render clickable links without a second round-trip.
+ * Build the issue URL for an id. The candidate exposes the URL so the
+ * HITL pause can render clickable links without a second round-trip.
  *
  * @param {number|string} id
  * @param {{ owner?: string, repo?: string }} [opts]
  * @returns {string}
  */
-function buildEpicUrl(id, opts = {}) {
+function buildIssueUrl(id, opts = {}) {
   const owner = opts.owner || process.env.GITHUB_OWNER;
   const repo = opts.repo || process.env.GITHUB_REPO;
   if (owner && repo) {
@@ -125,8 +126,134 @@ function buildEpicUrl(id, opts = {}) {
 }
 
 /**
- * Find open Epics whose title + body overlap with the supplied
- * one-pager above a configurable threshold.
+ * Rank a pre-fetched open-Story list against a seed corpus.
+ * Pure helper shared by the provider-backed search and tests.
+ *
+ * @param {{
+ *   seed: string,
+ *   openStories: Array<{ id:number, title?:string, body?:string, url?:string }>,
+ *   minScore?: number,
+ *   maxResults?: number,
+ *   owner?: string,
+ *   repo?: string,
+ *   excludeIds?: Iterable<number|string>,
+ * }} args
+ * @returns {Array<{ id: number, title: string, score: number, url: string }>}
+ */
+export function rankOpenStoryDuplicates({
+  seed,
+  openStories,
+  minScore = DEFAULT_MIN_SCORE,
+  maxResults = DEFAULT_MAX_RESULTS,
+  owner,
+  repo,
+  excludeIds = [],
+}) {
+  if (!seed || typeof seed !== 'string') {
+    throw new Error('rankOpenStoryDuplicates: seed must be a non-empty string');
+  }
+  if (!Array.isArray(openStories)) {
+    throw new Error('rankOpenStoryDuplicates: openStories must be an array');
+  }
+
+  const seedTokens = tokenize(seed);
+  if (seedTokens.size === 0) return [];
+
+  const excluded = new Set(
+    [...excludeIds].map((id) => Number(id)).filter((n) => Number.isFinite(n)),
+  );
+
+  const ranked = [];
+  for (const story of openStories) {
+    const id = Number(story?.id ?? story?.number);
+    if (!Number.isFinite(id) || excluded.has(id)) continue;
+    const title = story.title || '';
+    const corpus = `${title}\n${story.body || ''}`;
+    const candidateTokens = tokenize(corpus);
+    const score = overlapScore(seedTokens, candidateTokens);
+    if (score >= minScore) {
+      ranked.push({
+        id,
+        title,
+        score: Number(score.toFixed(4)),
+        url: story.url || buildIssueUrl(id, { owner, repo }),
+      });
+    }
+  }
+
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked.slice(0, maxResults);
+}
+
+/**
+ * Fetch open Stories via the ticketing provider.
+ *
+ * @param {object} provider
+ * @returns {Promise<Array<{ id:number, title:string, body:string, url?:string }>>}
+ */
+async function fetchOpenStories(provider) {
+  if (!provider || typeof provider.listIssuesByLabel !== 'function') {
+    throw new Error(
+      'findSimilarOpenStories: provider must implement listIssuesByLabel()',
+    );
+  }
+  const issues = await provider.listIssuesByLabel({
+    state: 'open',
+    labels: TYPE_LABELS.STORY,
+  });
+  if (!Array.isArray(issues)) return [];
+  return issues.map((issue) => ({
+    id: Number(issue.number ?? issue.id),
+    title: issue.title ?? '',
+    body: issue.body ?? '',
+    url: issue.html_url ?? issue.url ?? undefined,
+  }));
+}
+
+/**
+ * Find open Stories whose title + body overlap with the supplied seed
+ * above a configurable threshold.
+ *
+ * @param {{
+ *   seed: string,
+ *   provider: import('./ITicketingProvider.js').ITicketingProvider,
+ *   minScore?: number,
+ *   maxResults?: number,
+ *   owner?: string,
+ *   repo?: string,
+ *   excludeIds?: Iterable<number|string>,
+ * }} args
+ * @returns {Promise<Array<{ id: number, title: string, score: number, url: string }>>}
+ */
+export async function findSimilarOpenStories({
+  seed,
+  provider,
+  minScore = DEFAULT_MIN_SCORE,
+  maxResults = DEFAULT_MAX_RESULTS,
+  owner,
+  repo,
+  excludeIds = [],
+}) {
+  if (!seed || typeof seed !== 'string') {
+    throw new Error('findSimilarOpenStories: seed must be a non-empty string');
+  }
+
+  const openStories = await fetchOpenStories(provider);
+  return rankOpenStoryDuplicates({
+    seed,
+    openStories,
+    minScore,
+    maxResults,
+    owner,
+    repo,
+    excludeIds,
+  });
+}
+
+/**
+ * @deprecated Use {@link findSimilarOpenStories}. Kept as a thin alias so
+ * older test fixtures that still call the Epic-era name keep working
+ * during the cutover; scoring now searches open Stories, not Epics.
  *
  * @param {{
  *   onePager: string,
@@ -136,7 +263,6 @@ function buildEpicUrl(id, opts = {}) {
  *   owner?: string,
  *   repo?: string,
  * }} args
- * @returns {Promise<Array<{ id: number, title: string, score: number, url: string }>>}
  */
 export async function findSimilarOpenEpics({
   onePager,
@@ -146,44 +272,20 @@ export async function findSimilarOpenEpics({
   owner,
   repo,
 }) {
-  if (!onePager || typeof onePager !== 'string') {
-    throw new Error(
-      'findSimilarOpenEpics: onePager must be a non-empty string',
-    );
-  }
-  if (!provider || typeof provider.getEpics !== 'function') {
-    throw new Error('findSimilarOpenEpics: provider must implement getEpics()');
-  }
-
-  const seedTokens = tokenize(onePager);
-  if (seedTokens.size === 0) return [];
-
-  // Provider errors propagate verbatim — caller decides how to surface.
-  const epics = await provider.getEpics({ state: 'open' });
-  if (!Array.isArray(epics) || epics.length === 0) return [];
-
-  const ranked = [];
-  for (const epic of epics) {
-    const corpus = `${epic.title || ''}\n${epic.body || ''}`;
-    const candidateTokens = tokenize(corpus);
-    const score = overlapScore(seedTokens, candidateTokens);
-    if (score >= minScore) {
-      ranked.push({
-        id: epic.id,
-        title: epic.title,
-        score: Number(score.toFixed(4)),
-        url: buildEpicUrl(epic.id, { owner, repo }),
-      });
-    }
-  }
-
-  ranked.sort((a, b) => b.score - a.score);
-  return ranked.slice(0, maxResults);
+  return findSimilarOpenStories({
+    seed: onePager,
+    provider,
+    minScore,
+    maxResults,
+    owner,
+    repo,
+  });
 }
 
 export const __test = {
   STOPWORDS,
   DEFAULT_MIN_SCORE,
   DEFAULT_MAX_RESULTS,
-  buildEpicUrl,
+  buildIssueUrl,
+  buildEpicUrl: buildIssueUrl,
 };

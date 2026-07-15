@@ -488,7 +488,7 @@
         "concurrencyCap": {
           "type": "integer",
           "minimum": 1,
-          "description": "Maximum ready Stories dispatched by /deliver at once. Default 1. Conservative by design \u2014 keeps host-quota consumption predictable and avoids GitHub API saturation. Operators running multi-Story plan-runs on hosts with adequate parallel-agent quota can raise this value to reduce wall-clock time where dependencies allow. See deliver.md for the sequencing model and throughput tradeoff."
+          "description": "Maximum ready Stories dispatched by /deliver at once. Default 3. Moderate by design \u2014 keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff."
         },
         "progressReportIntervalSec": {
           "type": "integer",
@@ -1489,6 +1489,15 @@
               "minimum": 0,
               "maximum": 1,
               "description": "Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Risk-routed ceremony sends a low-risk acceptance cluster down the contract-identical inline critic path, but this fraction of low-risk clusters is still forced through a fresh-context critic so low risk never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js)."
+            },
+            "ceremonyProfile": {
+              "type": "string",
+              "enum": ["minimal", "standard", "strict"],
+              "description": "Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = risk-routed with the maker-checker sampling floor."
+            },
+            "closeAndLand": {
+              "type": "boolean",
+              "description": "When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge."
             }
           },
           "additionalProperties": false

@@ -21,7 +21,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveRuntime } from '../.agents/scripts/lib/config-resolver.js';
-import { worktreeReapPhase } from '../.agents/scripts/lib/orchestration/post-merge-pipeline.js';
+import { worktreeReapPhase } from '../.agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js';
 import { WorktreeManager } from '../.agents/scripts/lib/worktree-manager.js';
 
 const SILENT_LOGGER = { info() {}, warn() {}, error() {} };

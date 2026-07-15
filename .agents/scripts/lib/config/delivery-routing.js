@@ -32,6 +32,14 @@
 export const DELIVERY_ROUTING_DEFAULTS = Object.freeze({
   roleScopedAgents: true,
   freshCriticSampleRate: 0.2,
+  /** @type {'minimal'|'standard'|'strict'} */
+  ceremonyProfile: 'standard',
+  /**
+   * When true (default), attended `/deliver` lands through merge in one
+   * close (`--wait-merge` semantics) instead of stopping at `agent::closing`.
+   * Operators opt out per-run with `--no-wait-merge`.
+   */
+  closeAndLand: true,
 });
 
 /**
@@ -52,13 +60,31 @@ function clampSampleRate(value) {
 }
 
 /**
+ * Normalize ceremony profile; unknown values → `standard`.
+ *
+ * @param {unknown} value
+ * @returns {'minimal'|'standard'|'strict'}
+ */
+function normalizeCeremonyProfile(value) {
+  if (value === 'minimal' || value === 'standard' || value === 'strict') {
+    return value;
+  }
+  return DELIVERY_ROUTING_DEFAULTS.ceremonyProfile;
+}
+
+/**
  * Read the merged `delivery.routing` block, applying framework defaults for
  * any field the operator omitted. Accepts the full resolved config, the bare
  * `delivery` bag, or the bare `routing` bag — mirroring `getCiDelivery`'s
  * tolerant unwrap so callers can pass whichever shape they hold.
  *
  * @param {object | null | undefined} config
- * @returns {{ roleScopedAgents: boolean, freshCriticSampleRate: number }}
+ * @returns {{
+ *   roleScopedAgents: boolean,
+ *   freshCriticSampleRate: number,
+ *   ceremonyProfile: 'minimal'|'standard'|'strict',
+ *   closeAndLand: boolean,
+ * }}
  */
 export function getDeliveryRouting(config) {
   const routing = config?.delivery?.routing ?? config?.routing ?? config ?? {};
@@ -68,5 +94,10 @@ export function getDeliveryRouting(config) {
         ? routing.roleScopedAgents
         : DELIVERY_ROUTING_DEFAULTS.roleScopedAgents,
     freshCriticSampleRate: clampSampleRate(routing.freshCriticSampleRate),
+    ceremonyProfile: normalizeCeremonyProfile(routing.ceremonyProfile),
+    closeAndLand:
+      typeof routing.closeAndLand === 'boolean'
+        ? routing.closeAndLand
+        : DELIVERY_ROUTING_DEFAULTS.closeAndLand,
   };
 }

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-07-15T00:16:58.847Z",
+  "generatedAt": "2026-07-15T01:04:57.815Z",
   "rollup": {
     "*": {
       "min": 68.911,
@@ -213,10 +213,6 @@
     {
       "path": ".agents/scripts/lib/baseline-schema-registry.js",
       "mi": 103.244
-    },
-    {
-      "path": ".agents/scripts/lib/baseline-snapshot.js",
-      "mi": 87.123
     },
     {
       "path": ".agents/scripts/lib/baselines/component-matcher.js",
@@ -536,7 +532,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/delivery-routing.js",
-      "mi": 112.57
+      "mi": 109.369
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
@@ -944,7 +940,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
-      "mi": 95.227
+      "mi": 90.728
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
@@ -1107,14 +1103,6 @@
       "mi": 89.177
     },
     {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
-      "mi": 88.396
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/checkpoint-pointer-writer.js",
-      "mi": 105.11
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/label-transitioner.js",
       "mi": 114.858
     },
@@ -1156,7 +1144,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
-      "mi": 85.453
+      "mi": 84.014
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
@@ -1169,10 +1157,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "mi": 85.067
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/amend.js",
-      "mi": 101.103
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/fan-out-gate.js",
@@ -1319,10 +1303,6 @@
       "mi": 94.927
     },
     {
-      "path": ".agents/scripts/lib/orchestration/retro/phases/gather-signals.js",
-      "mi": 92.714
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/retro/phases/post-and-mirror.js",
       "mi": 68.911
     },
@@ -1368,7 +1348,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "mi": 87.985
+      "mi": 88.971
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
@@ -1396,7 +1376,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "mi": 105.762
+      "mi": 104.293
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
@@ -1429,10 +1409,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/spec-freshness.js",
       "mi": 97.135
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
-      "mi": 99.096
     },
     {
       "path": ".agents/scripts/lib/orchestration/spec-section-validator.js",
@@ -1679,10 +1655,6 @@
       "mi": 171
     },
     {
-      "path": ".agents/scripts/lib/spec/loader.js",
-      "mi": 98.764
-    },
-    {
       "path": ".agents/scripts/lib/spec/state.js",
       "mi": 109.548
     },
@@ -1859,10 +1831,6 @@
       "mi": 86.803
     },
     {
-      "path": ".agents/scripts/lifecycle-emit.js",
-      "mi": 87.908
-    },
-    {
       "path": ".agents/scripts/lint-baseline.js",
       "mi": 91.025
     },
@@ -1884,7 +1852,7 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "mi": 89.313
+      "mi": 91.889
     },
     {
       "path": ".agents/scripts/plan-persist.js",
@@ -1892,7 +1860,7 @@
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
-      "mi": 98.565
+      "mi": 99.16
     },
     {
       "path": ".agents/scripts/post-structured-comment.js",
@@ -2033,10 +2001,6 @@
     {
       "path": ".agents/scripts/stories-wave-tick.js",
       "mi": 85.334
-    },
-    {
-      "path": ".agents/scripts/story-phase.js",
-      "mi": 83.992
     },
     {
       "path": ".agents/scripts/story-plan.js",
