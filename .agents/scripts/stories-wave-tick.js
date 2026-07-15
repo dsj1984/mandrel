@@ -74,7 +74,7 @@ Continuous ready-set planner for standalone Story delivery. Consumes a
 dependency graph of Story IDs plus the live run progress and emits the set
 of Stories safe to dispatch on this beat — a Story is dispatchable the
 instant its own dependencies are done — plus the resolved per-beat
-concurrency cap and the same file-overlap guard as `selectReadySet`.
+concurrency cap and the same file-overlap guard as selectReadySet.
 
 Input DAG format (JSON array):
   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
