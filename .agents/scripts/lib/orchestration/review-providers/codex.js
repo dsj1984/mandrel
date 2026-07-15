@@ -44,7 +44,7 @@ export const CODEX_REMEDIATIONS = Object.freeze({
     'Install the Codex plugin (https://github.com/openai/codex-plugin-cc) ' +
     'so the host registers the `/codex:review` slash command.',
   fallback:
-    'Or set `codeReview.provider` to "native" in .agentrc.json to use the ' +
+    'Or set `codeReview.providers` to [{ name: "native" }] in .agentrc.json to use the ' +
     'in-process maintainability/lint provider instead.',
 });
 
@@ -96,7 +96,7 @@ export function defaultProbeCodexCommand(opts = {}) {
  */
 export function buildCodexUnavailableError() {
   return new Error(
-    '[ReviewProviderFactory] codeReview.provider is set to "codex" but the ' +
+    '[ReviewProviderFactory] codeReview.providers includes "codex" but the ' +
       '`/codex:review` slash command is not registered on this host. ' +
       `${CODEX_REMEDIATIONS.install} ${CODEX_REMEDIATIONS.fallback}`,
   );

@@ -60,7 +60,7 @@ test('runCodeReview renders a known Finding[] to the committed snapshot body', a
     reviewProvider: { runReview: async () => SEEDED_FINDINGS },
     resolveConfigFn: () => ({
       project: { baseBranch: 'main' },
-      delivery: { codeReview: { provider: 'native' } },
+      delivery: { codeReview: { providers: [{ name: 'native' }] } },
     }),
     upsertCommentFn: async (_provider, _ticketId, _type, body) => {
       postedBody = body;

@@ -233,15 +233,15 @@ function makeMergeCandidate(slug, sessionMass, dependsOn) {
  * Returns true when a `changes[]` entry is a glob pattern.
  */
 function isGlobBullet(bullet) {
-  const s = bullet?.path ?? bullet;
+  const s = bullet?.path;
   return typeof s === 'string' && s.includes('*');
 }
 
 /**
- * Extract the path-shaped head from a single `changes` entry.
+ * Extract the path from a single object-form `changes` entry.
  */
 function extractChangeBulletPath(bullet) {
-  const s = typeof bullet === 'string' ? bullet : (bullet?.path ?? null);
+  const s = bullet?.path ?? null;
   if (!s) return null;
   const colonIdx = s.indexOf(':');
   if (colonIdx <= 0) return /[\\/.]/.test(s) ? s.trim() : null;
@@ -259,8 +259,7 @@ function analyseChanges(changes) {
   for (const bullet of changes) {
     if (isGlobBullet(bullet)) {
       hasGlobs = true;
-      const globText =
-        typeof bullet === 'string' ? bullet : (bullet?.path ?? '');
+      const globText = bullet?.path ?? '';
       if (globText) pathTexts.push(String(globText));
       continue;
     }
@@ -418,17 +417,13 @@ function computeStorySizingFindings(story, capacity, ceilings) {
  * Compute the full structured findings array for a normalized ticket
  * hierarchy.
  *
- * @param {{ stories: object[], sizing?: object, capacity?: object }} input
+ * @param {{ stories: object[], capacity?: object }} input
  * @returns {object[]}
  */
-export function computeSizingFindings({ stories, sizing, capacity }) {
-  // `sizing` remains accepted as a synonym for `capacity` so call sites that
-  // still pass the historical option name keep working; new code should pass
-  // `capacity`. Capacity overrides are test / programmatic only — not read
-  // from `.agentrc.json`.
+export function computeSizingFindings({ stories, capacity }) {
   const merged = {
     ...DEFAULT_MODEL_CAPACITY,
-    ...(capacity ?? sizing ?? {}),
+    ...(capacity ?? {}),
   };
   const ceilings = resolveCapacityCeilings(merged);
   const findings = [];

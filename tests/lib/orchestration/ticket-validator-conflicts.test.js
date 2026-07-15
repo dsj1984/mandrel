@@ -36,7 +36,7 @@ function makeStory(slug, body = {}, extras = {}) {
     verify: ['npm test (unit)'],
     body: {
       goal: `Goal for ${slug}.`,
-      changes: ['src/default.js: edit'],
+      changes: [{ path: 'src/default.js', assumption: 'refactors-existing' }],
       acceptance: ['observable criterion'],
       verify: ['npm test (unit)'],
       ...body,
@@ -52,10 +52,10 @@ function makeStory(slug, body = {}, extras = {}) {
 test('emits shared-editor finding when two Stories in the same wave write the same path', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: ['.github/workflows/quality.yml: tighten lint job'],
+      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
     }),
     makeStory('s-b', {
-      changes: ['.github/workflows/quality.yml: add coverage gate'],
+      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
     }),
   ];
   const result = validateAndNormalizeTickets(tickets);
@@ -74,11 +74,11 @@ test('emits shared-editor finding when two Stories in the same wave write the sa
 test('does not emit shared-editor finding when depends_on serialises the writers', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: ['.github/workflows/quality.yml: tighten lint job'],
+      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
     }),
     makeStory(
       's-b',
-      { changes: ['.github/workflows/quality.yml: add coverage gate'] },
+      { changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }] },
       { depends_on: ['s-a'] },
     ),
   ];
@@ -95,11 +95,11 @@ test("emits implicit-cross-story-dep when a Story verifies against another Story
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        '.agents/schemas/baselines/coverage.schema.json: introduce schema',
+        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
       ],
     }),
     makeStory('s-consumer', {
-      changes: ['src/consumer.js: read schema'],
+      changes: [{ path: 'src/consumer.js', assumption: 'refactors-existing' }],
       verify: [
         'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
       ],
@@ -128,18 +128,18 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        '.agents/schemas/baselines/coverage.schema.json: introduce schema',
+        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
       ],
     }),
     makeStory(
       's-intermediate',
-      { changes: ['src/mid.js: pass-through'] },
+      { changes: [{ path: 'src/mid.js', assumption: 'refactors-existing' }] },
       { depends_on: ['s-producer'] },
     ),
     makeStory(
       's-consumer',
       {
-        changes: ['src/consumer.js: read schema'],
+        changes: [{ path: 'src/consumer.js', assumption: 'refactors-existing' }],
         verify: [
           'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
         ],
@@ -161,10 +161,10 @@ test('does not emit implicit-cross-story-dep when consumer Story transitively de
 test('failOnSharedEditors=true upgrades shared-editor findings to hard severity', () => {
   const tickets = [
     makeStory('s-a', {
-      changes: ['.github/workflows/quality.yml: tighten lint job'],
+      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
     }),
     makeStory('s-b', {
-      changes: ['.github/workflows/quality.yml: add coverage gate'],
+      changes: [{ path: '.github/workflows/quality.yml', assumption: 'refactors-existing' }],
     }),
   ];
   const result = validateAndNormalizeTickets(tickets, {
@@ -182,11 +182,11 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
   const tickets = [
     makeStory('s-producer', {
       changes: [
-        '.agents/schemas/baselines/coverage.schema.json: introduce schema',
+        { path: '.agents/schemas/baselines/coverage.schema.json', assumption: 'refactors-existing' },
       ],
     }),
     makeStory('s-consumer', {
-      changes: ['src/consumer.js: read schema'],
+      changes: [{ path: 'src/consumer.js', assumption: 'refactors-existing' }],
       verify: [
         'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
       ],
@@ -211,8 +211,8 @@ test('requireExplicitCrossStoryDeps=true upgrades implicit-cross-story-dep to ha
 
 test('emits no conflict findings on a spec with non-overlapping paths', () => {
   const tickets = [
-    makeStory('s-a', { changes: ['src/a.js: edit'] }),
-    makeStory('s-b', { changes: ['src/b.js: edit'] }),
+    makeStory('s-a', { changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }] }),
+    makeStory('s-b', { changes: [{ path: 'src/b.js', assumption: 'refactors-existing' }] }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const conflict = result.findings.filter(
@@ -227,9 +227,15 @@ test('emits no conflict findings on a spec with non-overlapping paths', () => {
 
 test('shared-editor cluster surfaces every concurrent writer of the path', () => {
   const tickets = [
-    makeStory('s-a', { changes: ['package.json: bump deps'] }),
-    makeStory('s-b', { changes: ['package.json: add script'] }),
-    makeStory('s-c', { changes: ['package.json: edit engines field'] }),
+    makeStory('s-a', {
+      changes: [{ path: 'package.json', assumption: 'refactors-existing' }],
+    }),
+    makeStory('s-b', {
+      changes: [{ path: 'package.json', assumption: 'refactors-existing' }],
+    }),
+    makeStory('s-c', {
+      changes: [{ path: 'package.json', assumption: 'refactors-existing' }],
+    }),
   ];
   const result = validateAndNormalizeTickets(tickets);
   const shared = result.findings.filter((f) => f.kind === 'shared-editor');
@@ -240,18 +246,6 @@ test('shared-editor cluster surfaces every concurrent writer of the path', () =>
 // ---------------------------------------------------------------------------
 // Pure-function unit coverage on the internal helpers
 // ---------------------------------------------------------------------------
-
-test('extractChangeBulletPath: requires a colon and a slash/dot head', () => {
-  const { extractChangeBulletPath } = _internal;
-  assert.equal(extractChangeBulletPath('src/a.js: edit'), 'src/a.js');
-  assert.equal(
-    extractChangeBulletPath('.github/workflows/x.yml: rewrite'),
-    '.github/workflows/x.yml',
-  );
-  assert.equal(extractChangeBulletPath('no colon present'), null);
-  assert.equal(extractChangeBulletPath('plain: no path head'), null);
-  assert.equal(extractChangeBulletPath(undefined), null);
-});
 
 test('inSameWave: true only when neither story reaches the other', () => {
   const { inSameWave } = _internal;
@@ -284,12 +278,12 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
       title: 'Story without inline contract',
       body: {
         goal: 'Goal.',
-        changes: ['src/x.js: edit'],
+        changes: [{ path: 'src/x.js', assumption: 'refactors-existing' }],
       },
     },
     // Valid sibling Story — the inline-contract gate is what fires.
     makeStory('s-conf-sibling', {
-      changes: ['src/sibling-conf.js: edit'],
+      changes: [{ path: 'src/sibling-conf.js', assumption: 'refactors-existing' }],
     }),
   ];
   assert.throws(
@@ -554,13 +548,11 @@ test('emits implicit-cross-story-dep when a consumer verifies a path created obj
   assert.equal(implicit[0].severity, 'soft');
 });
 
-test('mixed legacy string + object-form bodies both surface as shared-editor producers', () => {
+test('object-form bodies on the same path surface as shared-editor producers', () => {
   const tickets = [
-    // Legacy string bullet on the shared path.
     makeStory('s-legacy', {
-      changes: ['packages/config/index.ts: tighten exports'],
+      changes: [{ path: 'packages/config/index.ts', assumption: 'refactors-existing' }],
     }),
-    // Object-form create on the same shared path.
     makeStory('s-object', {
       changes: [
         { path: 'packages/config/index.ts', assumption: 'refactors-existing' },
@@ -599,7 +591,7 @@ test('does not emit shared-editor for object-form writers serialised by depends_
   assert.deepEqual(shared, []);
 });
 
-test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping reads', () => {
+test('collectStoryProducerPaths: object-form writes only, dropping reads', () => {
   const { collectStoryProducerPaths } = _internal;
   const story = {
     type: 'story',
@@ -610,7 +602,6 @@ test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping r
         { path: 'src/refactored.ts', assumption: 'refactors-existing' },
         { path: 'src/removed.ts', assumption: 'deletes' },
         { path: 'src/read-only.ts', assumption: 'exists' },
-        'src/legacy.ts: edit in place',
       ],
       references: [{ path: 'src/dependency.ts', assumption: 'exists' }],
     },
@@ -618,7 +609,6 @@ test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping r
   const paths = collectStoryProducerPaths(story).sort();
   assert.deepEqual(paths, [
     'src/created.ts',
-    'src/legacy.ts',
     'src/refactored.ts',
     'src/removed.ts',
   ]);
@@ -647,7 +637,7 @@ test('collectStoryProducerPaths: object-form writes + legacy bullets, dropping r
 function makeStringStory(slug, body = {}, extras = {}) {
   const structured = {
     goal: `Goal for ${slug}.`,
-    changes: ['src/default.js: edit'],
+    changes: [{ path: 'src/default.js', assumption: 'refactors-existing' }],
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
     ...body,

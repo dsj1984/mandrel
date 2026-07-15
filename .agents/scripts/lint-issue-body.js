@@ -114,9 +114,9 @@ export function evaluateIssueBody(body) {
 
   const problems = [];
 
-  // A legacy string body parses but carries no structured sections — that
+  // An unstructured body parses but carries no structured sections — that
   // is exactly the human-filed shape this lint exists to catch.
-  if (result.info.isLegacyStringBody) {
+  if (result.info.isUnstructuredBody) {
     problems.push(
       'The body has no recognised `## Goal` / `## Acceptance` / `## Verify` sections. ' +
         'File via the Story issue form so it round-trips through the parser.',

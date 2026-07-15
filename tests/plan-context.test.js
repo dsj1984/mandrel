@@ -6,8 +6,8 @@
  *  - stdout purity: everything the emit path writes to stdout is exactly
  *    one `JSON.parse`-able payload (Logger output routed to stderr).
  *  - envelope schema snapshot: the sorted key set per mode.
- *  - mode-specific field presence: `duplicates`/`onePager` only in
- *    one-pager mode; seed carries `seed`/`onePagerSpec`.
+ *  - mode-specific field presence: `duplicates`/`seed` in seed-file mode
+ *    (`seed.content`); seed mode carries `seed.text`/`onePagerSpec`.
  *  - dup-search fold parity: envelope `duplicates[]` deep-equals a direct
  *    `findSimilarOpenStories` call over the same provider + seed.
  *  - envelope byte ceiling: serialized envelopes stay under
@@ -138,7 +138,7 @@ const SEED_MODE_KEYS = [
   'ticketSchema',
 ];
 
-const ONE_PAGER_MODE_KEYS = [
+const SEED_FILE_MODE_KEYS = [
   'bddRunner',
   'bddScenarios',
   'codebaseSnapshot',
@@ -147,28 +147,28 @@ const ONE_PAGER_MODE_KEYS = [
   'maxTickets',
   'memoryFreshness',
   'mode',
-  'onePager',
   'planProfile',
   'planState',
   'priorFeedback',
   'riskHeuristics',
+  'seed',
   'systemPrompts',
   'ticketSchema',
 ];
 
 describe('plan-context envelope schema (design §1 step 1)', () => {
-  it('one-pager mode emits exactly the one-pager-mode key set', async () => {
+  it('seed-file mode emits exactly the seed-file-mode key set', async () => {
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
-      onePagerPath: 'temp/one-pager.md',
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
+      seedFilePath: 'temp/seed-file.md',
       provider: buildProvider(),
       config: { github: { owner: 'o', repo: 'r' } },
       settings: {},
     });
-    assert.deepEqual(Object.keys(env).sort(), ONE_PAGER_MODE_KEYS);
-    assert.equal(env.mode, 'one-pager');
-    assert.equal(env.onePager.content, ONE_PAGER);
+    assert.deepEqual(Object.keys(env).sort(), SEED_FILE_MODE_KEYS);
+    assert.equal(env.mode, 'seed-file');
+    assert.equal(env.seed.content, ONE_PAGER);
     assert.equal(env.planState, null);
   });
 
@@ -185,7 +185,7 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.equal(env.seed.text, ONE_PAGER);
     assert.ok(
       !('onePager' in env),
-      'the one-pager does not exist yet in seed mode',
+      'the legacy onePager field must not appear in seed mode',
     );
     assert.equal(env.planState, null);
     assert.deepEqual(env.onePagerSpec, ONE_PAGER_AUTHORING_SPEC);
@@ -216,28 +216,28 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
 });
 
 describe('plan-context mode-specific field presence', () => {
-  it('one-pager mode carries duplicates/onePager and omits seed/onePagerSpec', async () => {
+  it('seed-file mode carries duplicates/seed.content and omits onePagerSpec', async () => {
     const opEnv = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: {},
       settings: {},
     });
     assert.ok(Array.isArray(opEnv.duplicates));
-    assert.equal(opEnv.onePager.content, ONE_PAGER);
-    assert.ok(!('seed' in opEnv), 'seed must not leak into one-pager mode');
+    assert.equal(opEnv.seed.content, ONE_PAGER);
+    assert.ok(!('text' in opEnv.seed), 'seed.text must not leak into seed-file mode');
     assert.ok(
       !('onePagerSpec' in opEnv),
-      'onePagerSpec must not leak into one-pager mode',
+      'onePagerSpec must not leak into seed-file mode',
     );
     assert.ok(
       !('clarity' in opEnv),
-      'retired epic-mode clarity must not leak into one-pager mode',
+      'retired epic-mode clarity must not leak into seed-file mode',
     );
     assert.ok(
       !('replan' in opEnv),
-      'retired epic-mode replan must not leak into one-pager mode',
+      'retired epic-mode replan must not leak into seed-file mode',
     );
   });
 });
@@ -247,8 +247,8 @@ describe('plan-context dup-search fold parity vs library', () => {
     const provider = buildProvider();
     const config = { github: { owner: 'o', repo: 'r' } };
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider,
       config,
       settings: {},
@@ -289,8 +289,8 @@ describe('plan-context dup-search fold parity vs library', () => {
       throw new Error('rate limited');
     };
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider,
       config: {},
       settings: {},
@@ -302,8 +302,8 @@ describe('plan-context dup-search fold parity vs library', () => {
 describe('plan-context systemPrompts fold', () => {
   it('renders spec/acceptance/story/decompose from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: { planning: { riskHeuristics: ['touches auth'] } },
       settings: {},
@@ -408,8 +408,8 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     let envelope;
     try {
       envelope = await emitPlanContext({
-        mode: 'one-pager',
-        onePagerContent: ONE_PAGER,
+        mode: 'seed-file',
+        seedFileContent: ONE_PAGER,
         provider: buildProvider(),
         config: {},
         settings: {},
@@ -428,15 +428,15 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
     assert.equal(lines.length, 1, 'exactly one stdout line');
     const parsed = JSON.parse(lines[0]);
     assert.deepEqual(parsed, JSON.parse(JSON.stringify(envelope)));
-    assert.equal(parsed.mode, 'one-pager');
+    assert.equal(parsed.mode, 'seed-file');
   });
 });
 
 describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
-  it('one-pager and seed envelopes stay under the ceiling', async () => {
-    const opEnv = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: ONE_PAGER,
+  it('seed-file and seed envelopes stay under the ceiling', async () => {
+    const seedFileEnv = await buildPlanContext({
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
       provider: buildProvider(),
       config: {},
       settings: {},
@@ -449,7 +449,7 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       settings: {},
     });
     for (const [name, env] of [
-      ['one-pager', opEnv],
+      ['seed-file', seedFileEnv],
       ['seed', seedEnv],
     ]) {
       const bytes = Buffer.byteLength(JSON.stringify(env), 'utf-8');
@@ -460,14 +460,14 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
     }
   });
 
-  it('holds even when the one-pager sits at the planning-context budget cap', async () => {
+  it('holds even when the seed-file corpus sits at the planning-context budget cap', async () => {
     // A body larger than planningContext.maxBytes (50 KB default) downgrades
     // to the applyBudget summary representation — the ceiling must hold for
     // the worst legal case, not just tiny fixtures.
     const hugeBody = `${CLEAR_EPIC_BODY}\n## Appendix\n\n${'lorem ipsum dolor sit amet consectetur. '.repeat(4000)}`;
     const env = await buildPlanContext({
-      mode: 'one-pager',
-      onePagerContent: hugeBody,
+      mode: 'seed-file',
+      seedFileContent: hugeBody,
       provider: buildProvider(),
       config: {},
       settings: {},
@@ -477,10 +477,10 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       bytes < PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
       `budget-capped envelope is ${bytes} bytes — ceiling is ${PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}`,
     );
-    // One-pager mode keeps the raw content on the envelope; the budget
+    // Seed-file mode keeps the raw content on the envelope; the budget
     // engages on the authoring-context fold (snapshot / docs), not by
-    // nulling `onePager.content`.
-    assert.equal(env.onePager.content, hugeBody);
+    // nulling `seed.content`.
+    assert.equal(env.seed.content, hugeBody);
   });
 });
 

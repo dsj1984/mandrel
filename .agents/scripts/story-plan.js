@@ -2,14 +2,15 @@
 /* node:coverage ignore file */
 
 /**
- * story-plan.js — DEPRECATED as a `/plan` entrypoint.
+ * story-plan.js — QA helper for promote round-trips and `--emit-context`
+ * envelope emission.
  *
- * Canonical planning is `plan-context.js` + `plan-persist.js` (see
- * `.agents/workflows/plan.md`). This CLI remains as a thin helper for
- * QA promote round-trips (`--body` / `--dry-run`) and legacy
- * `--emit-context` callers; new operator flows must not invoke it.
+ * Canonical operator planning is `plan-context.js` + `plan-persist.js` (see
+ * `.agents/workflows/plan.md`). Use this CLI only for QA promote
+ * round-trips (`--body` / `--dry-run`) or test harnesses that need the
+ * standalone envelope shape.
  *
- * Prefer:
+ * Operator planning:
  *   node .agents/scripts/plan-context.js --seed "…" | --seed-file <path> | --tickets <ids>
  *   node .agents/scripts/plan-persist.js --stories … --risk-verdict …
  */
@@ -36,7 +37,7 @@ import {
 
 const HELP = `\
 Usage:
-  story-plan.js --emit-context (--idea "<seed>" | --from-notes <file>) \\
+  story-plan.js --emit-context (--seed "<seed>" | --seed-file <file>) \\
     [--refine | --no-refine] [--pretty]
 
   story-plan.js --body <file> [--dry-run]
@@ -62,17 +63,17 @@ Options:
 `;
 
 /**
- * Resolve the seed string from --idea or --from-notes. One of the two
+ * Resolve the seed string from --seed or --seed-file. One of the two
  * must be present in --emit-context mode.
  */
-async function resolveSeed({ idea, fromNotes }) {
-  if (idea && fromNotes) {
-    throw new Error('Pass either --idea or --from-notes, not both.');
+async function resolveSeed({ seed, seedFile }) {
+  if (seed && seedFile) {
+    throw new Error('Pass either --seed or --seed-file, not both.');
   }
-  if (idea) return idea;
-  if (fromNotes) return (await readFile(fromNotes, 'utf8')).trim();
+  if (seed) return seed;
+  if (seedFile) return (await readFile(seedFile, 'utf8')).trim();
   throw new Error(
-    '--emit-context requires --idea "<seed>" or --from-notes <file>.',
+    '--emit-context requires --seed "<seed>" or --seed-file <file>.',
   );
 }
 
@@ -129,8 +130,8 @@ async function runEmitContext({
   write = (s) => process.stdout.write(s),
 }) {
   const seed = await resolveSeed({
-    idea: values.idea,
-    fromNotes: values['from-notes'],
+    seed: values.seed,
+    seedFile: values['seed-file'],
   });
   const override = values.refine ? 'on' : values['no-refine'] ? 'off' : null;
   const refine = shouldRefine({ seed, override });
@@ -251,8 +252,8 @@ async function main() {
   const { values } = parseArgs({
     options: {
       'emit-context': { type: 'boolean', default: false },
-      idea: { type: 'string' },
-      'from-notes': { type: 'string' },
+      seed: { type: 'string' },
+      'seed-file': { type: 'string' },
       body: { type: 'string' },
       refine: { type: 'boolean', default: false },
       'no-refine': { type: 'boolean', default: false },

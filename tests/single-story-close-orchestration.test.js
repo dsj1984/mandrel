@@ -169,7 +169,7 @@ function fakeConfig({
 function defaultGitUtilsMock({ pushImpl } = {}) {
   return {
     namedExports: {
-      getStoryBranch: (_epicId, storyId) => `story-${Number(storyId)}`,
+      getStoryBranch: (storyId) => `story-${Number(storyId)}`,
       gitSync:
         pushImpl ?? ((..._args) => ({ status: 0, stdout: '', stderr: '' })),
       // Story #2580 sync-from-base imports these at module load. Even

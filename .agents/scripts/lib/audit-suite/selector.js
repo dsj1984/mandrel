@@ -109,10 +109,10 @@ export const LENS_TIERS = Object.freeze(['local', 'cumulative', 'global']);
  * @throws {Error} When the manifest cannot be read or parsed.
  */
 function readAuditRulesSync() {
-  const { agentSettings } = resolveConfig();
+  const config = resolveConfig();
   const rulesPath = path.join(
     PROJECT_ROOT,
-    getPaths({ agentSettings }).schemasRoot,
+    getPaths(config).schemasRoot,
     'audit-rules.json',
   );
   try {
@@ -300,12 +300,12 @@ export async function selectAudits({
   gitTimeoutMsOverride,
   gateModeOpts,
 }) {
-  const { agentSettings } = resolveConfig();
+  const config = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
 
   const rulesPath = path.join(
     PROJECT_ROOT,
-    getPaths({ agentSettings }).schemasRoot,
+    getPaths(config).schemasRoot,
     'audit-rules.json',
   );
   let rulesData;

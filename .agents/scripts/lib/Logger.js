@@ -18,7 +18,6 @@
  *   - `silent`   → only `fatal` emits.
  *   - `info`     → default. Emits `info` and above; suppresses `debug`.
  *   - `verbose`  → emits everything (including `debug`).
- *   - `debug`    → alias for `verbose` (backward compatible).
  */
 /**
  * Recognized log levels, lowest-noise first. Anything outside this set
@@ -26,9 +25,7 @@
  *
  * @type {ReadonlySet<string>}
  */
-const VALID_LEVELS = Object.freeze(
-  new Set(['silent', 'info', 'verbose', 'debug']),
-);
+const VALID_LEVELS = Object.freeze(new Set(['silent', 'info', 'verbose']));
 
 /**
  * Process-wide level override. `null` means "no explicit override — read
@@ -50,7 +47,7 @@ let levelOverride = null;
  * the level branches react in-process, without a child process per level
  * (Story #3329).
  *
- * @returns {'silent'|'info'|'verbose'|'debug'}
+ * @returns {'silent'|'info'|'verbose'}
  */
 export function resolveLevel() {
   const raw = (
@@ -63,12 +60,12 @@ export function resolveLevel() {
 
 /**
  * Pin the process-wide log level, bypassing `AGENT_LOG_LEVEL`. Pass a
- * recognized level (`silent` / `info` / `verbose` / `debug`) to force it,
+ * recognized level (`silent` / `info` / `verbose`) to force it,
  * or `null` to clear the pin and restore env-driven resolution. An
  * unrecognized non-null value throws so callers cannot silently pin a
  * level that resolves to `info`.
  *
- * @param {('silent'|'info'|'verbose'|'debug')|null} level
+ * @param {('silent'|'info'|'verbose')|null} level
  * @returns {void}
  */
 export function setLevel(level) {
@@ -78,15 +75,14 @@ export function setLevel(level) {
   }
   if (typeof level !== 'string' || !VALID_LEVELS.has(level.toLowerCase())) {
     throw new RangeError(
-      `setLevel: level must be one of silent|info|verbose|debug or null (got ${level})`,
+      `setLevel: level must be one of silent|info|verbose or null (got ${level})`,
     );
   }
   levelOverride = level.toLowerCase();
 }
 
 function debugEnabled() {
-  const level = resolveLevel();
-  return level === 'verbose' || level === 'debug';
+  return resolveLevel() === 'verbose';
 }
 
 function infoEnabled() {

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { after, describe, it } from 'node:test';
 import {
-  deleteBranchBoth,
+  deleteBranchEverywhere,
   deleteBranchesBatched,
   deleteBranchLocal,
   deleteBranchRemote,
@@ -173,10 +173,10 @@ describe('deleteBranchRemote', () => {
   });
 });
 
-describe('deleteBranchBoth', () => {
+describe('deleteBranchEverywhere', () => {
   it('returns deleted when both local and remote succeed', () => {
     const calls = installScriptedSpawn([OK, OK]);
-    const result = deleteBranchBoth('story-1', { cwd: '/repo' });
+    const result = deleteBranchEverywhere('story-1', { cwd: '/repo' });
     assert.equal(result.deleted, true);
     assert.equal(result.reason, 'deleted');
     assert.equal(result.local.deleted, true);
@@ -190,7 +190,7 @@ describe('deleteBranchBoth', () => {
       { status: 128, stdout: '', stderr: 'fatal: weird local failure' },
       OK,
     ]);
-    const result = deleteBranchBoth('story-1', { cwd: '/repo' });
+    const result = deleteBranchEverywhere('story-1', { cwd: '/repo' });
     assert.equal(calls.length, 2, 'remote attempted despite local failure');
     assert.equal(result.deleted, false);
     assert.equal(result.reason, 'partial');
@@ -203,7 +203,7 @@ describe('deleteBranchBoth', () => {
       { status: 128, stdout: '', stderr: 'fatal: local boom' },
       { status: 128, stdout: '', stderr: 'fatal: remote boom' },
     ]);
-    const result = deleteBranchBoth('story-1', { cwd: '/repo' });
+    const result = deleteBranchEverywhere('story-1', { cwd: '/repo' });
     assert.equal(result.deleted, false);
     assert.equal(result.reason, 'error');
   });
@@ -213,7 +213,7 @@ describe('deleteBranchBoth', () => {
       { status: 1, stdout: '', stderr: "error: branch 'x' not found." },
       { status: 1, stdout: '', stderr: 'remote ref does not exist' },
     ]);
-    const result = deleteBranchBoth('story-9', { cwd: '/repo' });
+    const result = deleteBranchEverywhere('story-9', { cwd: '/repo' });
     assert.equal(result.deleted, true);
     assert.equal(result.reason, 'deleted');
     assert.equal(result.local.reason, 'not-found');

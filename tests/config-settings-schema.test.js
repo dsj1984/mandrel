@@ -721,12 +721,12 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
   });
 });
 
-describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => {
-  it('accepts provider: "native"', () => {
+describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () => {
+  it('accepts providers: [{ name: "native" }]', () => {
     assert.equal(
       validate({
         ...REQ,
-        delivery: { codeReview: { provider: 'native' } },
+        delivery: { codeReview: { providers: [{ name: 'native' }] } },
       }),
       true,
     );
@@ -760,26 +760,26 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
     );
   });
 
-  it('accepts provider: "codex" (Story #2830 — codex ReviewProvider adapter)', () => {
+  it('accepts providers: [{ name: "codex" }] (Story #2830 — codex ReviewProvider adapter)', () => {
     assert.equal(
       validate({
         ...REQ,
-        delivery: { codeReview: { provider: 'codex' } },
+        delivery: { codeReview: { providers: [{ name: 'codex' }] } },
       }),
       true,
     );
   });
 
-  it('rejects provider: "gemini" (not registered)', () => {
+  it('rejects legacy provider field (hard cutover)', () => {
     expectErrors(
-      { ...REQ, delivery: { codeReview: { provider: 'gemini' } } },
-      /must be equal to one of the allowed values|enum/,
+      { ...REQ, delivery: { codeReview: { provider: 'native' } } },
+      /additional properties/,
     );
   });
 
-  it('rejects an unknown provider string', () => {
+  it('rejects providers entry with unknown name', () => {
     expectErrors(
-      { ...REQ, delivery: { codeReview: { provider: 'bogus' } } },
+      { ...REQ, delivery: { codeReview: { providers: [{ name: 'gemini' }] } } },
       /must be equal to one of the allowed values|enum/,
     );
   });
@@ -807,7 +807,7 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
         ...REQ,
         delivery: {
           codeReview: {
-            provider: 'native',
+            providers: [{ name: 'native' }],
             providerConfig: {},
             maxFixAttempts: 3,
             maxFixScopeFiles: 5,

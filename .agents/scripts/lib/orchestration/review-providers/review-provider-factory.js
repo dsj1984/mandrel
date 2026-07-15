@@ -1,34 +1,27 @@
 /**
  * review-providers/review-provider-factory.js — resolve
- * `codeReview.provider` / `codeReview.providers` to a concrete
- * `ReviewProvider` instance.
+ * `codeReview.providers` to a concrete `ReviewProvider` instance.
  *
  * Story #2825 (Epic #2815) — the factory is the only entry point.
  * `runCodeReview()` never references a specific adapter directly;
  * adding a backend is (1) implement the interface, (2) register here,
  * (3) extend the schema enum.
  *
- * Story #2871 — extends the factory for multi-provider chains:
- *   - Legacy single-string `codeReview.provider`: factory returns the
- *     single `ReviewProvider` adapter as before (back-compat for the
- *     shape and for every existing test).
- *   - New `codeReview.providers: ProviderEntry[]`: factory returns a
- *     `ChainProvider` that fans out `runReview` across every inline
- *     entry (merging `Finding[]` in declaration order) and exposes
- *     `getPromptMessages` so the orchestrator can render the
- *     trailing "Manual review suggestions" section without knowing
- *     about per-provider mechanics.
+ * Story #2871 — the factory always returns a `ChainProvider` that
+ * fans out `runReview` across every inline entry (merging `Finding[]`
+ * in declaration order) and exposes `getPromptMessages` so the
+ * orchestrator can render the trailing "Manual review suggestions"
+ * section without knowing about per-provider mechanics.
  *
  * Behaviour:
- *   - Unset / missing `codeReview.provider` defaults to `'native'`.
+ *   - Unset / empty `codeReview.providers` defaults to a single-entry
+ *     chain `[{ name: 'native' }]`.
  *   - Unknown provider name throws an Error with remediation text
  *     naming the supported values.
  *   - Adapters that throw at construction time (e.g. `codex` probing
  *     for an absent plugin command) bubble their error verbatim —
  *     EXCEPT when the chain entry carries `optional: true`, in which
  *     case the chain logs a warning and skips that entry.
- *   - When both `provider` (legacy single) and `providers` (chain) are
- *     present, `providers` wins; `provider` is ignored with a warning.
  *
  * @typedef {import('./types.js').ReviewProvider}        ReviewProvider
  * @typedef {import('./types.js').ManualPromptProvider}  ManualPromptProvider
@@ -70,8 +63,8 @@ const PROMPT_PROVIDERS = Object.freeze({
 });
 
 /**
- * The provider name used when `codeReview.provider` is unset or the
- * `codeReview` block is absent entirely.
+ * The inline provider name used when `codeReview.providers` is unset,
+ * empty, or the `codeReview` block is absent entirely.
  */
 export const DEFAULT_PROVIDER_NAME = 'native';
 
@@ -127,13 +120,10 @@ export function isScopeApplicable(declaredScopes, currentScope) {
  * config block. Pass the `codeReview` sub-object (not the full
  * config) so callers can compose with their own config readers.
  *
- * Story #2871 — when `codeReviewConfig.providers` is a non-empty
- * array, returns a `ChainProvider` (fans out across entries);
- * otherwise returns the single legacy adapter selected by
- * `codeReviewConfig.provider`.
+ * Always returns a `ChainProvider`. When `codeReviewConfig.providers`
+ * is unset or empty, the chain defaults to `[{ name: 'native' }]`.
  *
  * @param {{
- *   provider?: string,
  *   providers?: Array<object>,
  *   providerConfig?: object,
  * }|null|undefined} codeReviewConfig
@@ -152,44 +142,19 @@ export function createReviewProvider(codeReviewConfig, opts = {}) {
   const promptRegistry = opts.promptRegistry ?? PROMPT_PROVIDERS;
   const logger = opts.logger;
 
-  // Chain shape wins when present.
-  if (
+  const entries =
     codeReviewConfig &&
     Array.isArray(codeReviewConfig.providers) &&
     codeReviewConfig.providers.length > 0
-  ) {
-    if (typeof codeReviewConfig.provider === 'string') {
-      logger?.warn?.(
-        '[ReviewProviderFactory] Both `provider` and `providers` are set; ' +
-          '`providers` wins. Remove the legacy `provider` field to silence ' +
-          'this warning.',
-      );
-    }
-    const chain = buildProviderChain(codeReviewConfig.providers, {
-      inlineRegistry,
-      promptRegistry,
-      logger,
-    });
-    return createChainProvider(chain, { logger });
-  }
+      ? codeReviewConfig.providers
+      : [{ name: DEFAULT_PROVIDER_NAME }];
 
-  // Legacy single-string shape.
-  const name =
-    codeReviewConfig && typeof codeReviewConfig.provider === 'string'
-      ? codeReviewConfig.provider
-      : DEFAULT_PROVIDER_NAME;
-
-  const ctor = inlineRegistry[name];
-  if (!ctor) {
-    const supported = Object.keys(inlineRegistry).sort().join(', ');
-    throw new Error(
-      `[ReviewProviderFactory] Unknown codeReview.provider "${name}". ` +
-        `Supported values: ${supported}. ` +
-        'Set codeReview.provider in .agentrc.json to one of the supported ' +
-        'values, or remove the field to use the default ("native").',
-    );
-  }
-  return ctor();
+  const chain = buildProviderChain(entries, {
+    inlineRegistry,
+    promptRegistry,
+    logger,
+  });
+  return createChainProvider(chain, { logger });
 }
 
 /**

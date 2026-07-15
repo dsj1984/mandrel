@@ -2,10 +2,8 @@
  * Contract test for `.agents/scripts/lib/orchestration/pr-base-guard.js`
  * and its wiring into `PullRequestGateway.createPullRequest`.
  *
- * Story #2960 — refuse PR creation against `main` when the Story body
- * declares an `Epic: #N` parent. The framework's `createPullRequest`
- * gateway MUST throw the documented error rather than shell out to
- * `gh pr create --base main`.
+ * Story #2960 — refuse PR creation when the Story body still declares an
+ * Epic/Parent footer (v2 Story-only delivery).
  */
 
 import assert from 'node:assert/strict';
@@ -86,13 +84,22 @@ describe('orchestration/pr-base-guard — assertStoryPrBaseAllowed', () => {
     );
   });
 
-  it('allows base = epic/<N> when body declares Epic: #N', () => {
-    assert.doesNotThrow(() =>
-      assertStoryPrBaseAllowed({
-        storyId: 2945,
-        storyBody: '## Context\n\nEpic: #2880\n\nDetails…',
-        baseBranch: 'epic/2880',
-      }),
+  it('refuses any base when body declares Epic: #N (v2 Story-only)', () => {
+    assert.throws(
+      () =>
+        assertStoryPrBaseAllowed({
+          storyId: 2945,
+          storyBody: '## Context\n\nEpic: #2880\n\nDetails…',
+          baseBranch: 'epic/2880',
+        }),
+      (err) => {
+        assert.match(
+          err.message,
+          /Story #2945 still declares Epic\/Parent #2880/,
+        );
+        assert.match(err.message, /Story-only/);
+        return true;
+      },
     );
   });
 
@@ -107,23 +114,11 @@ describe('orchestration/pr-base-guard — assertStoryPrBaseAllowed', () => {
       (err) => {
         assert.match(
           err.message,
-          /Story #2945 is parented by Epic #2880 — merge into epic\/2880, not main\./,
+          /Story #2945 still declares Epic\/Parent #2880/,
         );
-        assert.match(err.message, /\/deliver|re-plan as a v2 Story/);
+        assert.match(err.message, /Story-only/);
         return true;
       },
-    );
-  });
-
-  it('refuses any non-matching epic/<M> base (cross-Epic guard)', () => {
-    assert.throws(
-      () =>
-        assertStoryPrBaseAllowed({
-          storyId: 2945,
-          storyBody: 'Epic: #2880\n',
-          baseBranch: 'epic/9999',
-        }),
-      /merge into epic\/2880, not epic\/9999/,
     );
   });
 
@@ -135,7 +130,7 @@ describe('orchestration/pr-base-guard — assertStoryPrBaseAllowed', () => {
           storyBody: 'Parent: #42\nEpic: #100\n',
           baseBranch: 'main',
         }),
-      /Story #7 is parented by Epic #100/,
+      /Story #7 still declares Epic\/Parent #100/,
     );
   });
 });
@@ -159,13 +154,12 @@ describe('providers/github/prs.js — PullRequestGateway base-guard wiring', () 
       (err) => {
         assert.match(
           err.message,
-          /Story #2945 is parented by Epic #2880 — merge into epic\/2880, not main\./,
+          /Story #2945 still declares Epic\/Parent #2880/,
         );
         return true;
       },
     );
 
-    // The guard fires BEFORE the gh shell, so no PR was ever opened.
     assert.equal(
       gh.__calls.create.length,
       0,
@@ -173,7 +167,7 @@ describe('providers/github/prs.js — PullRequestGateway base-guard wiring', () 
     );
   });
 
-  it('permits PR creation when base = epic/<N> matches the parent', async () => {
+  it('refuses PR creation against epic/<N> when body still declares Epic: #N', async () => {
     const gh = makeFakeGh();
     const gateway = new PullRequestGateway({
       gh,
@@ -185,16 +179,12 @@ describe('providers/github/prs.js — PullRequestGateway base-guard wiring', () 
         }),
       },
     });
-    const out = await gateway.createPullRequest(
-      'story-2945',
-      2945,
-      'epic/2880',
+
+    await assert.rejects(
+      gateway.createPullRequest('story-2945', 2945, 'epic/2880'),
+      /Story #2945 still declares Epic\/Parent #2880/,
     );
-    assert.equal(out.number, 999);
-    assert.equal(gh.__calls.create.length, 1);
-    const args = gh.__calls.create[0];
-    const baseIdx = args.indexOf('--base');
-    assert.equal(args[baseIdx + 1], 'epic/2880');
+    assert.equal(gh.__calls.create.length, 0);
   });
 
   it('permits PR creation against main for a standalone Story (no Epic parent)', async () => {

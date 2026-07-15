@@ -5,9 +5,9 @@
  * Covers:
  *   - parse(): markdown → structured object (canonical sections)
  *   - parse(): structured object passthrough
- *   - parse(): legacy string body fallback
+ *   - parse(): unstructured body fallback
  *   - parse(): `blocked by` footer → depends_on extraction
- *   - parse(): legacy-path-entry warning for string-form changes
+ *   - parse(): plain string changes rejected (object-form PathEntry only)
  *   - parse(): object-form PathEntry (canonical)
  *   - parse(): malformed PathEntry throws StoryBodyParseError
  *   - parse(): null/undefined input throws
@@ -90,7 +90,7 @@ describe('parse() — markdown', () => {
     assert.equal(info.hasChangesSection, true);
     assert.equal(info.hasAcceptanceSection, true);
     assert.equal(info.hasVerifySection, true);
-    assert.equal(info.isLegacyStringBody, false);
+    assert.equal(info.isUnstructuredBody, false);
   });
 
   it('parses canonical PathEntry objects from changes', () => {
@@ -177,40 +177,45 @@ Do the thing.
 // parse() — legacy string-form changes
 // ---------------------------------------------------------------------------
 
-describe('parse() — legacy path entries', () => {
-  it('emits legacy-path-entry warning for bare string bullets', () => {
+describe('parse() — rejects legacy string path entries', () => {
+  it('throws StoryBodyParseError for bare string bullets in markdown', () => {
     const md = `## Goal\nWire X to Y.\n\n## Changes\n- src/foo.js: extract handler\n\n## Acceptance\n- [ ] it works\n\n## Verify\n- npm test (unit)`;
-    const { body, warnings } = parse(md);
-    assert.equal(body.changes.length, 1);
-    assert.equal(typeof body.changes[0], 'string');
-    assert.ok(
-      warnings.some((w) => w.startsWith('legacy-path-entry')),
-      `expected legacy-path-entry warning, got: ${JSON.stringify(warnings)}`,
-    );
+    assert.throws(() => parse(md), (err) => {
+      assert.ok(err instanceof StoryBodyParseError);
+      assert.match(err.message, /plain string bullets are no longer accepted/);
+      return true;
+    });
   });
 
-  it('includes the string entry in changes even for legacy form', () => {
-    const md = `## Goal\nDo X.\n\n## Changes\n- src/legacy.js: rewrite\n\n## Acceptance\n- [ ] pass\n\n## Verify\n- npm test (unit)`;
-    const { body } = parse(md);
-    assert.equal(body.changes[0], 'src/legacy.js: rewrite');
+  it('throws StoryBodyParseError for string entries in structured object input', () => {
+    const obj = {
+      goal: 'Wire X to Y.',
+      changes: [
+        { path: 'src/foo.js', assumption: 'creates' },
+        'src/bar.js: edit',
+      ],
+      acceptance: ['foo test passes'],
+      verify: ['npm test (unit)'],
+    };
+    assert.throws(() => parse(obj), StoryBodyParseError);
   });
 });
 
 // ---------------------------------------------------------------------------
-// parse() — legacy string body
+// parse() — unstructured body
 // ---------------------------------------------------------------------------
 
-describe('parse() — legacy string body (no sections)', () => {
+describe('parse() — unstructured body (no sections)', () => {
   it('returns minimal body from preamble text', () => {
     const md =
       'Create the shared canonical Story-body parser.\n\n---\nparent: #3225\nEpic: #3211';
     const { body, info, warnings } = parse(md);
     assert.ok(body.goal.length > 0);
-    assert.equal(info.isLegacyStringBody, true);
-    assert.ok(warnings.some((w) => w.startsWith('legacy-string-body')));
+    assert.equal(info.isUnstructuredBody, true);
+    assert.ok(warnings.some((w) => w.startsWith('unstructured-body')));
   });
 
-  it('extracts depends_on from footer even for legacy string body', () => {
+  it('extracts depends_on from footer even for unstructured body', () => {
     const md =
       'Some freeform text.\n\n---\nparent: #3225\nEpic: #3211\nblocked by #100';
     const { body } = parse(md);
@@ -228,7 +233,7 @@ describe('parse() — structured object input', () => {
       goal: 'Wire X to Y.',
       changes: [
         { path: 'src/foo.js', assumption: 'creates' },
-        'src/bar.js: edit',
+        { path: 'src/bar.js', assumption: 'refactors-existing' },
       ],
       acceptance: ['foo test passes'],
       verify: ['npm test (unit)'],
@@ -237,12 +242,11 @@ describe('parse() — structured object input', () => {
     };
     const { body, warnings } = parse(obj);
     assert.equal(body.goal, 'Wire X to Y.');
-    assert.deepEqual(body.changes[0], {
-      path: 'src/foo.js',
-      assumption: 'creates',
-    });
-    assert.equal(typeof body.changes[1], 'string'); // legacy warning
-    assert.ok(warnings.some((w) => w.startsWith('legacy-path-entry')));
+    assert.deepEqual(body.changes, [
+      { path: 'src/foo.js', assumption: 'creates' },
+      { path: 'src/bar.js', assumption: 'refactors-existing' },
+    ]);
+    assert.ok(!warnings.some((w) => w.startsWith('legacy-path-entry')));
     assert.deepEqual(body.wide, {
       reason: 'mechanical sweep across every consumer site',
     });
@@ -530,13 +534,13 @@ g
   });
 
   it('does NOT treat a non_goals-only body as legacy (predicate unchanged)', () => {
-    // isLegacyStringBody keys off goal/changes/acceptance/verify only — a body
+    // isUnstructuredBody keys off goal/changes/acceptance/verify only — a body
     // carrying ONLY a ## Non-Goals section and none of those is still a legacy
     // string body, proving non_goals was not added to the predicate.
     const md = `## Non-Goals
 - nothing structured here`;
     const { info } = parse(md);
-    assert.equal(info.isLegacyStringBody, true);
+    assert.equal(info.isUnstructuredBody, true);
   });
 });
 
@@ -602,7 +606,7 @@ linked report`;
     assert.deepEqual(body.acceptance, ['observable outcome']);
   });
 
-  it('parses a mix of object-form and legacy-string change entries', () => {
+  it('rejects legacy-string change entries in markdown', () => {
     const md = `## Goal
 g
 
@@ -612,15 +616,11 @@ g
 
 ## Acceptance
 - [ ] x`;
-    const { body, warnings } = parse(md);
-    assert.deepEqual(body.changes, [
-      { path: 'src/a.js', assumption: 'creates' },
-      'src/b.js: legacy bullet',
-    ]);
-    assert.ok(
-      warnings.some((w) => w.startsWith('legacy-path-entry:')),
-      'expected a legacy-path-entry warning for the string-form bullet',
-    );
+    assert.throws(() => parse(md), (err) => {
+      assert.ok(err instanceof StoryBodyParseError);
+      assert.match(err.message, /plain string bullets are no longer accepted/);
+      return true;
+    });
   });
 
   it('parses object-form reference entries', () => {
@@ -639,13 +639,13 @@ g
     ]);
   });
 
-  it('returns the legacy-string-body shape when no structured sections exist', () => {
+  it('returns the unstructured-body shape when no structured sections exist', () => {
     const md = `Just a plain prose body with no headings.
 
 ---
 blocked by #42`;
     const { body, info, warnings } = parse(md);
-    assert.equal(info.isLegacyStringBody, true);
+    assert.equal(info.isUnstructuredBody, true);
     assert.equal(body.goal, 'Just a plain prose body with no headings.');
     assert.deepEqual(body.changes, []);
     assert.deepEqual(body.acceptance, []);
@@ -654,7 +654,7 @@ blocked by #42`;
     assert.equal(body.wide, null);
     assert.equal(body.estimated_test_files, null);
     assert.deepEqual(body.depends_on, ['#42']);
-    assert.ok(warnings.some((w) => w.startsWith('legacy-string-body:')));
+    assert.ok(warnings.some((w) => w.startsWith('unstructured-body:')));
   });
 });
 

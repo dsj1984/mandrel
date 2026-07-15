@@ -72,16 +72,17 @@ describe('assembleBodyFromFormValues — round-trips through parse()', () => {
   it('produces a body parse() accepts with all required sections', () => {
     const body = assembleBodyFromFormValues({
       goal: 'Generate issue forms from the body SSOT.',
-      changes: '- .agents/scripts/lib/bootstrap/issue-forms-template.js: add',
+      changes:
+        '- {"path":".agents/scripts/lib/bootstrap/issue-forms-template.js","assumption":"creates"}',
       acceptance: '- forms round-trip through parse()\n- labels auto-apply',
       verify:
         '- npm test -- tests/bootstrap/issue-forms-template.test.js (unit)',
-      references: '- docs/architecture.md',
+      references: '- {"path":"docs/architecture.md","assumption":"exists"}',
       depends_on: '#4226, 4225',
     });
 
     const { body: parsed, info } = parse(body);
-    assert.equal(info.isLegacyStringBody, false);
+    assert.equal(info.isUnstructuredBody, false);
     assert.equal(parsed.goal, 'Generate issue forms from the body SSOT.');
     assert.equal(parsed.acceptance.length, 2);
     assert.equal(parsed.verify.length, 1);
@@ -118,7 +119,7 @@ describe('assembleBodyFromFormValues — round-trips through parse()', () => {
       '- npm test (unit)',
     ].join('\n');
     const { body: parsed, info } = parse(githubStyleBody);
-    assert.equal(info.isLegacyStringBody, false);
+    assert.equal(info.isUnstructuredBody, false);
     assert.equal(parsed.goal, 'Ship the forms.');
     assert.equal(parsed.acceptance.length, 1);
     assert.equal(parsed.verify.length, 1);

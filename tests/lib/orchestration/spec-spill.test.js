@@ -7,7 +7,6 @@ import { describe, it } from 'node:test';
 import {
   assertSpecWithinBudget,
   DEFAULT_SPEC_BODY_TOKEN_BUDGET,
-  spillSpecIfOverBudget,
 } from '../../../.agents/scripts/lib/orchestration/spec-spill.js';
 
 describe('assertSpecWithinBudget — under budget', () => {
@@ -39,26 +38,6 @@ describe('assertSpecWithinBudget — over budget', () => {
           { tokenBudget: 10 },
         ),
       /budget 10/,
-    );
-  });
-});
-
-describe('spillSpecIfOverBudget (compat alias)', () => {
-  it('never spills — returns inline when under budget', () => {
-    const res = spillSpecIfOverBudget({
-      storyId: 's1',
-      spec: 'short',
-    });
-    assert.equal(res.spilled, false);
-    assert.equal(res.docPath, null);
-    assert.equal(res.reference, null);
-  });
-
-  it('throws when over budget (same fail-closed policy)', () => {
-    const bigSpec = 'x'.repeat((DEFAULT_SPEC_BODY_TOKEN_BUDGET + 100) * 4);
-    assert.throws(
-      () => spillSpecIfOverBudget({ storyId: 's1', spec: bigSpec }),
-      /never written to docs/,
     );
   });
 });

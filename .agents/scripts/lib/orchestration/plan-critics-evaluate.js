@@ -36,7 +36,7 @@ function resolveRiskHeuristics(config = {}) {
   if (Array.isArray(config.planning?.riskHeuristics)) {
     return config.planning.riskHeuristics;
   }
-  return config.agentSettings?.planning?.riskHeuristics || [];
+  return [];
 }
 
 /**

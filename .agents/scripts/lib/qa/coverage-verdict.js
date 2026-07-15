@@ -9,8 +9,8 @@
 // `.agents/rules/testing-standards.md` (unit / contract / acceptance) are
 // PRESENT, and which are ABSENT — and why.
 //
-// A scenario that is skipped does not exercise anything — a `@skip` /
-// `@pending` Gherkin tag (or a runner equivalent such as `it.skip` / `xit` /
+// A scenario that is skipped does not exercise anything — a `@skip`
+// Gherkin tag (or a runner equivalent such as `it.skip` / `xit` /
 // `describe.skip`, or a `skipped: true` descriptor field) means the test is
 // inert at run time. This module therefore treats a skipped test as ABSENT
 // for its tier: it never bumps a tier into `present`, because a tier whose
@@ -49,10 +49,10 @@ export const TIERS = Object.freeze(['unit', 'contract', 'acceptance']);
 const PRESENT = 'present';
 const ABSENT = 'absent';
 
-/** True when `value` contains a `@skip` or `@pending` Gherkin-style tag. */
+/** True when `value` contains a `@skip` Gherkin-style tag. */
 function hasSkipTag(value) {
   if (typeof value !== 'string') return false;
-  return /(^|[\s,])@(skip|pending)\b/i.test(value);
+  return /(^|[\s,])@skip\b/i.test(value);
 }
 
 /** True when `value` contains a runner-level skip/pending marker. */
@@ -67,7 +67,7 @@ function hasRunnerSkipMarker(value) {
 /**
  * True when a test descriptor is marked skipped/pending and therefore must
  * NOT count toward its tier. Recognizes:
- *   - a `@skip` / `@pending` tag in a `tags` array or whitespace/comma string,
+ *   - a `@skip` tag in a `tags` array or whitespace/comma string,
  *   - the same tags embedded in a path or descriptor `name`,
  *   - explicit boolean flags (`skipped`, `pending`),
  *   - runner skip markers in a path/name (`it.skip`, `xit`, `xdescribe`,

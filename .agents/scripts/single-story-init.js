@@ -111,11 +111,19 @@ const progress = Logger.createProgress('single-story-init', { stderr: true });
 export function assertDeliverableStory(story, storyId) {
   if (!story.labels.includes(TYPE_LABELS.STORY)) {
     throw new Error(
-      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /deliver or /deliver for Epic-attached work.`,
+      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). ` +
+        'v2 /deliver accepts type::story tickets only.',
     );
   }
   if (story.state === 'closed') {
     throw new Error(`Story #${storyId} is already closed.`);
+  }
+  const body = typeof story.body === 'string' ? story.body : '';
+  if (/\b(?:Epic|Parent):\s*#\d+/i.test(body)) {
+    throw new Error(
+      `Story #${storyId} still declares an Epic/Parent footer. ` +
+        'v2 delivery is Story-only — re-plan as a standalone Story before /deliver.',
+    );
   }
 }
 
@@ -475,9 +483,7 @@ export async function runSingleStoryInit({
   const provider = injectedProvider || createProvider(config);
 
   const baseBranch = config.project?.baseBranch ?? 'main';
-  // The first arg is unused (legacy epicId slot); pass 0 to satisfy the
-  // numeric-validation guard.
-  const storyBranch = getStoryBranch(0, storyId);
+  const storyBranch = getStoryBranch(storyId);
 
   const runtime = resolveRuntime({ config });
   progress(

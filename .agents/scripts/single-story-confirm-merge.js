@@ -142,7 +142,7 @@ export async function runConfirmMerge({
   const config = injectedConfig || resolveConfig({ cwd });
   const provider = injectedProvider || createProvider(config);
   const gh = injectedGh ?? defaultGh;
-  const storyBranch = getStoryBranch(0, storyId);
+  const storyBranch = getStoryBranch(storyId);
 
   progress('INIT', `Confirming merge for standalone Story #${storyId}...`);
 

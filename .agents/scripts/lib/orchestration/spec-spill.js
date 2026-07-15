@@ -58,27 +58,3 @@ export function assertSpecWithinBudget({ storyId, spec }, opts = {}) {
       `the single executable document. Specs are never written to docs/.`,
   );
 }
-
-/**
- * @deprecated Use {@link assertSpecWithinBudget}. Kept as a thin alias so
- * older call sites fail closed the same way (no file writes).
- *
- * @param {object} args
- * @param {string} args.storyId
- * @param {string} args.spec
- * @param {object} [opts]
- * @returns {{ spilled: false, estimatedTokens: number, content: string, docPath: null, reference: null }}
- */
-export function spillSpecIfOverBudget({ storyId, spec }, opts = {}) {
-  const { estimatedTokens, content } = assertSpecWithinBudget(
-    { storyId, spec },
-    opts,
-  );
-  return {
-    spilled: false,
-    estimatedTokens,
-    content,
-    docPath: null,
-    reference: null,
-  };
-}

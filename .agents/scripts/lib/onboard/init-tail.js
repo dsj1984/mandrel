@@ -37,7 +37,7 @@ import { STUB_MARKER, scaffoldDocs } from './scaffold-docs.js';
  */
 export const PLAN_HANDOFF_TEXT =
   '\n✅  Mandrel is ready. Start your first project:\n\n' +
-  '    /plan --idea "<one-line description of what you want to build>"\n';
+  '    /plan --seed "<one-line description of what you want to build>"\n';
 
 // ---------------------------------------------------------------------------
 // Internal helpers

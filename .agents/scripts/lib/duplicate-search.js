@@ -250,38 +250,6 @@ export async function findSimilarOpenStories({
   });
 }
 
-/**
- * @deprecated Use {@link findSimilarOpenStories}. Kept as a thin alias so
- * older test fixtures that still call the Epic-era name keep working
- * during the cutover; scoring now searches open Stories, not Epics.
- *
- * @param {{
- *   onePager: string,
- *   provider: import('./ITicketingProvider.js').ITicketingProvider,
- *   minScore?: number,
- *   maxResults?: number,
- *   owner?: string,
- *   repo?: string,
- * }} args
- */
-export async function findSimilarOpenEpics({
-  onePager,
-  provider,
-  minScore = DEFAULT_MIN_SCORE,
-  maxResults = DEFAULT_MAX_RESULTS,
-  owner,
-  repo,
-}) {
-  return findSimilarOpenStories({
-    seed: onePager,
-    provider,
-    minScore,
-    maxResults,
-    owner,
-    repo,
-  });
-}
-
 export const __test = {
   STOPWORDS,
   DEFAULT_MIN_SCORE,

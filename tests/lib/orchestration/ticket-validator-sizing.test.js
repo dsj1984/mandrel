@@ -28,7 +28,7 @@ function makeStory(slug = 's-sizing', body) {
   const structured = {
     goal: `Goal for ${slug}.`,
     reason_to_exist: `Single coherent reason ${slug} exists.`,
-    changes: ['src/a.js: edit'],
+    changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
     ...body,
@@ -43,8 +43,11 @@ function makeStory(slug = 's-sizing', body) {
   };
 }
 
-function changes(n, verb = 'edit') {
-  return Array.from({ length: n }, (_, i) => `src/file${i}.js: ${verb}`);
+function changes(n, assumption = 'refactors-existing') {
+  return Array.from({ length: n }, (_, i) => ({
+    path: `src/file${i}.js`,
+    assumption,
+  }));
 }
 
 const SIBLING_FILLER = Object.freeze({
@@ -56,7 +59,7 @@ const SIBLING_FILLER = Object.freeze({
   body: {
     goal: 'Filler sibling so the Feature has two Stories.',
     reason_to_exist: 'Benign filler sibling so the Feature has two Stories.',
-    changes: ['src/_sizing-filler.js: edit'],
+    changes: [{ path: 'src/_sizing-filler.js', assumption: 'refactors-existing' }],
     acceptance: ['filler observable criterion'],
     verify: ['npm test (unit)'],
   },
@@ -125,7 +128,7 @@ test('estimateStorySessionMass is authored tokens only', () => {
 test('narrow Story with no wide declaration produces no capacity findings', () => {
   const result = validateStory(
     makeStory('t-narrow', {
-      changes: ['src/a.js: edit', 'src/b.js: edit', 'src/c.js: edit'],
+      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }, { path: 'src/b.js', assumption: 'refactors-existing' }, { path: 'src/c.js', assumption: 'refactors-existing' }],
       acceptance: ['criterion 1', 'criterion 2'],
     }),
   );
@@ -149,7 +152,7 @@ test('many acceptance criteria alone never soft-nudge or hard-reject', () => {
   // Authored AC text for 50 short criteria is far below the 30k soft ceiling.
   const result = validateStory(
     makeStory('t-50ac', {
-      changes: ['src/a.js: edit'],
+      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
       acceptance: Array.from({ length: 50 }, (_, i) => `criterion ${i}`),
     }),
   );
@@ -245,7 +248,7 @@ test('a wide declaration with an empty reason does NOT lift the hard ceiling', (
 test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
   const result = validateStory(
     makeStory('t-glob-no-wide', {
-      changes: ['**/*.ts: update imports'],
+      changes: [{ path: '**/*.ts', assumption: 'refactors-existing' }],
     }),
   );
   const hard = result.findings.filter((f) => f.severity === 'hard');
@@ -258,7 +261,7 @@ test('glob entry with no wide declaration emits wide-undeclared (soft)', () => {
 test('glob entry WITH a wide declaration produces no wide-undeclared finding', () => {
   const result = validateStory(
     makeStory('t-glob-wide', {
-      changes: ['**/*.ts: update imports'],
+      changes: [{ path: '**/*.ts', assumption: 'refactors-existing' }],
       wide: { reason: 'mechanical sweep: rename across every consumer site' },
     }),
   );
@@ -272,7 +275,10 @@ test('glob entry WITH a wide declaration produces no wide-undeclared finding', (
 test('many glob paths alone do not trip hard (authored mass stays small)', () => {
   const result = validateStory(
     makeStory('t-glob-many', {
-      changes: Array.from({ length: 100 }, (_, i) => `src/**/${i}.ts: edit`),
+      changes: Array.from({ length: 100 }, (_, i) => ({
+        path: `src/**/${i}.ts`,
+        assumption: 'refactors-existing',
+      })),
       wide: { reason: 'sweep' },
     }),
   );
@@ -292,7 +298,7 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
           type: 'story',
           slug: 's-no-contract',
           title: 'Story without inline contract',
-          body: { goal: 'Goal.', changes: ['src/a.js: edit'] },
+          body: { goal: 'Goal.', changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }] },
         },
         SIBLING_FILLER,
       ]),
@@ -308,7 +314,7 @@ function makeStringStory(slug, body = {}) {
   const structured = {
     goal: `Goal for ${slug}.`,
     reason_to_exist: `Single coherent reason ${slug} exists.`,
-    changes: ['src/a.js: edit'],
+    changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
     acceptance: ['observable criterion'],
     verify: ['npm test (unit)'],
     ...body,
@@ -377,7 +383,7 @@ test('session mass reads the authoritative top-level story.acceptance', () => {
     body: {
       goal: 'Goal.',
       reason_to_exist: 'Top-level acceptance drives session mass.',
-      changes: ['src/a.js: edit'],
+      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
       acceptance: ['only two', 'criteria'],
       verify: ['npm test (unit)'],
     },
@@ -392,7 +398,7 @@ test('session mass reads the authoritative top-level story.acceptance', () => {
 
 test('fires on a tiny chained Story (soft, never in errors[])', () => {
   const story = makeStory('t-merge-fires', {
-    changes: ['src/a.js: edit'],
+    changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
     acceptance: ['criterion 1'],
   });
   story.depends_on = ['s-sizing-filler'];
@@ -412,7 +418,7 @@ test('fires on a tiny chained Story (soft, never in errors[])', () => {
 
 test('the rendered advisory names the depended-on sibling and recommends merging', () => {
   const story = makeStory('t-merge-message', {
-    changes: ['src/a.js: edit'],
+    changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
     acceptance: ['criterion 1'],
   });
   story.depends_on = ['s-sizing-filler'];
@@ -427,7 +433,7 @@ test('the rendered advisory names the depended-on sibling and recommends merging
 test('silent on a tiny ORPHAN Story (no depends_on edge)', () => {
   const result = validateStory(
     makeStory('t-merge-orphan', {
-      changes: ['src/a.js: edit'],
+      changes: [{ path: 'src/a.js', assumption: 'refactors-existing' }],
       acceptance: ['criterion 1'],
     }),
   );
@@ -483,7 +489,7 @@ test('respects a programmatic capacity threshold override', () => {
 
 test('silent on a chained Story that carries a glob change (unknown width)', () => {
   const story = makeStory('t-merge-glob', {
-    changes: ['**/*.ts: update imports'],
+    changes: [{ path: '**/*.ts', assumption: 'refactors-existing' }],
     acceptance: ['criterion 1'],
   });
   story.depends_on = ['s-sizing-filler'];

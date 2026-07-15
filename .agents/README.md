@@ -668,16 +668,11 @@ Schema conventions:
 
 `runCodeReview()` (invoked from `helpers/deliver-story` and `/deliver`'s
 risk-routed ceremony) loads its review backend through a pluggable registry.
-Two configuration shapes are supported:
-
-- **Legacy single provider** — `delivery.codeReview.provider: "native"`
-  (default), `"codex"`, or `"security-review"`. Returns one adapter; one
-  set of findings; one structured comment.
-- **Provider chain** (Story #2871) — `delivery.codeReview.providers: []`
-  iterates a declared list of entries, merges every inline adapter's
-  `Finding[]` in declaration order, and appends a non-blocking
-  "Manual Review Suggestions" section for any manual-prompt entries
-  that contributed text. When both fields are set, `providers` wins.
+Configure a provider chain via `delivery.codeReview.providers` — an array
+of entries iterated in declaration order. Inline adapters merge their
+`Finding[]`; manual-prompt entries append a non-blocking
+"Manual Review Suggestions" section. When `providers` is unset or empty,
+the factory defaults to `[{ name: "native" }]`.
 
 ```json
 {

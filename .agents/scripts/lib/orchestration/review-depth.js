@@ -85,9 +85,7 @@ export function resolveDepth(input = {}) {
       : null;
 
   const override =
-    input && typeof input === 'object'
-      ? (input.diffWidth ?? input.sizing ?? {})
-      : {};
+    input && typeof input === 'object' ? (input.diffWidth ?? {}) : {};
   const mergedWidth = {
     ...DEFAULT_DIFF_WIDTH,
     ...override,

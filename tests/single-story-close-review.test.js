@@ -120,7 +120,7 @@ function fakeConfig() {
   return {
     agentSettings: { baseBranch: 'main', commands: {} },
     project: { baseBranch: 'main' },
-    delivery: { codeReview: { provider: 'native' } },
+    delivery: { codeReview: { providers: [{ name: 'native' }] } },
     orchestration: {
       worktreeIsolation: {
         enabled: true,
@@ -134,7 +134,7 @@ function fakeConfig() {
 function gitUtilsMock() {
   return {
     namedExports: {
-      getStoryBranch: (_e, s) => `story-${Number(s)}`,
+      getStoryBranch: (s) => `story-${Number(s)}`,
       gitSync: () => ({ status: 0, stdout: '', stderr: '' }),
       // refs #3685 — single-story-close reaches base-sync / changed-files
       // through the lazily-imported runner, i.e. only after this mock is

@@ -14,15 +14,9 @@
  *
  *   --seed-file <path>        Same as --seed, but the corpus is read from
  *                             disk (audit-to-stories handoff, notes).
- *                             Aliases: --one-pager, --from-notes.
  *
  *   --tickets 123[,456…]      Analyze existing issue(s) into proper
  *                             Stories. Envelope carries `sourceTickets[]`.
- *
- * Deprecated aliases (still accepted):
- *   --idea "<text>"           → --seed
- *   --one-pager <path>        → --seed-file
- *   --from-notes <path>       → --seed-file
  *
  * Flags:
  *   --pretty         Pretty-print the JSON envelope.
@@ -84,8 +78,8 @@ export function parseTicketIds(raw) {
  */
 export async function emitPlanContext({
   mode,
-  onePagerPath,
-  onePagerContent,
+  seedFilePath,
+  seedFileContent,
   seedText,
   ticketIds,
   provider,
@@ -98,8 +92,8 @@ export async function emitPlanContext({
 }) {
   const envelope = await buildPlanContext({
     mode,
-    onePagerPath,
-    onePagerContent,
+    seedFilePath,
+    seedFileContent,
     seedText,
     ticketIds,
     provider,
@@ -119,10 +113,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       seed: { type: 'string' },
-      idea: { type: 'string' },
       'seed-file': { type: 'string' },
-      'one-pager': { type: 'string' },
-      'from-notes': { type: 'string' },
       tickets: { type: 'string' },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -130,9 +121,8 @@ async function main() {
     strict: true,
   });
 
-  const seedText = values.seed || values.idea || null;
-  const seedFilePath =
-    values['seed-file'] || values['one-pager'] || values['from-notes'] || null;
+  const seedText = values.seed || null;
+  const seedFilePath = values['seed-file'] || null;
   const hasSeed = typeof seedText === 'string' && seedText.length > 0;
   const hasSeedFile =
     typeof seedFilePath === 'string' && seedFilePath.length > 0;
@@ -141,8 +131,7 @@ async function main() {
   const entryForms = [hasSeed, hasSeedFile, hasTickets].filter(Boolean).length;
   if (entryForms !== 1) {
     throw new Error(
-      'Pass exactly one of --seed "<text>", --seed-file <path>, or --tickets <ids>. ' +
-        '(Aliases: --idea → --seed; --one-pager / --from-notes → --seed-file.)',
+      'Pass exactly one of --seed "<text>", --seed-file <path>, or --tickets <ids>.',
     );
   }
 
@@ -152,12 +141,7 @@ async function main() {
     mode = 'tickets';
     ticketIds = parseTicketIds(values.tickets);
   } else if (hasSeedFile) {
-    // Preserve legacy mode label when the operator used --one-pager so
-    // existing envelope consumers / tests keep working.
-    mode =
-      values['one-pager'] && !values['seed-file'] && !values['from-notes']
-        ? 'one-pager'
-        : 'seed-file';
+    mode = 'seed-file';
   } else {
     mode = 'seed';
   }
@@ -196,7 +180,7 @@ async function main() {
     () =>
       emitPlanContext({
         mode,
-        onePagerPath: hasSeedFile ? seedFilePath : undefined,
+        seedFilePath: hasSeedFile ? seedFilePath : undefined,
         seedText: hasSeed ? seedText : undefined,
         ticketIds,
         provider,

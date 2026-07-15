@@ -13,7 +13,6 @@
  *
  * Contract
  * --------
- *   parseStandardCliArgs(argv, schema?) → { values, positionals }
  *   parseStandardCliArgs({ argv, schema?, extras? }) → { values, positionals }
  *
  *   - `argv`    — `process.argv.slice(2)` shape; the helper does NOT strip
@@ -99,24 +98,20 @@ function camelCase(name) {
 }
 
 /**
- * Normalize the call signature. Accepts either positional
- * `(argv, schema)` (backward compat) or the object form
- * `({ argv, schema, extras })`.
+ * Validate the call signature. Only the object form
+ * `({ argv, schema, extras })` is accepted.
  *
- * @param {unknown} argvOrOpts
- * @param {unknown} maybeSchema
+ * @param {unknown} opts
  * @returns {{ argv: string[], schema: object | undefined, extras: object | undefined }}
  */
-function normaliseCallSignature(argvOrOpts, maybeSchema) {
-  if (
-    argvOrOpts !== null &&
-    typeof argvOrOpts === 'object' &&
-    !Array.isArray(argvOrOpts)
-  ) {
-    const { argv, schema, extras } = argvOrOpts;
-    return { argv: argv ?? [], schema, extras };
+function normaliseCallSignature(opts) {
+  if (opts === null || typeof opts !== 'object' || Array.isArray(opts)) {
+    throw new Error(
+      'parseStandardCliArgs: options must be a plain object ({ argv, schema?, extras? })',
+    );
   }
-  return { argv: argvOrOpts ?? [], schema: maybeSchema, extras: undefined };
+  const { argv, schema, extras } = opts;
+  return { argv: argv ?? [], schema, extras };
 }
 
 /**
@@ -313,15 +308,11 @@ function normaliseValues(raw, extras) {
  * Parse the dispatcher's shared CLI flag surface. See module docstring
  * for the full contract.
  *
- * @param {string[]|{argv?: string[], schema?: object, extras?: object}} argvOrOpts
- * @param {Record<string, { required?: boolean }>} [maybeSchema]
+ * @param {{ argv?: string[], schema?: object, extras?: object }} [opts]
  * @returns {{ values: Record<string, unknown>, positionals: string[] }}
  */
-export function parseStandardCliArgs(argvOrOpts = [], maybeSchema) {
-  const { argv, schema, extras } = normaliseCallSignature(
-    argvOrOpts,
-    maybeSchema,
-  );
+export function parseStandardCliArgs(opts = {}) {
+  const { argv, schema, extras } = normaliseCallSignature(opts);
   if (!Array.isArray(argv)) {
     throw new Error('parseStandardCliArgs: argv must be an array');
   }

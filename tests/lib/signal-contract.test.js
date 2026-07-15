@@ -265,7 +265,7 @@ describe('signal contract — round-trips through live consumers', () => {
       { category: 'one-off', source: 'consumer' },
     ];
     const routed = composeRoutedProposals({
-      epicId: 4406,
+      anchorId: 4406,
       frameworkRepo: 'dsj1984/mandrel',
       consumerRepo: 'acme/app',
       signals,

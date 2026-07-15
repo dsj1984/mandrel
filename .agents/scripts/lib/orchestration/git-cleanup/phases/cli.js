@@ -26,7 +26,7 @@ function resolveBaseBranch(cwd, override) {
   if (override) return override;
   try {
     const cfg = resolveConfig({ cwd });
-    return cfg?.project?.baseBranch || cfg?.agentSettings?.baseBranch || 'main';
+    return cfg?.project?.baseBranch || 'main';
   } catch {
     return 'main';
   }

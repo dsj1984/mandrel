@@ -143,15 +143,10 @@ export const CODE_REVIEW_SCHEMA = {
     // hatch reserved for adapter-specific options.
     //
     // Story #2871 added `security-review` to the inline registry plus
-    // a multi-provider `providers: []` chain shape. When `providers` is
-    // set and non-empty, it wins over the legacy single-string
-    // `provider` field. Chain entries can also reference the
-    // `ultrareview` manual-prompt provider via `manualPrompt: true`.
-    provider: {
-      type: 'string',
-      enum: ['native', 'codex', 'security-review'],
-      default: 'native',
-    },
+    // the `providers: []` chain shape. Chain entries can also reference
+    // the `ultrareview` manual-prompt provider via `manualPrompt: true`.
+    // When `providers` is unset or empty, the factory defaults to
+    // `[{ name: 'native' }]`.
     providers: {
       type: 'array',
       items: {

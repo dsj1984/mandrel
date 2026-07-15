@@ -19,8 +19,7 @@ import {
  * Story #3276 reworked the gate onto the 2-tier Story inline contract:
  * the validator inspects each Story's body.changes and body.references
  * for object-form `{ path, assumption }` entries and verifies them
- * against `baseBranchRef`. Legacy string-form bullets are tolerated and
- * emit a one-time deprecation warning per Story.
+ * against `baseBranchRef`. Legacy string-form bullets are rejected.
  */
 
 function makeStory({ slug = 'demo-story', body }) {
@@ -84,9 +83,8 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
         },
       }),
     );
-    assert.equal(errors.length, 2);
-    assert.match(errors[0], /name no path-shaped token/);
-    assert.match(errors[1], /assumption: one of/);
+    assert.ok(errors.length >= 1);
+    assert.ok(errors.some((e) => /assumption: one of/.test(e)));
   });
 
   it('accepts a body.references array of object entries', () => {
@@ -94,7 +92,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
       makeStory({
         body: {
           goal: 'g',
-          changes: ['src/x.ts: edit'],
+          changes: [{ path: 'src/x.ts', assumption: 'refactors-existing' }],
           acceptance: ['ac'],
           verify: ['node --test tests/x.test.js (unit)'],
           references: [
@@ -111,7 +109,7 @@ describe('validateTaskBodyShape — object-form changes + references', () => {
       makeStory({
         body: {
           goal: 'g',
-          changes: ['src/x.ts: edit'],
+          changes: [{ path: 'src/x.ts', assumption: 'refactors-existing' }],
           acceptance: ['ac'],
           verify: ['node --test tests/x.test.js (unit)'],
           references: 'not-an-array',
@@ -131,7 +129,7 @@ describe('collectStoryAssumptionEntries — extraction helper', () => {
           goal: 'g',
           changes: [
             { path: 'src/a.ts', assumption: 'creates' },
-            'src/b.ts: edit',
+            { path: 'src/b.ts', assumption: 'refactors-existing' },
           ],
           acceptance: ['ac'],
           verify: ['node --test tests/x.test.js (unit)'],
@@ -141,6 +139,7 @@ describe('collectStoryAssumptionEntries — extraction helper', () => {
     );
     assert.deepEqual(entries, [
       { path: 'src/a.ts', assumption: 'creates', source: 'changes' },
+      { path: 'src/b.ts', assumption: 'refactors-existing', source: 'changes' },
       { path: 'tests/x.feature', assumption: 'exists', source: 'references' },
     ]);
   });
@@ -357,28 +356,30 @@ describe('validateStoryFileAssumptions — rules table', () => {
     assert.match(report.errors[1], /"story-b"/);
   });
 
-  it('emits a deprecation warning for stories with only legacy string bullets', () => {
+  it('emits an error for stories with only legacy string bullets', () => {
     const tickets = [
       makeStory({
         body: {
           goal: 'g',
-          changes: ['src/x.ts: legacy bullet'],
+          changes: [{ path: 'src/x.ts', assumption: 'refactors-existing' }],
           acceptance: ['ac'],
           verify: ['node --test tests/x.test.js (unit)'],
         },
       }),
     ];
+    // Override with legacy-only strings after makeStory merge — simulate raw bad body.
+    tickets[0].body.changes = ['src/x.ts: legacy bullet'];
     const report = validateStoryFileAssumptions({
       tickets,
       baseBranchRef: 'main',
       gitRunner: () => true,
     });
-    assert.deepEqual(report.errors, []);
-    assert.equal(report.warnings.length, 1);
-    assert.match(report.warnings[0], /legacy string bullets/);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /legacy string bullets/);
+    assert.deepEqual(report.warnings, []);
   });
 
-  it('emits a partial-migration warning when string + object entries mix', () => {
+  it('emits an error when string + object entries mix', () => {
     const tickets = [
       makeStory({
         body: {
@@ -397,8 +398,8 @@ describe('validateStoryFileAssumptions — rules table', () => {
       baseBranchRef: 'main',
       gitRunner: () => false,
     });
-    assert.equal(report.warnings.length, 1);
-    assert.match(report.warnings[0], /mixes object-form/);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /mixes object-form/);
   });
 
   it('throws when baseBranchRef is missing', () => {

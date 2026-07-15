@@ -1,13 +1,8 @@
 /**
- * .agents/scripts/update-ticket-state.js — CLI Re-export Shim
- *
- * Thin backward-compatibility shim. The core logic has been moved to
- * `lib/orchestration/ticketing.js` as part of the SDK refactor.
- *
- * This file preserves backward compatibility for CLI usage and existing
- * testing patterns.
- *
- * Successor to the retired mandrel MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
+ * .agents/scripts/update-ticket-state.js — CLI entrypoint for ticket
+ * label transitions. Core logic lives in `lib/orchestration/ticketing.js`;
+ * this file is the operator-facing command surface (not a compatibility
+ * layer).
  */
 
 import { parseArgs } from 'node:util';
@@ -33,7 +28,6 @@ if (
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
-      task: { type: 'string' },
       ticket: { type: 'string' },
       state: { type: 'string' },
       'remove-label': { type: 'string' },
@@ -43,17 +37,14 @@ if (
     strict: false,
   });
 
-  // `--ticket` is the v5.9.0 alias for `--task` (labels can apply to any
-  // ticket type, not just Tasks). Both continue to work.
-  const idSource = values.ticket ?? values.task;
-  const ticketId = Number.parseInt(idSource, 10);
+  const ticketId = Number.parseInt(values.ticket, 10);
   const state = values.state;
   const removeLabel = values['remove-label'];
 
   if (Number.isNaN(ticketId) || (!state && !removeLabel)) {
     throw new Error(
       'Usage: node update-ticket-state.js ' +
-        '(--ticket|--task) <id> ' +
+        '--ticket <id> ' +
         '[--state <state> | --remove-label <label>]',
     );
   }

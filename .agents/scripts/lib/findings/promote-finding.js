@@ -6,7 +6,7 @@
  * session's ledger items (see `.agents/schemas/qa-ledger.schema.json` and
  * `lib/qa/qa-session.js`), the still-untriaged backlog is clustered and each
  * cluster is promoted to a follow-up ticket — a single Story (via `/plan`)
- * for a tight, one-deliverable cluster, or an Epic (via `/plan --idea`) for
+ * for a tight, one-deliverable cluster, or an Epic (via `/plan --seed`) for
  * a broad cluster that spans multiple coverage surfaces. Each contributing
  * ledger item then has the resulting `routedTo` issue link written back onto it
  * so a resume run sees the item as filed rather than re-promoting it.
@@ -40,7 +40,7 @@ export const PROMOTION_TARGETS = Object.freeze({
 
 /**
  * A cluster of more than this many distinct coverage surfaces is broad enough
- * to warrant an Epic (`/plan --idea`) rather than a single Story
+ * to warrant an Epic (`/plan --seed`) rather than a single Story
  * (`/plan`). One or two surfaces is a tight, single-deliverable cluster.
  */
 const EPIC_COVERAGE_THRESHOLD = 2;
@@ -159,7 +159,7 @@ export function clusterLedgerItems(items) {
 /**
  * Decide a cluster's promotion target. A cluster that spans more than
  * {@link EPIC_COVERAGE_THRESHOLD} distinct coverage surfaces is broad enough to
- * warrant an Epic (`/plan --idea`); otherwise it is a single-deliverable
+ * warrant an Epic (`/plan --seed`); otherwise it is a single-deliverable
  * Story (`/plan`).
  *
  * @param {{ coverages: string[] }} cluster
@@ -233,7 +233,7 @@ function routedToLink(issue, kind) {
  *      shared `routeFinding` against existing Issues (via the injected search
  *      port). This dedups against work already filed.
  *   2. On a `new` decision, open the follow-up ticket through the injected
- *      `createStory` (`/plan`) or `createEpic` (`/plan --idea`) port,
+ *      `createStory` (`/plan`) or `createEpic` (`/plan --seed`) port,
  *      chosen by {@link targetForCluster}. On any other decision, link back to
  *      the matched Issue rather than creating a duplicate.
  *   3. Stamp the resolved `routedTo` link onto every contributing ledger item
@@ -252,7 +252,7 @@ function routedToLink(issue, kind) {
  * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createStory
  *   Opens a single Story (`/plan`) for a tight cluster.
  * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createEpic
- *   Opens an Epic (`/plan --idea`) for a broad cluster.
+ *   Opens an Epic (`/plan --seed`) for a broad cluster.
  * @returns {Promise<{
  *   promotions: Array<{
  *     clusterKey: string,

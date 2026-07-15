@@ -2,7 +2,7 @@
  * planning-corpus.js — corpus-aware context for the standalone-Story
  * planning path (Story #4432).
  *
- * `/plan --idea` previously drafted a standalone Story from a blank
+ * `/plan --seed` previously drafted a standalone Story from a blank
  * slate: the seed, the body template, and a title-only duplicate scan.
  * For a change request that is really a small delta against an
  * already-delivered surface, that blank slate throws away context the

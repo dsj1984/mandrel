@@ -52,14 +52,12 @@ const WINDOWS_CWD_RE =
  * proves the Story branch was integrated even though the current HEAD
  * has diverged, so the worktree is still safe to reap.
  *
- * `opts.epicRef` is the canonical option name (e.g. `epic/1114`).
- * `opts.epicBranch` is accepted as a back-compat alias so existing call
- * sites that thread `{ epicBranch }` through `reap()` keep working until
- * they migrate.
+ * `opts.epicBranch` is the integration / base ref the Story must already
+ * be merged into (e.g. `main` or a plan-run branch).
  *
  * @param {object} ctx
  * @param {string} wtPath
- * @param {{ epicRef?: string|null, epicBranch?: string|null }} [opts]
+ * @param {{ epicBranch?: string|null }} [opts]
  * @returns {Promise<{ safe: boolean, reason?: string }>}
  */
 export async function isSafeToRemove(ctx, wtPath, opts = {}) {
@@ -67,7 +65,7 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
   if (!local.safe) return local;
   if (local.reason === 'path-missing') return local;
 
-  const epicRef = opts.epicRef ?? opts.epicBranch ?? null;
+  const epicRef = opts.epicBranch ?? null;
   if (!epicRef) return { safe: true };
 
   return checkMergeReachability(ctx, wtPath, local.branch, epicRef);
@@ -483,7 +481,7 @@ function checkReapPreconditions(ctx, _storyId, opts, wtPath) {
 
 async function ensureSafeOrForceDiscard(ctx, storyId, wtPath, opts) {
   const safety = await isSafeToRemove(ctx, wtPath, {
-    epicRef: opts.epicBranch ?? opts.epicRef ?? null,
+    epicBranch: opts.epicBranch ?? null,
   });
   if (safety.safe) return { ok: true, discardedPaths: null };
 

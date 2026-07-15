@@ -735,13 +735,13 @@ Several schema-declared `delivery.*` blocks tune the runner without
 changing its shape (full per-field reference:
 [`.agents/docs/configuration.md`](../.agents/docs/configuration.md)):
 
-- **`delivery.codeReview.providers` / `provider` / `providerConfig`** —
-  pluggable review backend for Phase 5. The legacy single-string
-  `provider` selects one of `native` / `codex` / `security-review`; the
-  `providers: []` chain shape (which wins when non-empty) sequences
-  multiple providers with per-entry scopes, label conditions, and the
-  `ultrareview` manual-prompt entry. `providerConfig` is an open-shape
-  escape hatch for adapter-specific options. Tune when you want an
+- **`delivery.codeReview.providers` / `providerConfig`** —
+  pluggable review backend for Phase 5. `providers: []` sequences one or
+  more of `native` / `codex` / `security-review` (plus optional
+  `ultrareview` manual-prompt entries) with per-entry scopes and label
+  conditions; unset/empty defaults to `[{ name: "native" }]`.
+  `providerConfig` is an open-shape escape hatch for adapter-specific
+  options. Tune when you want an
   external or layered review chain instead of the native single pass.
 - **`delivery.mergeWatch.{intervalSeconds,maxBudgetSeconds}`** — poll
   cadence and total wall-clock budget for the `MergeWatcher` lifecycle

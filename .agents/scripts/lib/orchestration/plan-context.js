@@ -7,12 +7,10 @@
  *
  * Two operator modes (v2 Story-only):
  *   - `seed` / `seed-file` — freeform text (chat or on-disk). Carries
- *     `seed` / `onePager` plus `duplicates[]` (open-Story dup search).
+ *     `seed` plus `duplicates[]` (open-Story dup search).
  *   - `tickets` — one or more existing issue ids to analyze into proper
  *     Stories. Carries `sourceTickets[]` plus `duplicates[]` (excluding
  *     the source ids themselves).
- *
- * Internal mode aliases: `one-pager` ≡ `seed-file` (legacy CLI name).
  *
  * All fields are JSON-serialisable; the module performs no GitHub writes.
  * The only I/O surfaces are the injected `provider` (reads) and the
@@ -100,7 +98,7 @@ export const ONE_PAGER_AUTHORING_SPEC = Object.freeze({
 /**
  * Count top-level enumerated items (`- `, `* `, `1. `) anywhere in a
  * free-form seed text. Unlike {@link countScopeItems} this does not require
- * a scope-shaped heading — a raw `--idea` seed rarely has one.
+ * a scope-shaped heading — a raw `--seed` text rarely has one.
  *
  * @param {string} text
  * @returns {number}
@@ -121,7 +119,7 @@ const DELTA_VERB_RE =
   /\b(fix(?:es)?|tweak(?:s)?|extend(?:s)?|update(?:s)?|adjust(?:s)?|rename(?:s)?|correct(?:s)?|patch(?:es)?|bug|regression|flaky)\b/i;
 
 /**
- * Deterministic, CLI-applied scope-triage verdict over a raw `--idea` seed
+ * Deterministic, CLI-applied scope-triage verdict over a raw `--seed` text
  * (#4496 fix 6). Embedding the verdict in the `--seed` envelope removes the
  * two skill Reads (`core/scope-triage` + the gate fragment's rubric pass)
  * from the headless path; the attended path keeps the skill-based judgment.
@@ -206,7 +204,7 @@ function resolveRiskHeuristics(config = {}) {
   if (Array.isArray(config.planning?.riskHeuristics)) {
     return config.planning.riskHeuristics;
   }
-  return config.agentSettings?.planning?.riskHeuristics || [];
+  return [];
 }
 
 /**
@@ -388,14 +386,14 @@ async function searchStoryDuplicates({
 }
 
 /**
- * Build the seed-file / one-pager (ideation) envelope. No parent ticket
+ * Build the seed-file (ideation) envelope. No parent ticket
  * exists yet — creation moves to the persist half — so the open-Story
  * dup search is the mode's gating input. `docsContext` is inline-digest:
  * there is no plan temp directory to anchor a digest file to yet.
  */
-async function buildOnePagerModeEnvelope({
-  onePagerPath,
-  onePagerContent,
+async function buildSeedFileModeEnvelope({
+  seedFilePath,
+  seedFileContent,
   provider,
   config,
   settings,
@@ -404,10 +402,10 @@ async function buildOnePagerModeEnvelope({
   modeLabel = 'seed-file',
 }) {
   const content =
-    onePagerContent ?? (await readFile(onePagerPath ?? '', 'utf-8'));
+    seedFileContent ?? (await readFile(seedFilePath ?? '', 'utf-8'));
   if (typeof content !== 'string' || content.trim().length === 0) {
     throw new Error(
-      `[plan-context] seed-file at ${onePagerPath ?? '(inline)'} is empty — nothing to plan from.`,
+      `[plan-context] seed-file at ${seedFilePath ?? '(inline)'} is empty — nothing to plan from.`,
     );
   }
 
@@ -426,7 +424,7 @@ async function buildOnePagerModeEnvelope({
     /* provider (unused behind the prefetch seam) */ {},
     { ...settings, docsContextFiles: [] },
     {
-      epic: { id: 0, title: onePagerPath ?? 'seed', body: content },
+      epic: { id: 0, title: seedFilePath ?? 'seed', body: content },
       fullContext,
       github: config.github ?? null,
       cwd,
@@ -446,14 +444,9 @@ async function buildOnePagerModeEnvelope({
   const limits = getLimits(config);
   const heuristics = resolveRiskHeuristics(config);
 
-  // Keep `onePager` on the envelope for backward-compatible authoring
-  // consumers; `mode` reports the canonical v2 name (`seed-file`).
-  // Legacy callers that still pass mode `one-pager` get that label back.
-  // Do NOT also embed the full content under `seed` here — that would
-  // double a budget-capped corpus in the serialized envelope.
   return {
     mode: modeLabel,
-    onePager: { path: onePagerPath ?? null, content },
+    seed: { path: seedFilePath ?? null, content },
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
@@ -495,9 +488,9 @@ async function buildSeedModeEnvelope({
       '[plan-context] --seed requires non-empty seed text — nothing to plan from.',
     );
   }
-  const base = await buildOnePagerModeEnvelope({
-    onePagerPath: undefined,
-    onePagerContent: seedText,
+  const base = await buildSeedFileModeEnvelope({
+    seedFilePath: undefined,
+    seedFileContent: seedText,
     provider,
     config,
     settings,
@@ -505,7 +498,7 @@ async function buildSeedModeEnvelope({
     cwd,
     modeLabel: 'seed',
   });
-  const { onePager: _onePager, ...rest } = base;
+  const { seed: _seed, ...rest } = base;
   return {
     ...rest,
     mode: 'seed',
@@ -642,9 +635,9 @@ async function buildTicketsModeEnvelope({
  * Build the single planner-context envelope.
  *
  * @param {{
- *   mode: 'one-pager'|'seed-file'|'seed'|'tickets',
- *   onePagerPath?: string,
- *   onePagerContent?: string,
+ *   mode: 'seed-file'|'seed'|'tickets',
+ *   seedFilePath?: string,
+ *   seedFileContent?: string,
  *   seedText?: string,
  *   ticketIds?: number[],
  *   provider: object,
@@ -656,8 +649,8 @@ async function buildTicketsModeEnvelope({
  */
 export async function buildPlanContext({
   mode,
-  onePagerPath,
-  onePagerContent,
+  seedFilePath,
+  seedFileContent,
   seedText,
   ticketIds,
   provider,
@@ -666,22 +659,21 @@ export async function buildPlanContext({
   fullContext = false,
   cwd,
 }) {
-  if (mode === 'one-pager' || mode === 'seed-file') {
-    if (!onePagerPath && typeof onePagerContent !== 'string') {
+  if (mode === 'seed-file') {
+    if (!seedFilePath && typeof seedFileContent !== 'string') {
       throw new Error(
-        '[plan-context] seed-file mode requires --seed-file <path> (alias: --one-pager).',
+        '[plan-context] seed-file mode requires --seed-file <path>.',
       );
     }
-    return buildOnePagerModeEnvelope({
-      onePagerPath,
-      onePagerContent,
+    return buildSeedFileModeEnvelope({
+      seedFilePath,
+      seedFileContent,
       provider,
       config,
       settings,
       fullContext,
       cwd,
-      // Preserve legacy mode label when callers still pass `one-pager`.
-      modeLabel: mode === 'one-pager' ? 'one-pager' : 'seed-file',
+      modeLabel: 'seed-file',
     });
   }
   if (mode === 'seed') {

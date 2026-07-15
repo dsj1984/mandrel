@@ -21,7 +21,8 @@
  *
  * Behaviour:
  *   - Loads the configured review adapter via the factory; defaults to
- *     `native` when `delivery.codeReview.provider` is unset.
+ *     a single `native` chain entry when `delivery.codeReview.providers`
+ *     is unset or empty.
  *   - Always posts the unified `verification-results` structured comment on
  *     the Epic issue (the adapter never posts; the orchestrator owns
  *     persistence). Story #4411 (Epic #4405) unified the former
@@ -131,9 +132,7 @@ function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
  * `baseRef`.
  */
 function resolveConfigBase(config) {
-  return (
-    config?.project?.baseBranch ?? config?.agentSettings?.baseBranch ?? 'main'
-  );
+  return config?.project?.baseBranch ?? 'main';
 }
 
 /** Positive-integer override, else the supplied default. */
@@ -290,25 +289,22 @@ function resolveScopeEnvelope(opts, config) {
  */
 /**
  * Resolve the human-facing provider name from the resolved code-review
- * config. Chain configs render as `chain[a,b,...]`; a single-provider
- * config renders its `provider` string; everything else falls back to
- * `'native'`. Story #4075 — extracted from `runCodeReview`.
+ * config. Multi-entry chains render as `chain[a,b,...]`; a single-entry
+ * chain (including the unset/empty default) renders that entry's name;
+ * everything else falls back to `'native'`.
  */
 function resolveProviderName(codeReviewConfig) {
-  const isChainConfig =
-    codeReviewConfig &&
-    Array.isArray(codeReviewConfig.providers) &&
-    codeReviewConfig.providers.length > 0;
-  if (isChainConfig) {
-    return `chain[${codeReviewConfig.providers
-      .map((p) => p?.name ?? '?')
-      .join(',')}]`;
+  const providers =
+    codeReviewConfig && Array.isArray(codeReviewConfig.providers)
+      ? codeReviewConfig.providers
+      : [];
+  if (providers.length === 1) {
+    return providers[0]?.name ?? 'native';
   }
-  return (
-    (codeReviewConfig && typeof codeReviewConfig.provider === 'string'
-      ? codeReviewConfig.provider
-      : null) ?? 'native'
-  );
+  if (providers.length > 1) {
+    return `chain[${providers.map((p) => p?.name ?? '?').join(',')}]`;
+  }
+  return 'native';
 }
 
 /**

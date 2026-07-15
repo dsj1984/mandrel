@@ -101,8 +101,12 @@ export const HUMAN_INTENT_FIELDS = [
     heading: 'Changes',
     label: 'Changes',
     description:
-      'Files or globs this work touches, one per line (e.g. `- src/foo.js: add handler`). Advisory — the binding contract is Acceptance/Verify.',
-    placeholder: '- src/foo.js: add the handler\n- tests/foo.test.js: cover it',
+      'Files this work touches, one per line as JSON objects: ' +
+      '`{ "path": "…", "assumption": "creates"|"refactors-existing"|"exists"|"deletes" }`. ' +
+      'Advisory — the binding contract is Acceptance/Verify.',
+    placeholder:
+      '- {"path":"src/foo.js","assumption":"creates"}\n' +
+      '- {"path":"tests/foo.test.js","assumption":"creates"}',
     required: false,
     kind: 'textarea',
   },
@@ -131,8 +135,10 @@ export const HUMAN_INTENT_FIELDS = [
     id: 'references',
     heading: 'References',
     label: 'References',
-    description: 'Read-only paths worth consulting, one per line. Optional.',
-    placeholder: '- docs/architecture.md',
+    description:
+      'Read-only paths worth consulting, one per line as JSON objects ' +
+      '`{ "path": "…", "assumption": "exists" }`. Optional.',
+    placeholder: '- {"path":"docs/architecture.md","assumption":"exists"}',
     required: false,
     kind: 'textarea',
   },

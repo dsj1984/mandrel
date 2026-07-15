@@ -10,8 +10,7 @@ import { computeStoryReachability } from './story-reachability.js';
  *
  * The decomposer emits `body` as the canonical serialized **string**, but
  * the conflict passes (`indexConsumers`, `indexAssumptionEntries`,
- * `computeMissingBddScaffoldFindings`, the sibling-create scan in
- * `computeRegistryFindings`, and the legacy-bullet branch of
+ * `computeMissingBddScaffoldFindings`, and the producer path scan in
  * `collectStoryProducerPaths`) historically read `story.body` only when it
  * was already an object — so on the production string shape the
  * `implicit-cross-story-dep`, `fan-out`, registry, and `missing-bdd-scaffold`
@@ -145,68 +144,23 @@ const WRITE_IMPLYING_ASSUMPTIONS = Object.freeze(
 );
 
 /**
- * Extract the path-shaped head from a single legacy string-form
- * `body.changes` bullet.
- *
- * Conventional shape is `"<path>: <verb> <object>"`; we slice on the first
- * colon and return the head when it contains a slash or a dot, otherwise
- * `null`. Mirrors the heuristic in `ticket-validator-sizing.js` so producer
- * extraction and `fileCount` accounting agree on what counts as a path.
- *
- * Object-form entries (`{ path, assumption }`) are *not* handled here — they
- * are extracted via `collectStoryAssumptionEntries` in `indexProducers`. This
- * helper only understands the legacy string shape and returns `null` for any
- * non-string input.
- */
-function extractChangeBulletPath(bullet) {
-  if (typeof bullet !== 'string') return null;
-  const colonIdx = bullet.indexOf(':');
-  if (colonIdx <= 0) return null;
-  const head = bullet.slice(0, colonIdx).trim();
-  if (!/[\\/.]/.test(head)) return null;
-  return head;
-}
-
-/**
  * Collect the write-implying producer paths a single Story declares.
  *
- * Two shapes are honoured so the modern object-form `changes` contract and
- * the legacy string-bullet contract both feed the producer index:
- *
- *   - **Object form** (`{ path, assumption }`) — reuses
- *     `collectStoryAssumptionEntries` (the same extractor the Phase-8
- *     file-assumption gate uses), then keeps only `changes`-sourced entries
- *     whose assumption writes the path (`creates` / `refactors-existing` /
- *     `deletes`). `exists` reads and `references` entries are dropped.
- *   - **Legacy string bullets** (`"<path>: <verb> ..."`) — slice the
- *     colon-head via `extractChangeBulletPath`. Legacy bullets carry no
- *     assumption, so they are treated as writes (preserving pre-migration
- *     behaviour).
+ * Uses object-form `{ path, assumption }` entries via
+ * `collectStoryAssumptionEntries` (the same extractor the Phase-8
+ * file-assumption gate uses), keeping only `changes`-sourced entries
+ * whose assumption writes the path (`creates` / `refactors-existing` /
+ * `deletes`). `exists` reads and `references` entries are dropped.
  *
  * Returns a de-duplicated array of producer paths for the Story.
  */
 function collectStoryProducerPaths(story) {
   const paths = new Set();
 
-  // Object-form entries via the shared extractor. Only `changes`-sourced
-  // write-implying assumptions count as producers.
   for (const entry of collectStoryAssumptionEntries(story)) {
     if (entry.source !== 'changes') continue;
     if (!WRITE_IMPLYING_ASSUMPTIONS.has(entry.assumption)) continue;
     paths.add(entry.path);
-  }
-
-  // Legacy string bullets — extract the colon-head path. Skip non-string
-  // entries (object-form already handled above).
-  const body = story?.body;
-  const changes =
-    body && typeof body === 'object' && Array.isArray(body.changes)
-      ? body.changes
-      : [];
-  for (const bullet of changes) {
-    if (typeof bullet !== 'string') continue;
-    const path = extractChangeBulletPath(bullet);
-    if (path) paths.add(path);
   }
 
   return Array.from(paths);
@@ -223,11 +177,9 @@ function storySlugOf(story) {
 
 /**
  * Build the producers index — `Map<path, Array<{storySlug, taskSlug}>>` —
- * by walking every Story's declared writes. Both object-form
- * `{ path, assumption }` entries and legacy `"<path>: <verb> ..."` string
- * bullets are honoured via `collectStoryProducerPaths`; only write-implying
- * assumptions (and legacy bullets, which carry no assumption) count as
- * producers.
+ * by walking every Story's declared writes. Only object-form
+ * `{ path, assumption }` entries count as producers via
+ * `collectStoryProducerPaths`; only write-implying assumptions count.
  *
  * `taskSlug` is retained in the entry shape for finding/render
  * compatibility; in the 2-tier model it carries the Story's own slug since
@@ -519,9 +471,8 @@ function computeRegistryFindings({
     existing.push(entry);
     perStory.set(entry.storySlug, existing);
   }
-  // (a) direct registry edits — accept both legacy string-form producers
-  // (from `indexProducers`) and modern object-form `{ path, assumption }`
-  // entries (from `indexAssumptionEntries`).
+  // (a) direct registry edits — object-form `{ path, assumption }` entries
+  // from `indexAssumptionEntries` (and the producer index built from them).
   for (const [path, entries] of producers.entries()) {
     if (!isRegistryPath(path, patterns)) continue;
     for (const e of entries) {
@@ -778,7 +729,6 @@ export function renderHardConflictError(finding) {
 
 // Internal helpers exposed for unit tests; not part of the public surface.
 export const _internal = {
-  extractChangeBulletPath,
   collectStoryProducerPaths,
   WRITE_IMPLYING_ASSUMPTIONS,
   indexProducers,

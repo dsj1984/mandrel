@@ -45,11 +45,10 @@
  * the shared-editor conflict gate's domain — that finding's rendering is
  * cross-referenced (see `renderMismatch`), not duplicated here.
  *
- * Legacy compatibility: stories whose `body.changes` items are still bare
- * strings carry no assumption and are skipped silently here. The
- * deprecation signal is emitted *once* per validator invocation through
- * `collectDeprecationWarnings`, so consumers running an older planner
- * see a clear migration nudge without a hard failure mid-flight.
+ * String bullets: stories whose `body.changes` items are still bare
+ * strings are hard errors — they are pushed to `errors[]` by the
+ * validator's body-shape gate before this module runs. There is no
+ * silent skip or deprecation nudge.
  */
 
 import { gitSpawn } from '../git-utils.js';
@@ -319,21 +318,16 @@ export function validateStoryFileAssumptions(opts) {
     const entries = collectStoryAssumptionEntries(story);
 
     if (entries.length === 0) {
-      // Legacy path: this Story carries no object-form entries. Emit a
-      // single deprecation warning so the operator sees the migration
-      // nudge once per Story rather than per-bullet.
       if (hasLegacyChangeBullets(story)) {
-        warnings.push(
-          `"${slug}" → body.changes uses legacy string bullets without { path, assumption }. Migrate to object form so Phase 8 can verify file-state assumptions. See Story #2636.`,
+        errors.push(
+          `"${slug}" → body.changes uses legacy string bullets without { path, assumption }. Migrate every bullet to object form so Phase 8 can verify file-state assumptions. See Story #2636.`,
         );
       }
       continue;
     }
 
-    // Partial-migration warning: some entries are object-form, some are
-    // still strings. Surface once so the operator notices the gap.
     if (hasLegacyChangeBullets(story)) {
-      warnings.push(
+      errors.push(
         `"${slug}" → body.changes mixes object-form entries with legacy string bullets. Migrate every bullet for full freshness coverage.`,
       );
     }

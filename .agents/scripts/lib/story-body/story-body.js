@@ -25,10 +25,9 @@
  * }
  * ```
  *
- * Where `PathEntry` is one of:
+ * Where `PathEntry` is:
  *   - `{ path: string, assumption: "creates"|"refactors-existing"|"exists"|"deletes" }`
- *     (canonical form)
- *   - `string` (legacy form — emits a `legacy-path-entry` warning)
+ *     (canonical form — string bullets are rejected at parse time)
  *
  * ## Round-trip contract
  *
@@ -63,10 +62,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  */
 
 /**
- * @typedef {PathEntry | string} ChangeEntry
- *   Canonical: PathEntry object.
- *   Legacy: bare string bullet (emits a `legacy-path-entry` warning via
- *   the `warnings` array on {@link ParseResult}).
+ * @typedef {PathEntry} ChangeEntry
  */
 
 /**
@@ -74,7 +70,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {string}        goal                - One-sentence purpose statement.
  * @property {string}        slicing             - Optional v2 intra-Story delivery slice plan text block; '' when absent.
  * @property {string}        spec                - Optional folded Tech Spec text block; '' when absent.
- * @property {ChangeEntry[]} changes             - Files / globs this Story modifies.
+ * @property {PathEntry[]}   changes             - Files / globs this Story modifies.
  * @property {string[]}      acceptance          - Observable acceptance criteria.
  * @property {string[]}      verify              - Exact commands with tier annotation.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
@@ -90,7 +86,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
 /**
  * @typedef {object} ParseResult
  * @property {StoryBody}  body      - The parsed structured body.
- * @property {string[]}   warnings  - Non-fatal issues (e.g. legacy-path-entry).
+ * @property {string[]}   warnings  - Non-fatal issues (e.g. unstructured-body).
  * @property {ParseInfo}  info      - Metadata about the parse.
  */
 
@@ -104,7 +100,7 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
  * @property {boolean} hasNonGoalsSection   - Whether a `## Non-Goals` section was found.
  * @property {boolean} hasSlicingSection    - Whether a `## Slicing` section was found (v2 folded slice plan).
  * @property {boolean} hasSpecSection       - Whether a `## Spec` section was found (folded Tech Spec).
- * @property {boolean} isLegacyStringBody   - True when no structured sections were found.
+ * @property {boolean} isUnstructuredBody   - True when no structured sections were found.
  */
 
 /**
@@ -171,19 +167,16 @@ function stripListMarker(line) {
 }
 
 /**
- * Parse a single `changes` / `references` bullet into a `PathEntry` or
- * legacy string. Emits a `legacy-path-entry` warning for string form.
+ * Parse a single `changes` / `references` bullet into a `PathEntry`.
  *
  * Object form: `{ path: "...", assumption: "creates" }` (stored as
  * `- { "path": "...", "assumption": "..." }` or just recognized from the
  * structured body directly — when deserializing from a structured object
  * that was never serialized to markdown, the entry arrives as-is).
  *
- * String form: `src/foo.js: create handleSubmit`
- *
  * @param {string|object} raw
  * @param {string[]} warnings
- * @returns {PathEntry | string}
+ * @returns {PathEntry}
  */
 function parsePathEntry(raw, warnings) {
   // Already a structured object (from a parsed JSON body, not markdown).
@@ -227,15 +220,14 @@ function parsePathEntry(raw, warnings) {
     } catch (err) {
       // Re-throw StoryBodyParseError so it propagates.
       if (err instanceof StoryBodyParseError) throw err;
-      // JSON parse failed — fall through to legacy string handling.
+      // JSON parse failed — fall through to reject plain-string form.
     }
   }
 
-  // Legacy string form — warn but accept.
-  warnings.push(
-    `legacy-path-entry: change entry "${str.slice(0, 80)}" is a plain string; prefer { path, assumption } object form.`,
+  throw new StoryBodyParseError(
+    `changes/references entry must be a { path, assumption } object; plain string bullets are no longer accepted: ${str.slice(0, 120)}`,
+    { field: 'changes', raw: str },
   );
-  return str;
 }
 
 /**
@@ -454,7 +446,7 @@ function splitSections(markdown) {
 // ---------------------------------------------------------------------------
 
 /**
- * Build the minimal {@link ParseResult} returned for a legacy string body —
+ * Build the minimal {@link ParseResult} returned for an unstructured body —
  * markdown that carries no recognised structured section. The goal falls
  * back to the preamble text (or the whole trimmed input), `depends_on` is
  * still recovered from the footer, and all section arrays are empty.
@@ -464,9 +456,9 @@ function splitSections(markdown) {
  * @param {string} footer - Footer block text (from splitSections).
  * @returns {ParseResult}
  */
-function parseLegacyStringBody(input, preamble, footer) {
+function parseUnstructuredBody(input, preamble, footer) {
   const warnings = [
-    'legacy-string-body: no structured sections found; returning minimal body from preamble text.',
+    'unstructured-body: no structured sections found; returning minimal body from preamble text.',
     'test-surface-unestimated: estimated_test_files not present.',
   ];
   const body = {
@@ -497,7 +489,7 @@ function parseLegacyStringBody(input, preamble, footer) {
       hasNonGoalsSection: false,
       hasSlicingSection: false,
       hasSpecSection: false,
-      isLegacyStringBody: true,
+      isUnstructuredBody: true,
     },
   };
 }
@@ -534,13 +526,12 @@ function parseTextBlockSection(lines) {
 
 /**
  * Parse a `## Changes` / `## References` section into a list of
- * `PathEntry | string` entries. List markers are stripped, blank entries are
- * dropped, and each surviving entry is normalized via {@link parsePathEntry}
- * (which appends `legacy-path-entry` warnings for bare-string bullets).
+ * `PathEntry` entries. List markers are stripped, blank entries are
+ * dropped, and each surviving entry is normalized via {@link parsePathEntry}.
  *
  * @param {string[]} lines - Raw content lines under the heading.
  * @param {string[]} warnings - Mutable warnings sink.
- * @returns {Array<PathEntry|string>}
+ * @returns {PathEntry[]}
  */
 function parsePathEntrySection(lines, warnings) {
   const entries = [];
@@ -618,15 +609,15 @@ export function parse(input) {
   const hasSlicingSection = sections.has('slicing');
   const hasSpecSection = sections.has('spec');
 
-  // If no structured sections found, treat as legacy string body.
-  const isLegacyStringBody =
+  // If no structured sections found, treat as unstructured body.
+  const isUnstructuredBody =
     !hasGoalSection &&
     !hasChangesSection &&
     !hasAcceptanceSection &&
     !hasVerifySection;
 
-  if (isLegacyStringBody) {
-    return parseLegacyStringBody(input, preamble, footer);
+  if (isUnstructuredBody) {
+    return parseUnstructuredBody(input, preamble, footer);
   }
 
   const goal = parseGoalSection(sections.get('goal') ?? []);
@@ -694,7 +685,7 @@ export function parse(input) {
       hasNonGoalsSection,
       hasSlicingSection,
       hasSpecSection,
-      isLegacyStringBody: false,
+      isUnstructuredBody: false,
     },
   };
 }
@@ -807,7 +798,7 @@ function parseStructuredObject(obj) {
       hasNonGoalsSection: 'non_goals' in obj,
       hasSlicingSection: 'slicing' in obj,
       hasSpecSection: 'spec' in obj,
-      isLegacyStringBody: false,
+      isUnstructuredBody: false,
     },
   };
 }

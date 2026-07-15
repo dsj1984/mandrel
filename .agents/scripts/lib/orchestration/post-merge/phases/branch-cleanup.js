@@ -8,7 +8,7 @@
  * while a remote not-found is treated as a no-op.
  */
 
-import { deleteBranchBoth } from '../../../git-branch-cleanup.js';
+import { deleteBranchEverywhere } from '../../../git-branch-cleanup.js';
 
 function reapPhaseLogger(progress) {
   return progress ?? (() => {});
@@ -20,7 +20,7 @@ export async function branchCleanupPhase(ctx, state = {}) {
     repoRoot,
     progress,
     logger,
-    branchCleanup = deleteBranchBoth,
+    branchCleanup = deleteBranchEverywhere,
   } = ctx;
   const log = reapPhaseLogger(progress);
   log('CLEANUP', `Deleting story branch: ${storyBranch}`);

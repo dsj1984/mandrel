@@ -189,8 +189,8 @@ export async function runAuditSuite({
   injectedRules,
   injectedWriteArtifact,
 }) {
-  const { agentSettings } = resolveConfig();
-  const paths = getPaths({ agentSettings });
+  const config = resolveConfig();
+  const paths = getPaths(config);
   const callerSubstitutions = substitutions ?? {};
   const rules = injectedRules ?? (await loadRules(paths));
 

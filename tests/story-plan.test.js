@@ -280,37 +280,37 @@ describe('extractTitle', () => {
 });
 
 describe('resolveSeed', () => {
-  it('returns the --idea seed verbatim', async () => {
+  it('returns the --seed seed verbatim', async () => {
     const seed = await resolveSeed({
-      idea: 'a seed idea',
-      fromNotes: undefined,
+      seed: 'a seed idea',
+      seedFile: undefined,
     });
     assert.equal(seed, 'a seed idea');
   });
 
-  it('reads and trims the --from-notes file', async () => {
+  it('reads and trims the --seed-file file', async () => {
     const tmp = mkdtempSync(path.join(os.tmpdir(), 'story-plan-seed-'));
     try {
       const notesPath = path.join(tmp, 'notes.md');
       writeFileSync(notesPath, '  seed from a file  \n');
-      const seed = await resolveSeed({ idea: undefined, fromNotes: notesPath });
+      const seed = await resolveSeed({ seed: undefined, seedFile: notesPath });
       assert.equal(seed, 'seed from a file');
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
   });
 
-  it('throws when both --idea and --from-notes are passed', async () => {
+  it('throws when both --seed and --seed-file are passed', async () => {
     await assert.rejects(
-      () => resolveSeed({ idea: 'x', fromNotes: 'y.md' }),
-      /Pass either --idea or --from-notes, not both/,
+      () => resolveSeed({ seed: 'x', seedFile: 'y.md' }),
+      /Pass either --seed or --seed-file, not both/,
     );
   });
 
-  it('throws when neither --idea nor --from-notes is passed', async () => {
+  it('throws when neither --seed nor --seed-file is passed', async () => {
     await assert.rejects(
-      () => resolveSeed({ idea: undefined, fromNotes: undefined }),
-      /requires --idea .* or --from-notes/,
+      () => resolveSeed({ seed: undefined, seedFile: undefined }),
+      /requires --seed .* or --seed-file/,
     );
   });
 });
@@ -325,7 +325,7 @@ describe('runEmitContext', () => {
     };
 
     await runEmitContext({
-      values: { idea: 'a small standalone change', pretty: false },
+      values: { seed: 'a small standalone change', pretty: false },
       provider: stubProvider,
       projectRoot: PROJECT_ROOT,
       config: stubConfig,
@@ -359,7 +359,7 @@ describe('runEmitContext', () => {
     process.chdir(tmpCwd);
     try {
       await runEmitContext({
-        values: { idea: 'a small standalone change', pretty: false },
+        values: { seed: 'a small standalone change', pretty: false },
         provider: stubProvider,
         projectRoot: PROJECT_ROOT,
         config: stubConfig,

@@ -42,8 +42,7 @@
  * @property {string} [summary]
  *
  * @typedef {Object} RoutedProposalsInput
- * @property {number}                [epicId]        Legacy alias for `anchorId`.
- * @property {number}                [anchorId]      Story or run/Epic id in titles.
+ * @property {number}                anchorId      Story or run/Epic id in titles.
  * @property {'epic'|'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `epic`).
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
@@ -287,7 +286,7 @@ function normalizeAnchorKind(kind) {
 function normaliseInput(input) {
   if (input === null || typeof input !== 'object') return null;
   const record = /** @type {RoutedProposalsInput} */ (input);
-  const anchorId = Number(record.anchorId ?? record.epicId);
+  const anchorId = Number(record.anchorId);
   if (!Number.isInteger(anchorId) || anchorId <= 0) return null;
   const frameworkRepo = asString(record.frameworkRepo);
   const consumerRepo = asString(record.consumerRepo);

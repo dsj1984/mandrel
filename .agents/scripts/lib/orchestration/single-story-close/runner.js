@@ -276,7 +276,7 @@ export async function runSingleStoryClose({
   const config = injectedConfig || resolveConfig({ cwd: options.cwd });
   const provider = injectedProvider || createProvider(config);
   const baseBranch = config.project?.baseBranch ?? 'main';
-  const storyBranch = getStoryBranch(0, options.storyId);
+  const storyBranch = getStoryBranch(options.storyId);
 
   progress('INIT', `Closing standalone Story #${options.storyId}...`);
   const story = await provider.getTicket(options.storyId);

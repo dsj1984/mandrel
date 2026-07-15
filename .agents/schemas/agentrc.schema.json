@@ -511,19 +511,9 @@
     "codeReview": {
       "type": "object",
       "properties": {
-        "provider": {
-          "type": "string",
-          "enum": [
-            "native",
-            "codex",
-            "security-review"
-          ],
-          "default": "native",
-          "description": "Legacy single-adapter selection. ReviewProvider that produces the Finding[] consumed by runCodeReview(). Story #2833 registered `native` (in-process maintainability/lint); Story #2830 added `codex` (invokes `/codex:review` plugin); Story #2871 added `security-review` (shells out to `claude --print /security-review`). When `providers` (chain shape) is set this field is ignored with a warning. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain."
-        },
         "providers": {
           "type": "array",
-          "description": "Multi-provider chain (Story #2871). When set and non-empty, takes precedence over the legacy `provider` field. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section.",
+          "description": "Review-provider chain (Story #2871). When unset or empty, defaults to [{ name: \"native\" }]. The orchestrator iterates inline entries in declaration order and merges their Finding[] before posting one structured comment; manual-prompt entries (e.g. ultrareview) contribute a trailing 'Manual review suggestions' section. Selecting an adapter whose probe fails hard-fails at factory construction unless declared `optional: true` in the chain.",
           "items": {
             "type": "object",
             "required": [

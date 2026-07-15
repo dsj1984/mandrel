@@ -24,16 +24,14 @@
  * name at least one path-shaped token so vague verbs ("clean up",
  * "refactor") can't slip through.
  *
- * `body.changes` items may be either:
- *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
- *   2. An object `{ path: string, assumption: enum }` (Story #2636 shape).
+ * `body.changes` items must be object-form `{ path: string, assumption: enum }`
+ * entries (Story #2636 shape). Plain string bullets are rejected at parse
+ * time and by this validator.
  *
  * Object-form items must declare an `assumption` ∈ `creates |
  * refactors-existing | exists | deletes`. The optional `body.references`
  * array uses the same object shape and is the home for paths the Story
  * reads but does not modify (test fixtures, sibling modules, etc.).
- * String-form `changes` items remain legal so legacy plans keep parsing,
- * but they emit a deprecation signal via `validateStoryFileAssumptions`.
  *
  * `body.verify` entries must either name a testing tier in parentheses
  * drawn from `VERIFY_TIER_VALUES` (e.g. `npm run test (unit)`) or be the
@@ -248,25 +246,17 @@ function collectChangesErrors(prefix, rawChanges) {
     return [`${prefix}: body.changes must list at least one bullet.`];
   }
   const errors = [];
-  // An entry "names a path" when it is either a path-shaped bullet
-  // string OR an object-form entry that passed the assumption schema.
-  const namesPath = (c) => {
-    if (typeof c === 'string') return bulletNamesPath(c);
-    return isObjectPathEntry(c);
-  };
+  const namesPath = (c) => isObjectPathEntry(c);
   if (changes.every((c) => !namesPath(c))) {
     errors.push(
-      `${prefix}: body.changes bullets name no path-shaped token. Use "<path>: <verb> <object>" — e.g. "src/components/Foo.tsx: extract handleSubmit". Object-form entries may also declare { path, assumption } directly.`,
+      `${prefix}: body.changes must declare at least one { path, assumption } object entry.`,
     );
   }
   for (const entry of changes) {
     if (typeof entry === 'string') {
-      const verb = vagueVerbWithoutTarget(entry);
-      if (verb) {
-        errors.push(
-          `${prefix}: body.changes bullet uses vague verb "${verb}" without a named target: "${entry}".`,
-        );
-      }
+      errors.push(
+        `${prefix}: body.changes entry must be a { path, assumption } object; plain string bullets are no longer accepted: "${entry}".`,
+      );
       continue;
     }
     if (isMalformedObjectPathEntry(entry)) {

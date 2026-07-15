@@ -376,7 +376,7 @@ function applyStillRegisteredState({
     try {
       manifestEntry = recordPendingCleanupFn(worktreeRoot, {
         storyId: Number(storyId),
-        branch: getStoryBranch(null, storyId),
+        branch: getStoryBranch(storyId),
         path: stillRegistered.path,
         push: false,
       });

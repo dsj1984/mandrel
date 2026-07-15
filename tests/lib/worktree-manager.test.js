@@ -242,9 +242,9 @@ test('isSafeToRemove: refuses when branch has unmerged commits vs epic', async (
       git,
       platform: 'linux',
     });
-    const r = await wm.isSafeToRemove(wtPath, { epicRef: 'epic/229' });
+    const r = await wm.isSafeToRemove(wtPath, { epicBranch: 'epic/229' });
     assert.equal(r.safe, false);
-    // Reason carries head + epicRef context for triage (Story #1121).
+    // Reason carries head + epicBranch context for triage (Story #1121).
     assert.match(r.reason, /^unmerged-commits: head=\S+ epic=epic\/229$/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -275,7 +275,7 @@ test('isSafeToRemove: refuses when merge verification errors unexpectedly', asyn
       git,
       platform: 'linux',
     });
-    const r = await wm.isSafeToRemove(wtPath, { epicRef: 'epic/229' });
+    const r = await wm.isSafeToRemove(wtPath, { epicBranch: 'epic/229' });
     assert.equal(r.safe, false);
     assert.match(r.reason, /merge-check-failed/);
   } finally {
@@ -304,7 +304,7 @@ test('isSafeToRemove: safe when clean and merged', async () => {
       git,
       platform: 'linux',
     });
-    const r = await wm.isSafeToRemove(wtPath, { epicRef: 'epic/229' });
+    const r = await wm.isSafeToRemove(wtPath, { epicBranch: 'epic/229' });
     assert.equal(r.safe, true);
     assert.equal(r.reason, 'head-reachable-from-epic');
   } finally {

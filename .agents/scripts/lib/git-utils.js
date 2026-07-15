@@ -321,11 +321,10 @@ export function slugify(text) {
 /**
  * Resolves the canonical branch name for a Story.
  * v5 Standard: story-[STORY_ID]
- * @param {string|number} _epicId - Unused; retained for back-compat call sites.
  * @param {string|number} storyId
  * @returns {string}
  */
-export function getStoryBranch(_epicId, storyId) {
+export function getStoryBranch(storyId) {
   const id =
     typeof storyId === 'number' ? storyId : Number.parseInt(storyId, 10);
   if (!Number.isFinite(id) || id <= 0) {

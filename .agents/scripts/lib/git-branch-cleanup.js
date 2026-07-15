@@ -118,15 +118,6 @@ export function deleteBranchEverywhere(name, opts = {}) {
 }
 
 /**
- * Backwards-compatible alias for `deleteBranchEverywhere`. Older call
- * sites and tests imported this name; keeping the alias avoids touching
- * them in the migration.
- *
- * @deprecated prefer `deleteBranchEverywhere`.
- */
-export const deleteBranchBoth = deleteBranchEverywhere;
-
-/**
  * Delete N branches in a single batched git call (push --delete X Y Z, or
  * branch -D X Y Z), falling back to per-ref delete via
  * `deleteBranchLocal` / `deleteBranchRemote` if the batched call fails.

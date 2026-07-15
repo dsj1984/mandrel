@@ -90,7 +90,7 @@ function makeFakeGh(handler) {
 function gitUtilsMock() {
   return {
     namedExports: {
-      getStoryBranch: (_e, s) => `story-${Number(s)}`,
+      getStoryBranch: (s) => `story-${Number(s)}`,
       gitSync: () => ({ status: 0, stdout: '', stderr: '' }),
       // refs #3685 — single-story-close reaches base-sync / changed-files
       // through the lazily-imported runner, i.e. only after this mock is

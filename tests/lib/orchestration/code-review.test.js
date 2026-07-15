@@ -44,7 +44,7 @@ function fakeAdapter(findings) {
 function baseResolveConfig() {
   return {
     project: { baseBranch: 'main' },
-    delivery: { codeReview: { provider: 'native' } },
+    delivery: { codeReview: { providers: [{ name: 'native' }] } },
   };
 }
 
@@ -162,7 +162,7 @@ test('runCodeReview: defaults baseRef to project.baseBranch when arg is null', a
     reviewProvider: adapter,
     resolveConfigFn: () => ({
       project: { baseBranch: 'trunk' },
-      delivery: { codeReview: { provider: 'native' } },
+      delivery: { codeReview: { providers: [{ name: 'native' }] } },
     }),
     upsertCommentFn: noopUpsert(),
   });
@@ -271,7 +271,7 @@ test('runCodeReview: routes provider name from delivery.codeReview to the factor
     bus: stubBus,
     resolveConfigFn: () => ({
       project: { baseBranch: 'main' },
-      delivery: { codeReview: { provider: 'native' } },
+      delivery: { codeReview: { providers: [{ name: 'native' }] } },
     }),
     createReviewProviderFn: (cfg) => {
       factoryCalls.push(cfg);
@@ -280,5 +280,5 @@ test('runCodeReview: routes provider name from delivery.codeReview to the factor
     upsertCommentFn: noopUpsert(),
   });
   assert.equal(factoryCalls.length, 1);
-  assert.deepEqual(factoryCalls[0], { provider: 'native' });
+  assert.deepEqual(factoryCalls[0], { providers: [{ name: 'native' }] });
 });

@@ -28,14 +28,6 @@ Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
 | `/plan --seed-file <path>` | Author from on-disk notes / plan seed (e.g. audit-to-stories handoff). |
 | `/plan --tickets 123[,456…]` | Fetch issue(s), analyze into proper Stories (prefer N=1 rewrite). |
 
-### Aliases (deprecated, still accepted)
-
-| Alias | Canonical |
-| --- | --- |
-| `--idea "<text>"` | `--seed` |
-| `--one-pager <path>` | `--seed-file` |
-| `--from-notes <path>` | `--seed-file` |
-
 `--body` is **not** a `/plan` entry. Persist always goes through
 `plan-persist.js --stories …`.
 

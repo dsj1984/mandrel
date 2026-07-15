@@ -35,7 +35,7 @@ function recordingUpsert() {
 function baseConfig() {
   return {
     project: { baseBranch: 'main' },
-    delivery: { codeReview: { provider: 'native' } },
+    delivery: { codeReview: { providers: [{ name: 'native' }] } },
   };
 }
 
