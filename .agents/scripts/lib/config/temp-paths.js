@@ -13,7 +13,6 @@
  *     ├─ techspec.md
  *     ├─ manifest.md          (dispatch manifest)
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
- *     ├─ perf-report.md       (analyzer output, Epic-level)
  *     ├─ lifecycle.ndjson     (lifecycle bus ledger)
  *     ├─ checkpoints/...      (pre-v2 epic-runner state store; retained layout)
  *     ├─ <name>               (epicArtifactPath escape hatch)
@@ -21,7 +20,6 @@
  *        └─ story-<sid>/
  *           ├─ manifest.md       (story dispatch manifest)
  *           ├─ signals.ndjson    (append-only signals writer)
- *           ├─ perf-summary.md
  *           └─ <name>            (storyArtifactPath escape hatch)
  *
  * Standalone Stories (no parent Epic) follow the same shape under
@@ -304,8 +302,7 @@ export function epicArtifactPath(eid, name, config) {
 
 /**
  * Escape hatch for a Story-level artifact whose name isn't part of the
- * canonical layout (signals.ndjson + perf-summary.md + manifest.md ship
- * named helpers).
+ * canonical layout (signals.ndjson + manifest.md ship named helpers).
  *
  * @param {number} eid
  * @param {number} sid
@@ -346,5 +343,3 @@ export const epicLedgerPath = (eid, config) =>
 
 export const storyManifestPath = (eid, sid, config) =>
   storyArtifactPath(eid, sid, 'manifest.md', config);
-export const storyPerfSummaryPath = (eid, sid, config) =>
-  storyArtifactPath(eid, sid, 'perf-summary.md', config);
