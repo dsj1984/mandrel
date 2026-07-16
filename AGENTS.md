@@ -125,12 +125,15 @@ npm run test:integration  # Real-git / hook-chain / long orchestration suites on
 npm test                  # Full suite (same as CI test gate)
 npm run test:profile      # Slow-test report → temp/test-profile.{tap,summary.txt}
 npm run verify            # Full local gate: audit + lint + full tests + baselines
+                          #   + dead-exports/context-budget ratchets
                           #   (true CI mirror; CI-only gates in docs/ci-contract.md)
 ```
 
 Use `test:quick` while iterating, `test:integration` before pushing when you
 touched git/orchestration hooks, and `npm run verify` when you want pre-PR
-confidence (audit + lint + full tests + baselines). `npm run verify` is a
+confidence (audit + lint + full tests + baselines + the dead-exports and
+context-budget ratchets; the arch-cycles ratchet rides along inside `lint`).
+`npm run verify` is a
 **true CI mirror** for the gates it can prove locally, but a small set of CI
 gates (action pinning, the TruffleHog secret scan, and the push-scoped
 `BASELINE_SCOPE=full` maintainability run) cannot be reproduced from a local
