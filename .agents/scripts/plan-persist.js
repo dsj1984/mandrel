@@ -126,7 +126,13 @@ async function readJsonFile(filePath, label) {
   }
 }
 
-function resolveInputPaths(values) {
+/**
+ * Resolve every input path the CLI accepts, including where the
+ * `plan-context.js` envelope is discovered from. Exported for tests.
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ */
+export function resolveInputPaths(values) {
   const planDir = values['plan-dir'] ? path.resolve(values['plan-dir']) : null;
   return {
     storiesPath: path.resolve(values.stories),
@@ -164,7 +170,19 @@ async function loadArtifacts(paths) {
   };
 }
 
-function buildPersistOptions(values, paths, planContextEnvelope) {
+/**
+ * Assemble the `runPlanPersist` opts bag from parsed CLI values.
+ *
+ * Exported for tests: this is the join where the envelope-derived source ids
+ * meet the persist engine, so a regression here silently un-wires
+ * `/plan --tickets` superseding (Story #4554).
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ * @param {ReturnType<typeof resolveInputPaths>} paths
+ * @param {object|null} planContextEnvelope
+ * @returns {object} opts for `runPlanPersist`.
+ */
+export function buildPersistOptions(values, paths, planContextEnvelope) {
   const source = resolveSourceTicketIds({
     explicitIds: values['source-tickets'],
     envelope: planContextEnvelope,
