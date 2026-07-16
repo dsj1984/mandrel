@@ -40,6 +40,7 @@
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import run from '../../lib/cli/update.js';
@@ -290,7 +291,11 @@ describe('mandrel update entrypoint — resolves current from the consumer pin',
     const consumerRoot = '/virtual/consumer';
     const fsFake = makeFs({
       [CHANGELOG_PATH]: CHANGELOG_CONTENT,
-      [`${consumerRoot}/package.json`]: JSON.stringify({
+      // path.join, not string interpolation: resolveConsumerPinVersion joins
+      // with the platform separator (backslash on Windows), so the fake key
+      // must match exactly or the read 404s and silently falls through to
+      // tier 3 (the real self-read, which then ENOENTs on the injected fake).
+      [path.join(consumerRoot, 'package.json')]: JSON.stringify({
         dependencies: { mandrel: '^1.43.0' },
       }),
     });
@@ -322,7 +327,7 @@ describe('mandrel update entrypoint — resolves current from the consumer pin',
     const consumerRoot = '/virtual/consumer2';
     const fsFake = makeFs({
       [CHANGELOG_PATH]: CHANGELOG_CONTENT,
-      [`${consumerRoot}/package.json`]: JSON.stringify({
+      [path.join(consumerRoot, 'package.json')]: JSON.stringify({
         dependencies: { mandrel: `^${TARGET_VERSION}` },
       }),
     });
