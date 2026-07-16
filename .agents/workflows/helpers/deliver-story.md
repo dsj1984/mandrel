@@ -244,9 +244,9 @@ its `status`:
 
 | `status` | Exit | What it means | What you do |
 | --- | --- | --- | --- |
-| `landed` | 0 | PR merged, Story `agent::done`, tail ran. `tail.*` booleans expose any partial degradation — a `false` there does **not** demote the land. | Go to Step 7 and return `done`. Nothing else. |
-| `pending` | 3 | **Resumable, not a failure.** The per-invocation merge wait expired with the PR healthy and in flight, or the operator owns the merge. No label was mutated; no `merge.unlanded` was emitted. | Run the envelope's `nextCommand`. Repeat until it resolves. |
-| `blocked` | 1 | A classified hard block. Story carries `agent::blocked`; `blocked.blockClass` names the class and `blocked.frictionCommentId` points at the remediation. | `checks-failed` → fix the red check and push (Step 4). Otherwise go to Step 7 and return `blocked`. |
+| `landed` | 0 | PR merged, Story `agent::done`, tail ran. `tail.*` booleans expose any partial degradation — a `false` there does **not** demote the land. | Go to Step 7 and relay the envelope. Nothing else. |
+| `pending` | 3 | **Resumable, not a failure.** The per-invocation merge wait expired with the PR healthy and in flight, or the operator owns the merge. No label was mutated; no `merge.unlanded` was emitted. | Run the envelope's `nextCommand`. Repeat until it resolves. Relay `pending` only once you have exhausted your own budget. |
+| `blocked` | 1 | A classified hard block. Story carries `agent::blocked`; `blocked.blockClass` names the class and `blocked.frictionCommentId` points at the remediation. | `checks-failed` → fix the red check and push (Step 4). Otherwise go to Step 7 and relay the envelope. |
 | `failed` | 1 | A phase crashed; `phase` names which. | Diagnose, fix, re-run close. |
 
 Do **not** re-sequence the post-close steps by hand. Steps 4–6 below are
