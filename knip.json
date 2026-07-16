@@ -1,20 +1,20 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "bin/*.js",
-    "lib/cli/*.js",
-    "lib/migrations/index.js",
-    ".agents/scripts/*.js",
-    "scripts/**/*.js",
+    "bin/*.js!",
+    "lib/cli/*.js!",
+    "lib/migrations/index.js!",
+    ".agents/scripts/*.js!",
+    "scripts/**/*.js!",
     "tests/**/*.{js,mjs,cjs}",
     "*.config.{js,mjs,cjs}",
     ".husky/**"
   ],
   "project": [
-    "bin/**/*.js",
-    "lib/**/*.js",
-    ".agents/scripts/**/*.js",
-    "scripts/**/*.js",
+    "bin/**/*.js!",
+    "lib/**/*.js!",
+    ".agents/scripts/**/*.js!",
+    "scripts/**/*.js!",
     "tests/**/*.{js,mjs,cjs}"
   ],
   "ignore": [

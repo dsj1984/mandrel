@@ -9,12 +9,18 @@
  * misconfigured knip installation cannot block CI when we have no current
  * snapshot to compare against.
  *
+ * Story #4575 adds the **production pass** (`--production`), the test-only-
+ * importer discount: default mode counts a test as an importer, so
+ * production-dead code hides behind its own tests. See
+ * `lib/dead-exports-mode.js` for why the two passes carry separate baselines.
+ *
  * Contract:
- *   - Reads the committed baseline at `baselines/dead-exports.json`
- *     (override with `--baseline <path>`). Envelope shape:
+ *   - Reads the committed baseline at `baselines/dead-exports.json` — or
+ *     `baselines/dead-exports-production.json` under `--production`
+ *     (override either with `--baseline <path>`). Envelope shape:
  *       { $schema, kernelVersion, generatedAt, rows: [{ file, symbol }] }
- *   - Spawns `npx knip --reporter json --no-progress`, parses stdout,
- *     extracts `{ file, symbol }` rows from `issues[].exports[]`.
+ *   - Spawns `npx knip --reporter json --no-progress` (plus `--production`),
+ *     parses stdout, extracts `{ file, symbol }` rows from `issues[].exports[]`.
  *   - Diffs current vs. baseline by `(file, symbol)` identity.
  *   - Prints `+ <file>: <symbol>` for each added dead export and
  *     `- <file>: <symbol>` for each removed one, then a summary line.
@@ -25,24 +31,30 @@
  *     Knip spawn/parse failure exits 0 (advisory) with a stderr warning.
  */
 
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { runAsCli } from './lib/cli-utils.js';
+import {
+  extractRowsFromKnip,
+  readKnipOutput,
+  runKnip,
+} from './lib/dead-exports-knip.js';
+import { resolveDeadExportsMode } from './lib/dead-exports-mode.js';
 
 /**
- * Parse argv for `--baseline <path>`, `--json`, and `--knip-output <path>`.
- * `--knip-output` is a test seam: pass a pre-captured knip JSON file instead
- * of spawning knip. Exported so unit tests can pin the parser.
+ * Parse argv for `--baseline <path>`, `--json`, `--knip-output <path>`, and
+ * `--production`. `--knip-output` is a test seam: pass a pre-captured knip JSON
+ * file instead of spawning knip. Exported so unit tests can pin the parser.
  *
  * @param {string[]} argv
- * @returns {{ baselinePath: string | null, json: boolean, knipOutputPath: string | null }}
+ * @returns {{ baselinePath: string | null, json: boolean, knipOutputPath: string | null, production: boolean }}
  */
 export function parseArgv(argv = []) {
   let baselinePath = null;
   let json = false;
   let knipOutputPath = null;
+  let production = false;
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--baseline') {
@@ -53,6 +65,8 @@ export function parseArgv(argv = []) {
       }
     } else if (a === '--json') {
       json = true;
+    } else if (a === '--production') {
+      production = true;
     } else if (a === '--knip-output') {
       const next = argv[i + 1];
       if (next && !next.startsWith('--')) {
@@ -61,7 +75,7 @@ export function parseArgv(argv = []) {
       }
     }
   }
-  return { baselinePath, json, knipOutputPath };
+  return { baselinePath, json, knipOutputPath, production };
 }
 
 /**
@@ -82,36 +96,6 @@ export function loadBaseline(baselinePath) {
   } catch {
     return null;
   }
-}
-
-/**
- * Pure helper: normalize knip's `--reporter json` output into a flat array of
- * `{ file, symbol }` rows. Knip emits `{ issues: [{ file, exports: [{ name, ... }], ... }, ...] }`.
- * Only `exports` rows are mapped — the dead-export ratchet ignores file-level,
- * dependency-level, and duplicate-level issues (knip surfaces those via
- * separate `rules` keys).
- *
- * @param {unknown} knipEnvelope The parsed knip JSON report.
- * @returns {Array<{ file: string, symbol: string }>}
- */
-export function extractRowsFromKnip(knipEnvelope) {
-  const rows = [];
-  if (!knipEnvelope || typeof knipEnvelope !== 'object') return rows;
-  const issues = Array.isArray(knipEnvelope.issues) ? knipEnvelope.issues : [];
-  for (const issue of issues) {
-    const file = issue?.file;
-    if (typeof file !== 'string' || file.length === 0) continue;
-    const exports_ = Array.isArray(issue.exports) ? issue.exports : [];
-    for (const e of exports_) {
-      const symbol =
-        (e && typeof e.name === 'string' && e.name) ||
-        (e && typeof e.symbol === 'string' && e.symbol) ||
-        null;
-      if (!symbol) continue;
-      rows.push({ file, symbol });
-    }
-  }
-  return rows;
 }
 
 /**
@@ -151,73 +135,22 @@ export function diffRows(baselineRows, currentRows) {
  * "no drift" signal. When added rows are present the summary includes a
  * "(gate fail)" marker so the ratchet violation is visible in CI output.
  *
+ * `label` distinguishes the two passes in CI logs, which run back to back and
+ * would otherwise emit two identical-looking summaries.
+ *
  * @param {{ added: Array, removed: Array }} diff
+ * @param {string} [label='dead-exports']
  * @returns {string}
  */
-export function renderDiff(diff) {
+export function renderDiff(diff, label = 'dead-exports') {
   const lines = [];
   for (const r of diff.added) lines.push(`+ ${r.file}: ${r.symbol}`);
   for (const r of diff.removed) lines.push(`- ${r.file}: ${r.symbol}`);
   const tag = diff.added.length > 0 ? '(gate fail)' : '(ok)';
   lines.push(
-    `[dead-exports] added=${diff.added.length} removed=${diff.removed.length} ${tag}`,
+    `[${label}] added=${diff.added.length} removed=${diff.removed.length} ${tag}`,
   );
   return lines.join('\n');
-}
-
-/**
- * Spawn `npx knip --reporter json --no-progress` and return the parsed
- * envelope. Returns `null` on spawn / parse failure — the caller logs the
- * underlying error and falls back to treating current rows as empty (which
- * surfaces every baseline row as "removed", a loud-but-safe signal).
- *
- * Exported as a hook so tests can stub the spawn without setting up a
- * functioning knip workspace.
- *
- * @param {{ cwd?: string, spawn?: typeof spawnSync }} [opts]
- * @returns {{ ok: true, envelope: unknown } | { ok: false, error: string }}
- */
-export function runKnip({ cwd = process.cwd(), spawn = spawnSync } = {}) {
-  const result = spawn(
-    process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['knip', '--reporter', 'json', '--no-progress'],
-    {
-      cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'utf-8',
-      shell: process.platform === 'win32',
-    },
-  );
-  if (result.error) {
-    return { ok: false, error: `spawn failed: ${result.error.message}` };
-  }
-  const stdout = typeof result.stdout === 'string' ? result.stdout : '';
-  if (stdout.trim().length === 0) {
-    return { ok: false, error: 'knip produced empty stdout' };
-  }
-  try {
-    return { ok: true, envelope: JSON.parse(stdout) };
-  } catch (err) {
-    return {
-      ok: false,
-      error: `knip JSON parse failed: ${err?.message ?? err}`,
-    };
-  }
-}
-
-/**
- * Read a pre-captured knip JSON envelope from disk (for the `--knip-output`
- * test seam). Returns the parsed envelope or `null` on failure.
- *
- * @param {string} filePath
- * @returns {unknown}
- */
-function readKnipOutput(filePath) {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -242,10 +175,15 @@ export async function runCli({
   runKnipImpl = runKnip,
   loadBaselineImpl = loadBaseline,
 } = {}) {
-  const { baselinePath, json, knipOutputPath } = parseArgv(argv);
+  const { baselinePath, json, knipOutputPath, production } = parseArgv(argv);
+  const {
+    mode,
+    label,
+    baseline: defaultBaseline,
+  } = resolveDeadExportsMode(production);
   const resolvedBaselinePath = path.resolve(
     cwd,
-    baselinePath ?? path.join('baselines', 'dead-exports.json'),
+    baselinePath ?? defaultBaseline,
   );
   const baseline = loadBaselineImpl(resolvedBaselinePath);
   const baselineRows = Array.isArray(baseline?.rows) ? baseline.rows : [];
@@ -256,7 +194,7 @@ export async function runCli({
     knipEnvelope = readKnipOutput(path.resolve(cwd, knipOutputPath));
     if (!knipEnvelope) knipError = `failed to read ${knipOutputPath}`;
   } else {
-    const result = runKnipImpl({ cwd });
+    const result = runKnipImpl({ cwd, production });
     if (result.ok) {
       knipEnvelope = result.envelope;
     } else {
@@ -275,6 +213,7 @@ export async function runCli({
   if (json) {
     const envelope = {
       kind: 'dead-exports-report',
+      mode,
       baselinePath: resolvedBaselinePath,
       baselineRows,
       currentRows,
@@ -287,14 +226,14 @@ export async function runCli({
   } else {
     if (!baseline) {
       stderr.write(
-        `[dead-exports] ⚠ baseline not found at ${resolvedBaselinePath} — treating as empty\n`,
+        `[${label}] ⚠ baseline not found at ${resolvedBaselinePath} — treating as empty\n`,
       );
     }
     if (knipError) {
-      stderr.write(`[dead-exports] ⚠ knip run failed: ${knipError}\n`);
+      stderr.write(`[${label}] ⚠ knip run failed: ${knipError}\n`);
     }
-    stdout.write(`\n--- dead-exports preview ---\n`);
-    stdout.write(`${renderDiff(diff)}\n`);
+    stdout.write(`\n--- ${label} preview ---\n`);
+    stdout.write(`${renderDiff(diff, label)}\n`);
   }
 
   return exitCode;
