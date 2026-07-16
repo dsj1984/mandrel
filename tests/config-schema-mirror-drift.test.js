@@ -170,13 +170,31 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
             codingGuardrails: {
               cyclomaticFlag: 8,
               cyclomaticMustFix: 12,
-              miDropMustRefactor: 1.5,
               requireSiblingTest: false,
             },
           },
         },
       },
       'fully populated doc',
+    );
+  });
+
+  it('rejects the retired miDropMustRefactor / miDropCap keys on both sides (Story #4531)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: { codingGuardrails: { miDropMustRefactor: 1.5 } },
+        },
+      },
+      'retired codingGuardrails.miDropMustRefactor',
+    );
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { quality: { autoRefresh: { miDropCap: 1.5 } } },
+      },
+      'retired autoRefresh.miDropCap',
     );
   });
 

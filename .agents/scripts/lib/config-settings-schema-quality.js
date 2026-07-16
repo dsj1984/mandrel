@@ -14,12 +14,20 @@
 // aggregate into per-gate files under `config/gates/`.
 import { GATES_SCHEMA } from './config/gates/index.js';
 
+// Story #4531: miDropMustRefactor (here) and autoRefresh.miDropCap (below)
+// were retired. Both were schema-validated, defaulted, and resolved, but
+// never consumed by the gate they were named for — quality-preview.js's
+// computeExitCode short-circuits on miExit (derived from the ALREADY-
+// consumed delivery.quality.gates.maintainability.tolerance) before either
+// knob is ever read. maintainability.tolerance is now the single documented
+// MI-drop control. See lib/migrations/index.js for the consumer-config
+// migration that strips these keys on upgrade (additionalProperties: false
+// below means a leftover key is a hard AJV failure, not a silent no-op).
 const CODING_GUARDRAILS_SCHEMA = {
   type: 'object',
   properties: {
     cyclomaticFlag: { type: 'integer', minimum: 1 },
     cyclomaticMustFix: { type: 'integer', minimum: 1 },
-    miDropMustRefactor: { type: 'number', minimum: 0 },
     requireSiblingTest: { type: 'boolean' },
   },
   additionalProperties: false,
@@ -29,7 +37,6 @@ const AUTO_REFRESH_SCHEMA = {
   type: 'object',
   properties: {
     enabled: { type: 'boolean' },
-    miDropCap: { type: 'number', minimum: 0 },
     crapJumpCap: { type: 'number', minimum: 0 },
     scope: { type: 'string', enum: ['diff', 'full'] },
   },

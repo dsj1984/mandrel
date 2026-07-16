@@ -366,14 +366,19 @@ function resolveCoverageGate(userBlock) {
 }
 
 /**
- * Framework defaults for `delivery.quality.codingGuardrails`. The legacy
- * field name `miDropRefactor` was renamed to `miDropMustRefactor` in
- * Story 1 to avoid semantic collision with `autoRefresh.miDropCap`.
+ * Framework defaults for `delivery.quality.codingGuardrails`.
+ *
+ * `miDropMustRefactor` was retired in Story #4531: schema-validated,
+ * defaulted, and resolved, but never consumed — the gate it named
+ * (`quality-preview.js`'s `computeExitCode`) short-circuits on `miExit`
+ * (derived from the already-consumed `gates.maintainability.tolerance`)
+ * before this value is ever read. `maintainability.tolerance` is the one
+ * documented MI-drop control now; see `lib/migrations/index.js` for the
+ * consumer-config migration that strips a leftover key on upgrade.
  */
 export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
   cyclomaticFlag: 8,
   cyclomaticMustFix: 12,
-  miDropMustRefactor: 1.5,
   requireSiblingTest: false,
 });
 
@@ -393,8 +398,6 @@ export function resolveCodingGuardrails(userBlock) {
     cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
     cyclomaticMustFix:
       userBlock.cyclomaticMustFix ?? defaults.cyclomaticMustFix,
-    miDropMustRefactor:
-      userBlock.miDropMustRefactor ?? defaults.miDropMustRefactor,
     requireSiblingTest:
       typeof userBlock.requireSiblingTest === 'boolean'
         ? userBlock.requireSiblingTest
@@ -402,9 +405,10 @@ export function resolveCodingGuardrails(userBlock) {
   };
 }
 
+// autoRefresh.miDropCap was retired alongside codingGuardrails.
+// miDropMustRefactor in Story #4531 — same unconsumed-knob shape, same fix.
 const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
-  miDropCap: 1.5,
   crapJumpCap: 5,
   scope: 'diff',
 });
@@ -416,7 +420,6 @@ function resolveAutoRefresh(userBlock) {
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       enabled: defaults.enabled,
-      miDropCap: defaults.miDropCap,
       crapJumpCap: defaults.crapJumpCap,
       scope: defaults.scope,
     };
@@ -429,12 +432,6 @@ function resolveAutoRefresh(userBlock) {
       typeof userBlock.enabled === 'boolean'
         ? userBlock.enabled
         : defaults.enabled,
-    miDropCap:
-      typeof userBlock.miDropCap === 'number' &&
-      Number.isFinite(userBlock.miDropCap) &&
-      userBlock.miDropCap >= 0
-        ? userBlock.miDropCap
-        : defaults.miDropCap,
     crapJumpCap:
       typeof userBlock.crapJumpCap === 'number' &&
       Number.isFinite(userBlock.crapJumpCap) &&
