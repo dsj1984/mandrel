@@ -428,6 +428,16 @@ silent". What changed is that there is now an honest, machine-readable way to
 say "not finished, here is exactly how to continue" instead of a choice
 between lying and blocking forever.
 
+### Exit-code compatibility note (`--no-wait-merge`)
+
+Every close flag keeps its meaning, but the **exit code** of a
+`--no-wait-merge` (or `--no-auto-merge` / `autoMerge: "strict"`) run changed:
+it now exits **3** (`pending`) rather than 0, because the PR is open and a
+human still owns the merge. Reporting `landed` would be a lie, and `landed` is
+what exit 0 means. A wrapper that shells out and tests `exit == 0` to mean
+"close finished" must be updated to treat 3 as the operator-merge success
+path; `!= 0` no longer implies failure.
+
 ### Per-status judgement
 
 - **`landed`** — the only status that means done. A `false` in `tail.*`

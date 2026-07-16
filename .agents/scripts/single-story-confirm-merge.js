@@ -36,8 +36,10 @@
  */
 
 import { parseArgs } from 'node:util';
+import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { formatCliError } from './lib/error-redactor.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
@@ -319,10 +321,39 @@ export async function runConfirmMerge({
  * CLI entry — mirrors `single-story-close.js`: the exit code comes from the
  * terminal envelope's status, so a caller can tell `pending` (the PR has not
  * merged yet; re-run me) from `landed` without parsing stdout.
+ *
+ * The catch mirrors close's for the same reason: `confirmStoryMerged`'s PR
+ * read is a live `gh` call that throws on a transient API error, and this CLI
+ * is a *landing surface* — the one `pending` tells the operator to re-run. If
+ * a flaked read exited 1 with no envelope, the surface would be silent exactly
+ * where the envelope is the contract. Both landing surfaces emit one envelope
+ * or none at all; "none at all" is what Story #4543 removes.
  */
 async function main() {
-  const outcome = await runConfirmMerge();
-  return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  try {
+    const outcome = await runConfirmMerge();
+    return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  } catch (err) {
+    const storyId = Number(parseSprintArgs().storyId);
+    // No story id → a usage error; there is nothing to report an envelope
+    // about, so let runAsCli surface it as a plain fatal.
+    if (!Number.isInteger(storyId) || storyId <= 0) throw err;
+    const terminal = buildTerminalEnvelope({
+      storyId,
+      status: 'failed',
+      phase: 'confirm-merge',
+      failure: { reason: String(err?.message ?? err) },
+      nextCommand: NEXT_COMMANDS.recover(storyId),
+      elapsedSeconds: 0,
+    });
+    Logger.error(
+      `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
+    );
+    Logger.info(
+      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+    );
+    return exitCodeForTerminal(terminal);
+  }
 }
 
 runAsCli(import.meta.url, main, {
