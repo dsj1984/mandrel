@@ -566,12 +566,9 @@ must not halt the runner) and are picked up out-of-band by the analyzer
 1. **Shape.** `{ kind: 'friction', timestamp, epicId, storyId,
    category, source: { tool }, details, ... }` — callers own the rest of
    the payload.
-2. **Consumers.** `diagnose-friction.js` (per-failure detector),
-   `story-close.js` reap failure (via
-   `lib/orchestration/post-merge/phases/worktree-reap.js`), and the
-   baseline auto-refresh path
-   (`lib/orchestration/story-close/auto-refresh-runner.js`, which fronts
-   the unified `check-baselines.js` gate and its per-kind logic under
+2. **Consumers.** `diagnose-friction.js` (per-failure detector) and the
+   quality-gate friction path (`lib/gates/friction.js`, fronting the
+   unified `check-baselines.js` gate and its per-kind logic under
    `lib/baselines/kinds/`).
 3. **Replaced.** Story #1042 (Epic #1030) cut the in-process cooldown
    module and its `upsertStructuredComment` round-trip — friction now
@@ -647,9 +644,8 @@ established is the live convention.
 - **Review scope**: a change to one step touches only that phase
   module; the coordinator and sibling phases stay unchanged.
 - **Pattern reuse**: the same coordinator-plus-phases layout is used
-  by `story-init.js` (six injectable stages under
-  `lib/story-init/`) and by `story-close.js`'s post-merge
-  pipeline (`lib/orchestration/post-merge/phases/`).
+  by `single-story-close.js` (phase modules under
+  `lib/orchestration/single-story-close/phases/`).
 
 ## Decide / Execute / Run phase triple
 

@@ -19,8 +19,7 @@
  *
  * Signals-writer `appendSignal` call sites:
  *   - `friction`       — quality-gate / runtime friction (diagnose-friction.js,
- *                        lib/gates/friction.js, auto-refresh-runner.js,
- *                        worktree-reap.js, lifecycle-emit.js)
+ *                        lib/gates/friction.js)
  *   - `acceptance-eval` — acceptance-eval.js per-criterion terminus signal.
  *   - `wave-start` / `wave-complete` — wave-window anchors; `wave-start` also
  *                        anchors span-tree Story spans

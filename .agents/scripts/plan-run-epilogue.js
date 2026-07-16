@@ -78,8 +78,9 @@ export async function main(argv = process.argv.slice(2)) {
  *
  * The roster's changed-file set is the input the host walks its audit lenses
  * against; a silent absence would read as "nothing changed" and the lens walk
- * would look complete while covering nothing. Not fatal — lens selection is
- * independent of the diff, so the rest of the roster is still useful.
+ * would look complete while covering nothing. Not fatal — with no diff the
+ * selector degrades to keyword-only lens selection, so the rest of the
+ * roster is still useful.
  *
  * @param {object} result - `runPlanRunEpilogue` envelope.
  * @returns {void}

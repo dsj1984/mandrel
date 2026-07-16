@@ -39,9 +39,10 @@
  *   lever (Story #3876/#3937/#3938). `light` → single-pass review focused on
  *   Pillar 1 (spec adherence) with Pillars 2–3 reduced to a quick scan;
  *   `standard` → all pillars at baseline depth; `deep` → all pillars plus a
- *   second adversarial pass over the diff. Resolved from the judged risk
- *   envelope AND the changed-file count of the diff by `resolveDepth`
- *   (`lib/orchestration/review-depth.js`) and threaded into `runReview`.
+ *   second adversarial pass over the diff. Derived from the diff's
+ *   changed-file count and sensitive-path hits
+ *   (`lib/orchestration/review-depth.js`; the judged-risk input was
+ *   retired in #4542) and threaded into `runReview`.
  *   LLM-backed
  *   providers MUST render this into the prompt/instructions they emit; the
  *   native provider documents why its mechanical sweep ignores it. Absent →

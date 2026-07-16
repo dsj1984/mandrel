@@ -18,7 +18,7 @@ allowed_tools:
 - **No gate may be skipped.** Failing lint means fix lint, not disable the rule; a failing test means fix the code, not `.skip` or delete the test. Gates are ordered shift-left so cheap checks fail first, and CI failure output is fed back verbatim with the directive to reproduce and fix locally before re-pushing.
 - **Introducing a gate that asserts on pre-existing state** (doc-drift, lint-vocabulary, dependency-cycle, missing-coverage) MUST land green at merge: either advisory-first (report-only until the backlog is burned down) or with the populated baseline committed in the same change that turns the gate on. Never wire a gate into `requiredChecks` that lands red on latent findings nobody authored.
 - **Refresh a baseline only when the change is deliberate** — a rename/move, an operator-approved complexity bump, a signed-off perf delta, an intentional API-surface change. Never refresh to paper over an unintentional regression; fix the regression instead.
-- Run the kind-specific update command (`npm run crap:update` / `maintainability:update` / `dead-exports:update` / `lighthouse:update`) on the **Story branch**, not on `main`.
+- Run the kind-specific refresh (`npm run crap:update` / `npm run maintainability:update`; dead-exports and lighthouse have no npm script — regenerate the rows and edit `baselines/dead-exports*.json` / `baselines/lighthouse.json` directly) on the **Story branch**, not on `main`.
 - Verify the refresh diff is scoped to the relevant `baselines/<kind>.json` (plus cosmetic `package-lock.json` churn only). If unrelated files appear, STOP — the refresh is contaminated. Stage baseline files **explicitly** (`git add baselines/<kind>.json`); never `git add -A` in a refresh commit.
 - Commit-subject contract: a **Conventional-Commits** subject `chore(baselines): refresh <kind> snapshot for <reason>` — never an ad-hoc leading token like `baseline-refresh:` (commitlint and the planner validator reject it). The body is **mandatory** and non-empty: what changed, why the new floor is correct, and the Story that triggered it.
 - Add the machine-readable trailer `baseline-refresh: true` (git-trailer `Key: value` style) and `Story: #<storyId>` to the body whenever observability classification matters. Never pass `--no-verify`; the `commit-msg` hook (commitlint) MUST run and pass.
@@ -99,8 +99,8 @@ own as the parseable marker for any future reader.)
 | --------------- | -------------------------------- |
 | CRAP            | `npm run crap:update`            |
 | Maintainability | `npm run maintainability:update` |
-| Dead-exports    | `npm run dead-exports:update`    |
-| Lighthouse      | `npm run lighthouse:update`      |
+| Dead-exports    | edit `baselines/dead-exports.json` / `baselines/dead-exports-production.json` (rows are `(file, symbol)`; `check-dead-exports.js --json` prints the current rows) |
+| Lighthouse      | edit `baselines/lighthouse.json`  |
 
 1. **Run the matching update command** on the Story branch (HEAD must already be
    the Story branch, not `main`).
