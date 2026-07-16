@@ -223,7 +223,6 @@ graph TB
 | `hydrate-context.js`             | Assembles self-contained prompts (protocol + skills + hierarchy). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. |
 | `update-ticket-state.js`         | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`). |
 | `notify.js`                      | Dispatches notifications via @mention and webhook channels. |
-| `analyze-execution.js`           | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (wired from `helpers/deliver-story` / close path). |
 
 #### In-process orchestration modules
 
@@ -306,7 +305,7 @@ envelope so Phase 7 stays non-blocking.
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/wave-record-io.js`               | `verifySingleResult` — the zero-commit "done" guard. Each "done" claim in a wave record is re-fetched from the provider and downgraded (`verify-error`) when the ticket is not actually at `agent::done`/closed. |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories: `temp/standalone/stories/story-<sid>/`). The single producer for the telemetry pipeline; readers are the `read()` async generator in `lib/signals/read.js` and the perf-report readers in `lib/observability/perf-report-readers.js`. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories: `temp/standalone/stories/story-<sid>/`). The single producer for the telemetry pipeline; the reader is the `read()` async generator in `lib/signals/read.js`. |
 | `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic and Story — mirrors onto the board.                  |
 
 The earlier `CommitAssertion` post-wave guard was epic-runner-scoped and
@@ -318,7 +317,7 @@ a Story being reported "done" without verifiable completion.
 
 | Module                                                     | Role                                                                                                                                                 |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/observability/perf-report-readers.js`, `lib/orchestration/wave-record-io.js`. |
+| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/orchestration/wave-record-io.js`. |
 | `providers/github/cache.js`                                | Per-instance ticket cache; `peekFresh(ticketId, maxAgeMs)` treats entries older than the caller's max age as cache misses, and the cache is primed after bulk ticket fetches.   |
 | `providers/github/issues.js`                               | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
 | `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
@@ -333,10 +332,9 @@ and surfaced on the ready-set envelopes that
 (`DEFAULT_CONCURRENCY` / `resolveConcurrency`), `CommitAssertion`, and
 the `ProgressReporter` listener class — was deleted with the dead
 in-process stratum (#3908); do not confuse the surviving
-`resolveConcurrencyCap` with the deleted `resolveConcurrency`. Consumers
-monitoring throughput read the Story / run perf summaries posted by
-`analyze-execution.js` — they surface per-phase p50/p95 and the workload
-signals follow-up capture consumes.
+`resolveConcurrencyCap` with the deleted `resolveConcurrency`. Story #4545 deleted the perf-summary surface that
+used to report throughput; the local `signals.ndjson` stream and the retro's
+aggregate over it are what remain.
 
 #### Direct CLIs (no MCP server)
 
