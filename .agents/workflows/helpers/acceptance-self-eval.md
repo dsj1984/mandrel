@@ -33,7 +33,7 @@ mid-delivery, and evaluates the actual work product.
    continuation of your implementing turn — so the evaluator does not grade its
    own homework.
 
-   > **Sub-agent type + risk-routed ceremony (Epic #4478, M7-B).** When
+   > **Sub-agent type + derived-level ceremony (Epic #4478, M7-B).** When
    > `delivery.routing.roleScopedAgents` is enabled (the **default**), dispatch
    > the critic with `subagent_type: acceptance-critic` — it boots on the
    > role-scoped [`acceptance-critic`](../../agents/acceptance-critic.md) context
@@ -42,20 +42,28 @@ mid-delivery, and evaluates the actual work product.
    > kill-switch is **off** (`roleScopedAgents: false`), fall back to
    > `subagent_type: general-purpose`.
    >
-   > **Whether to spawn fresh at all is risk-routed** (mirrors the risk →
-   > review-depth and risk → audit-lens routers). Resolve it per cluster with
-   > `resolveCeremonyForRisk` from
+   > **Whether to spawn fresh at all is routed off the derived change level**
+   > — the same signal `review-depth.js` resolves depth from, so the two
+   > decisions cannot disagree. Derive it with `deriveChangeLevel` from
+   > [`review-depth.js`](../../scripts/lib/orchestration/review-depth.js) over
+   > the Story's changed files (`git diff --name-only main...story-<id>`), then
+   > resolve the ceremony per cluster with `resolveCeremonyForRisk` from
    > [`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js)
-   > using the **Story's** `planningRisk.overallLevel` (or folded
-   > `risk-verdict`) and `delivery.routing.freshCriticSampleRate`:
-   > **`high`/`medium` risk → `fresh`** (spawn the critic); **`low` risk →
-   > `inline`** (the contract-identical inline fallback below), **except** the
-   > `freshCriticSampleRate` fraction of low-risk clusters the sampling floor
-   > forces `fresh` so low risk never means zero independent checking; **missing
-   > / unknown risk → `fresh` + full ceremony** (fail-safe). This chooses
-   > fresh-vs-inline **per cluster only — it never changes the cluster count**.
+   > using that `derivedLevel` and `delivery.routing.freshCriticSampleRate`:
+   > **`high` (the diff touches a sensitive path registered in
+   > `audit-rules.json`) → `fresh`** (spawn the critic); **`low` (it touches
+   > none) → `inline`** (the contract-identical inline fallback below),
+   > **except** the `freshCriticSampleRate` fraction of low-level clusters the
+   > sampling floor forces `fresh` so a low level never means zero independent
+   > checking; **`null` / unknown (the diff could not be enumerated) → `fresh` +
+   > full ceremony** (fail-safe). This chooses fresh-vs-inline **per cluster
+   > only — it never changes the cluster count**.
    >
-   > **Inline-critic path (low-risk-routed OR nesting-absent harness).** The
+   > Story #4542 re-based this off the planner-authored risk verdict: a level
+   > the plan asserted about itself was exactly the signal that could *reduce*
+   > independent checking, and nothing verified it against the diff.
+   >
+   > **Inline-critic path (low-level-routed OR nesting-absent harness).** The
    > verdict is authored **inline** whenever the risk router above resolves to
    > `inline` (a low-risk cluster not caught by the sampling floor), and also as
    > a **fallback** on any harness that cannot spawn the fresh critic.

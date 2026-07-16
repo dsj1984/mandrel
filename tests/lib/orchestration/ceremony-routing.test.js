@@ -1,10 +1,17 @@
 // tests/lib/orchestration/ceremony-routing.test.js
 //
-// Unit tier (Epic #4478, M7-B, Part 2): the risk-routed acceptance-ceremony
-// resolver. Pins the per-cluster fresh-vs-inline tier rules, the fail-safe
-// degrade on a missing risk verdict, the maker-checker sampling floor, and —
-// the load-bearing M4-B invariant — that risk routing NEVER changes the
-// cluster COUNT (only the per-cluster mode).
+// Unit tier (Epic #4478, M7-B, Part 2; re-based on the derived level by Story
+// #4542): the acceptance-ceremony resolver. Pins the per-cluster
+// fresh-vs-inline tier rules, the fail-safe degrade when the change level is
+// underivable, the maker-checker sampling floor, and — the load-bearing M4-B
+// invariant — that level routing NEVER changes the cluster COUNT (only the
+// per-cluster mode).
+//
+// `derivedLevel` is the level `review-depth.js#deriveChangeLevel` computes from
+// the changed-file set; it is 'high' | 'low' | null. There is deliberately no
+// 'medium' any more — the retired planner-authored verdict had three levels, the
+// derived signal answers one observable question (was a sensitive path touched?)
+// and anything unrecognised falls through the same fail-safe as null.
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
@@ -16,10 +23,10 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 
 describe('resolveCeremonyForRisk — ceremony profiles', () => {
-  test('minimal → always inline regardless of risk', () => {
-    for (const overallLevel of ['low', 'medium', 'high', undefined]) {
+  test('minimal → always inline regardless of the derived level', () => {
+    for (const derivedLevel of ['low', 'high', null, undefined]) {
       const d = resolveCeremonyForRisk({
-        overallLevel,
+        derivedLevel,
         clusterIndex: 0,
         ceremonyProfile: 'minimal',
         freshCriticSampleRate: 1,
@@ -30,9 +37,9 @@ describe('resolveCeremonyForRisk — ceremony profiles', () => {
     }
   });
 
-  test('strict → always fresh regardless of risk', () => {
+  test('strict → always fresh regardless of the derived level', () => {
     const d = resolveCeremonyForRisk({
-      overallLevel: 'low',
+      derivedLevel: 'low',
       clusterIndex: 1,
       ceremonyProfile: 'strict',
       freshCriticSampleRate: 0,
@@ -43,24 +50,24 @@ describe('resolveCeremonyForRisk — ceremony profiles', () => {
 });
 
 describe('resolveCeremonyForRisk — per-cluster tier rules', () => {
-  test('high risk → fresh', () => {
-    const d = resolveCeremonyForRisk({ overallLevel: 'high', clusterIndex: 0 });
+  test('a sensitive path touched (high) → fresh', () => {
+    const d = resolveCeremonyForRisk({ derivedLevel: 'high', clusterIndex: 0 });
     assert.equal(d.mode, 'fresh');
     assert.equal(d.sampled, false);
   });
 
-  test('medium risk → fresh (fail toward more ceremony)', () => {
+  test('an unrecognised level → fresh (fail toward more ceremony)', () => {
     const d = resolveCeremonyForRisk({
-      overallLevel: 'medium',
+      derivedLevel: 'medium',
       clusterIndex: 3,
     });
     assert.equal(d.mode, 'fresh');
   });
 
-  test('low risk (not sampled) → inline', () => {
+  test('no sensitive path touched (low), not sampled → inline', () => {
     // rate 0.2 → stride 5; cluster index 1 is NOT a multiple of 5.
     const d = resolveCeremonyForRisk({
-      overallLevel: 'low',
+      derivedLevel: 'low',
       clusterIndex: 1,
       freshCriticSampleRate: 0.2,
     });
@@ -68,10 +75,10 @@ describe('resolveCeremonyForRisk — per-cluster tier rules', () => {
     assert.equal(d.sampled, false);
   });
 
-  test('low risk sampled by the floor → fresh', () => {
+  test('a low-level cluster sampled by the floor → fresh', () => {
     // rate 0.2 → stride 5; cluster index 0 IS forced fresh by the floor.
     const d = resolveCeremonyForRisk({
-      overallLevel: 'low',
+      derivedLevel: 'low',
       clusterIndex: 0,
       freshCriticSampleRate: 0.2,
     });
@@ -79,15 +86,16 @@ describe('resolveCeremonyForRisk — per-cluster tier rules', () => {
     assert.equal(d.sampled, true);
   });
 
-  test('missing / unknown / malformed risk → fresh + full ceremony (fail-safe)', () => {
+  test('missing / unknown / malformed level → fresh + full ceremony (fail-safe)', () => {
     for (const bad of [
       undefined,
       null,
       {},
-      { overallLevel: undefined },
-      { overallLevel: 'bogus' },
+      { derivedLevel: undefined },
+      { derivedLevel: null },
+      { derivedLevel: 'bogus' },
     ]) {
-      const input = bad && 'overallLevel' in bad ? bad : (bad ?? undefined);
+      const input = bad && 'derivedLevel' in bad ? bad : (bad ?? undefined);
       const d = resolveCeremonyForRisk(input);
       assert.equal(
         d.mode,
@@ -120,7 +128,7 @@ describe('sampledFresh — the maker-checker sampling floor', () => {
     }
   });
 
-  test('a low-risk Epic with a non-zero floor never gets zero independent checks', () => {
+  test('a low-level Story with a non-zero floor never gets zero independent checks', () => {
     // Over any non-trivial cluster set, at least one cluster is forced fresh.
     const anyFresh = Array.from({ length: 8 }, (_v, i) =>
       sampledFresh(i, 0.2),
@@ -129,42 +137,40 @@ describe('sampledFresh — the maker-checker sampling floor', () => {
   });
 });
 
-describe('HARD INVARIANT — risk routing NEVER changes the cluster count', () => {
+describe('HARD INVARIANT — level routing NEVER changes the cluster count', () => {
   // The M4-B acceptance floor: the per-cluster fresh-vs-inline decision is
   // orthogonal to the cluster COUNT, which is owned solely by
   // acceptance-clusters.js (ceil(totalACs / clusterCeiling), clamp [1,8]).
   // resolveCeremonyForRisk takes clusterIndex as an INPUT and cannot add,
   // remove, merge, or re-slice clusters. This test proves the count is
-  // IDENTICAL across every risk level for the same AC set.
+  // IDENTICAL across every derived level for the same AC set.
   for (const totalAcs of [1, 4, 7, 14, 30]) {
     for (const clusterCeiling of [1, 4, 8]) {
-      test(`count invariant: ${totalAcs} ACs / ceiling ${clusterCeiling} identical across risk levels`, () => {
+      test(`count invariant: ${totalAcs} ACs / ceiling ${clusterCeiling} identical across derived levels`, () => {
         const count = expectedClusterCount(totalAcs, clusterCeiling);
 
-        // Drive the ceremony router over EVERY cluster at each risk level and
+        // Drive the ceremony router over EVERY cluster at each level and
         // assert the number of clusters routed is identical — routing only
         // labels modes; it never changes how many clusters exist.
-        const routeAll = (overallLevel) =>
+        const routeAll = (derivedLevel) =>
           Array.from({ length: count }, (_v, clusterIndex) =>
             resolveCeremonyForRisk({
-              overallLevel,
+              derivedLevel,
               clusterIndex,
               freshCriticSampleRate: 0.2,
             }),
           );
 
         const low = routeAll('low');
-        const medium = routeAll('medium');
         const high = routeAll('high');
         const unknown = routeAll(undefined);
 
         assert.equal(low.length, count);
-        assert.equal(medium.length, count);
         assert.equal(high.length, count);
         assert.equal(unknown.length, count);
-        // Every risk level yields exactly one verdict decision per cluster.
+        // Every derived level yields exactly one verdict decision per cluster.
         assert.equal(low.length, high.length);
-        assert.equal(medium.length, unknown.length);
+        assert.equal(low.length, unknown.length);
       });
     }
   }
@@ -174,21 +180,21 @@ describe('HARD INVARIANT — risk routing NEVER changes the cluster count', () =
     assert.equal(count, 4);
     const low = Array.from({ length: count }, (_v, i) =>
       resolveCeremonyForRisk({
-        overallLevel: 'low',
+        derivedLevel: 'low',
         clusterIndex: i,
         freshCriticSampleRate: 0.2,
       }),
     );
     const high = Array.from({ length: count }, (_v, i) =>
       resolveCeremonyForRisk({
-        overallLevel: 'high',
+        derivedLevel: 'high',
         clusterIndex: i,
         freshCriticSampleRate: 0.2,
       }),
     );
     assert.equal(low.length, 4);
     assert.equal(high.length, 4);
-    // Low risk still gets one verdict per cluster (some inline, some sampled
+    // A low level still gets one verdict per cluster (some inline, some sampled
     // fresh) — never zero, never collapsed to a single critic.
     assert.equal(
       low.every((d) => d.mode === 'fresh' || d.mode === 'inline'),

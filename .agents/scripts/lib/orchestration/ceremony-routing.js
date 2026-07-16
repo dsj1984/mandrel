@@ -1,21 +1,29 @@
 /**
- * lib/orchestration/ceremony-routing.js — ceremony-profile + risk-routed
+ * lib/orchestration/ceremony-routing.js — ceremony-profile + derived-level
  * acceptance ceremony resolver.
  *
- * The sibling of `review-depth.js` (risk → review depth) and
- * `audit-lens-routing.js#resolveAuditLenses` (risk → audit lens): it folds the
- * operator ceremony profile and the planner-judged risk envelope into a
- * per-cluster ceremony decision for the single-delivery acceptance critic —
- * **fresh-context spawn** vs the contract-identical **inline** critic. It
- * does NOT invent a new risk score and it does NOT own clustering.
+ * The sibling of `review-depth.js#resolveDepth`: it folds the operator ceremony
+ * profile and the **derived** change level into a per-cluster ceremony decision
+ * for the single-delivery acceptance critic — **fresh-context spawn** vs the
+ * contract-identical **inline** critic. It does NOT invent a new risk score and
+ * it does NOT own clustering.
+ *
+ * ## One derived source, two decisions (Story #4542)
+ *
+ * `derivedLevel` comes from `review-depth.js#deriveChangeLevel` — the same call
+ * that feeds review depth — so both ceremony decisions read one observable
+ * signal: does the change set touch a sensitive path registered in
+ * `audit-rules.json`? Previously this consumed the planner's own risk verdict,
+ * which meant a confident all-low self-assertion bought *less* independent
+ * checking than authoring nothing at all. A derived level cannot be talked down.
  *
  * ## Ceremony profiles (`delivery.routing.ceremonyProfile`)
  *
  *   - `minimal`  — always `inline` (skip fresh critic + sampling floor).
  *                  Use for tiny N=1 Stories the operator trusts.
- *   - `standard` — risk-routed (default). Low → inline (+ sampling floor);
- *                  medium/high → fresh.
- *   - `strict`   — always `fresh` regardless of risk.
+ *   - `standard` — level-routed (default). Low → inline (+ sampling floor);
+ *                  high → fresh.
+ *   - `strict`   — always `fresh` regardless of the derived level.
  *
  * ## The load-bearing invariant (M4-B acceptance floor — DO NOT VIOLATE)
  *
@@ -29,23 +37,22 @@
  *
  * ## Tier rules (per cluster, `standard` profile)
  *
- *   - `high` risk        → `fresh`   (a fresh-context maker-blind spawn).
- *   - `medium` risk      → `fresh`   (fail toward more ceremony, never less —
- *                                     matches `review-depth`'s fail-to-middle).
- *   - `low` risk         → `inline`  (the contract-identical inline critic),
+ *   - `high` level       → `fresh`   (a sensitive path was touched — a
+ *                                     fresh-context maker-blind spawn).
+ *   - `low` level        → `inline`  (the contract-identical inline critic),
  *                                     UNLESS the maker-checker sampling floor
  *                                     selects this cluster → `fresh`.
- *   - missing / unknown  → `fresh`   (fail-safe: a Story that skipped `/plan`
- *                                     has no risk verdict; treat it as needing
- *                                     the full fresh-context ceremony, exactly
- *                                     as `review-depth` degrades to `standard`
- *                                     and `deriveRiskEnvelope` degrades to
- *                                     review-required).
+ *   - missing / unknown  → `fresh`   (fail-safe: the diff could not be
+ *                                     enumerated, so there is no evidence the
+ *                                     change is unremarkable; treat it as
+ *                                     needing the full fresh-context ceremony,
+ *                                     exactly as `resolveDepth` degrades to
+ *                                     `standard` on the same signal).
  *
  * ## Maker-checker sampling floor
  *
- * Even at `low` risk under `standard`, a fraction of clusters
- * (`freshCriticSampleRate`, default 0.2) is forced `fresh` so low risk never
+ * Even at a `low` derived level under `standard`, a fraction of clusters
+ * (`freshCriticSampleRate`, default 0.2) is forced `fresh` so a low level never
  * means zero independent checking. The selection is **deterministic** in the
  * cluster index (a fixed stride), so it is stable across re-runs and —
  * critically — never changes the cluster count: it only re-labels which of
@@ -56,7 +63,7 @@
  * `undefined` / malformed inputs degrade to `fresh` + `full` ceremony.
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
- * @typedef {'low'|'medium'|'high'} RiskLevel
+ * @typedef {import('./review-depth.js').ChangeLevel} ChangeLevel
  * @typedef {'minimal'|'standard'|'strict'} CeremonyProfile
  */
 
@@ -112,11 +119,11 @@ export function sampledFresh(clusterIndex, rate) {
 
 /**
  * Resolve the acceptance ceremony for one cluster from the ceremony profile,
- * judged risk level, and the maker-checker sampling floor. See the module
- * header for the tier rules and the untouchable cluster-count invariant.
+ * the derived change level, and the maker-checker sampling floor. See the
+ * module header for the tier rules and the untouchable cluster-count invariant.
  *
  * @param {{
- *   overallLevel?: (RiskLevel|string|null|undefined),
+ *   derivedLevel?: (ChangeLevel|string|null|undefined),
  *   clusterIndex?: (number|null|undefined),
  *   freshCriticSampleRate?: (number|null|undefined),
  *   ceremonyProfile?: (CeremonyProfile|string|null|undefined),
@@ -129,8 +136,8 @@ export function sampledFresh(clusterIndex, rate) {
  * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
-  const overallLevel =
-    input && typeof input === 'object' ? input.overallLevel : undefined;
+  const derivedLevel =
+    input && typeof input === 'object' ? input.derivedLevel : undefined;
   const clusterIndex =
     input && typeof input === 'object' ? input.clusterIndex : undefined;
   const rate =
@@ -158,46 +165,37 @@ export function resolveCeremonyForRisk(input = {}) {
     };
   }
 
-  if (overallLevel === 'high') {
+  if (derivedLevel === 'high') {
     return {
       mode: 'fresh',
-      reason: 'high-risk: fresh-context critic',
+      reason: 'sensitive path touched: fresh-context critic',
       sampled: false,
       profile,
     };
   }
-  if (overallLevel === 'medium') {
-    return {
-      mode: 'fresh',
-      reason: 'medium-risk: fresh-context critic (fail toward more ceremony)',
-      sampled: false,
-      profile,
-    };
-  }
-  if (overallLevel === 'low') {
+  if (derivedLevel === 'low') {
     if (sampledFresh(clusterIndex, rate)) {
       return {
         mode: 'fresh',
         reason:
-          'low-risk cluster forced fresh by the maker-checker sampling floor',
+          'low-level cluster forced fresh by the maker-checker sampling floor',
         sampled: true,
         profile,
       };
     }
     return {
       mode: 'inline',
-      reason: 'low-risk: contract-identical inline critic',
+      reason: 'no sensitive path touched: contract-identical inline critic',
       sampled: false,
       profile,
     };
   }
-  // Missing / unknown / malformed risk → fail-safe fresh + full ceremony,
-  // matching how review-depth.js and deriveRiskEnvelope degrade on an
-  // unjudged Story.
+  // Missing / unknown / malformed level → fail-safe fresh + full ceremony,
+  // matching how resolveDepth degrades to `standard` on the same signal.
   return {
     mode: 'fresh',
     reason:
-      'risk absent/unknown: fail-safe fresh-context critic + full ceremony',
+      'change level underivable: fail-safe fresh-context critic + full ceremony',
     sampled: false,
     profile,
   };

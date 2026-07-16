@@ -25,8 +25,9 @@ const SCRIPTS = [
     name: 'plan-persist',
     relPath: '.agents/scripts/plan-persist.js',
     // v2 Stage 3: flat Story CLI — flags only need to clear parseArgs so
-    // config validation runs before any file/provider I/O.
-    args: ['--stories', 'stories.json', '--risk-verdict', 'risk.json'],
+    // config validation runs before any file/provider I/O. Story #4542 retired
+    // `--risk-verdict`; `--stories` alone satisfies the usage guard.
+    args: ['--stories', 'stories.json'],
   },
 ];
 

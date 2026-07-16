@@ -16,6 +16,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { applyBlockedByDependencies } from '../../../providers/github/blocked-by-add.js';
 import { Logger } from '../../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../../label-constants.js';
 import {
@@ -458,15 +459,94 @@ function renderStoryBodyForCreate(story, idBySlug) {
 }
 
 /**
+ * Mirror the plan's sibling `depends_on` edges into native GitHub `blocked_by`
+ * dependency edges (Story #4544).
+ *
+ * Ordering is authored as slugs and, until now, survived persist only as
+ * `blocked by #N` prose in the body footer. That footer stays — it is what
+ * `/deliver`'s resolver falls back on — but a native edge is the durable,
+ * machine-readable form: visible in the GitHub UI, readable without parsing
+ * markdown, and settable by an operator later for cross-run order.
+ *
+ * **Non-fatal by design, and deliberately asymmetric with the read path.** A
+ * missing native edge is cosmetic here: `renderStoryBodyForCreate` has already
+ * written the footer, so ordering is not lost when the dependencies API says
+ * no. `/deliver`'s *read* of these edges is a real dispatch gate, which is why
+ * that side fails loud. Persist reports the failure and completes.
+ *
+ * Two shape hazards this crossing has to get right, both silent if missed:
+ * `applyBlockedByDependencies` indexes `slugToIssueNumber` with property
+ * access, so the `Map` the create loop builds must be flattened to a plain
+ * object — a `Map` would yield `undefined` for every lookup, skip every edge,
+ * and (being non-fatal) report success having written nothing. And it reads
+ * `dependsOn`, not the `depends_on` the assembled Story carries.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {Array<{ slug: string, depends_on: string[] }>} args.stories
+ * @param {Map<string, number>} args.idBySlug
+ * @returns {Promise<{ edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null>}
+ *   `null` when there was nothing to mirror or no interface to mirror through.
+ */
+async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
+  const withEdges = stories.filter((story) => story.depends_on.length > 0);
+  if (withEdges.length === 0) return null;
+
+  if (
+    typeof provider?.getDependencyWriteContext !== 'function' ||
+    typeof provider?.getTicket !== 'function'
+  ) {
+    Logger.warn(
+      '[plan-persist] provider exposes no getDependencyWriteContext/getTicket — ' +
+        'skipping native blocked_by edges. Ordering survives in the ' +
+        '`blocked by #N` body footers.',
+    );
+    return null;
+  }
+
+  try {
+    const { gh, owner, repo } = provider.getDependencyWriteContext();
+    const summary = await applyBlockedByDependencies({
+      stories: stories.map((story) => ({
+        slug: story.slug,
+        dependsOn: story.depends_on,
+      })),
+      slugToIssueNumber: Object.fromEntries(idBySlug),
+      getTicket: (issueNumber) => provider.getTicket(issueNumber),
+      owner,
+      repo,
+      gh,
+    });
+    if (summary.edgesFailed > 0) {
+      Logger.warn(
+        `[plan-persist] ${summary.edgesFailed} native blocked_by edge(s) could ` +
+          'not be written. Ordering survives in the `blocked by #N` body ' +
+          'footers; add the edges by hand if you want them in the GitHub UI.',
+      );
+    } else {
+      Logger.info(
+        `[plan-persist] native blocked_by edges: ${summary.edgesAdded} added, ` +
+          `${summary.edgesSkipped} already present.`,
+      );
+    }
+    return summary;
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] native blocked_by mirroring failed (${err.message}) — ` +
+        'ordering survives in the `blocked by #N` body footers.',
+    );
+    return null;
+  }
+}
+
+/**
  * Create Story issues via `provider.createIssue`, resumably.
  *
  * **Stories are born without `agent::ready`** (Story #4541). They used to
- * carry it in the creating POST while the `risk-verdict` and
- * `story-plan-state` checkpoints were upserted afterwards, so anything that
- * picked a Story up inside that window — or after a comment failure aborted
- * the loop — read the checkpoint as `null`, degraded to the neutral risk
- * posture, and silently discarded the planner's risk signal. Creation now
- * applies `type::story` plus the sanitized authored labels only;
+ * carry it in the creating POST while the `story-plan-state` checkpoint was
+ * upserted afterwards, so anything that picked a Story up inside that window —
+ * or after a comment failure aborted the loop — read the checkpoint as `null`.
+ * Creation now applies `type::story` plus the sanitized authored labels only;
  * `markStoriesReady` performs the flip as the terminal step, once every
  * checkpoint is on the ticket.
  *
@@ -482,12 +562,19 @@ function renderStoryBodyForCreate(story, idBySlug) {
  * the `blocked by #N` footers written below — which `/deliver`'s resolver
  * reads directly, alongside native GitHub edges, from live state.
  *
+ * **Sibling order is mirrored into native GitHub `blocked_by` edges** once
+ * every id is known (Story #4544), so plan-created order stops depending on
+ * prose. That pass is non-fatal — see `mirrorNativeDependencyEdges`.
+ *
  * @param {object} args
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
- * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }> }>}
+ * @returns {Promise<{
+ *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }>,
+ *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,
+ * }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
   if (typeof provider?.createIssue !== 'function') {
@@ -507,6 +594,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
         url: undefined,
         adopted: false,
       })),
+      dependencyEdges: null,
     };
   }
 
@@ -553,7 +641,16 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     idBySlug.set(story.slug, id);
   }
 
-  return { created };
+  // Every id is known now — including the adopted ones a resumed run reused —
+  // so a re-run mirrors the whole cohort's edges, not just the Stories this
+  // invocation happened to POST. Re-application is idempotent.
+  const dependencyEdges = await mirrorNativeDependencyEdges({
+    provider,
+    stories: list,
+    idBySlug,
+  });
+
+  return { created, dependencyEdges };
 }
 
 /**
@@ -561,9 +658,8 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
  * (Story #4541).
  *
  * This is what makes `agent::ready` *mean* "fully persisted": by the time it
- * lands, the Story's `risk-verdict` and `story-plan-state` checkpoints are
- * already on the ticket, so a `/deliver` that picks it up cannot read a null
- * checkpoint and silently fall back to the neutral risk posture.
+ * lands, the Story's `story-plan-state` checkpoint is already on the ticket, so
+ * a `/deliver` that picks it up cannot read a null checkpoint.
  *
  * Fails closed: an un-flipped Story is invisible to `/deliver`, which is the
  * safe direction — the operator is told exactly which ids need the label.

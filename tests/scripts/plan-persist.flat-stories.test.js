@@ -3,6 +3,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -19,6 +20,7 @@ import {
 } from '../../.agents/scripts/lib/label-constants.js';
 import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
 import {
+  makeDefaultFanOutCounter,
   resolveBaseBranchRef,
   validateTickets,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
@@ -33,17 +35,6 @@ import {
 import { PLAN_SUMMARY_COMMENT_TYPE } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
 import { resolveSourceTicketIds } from '../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
-
-const VERDICT = {
-  axes: [
-    {
-      axis: 'internal-refactor',
-      level: 'low',
-      rationale: 'Test fixture — internal tooling only.',
-    },
-  ],
-  summary: 'Low-risk internal refactor (test fixture).',
-};
 
 function ticket(slug) {
   const acceptance = [`${slug} done`];
@@ -191,6 +182,176 @@ describe('base-branch resolution (Story #4541)', () => {
   });
 });
 
+describe('fan-out probe — importers, not basename word matches (Story #4547)', () => {
+  // The predecessor counter grepped the deleted file's basename stem as a
+  // bare word across the whole tree. A module named `notification` reported
+  // 59 call sites drawn from prose and unrelated schemas while having zero
+  // real importers — and the gate that fired on that number told the
+  // operator to split a migration that did not exist, leaving the override
+  // as the only exit. These fixtures pin the number to real coupling.
+
+  /**
+   * A `git grep -n -E` that actually greps: the fixture tree is matched
+   * against the probe's own pattern, so the assertions below exercise the
+   * real regex rather than a canned hit list.
+   */
+  function fakeGit(tree) {
+    return {
+      gitSpawn(_cwd, ...args) {
+        const [, , , , pattern, ref] = args;
+        const re = new RegExp(pattern.replaceAll('[[:space:]]', '\\s'));
+        const out = [];
+        for (const [file, content] of Object.entries(tree)) {
+          content.split('\n').forEach((text, idx) => {
+            if (re.test(text)) out.push(`${ref}:${file}:${idx + 1}:${text}`);
+          });
+        }
+        return {
+          status: out.length > 0 ? 0 : 1,
+          stdout: out.join('\n'),
+          stderr: '',
+        };
+      },
+    };
+  }
+
+  function probe(tree, path, { baseBranchRef = 'main' } = {}) {
+    return makeDefaultFanOutCounter({
+      baseBranchRef,
+      cwd: '/repo',
+      git: fakeGit(tree),
+    })({ path });
+  }
+
+  it('reports zero for a generic basename that no code imports', () => {
+    const result = probe(
+      {
+        '.agents/docs/SDLC.md':
+          'The post-merge notification phase fires after the merge lands.',
+        '.agents/schemas/agentrc.schema.json':
+          '  "notification": { "type": "object" },',
+        '.agents/scripts/lib/close.js':
+          "// notification is sent here\nimport { land } from './land.js';",
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 0);
+    assert.deepEqual(result.files, []);
+  });
+
+  it('counts the files that genuinely import the module', () => {
+    const result = probe(
+      {
+        '.agents/scripts/lib/a.js':
+          "import { notify } from './notification.js';",
+        '.agents/scripts/lib/nested/b.js':
+          "import { notify } from '../notification.js';",
+        '.agents/scripts/c.js': "const n = require('./lib/notification');",
+        '.agents/docs/SDLC.md': 'Prose about notification handling.',
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 3);
+    assert.deepEqual(result.files, [
+      '.agents/scripts/c.js',
+      '.agents/scripts/lib/a.js',
+      '.agents/scripts/lib/nested/b.js',
+    ]);
+  });
+
+  it('does not count a same-basename module in another directory', () => {
+    const result = probe(
+      {
+        '.agents/scripts/x.js': "import { n } from './b/notification.js';",
+      },
+      '.agents/scripts/a/notification.js',
+    );
+    assert.equal(result.count, 0);
+  });
+
+  it('probes a stem shorter than three characters instead of reporting zero', () => {
+    // The predecessor bailed out at `stem.length < 3` without probing at
+    // all — silently under-reporting a real deletion as safe.
+    const result = probe(
+      {
+        '.agents/scripts/lib/reader.js': "import { q } from './db.js';",
+        '.agents/scripts/lib/writer.js': "import { q } from './db.js';",
+      },
+      '.agents/scripts/lib/db.js',
+    );
+    assert.equal(result.count, 2);
+    assert.deepEqual(result.files, [
+      '.agents/scripts/lib/reader.js',
+      '.agents/scripts/lib/writer.js',
+    ]);
+  });
+
+  it('resolves an extensionless directory-index specifier', () => {
+    const result = probe(
+      { '.agents/scripts/x.js': "import { f } from './foo';" },
+      '.agents/scripts/foo/index.js',
+    );
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
+  });
+
+  it("excludes the deleted module's own self-references", () => {
+    const result = probe(
+      {
+        '.agents/scripts/lib/notification.js':
+          '// see ./notification.js\nexport const n = 1;',
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 0);
+  });
+
+  it('reports a probe that survives a paste into a shell', () => {
+    // The reported probe is the operator's route to checking the number at
+    // any count, so "looks like a git command" is not the bar — it has to
+    // still be the same argv after the shell has had it. Unquoted, the
+    // ERE's `(`, `|` and `[[:space:]]` are glob metacharacters: zsh fails
+    // the paste with `no matches found` AND exits 0, so the gate's own
+    // audit trail would read as "zero importers".
+    const result = probe(
+      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
+      '.agents/scripts/lib/notification.js',
+    );
+    const argv = execFileSync(
+      'sh',
+      ['-c', `printf '%s\\n' ${result.probe.replace(/^git /, '')}`],
+      { encoding: 'utf-8' },
+    )
+      .split('\n')
+      .filter((l) => l.length > 0);
+
+    assert.deepEqual(argv.slice(0, 4), ['grep', '-n', '-E', '--full-name']);
+    assert.equal(argv.length, 6);
+    // The pattern reaches git as ONE intact argv entry, unmangled.
+    assert.match(argv[4], /^\(from\|require\|import\)\[\[:space:\]\]/);
+    assert.match(argv[4], /notification\\\.js\|notification/);
+    assert.equal(argv[5], 'main');
+  });
+
+  it('reports the probe that produced the number, against the configured ref', () => {
+    // AC: the figure must be checkable, not merely trusted.
+    const result = probe(
+      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
+      '.agents/scripts/lib/notification.js',
+      { baseBranchRef: 'develop' },
+    );
+    assert.match(result.probe, /^git grep -n -E /);
+    assert.match(result.probe, /develop$/);
+    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
+  });
+
+  it('maps an empty grep (exit 1) to zero rather than a failure', () => {
+    const result = probe({}, '.agents/scripts/lib/gone.js');
+    assert.equal(result.count, 0);
+    assert.deepEqual(result.files, []);
+  });
+});
+
 describe('runPlanPersist — flat Story ops', () => {
   it('creates one Story by default with agent::ready and plan-summary', async () => {
     const provider = fakeProvider();
@@ -198,7 +359,6 @@ describe('runPlanPersist — flat Story ops', () => {
       provider,
       artifacts: {
         stories: [ticket('solo')],
-        riskVerdict: VERDICT,
         techSpecContent: '## Overview\n\nSmall folded spec.',
       },
       config: {},
@@ -217,15 +377,16 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const bodies = provider.comments.map((c) => c.body).join('\n');
     assert.match(bodies, /Plan Summary/);
-    assert.match(bodies, /internal-refactor|risk-verdict/);
+    // Story #4542: persist writes no risk artifact at all — neither the
+    // per-Story `risk-verdict` comment nor a risk line on the summary.
+    assert.doesNotMatch(bodies, /risk-verdict/);
     void PLAN_SUMMARY_COMMENT_TYPE;
   });
 
   it('creates Stories WITHOUT agent::ready and flips them only after the checkpoints land', async () => {
     // Story #4541: issues used to be born agent::ready in the creating POST
-    // while risk-verdict / story-plan-state were upserted afterwards. A
-    // /deliver that picked a Story up inside that window read a null
-    // checkpoint and silently delivered with the neutral risk posture.
+    // while story-plan-state was upserted afterwards, so a /deliver that picked
+    // a Story up inside that window read a null checkpoint.
     // Ready must mean fully persisted.
     const labelsAtCreate = [];
     const provider = fakeProvider({
@@ -238,7 +399,6 @@ describe('runPlanPersist — flat Story ops', () => {
     provider.postComment = async (issueNumber, payload) => {
       const body = typeof payload === 'string' ? payload : payload.body;
       if (body.includes('story-plan-state')) order.push('checkpoint');
-      if (body.includes('risk-verdict')) order.push('risk-verdict');
       return postComment(issueNumber, payload);
     };
     const { updateTicket } = provider;
@@ -251,7 +411,7 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      artifacts: { stories: [ticket('solo')] },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -263,7 +423,6 @@ describe('runPlanPersist — flat Story ops', () => {
     );
     assert.equal(order.at(-1), 'ready', 'the ready flip must be terminal');
     assert.ok(order.includes('checkpoint'));
-    assert.ok(order.includes('risk-verdict'));
     // And the end state is still a ready Story.
     assert.ok(
       provider.issues
@@ -291,7 +450,7 @@ describe('runPlanPersist — flat Story ops', () => {
       () =>
         runPlanPersist({
           provider,
-          artifacts: { stories, riskVerdict: VERDICT },
+          artifacts: { stories },
           config: {},
           opts: { skipCleanup: true },
         }),
@@ -310,7 +469,7 @@ describe('runPlanPersist — flat Story ops', () => {
     const strandedIds = [...provider.issues.keys()];
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories, riskVerdict: VERDICT },
+      artifacts: { stories },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -348,7 +507,7 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [authored], riskVerdict: VERDICT },
+      artifacts: { stories: [authored] },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -389,7 +548,7 @@ describe('runPlanPersist — flat Story ops', () => {
       const provider = fakeProvider();
       await runPlanPersist({
         provider,
-        artifacts: { stories: [ticket('metrics')], riskVerdict: VERDICT },
+        artifacts: { stories: [ticket('metrics')] },
         config,
         opts: { skipCleanup: true },
       });
@@ -414,26 +573,6 @@ describe('runPlanPersist — flat Story ops', () => {
     } finally {
       rmSync(workRoot, { recursive: true, force: true });
     }
-  });
-
-  it('refuses deliveryShape in the risk verdict', async () => {
-    const provider = fakeProvider();
-    await assert.rejects(
-      () =>
-        runPlanPersist({
-          provider,
-          artifacts: {
-            stories: [ticket('solo')],
-            riskVerdict: {
-              ...VERDICT,
-              deliveryShape: 'single',
-              deliveryShapeRationale: 'nope',
-            },
-          },
-          opts: { skipCleanup: true },
-        }),
-      /deliveryShape/,
-    );
   });
 
   it('rejects hard model-capacity findings before issue creation', async () => {
@@ -461,7 +600,6 @@ describe('runPlanPersist — flat Story ops', () => {
           provider,
           artifacts: {
             stories: [oversized],
-            riskVerdict: VERDICT,
           },
           opts: {
             modelCapacity: { hardSessionTokens: 100, softSessionTokens: 50 },
@@ -483,7 +621,6 @@ describe('runPlanPersist — flat Story ops', () => {
       provider,
       artifacts: {
         stories: [ticket('one'), ticket('two')],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true },
     });
@@ -499,7 +636,7 @@ describe('runPlanPersist — flat Story ops', () => {
         .filter((comment) => comment.issueNumber === s.id)
         .map((comment) => comment.body)
         .join('\n');
-      assert.match(storyComments, /risk-verdict/);
+      assert.doesNotMatch(storyComments, /risk-verdict/);
       assert.match(storyComments, /story-plan-state/);
     }
   });
@@ -525,7 +662,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [900])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [900] },
     });
@@ -560,7 +696,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
             },
           ]),
         ],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [901] },
     });
@@ -580,7 +715,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           supersedingTicket('one', [910]),
           supersedingTicket('two', [911]),
         ],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [910, 911] },
     });
@@ -607,7 +741,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           provider,
           artifacts: {
             stories: [supersedingTicket('solo', [920])],
-            riskVerdict: VERDICT,
           },
           opts: { skipCleanup: true, sourceTicketIds: [920, 921] },
         }),
@@ -626,7 +759,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           provider,
           artifacts: {
             stories: [supersedingTicket('solo', [930, 999])],
-            riskVerdict: VERDICT,
           },
           opts: { skipCleanup: true, sourceTicketIds: [930] },
         }),
@@ -641,7 +773,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [940])],
-        riskVerdict: VERDICT,
       },
       opts: {
         skipCleanup: true,
@@ -664,7 +795,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [950])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [950], dryRun: true },
     });
@@ -689,7 +819,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [960])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [960] },
     });
@@ -708,7 +837,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [970])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [970] },
     });
@@ -730,7 +858,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [980, 981])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [980, 981] },
     });
@@ -748,7 +875,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      artifacts: { stories: [ticket('solo')] },
       opts: { skipCleanup: true },
     });
 
@@ -774,7 +901,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [4525])],
-        riskVerdict: VERDICT,
       },
       opts: {
         skipCleanup: true,
@@ -800,7 +926,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     await assert.rejects(
       runPlanPersist({
         provider,
-        artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+        artifacts: { stories: [ticket('solo')] },
         opts: { skipCleanup: true, sourceTicketIds: ids },
       }),
       /#4525 is not claimed by any Story/,

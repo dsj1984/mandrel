@@ -4,20 +4,24 @@
  * plan-persist.js — flat Story GitHub-write surface for v2 `/plan`
  * (Stage 3 — `docs/roadmap.md`).
  *
- * Given the author-written planning artifacts (`stories.json` +
- * `risk-verdict.json`, optional shared Tech Spec), this CLI validates and
- * creates Story issue(s) directly:
+ * Given the author-written planning artifacts (`stories.json`, optional shared
+ * Tech Spec), this CLI validates and creates Story issue(s) directly:
  *
- *   risk-verdict → ticket validator / DAG / capacity → reachability →
+ *   ticket validator / DAG / capacity → reachability →
  *   split-policy partition → fold/spill Spec into each Story body →
  *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
- *   agent::ready) → risk-verdict + story-plan-state on every Story;
+ *   agent::ready) → story-plan-state on every Story;
  *   plan-summary on the primary → flip every Story to agent::ready →
  *   comment + close superseded source tickets → temp cleanup + stale reap.
  *
+ * Story #4542 retired the authored risk verdict: persist neither requires nor
+ * accepts one, and no plan-time step produces one. Review depth and the
+ * acceptance-critic mode are derived from the diff at close time
+ * (`review-depth.js#deriveChangeLevel`). `--force-review` is the only review
+ * gate the planner still carries, and it is an explicit operator flag.
+ *
  * CLI:
  *   --stories <file>          Required Story ticket array (default length 1)
- *   --risk-verdict <file>     Required risk verdict (no deliveryShape)
  *   --tech-spec <file>        Optional shared Tech Spec folded into each Story
  *   --plan-dir <dir>          Optional temp dir deleted at terminal success.
  *                             Also where the `plan-context.json` envelope is
@@ -33,7 +37,7 @@
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
- *   --force-review            Record operator-forced review routing
+ *   --force-review            Operator-forced review stop before persist lands
  *   --allow-over-budget / --allow-large-fan-out
  *
  * Run `--dry-run` first. It exercises every gate — validator, DAG, capacity,
@@ -79,7 +83,6 @@ import {
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './lib/orchestration/plan-persist/summary.js';
 import { resolveSourceTicketIds } from './lib/orchestration/plan-persist/supersede-ops.js';
-import { loadRiskVerdict } from './lib/orchestration/planning/risk-verdict.js';
 import { createProvider } from './lib/provider-factory.js';
 
 export {
@@ -92,7 +95,6 @@ export {
 
 const CLI_OPTIONS = {
   stories: { type: 'string' },
-  'risk-verdict': { type: 'string' },
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
   'plan-context': { type: 'string' },
@@ -107,7 +109,7 @@ const CLI_OPTIONS = {
 };
 
 const USAGE =
-  'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
+  'Usage: plan-persist.js --stories <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
   '[--plan-acceptance <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
@@ -144,7 +146,6 @@ export function resolveInputPaths(values) {
   const planDir = values['plan-dir'] ? path.resolve(values['plan-dir']) : null;
   return {
     storiesPath: path.resolve(values.stories),
-    riskVerdictPath: path.resolve(values['risk-verdict']),
     techSpecPath: values['tech-spec']
       ? path.resolve(values['tech-spec'])
       : null,
@@ -157,7 +158,6 @@ export function resolveInputPaths(values) {
 }
 
 async function loadArtifacts(paths) {
-  const riskVerdict = loadRiskVerdict(paths.riskVerdictPath);
   const stories = await readJsonFile(paths.storiesPath, 'stories');
   const techSpecContent = paths.techSpecPath
     ? await readOptional(paths.techSpecPath, { required: true })
@@ -171,7 +171,6 @@ async function loadArtifacts(paths) {
 
   return {
     stories,
-    riskVerdict,
     techSpecContent,
     planAcceptance,
     planContextEnvelope,
@@ -284,7 +283,7 @@ async function attachPlanMetrics(result, config, since) {
 async function main() {
   const { values } = parseArgs({ options: CLI_OPTIONS });
 
-  if (!values.stories || !values['risk-verdict']) {
+  if (!values.stories) {
     throw new Error(USAGE);
   }
 

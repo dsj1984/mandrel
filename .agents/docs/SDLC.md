@@ -49,13 +49,13 @@ From zero to shipped:
       probe, risk heuristics, `systemPrompts.story`). Duplicate review
       folds into **gate #1**.
    2. **Author** — write `stories.json` (**one Story by default**) with a
-      folded Tech Spec in `## Spec` / `## Slicing`, plus
-      `risk-verdict.json` (axes + summary only — no `deliveryShape`).
+      folded Tech Spec in `## Spec` / `## Slicing`. There is no risk artifact
+      to author (Story #4542).
       Binding criteria live in top-level `acceptance[]` / `verify[]`;
       changes/references are `{ path, assumption }` objects. Split into
       N>1 only under the default-single split policy.
-   3. **Persist** — **gate #2** (risk-routed; typically skipped for N=1
-      low-risk) then `plan-persist.js` runs every deterministic gate and
+   3. **Persist** — **gate #2** (raised only by an explicit `--force-review`)
+      then `plan-persist.js` runs every deterministic gate and
       creates Story issue(s) with `type::story` + `agent::ready`, writing
       each authored `depends_on` edge into the sibling body as a
       `blocked by #<id>` footer when N>1.
@@ -76,11 +76,12 @@ From zero to shipped:
    2. **Implement** — the agent delivers the Story in one guarded session
       against its inline `acceptance[]` / `verify[]` contract (optional
       `## Slicing` intra-session checkpoints).
-   3. **Acceptance self-eval** — a bounded, risk-routed critic loop scores
-      the working diff against each acceptance item before close (see
+   3. **Acceptance self-eval** — a bounded critic loop scores the working
+      diff against each acceptance item before close (see
       [`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md)).
-   4. **Ceremony** — risk-routed acceptance critics, review depth, and
-      audit lenses (`ceremony-routing.js`).
+   4. **Ceremony** — acceptance critic mode and review depth, both routed off
+      the change level derived from the Story's own diff
+      (`review-depth.js#deriveChangeLevel` → `ceremony-routing.js`).
    5. **Close** (`single-story-close.js`) — runs close-validation gates,
       the maker-blind Story-scope code review, pushes `story-<id>`, opens
       a PR to `main`, and (under the default `delivery.ci.autoMerge:
@@ -488,14 +489,18 @@ pass — the tiers below *are* the audit machinery.
 | --- | --- | --- | --- |
 | Tier 1 — write-time | During Story implementation | Footprint-matched **local**-lens authoring checklists threaded into the Story prompt (`checklistPath`) | advisory |
 | Tier 2 — Story-scope | `single-story-close.js` (maker-blind subprocess) | Local-tier lens roster over the Story diff (`selectLocalLenses`) + review pillars, posted as `verification-results` | blocking on 🔴 |
-| Tier 3 — run closeout | `/deliver` per-run epilogue (`plan-run-epilogue.js`, N>1 only) | Cumulative + global + risk-routed lenses (`selectAudits` / `resolveAuditLenses`) over the combined landed tip | blocking |
+| Tier 3 — run closeout | `/deliver` per-run epilogue (`plan-run-epilogue.js`, N>1 only) | Cumulative + global lenses (`selectAudits`) over the combined landed tip | blocking |
 
 - **`local`** lenses (decidable from a single Story's diff) are verified at
   Tiers 1–2 and are **not** re-run at run closeout.
 - **`cumulative`** lenses (only decidable across a run's combined diff)
   and **`global`** lenses (whole-product properties) are verified at Tier 3.
-- **Risk-routed** lenses run regardless of tier when a high-risk axis (or a
-  route-adding change set) demands them.
+
+There is no risk-routed lens tier. Story #4542 deleted the risk→lens router:
+it had zero callers while this document claimed it ran inside close. Lens
+selection is change-set-matched (`selectAudits` / `selectLocalLenses`); the
+`sensitivePaths` classes in `audit-rules.json` route review **depth**, not
+lenses.
 
 The run-closeout roster is deliberately **slim**: it excludes every
 local-tier change-set lens so the outermost tier — where a fix is most
@@ -506,8 +511,8 @@ expensive — does not re-verify a concern already covered shift-left.
 The Story-scope code review runs **outside the maker's context**, inside
 the `single-story-close.js` close subprocess, over `main...story-<id>`
 (see [`helpers/code-review.md`](../workflows/helpers/code-review.md)). It
-walks the Story diff once, executing the risk-routed lens roster as review
-dimensions alongside the review pillars, and posts the unified
+walks the Story diff once, executing the change-set-matched local lens roster
+as review dimensions alongside the review pillars, and posts the unified
 `verification-results` comment. Remediation is tier-aware and split by
 finding class off `delivery.codeReview.autoFixSeverity` (default `medium`);
 surviving 🔴 Critical findings halt the run. The legacy `scope: epic`

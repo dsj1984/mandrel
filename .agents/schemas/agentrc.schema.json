@@ -1221,7 +1221,7 @@
         },
         "navigability": {
           "type": "object",
-          "description": "Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's risk-routed ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
+          "description": "Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's per-Story ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op.",
           "properties": {
             "routeGlobs": {
               "type": "array",
@@ -1239,7 +1239,7 @@
             },
             "journeySuite": {
               "type": "string",
-              "description": "Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs."
+              "description": "Path or command for the per-persona journey suite /deliver's per-Story ceremony runs."
             }
           },
           "additionalProperties": false
@@ -1354,12 +1354,12 @@
               "type": "number",
               "minimum": 0,
               "maximum": 1,
-              "description": "Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Risk-routed ceremony sends a low-risk acceptance cluster down the contract-identical inline critic path, but this fraction of low-risk clusters is still forced through a fresh-context critic so low risk never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js)."
+              "description": "Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Under the standard profile, a change set touching no sensitive path routes its acceptance clusters down the contract-identical inline critic path, but this fraction of them is still forced through a fresh-context critic so a low derived level never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js)."
             },
             "ceremonyProfile": {
               "type": "string",
               "enum": ["minimal", "standard", "strict"],
-              "description": "Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = risk-routed with the maker-checker sampling floor."
+              "description": "Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff, with the maker-checker sampling floor."
             },
             "closeAndLand": {
               "type": "boolean",

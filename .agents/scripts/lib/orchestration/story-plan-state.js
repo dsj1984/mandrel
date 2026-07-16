@@ -1,9 +1,22 @@
+/**
+ * story-plan-state.js — read the v2 Story planning checkpoint.
+ *
+ * `plan-persist.js` upserts one `story-plan-state` structured comment per
+ * created Story carrying the persist receipt (when the plan completed, how many
+ * Stories it created, and their ids). Story #4542 removed the risk fields it
+ * used to carry: the planner-authored verdict, the envelope derived from it,
+ * and the review routing computed from that envelope. Nothing read any of them
+ * back — review depth is now derived from the diff at close time
+ * (`review-depth.js#deriveChangeLevel`), so no checkpoint read sits on the
+ * delivery path at all.
+ */
+
 import { parseFencedJsonComment } from './structured-comment-parser.js';
 import { findStructuredComment } from './ticketing.js';
 
 /**
  * Read the v2 Story planning checkpoint. Missing/malformed comments degrade
- * to null so unplanned Stories still receive the neutral review posture.
+ * to null — an unplanned Story simply has no persist receipt.
  */
 export async function readStoryPlanState({
   provider,
@@ -17,32 +30,4 @@ export async function readStoryPlanState({
   );
   const state = parseFencedJsonComment(comment);
   return state && typeof state === 'object' ? state : null;
-}
-
-export async function readStoryPlanningRisk(args) {
-  const state = await readStoryPlanState(args);
-  return state?.planningRisk ?? null;
-}
-
-export async function readStoryPlanningRiskSafe(args) {
-  try {
-    return await readStoryPlanningRisk(args);
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Prefer an explicit `planningRisk` override; otherwise load the Story
- * checkpoint. Callers that omit the field (or pass `undefined`) get the
- * persisted plan risk; callers that pass `null` keep the neutral posture.
- */
-export async function resolveStoryPlanningRisk({
-  provider,
-  storyId,
-  planningRisk,
-  findCommentFn,
-}) {
-  if (planningRisk !== undefined) return planningRisk;
-  return readStoryPlanningRiskSafe({ provider, storyId, findCommentFn });
 }

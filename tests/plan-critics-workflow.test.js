@@ -68,11 +68,14 @@ describe('/plan critic workflow cutover — deterministic persist gate remains',
     assert.match(author, /Split only under the\s*\n?policy above/i);
   });
 
-  it('keeps risk review at gate #2 before plan-persist writes', () => {
+  it('keeps the --force-review gate #2 before plan-persist writes', () => {
+    // Story #4542 retired the risk-derived review routing: `--force-review`
+    // is the only thing that raises gate #2 now.
     assert.ok(persist, 'plan.md must carry the persist step');
     assert.match(persist, /\*\*Gate #2\*\*/);
-    assert.match(persist, /risk routing requires review/i);
-    assert.match(persist, /before\s*\n?persist/i);
+    assert.match(persist, /`--force-review`/);
+    assert.match(persist, /before persist/i);
+    assert.doesNotMatch(persist, /risk routing/i);
     assert.match(persist, /node \.agents\/scripts\/plan-persist\.js/);
   });
 
