@@ -18,7 +18,6 @@ describe('ITicketingProvider — interface contract', () => {
   ];
 
   const writeMethods = [
-    ['createTicket', [1, { title: 'test', body: '', labels: [] }]],
     ['updateTicket', [1, {}]],
     ['postComment', [1, { body: 'test', type: 'progress' }]],
     ['deleteComment', [1]],
@@ -63,7 +62,9 @@ describe('ITicketingProvider — interface contract', () => {
     });
   }
 
-  it('has exactly 15 interface methods', () => {
+  // Story #4545 dropped `createTicket` — the Epic-hierarchy write surface —
+  // from the interface, taking the declared surface from 15 methods to 14.
+  it('has exactly 14 interface methods', () => {
     const expectedMethods = [
       'getEpic',
       'getTickets',
@@ -71,7 +72,6 @@ describe('ITicketingProvider — interface contract', () => {
       'getTicketDependencies',
       'getRecentComments',
       'getTicketComments',
-      'createTicket',
       'updateTicket',
       'postComment',
       'deleteComment',
@@ -117,9 +117,9 @@ describe('ITicketingProvider — subclass behavior', () => {
   it('non-overridden methods still throw', async () => {
     const provider = new TestProvider();
     await assert.rejects(
-      () => provider.createTicket(1, { title: 'x', body: '', labels: [] }),
+      () => provider.updateTicket(1, { labels: { add: ['x'] } }),
       (err) => {
-        assert.ok(err.message.includes('Not implemented: createTicket'));
+        assert.ok(err.message.includes('Not implemented: updateTicket'));
         return true;
       },
     );

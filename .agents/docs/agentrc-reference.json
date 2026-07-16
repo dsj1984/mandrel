@@ -131,8 +131,7 @@
       "paths": ["README.md"]
     },
     "deliverRunner": {
-      "concurrencyCap": 3,
-      "verifyConcurrencyCap": 4
+      "concurrencyCap": 3
     },
     "worktreeIsolation": {
       "enabled": true,

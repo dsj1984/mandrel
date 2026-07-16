@@ -11,9 +11,11 @@ on-disk audit ledger.
 > (`helpers/deliver-story` → `single-story-init` / `single-story-close` /
 > `single-story-confirm-merge`). Epic-scoped listener chains
 > (`lifecycle-emit.js`, AutomergeArmer, Finalizer, Cleaner, …) were
-> removed. Schemas for historical `epic.*` events remain so old ledgers
-> and structured comments stay parseable; new runs write under
-> `temp/run-<id>/`.
+> removed; new runs write under `temp/run-<id>/`. Story #4545 deleted the
+> `epic.*` and `acceptance.reconcile.*` schemas whose emitters went with
+> those chains — a schema with no producer documents an event that can
+> never appear, which is worse than absent. An event schema earns its place
+> here only while code emits it.
 
 ---
 
@@ -85,13 +87,21 @@ contract.
 | `notification.emitted`      | Notify path fanned a webhook event.                         |
 | `checkpoint.written`        | Resume pointer persisted.                                   |
 
-### Historical Epic events (schemas retained)
+### Historical Epic events (schemas deleted)
 
 Pre-v2 Epic delivery emitted `epic.*`, `story.merged` (into `epic/<id>`),
-`acceptance.reconcile.*`, `retro.*`, and related events. Those schemas
-remain under `.agents/schemas/lifecycle/` so archived
-`temp/run-<id>/lifecycle.ndjson` (and older `temp/epic-<id>/` trees)
-stay readable. They are **not** part of the active Story-only path.
+`acceptance.reconcile.*`, and related events. Story #4545 deleted the
+`epic.*` and `acceptance.reconcile.*` schemas along with the emitters the
+cutover had already removed — the roster below is schema-file-driven, so
+retaining them rendered dead events into this document as if they were live.
+Archived ledgers stay readable regardless: `lifecycle.ndjson` is plain NDJSON
+and reading it never consults a schema (only `bus.emit()` validates, and only
+on the write path).
+
+`epic.watch.start` / `.end` are the exception and remain — they carry an
+`epic.*` name but are emitted today by
+[`listeners/watcher.js`](../.agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js),
+the CI-poll loop `pr-watch-with-update.js` drives.
 
 > **Loop ticks vs Story heartbeats.** `loop.tick` is distinct from
 > `story.heartbeat`: it is emitted once per pass of a host-driven loop,
@@ -110,33 +120,11 @@ a lifecycle schema; the drift gate is
 
 | Event | Schema | Description | Required fields |
 | --- | --- | --- | --- |
-| `acceptance.reconcile.failed` | [`acceptance.reconcile.failed.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.failed.schema.json) | Emitted by AcceptanceReconciler when reconciliation fails. Routes to epic.blocked; no PR is created. | `baseRead`, `reason` |
-| `acceptance.reconcile.ok` | [`acceptance.reconcile.ok.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.ok.schema.json) | Emitted by AcceptanceReconciler when reconciliation passes. Finalizer subscribes only to this event to gate the push and PR create. | `baseRead` |
-| `acceptance.reconcile.skipped` | [`acceptance.reconcile.skipped.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.skipped.schema.json) | Emitted by AcceptanceReconciler when reconciliation is skipped because the linked Acceptance Spec declares zero AC IDs ('empty-spec'). Story #2893 split the `acceptance::n-a` waiver path out to `acceptance.reconcile.waived` so the Finalizer can route waived Epics through to PR creation while empty-spec Epics still terminate without a PR. The reason field is required so the listener never silently no-ops. | `baseRead`, `reason` |
-| `acceptance.reconcile.start` | [`acceptance.reconcile.start.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.start.schema.json) | Emitted by AcceptanceReconciler at the start of acceptance-spec reconciliation. Must precede pr.created in every healthy run (reconciliation ordering invariant). | `epicId` |
-| `acceptance.reconcile.waived` | [`acceptance.reconcile.waived.schema.json`](../.agents/schemas/lifecycle/acceptance.reconcile.waived.schema.json) | Emitted by AcceptanceReconciler when reconciliation is waived by the acceptance::n-a label. Distinct from acceptance.reconcile.skipped (which now means 'empty-spec' only) so the Finalizer can subscribe to .waived and route waived Epics through to PR creation while empty-spec Epics still terminate without a PR. The reason field is required and pinned to 'waiver'. | `baseRead`, `reason` |
 | `checkpoint.written` | [`checkpoint.written.schema.json`](../.agents/schemas/lifecycle/checkpoint.written.schema.json) | Self-emitted by CheckpointPointerWriter after the pointer file is updated. Carries the phase header for tracing and the last-completed seqId for the resume contract. | `phase`, `lastCompletedSeqId` |
 | `close-validate.end` | [`close-validate.end.schema.json`](../.agents/schemas/lifecycle/close-validate.end.schema.json) | Emitted at the end of the close-validate sub-phase. ok=true => every gate passed; ok=false => failedGate identifies the first failed gate. durationMs is wall-clock time spent in the gate chain. Story #2250. | `epicId`, `storyId`, `ok` |
 | `close-validate.start` | [`close-validate.start.schema.json`](../.agents/schemas/lifecycle/close-validate.start.schema.json) | Emitted at the start of the close-validate sub-phase (pre-merge gate chain typecheck/lint/test/format/maintainability/crap). Story #2250. | `epicId`, `storyId` |
 | `code-review.end` | [`code-review.end.schema.json`](../.agents/schemas/lifecycle/code-review.end.schema.json) | Emitted at the end of the code-review sub-phase. Carries a review-finding severity summary so the lifecycle ledger surfaces critical/high/medium/suggestion counts directly. The payload MUST NOT carry any secret-key-denylist fields (token, password, secret, apiKey, webhookUrl) — the LedgerWriter enforces this, but the schema's `additionalProperties: false` keeps the surface tight. Story #2252. | `epicId`, `status` |
 | `code-review.start` | [`code-review.start.schema.json`](../.agents/schemas/lifecycle/code-review.start.schema.json) | Emitted at the start of the code-review sub-phase (Phase D of the close-tail). Story #2252. | `epicId` |
-| `epic.automerge.end` | [`epic.automerge.end.schema.json`](../.agents/schemas/lifecycle/epic.automerge.end.schema.json) | Emitted at the end of the automerge phase wrapper. merged=true means GitHub completed the squash; merged=false with a reason captures predicate-blocked or armed-but-pending outcomes. | `prUrl`, `merged` |
-| `epic.automerge.start` | [`epic.automerge.start.schema.json`](../.agents/schemas/lifecycle/epic.automerge.start.schema.json) | Emitted at the start of the automerge phase wrapper (Phase 8.5, via lifecycle-emit.js). AutomergePredicate subscribes to this event (Story #3901) and evaluates the structured-signal verdict; it carries no checkOutcomes because Phase 8 already polled CI to green. Distinct from epic.merge.ready (predicate outcome) and epic.merge.armed (arm outcome). | `prUrl` |
-| `epic.blocked` | [`epic.blocked.schema.json`](../.agents/schemas/lifecycle/epic.blocked.schema.json) | Emitted by AcceptanceReconciler (on a failed acceptance reconciliation), MergeWatcher (on a merge-watch timeout), and — in headless runs (Story #4472) — AutomergePredicate (on a predicate refusal that would otherwise silently park) and AutomergeArmer (on a genuine arm failure) when the Epic transitions to agent::blocked. Subscribed by NotifyDispatcher, which fans the blocker out to the curated webhook channel. The reason field carries either a typed marker (timeout:<event>, merge-predicate:refused, merge-arm:failed, waiver, …) or a free-form summary; sourceStoryId scopes the blocker to a child Story when applicable. | `reason` |
-| `epic.cleanup.end` | [`epic.cleanup.end.schema.json`](../.agents/schemas/lifecycle/epic.cleanup.end.schema.json) | Emitted by Cleaner when branch cleanup and temp archive complete. | `epicId` |
-| `epic.cleanup.start` | [`epic.cleanup.start.schema.json`](../.agents/schemas/lifecycle/epic.cleanup.start.schema.json) | Emitted by Cleaner at the start of branch cleanup + temp archive. | `epicId` |
-| `epic.close.end` | [`epic.close.end.schema.json`](../.agents/schemas/lifecycle/epic.close.end.schema.json) | Emitted when the close-tail phase finishes; AcceptanceReconciler subscribes to this event to gate finalize. | `epicId` |
-| `epic.complete` | [`epic.complete.schema.json`](../.agents/schemas/lifecycle/epic.complete.schema.json) | Terminal event for a successful Epic run, emitted by Cleaner once the temp archive + branch reap complete. NotifyDispatcher subscribes to this event to fan the completion out to the curated webhook channel; the agent::done label flip is driven by the post-merge close path. | `epicId`, `prUrl` |
-| `epic.finalize.end` | [`epic.finalize.end.schema.json`](../.agents/schemas/lifecycle/epic.finalize.end.schema.json) | Emitted by Finalizer after the PR is opened (or short-circuited by gh pr list --head idempotency check). | `epicId`, `prUrl` |
-| `epic.finalize.start` | [`epic.finalize.start.schema.json`](../.agents/schemas/lifecycle/epic.finalize.start.schema.json) | Emitted by Finalizer at the start of the finalize phase (fast-forward / hotspot / baseline / push / gh pr create). | `epicId` |
-| `epic.merge.armed` | [`epic.merge.armed.schema.json`](../.agents/schemas/lifecycle/epic.merge.armed.schema.json) | Emitted by AutomergeArmer after gh pr merge --auto --squash --delete-branch succeeds. Must be preceded by epic.merge.ready from the same run (merge-gate ordering invariant). | `prUrl` |
-| `epic.merge.blocked` | [`epic.merge.blocked.schema.json`](../.agents/schemas/lifecycle/epic.merge.blocked.schema.json) | Emitted by AutomergePredicate when the Epic is NOT safe to auto-merge. AutomergeArmer never sees this event; PR stays disarmed. | `prUrl`, `reason` |
-| `epic.merge.confirmed` | [`epic.merge.confirmed.schema.json`](../.agents/schemas/lifecycle/epic.merge.confirmed.schema.json) | Emitted by MergeWatcher after gh pr view --json mergeCommit,mergedAt returns a non-null mergeCommit for the armed Epic PR. Strictly downstream of epic.merge.armed; carries the observed mergeCommit SHA, mergedAt timestamp, and the cumulative poll count (Story #2896, Epic #2880). | `epicId`, `prUrl`, `mergeCommitSha`, `pollAttempts` |
-| `epic.merge.ready` | [`epic.merge.ready.schema.json`](../.agents/schemas/lifecycle/epic.merge.ready.schema.json) | Emitted SOLELY by AutomergePredicate (on epic.automerge.start in production, or epic.watch.end on the test-only Watcher path) once CI is confirmed green and the disqualification gate passes. The ONLY event AutomergeArmer subscribes to. Story #3367: the Finalizer no longer emits this event — emitting it from finalize cascaded epic.close.end synchronously into the auto-merge arm + branch reap, bypassing the predicate gate and deleting the epic branch before the PR merged. | `prUrl` |
-| `epic.plan.end` | [`epic.plan.end.schema.json`](../.agents/schemas/lifecycle/epic.plan.end.schema.json) | Emitted when the runner finishes building the wave DAG. | `waves` |
-| `epic.plan.start` | [`epic.plan.start.schema.json`](../.agents/schemas/lifecycle/epic.plan.start.schema.json) | Emitted when the runner begins planning waves for an Epic. | `epicId` |
-| `epic.snapshot.end` | [`epic.snapshot.end.schema.json`](../.agents/schemas/lifecycle/epic.snapshot.end.schema.json) | Emitted when the snapshot phase finishes; carries enumerated story IDs the Epic owns. | `epicId`, `storyIds` |
-| `epic.snapshot.start` | [`epic.snapshot.start.schema.json`](../.agents/schemas/lifecycle/epic.snapshot.start.schema.json) | Emitted when the runner enters the snapshot phase for an Epic. | `epicId` |
 | `epic.watch.end` | [`epic.watch.end.schema.json`](../.agents/schemas/lifecycle/epic.watch.end.schema.json) | Emitted by Watcher when required checks settle. checkOutcomes maps check-name → terminal state (success \| failure \| timed_out \| skipped) or the slow-but-not-failed sentinel `still-running` (Story #4358: the poll cap fired with the check still pending after the resume budget was exhausted — distinct from a genuine `failure`). AutomergePredicate subscribes to this event (test-only Watcher path; the production Phase 8.5 boundary is epic.automerge.start). | `prUrl`, `checkOutcomes` |
 | `epic.watch.start` | [`epic.watch.start.schema.json`](../.agents/schemas/lifecycle/epic.watch.start.schema.json) | Emitted by Watcher when required-check polling begins. Required-check names are resolved from GitHub at runtime via gh pr checks, not from .agentrc.json. | `prUrl`, `requiredChecks` |
 | `intervention.recorded` | [`intervention.recorded.schema.json`](../.agents/schemas/lifecycle/intervention.recorded.schema.json) | Emitted whenever the host LLM performs an out-of-band manual intervention during an Epic delivery (e.g., AskUserQuestion, manual git restore/reset, --no-ff recovery merge, story-close --skipValidation). The InterventionRecorder listener appends the payload to the epic-run-state-store's manualInterventions array; a non-empty array disqualifies the Epic from auto-merge. | `epicId`, `reason` |
@@ -213,16 +201,15 @@ events.
 
 | Listener                     | Subscribes to                                                                                  | Side effect                                                          |
 | ---------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `MergeWatcher`               | `epic.merge.armed`                                                                             | Poll helpers (`deriveChecksStatus`) reused by Story close-and-land. |
 | `Watcher`                    | `pr.created`                                                                                   | `watchPrToTerminal` — CI watch used by `pr-watch-with-update.js`. |
 
 > **v2 note.** The Epic lifecycle listener chain (`AutomergeArmer`,
 > `AutomergePredicate`, `Finalizer`, `Cleaner`, …) was removed. Story
 > delivery arms merge and confirms land via `single-story-close`
-> (`phases/auto-merge.js` + `confirm-merge.js`). Helper exports from
-> `merge-watcher.js` / `watcher.js` remain; `MergeWatcher` still
-> documents the historical `epic.merge.armed` subscription for archived
-> ledgers / helper reuse.
+> (`phases/auto-merge.js` + `confirm-merge.js`). `MergeWatcher` followed in
+> Story #4545 — the listener had no production caller, and the poll defaults
+> and `deriveChecksStatus` the close path did reuse from it now live in
+> [`lib/orchestration/merge-poll.js`](../.agents/scripts/lib/orchestration/merge-poll.js).
 ### Side-effect firewall
 
 Listeners MAY read tickets via the injected provider, write tickets via

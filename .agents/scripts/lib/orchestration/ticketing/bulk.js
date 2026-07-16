@@ -365,43 +365,14 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     return { cascadedTo: [], failed: [] };
   }
 
+  // Story #4545 — one strategy, not three. The `parent: #N` body footer and
+  // the native sub-issue link were both written by `createTicket`, the
+  // Epic-hierarchy write surface deleted in the same Story; with no writer,
+  // the body regex could only ever miss and the native lookup could only
+  // ever spend an API call to learn the same. The operator-settable `blocks`
+  // annotation is the one parent edge that can still exist.
   const { blocks: parentIds } = await provider.getTicketDependencies(ticketId);
-
-  // Fallback: parse `parent: #NNN` from the body when `blocks` syntax isn't used (C-5).
-  let parsedParents = parentIds;
-  if (!parsedParents || parsedParents.length === 0) {
-    const parentMatch = ticket.body
-      ? [...ticket.body.matchAll(/parent:\s*#(\d+)/gi)]
-      : [];
-    parsedParents = parentMatch.map((m) => Number.parseInt(m[1], 10));
-  }
-
-  // Story #2982 — third fallback: GitHub's native Sub-Issues API. The
-  // resume reconciler can strip the `parent: #N` orchestrator footer
-  // from a Story body (see Issue 2 in #2982); without the body marker
-  // the cascade silently returned `{ cascadedTo: [], failed: [] }` and
-  // left intermediate parent tickets stranded OPEN. The native link is
-  // independent of body text, so consult it when the first two
-  // strategies came back empty.
-  if (
-    parsedParents.length === 0 &&
-    typeof provider._getNativeParent === 'function' &&
-    ticket.nodeId
-  ) {
-    try {
-      const nativeParent = await provider._getNativeParent(
-        ticket.nodeId,
-        ticketId,
-      );
-      if (typeof nativeParent === 'number') {
-        parsedParents = [nativeParent];
-      }
-    } catch (err) {
-      Logger.warn(
-        `[cascadeCompletion] native parent lookup failed for #${ticketId}: ${err.message}`,
-      );
-    }
-  }
+  const parsedParents = Array.isArray(parentIds) ? parentIds : [];
 
   if (parsedParents.length === 0) {
     return { cascadedTo: [], failed: [] };
@@ -537,22 +508,18 @@ export async function cascadeParentState(provider, ticketId, opts = {}) {
 }
 
 /**
- * Resolve the parent issue ids for a ticket: native `blocks:` dependency
- * annotations first, then `parent: #NNN` body references as a fallback.
- * Mirrors the resolution path used by {@link cascadeCompletion}.
+ * Resolve the parent issue ids for a ticket from its `blocks:` dependency
+ * annotations. Mirrors the resolution path used by {@link cascadeCompletion}
+ * — see there for why the `parent: #NNN` body fallback is gone (Story #4545).
  *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
- * @param {object} ticket
+ * @param {object} _ticket
  * @param {number} ticketId
  * @returns {Promise<number[]>}
  */
-async function resolveParentIds(provider, ticket, ticketId) {
+async function resolveParentIds(provider, _ticket, ticketId) {
   const { blocks: parentIds } = await provider.getTicketDependencies(ticketId);
-  if (Array.isArray(parentIds) && parentIds.length > 0) return parentIds;
-  const parentMatch = ticket?.body
-    ? [...ticket.body.matchAll(/parent:\s*#(\d+)/gi)]
-    : [];
-  return parentMatch.map((m) => Number.parseInt(m[1], 10));
+  return Array.isArray(parentIds) ? parentIds : [];
 }
 
 /**

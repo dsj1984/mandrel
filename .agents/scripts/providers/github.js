@@ -127,7 +127,6 @@ const DELEGATIONS = [
   ['getTickets', 'tickets.getTickets'],
   ['getTicket', 'tickets.getTicket'],
   ['getTicketDependencies', 'tickets.getTicketDependencies'],
-  ['createTicket', 'tickets.createTicket'],
   ['createIssue', 'tickets.createIssue'],
   ['updateTicket', 'tickets.updateTicket'],
   ['_applyLabelMutations', 'tickets._applyLabelMutations'],

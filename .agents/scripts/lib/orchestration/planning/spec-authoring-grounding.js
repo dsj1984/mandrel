@@ -1,5 +1,5 @@
 /**
- * phases/spec-authoring-grounding.js — F10 spec-authoring code-grounding.
+ * planning/spec-authoring-grounding.js — F10 Spec code-grounding.
  *
  * Story #4139 (Epic #4131). `/plan` Phase 7 authors the Tech Spec
  * from the Epic body, the scraped project docs, and the

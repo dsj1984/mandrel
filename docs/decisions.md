@@ -1394,9 +1394,9 @@ declare default values that the `.agentrc.json` template could mirror.
    `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
    `traces.ndjson` for `kind: trace`). GitHub tickets receive **summary
    payloads only** — one
-   [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
+   `structured:story-perf-summary`
    comment per Story at close, one
-   [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
+   `structured:epic-perf-report`
    per Epic alongside the retro. The seven-kind taxonomy
    (`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace`)
    is the closed enum on

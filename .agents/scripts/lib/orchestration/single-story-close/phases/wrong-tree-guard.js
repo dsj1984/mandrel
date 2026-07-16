@@ -232,7 +232,7 @@ export function formatWrongTreeFinding({ storyId, strayFiles, worktreePath }) {
     `**Recovery:** relocate these edits into the worktree (re-apply them under ` +
     `\`${worktreePath}\`), restore the main checkout ` +
     `(\`git -C <main-repo> checkout -- <files>\`), then re-run ` +
-    `\`/single-story-deliver\`.`
+    `\`/deliver ${storyId}\`.`
   );
 }
 
@@ -307,7 +307,7 @@ async function abortWrongTree({
       `diff-path set while the worktree (${worktreePath}) is the active work ` +
       `tree. Close aborted to avoid an empty-diff PR. Stray files: ` +
       `${strayFiles.join(', ')}. Relocate the edits into the worktree, ` +
-      `restore the main checkout, then re-run /single-story-deliver.`,
+      `restore the main checkout, then re-run /deliver ${storyId}.`,
   );
 }
 

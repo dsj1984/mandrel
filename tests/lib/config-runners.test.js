@@ -17,7 +17,6 @@ describe('getRunners', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
       assert.equal(r.deliverRunner.concurrencyCap, 3);
-      assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
       assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
       assert.equal(r.epicAudit, undefined);
@@ -27,13 +26,12 @@ describe('getRunners', () => {
   it('reads delivery.deliverRunner from the post-reshape config', () => {
     const config = {
       delivery: {
-        deliverRunner: { concurrencyCap: 5, verifyConcurrencyCap: 8 },
+        deliverRunner: { concurrencyCap: 5 },
       },
     };
     const r = getRunners(config);
     assert.deepEqual(r.deliverRunner, {
       concurrencyCap: 5,
-      verifyConcurrencyCap: 8,
     });
   });
 
@@ -41,13 +39,12 @@ describe('getRunners', () => {
     const config = {
       orchestration: {
         runners: {
-          deliverRunner: { concurrencyCap: 2, verifyConcurrencyCap: 1 },
+          deliverRunner: { concurrencyCap: 2 },
         },
       },
     };
     const r = getRunners(config);
     assert.equal(r.deliverRunner.concurrencyCap, 3);
-    assert.equal(r.deliverRunner.verifyConcurrencyCap, 4);
   });
 
   it('exposes the hardcoded story-merge-retry defaults', () => {

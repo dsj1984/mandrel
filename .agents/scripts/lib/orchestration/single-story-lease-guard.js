@@ -116,7 +116,7 @@ export async function acquireStoryLease({
     anchorHeartbeatToNow: true,
     renderRefusal: (result) =>
       `single-story lease: Story #${storyId} is currently held by @${result.owner}. ` +
-      'Another /single-story-deliver run owns this Story. Coordinate with that ' +
+      'Another /deliver run owns this Story. Coordinate with that ' +
       'operator, or re-run with --steal to forcibly transfer the claim once you ' +
       'have confirmed the other run is dead. (The standalone path has no Epic ' +
       'heartbeat ledger, so a foreign assignee always blocks unless stolen.)',

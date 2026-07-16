@@ -5,15 +5,15 @@
  *
  * The stub is deliberately leaner than `tests/fixtures/mock-provider.js`
  * (the legacy general-purpose mock used elsewhere): it only implements
- * the surface the apply pipeline calls — `createTicket`,
- * `updateTicket`, `addSubIssue`, `removeSubIssue` — and records every
- * invocation in a flat `calls` array so contract assertions can pattern-
- * match the exact order and arguments. Nothing else is implemented so
- * any accidental call to a non-apply method throws loudly.
+ * the surface the apply pipeline calls — `updateTicket`, `addSubIssue`,
+ * `removeSubIssue` — and records every invocation in a flat `calls` array
+ * so contract assertions can pattern-match the exact order and arguments.
+ * Nothing else is implemented so any accidental call to a non-apply method
+ * throws loudly.
  *
- * Issue numbers are minted from a monotonically incrementing counter
- * (`startingIssue`, default 9000) so tests can predict the IDs and the
- * sequence is stable across runs.
+ * Story #4545 removed the `createTicket` stub (and the `startingIssue`
+ * id-minting counter that existed only to serve it) when `createTicket` —
+ * the Epic-hierarchy write surface — was dropped from ITicketingProvider.
  */
 
 import { ITicketingProvider } from '../../../.agents/scripts/lib/ITicketingProvider.js';
@@ -24,11 +24,10 @@ import { ITicketingProvider } from '../../../.agents/scripts/lib/ITicketingProvi
 
 export class StubProvider extends ITicketingProvider {
   /**
-   * @param {{startingIssue?: number, failOn?: (call: StubCall) => boolean}} [opts]
+   * @param {{failOn?: (call: StubCall) => boolean}} [opts]
    */
-  constructor({ startingIssue = 9000, failOn = null } = {}) {
+  constructor({ failOn = null } = {}) {
     super();
-    this._next = startingIssue;
     this._failOn = failOn;
     /** @type {StubCall[]} */
     this.calls = [];
@@ -44,19 +43,6 @@ export class StubProvider extends ITicketingProvider {
       err.code = 'STUB_FAIL';
       throw err;
     }
-  }
-
-  async createTicket(parentId, ticketData) {
-    const id = this._next++;
-    this.tickets.set(id, {
-      state: 'open',
-      title: ticketData.title,
-      body: ticketData.body ?? '',
-      labels: [...(ticketData.labels ?? [])],
-    });
-    const result = { id, url: `https://stub/issue/${id}` };
-    this._record('createTicket', [parentId, ticketData], result);
-    return result;
   }
 
   async updateTicket(ticketId, mutations) {

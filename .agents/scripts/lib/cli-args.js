@@ -79,7 +79,6 @@ export function parseSprintArgs(args = process.argv) {
       'skip-validation': { type: 'boolean', default: false },
       'skip-sync': { type: 'boolean', default: false },
       'no-auto-merge': { type: 'boolean', default: false },
-      'no-full-scope-crap': { type: 'boolean', default: false },
       // No default — absent means "use delivery.routing.closeAndLand".
       'wait-merge': { type: 'boolean' },
       'no-wait-merge': { type: 'boolean', default: false },
@@ -106,7 +105,6 @@ export function parseSprintArgs(args = process.argv) {
     skipValidation: coerceBooleanFlag(values['skip-validation']),
     skipSync: coerceBooleanFlag(values['skip-sync']),
     noAutoMerge: coerceBooleanFlag(values['no-auto-merge']),
-    noFullScopeCrap: coerceBooleanFlag(values['no-full-scope-crap']),
     // Close-and-land: `--wait-merge` forces land-in-close; `--no-wait-merge`
     // opts out. When neither flag is present (`undefined`),
     // `parseCloseOptions` applies `delivery.routing.closeAndLand` (default

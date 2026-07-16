@@ -314,7 +314,8 @@ export async function readPlanMetrics(epicId, config) {
 
 /**
  * Roll a read ledger up into the compact summary surfaced by the persist
- * summary and `analyze-execution.js`. Returns `null` when there is nothing
+ * summary. (Story #4545 deleted its second consumer, `analyze-execution.js`,
+ * with the execution-analysis surface.) Returns `null` when there is nothing
  * to summarize (missing ledger or zero parseable entries).
  *
  * Critic-skip records (kind: 'critic-skip') are counted separately from

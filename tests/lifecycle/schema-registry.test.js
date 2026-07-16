@@ -22,43 +22,40 @@ const SCHEMA_DIR = path.resolve(
 
 /**
  * Event taxonomy that MUST have a schema file in `.agents/schemas/lifecycle/`.
- * Source: Tech Spec #2189 § Data Models / Event taxonomy.
+ *
+ * Every event here has a live emitter. Story #4545 pruned the entries whose
+ * emitters were deleted with the Epic-orchestration stratum (all
+ * `acceptance.reconcile.*`, plus the `epic.automerge.*` / `epic.cleanup.*` /
+ * `epic.close.*` / `epic.complete` / `epic.finalize.*` / `epic.merge.*` /
+ * `epic.blocked` / `epic.plan.*` / `epic.snapshot.*` families) — their schema
+ * files went with them.
  *
  * Adding a new event here without adding the matching schema file fails this
  * test — that's the point. The bus reads the schema by name at emit time.
+ * `ledger-record` is deliberately absent: it is the ledger envelope, not an
+ * event, and is asserted separately below.
  */
 const REQUIRED_EVENTS = Object.freeze([
-  'epic.snapshot.start',
-  'epic.snapshot.end',
-  'epic.plan.start',
-  'epic.plan.end',
-  'story.dispatch.start',
-  'story.dispatch.end',
-  'story.merged',
-  'story.blocked',
-  'epic.blocked',
-  'epic.close.end',
-  'acceptance.reconcile.start',
-  'acceptance.reconcile.ok',
-  'acceptance.reconcile.waived',
-  'acceptance.reconcile.skipped',
-  'acceptance.reconcile.failed',
-  'epic.finalize.start',
-  'epic.finalize.end',
-  'pr.created',
-  'epic.watch.start',
-  'epic.watch.end',
-  'epic.automerge.start',
-  'epic.automerge.end',
-  'epic.merge.ready',
-  'epic.merge.blocked',
-  'epic.merge.armed',
-  'epic.merge.confirmed',
-  'epic.cleanup.start',
-  'epic.cleanup.end',
-  'epic.complete',
-  'notification.emitted',
   'checkpoint.written',
+  'close-validate.end',
+  'close-validate.start',
+  'code-review.end',
+  'code-review.start',
+  'epic.watch.end',
+  'epic.watch.start',
+  'intervention.recorded',
+  'loop.tick',
+  'merge.flip-failed',
+  'merge.unlanded',
+  'notification.emitted',
+  'pr.created',
+  'retro.end',
+  'retro.start',
+  'story.blocked',
+  'story.dispatch.end',
+  'story.dispatch.start',
+  'story.heartbeat',
+  'story.merged',
 ]);
 
 function readSchema(name) {
@@ -100,8 +97,8 @@ describe('lifecycle/schema-registry', () => {
       kind: 'emitted',
       seqId: 1,
       ts: '2026-05-17T10:00:00.000Z',
-      event: 'epic.snapshot.start',
-      payload: { epicId: 2172 },
+      event: 'story.dispatch.start',
+      payload: { storyId: 2172, waveIndex: 0 },
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
@@ -114,7 +111,7 @@ describe('lifecycle/schema-registry', () => {
       kind: 'completed',
       seqId: 1,
       ts: '2026-05-17T10:00:00.001Z',
-      event: 'epic.snapshot.start',
+      event: 'story.dispatch.start',
       listener: 'LedgerWriter',
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
@@ -128,7 +125,7 @@ describe('lifecycle/schema-registry', () => {
       kind: 'failed',
       seqId: 1,
       ts: '2026-05-17T10:00:00.002Z',
-      event: 'epic.snapshot.start',
+      event: 'story.dispatch.start',
       listener: 'LedgerWriter',
       error: { name: 'Error', message: 'boom' },
     });
@@ -143,7 +140,7 @@ describe('lifecycle/schema-registry', () => {
       kind: 'unknown',
       seqId: 1,
       ts: '2026-05-17T10:00:00.000Z',
-      event: 'epic.snapshot.start',
+      event: 'story.dispatch.start',
     });
     assert.equal(ok, false);
   });
@@ -163,8 +160,8 @@ describe('lifecycle/schema-registry', () => {
       delivery: {
         lifecycle: {
           timeouts: {
-            'epic.snapshot.start': 30,
-            'epic.finalize.start': 600,
+            'story.dispatch.start': 30,
+            'code-review.start': 600,
           },
           heartbeatWarnSeconds: 60,
         },

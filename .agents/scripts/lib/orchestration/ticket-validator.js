@@ -174,7 +174,7 @@ function collectTaskPathReferences(task) {
  *    path out of the prose.
  * 3. **Object form** — `{ path: "<path>", assumption: "creates" | ... }`,
  *    introduced by Story #2636 as the canonical declaration shape and
- *    documented in `epic-plan-decompose-author/SKILL.md`. The path is
+ *    documented in `lib/templates/decomposer-prompts.js`. The path is
  *    trusted verbatim.
  *
  * Only `body.changes` (and `body.references`) is consulted —
@@ -475,8 +475,8 @@ function renderMissLine({ slug, path }) {
  * The returned tickets array carries two extra non-array properties:
  *   - `findings` — structured sizing findings (hard + soft) keyed by the
  *     three-layer sizing model. The bounded re-decomposition loop in
- *     `epic-plan-decompose` reads `findings.filter(f => f.severity === 'hard')`
- *     to decide whether to re-prompt.
+ *     `/plan` reads `findings.filter(f => f.severity === 'hard')` to decide
+ *     whether to re-prompt.
  *   - `errors`   — human-readable strings, one per hard finding. Non-empty
  *     `errors[]` is the AC-visible "block normalization" signal; the legacy
  *     hierarchy/cycle/freshness checks continue to throw, so callers that

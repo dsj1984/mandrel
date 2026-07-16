@@ -70,9 +70,32 @@ describe('ticketing/reads — constants and validators', () => {
       'friction',
       'notification',
       'story-init',
-      'story-run-progress',
+      'verification-results',
     ]) {
       assert.ok(STRUCTURED_COMMENT_TYPES.includes(t), `expected ${t} in enum`);
+    }
+  });
+
+  // Story #4545 — `story-run-progress`, `story-perf-summary` and
+  // `epic-perf-report` were retired along with story-run-progress-writer.js,
+  // their only producer. Pin the removal: a stale reader that still posts one
+  // of these must fail validation rather than write an unreadable marker.
+  it('STRUCTURED_COMMENT_TYPES excludes the retired writer-less types (Story #4545)', () => {
+    for (const t of [
+      'story-run-progress',
+      'story-perf-summary',
+      'epic-perf-report',
+    ]) {
+      assert.equal(
+        STRUCTURED_COMMENT_TYPES.includes(t),
+        false,
+        `retired type ${t} must not be in the enum`,
+      );
+      assert.equal(
+        isValidStructuredCommentType(t),
+        false,
+        `retired type ${t} must not validate`,
+      );
     }
   });
 

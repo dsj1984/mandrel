@@ -87,8 +87,8 @@ export function resolveWaitForMerge({
  * (`waitForMergeExplicit` / `noWaitForMerge`) for the runner to resolve once
  * the config and the arm outcome exist.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -96,7 +96,6 @@ export function parseCloseOptions({
   skipValidationParam,
   skipSyncParam,
   noAutoMergeParam,
-  noFullScopeCrapParam,
   waitForMergeParam,
   noWaitForMergeParam,
   maxWaitSecondsParam,
@@ -109,7 +108,6 @@ export function parseCloseOptions({
           skipValidation: !!skipValidationParam,
           skipSync: !!skipSyncParam,
           noAutoMerge: !!noAutoMergeParam,
-          noFullScopeCrap: !!noFullScopeCrapParam,
           // Preserve undefined so resolveWaitForMerge can apply the
           // closeAndLand config default when neither flag was injected.
           waitForMerge: waitForMergeParam,
@@ -137,11 +135,6 @@ export function parseCloseOptions({
     ),
     skipSync: resolveFlag(skipSyncParam, parsed.skipSync, false),
     noAutoMerge: resolveFlag(noAutoMergeParam, parsed.noAutoMerge, false),
-    noFullScopeCrap: resolveFlag(
-      noFullScopeCrapParam,
-      parsed.noFullScopeCrap,
-      false,
-    ),
     waitForMergeExplicit:
       typeof waitForMergeExplicit === 'boolean'
         ? waitForMergeExplicit

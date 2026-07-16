@@ -46,25 +46,23 @@ test('pre-push — optional audit remains opt-in via PREPUSH_AUDIT', () => {
   assert.match(hook, /npm audit --audit-level=high/);
 });
 
-// Story #3162 — STORY_CLOSE_RECOVERY env var gates a scoped coverage skip
-// for operator recovery pushes targeting epic/<id>. The hook delegates the
-// decision to check-prepush-recovery.js so the gating logic stays testable
-// in isolation; here we assert the wiring is present.
-test('pre-push — STORY_CLOSE_RECOVERY scoped skip wired to coverage gate', () => {
+// Story #4545 — the coverage + CRAP gate is unconditional. The Epic-era
+// STORY_CLOSE_RECOVERY escape hatch required an `epic/<id>` ref to open, so
+// it could never fire under the Story-only model; it and the per-push helper
+// spawn that evaluated it are gone.
+test('pre-push — coverage + CRAP gate runs unconditionally', () => {
   const hook = readPrePush();
-  assert.match(hook, /STORY_CLOSE_RECOVERY/);
-  assert.match(hook, /check-prepush-recovery\.js/);
-  // The skip branch must wrap BOTH coverage-capture and crap:check so a
-  // pre-existing CRAP regression on epic/<id> also clears (the CRAP gate
-  // reads the freshly-captured coverage; gating only the capture would
-  // leave CRAP failing on stale numbers).
-  const helperIdx = hook.indexOf('check-prepush-recovery.js');
   const captureIdx = hook.indexOf(
     'coverage-capture.js --skip-when-no-crap-files',
   );
   const crapIdx = hook.indexOf('npm run crap:check');
   assert.ok(
-    helperIdx > -1 && captureIdx > helperIdx && crapIdx > captureIdx,
-    'recovery helper must precede both coverage-capture and crap:check so both are gated',
+    captureIdx > -1 && crapIdx > captureIdx,
+    'coverage-capture must run before crap:check (the CRAP gate reads the fresh coverage)',
+  );
+  assert.doesNotMatch(
+    hook,
+    /STORY_CLOSE_RECOVERY|check-prepush-recovery\.js/,
+    'the retired Epic-scoped recovery escape hatch must not return',
   );
 });

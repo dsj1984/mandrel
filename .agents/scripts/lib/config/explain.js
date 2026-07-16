@@ -162,8 +162,6 @@ const KEY_MEANINGS = Object.freeze({
     'Docs whose freshness is checked at delivery time.',
   'delivery.deliverRunner.concurrencyCap':
     'Maximum Stories dispatched in parallel within one wave. Default 3 — conservative by design to keep host-quota consumption predictable. Operators running wide-wave Epics with adequate parallel-agent quota should raise this to reduce wall-clock time proportionally.',
-  'delivery.deliverRunner.verifyConcurrencyCap':
-    'Maximum verify steps run in parallel.',
   'delivery.worktreeIsolation.enabled':
     'Whether each Story runs in its own git worktree.',
   'delivery.worktreeIsolation.root':
@@ -179,9 +177,9 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.worktreeIsolation.bootstrapFiles':
     'Files copied into each new worktree (e.g. .env, .mcp.json, local overrides).',
   'delivery.mergeWatch.intervalSeconds':
-    'Poll cadence (seconds) for MergeWatcher after epic.merge.armed.',
+    'Poll cadence (seconds) for the close-and-land merge wait after the arm.',
   'delivery.mergeWatch.maxBudgetSeconds':
-    'Wall-clock budget (seconds) before MergeWatcher surfaces budget-exceeded.',
+    'Cumulative wall-clock budget (seconds) across resumes before the merge wait gives up and blocks.',
   'delivery.codeReview.providers':
     'Ordered provider chain the code-review phase consults.',
   'delivery.codeReview.maxFixAttempts':
@@ -252,7 +250,7 @@ const PREFIX_MEANINGS = Object.freeze([
   ],
   ['delivery.quality', 'Delivery-time quality configuration.'],
   ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
-  ['delivery.mergeWatch', 'MergeWatcher poll cadence and wall-clock budget.'],
+  ['delivery.mergeWatch', 'Merge-wait poll cadence and wall-clock budget.'],
   [
     'delivery.feedbackLoop',
     'Opt-out toggles for auto-filing non-blocking findings.',
@@ -282,7 +280,7 @@ const PREFIX_MEANINGS = Object.freeze([
 const BLOCK_MEANINGS = Object.freeze({
   project: 'Project identity, paths, and command configuration.',
   github: 'GitHub provider identity and merge/notification policy.',
-  planning: 'Inputs and guardrails for /epic-plan.',
+  planning: 'Inputs and guardrails for /plan.',
   delivery: 'Execution, isolation, quality, and CI settings for delivery.',
   qa: 'Agent-driven QA harness contract.',
 });

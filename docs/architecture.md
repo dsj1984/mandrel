@@ -223,7 +223,6 @@ graph TB
 | `hydrate-context.js`             | Assembles self-contained prompts (protocol + skills + hierarchy). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. |
 | `update-ticket-state.js`         | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`). |
 | `notify.js`                      | Dispatches notifications via @mention and webhook channels. |
-| `analyze-execution.js`           | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (wired from `helpers/deliver-story` / close path). |
 
 #### In-process orchestration modules
 
@@ -306,7 +305,7 @@ envelope so Phase 7 stays non-blocking.
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/wave-record-io.js`               | `verifySingleResult` — the zero-commit "done" guard. Each "done" claim in a wave record is re-fetched from the provider and downgraded (`verify-error`) when the ticket is not actually at `agent::done`/closed. |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories: `temp/standalone/stories/story-<sid>/`). The single producer for the telemetry pipeline; readers are the `read()` async generator in `lib/signals/read.js` and the perf-report readers in `lib/observability/perf-report-readers.js`. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories: `temp/standalone/stories/story-<sid>/`). The single producer for the telemetry pipeline; the reader is the `read()` async generator in `lib/signals/read.js`. |
 | `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic and Story — mirrors onto the board.                  |
 
 The earlier `CommitAssertion` post-wave guard was epic-runner-scoped and
@@ -318,7 +317,7 @@ a Story being reported "done" without verifiable completion.
 
 | Module                                                     | Role                                                                                                                                                 |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/observability/perf-report-readers.js`, `lib/orchestration/wave-record-io.js`. |
+| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/orchestration/wave-record-io.js`. |
 | `providers/github/cache.js`                                | Per-instance ticket cache; `peekFresh(ticketId, maxAgeMs)` treats entries older than the caller's max age as cache misses, and the cache is primed after bulk ticket fetches.   |
 | `providers/github/issues.js`                               | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
 | `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
@@ -333,10 +332,9 @@ and surfaced on the ready-set envelopes that
 (`DEFAULT_CONCURRENCY` / `resolveConcurrency`), `CommitAssertion`, and
 the `ProgressReporter` listener class — was deleted with the dead
 in-process stratum (#3908); do not confuse the surviving
-`resolveConcurrencyCap` with the deleted `resolveConcurrency`. Consumers
-monitoring throughput read the Story / run perf summaries posted by
-`analyze-execution.js` — they surface per-phase p50/p95 and the workload
-signals follow-up capture consumes.
+`resolveConcurrencyCap` with the deleted `resolveConcurrency`. Story #4545 deleted the perf-summary surface that
+used to report throughput; the local `signals.ndjson` stream and the retro's
+aggregate over it are what remain.
 
 #### Direct CLIs (no MCP server)
 
@@ -413,7 +411,7 @@ classDiagram
         +getSubTickets(parentId) Promise
         +getTicket(ticketId) Promise
         +getTicketDependencies(ticketId) Promise
-        +createTicket(parentId, ticketData) Promise
+        +createIssue(payload) Promise
         +addSubIssue(parentId, childId) Promise
         +updateTicket(ticketId, mutations) Promise
         +postComment(ticketId, payload) Promise
@@ -1003,32 +1001,26 @@ The model has three layers:
    first write; `epicId` / `storyId` must be positive integers.
 2. **Detectors — `diagnose-friction.js` and the per-detector pure
    modules under `lib/signals/detectors/` (`rework.js`, `retry.js`,
-   `hotspot.js`).** Rework + retry run inside the post-Story close
-   pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot signals
-   are aggregated at Epic close by the retro's signal-gathering phase
-   (`lib/orchestration/retro/phases/gather-signals.js`) and the
-   epic-perf-report pipeline.
+   `hotspot.js`).** Signals are aggregated by the retro's signal-gathering
+   phase (`lib/orchestration/retro/phases/gather-signals.js`).
    Each call site resolves thresholds via `getSignals(config)`
    (defaults: `hotspot.p95Multiplier=1.25`, `rework.editsPerFile=5`,
    `retry.repeatCount=3`). Operators override individual keys in
    `.agentrc.json` under `delivery.signals.*`; the resolver shallow-
    merges per detector, so a re-tuned `hotspot.p95Multiplier` does not
    require re-listing the others.
-3. **Analyzers — Story close + Epic deliver retro.** At Story close,
-   `story-close.js` rolls the local NDJSON into a single
-   [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
-   comment carrying friction counts by category, phase timings,
-   top-slow phases vs baseline, a rework score, and retry density. At
-   `/deliver` Phase 6, `analyze-execution.js` aggregates every
-   Story's NDJSON into one
-   [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
-   comment alongside the retro: per-kind signal counts, per-wave
-   parallelism utilization, top hotspots, and the most-friction Stories.
+3. **Analyzers — the retro.** Story #4545 deleted the perf-summary /
+   perf-report analyzers (`analyze-execution.js` and the
+   `lib/observability/perf-*` modules it exclusively owned): the CLI
+   hard-failed without an Epic id, read signals from a path a standalone
+   Story can never produce, and no workflow invoked it. The surviving
+   consumer of the stream is the retro's signal-gathering phase, which routes
+   recurring friction into proposals. Nothing writes a
+   `structured:story-perf-summary` or `structured:epic-perf-report` comment.
 
 The split — events local, summaries on tickets — keeps the GitHub
-comment surface bounded (one summary per Story, one report per Epic) and
-keeps the raw stream cheap enough that detectors can fire on every
-tool-call without rate-limiting or batching. The per-Epic temp tree is
+comment surface bounded and keeps the raw stream cheap enough that detectors
+can fire on every tool-call without rate-limiting or batching. The per-Epic temp tree is
 reaped together with the worktree on `WorktreeManager.reap`. See
 [`docs/decisions.md`](decisions.md) ADR for the architectural rationale.
 

@@ -811,8 +811,6 @@ include:
   provider-side bulk reads.
 - `lib/orchestration/wave-record-io.js` — per-Story re-verification of
   "done" claims at wave record time.
-- `lib/observability/perf-report-readers.js` — signals-stream reads for
-  the perf report.
 
 Each site picks a cap for its bottleneck: GitHub-API fanouts cap to
 stay under secondary rate limits; disk-bound fanouts cap low because
@@ -874,9 +872,8 @@ state survives the `story-init` → sub-agent →
 `story-close` boundary (where three separate phases handle
 one Story). Per-phase lines are emitted during the lifecycle; on
 close, a `phase-timings` structured comment is posted to the Story
-ticket. `analyze-execution.js` aggregates closed-story timings and
-renders median / p95 per phase into the Epic's `epic-perf-report`
-structured comment.
+ticket. Story #4545 deleted the aggregator that rolled those timings into
+a median / p95 report; the per-Story comment is what remains.
 
 ### Consequences
 
@@ -953,11 +950,11 @@ observability surface. Three principles:
    handles coercion, per-field fallback, and freezing. Every reader goes
    through the same shape; no adoption site re-invents defaults or
    reads concurrency caps from the resolved config directly.
-3. **Tuning data comes from inside.** The `analyze-execution.js`
-   CLI reads each Epic's per-Story `signals.ndjson` stream and emits
-   the `epic-perf-report` structured comment that surfaces phase p50/p95
-   and concurrency hints. Operators tune defaults from lived workload,
-   not from outside measurement harnesses.
+3. **Tuning data comes from inside.** The per-Story `signals.ndjson`
+   stream is written from lived workload, and the retro aggregates it.
+   Operators tune defaults from that, not from outside measurement
+   harnesses. (Story #4545 deleted the `analyze-execution.js` CLI that
+   rendered phase p50/p95 and concurrency hints into a structured comment.)
 
 ### Consequences
 

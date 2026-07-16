@@ -41,7 +41,6 @@ function buildProvider() {
     primeTicketCache: () => 'tickets.primeTicketCache',
     invalidateTicket: () => 'tickets.invalidateTicket',
     getTicketDependencies: async () => 'tickets.getTicketDependencies',
-    createTicket: async () => 'tickets.createTicket',
     updateTicket: async () => 'tickets.updateTicket',
     _applyLabelMutations: async () => 'tickets._applyLabelMutations',
   };
@@ -127,7 +126,6 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       ['getTicket', [1], 'tickets.getTicket'],
       ['getTickets', [1], 'tickets.getTickets'],
       ['getTicketDependencies', [1], 'tickets.getTicketDependencies'],
-      ['createTicket', [1, {}], 'tickets.createTicket'],
       ['updateTicket', [1, {}], 'tickets.updateTicket'],
       ['_applyLabelMutations', [1, {}, false], 'tickets._applyLabelMutations'],
       // sub-issues

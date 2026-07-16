@@ -1,5 +1,5 @@
 ---
-description: Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`epic-close`, dispatcher, gates); propose remediations.
+description: Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`single-story-close`, dispatcher, gates); propose remediations.
 ---
 
 # Performance & Bottleneck Audit
