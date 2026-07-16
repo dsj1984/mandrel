@@ -12,6 +12,7 @@ import path from 'node:path';
 import { parseSprintArgs } from '../../../cli-args.js';
 import { getDeliveryRouting } from '../../../config/delivery-routing.js';
 import { PROJECT_ROOT } from '../../../project-root.js';
+import { isOperatorMergeReason } from './auto-merge.js';
 
 /**
  * Resolve a flag value from an explicit override, a parsed CLI arg, or a
@@ -28,34 +29,66 @@ function resolveFlag(paramValue, parsedValue, defaultValue) {
 }
 
 /**
- * Resolve the `waitForMerge` option:
- *   1. `--no-wait-merge` / injected opt-out always wins (stop at
- *      `agent::closing`).
- *   2. Explicit `--wait-merge` / injected true forces land-in-close.
- *   3. Otherwise default from `delivery.routing.closeAndLand` (true) so
- *      attended and headless delivers share the close-and-land happy path.
+ * Resolve whether close lands the PR in-process (`waitForMerge`).
  *
- * @param {{ waitForMergeParam, noWaitForMergeParam, parsed }} raw
- * @returns {boolean}
+ * Called by `runSingleStoryClose` **after** config resolution and the
+ * auto-merge phase, because two of its four inputs are not knowable at
+ * parse time: the resolved config (whose `cwd` this parse produces) and the
+ * actual arm outcome. Resolving it here — once, where every input exists —
+ * is what makes `delivery.routing.closeAndLand` governable at all.
+ *
+ * Precedence, highest first:
+ *   1. `--no-wait-merge` / injected opt-out — always wins.
+ *   2. **Operator owns the merge** (`--no-auto-merge`, or
+ *      `delivery.ci.autoMerge: "strict"`): the PR was deliberately left
+ *      un-armed, so there is nothing for close to land. Resting at
+ *      `agent::closing` for the human IS the documented contract for both
+ *      surfaces; waiting would only burn the poll budget and then block a
+ *      perfectly healthy Story. An explicit `--wait-merge` cannot override
+ *      this — you cannot land-in-one-close a PR you refused to arm — so the
+ *      caller is told rather than silently ignored.
+ *   3. Explicit `--wait-merge` / injected boolean.
+ *   4. `delivery.routing.closeAndLand` (framework default `true`).
+ *
+ * @param {{
+ *   waitForMergeExplicit?: boolean,
+ *   noWaitForMerge?: boolean,
+ *   config?: object|null,
+ *   autoMergeReason?: string|null,
+ * }} args
+ * @returns {{ waitForMerge: boolean, reason: 'opt-out-flag'|'operator-merge'|'explicit-flag'|'config-close-and-land' }}
  */
-function resolveWaitForMerge({
-  waitForMergeParam,
-  noWaitForMergeParam,
-  parsed,
-}) {
-  if (resolveFlag(noWaitForMergeParam, parsed.noWaitForMerge, false)) {
-    return false;
+export function resolveWaitForMerge({
+  waitForMergeExplicit,
+  noWaitForMerge = false,
+  config = null,
+  autoMergeReason = null,
+} = {}) {
+  if (noWaitForMerge) {
+    return { waitForMerge: false, reason: 'opt-out-flag' };
   }
-  const explicit = waitForMergeParam ?? parsed.waitForMerge;
-  if (typeof explicit === 'boolean') return explicit;
-  return getDeliveryRouting().closeAndLand;
+  if (isOperatorMergeReason(autoMergeReason)) {
+    return { waitForMerge: false, reason: 'operator-merge' };
+  }
+  if (typeof waitForMergeExplicit === 'boolean') {
+    return { waitForMerge: waitForMergeExplicit, reason: 'explicit-flag' };
+  }
+  return {
+    waitForMerge: getDeliveryRouting(config).closeAndLand,
+    reason: 'config-close-and-land',
+  };
 }
 
 /**
  * Parse and resolve all CLI / injection options for `runSingleStoryClose`.
  *
+ * `waitForMerge` is deliberately **not** resolved here — see
+ * {@link resolveWaitForMerge}. This returns the raw operator intent
+ * (`waitForMergeExplicit` / `noWaitForMerge`) for the runner to resolve once
+ * the config and the arm outcome exist.
+ *
  * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam, waitForMergeParam, noWaitForMergeParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMerge }}
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMergeExplicit, noWaitForMerge }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -82,6 +115,7 @@ export function parseCloseOptions({
           noWaitForMerge: !!noWaitForMergeParam,
         }
       : parseSprintArgs();
+  const waitForMergeExplicit = waitForMergeParam ?? parsed.waitForMerge;
   return {
     storyId: parsed.storyId,
     cwd: path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT),
@@ -97,10 +131,12 @@ export function parseCloseOptions({
       parsed.noFullScopeCrap,
       false,
     ),
-    waitForMerge: resolveWaitForMerge({
-      waitForMergeParam,
+    waitForMergeExplicit:
+      typeof waitForMergeExplicit === 'boolean' ? waitForMergeExplicit : undefined,
+    noWaitForMerge: resolveFlag(
       noWaitForMergeParam,
-      parsed,
-    }),
+      parsed.noWaitForMerge,
+      false,
+    ),
   };
 }

@@ -29,6 +29,30 @@ import { gh as defaultGh } from '../../../gh-exec.js';
 import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 
 /**
+ * Arm reasons that mean **the operator deliberately owns the merge** — the PR
+ * was never armed because it was asked not to be, not because arming failed.
+ *
+ * The distinction is load-bearing: an un-armed-by-request PR has nothing for
+ * close to land, so `resolveWaitForMerge` (`./options.js`) resolves
+ * `waitForMerge` to `false` for these reasons and the Story rests at
+ * `agent::closing` for the human. Every *other* falsy arm outcome
+ * (`pr-number-unparseable`, an `enableAutoMerge` failure) is a genuine fault
+ * and still routes through the merge-unlanded block path.
+ */
+export const OPERATOR_MERGE_ARM_REASONS = Object.freeze([
+  'disabled-by-flag',
+  'disabled-by-policy-strict',
+]);
+
+/**
+ * @param {string|null|undefined} reason
+ * @returns {boolean}
+ */
+export function isOperatorMergeReason(reason) {
+  return OPERATOR_MERGE_ARM_REASONS.includes(reason);
+}
+
+/**
  * Enable GitHub native auto-merge on the PR. Non-fatal.
  *
  * @param {{

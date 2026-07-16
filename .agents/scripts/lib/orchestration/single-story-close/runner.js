@@ -16,7 +16,7 @@ import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
-import { parseCloseOptions } from './phases/options.js';
+import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
 import { handleCriticalReviewBlock } from './phases/review-block.js';
@@ -176,8 +176,12 @@ async function releaseLease({
  * The two recoverable-blocked close exits (base-sync conflict in
  * `runBaseSyncPhase`, and a critical-blocker review halt in
  * `openAndReviewPr`) throw before the clean-close lease release at the
- * tail of `runSingleStoryClose`, stranding the operator's lease until its
- * TTL expires. That fail-closed-refuses a different operator who picks up
+ * tail of `runSingleStoryClose`, stranding the operator's lease
+ * indefinitely. The standalone lease does **not** expire by TTL: it is
+ * fail-closed by design (`lease-guard-shared.js` anchors `heartbeatAt` to
+ * now, so `isClaimLive` is true for any foreign assignee regardless of the
+ * configured TTL), so a stranded claim is cleared only by `--steal` or
+ * de-assignment. That fail-closed-refuses a different operator who picks up
  * the blocked Story — exactly the hand-off case. Releasing here closes
  * that gap.
  *
@@ -362,12 +366,34 @@ export async function runSingleStoryClose({
   });
   const leaseReleased = await releaseLease(leaseArgs);
 
-  // Story #4428 — headless must-land: `--wait-merge` polls the just-armed
-  // PR to merge confirmation (or an explicit `agent::blocked` +
-  // `merge.unlanded`) instead of resting at `agent::closing`. Attended
-  // (non-headless) runs never set this flag, so the exit shape below is
-  // unreachable and the pre-existing early-return is byte-identical.
-  if (options.waitForMerge) {
+  // Close-and-land (Story #4428; default since `delivery.routing.closeAndLand`
+  // — Story #4539): poll the just-armed PR to merge confirmation, or block
+  // explicitly with `merge.unlanded`, instead of resting at `agent::closing`.
+  // This is the DEFAULT path for attended and headless runs alike.
+  //
+  // Resolved here rather than at parse time because two inputs do not exist
+  // until now: the resolved config (whose cwd the parse produces) and the
+  // actual arm outcome. A PR the operator deliberately left un-armed
+  // (`--no-auto-merge` / `autoMerge: "strict"`) has nothing to land, so it
+  // rests at `agent::closing` for the human instead of burning the poll
+  // budget and then blocking a healthy Story.
+  const { waitForMerge, reason: waitForMergeReason } = resolveWaitForMerge({
+    waitForMergeExplicit: options.waitForMergeExplicit,
+    noWaitForMerge: options.noWaitForMerge,
+    config,
+    autoMergeReason,
+  });
+  if (waitForMergeReason === 'operator-merge') {
+    progress(
+      'MERGE',
+      `⏭  Not waiting for merge (${autoMergeReason}) — the operator owns this merge; ` +
+        `Story #${options.storyId} rests at agent::closing.` +
+        (options.waitForMergeExplicit === true
+          ? ' --wait-merge cannot land a PR that was deliberately left un-armed.'
+          : ''),
+    );
+  }
+  if (waitForMerge) {
     const waitOutcome = await runConfirmMergePhase({
       cwd: options.cwd,
       storyId: options.storyId,

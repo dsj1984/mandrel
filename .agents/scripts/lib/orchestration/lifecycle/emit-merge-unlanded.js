@@ -57,40 +57,11 @@
  * `predicate-refused` / a classified arm failure directly.
  */
 
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import Ajv2020 from 'ajv/dist/2020.js';
-import addFormats from 'ajv-formats';
-
-import { epicLedgerPath, storyLedgerPath } from '../../config/temp-paths.js';
 import { isValidBlockClass } from '../merge-block-class.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCHEMA_PATH = path.resolve(
-  __dirname,
-  '..',
-  '..',
-  '..',
-  '..',
-  'schemas',
-  'lifecycle',
-  'merge.unlanded.schema.json',
-);
-
-const VALID_SCOPES = new Set(['epic', 'story']);
-
-let _validator;
-
-function getValidator() {
-  if (_validator) return _validator;
-  const schema = JSON.parse(readFileSync(SCHEMA_PATH, 'utf8'));
-  const ajv = new Ajv2020({ allErrors: true, strict: false });
-  addFormats(ajv);
-  _validator = ajv.compile(schema);
-  return _validator;
-}
+import {
+  appendLedgerEvent,
+  assertMergeTerminalFields,
+} from './emit-ledger-event.js';
 
 /**
  * Append exactly one `merge.unlanded` NDJSON record to the resolved
@@ -130,64 +101,36 @@ export function emitMergeUnlanded(opts) {
     ledgerPath: ledgerPathOverride,
   } = opts ?? {};
 
-  if (!VALID_SCOPES.has(scope)) {
-    throw new Error(
-      `emitMergeUnlanded: scope "${scope}" must be one of: ${[...VALID_SCOPES].join(', ')}`,
-    );
-  }
-  if (!Number.isInteger(ticketId) || ticketId < 1) {
-    throw new Error('emitMergeUnlanded: ticketId must be a positive integer');
-  }
-  if (!Number.isInteger(prNumber) || prNumber < 1) {
-    throw new Error('emitMergeUnlanded: prNumber must be a positive integer');
-  }
+  assertMergeTerminalFields('emitMergeUnlanded', {
+    scope,
+    ticketId,
+    prNumber,
+    reason,
+    elapsedSeconds,
+  });
   if (!isValidBlockClass(blockClass)) {
     throw new Error(
       `emitMergeUnlanded: blockClass "${blockClass}" is not a recognised merge-block-class value`,
     );
   }
-  if (typeof reason !== 'string' || reason.length === 0) {
-    throw new Error('emitMergeUnlanded: reason must be a non-empty string');
-  }
-  if (typeof elapsedSeconds !== 'number' || elapsedSeconds < 0) {
-    throw new Error(
-      'emitMergeUnlanded: elapsedSeconds must be a non-negative number',
-    );
-  }
 
-  const payload = {
-    event: 'merge.unlanded',
+  return appendLedgerEvent({
+    emitter: 'emitMergeUnlanded',
+    schemaFile: 'merge.unlanded.schema.json',
+    payload: {
+      event: 'merge.unlanded',
+      scope,
+      ticketId,
+      prNumber,
+      blockClass,
+      reason,
+      elapsedSeconds,
+      timestamp,
+    },
     scope,
     ticketId,
-    prNumber,
-    blockClass,
-    reason,
-    elapsedSeconds,
     timestamp,
-  };
-
-  const validator = getValidator();
-  if (!validator(payload)) {
-    const detail = (validator.errors ?? [])
-      .map((e) => `${e.instancePath || '/'} ${e.message}`)
-      .join('; ');
-    throw new Error(
-      `emitMergeUnlanded: payload failed schema validation: ${detail}`,
-    );
-  }
-
-  const ledgerPath =
-    ledgerPathOverride ??
-    (scope === 'epic'
-      ? epicLedgerPath(ticketId, config)
-      : storyLedgerPath(null, ticketId, config));
-  mkdirSync(path.dirname(ledgerPath), { recursive: true });
-  const record = {
-    kind: 'emitted',
-    ts: timestamp,
-    event: 'merge.unlanded',
-    payload,
-  };
-  appendFileSync(ledgerPath, `${JSON.stringify(record)}\n`, 'utf8');
-  return { ledgerPath, record };
+    config,
+    ledgerPath: ledgerPathOverride,
+  });
 }
