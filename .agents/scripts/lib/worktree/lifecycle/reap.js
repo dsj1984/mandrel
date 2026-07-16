@@ -72,21 +72,49 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
 }
 
 /**
- * Returns true iff `branch` is already fully merged into `epicBranch`
- * (i.e. `merge-base --is-ancestor branch epicBranch` exits 0). A missing
- * epicBranch or a git failure both yield false so callers default to the
+ * Returns true iff `branch`'s work is already integrated into `baseRef`.
+ *
+ * Two-phase, because v2 lands via **squash** merge (Story #4539). A squash
+ * rewrites the branch's commits into one new commit with a different SHA,
+ * so `merge-base --is-ancestor` — which only sees SHA reachability —
+ * reports "not merged" for work that is demonstrably on the base branch.
+ * Relying on it alone was correct only for the retired `--no-ff` Epic
+ * integration model.
+ *
+ *   1. `merge-base --is-ancestor` — the cheap SHA-reachability path; still
+ *      true for fast-forward and merge-commit integration.
+ *   2. `git cherry <baseRef> <branch>` — the squash-aware path. It compares
+ *      patch-ids rather than SHAs and prefixes each commit with `-` when an
+ *      equivalent change already exists upstream. All-`-` (or empty) means
+ *      every commit on the branch is present in the base under some SHA.
+ *
+ * A missing ref or a git failure yields false, so callers default to the
  * safe, non-forcing behavior.
+ *
+ * @param {object} ctx
+ * @param {string} branch
+ * @param {string} baseRef
+ * @returns {boolean}
  */
-export function isStoryAlreadyMergedIntoEpic(ctx, branch, epicBranch) {
-  if (!branch || !epicBranch) return false;
-  const res = ctx.git.gitSpawn(
+export function isBranchMergedIntoBase(ctx, branch, baseRef) {
+  if (!branch || !baseRef) return false;
+  const ancestor = ctx.git.gitSpawn(
     ctx.repoRoot,
     'merge-base',
     '--is-ancestor',
     branch,
-    epicBranch,
+    baseRef,
   );
-  return res.status === 0;
+  if (ancestor.status === 0) return true;
+
+  const cherry = ctx.git.gitSpawn(ctx.repoRoot, 'cherry', baseRef, branch);
+  if (cherry.status !== 0) return false;
+  const lines = (cherry.stdout ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  // Every line starting with '+' is a commit with no upstream equivalent.
+  return lines.every((line) => line.startsWith('-'));
 }
 
 /**
@@ -470,28 +498,37 @@ function checkReapPreconditions(ctx, _storyId, opts, wtPath) {
       ok: false,
       result: { removed: false, reason: 'not-a-worktree', path: wtPath },
     };
-  if (storyIdFromPath(wtPath, ctx.worktreeRoot) !== null && !opts.epicBranch) {
-    return {
-      ok: false,
-      result: { removed: false, reason: 'epic-branch-required', path: wtPath },
-    };
-  }
+  // Story #4539 removed an `epic-branch-required` gate here: a
+  // `story-<id>` worktree used to be unreapable unless the caller supplied
+  // an Epic integration branch. v2 has no Epic branch, and the only v2
+  // caller (the close path) never passed one — so EVERY close silently
+  // failed to reap while reporting success, and cleanup fell to the next
+  // boot-sweep.
+  //
+  // Nothing is lost by dropping it. The close path reaps AFTER pushing
+  // `story-<id>` to origin and opening the PR, so the work is durable
+  // off-machine; and the real safety net is unchanged — `isSafeToRemove`
+  // still refuses a dirty tree (`uncommitted-changes`), which is what
+  // actually protects unsaved work.
   return { ok: true };
 }
 
 async function ensureSafeOrForceDiscard(ctx, storyId, wtPath, opts) {
+  const baseRef = opts.baseRef ?? opts.epicBranch ?? null;
   const safety = await isSafeToRemove(ctx, wtPath, {
-    epicBranch: opts.epicBranch ?? null,
+    epicBranch: baseRef,
   });
   if (safety.safe) return { ok: true, discardedPaths: null };
 
   const discardAfterMerge = opts.discardAfterMerge !== false;
   const branchName = `story-${validateStoryId(storyId)}`;
+  // Discarding a dirty tree is only permissible when the branch's work is
+  // already integrated — squash-aware, so a landed v2 Story qualifies.
   const canForceReap =
     discardAfterMerge &&
     safety.reason === 'uncommitted-changes' &&
-    opts.epicBranch &&
-    isStoryAlreadyMergedIntoEpic(ctx, branchName, opts.epicBranch);
+    baseRef &&
+    isBranchMergedIntoBase(ctx, branchName, baseRef);
   if (!canForceReap) {
     ctx.logger.warn(
       `reap-skipped storyId=${storyId} reason=${safety.reason} path=${wtPath}`,

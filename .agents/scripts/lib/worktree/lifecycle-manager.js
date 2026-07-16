@@ -7,7 +7,7 @@
  *   - `creation.js`         — `ensure`
  *   - `registry-sync.js`    — `pathFor`, `list`, `prune`, `getWorktreeList`,
  *                             `invalidateWorktreeCache`, `findByPath`
- *   - `reap.js`             — `isSafeToRemove`, `isStoryAlreadyMergedIntoEpic`,
+ *   - `reap.js`             — `isSafeToRemove`, `isBranchMergedIntoBase`,
  *                             `removeWorktreeWithRecovery`, `reap`
  *   - `gc.js`               — `gc`
  *   - `drift-detection.js`  — `sweepStaleLocks`
@@ -25,8 +25,8 @@ export { ensure } from './lifecycle/creation.js';
 export { sweepStaleLocks } from './lifecycle/drift-detection.js';
 export { gc } from './lifecycle/gc.js';
 export {
+  isBranchMergedIntoBase,
   isSafeToRemove,
-  isStoryAlreadyMergedIntoEpic,
   reap,
   removeWorktreeWithRecovery,
 } from './lifecycle/reap.js';

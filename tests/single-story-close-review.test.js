@@ -435,15 +435,19 @@ describe('runSingleStoryClose review-halt orchestration', () => {
       undefined,
       'auto-merge gh call must be skipped on review halt',
     );
-    assert.deepEqual(recorder.updates.at(-1), {
-      ticketId: 2839,
-      payload: {
-        labels: {
-          add: ['agent::blocked'],
-          remove: ['agent::executing', 'agent::ready'],
-        },
-      },
-    });
+    // Story #4539 — routed through the canonical `transitionTicketState`
+    // mutator (which also syncs the Projects v2 column) rather than a bare
+    // label write, so assert the transition's meaning rather than the
+    // mutator's payload shape.
+    const lastUpdate = recorder.updates.at(-1);
+    assert.equal(lastUpdate.ticketId, 2839);
+    assert.deepEqual(lastUpdate.payload.labels.add, ['agent::blocked']);
+    for (const cleared of ['agent::executing', 'agent::ready']) {
+      assert.ok(
+        lastUpdate.payload.labels.remove.includes(cleared),
+        `the transition clears ${cleared}`,
+      );
+    }
     assert.match(
       recorder.postedComments.at(-1).payload.body,
       /Code review blocked delivery/,

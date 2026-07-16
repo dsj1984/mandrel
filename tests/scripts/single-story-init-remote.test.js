@@ -33,15 +33,26 @@ describe('single-story-init remote verification', () => {
         }),
       /remote verification failed/,
     );
-    assert.deepEqual(updates[0], {
-      storyId: 42,
-      payload: {
-        labels: {
-          add: ['agent::blocked'],
-          remove: ['agent::ready', 'agent::executing'],
-        },
-      },
-    });
+    // Story #4539 — this flip goes through the canonical
+    // `transitionTicketState` mutator rather than a direct label write, so
+    // the Projects v2 column follows the Story off `agent::ready`. Assert
+    // the transition's meaning (blocked, every other state cleared) rather
+    // than the mutator's exact payload shape, which is its own contract.
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].storyId, 42);
+    const { labels } = updates[0].payload;
+    assert.deepEqual(labels.add, ['agent::blocked']);
+    for (const cleared of [
+      'agent::ready',
+      'agent::executing',
+      'agent::closing',
+      'agent::done',
+    ]) {
+      assert.ok(
+        labels.remove.includes(cleared),
+        `the transition clears ${cleared}`,
+      );
+    }
     assert.match(comments[0].body, /origin is unreachable/);
   });
 

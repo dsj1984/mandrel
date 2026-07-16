@@ -7,6 +7,16 @@
  * reports success because the operator can clean stale worktrees out of
  * band.
  *
+ * **Report what happened, not what was attempted** (Story #4539). This
+ * phase used to set `worktreeReaped = true` and log "🧹 Reaped worktree"
+ * on any non-throwing call — without reading the returned envelope. Since
+ * `reap` signals refusal by *returning* `{ removed: false, reason }`
+ * rather than throwing, and a v2-era precondition refused every
+ * `story-<id>` worktree outright, the result was that no close ever
+ * actually reaped and every close said it did. Best-effort means the close
+ * still succeeds on refusal; it does not mean the close may claim an
+ * outcome it never checked.
+ *
  * Also clears the trace-hook env vars so subsequent tooling falls back to
  * the no-op branch instead of pointing at a (now-reaped) worktree.
  */
@@ -24,15 +34,18 @@ import { WorktreeManager as DefaultWorktreeManager } from '../../../worktree-man
  *   storyId: number,
  *   worktreePath: string|null,
  *   wtIsolation: object|undefined,
+ *   baseBranch?: string|null,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {Promise<boolean>} true when reap completed
+ * @returns {Promise<boolean>} `true` only when the worktree was actually
+ *   removed — never merely because the call did not throw.
  */
 export async function reapWorktreePhase({
   cwd,
   storyId,
   worktreePath,
   wtIsolation,
+  baseBranch = null,
   progress,
   WorktreeManager = DefaultWorktreeManager,
 }) {
@@ -49,9 +62,20 @@ export async function reapWorktreePhase({
           error: (m) => Logger.error(`[single-story-close] ${m}`),
         },
       });
-      await wm.reap(storyId);
-      worktreeReaped = true;
-      progress('WORKTREE', `🧹 Reaped worktree for story-${storyId}.`);
+      // `baseRef` lets the reap discard an already-landed dirty tree
+      // (squash-aware). Refusal is signalled by the returned envelope, not
+      // by throwing — so read it.
+      const result = await wm.reap(storyId, { baseRef: baseBranch });
+      worktreeReaped = result?.removed === true;
+      if (worktreeReaped) {
+        progress('WORKTREE', `🧹 Reaped worktree for story-${storyId}.`);
+      } else {
+        progress(
+          'WORKTREE',
+          `⚠️ Worktree for story-${storyId} not reaped (${result?.reason ?? 'unknown reason'}) — ` +
+            `${worktreePath} left in place for the next sweep.`,
+        );
+      }
     } catch (err) {
       Logger.error(
         `[single-story-close] ⚠️ Failed to reap worktree: ${err?.message ?? err}`,
