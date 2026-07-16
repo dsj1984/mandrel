@@ -96,10 +96,10 @@ The bootstrap pipeline, in order:
 3. **Project-side mutations.** Seeds `.agentrc.json` from
    [`starter-agentrc.json`](starter-agentrc.json), merges the framework's
    runtime dependencies into `package.json`, runs the install, wires the
-   command-sync hook (the UserPromptSubmit hook that regenerates the flat
-   `.claude/commands/` tree so every `/<command>` loads), wires the system
-   prompt (see below), gitignores derived artefacts, and runs the
-   quality-gates installer.
+   system prompt (see below), gitignores derived artefacts, and runs the
+   quality-gates installer. The flat `.claude/commands/` tree is generated
+   at install time (via `prepare`) and on every `mandrel sync`/`update` —
+   see [`mandrel sync-commands`](#mandrel-sync-commands) below.
 4. **GitHub-side mutations.** Creates the label taxonomy, branch protection,
    and merge-method settings. Skipped with `--skip-github`. Two additional
    mutations are **opt-in** (prompted y/N, defaulting No, or passed as flags):
@@ -154,6 +154,7 @@ Run `mandrel --help` for a subcommand list. Each subcommand supports
 | `init` | Install + configure mandrel in the current project (cold-start). | `--assume-yes`, `--skip-github`, `--dry-run` |
 | `sync` | Re-materialize `.agents/` from the installed package payload. | `--dry-run` |
 | `sync-commands` | Regenerate `.claude/commands/` from `.agents/workflows/`. | — |
+| `sync-agents` | Regenerate `.claude/agents/` from `.agents/agents/`. | — |
 | `doctor` | Run readiness checks and print per-check remedies. | — |
 | `update` | Upgrade mandrel to the newest published version. | `--dry-run`, `--install-cmd` |
 | `migrate` | Apply version-keyed migrations for a version range. | `--from`, `--to`, `--dry-run` |
@@ -175,11 +176,25 @@ mandrel explain --json     # same report as JSON
 ### `mandrel sync-commands`
 
 Regenerates the flat `.claude/commands/` projection from `.agents/workflows/`.
-The bootstrap wires a `UserPromptSubmit` hook that runs this automatically on
-every Claude Code prompt submission, so manual runs are rarely needed.
+Runs automatically at install time (via the `prepare` script) and as part of
+`mandrel sync` / `mandrel update`; doctor's `commands-in-sync` check flags a
+hand-edited or stale tree. Refuses to project when the materialized `.agents/`
+tree doesn't match the running CLI's own version — run `mandrel sync` first.
 
 ```bash
 mandrel sync-commands      # rebuild .claude/commands/
+```
+
+### `mandrel sync-agents`
+
+Regenerates the flat `.claude/agents/` projection from `.agents/agents/` —
+the role-scoped boot contexts (`story-worker`, `acceptance-critic`) that
+`delivery.routing.roleScopedAgents` (default `true`) dispatches spawns
+against. Same delegation shape, wiring, and version-match refusal as
+`sync-commands` above.
+
+```bash
+mandrel sync-agents        # rebuild .claude/agents/
 ```
 
 ### `mandrel uninstall`
@@ -280,10 +295,10 @@ For non-interactive (CI) installs, pass `--owner`, `--repo`, and
 `--assume-yes`; pass `--skip-github` to defer the remote half.
 
 After bootstrap, every Mandrel command is generated into a flat
-`.claude/commands/` tree by `npm run sync:commands` (the UserPromptSubmit hook
-keeps it current) and loads as a bare `/<command>` slash command — e.g.
-`/plan`, `/deliver`, `/audit-security`. The commands load in every Claude Code
-environment. The [SDLC guide](docs/SDLC.md) walks end-to-end planning and
+`.claude/commands/` tree by `npm run sync:commands` (kept current at install
+time and on every `mandrel sync`/`update`) and loads as a bare `/<command>`
+slash command — e.g. `/plan`, `/deliver`, `/audit-security`. The commands load
+in every Claude Code environment. The [SDLC guide](docs/SDLC.md) walks end-to-end planning and
 delivery; Stories pair [`/plan`](workflows/plan.md) (idea → drafted Story Issue)
 with [`/deliver`](workflows/deliver.md) (Story Issue → merged
 PR).

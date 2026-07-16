@@ -19,7 +19,6 @@ import {
   checkNodeVersion,
   detectPackageManager,
   ensureAgentrc,
-  ensureClaudeSettings,
   ensureGitignore,
   ensurePackageJson,
   GITIGNORE_BLOCKS,
@@ -169,35 +168,6 @@ describe('ensurePackageJson', () => {
     assert.equal(second.scriptsSyncAgents, 'already-present');
     assert.equal(second.scriptsPrepare, 'already-present');
     assert.equal(second.mutated, false);
-  });
-});
-
-describe('ensureClaudeSettings', () => {
-  it('creates a fresh settings.json with the sync hook (no plugin enablement)', () => {
-    const outcome = ensureClaudeSettings({ projectRoot: tmpRoot });
-    assert.equal(outcome.action, 'created');
-    const settings = readJson(path.join(tmpRoot, '.claude', 'settings.json'));
-    const cmd = settings.hooks.UserPromptSubmit[0].hooks[0].command;
-    assert.ok(cmd.includes('sync-claude-commands.js'));
-    // Flat /<name> commands need no plugin enablement — the #3576 plugin
-    // cutover was reverted, so these keys must NOT be written.
-    assert.equal(settings.enabledPlugins, undefined);
-    assert.equal(settings.extraKnownMarketplaces, undefined);
-  });
-
-  it('merges into an existing settings.json without duplicating', () => {
-    writeFile(
-      path.join(tmpRoot, '.claude', 'settings.json'),
-      JSON.stringify({ hooks: { UserPromptSubmit: [] } }),
-    );
-    const first = ensureClaudeSettings({ projectRoot: tmpRoot });
-    const second = ensureClaudeSettings({ projectRoot: tmpRoot });
-    assert.equal(first.action, 'merged');
-    assert.equal(second.action, 'already-present');
-    const settings = readJson(path.join(tmpRoot, '.claude', 'settings.json'));
-    const cmd = settings.hooks.UserPromptSubmit[0].hooks[0].command;
-    assert.ok(cmd.includes('sync-claude-commands.js'));
-    assert.equal(settings.enabledPlugins, undefined);
   });
 });
 

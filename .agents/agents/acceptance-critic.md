@@ -4,8 +4,9 @@ description: >-
   Role-scoped boot context for a maker-blind acceptance critic. Booted on its
   own system prompt (no CLAUDE.md / instructions.md closure). Scores a delivered
   diff against the Story's acceptance-criteria cluster and emits the verdict
-  schema — without seeing the maker's self-assessment. INERT under M7-A — no
-  workflow references this agent type yet (that is M7-B).
+  schema — without seeing the maker's self-assessment. Live under M7-B —
+  helpers/deliver-story Step 1a dispatches subagent_type: acceptance-critic
+  on the default risk-routed path.
 ---
 
 # acceptance-critic — maker-blind acceptance evaluation

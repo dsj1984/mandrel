@@ -385,52 +385,17 @@ export async function validateAgentrc(ctx) {
   return { ok: !!ok, errors: ok ? [] : (validate.errors ?? []) };
 }
 
-/**
- * Step 3 — Merge the `UserPromptSubmit` sync hook into `.claude/settings.json`.
- * Returns `{ action }`.
- *
- * The sync hook keeps the generated flat `/<name>` command tree
- * (`.claude/commands/`) current. The flat projection needs no plugin
- * enablement keys — it loads in every Claude Code environment, including those
- * where the plugin system (`/plugin`) is unavailable (the #3576 plugin cutover
- * was reverted for exactly that reason).
- *
- * @param {object} ctx
- * @param {typeof fs} [ctx.fsImpl]
- */
-export function ensureClaudeSettings(ctx) {
-  const { fsImpl = fs } = ctx;
-  const target = path.join(ctx.projectRoot, '.claude', 'settings.json');
-  const hook = { type: 'command', command: SYNC_COMMAND };
-  if (!fsImpl.existsSync(target)) {
-    fsImpl.mkdirSync(path.dirname(target), { recursive: true });
-    const fresh = {
-      hooks: {
-        UserPromptSubmit: [{ hooks: [hook] }],
-      },
-    };
-    writeJson(target, fresh, fsImpl);
-    return { action: 'created', path: target };
-  }
-  const settings = readJsonIfExists(target, fsImpl);
-  settings.hooks = settings.hooks ?? {};
-  settings.hooks.UserPromptSubmit = settings.hooks.UserPromptSubmit ?? [];
-  const hookAlready = settings.hooks.UserPromptSubmit.some((group) =>
-    (group?.hooks ?? []).some(
-      (h) =>
-        typeof h?.command === 'string' &&
-        h.command.includes('sync-claude-commands.js'),
-    ),
-  );
-  let mutated = false;
-  if (!hookAlready) {
-    settings.hooks.UserPromptSubmit.push({ hooks: [hook] });
-    mutated = true;
-  }
-  if (!mutated) return { action: 'already-present', path: target };
-  writeJson(target, settings, fsImpl);
-  return { action: 'merged', path: target };
-}
+// Story #4527/#4530: the UserPromptSubmit sync-hook wiring
+// (ensureClaudeSettings, formerly Step 3) was removed. It spawned
+// `mandrel sync-commands` on every prompt to keep `.claude/commands/` in
+// sync with `.agents/workflows/` — a rewrite racing the harness's own read
+// of that same directory while expanding a slash command, and a directory
+// that cannot change mid-session in the first place, so the hook reported
+// `0 file(s) synced` on effectively every invocation. The real sync points
+// already cover every case: `prepare` on install, `mandrel sync` /
+// `mandrel update` on upgrade, and doctor's `commands-in-sync` check for
+// hand-edits. `lib/cli/uninstall.js#revertClaudeSettings` still removes the
+// hook from a consumer who already has it installed from a prior version.
 
 /**
  * Step 4 + Step 8 — Ensure `.gitignore` carries every {@link GITIGNORE_BLOCKS}
@@ -743,11 +708,6 @@ export const BOOTSTRAP_PHASES = Object.freeze([
     run: async (ctx) => validateAgentrc(ctx),
     isFatal: true,
     formatError: fatalValidation,
-  },
-  {
-    name: 'claudeSettings',
-    phaseGroup: PHASE_GROUPS.IDE_WIRING,
-    run: (ctx) => ensureClaudeSettings(ctx),
   },
   {
     name: 'systemPromptWiring',

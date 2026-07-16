@@ -1063,13 +1063,25 @@ mandrel explain --json   # JSON report for scripting
 
 ### `mandrel sync-commands`
 
-Regenerates the flat `.claude/commands/` tree from `.agents/workflows/`. The
-bootstrap wires a `UserPromptSubmit` hook so this runs automatically on every
-Claude Code prompt; manual invocations are only needed when the hook is absent
-or the commands/ tree is manually deleted.
+Regenerates the flat `.claude/commands/` tree from `.agents/workflows/`. Runs
+automatically at install time (via `prepare`) and as part of `mandrel
+sync`/`update`; manual invocations are only needed when the commands/ tree is
+manually deleted or edited by hand. Refuses to project when the materialized
+`.agents/` tree doesn't match the running CLI's own version.
 
 ```bash
 mandrel sync-commands
+```
+
+### `mandrel sync-agents`
+
+Regenerates the flat `.claude/agents/` tree from `.agents/agents/` — the
+role-scoped boot contexts `delivery.routing.roleScopedAgents` (default
+`true`) dispatches spawns against. Same wiring and version-match refusal as
+`mandrel sync-commands` above.
+
+```bash
+mandrel sync-agents
 ```
 
 ### `mandrel uninstall`
