@@ -336,12 +336,10 @@
       "codingGuardrails": {
         "cyclomaticFlag": 8,
         "cyclomaticMustFix": 12,
-        "miDropMustRefactor": 1.5,
         "requireSiblingTest": false
       },
       "autoRefresh": {
         "enabled": true,
-        "miDropCap": 1.5,
         "crapJumpCap": 5,
         "scope": "diff"
       },

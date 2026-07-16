@@ -43,8 +43,8 @@ describe('kinds/maintainability.compare()', () => {
   it('low-MI new files (e.g. 22 vs implicit 100) are additions, not regressions', () => {
     // Regression test for the specific Story #2012 scenario: a new file
     // with an MI well below 100 used to surface as a -78 MI drop and
-    // breached every reasonable miDropCap. With the fix it lands in
-    // `additions` and the regression arm stays empty.
+    // breached any reasonable maintainability.tolerance. With the fix it
+    // lands in `additions` and the regression arm stays empty.
     const head = { rows: [{ path: 'lib/new.js', mi: 22 }] };
     const base = { rows: [] };
     const out = compare(head, base);

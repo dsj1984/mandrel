@@ -58,13 +58,13 @@ review-time prose rule.
 
 Per-file Maintainability Index (MI) is tracked in
 [`baselines/maintainability.json`](../../../baselines/maintainability.json).
-A commit that drops a file's MI by more than
-`delivery.quality.codingGuardrails.miDropMustRefactor` points (default
-`1.5`) requires a refactor in the same Story — not a baseline bump. The MI
-ratchet's per-file `tolerance` (default `0.5`) is a noise filter, **not**
-permission to spend the budget; the 1.5-point ceiling is the upper bound
-above which the change is treated as a regression that must be undone or
-offset, not absorbed.
+A commit that drops a file's MI by more than the configured
+`delivery.quality.gates.maintainability.tolerance` (default `0.5` points)
+requires a refactor in the same Story — not a baseline bump. `tolerance` is
+the single MI-drop control: it is not a noise filter beneath a separate
+must-refactor ceiling — any drop past it is treated as a regression that
+must be undone or offset, not absorbed. Set `tolerance` higher only when the
+project deliberately wants a looser MI-drop budget.
 
 `quality:preview --changed-since HEAD` shows the per-file MI delta in the
 working tree before the commit lands.

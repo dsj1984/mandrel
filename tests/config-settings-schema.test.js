@@ -472,12 +472,10 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
             codingGuardrails: {
               cyclomaticFlag: 8,
               cyclomaticMustFix: 12,
-              miDropMustRefactor: 1.5,
               requireSiblingTest: false,
             },
             autoRefresh: {
               enabled: true,
-              miDropCap: 1.5,
               crapJumpCap: 5,
               scope: 'diff',
             },
@@ -485,6 +483,31 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
         },
       }),
       true,
+    );
+  });
+
+  it('rejects the retired miDropMustRefactor / miDropCap keys (Story #4531)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            codingGuardrails: { miDropMustRefactor: 1.5 },
+          },
+        },
+      },
+      /codingGuardrails/,
+    );
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            autoRefresh: { miDropCap: 1.5 },
+          },
+        },
+      },
+      /autoRefresh/,
     );
   });
 

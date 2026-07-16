@@ -235,11 +235,9 @@ top-level keys are validation errors.
 | `quality.codingGuardrails` | No | `object` | — | Nested configuration block. |
 | `quality.codingGuardrails.cyclomaticFlag` | No | `integer` | — | — |
 | `quality.codingGuardrails.cyclomaticMustFix` | No | `integer` | — | — |
-| `quality.codingGuardrails.miDropMustRefactor` | No | `number` | — | — |
 | `quality.codingGuardrails.requireSiblingTest` | No | `boolean` | — | — |
 | `quality.autoRefresh` | No | `object` | — | Nested configuration block. |
 | `quality.autoRefresh.enabled` | No | `boolean` | — | — |
-| `quality.autoRefresh.miDropCap` | No | `number` | — | — |
 | `quality.autoRefresh.crapJumpCap` | No | `number` | — | — |
 | `quality.autoRefresh.scope` | No | `"diff"` \| `"full"` | — | — |
 | `quality.baselineEpsilon` | No | `object` | — | Per-kind epsilon for s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to prior bytes so env variance does not rewrite the on-disk baseline. |
@@ -666,7 +664,6 @@ for `BUNDLE_SIZE_REFRESH=1` usage.
 | ---------------------- | -------- | ------- | ------------------------------------------------------------------ |
 | `cyclomaticFlag`       | No       | (none)  | Cyclomatic-complexity value at which the engineer should refactor.  |
 | `cyclomaticMustFix`    | No       | (none)  | Cyclomatic-complexity value that hard-fails the gate.               |
-| `miDropMustRefactor`   | No       | (none)  | MI drop that mandates a refactor.                                   |
 | `requireSiblingTest`   | No       | (none)  | When `true`, a new function requires a sibling test file.           |
 
 #### `delivery.quality.autoRefresh`
@@ -676,7 +673,6 @@ Controls Story-close auto-baseline-refresh for gated metrics.
 | Field         | Required | Default | Purpose                                                  |
 | ------------- | -------- | ------- | -------------------------------------------------------- |
 | `enabled`     | No       | (none)  | Master switch.                                           |
-| `miDropCap`   | No       | (none)  | Max MI drop the auto-refresher will absorb before failing. |
 | `crapJumpCap` | No       | (none)  | Max CRAP jump the auto-refresher will absorb before failing. |
 | `scope`       | No       | (none)  | One of `'diff'` or `'full'`.                              |
 

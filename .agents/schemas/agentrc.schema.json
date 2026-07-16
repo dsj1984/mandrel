@@ -1076,10 +1076,6 @@
           "type": "integer",
           "minimum": 1
         },
-        "miDropMustRefactor": {
-          "type": "number",
-          "minimum": 0
-        },
         "requireSiblingTest": {
           "type": "boolean"
         }
@@ -1091,10 +1087,6 @@
       "properties": {
         "enabled": {
           "type": "boolean"
-        },
-        "miDropCap": {
-          "type": "number",
-          "minimum": 0
         },
         "crapJumpCap": {
           "type": "number",

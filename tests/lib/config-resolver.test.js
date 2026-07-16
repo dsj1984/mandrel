@@ -413,9 +413,9 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
     assert.equal(crap.diffRef, 'develop');
   });
 
-  it('resolveCodingGuardrails preserves miDropMustRefactor', () => {
+  it('resolveCodingGuardrails drops the retired miDropMustRefactor key (Story #4531)', () => {
     const guard = resolveCodingGuardrails({ miDropMustRefactor: 2.0 });
-    assert.equal(guard.miDropMustRefactor, 2.0);
+    assert.equal('miDropMustRefactor' in guard, false);
   });
 });
 
