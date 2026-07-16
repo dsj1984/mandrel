@@ -274,6 +274,73 @@ describe('mandrel update entrypoint — freshness-cache population', () => {
 // (c) — --dry-run does not install or run effectful phases
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Story #4525/#4530 — production `current` resolution reads the consumer pin
+// ---------------------------------------------------------------------------
+
+describe('mandrel update entrypoint — resolves current from the consumer pin', () => {
+  it('resolves an updated action from a lagging package.json pin, with no currentVersion override (the #4525 repro)', async () => {
+    // No `deps.currentVersion` — this is the production default-resolution
+    // path. package.json pins ^1.87.0 (analogous to the reported skew); the
+    // registry probe resolves the newer TARGET_VERSION. The pin, not any
+    // node_modules resolution, must drive `current`.
+    const consumerRoot = '/virtual/consumer';
+    const fsFake = makeFs({
+      [CHANGELOG_PATH]: CHANGELOG_CONTENT,
+      [`${consumerRoot}/package.json`]: JSON.stringify({
+        dependencies: { mandrel: '^1.43.0' },
+      }),
+    });
+    const cap = makeCapture();
+    const { calls, deps } = makeDeps(fsFake, cap);
+    delete deps.currentVersion;
+    deps.cwd = () => consumerRoot;
+
+    await run([], deps);
+
+    // The full 'updated' cycle ran — proving planUpdate saw `updated`, not
+    // `resynced` — which is only possible if current (1.43.0, from the pin)
+    // compared as behind target (1.44.0).
+    assert.deepEqual(calls, [
+      'npm-view',
+      `npm install mandrel@${TARGET_VERSION}`,
+      'spawn:sync',
+      'spawn:sync-commands',
+      'migrate:1.43.0->1.44.0',
+      'spawn:doctor',
+    ]);
+    const joined = cap.out.join('');
+    assert.match(joined, /Updated to v1\.44\.0/);
+    assert.equal(cap.exitCode, null);
+  });
+
+  it('resolves up-to-date (no npm-update) when the pin already matches the target', async () => {
+    const consumerRoot = '/virtual/consumer2';
+    const fsFake = makeFs({
+      [CHANGELOG_PATH]: CHANGELOG_CONTENT,
+      [`${consumerRoot}/package.json`]: JSON.stringify({
+        dependencies: { mandrel: `^${TARGET_VERSION}` },
+      }),
+    });
+    const cap = makeCapture();
+    const { calls, deps } = makeDeps(fsFake, cap);
+    delete deps.currentVersion;
+    deps.cwd = () => consumerRoot;
+    // Pin resolves current===target, so runUpdate probes drift. Stub it false
+    // so this test stays hermetic — without this it falls through to the
+    // real runAgentsDrift() against process.cwd()'s actual .agents/ state.
+    deps.checkDrift = () => false;
+
+    await run([], deps);
+
+    assert.ok(
+      !calls.some((c) => c.startsWith('npm install')),
+      'pin already matches target — no install should run',
+    );
+    assert.match(cap.out.join(''), /Already up to date/);
+  });
+});
+
 describe('mandrel update entrypoint — --dry-run', () => {
   it('never installs and prints the step plan (A1b, A1c)', async () => {
     // Story #4046 A1b: the cache is bypassed even on dry-run — the version is
