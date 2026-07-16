@@ -271,3 +271,207 @@ describe('createStoryIssues', () => {
     assert.equal(writes, 0);
   });
 });
+
+/**
+ * Build a provider fake that speaks the `getDependencyWriteContext` interface
+ * (Story #4544) and records both the created-issue payloads and the raw
+ * dependencies-API traffic.
+ *
+ * `createIssue` hands back ids from 201 upward in call order, and `getTicket`
+ * maps an issue number to a distinct REST database id (`90000 + number`) —
+ * distinct because the dependencies API takes the database id, not the issue
+ * number, and a fake that conflated them would let that bug through.
+ *
+ * @param {{ existingBlockedBy?: Array<{ id: number }>, postShouldFail?: boolean }} [opts]
+ */
+function makeMirrorProvider({
+  existingBlockedBy = [],
+  postShouldFail = false,
+} = {}) {
+  const createPayloads = [];
+  const ghCalls = [];
+  return {
+    createPayloads,
+    ghCalls,
+    createIssue: async (payload) => {
+      createPayloads.push(payload);
+      return { id: 200 + createPayloads.length };
+    },
+    getTicket: async (issueNumber) => ({ internalId: 90000 + issueNumber }),
+    getDependencyWriteContext: () => ({
+      owner: 'org',
+      repo: 'repo',
+      gh: {
+        api: async ({ method, endpoint, body }) => {
+          ghCalls.push({ method, endpoint, body });
+          if (method === 'GET') {
+            return {
+              stdout: JSON.stringify(existingBlockedBy),
+              stderr: '',
+              code: 0,
+            };
+          }
+          if (postShouldFail) {
+            throw new Error('dependencies API rejected the edge');
+          }
+          return { stdout: JSON.stringify({ id: 1 }), stderr: '', code: 0 };
+        },
+      },
+    }),
+  };
+}
+
+/** A two-Story plan carrying exactly one edge: consumer depends on migration. */
+function orderedPair() {
+  return assemblePlanStories([
+    storyTicket('consumer', { depends_on: ['migration'] }),
+    storyTicket('migration'),
+  ]).stories;
+}
+
+describe('createStoryIssues — native blocked_by mirroring (Story #4544)', () => {
+  it('mirrors each authored depends_on edge into exactly one native blocked_by POST', async () => {
+    // The count is asserted exactly, not as ">= 0" or mere completion,
+    // precisely because the mirroring contract is non-fatal: a wiring mistake
+    // (e.g. handing the writer the create loop's `Map` where it does property
+    // access) skips every edge, adds zero, and still reports success.
+    const provider = makeMirrorProvider();
+    const { created, dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: orderedPair(),
+    });
+
+    assert.deepEqual(
+      created.map((s) => s.slug),
+      ['migration', 'consumer'],
+    );
+    assert.deepEqual(dependencyEdges, {
+      edgesAdded: 1,
+      edgesSkipped: 0,
+      edgesFailed: 0,
+      storiesProcessed: 1,
+    });
+
+    const posts = provider.ghCalls.filter((c) => c.method === 'POST');
+    assert.equal(posts.length, 1);
+    assert.equal(
+      posts[0].endpoint,
+      '/repos/org/repo/issues/202/dependencies/blocked_by',
+      'the edge is written on the dependent Story (consumer, #202)',
+    );
+    assert.deepEqual(
+      posts[0].body,
+      { issue_id: 90201 },
+      "the payload carries the blocker's REST database id, not its issue number",
+    );
+  });
+
+  it('is idempotent: an edge that already exists is skipped, not duplicated', async () => {
+    const provider = makeMirrorProvider({
+      existingBlockedBy: [{ id: 90201 }],
+    });
+    const { dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: orderedPair(),
+    });
+
+    assert.deepEqual(dependencyEdges, {
+      edgesAdded: 0,
+      edgesSkipped: 1,
+      edgesFailed: 0,
+      storiesProcessed: 1,
+    });
+    assert.deepEqual(
+      provider.ghCalls.filter((c) => c.method === 'POST'),
+      [],
+      're-applying an existing edge writes nothing',
+    );
+  });
+
+  it('completes the persist when the dependencies API rejects, and reports the failure', async () => {
+    // Non-fatal is the right call here — and only because the ordering has a
+    // second home. A dropped edge is cosmetic: the `blocked by #N` footer is
+    // already in the created body, and that is what /deliver's resolver reads.
+    const provider = makeMirrorProvider({ postShouldFail: true });
+    const { created, dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: orderedPair(),
+    });
+
+    assert.equal(created.length, 2, 'persist completes rather than throwing');
+    assert.equal(dependencyEdges.edgesAdded, 0);
+    assert.equal(
+      dependencyEdges.edgesFailed,
+      1,
+      'the failure is counted and returned, not swallowed',
+    );
+    assert.deepEqual(
+      parse(provider.createPayloads[1].body).body.depends_on,
+      ['#201'],
+      'ordering survives in the body footer',
+    );
+  });
+
+  it('never reaches into provider internals when no interface is offered', async () => {
+    // A provider exposing only the private `_gh` field must yield no edges —
+    // if this ever starts writing, something has gone back to reaching through
+    // the provider's internals from the orchestration layer.
+    const ghCalls = [];
+    let n = 0;
+    const provider = {
+      createIssue: async () => ({ id: 200 + ++n }),
+      getTicket: async () => ({ internalId: 1 }),
+      _gh: {
+        api: async (call) => {
+          ghCalls.push(call);
+          return { stdout: '[]', stderr: '', code: 0 };
+        },
+      },
+    };
+
+    const { created, dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: orderedPair(),
+    });
+
+    assert.equal(created.length, 2);
+    assert.equal(dependencyEdges, null);
+    assert.deepEqual(ghCalls, []);
+  });
+
+  it('does not touch the dependencies API for a plan with no edges', async () => {
+    const provider = makeMirrorProvider();
+    const { dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: assemblePlanStories([storyTicket('solo')]).stories,
+    });
+    assert.equal(dependencyEdges, null);
+    assert.deepEqual(provider.ghCalls, []);
+  });
+
+  it('mirrors edges on a resumed run whose Stories were already created', async () => {
+    // The adopted branch skips the POST but still records the id, so a re-run
+    // after a mid-creation failure completes the cohort's edges too.
+    const provider = makeMirrorProvider();
+    provider.listIssuesByLabel = async () =>
+      orderedPair().map((story, i) => ({
+        number: 201 + (story.slug === 'migration' ? 0 : 1),
+        title: story.title,
+        body: `<!-- plan-story: ${story.fingerprint} -->`,
+        html_url: `https://example/${i}`,
+      }));
+
+    const { created, dependencyEdges } = await createStoryIssues({
+      provider,
+      stories: orderedPair(),
+    });
+
+    assert.deepEqual(
+      created.map((s) => s.adopted),
+      [true, true],
+      'both Stories are adopted, not re-created',
+    );
+    assert.deepEqual(provider.createPayloads, []);
+    assert.equal(dependencyEdges.edgesAdded, 1);
+  });
+});
