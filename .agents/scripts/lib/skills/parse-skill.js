@@ -30,6 +30,8 @@ const FRONTMATTER_DELIMITER = '---';
 const POLICY_HEADING_RE = /^## Policy Capsule\s*$/;
 const ANY_H2_RE = /^## /;
 const BULLET_RE = /^- /;
+/** An indented (wrapped) continuation of the bullet above it. */
+const CONTINUATION_RE = /^\s+\S/;
 
 /**
  * Repo root resolver. Walks up from the SKILL.md path until we find a
@@ -85,8 +87,14 @@ function extractFrontmatterBlock(lines, skillPath) {
 /**
  * Scan the body for the '## Policy Capsule' heading and count contiguous
  * top-level '- ' bullets that follow it, stopping at the next '## ' heading
- * or end-of-file. Blank lines inside the bullet run do not reset the count;
- * a non-bullet, non-blank line does.
+ * or end-of-file. Blank lines inside the bullet run do not reset the count.
+ *
+ * An **indented** continuation line belongs to the bullet above it — capsule
+ * bullets routinely wrap at the document's prose width — so it neither counts
+ * as a new bullet nor terminates the run. Only a **flush-left**, non-blank,
+ * non-bullet line after the run terminates it (Story #4546: treating any
+ * non-bullet line as a terminator counted a wrapped 5-bullet capsule as 1 and
+ * tripped the floor in validate-skills.js).
  */
 function findPolicyCapsule(lines, bodyStart) {
   let headingIndex = -1;
@@ -114,8 +122,13 @@ function findPolicyCapsule(lines, bodyStart) {
       // Blank lines inside or before the bullet run are tolerated.
       continue;
     }
+    if (sawBulletRun && CONTINUATION_RE.test(line)) {
+      // Indented continuation of the bullet above — same bullet, not a
+      // terminator. Wrapped capsule bullets are the norm, not an error.
+      continue;
+    }
     if (sawBulletRun) {
-      // Non-blank, non-bullet line after the bullet run terminates it.
+      // Flush-left, non-blank, non-bullet line after the run terminates it.
       break;
     }
     // Leading prose between heading and the first bullet is allowed.

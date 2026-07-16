@@ -22,6 +22,9 @@ description:
 - Lead with **cohesion**: one Story is one coherent change with one reason
   to exist. Coupled work stays one Story and uses `## Slicing` for
   intra-session checkpoints.
+- Emit an **advisory only** — `keep-single` (the default) or `split` with its
+  seam/overlap rationale. **Never auto-route**: the operator decides, and
+  `--yes` defaults to `keep-single`.
 
 ## Split policy (when N>1 is allowed)
 
