@@ -103,26 +103,24 @@ graph LR
 ## Story-Level Branching
 
 ### Problem
-Epic branches become massive, long-lived, and prone to merge conflicts when
-every Story commits directly to the shared Epic branch.
+A shared, long-lived integration branch (the pre-v2 `epic/<id>` model)
+becomes massive and prone to merge conflicts when every Story commits into
+it, and its lifetime couples otherwise-independent Stories.
 
 ### Solution
-The **Story-Level Branching** pattern restricts the integration scope under
-the 2-tier (Epic → Story) hierarchy — there is no Task tier
-(`label-constants.js` `TYPE_LABELS` defines only `EPIC` and `STORY`), so there
-are no task branches:
+The **Story-Level Branching** pattern gives each Story its own short-lived
+branch integrated directly into `main`. The ticket model is Story-only
+(`label-constants.js` `TYPE_LABELS` defines only `STORY`), so this is the
+single branch shape:
 
-1.  **Epic base branch:** `epic/<id>` — created from `main`, the integration
-    target for every Story in the Epic.
-2.  **Per-Story branch:** `story-<storyId>` (flat, hyphenated — **not**
-    slash-namespaced) — created by `story-init.js`, materialized as a worktree
-    at `.worktrees/story-<storyId>/`. All Story implementation commits land
-    here.
-3.  **Story → Epic integration:** Story branches merge into the Epic branch
-    with `--no-ff` (via `story-close.js`).
-4.  **Epic → `main`:** the Epic branch reaches `main` through the pull request
-    `/deliver` opens at the end of its run; the operator merges it through the
-    GitHub UI.
+1.  **Per-Story branch:** `story-<storyId>` (flat, hyphenated — **not**
+    slash-namespaced) — created from `main` by `single-story-init.js`,
+    materialized as a worktree at `.worktrees/story-<storyId>/`. All Story
+    implementation commits land here.
+2.  **Story → `main`:** each Story branch reaches `main` through its own
+    pull request (squash merge + required checks), opened at close by
+    `single-story-close.js` / `helpers/deliver-story`. There is no
+    `epic/<id>` integration branch and no `--no-ff` wave merge.
 
 This matches the canonical contract in
 [`.agents/rules/git-conventions.md`](../.agents/rules/git-conventions.md) and
@@ -148,22 +146,26 @@ branch guards catch specific failure modes but not the underlying class.
 
 Each story runs in its own `git worktree` rooted at
 `.worktrees/story-<id>/`, owned by a single `WorktreeManager` façade
-(`ensure` / `reap` / `list` / `isSafeToRemove` / `gc`). The dispatcher threads
-the worktree path as `cwd`; `story-close` reaps after merge.
+(`ensure` / `reap` / `list` / `isSafeToRemove` / `gc` —
+`lib/worktree-manager.js`, delegating to `lib/worktree/lifecycle/`). The
+runtime threads the worktree path as `cwd`; `single-story-close.js` reaps
+after merge.
 
 Two reliability properties of the worktree primitive — both established in
 Epic #1114 after #1072 surfaced the failure modes:
 
 1. **Close-validation gates run inside the worktree.** Lint / format /
    maintainability / CRAP / typecheck / `npm audit` all spawn with
-   `cwd=.worktrees/story-<id>/` and read shared baselines at the Epic
+   `cwd=.worktrees/story-<id>/` and read shared baselines at the base
    ref via `lib/baseline-loader.js`. Cross-Story drift on the main
    checkout cannot block an unrelated Story's close.
 2. **Auto-reap uses real reachability.** `WorktreeManager.isSafeToRemove`
-   uses `git merge-base --is-ancestor HEAD epic/<id>` (with a
-   merge-commit fallback for force-pushed branches). The post-rebase
-   false-positive that produced five manual reap recipes during Epic
-   #1072 is locked down by a regression test.
+   (`lib/worktree/lifecycle/reap.js` + `merge-reachability.js`) uses
+   `git merge-base --is-ancestor HEAD <baseRef>` against the integration
+   ref the Story must land in (`main` in v2; with a merge-commit fallback
+   for force-pushed branches). The post-rebase false-positive that
+   produced five manual reap recipes during Epic #1072 is locked down by
+   a regression test.
 
 A resolved-at-runtime override lets the same code path handle the *web
 Claude Code* case where each session is already a sandboxed clone:
@@ -240,8 +242,10 @@ submodules behind a **thin facade**. The facade preserves every public
 export at the existing import path; submodules are internal
 implementation detail.
 
-Applied to `lib/worktree-manager.js`, `lib/orchestration/dispatch-engine.js`,
-and `lib/presentation/manifest-renderer.js`. The same pattern drives the
+Applied to `lib/worktree-manager.js` (live), and pre-v2 to
+`lib/orchestration/dispatch-engine.js` and
+`lib/presentation/manifest-renderer.js` (both deleted with the Epic
+tier). The same pattern drives the
 `config-resolver.js` split into accessor submodules under `lib/config/` and
 the `providers/github.js` decomposition into focused modules under
 `providers/github/*`. Epic #946 (v5.31.1) extended the pattern to
@@ -492,20 +496,28 @@ that own their own cadence.
 *   Test fixtures can inject a fake clock against one module instead of
     three.
 
-## Whole-epic progress reporting via `epic-run-progress`
+## Whole-epic progress reporting via `epic-run-progress` (historical)
+
+> **Historical.** The progress-reporter module and its caller were
+> deleted with the Epic tier in v2.0.0 — there is no Epic-level rollup
+> comment any more (see the matching historical note in
+> [`docs/data-dictionary.md`](data-dictionary.md)). The *pattern* —
+> one idempotent, marker-keyed rollup covering every unit of work, not
+> just the active ones — remains the reference shape for any future
+> multi-Story progress surface.
 
 The progress-reporter module
 (`lib/orchestration/epic-runner/progress-reporter/composition.js`,
-`upsertEpicRunProgress`) renders the `epic-run-progress` snapshot
+`upsertEpicRunProgress`) rendered the `epic-run-progress` snapshot
 covering every story in the Epic — queued, in-flight, done, blocked —
-so operators see the full Epic at a glance.
+so operators saw the full Epic at a glance.
 
-`upsertEpicRunProgress` is called by `/deliver`'s per-Story status
+`upsertEpicRunProgress` was called by `/deliver`'s per-Story status
 recorder (`epic-execute-record-wave.js`) after each recorder beat.
 Story #4155 (Epic #4151) cut the runtime over from the wave-batch
-scheduler to the continuous ready-set core, so the rollup is a **flat
+scheduler to the continuous ready-set core, so the rollup was a **flat
 per-Story table** keyed by the checkpoint's `stories` status map — there
-is no `Wave` column and no `waves[]` grouping any more:
+was no `Wave` column and no `waves[]` grouping:
 
 ```text
 ### 📊 Epic Progress — 5/6 stories done
@@ -519,20 +531,17 @@ is no `Wave` column and no `waves[]` grouping any more:
 | #424 | 🔧 in-flight | ProgressReporter detectors + CI Node matrix |
 ```
 
-There is no separate per-Story structured comment — `epic-run-progress`
-is the single operator-facing summary, and the upsert is idempotent by
+There was no separate per-Story structured comment — `epic-run-progress`
+was the single operator-facing summary, and the upsert was idempotent by
 marker (see the structured-comment pattern above).
 
-**Why it matters:** the progress signal is what operators read while
-the delivery loop runs. A snapshot that only shows the active stories
-hides "is the epic 20% done or 80% done?" — exactly the question the
-operator is trying to answer when checking in. The flat table collapses
-that question into a single glance.
-
-**When to extend the table:** add a new column only when every row
-benefits. Mechanical detectors (stalled-worktree, maintainability-drift)
-belong in the `Notable` section under the table — they fire once per
-snapshot, not once per row, so a column would mostly be blank.
+**Why it mattered (and still generalises):** a progress signal is what
+operators read while a delivery loop runs. A snapshot that only shows
+the active stories hides "is the run 20% done or 80% done?" — exactly
+the question the operator is trying to answer when checking in. A flat
+all-rows table collapses that question into a single glance; row-level
+columns should be added only when every row benefits, with once-per-
+snapshot detectors relegated to a `Notable` section under the table.
 
 ## Per-Story friction signal emission (NDJSON)
 
@@ -792,12 +801,12 @@ at the protocol boundary.
 
 ### Problem
 
-Framework hot paths that read many tickets per pass — wave-record
-verification (`getTicket` per "done" claim), hierarchy gating, bulk
-issue/sub-issue reads — were serial `for..of` loops over `await`. On a
-20-story epic the wall-clock compounded linearly. Converting to naked
-`Promise.all` would swap that for an unbounded thundering herd against
-the GitHub API and risk secondary rate limits.
+Framework hot paths that read many tickets per pass — dependency-graph
+resolution, bulk issue/sub-issue reads, bulk state transitions — were
+serial `for..of` loops over `await`. On a 20-story run the wall-clock
+compounded linearly. Converting to naked `Promise.all` would swap that
+for an unbounded thundering herd against the GitHub API and risk
+secondary rate limits.
 
 ### Solution
 
@@ -806,11 +815,11 @@ One primitive at `lib/util/concurrent-map.js`:
 the first unhandled rejection aggregates out. Live adoption points
 include:
 
-- `detect-merges.js` and `hierarchy-gate.js` — CLI-level ticket fanouts.
-- `providers/github/issues.js` and `providers/github/sub-issues.js` —
-  provider-side bulk reads.
-- `lib/orchestration/wave-record-io.js` — per-Story re-verification of
-  "done" claims at wave record time.
+- `resolve-stories.js` — the `/deliver` dependency-graph fanout.
+- `providers/github/issues.js`, `providers/github/sub-issues.js`, and
+  `providers/github/blocked-by-add.js` — provider-side bulk reads and
+  edge writes.
+- `lib/orchestration/ticketing/bulk.js` — bulk ticket mutations.
 
 Each site picks a cap for its bottleneck: GitHub-API fanouts cap to
 stay under secondary rate limits; disk-bound fanouts cap low because
@@ -1077,14 +1086,13 @@ config, and skips when both match.
 
 Pattern shape:
 
-1. **Authoritative gate runs first.** `story-close.js`'s
+1. **Authoritative gate runs first.** `single-story-close.js`'s
    close-validation chain is the source of truth — when it passes, it
    writes evidence.
-2. **Subsequent phases consult evidence.** `epic-code-review`,
-   `/deliver` Phase 3 (close-validation), and any other downstream
-   caller wrap the same gate via `evidence-gate.js`. They skip when the
-   recorded SHA still matches `HEAD` and the command config hash is
-   unchanged.
+2. **Subsequent phases consult evidence.** Any downstream caller that
+   needs the same gate result wraps the gate via `evidence-gate.js` and
+   skips when the recorded SHA still matches `HEAD` and the command
+   config hash is unchanged.
 3. **Any drift invalidates.** A new commit, a working-tree change at
    commit-SHA granularity, or a config drift (different env, different
    script args) invalidates the record and the gate runs.

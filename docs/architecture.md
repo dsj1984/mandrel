@@ -12,8 +12,8 @@ structured, how components interact, and where to find each subsystem.
 > [`.agents/docs/workflows.md`](../.agents/docs/workflows.md).
 >
 > **Coupling stance.** Mandrel is a **Claude Code-first opinionated
-> workflow framework**. The dispatcher / `.agents/scripts/` library
-> produces a **dispatch manifest** (md + structured comment) as the
+> workflow framework**. The orchestration / `.agents/scripts/` library
+> treats the **Story issue's body and structured comments** as the
 > cross-runtime contract; the workflow / `.claude/` / hook / skill
 > surface leans in on Claude Code as the in-session reference runtime.
 > See ADR `20260512-coupling-stance` and the adapter-removal ADR in
@@ -148,19 +148,19 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
 operator-facing surface is two slash commands on the SDL critical
-path — `/plan` (with optional ideation entry) and `/deliver` —
-where `/deliver` also routes single-Story drives off the dispatch table.
-Planning is **git-state-free**: `/plan` produces a declarative
-`epic.yaml` artifact (Epic #1182) that is diff-able, replayable,
-and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
-is no longer created at plan time.
-`/deliver`'s host LLM owns the wave loop and fans Story sub-agents
-out directly via the Agent tool inside the operator's Claude session —
-there is no intermediate wave skill, no subprocess spawn pathway, and no
-GitHub Actions runner. The PR opened by `/deliver` Phase 7 is the
-sole promotion gate to `main`; the workflow never executes `git merge`
-against `main` itself. When the run is end-to-end clean, Phase 8.5's
-auto-merge gate arms `gh pr merge --auto --squash --delete-branch`
+path — `/plan` (with optional ideation entry) and `/deliver`.
+Planning is **git-state-free**: `/plan` persists Stories directly to
+GitHub via `plan-persist.js` — there is no plan-time artifact and no
+branch is created at plan time.
+`/deliver` takes Story ids, resolves their dependency graph from live
+state (`resolve-stories.js`), and its host LLM dispatches each ready
+Story to a `helpers/deliver-story` sub-agent directly via the Agent tool
+inside the operator's Claude session — a continuous ready-set model with
+no wave barrier, no intermediate wave skill, no subprocess spawn pathway,
+and no GitHub Actions runner. Each Story's own pull request
+(`story-<id>` → squash + required checks) is the sole promotion gate to
+`main`; the workflow never executes `git merge` against `main` itself.
+The close path arms `gh pr merge --auto --squash --delete-branch`
 (Story #3901); otherwise the operator merges via the GitHub UI.
 
 #### Component Diagram
@@ -178,7 +178,6 @@ graph TB
         SWT["stories-wave-tick.js"]:::script
         SSC["single-story-close.js"]:::script
         SCM["single-story-confirm-merge.js"]:::script
-        CH["hydrate-context.js"]:::script
         NO["notify.js"]:::script
         UTS["update-ticket-state.js"]:::script
     end
@@ -220,7 +219,6 @@ graph TB
 | `stories-wave-tick.js`           | Ready-set planner for multi-Story `/deliver` (shared `selectReadySet` core; default concurrency 3). |
 | `single-story-close.js`          | Close-validation gate chain, opens PR to `main` with auto-merge armed, rests Story at `agent::closing`. |
 | `single-story-confirm-merge.js`  | Post-merge confirmation: after checks go green and the PR merges, flips `agent::closing → agent::done`. |
-| `hydrate-context.js`             | Assembles self-contained prompts (protocol + skills + hierarchy). Emits the JSON envelope by default; `--emit prompt` writes the raw prompt. |
 | `update-ticket-state.js`         | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`). |
 | `notify.js`                      | Dispatches notifications via @mention and webhook channels. |
 
@@ -244,18 +242,6 @@ import them.
 | `lib/wave-runner/ready-set.js` | Select the next ready Story set given deps + concurrency. |
 | `dependency-parser.js`        | Parse `depends_on` / `blocked by #N` edges from Story bodies. |
 
-#### Presentation Layer Submodules
-
-`lib/presentation/manifest-renderer.js` is a façade composing:
-
-| Submodule                 | Responsibility                                                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `manifest-formatter.js`   | Pure Markdown / CLI rendering (`formatManifestMarkdown`, `printStoryDispatchTable`). No fs access. |
-| `manifest-persistence.js` | File I/O — writes run artefacts to `temp/`.                                              |
-
-The data-shape owner (`lib/orchestration/manifest-builder.js`) is unchanged
-for residual run envelopes. Pre-v2 Epic dispatch-manifest consumers
-are gone; `/deliver` no longer posts an Epic-scoped dispatch manifest.
 #### ErrorJournal
 
 `ErrorJournal` (`lib/orchestration/error-journal.js`) writes structured
@@ -304,30 +290,32 @@ envelope so Phase 7 stays non-blocking.
 
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/wave-record-io.js`               | `verifySingleResult` — the zero-commit "done" guard. Each "done" claim in a wave record is re-fetched from the provider and downgraded (`verify-error`) when the ticket is not actually at `agent::done`/closed. |
+| `lib/orchestration/single-story-close/phases/confirm-merge.js` | The merge-confirmation wait — the default terminal step of every close. A Story is only reported landed when its PR is observably merged; a checks-aware, resumable poll classifies unlanded outcomes instead of assuming success. |
 | `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone Stories: `temp/standalone/stories/story-<sid>/`). The single producer for the telemetry pipeline; the reader is the `read()` async generator in `lib/signals/read.js`. |
-| `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic and Story — mirrors onto the board.                  |
+| `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip mirrors onto the board.                  |
 
 The earlier `CommitAssertion` post-wave guard was epic-runner-scoped and
-was deleted with the in-process epic-runner stratum (#3908);
-`verifySingleResult` in `wave-record-io.js` is the surviving guard against
-a Story being reported "done" without verifiable completion.
+was deleted with the in-process epic-runner stratum (#3908); its
+successor (`verifySingleResult` in the wave-record layer) went with the
+wave machinery in v2. The guard against a Story being reported "done"
+without verifiable completion is now structural: `agent::done` follows
+the confirmed squash-merge of the Story's own PR.
 
 #### Throughput primitives
 
 | Module                                                     | Role                                                                                                                                                 |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `detect-merges.js`, `hierarchy-gate.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `lib/orchestration/wave-record-io.js`. |
+| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopters: `resolve-stories.js`, `providers/github/issues.js`, `providers/github/sub-issues.js`, `providers/github/blocked-by-add.js`, `lib/orchestration/ticketing/bulk.js`. |
 | `providers/github/cache.js`                                | Per-instance ticket cache; `peekFresh(ticketId, maxAgeMs)` treats entries older than the caller's max age as cache misses, and the cache is primed after bulk ticket fetches.   |
 | `providers/github/issues.js`                               | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
 | `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
 
 #### Concurrency caps
 
-The wave fan-out cap is resolved deterministically by
-`resolveConcurrencyCap` in `lib/orchestration/wave-record-projection.js`
-and surfaced on the ready-set envelopes that
-`stories-wave-tick.js` emits. The epic-runner-era concurrency surface —
+The fan-out cap is resolved deterministically by
+`resolveConcurrencyCap` in `stories-wave-tick.js`
+(from `delivery.deliverRunner.concurrencyCap`) and surfaced on the
+ready-set envelopes the same script emits. The epic-runner-era concurrency surface —
 `wave-gate.js`, `lib/orchestration/concurrency.js`
 (`DEFAULT_CONCURRENCY` / `resolveConcurrency`), `CommitAssertion`, and
 the `ProgressReporter` listener class — was deleted with the dead
@@ -455,20 +443,18 @@ façade.
 ### 4. Execution Path
 
 Mandrel runs Claude-Code-in-session: `/deliver` fans out via the
-`Agent` tool over a wave of Story sub-agents, each driving the per-Story
-implementation loop directly from the Story worktree. There is no separate
-adapter abstraction — `lib/orchestration/manifest-builder.js` synthesizes
-the `{ taskId, dispatchId, status }` record inline at the dispatch site,
-and the **dispatch manifest** (md + structured comment, formerly schema-backed)
-is the load-bearing artifact downstream tooling (and operators) read.
-The manifest is the cross-runtime contract: any future host that wants
-to replay or audit a Mandrel dispatch consumes the manifest, not an
-in-process interface.
+`Agent` tool over the ready set of Story sub-agents, each driving the
+per-Story implementation loop directly from the Story worktree. There is
+no separate adapter abstraction and no dispatch-time artifact: the
+auditable record of a dispatch is the Story's own GitHub surface —
+`agent::*` labels, structured comments, the lifecycle ledger under
+`temp/`, and the `story-<id>` PR. Any future host that wants to replay
+or audit a Mandrel run consumes that live state, not an in-process
+interface.
 
-The `executor` field on the manifest is fixed to `"claude-code"`. See
-the adapter-removal ADR in [`decisions.md`](decisions.md) (Epic #2646)
-for the rationale; the deletion landed as a hard cutover with no
-shim layer, per the policy codified there.
+See the adapter-removal ADR in [`decisions.md`](decisions.md)
+(Epic #2646) for the rationale; the deletion landed as a hard cutover
+with no shim layer, per the policy codified there.
 
 ---
 
@@ -703,7 +689,7 @@ Story. The script surface is:
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `single-story-init.js`         | Validates the standalone Story, branches directly from `main` (no `epic/<id>` seed, no dispatch-manifest gate).   |
 | `stories-wave-tick.js`         | Continuous ready-set planner for the standalone fan-out — a thin adapter over the shared `selectReadySet` core; emits the per-beat dispatch set on the `stories-ready-set` envelope and resolves the global `concurrencyCap` (default 3). |
-| `story-phase.js`               | Phase snapshot + heartbeat writer at each Story-level transition (init → implementing → closing → done / blocked). |
+| `lib/observability/hook-heartbeat.js` | `story.heartbeat` liveness writer, invoked from the PostToolUse trace hook (`tool-trace-hook.js`) so every tool call refreshes the heartbeat — no dedicated bookkeeping turn. Appends via `lib/orchestration/lifecycle/emit-story-heartbeat.js`. |
 | `single-story-close.js`        | Runs the canonical close-validation gate chain against the base branch, opens the PR straight to `main` with auto-merge armed, and rests the Story at `agent::closing`. |
 | `single-story-confirm-merge.js` | Post-merge confirmation: once `gh pr checks --watch` exits green and the PR merges, flips `agent::closing → agent::done` and closes the issue. |
 
@@ -833,21 +819,18 @@ four cohesive submodules under `.agents/scripts/lib/worktree/`:
 The submodules are **internal implementation detail**. Downstream projects
 must continue to import `WorktreeManager` from `lib/worktree-manager.js`.
 
-Dispatcher integration:
+Runtime integration:
 
-- **Ensure before dispatch**: `dispatch()` calls `wm.ensure(storyId, branch)`
-  and threads the resolved worktree path as `cwd` on the dispatch record.
-  Downstream consumers of the dispatch manifest can use the `cwd` to
-  pin sub-agent execution to the right worktree.
-- **Reap on merge**: `story-close` calls `wm.reap` after a successful merge.
-  The reap refuses dirty trees and logs a warning.
-- **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
-  stories have no remaining live work. Refuses to delete unmerged branches.
+- **Ensure before dispatch**: `single-story-init.js` calls
+  `wm.ensure(storyId, branch)` and reports the resolved worktree path so
+  the sub-agent's execution is pinned to the right worktree (`cwd`).
+- **Reap on merge**: `single-story-close.js` calls `wm.reap` after a
+  successful merge. The reap refuses dirty trees and logs a warning.
+- **GC**: `wm.gc()` sweeps orphaned worktrees whose stories have no
+  remaining live work. Refuses to delete unmerged branches.
 
 Setting `delivery.worktreeIsolation.enabled: false` (or omitting the
-block) restores single-tree behavior. The `assert-branch.js` pre-commit guard
-and focus-area wave serialization remain in place as defense-in-depth in both
-modes.
+block) restores single-tree behavior.
 
 See [`worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md) for
 the operator reference, node_modules strategies, Windows long-path handling,
@@ -893,15 +876,17 @@ whether worktrees are created. The `resolveWorktreeEnabled` function in
 Both modes share:
 
 - The same `/deliver` Agent-tool sub-agent contract and the same
-  parent-driven dispatch logic out of `/deliver`'s wave loop.
-- The launch-time blocker pre-flight (`validateBlockers` in
-  `lib/story-init/blocker-validator.js`, run by `story-init.js`) that refuses
-  a story with unmerged blockers.
+  parent-driven dispatch logic out of `/deliver`'s continuous ready-set
+  loop.
+- The launch-time blocker pre-flight: `resolve-stories.js` resolves every
+  `depends_on` / native `blocked_by` edge against live state, so a Story
+  with unresolved blockers never enters the ready set.
 - Deterministic, operator-driven story assignment — `/deliver` always
-  takes an explicit Story id. There is no per-launch label race.
-- The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
-  using the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant) so concurrent closes from
-  separate clones converge cleanly.
+  takes explicit Story ids. There is no per-launch label race.
+- The per-Story ticket lease (`lib/orchestration/ticket-lease.js`,
+  enforced by `single-story-init.js`) so two operators driving the same
+  Story from separate clones fail closed instead of clobbering each
+  other.
 
 They differ only in:
 
@@ -930,15 +915,15 @@ They differ only in:
   embedded JSON Schema via `ajv`. The static `.agents/schemas/*.json`
   mirrors and the runtime AJV schemas declare `additionalProperties:
   false` on every nested object as well as the document roots of
-  `audit-results`, `friction-event`, `agentrc`, and `epic.yaml`, and use
+  `audit-results`, `friction-event`, and `agentrc`, and use
   a closed enum for `validation-evidence.gateName`. Payloads with extra
   keys or free-text discriminators fail validation rather than silently
   passing.
 
 ### HITL pause point
 
-The sole runtime pause is `agent::blocked` on the Epic. `risk::high` is
-informational/planning metadata only — it ranks work in the dispatch table and
+The sole runtime pause is `agent::blocked` on the Story. `risk::high` is
+informational/planning metadata only — it ranks work and
 helps reviewers prioritize, but does not pause execution.
 `planning.riskHeuristics` in `.agentrc.json` drives the ranking heuristics.
 
@@ -1072,8 +1057,7 @@ allowlisted events stay routable by event name and hierarchy level.
 
 The test suite uses the **Node.js native test runner** (`node --test`) with no
 external test framework dependencies. Tests live under `tests/` with
-`tests/lib/` for library-specific unit tests (including historical
-`tests/epic-runner/` leftovers from the deleted in-process stratum). Run with
+`tests/lib/` for library-specific unit tests. Run with
 `npm test`.
 
 ---
@@ -1205,9 +1189,10 @@ live LLM metering:
 
 ### Budget protocol
 
-- **`delivery.maxTokenBudget`**: caps hydrated task prompts. `hydrate-context`
-  estimates tokens (≈4 characters per token) and elides sections when the
-  envelope exceeds the cap (`elideEnvelope` in `context-envelope.js`).
+- **`delivery.maxTokenBudget`**: caps assembled context envelopes. The
+  envelope builders estimate tokens (≈4 characters per token) and elide
+  sections when the envelope exceeds the cap (`elideEnvelope` in
+  `lib/orchestration/context-envelope.js`).
 - **`delivery.preflight.*`** (optional): preflight helpers compare
   estimates (Stories, install time, GitHub API calls, Claude quota
   tokens) to configured ceilings before `/deliver` fan-out. Live entry
@@ -1295,12 +1280,12 @@ conventions to follow.
 ### Key Scripts
 
 - **Orchestration engine:** `.agents/scripts/lib/orchestration/` — dispatch,
-  manifest build, story execution, context hydration
+  story execution, planning context
 - **Ticketing provider abstraction:** `.agents/scripts/lib/ITicketingProvider.js`
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
-- **Execution path:** Claude-Code-in-session; the dispatch record is
-  synthesized inline at `lib/orchestration/manifest-builder.js` and the
-  dispatch manifest is the cross-runtime contract. Epic #2646 removed the previous
+- **Execution path:** Claude-Code-in-session; the dispatch record is the
+  Story's own GitHub surface (labels, structured comments, `story-<id>`
+  PR). Epic #2646 removed the previous
   `IExecutionAdapter` abstraction as a hard cutover.
 - **Config resolution:** `.agents/scripts/lib/config-resolver.js` +
   `config-schema.js` (shell-metacharacter injection guards built in)
@@ -1331,8 +1316,7 @@ three tiers and carries distinct scope, dependency, and assertion rules:
 - **E2E / Acceptance** — `.feature` files authored against
   `.agents/rules/gherkin-standards.md` (the SSOT for the tag taxonomy and
   forbidden patterns) and executed via `/qa-run`, whose sweep summary
-  and structured findings are the canonical evidence artifact consumed by the
-  `workflows/helpers/epic-testing.md` helper.
+  and structured findings are the canonical evidence artifact.
 
 Stack skills `skills/stack/qa/gherkin-authoring` and `skills/stack/qa/playwright-bdd`
 provide authoring guidance and runtime wiring respectively; neither redefines
