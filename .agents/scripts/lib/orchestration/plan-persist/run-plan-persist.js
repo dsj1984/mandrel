@@ -194,6 +194,7 @@ function riskVerdictCommentBody(riskVerdict) {
  *     fanOutCounter?: Function,
  *     cwd?: string,
  *     sourceTicketIds?: number[],
+ *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
  *   },
  * }} input
@@ -222,6 +223,7 @@ export async function runPlanPersist({
     fanOutCounter = undefined,
     cwd = PROJECT_ROOT,
     sourceTicketIds = [],
+    sourceTicketOrigin = 'none',
     closeSuperseded = true,
   } = opts;
 
@@ -407,6 +409,10 @@ export async function runPlanPersist({
     dryRun,
     closeSuperseded,
   });
+  // Record which channel the ids came from so a run that superseded nothing
+  // says *why* (`none` = neither the envelope nor --source-tickets carried
+  // any) rather than reading as a clean no-op — Story #4554.
+  supersede.sourceTicketOrigin = sourceTicketOrigin;
 
   if (!skipCleanup && planDir) {
     try {

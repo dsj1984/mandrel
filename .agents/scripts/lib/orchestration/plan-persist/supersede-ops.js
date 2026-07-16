@@ -2,10 +2,15 @@
  * supersede-ops.js — close the `/plan --tickets` source issues that the
  * authored Stories supersede (Story #4535).
  *
- * `plan-context.js` fetches the source issues and emits `sourceTickets[]`;
- * before this module nothing downstream consumed it, so every
- * `/plan --tickets` run ended with an untracked manual chore and the tracker
- * kept asserting that already-planned work was unowned.
+ * `plan-context.js` fetches the source issues and emits `sourceTickets[]` on
+ * the `/plan` envelope. That envelope **is** the source of truth for which
+ * ids were passed to `--tickets`: `resolveSourceTicketIds` below derives the
+ * id set from it, and `--source-tickets` is only an explicit override for
+ * hand-driven runs (Story #4554). Before that thread existed the ids reached
+ * this module *solely* via the hand-passed flag, so a forgotten flag left
+ * `sourceTicketIds` empty — the partition below then passed **vacuously** (an
+ * empty set trivially partitions), the close phase short-circuited, and the
+ * run reported success while every source issue stayed open.
  *
  * Two halves, deliberately separated by the `createIssue` boundary:
  *
@@ -112,12 +117,14 @@ export function normalizeSupersedes(ticket, slug) {
 }
 
 /**
- * Normalize the operator-supplied source-ticket id list (`--source-tickets`).
+ * Normalize a source-ticket id list into deduped positive integers.
  *
  * @param {unknown} ids
+ * @param {string} [label] Channel name used in the error message, so an
+ *   envelope-derived failure does not blame the `--source-tickets` flag.
  * @returns {number[]}
  */
-export function normalizeSourceTicketIds(ids) {
+export function normalizeSourceTicketIds(ids, label = '--source-tickets') {
   if (ids === undefined || ids === null) return [];
   const list = Array.isArray(ids)
     ? ids
@@ -131,12 +138,89 @@ export function normalizeSourceTicketIds(ids) {
       typeof entry === 'string' ? Number(entry.replace(/^#/, '')) : entry;
     if (!Number.isInteger(id) || id <= 0) {
       throw new Error(
-        `[plan-persist] --source-tickets expects positive issue ids; got ${JSON.stringify(entry)}.`,
+        `[plan-persist] ${label} expects positive issue ids; got ${JSON.stringify(entry)}.`,
       );
     }
     if (!out.includes(id)) out.push(id);
   }
   return out;
+}
+
+/**
+ * Pull the `--tickets` id set out of a `plan-context.js` envelope.
+ *
+ * The envelope's `sourceTickets[]` carries whole ticket records
+ * (`{ id, title, body, … }`); only the ids matter here. A non-`tickets`-mode
+ * envelope (seed / seed-file) has no source tickets and yields `[]`.
+ *
+ * @param {object|null} envelope
+ * @returns {number[]}
+ */
+export function extractEnvelopeSourceTicketIds(envelope) {
+  const raw = envelope?.sourceTickets;
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return normalizeSourceTicketIds(
+    raw.map((ticket) =>
+      ticket !== null && typeof ticket === 'object' ? ticket.id : ticket,
+    ),
+    'plan-context envelope sourceTickets[]',
+  );
+}
+
+function sameIdSet(a, b) {
+  return a.length === b.length && a.every((id) => b.includes(id));
+}
+
+/**
+ * Resolve which source-ticket ids reach the partition and the close phase.
+ *
+ * Precedence — **envelope-first, flag-as-override** (Story #4554):
+ *
+ *   1. `--source-tickets` when supplied — the explicit override for
+ *      hand-driven runs. A disagreement with the envelope is warned about
+ *      loudly (the operator is overriding what the run actually fetched)
+ *      but honoured.
+ *   2. otherwise the envelope's `sourceTickets[]` — so the common
+ *      `/plan --tickets` path needs no flag at all.
+ *   3. otherwise empty, reported as `origin: 'none'`.
+ *
+ * `origin` is surfaced on the persist envelope so a run that superseded
+ * nothing says *why* rather than looking like a clean no-op.
+ *
+ * @param {object} [args]
+ * @param {unknown} [args.explicitIds] Raw `--source-tickets` value.
+ * @param {object|null} [args.envelope] Parsed `plan-context.js` envelope.
+ * @returns {{ ids: number[], origin: 'flag'|'envelope'|'none' }}
+ */
+export function resolveSourceTicketIds({
+  explicitIds = null,
+  envelope = null,
+} = {}) {
+  const explicit = normalizeSourceTicketIds(explicitIds);
+  const derived = extractEnvelopeSourceTicketIds(envelope);
+
+  if (explicit.length > 0) {
+    if (derived.length > 0 && !sameIdSet(explicit, derived)) {
+      Logger.warn(
+        '[plan-persist] --source-tickets ' +
+          `(${explicit.map((id) => `#${id}`).join(', ')}) disagrees with the ` +
+          'plan-context envelope ' +
+          `(${derived.map((id) => `#${id}`).join(', ')}) — honouring the ` +
+          'explicit flag. Drop --source-tickets to use the envelope.',
+      );
+    }
+    return { ids: explicit, origin: 'flag' };
+  }
+
+  if (derived.length > 0) {
+    Logger.info(
+      `[plan-persist] derived ${derived.length} source ticket(s) from the ` +
+        `plan-context envelope: ${derived.map((id) => `#${id}`).join(', ')}.`,
+    );
+    return { ids: derived, origin: 'envelope' };
+  }
+
+  return { ids: [], origin: 'none' };
 }
 
 function describeStoryIds(entries) {
@@ -298,6 +382,8 @@ async function closeOneSupersededTicket({
  * @property {boolean} enabled
  * @property {boolean} dryRun
  * @property {string|null} reason  Why the phase was skipped wholesale.
+ * @property {'flag'|'envelope'|'none'} [sourceTicketOrigin] Which channel the
+ *   source ids came from. Stamped by `runPlanPersist`, not this module.
  * @property {number[]} closed
  * @property {Array<{ ticket: number, storySlug: string }>} planned Dry-run
  *   only. Keyed by slug, not id: under `--dry-run` no issue was created, so

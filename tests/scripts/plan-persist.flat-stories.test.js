@@ -10,6 +10,7 @@ import {
 } from '../../.agents/scripts/lib/label-constants.js';
 import { runPlanPersist } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
 import { PLAN_SUMMARY_COMMENT_TYPE } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
+import { resolveSourceTicketIds } from '../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const VERDICT = {
@@ -460,6 +461,57 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     assert.equal(result.stories.length, 1);
     assert.equal(result.supersede.enabled, false);
     assert.equal(result.supersede.reason, 'no-source-tickets');
+    assert.equal(result.supersede.sourceTicketOrigin, 'none');
+    assert.deepEqual(provider.updates, []);
+  });
+
+  // Story #4554 — the flagless path. `--source-tickets` is never passed; the
+  // ids come off the plan-context envelope the run already emitted.
+  it('closes the source ticket when the ids were derived from the envelope, with no --source-tickets flag', async () => {
+    const provider = fakeProvider({ sources: [{ id: 4525, title: 'Old' }] });
+    const { ids, origin } = resolveSourceTicketIds({
+      envelope: {
+        mode: 'tickets',
+        sourceTickets: [{ id: 4525, title: 'Old', body: '' }],
+      },
+    });
+
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [4525])],
+        riskVerdict: VERDICT,
+      },
+      opts: {
+        skipCleanup: true,
+        sourceTicketIds: ids,
+        sourceTicketOrigin: origin,
+      },
+    });
+
+    assert.equal(result.supersede.sourceTicketOrigin, 'envelope');
+    assert.deepEqual(result.supersede.closed, [4525]);
+    assert.equal(provider.issues.get(4525).state, 'closed');
+  });
+
+  // The vacuous-pass hole itself: an envelope-derived source set turns a
+  // forgotten `supersedes[]` into the loud partition error it always should
+  // have been, instead of an empty-set pass that reported success.
+  it('fail-closes rather than partitioning an empty set when the envelope has sources the Stories do not claim', async () => {
+    const provider = fakeProvider({ sources: [{ id: 4525 }] });
+    const { ids } = resolveSourceTicketIds({
+      envelope: { mode: 'tickets', sourceTickets: [{ id: 4525 }] },
+    });
+
+    await assert.rejects(
+      runPlanPersist({
+        provider,
+        artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+        opts: { skipCleanup: true, sourceTicketIds: ids },
+      }),
+      /#4525 is not claimed by any Story/,
+    );
+    // Fail-closed means fail *before* any GitHub write.
     assert.deepEqual(provider.updates, []);
   });
 });

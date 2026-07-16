@@ -65,16 +65,24 @@ clarity, or reconciler ceremony for a single Story.
 ### 1. Interrogate
 
 ```bash
-node .agents/scripts/plan-context.js --seed "<seed>"
+mkdir -p temp/plan-<slug>
+node .agents/scripts/plan-context.js --seed "<seed>" > temp/plan-<slug>/plan-context.json
 # or: --seed-file <path>
 # or: --tickets 123,456
 ```
 
+**Capture the envelope to `temp/plan-<slug>/plan-context.json`.** The CLI is
+stdout-pure precisely so it can be redirected. Persist auto-discovers that
+file from `--plan-dir` and derives the `--tickets` source ids from its
+`sourceTickets[]` — that is what makes superseding work without anyone
+remembering a flag (Story #4554).
+
 The envelope carries docs context, codebase snapshot, BDD probe, risk
-heuristics, the story-author system prompt, and `duplicates[]` (open
-**Stories** whose title/body overlap the seed — never Epics). Under
-`--yes`, do not ask free-form operator questions — unresolved unknowns
-land in Key Assumptions.
+heuristics, the story-author system prompt, `sourceTickets[]` (`--tickets`
+mode), and `duplicates[]` (open **Stories** whose title/body overlap the
+seed — never Epics).
+Under `--yes`, do not ask free-form operator questions — unresolved
+unknowns land in Key Assumptions.
 
 **Gate #1** — STOP to confirm the sharpened plan intent and any
 duplicate-candidate review. Under `--yes`, auto-proceed.
@@ -145,6 +153,7 @@ node .agents/scripts/plan-persist.js \
   --risk-verdict temp/plan-<slug>/risk-verdict.json \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--plan-dir temp/plan-<slug>] \
+  [--plan-context temp/plan-<slug>/plan-context.json] \
   [--source-tickets 123,456] \
   [--no-close-superseded] \
   [--dry-run] \
@@ -156,7 +165,30 @@ Persist creates Story issue(s) with `type::story` + `agent::ready`. When
 N>1 it also applies a shared `plan-run::<id>` label. Ends by naming
 `/deliver <storyId>` (or `/deliver --run <planRunId>` for N>1).
 
-In `--tickets` mode, pass the same ids to persist as `--source-tickets`.
+### How the source ids reach persist
+
+In `--tickets` mode persist needs to know which ids were fetched. It resolves
+them **envelope-first** (Story #4554):
+
+| Channel | When it wins |
+| --- | --- |
+| Envelope `sourceTickets[]` | **The normal path.** Read from `--plan-context <file>`, or auto-discovered at `<plan-dir>/plan-context.json`. No flag to forget. |
+| `--source-tickets <ids>` | Explicit **override** for hand-driven runs (no captured envelope, or deliberately narrowing the set). Wins over the envelope; a disagreement is warned about, not silently reconciled. |
+
+The result envelope's `supersede.sourceTicketOrigin` reports which channel was
+used (`envelope` \| `flag` \| `none`).
+
+An explicit `--plan-context` that is missing, or **any** envelope file that is
+present but unparseable, is a **fatal** error — a corrupt envelope is not the
+same as "no source tickets", and treating it as such is how a `--tickets` run
+used to report success having superseded nothing. An auto-discovered envelope
+that is simply absent warns and falls back to `--source-tickets`, because a
+`--seed` run legitimately has none.
+
+Whichever channel supplies them, the supersede-map partition above still
+fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is now
+**caught** (`source ticket #N is not claimed by any Story`) instead of
+partitioning an empty set and passing vacuously.
 
 ### Closing superseded source tickets
 
