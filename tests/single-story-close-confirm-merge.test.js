@@ -658,6 +658,48 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
     assert.equal(resolveMergeWaitConfig(config, 900).maxBudgetSeconds, 200);
   });
 
+  it('clamps a poll interval longer than the wait bound so the budget stays reachable', () => {
+    // A --max-wait-seconds shorter than the interval would otherwise fire the
+    // pending check on poll 1 forever: the wait could never sleep, the poll
+    // floor could never be met, and the cumulative budget would be unreachable
+    // across ANY number of resumes — permanent pending that never escalates.
+    const resolved = resolveMergeWaitConfig(
+      { delivery: { mergeWatch: { intervalSeconds: 30 } } },
+      10,
+    );
+    assert.equal(resolved.maxWaitSeconds, 10);
+    assert.equal(resolved.intervalSeconds, 10, 'interval clamped to the bound');
+    assert.ok(resolved.intervalSeconds <= resolved.maxWaitSeconds);
+  });
+
+  it('a short bound still reaches the poll floor and can block', async () => {
+    // The behavioural consequence of the clamp: a misconfigured short wait
+    // still escalates a genuinely stuck PR instead of parking forever.
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        maxWaitSeconds: 10,
+        config: {
+          delivery: {
+            mergeWatch: { intervalSeconds: 30, maxBudgetSeconds: 60 },
+          },
+        },
+        // A non-advancing clock isolates the poll sequence: without the clamp
+        // the interval (30s) exceeds the bound (10s), so the pending check
+        // fires on poll 1 and the loop never sleeps — polls can never reach
+        // the floor and the budget is unreachable forever.
+        nowMsFn: makeClock(0, Date.parse('2026-07-16T00:00:00Z')),
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-01T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
   it('ignores invalid config values rather than producing a zero-second wait', () => {
     const resolved = resolveMergeWaitConfig({
       delivery: { mergeWatch: { maxWaitSeconds: 0, intervalSeconds: -5 } },

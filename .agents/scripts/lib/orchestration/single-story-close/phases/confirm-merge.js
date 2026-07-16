@@ -192,12 +192,25 @@ export function resolveMergeWaitConfig(config, maxWaitSecondsOverride) {
   const mergeWatch = config?.delivery?.mergeWatch ?? {};
   const int = (value, fallback, min = 1) =>
     Number.isInteger(value) && value >= min ? value : fallback;
+  const maxWaitSeconds = int(
+    maxWaitSecondsOverride,
+    int(mergeWatch.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS),
+  );
+  // A poll interval longer than the wait bound is incoherent, and silently
+  // harmful: the pending check would fire on poll 1 every time, so the wait
+  // could never sleep, `polls` could never reach
+  // MIN_POLLS_BEFORE_BUDGET_BLOCK, and the cumulative budget would become
+  // unreachable across ANY number of resumes — a Story stuck in permanent
+  // `pending` that never escalates. Clamping the interval to the bound keeps
+  // at least one real poll cycle possible, which is what both the floor and
+  // the give-up bound depend on.
+  const intervalSeconds = Math.min(
+    int(mergeWatch.intervalSeconds, DEFAULT_INTERVAL_SECONDS),
+    maxWaitSeconds,
+  );
   return {
-    intervalSeconds: int(mergeWatch.intervalSeconds, DEFAULT_INTERVAL_SECONDS),
-    maxWaitSeconds: int(
-      maxWaitSecondsOverride,
-      int(mergeWatch.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS),
-    ),
+    intervalSeconds,
+    maxWaitSeconds,
     maxBudgetSeconds: int(
       mergeWatch.maxBudgetSeconds,
       DEFAULT_MAX_BUDGET_SECONDS,
