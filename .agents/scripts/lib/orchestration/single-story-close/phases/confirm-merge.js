@@ -107,6 +107,23 @@ export const DEFAULT_MAX_WAIT_SECONDS = 300;
 /** Bounded `gh pr update-branch` attempts for a BEHIND PR. */
 export const DEFAULT_UPDATE_ATTEMPTS = 3;
 
+/**
+ * Minimum polls before the CUMULATIVE budget may block.
+ *
+ * The cumulative clock is anchored at the PR's `createdAt` so resumes do not
+ * restart it — but that alone means a PR older than `maxBudgetSeconds` (1h by
+ * default) is already over budget on its very first probe. Resuming a Story
+ * the next morning, or landing a long-open PR, would then flip
+ * `agent::blocked` and emit `merge.unlanded` against a perfectly healthy PR
+ * that was seconds from merging, without ever having waited.
+ *
+ * The floor gives every invocation at least one real poll cycle before the
+ * cumulative bound can fire. A genuinely stuck PR still blocks within one
+ * interval (~30s), so the give-up bound keeps its meaning; a PR about to go
+ * green gets the chance it earned.
+ */
+export const MIN_POLLS_BEFORE_BUDGET_BLOCK = 2;
+
 function defaultSleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -512,6 +529,7 @@ async function onMergeObserved({
   confirmStoryMergedFn,
   runPostLandTailFn,
   emitMergeFlipFailedFn,
+  prProbe,
   elapsedSeconds,
 }) {
   const confirmation = await confirmStoryMergedFn({
@@ -567,6 +585,12 @@ async function onMergeObserved({
     terminal: 'landed',
     action: confirmation.action,
     tail,
+    // Carry the OBSERVED rollup rather than stamping 'success'. A merge landed
+    // by admin override, or with non-required checks red, must not be reported
+    // as a green run nobody actually saw — that is the same
+    // report-an-outcome-you-never-checked shape the land tail's per-step
+    // booleans exist to prevent.
+    prProbe,
   };
 }
 
@@ -654,6 +678,7 @@ export async function runConfirmMergePhase({
   const startedAtMs = nowMsFn();
   let anchorMs = startedAtMs;
   let updatesUsed = 0;
+  let polls = 0;
 
   progress?.(
     'CONFIRM',
@@ -663,6 +688,7 @@ export async function runConfirmMergePhase({
 
   while (true) {
     const probe = await readPrWaitProbeFn({ prNumber, gh: injectedGh });
+    polls += 1;
 
     // Anchor the cumulative budget at the PR's creation the first time we
     // learn it, so a resumed wait continues the clock instead of restarting.
@@ -697,6 +723,7 @@ export async function runConfirmMergePhase({
         confirmStoryMergedFn,
         runPostLandTailFn,
         emitMergeFlipFailedFn,
+        prProbe: probe,
         elapsedSeconds: Math.round(waitedMs / 1000),
       });
     }
@@ -766,8 +793,14 @@ export async function runConfirmMergePhase({
     }
 
     // Cumulative budget exhausted → the genuine give-up. Classify from the
-    // probe we already hold.
-    if (cumulativeMs + intervalMs > maxBudgetSeconds * 1000) {
+    // probe we already hold. Gated behind the poll floor so an
+    // already-over-budget PR (anchored at a createdAt older than the budget —
+    // a resume the next day, or a long-open PR) still gets a real poll cycle
+    // instead of being blocked before this invocation waited at all.
+    if (
+      polls >= MIN_POLLS_BEFORE_BUDGET_BLOCK &&
+      cumulativeMs + intervalMs > maxBudgetSeconds * 1000
+    ) {
       return blockOnUnlanded({
         storyId,
         prNumber,

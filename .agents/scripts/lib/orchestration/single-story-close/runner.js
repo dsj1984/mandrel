@@ -87,7 +87,9 @@ async function runPrePushPhases({
   skipSync,
   injectedSync,
   injectedGitSpawn,
+  setPhase = () => {},
 }) {
+  setPhase('wrong-tree-guard');
   await runWrongTreeGuardPhase({
     cwd,
     worktreePath,
@@ -98,6 +100,7 @@ async function runPrePushPhases({
     gitSpawn: injectedGitSpawn,
   });
   if (!skipValidation) {
+    setPhase('close-validation');
     await runCloseValidationPhase({
       cwd,
       worktreePath,
@@ -113,6 +116,7 @@ async function runPrePushPhases({
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
   }
   if (!skipSync) {
+    setPhase('base-sync');
     await runBaseSyncPhase({
       cwd,
       worktreePath,
@@ -137,8 +141,11 @@ async function openAndReviewPr({
   provider,
   injectedGh,
   injectedRunCodeReview,
+  setPhase = () => {},
 }) {
+  setPhase('push');
   pushStoryBranch({ cwd, storyBranch, gitSync, progress });
+  setPhase('pull-request');
   const prUrl = await ensurePullRequestWith({
     cwd,
     storyId,
@@ -149,6 +156,7 @@ async function openAndReviewPr({
     progress,
   });
   const prNumber = parsePrNumber(prUrl);
+  setPhase('code-review');
   const reviewOutcome = await runStoryScopeReview({
     cwd,
     storyId,
@@ -312,7 +320,13 @@ function terminalFromWaitOutcome({
       ...common,
       status: 'landed',
       phase: 'post-land',
-      pr: { ...prBase, state: 'MERGED', checksStatus: 'success' },
+      pr: {
+        ...prBase,
+        state: 'MERGED',
+        // The observed rollup, not an assumed 'success' — a merge can land by
+        // admin override or with non-required checks red.
+        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+      },
       tail: waitOutcome.tail,
       nextCommand: null,
     });
@@ -396,6 +410,54 @@ export async function runSingleStoryClose({
     );
   }
 
+  // Story #4543 — track the phase so a crash is attributable. The runner
+  // deliberately keeps THROWING (the library contract every caller and test
+  // relies on: a failed gate must not look like a return value); it only tags
+  // the error with the phase it died in, and the CLI boundary turns that into
+  // the `failed` terminal envelope. Tagging rather than swallowing is what
+  // lets `failed` name its phase without inventing a second success path.
+  let phase = 'init';
+  const setPhase = (next) => {
+    phase = next;
+  };
+  try {
+    return await runClosePipeline({
+      options,
+      setPhase,
+      injectedProvider,
+      injectedConfig,
+      injectedNotify,
+      injectedSync,
+      injectedRunCodeReview,
+      injectedGh,
+      injectedGitSpawn,
+      injectedReleaseLease,
+    });
+  } catch (err) {
+    if (err && typeof err === 'object' && !err.closePhase) {
+      err.closePhase = phase;
+    }
+    throw err;
+  }
+}
+
+/**
+ * The close pipeline proper. Split out of `runSingleStoryClose` so the
+ * phase-tagging wrapper above stays a thin, obviously-correct boundary rather
+ * than a try block wrapped around a hundred lines of pipeline.
+ */
+async function runClosePipeline({
+  options,
+  setPhase,
+  injectedProvider,
+  injectedConfig,
+  injectedNotify,
+  injectedSync,
+  injectedRunCodeReview,
+  injectedGh,
+  injectedGitSpawn,
+  injectedReleaseLease,
+}) {
   const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd: options.cwd });
   const provider = injectedProvider || createProvider(config);
@@ -438,6 +500,7 @@ export async function runSingleStoryClose({
         worktreePath,
         injectedSync,
         injectedGitSpawn,
+        setPhase,
       }),
     leaseArgs,
   );
@@ -453,9 +516,11 @@ export async function runSingleStoryClose({
         provider,
         injectedGh,
         injectedRunCodeReview,
+        setPhase,
       }),
     leaseArgs,
   );
+  setPhase('auto-merge');
   const { autoMergeEnabled, autoMergeReason } = await runAutoMergePhase({
     cwd: options.cwd,
     prNumber,
@@ -520,6 +585,7 @@ export async function runSingleStoryClose({
   };
 
   if (waitForMerge) {
+    setPhase('confirm-merge');
     const waitOutcome = await runConfirmMergePhase({
       cwd: options.cwd,
       storyId: options.storyId,

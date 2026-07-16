@@ -85,7 +85,10 @@
  * @see .agents/schemas/story-deliver-terminal.schema.json
  */
 
+import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { formatCliError } from './lib/error-redactor.js';
+import { Logger } from './lib/Logger.js';
 import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
@@ -97,7 +100,11 @@ import {
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
-import { exitCodeForTerminal } from './lib/orchestration/story-deliver-terminal.js';
+import {
+  buildTerminalEnvelope,
+  exitCodeForTerminal,
+  NEXT_COMMANDS,
+} from './lib/orchestration/story-deliver-terminal.js';
 
 // Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
 // facade (the same shim the `providers/github/` gateways use). The
@@ -126,14 +133,68 @@ export async function runSingleStoryClose(opts) {
 }
 
 /**
+ * Build the `failed` terminal for a phase that crashed.
+ *
+ * The runner deliberately throws rather than returning a failure (a red gate
+ * must not look like a return value), so without this the most common
+ * non-happy ending — a failing close-validation gate — would emit **no
+ * envelope at all**, exiting 1 with only a stderr line while the workflow
+ * docs promise the agent a `failed` envelope naming the phase. Every close
+ * invocation emits exactly one envelope; this is the path that keeps that
+ * true when a phase dies.
+ *
+ * `err.closePhase` is tagged by the runner's phase tracker.
+ *
+ * @param {unknown} err
+ * @returns {object|null} A validated envelope, or null when even the story id
+ *   is unknown (a usage error — there is nothing to report an envelope about).
+ */
+function failedTerminalFor(err) {
+  const phase = err?.closePhase ?? 'init';
+  const storyId = Number(parseSprintArgs().storyId);
+  if (!Number.isInteger(storyId) || storyId <= 0) return null;
+  // Name the gate that died, so `gates` reports the honest outcome rather
+  // than only ever recording passes.
+  const gates =
+    phase === 'close-validation'
+      ? { validation: 'failed' }
+      : phase === 'base-sync'
+        ? { baseSync: 'failed' }
+        : phase === 'code-review'
+          ? { codeReview: 'failed' }
+          : undefined;
+  return buildTerminalEnvelope({
+    storyId,
+    status: 'failed',
+    phase,
+    gates,
+    failure: { reason: String(err?.message ?? err) },
+    nextCommand: NEXT_COMMANDS.recover(storyId),
+    elapsedSeconds: 0,
+  });
+}
+
+/**
  * CLI entry — resolves the process exit code from the terminal envelope's
  * status rather than from a thrown/not-thrown distinction, so `pending`
  * (resumable) is distinguishable from `blocked` (come look) without parsing
- * stdout. A genuine crash still propagates to `runAsCli`'s exit-1 handler.
+ * stdout.
  */
 async function main() {
-  const outcome = await runSingleStoryClose();
-  return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  try {
+    const outcome = await runSingleStoryClose();
+    return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  } catch (err) {
+    const terminal = failedTerminalFor(err);
+    if (!terminal) throw err;
+    // Mirror runAsCli's default error line (which this catch pre-empts) so the
+    // human-facing failure text is unchanged, then emit the envelope.
+    Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
+    Logger.info(
+      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+    );
+    return exitCodeForTerminal(terminal);
+  }
 }
 
 runAsCli(import.meta.url, main, {

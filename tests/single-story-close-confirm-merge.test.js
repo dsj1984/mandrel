@@ -27,6 +27,7 @@ import { describe, it } from 'node:test';
 import {
   DEFAULT_MAX_WAIT_SECONDS,
   DEFAULT_UPDATE_ATTEMPTS,
+  MIN_POLLS_BEFORE_BUDGET_BLOCK,
   readPrWaitProbe,
   resolveBudgetAnchorMs,
   resolveMergeWaitConfig,
@@ -231,6 +232,24 @@ describe('merge wait — the confirmed path', () => {
     assert.equal(sleepCalls, 2, 'slept between the two pending polls');
   });
 
+  it('carries the OBSERVED checks rollup, not an assumed success', async () => {
+    // A merge can land by admin override, or with non-required checks red.
+    // Stamping 'success' would report a green run nobody observed — the same
+    // report-an-outcome-you-never-checked shape the tail booleans prevent.
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: 'x',
+          checksStatus: 'failure',
+        }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.confirmed, true);
+    assert.equal(outcome.prProbe.checksStatus, 'failure');
+  });
+
   it('defaults confirmStoryMergedFn to the SAME export the standalone CLI calls', () => {
     // Story #4428 AC4: exactly one merged/agent::done implementation. Pin the
     // identity rather than re-testing the flip here.
@@ -350,6 +369,70 @@ describe('merge wait — blocked terminals', () => {
       provider._comments()[0].payload.body,
       /required check is \*\*red\*\*/,
     );
+  });
+
+  it('does not block an already-over-budget PR before waiting at all', async () => {
+    // The cumulative clock is anchored at the PR's createdAt so resumes do not
+    // restart it — which means a PR older than maxBudgetSeconds is already
+    // over budget on its FIRST probe. Without a poll floor, resuming a Story
+    // the next morning would flip agent::blocked against a healthy PR that was
+    // seconds from merging, having never waited.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const states = [
+      openProbe({ createdAt: '2026-07-01T00:00:00Z' }), // created weeks ago
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(1000, Date.parse('2026-07-16T00:00:00Z')),
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.confirmed, true, 'the healthy PR was allowed to land');
+    assert.equal(emitted.length, 0, 'no merge.unlanded against a healthy PR');
+    assert.equal(provider._updates().length, 0, 'no agent::blocked flip');
+    // The floor is a real bound, not an unbounded reprieve: a stuck PR still
+    // blocks within a poll cycle (see the next case).
+    assert.ok(MIN_POLLS_BEFORE_BUDGET_BLOCK >= 2);
+  });
+
+  it('still blocks a genuinely stuck over-budget PR once the poll floor is met', async () => {
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(1000, Date.parse('2026-07-16T00:00:00Z')),
+        // Never merges, and was created long before the budget.
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-01T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
   });
 
   it('blocks when the cumulative budget is exhausted', async () => {

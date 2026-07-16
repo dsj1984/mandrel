@@ -780,6 +780,51 @@ describe('runSingleStoryClose orchestration', () => {
     );
   });
 
+  it('tags a crashing phase on the error so the CLI can name it in a failed terminal', async (t) => {
+    // Story #4543 — the runner keeps THROWING (a red gate must not look like a
+    // return value), so the only way the `failed` envelope can name the phase
+    // that died is for the error to carry it. Without this tag, a failing
+    // close-validation gate — the most common non-happy ending — emits no
+    // envelope at all while the workflow docs promise the agent one.
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [],
+        runCloseValidation: async () => ({
+          ok: false,
+          failed: [
+            {
+              gate: { name: 'lint', hint: 'Run `npm run lint`.' },
+              status: 1,
+              cwd: '/repo',
+            },
+          ],
+        }),
+      },
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=phase-tag`);
+    const err = await runSingleStoryClose({
+      storyId: 12,
+      cwd: '/repo',
+      skipValidation: false,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: { id: 12, state: 'open', title: 'x', labels: [] },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('gh must not run when validation fails');
+      }),
+    }).catch((e) => e);
+
+    assert.ok(err instanceof Error, 'the library contract still throws');
+    assert.equal(err.closePhase, 'close-validation');
+  });
+
   it('throws when git push fails', async (t) => {
     t.mock.module(GIT_UTILS_URL, {
       namedExports: {
