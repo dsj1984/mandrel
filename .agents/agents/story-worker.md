@@ -44,11 +44,10 @@ You run as a sub-agent with **no input channel** mid-run.
    the **main checkout** (the worktree does not exist yet). Invoke it
    **synchronously** with the Bash maximum timeout — a per-worktree install can
    take several minutes; do not background it.
-2. Capture `workCwd` and `dependenciesInstalled` from the init envelope. There
-   is no `context` block on it — the envelope is flat, and under the Story-only
-   model there is no parent to carry. When worktree isolation is on, `cd` into
-   the printed **absolute** `workCwd` before doing any implementation work. The
-   main checkout's HEAD is never moved by you.
+2. Capture `workCwd` and `dependenciesInstalled` from the init envelope (it
+   is flat — there is no `context` block). When worktree isolation is on, `cd`
+   into the printed **absolute** `workCwd` before doing any implementation
+   work. The main checkout's HEAD is never moved by you.
 3. Every subsequent command runs against that worktree path. Because cwd may
    reset between calls, prefer absolute paths anchored at `workCwd`.
 
@@ -117,15 +116,12 @@ scores the working diff against **each** `acceptance[]` item and consumes the
   transition (or when you stall on a long-running step) so the parent
   `/deliver` idle watchdog can tell a live child from a dead one. Relay one
   terse line per transition (e.g. `Story #<id>: implementing → closing`), not
-  a full body. `story.heartbeat` is the only progress surface — Story #4545
-  deleted the `story-run-progress` renderer, which had stopped writing a
-  comment in Story #3909 and had no caller thereafter.
+  a full body. `story.heartbeat` is the only progress surface.
 - **Blocked.** If you genuinely cannot proceed, transition the Story to
-  `agent::blocked`, post a `friction` comment naming
-  the decision needed (or the unmet criteria and their evidence), and **exit
-  non-zero**. **Never fall silent** — a child with no heartbeat, no commit, and
-  no `agent::blocked` label is exactly the dead-child failure the watchdog is
-  built to catch.
+  `agent::blocked`, post a `friction` comment naming the decision needed (or
+  the unmet criteria and their evidence), and **exit non-zero**. **Never fall
+  silent** — a child with no heartbeat, no commit, and no `agent::blocked`
+  label is exactly the dead-child failure the watchdog is built to catch.
 - **Anti-thrashing.** If you hit the same error class twice with the same fix,
   or drift through reads without narrowing the problem, STOP: summarize what
   recurred and either re-plan or take the blocked path. Do not paper over a
