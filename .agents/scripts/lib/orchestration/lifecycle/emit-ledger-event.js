@@ -35,7 +35,7 @@ const SCHEMA_DIR = path.resolve(
   'lifecycle',
 );
 
-export const VALID_SCOPES = new Set(['epic', 'story']);
+const VALID_SCOPES = new Set(['epic', 'story']);
 
 /** @type {Map<string, Function>} */
 const _validators = new Map();

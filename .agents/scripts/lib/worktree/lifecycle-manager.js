@@ -7,7 +7,7 @@
  *   - `creation.js`         — `ensure`
  *   - `registry-sync.js`    — `pathFor`, `list`, `prune`, `getWorktreeList`,
  *                             `invalidateWorktreeCache`, `findByPath`
- *   - `reap.js`             — `isSafeToRemove`, `isBranchMergedIntoBase`,
+ *   - `reap.js`             — `isSafeToRemove`,
  *                             `removeWorktreeWithRecovery`, `reap`
  *   - `gc.js`               — `gc`
  *   - `drift-detection.js`  — `sweepStaleLocks`
@@ -25,7 +25,6 @@ export { ensure } from './lifecycle/creation.js';
 export { sweepStaleLocks } from './lifecycle/drift-detection.js';
 export { gc } from './lifecycle/gc.js';
 export {
-  isBranchMergedIntoBase,
   isSafeToRemove,
   reap,
   removeWorktreeWithRecovery,

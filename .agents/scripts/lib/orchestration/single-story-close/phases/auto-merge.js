@@ -39,7 +39,7 @@ import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
  * (`pr-number-unparseable`, an `enableAutoMerge` failure) is a genuine fault
  * and still routes through the merge-unlanded block path.
  */
-export const OPERATOR_MERGE_ARM_REASONS = Object.freeze([
+const OPERATOR_MERGE_ARM_REASONS = Object.freeze([
   'disabled-by-flag',
   'disabled-by-policy-strict',
 ]);

@@ -89,14 +89,17 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
  *      every commit on the branch is present in the base under some SHA.
  *
  * A missing ref or a git failure yields false, so callers default to the
- * safe, non-forcing behavior.
+ * safe, non-forcing behavior. Module-private: `ensureSafeOrForceDiscard` is
+ * its only caller, and the symbol it replaced was exported with no consumer
+ * and then baselined as a dead export — repeating that would just hide a
+ * new corpse.
  *
  * @param {object} ctx
  * @param {string} branch
  * @param {string} baseRef
  * @returns {boolean}
  */
-export function isBranchMergedIntoBase(ctx, branch, baseRef) {
+function isBranchMergedIntoBase(ctx, branch, baseRef) {
   if (!branch || !baseRef) return false;
   const ancestor = ctx.git.gitSpawn(
     ctx.repoRoot,
