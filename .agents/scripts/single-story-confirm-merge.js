@@ -36,16 +36,24 @@
  */
 
 import { parseArgs } from 'node:util';
+import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { formatCliError } from './lib/error-redactor.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
+import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
+import {
+  buildTerminalEnvelope,
+  exitCodeForTerminal,
+  NEXT_COMMANDS,
+} from './lib/orchestration/story-deliver-terminal.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
-import { withConfirmFollowUps } from './lib/single-story/confirm-merge-follow-ups.js';
 
 const progress = Logger.createProgress('single-story-confirm-merge', {
   stderr: true,
@@ -99,11 +107,91 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
   }
 }
 
-function logConfirmResult(result) {
+function logConfirmResult(result, terminal) {
   Logger.info(
     `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
-  return { success: true, result };
+  Logger.info(
+    `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+  );
+  return { success: terminal.status !== 'failed', result, terminal };
+}
+
+/**
+ * Map a `confirmStoryMerged` envelope onto the shared terminal envelope
+ * (Story #4543) so this CLI and the in-close land path report one shape.
+ *
+ * The three confirm outcomes map cleanly:
+ *   - `done` / `noop` (already-done) → `landed`. Both mean the merge is on
+ *     the base branch and the Story is `agent::done`.
+ *   - `pending` (`pr-open` / `no-pr`) → `pending`. Re-run once the merge
+ *     lands; nothing is wrong.
+ *   - `flip-failed` → `blocked` with the shared `merged-flip-failed` class:
+ *     the merge landed, so this is a label-write fault, and the remedy is
+ *     re-running this very command (it is idempotent).
+ *   - `pr-not-merged` (closed without merging) → `blocked`. The PR is gone;
+ *     a re-run cannot fix it, so it needs a human.
+ */
+function buildConfirmTerminal({
+  storyId,
+  storyBranch,
+  baseBranch,
+  prNumber,
+  confirmation,
+  tail,
+  elapsedSeconds,
+}) {
+  const pr =
+    Number.isInteger(prNumber) && prNumber > 0
+      ? { number: prNumber, state: confirmation.merged ? 'MERGED' : 'OPEN' }
+      : null;
+  const common = { storyId, storyBranch, baseBranch, pr, elapsedSeconds };
+
+  if (confirmation.action === 'done' || confirmation.action === 'noop') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'landed',
+      phase: tail ? 'post-land' : 'done',
+      tail,
+      nextCommand: null,
+    });
+  }
+  if (confirmation.action === 'flip-failed') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'blocked',
+      phase: 'confirm-merge',
+      blocked: {
+        blockClass: MERGED_FLIP_FAILED_BLOCK_CLASS,
+        reason:
+          'merge confirmed but the agent::closing → agent::done label write failed',
+        frictionCommentId: null,
+      },
+      nextCommand: NEXT_COMMANDS.confirmMerge(storyId),
+    });
+  }
+  if (confirmation.reason === 'pr-not-merged') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'blocked',
+      phase: 'confirm-merge',
+      blocked: {
+        blockClass: 'api-race-other',
+        reason: 'the PR was closed without merging (state=CLOSED)',
+        frictionCommentId: null,
+      },
+      nextCommand: NEXT_COMMANDS.recover(storyId),
+    });
+  }
+  return buildTerminalEnvelope({
+    ...common,
+    status: 'pending',
+    phase: 'confirm-merge',
+    nextCommand:
+      confirmation.reason === 'no-pr'
+        ? NEXT_COMMANDS.recover(storyId)
+        : NEXT_COMMANDS.confirmMerge(storyId),
+  });
 }
 
 async function resolveConfirmPrNumber({ prParam, cwd, storyBranch, gh }) {
@@ -139,10 +227,12 @@ export async function runConfirmMerge({
     );
   }
 
+  const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd });
   const provider = injectedProvider || createProvider(config);
   const gh = injectedGh ?? defaultGh;
   const storyBranch = getStoryBranch(storyId);
+  const baseBranch = config.project?.baseBranch ?? 'main';
 
   progress('INIT', `Confirming merge for standalone Story #${storyId}...`);
 
@@ -157,13 +247,25 @@ export async function runConfirmMerge({
       'CONFIRM',
       `⚠️ No PR found for ${storyBranch}; cannot confirm merge. Story stays at agent::closing.`,
     );
-    return logConfirmResult({
+    const noPr = {
       storyId,
       standalone: true,
       action: 'pending',
       reason: 'no-pr',
       merged: false,
-    });
+    };
+    return logConfirmResult(
+      noPr,
+      buildConfirmTerminal({
+        storyId,
+        storyBranch,
+        baseBranch,
+        prNumber: null,
+        confirmation: noPr,
+        tail: null,
+        elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+      }),
+    );
   }
 
   const confirmation = await confirmStoryMerged({
@@ -179,21 +281,82 @@ export async function runConfirmMerge({
     readPrMergeStateFn: injectedReadPrMergeState,
   });
 
-  const result = await withConfirmFollowUps({
-    confirmation,
+  // Story #4543 — reach the SAME shared land tail the in-close path reaches
+  // (`phases/post-land.js`), rather than this CLI's own follow-ups-only
+  // wrapper. That wrapper was the whole reason the two landing surfaces
+  // diverged: it captured follow-ups and nothing else, while the resync and
+  // cleanup steps lived in prose the caller had to remember to run.
+  const tail =
+    confirmation.action === 'done'
+      ? await runPostLandTail({
+          storyId,
+          storyBranch,
+          baseBranch,
+          cwd,
+          provider,
+          config,
+          progress,
+        })
+      : null;
+
+  const terminal = buildConfirmTerminal({
     storyId,
+    storyBranch,
+    baseBranch,
     prNumber,
-    provider,
-    config,
-    cwd,
-    progress,
+    confirmation,
+    tail,
+    elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
   });
-  if (result.action === 'done') {
-    progress('DONE', `✅ Standalone Story #${storyId} → agent::done (merged).`);
+  if (confirmation.action === 'done') {
+    progress('DONE', `✅ Story #${storyId} → agent::done (merged).`);
   }
-  return logConfirmResult(result);
+  return logConfirmResult(
+    { ...confirmation, standalone: true, tail },
+    terminal,
+  );
 }
 
-runAsCli(import.meta.url, runConfirmMerge, {
+/**
+ * CLI entry — mirrors `single-story-close.js`: the exit code comes from the
+ * terminal envelope's status, so a caller can tell `pending` (the PR has not
+ * merged yet; re-run me) from `landed` without parsing stdout.
+ *
+ * The catch mirrors close's for the same reason: `confirmStoryMerged`'s PR
+ * read is a live `gh` call that throws on a transient API error, and this CLI
+ * is a *landing surface* — the one `pending` tells the operator to re-run. If
+ * a flaked read exited 1 with no envelope, the surface would be silent exactly
+ * where the envelope is the contract. Both landing surfaces emit one envelope
+ * or none at all; "none at all" is what Story #4543 removes.
+ */
+async function main() {
+  try {
+    const outcome = await runConfirmMerge();
+    return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  } catch (err) {
+    const storyId = Number(parseSprintArgs().storyId);
+    // No story id → a usage error; there is nothing to report an envelope
+    // about, so let runAsCli surface it as a plain fatal.
+    if (!Number.isInteger(storyId) || storyId <= 0) throw err;
+    const terminal = buildTerminalEnvelope({
+      storyId,
+      status: 'failed',
+      phase: 'confirm-merge',
+      failure: { reason: String(err?.message ?? err) },
+      nextCommand: NEXT_COMMANDS.recover(storyId),
+      elapsedSeconds: 0,
+    });
+    Logger.error(
+      `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
+    );
+    Logger.info(
+      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+    );
+    return exitCodeForTerminal(terminal);
+  }
+}
+
+runAsCli(import.meta.url, main, {
   source: 'single-story-confirm-merge',
+  propagateExitCode: true,
 });

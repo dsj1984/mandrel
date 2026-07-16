@@ -138,18 +138,35 @@ const SIGNALS_SCHEMA = {
 
 /**
  * `delivery.mergeWatch` — knobs consumed by the MergeWatcher lifecycle
- * listener (Story #2896, Epic #2880). `intervalSeconds` is the poll
- * cadence between `gh pr view --json mergeCommit,mergedAt` probes after
- * `epic.merge.armed`; `maxBudgetSeconds` is the total wall-clock budget
- * before the watcher surfaces `agent::blocked` with reason
- * `budget-exceeded`. Both keys default in the listener when omitted
- * (30s / 3600s).
+ * listener (Story #2896, Epic #2880) and by the close-and-land merge wait
+ * (`single-story-close/phases/confirm-merge.js`). `intervalSeconds` is the
+ * poll cadence between `gh pr view` probes after the arm.
+ *
+ * The two budgets are deliberately separate axes (Story #4543):
+ *
+ *   - `maxWaitSeconds` bounds **one invocation** of the merge wait. Its
+ *     default (300s) fits inside a single host tool invocation, whose
+ *     ceiling is ~10 minutes; the gates that run before the wait already
+ *     consume minutes of that. Expiry is NOT a block — the wait returns a
+ *     resumable `pending` terminal with no label mutation. A headless caller
+ *     with no such ceiling raises it to keep land-in-one-block semantics.
+ *   - `maxBudgetSeconds` bounds the **cumulative** wait across resumes,
+ *     anchored at the PR's `createdAt` so re-entering the wait does not
+ *     restart the clock. Exhausting *this* is the genuine give-up condition
+ *     that classifies and blocks.
+ *
+ * `updateAttempts` caps how many times the wait will bring a
+ * behind-the-base PR up to date before giving the branch up as unwinnable,
+ * rather than waiting out the budget behind a base it could have merged.
+ * All keys default in the consumer when omitted (30s / 300s / 3600s / 3).
  */
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   properties: {
     intervalSeconds: { type: 'integer', minimum: 1 },
+    maxWaitSeconds: { type: 'integer', minimum: 1 },
     maxBudgetSeconds: { type: 'integer', minimum: 1 },
+    updateAttempts: { type: 'integer', minimum: 0 },
   },
   additionalProperties: false,
 };

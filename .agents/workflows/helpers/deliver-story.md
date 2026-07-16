@@ -225,7 +225,7 @@ full close-validation chain here unless interactively iterating on a fix.
 
 ---
 
-## Step 3 — Close (`single-story-close.js`)
+## Step 3 — Close and land (`single-story-close.js`)
 
 Invoke from the main checkout (or pass `--cwd <main-repo>` from inside
 the worktree):
@@ -234,14 +234,56 @@ the worktree):
 node <main-repo>/.agents/scripts/single-story-close.js --story <storyId> --cwd <main-repo>
 ```
 
+**This step is the whole delivery tail.** Close owns the gates, the PR, the
+merge wait, the `agent::done` flip, and the post-land tail (follow-up
+capture, status-column resync, local ref cleanup, base fast-forward) in one
+process. Your job is to run it and **branch on the terminal envelope's
+`status`** — nothing more (Story #4543).
+
+### Branch on the terminal envelope
+
+Every invocation emits exactly one schema-validated envelope
+([`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json))
+between `--- STORY DELIVER TERMINAL ---` markers, and the exit code mirrors
+its `status`:
+
+| `status` | Exit | What it means | What you do |
+| --- | --- | --- | --- |
+| `landed` | 0 | PR merged, Story `agent::done`, tail ran. `tail.*` booleans expose any partial degradation — a `false` there does **not** demote the land. | Go to Step 7 and relay the envelope. Nothing else. |
+| `pending` | 3 | **Resumable, not a failure.** The per-invocation merge wait expired with the PR healthy and in flight, or the operator owns the merge. No label was mutated; no `merge.unlanded` was emitted. | Run the envelope's `nextCommand`. Repeat until it resolves. Relay `pending` only once you have exhausted your own budget. |
+| `blocked` | 1 | A classified hard block. Story carries `agent::blocked`; `blocked.blockClass` names the class and `blocked.frictionCommentId` points at the remediation. | `checks-failed` → fix the red check and push (Step 4). Otherwise go to Step 7 and relay the envelope. |
+| `failed` | 1 | A phase crashed; `phase` names which. | Diagnose, fix, re-run close. |
+
+Do **not** re-sequence the post-close steps by hand. Steps 4–6 below are
+**recovery-only** — reached from a `blocked`/`pending` envelope, never as
+routine choreography.
+
+### What close does internally
+
 The script runs the close-validation gates against `baseBranch`, syncs the
 Story branch from `origin/<baseBranch>` (Story #2580 — the parallel-race
 defence), pushes `story-<id>`, opens (or reuses) a PR against `baseBranch`
 with a `Closes #<storyId>` footer, enables GitHub native auto-merge
 (`--auto --squash --delete-branch`) **when `delivery.ci.autoMerge` is
-`"trust-ci"` (the default)**, flips the Story to **`agent::closing`**
-(NOT `agent::done` — the issue stays OPEN until Step 5 confirms the merge,
-Story #3385), reaps the worktree, and releases the Story lease.
+`"trust-ci"` (the default)**, flips the Story to `agent::closing`, reaps the
+worktree, releases the lease, then **waits for the merge** and — on a
+confirmed merge — flips `agent::done` and runs the post-land tail.
+
+### The merge wait is bounded and resumable
+
+Two budgets, deliberately separate (`delivery.mergeWatch.*`):
+
+- **`maxWaitSeconds`** (default 300) bounds **one invocation**, sized to fit
+  inside a single host tool invocation (~10 min ceiling) alongside the gates
+  that precede it. Expiry → `pending`. Pass `--max-wait-seconds <n>` to raise
+  it when your host has no such ceiling and you want to land in one block.
+- **`maxBudgetSeconds`** (default 3600) bounds the **cumulative** wait across
+  resumes, anchored at the PR's `createdAt` so resuming does not restart the
+  clock. Exhausting *this* is the genuine give-up → `blocked`.
+
+The wait probes the checks every poll: a red required check fails fast as
+`checks-failed` instead of burning the budget, and a PR that falls behind its
+base is brought up to date within `updateAttempts` tries.
 
 > **`delivery.ci.autoMerge` policy.** Under the default `"trust-ci"`, GitHub
 > native auto-merge is armed and the PR squash-merges once its **required**
@@ -259,20 +301,19 @@ Flags:
   behaviour and warrants a pre-merge eyeball; the operator then merges via
   the GitHub UI.
 - `--wait-merge` — **close-and-land** (Story #4428). Forces close to poll
-  the armed PR to merge confirmation on the `delivery.mergeWatch.*`
-  cadence (reusing the same `confirmStoryMerged` flip logic) and flip
-  `agent::done` itself. If the arm fails, the PR closes without merging,
-  or the poll budget is exhausted first, close classifies the block
-  (`checks-pending-timeout` \| `branch-protection-human-required` \|
-  `arm-failure` \| `api-race-other`), emits a `merge.unlanded` lifecycle
-  event, posts a `friction` comment, transitions the Story to
-  `agent::blocked`, and exits non-zero — never a silent `agent::closing`
-  rest. When neither land flag is passed, close defaults from
-  `delivery.routing.closeAndLand` (**true**): attended and headless
-  delivers share the land-in-one-close happy path.
+  the armed PR to merge confirmation and flip `agent::done` itself. When
+  neither land flag is passed, close defaults from
+  `delivery.routing.closeAndLand` (**true**): attended and headless delivers
+  share the land-in-one-close happy path.
 - `--no-wait-merge` — explicit opt-out that always wins. Use when the
   operator wants the PR left at `agent::closing` for a human land (or a
-  wrapper that will invoke `single-story-confirm-merge.js` itself).
+  wrapper that will invoke `single-story-confirm-merge.js` itself). Reports
+  `pending` — the work is not done, nothing is broken, and one named command
+  finishes it.
+- `--max-wait-seconds <n>` — raise the merge wait's per-invocation bound for
+  this run (Story #4543). Use from a headless caller with no host
+  tool-invocation ceiling to keep single-block semantics without editing the
+  consumer's config.
 
 > **Full close pipeline (base-sync outcomes, `agent::closing` rationale,
 > lease release).** For the numbered close pipeline, the base-sync outcome
@@ -282,34 +323,35 @@ Flags:
 
 ---
 
-## Step 4 — CI watch + fix loop (**required, not optional**)
+## Step 4 — CI fix loop (**recovery-only**)
 
-> **Close-and-land runs skip Steps 4 and 5.** When Step 3 lands through
-> merge (`--wait-merge` or the `closeAndLand` default),
-> `single-story-close.js` already polled the PR to a confirmed merge
-> (flipping `agent::done` itself) or exited non-zero after transitioning
-> the Story to `agent::blocked` with a `merge.unlanded` event — there is
-> no separate CI-watch turn or manual confirm step to run. Proceed
-> straight to Step 5.5. Only `--no-wait-merge` runs still own Steps 4
-> and 5 as documented below.
+> **Steps 4, 5, 5.5, and 6 are recovery paths, not routine choreography
+> (Story #4543).** On the default path Step 3 already polled the PR to a
+> confirmed merge, flipped `agent::done`, and ran the whole post-land tail —
+> follow-up capture, status resync, ref cleanup, base fast-forward — in one
+> process. A `landed` envelope means all of it ran; go straight to Step 7.
+>
+> Enter this step **only** when Step 3 returned `blocked` with
+> `blockClass: "checks-failed"` (a required check went red), or when a
+> `--no-wait-merge` run left the PR for you to shepherd.
 
-The Story is **not done** when `single-story-close.js` returns. Auto-merge
-only fires when every required CI check turns green. Local close-validation
-gates pass on the dev host's environment; CI runs on a different OS and
-concurrency, and coverage rounding, platform-conditional branches, and
-timing-sensitive tests routinely drift between the two. The agent owns the
-green-CI outcome, not just the push.
+When a required check is red, the agent owns the green-CI outcome, not just
+the push. Local close-validation gates pass on the dev host's environment;
+CI runs on a different OS and concurrency, and coverage rounding,
+platform-conditional branches, and timing-sensitive tests routinely drift
+between the two.
 
-> **The auto-merge wait is an internally-blocking step, not a reason to end
-> your turn.** `pr-watch-with-update.js` blocks the current turn until CI
-> resolves — that IS how you wait. Keep the turn alive: watch → (fix +
-> push + re-watch on red) → confirm the merge (Step 5) → flip
-> `agent::done` → post-merge steps → return the terminal JSON contract.
-> Ending the turn with prose and an unconfirmed merge is a contract
-> violation (the Story #1553 / PR #1554 failure mode). See
+Fix the failure and push a new commit on `story-<storyId>` — auto-merge stays
+armed across retries, so you do not re-arm — then resume the land with the
+envelope's `nextCommand`.
+
+> **A watch is an internally-blocking step, not a reason to end your turn.**
+> `pr-watch-with-update.js` blocks the current turn until CI resolves — that
+> IS how you wait. Ending the turn with prose and an unconfirmed merge is a
+> contract violation (the Story #1553 / PR #1554 failure mode). See
 > [`deliver-story-reference.md` § The auto-merge wait is an internally-blocking step](deliver-story-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
 
-After `single-story-close.js` succeeds, enter the watch + fix loop. Drive
+To watch the checks on the red path, drive
 `pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
 the Epic Phase 8 path (Story #4358). It polls the required checks to a
 terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do
@@ -363,29 +405,21 @@ When the watch exits, branch on the exit code:
 
 ---
 
-## Step 5 — Merge confirmation + `agent::done` flip (**required, not optional**)
+## Step 5 — Merge confirmation + land tail (**recovery-only**)
 
-With auto-merge enabled (default), GitHub squash-merges the PR when
-every required check turns green and the `Closes #<id>` footer
-auto-closes the Story issue.
-
-Confirm the merge landed:
-
-```bash
-gh pr view <prNumber> --json state,mergedAt,mergeCommit
-```
-
-Expect `state: "MERGED"`. With `--no-auto-merge`, the PR is the merge
-gate — the operator reviews and merges via the GitHub UI; the same
-`Closes #<id>` auto-close fires when the merge lands on `main`.
-
-**Then flip the Story to `agent::done`.** Step 3 deferred this flip
-(Story #3385); now that the merge is confirmed, drive the
-`agent::closing → agent::done` transition (which closes the issue) via:
+> On the default path Step 3 already did this. Run it only to resume a
+> `pending` envelope, to finish a `--no-wait-merge` run, or to rescue a
+> merged-but-mislabelled Story.
 
 ```bash
 node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main-repo>
 ```
+
+This is the **same** shared land path Step 3 reaches: it flips
+`agent::closing → agent::done` on a confirmed merge (closing the issue) and
+runs the **same** post-land tail — so the two surfaces cannot diverge. It is
+idempotent, emits the same terminal envelope, and is safe to re-run while
+the PR is still open (returns `pending`).
 
 > **Confirmation outcomes.** `single-story-confirm-merge.js` re-reads the
 > live PR state and flips to `agent::done` only on a confirmed `MERGED` PR;
@@ -395,12 +429,16 @@ node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main
 
 ---
 
-## Step 5.5 — Re-assert Status column (**required, not optional**)
+## Step 5.5 — Re-assert Status column (**recovery-only**)
+
+> **The land tail already ran this** (Story #4543) — it is `tail.statusResync`
+> in the terminal envelope. Run it by hand only when that step reported
+> `false`, or after a manual merge on a `--no-wait-merge` run.
 
 GitHub Projects v2 built-in workflows fire minutes *after* auto-merge lands
 and clobber the `Done` Status the confirm step set, stranding closed
 Stories at `In Progress` on the board (reproduced on Story #2813).
-Re-assert authority once the merge confirms:
+Re-assert authority:
 
 ```bash
 node .agents/scripts/resync-status-column.js --story <storyId>
@@ -408,9 +446,7 @@ node .agents/scripts/resync-status-column.js --story <storyId>
 
 The helper re-fires the `ColumnSync` mutation and **polls for ~15 s** to win
 the race against the bot's late write (Story #2876). It is idempotent and
-no-op-safe (`no-project` / `not-on-project` exit 0). Skip Step 5.5 only when
-the operator opted out of auto-merge AND has not yet merged the PR — run it
-after the manual merge instead.
+no-op-safe (`no-project` / `not-on-project` exit 0).
 
 > **Status-column detail + tuning flags + operator fix.** For the poll-loop
 > flags (`--poll-attempts`, `--poll-delay-ms`), the `attempts` / `drifted`
@@ -420,12 +456,18 @@ after the manual merge instead.
 
 ---
 
-## Step 6 — Local branch cleanup (**required, not optional**)
+## Step 6 — Local branch cleanup (**recovery-only**)
+
+> **The land tail already ran this** (Story #4543) — it is `tail.refCleanup`
+> and `tail.baseFastForward` in the terminal envelope, done in-process
+> against the same planners this command drives. Run it by hand only when
+> either step reported `false` (a dirty shared checkout is the common,
+> benign cause), or after a manual merge on a `--no-wait-merge` run.
 
 GitHub deletes the **remote** branch on auto-merge, but the **local**
 `story-<storyId>` ref lingers in the main checkout until something prunes
-it. After Step 5 confirms `state: "MERGED"`, prune the story ref **and**
-fast-forward local `main` (or `project.baseBranch`):
+it. To prune the story ref **and** fast-forward local `main` (or
+`project.baseBranch`):
 
 ```bash
 node .agents/scripts/git-cleanup.js \
@@ -453,37 +495,62 @@ run the cleanup after the manual merge lands.
 
 ## Step 7 — Return contract (**required when dispatched as a sub-agent**) {#return-contract}
 
+The return contract is the shipped schema
+[`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
+— **the single source of truth for every field, and the only place they are
+defined** (Story #4543). Do not restate its fields here or anywhere else:
+this section and
+[`agents/story-worker.md`](../../agents/story-worker.md) each used to define
+their own divergent shape, neither validated by anything, which is exactly
+how they drifted apart.
+
 When this workflow runs as a per-Story sub-agent (dispatched by
-[`/deliver`](../deliver.md)), the **only** acceptable way to end your turn
-is to **return a single terminal JSON status object** — never free-form
-prose:
+[`/deliver`](../deliver.md)), the **only** acceptable way to end your turn is
+to return a single terminal JSON object conforming to that schema — never
+free-form prose. `single-story-close.js` already emits a validated one
+between its `--- STORY DELIVER TERMINAL ---` markers; **relay that envelope**
+rather than composing a new object by hand.
 
-```json
-{
-  "storyId": <number>,
-  "status": "done" | "blocked" | "failed",
-  "phase": "init|implementing|closing|blocked|done",
-  "branchDeleted": <boolean>,
-  "blockerCommentId": <string|null>,
-  "detail": "<one-liner: what changed + what was verified, e.g. PR #N merged>",
-  "renderedBody": "<terminal Story body>"
-}
-```
+Its `status` is one of exactly four values, and the no-park rule follows
+directly from them:
 
-This section is the single-homed return contract for the Story worker so it
-is self-contained when this workflow is the entry point.
+- `landed` — the PR merged, the Story is `agent::done`, and the tail was
+  attempted. Terminal; you are done.
+- `pending` — **resumable**, and the only sanctioned way to end a turn
+  without a merge. It carries the `nextCommand` that resumes it. Return this
+  only when you have exhausted your own budget, not as a way to avoid
+  waiting: the wait is internally blocking (Step 4).
+- `blocked` — the Story carries `agent::blocked` and `blocked.blockClass`
+  names the class.
+- `failed` — a phase crashed; `phase` names it.
 
-There is **no fourth "pending" status** — the CI/auto-merge wait is handled
-internally by blocking on `pr-watch-with-update.js` (Step 4) and confirming
-the merge (Step 5). Return **only** on a confirmed `MERGED` PR (`status: "done"`),
-an `agent::blocked` transition (`status: "blocked"`), or an unrecoverable
-failure (`status: "failed"`).
+Ending the turn with prose and an unconfirmed merge is a contract violation
+(the Story #1553 / PR #1554 failure mode).
 
-> **No-park rule + per-status contract + handoff discipline.** For the full
-> terminal-status contract (what each status requires), why a prose hand-off
-> with an unconfirmed merge is the very bug this workflow prevents, and the
+> **No-park rule + handoff discipline.** For why a prose hand-off with an
+> unconfirmed merge is the very bug this workflow prevents, and the
 > report-state-not-process handoff discipline, see
 > [`deliver-story-reference.md` § Step 7 — Return-contract detail](deliver-story-reference.md#step-7--return-contract-detail).
+
+---
+
+## Recovering a stranded Story {#recover}
+
+When a Story is in an unclear state — a killed run, a `pending` envelope you
+no longer have, a Story a `/deliver` re-run refuses — do not guess and do not
+re-run the pipeline hoping it converges. Probe it:
+
+```bash
+node .agents/scripts/deliver-recover.js --story <storyId>
+```
+
+It is **read-only**: it probes the labels, lease, branch, worktree, and PR
+(state + checks), then prints the **one** next command with the evidence it
+was derived from — never a menu.
+
+It is the only automated way out of the **merged-but-label-stale** strand: a
+`/deliver` re-run refuses that Story outright, because `single-story-init.js`
+hard-errors on an already-closed one.
 
 ---
 

@@ -142,6 +142,12 @@ function gitUtilsMock() {
       // time (sync retries + the createGitInterface seam) or the loader throws.
       gitFetchWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
       gitPullWithRetry: async () => ({ status: 0, stdout: '', stderr: '' }),
+      // Story #4543 — the shared land tail (`phases/post-land.js`) reaps the
+      // local story ref and fast-forwards the base in-process, putting
+      // `gitSpawn` in the close import graph. Same rule as the retries above:
+      // the static import resolves whether or not the tail runs, so the mock
+      // must surface it. status:1 = "ref absent" (the tail's no-op path).
+      gitSpawn: () => ({ status: 1, stdout: '', stderr: '' }),
       createGitInterface: () => ({
         gitSync: () => '',
         gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
@@ -167,6 +173,10 @@ function worktreeManagerMock() {
       WorktreeManager: class {
         async reap() {}
       },
+      // Story #4543 — the land tail's fast-forward probes
+      // (`git-cleanup/phases/git-probes.js`) statically import this, so it is
+      // now in the close import graph and the mock must surface it.
+      parseWorktreePorcelain: () => [],
     },
   };
 }

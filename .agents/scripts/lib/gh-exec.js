@@ -505,6 +505,14 @@ export function createGh(execImpl = exec, defaultExecOpts = {}) {
       execWithDefaults({ args: ['pr', 'edit', idStr(id), ...flags] }),
     merge: (id, flags = []) =>
       execWithDefaults({ args: ['pr', 'merge', idStr(id), ...flags] }),
+    /**
+     * Bring a `mergeStateStatus: BEHIND` PR up to date with its base
+     * (Story #4543). The close-and-land merge wait calls this a bounded
+     * number of times rather than waiting out its budget behind a base it
+     * could have caught up to.
+     */
+    updateBranch: (id, flags = []) =>
+      execWithDefaults({ args: ['pr', 'update-branch', idStr(id), ...flags] }),
     list: (flags = [], fields) =>
       execWithDefaults({
         args: ['pr', 'list', ...flags, ...jsonFlag(fields)],
