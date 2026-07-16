@@ -12,7 +12,9 @@
  *      label when N>1)
  *   6. Upsert `risk-verdict` + `story-plan-state` on every created Story;
  *      upsert `plan-summary` on the primary Story
- *   7. Temp cleanup at terminal success only
+ *   7. Comment on + close the superseded `--tickets` source issues
+ *      (Story #4535) — bookkeeping only; never fails the run
+ *   8. Temp cleanup at terminal success only
  *
  * Hard cutover: no Epic parent, no reconciler, no `deliveryShape`, no
  * `--amend` tree cascades. Those surfaces die with Stages 4–5 for any
@@ -51,6 +53,7 @@ import {
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './summary.js';
+import { closeSupersededTickets } from './supersede-ops.js';
 
 /** Checkpoint schema version written on each Story's story-plan-state. */
 const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
@@ -124,6 +127,39 @@ function enforceTicketValidation(validated, { config, settings, cwd }) {
   );
 }
 
+/**
+ * Run the supersede close phase behind a belt-and-braces guard.
+ *
+ * `closeSupersededTickets` already swallows per-ticket failures, but this
+ * phase runs *after* `createIssue`, so an unexpected throw anywhere in it
+ * would leave the run half-done with Stories already live. Degrade to a
+ * reported failure instead.
+ *
+ * @returns {Promise<import('./supersede-ops.js').SupersedeReport>}
+ */
+async function runSupersedePhase(args) {
+  try {
+    return await closeSupersededTickets(args);
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] supersede close phase failed: ${err.message} — ` +
+        'Stories were created; close the source tickets by hand.',
+    );
+    return {
+      enabled: true,
+      dryRun: args.dryRun === true,
+      reason: `phase-error: ${err.message}`,
+      closed: [],
+      planned: [],
+      skipped: [],
+      failed: (args.sourceTicketIds ?? []).map((ticket) => ({
+        ticket,
+        reason: err.message,
+      })),
+    };
+  }
+}
+
 function riskVerdictCommentBody(riskVerdict) {
   return [
     '### risk-verdict',
@@ -157,6 +193,8 @@ function riskVerdictCommentBody(riskVerdict) {
  *     planDir?: string,
  *     fanOutCounter?: Function,
  *     cwd?: string,
+ *     sourceTicketIds?: number[],
+ *     closeSuperseded?: boolean,
  *   },
  * }} input
  */
@@ -183,6 +221,8 @@ export async function runPlanPersist({
     planDir = null,
     fanOutCounter = undefined,
     cwd = PROJECT_ROOT,
+    sourceTicketIds = [],
+    closeSuperseded = true,
   } = opts;
 
   if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
@@ -280,6 +320,7 @@ export async function runPlanPersist({
   const { stories } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
     planAcceptance: planAcceptance ?? undefined,
+    sourceTicketIds,
   });
 
   const planningRisk = deriveRiskEnvelope(riskVerdict);
@@ -357,6 +398,16 @@ export async function runPlanPersist({
     );
   }
 
+  const supersede = await runSupersedePhase({
+    provider,
+    stories,
+    created,
+    sourceTicketIds,
+    planRunLabel,
+    dryRun,
+    closeSuperseded,
+  });
+
   if (!skipCleanup && planDir) {
     try {
       await rm(planDir, { recursive: true, force: true });
@@ -380,5 +431,6 @@ export async function runPlanPersist({
     critics,
     reachability,
     waveTable,
+    supersede,
   };
 }

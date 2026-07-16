@@ -47,17 +47,39 @@ function ticket(slug) {
   };
 }
 
-function fakeProvider() {
+function fakeProvider({ sources = [] } = {}) {
   const issues = new Map();
   const comments = [];
+  const updates = [];
   let nextId = 5000;
+  for (const source of sources) {
+    issues.set(source.id, {
+      id: source.id,
+      title: source.title ?? `Source ${source.id}`,
+      body: source.body ?? '',
+      labels: [],
+      state: source.state ?? 'open',
+    });
+  }
   return {
     issues,
     comments,
+    updates,
     async createIssue({ title, body, labels }) {
       const id = nextId++;
       issues.set(id, { id, title, body, labels });
       return { id, url: `https://example.test/${id}` };
+    },
+    async getTicket(id) {
+      const issue = issues.get(id);
+      if (!issue) throw new Error(`ticket #${id} not found`);
+      return { ...issue, state: issue.state ?? 'open' };
+    },
+    async updateTicket(id, mutations) {
+      updates.push({ id, mutations });
+      const issue = issues.get(id);
+      if (!issue) throw new Error(`ticket #${id} not found`);
+      Object.assign(issue, mutations);
     },
     async getTicketComments(issueNumber) {
       return comments.filter((c) => c.issueNumber === issueNumber);
@@ -187,5 +209,257 @@ describe('runPlanPersist — flat Story ops', () => {
       assert.match(storyComments, /risk-verdict/);
       assert.match(storyComments, /story-plan-state/);
     }
+  });
+});
+
+describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
+  function supersedingTicket(slug, supersedes) {
+    return { ...ticket(slug), supersedes };
+  }
+
+  function sourceComments(provider, id) {
+    return provider.comments
+      .filter((comment) => comment.issueNumber === id)
+      .map((comment) => comment.body)
+      .join('\n');
+  }
+
+  it('comments naming the claiming Story and closes as not_planned', async () => {
+    const provider = fakeProvider({
+      sources: [{ id: 900, title: 'Old idea' }],
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [900])],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [900] },
+    });
+
+    const storyId = result.primaryStoryId;
+    assert.deepEqual(result.supersede.closed, [900]);
+    assert.deepEqual(result.supersede.failed, []);
+
+    const body = sourceComments(provider, 900);
+    assert.match(body, new RegExp(`Superseded by #${storyId}`));
+    assert.match(body, /Story solo/);
+    assert.match(body, /superseded-by/);
+    // Names the specific Story, not a blanket plan-run reference.
+    assert.doesNotMatch(body, /superseded by this plan-run/i);
+
+    assert.deepEqual(provider.updates, [
+      { id: 900, mutations: { state: 'closed', state_reason: 'not_planned' } },
+    ]);
+    assert.equal(provider.issues.get(900).state, 'closed');
+  });
+
+  it('renders the per-supersede note authored on the Story', async () => {
+    const provider = fakeProvider({ sources: [{ id: 901 }] });
+    await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [
+          supersedingTicket('solo', [
+            {
+              id: 901,
+              note: 'The filed fix is provably inert — recorded here.',
+            },
+          ]),
+        ],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [901] },
+    });
+
+    assert.match(
+      sourceComments(provider, 901),
+      /The filed fix is provably inert — recorded here\./,
+    );
+  });
+
+  it('maps each source to exactly one Story when N>1', async () => {
+    const provider = fakeProvider({ sources: [{ id: 910 }, { id: 911 }] });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [
+          supersedingTicket('one', [910]),
+          supersedingTicket('two', [911]),
+        ],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [910, 911], planRunId: 'r1' },
+    });
+
+    const byslug = new Map(result.stories.map((s) => [s.slug, s.id]));
+    assert.match(
+      sourceComments(provider, 910),
+      new RegExp(`Superseded by #${byslug.get('one')}`),
+    );
+    assert.match(
+      sourceComments(provider, 911),
+      new RegExp(`Superseded by #${byslug.get('two')}`),
+    );
+    assert.match(sourceComments(provider, 910), /plan-run::r1/);
+  });
+
+  it('fails closed on a partial supersede map before creating any Story', async () => {
+    const provider = fakeProvider({ sources: [{ id: 920 }, { id: 921 }] });
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider,
+          artifacts: {
+            stories: [supersedingTicket('solo', [920])],
+            riskVerdict: VERDICT,
+          },
+          opts: { skipCleanup: true, sourceTicketIds: [920, 921] },
+        }),
+      /supersede partition failed[\s\S]*#921 is not claimed/,
+    );
+    // Nothing was created: only the two pre-seeded sources remain.
+    assert.equal(provider.issues.size, 2);
+    assert.deepEqual(provider.updates, []);
+  });
+
+  it('rejects a Story claiming a ticket that was not a source', async () => {
+    const provider = fakeProvider({ sources: [{ id: 930 }] });
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider,
+          artifacts: {
+            stories: [supersedingTicket('solo', [930, 999])],
+            riskVerdict: VERDICT,
+          },
+          opts: { skipCleanup: true, sourceTicketIds: [930] },
+        }),
+      /#999, which was not passed to --tickets/,
+    );
+    assert.equal(provider.issues.size, 1);
+  });
+
+  it('--no-close-superseded leaves sources open but still creates Stories', async () => {
+    const provider = fakeProvider({ sources: [{ id: 940 }] });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [940])],
+        riskVerdict: VERDICT,
+      },
+      opts: {
+        skipCleanup: true,
+        sourceTicketIds: [940],
+        closeSuperseded: false,
+      },
+    });
+
+    assert.equal(result.stories.length, 1);
+    assert.equal(result.supersede.enabled, false);
+    assert.equal(result.supersede.reason, 'disabled-by-flag');
+    assert.equal(sourceComments(provider, 940), '');
+    assert.deepEqual(provider.updates, []);
+    assert.equal(provider.issues.get(940).state, 'open');
+  });
+
+  it('--dry-run writes nothing and reports what it would have done', async () => {
+    const provider = fakeProvider({ sources: [{ id: 950 }] });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [950])],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [950], dryRun: true },
+    });
+
+    assert.equal(result.supersede.dryRun, true);
+    // Reported by slug: dry-run creates no issue, so the only Story
+    // identifier that means anything here is the slug.
+    assert.deepEqual(result.supersede.planned, [
+      { ticket: 950, storySlug: 'solo' },
+    ]);
+    assert.deepEqual(result.supersede.closed, []);
+    assert.equal(sourceComments(provider, 950), '');
+    assert.deepEqual(provider.updates, []);
+    assert.equal(provider.issues.get(950).state, 'open');
+  });
+
+  it('skips an already-closed source rather than re-commenting', async () => {
+    const provider = fakeProvider({
+      sources: [{ id: 960, state: 'closed' }],
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [960])],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [960] },
+    });
+
+    assert.deepEqual(result.supersede.closed, []);
+    assert.deepEqual(result.supersede.skipped, [
+      { ticket: 960, reason: 'already-closed' },
+    ]);
+    assert.equal(sourceComments(provider, 960), '');
+    assert.deepEqual(provider.updates, []);
+  });
+
+  it('skips an inaccessible source without failing the run', async () => {
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [970])],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [970] },
+    });
+
+    assert.equal(result.stories.length, 1);
+    assert.deepEqual(result.supersede.closed, []);
+    assert.equal(result.supersede.skipped[0].ticket, 970);
+    assert.match(result.supersede.skipped[0].reason, /inaccessible/);
+  });
+
+  it('reports a close failure without failing the run or orphaning Stories', async () => {
+    const provider = fakeProvider({ sources: [{ id: 980 }, { id: 981 }] });
+    provider.updateTicket = async (id) => {
+      if (id === 980) throw new Error('403 forbidden');
+      provider.issues.get(id).state = 'closed';
+    };
+
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [980, 981])],
+        riskVerdict: VERDICT,
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [980, 981] },
+    });
+
+    // The Story survives — bookkeeping never fails the run.
+    assert.equal(result.stories.length, 1);
+    assert.ok(provider.issues.get(result.primaryStoryId));
+    assert.deepEqual(result.supersede.closed, [981]);
+    assert.deepEqual(result.supersede.failed, [
+      { ticket: 980, reason: '403 forbidden' },
+    ]);
+  });
+
+  it('runs no close phase in seed mode (no source tickets)', async () => {
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(result.stories.length, 1);
+    assert.equal(result.supersede.enabled, false);
+    assert.equal(result.supersede.reason, 'no-source-tickets');
+    assert.deepEqual(provider.updates, []);
   });
 });
