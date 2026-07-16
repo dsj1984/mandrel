@@ -122,7 +122,7 @@ test('validateAcceptanceSubjectPrefix: rejects unknown leading token even with s
   assert.equal(caught.violations[0].prefix, 'baseline-refresh(snapshot)');
 });
 
-test('validateAcceptanceSubjectPrefix: skips Stories with string-shaped bodies', () => {
+test('validateAcceptanceSubjectPrefix: ignores a prefix quoted in body prose', () => {
   const tickets = [
     {
       slug: 'F1',
@@ -134,9 +134,12 @@ test('validateAcceptanceSubjectPrefix: skips Stories with string-shaped bodies',
       slug: 'S1',
       type: 'story',
       title: 'Story 1',
-      // String body — no structured acceptance array to scan, so the
-      // subject-prefix pass skips it entirely.
-      body: "Commit subject begins with 'baseline-refresh:' (this should be ignored — it is not a structured acceptance array)",
+      // Narrative prose with no ## Acceptance section and no top-level
+      // acceptance[]: the gate resolves an empty criteria list, so a prefix
+      // merely *quoted* in prose is not a prescription. (Story #4541: this
+      // is no longer because string bodies are skipped wholesale — they are
+      // parsed now — but because there are no criteria to scan.)
+      body: "Commit subject begins with 'baseline-refresh:' (this should be ignored — it is not an acceptance criterion)",
     },
   ];
   assert.doesNotThrow(() => validateAcceptanceSubjectPrefix({ tickets }));

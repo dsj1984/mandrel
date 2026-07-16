@@ -72,6 +72,17 @@ function buildStubProvider() {
       issues.set(id, { id, title, body, labels: labels ?? [], state: 'open' });
       return { id, url: `https://stub/issues/${id}` };
     },
+    // Persist's terminal step flips every created Story to `agent::ready`
+    // once its checkpoints are written (Story #4541), so a provider driving
+    // a full run must accept the label mutation.
+    async updateTicket(id, mutations) {
+      const issue = issues.get(id);
+      if (!issue) throw new Error(`ticket #${id} not found`);
+      const next = new Set(issue.labels ?? []);
+      for (const l of mutations.labels?.remove ?? []) next.delete(l);
+      for (const l of mutations.labels?.add ?? []) next.add(l);
+      issue.labels = [...next];
+    },
     async getTicketComments(id) {
       return comments.get(id) ?? [];
     },

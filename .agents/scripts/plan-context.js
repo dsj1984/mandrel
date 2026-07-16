@@ -26,7 +26,6 @@
  *                    happened, and superseding degrades to the
  *                    `--source-tickets` flag.
  *   --pretty         Pretty-print the JSON envelope.
- *   --full-context   Bypass the planning-context budget (unbounded body).
  *
  * stdout is reserved for the JSON envelope (Story #2278 discipline):
  * `routeAllOutputToStderr()` runs before any pipeline code so a captured
@@ -93,7 +92,6 @@ export async function emitPlanContext({
   provider,
   config,
   settings,
-  fullContext = false,
   pretty = false,
   outPath = null,
   cwd,
@@ -108,7 +106,6 @@ export async function emitPlanContext({
     provider,
     config,
     settings,
-    fullContext,
     cwd,
   });
   const json = pretty
@@ -151,7 +148,6 @@ async function main() {
       tickets: { type: 'string' },
       out: { type: 'string' },
       pretty: { type: 'boolean', default: false },
-      'full-context': { type: 'boolean', default: false },
     },
     strict: true,
   });
@@ -221,7 +217,6 @@ async function main() {
         provider,
         config,
         settings,
-        fullContext: values['full-context'],
         pretty: values.pretty,
         outPath: values.out || null,
       }),

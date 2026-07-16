@@ -26,17 +26,9 @@
 > [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md)
 > (local overrides → `instructions.md` → `rules/` → `skills/`, with
 > security-baseline inviolable).
-
-## Ticket hierarchy
-
-> Orchestration and planning are **Story-only** (`type::story`).
-> Acceptance criteria and verification steps are inlined on the Story
-> body (`acceptance[]` / `verify[]`); the folded Tech Spec lives in
-> `## Spec`. `/plan` emits one or more `type::story` issues (default N=1);
-> `/deliver` runs each Story via `helpers/deliver-story` on
-> `story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
-> label, no Epic issue form, and no `persona::*` axis — an Epic is at most
-> an optional untyped human umbrella issue outside orchestration.
-> `/deliver` refuses `Epic: #N` footers. See
-> [`.agents/instructions.md` § 5.D](.agents/instructions.md) and
+>
+> **Ticket hierarchy** is Story-only (`type::story`). The contract is stated
+> once in [`.agents/instructions.md` § 5.D](.agents/instructions.md) — that
+> section is the source of truth and this file does not restate it. The
+> narrative lives in
 > [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md).

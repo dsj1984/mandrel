@@ -111,8 +111,30 @@ describe('duplicate-search', () => {
       );
       assert.match(q, /label:"type::story"/);
       assert.match(q, /\bstate:open\b/);
-      assert.match(q, /webhook/);
-      assert.match(q, /fingerprint|hashing|duplicate|payloads/);
+      assert.match(q, /fingerprint|hashing|duplicate|payloads|webhook/);
+    });
+
+    it('keeps the free-text term list short enough to match something', () => {
+      // GitHub ANDs free-text terms, so every extra token shrinks the
+      // candidate set. The old 8-token cap demanded a candidate contain all
+      // eight of a multi-sentence seed's longest words — which nothing does,
+      // so Gate #1 triage reported "no candidates" on every real seed while
+      // looking healthy (Story #4541).
+      const seed = [
+        'Make /plan persist honest and resumable.',
+        'A transient GitHub failure during story creation strands live',
+        'agent::ready Stories that a re-run duplicates, and ready is applied',
+        'before the checkpoint that ceremony routing depends on exists.',
+      ].join(' ');
+      const terms = buildOpenStorySearchQuery(seed)
+        .split(' ')
+        .filter((t) => !t.startsWith('label:') && !t.startsWith('state:'));
+      assert.ok(
+        terms.length <= 3,
+        `ANDed free-text terms must stay few; got ${terms.length}: ${terms.join(', ')}`,
+      );
+      const seedTokens = tokenize(seed);
+      assert.ok(terms.every((t) => seedTokens.has(t)));
     });
   });
 
@@ -213,7 +235,6 @@ describe('duplicate-search', () => {
 
       assert.match(seenQuery, /label:"type::story"/);
       assert.match(seenQuery, /\bstate:open\b/);
-      assert.match(seenQuery, /webhook/);
       assert.ok(out.length >= 1);
       assert.ok(out.some((c) => c.id === 101 || c.id === 103));
       assert.ok(!out.some((c) => c.id === 102));
@@ -243,6 +264,91 @@ describe('duplicate-search', () => {
         provider,
       });
       assert.equal(listCalled, false);
+    });
+  });
+
+  describe('findSimilarOpenStories — empty-search fallback (Story #4541)', () => {
+    // The narrowing query ANDs seed tokens, so on a real multi-sentence seed
+    // it matches nothing. Treating that as an authoritative "no duplicates
+    // exist" is what made Gate #1 triage look healthy while never actually
+    // looking. An empty search is evidence about the query, not the backlog.
+    const MULTI_SENTENCE_SEED = [
+      'Make /plan persist resumable and align its gates with the authoring',
+      'contract. A transient GitHub failure during story creation strands',
+      'live Stories that a re-run duplicates. Detect duplicate webhook',
+      'payloads via fingerprint hashing before creating anything.',
+    ].join(' ');
+
+    it('falls back to label-listing + ranking when search returns no hits', async () => {
+      let listCalled = false;
+      const provider = {
+        async searchIssues() {
+          return []; // The AND-narrowed query matched nothing.
+        },
+        async listIssuesByLabel() {
+          listCalled = true;
+          return WEBHOOK_STORIES.map((s) => ({
+            number: s.id,
+            title: s.title,
+            body: s.body,
+          }));
+        },
+      };
+
+      const out = await findSimilarOpenStories({
+        seed: MULTI_SENTENCE_SEED,
+        provider,
+        owner: 'acme',
+        repo: 'core',
+      });
+
+      assert.equal(
+        listCalled,
+        true,
+        'an empty search must fall through to the label listing',
+      );
+      assert.ok(
+        out.length >= 1,
+        'genuinely overlapping open Stories must be reported as candidates',
+      );
+      assert.ok(out.some((c) => c.id === 101 || c.id === 103));
+      assert.ok(!out.some((c) => c.id === 102), 'unrelated Story stays out');
+    });
+
+    it('reports no candidates when search is empty and nothing genuinely overlaps', async () => {
+      // The fallback widens the candidate pool, not the verdict — the
+      // Jaccard ranker still has to clear minScore.
+      const provider = {
+        async searchIssues() {
+          return [];
+        },
+        async listIssuesByLabel() {
+          return [
+            {
+              number: 102,
+              title: 'Upgrade the billing invoice PDF renderer',
+              body: 'Swap the PDF engine for the invoice export path.',
+            },
+          ];
+        },
+      };
+      const out = await findSimilarOpenStories({
+        seed: MULTI_SENTENCE_SEED,
+        provider,
+      });
+      assert.deepEqual(out, []);
+    });
+
+    it('returns empty without a list surface when search is empty', async () => {
+      const provider = {
+        async searchIssues() {
+          return [];
+        },
+      };
+      assert.deepEqual(
+        await findSimilarOpenStories({ seed: MULTI_SENTENCE_SEED, provider }),
+        [],
+      );
     });
   });
 

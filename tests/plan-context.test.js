@@ -466,10 +466,13 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
     }
   });
 
-  it('holds even when the seed-file corpus sits at the planning-context budget cap', async () => {
-    // A body larger than planningContext.maxBytes (50 KB default) downgrades
-    // to the applyBudget summary representation — the ceiling must hold for
-    // the worst legal case, not just tiny fixtures.
+  it('holds even for a seed far larger than the retired planning-context cap', async () => {
+    // Story #4541: this used to claim an over-cap body "downgrades to the
+    // applyBudget summary representation". It never did — both envelope
+    // builders discard the budgeted body and ship the raw seed, which is
+    // exactly what the final assertion below has always proved. The budget
+    // pass and its --full-context flag are gone; the envelope byte ceiling
+    // is the only live bound, and it must hold for a large seed.
     const hugeBody = `${CLEAR_EPIC_BODY}\n## Appendix\n\n${'lorem ipsum dolor sit amet consectetur. '.repeat(4000)}`;
     const env = await buildPlanContext({
       mode: 'seed-file',
@@ -483,10 +486,23 @@ describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
       bytes < PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
       `budget-capped envelope is ${bytes} bytes — ceiling is ${PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}`,
     );
-    // Seed-file mode keeps the raw content on the envelope; the budget
-    // engages on the authoring-context fold (snapshot / docs), not by
-    // nulling `seed.content`.
+    // Seed-file mode carries the raw content verbatim — deliberate, and the
+    // reason the budget pass was dead rather than merely redundant.
     assert.equal(env.seed.content, hugeBody);
+  });
+
+  it('carries no dead budget artifacts on the envelope (Story #4541)', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    // `bodySummary` was the budget pass's downgrade output. Nothing read it,
+    // and no builder ever put it on an envelope.
+    assert.ok(!('bodySummary' in env));
+    assert.ok(!('epic' in env));
   });
 });
 

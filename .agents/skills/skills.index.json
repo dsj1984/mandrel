@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-16T17:27:06.020Z",
+  "generatedAt": "2026-07-16T19:18:17.200Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -118,7 +118,7 @@
       "category": "core",
       "path": ".agents/skills/core/scope-triage/SKILL.md",
       "description": "Optional split-advisory for `/plan`. Under v2 there is no epic|story routing verdict — `/plan` always authors Stories. Use this skill only when judging whether a draft should stay one Story or legitimately split (near-zero overlap or an architectural seam).",
-      "policyCapsuleBullets": 1,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": null
     },

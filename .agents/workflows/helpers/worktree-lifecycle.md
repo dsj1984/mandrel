@@ -19,32 +19,29 @@ for the broader execution flow.
 
 ## Configuration
 
-All knobs live under `delivery.worktreeIsolation` in `.agentrc.json`:
+All knobs live under `delivery.worktreeIsolation` in `.agentrc.json`. The
+**key list, types, and accepted enum values are not restated here** — the
+runtime schema in `config-resolver.js` validates them and
+[`.agents/docs/configuration.md`](../../docs/configuration.md) is generated
+from it, so a copy in this file could only drift out of agreement with the
+thing that actually enforces it. Read the generated table for the shape.
 
-```jsonc
-{
-  "delivery": {
-    "worktreeIsolation": {
-      "enabled": true, // master switch; false = single-tree (v5.5.1)
-      "root": ".worktrees", // relative to repo root; must stay inside it
-      "nodeModulesStrategy": "clone", // clone | per-worktree | symlink | pnpm-store
-      "primeFromPath": null, // required when strategy = "symlink"
-      "allowSymlinkOnWindows": false, // explicit opt-in for symlink on win32
-      "reapOnSuccess": true, // remove worktree after successful story merge
-      "bootstrapFiles": [
-        ".env",
-        ".mcp.json",
-        ".agentrc.local.json",
-        ".agents/instructions.local.md"
-      ]
-    }
-  }
-}
-```
+What that table cannot tell you is which knob to reach for, so this document
+covers the judgement instead, each in its own section below:
 
-The schema is validated by `config-resolver.js`. Unknown strategies, `root`
-values that escape the repo root, and shell-metacharacter injection in `root`
-are all rejected at config-load time.
+- `enabled` — the master switch; see [Fallback: single-tree mode](#fallback-single-tree-mode).
+- `nodeModulesStrategy`, `primeFromPath`, `allowSymlinkOnWindows` — see
+  [node_modules strategies](#node_modules-strategies).
+- `root` — where worktrees materialize; see [Windows notes](#windows-notes)
+  for the long-path constraint on it.
+- `reapOnSuccess` — drives the **Reap** phase in the lifecycle table below.
+- `bootstrapFiles` — untracked, per-developer files (local env, MCP, and
+  `.agentrc.local.json` / `instructions.local.md` overrides) copied into each
+  new worktree, because a worktree checkout carries only tracked content and
+  would otherwise boot without the operator's local configuration.
+
+Config-load rejects unknown strategies, `root` values that escape the repo
+root, and shell-metacharacter injection in `root`.
 
 ## Lifecycle
 

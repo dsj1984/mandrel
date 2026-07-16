@@ -145,7 +145,7 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
       story('s1', { ...VALID_STORY_BODY, acceptance: [] }),
     ]);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /body\.acceptance must list at least one criterion/);
+    assert.match(errs[0], /acceptance must list at least one criterion/);
   });
 
   it('rejects empty verify[]', () => {
@@ -153,7 +153,7 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
       story('s1', { ...VALID_STORY_BODY, verify: [] }),
     ]);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /body\.verify must list at least one entry/);
+    assert.match(errs[0], /verify must list at least one entry/);
   });
 
   it('prefixes errors with "Story" for story tickets', () => {

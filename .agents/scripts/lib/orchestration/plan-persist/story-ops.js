@@ -15,6 +15,8 @@
  * @module lib/orchestration/plan-persist/story-ops
  */
 
+import { createHash } from 'node:crypto';
+import { Logger } from '../../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../../label-constants.js';
 import {
   parse as parseStoryBody,
@@ -32,6 +34,109 @@ import {
 // plan that nothing ever deleted, and their only external consumer was the
 // (now deleted) `--run` resolver. Sibling order survives in the
 // `blocked by #N` body footers this module already writes.
+
+/**
+ * Marker prefix for the per-Story plan fingerprint appended to every
+ * created body. `createStoryIssues` greps open `type::story` issues for
+ * `<!-- plan-story: <fingerprint> -->` to decide whether a Story already
+ * exists — the idempotency half of the resumable-create contract.
+ */
+const PLAN_FINGERPRINT_MARKER_PREFIX = 'plan-story:';
+
+/** Length of the hex fingerprint digest. Collision-free at plan scale. */
+const PLAN_FINGERPRINT_LENGTH = 16;
+
+/**
+ * Compute the deterministic identity of one authored Story within a plan.
+ *
+ * Derived from `slug` + `title` only — deliberately **not** the body. The
+ * body is rewritten during creation to substitute real issue ids into
+ * `depends_on` footers, so a body-derived fingerprint would differ between
+ * the aborted run and its resume and defeat the lookup. Slug and title are
+ * fixed by `stories.json`, so re-running persist over the same authored
+ * artifacts reproduces the same fingerprint.
+ *
+ * The two fields are joined on a NUL separator, written as the `\u0000`
+ * escape and never as a raw byte — a literal NUL would make git classify
+ * this file as binary and silently drop its diffs. NUL cannot occur in a
+ * slug or a title, so the join is unambiguous: `{slug:'a-b', title:'c'}` and
+ * `{slug:'a', title:'b-c'}` cannot collide the way a hyphen or space
+ * separator would let them.
+ *
+ * @param {{ slug: string, title: string }} story
+ * @returns {string} Hex digest.
+ */
+export function planStoryFingerprint({ slug, title }) {
+  return createHash('sha256')
+    .update(`${slug}\u0000${title}`)
+    .digest('hex')
+    .slice(0, PLAN_FINGERPRINT_LENGTH);
+}
+
+/**
+ * Render the HTML-comment marker carrying a Story's plan fingerprint. It is
+ * invisible in GitHub's rendered issue body and survives edits to every
+ * other section.
+ *
+ * @param {string} fingerprint
+ * @returns {string}
+ */
+function planFingerprintMarker(fingerprint) {
+  return `<!-- ${PLAN_FINGERPRINT_MARKER_PREFIX} ${fingerprint} -->`;
+}
+
+/**
+ * Labels the authoring pass is never allowed to set. The `agent::*` axis is
+ * the runtime's lifecycle state (persist owns the terminal `agent::ready`
+ * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy, and
+ * `persona::*` is a retired axis.
+ */
+const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
+  'agent::',
+  'type::',
+  'persona::',
+]);
+
+/** GitHub's own label-name ceiling. */
+const MAX_LABEL_LENGTH = 50;
+
+/**
+ * Sanitize the author-supplied `labels[]` on a plan Story (Story #4541).
+ *
+ * The schema descriptor and the authoring prompt both ask for `labels[]`,
+ * but persist never read the field — it hard-coded its own list, so every
+ * authored label was silently discarded. Rather than keep asking for input
+ * that goes nowhere, apply it: drop the axes the runtime owns, drop
+ * malformed entries, dedupe, and always guarantee `type::story`.
+ *
+ * @param {unknown} rawLabels
+ * @param {string} slug For the dropped-label warning.
+ * @returns {string[]} Sanitized labels, always including `type::story`.
+ */
+export function sanitizeAuthoredLabels(rawLabels, slug) {
+  const kept = new Set([TYPE_LABELS.STORY]);
+  const dropped = [];
+  for (const raw of Array.isArray(rawLabels) ? rawLabels : []) {
+    const label = typeof raw === 'string' ? raw.trim() : '';
+    if (label === '' || label.length > MAX_LABEL_LENGTH) {
+      dropped.push(String(raw));
+      continue;
+    }
+    if (label === TYPE_LABELS.STORY) continue;
+    if (FORBIDDEN_LABEL_PREFIXES.some((p) => label.startsWith(p))) {
+      dropped.push(label);
+      continue;
+    }
+    kept.add(label);
+  }
+  if (dropped.length > 0) {
+    Logger.warn(
+      `[plan-persist] Story "${slug}": dropped ${dropped.length} authored ` +
+        `label(s) the runtime owns or cannot apply: ${dropped.join(', ')}.`,
+    );
+  }
+  return [...kept];
+}
 
 function bodyObjectFromTicket(ticket) {
   if (typeof ticket.body === 'string') {
@@ -102,7 +207,7 @@ function syncContractFieldFromTopLevel(ticket, bodyObject, field) {
  * executable body, so it is deliberately not serialized into the markdown.
  *
  * @param {object} ticket
- * @returns {{ slug: string, title: string, bodyObject: object, depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }}
+ * @returns {{ slug: string, title: string, bodyObject: object, depends_on: string[], labels: string[], supersedes: Array<{ id: number, note: string|null }> }}
  */
 export function normalizeStoryTicket(ticket) {
   if (!ticket || typeof ticket !== 'object') {
@@ -126,8 +231,9 @@ export function normalizeStoryTicket(ticket) {
   syncContractFieldFromTopLevel(ticket, bodyObject, 'verify');
   const depends_on = normalizeDependsOn(ticket, bodyObject);
   const supersedes = normalizeSupersedes(ticket, slug);
+  const labels = sanitizeAuthoredLabels(ticket.labels, slug);
 
-  return { slug, title, bodyObject, depends_on, supersedes };
+  return { slug, title, bodyObject, depends_on, labels, supersedes };
 }
 
 /**
@@ -170,11 +276,12 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
 }
 
 function assembleOnePlanStory(ticket, opts) {
-  const { slug, title, bodyObject, depends_on, supersedes } =
+  const { slug, title, bodyObject, depends_on, labels, supersedes } =
     normalizeStoryTicket(ticket);
   const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
     sharedSpec: opts.sharedSpec ?? null,
   });
+  const fingerprint = planStoryFingerprint({ slug, title });
   const body = serializeStoryBody({ ...folded, depends_on });
   return {
     story: {
@@ -184,6 +291,8 @@ function assembleOnePlanStory(ticket, opts) {
       bodyObject: { ...folded, depends_on },
       acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
       depends_on,
+      labels,
+      fingerprint,
       supersedes,
     },
   };
@@ -272,21 +381,113 @@ function orderStoriesByDependencies(stories) {
 }
 
 /**
- * Create Story issues via `provider.createIssue`. Applies `type::story`,
- * `agent::ready`, and — when N>1 — a shared plan-run label.
+ * Index the open `type::story` backlog by plan fingerprint so a re-run can
+ * recognise Stories a previous, partially-failed persist already created.
  *
- * @param {object} args
+ * Best-effort by construction: a provider with no `listIssuesByLabel` (or a
+ * listing that errors) yields an empty index and the create loop proceeds
+ * un-deduplicated, exactly as it did before. That degrades resume, not
+ * correctness of a first run — so it warns rather than throws.
+ *
+ * @param {object} provider
+ * @returns {Promise<Map<string, { id: number, title: string, url?: string }>>}
+ */
+async function indexExistingStoriesByFingerprint(provider) {
+  const index = new Map();
+  if (typeof provider?.listIssuesByLabel !== 'function') {
+    Logger.warn(
+      '[plan-persist] provider does not expose listIssuesByLabel — cannot ' +
+        'check for Stories a previous persist already created. A re-run after ' +
+        'a mid-creation failure may duplicate them.',
+    );
+    return index;
+  }
+  let issues;
+  try {
+    issues = await provider.listIssuesByLabel({
+      state: 'open',
+      labels: TYPE_LABELS.STORY,
+    });
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] open-Story lookup failed (${err.message}) — proceeding ` +
+        'without resume; a re-run may duplicate Stories.',
+    );
+    return index;
+  }
+  for (const issue of Array.isArray(issues) ? issues : []) {
+    const body = typeof issue?.body === 'string' ? issue.body : '';
+    const match = body.match(
+      new RegExp(
+        `<!--\\s*${PLAN_FINGERPRINT_MARKER_PREFIX}\\s*([0-9a-f]+)\\s*-->`,
+      ),
+    );
+    if (!match) continue;
+    const id = Number(issue.number ?? issue.id);
+    if (!Number.isInteger(id)) continue;
+    index.set(match[1], {
+      id,
+      title: issue.title ?? '',
+      url: issue.html_url ?? issue.url ?? undefined,
+    });
+  }
+  return index;
+}
+
+/**
+ * Render the body actually posted for a Story: the assembled markdown with
+ * sibling `depends_on` slugs resolved to real issue ids, plus the invisible
+ * plan-fingerprint marker that makes the create loop resumable.
+ *
+ * @param {object} story
+ * @param {Map<string, number>} idBySlug
+ * @returns {string}
+ */
+function renderStoryBodyForCreate(story, idBySlug) {
+  const dependencyRefs = story.depends_on.map(
+    (slug) => `#${idBySlug.get(slug)}`,
+  );
+  const base =
+    dependencyRefs.length === 0
+      ? story.body
+      : serializeStoryBody(
+          { ...story.bodyObject, depends_on: dependencyRefs },
+          { includeFooter: true },
+        );
+  return `${base}\n\n${planFingerprintMarker(story.fingerprint)}`;
+}
+
+/**
+ * Create Story issues via `provider.createIssue`, resumably.
+ *
+ * **Stories are born without `agent::ready`** (Story #4541). They used to
+ * carry it in the creating POST while the `risk-verdict` and
+ * `story-plan-state` checkpoints were upserted afterwards, so anything that
+ * picked a Story up inside that window — or after a comment failure aborted
+ * the loop — read the checkpoint as `null`, degraded to the neutral risk
+ * posture, and silently discarded the planner's risk signal. Creation now
+ * applies `type::story` plus the sanitized authored labels only;
+ * `markStoriesReady` performs the flip as the terminal step, once every
+ * checkpoint is on the ticket.
+ *
+ * **The loop is resumable.** Each body carries a plan-fingerprint marker,
+ * and the open `type::story` backlog is indexed by it before the first POST.
+ * A Story whose fingerprint already exists is adopted rather than
+ * re-created, so a re-run after a 502 at story *k* of *N* completes the
+ * cohort instead of minting a second copy of `1..k-1`.
+ *
  * Story #4540 retired the `plan-run::<id>` label this used to apply when
  * N>1. Batch identity was the wrong axis to encode: it could not express an
  * edge to a Story planned in a different run, and ordering already lives in
  * the `blocked by #N` footers written below — which `/deliver`'s resolver
  * reads directly, alongside native GitHub edges, from live state.
  *
+ * @param {object} args
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
- * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string }> }>}
+ * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }> }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
   if (typeof provider?.createIssue !== 'function') {
@@ -296,7 +497,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const list = Array.isArray(stories) ? stories : [];
-  const labels = [TYPE_LABELS.STORY, AGENT_LABELS.READY];
 
   if (opts.dryRun) {
     return {
@@ -305,27 +505,37 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
         id: -(i + 1),
         title: s.title,
         url: undefined,
+        adopted: false,
       })),
     };
   }
 
+  const existing = await indexExistingStoriesByFingerprint(provider);
   const created = [];
-  const createdBySlug = new Map();
+  const idBySlug = new Map();
+
   for (const story of orderStoriesByDependencies(list)) {
-    const dependencyRefs = story.depends_on.map(
-      (slug) => `#${createdBySlug.get(slug)}`,
-    );
-    const body =
-      dependencyRefs.length === 0
-        ? story.body
-        : serializeStoryBody(
-            { ...story.bodyObject, depends_on: dependencyRefs },
-            { includeFooter: true },
-          );
+    const already = existing.get(story.fingerprint);
+    if (already) {
+      Logger.info(
+        `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
+          `#${already.id} (plan fingerprint ${story.fingerprint}) — skipping create.`,
+      );
+      created.push({
+        slug: story.slug,
+        id: already.id,
+        title: story.title,
+        url: already.url,
+        adopted: true,
+      });
+      idBySlug.set(story.slug, already.id);
+      continue;
+    }
+
     const result = await provider.createIssue({
       title: story.title,
-      body,
-      labels: [...labels],
+      body: renderStoryBodyForCreate(story, idBySlug),
+      labels: [...story.labels],
     });
     const id = result?.id ?? result?.number;
     if (!Number.isInteger(id)) {
@@ -338,9 +548,58 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       id,
       title: story.title,
       url: result.url,
+      adopted: false,
     });
-    createdBySlug.set(story.slug, id);
+    idBySlug.set(story.slug, id);
   }
 
   return { created };
+}
+
+/**
+ * Flip every created Story to `agent::ready` — the terminal step of persist
+ * (Story #4541).
+ *
+ * This is what makes `agent::ready` *mean* "fully persisted": by the time it
+ * lands, the Story's `risk-verdict` and `story-plan-state` checkpoints are
+ * already on the ticket, so a `/deliver` that picks it up cannot read a null
+ * checkpoint and silently fall back to the neutral risk posture.
+ *
+ * Fails closed: an un-flipped Story is invisible to `/deliver`, which is the
+ * safe direction — the operator is told exactly which ids need the label.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {Array<{ id: number, slug: string }>} args.created
+ * @returns {Promise<{ readied: number[] }>}
+ */
+export async function markStoriesReady({ provider, created }) {
+  if (typeof provider?.updateTicket !== 'function') {
+    throw new Error(
+      '[plan-persist] provider does not expose updateTicket; cannot flip ' +
+        'Stories to agent::ready.',
+    );
+  }
+  const readied = [];
+  const failed = [];
+  for (const story of created) {
+    try {
+      await provider.updateTicket(story.id, {
+        labels: { add: [AGENT_LABELS.READY] },
+      });
+      readied.push(story.id);
+    } catch (err) {
+      failed.push(`#${story.id} (${story.slug}): ${err.message}`);
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(
+      `[plan-persist] ${failed.length} Story(ies) were created with their ` +
+        'checkpoints but could not be flipped to agent::ready:\n' +
+        `${failed.map((f) => `  - ${f}`).join('\n')}\n` +
+        'They are invisible to /deliver until the label lands. Re-run persist ' +
+        '(it resumes rather than duplicating) or add the label by hand.',
+    );
+  }
+  return { readied };
 }
