@@ -163,9 +163,19 @@ jobs:
         # docsContextFiles byte totals and fails when a tier grows beyond the
         # committed tolerance, so doc-context growth becomes a conscious
         # baseline-refresh decision.
+        #
+        # Story #4575: the dead-export ratchet runs a second, production-mode
+        # pass (baseline baselines/dead-exports-production.json). The default
+        # pass treats tests/** as knip entry points, so an export whose last
+        # importer is a test still reads as used — test usage keeps
+        # production-dead code invisible. The production pass discounts test
+        # importers and ratchets separately, because this repo sanctions
+        # test-only exports (.agents/rules/test-seams.md) and its row set is
+        # therefore large and largely intentional.
         run: |
           node .agents/scripts/check-arch-cycles.js --format text
           node .agents/scripts/check-dead-exports.js
+          node .agents/scripts/check-dead-exports.js --production
           node .agents/scripts/check-context-budget.js
 
   windows-smoke:

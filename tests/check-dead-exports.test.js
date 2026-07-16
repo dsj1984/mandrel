@@ -5,12 +5,15 @@ import path from 'node:path';
 import { test } from 'node:test';
 import {
   diffRows,
-  extractRowsFromKnip,
   loadBaseline,
   parseArgv,
   renderDiff,
   runCli,
 } from '../.agents/scripts/check-dead-exports.js';
+import {
+  extractRowsFromKnip,
+  runKnip,
+} from '../.agents/scripts/lib/dead-exports-knip.js';
 
 /**
  * Unit coverage for the advisory dead-export ratchet.
@@ -408,4 +411,196 @@ test('runCli: surfaces knip spawn failure as advisory warning', async () => {
   });
   assert.equal(exit, 0);
   assert.match(stderr.text(), /simulated spawn failure/);
+});
+
+// Story #4575 — the production-mode (test-only-importer discount) pass.
+//
+// Default mode treats `tests/**` as knip entry points, so an export whose only
+// remaining importer is a test reads as "used" and stays invisible. Production
+// mode drops the test entries, surfacing exports that no production code
+// reaches. The two passes ratchet against separate baselines so the default
+// gate keeps its meaning and the production gate can carry its own (larger)
+// starting set.
+
+test('parseArgv: production defaults to false', () => {
+  assert.equal(parseArgv([]).production, false);
+});
+
+test('parseArgv: --production sets the flag', () => {
+  assert.equal(parseArgv(['--production']).production, true);
+});
+
+test('parseArgv: --production composes with --baseline and --json', () => {
+  const out = parseArgv(['--production', '--baseline', 'b.json', '--json']);
+  assert.equal(out.production, true);
+  assert.equal(out.baselinePath, 'b.json');
+  assert.equal(out.json, true);
+});
+
+test('runKnip: omits --production by default', () => {
+  let capturedArgs = null;
+  runKnip({
+    spawn: (_cmd, args) => {
+      capturedArgs = args;
+      return { stdout: '{"issues":[]}' };
+    },
+  });
+  assert.ok(!capturedArgs.includes('--production'));
+});
+
+test('runKnip: passes --production when requested', () => {
+  let capturedArgs = null;
+  runKnip({
+    production: true,
+    spawn: (_cmd, args) => {
+      capturedArgs = args;
+      return { stdout: '{"issues":[]}' };
+    },
+  });
+  assert.ok(capturedArgs.includes('--production'));
+});
+
+test('runCli: --production defaults to the production baseline path', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-prod-'));
+  const baselinePath = path.join(
+    tmp,
+    'baselines',
+    'dead-exports-production.json',
+  );
+  fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({ kernelVersion: '6.17.1', rows: [] }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(knipOutPath, JSON.stringify({ issues: [] }));
+
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: ['--production', '--knip-output', knipOutPath, '--json'],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.equal(exit, 0);
+  const envelope = JSON.parse(stdout.text());
+  assert.equal(envelope.baselinePath, baselinePath);
+  assert.equal(envelope.mode, 'production');
+});
+
+test('runCli: default mode keeps the original baseline path and mode tag', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-prod-'));
+  const baselinePath = path.join(tmp, 'baselines', 'dead-exports.json');
+  fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({ kernelVersion: '6.17.1', rows: [] }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(knipOutPath, JSON.stringify({ issues: [] }));
+
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: ['--knip-output', knipOutPath, '--json'],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.equal(exit, 0);
+  const envelope = JSON.parse(stdout.text());
+  assert.equal(envelope.baselinePath, baselinePath);
+  assert.equal(envelope.mode, 'default');
+});
+
+test('runCli: --baseline still overrides the production default', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-prod-'));
+  const baselinePath = path.join(tmp, 'custom.json');
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({ kernelVersion: '6.17.1', rows: [] }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(knipOutPath, JSON.stringify({ issues: [] }));
+
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: [
+      '--production',
+      '--baseline',
+      baselinePath,
+      '--knip-output',
+      knipOutPath,
+      '--json',
+    ],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.equal(exit, 0);
+  assert.equal(JSON.parse(stdout.text()).baselinePath, baselinePath);
+});
+
+test('runCli: --production ratchets independently (added row fails the gate)', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-prod-'));
+  const baselinePath = path.join(
+    tmp,
+    'baselines',
+    'dead-exports-production.json',
+  );
+  fs.mkdirSync(path.dirname(baselinePath), { recursive: true });
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({
+      kernelVersion: '6.17.1',
+      rows: [{ file: 'a.js', symbol: 'seam' }],
+    }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(
+    knipOutPath,
+    JSON.stringify({
+      issues: [
+        { file: 'a.js', exports: [{ name: 'seam' }] },
+        { file: 'b.js', exports: [{ name: 'newlyDead' }] },
+      ],
+    }),
+  );
+
+  const stdout = captureStream();
+  const exit = await runCli({
+    argv: ['--production', '--knip-output', knipOutPath, '--json'],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.equal(exit, 1);
+  assert.deepEqual(JSON.parse(stdout.text()).added, [
+    { file: 'b.js', symbol: 'newlyDead' },
+  ]);
+});
+
+test('runCli: --production labels its human output distinctly', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dead-exports-prod-'));
+  const baselinePath = path.join(tmp, 'baseline.json');
+  fs.writeFileSync(
+    baselinePath,
+    JSON.stringify({ kernelVersion: '6.17.1', rows: [] }),
+  );
+  const knipOutPath = path.join(tmp, 'knip.json');
+  fs.writeFileSync(knipOutPath, JSON.stringify({ issues: [] }));
+
+  const stdout = captureStream();
+  await runCli({
+    argv: [
+      '--production',
+      '--baseline',
+      baselinePath,
+      '--knip-output',
+      knipOutPath,
+    ],
+    cwd: tmp,
+    stdout: stdout.stream,
+    stderr: captureStream().stream,
+  });
+  assert.match(stdout.text(), /dead-exports:production/);
 });
