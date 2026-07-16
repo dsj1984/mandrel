@@ -460,14 +460,25 @@ export async function toggleTasklistCheckbox(
 /**
  * Post a structured comment to a ticket.
  *
+ * Returns whatever the provider's `postComment` resolved to (Story #4543).
+ * Previously the result was swallowed, which made it impossible for a caller
+ * to reference the comment it had just written — the terminal envelope's
+ * `blocked.frictionCommentId` pointer needs exactly that, so an operator can
+ * be sent straight to the remediation instead of told to go find it. Callers
+ * that don't need the id simply ignore the return, so this is additive.
+ *
+ * The shape is provider-defined and may be `undefined` for providers that do
+ * not surface one; callers must treat the id as best-effort.
+ *
  * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {'progress'|'friction'|'notification'} type
  * @param {string} payload
+ * @returns {Promise<unknown>} The provider's `postComment` result.
  */
 export async function postStructuredComment(provider, ticketId, type, payload) {
   assertValidStructuredCommentType(type);
-  await provider.postComment(ticketId, {
+  const posted = await provider.postComment(ticketId, {
     type,
     body: payload,
   });
@@ -475,4 +486,5 @@ export async function postStructuredComment(provider, ticketId, type, payload) {
   // `findStructuredComment` against this ticket re-fetches and sees the
   // freshly-posted comment.
   invalidateRawCommentsCache(provider, ticketId);
+  return posted;
 }

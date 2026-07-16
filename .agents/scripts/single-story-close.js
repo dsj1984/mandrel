@@ -55,10 +55,34 @@
  * and therefore still blocks, which is what keeps the must-land contract
  * intact.
  *
- * Exit codes: 0 ok, 1 error (including a headless `--wait-merge` run that
- * gave up without a confirmed merge — see phase 9 above).
+ * Every invocation emits ONE schema-validated terminal envelope
+ * (`.agents/schemas/story-deliver-terminal.schema.json`, Story #4543) on
+ * stdout between `--- STORY DELIVER TERMINAL ---` markers. Its `status` is
+ * the contract; the exit code mirrors it:
+ *
+ *   0 — `landed`:  the PR merged, the Story is `agent::done`, and the
+ *                  post-land tail ran (follow-ups, status resync, local ref
+ *                  cleanup, base fast-forward).
+ *   3 — `pending`: RESUMABLE, not a failure. Either the per-invocation merge
+ *                  wait (`delivery.mergeWatch.maxWaitSeconds`, default 300s
+ *                  to fit a single host tool invocation) expired with the PR
+ *                  still healthy and in flight, or the operator owns the
+ *                  merge (`--no-wait-merge` / `--no-auto-merge` /
+ *                  `autoMerge: "strict"`). NO label was mutated and no
+ *                  `merge.unlanded` event was emitted. The envelope's
+ *                  `nextCommand` names the single command that resumes it,
+ *                  and the cumulative budget is anchored at the PR's
+ *                  createdAt so the resume does not restart the clock.
+ *   1 — `blocked` or `failed`: a classified hard block (the Story carries
+ *                  `agent::blocked` and a friction comment) or a phase crash.
+ *
+ * The distinct `pending` code is the point: before it, a close-and-land whose
+ * CI outlived the host's tool-invocation ceiling was killed mid-poll with no
+ * terminal path taken at all, and merely shrinking the budget instead would
+ * have misfiled every slow-CI run as a hard block.
  *
  * @see .agents/workflows/helpers/deliver-story.md
+ * @see .agents/schemas/story-deliver-terminal.schema.json
  */
 
 import { runAsCli } from './lib/cli-utils.js';
@@ -73,6 +97,7 @@ import {
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
+import { exitCodeForTerminal } from './lib/orchestration/story-deliver-terminal.js';
 
 // Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
 // facade (the same shim the `providers/github/` gateways use). The
@@ -100,6 +125,18 @@ export async function runSingleStoryClose(opts) {
   return mod.runSingleStoryClose(opts);
 }
 
-runAsCli(import.meta.url, runSingleStoryClose, {
+/**
+ * CLI entry — resolves the process exit code from the terminal envelope's
+ * status rather than from a thrown/not-thrown distinction, so `pending`
+ * (resumable) is distinguishable from `blocked` (come look) without parsing
+ * stdout. A genuine crash still propagates to `runAsCli`'s exit-1 handler.
+ */
+async function main() {
+  const outcome = await runSingleStoryClose();
+  return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+}
+
+runAsCli(import.meta.url, main, {
   source: 'single-story-close',
+  propagateExitCode: true,
 });

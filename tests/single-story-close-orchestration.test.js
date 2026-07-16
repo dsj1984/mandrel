@@ -202,6 +202,15 @@ function defaultGitUtilsMock({ pushImpl } = {}) {
         stdout: '',
         stderr: '',
       }),
+      // Story #4543 — the shared land tail (`phases/post-land.js`) reaps the
+      // local story ref and fast-forwards the base in-process, so `gitSpawn`
+      // is now in the close import graph via `post-land.js` and the
+      // `git-cleanup/phases/git-probes-ff.js` fast-forward probes. Same rule
+      // as the sync imports above: the static import resolves regardless of
+      // whether the tail runs, so the mock must surface a no-op variant or
+      // the loader throws "does not provide an export named 'gitSpawn'".
+      // status:1 = "ref absent", which is the tail's idempotent no-op path.
+      gitSpawn: (..._args) => ({ status: 1, stdout: '', stderr: '' }),
       // refs #3685 — single-story-close now reaches its phase chain (via the
       // lazily-imported runner) only after this mock is installed, so the
       // `changed-files.js` → `createGitInterface` import resolves against the
@@ -244,6 +253,12 @@ function defaultWorktreeManagerMock() {
           /* no-op stub */
         }
       },
+      // Story #4543 — the land tail's fast-forward probes
+      // (`git-cleanup/phases/git-probes.js`) statically import this, so it is
+      // now in the close import graph and the mock must surface it or the
+      // loader throws. Returns no worktrees: the tail's probes then take
+      // their no-op paths.
+      parseWorktreePorcelain: (..._args) => [],
     },
   };
 }

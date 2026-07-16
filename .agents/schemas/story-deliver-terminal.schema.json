@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/story-deliver-terminal.schema.json",
+  "title": "story-deliver-terminal",
+  "description": "The single terminal envelope every Story close-and-land invocation emits (Story #4543). Before this schema, the delivery tail had two divergent prose return contracts — one in .agents/workflows/helpers/deliver-story.md, a different one in .agents/agents/story-worker.md — and neither was validated by anything, so a caller could not tell a landed Story from a parked one without re-probing GitHub. This is the SSOT both now reference rather than restate. status is exactly one of landed | pending | blocked | failed; phase names where the run ended; tail carries per-step booleans so a partial-tail degradation is visible without failing an otherwise-landed merge; nextCommand names the single command that resumes or remediates the run, drawn from the same vocabulary deliver-recover.js prints.",
+  "type": "object",
+  "required": [
+    "kind",
+    "storyId",
+    "status",
+    "phase",
+    "elapsedSeconds",
+    "nextCommand"
+  ],
+  "properties": {
+    "kind": { "type": "string", "const": "story-deliver-terminal" },
+    "storyId": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "description": "landed — the PR merged, the Story is agent::done, and the post-land tail was attempted. pending — a bounded wait expired with the PR still in flight; NO label was mutated and no merge.unlanded event was emitted, so the run is resumable via nextCommand. blocked — a classified hard block; the Story carries agent::blocked and blocked.blockClass names the class. failed — a phase crashed; phase names which one.",
+      "enum": ["landed", "pending", "blocked", "failed"]
+    },
+    "phase": {
+      "type": "string",
+      "description": "The pipeline phase the run ended in. Mirrors the close pipeline's phase names so a terminal envelope is attributable to one step.",
+      "enum": [
+        "init",
+        "wrong-tree-guard",
+        "close-validation",
+        "base-sync",
+        "push",
+        "pull-request",
+        "code-review",
+        "auto-merge",
+        "confirm-merge",
+        "post-land",
+        "done"
+      ]
+    },
+    "storyBranch": { "type": ["string", "null"] },
+    "baseBranch": { "type": ["string", "null"] },
+    "pr": {
+      "type": ["object", "null"],
+      "description": "Live PR facts as observed at terminal time. null before a PR exists (an early-phase failure). `number` is nullable for the real case where `gh pr create` returned a URL the /pull/<n> parser could not read: the PR exists and its url is known, but nothing can address it by number — including auto-merge, which is why that path reports autoMergeReason: pr-number-unparseable.",
+      "required": ["number"],
+      "properties": {
+        "number": { "type": ["integer", "null"], "minimum": 1 },
+        "url": { "type": ["string", "null"] },
+        "state": {
+          "type": ["string", "null"],
+          "description": "GitHub PR state as last probed (OPEN | MERGED | CLOSED)."
+        },
+        "checksStatus": {
+          "type": ["string", "null"],
+          "description": "Aggregate required-check rollup at terminal time.",
+          "enum": [
+            "success",
+            "pending",
+            "still-running",
+            "failure",
+            "unknown",
+            null
+          ]
+        },
+        "autoMergeEnabled": { "type": ["boolean", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "gates": {
+      "type": "object",
+      "description": "Outcome of each close gate this invocation was responsible for. A gate the run skipped (--skip-validation, or a phase it never reached) reports \"skipped\" rather than being omitted, so a missing gate is never mistaken for a passing one.",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["passed", "failed", "skipped"]
+      }
+    },
+    "tail": {
+      "type": ["object", "null"],
+      "description": "Per-step outcomes of the post-land tail. Deliberately per-step booleans rather than one aggregate success bit: the worktree-reap defect this repo fixed existed precisely because a phase reported an outcome it never checked, and an aggregate invites that class of bug back. A false here degrades the report, never the land.",
+      "required": [
+        "followUps",
+        "statusResync",
+        "refCleanup",
+        "baseFastForward"
+      ],
+      "properties": {
+        "followUps": { "type": "boolean" },
+        "statusResync": { "type": "boolean" },
+        "refCleanup": { "type": "boolean" },
+        "baseFastForward": { "type": "boolean" },
+        "details": {
+          "type": "object",
+          "description": "Per-step diagnostic detail — the reason a false step reported false.",
+          "additionalProperties": { "type": ["string", "null"] }
+        }
+      },
+      "additionalProperties": false
+    },
+    "blocked": {
+      "type": ["object", "null"],
+      "description": "Present iff status === \"blocked\". blockClass comes from the shared classifier (merge-block-class.js) or the merged-flip-failed terminal, never an ad hoc string.",
+      "required": ["blockClass", "reason"],
+      "properties": {
+        "blockClass": {
+          "type": "string",
+          "enum": [
+            "checks-pending-timeout",
+            "checks-failed",
+            "branch-protection-human-required",
+            "arm-failure",
+            "api-race-other",
+            "predicate-refused",
+            "merged-flip-failed"
+          ]
+        },
+        "reason": { "type": "string", "minLength": 1 },
+        "frictionCommentId": {
+          "type": ["string", "null"],
+          "description": "Pointer to the friction comment carrying the operator-facing remediation."
+        }
+      },
+      "additionalProperties": false
+    },
+    "failure": {
+      "type": ["object", "null"],
+      "description": "Present iff status === \"failed\".",
+      "required": ["reason"],
+      "properties": {
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "nextCommand": {
+      "type": ["string", "null"],
+      "description": "The single command that advances this Story from where it stopped, or null when status === \"landed\" and nothing remains. Shares its vocabulary with deliver-recover.js so recovery and normal resumption speak one language."
+    },
+    "elapsedSeconds": { "type": "number", "minimum": 0 },
+    "waitBudget": {
+      "type": ["object", "null"],
+      "description": "Merge-wait accounting. maxWaitSeconds bounds THIS invocation (defaulting under the host's single-tool-invocation ceiling); cumulativeSeconds is anchored at the PR's createdAt so a resume does not restart the clock, and maxBudgetSeconds bounds that cumulative total.",
+      "properties": {
+        "maxWaitSeconds": { "type": "integer", "minimum": 1 },
+        "waitedSeconds": { "type": "number", "minimum": 0 },
+        "cumulativeSeconds": { "type": "number", "minimum": 0 },
+        "maxBudgetSeconds": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

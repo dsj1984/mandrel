@@ -11,6 +11,10 @@ import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
 import { releaseStoryLease } from '../single-story-lease-guard.js';
+import {
+  buildTerminalEnvelope,
+  NEXT_COMMANDS,
+} from '../story-deliver-terminal.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
@@ -25,16 +29,44 @@ import { runWrongTreeGuardPhase } from './phases/wrong-tree-guard.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
+/**
+ * Emit the terminal envelope on stdout alongside the legacy close result.
+ *
+ * Both are printed: the envelope is the contract callers parse (Story
+ * #4543), while `STORY CLOSE RESULT` stays byte-compatible for the existing
+ * surfaces that grep it. One writer, one place — so the envelope can never
+ * be emitted from a path that forgot it.
+ */
+function emitTerminal({ terminal, result }) {
+  if (result) {
+    Logger.info(
+      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+    );
+  }
+  Logger.info(
+    `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+  );
+}
+
 function alreadyClosedResult(storyId) {
-  return {
-    success: true,
-    result: {
-      storyId,
-      standalone: true,
-      action: 'noop',
-      reason: 'already-closed',
-    },
+  const result = {
+    storyId,
+    standalone: true,
+    action: 'noop',
+    reason: 'already-closed',
   };
+  // Idempotent re-run against a finished Story. `landed` is the honest
+  // status — the issue is closed, so the work is on the base branch — and
+  // there is nothing left to command.
+  const terminal = buildTerminalEnvelope({
+    storyId,
+    status: 'landed',
+    phase: 'done',
+    nextCommand: null,
+    elapsedSeconds: 0,
+  });
+  emitTerminal({ terminal, result });
+  return { success: true, result, terminal };
 }
 
 function resolveWorktreePath({ cwd, config, storyId }) {
@@ -236,11 +268,96 @@ function closeResult({
     waitedForMerge,
     merged,
     note: waitedForMerge
-      ? 'Headless must-land: PR merge confirmed. Story flipped agent::closing → agent::done and the issue closed (confirmStoryMerged).'
+      ? 'Close-and-land: PR merge confirmed. Story flipped agent::closing → agent::done, the issue closed (confirmStoryMerged), and the post-land tail ran.'
       : autoMergeEnabled
         ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
         : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
   };
+}
+
+/**
+ * Map a `runConfirmMergePhase` outcome onto the schema-validated terminal
+ * envelope (Story #4543). One writer, one shape — the two prose contracts
+ * this replaces disagreed with each other precisely because each surface
+ * assembled its own.
+ *
+ * @returns {object} A validated `story-deliver-terminal` envelope.
+ */
+function terminalFromWaitOutcome({
+  waitOutcome,
+  storyId,
+  storyBranch,
+  baseBranch,
+  prNumber,
+  prUrl,
+  autoMergeEnabled,
+  gates,
+  elapsedSeconds,
+}) {
+  const prBase = {
+    number: prNumber,
+    url: prUrl ?? null,
+    autoMergeEnabled: Boolean(autoMergeEnabled),
+  };
+  const common = {
+    storyId,
+    storyBranch,
+    baseBranch,
+    gates,
+    elapsedSeconds,
+  };
+
+  if (waitOutcome.terminal === 'landed') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'landed',
+      phase: 'post-land',
+      pr: { ...prBase, state: 'MERGED', checksStatus: 'success' },
+      tail: waitOutcome.tail,
+      nextCommand: null,
+    });
+  }
+
+  if (waitOutcome.terminal === 'pending') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'pending',
+      phase: 'confirm-merge',
+      pr: {
+        ...prBase,
+        state: waitOutcome.prProbe?.state ?? 'OPEN',
+        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+      },
+      waitBudget: waitOutcome.waitBudget,
+      nextCommand: NEXT_COMMANDS.resumeLand(storyId),
+    });
+  }
+
+  // blocked — the classifier already named the class and the friction
+  // comment already carries the class-specific remediation, so the next
+  // command mirrors it rather than inventing a second opinion.
+  const nextCommand =
+    waitOutcome.blockClass === 'checks-failed'
+      ? NEXT_COMMANDS.watchCi(storyId, prNumber)
+      : waitOutcome.blockClass === 'merged-flip-failed'
+        ? NEXT_COMMANDS.confirmMerge(storyId)
+        : NEXT_COMMANDS.recover(storyId);
+  return buildTerminalEnvelope({
+    ...common,
+    status: 'blocked',
+    phase: 'confirm-merge',
+    pr: {
+      ...prBase,
+      state: waitOutcome.prProbe?.state ?? null,
+      checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+    },
+    blocked: {
+      blockClass: waitOutcome.blockClass,
+      reason: waitOutcome.reason,
+      frictionCommentId: waitOutcome.frictionCommentId ?? null,
+    },
+    nextCommand,
+  });
 }
 
 export async function runSingleStoryClose({
@@ -252,6 +369,7 @@ export async function runSingleStoryClose({
   noFullScopeCrap: noFullScopeCrapParam,
   waitForMerge: waitForMergeParam,
   noWaitForMerge: noWaitForMergeParam,
+  maxWaitSeconds: maxWaitSecondsParam,
   injectedProvider,
   injectedConfig,
   injectedNotify,
@@ -270,13 +388,15 @@ export async function runSingleStoryClose({
     noFullScopeCrapParam,
     waitForMergeParam,
     noWaitForMergeParam,
+    maxWaitSecondsParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap] [--wait-merge|--no-wait-merge]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>]',
     );
   }
 
+  const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd: options.cwd });
   const provider = injectedProvider || createProvider(config);
   const baseBranch = config.project?.baseBranch ?? 'main';
@@ -393,27 +513,40 @@ export async function runSingleStoryClose({
           : ''),
     );
   }
+  const gates = {
+    validation: options.skipValidation ? 'skipped' : 'passed',
+    baseSync: options.skipSync ? 'skipped' : 'passed',
+    codeReview: 'passed',
+  };
+
   if (waitForMerge) {
     const waitOutcome = await runConfirmMergePhase({
       cwd: options.cwd,
       storyId: options.storyId,
+      storyBranch,
+      baseBranch,
       prNumber,
       prUrl,
       autoMergeEnabled,
       autoMergeReason,
       provider,
       config,
+      maxWaitSeconds: options.maxWaitSeconds,
       progress,
       injectedGh,
       injectedNotify,
     });
-    if (!waitOutcome.confirmed) {
-      throw new Error(
-        `[single-story-close] Headless must-land: PR ${prUrl} did not reach a confirmed merge ` +
-          `(blockClass=${waitOutcome.blockClass}). Story #${options.storyId} was transitioned to ` +
-          `agent::blocked with a merge.unlanded lifecycle event. Reason: ${waitOutcome.reason}`,
-      );
-    }
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome,
+      storyId: options.storyId,
+      storyBranch,
+      baseBranch,
+      prNumber,
+      prUrl,
+      autoMergeEnabled,
+      gates,
+      elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+    });
     const result = closeResult({
       storyId: options.storyId,
       storyBranch,
@@ -425,16 +558,29 @@ export async function runSingleStoryClose({
       worktreeReaped,
       leaseReleased,
       waitedForMerge: true,
-      merged: true,
+      merged: waitOutcome.confirmed === true,
     });
-    Logger.info(
-      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-    );
-    progress(
-      'DONE',
-      `✅ Standalone Story #${options.storyId}: PR merged → ${prUrl}`,
-    );
-    return { success: true, result };
+    emitTerminal({ terminal, result });
+
+    if (terminal.status === 'landed') {
+      progress('DONE', `✅ Story #${options.storyId}: PR merged → ${prUrl}`);
+    } else if (terminal.status === 'pending') {
+      // NOT a failure and NOT a block — the wait reached the edge of its
+      // host slot with the PR healthy and in flight. The CLI maps this to
+      // its own exit code so a caller can resume without classifying.
+      progress(
+        'PENDING',
+        `⏸  Story #${options.storyId}: PR ${prUrl} still in flight — resume with: ${terminal.nextCommand}`,
+      );
+    } else {
+      progress(
+        'BLOCKED',
+        `🛑 Story #${options.storyId}: PR ${prUrl} did not land ` +
+          `(blockClass=${terminal.blocked?.blockClass}). Story is at agent::blocked. ` +
+          `Next: ${terminal.nextCommand}`,
+      );
+    }
+    return { success: terminal.status === 'landed', result, terminal };
   }
 
   const result = closeResult({
@@ -448,13 +594,30 @@ export async function runSingleStoryClose({
     worktreeReaped,
     leaseReleased,
   });
-
-  Logger.info(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
+  // `--no-wait-merge` / operator-merge: the PR is open and the human owns
+  // the land. That is a `pending` terminal by definition — the work is not
+  // done, nothing is broken, and one named command finishes it — rather
+  // than a fourth status invented for this one case.
+  const terminal = buildTerminalEnvelope({
+    storyId: options.storyId,
+    status: 'pending',
+    phase: 'auto-merge',
+    storyBranch,
+    baseBranch,
+    pr: {
+      number: prNumber,
+      url: prUrl ?? null,
+      state: 'OPEN',
+      autoMergeEnabled: Boolean(autoMergeEnabled),
+    },
+    gates,
+    nextCommand: NEXT_COMMANDS.confirmMerge(options.storyId),
+    elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+  });
+  emitTerminal({ terminal, result });
   progress(
     'DONE',
-    `✅ Standalone Story #${options.storyId}: PR ready → ${prUrl}`,
+    `✅ Story #${options.storyId}: PR ready → ${prUrl} (${waitForMergeReason})`,
   );
-  return { success: true, result };
+  return { success: true, result, terminal };
 }
