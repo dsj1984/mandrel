@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-07-16T21:17:10.749Z",
+  "generatedAt": "2026-07-16T22:33:08.005Z",
   "mode": "production",
   "rows": [
     {
@@ -573,10 +573,6 @@
       "symbol": "getScopeKeys"
     },
     {
-      "file": ".agents/scripts/lib/checks/state.js",
-      "symbol": "validatePidProbeInputs"
-    },
-    {
       "file": ".agents/scripts/lib/cli-utils.js",
       "symbol": "isDirectInvocation"
     },
@@ -886,14 +882,6 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicPerfReportJsonPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicPerfReportPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "epicRetroMirrorPath"
     },
     {
@@ -906,11 +894,11 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "storyManifestPath"
+      "symbol": "storyArtifactPath"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "storyPerfSummaryPath"
+      "symbol": "storyManifestPath"
     },
     {
       "file": ".agents/scripts/lib/config/worktree-isolation.js",
@@ -1145,6 +1133,10 @@
       "symbol": "resolveFrameworkVersion"
     },
     {
+      "file": ".agents/scripts/lib/framework-version.js",
+      "symbol": "stampFrameworkVersion"
+    },
+    {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
       "symbol": "BaselineWriteError"
     },
@@ -1353,34 +1345,6 @@
       "symbol": "setActiveSliceEnv"
     },
     {
-      "file": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
-      "symbol": "__test__"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "symbol": "coerceWaveParallelismRow"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "symbol": "collectValidStorySamples"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
-      "symbol": "computeWaveParallelismRows"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "renderBaselineRefreshRateRow"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "renderQualityGateFrictionBlock"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "STORY_PERF_MARKER"
-    },
-    {
       "file": ".agents/scripts/lib/observability/signal-validator.js",
       "symbol": "readSignalRejectCount"
     },
@@ -1521,46 +1485,6 @@
       "symbol": "emitMergeFlipFailed"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "appendAttempt"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "DEFAULT_INTERVAL_SECONDS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "DEFAULT_MAX_BUDGET_SECONDS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "defaultSleep"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "ghPrViewMerge"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "MergeWatcher"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "parseMergeView"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "parsePrNumberFromUrl"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "readPriorAttempts"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "resolveLedgerPath"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "allTerminal"
     },
@@ -1617,12 +1541,12 @@
       "symbol": "TraceLogger"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "symbol": "BLOCK_CLASSES"
+      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
+      "symbol": "DEFAULT_INTERVAL_SECONDS"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
-      "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
+      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
+      "symbol": "DEFAULT_MAX_BUDGET_SECONDS"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
@@ -1759,6 +1683,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/resolves-token.js",
       "symbol": "parseResolvesStoryId"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/resolves-token.js",
+      "symbol": "RESOLVES_TRAILER_RE"
     },
     {
       "file": ".agents/scripts/lib/orchestration/resolves-token.js",
@@ -2081,10 +2009,6 @@
       "symbol": "gatherStoryFrictionSignals"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/structured-comment-parser.js",
-      "symbol": "parseFencedJson"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "symbol": "collectTaskBodyErrors"
     },
@@ -2162,6 +2086,10 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "symbol": "cascadeCompletion"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "findStructuredComment"
     },
     {
@@ -2199,6 +2127,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "symbol": "__setCascadeRetryDelays"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
+      "symbol": "cascadeCompletion"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
@@ -2331,6 +2263,10 @@
     {
       "file": ".agents/scripts/lib/signals/read.js",
       "symbol": "__resetMalformedLatchForTests"
+    },
+    {
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "symbol": "EVENT_KINDS"
     },
     {
       "file": ".agents/scripts/lib/signals/schema.js",
@@ -2667,10 +2603,6 @@
     {
       "file": ".agents/scripts/providers/github/request-helpers.js",
       "symbol": "DEFAULT_PER_PAGE"
-    },
-    {
-      "file": ".agents/scripts/providers/github/tickets.js",
-      "symbol": "composeStoryBody"
     }
   ]
 }
