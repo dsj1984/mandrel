@@ -154,25 +154,46 @@ typed comments. Each `type` is keyed on a stable HTML marker so reads are
 idempotent; `upsertStructuredComment(provider, ticketId, type, body)` replaces
 any prior comment of the same type.
 
-| Type                | Writer                                              | Purpose                                                                  |
-| ------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
-| `epic-run-state`    | `Checkpointer`                                      | JSON checkpoint of wave progress and resume state.                       |
-| `epic-run-progress` | `ProgressReporter`                                  | Periodic operator-facing wave roll-up.                                   |
-| `wave-<N>-start`    | `/deliver` wave loop (`lib/orchestration/wave-marker.js`) | Per-wave start manifest + timestamp.                                |
-| `wave-<N>-end`      | `/deliver` wave loop (`lib/orchestration/wave-marker.js`) | Per-wave outcomes + duration.                                       |
-| `epic-plan-state`   | `/plan` checkpoint                             | Phase 1/2 progress so re-plans resume cleanly.                           |
-| `dispatch-manifest` | `/plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
-| `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
-| `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
-| `epic-run-progress` | `/deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
-| `code-review`       | `lib/orchestration/code-review.js` (Phase 5)        | Findings report posted on the Epic.                                      |
-| `retro`             | `lib/orchestration/retro-runner.js` (Phase 6)       | Final retrospective body with the `retro-complete` marker.               |
-| `audit-results`     | `helpers/epic-audit` (Phase 4)                      | Per-lens audit findings posted on the Epic. Read by `lib/feedback-loop/audit-results-graduator.js`, which auto-graduates non-blocking findings (severity high/medium/low/suggestion — anything not a 🔴 Critical Blocker) into routed follow-up issues carrying `meta::audit-finding`, `meta::framework-gap`/`meta::consumer-improvement`, `audit-results::<severity>`, and `domain::<lens>` labels, with an `<!-- audit-results-followup: epic-<id>-finding-<idx> -->` idempotency marker. Toggle: `delivery.feedbackLoop.auditResultsAutoFile` (default `true`). |
-| `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |
-| `phase-timings`     | `phase-timer` (on `story-close`)                    | Per-phase elapsed-time spans for the closed Story.                       |
-| `friction`          | `signals-writer.appendSignal` (NDJSON, on disk)     | Per-Story friction observation appended to `signals.ndjson` (no GitHub round-trip post Story #1042). |
-| `notification`      | `notify.js`                                         | Operator-facing severity-tiered notification.                            |
+This table lists only the types a producer on disk actually writes today. It is
+deliberately **narrower than `STRUCTURED_COMMENT_TYPES`** in
+`lib/orchestration/ticketing/reads.js`: that enum is a permissive accept-list
+that retains retired kinds so historical comments on old tickets still parse
+(`assertValidStructuredCommentType` would otherwise throw). Presence in the
+enum is not evidence of a live writer — when adding a row here, cite the
+call site.
 
+| Type                        | Writer                                                                 | Purpose                                                                  |
+| --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/plan` creates.   |
+| `plan-summary`              | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Risk/routing receipts + `depends_on` order table; primary Story only.    |
+| `superseded-by`             | `lib/orchestration/plan-persist/supersede-ops.js`                       | Names the Story claiming a `/plan --tickets` source issue, posted immediately before closing it `not_planned`. The marker is what makes a re-run non-double-commenting. |
+| `story-init`                | `single-story-init.js`                                                  | Initial Story metadata snapshot (incl. `dependenciesInstalled`).         |
+| `verification-results`      | `lib/orchestration/code-review.js` (`runCodeReview`)                    | Unified review + lens findings on the Story; critical findings block close. Read by the feedback-loop graduators and the auto-merge integration gate. |
+| `notification`              | `notify.js`; `lib/orchestration/single-story-close/phases/code-review.js` | Operator-facing severity-tiered notification.                          |
+| `progress`                  | `lib/orchestration/ticketing/bulk.js` (`cascadeCompletion`)             | Cascade-completion note on a parent ticket.                              |
+| `friction`                  | `lib/orchestration/story-init-remote.js`; `single-story-close/phases/` (`base-sync`, `review-block`, `confirm-merge`, `wrong-tree-guard`) | Blocker observation posted on the Story. Distinct from the on-disk `friction` **signal** (`signals-writer.appendSignal` → `signals.ndjson`), which `diagnose-friction.js` writes and never posts. |
+| `follow-ups`                | `lib/orchestration/run-epilogue.js`; `lib/orchestration/story-follow-ups.js` | Actionable follow-ups distilled from friction signals at Story closeout. |
+| `plan-run-audit-roster`     | `lib/orchestration/run-epilogue.js`                                     | Audit lenses selected for the run, grounded in the landed diff.          |
+| `plan-run-sibling-coherence`| `lib/orchestration/run-epilogue.js`                                     | Cross-Story coherence findings for a multi-Story plan run.               |
+| `model-attribution`         | `lib/orchestration/model-attribution.js`                                | Which model executed the work. Schema: `.agents/schemas/model-attribution.schema.json`. |
+| `cross-repo-deferred`       | `lib/feedback-loop/graduator-core.js`                                   | Findings routed to another repository and therefore not filed here. Discriminated by a `graduator` attr so each graduator upserts independently. |
+
+**Graduation off `verification-results`.**
+`lib/feedback-loop/audit-results-graduator.js` reads that comment and
+auto-graduates every non-blocking finding (severity high/medium/low/suggestion
+— anything not a 🔴 Critical Blocker) into a routed follow-up issue carrying
+`meta::audit-finding`, `meta::framework-gap`/`meta::consumer-improvement`,
+`audit-results::<severity>`, and `domain::<lens>`, keyed by an
+`<!-- audit-results-followup: epic-<id>-finding-<idx> -->` idempotency marker.
+Toggle: `delivery.feedbackLoop.auditResultsAutoFile` (default `true`). The
+graduator keeps its `audit-results` name and label prefix from when it read a
+separate `audit-results` comment; that comment type is retired (Stories #4411 /
+#4412 folded it into `verification-results`) but the graduator is unchanged.
+
+`lib/orchestration/bookkeeping-outbox.js` is a generic transport, not a type:
+it replays buffered `{ticketId, marker, body}` ops through
+`upsertStructuredComment` for headless runs, carrying whichever marker the
+caller enqueued.
 The `mcp__mandrel__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
