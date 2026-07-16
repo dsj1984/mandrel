@@ -411,7 +411,7 @@ classDiagram
         +getSubTickets(parentId) Promise
         +getTicket(ticketId) Promise
         +getTicketDependencies(ticketId) Promise
-        +createTicket(parentId, ticketData) Promise
+        +createIssue(payload) Promise
         +addSubIssue(parentId, childId) Promise
         +updateTicket(ticketId, mutations) Promise
         +postComment(ticketId, payload) Promise

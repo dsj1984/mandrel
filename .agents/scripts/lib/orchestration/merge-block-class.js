@@ -90,10 +90,12 @@ export const BLOCK_CLASSES = Object.freeze([
 /**
  * The full set of block-class values a `merge.unlanded` record may carry.
  * This is the classifier's four outputs PLUS `predicate-refused` (#4472),
- * which is emitted DIRECTLY by the AutomergePredicate / AutomergeArmer for a
- * headless refusal that never reached the poll-exhaustion classifier — so it
- * is a valid attribution value even though `classifyMergeBlock` never
- * produces it. `isValidBlockClass` (and the `merge.unlanded` schema enum)
+ * emitted DIRECTLY for a headless refusal that never reached the
+ * poll-exhaustion classifier — so it is a valid attribution value even though
+ * `classifyMergeBlock` never produces it. (The Epic-era listeners that used to
+ * emit it, AutomergePredicate and AutomergeArmer, are gone; the value stays
+ * because archived `merge.unlanded` records carry it and the schema enum
+ * must keep validating them.) `isValidBlockClass` (and the `merge.unlanded` schema enum)
  * validate against this broader set; the classifier's own reachability
  * invariant stays scoped to `BLOCK_CLASSES`.
  */
