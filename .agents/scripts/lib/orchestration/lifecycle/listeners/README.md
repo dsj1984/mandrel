@@ -8,11 +8,15 @@ live in this folder**.
 
 ## Files here
 
-- [`merge-watcher.js`](./merge-watcher.js) — polls `gh pr view` after
-  auto-merge is armed until the PR's `mergeCommit` is observed, then emits
-  the merge-confirmed event.
 - [`watcher.js`](./watcher.js) — the CI-poll loop (`watchPrToTerminal`)
   driven by `pr-watch-with-update.js`.
+
+`merge-watcher.js` was deleted in Story #4545: the Epic-era `MergeWatcher`
+listener had no production caller after the v2.0.0 Story-only cutover. The
+poll defaults and `deriveChecksStatus` the live close path did import from it
+now live in
+[`lib/orchestration/merge-poll.js`](../../merge-poll.js), a home the close
+path owns.
 
 Other close-tail side effects (ledger write, finalize/PR open, automerge
 arm, branch cleanup, label transition) are owned by the Story delivery
