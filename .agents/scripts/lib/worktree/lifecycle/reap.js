@@ -532,7 +532,10 @@ async function ensureSafeOrForceDiscard(ctx, storyId, wtPath, opts) {
   const discardAfterMerge = opts.discardAfterMerge !== false;
   const branchName = `story-${validateStoryId(storyId)}`;
   // Discarding a dirty tree is only permissible when the branch's work is
-  // already integrated — squash-aware, so a landed v2 Story qualifies.
+  // demonstrably already integrated. See `isBranchMergedIntoBase` for what
+  // that can and cannot prove — notably a multi-commit squash reads as
+  // unmerged, so the discard is refused and the tree survives. Refusing is
+  // the safe direction: the cost is a stale worktree, not lost work.
   const canForceReap =
     discardAfterMerge &&
     safety.reason === 'uncommitted-changes' &&
