@@ -130,7 +130,6 @@ export function buildPlanSummaryCommentBody({
     '',
     ...renderWaveTableLines(waveTable),
     '',
-    `_Deliver with \`${deliverCommand}\` — \`/deliver\` resolves the dependency`,
-    '_graph from live state, so edges may point at Stories from earlier plan runs._',
+    `_Deliver with \`${deliverCommand}\` — \`/deliver\` resolves the dependency graph from live state, so edges may point at Stories from earlier plan runs._`,
   ].join('\n');
 }

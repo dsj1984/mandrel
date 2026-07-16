@@ -111,7 +111,10 @@ export function isSatisfiedBlocker(issue) {
 /**
  * Footprint emitted when a Story's declared changes cannot be READ. It is a
  * glob, so `storiesOverlap` (`lib/wave-runner/ready-set.js`) treats it as
- * overlapping every other footprint and the Story takes its beat alone.
+ * overlapping every other **declared** footprint and the Story takes its
+ * beat alone. (A Story declaring nothing still overlaps nothing — the guard
+ * short-circuits on an empty footprint either side, which is the deliberate
+ * permissive escape hatch that keeps undeclared work parallel.)
  *
  * Deliberately NOT `[]`. An empty footprint means "declares nothing", which
  * the guard reads as "overlaps nothing" and never withholds — correct for a
