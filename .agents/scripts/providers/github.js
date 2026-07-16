@@ -85,6 +85,25 @@ export class GitHubProvider extends ITicketingProvider {
     return this.getEpics(filters);
   }
 
+  /**
+   * The identifiers a native dependency-edge writer needs, handed over as an
+   * explicit interface (Story #4544).
+   *
+   * `providers/github/blocked-by-add.js` talks to the dependencies REST API
+   * directly, so it needs the `gh` facade plus `owner`/`repo` — none of which
+   * the `ITicketingProvider` surface exposes. Its caller lives in the
+   * orchestration layer (`plan-persist/story-ops.js`), and the alternative was
+   * for that caller to reach through `provider._gh` — a private-by-convention
+   * field — from outside this module. Naming the hand-off here keeps the
+   * coupling declared and greppable instead of incidental: the provider
+   * decides what it lends out, and the field stays private.
+   *
+   * @returns {{ gh: object, owner: string, repo: string }}
+   */
+  getDependencyWriteContext() {
+    return { gh: this._gh, owner: this.owner, repo: this.repo };
+  }
+
   static isInsufficientScopes(err) {
     return projects.isInsufficientScopes(err);
   }

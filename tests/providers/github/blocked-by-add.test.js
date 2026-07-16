@@ -426,3 +426,28 @@ describe('providers/github/blocked-by-add.js — applyBlockedByDependencies', ()
     });
   });
 });
+
+describe('GitHubProvider — dependency-write interface (Story #4544)', () => {
+  it('hands the writer exactly the identifiers it needs, without exposing internals', async () => {
+    // `applyBlockedByDependencies` needs the `gh` facade plus owner/repo —
+    // none of which the ITicketingProvider surface carries. This method is the
+    // declared hand-off, so its shape is a contract between the two modules:
+    // if it drifts, the orchestration caller silently mirrors zero edges.
+    const { GitHubProvider } = await import(
+      pathToFileURL(
+        path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'),
+      ).href
+    );
+    const gh = { api: async () => ({ stdout: '[]', stderr: '', code: 0 }) };
+    const provider = new GitHubProvider(
+      { owner: 'octo', repo: 'widget' },
+      { gh, token: 'test-token' },
+    );
+
+    assert.deepEqual(provider.getDependencyWriteContext(), {
+      gh,
+      owner: 'octo',
+      repo: 'widget',
+    });
+  });
+});
