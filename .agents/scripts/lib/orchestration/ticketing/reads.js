@@ -183,6 +183,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // v2 Stage 3 — flat Story persist checkpoint on every created Story
   // (replaces epic-plan-state for new plans). plan-summary stays primary-only.
   'story-plan-state',
+  // Story #4535 — `plan-persist.js` upserts a `superseded-by` comment on
+  // each `/plan --tickets` source issue at persist time, naming the single
+  // Story that claims it (plus any per-supersede note the plan authored),
+  // immediately before closing the issue as `not_planned`. Keying off this
+  // marker rather than a bare `postComment` is what makes a re-run
+  // non-double-commenting. One entry per source issue.
+  'superseded-by',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
