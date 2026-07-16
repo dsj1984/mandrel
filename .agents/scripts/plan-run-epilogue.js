@@ -87,11 +87,37 @@ export async function main(argv = process.argv.slice(2)) {
     config,
     cwd,
   });
+  warnOnUnresolvedBase(result);
   Logger.info(JSON.stringify(result, null, 2));
   if (result.errors?.length) {
     process.exitCode = 1;
   }
   return result;
+}
+
+/**
+ * Surface an unresolvable combined landed diff as a loud operator warning.
+ *
+ * The roster's changed-file set is the input the host walks its audit lenses
+ * against; a silent absence would read as "nothing changed" and the lens walk
+ * would look complete while covering nothing. Not fatal — lens selection is
+ * independent of the diff, so the rest of the roster is still useful.
+ *
+ * @param {object} result - `runPlanRunEpilogue` envelope.
+ * @returns {void}
+ */
+function warnOnUnresolvedBase(result) {
+  const roster = (result?.results ?? []).find(
+    (r) => r?.kind === 'audit-roster',
+  );
+  const base = roster?.baseResolution;
+  if (base?.resolved !== false) return;
+  Logger.warn(
+    `⚠️  Combined landed diff unavailable — the pre-run base sha could not be ` +
+      `resolved against \`${base.baseRef}\`: ${base.reason}\n` +
+      `    changedFiles is null (NOT an empty set). Determine the run diff by ` +
+      `hand before walking the selected lenses.`,
+  );
 }
 
 await runAsCli(import.meta.url, main);
