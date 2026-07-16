@@ -157,14 +157,36 @@ export function storyFootprint(story) {
 }
 
 /**
- * File-overlap co-dispatch guard. Returns `true` when two Stories' declared
- * file footprints intersect on at least one path — meaning they would race
- * the same file if dispatched onto parallel `story-<id>` branches in the
- * same beat. Two Stories that overlap MUST NOT both appear in one dispatch
- * set; one is withheld until the other clears.
+ * Does a declared path contain a glob metacharacter? Mirrors the detection
+ * in `story-body.js#extractChangePaths`, whose `isGlob` flag documents an
+ * "unknown-width footprint" policy that was never implemented downstream.
  *
- * An empty footprint on either side means "no known overlap" → `false`. A
- * Story that declares no files is therefore never withheld by this guard.
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isGlobPath(path) {
+  return path.includes('*') || path.includes('?') || path.includes('{');
+}
+
+/**
+ * File-overlap co-dispatch guard. Returns `true` when two Stories' declared
+ * file footprints intersect — meaning they would race the same file if
+ * dispatched onto parallel `story-<id>` branches in the same beat. Two
+ * Stories that overlap MUST NOT both appear in one dispatch set; one is
+ * withheld until the other clears.
+ *
+ * Two deliberate asymmetries:
+ *
+ *   - **An empty footprint means "no known overlap"** → `false`. A Story that
+ *     declares no files is never withheld. This is permissive by necessity:
+ *     an undeclared footprint carries no information, and withholding on
+ *     absence would serialize every run.
+ *   - **A glob footprint overlaps EVERYTHING** → `true` (Story #4539/#4540).
+ *     Comparison is exact-string, so a Story declaring
+ *     `.agents/scripts/lib/**` would not match another declaring
+ *     `.agents/scripts/lib/story-adjacency.js` — the guard would silently
+ *     pass two Stories that genuinely race. Unknown width is not the same as
+ *     no width: fail safe by serializing.
  *
  * @param {StoryRecord} a
  * @param {StoryRecord} b
@@ -176,7 +198,11 @@ export function storiesOverlap(a, b) {
   const fb = storyFootprint(b);
   if (fb.size === 0) return false;
   for (const path of fa) {
+    if (isGlobPath(path)) return true;
     if (fb.has(path)) return true;
+  }
+  for (const path of fb) {
+    if (isGlobPath(path)) return true;
   }
   return false;
 }

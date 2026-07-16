@@ -31,12 +31,14 @@ import { fileURLToPath } from 'node:url';
 
 import {
   buildReadySetEnvelope,
+  detectWedge,
   parseConcurrencyOverride,
   parseDag,
   parseDoneIds,
   parseInFlight,
   resolveConcurrencyCap,
   runStoriesWaveTick,
+  WEDGED_EXIT_CODE,
 } from '../../.agents/scripts/stories-wave-tick.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -733,5 +735,98 @@ describe('CLI', () => {
     const envelope = JSON.parse(result.stdout);
     assert.ok(envelope.inputError);
     assert.ok(envelope.inputError.includes('files'));
+  });
+});
+
+describe('wedge detection (Story #4540)', () => {
+  const dag = (nodes) => JSON.stringify(nodes);
+
+  it('an empty ready set with work IN FLIGHT is not a wedge — it is waiting', () => {
+    // The distinction that makes the verdict useful: `ready: []` is the
+    // normal steady state while a Story is being delivered.
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson: dag([
+        { id: 1, dependsOn: [] },
+        { id: 2, dependsOn: [1] },
+      ]),
+      done: '',
+      inFlight: 1,
+      concurrency: 1,
+    });
+    assert.deepEqual(envelope.ready, []);
+    assert.equal(envelope.wedged, null);
+    assert.equal(exitCode, 0);
+  });
+
+  it('a completed run is not a wedge', () => {
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson: dag([{ id: 1, dependsOn: [] }]),
+      done: '1',
+      inFlight: 0,
+      concurrency: 3,
+    });
+    assert.equal(envelope.wedged, null);
+    assert.equal(exitCode, 0);
+  });
+
+  it('reports a wedge, its ids, and its unmet blockers when nothing can ever progress', () => {
+    // A foreign blocker (#4530) that has not landed. Before this, the loop
+    // returned ready:[] + exit 0 forever — indistinguishable from waiting.
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson: dag([{ id: 4534, dependsOn: [4530] }]),
+      done: '',
+      inFlight: 0,
+      concurrency: 3,
+    });
+    assert.equal(exitCode, WEDGED_EXIT_CODE);
+    assert.deepEqual(envelope.ready, []);
+    assert.deepEqual(envelope.wedged.stories, [
+      { id: 4534, unmetBlockers: [4530] },
+    ]);
+    assert.match(envelope.wedged.reason, /#4534 ← #4530/);
+  });
+
+  it('the wedge exit code is distinct from the cycle exit code', () => {
+    const cycle = runStoriesWaveTick({
+      dagJson: dag([
+        { id: 1, dependsOn: [2] },
+        { id: 2, dependsOn: [1] },
+      ]),
+      done: '',
+      inFlight: 0,
+      concurrency: 3,
+    });
+    assert.equal(cycle.exitCode, 2, 'a cycle stays exit 2');
+    assert.ok(cycle.envelope.cycleError);
+    assert.notEqual(
+      WEDGED_EXIT_CODE,
+      2,
+      'a wedge must not be mistaken for a self-referential DAG',
+    );
+  });
+
+  it('clears once the blocker lands — the cross-run case', () => {
+    const { envelope, exitCode } = runStoriesWaveTick({
+      dagJson: dag([{ id: 4534, dependsOn: [4530] }]),
+      done: '4530',
+      inFlight: 0,
+      concurrency: 3,
+    });
+    assert.equal(exitCode, 0);
+    assert.equal(envelope.wedged, null);
+    assert.deepEqual(envelope.ready, [4534]);
+  });
+
+  it('detectWedge does not fire when undone work has no unmet blockers', () => {
+    // Then the cap or in-flight accounting explains the empty ready set.
+    assert.equal(
+      detectWedge({
+        nodes: [{ id: 1, dependsOn: [] }],
+        doneIds: new Set(),
+        ready: [],
+        inFlight: 0,
+      }),
+      null,
+    );
   });
 });
