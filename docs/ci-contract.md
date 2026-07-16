@@ -4,9 +4,10 @@
 CI mirror** for every gate it *can* prove on a developer's machine: it runs
 `npm audit --audit-level=high` (matching CI's SCA step), then `npm run lint`,
 the full `npm test` suite, the unified baselines (`check-baselines.js`), and —
-as of Story #4549 — the three standalone ratchets CI's `baselines` job runs in
-its "Architecture Cycle Check" step (`check-arch-cycles.js`,
-`check-dead-exports.js`, `check-context-budget.js`) — the same shape CI runs.
+as of Story #4549 — the standalone ratchets CI's `baselines` job runs in its
+"Architecture Cycle Check" step (`check-dead-exports.js` and
+`check-context-budget.js`; the third, `check-arch-cycles.js`, is already run by
+the `lint` step) — the same shape CI runs.
 
 A green `npm run verify` therefore no longer hides a high-severity advisory
 that CI's audit step would fail on. It is still **not** a total substitute for
@@ -22,17 +23,24 @@ authoritative verdict is the CI run on the pull request.
 > deliberately left off by default and is unchanged — the audit belongs in the
 > full `verify` gate, not on every push.
 
-> **Not** CI-only gates: the three standalone ratchets. `check-arch-cycles.js`,
-> `check-dead-exports.js`, and `check-context-budget.js` are pure-Node,
-> baseline-aware, and full-tree-safe, so `npm run verify` runs all three
-> (Story #4549). Before that they sat in a contract hole — omitted from the
-> mirror *and* absent from the CI-only table below — reachable locally only by
-> a direct invocation or via `npm run quality:preview`, whose
-> `--changed-since HEAD` diff scoping makes it a pre-commit tool rather than a
-> full-tree gate. That hole cost Story #4531 / PR #4548 a full
-> push → CI-red → fix → push round-trip on a stray `export default` a
-> two-second local check would have caught. `quality:preview` keeps its
-> existing scope and gate set — the two commands serve different moments.
+> **Not** CI-only gates: the standalone ratchets in CI's "Architecture Cycle
+> Check" step. All three are pure-Node, baseline-aware and full-tree-safe, so
+> `npm run verify` covers every one (Story #4549):
+>
+> | Ratchet | How `npm run verify` covers it |
+> | --- | --- |
+> | `check-arch-cycles.js` | Via the `lint` step — `run-lint.js` has run it since Story #3991. Deliberately **not** repeated in `run-verify.js`; doing so would double-pay the gate. |
+> | `check-dead-exports.js` | Its own `dead-exports` step (Story #4549). |
+> | `check-context-budget.js` | Its own `context-budget` step (Story #4549). |
+>
+> Before #4549 the latter two sat in a contract hole — omitted from the mirror
+> *and* absent from the CI-only table below — reachable locally only by a direct
+> invocation or via `npm run quality:preview`, whose `--changed-since HEAD` diff
+> scoping makes it a pre-commit tool rather than a full-tree gate. That hole
+> cost Story #4531 / PR #4548 a full push → CI-red → fix → push round-trip on a
+> stray `export default` a two-second local check would have caught.
+> `quality:preview` keeps its existing scope and gate set — the two commands
+> serve different moments.
 
 ## CI-only gates `npm run verify` cannot prove locally
 

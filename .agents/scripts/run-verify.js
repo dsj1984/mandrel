@@ -5,22 +5,26 @@
  * Local full verification — a true CI mirror for the gates that CAN be proven
  * locally, without epic-scoped MI projection or push semantics.
  *
- * Order: audit (SCA) → lint (includes docs:check) → full test suite →
- * unified baselines → the standalone ratchets (arch-cycles, dead-exports,
- * context-budget).
+ * Order: audit (SCA) → lint (includes docs:check + the arch-cycles ratchet) →
+ * full test suite → unified baselines → the dead-exports and context-budget
+ * ratchets.
  *
  * The `audit` step runs `npm audit --audit-level=high`, matching CI's
  * "Dependency Vulnerability Audit (SCA)" gate so a local green no longer hides
  * a high-severity advisory that CI would fail on. It is independent of the
  * pre-push `PREPUSH_AUDIT` opt-in, which stays unchanged.
  *
- * The three standalone ratchets mirror CI's "Architecture Cycle Check" step in
- * the `baselines` job (Story #4549). They were previously reachable locally
- * only via the diff-scoped `npm run quality:preview` or a direct invocation, so
- * a clean `verify` could still hide a CI-red — the failure Story #4531 /
- * PR #4548 paid for with a full push → CI → fix → push round-trip. All three
- * are pure-Node and baseline-aware, and together add ~3s to a command that
- * already carries the full test suite.
+ * The trailing ratchets complete the mirror of CI's "Architecture Cycle Check"
+ * step in the `baselines` job (Story #4549). That step runs three checks;
+ * `check-arch-cycles.js` is deliberately absent from STEPS because the `lint`
+ * step above already runs it (see run-lint.js) — re-running it here would
+ * double-pay a gate verify already covers. `check-dead-exports.js` and
+ * `check-context-budget.js` had no such cover: they were reachable locally only
+ * via the diff-scoped `npm run quality:preview` or a direct invocation, so a
+ * clean `verify` could still hide a CI-red — the failure Story #4531 / PR #4548
+ * paid for with a full push → CI → fix → push round-trip. Both are pure-Node
+ * and baseline-aware, adding ~3s to a command that already carries the full
+ * test suite.
  *
  * A handful of CI gates cannot be reproduced by this command (action pinning,
  * TruffleHog secret scan, the BASELINE_SCOPE=full push-scoped maintainability
@@ -42,11 +46,6 @@ const STEPS = [
     label: 'baselines',
     cmd: 'node',
     args: ['.agents/scripts/check-baselines.js'],
-  },
-  {
-    label: 'arch-cycles',
-    cmd: 'node',
-    args: ['.agents/scripts/check-arch-cycles.js', '--format', 'text'],
   },
   {
     label: 'dead-exports',
