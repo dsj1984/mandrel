@@ -1,31 +1,38 @@
 /**
- * tests/single-story-close-confirm-merge.test.js — coverage for the
- * headless must-land terminal phase (Story #4428, Epic #4425 slice 3).
+ * tests/single-story-close-confirm-merge.test.js — the close-and-land merge
+ * wait (Story #4428; reworked into a resumable, checks-aware wait by Story
+ * #4543).
  *
  * Exercises `runConfirmMergePhase`
  * (`.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js`)
- * with injected probes:
+ * with injected probes. The suite is organised around the four things the
+ * rework had to get right:
  *
- *   - merge confirmed within budget → the SAME `confirmStoryMerged` flip
- *     logic (`.agents/scripts/lib/single-story/confirm-merge.js`, not
- *     re-extracted) runs with no operator action.
- *   - an arm failure → `merge.unlanded` (scope: "story", blockClass:
- *     "arm-failure") emitted and the Story routed to `agent::blocked`.
- *   - budget exhaustion while checks are still pending → `merge.unlanded`
- *     emitted and the Story blocked rather than silently resting at
- *     `agent::closing`.
- *   - a PR closed without merging → blocked immediately (not a silent
- *     budget-timeout wait).
- *
- * Also covers `parseCloseOptions`'s `--wait-merge` / `--no-wait-merge`
- * flags (AC3) and asserts the phase's default `confirmStoryMergedFn` is
- * the exact same export `single-story-confirm-merge.js` calls (AC4: one
- * merged/`agent::done` implementation).
+ *   1. **The split timing model.** `maxWaitSeconds` bounds ONE invocation and
+ *      its expiry is `pending` — no label flip, no `merge.unlanded` event.
+ *      `maxBudgetSeconds` bounds the CUMULATIVE wait anchored at the PR's
+ *      `createdAt`, so a resume continues the clock instead of restarting it,
+ *      and exhausting THAT is the genuine block.
+ *   2. **The wait is not weaker than the watch it displaced.** A red check
+ *      fails fast as `checks-failed`; a BEHIND PR gets a bounded update.
+ *   3. **The ticket re-read is hoisted out of the loop** — it used to cost
+ *      ~240 reads per Story per hour for an answer that cannot change
+ *      mid-poll.
+ *   4. **The land tail runs on the confirmed path**, and `confirmStoryMerged`
+ *      remains the ONE shared merged/`agent::done` implementation.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { runConfirmMergePhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
+import {
+  DEFAULT_MAX_WAIT_SECONDS,
+  DEFAULT_UPDATE_ATTEMPTS,
+  MIN_POLLS_BEFORE_BUDGET_BLOCK,
+  readPrWaitProbe,
+  resolveBudgetAnchorMs,
+  resolveMergeWaitConfig,
+  runConfirmMergePhase,
+} from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
 import {
   parseCloseOptions,
   resolveWaitForMerge,
@@ -33,26 +40,29 @@ import {
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 
 /**
- * Fake ticketing provider mirroring the minimal surface
- * `tests/single-story-confirm-merge.test.js` already relies on:
- * `getTicket` / `updateTicket` for the label flip, `postComment` for the
- * friction comment. No `getTicketDependencies` / `getSubTickets` means the
- * upward-cascade guard in `transitionTicketState` no-ops (best-effort,
- * matches the established fake-provider contract).
+ * Fake ticketing provider mirroring the minimal surface the sibling suites
+ * rely on: `getTicket` / `updateTicket` for the label flip, `postComment` for
+ * the friction comment. No `getTicketDependencies` / `getSubTickets` means
+ * the upward-cascade guard in `transitionTicketState` no-ops (best-effort,
+ * matching the established fake-provider contract).
  */
 function makeFakeProvider({
   initialStory = {
     id: 4428,
     state: 'open',
-    title: 'Headless must-land story',
+    title: 'Close-and-land story',
     labels: ['agent::closing'],
   },
 } = {}) {
   let story = { ...initialStory };
   const updates = [];
   const comments = [];
+  let getTicketCalls = 0;
   return {
-    getTicket: async () => ({ ...story }),
+    getTicket: async () => {
+      getTicketCalls += 1;
+      return { ...story };
+    },
     updateTicket: async (id, patch) => {
       updates.push({ id, patch });
       const labels = patch.labels
@@ -71,612 +81,764 @@ function makeFakeProvider({
     },
     postComment: async (id, payload) => {
       comments.push({ id, payload });
+      return { id: 'friction-comment-1' };
     },
     _story: () => story,
     _updates: () => updates,
     _comments: () => comments,
+    _getTicketCalls: () => getTicketCalls,
   };
 }
 
 const NOOP_PROGRESS = () => {};
 
-describe('runConfirmMergePhase — merge confirmed (no operator action)', () => {
-  it('calls the shared confirmStoryMerged flip logic once and reports confirmed:true', async () => {
-    const provider = makeFakeProvider();
+/** A clock that advances by `stepMs` on every read. */
+function makeClock(stepMs, startMs = 0) {
+  let now = startMs;
+  return () => {
+    const value = now;
+    now += stepMs;
+    return value;
+  };
+}
+
+/** Probe factory — an open PR whose checks are still pending. */
+function openProbe(overrides = {}) {
+  return {
+    state: 'OPEN',
+    mergedAt: null,
+    createdAt: null,
+    checksStatus: 'pending',
+    ...overrides,
+  };
+}
+
+/**
+ * Base args for the phase. Every collaborator is injected so the suite never
+ * touches git, GitHub, or a real clock.
+ */
+function phaseArgs(overrides = {}) {
+  return {
+    cwd: '/repo',
+    storyId: 4428,
+    storyBranch: 'story-4428',
+    baseBranch: 'main',
+    prNumber: 99,
+    prUrl: 'https://github.com/o/r/pull/99',
+    autoMergeEnabled: true,
+    autoMergeReason: 'armed',
+    provider: makeFakeProvider(),
+    config: {},
+    progress: NOOP_PROGRESS,
+    sleepFn: async () => {},
+    nowMsFn: makeClock(0),
+    runPostLandTailFn: async () => ({
+      followUps: true,
+      statusResync: true,
+      refCleanup: true,
+      baseFastForward: true,
+      details: {},
+    }),
+    emitMergeUnlandedFn: () => {},
+    emitMergeFlipFailedFn: () => {},
+    ...overrides,
+  };
+}
+
+describe('merge wait — the confirmed path', () => {
+  it('calls the shared confirmStoryMerged once and runs the land tail', async () => {
     let confirmCalls = 0;
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      confirmStoryMergedFn: async (args) => {
-        confirmCalls += 1;
-        assert.equal(args.storyId, 4428);
-        assert.equal(args.prNumber, 99);
-        return { storyId: 4428, action: 'done', merged: true };
-      },
-    });
-
-    assert.equal(outcome.confirmed, true);
-    assert.equal(outcome.action, 'done');
-    assert.equal(confirmCalls, 1, 'confirmStoryMerged runs exactly once');
-    // No blocked transition, no friction comment, no merge.unlanded.
-    assert.equal(provider._updates().length, 0);
-    assert.equal(provider._comments().length, 0);
-  });
-
-  it('blocks explicitly instead of reporting confirmed:true when the merge landed but the agent::done flip failed', async () => {
-    // Regression test for an audit-quality Critical finding (Epic #4425
-    // Phase 4): confirmation.merged is true even when the agent::done
-    // label flip itself threw (action: 'flip-failed') — reporting
-    // confirmed:true in that case would exit 0 while the Story stayed
-    // stuck at agent::closing with no notification and no block.
-    //
-    // Story #4539 kept that contract and corrected the attribution: the
-    // block now reports through `merge.flip-failed`, because the merge DID
-    // land and a `merge.unlanded` record was a false report.
-    const provider = makeFakeProvider();
-    const emitted = [];
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      confirmStoryMergedFn: async () => ({
-        storyId: 4428,
-        action: 'flip-failed',
-        merged: true,
-      }),
-      emitMergeFlipFailedFn: (payload) => {
-        emitted.push(payload);
-        return { ledgerPath: '/tmp/fake.ndjson', record: payload };
-      },
-    });
-
-    assert.equal(outcome.confirmed, false);
-    assert.equal(outcome.blockClass, 'merged-flip-failed');
-    assert.equal(emitted.length, 1);
-    assert.equal(emitted[0].scope, 'story');
-    assert.equal(emitted[0].ticketId, 4428);
-
-    // Friction comment posted and the Story routed to agent::blocked —
-    // never a silent confirmed:true exit.
-    assert.equal(provider._comments().length, 1);
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
-  });
-
-  it('polls (sleeping between attempts) until the merge confirms, reusing the same confirm call each round', async () => {
-    const provider = makeFakeProvider();
-    const results = ['pending', 'pending', 'merged'];
-    let confirmCalls = 0;
-    let sleepCalls = 0;
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {
-        delivery: {
-          mergeWatch: { intervalSeconds: 5, maxBudgetSeconds: 3600 },
+    let tailArgs = null;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: '2026-07-16T00:00:00Z',
+        }),
+        confirmStoryMergedFn: async (args) => {
+          confirmCalls += 1;
+          assert.equal(args.storyId, 4428);
+          assert.equal(args.prNumber, 99);
+          return { storyId: 4428, action: 'done', merged: true };
         },
-      },
-      progress: NOOP_PROGRESS,
-      sleepFn: async () => {
-        sleepCalls += 1;
-      },
-      nowMsFn: () => 0,
-      confirmStoryMergedFn: async () => {
-        const next = results[confirmCalls];
-        confirmCalls += 1;
-        if (next === 'merged') {
-          return { action: 'done', merged: true };
-        }
-        return { action: 'pending', reason: 'pr-open', merged: false };
-      },
-    });
-
+        runPostLandTailFn: async (args) => {
+          tailArgs = args;
+          return {
+            followUps: true,
+            statusResync: true,
+            refCleanup: true,
+            baseFastForward: true,
+            details: {},
+          };
+        },
+      }),
+    );
     assert.equal(outcome.confirmed, true);
-    assert.equal(outcome.action, 'done');
-    assert.equal(confirmCalls, 3);
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(confirmCalls, 1, 'confirmStoryMerged runs exactly once');
+    // The land tail is reached on the DEFAULT path — before #4543 it ran only
+    // on the standalone CLI, which this path is told to skip, so follow-ups
+    // were captured never.
+    assert.equal(outcome.tail.followUps, true);
+    assert.equal(tailArgs.storyBranch, 'story-4428');
+    assert.equal(tailArgs.baseBranch, 'main');
+  });
+
+  it('does NOT re-read the ticket on every poll (the ~240-reads-per-hour fix)', async () => {
+    const provider = makeFakeProvider();
+    const states = [
+      openProbe(),
+      openProbe(),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    let polls = 0;
+    await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return states.shift();
+        },
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(polls, 3, 'polled the PR three times');
+    // The loop probes the PR only; the ticket is read once, inside the single
+    // confirmStoryMerged call — which is stubbed here, so zero reads.
+    assert.equal(
+      provider._getTicketCalls(),
+      0,
+      'the wait loop must not re-fetch the ticket per poll',
+    );
+  });
+
+  it('polls until the merge appears, sleeping between polls', async () => {
+    const states = [
+      openProbe(),
+      openProbe(),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    let sleepCalls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        sleepFn: async () => {
+          sleepCalls += 1;
+        },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.confirmed, true);
     assert.equal(sleepCalls, 2, 'slept between the two pending polls');
   });
 
-  it('the default confirmStoryMergedFn IS the exact single-story/confirm-merge.js export (AC4: one implementation)', async () => {
-    const provider = makeFakeProvider();
-    let sawDefault = false;
-    // Prove by observable effect: confirmStoryMerged flips `agent::closing`
-    // → `agent::done` via `transitionTicketState` (issue closes). Running
-    // the phase WITHOUT injecting `confirmStoryMergedFn` must produce the
-    // exact same side effect the direct `confirmStoryMerged` unit tests
-    // assert (tests/single-story-confirm-merge.test.js) — proving the
-    // phase's default parameter resolves to the same shared export rather
-    // than a re-extracted copy.
-    assert.equal(typeof confirmStoryMerged, 'function');
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      readPrMergeStateFn: async () => {
-        sawDefault = true;
-        return { state: 'MERGED', mergedAt: '2026-07-11T00:00:00Z' };
-      },
-    });
-
-    assert.equal(sawDefault, true);
-    assert.equal(outcome.confirmed, true);
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::done']);
-    assert.equal(patch.state, 'closed');
-  });
-});
-
-describe('runConfirmMergePhase — arm failure', () => {
-  it('emits merge.unlanded (scope: story, blockClass: arm-failure), posts friction, and blocks', async () => {
-    const provider = makeFakeProvider();
-    const emitted = [];
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: false,
-      autoMergeReason: 'gh-exit-1: some auth failure',
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      emitMergeUnlandedFn: (payload) => {
-        emitted.push(payload);
-        return { ledgerPath: '/tmp/fake.ndjson', record: payload };
-      },
-    });
-
-    assert.equal(outcome.confirmed, false);
-    assert.equal(outcome.blockClass, 'arm-failure');
-    assert.equal(emitted.length, 1);
-    assert.equal(emitted[0].scope, 'story');
-    assert.equal(emitted[0].ticketId, 4428);
-    assert.equal(emitted[0].prNumber, 99);
-    assert.equal(emitted[0].blockClass, 'arm-failure');
-
-    // Friction comment posted.
-    assert.equal(provider._comments().length, 1);
-    assert.match(provider._comments()[0].payload.body, /merge did not land/);
-    assert.match(provider._comments()[0].payload.body, /arm-failure/);
-
-    // Routed to agent::blocked.
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
-    assert.equal(provider._story().labels.includes('agent::blocked'), true);
-  });
-
-  it('classifies a branch-protection arm rejection distinctly from a generic arm-failure', async () => {
-    const provider = makeFakeProvider();
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 100,
-      prUrl: 'https://github.com/o/r/pull/100',
-      autoMergeEnabled: false,
-      autoMergeReason: 'gh-exit-1: Required review is missing approval',
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-    });
-    assert.equal(outcome.blockClass, 'branch-protection-human-required');
-  });
-});
-
-describe('runConfirmMergePhase — budget exhaustion', () => {
-  it('emits merge.unlanded (checks-pending-timeout) and blocks instead of resting at agent::closing', async () => {
-    const provider = makeFakeProvider();
-    const emitted = [];
-    let now = 0;
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {
-        delivery: { mergeWatch: { intervalSeconds: 30, maxBudgetSeconds: 60 } },
-      },
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => now,
-      sleepFn: async (ms) => {
-        now += ms;
-      },
-      confirmStoryMergedFn: async () => ({
-        action: 'pending',
-        reason: 'pr-open',
-        merged: false,
+  it('carries the OBSERVED checks rollup, not an assumed success', async () => {
+    // A merge can land by admin override, or with non-required checks red.
+    // Stamping 'success' would report a green run nobody observed — the same
+    // report-an-outcome-you-never-checked shape the tail booleans prevent.
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: 'x',
+          checksStatus: 'failure',
+        }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
       }),
-      emitMergeUnlandedFn: (payload) => {
-        emitted.push(payload);
-        return { ledgerPath: '/tmp/fake.ndjson', record: payload };
-      },
-    });
+    );
+    assert.equal(outcome.confirmed, true);
+    assert.equal(outcome.prProbe.checksStatus, 'failure');
+  });
 
+  it('defaults confirmStoryMergedFn to the SAME export the standalone CLI calls', () => {
+    // Story #4428 AC4: exactly one merged/agent::done implementation. Pin the
+    // identity rather than re-testing the flip here.
+    assert.equal(typeof confirmStoryMerged, 'function');
+  });
+});
+
+describe('merge wait — pending (the resumable terminal)', () => {
+  it('returns pending on per-invocation expiry WITHOUT flipping a label or emitting unlanded', async () => {
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: { mergeWatch: { intervalSeconds: 30, maxWaitSeconds: 60 } },
+        },
+        // 40s per read → the second iteration's waited (40s) + interval (30s)
+        // exceeds the 60s bound.
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => openProbe(),
+        emitMergeUnlandedFn: () => emitted.push('unlanded'),
+      }),
+    );
     assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.terminal, 'pending');
+    // The three things that make it resumable rather than a block.
+    assert.equal(emitted.length, 0, 'no merge.unlanded event');
+    assert.equal(provider._updates().length, 0, 'no label mutation');
+    assert.equal(provider._comments().length, 0, 'no friction comment');
+    assert.equal(outcome.waitBudget.maxWaitSeconds, 60);
+  });
+
+  it('reports a cumulative budget anchored at the PR createdAt, not this invocation', async () => {
+    // The PR was created 10 minutes before this invocation started. A resume
+    // must continue that clock — otherwise every resume gets a fresh hour and
+    // the cumulative bound means nothing.
+    const startMs = Date.parse('2026-07-16T00:10:00Z');
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: {
+          delivery: { mergeWatch: { intervalSeconds: 30, maxWaitSeconds: 60 } },
+        },
+        nowMsFn: makeClock(40_000, startMs),
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-16T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending');
+    assert.ok(
+      outcome.waitBudget.cumulativeSeconds >= 600,
+      `cumulative (${outcome.waitBudget.cumulativeSeconds}s) must include the PR's prior life`,
+    );
+    assert.ok(
+      outcome.waitBudget.cumulativeSeconds > outcome.waitBudget.waitedSeconds,
+      'cumulative must outrun this invocation',
+    );
+  });
+
+  it('a raised per-invocation bound keeps waiting instead of returning pending', async () => {
+    // The headless escape hatch: a caller with no host tool-invocation
+    // ceiling raises maxWaitSeconds and lands in one block.
+    const states = [
+      openProbe(),
+      openProbe(),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        maxWaitSeconds: 3600,
+        config: {
+          delivery: { mergeWatch: { intervalSeconds: 30, maxWaitSeconds: 60 } },
+        },
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(
+      outcome.confirmed,
+      true,
+      'the raised bound outlasted the wait',
+    );
+  });
+});
+
+describe('merge wait — blocked terminals', () => {
+  it('a red required check fails fast as checks-failed, without burning the budget', async () => {
+    const provider = makeFakeProvider();
+    const emitted = [];
+    let polls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: { delivery: { mergeWatch: { maxBudgetSeconds: 3600 } } },
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return openProbe({
+            checksStatus: 'failure',
+            mergeStateStatus: 'BLOCKED',
+          });
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    // Not branch-protection-human-required — the pre-#4543 verdict, which
+    // sent the operator to diagnose rules that were working fine.
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.equal(polls, 1, 'failed fast on the first probe');
+    assert.equal(emitted[0].blockClass, 'checks-failed');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+    // The friction comment names the red check, not branch protection.
+    assert.match(
+      provider._comments()[0].payload.body,
+      /required check is \*\*red\*\*/,
+    );
+  });
+
+  it('does not block an already-over-budget PR before waiting at all', async () => {
+    // The cumulative clock is anchored at the PR's createdAt so resumes do not
+    // restart it — which means a PR older than maxBudgetSeconds is already
+    // over budget on its FIRST probe. Without a poll floor, resuming a Story
+    // the next morning would flip agent::blocked against a healthy PR that was
+    // seconds from merging, having never waited.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const states = [
+      openProbe({ createdAt: '2026-07-01T00:00:00Z' }), // created weeks ago
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(1000, Date.parse('2026-07-16T00:00:00Z')),
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.confirmed, true, 'the healthy PR was allowed to land');
+    assert.equal(emitted.length, 0, 'no merge.unlanded against a healthy PR');
+    assert.equal(provider._updates().length, 0, 'no agent::blocked flip');
+    // The floor is a real bound, not an unbounded reprieve: a stuck PR still
+    // blocks within a poll cycle (see the next case).
+    assert.ok(MIN_POLLS_BEFORE_BUDGET_BLOCK >= 2);
+  });
+
+  it('still blocks a genuinely stuck over-budget PR once the poll floor is met', async () => {
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(1000, Date.parse('2026-07-16T00:00:00Z')),
+        // Never merges, and was created long before the budget.
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-01T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('blocks when the cumulative budget is exhausted', async () => {
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: {
+          delivery: {
+            mergeWatch: {
+              intervalSeconds: 30,
+              maxWaitSeconds: 3600,
+              maxBudgetSeconds: 60,
+            },
+          },
+        },
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => openProbe(),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
     assert.equal(outcome.blockClass, 'checks-pending-timeout');
     assert.equal(emitted.length, 1);
-    assert.equal(emitted[0].blockClass, 'checks-pending-timeout');
-    assert.ok(emitted[0].elapsedSeconds >= 0);
-
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
+    assert.equal(emitted[0].scope, 'story');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
   });
 
-  it('blocks immediately (not after the full budget) when the PR closed without merging', async () => {
+  it('an un-armed PR blocks immediately as arm-failure', async () => {
     const provider = makeFakeProvider();
-    let sleepCalls = 0;
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {
-        delivery: {
-          mergeWatch: { intervalSeconds: 30, maxBudgetSeconds: 3600 },
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        autoMergeEnabled: false,
+        autoMergeReason: 'gh pr merge --auto exited 1',
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'arm-failure');
+    assert.equal(emitted[0].ticketId, 4428);
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('a PR closed without merging blocks immediately, not after the budget', async () => {
+    const provider = makeFakeProvider();
+    let polls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return { state: 'CLOSED', mergedAt: null, checksStatus: 'pending' };
         },
-      },
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => 0,
-      sleepFn: async () => {
-        sleepCalls += 1;
-      },
-      confirmStoryMergedFn: async () => ({
-        action: 'pending',
-        reason: 'pr-not-merged',
-        merged: false,
       }),
-    });
-
-    assert.equal(outcome.confirmed, false);
-    assert.equal(
-      sleepCalls,
-      0,
-      'never slept — closed-without-merge is terminal',
     );
-    // Regression assertion (audit-clean-code finding, Epic #4425): must
-    // NOT misclassify as checks-pending-timeout — the PR is definitively
-    // closed, not still-in-flight.
-    assert.notEqual(outcome.blockClass, 'checks-pending-timeout');
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(polls, 1);
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
   });
 
-  it('does not crash when the PR number is unparseable — skips the merge.unlanded emit but still blocks', async () => {
-    const provider = makeFakeProvider();
-    let emitCalls = 0;
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: null,
-      prUrl: 'https://github.com/o/r/pull/???',
-      autoMergeEnabled: false,
-      autoMergeReason: 'pr-number-unparseable',
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      emitMergeUnlandedFn: () => {
-        emitCalls += 1;
-      },
-    });
-
-    assert.equal(outcome.confirmed, false);
-    assert.equal(emitCalls, 0);
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
-  });
-});
-
-describe('runConfirmMergePhase — best-effort side effects never mask the block', () => {
-  it('still blocks even when the merge.unlanded emit throws', async () => {
-    const provider = makeFakeProvider();
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: false,
-      autoMergeReason: 'gh-spawn-error: ENOENT',
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      emitMergeUnlandedFn: () => {
-        throw new Error('schema drift');
-      },
-    });
-    assert.equal(outcome.confirmed, false);
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
-  });
-
-  it('still blocks even when posting the friction comment throws', async () => {
-    const provider = makeFakeProvider();
-    provider.postComment = async () => {
-      throw new Error('API down');
-    };
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4428,
-      prNumber: 99,
-      prUrl: 'https://github.com/o/r/pull/99',
-      autoMergeEnabled: false,
-      autoMergeReason: 'gh-spawn-error: ENOENT',
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-    });
-    assert.equal(outcome.confirmed, false);
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
-  });
-});
-
-describe('land tail + flip-failed reporting (Story #4539)', () => {
-  it('captures Story follow-ups on the confirmed-merge path — the default path previously captured them never', async () => {
-    const provider = makeFakeProvider();
-    const captured = [];
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4539,
-      prNumber: 77,
-      prUrl: 'https://github.com/o/r/pull/77',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => 0,
-      sleepFn: async () => {},
-      confirmStoryMergedFn: async () => ({
-        action: 'done',
-        merged: true,
-      }),
-      captureFollowUpsAfterConfirmFn: async (confirmation, ctx) => {
-        captured.push({ action: confirmation.action, storyId: ctx.storyId });
-        return { ok: true, filed: 2 };
-      },
-    });
-
-    assert.equal(outcome.confirmed, true);
-    assert.deepEqual(
-      captured,
-      [{ action: 'done', storyId: 4539 }],
-      'the shared capture helper runs on the in-close landing path',
-    );
-    assert.deepEqual(outcome.followUps, { ok: true, filed: 2 });
-  });
-
-  it('a flaked follow-up capture never fails a landed merge', async () => {
-    const provider = makeFakeProvider();
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4539,
-      prNumber: 77,
-      prUrl: 'https://github.com/o/r/pull/77',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => 0,
-      sleepFn: async () => {},
-      confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
-      captureFollowUpsAfterConfirmFn: async () => null,
-    });
-    assert.equal(outcome.confirmed, true);
-  });
-
-  it('reports a merged-but-flip-failed PR as flip-failed, NOT as an unlanded merge', async () => {
+  it('a merged PR whose agent::done flip failed blocks as merged-flip-failed, not unlanded', async () => {
+    // Story #4539 — the merge landed, so reporting merge.unlanded would be
+    // false and its friction would send the operator to branch protection
+    // instead of the one-line idempotent remedy.
     const provider = makeFakeProvider();
     const unlanded = [];
     const flipFailed = [];
-    const outcome = await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4539,
-      prNumber: 88,
-      prUrl: 'https://github.com/o/r/pull/88',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => 0,
-      sleepFn: async () => {},
-      confirmStoryMergedFn: async () => ({
-        action: 'flip-failed',
-        merged: true,
-        reason: 'labels API 500',
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        readPrWaitProbeFn: async () => ({ state: 'MERGED', mergedAt: 'x' }),
+        confirmStoryMergedFn: async () => ({
+          action: 'flip-failed',
+          merged: true,
+          reason: 'labels API 500',
+        }),
+        emitMergeUnlandedFn: (rec) => unlanded.push(rec),
+        emitMergeFlipFailedFn: (rec) => flipFailed.push(rec),
       }),
-      emitMergeUnlandedFn: (p) => {
-        unlanded.push(p);
-        return { ledgerPath: '/tmp/f.ndjson', record: p };
-      },
-      emitMergeFlipFailedFn: (p) => {
-        flipFailed.push(p);
-        return { ledgerPath: '/tmp/f.ndjson', record: p };
-      },
-    });
-
-    assert.equal(outcome.confirmed, false);
+    );
+    assert.equal(outcome.terminal, 'blocked');
     assert.equal(outcome.blockClass, 'merged-flip-failed');
-    assert.equal(
-      unlanded.length,
-      0,
-      'the merge landed — emitting merge.unlanded would be a false report',
-    );
+    assert.equal(unlanded.length, 0, 'the merge landed — no unlanded event');
     assert.equal(flipFailed.length, 1);
-    assert.equal(flipFailed[0].ticketId, 4539);
-    assert.equal(flipFailed[0].prNumber, 88);
-    assert.equal(flipFailed[0].reason, 'labels API 500');
-
-    // Still terminates explicitly — a merged PR resting at agent::closing
-    // is the silent strand the must-land contract exists to prevent.
-    const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels.add, ['agent::blocked']);
+    assert.match(
+      provider._comments()[0].payload.body,
+      /label-write fault, not a merge fault/,
+    );
   });
 
-  it('the flip-failed friction names the merge as landed and the confirm re-run as the remedy', async () => {
-    const provider = makeFakeProvider();
-    await runConfirmMergePhase({
-      cwd: '/repo',
-      storyId: 4539,
-      prNumber: 88,
-      prUrl: 'https://github.com/o/r/pull/88',
-      autoMergeEnabled: true,
-      autoMergeReason: null,
-      provider,
-      config: {},
-      progress: NOOP_PROGRESS,
-      nowMsFn: () => 0,
-      sleepFn: async () => {},
-      confirmStoryMergedFn: async () => ({
-        action: 'flip-failed',
-        merged: true,
-        reason: 'labels API 500',
+  it('carries the friction comment id so the operator can be pointed at the remediation', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        autoMergeEnabled: false,
+        autoMergeReason: 'arm failed',
       }),
-      emitMergeFlipFailedFn: () => ({ ledgerPath: '', record: {} }),
-    });
-
-    const friction = provider
-      ._comments()
-      .filter((c) => c.payload?.type === 'friction');
-    assert.equal(friction.length, 1);
-    const body = friction[0].payload.body;
-    assert.match(body, /merged successfully/i);
-    assert.match(body, /single-story-confirm-merge\.js --story 4539/);
-    assert.doesNotMatch(
-      body,
-      /without observing a confirmed merge/i,
-      'must not reuse the unlanded wording — the merge landed',
     );
+    assert.equal(outcome.frictionCommentId, 'friction-comment-1');
   });
 });
 
-describe('parseCloseOptions — raw --wait-merge / --no-wait-merge intent', () => {
-  it('carries the operator intent forward unresolved, so the runner can resolve it against config + arm outcome', () => {
-    const opts = parseCloseOptions({ storyIdParam: 4428, cwdParam: '/repo' });
+describe('merge wait — a PR that falls behind its base', () => {
+  it('updates a BEHIND PR within a bounded number of attempts', async () => {
+    let updates = 0;
+    const states = [
+      openProbe({ mergeStateStatus: 'BEHIND' }),
+      openProbe({ mergeStateStatus: 'BEHIND' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { updateAttempts: 2 } } },
+        injectedGh: {
+          pr: {
+            updateBranch: async () => {
+              updates += 1;
+            },
+          },
+        },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.confirmed, true);
     assert.equal(
-      opts.waitForMergeExplicit,
-      undefined,
-      'no flag passed → no explicit intent',
+      updates,
+      2,
+      'updated the behind branch rather than waiting it out',
     );
-    assert.equal(opts.noWaitForMerge, false);
   });
 
-  it('records an injected waitForMergeParam:true as explicit intent', () => {
-    const opts = parseCloseOptions({
-      storyIdParam: 4428,
-      cwdParam: '/repo',
-      waitForMergeParam: true,
-    });
-    assert.equal(opts.waitForMergeExplicit, true);
+  it('stops updating once the attempt budget is spent', async () => {
+    let updates = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: {
+          delivery: {
+            mergeWatch: {
+              updateAttempts: 1,
+              intervalSeconds: 30,
+              maxWaitSeconds: 120,
+            },
+          },
+        },
+        nowMsFn: makeClock(40_000),
+        injectedGh: {
+          pr: {
+            updateBranch: async () => {
+              updates += 1;
+            },
+          },
+        },
+        readPrWaitProbeFn: async () =>
+          openProbe({ mergeStateStatus: 'BEHIND' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'pending');
+    assert.equal(updates, 1, 'the update budget is a bound, not a suggestion');
   });
 
-  it('records the opt-out flag independently of the explicit intent', () => {
-    const opts = parseCloseOptions({
-      storyIdParam: 4428,
-      cwdParam: '/repo',
-      waitForMergeParam: true,
-      noWaitForMergeParam: true,
-    });
-    assert.equal(opts.waitForMergeExplicit, true);
-    assert.equal(opts.noWaitForMerge, true);
+  it('a failed update-branch does not itself terminate the wait', async () => {
+    const states = [
+      openProbe({ mergeStateStatus: 'BEHIND' }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        injectedGh: {
+          pr: {
+            updateBranch: async () => {
+              throw new Error('gh: conflict');
+            },
+          },
+        },
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    // The next poll re-reads the real state and lets normal classification
+    // decide — a flaked update is not a verdict.
+    assert.equal(outcome.confirmed, true);
   });
 });
 
-describe('resolveWaitForMerge — config + flag + arm-outcome precedence (Story #4539)', () => {
-  it('defaults from delivery.routing.closeAndLand (framework default true)', () => {
-    const { waitForMerge, reason } = resolveWaitForMerge({});
-    assert.equal(waitForMerge, true);
-    assert.equal(reason, 'config-close-and-land');
+describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
+  it('defaults the per-invocation bound to fit a single host tool invocation', () => {
+    const resolved = resolveMergeWaitConfig({});
+    assert.equal(resolved.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS);
+    // The host ceiling is ~10 minutes and the close gates precede the wait.
+    assert.ok(resolved.maxWaitSeconds < 600);
+    assert.equal(resolved.maxBudgetSeconds, 3600);
+    assert.equal(resolved.intervalSeconds, 30);
+    assert.equal(resolved.updateAttempts, DEFAULT_UPDATE_ATTEMPTS);
+    // The two budgets are separate axes: the per-invocation bound must be
+    // well inside the cumulative one, or resuming would be pointless.
+    assert.ok(resolved.maxWaitSeconds < resolved.maxBudgetSeconds);
   });
 
-  it('honours delivery.routing.closeAndLand:false — the operator opt-out that was previously ignored', () => {
-    // Regression for the dead knob: resolveWaitForMerge used to call
-    // getDeliveryRouting() with NO config, so it always returned the
-    // framework default and this setting could never take effect.
-    const { waitForMerge, reason } = resolveWaitForMerge({
-      config: { delivery: { routing: { closeAndLand: false } } },
+  it('reads the operator config and lets an explicit override win', () => {
+    const config = {
+      delivery: {
+        mergeWatch: {
+          intervalSeconds: 5,
+          maxWaitSeconds: 100,
+          maxBudgetSeconds: 200,
+          updateAttempts: 0,
+        },
+      },
+    };
+    assert.equal(resolveMergeWaitConfig(config).maxWaitSeconds, 100);
+    assert.equal(resolveMergeWaitConfig(config).updateAttempts, 0);
+    assert.equal(resolveMergeWaitConfig(config, 900).maxWaitSeconds, 900);
+    // An override must not disturb the other axes.
+    assert.equal(resolveMergeWaitConfig(config, 900).maxBudgetSeconds, 200);
+  });
+
+  it('clamps a poll interval longer than the wait bound so the budget stays reachable', () => {
+    // A --max-wait-seconds shorter than the interval would otherwise fire the
+    // pending check on poll 1 forever: the wait could never sleep, the poll
+    // floor could never be met, and the cumulative budget would be unreachable
+    // across ANY number of resumes — permanent pending that never escalates.
+    const resolved = resolveMergeWaitConfig(
+      { delivery: { mergeWatch: { intervalSeconds: 30 } } },
+      10,
+    );
+    assert.equal(resolved.maxWaitSeconds, 10);
+    assert.equal(resolved.intervalSeconds, 10, 'interval clamped to the bound');
+    assert.ok(resolved.intervalSeconds <= resolved.maxWaitSeconds);
+  });
+
+  it('a short bound still reaches the poll floor and can block', async () => {
+    // The behavioural consequence of the clamp: a misconfigured short wait
+    // still escalates a genuinely stuck PR instead of parking forever.
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        maxWaitSeconds: 10,
+        config: {
+          delivery: {
+            mergeWatch: { intervalSeconds: 30, maxBudgetSeconds: 60 },
+          },
+        },
+        // A non-advancing clock isolates the poll sequence: without the clamp
+        // the interval (30s) exceeds the bound (10s), so the pending check
+        // fires on poll 1 and the loop never sleeps — polls can never reach
+        // the floor and the budget is unreachable forever.
+        nowMsFn: makeClock(0, Date.parse('2026-07-16T00:00:00Z')),
+        readPrWaitProbeFn: async () =>
+          openProbe({ createdAt: '2026-07-01T00:00:00Z' }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('ignores invalid config values rather than producing a zero-second wait', () => {
+    const resolved = resolveMergeWaitConfig({
+      delivery: { mergeWatch: { maxWaitSeconds: 0, intervalSeconds: -5 } },
     });
-    assert.equal(waitForMerge, false);
-    assert.equal(reason, 'config-close-and-land');
+    assert.equal(resolved.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS);
+    assert.equal(resolved.intervalSeconds, 30);
   });
 
-  it('the explicit opt-out always wins, even over an explicit --wait-merge', () => {
-    const { waitForMerge, reason } = resolveWaitForMerge({
-      waitForMergeExplicit: true,
-      noWaitForMerge: true,
+  it('anchors the cumulative budget at the PR createdAt, degrading safely', () => {
+    const created = '2026-07-16T00:00:00Z';
+    assert.equal(
+      resolveBudgetAnchorMs({ createdAt: created, fallbackMs: 999 }),
+      Date.parse(created),
+    );
+    // No timestamp / an unparseable one falls back to this invocation's
+    // start: the worst case is a fresh cumulative budget (the pre-#4543
+    // behaviour), never a premature block.
+    assert.equal(
+      resolveBudgetAnchorMs({ createdAt: null, fallbackMs: 999 }),
+      999,
+    );
+    assert.equal(
+      resolveBudgetAnchorMs({ createdAt: 'not-a-date', fallbackMs: 999 }),
+      999,
+    );
+  });
+});
+
+describe('readPrWaitProbe — one probe carries every field the loop needs', () => {
+  it('asks for the merge state, the checks rollup, and the budget anchor in one call', async () => {
+    let fields = null;
+    const probe = await readPrWaitProbe({
+      prNumber: 99,
+      gh: {
+        pr: {
+          view: async (_n, f) => {
+            fields = f;
+            return {
+              state: 'OPEN',
+              mergedAt: null,
+              createdAt: '2026-07-16T00:00:00Z',
+              mergeStateStatus: 'BEHIND',
+              reviewDecision: 'APPROVED',
+              statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+            };
+          },
+        },
+      },
     });
-    assert.equal(waitForMerge, false);
-    assert.equal(reason, 'opt-out-flag');
+    // One round-trip per poll, not one per concern.
+    for (const field of [
+      'state',
+      'mergedAt',
+      'createdAt',
+      'mergeStateStatus',
+      'statusCheckRollup',
+    ]) {
+      assert.ok(fields.includes(field), `probe omits ${field}`);
+    }
+    assert.equal(probe.mergeStateStatus, 'BEHIND');
+    assert.equal(probe.createdAt, '2026-07-16T00:00:00Z');
   });
 
-  it('an explicit --wait-merge overrides a closeAndLand:false config', () => {
-    const { waitForMerge, reason } = resolveWaitForMerge({
-      waitForMergeExplicit: true,
-      config: { delivery: { routing: { closeAndLand: false } } },
+  it('degrades to a conservative pending probe when the read itself fails', async () => {
+    // A flaky API read must not be mistaken for a definitive verdict — a
+    // `failure` stamp here would block a perfectly healthy Story.
+    const probe = await readPrWaitProbe({
+      prNumber: 99,
+      gh: {
+        pr: {
+          view: async () => {
+            throw new Error('ETIMEDOUT');
+          },
+        },
+      },
     });
-    assert.equal(waitForMerge, true);
-    assert.equal(reason, 'explicit-flag');
+    assert.equal(probe.checksStatus, 'pending');
+    assert.notEqual(probe.checksStatus, 'failure');
+    assert.equal(probe.state, null);
+    assert.match(probe.error, /ETIMEDOUT/);
+  });
+});
+
+describe('parseCloseOptions / resolveWaitForMerge — flag compatibility', () => {
+  it('keeps --wait-merge / --no-wait-merge byte-compatible', () => {
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1, waitForMergeParam: true })
+        .waitForMergeExplicit,
+      true,
+    );
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1, noWaitForMergeParam: true })
+        .noWaitForMerge,
+      true,
+    );
+    // Absent means "use delivery.routing.closeAndLand".
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1 }).waitForMergeExplicit,
+      undefined,
+    );
   });
 
-  for (const armReason of ['disabled-by-flag', 'disabled-by-policy-strict']) {
-    it(`does not wait when the operator owns the merge (${armReason}) — the PR was deliberately left un-armed`, () => {
-      const { waitForMerge, reason } = resolveWaitForMerge({
-        autoMergeReason: armReason,
-      });
-      assert.equal(
-        waitForMerge,
-        false,
-        'waiting would burn the poll budget and then block a healthy Story',
+  it('accepts --max-wait-seconds and rejects a nonsense value rather than coercing it', () => {
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1, maxWaitSecondsParam: 900 })
+        .maxWaitSeconds,
+      900,
+    );
+    // A typo must not silently become a zero-second wait.
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1, maxWaitSecondsParam: 0 })
+        .maxWaitSeconds,
+      undefined,
+    );
+    assert.equal(
+      parseCloseOptions({ storyIdParam: 1 }).maxWaitSeconds,
+      undefined,
+    );
+  });
+
+  it('--no-wait-merge always wins; an un-armed PR is never waited on', () => {
+    assert.deepEqual(
+      resolveWaitForMerge({ noWaitForMerge: true, waitForMergeExplicit: true }),
+      { waitForMerge: false, reason: 'opt-out-flag' },
+    );
+    // You cannot land-in-one-close a PR you deliberately refused to arm, so
+    // an explicit --wait-merge loses to the operator-merge reasons.
+    for (const reason of ['disabled-by-flag', 'disabled-by-policy-strict']) {
+      assert.deepEqual(
+        resolveWaitForMerge({
+          waitForMergeExplicit: true,
+          autoMergeReason: reason,
+        }),
+        { waitForMerge: false, reason: 'operator-merge' },
       );
-      assert.equal(reason, 'operator-merge');
+    }
+    assert.deepEqual(resolveWaitForMerge({ config: {} }), {
+      waitForMerge: true,
+      reason: 'config-close-and-land',
     });
-  }
-
-  it('operator-merge beats an explicit --wait-merge: you cannot land-in-one-close a PR you refused to arm', () => {
-    const { waitForMerge, reason } = resolveWaitForMerge({
-      waitForMergeExplicit: true,
-      autoMergeReason: 'disabled-by-flag',
-    });
-    assert.equal(waitForMerge, false);
-    assert.equal(reason, 'operator-merge');
-  });
-
-  it('a genuine arm FAILURE still waits (and therefore still blocks) — only deliberate disablement rests', () => {
-    // The distinction that keeps the must-land contract intact: an arm that
-    // failed is a fault to report, not an operator decision to respect.
-    const { waitForMerge } = resolveWaitForMerge({
-      autoMergeReason: 'pr-number-unparseable',
-    });
-    assert.equal(waitForMerge, true);
   });
 });

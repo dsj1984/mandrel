@@ -16,6 +16,21 @@
  *                                         were still pending/running — not
  *                                         a hard block, the run simply ran
  *                                         out of time.
+ *   - `checks-failed`                    A required check went RED. A
+ *                                         definitive terminal the merge wait
+ *                                         must fail fast on (Story #4543):
+ *                                         before this class the in-close poll
+ *                                         read only `state`/`mergedAt`, so a
+ *                                         check that failed at minute one
+ *                                         burned the entire budget and then
+ *                                         classified as
+ *                                         `branch-protection-human-required`
+ *                                         (the exhaustion probe sees
+ *                                         `mergeStateStatus: BLOCKED` with
+ *                                         checks settled) — sending the
+ *                                         operator to diagnose branch
+ *                                         protection instead of the red check
+ *                                         that is actually in their way.
  *   - `branch-protection-human-required` GitHub reports the PR needs a
  *                                         human action: a required review
  *                                         that hasn't been granted, or a
@@ -55,12 +70,17 @@
  */
 
 /**
- * The four block classes named in the Epic #4425 Goal. Order is the
- * evaluation priority documented on `classifyMergeBlock` below, NOT an
- * arbitrary listing — earlier entries are checked first when a real input
- * happens to satisfy more than one heuristic.
+ * Every class `classifyMergeBlock` can return. Order is the evaluation
+ * priority documented on `classifyMergeBlock` below, NOT an arbitrary
+ * listing — earlier entries are checked first when a real input happens to
+ * satisfy more than one heuristic.
+ *
+ * Started as the four classes named in the Epic #4425 Goal; Story #4543
+ * added `checks-failed` so a red required check is attributable as itself
+ * rather than being absorbed by the timeout or branch-protection verdicts.
  */
 export const BLOCK_CLASSES = Object.freeze([
+  'checks-failed',
   'checks-pending-timeout',
   'branch-protection-human-required',
   'arm-failure',
@@ -137,6 +157,12 @@ function describeApiRaceFallback(prProbe, budget) {
  *      rejection surfaced AT arm time still routes to
  *      `branch-protection-human-required` rather than the generic
  *      `arm-failure`.
+ *   1b. A red required check — `checks-failed` (Story #4543). Evaluated
+ *      before every budget and probe signal because it is *definitive*:
+ *      no amount of remaining budget turns a failed check green, and on a
+ *      protected branch it also presents as `mergeStateStatus: 'BLOCKED'`,
+ *      so leaving it to step 3 would attribute the operator's red test run
+ *      to branch protection.
  *   2. Budget exhaustion while checks were still in flight —
  *      `checks-pending-timeout`. Evaluated BEFORE the human-required
  *      probe signals because on a protected branch GitHub reports
@@ -204,6 +230,17 @@ export function classifyMergeBlock(input) {
   const checksStatus = prProbe?.checksStatus;
   const checksPendingEvidence =
     checksStatus === 'pending' || checksStatus === 'still-running';
+
+  // 1b. A required check is RED. Definitive — no remaining budget makes a
+  // failed check pass — so this precedes both the budget branch and the
+  // BLOCKED-merge-state heuristic, which would otherwise attribute the red
+  // check to branch protection on any protected base.
+  if (checksStatus === 'failure') {
+    return {
+      blockClass: 'checks-failed',
+      reason: `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'})`,
+    };
+  }
 
   // 2. Budget exhausted while checks were still in flight. Ordered
   // before the human-required probe signals: `mergeStateStatus:

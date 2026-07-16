@@ -23,8 +23,11 @@ import {
 } from '../.agents/scripts/lib/orchestration/merge-block-class.js';
 
 describe('merge-block-class (Story #4426)', () => {
-  it('BLOCK_CLASSES names exactly the four classes from the Epic #4425 Goal', () => {
+  it('BLOCK_CLASSES names every classifyMergeBlock output in evaluation order', () => {
+    // The Epic #4425 Goal named four; Story #4543 added `checks-failed` so a
+    // red required check is attributable as itself.
     assert.deepEqual(BLOCK_CLASSES, [
+      'checks-failed',
       'checks-pending-timeout',
       'branch-protection-human-required',
       'arm-failure',
@@ -153,12 +156,27 @@ describe('merge-block-class (Story #4426)', () => {
       expected: 'api-race-other',
     },
     {
-      name: 'budget exhausted but checks already failed (not pending) → api-race-other',
+      // Story #4543 — a red required check is definitive, so it outranks the
+      // budget branch entirely. This case previously fell through to the
+      // `api-race-other` fallback, which told the operator nothing about the
+      // failing check actually blocking them.
+      name: 'budget exhausted with a red required check → checks-failed',
       input: {
         prProbe: { checksStatus: 'failure' },
         budget: { exhausted: true, elapsedSeconds: 120 },
       },
-      expected: 'api-race-other',
+      expected: 'checks-failed',
+    },
+    {
+      // The same red check on a protected base, where GitHub also reports
+      // BLOCKED. Without the dedicated class this classified as
+      // branch-protection-human-required and sent the operator to inspect
+      // rules that were working correctly.
+      name: 'red required check on a protected base → checks-failed, not branch-protection',
+      input: {
+        prProbe: { checksStatus: 'failure', mergeStateStatus: 'BLOCKED' },
+      },
+      expected: 'checks-failed',
     },
     {
       name: 'no signals at all → api-race-other fallback',

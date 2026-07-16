@@ -149,8 +149,18 @@ export function buildFollowUpsCommentBody({ storyId, proposals, graduated }) {
 }
 
 /**
- * Capture and persist Story follow-ups. Never throws — close must not fail
- * because follow-up filing flaked.
+ * Capture and persist Story follow-ups. Never throws — the land must not
+ * fail because follow-up filing flaked.
+ *
+ * Story #4543 retired the `captureFollowUpsAfterConfirm` action-gate wrapper
+ * (and its `withConfirmFollowUps` sibling) that used to front this function.
+ * Re-deriving "did the merge land?" from a confirmation envelope's `action`
+ * field was the coupling that made close-and-land — the DEFAULT path — skip
+ * capture entirely: the gate only opened on the standalone CLI's `done`, and
+ * a belated manual confirm could not backfill because the Story was already
+ * `agent::done` (confirm returns `noop`, the gate never opens). The shared
+ * land tail (`single-story-close/phases/post-land.js`) now calls this
+ * directly, after the merge is already confirmed.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -160,15 +170,6 @@ export function buildFollowUpsCommentBody({ storyId, proposals, graduated }) {
  * @param {(tag: string, msg: string) => void} [args.progress]
  * @returns {Promise<object>}
  */
-/**
- * Capture follow-ups only when merge confirm landed (`action === 'done'`).
- * One-liner seam for the confirm-merge CLI.
- */
-export async function captureFollowUpsAfterConfirm(confirmation, ctx) {
-  if (confirmation?.action !== 'done') return null;
-  return captureStoryFollowUps(ctx);
-}
-
 export async function captureStoryFollowUps({
   storyId,
   provider,

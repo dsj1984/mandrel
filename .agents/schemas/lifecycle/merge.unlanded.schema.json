@@ -25,6 +25,7 @@
       "type": "string",
       "enum": [
         "checks-pending-timeout",
+        "checks-failed",
         "branch-protection-human-required",
         "arm-failure",
         "api-race-other",

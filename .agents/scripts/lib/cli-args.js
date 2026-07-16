@@ -47,6 +47,22 @@ function optionalBooleanFlag(value) {
 }
 
 /**
+ * Parse a positive-integer flag, preserving `undefined` when the flag is
+ * absent so a caller can distinguish "not supplied" (fall back to config)
+ * from an explicit value. A non-numeric or non-positive value is treated as
+ * absent rather than coerced to 0 — a `--max-wait-seconds=abc` typo must not
+ * silently become a zero-second wait.
+ *
+ * @param {unknown} value
+ * @returns {number|undefined}
+ */
+function parsePositiveInt(value) {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/**
  * Standardized CLI argument parser for sprint scripts.
  * Supports options like --epic, --story, --dry-run, --skip-dashboard.
  * @param {string[]} args Array of arguments (defaults to process.argv)
@@ -67,6 +83,9 @@ export function parseSprintArgs(args = process.argv) {
       // No default — absent means "use delivery.routing.closeAndLand".
       'wait-merge': { type: 'boolean' },
       'no-wait-merge': { type: 'boolean', default: false },
+      // Story #4543 — per-run override of `delivery.mergeWatch.maxWaitSeconds`
+      // (the merge wait's per-invocation bound). Absent means "use the config".
+      'max-wait-seconds': { type: 'string' },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -94,6 +113,10 @@ export function parseSprintArgs(args = process.argv) {
     // true) so attended and headless delivers share the same happy path.
     waitForMerge: optionalBooleanFlag(values['wait-merge']),
     noWaitForMerge: coerceBooleanFlag(values['no-wait-merge']),
+    // Story #4543 — raise the merge wait's per-invocation bound for a
+    // headless caller with no host tool-invocation ceiling, so it lands in
+    // one block instead of returning `pending` at the default 300s.
+    maxWaitSeconds: parsePositiveInt(values['max-wait-seconds']),
     executor: values.executor ?? null,
     // Resolve worktree cwd from flag or env. Empty string/whitespace → null.
     cwd:

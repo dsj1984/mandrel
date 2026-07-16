@@ -282,4 +282,25 @@ describe('confirmStoryMerged', () => {
     assert.equal(result.action, 'done');
     assert.equal(provider._story().state, 'closed');
   });
+
+  it('propagates a transient PR-read failure so the CLI can report it (Story #4543)', async () => {
+    // The PR read is a live `gh` call. It throws on a transient API error, and
+    // this is a landing surface — the one `pending` tells the operator to
+    // re-run. The library propagates (a flaked read must not look like a
+    // verdict); the CLI boundary turns it into a `failed` envelope so the
+    // surface is never silent. Pin the propagation the CLI relies on.
+    await assert.rejects(
+      () =>
+        confirmStoryMerged({
+          provider: makeFakeProvider(),
+          storyId: 3385,
+          prNumber: 42,
+          cwd: '/repo',
+          readPrMergeStateFn: async () => {
+            throw new Error('gh-exec: resource not found');
+          },
+        }),
+      /resource not found/,
+    );
+  });
 });
