@@ -195,23 +195,54 @@ itself, only the npm artifact.
 
 ### Versioning policy
 
-`release-please-config.json` uses the default **node** versioning strategy
-(standard Conventional Commits):
+`release-please-config.json` sets **`"versioning": "always-bump-minor"`**.
+Every release bumps the **minor** — the major is pinned at `2.x` and the
+minor is effectively a serial:
 
 | Commit signal | Bump |
 | ------------- | ---- |
-| `fix:` / `perf:` (no breaking marker) | patch |
-| `feat:` (no breaking marker) | minor |
-| `BREAKING CHANGE:` footer or `feat!:` / `fix!:` | major |
+| `fix:` / `perf:` | **minor** |
+| `feat:` | **minor** |
+| `BREAKING CHANGE:` footer or `feat!:` / `fix!:` | **minor** |
+
+**This is a deliberate cap, not the Conventional Commits default.** The
+`AlwaysBumpMinor` strategy ignores commit types entirely and always returns
+a minor bump, so two things follow and both are intended:
+
+- **A breaking marker cannot cut a major.** The framework's churn is mostly
+  workflow prose and internal orchestration scripts under `.agents/`. Those
+  change shape often, but the package's actual consumer surface — the
+  `mandrel` CLI (`sync` / `update` / `doctor`) and the materialized
+  `.agents/` payload — is what a consumer imports. A `feat!:` on an operator
+  slash-command flag was cutting a major for a change no consumer's code
+  could break on. Majors are now **deliberate**, not incidental.
+- **There are no patch releases.** A one-line `fix:` cuts `2.(n+1).0`, not
+  `2.n.1`. That is the cost of the cap; the minor number is a serial, and
+  the changelog — not the version — tells you what changed.
+
+> **Keep marking breaking changes anyway.** `feat!:` / `BREAKING CHANGE:`
+> still drive the changelog's breaking section, which is how consumers learn
+> what to adjust. The cap changes the *number*, not the *signal*.
 
 v2.0.0 was cut by landing the Story-collapse work with an explicit
 `BREAKING CHANGE` changelog section and version files already at `2.0.0`.
-Subsequent releases follow the table above automatically — no
-`always-bump-minor` cap and no required `Release-As:` trailer for majors.
+Story #4540 then added the cap, after a `feat!:` retiring the `/deliver
+--run` flag proposed 3.0.0.
 
-Operators who want to **force** a specific next version (skip a bump, or
-re-cut after a mistaken tag) can still:
+#### To cut a real major (3.0.0)
 
-1. Edit `package.json`, `.release-please-manifest.json`, and
-   `docs/CHANGELOG.md` on the release PR branch, or
-2. Land a one-shot commit with `Release-As: X.Y.Z` in the trailer.
+The cap is a config line, so an intentional major is a two-step:
+
+1. Remove `"versioning": "always-bump-minor"` from
+   `release-please-config.json` (or set it to `"default"`), and
+2. Land the breaking commit — or force the number outright with a one-shot
+   `Release-As: 3.0.0` trailer, which bypasses commit analysis entirely.
+
+Re-add the cap afterwards if you want majors to stay deliberate.
+
+#### To force any specific version
+
+1. Land a one-shot commit with `Release-As: X.Y.Z` in the trailer
+   (bypasses the strategy, including this cap), or
+2. Edit `package.json`, `.release-please-manifest.json`, and
+   `docs/CHANGELOG.md` directly on the release PR branch.
