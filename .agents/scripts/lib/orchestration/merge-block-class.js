@@ -62,8 +62,8 @@
  *                                         this class makes it attributable.
  *
  * Pure function, no I/O: callers pass in the already-observed
- * arm-result / PR-probe / budget signals (from `AutomergeArmer`,
- * `MergeWatcher`, a raw `gh pr view` read, or the standalone
+ * arm-result / PR-probe / budget signals (from the close path's merge wait,
+ * a raw `gh pr view` read, or the standalone
  * `single-story-confirm-merge.js` poll) and get back a
  * `{ blockClass, reason }` verdict ready to hand to `emitMergeUnlanded`
  * (`emit-merge-unlanded.js`).

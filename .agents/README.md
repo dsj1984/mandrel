@@ -850,7 +850,7 @@ Two operators can drive the same repository at once — for example, two
 runs from clobbering one another with **two distinct coordination layers**.
 They solve different problems and must not be confused:
 
-- **Filesystem locks** (`epic-merge-lock`, `sweep-lock`) serialise work
+- **Filesystem locks** (`sweep-lock`) serialise work
   **within a single machine/clone**. They are keyed on local process PIDs
   and live under `.git/` (or a local lockfile path), so they do **not**
   coordinate across clones. See
