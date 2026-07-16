@@ -27,6 +27,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { run as runGenerator } from '../../.agents/scripts/generate-skills-index.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -147,6 +148,72 @@ describe('generate-skills-index.js --check — live tree freshness', () => {
       result.status,
       0,
       `--check reported drift:\n${result.stderr || result.stdout}`,
+    );
+  });
+});
+
+describe('generate-skills-index.js — format stability (Story #4546)', () => {
+  const LIVE_INDEX = path.join(
+    REPO_ROOT,
+    '.agents',
+    'skills',
+    'skills.index.json',
+  );
+
+  it('the committed manifest passes the project format gate', () => {
+    const result = spawnSync(
+      'npx',
+      ['--no', 'biome', 'ci', '.agents/skills/skills.index.json'],
+      {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        shell: process.platform === 'win32',
+      },
+    );
+    assert.equal(
+      result.status,
+      0,
+      `biome ci rejected the committed manifest:\n${result.stdout || result.stderr}`,
+    );
+  });
+
+  it('regenerating on a clean tree reproduces the committed bytes', () => {
+    // The regression: the generator emitted raw `JSON.stringify` output,
+    // which expands short arrays (`"allowedTools": ["Read", "Bash"]`)
+    // across multiple lines, while the committed manifest is
+    // Biome-formatted by lint-staged at commit time. `npm run
+    // skills:index` therefore left the tree format-dirty on every run and
+    // a `skills:index` → `lint` sequence failed on `biome ci` — even
+    // though `skills:check` reported the index semantically fresh.
+    //
+    // `generatedAt` is a deliberately volatile field, so a byte-for-byte
+    // match needs it pinned to whatever the committed manifest carries.
+    // With it pinned, byte equality is the strongest available statement
+    // of "regenerating leaves the tree clean": everything a plain `git
+    // status` could report — formatting included — is covered, and the
+    // timestamp is the one field it cannot speak to.
+    const committed = fs.readFileSync(LIVE_INDEX, 'utf8');
+    const committedGeneratedAt = JSON.parse(committed).generatedAt;
+    assert.ok(
+      committedGeneratedAt,
+      'committed manifest is missing generatedAt',
+    );
+
+    // Write to a scratch path so the test never mutates the real repo;
+    // the generator still resolves its Biome config from REPO_ROOT.
+    const outPath = path.join(tmpParent, 'skills.index.json');
+    const result = runGenerator({
+      argv: ['--out', outPath],
+      now: new Date(committedGeneratedAt),
+    });
+    assert.equal(result.status, 0, `generator failed: ${result.output}`);
+
+    assert.equal(
+      fs.readFileSync(outPath, 'utf8'),
+      committed,
+      'generator output diverges from the committed manifest — if the ' +
+        'skills corpus did not change, this is format drift: the ' +
+        'generator is no longer emitting Biome-formatted JSON',
     );
   });
 });

@@ -215,7 +215,7 @@ graph TB
 | Script                           | Responsibility                                                                                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plan-context.js`                | Single authoring-envelope emitter for `/plan`: Story brief + docs digest + `codebaseSnapshot` + duplicate search + clarity + rendered system prompts. |
-| `plan-persist.js`                | Single GitHub-write surface for `/plan`: section gate, risk verdict, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, `plan-summary` comment. |
+| `plan-persist.js`                | Single GitHub-write surface for `/plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, `plan-summary` comment. |
 | `single-story-init.js`           | Validates a standalone Story, branches from `main`, creates the worktree, flips `agent::executing`. |
 | `stories-wave-tick.js`           | Ready-set planner for multi-Story `/deliver` (shared `selectReadySet` core; default concurrency 3). |
 | `single-story-close.js`          | Close-validation gate chain, opens PR to `main` with auto-merge armed, rests Story at `agent::closing`. |
