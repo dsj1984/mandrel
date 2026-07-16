@@ -361,7 +361,6 @@ export async function runSingleStoryClose({
     storyId: options.storyId,
     worktreePath,
     wtIsolation: config.delivery?.worktreeIsolation,
-    baseBranch,
     progress,
     WorktreeManager,
   });

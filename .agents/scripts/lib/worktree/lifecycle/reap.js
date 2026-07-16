@@ -72,21 +72,27 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
 }
 
 /**
- * Returns true iff `branch`'s work is already integrated into `baseRef`.
+ * Returns true iff `branch`'s work is demonstrably already integrated into
+ * `baseRef`. Used only to license discarding a **dirty** tree, so it must
+ * err toward `false`.
  *
- * Two-phase, because v2 lands via **squash** merge (Story #4539). A squash
- * rewrites the branch's commits into one new commit with a different SHA,
- * so `merge-base --is-ancestor` — which only sees SHA reachability —
- * reports "not merged" for work that is demonstrably on the base branch.
- * Relying on it alone was correct only for the retired `--no-ff` Epic
- * integration model.
+ * Two-phase:
+ *   1. `merge-base --is-ancestor` — cheap SHA reachability; true for
+ *      fast-forward and merge-commit integration.
+ *   2. `git cherry <baseRef> <branch>` — compares **patch-ids** rather than
+ *      SHAs, marking a commit `-` when an equivalent change already exists
+ *      upstream. All-`-` (or empty) means every commit on the branch is
+ *      present in the base under some SHA.
  *
- *   1. `merge-base --is-ancestor` — the cheap SHA-reachability path; still
- *      true for fast-forward and merge-commit integration.
- *   2. `git cherry <baseRef> <branch>` — the squash-aware path. It compares
- *      patch-ids rather than SHAs and prefixes each commit with `-` when an
- *      equivalent change already exists upstream. All-`-` (or empty) means
- *      every commit on the branch is present in the base under some SHA.
+ * **Known limit — this is not a general squash detector.** A squash collapses
+ * N commits into ONE new commit whose patch equals their *combined* diff, so
+ * no individual original commit has an upstream patch-id equivalent and
+ * `git cherry` marks them all `+`. Phase 2 therefore only recognises a
+ * squash-landed branch when the branch had a **single** commit (verified
+ * empirically, Story #4539). A multi-commit squash still reads as unmerged
+ * and the dirty tree is refused — the safe direction, and the same answer
+ * the previous ancestor-only check gave. Detecting the general case needs
+ * the PR's merged state, which this module has no client for.
  *
  * A missing ref or a git failure yields false, so callers default to the
  * safe, non-forcing behavior. Module-private: `ensureSafeOrForceDiscard` is
