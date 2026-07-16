@@ -6,7 +6,11 @@
  */
 
 import { Logger } from '../../Logger.js';
-import { renderHardConflictError } from '../ticket-validator-conflicts.js';
+import {
+  renderFanOutEvidence,
+  renderFanOutRemedy,
+  renderHardConflictError,
+} from '../ticket-validator-conflicts.js';
 
 /**
  * @param {object[]} findings
@@ -25,7 +29,8 @@ export function enforceFanOutGate(
       Logger.warn(
         `[${tag}] Persisting a large-fan-out deletion: ` +
           `Task "${f.taskSlug}" deletes "${f.path}" with ${f.callSiteCount} ` +
-          `call site(s) (threshold ${f.threshold}). Operator override --allow-large-fan-out.`,
+          `importer(s) (threshold ${f.threshold}). Operator override --allow-large-fan-out.` +
+          renderFanOutEvidence(f),
       );
     }
     return;
@@ -33,13 +38,18 @@ export function enforceFanOutGate(
   const lines = fanOut
     .map(
       (f) =>
-        `  - Task "${f.taskSlug}" (Story "${f.storySlug}") deletes "${f.path}" — ${f.callSiteCount} call site(s) (threshold ${f.threshold})`,
+        `  - Task "${f.taskSlug}" (Story "${f.storySlug}") deletes "${f.path}" — ` +
+        `${f.callSiteCount} importer(s) (threshold ${f.threshold})` +
+        renderFanOutEvidence(f),
     )
     .join('\n');
+  // Each finding carries its own remedy — a rename-shaped deletion has no
+  // subsystems to split across, so a blanket "split it up" footer would be
+  // wrong advice for it (Story #4547).
+  const remedies = [...new Set(fanOut.map((f) => renderFanOutRemedy(f)))];
   throw new Error(
     `[${tag}] ${fanOut.length} Task(s) declare large-fan-out deletions:\n${lines}\n\n` +
-      `Split each deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
-      `or rerun --allow-large-fan-out after confirming the deletion is intentional.`,
+      remedies.join('\n\n'),
   );
 }
 
