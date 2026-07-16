@@ -229,20 +229,42 @@ v2.0.0 was cut by landing the Story-collapse work with an explicit
 Story #4540 then added the cap, after a `feat!:` retiring the `/deliver
 --run` flag proposed 3.0.0.
 
-#### To cut a real major (3.0.0)
+#### The major only moves when the operator says so
 
-The cap is a config line, so an intentional major is a two-step:
+That is the whole point of the cap, and it holds in both directions:
 
-1. Remove `"versioning": "always-bump-minor"` from
-   `release-please-config.json` (or set it to `"default"`), and
-2. Land the breaking commit — or force the number outright with a one-shot
-   `Release-As: 3.0.0` trailer, which bypasses commit analysis entirely.
+- **Nothing in commit history can cut a major.** Not `feat!:`, not a
+  `BREAKING CHANGE:` footer, not any combination — `AlwaysBumpMinor` never
+  consults commit types.
+- **The operator can cut one at any time, in one step**, with no config
+  change: land an empty commit carrying a `Release-As:` footer.
 
-Re-add the cap afterwards if you want majors to stay deliberate.
+```bash
+git commit --allow-empty -m "chore: release 3.0.0" -m "Release-As: 3.0.0"
+```
 
-#### To force any specific version
+`Release-As:` **wins over the cap** — it is not blocked by it. release-please
+resolves the next version in this precedence
+(`src/strategies/base.ts#buildNewVersion`):
 
-1. Land a one-shot commit with `Release-As: X.Y.Z` in the trailer
-   (bypasses the strategy, including this cap), or
-2. Edit `package.json`, `.release-please-manifest.json`, and
-   `docs/CHANGELOG.md` directly on the release PR branch.
+1. the `release-as` **config** field, then
+2. a **`Release-As:` commit footer**, then
+3. *only if neither is present* — the versioning strategy (this cap).
+
+So the trailer returns before `always-bump-minor` is ever reached. The
+footer key is case-insensitive and must sit in the commit's footer block
+(a blank line after the subject — the two `-m` flags above produce that).
+
+> **Do not "temporarily remove the cap" to cut a major.** It is unnecessary —
+> `Release-As:` already overrides it — and it is a trap: if the line is not
+> re-added, accidental majors silently come back the next time anyone lands
+> a `feat!:`.
+
+The same trailer forces *any* version (skip a bump, re-cut after a mistaken
+tag), since step 2 above bypasses commit analysis entirely. The manual
+alternative is editing `package.json`, `.release-please-manifest.json`, and
+`docs/CHANGELOG.md` directly on the release PR branch.
+
+If majors should ever become automatic again, set `"versioning"` to
+`"default"` (or drop the field) — that is the only change that re-enables
+commit-driven majors.
