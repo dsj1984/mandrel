@@ -299,7 +299,10 @@ async function closeOneSupersededTicket({
  * @property {boolean} dryRun
  * @property {string|null} reason  Why the phase was skipped wholesale.
  * @property {number[]} closed
- * @property {Array<{ ticket: number, storyId: number }>} planned Dry-run only.
+ * @property {Array<{ ticket: number, storySlug: string }>} planned Dry-run
+ *   only. Keyed by slug, not id: under `--dry-run` no issue was created, so
+ *   `createStoryIssues` hands back a synthetic negative placeholder id. The
+ *   slug is the only identifier that means anything before the writes land.
  * @property {Array<{ ticket: number, reason: string }>} skipped
  * @property {Array<{ ticket: number, reason: string }>} failed
  */
@@ -365,7 +368,7 @@ export async function closeSupersededTickets({
         continue;
       }
       if (dryRun) {
-        report.planned.push({ ticket: id, storyId: createdStory.id });
+        report.planned.push({ ticket: id, storySlug: createdStory.slug });
         continue;
       }
       const result = await closeOneSupersededTicket({
@@ -398,10 +401,10 @@ export async function closeSupersededTickets({
  */
 function logSupersedeReport(report) {
   if (report.dryRun) {
-    for (const { ticket, storyId } of report.planned) {
+    for (const { ticket, storySlug } of report.planned) {
       Logger.info(
         `[plan-persist] dry-run: would comment on and close #${ticket} ` +
-          `as superseded by #${storyId} (${SUPERSEDE_CLOSE_REASON}).`,
+          `as superseded by Story "${storySlug}" (${SUPERSEDE_CLOSE_REASON}).`,
       );
     }
     return;

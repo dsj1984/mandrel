@@ -375,8 +375,11 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     });
 
     assert.equal(result.supersede.dryRun, true);
-    assert.equal(result.supersede.planned.length, 1);
-    assert.equal(result.supersede.planned[0].ticket, 950);
+    // Reported by slug: dry-run creates no issue, so the only Story
+    // identifier that means anything here is the slug.
+    assert.deepEqual(result.supersede.planned, [
+      { ticket: 950, storySlug: 'solo' },
+    ]);
     assert.deepEqual(result.supersede.closed, []);
     assert.equal(sourceComments(provider, 950), '');
     assert.deepEqual(provider.updates, []);
