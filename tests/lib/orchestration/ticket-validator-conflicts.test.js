@@ -828,9 +828,31 @@ test('fan-out finding carries the referencing files and the probe behind its num
   // The operator must be able to check the figure, not merely trust it.
   const message = renderHardConflictError(finding);
   assert.match(message, /3 importer\(s\)/);
+  assert.match(message, /Importers \(3\):/);
   assert.match(message, /src\/a\.js/);
   assert.match(message, /src\/c\.js/);
-  assert.match(message, /Probe: git grep -n -E <pattern> main/);
+  // The probe is labelled as the candidate net, not as the thing that
+  // produced the count — it reports at least as many lines as files.
+  assert.match(message, /Candidate probe/);
+  assert.match(message, /git grep -n -E <pattern> main/);
+});
+
+test('every importer is named — the list is not truncated at a wide fan-out', () => {
+  // Truncating would leave the figure uncheckable in exactly the case the
+  // gate exists for: the operator being told to split a 100-importer
+  // migration is the one who most needs the list.
+  const files = Array.from({ length: 100 }, (_, i) => `src/importer-${i}.js`);
+  const del = makeStory('s-del', {
+    changes: [{ path: 'src/legacy/old.js', assumption: 'deletes' }],
+  });
+  const [finding] = fanOutFindingsFor([del], {
+    largeFanOutThreshold: 10,
+    fanOutCounter: () => ({ count: files.length, files, probe: 'git grep' }),
+  });
+  const message = renderHardConflictError(finding);
+  assert.match(message, /Importers \(100\):/);
+  assert.doesNotMatch(message, /and \d+ more/);
+  for (const file of files) assert.ok(message.includes(file), `names ${file}`);
 });
 
 test('a bare-number counter still produces a finding, without an audit trail', () => {

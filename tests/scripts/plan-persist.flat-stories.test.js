@@ -3,6 +3,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -314,6 +315,33 @@ describe('fan-out probe — importers, not basename word matches (Story #4547)',
       '.agents/scripts/lib/notification.js',
     );
     assert.equal(result.count, 0);
+  });
+
+  it('reports a probe that survives a paste into a shell', () => {
+    // The reported probe is the operator's route to checking the number at
+    // any count, so "looks like a git command" is not the bar — it has to
+    // still be the same argv after the shell has had it. Unquoted, the
+    // ERE's `(`, `|` and `[[:space:]]` are glob metacharacters: zsh fails
+    // the paste with `no matches found` AND exits 0, so the gate's own
+    // audit trail would read as "zero importers".
+    const result = probe(
+      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
+      '.agents/scripts/lib/notification.js',
+    );
+    const argv = execFileSync(
+      'sh',
+      ['-c', `printf '%s\\n' ${result.probe.replace(/^git /, '')}`],
+      { encoding: 'utf-8' },
+    )
+      .split('\n')
+      .filter((l) => l.length > 0);
+
+    assert.deepEqual(argv.slice(0, 4), ['grep', '-n', '-E', '--full-name']);
+    assert.equal(argv.length, 6);
+    // The pattern reaches git as ONE intact argv entry, unmangled.
+    assert.match(argv[4], /^\(from\|require\|import\)\[\[:space:\]\]/);
+    assert.match(argv[4], /notification\\\.js\|notification/);
+    assert.equal(argv[5], 'main');
   });
 
   it('reports the probe that produced the number, against the configured ref', () => {

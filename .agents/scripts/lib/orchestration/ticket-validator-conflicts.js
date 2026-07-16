@@ -748,27 +748,36 @@ export function computeConflictFindings({ stories, policy } = {}) {
   ];
 }
 
-/** Importers listed inline before the message degrades to a count + probe. */
-const MAX_LISTED_CALL_SITES = 10;
-
 /**
  * Render the audit trail behind a fan-out finding's number, so an operator
- * can check the figure rather than trust it (Story #4547). Names the
- * referencing files, the probe that found them, or both when available.
- * Returns `''` for a bare-number counter that carries neither.
+ * can check the figure rather than trust it (Story #4547).
+ *
+ * Every importer is named — the list is deliberately **not** truncated. A
+ * gate that fires at 100 importers is precisely when the operator needs the
+ * list, and a `…and 109 more` tail would leave the figure uncheckable in
+ * exactly the case the gate exists for. This message is a fail-closed stop,
+ * not a log line; its length is the point.
+ *
+ * The probe is reported as what it is — the *candidate* net, which each hit
+ * is then re-resolved against. It will report at least as many lines as the
+ * gate counts files, so labelling it as the thing that produced the number
+ * would send an operator chasing a discrepancy that is by design.
+ *
+ * Returns `''` for a bare-number counter, which carries no audit trail.
  */
 export function renderFanOutEvidence(finding) {
   const files = Array.isArray(finding.callSites) ? finding.callSites : [];
   const parts = [];
   if (files.length > 0) {
-    const shown = files.slice(0, MAX_LISTED_CALL_SITES);
-    const more = files.length - shown.length;
-    const list = shown.map((f) => `      ${f}`).join('\n');
+    parts.push(`    Importers (${files.length}):`);
+    for (const file of files) parts.push(`      ${file}`);
+  }
+  if (finding.probe) {
     parts.push(
-      `    Importers:\n${list}${more > 0 ? `\n      …and ${more} more` : ''}`,
+      `    Candidate probe (each hit re-resolved against its importer's directory):`,
+      `      ${finding.probe}`,
     );
   }
-  if (finding.probe) parts.push(`    Probe: ${finding.probe}`);
   return parts.length > 0 ? `\n${parts.join('\n')}` : '';
 }
 

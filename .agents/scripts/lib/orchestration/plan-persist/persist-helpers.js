@@ -85,6 +85,21 @@ function specifierResolvesTo(importerPath, specifier, deletedPath) {
 }
 
 /**
+ * Quote one argv entry so the reported probe is **runnable as emitted**.
+ *
+ * The probe is the operator's route to checking the number, so it has to
+ * survive a paste into a shell. Unquoted, the ERE's `(`, `|`, `[[:space:]]`
+ * and `?` are glob/grouping metacharacters: zsh fails the paste with
+ * `no matches found` *and exits 0*, which reads as "zero importers" — the
+ * gate's own audit trail would then argue for the deletion it is meant to
+ * question (Story #4547).
+ */
+function shellQuote(value) {
+  if (/^[A-Za-z0-9_./-]+$/.test(value)) return value;
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/**
  * Parse one `git grep -n` output line of the form `<ref>:<path>:<lineno>:<text>`.
  */
 function parseGrepLine(line, baseBranchRef) {
@@ -129,7 +144,7 @@ export function makeDefaultFanOutCounter({ baseBranchRef, cwd, git } = {}) {
     const tails = specifierTails(path);
     const pattern = buildProbePattern(tails);
     const args = ['grep', '-n', '-E', '--full-name', pattern, baseBranchRef];
-    const probe = `git ${args.join(' ')}`;
+    const probe = `git ${args.map(shellQuote).join(' ')}`;
     const result = spawn(cwd ?? process.cwd(), ...args);
     // git grep exits 1 on "no matches" — an empty result, not a failure.
     if (result.status !== 0) return { count: 0, files: [], probe };
