@@ -76,7 +76,10 @@ const SCOPE_KEYS = Object.freeze({
     'fs.dotEnv',
     'fs.dotMcp',
   ]),
-  retro: Object.freeze(['git.headRef', 'fs.worktrees']),
+  // git.coreBare: core-bare-clean declares scope ['story-close', 'retro',
+  // 'npm-test']; without the probe key its detect() reads undefined and the
+  // retro leg is a silent no-op (#4580).
+  retro: Object.freeze(['git.headRef', 'git.coreBare', 'fs.worktrees']),
   diagnose: EPIC_DELIVER_KEYS,
 });
 

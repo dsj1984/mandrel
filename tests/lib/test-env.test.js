@@ -39,6 +39,21 @@ describe('buildWebhookSafeTestEnv', () => {
     assert.equal(env.NOTIFICATION_WEBHOOK_URL, 'https://sandbox.example/hook');
   });
 
+  it('drops every GIT_* variable (worktree pre-push GIT_DIR poisoning, #4580)', () => {
+    const env = buildWebhookSafeTestEnv({
+      GIT_DIR: '/repo/.git/worktrees/story-1',
+      GIT_WORK_TREE: '/repo',
+      GIT_INDEX_FILE: '/repo/.git/worktrees/story-1/index',
+      GITHUB_TOKEN: 'keep-me',
+      PATH: '/usr/bin',
+    });
+    assert.equal(env.GIT_DIR, undefined);
+    assert.equal(env.GIT_WORK_TREE, undefined);
+    assert.equal(env.GIT_INDEX_FILE, undefined);
+    assert.equal(env.GITHUB_TOKEN, 'keep-me');
+    assert.equal(env.PATH, '/usr/bin');
+  });
+
   it('does not mutate the input env object', () => {
     const input = {
       NOTIFICATION_WEBHOOK_URL: 'https://hooks.slack.com/services/X/Y/Z',
