@@ -20,7 +20,6 @@
  *   --tech-spec <file>       Optional shared Tech Spec folded into each Story
  *   --plan-dir <dir>         Optional temp dir deleted at terminal success
  *   --plan-acceptance <file> Optional JSON string[] for partition coverage
- *   --plan-run-id <id>       Optional plan-run token when N>1
  *   --dry-run                Assemble + validate without GitHub writes
  *   --force-review           Record operator-forced review routing
  *   --allow-over-budget / --allow-large-fan-out
@@ -71,7 +70,6 @@ const CLI_OPTIONS = {
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
   'plan-acceptance': { type: 'string' },
-  'plan-run-id': { type: 'string' },
   'dry-run': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
   'allow-over-budget': { type: 'boolean', default: false },
@@ -81,7 +79,7 @@ const CLI_OPTIONS = {
 const USAGE =
   'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-acceptance <file>] ' +
-  '[--plan-run-id <id>] [--dry-run] [--force-review] ' +
+  '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
 async function readOptional(filePath, { required }) {
@@ -137,7 +135,6 @@ function buildPersistOptions(values, paths) {
     allowOverBudget: values['allow-over-budget'],
     allowLargeFanOut: values['allow-large-fan-out'],
     dryRun: values['dry-run'],
-    planRunId: values['plan-run-id'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],
   };

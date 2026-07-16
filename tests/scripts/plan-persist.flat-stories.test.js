@@ -91,7 +91,8 @@ describe('runPlanPersist — flat Story ops', () => {
 
     assert.equal(result.stories.length, 1);
     assert.equal(result.primaryStoryId, result.stories[0].id);
-    assert.equal(result.planRunLabel, null);
+    // Story #4540 removed the field entirely, rather than leaving it null.
+    assert.ok(!('planRunLabel' in result));
 
     const issue = provider.issues.get(result.primaryStoryId);
     assert.ok(issue.labels.includes(TYPE_LABELS.STORY));
@@ -161,7 +162,11 @@ describe('runPlanPersist — flat Story ops', () => {
     assert.equal(provider.issues.size, 0);
   });
 
-  it('labels N>1 Stories with a shared plan-run:: label', async () => {
+  it('applies NO plan-run label to N>1 Stories (Story #4540)', async () => {
+    // The label grouped siblings by planning batch — an axis that could not
+    // express an edge to a Story planned in another run, while ordering
+    // already lives in the blocked-by footers. /deliver now takes ids and
+    // resolves the graph from live state.
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
@@ -169,17 +174,16 @@ describe('runPlanPersist — flat Story ops', () => {
         stories: [ticket('one'), ticket('two')],
         riskVerdict: VERDICT,
       },
-      opts: {
-        skipCleanup: true,
-
-        planRunId: 'stage3',
-      },
+      opts: { skipCleanup: true },
     });
     assert.equal(result.stories.length, 2);
-    assert.equal(result.planRunLabel, 'plan-run::stage3');
+    assert.equal(result.planRunLabel, undefined);
     for (const s of result.stories) {
       const issue = provider.issues.get(s.id);
-      assert.ok(issue.labels.includes('plan-run::stage3'));
+      assert.deepEqual(
+        issue.labels.filter((l) => l.startsWith('plan-run::')),
+        [],
+      );
       const storyComments = provider.comments
         .filter((comment) => comment.issueNumber === s.id)
         .map((comment) => comment.body)

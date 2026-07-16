@@ -153,7 +153,6 @@ function riskVerdictCommentBody(riskVerdict) {
  *     allowLargeFanOut?: boolean,
  *     skipCleanup?: boolean,
  *     dryRun?: boolean,
- *     planRunId?: string,
  *     planDir?: string,
  *     fanOutCounter?: Function,
  *     cwd?: string,
@@ -179,7 +178,6 @@ export async function runPlanPersist({
     allowLargeFanOut = false,
     skipCleanup = false,
     dryRun = false,
-    planRunId,
     planDir = null,
     fanOutCounter = undefined,
     cwd = PROJECT_ROOT,
@@ -288,10 +286,10 @@ export async function runPlanPersist({
     forceReview,
   });
 
-  const { created, planRunLabel } = await createStoryIssues({
+  const { created } = await createStoryIssues({
     provider,
     stories,
-    opts: { planRunId, dryRun },
+    opts: { dryRun },
   });
 
   const primary = created[0];
@@ -322,7 +320,6 @@ export async function runPlanPersist({
     mode: 'stories',
     planMetricsLine,
     stories: created,
-    planRunLabel,
   });
 
   if (!dryRun) {
@@ -340,7 +337,6 @@ export async function runPlanPersist({
         persist: {
           completedAt: new Date().toISOString(),
           storyCount: created.length,
-          planRunLabel,
           primaryStoryId: primary.id,
           stories: created.map((createdStory) => ({
             slug: createdStory.slug,
@@ -367,14 +363,15 @@ export async function runPlanPersist({
 
   Logger.info(
     `[plan-persist] Persisted ${created.length} Story(ies)` +
-      (planRunLabel ? ` under ${planRunLabel}` : '') +
       `; primary #${primary.id} is agent::ready.`,
+  );
+  Logger.info(
+    `[plan-persist] Deliver with: /deliver ${created.map((s2) => s2.id).join(' ')}`,
   );
 
   return {
     stories: created,
     primaryStoryId: primary.id,
-    planRunLabel,
     planningRisk,
     reviewRouting,
     critics,

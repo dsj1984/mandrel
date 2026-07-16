@@ -13,8 +13,6 @@ import {
   createStoryIssues,
   foldSpecIntoStoryBody,
   normalizeStoryTicket,
-  PLAN_RUN_LABEL_PREFIX,
-  planRunLabel,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { DEFAULT_SPEC_BODY_TOKEN_BUDGET } from '../../../.agents/scripts/lib/orchestration/spec-spill.js';
 import {
@@ -39,15 +37,10 @@ function storyTicket(slug, overrides = {}) {
   };
 }
 
-describe('planRunLabel', () => {
-  it('prefixes plan-run:: and sanitizes ids', () => {
-    assert.equal(planRunLabel('My Run'), `${PLAN_RUN_LABEL_PREFIX}my-run`);
-    assert.match(
-      planRunLabel(),
-      new RegExp(`^${PLAN_RUN_LABEL_PREFIX}[a-f0-9]{8}$`),
-    );
-  });
-});
+// Story #4540 removed planRunLabel / PLAN_RUN_LABEL_PREFIX / normalizePlanRunId
+// from this module along with the label itself. Their tests went with them;
+// the createStoryIssues test below now asserts the label's ABSENCE, which is
+// the contract that replaced them.
 
 describe('normalizeStoryTicket', () => {
   it('parses a serialized body', () => {
@@ -158,7 +151,10 @@ describe('assemblePlanStories', () => {
 });
 
 describe('createStoryIssues', () => {
-  it('creates issues with type::story + agent::ready and plan-run label when N>1', async () => {
+  it('creates issues with type::story + agent::ready and NO plan-run label, even when N>1', async () => {
+    // Story #4540: N>1 used to mint an opaque `plan-run::<hex>` label that
+    // nothing ever deleted, to express a grouping that ordering already
+    // encodes via the blocked-by footers asserted in the next test.
     const calls = [];
     const provider = {
       createIssue: async (payload) => {
@@ -173,16 +169,18 @@ describe('createStoryIssues', () => {
       storyTicket('a'),
       storyTicket('b'),
     ]);
-    const { created, planRunLabel: label } = await createStoryIssues({
-      provider,
-      stories,
-      opts: { planRunId: 'abc12345' },
-    });
-    assert.equal(created.length, 2);
-    assert.equal(label, `${PLAN_RUN_LABEL_PREFIX}abc12345`);
-    assert.ok(calls[0].labels.includes(TYPE_LABELS.STORY));
-    assert.ok(calls[0].labels.includes(AGENT_LABELS.READY));
-    assert.ok(calls[0].labels.includes(label));
+    const result = await createStoryIssues({ provider, stories });
+    assert.equal(result.created.length, 2);
+    assert.equal(result.planRunLabel, undefined);
+    for (const call of calls) {
+      assert.ok(call.labels.includes(TYPE_LABELS.STORY));
+      assert.ok(call.labels.includes(AGENT_LABELS.READY));
+      assert.deepEqual(
+        call.labels.filter((l) => l.startsWith('plan-run::')),
+        [],
+        'no batch label is applied',
+      );
+    }
   });
 
   it('creates dependencies first and persists numeric blocked-by edges', async () => {

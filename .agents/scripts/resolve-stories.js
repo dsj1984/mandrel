@@ -123,7 +123,7 @@ export async function readNativeEdges({ provider, stories, owner, repo }) {
         parseJson: parseApiJson,
       }),
     ],
-    FETCH_CONCURRENCY,
+    { concurrency: FETCH_CONCURRENCY },
   );
   return new Map(entries);
 }

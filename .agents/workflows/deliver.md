@@ -1,38 +1,49 @@
 ---
 description:
-  Unified delivery entry point. Delivers one or more Stories via the single
-  deliver-story engine — story-<id> → PR → main. Sequences N>1 by depends_on
-  and runs the per-run epilogue once at the end.
+  Unified delivery entry point. Takes a list of Story ids, resolves their
+  dependency graph from live state, and delivers each via the single
+  deliver-story engine — story-<id> → PR → main.
 ---
 
-# /deliver <storyId...> | --run <planRunId>
+# /deliver <storyId...>
 
 ## Role
 
-Single delivery path. `/deliver` owns input resolution and sequencing only —
-every Story runs through
-[`helpers/deliver-story.md`](helpers/deliver-story.md) (the evolved
-single-Story engine). There is no Epic wave loop, no `epic/<id>` integration
-branch, and no `--no-ff` wave merges.
+Single delivery path with a single input shape: **a list of Story ids**.
+`/deliver` owns input resolution and sequencing only — every Story runs
+through [`helpers/deliver-story.md`](helpers/deliver-story.md). There is no
+Epic wave loop, no `epic/<id>` integration branch, and no `--no-ff` wave
+merges.
+
+The dependency graph is **discovered, not declared**: `resolve-stories.js`
+reads it from live state (body edges ∪ native GitHub `blocked_by` edges,
+with every blocker resolved against its real issue state). You never hand it
+a graph, and there is no batch label — which is what lets you deliver
+Stories **across plan runs and over time**: a Story whose blocker landed
+weeks ago in a different run is simply ready.
 
 ## Inputs
 
 | Invocation | Behavior |
 | --- | --- |
 | `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`. |
-| `/deliver <storyId> <storyId> ...` | Sequence Stories in `depends_on` order via `stories-wave-tick.js`; each ready Story runs `deliver-story`. Default concurrency is **3**. |
-| `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<planRunId>` (envelope includes `dag` + `done`); sequence as above; after the last Story lands, run the per-run epilogue. |
+| `/deliver <storyId> <storyId> ...` | Resolve the set with `resolve-stories.js`, then sequence by the discovered graph via `stories-wave-tick.js`. Default concurrency is **3**. |
 
-Any ticket that is not `type::story`, or that still carries an `Epic: #N`
-reference, is a hard error naming the ID and the fix (close or re-plan as a
-v2 Story).
+Any named ticket that is not `type::story`, or that still carries an
+`Epic: #N` footer, is a hard error naming the id and the fix (close or
+re-plan as a v2 Story). Resolution refuses the whole set rather than
+silently dropping the offending id and under-delivering.
+
+> **Retired (Story #4540).** `--run <planRunId>` and the `plan-run::<id>`
+> label are gone, along with `--dep`. Batch identity was the wrong axis:
+> it could not express an edge to a Story planned in another run, while
+> ordering already lives in the dependency edges themselves. Deliver the
+> ids; the graph resolves itself.
 
 ## Flags
 
 | Flag | Meaning |
 | --- | --- |
-| `--run <planRunId>` | Deliver every Story in the plan-run (label `plan-run::<id>`). |
-| `--dep <from>:<to>` | Extra operator dependency edge (Story id → Story id). |
 | `--concurrency <n>` | Ready-set fan-out cap (default **3** from `delivery.deliverRunner.concurrencyCap`; set `1` for sequential). |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
@@ -50,33 +61,47 @@ to respect.
 
 ## Procedure
 
-1. **Resolve the Story set.**
-   - Positional IDs → use them.
-   - `--run <planRunId>` →
+1. **Resolve the set.** One command, for one Story or many:
 
-     ```bash
-     node .agents/scripts/resolve-plan-run.js --run <planRunId>
-     ```
-
-     Capture `stories[]`, `dag[]`, and `done[]` from the envelope. Prefer
-     the emitted `dag` — do **not** rebuild it by hand when `--run` was used.
-
-2. **Build the DAG (positional only).** When delivering positional IDs
-   (no `--run`), read `depends_on` / `blocked by` from each body and merge
-   `--dep` edges into a JSON DAG for `stories-wave-tick.js`:
-
-   ```json
-   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
+   ```bash
+   node .agents/scripts/resolve-stories.js --ids <id,id,...>
    ```
 
-3. **Confirm (N>1).** Present the order and wait unless `--yes`.
+   Capture `stories[]`, `dag[]`, and `done[]` from the envelope. Do **not**
+   rebuild the graph by hand — it is discovered from live state, including
+   edges a body does not spell out and blockers outside the delivered set.
 
-4. **Sequence.** Loop until every Story is done:
+   Resolution hard-errors (exit 1) on a named id that is not a Story, still
+   carries an `Epic: #N` footer, or whose native dependency edges cannot be
+   read. A failed edge read is fatal by design: a missing gate would
+   co-dispatch a Story against an unlanded blocker.
+
+2. **Confirm (N>1).** Present the order and wait unless `--yes`.
+
+3. **Sequence.** Loop until every Story is done:
 
    ```bash
    node .agents/scripts/stories-wave-tick.js \
-     --dag '<json>' --done <csv> --in-flight <n> --concurrency <n>
+     --dag '<dag from step 1>' --done <csv> --in-flight <n> --concurrency <n>
    ```
+
+   **Seed the first beat's `--done` from the resolver's `done[]`** — not from
+   an empty string. That array carries the blockers that have already landed,
+   including foreign ones outside the delivered set. Seeding it empty
+   discards exactly the cross-run resolution this step exists for, and the
+   run wedges on a blocker that finished weeks ago. On later beats, `--done`
+   is `done[]` plus every Story that has since closed.
+
+   Branch on the exit code:
+   - **0** — dispatch each `ready` id. An empty `ready` with work in flight
+     means "waiting"; keep looping.
+   - **2** — `cycleError`: the graph is self-referential. Fix the
+     `depends_on` declarations; do not retry.
+   - **3** — `wedged`: nothing is dispatchable, nothing is in flight, and
+     undone Stories are waiting on blockers that are not done. The envelope
+     names the stuck ids and their unmet blockers. Either land the blocker
+     first or include it in `--ids`. Do not retry unchanged — the state
+     cannot improve on its own.
 
    For each `ready` Story id, read
    [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and
@@ -84,13 +109,10 @@ to respect.
    `--yes` / injected helper content, execute directly without a re-read
    turn.
 
-5. **Per-run epilogue (N>1).** After the last Story lands:
+4. **Per-run epilogue (N>1).** After the last Story lands, keyed on the
+   delivered id set:
 
    ```bash
-   # Plan-run label path:
-   node .agents/scripts/plan-run-epilogue.js --run <planRunId>
-
-   # Positional multi-Story path (synthesizes an adhoc planRunId):
    node .agents/scripts/plan-run-epilogue.js --stories 101,102
    ```
 
