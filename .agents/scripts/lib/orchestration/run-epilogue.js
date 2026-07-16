@@ -131,22 +131,280 @@ export function planRunEpilogue({ planRunId, stories } = {}) {
   };
 }
 
-async function listChangedFiles(cwd, baseRef = 'origin/main') {
+/**
+ * How many first-parent commits of the base ref to scan when looking for the
+ * run's landed squash-merges. The epilogue fires immediately after the run's
+ * last Story lands, so the run's merges sit within the first handful of
+ * commits; the limit only bounds the pathological case.
+ * @type {number}
+ */
+const BASE_SCAN_LIMIT = 500;
+
+/** ASCII unit separator — cannot occur in a git commit subject. */
+const FIELD_SEP = '\x1f';
+
+/**
+ * Read the base ref's first-parent history as `{ sha, parents, subject }`
+ * records, newest-first.
+ *
+ * @param {object} args
+ * @param {string} args.cwd
+ * @param {string} args.baseRef
+ * @param {number} args.scanLimit
+ * @param {{ gitSpawn: Function }} args.git
+ * @returns {{ ok: true, commits: Array<{sha: string, parents: string[], subject: string}> }
+ *          | { ok: false, reason: string }}
+ */
+function readFirstParentHistory({ cwd, baseRef, scanLimit, git }) {
+  let result;
   try {
-    const result = gitSpawn(cwd, 'diff', '--name-only', `${baseRef}...HEAD`);
-    if (result.status !== 0) return [];
-    return String(result.stdout ?? '')
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
+    result = git.gitSpawn(
+      cwd,
+      'log',
+      '--first-parent',
+      baseRef,
+      `--max-count=${scanLimit}`,
+      `--format=%H${FIELD_SEP}%P${FIELD_SEP}%s`,
+    );
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `\`git log ${baseRef}\` could not be spawned: ${err?.message ?? String(err)}`,
+    };
   }
+  if (result?.status !== 0) {
+    const detail =
+      String(result?.stderr ?? '').split('\n')[0] || 'unknown error';
+    return {
+      ok: false,
+      reason: `\`git log ${baseRef}\` failed (is \`${baseRef}\` fetched?): ${detail}`,
+    };
+  }
+  const commits = String(result.stdout ?? '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, parents, ...rest] = line.split(FIELD_SEP);
+      return {
+        sha,
+        parents: parents ? parents.split(' ').filter(Boolean) : [],
+        subject: rest.join(FIELD_SEP),
+      };
+    });
+  return { ok: true, commits };
 }
 
-async function executeAuditRoster({ planRunId, stories, cwd, provider }) {
+/**
+ * Resolve the **pre-run base sha**: the commit the base branch pointed at
+ * before the run's first Story landed.
+ *
+ * Why not `origin/main...HEAD` (the bug this replaces): the epilogue runs
+ * *after* the run's last Story lands, so HEAD in the main checkout is either
+ * `origin/main` itself or an ancestor of it. The three-dot merge-base is then
+ * HEAD, and the diff is empty **by construction** — it never reported the
+ * run's real diff. Rolling HEAD back does not help, so branch-reaping /
+ * cleanup ordering is not the cause; the refs being compared are.
+ *
+ * The derivation walks the base ref's first-parent history for the run's
+ * landed squash-merges. Every Story PR title carries a `(#<storyId>)` suffix
+ * (guaranteed by `normalizePrTitle` in the close pipeline) and GitHub uses the
+ * PR title as the squash subject, so the marker is a reliable, offline handle
+ * that does **not** depend on the Story branches still existing. The earliest
+ * such merge's first parent is the pre-run base.
+ *
+ * @param {object} args
+ * @param {Array<string|number>} args.stories - Story ids in the run.
+ * @param {string} args.cwd
+ * @param {string} [args.baseRef] - Remote-tracking base ref, e.g. `origin/main`.
+ * @param {number} [args.scanLimit]
+ * @param {{ gitSpawn: Function }} [args.git]
+ * @returns {{ resolved: true, baseSha: string, mergeSha: string, storyId: number, baseRef: string }
+ *          | { resolved: false, reason: string, baseRef: string }}
+ */
+export function resolveRunBaseSha({
+  stories,
+  cwd,
+  baseRef = 'origin/main',
+  scanLimit = BASE_SCAN_LIMIT,
+  git = { gitSpawn },
+} = {}) {
+  const ids = (Array.isArray(stories) ? stories : [])
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n > 0);
+  if (ids.length === 0) {
+    return {
+      resolved: false,
+      baseRef,
+      reason:
+        'the run carries no numeric Story ids to match landed merges against',
+    };
+  }
+
+  const history = readFirstParentHistory({ cwd, baseRef, scanLimit, git });
+  if (!history.ok) {
+    return { resolved: false, baseRef, reason: history.reason };
+  }
+
+  // `git log` is newest-first; walk backwards so the first hit is the
+  // *earliest* merge belonging to the run.
+  const markers = ids.map((id) => ({ id, marker: `(#${id})` }));
+  for (let i = history.commits.length - 1; i >= 0; i -= 1) {
+    const commit = history.commits[i];
+    const hit = markers.find(({ marker }) => commit.subject.includes(marker));
+    if (!hit) continue;
+    const baseSha = commit.parents[0];
+    if (!baseSha) {
+      return {
+        resolved: false,
+        baseRef,
+        reason: `the earliest landed merge for the run (${commit.sha}, Story #${hit.id}) is a root commit — it has no first parent to use as the pre-run base`,
+      };
+    }
+    return {
+      resolved: true,
+      baseRef,
+      baseSha,
+      mergeSha: commit.sha,
+      storyId: hit.id,
+    };
+  }
+
+  return {
+    resolved: false,
+    baseRef,
+    reason: `no landed squash-merge carrying a \`(#<storyId>)\` marker for ${ids
+      .map((id) => `#${id}`)
+      .join(
+        ', ',
+      )} was found in the last ${scanLimit} first-parent commits of \`${baseRef}\` — has the run landed?`,
+  };
+}
+
+/**
+ * List the files the run changed: `<pre-run base>...<baseRef>`.
+ *
+ * @returns {{ ok: true, files: string[] } | { ok: false, reason: string }}
+ */
+function listChangedFiles({ cwd, baseSha, headRef, git }) {
+  const range = `${baseSha}...${headRef}`;
+  let result;
+  try {
+    result = git.gitSpawn(cwd, 'diff', '--name-only', range);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: `\`git diff ${range}\` could not be spawned: ${err?.message ?? String(err)}`,
+    };
+  }
+  if (result?.status !== 0) {
+    const detail =
+      String(result?.stderr ?? '').split('\n')[0] || 'unknown error';
+    return { ok: false, reason: `\`git diff ${range}\` failed: ${detail}` };
+  }
+  return {
+    ok: true,
+    files: String(result.stdout ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+  };
+}
+
+/**
+ * Resolve the run's combined landed diff, or an explicit reason it could not
+ * be computed. Never conflates "could not compute" with "zero files changed".
+ *
+ * @returns {{ resolved: boolean, changedFiles: string[], baseSha: string|null,
+ *             mergeSha: string|null, baseRef: string, reason: string|null }}
+ */
+function resolveCombinedDiff({ stories, cwd, baseRef, git }) {
+  const base = resolveRunBaseSha({ stories, cwd, baseRef, git });
+  if (!base.resolved) {
+    return {
+      resolved: false,
+      changedFiles: [],
+      baseSha: null,
+      mergeSha: null,
+      baseRef,
+      reason: base.reason,
+    };
+  }
+  const diff = listChangedFiles({
+    cwd,
+    baseSha: base.baseSha,
+    headRef: baseRef,
+    git,
+  });
+  if (!diff.ok) {
+    return {
+      resolved: false,
+      changedFiles: [],
+      baseSha: base.baseSha,
+      mergeSha: base.mergeSha,
+      baseRef,
+      reason: diff.reason,
+    };
+  }
+  return {
+    resolved: true,
+    changedFiles: diff.files,
+    baseSha: base.baseSha,
+    mergeSha: base.mergeSha,
+    baseRef,
+    reason: null,
+  };
+}
+
+/**
+ * The diff line of the roster comment. An unresolved base MUST read as a
+ * loud failure, never as `Changed files considered: 0`.
+ *
+ * @param {ReturnType<typeof resolveCombinedDiff>} diff
+ * @returns {string[]}
+ */
+function renderDiffLines(diff) {
+  if (!diff.resolved) {
+    return [
+      '> ⚠️ **Combined landed diff unavailable — this is NOT "zero files changed".**',
+      `> The pre-run base sha could not be resolved: ${diff.reason}`,
+      '> Walk the lenses below against the run diff determined by hand.',
+    ];
+  }
+  return [
+    `Combined landed diff \`${diff.baseSha}...${diff.baseRef}\` — ` +
+      `**${diff.changedFiles.length}** changed file(s).`,
+  ];
+}
+
+/**
+ * @param {object} config
+ * @returns {string} the remote-tracking base ref, e.g. `origin/main`.
+ */
+function resolveBaseRef(config) {
+  const baseBranch = config?.project?.baseBranch;
+  const branch =
+    typeof baseBranch === 'string' && baseBranch.trim() !== ''
+      ? baseBranch.trim()
+      : 'main';
+  return `origin/${branch}`;
+}
+
+async function executeAuditRoster({
+  planRunId,
+  stories,
+  cwd,
+  provider,
+  config,
+  git,
+}) {
   const primaryId = Number(stories[0]);
-  const changedFiles = await listChangedFiles(cwd);
+  const diff = resolveCombinedDiff({
+    stories,
+    cwd,
+    baseRef: resolveBaseRef(config),
+    git,
+  });
   let selectedAudits = [];
   if (Number.isInteger(primaryId) && primaryId > 0) {
     const selected = await selectAudits({
@@ -162,12 +420,17 @@ async function executeAuditRoster({ planRunId, stories, cwd, provider }) {
         ? selected
         : [];
   }
+  if (!diff.resolved) {
+    Logger.warn(
+      `[run-epilogue] plan-run ${planRunId}: combined landed diff unavailable — ${diff.reason}`,
+    );
+  }
   const body = [
     '### plan-run-audit-roster',
     '',
     `Cross-Story audit roster for plan-run \`${planRunId}\`.`,
     '',
-    `Changed files considered: ${changedFiles.length}.`,
+    ...renderDiffLines(diff),
     '',
     '**Selected lenses** (host MUST walk each against the combined landed diff):',
     ...(selectedAudits.length > 0
@@ -179,7 +442,14 @@ async function executeAuditRoster({ planRunId, stories, cwd, provider }) {
       {
         planRunId,
         stories: stories.map(Number),
-        changedFiles,
+        baseResolution: {
+          resolved: diff.resolved,
+          baseRef: diff.baseRef,
+          baseSha: diff.baseSha,
+          mergeSha: diff.mergeSha,
+          reason: diff.reason,
+        },
+        changedFiles: diff.resolved ? diff.changedFiles : null,
         selectedAudits,
       },
       null,
@@ -198,7 +468,17 @@ async function executeAuditRoster({ planRunId, stories, cwd, provider }) {
   return {
     kind: 'audit-roster',
     selectedAudits,
-    changedFileCount: changedFiles.length,
+    // `null` — not `0` — when unresolved: a zero count must only ever mean
+    // "the run genuinely changed nothing".
+    changedFileCount: diff.resolved ? diff.changedFiles.length : null,
+    changedFiles: diff.resolved ? diff.changedFiles : null,
+    baseResolution: {
+      resolved: diff.resolved,
+      baseRef: diff.baseRef,
+      baseSha: diff.baseSha,
+      mergeSha: diff.mergeSha,
+      reason: diff.reason,
+    },
   };
 }
 
@@ -359,6 +639,7 @@ async function executeSiblingCoherence({ planRunId, stories, provider }) {
  * @param {object} args.provider
  * @param {object} [args.config]
  * @param {string} [args.cwd]
+ * @param {{ gitSpawn: Function }} [args.git] - Injection seam for tests.
  * @returns {Promise<object>}
  */
 export async function runPlanRunEpilogue({
@@ -367,6 +648,7 @@ export async function runPlanRunEpilogue({
   provider,
   config,
   cwd = process.cwd(),
+  git = { gitSpawn },
 } = {}) {
   const plan = planRunEpilogue({ planRunId, stories });
   if (!plan.applicable) {
@@ -387,6 +669,8 @@ export async function runPlanRunEpilogue({
             stories: plan.stories,
             cwd,
             provider,
+            config,
+            git,
           }),
         );
       } else if (step.kind === 'follow-up-rollup') {
