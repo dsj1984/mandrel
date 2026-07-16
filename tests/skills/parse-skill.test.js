@@ -136,6 +136,37 @@ describe('parseSkill — well-formed SKILL with Policy Capsule', () => {
   });
 });
 
+describe('parseSkill — capsule bullets that wrap', () => {
+  it('counts a wrapped bullet once, not as a terminator (Story #4546)', () => {
+    // Regression: an indented continuation line is part of the bullet above
+    // it. Treating it as a "non-bullet, non-blank line" terminated the run
+    // at the first wrapped bullet, so a 5-bullet capsule counted as 1 and
+    // tripped the 5-bullet floor in validate-skills.js.
+    const target = stageFixture(tmpRoot, 'wrapped-bullets.md', {
+      tier: 'core',
+      name: 'wrapped-bullets',
+    });
+
+    const result = parseSkill(target);
+
+    assert.equal(result.policyCapsule.found, true);
+    assert.equal(result.policyCapsule.bulletCount, 5);
+  });
+
+  it('still stops the run at a de-indented non-bullet paragraph', () => {
+    const target = stageFixture(tmpRoot, 'capsule-then-prose.md', {
+      tier: 'core',
+      name: 'capsule-then-prose',
+    });
+
+    const result = parseSkill(target);
+
+    // Two bullets, then a flush-left paragraph closes the capsule run — the
+    // trailing bullets after that paragraph are not capsule bullets.
+    assert.equal(result.policyCapsule.bulletCount, 2);
+  });
+});
+
 describe('parseSkill — missing Policy Capsule', () => {
   it('returns policyCapsule.found === false when the heading is absent', () => {
     const target = stageFixture(tmpRoot, 'missing-capsule.md', {

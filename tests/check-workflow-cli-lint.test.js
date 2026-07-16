@@ -124,6 +124,83 @@ describe('workflow-cli-lint — helpers', () => {
   });
 });
 
+describe('workflow-cli-lint — no-cli-flag-table (Story #4546)', () => {
+  it('flags a table restating a script CLI flag surface named in the heading', () => {
+    const source = [
+      '## Step 3 — Close (`single-story-close.js`)',
+      '',
+      '| Flag | Meaning |',
+      '| --- | --- |',
+      '| `--skip-validation` | Bypass the gates. |',
+      '| `--skip-sync` | Bypass the base-sync. |',
+      '| `--no-auto-merge` | Disable auto-merge. |',
+      '',
+    ].join('\n');
+
+    const violations = lintWorkflowSource(source);
+
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].rule, 'no-cli-flag-table');
+    assert.equal(violations[0].line, 3);
+    assert.match(violations[0].hint, /single-story-close\.js/);
+    assert.match(violations[0].hint, /point at the command/);
+  });
+
+  it('flags a table whose script is named in a fenced command above it', () => {
+    const source = [
+      '## Draining the ledger',
+      '',
+      '```bash',
+      'node .agents/scripts/drain-pending-cleanup.js',
+      '```',
+      '',
+      '| Flag | Meaning |',
+      '| --- | --- |',
+      '| `--no-escalate` | Passive drain only. |',
+      '| `--dry-run` | Inspect without acting. |',
+      '',
+    ].join('\n');
+
+    const violations = lintWorkflowSource(source);
+
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].rule, 'no-cli-flag-table');
+    assert.match(violations[0].hint, /drain-pending-cleanup\.js/);
+  });
+
+  it("does NOT flag a slash command's own flag table (no script owns those flags)", () => {
+    // `/plan` and `/deliver` document their own argument surface; there is no
+    // CLI `--help` behind it, so this is the single home for that contract.
+    const source = [
+      '## Flags',
+      '',
+      '| Flag | Meaning |',
+      '| --- | --- |',
+      '| `--concurrency <n>` | Ready-set fan-out cap. |',
+      '| `--yes` | Suppress the confirmation gate. |',
+      '| `--steal` | Forwarded to the lease steal. |',
+      '',
+    ].join('\n');
+
+    assert.deepEqual(lintWorkflowSource(source), []);
+  });
+
+  it('does NOT flag a behaviour/contract table that happens to key one row by flag', () => {
+    const source = [
+      '### Closing superseded source tickets (`plan-persist.js`)',
+      '',
+      '| Behaviour | Contract |',
+      '| --- | --- |',
+      '| Default | Comment + close every source ticket. |',
+      '| `--no-close-superseded` | Skips commenting and closing. |',
+      '| Re-run | Idempotent. |',
+      '',
+    ].join('\n');
+
+    assert.deepEqual(lintWorkflowSource(source), []);
+  });
+});
+
 describe('workflow-cli-lint — corpus and fixture-driven runCheck', () => {
   it('the real .agents/workflows corpus is clean (zero false positives, no regressions)', () => {
     const violations = runCheck();
