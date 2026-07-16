@@ -13,7 +13,6 @@
  *     ├─ techspec.md
  *     ├─ manifest.md          (dispatch manifest)
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
- *     ├─ perf-report.md       (analyzer output, Epic-level)
  *     ├─ lifecycle.ndjson     (lifecycle bus ledger)
  *     ├─ checkpoints/...      (pre-v2 epic-runner state store; retained layout)
  *     ├─ <name>               (epicArtifactPath escape hatch)
@@ -21,7 +20,6 @@
  *        └─ story-<sid>/
  *           ├─ manifest.md       (story dispatch manifest)
  *           ├─ signals.ndjson    (append-only signals writer)
- *           ├─ perf-summary.md
  *           └─ <name>            (storyArtifactPath escape hatch)
  *
  * Standalone Stories (no parent Epic) follow the same shape under
@@ -304,8 +302,7 @@ export function epicArtifactPath(eid, name, config) {
 
 /**
  * Escape hatch for a Story-level artifact whose name isn't part of the
- * canonical layout (signals.ndjson + perf-summary.md + manifest.md ship
- * named helpers).
+ * canonical layout (signals.ndjson + manifest.md ship named helpers).
  *
  * @param {number} eid
  * @param {number} sid
@@ -325,24 +322,6 @@ export const epicManifestPath = (eid, config) =>
   epicArtifactPath(eid, 'manifest.md', config);
 export const epicRetroMirrorPath = (eid, config) =>
   epicArtifactPath(eid, 'retro.md', config);
-export const epicPerfReportPath = (eid, config) =>
-  epicArtifactPath(eid, 'perf-report.md', config);
-
-/**
- * `temp/run-<eid>/epic-perf-report.json` — canonical JSON snapshot of
- * the `epic-perf-report` payload persisted at /deliver close
- * (Epic #3019 / Story #3029 / Task #3040). When present alongside the
- * `epic-perf-report` structured comment, the report is discoverable
- * from the file system without round-tripping the ticketing provider,
- * and the `epic-handoff` structured close comment links it by relative
- * path.
- *
- * @param {number} eid
- * @param {object} [config]
- * @returns {string}
- */
-export const epicPerfReportJsonPath = (eid, config) =>
-  epicArtifactPath(eid, 'epic-perf-report.json', config);
 
 /**
  * `temp/run-<eid>/lifecycle.ndjson` — append-only lifecycle bus ledger
@@ -364,5 +343,3 @@ export const epicLedgerPath = (eid, config) =>
 
 export const storyManifestPath = (eid, sid, config) =>
   storyArtifactPath(eid, sid, 'manifest.md', config);
-export const storyPerfSummaryPath = (eid, sid, config) =>
-  storyArtifactPath(eid, sid, 'perf-summary.md', config);

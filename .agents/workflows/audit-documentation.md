@@ -16,7 +16,7 @@ renamed, scripts move, described workflows change shape, and
 version/topology claims go stale. The deterministic gates
 (`check-doc-links.js`, `check-lifecycle-doc-drift.js`,
 `validate-docs-freshness.js`) catch broken links, drift against generators,
-and Epic-scoped freshness — they cannot tell whether the prose still
+and per-delivery freshness — they cannot tell whether the prose still
 describes how the code actually behaves. That semantic verification is this
 lens's job.
 
@@ -279,8 +279,8 @@ match the code), the deterministic-gate verdicts, and primary drift themes.]
 ## Periodic full-scope sweep
 
 Context Economy findings accrete slowly — a doc that is lean today grows a
-bloated tail over many Epics, and no single change-set-scoped `/deliver`
-Phase 4 run sees the whole picture. Run this lens **full-scope** on a
+bloated tail over many deliveries, and no single change-set-scoped `/deliver`
+run sees the whole picture. Run this lens **full-scope** on a
 recurring cadence so the drift is caught before it compounds:
 
 - **Scheduled invocation** — `/schedule` running `/audit-documentation`

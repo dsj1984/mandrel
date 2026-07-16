@@ -80,7 +80,7 @@ export async function runBaseSyncPhase({
           : syncResult.stderr
             ? `: ${syncResult.stderr.slice(0, 200)}`
             : '') +
-        `. Story transitioned to ${AGENT_LABELS.BLOCKED}; resolve in ${syncCwd} and re-run \`/single-story-deliver\`.`,
+        `. Story transitioned to ${AGENT_LABELS.BLOCKED}; resolve in ${syncCwd} and re-run \`/deliver ${storyId}\`.`,
     );
   }
   progress('SYNC', `✅ Synced from origin/${baseBranch} (${syncResult.kind}).`);
@@ -166,7 +166,7 @@ export function buildSyncFailureCommentBody({
   const lines = [
     `### ${heading}`,
     '',
-    '`/single-story-deliver` close-validation passed, but the pre-push',
+    '`/deliver` close-validation passed, but the pre-push',
     `sync against \`origin/${baseBranch}\` could not complete. The Story has`,
     `been transitioned to \`agent::blocked\`. To resume:`,
     '',

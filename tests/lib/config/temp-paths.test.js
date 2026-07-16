@@ -12,7 +12,6 @@ import {
   _clearMainCheckoutRootCache,
   epicArtifactPath,
   epicManifestPath,
-  epicPerfReportPath,
   epicRetroMirrorPath,
   epicTechSpecPath,
   epicTempDir,
@@ -20,7 +19,6 @@ import {
   signalsFile,
   storyArtifactPath,
   storyManifestPath,
-  storyPerfSummaryPath,
   storyTempDir,
   tempRootFrom,
 } from '../../../.agents/scripts/lib/config/temp-paths.js';
@@ -125,20 +123,12 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
       epicRetroMirrorPath(1030),
       anchored('temp', 'run-1030', 'retro.md'),
     );
-    assert.equal(
-      epicPerfReportPath(1030),
-      anchored('temp', 'run-1030', 'perf-report.md'),
-    );
   });
 
   it('Story-level canonical filenames live under the Story dir', () => {
     assert.equal(
       storyManifestPath(1030, 1042),
       anchored('temp', 'run-1030', 'stories', 'story-1042', 'manifest.md'),
-    );
-    assert.equal(
-      storyPerfSummaryPath(1030, 1042),
-      anchored('temp', 'run-1030', 'stories', 'story-1042', 'perf-summary.md'),
     );
   });
 });

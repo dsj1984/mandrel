@@ -127,7 +127,6 @@ top-level keys are validation errors.
 | `docsFreshness.paths` | No | `array` | — | — |
 | `deliverRunner` | No | `object` | — | Nested configuration block. |
 | `deliverRunner.concurrencyCap` | No | `integer` | — | Maximum ready Stories dispatched by /deliver at once. Default 3. Moderate by design — keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff. |
-| `deliverRunner.verifyConcurrencyCap` | No | `integer` | — | Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4. |
 | `worktreeIsolation` | No | `object` | — | Nested configuration block. |
 | `worktreeIsolation.enabled` | No | `boolean` | — | — |
 | `worktreeIsolation.root` | No | `string` | — | — |
@@ -254,8 +253,8 @@ top-level keys are validation errors.
 | `quality.navigability.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against. |
 | `quality.navigability.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against. |
 | `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite /deliver's per-Story ceremony runs. |
-| `mergeWatch` | No | `object` | — | Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880) and the close-and-land merge wait (Story #4543). `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR. |
-| `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between merge-wait / MergeWatcher polls. Default 30. |
+| `mergeWatch` | No | `object` | — | Knobs consumed by the close-and-land merge wait (Story #4543; defaults in `lib/orchestration/merge-poll.js`). `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR. |
+| `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between merge-wait polls. Default 30. |
 | `mergeWatch.maxWaitSeconds` | No | `integer` | `300` | Per-invocation merge-wait bound (seconds). Default 300 (5 minutes) — chosen to fit inside a single host tool invocation (~10 min ceiling) alongside the close gates that precede the wait. Expiry yields `pending` (exit 3), never a block. Headless callers with no host ceiling raise this to land in one block. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Cumulative wall-clock budget (seconds) across merge-wait resumes, anchored at the PR's createdAt. Default 3600 (60 minutes). Exhausting this classifies the block and transitions the Story to agent::blocked. |
 | `mergeWatch.updateAttempts` | No | `integer` | `3` | Maximum times the merge wait will bring a behind-the-base PR up to date before giving up on the branch. Default 3. Set 0 to disable the update. |
@@ -410,10 +409,8 @@ Repository-level merge-method allowlist applied by bootstrap.
 Both fields' enums are pinned in the schema and rejected if extended. To
 suppress a channel entirely, set its array to `[]`.
 
-> **Severity assignment.** Task transitions and `story-run-progress` upserts
-> fire `low` (frequency-driven). Story state transitions, `wave-run-progress`,
-> `epic-run-progress`, and epic-completion fire `medium`. Epic blockers and
-> HITL gates fire `high` (webhook prefix `[Action Required]` when an
+> **Severity assignment.** Story state transitions fire `medium`. Blockers
+> and HITL gates fire `high` (webhook prefix `[Action Required]` when an
 > allowlisted blocker event reaches the webhook).
 
 ---
@@ -536,8 +533,7 @@ fall back to documented defaults (or are no-ops when omitted).
 
 | Field                       | Required | Default | Purpose                                          |
 | --------------------------- | -------- | ------- | ------------------------------------------------ |
-| `concurrencyCap`            | No       | `3`     | Max parallel Story sub-agents per wave.          |
-| `verifyConcurrencyCap`      | No       | `4`     | Max parallel verify steps per wave.              |
+| `concurrencyCap`            | No       | `3`     | Max ready Stories dispatched by `/deliver` at once. |
 
 ### `delivery.worktreeIsolation`
 
@@ -788,22 +784,6 @@ section of [`quality-gates.md`](quality-gates.md) for the policy.
 Paths are configured in `delivery.quality.gates.<tier>.baselinePath`. The
 default values match the canonical layout above; override only when a
 project genuinely stores baselines elsewhere.
-
-### Per-wave drift snapshots — `.agents/state/`
-
-The Epic runner's progress reporter writes wave-start snapshots so that a
-resumed run can detect intra-wave drift without re-reading the canonical
-baseline (which may have been refreshed mid-Epic).
-
-| File                                    | Owner                                                | Lifecycle                                       |
-| --------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
-| `.agents/state/wave-mi-snapshot.json`   | `progress-signals/maintainability-drift.js`          | Captured at wave-start; overwritten next wave.   |
-| `.agents/state/wave-crap-snapshot.json` | `progress-signals/crap-drift.js`                     | Captured at wave-start; overwritten next wave.   |
-
-These are **not** ratchet baselines and must not be committed as such. The
-filenames intentionally differ from the canonical files so a repo-wide grep
-for `baselines/maintainability.json` or `baselines/crap.json` only ever hits
-the canonical paths.
 
 The `.agents/state/` directory itself is created on demand by the progress
 reporter; the framework does not require it to exist ahead of time and does

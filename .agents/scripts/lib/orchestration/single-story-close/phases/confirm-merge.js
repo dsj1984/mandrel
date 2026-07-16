@@ -82,12 +82,12 @@ import {
   MERGED_FLIP_FAILED_BLOCK_CLASS,
 } from '../../lifecycle/emit-merge-flip-failed.js';
 import { emitMergeUnlanded as defaultEmitMergeUnlanded } from '../../lifecycle/emit-merge-unlanded.js';
+import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
 import {
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   deriveChecksStatus,
-} from '../../lifecycle/listeners/merge-watcher.js';
-import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
+} from '../../merge-poll.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
   postStructuredComment,

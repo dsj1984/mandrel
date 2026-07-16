@@ -37,7 +37,7 @@
 
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSpawn as defaultGitSpawn, getStoryBranch } from '../git-utils.js';
-import { deriveChecksStatus } from './lifecycle/listeners/merge-watcher.js';
+import { deriveChecksStatus } from './merge-poll.js';
 import { NEXT_COMMANDS } from './story-deliver-terminal.js';
 import { STATE_LABELS } from './ticketing.js';
 

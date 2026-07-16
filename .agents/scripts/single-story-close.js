@@ -41,7 +41,7 @@
  * Usage:
  *   node single-story-close.js --story <STORY_ID> [--cwd <main-repo>]
  *                              [--skip-validation] [--skip-sync]
- *                              [--no-auto-merge] [--no-full-scope-crap]
+ *                              [--no-auto-merge]
  *                              [--wait-merge | --no-wait-merge]
  *
  * Close-and-land is the DEFAULT for every run (Story #4428 introduced it as

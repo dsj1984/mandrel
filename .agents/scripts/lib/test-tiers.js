@@ -12,13 +12,10 @@ import picomatch from 'picomatch';
  */
 export const INTEGRATION_INCLUDE = [
   'tests/**/*.integration.test.js',
-  'tests/epic-execute/epic-execute-record-wave.test.js',
   'tests/hook-chain-reflog-invariant.test.js',
-  'tests/push-epic-retry.test.js',
   'tests/contract/check-baselines-regression.test.js',
   'tests/contract/check-baselines-kernel-mismatch.test.js',
   'tests/integration-prime-after-sweep.test.js',
-  'tests/concurrency-wiring.test.js',
   'tests/scripts/git-cleanup.test.js',
   'tests/lib/checks/runner-integration.test.js',
   'tests/single-story-close-sync.test.js',

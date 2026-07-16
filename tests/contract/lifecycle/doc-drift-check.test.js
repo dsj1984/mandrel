@@ -369,9 +369,11 @@ describe('check-lifecycle-doc-drift — listener loader', () => {
       !names.includes('Index'),
       `loader should skip index.js (got ${names.join(',')})`,
     );
-    // v2 keeps helper listeners used by Story CI-watch / close-and-land.
-    assert.ok(names.includes('Watcher'));
-    assert.ok(names.includes('MergeWatcher'));
+    // v2 keeps exactly one helper listener: the Story CI-watch Watcher.
+    // Story #4545 deleted MergeWatcher (its constants and deriveChecksStatus
+    // moved to merge-poll.js, which is not a listener), leaving watcher.js as
+    // the sole non-index listener file.
+    assert.deepEqual(names, ['Watcher']);
   });
 
   it('every listener with a literal subscription appears in the doc table', () => {

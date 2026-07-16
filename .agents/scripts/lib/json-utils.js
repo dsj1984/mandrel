@@ -2,8 +2,7 @@
  * json-utils.js — shared JSON-shape helpers.
  *
  * Hoisted out of five callers (`lib/baselines/writer.js`,
- * `lib/config/defaults.js`, `lib/observability/baseline-refresh-rate.js`,
- * `lib/observability/perf-aggregator.js`, `lib/signals/schema.js`) which
+ * `lib/config/defaults.js`, `lib/signals/schema.js`) which
  * shipped functionally-equivalent copies of these predicates. See Story
  * #2464.
  *

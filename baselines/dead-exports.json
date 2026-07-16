@@ -200,10 +200,6 @@
       "symbol": "isLeafSchemaRemovable"
     },
     {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicPerfReportJsonPath"
-    },
-    {
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "symbol": "COVERAGE_FINAL_PATH"
     },
@@ -312,18 +308,6 @@
       "symbol": "shouldEmitHeartbeat"
     },
     {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "renderBaselineRefreshRateRow"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "renderQualityGateFrictionBlock"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/perf-report-render.js",
-      "symbol": "STORY_PERF_MARKER"
-    },
-    {
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "symbol": "forEachEpicLine"
     },
@@ -372,22 +356,6 @@
       "symbol": "executeStashPhase"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "appendAttempt"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "defaultSleep"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "ghPrViewMerge"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/merge-watcher.js",
-      "symbol": "parsePrNumberFromUrl"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "hasFailingCheck"
     },
@@ -410,10 +378,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "symbol": "makeDefaultFanOutCounter"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
-      "symbol": "createWorktreeReapState"
     },
     {
       "file": ".agents/scripts/lib/orchestration/reassert-status-column.js",

@@ -218,7 +218,7 @@ Evaluate the gathered context against the following clean code dimensions:
    gates, baseline kinds, close-validation steps, dependencies, or
    harness subsystems under this dimension.
 
-   **Scope-mode behavior.** When this lens is invoked in Epic mode (the
+   **Scope-mode behavior.** When this lens is invoked in Story scope (the
    `{{changedFiles}}` block above is populated with a file list), the
    maturity assessment for this dimension is a repo-wide property that
    cannot be represented by a small changeset. In that case, render the
@@ -269,7 +269,7 @@ architectural pain points and areas for simplification.]
 ## Architecture Guardrail Coverage
 
 [Codebase-wide mode: complete this section using the maturity rubric in
-Step 2. Epic-mode / scoped run: set `Current Maturity` to
+Step 2. Story-scoped run: set `Current Maturity` to
 `Not Assessed — scoped run` and leave the remaining fields empty or
 marked `n/a`.]
 

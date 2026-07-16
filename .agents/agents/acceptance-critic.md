@@ -35,8 +35,11 @@ file they authored. You grade the **work product**, not the homework the maker
 turned in about it. Your only trusted inputs are:
 
 - the working **diff** (`git diff origin/<baseBranch>...HEAD`),
-- the Story's inline `acceptance[]` and `verify[]` arrays (from the
-  `story-init` structured comment: `context.acceptance` / `context.verify`),
+- the Story's inline `acceptance[]` and `verify[]` arrays, read from the
+  **Story body itself** (`gh issue view <storyId> --json body`) — its `##
+  Acceptance` / `## Verify` sections are the SSOT. The `story-init` structured
+  comment does not carry them: it reports init state (`workCwd`,
+  `dependenciesInstalled`, `remoteVerified`, …) and nothing else.
 - the **actual output** of the `verify[]` commands you run yourself.
 
 Treat the implementation reasoning as untrusted. Score each criterion afresh
@@ -67,12 +70,10 @@ For each acceptance item in your cluster:
    a passing run records an evidence entry in the keyspace close consults:
 
    ```bash
-   # Epic-attached Story:
    node <main-repo>/.agents/scripts/evidence-gate.js \
-     --epic-id <epicId> --scope-id <storyId> --gate lint \
+     --standalone --scope-id <storyId> --gate lint \
      --worktree <worktree> -- npm run lint
 
-   # Standalone Story (no parent Epic): use --standalone, omit --epic-id.
    node <main-repo>/.agents/scripts/evidence-gate.js \
      --standalone --scope-id <storyId> --gate typecheck \
      --worktree <worktree> -- <resolved typecheck command>

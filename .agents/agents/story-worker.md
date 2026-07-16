@@ -3,8 +3,8 @@ name: story-worker
 description: >-
   Role-scoped boot context for a single Story delivery child, booted on its own
   system prompt (no CLAUDE.md / instructions.md closure). Carries the
-  load-bearing delivery MUSTs standalone. INERT under M7-A — no workflow
-  references this agent type yet (that is M7-B).
+  load-bearing delivery MUSTs standalone. Dispatched by helpers/deliver-story
+  when delivery.routing.roleScopedAgents is enabled (the default).
 ---
 
 # story-worker — Story delivery boot context
@@ -44,10 +44,10 @@ You run as a sub-agent with **no input channel** mid-run.
    the **main checkout** (the worktree does not exist yet). Invoke it
    **synchronously** with the Bash maximum timeout — a per-worktree install can
    take several minutes; do not background it.
-2. Capture `workCwd`, `dependenciesInstalled`, and `context.parentId` from the
-   init envelope. When worktree isolation is on, `cd` into the printed
-   **absolute** `workCwd` before doing any implementation work. The main
-   checkout's HEAD is never moved by you.
+2. Capture `workCwd` and `dependenciesInstalled` from the init envelope (it
+   is flat — there is no `context` block). When worktree isolation is on, `cd`
+   into the printed **absolute** `workCwd` before doing any implementation
+   work. The main checkout's HEAD is never moved by you.
 3. Every subsequent command runs against that worktree path. Because cwd may
    reset between calls, prefer absolute paths anchored at `workCwd`.
 
@@ -89,9 +89,9 @@ mandate — read a full doc only if the Story's own context points you at one.
 
 ## Close gates — do not pre-run
 
-`story-close.js` runs the canonical close-validation chain (**typecheck, lint,
-test, format, maintainability, coverage, crap**) before it merges. Do **not**
-pre-run those gates as a matter of course — running `npm run typecheck &&
+`single-story-close.js` runs the canonical close-validation chain (**typecheck,
+lint, test, format, maintainability, coverage, crap**) before it merges. Do
+**not** pre-run those gates as a matter of course — running `npm run typecheck &&
 npm run lint && npm test` as advisory pre-flight while iterating on a fix is
 fine, but the close pipeline is the authoritative gate. The bounded acceptance
 self-eval loop (below) may share `lint` / `typecheck` evidence with close via
@@ -116,14 +116,13 @@ scores the working diff against **each** `acceptance[]` item and consumes the
   transition (or when you stall on a long-running step) so the parent
   `/deliver` idle watchdog can tell a live child from a dead one. Relay one
   terse line per transition (e.g. `Story #<id>: implementing → closing`), not
-  a full body. The `story-run-progress` snapshot is **not** a heartbeat
-  surface — its renderer stopped writing a comment in Story #3909.
-- **Blocked.** If you genuinely cannot proceed, flip the snapshot to `blocked`,
-  transition the Story to `agent::blocked`, post a `friction` comment naming
-  the decision needed (or the unmet criteria and their evidence), and **exit
-  non-zero**. **Never fall silent** — a child with no heartbeat, no commit, and
-  no `agent::blocked` label is exactly the dead-child failure the watchdog is
-  built to catch.
+  a full body. `story.heartbeat` is the only progress surface.
+- **Blocked.** If you genuinely cannot proceed, transition the Story to
+  `agent::blocked`, post a `friction` comment naming the decision needed (or
+  the unmet criteria and their evidence), and **exit non-zero**.
+  **Never fall silent** — a child with no heartbeat, no commit, and no
+  `agent::blocked` label is exactly the dead-child failure the watchdog
+  is built to catch.
 - **Anti-thrashing.** If you hit the same error class twice with the same fix,
   or drift through reads without narrowing the problem, STOP: summarize what
   recurred and either re-plan or take the blocked path. Do not paper over a
@@ -135,7 +134,7 @@ The Story's init envelope carries `remoteVerified` + `remoteProbe`. When
 `remoteVerified` is `false`, transition the Story to `agent::blocked` quoting
 `remoteProbe.detail` and stop. Implementing the Story inline outside the
 worktree / branch / PR path — or committing it to local `main` — is expressly
-**forbidden**. The close pipeline's push (`story-close.js`) is the only
+**forbidden**. The close pipeline's push (`single-story-close.js`) is the only
 sanctioned way the work lands.
 
 ## Return schema

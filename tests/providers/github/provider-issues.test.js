@@ -2,7 +2,7 @@
  * GitHubProvider facade — issues surface.
  *
  * Tests GitHubProvider's issue methods (listIssues/getEpics, getEpic,
- * getTicket, getTicketDependencies, createTicket, updateTicket) with a mocked
+ * getTicket, getTicketDependencies, updateTicket) with a mocked
  * gh-exec facade — no live API calls. Split from the former root monolith
  * `tests/providers-github.test.js` (Story #4084).
  */
@@ -205,97 +205,6 @@ describe('GitHubProvider — getTicketDependencies()', () => {
 
     assert.deepEqual(deps.blockedBy, []);
     assert.deepEqual(deps.blocks, []);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// createTicket
-// ---------------------------------------------------------------------------
-describe('GitHubProvider — createTicket()', () => {
-  it('creates a ticket linked to the epic', async () => {
-    const gh = makeGh({
-      'POST /repos/test-owner/test-repo/issues': {
-        status: 201,
-        json: {
-          number: 20,
-          html_url: 'https://github.com/test-owner/test-repo/issues/20',
-        },
-      },
-      // addSubIssue reads the parent via getTicket — return a stub.
-      'GET /issues/10': {
-        status: 200,
-        json: {
-          number: 10,
-          node_id: 'parent-node',
-          title: 'Parent Epic',
-          body: '',
-          labels: [],
-          assignees: [],
-          state: 'open',
-        },
-      },
-      // Sub-issue link mutation — return a successful GraphQL payload.
-      'POST graphql': {
-        status: 200,
-        json: { data: { addSubIssue: { issue: { number: 10 } } } },
-      },
-    });
-    const provider = createTestProvider({ gh });
-    const result = await provider.createTicket(10, {
-      title: 'New task',
-      body: 'Task description',
-      labels: ['type::task'],
-    });
-
-    assert.equal(result.id, 20);
-    assert.ok(result.url.includes('/issues/20'));
-
-    // Find the POST /issues call and inspect its stdin body.
-    const createCall = gh.__exec.calls.find(
-      (c) => c.args[2] === 'POST' && /\/issues$/.test(c.args[3] ?? ''),
-    );
-    assert.ok(createCall, 'POST /issues call should have happened');
-    const sentBody = JSON.parse(createCall.input);
-    assert.ok(sentBody.body.includes('parent: #10'));
-  });
-
-  it('includes dependency references in the body', async () => {
-    const gh = makeGh({
-      'POST /repos/test-owner/test-repo/issues': {
-        status: 201,
-        json: { number: 21, html_url: 'http://x', node_id: 'n21' },
-      },
-      'GET /issues/10': {
-        status: 200,
-        json: {
-          number: 10,
-          node_id: 'parent-node',
-          title: 'P',
-          body: '',
-          labels: [],
-          assignees: [],
-          state: 'open',
-        },
-      },
-      'POST graphql': {
-        status: 200,
-        json: { data: { addSubIssue: { issue: { number: 10 } } } },
-      },
-    });
-    const provider = createTestProvider({ gh });
-    await provider.createTicket(10, {
-      title: 'Dependent task',
-      body: 'Depends on stuff',
-      labels: [],
-      dependencies: [5, 6],
-    });
-
-    const createCall = gh.__exec.calls.find(
-      (c) => c.args[2] === 'POST' && /\/issues$/.test(c.args[3] ?? ''),
-    );
-    const sentBody = JSON.parse(createCall.input);
-    assert.ok(sentBody.body.includes('blocked by #5'));
-    assert.ok(sentBody.body.includes('blocked by #6'));
   });
 });
 

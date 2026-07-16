@@ -130,7 +130,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         delivery: {
           execution: { timeoutMs: 600000 },
           docsFreshness: { paths: ['README.md'] },
-          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
+          deliverRunner: { concurrencyCap: 3 },
           worktreeIsolation: {
             enabled: true,
             root: '.worktrees',

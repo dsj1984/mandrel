@@ -219,7 +219,8 @@ export async function buildAuthoringContext(
         Logger.warn(
           `[plan-context] codebase snapshot truncated: ${dropped} of ` +
             `${matched} matched file(s) dropped from the ${tier}-tier view. ` +
-            `The spec-author context is partial. To restore full grounding, ` +
+            `The /plan authoring context is partial. To restore full ` +
+            `grounding, ` +
             `set planning.codebaseSnapshot.tier: "medium" and/or narrow ` +
             `planning.codebaseSnapshot.include in .agentrc.json.`,
         );
@@ -227,9 +228,9 @@ export async function buildAuthoringContext(
       if (grounding.citedButAbsent.length > 0) {
         Logger.warn(
           `[plan-context] ${grounding.citedButAbsent.length} path(s) cited ` +
-            `in the Epic body are absent from the codebase snapshot: ` +
-            `${grounding.citedButAbsent.join(', ')}. The spec author will ` +
-            `flag these as drift unless they are net-new.`,
+            `in the authored Spec are absent from the codebase snapshot: ` +
+            `${grounding.citedButAbsent.join(', ')}. /plan will flag these ` +
+            `as drift unless they are net-new.`,
         );
       }
     }

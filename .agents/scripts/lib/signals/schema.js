@@ -3,7 +3,7 @@
  * shape guards (Epic #1181 / Story #1438 / Task #1458).
  *
  * Both writers (`lib/observability/signals-writer.js` callers) and
- * readers (`lib/signals/read.js`, `lib/observability/perf-aggregator.js`)
+ * readers (`lib/signals/read.js`, the retro's gather-signals phase)
  * import their field names from this module so the on-disk NDJSON shape
  * stays under one schema.
  *
@@ -22,12 +22,10 @@
  *                        lib/gates/friction.js, auto-refresh-runner.js,
  *                        worktree-reap.js, lifecycle-emit.js)
  *   - `acceptance-eval` — acceptance-eval.js per-criterion terminus signal.
- *   - `wave-start` / `wave-complete` — `lib/wave-runner/tick.js` (read by
- *                        perf-aggregator's `waveParallelism` report;
- *                        `wave-start` also anchors span-tree Story spans)
+ *   - `wave-start` / `wave-complete` — wave-window anchors; `wave-start` also
+ *                        anchors span-tree Story spans
  *   - `wave-end`       — span-tree pairing anchor (retained for span-tree)
- *   - `state-transition` — notification-derived window anchor read by the
- *                        waveParallelism bucketer.
+ *   - `state-transition` — notification-derived window anchor.
  *
  * The `dispatched` kind was deleted in the Epic #4406 signal-contract
  * cutover — it had no live emitter and no consumer.
@@ -80,9 +78,9 @@ export const EVENT_KINDS = Object.freeze({
   FRICTION: 'friction',
   TRACE: 'trace',
   // Wave-window forensics signals: `wave-start` / `wave-end` anchor the
-  // span-tree's Story spans, and the perf-aggregator brackets each wave's
-  // wall-clock from `wave-start` → `wave-complete` (the `waveParallelism`
-  // report). These are READ — they survive.
+  // span-tree's Story spans. Story #4545 deleted the `waveParallelism`
+  // consumer (perf-aggregator) with the execution-analysis surface; these
+  // kinds stay as the span-tree's anchors.
   WAVE_START: 'wave-start',
   WAVE_END: 'wave-end',
   WAVE_COMPLETE: 'wave-complete',

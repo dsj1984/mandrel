@@ -79,9 +79,18 @@ const BASELINE_PATH = path.join(
  * Deterministic fixture Epic event sequence.
  *
  * The sequence is intentionally a *minimal* representative slice of a
- * /deliver run — enough events to exercise the major lifecycle
- * boundaries (snapshot, wave dispatch, close-tail, finalize, automerge,
- * complete) but small enough to keep the baseline file reviewable.
+ * /deliver run — enough events to exercise the surviving lifecycle
+ * boundaries (story dispatch, merge, close-tail, PR creation, CI watch)
+ * but small enough to keep the baseline file reviewable.
+ *
+ * The sequence is a GENERIC FIXTURE, not a claim about run ordering: this
+ * test pins record *shape*, not orchestration semantics. Story #4545 pruned
+ * every event whose emitter was deleted with the Epic-orchestration stratum
+ * (`epic.snapshot.*`, `epic.close.end`, `acceptance.reconcile.*`,
+ * `epic.finalize.*`, `epic.merge.*`, `epic.automerge.*`, `epic.complete`) —
+ * their schema files went with them, so the bus can no longer validate them
+ * and the capture step below would throw ENOENT. The checked-in baseline was
+ * re-recorded in the same change via the REWRITE_BASELINE seam.
  *
  * Each event payload is validated against
  * `.agents/schemas/lifecycle/<event>.schema.json` by the bus during
@@ -94,20 +103,14 @@ const BASELINE_PATH = path.join(
 const FIXTURE_EPIC_ID = 9001;
 const FIXTURE_PR_URL = 'https://github.com/dsj1984/mandrel/pull/9001';
 const FIXTURE_EVENTS = [
-  // Snapshot: enumerate the Epic's stories.
-  ['epic.snapshot.start', { epicId: FIXTURE_EPIC_ID }],
-  ['epic.snapshot.end', { epicId: FIXTURE_EPIC_ID, storyIds: [9101, 9102] }],
-  // Single wave with both fixture stories. The in-process runner's dotted
-  // wave.start / wave.end / epic.close.start lifecycle events were deleted
-  // in Story #3908 (the dead-runner-stratum cutover); the production wave
-  // loop ledgers story.dispatch.* + hyphenated wave-* signals instead.
+  // Two fixture stories dispatched and merged.
   ['story.dispatch.start', { storyId: 9101, waveIndex: 0 }],
   ['story.dispatch.end', { storyId: 9101, outcome: 'done', durationMs: 12345 }],
   ['story.merged', { storyId: 9101, sha: 'abcdef1234567' }],
   ['story.dispatch.start', { storyId: 9102, waveIndex: 0 }],
   ['story.dispatch.end', { storyId: 9102, outcome: 'done', durationMs: 23456 }],
   ['story.merged', { storyId: 9102, sha: '1234567abcdef' }],
-  // Close-tail: validate + code-review + retro.
+  // Close-tail: validate + code-review.
   ['close-validate.start', { epicId: FIXTURE_EPIC_ID, storyId: 9102 }],
   [
     'close-validate.end',
@@ -120,30 +123,21 @@ const FIXTURE_EVENTS = [
     },
   ],
   ['code-review.start', { epicId: FIXTURE_EPIC_ID }],
-  ['epic.close.end', { epicId: FIXTURE_EPIC_ID }],
-  // Acceptance reconcile gates Finalizer.
-  ['acceptance.reconcile.start', { epicId: FIXTURE_EPIC_ID }],
-  ['acceptance.reconcile.ok', { baseRead: true }],
-  // Finalize → PR created.
-  ['epic.finalize.start', { epicId: FIXTURE_EPIC_ID }],
+  ['code-review.end', { epicId: FIXTURE_EPIC_ID, status: 'ok' }],
+  // PR created on the v2 story-<id> branch, then watched to terminal.
   [
     'pr.created',
     {
       prUrl: FIXTURE_PR_URL,
-      head: `epic/${FIXTURE_EPIC_ID}`,
+      head: 'story-9102',
       base: 'main',
     },
   ],
-  ['epic.finalize.end', { epicId: FIXTURE_EPIC_ID, prUrl: FIXTURE_PR_URL }],
-  // Automerge: ready → start → armed.
+  ['epic.watch.start', { prUrl: FIXTURE_PR_URL, requiredChecks: ['lint'] }],
   [
-    'epic.merge.ready',
-    { prUrl: FIXTURE_PR_URL, reason: 'fixture: predicate clean' },
+    'epic.watch.end',
+    { prUrl: FIXTURE_PR_URL, checkOutcomes: { lint: 'success' } },
   ],
-  ['epic.automerge.start', { prUrl: FIXTURE_PR_URL }],
-  ['epic.merge.armed', { prUrl: FIXTURE_PR_URL }],
-  // Terminal.
-  ['epic.complete', { epicId: FIXTURE_EPIC_ID, prUrl: FIXTURE_PR_URL }],
 ];
 
 /**

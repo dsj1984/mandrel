@@ -13,39 +13,44 @@ import {
   TraceLogger,
 } from '../../.agents/scripts/lib/orchestration/lifecycle/trace-logger.js';
 
+// `story.dispatch.*` and `pr.created` are GENERIC FIXTURE EVENTS here — the
+// tests exercise render()/parseLedger(), not dispatch or PR semantics. The
+// dispatch pair was repointed from the deleted `epic.snapshot.*` events in
+// Story #4545; the pair is chosen so the ledger spans two distinct phases
+// (Waves, then Finalize) and the phase-ordering assertion still bites.
 const SAMPLE_LEDGER = [
   {
     kind: 'emitted',
     seqId: 1,
     ts: '2026-05-17T10:00:00.000Z',
-    event: 'epic.snapshot.start',
-    payload: { epicId: 42 },
+    event: 'story.dispatch.start',
+    payload: { storyId: 42, waveIndex: 0 },
   },
   {
     kind: 'completed',
     seqId: 1,
     ts: '2026-05-17T10:00:00.150Z',
-    event: 'epic.snapshot.start',
+    event: 'story.dispatch.start',
   },
   {
     kind: 'emitted',
     seqId: 2,
     ts: '2026-05-17T10:00:01.000Z',
-    event: 'epic.snapshot.end',
-    payload: { epicId: 42, storyIds: [1, 2, 3] },
+    event: 'story.dispatch.end',
+    payload: { storyId: 42, outcome: 'done', durationMs: 1000 },
   },
   {
     kind: 'completed',
     seqId: 2,
     ts: '2026-05-17T10:00:01.200Z',
-    event: 'epic.snapshot.end',
+    event: 'story.dispatch.end',
   },
   {
     kind: 'emitted',
     seqId: 3,
     ts: '2026-05-17T10:00:02.000Z',
     event: 'pr.created',
-    payload: { prUrl: 'https://example/1', head: 'epic/42', base: 'main' },
+    payload: { prUrl: 'https://example/1', head: 'story-42', base: 'main' },
   },
   {
     kind: 'completed',
@@ -70,12 +75,12 @@ describe('lifecycle/trace-logger', () => {
   it('render groups events by phase in stable order', () => {
     const md = render(SAMPLE_LEDGER, { epicId: 42 });
     assert.match(md, /# Lifecycle — epic 42/);
-    assert.match(md, /## Snapshot/);
+    assert.match(md, /## Waves/);
     assert.match(md, /## Finalize/);
-    // Snapshot must appear before Finalize.
-    const snapIdx = md.indexOf('## Snapshot');
+    // Waves must appear before Finalize.
+    const wavesIdx = md.indexOf('## Waves');
     const finalIdx = md.indexOf('## Finalize');
-    assert.ok(snapIdx >= 0 && snapIdx < finalIdx);
+    assert.ok(wavesIdx >= 0 && wavesIdx < finalIdx);
   });
 
   it('render includes a Summary block with event counts', () => {
@@ -93,14 +98,14 @@ describe('lifecycle/trace-logger', () => {
         kind: 'emitted',
         seqId: 2,
         ts: '2026-05-17T10:00:01.000Z',
-        event: 'epic.snapshot.end',
-        payload: { epicId: 42, storyIds: [] },
+        event: 'story.dispatch.end',
+        payload: { storyId: 42, outcome: 'failed', durationMs: 0 },
       },
       {
         kind: 'failed',
         seqId: 2,
         ts: '2026-05-17T10:00:01.300Z',
-        event: 'epic.snapshot.end',
+        event: 'story.dispatch.end',
         listener: 'TestListener',
         error: { name: 'Error', message: 'boom' },
       },
@@ -116,8 +121,8 @@ describe('lifecycle/trace-logger', () => {
         kind: 'emitted',
         seqId: 1,
         ts: '2026-05-17T10:00:00.000Z',
-        event: 'epic.snapshot.start',
-        payload: { epicId: 1 },
+        event: 'story.dispatch.start',
+        payload: { storyId: 1, waveIndex: 0 },
       },
     ];
     const md = render(pendingLedger);
@@ -142,11 +147,11 @@ describe('lifecycle/trace-logger', () => {
         epicId: 99,
       });
       tracer.register(bus);
-      bus.on('epic.snapshot.start', () => {});
-      await bus.emit('epic.snapshot.start', { epicId: 99 });
+      bus.on('story.dispatch.start', () => {});
+      await bus.emit('story.dispatch.start', { storyId: 99, waveIndex: 0 });
       const md = readFileSync(tracer.companionPath, 'utf8');
       assert.match(md, /# Lifecycle — epic 99/);
-      assert.match(md, /epic\.snapshot\.start/);
+      assert.match(md, /story\.dispatch\.start/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -225,7 +230,10 @@ describe('lifecycle/trace-logger', () => {
 
       // Emit must resolve (not reject) even though the wildcard listener's
       // rerender throws.
-      const result = await bus.emit('epic.snapshot.start', { epicId: 7 });
+      const result = await bus.emit('story.dispatch.start', {
+        storyId: 7,
+        waveIndex: 0,
+      });
       process.stderr.write = originalStderrWrite;
 
       assert.equal(typeof result.seqId, 'number');

@@ -52,7 +52,6 @@
  *   live git/filesystem state where unit-mocking asserts only the mock
  *   structure):
  *     lib/config-schema.js, lib/config-settings-schema.js,
- *     lib/git-merge-orchestrator.js,
  *     lib/worktree/node-modules-strategy.js
  */
 
@@ -93,7 +92,6 @@ module.exports = {
     // Story #1702 — lib/* carve-outs (data-as-code + orchestration glue).
     '.agents/scripts/lib/config-schema.js',
     '.agents/scripts/lib/config-settings-schema.js',
-    '.agents/scripts/lib/git-merge-orchestrator.js',
     '.agents/scripts/lib/worktree/node-modules-strategy.js',
   ],
 };

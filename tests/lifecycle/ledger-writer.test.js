@@ -19,6 +19,12 @@ function readNdjson(p) {
     .map((l) => JSON.parse(l));
 }
 
+/**
+ * `story.dispatch.start` / `.end` appear below purely as a GENERIC FIXTURE
+ * EVENT pair — dispatch semantics are not under test. They were repointed
+ * from the deleted `epic.snapshot.*` events in Story #4545; what matters is
+ * only that the bus validates them and rejects a bad-shape payload.
+ */
 describe('lifecycle/ledger-writer', () => {
   let tempRoot;
 
@@ -61,17 +67,17 @@ describe('lifecycle/ledger-writer', () => {
     const bus = new Bus();
     const writer = new LedgerWriter({ epicId: 42, tempRoot });
     writer.register(bus);
-    bus.on('epic.snapshot.start', () => {});
-    await bus.emit('epic.snapshot.start', { epicId: 42 });
+    bus.on('story.dispatch.start', () => {});
+    await bus.emit('story.dispatch.start', { storyId: 42, waveIndex: 0 });
     const records = readNdjson(writer.ledgerPath);
     assert.equal(records.length, 2);
     assert.equal(records[0].kind, 'emitted');
     assert.equal(records[0].seqId, 1);
-    assert.equal(records[0].event, 'epic.snapshot.start');
-    assert.deepEqual(records[0].payload, { epicId: 42 });
+    assert.equal(records[0].event, 'story.dispatch.start');
+    assert.deepEqual(records[0].payload, { storyId: 42, waveIndex: 0 });
     assert.equal(records[1].kind, 'completed');
     assert.equal(records[1].seqId, 1);
-    assert.equal(records[1].event, 'epic.snapshot.start');
+    assert.equal(records[1].event, 'story.dispatch.start');
   });
 
   it('Ledger entries omit keys named in SECRET_KEY_DENY_LIST', async () => {
@@ -88,7 +94,7 @@ describe('lifecycle/ledger-writer', () => {
     // on stripSecrets above for nested keys; here, assert the writer's
     // record builder strips the top-level deny-listed key directly.
     const record = writer.buildEmitted({
-      event: 'epic.snapshot.start',
+      event: 'story.dispatch.start',
       seqId: 1,
       payload: { epicId: 1, token: 'leak', nested: { secret: 'leak2' } },
     });
@@ -99,14 +105,17 @@ describe('lifecycle/ledger-writer', () => {
     const bus = new Bus();
     const writer = new LedgerWriter({ epicId: 7, tempRoot });
     writer.register(bus);
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       const err = new Error('boom');
       err.listener = 'TestListener';
       throw err;
     });
-    await assert.rejects(() => bus.emit('epic.snapshot.start', { epicId: 7 }), {
-      message: 'boom',
-    });
+    await assert.rejects(
+      () => bus.emit('story.dispatch.start', { storyId: 7, waveIndex: 0 }),
+      {
+        message: 'boom',
+      },
+    );
     const records = readNdjson(writer.ledgerPath);
     assert.equal(records.length, 2);
     assert.equal(records[0].kind, 'emitted');
@@ -120,7 +129,7 @@ describe('lifecycle/ledger-writer', () => {
     const writer = new LedgerWriter({ epicId: 13, tempRoot });
     writer.register(bus);
     await assert.rejects(
-      () => bus.emit('epic.snapshot.start', { wrong: 'shape' }),
+      () => bus.emit('story.dispatch.start', { wrong: 'shape' }),
       { code: 'BUS_SCHEMA_VALIDATION' },
     );
     // ledger file should not exist yet — nothing was emitted.
@@ -131,11 +140,15 @@ describe('lifecycle/ledger-writer', () => {
     const bus = new Bus();
     const writer = new LedgerWriter({ epicId: 9, tempRoot });
     writer.register(bus);
-    bus.on('epic.snapshot.start', () => {});
-    bus.on('epic.snapshot.end', () => {});
-    await bus.emit('epic.snapshot.start', { epicId: 9 });
-    await bus.emit('epic.snapshot.end', { epicId: 9, storyIds: [1] });
-    await bus.emit('epic.snapshot.start', { epicId: 9 });
+    bus.on('story.dispatch.start', () => {});
+    bus.on('story.dispatch.end', () => {});
+    await bus.emit('story.dispatch.start', { storyId: 9, waveIndex: 0 });
+    await bus.emit('story.dispatch.end', {
+      storyId: 9,
+      outcome: 'done',
+      durationMs: 1,
+    });
+    await bus.emit('story.dispatch.start', { storyId: 9, waveIndex: 0 });
     const records = readNdjson(writer.ledgerPath);
     const emitted = records.filter((r) => r.kind === 'emitted');
     assert.deepEqual(

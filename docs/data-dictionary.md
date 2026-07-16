@@ -33,45 +33,14 @@ summaries-on-tickets rationale.
 
 ---
 
-## StoryPerfSummary (`structured:story-perf-summary` comment)
+## StoryPerfSummary / EpicPerfReport — removed (Story #4545)
 
-Payload of the single performance summary comment posted on every Story
-ticket at close (Epic #1030). Replaces the per-Story friction comment fanout
-and the standalone phase-timings comment. Schema lives at
-[`story-perf-summary.schema.json`](../.agents/schemas/story-perf-summary.schema.json).
-
-| Field                     | Type                | Required | Description                                                                                              |
-| ------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `kind`                    | `const string`      | Yes      | Always `"story-perf-summary"` so the analyzer can index the comment by kind.                              |
-| `storyId`                 | `integer ≥ 1`       | Yes      | Story this summary belongs to.                                                                            |
-| `epicId`                  | `integer ≥ 1`       | Yes      | Epic the Story rolls up to.                                                                               |
-| `closedAt`                | `ISO8601 date-time` | Yes      | When the close transitioned the Story to `agent::done`.                                                   |
-| `frictionByCategory`      | `object`            | Yes      | Counts of friction signals bucketed by category for this Story. Keys are category strings; values ≥ 0.    |
-| `phaseTimingsMs`          | `object`            | Yes      | Elapsed ms per phase, sourced from `phase-timer.js`. Keys are phase names; values ≥ 0.                    |
-| `topSlowPhasesVsBaseline` | `array`             | Yes      | Items: `{ phase, elapsedMs, baselineP95Ms, ratio }`. `ratio = elapsedMs / baselineP95Ms`.                 |
-| `reworkScore`             | `object`            | Yes      | `{ filesEditedBeyondThreshold, topPath?, topPathEdits? }`. Threshold from `signals.rework.editsPerFile`.  |
-| `retryDensity`            | `object`            | Yes      | `{ retries, uniqueCommands }`. `retries / uniqueCommands` is the density per Story.                       |
-
----
-
-## EpicPerfReport (`structured:epic-perf-report` comment)
-
-Payload of the single Epic-level performance comment posted alongside the
-retro at Epic close (Epic #1030). Aggregates every Story's NDJSON stream
-into one rolled-up report. Schema lives at
-[`epic-perf-report.schema.json`](../.agents/schemas/epic-perf-report.schema.json).
-
-| Field                 | Type                | Required | Description                                                                                                                                                |
-| --------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`                | `const string`      | Yes      | Always `"epic-perf-report"`.                                                                                                                                |
-| `epicId`              | `integer ≥ 1`       | Yes      | Epic this report belongs to.                                                                                                                                |
-| `generatedAt`         | `ISO8601 date-time` | Yes      | When `epic-deliver runner` produced the report.                                                                                                                   |
-| `signalCounts`        | `object`            | Yes      | Rolled-up counts by `kind` for the entire Epic. Keys: `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry` (each integer ≥ 0).                         |
-| `waveParallelism`     | `array`             | Yes      | Items: `{ wave, wallClockMs, sumStoryMs, utilization, stories }`. `utilization = wallClockMs / sumStoryMs` (lower is better; ideal is `1/N` for `N` slots). |
-| `topHotspots`         | `array`             | Yes      | Items: `{ phase, occurrences, avgRatio }`. Phases that fired the hotspot detector most often, with the average `elapsedMs / baselineP95Ms` ratio.           |
-| `mostFrictionStories` | `array`             | Yes      | Items: `{ storyId, frictionCount }`. Stories that produced the highest count of `kind: friction` events.                                                    |
-
----
+Both payloads and their schemas were deleted with the execution-analysis
+surface that produced them: the analyzer hard-failed without an Epic id, read
+signals from a path a standalone Story can never produce, and no workflow
+invoked it. Nothing writes a `structured:story-perf-summary` or
+`structured:epic-perf-report` comment, and neither kind is a valid structured
+comment type any more.
 
 ## FrictionEvent (`friction` NDJSON signal)
 
@@ -195,7 +164,6 @@ any prior comment of the same type.
 | `dispatch-manifest` | `/plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
-| `story-run-progress`| `/deliver`                                    | Per-Story label transitions during `/deliver`.                   |
 | `epic-run-progress` | `/deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
 | `code-review`       | `lib/orchestration/code-review.js` (Phase 5)        | Findings report posted on the Epic.                                      |
 | `retro`             | `lib/orchestration/retro-runner.js` (Phase 6)       | Final retrospective body with the `retro-complete` marker.               |
@@ -245,11 +213,10 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 
 | Term                                                | Kind     | Definition                                                                                                                                                                       |
 | --------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verifyWaveResults({ provider, results, concurrencyCap })` | Function | Post-wave claim guard in `lib/orchestration/wave-record-io.js` (the surviving successor to the deleted `CommitAssertion` class, removed with the in-process epic-runner stratum in PR #3936). Re-fetches each Story ticket fresh and downgrades any `status: 'done'` claim whose ticket has not reached `agent::done` (or `closed`) to `failed`, returning the verified rows plus a `discrepancies` list. Network failures during verification become `verify-error` discrepancies. Per-row checks run through `concurrentMap` under a bounded cap (default 4, override via `delivery.deliverRunner.verifyConcurrencyCap`). |
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
 | `hierarchy-gate.js`                                 | Script   | Standalone hierarchy-completeness CLI (`node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>`). Walks the Epic's live Story sub-issue graph (2-tier: Epic → Story, Story #4041 — `getSubTickets(<storyId>)` returns `[]`, so the walk terminates at the Story) and requires every Story closed; legacy `context::*` artifacts on historical Epics are ignored (Story #4324 folded planning content into the Epic body). Exits 0 when every descendant is closed, 1 when any is open, 2 on configuration/provider error. |
-| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone: `temp/standalone/stories/story-<sid>/`). Consumers: `diagnose-friction.js`, Story close / follow-up capture, `analyze-execution.js`. Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
+| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone: `temp/standalone/stories/story-<sid>/`). Consumers: `diagnose-friction.js`, Story close / follow-up capture, the retro's gather-signals phase. Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint | `/deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` (from `lib/config/validate-orchestration.js`) runs at launcher startup in `plan-context.js`, `plan-persist.js`, `bootstrap.js`, and `agents-bootstrap-github.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
@@ -313,7 +280,6 @@ ratchet.
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` structured comment (and the historical `epic-perf-report` shape when reading archived Epic-mode ledgers). Wired from `helpers/deliver-story` / `single-story-close` on the live Story path. |
 | `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
 
 ---

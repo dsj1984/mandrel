@@ -14,20 +14,25 @@ import {
  *   2. listeners run sequentially with await (order + serialization);
  *   3. a thrown listener short-circuits the remaining listeners;
  *   4. wildcard observers run after named listeners.
+ *
+ * `story.dispatch.start` / `.end` are used here purely as a GENERIC FIXTURE
+ * EVENT pair — nothing about dispatch semantics is under test. They were
+ * repointed from the deleted `epic.snapshot.*` events in Story #4545; any
+ * schema-backed event with a required-field shape would serve equally.
  */
 
 describe('lifecycle/bus', () => {
   it('emit() validates payload and throws BEFORE invoking any listener on schema mismatch', async () => {
     const bus = new Bus();
     let listenerRan = false;
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       listenerRan = true;
     });
     await assert.rejects(
-      () => bus.emit('epic.snapshot.start', { wrong: 'shape' }),
+      () => bus.emit('story.dispatch.start', { wrong: 'shape' }),
       (err) => {
         assert.equal(err.code, 'BUS_SCHEMA_VALIDATION');
-        assert.equal(err.event, 'epic.snapshot.start');
+        assert.equal(err.event, 'story.dispatch.start');
         return true;
       },
     );
@@ -41,32 +46,35 @@ describe('lifecycle/bus', () => {
   it('listeners run sequentially with await — second listener does not start until the first resolves', async () => {
     const bus = new Bus();
     const events = [];
-    bus.on('epic.snapshot.start', async () => {
+    bus.on('story.dispatch.start', async () => {
       events.push('A:start');
       await new Promise((resolve) => setTimeout(resolve, 25));
       events.push('A:end');
     });
-    bus.on('epic.snapshot.start', async () => {
+    bus.on('story.dispatch.start', async () => {
       events.push('B:start');
       await new Promise((resolve) => setTimeout(resolve, 5));
       events.push('B:end');
     });
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     assert.deepEqual(events, ['A:start', 'A:end', 'B:start', 'B:end']);
   });
 
   it('a thrown listener short-circuits remaining listeners and surfaces the error', async () => {
     const bus = new Bus();
     let secondRan = false;
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       throw new Error('listener-1-boom');
     });
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       secondRan = true;
     });
-    await assert.rejects(() => bus.emit('epic.snapshot.start', { epicId: 1 }), {
-      message: 'listener-1-boom',
-    });
+    await assert.rejects(
+      () => bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 }),
+      {
+        message: 'listener-1-boom',
+      },
+    );
     assert.equal(
       secondRan,
       false,
@@ -77,34 +85,39 @@ describe('lifecycle/bus', () => {
   it('wildcard observers run AFTER named listeners, sequentially', async () => {
     const bus = new Bus();
     const order = [];
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       order.push('named-1');
     });
     bus.on('*', () => {
       order.push('wildcard-1');
     });
-    bus.on('epic.snapshot.start', () => {
+    bus.on('story.dispatch.start', () => {
       order.push('named-2');
     });
     bus.on('*', () => {
       order.push('wildcard-2');
     });
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     assert.deepEqual(order, ['named-1', 'named-2', 'wildcard-1', 'wildcard-2']);
   });
 
   it('emit() assigns a monotonic per-run seqId starting at 1', async () => {
     const bus = new Bus();
-    bus.on('epic.snapshot.start', () => {});
-    bus.on('epic.snapshot.end', () => {});
-    const r1 = await bus.emit('epic.snapshot.start', { epicId: 1 });
-    const r2 = await bus.emit('epic.snapshot.end', {
-      epicId: 1,
-      storyIds: [10],
+    bus.on('story.dispatch.start', () => {});
+    bus.on('story.dispatch.end', () => {});
+    const r1 = await bus.emit('story.dispatch.start', {
+      storyId: 1,
+      waveIndex: 0,
     });
-    const r3 = await bus.emit('epic.snapshot.end', {
-      epicId: 1,
-      storyIds: [11],
+    const r2 = await bus.emit('story.dispatch.end', {
+      storyId: 1,
+      outcome: 'done',
+      durationMs: 10,
+    });
+    const r3 = await bus.emit('story.dispatch.end', {
+      storyId: 1,
+      outcome: 'done',
+      durationMs: 11,
     });
     assert.equal(r1.seqId, 1);
     assert.equal(r2.seqId, 2);
@@ -114,12 +127,12 @@ describe('lifecycle/bus', () => {
   it('on(event, fn) returns an unsubscribe function', async () => {
     const bus = new Bus();
     let count = 0;
-    const off = bus.on('epic.snapshot.start', () => {
+    const off = bus.on('story.dispatch.start', () => {
       count += 1;
     });
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     off();
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     assert.equal(count, 1);
   });
 
@@ -129,18 +142,18 @@ describe('lifecycle/bus', () => {
     const off = bus.on('*', () => {
       count += 1;
     });
-    bus.on('epic.snapshot.start', () => {});
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    bus.on('story.dispatch.start', () => {});
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     off();
-    await bus.emit('epic.snapshot.start', { epicId: 1 });
+    await bus.emit('story.dispatch.start', { storyId: 1, waveIndex: 0 });
     assert.equal(count, 1);
   });
 
   it('on() rejects a non-function listener', () => {
     const bus = new Bus();
-    assert.throws(() => bus.on('epic.snapshot.start', null), TypeError);
+    assert.throws(() => bus.on('story.dispatch.start', null), TypeError);
     assert.throws(
-      () => bus.on('epic.snapshot.start', 'not a function'),
+      () => bus.on('story.dispatch.start', 'not a function'),
       TypeError,
     );
   });
@@ -159,14 +172,14 @@ describe('lifecycle/bus', () => {
   it('listener receives a context object carrying event, seqId, and payload', async () => {
     const bus = new Bus();
     let received = null;
-    bus.on('epic.snapshot.start', (ctx) => {
+    bus.on('story.dispatch.start', (ctx) => {
       received = ctx;
     });
-    await bus.emit('epic.snapshot.start', { epicId: 42 });
+    await bus.emit('story.dispatch.start', { storyId: 42, waveIndex: 0 });
     assert.deepEqual(received, {
-      event: 'epic.snapshot.start',
+      event: 'story.dispatch.start',
       seqId: 1,
-      payload: { epicId: 42 },
+      payload: { storyId: 42, waveIndex: 0 },
     });
   });
 
