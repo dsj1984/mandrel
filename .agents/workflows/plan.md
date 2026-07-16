@@ -37,7 +37,8 @@ Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
 | --- | --- |
 | `--seed "<text>"` | Seed text for ideation. |
 | `--seed-file <path>` | Pre-authored notes / plan-seed path. |
-| `--tickets <ids>` | Comma-separated issue ids to analyze. |
+| `--tickets <ids>` | Comma-separated issue ids to analyze. Closed as superseded at persist (see below). |
+| `--no-close-superseded` | Keep the `--tickets` source issues open — no supersede comment, no close. |
 | `--force-review` | Force gate #2 operator review even when risk routing would skip it. |
 | `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
@@ -100,6 +101,38 @@ Write artifacts under `temp/plan-<slug>/`:
 For N=1, use the envelope `systemPrompts.story` and emit one cohesive
 Story. Split only under the policy above.
 
+**Tickets mode — author `supersedes[]` on every Story.** In `--tickets`
+mode each Story carries a top-level `supersedes` array claiming the source
+issues it replaces. It is bookkeeping, not part of the Story body, so it is
+never serialized into the markdown:
+
+```jsonc
+{
+  "slug": "close-superseded",
+  "supersedes": [
+    4525,
+    { "id": 4529, "note": "The filed `--changed-only` fix is provably inert; the correction is recorded here." }
+  ]
+}
+```
+
+Entries are bare issue numbers, or `{ id, note }` when the plan has
+something to say about *that* source issue — a correction to its analysis,
+or why it was folded in with others. The optional `note` is rendered into
+that issue's supersede comment, so planning that materially corrects a
+source issue records the correction on the ticket rather than emitting
+template-only prose.
+
+### Supersede-map partition
+
+`plan-persist` refuses a partial supersede map **before** it creates any
+Story (mirroring `assertAcceptancePartition`): every id passed to
+`--tickets` must be claimed by **exactly one** Story, and no Story may
+claim an id that was not a source ticket. With N>1 the mapping is not
+total by default — an authored map is the only thing that can say
+`#4525-#4528 → #4530` while `#4529 → #4531`, which a blanket "superseded by
+this plan-run" reference could not.
+
 ### 3. Persist
 
 **Gate #2** — when risk routing requires review (or `--force-review`), STOP
@@ -112,6 +145,8 @@ node .agents/scripts/plan-persist.js \
   --risk-verdict temp/plan-<slug>/risk-verdict.json \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--plan-dir temp/plan-<slug>] \
+  [--source-tickets 123,456] \
+  [--no-close-superseded] \
   [--dry-run] \
   [--force-review] \
   [--allow-over-budget]
@@ -122,6 +157,31 @@ N>1, writes each authored `depends_on` edge into the sibling's body as a
 `blocked by #<id>` footer — the ordering `/deliver` resolves from. No batch
 label is applied (Story #4540 retired `plan-run::<id>`). Ends by naming the
 exact command: `/deliver <storyId> [<storyId> ...]`.
+
+In `--tickets` mode, pass the same ids to persist as `--source-tickets`.
+
+### Closing superseded source tickets
+
+**Default on.** After the Stories exist, persist comments on each source
+issue naming the specific Story that claims it — plus that Story's optional
+per-supersede `note` — and closes it with reason **`not_planned`**
+(`state_reason`). Nothing has shipped at persist time and the issue will not
+be actioned in its own right, so `not_planned` is the honest reason;
+`completed` would be a lie. This is what keeps the tracker from asserting
+that already-planned work is still unowned, and it writes down the supersede
+link that makes the history readable.
+
+| Behaviour | Contract |
+| --- | --- |
+| Default | Comment + close every source ticket as `not_planned`. |
+| `--no-close-superseded` | Skips all commenting and closing. Story creation is unchanged. Use it for a genuinely partial supersede — when the plan folded in only *part* of an issue and the remainder must stay open. |
+| `--dry-run` | Posts no comment and closes nothing; reports what it would have done. |
+| Re-run | Idempotent — the comment is keyed off a `superseded-by` structured-comment marker, and an already-closed source is skipped. |
+| Already closed / deleted / inaccessible | Skipped and reported. Never throws. |
+| Close-phase failure | **Never fails the run.** Stories stay created; the result envelope's `supersede` report names which tickets were and were not closed so the operator can finish by hand. |
+
+`--seed` / `--seed-file` modes have no source tickets, so no close phase
+runs at all.
 
 ## Constraints
 

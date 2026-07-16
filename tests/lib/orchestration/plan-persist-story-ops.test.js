@@ -42,6 +42,44 @@ function storyTicket(slug, overrides = {}) {
 // the createStoryIssues test below now asserts the label's ABSENCE, which is
 // the contract that replaced them.
 
+describe('normalizeStoryTicket — supersedes (Story #4535)', () => {
+  it('normalizes a top-level supersedes[] onto the Story', () => {
+    const n = normalizeStoryTicket(
+      storyTicket('alpha', {
+        supersedes: [4525, { id: 4529, note: 'Correction.' }],
+      }),
+    );
+    assert.deepEqual(n.supersedes, [
+      { id: 4525, note: null },
+      { id: 4529, note: 'Correction.' },
+    ]);
+  });
+
+  it('defaults to [] when absent', () => {
+    assert.deepEqual(normalizeStoryTicket(storyTicket('alpha')).supersedes, []);
+  });
+
+  it('keeps supersedes out of the serialized body (bookkeeping, not contract)', () => {
+    const { stories } = assemblePlanStories(
+      [storyTicket('alpha', { supersedes: [4525] })],
+      { sourceTicketIds: [4525] },
+    );
+    assert.deepEqual(stories[0].supersedes, [{ id: 4525, note: null }]);
+    assert.doesNotMatch(stories[0].body, /supersede/i);
+    assert.equal(parse(stories[0].body).body.supersedes, undefined);
+  });
+
+  it('assemblePlanStories fails closed on a partial supersede map', () => {
+    assert.throws(
+      () =>
+        assemblePlanStories([storyTicket('alpha', { supersedes: [4525] })], {
+          sourceTicketIds: [4525, 4526],
+        }),
+      /supersede partition failed/,
+    );
+  });
+});
+
 describe('normalizeStoryTicket', () => {
   it('parses a serialized body', () => {
     const n = normalizeStoryTicket(storyTicket('alpha'));

@@ -22,6 +22,10 @@ import {
 } from '../../story-body/story-body.js';
 import { assertSpecWithinBudget } from '../spec-spill.js';
 import { assertAcceptancePartition } from '../split-policy-validator.js';
+import {
+  assertSupersedePartition,
+  normalizeSupersedes,
+} from './supersede-ops.js';
 
 // Story #4540 removed PLAN_RUN_LABEL_PREFIX / normalizePlanRunId /
 // planRunLabel from here. They minted an opaque random-hex label per N>1
@@ -93,8 +97,12 @@ function syncContractFieldFromTopLevel(ticket, bodyObject, field) {
  * Normalize a plan Story ticket into `{ slug, title, bodyObject }`.
  * Accepts either a serialized markdown `body` string or a structured body.
  *
+ * `supersedes[]` is a top-level-only field (Story #4535) — it is planning
+ * bookkeeping for the `--tickets` source issues, not part of the Story's
+ * executable body, so it is deliberately not serialized into the markdown.
+ *
  * @param {object} ticket
- * @returns {{ slug: string, title: string, bodyObject: object, depends_on: string[] }}
+ * @returns {{ slug: string, title: string, bodyObject: object, depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }}
  */
 export function normalizeStoryTicket(ticket) {
   if (!ticket || typeof ticket !== 'object') {
@@ -117,8 +125,9 @@ export function normalizeStoryTicket(ticket) {
   syncContractFieldFromTopLevel(ticket, bodyObject, 'acceptance');
   syncContractFieldFromTopLevel(ticket, bodyObject, 'verify');
   const depends_on = normalizeDependsOn(ticket, bodyObject);
+  const supersedes = normalizeSupersedes(ticket, slug);
 
-  return { slug, title, bodyObject, depends_on };
+  return { slug, title, bodyObject, depends_on, supersedes };
 }
 
 /**
@@ -161,7 +170,8 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
 }
 
 function assembleOnePlanStory(ticket, opts) {
-  const { slug, title, bodyObject, depends_on } = normalizeStoryTicket(ticket);
+  const { slug, title, bodyObject, depends_on, supersedes } =
+    normalizeStoryTicket(ticket);
   const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
     sharedSpec: opts.sharedSpec ?? null,
   });
@@ -174,6 +184,7 @@ function assembleOnePlanStory(ticket, opts) {
       bodyObject: { ...folded, depends_on },
       acceptance: Array.isArray(folded.acceptance) ? folded.acceptance : [],
       depends_on,
+      supersedes,
     },
   };
 }
@@ -197,13 +208,17 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 
 /**
  * Assemble markdown bodies for every Story: normalize → fold spec →
- * assertAcceptancePartition → serialize.
+ * assertAcceptancePartition → assertSupersedePartition → serialize.
+ *
+ * Both partition checks run **before** any GitHub write so a mis-authored
+ * plan never leaves Stories live against an inconsistent tracker.
  *
  * @param {object[]} tickets
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
  * @param {string[]} [opts.planAcceptance]
- * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[] }> }}
+ * @param {number[]} [opts.sourceTicketIds] Ids passed to `/plan --tickets`.
+ * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }> }}
  */
 export function assemblePlanStories(tickets, opts = {}) {
   if (!Array.isArray(tickets) || tickets.length === 0) {
@@ -221,6 +236,7 @@ export function assemblePlanStories(tickets, opts = {}) {
   assertAcceptancePartition(stories, {
     planAcceptance: opts.planAcceptance,
   });
+  assertSupersedePartition(stories, opts.sourceTicketIds ?? []);
 
   return { stories };
 }

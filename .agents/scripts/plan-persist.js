@@ -11,17 +11,22 @@
  *   risk-verdict → ticket validator / DAG / capacity → reachability →
  *   split-policy partition → fold/spill Spec into each Story body →
  *   createIssue(s) with type::story + agent::ready → risk-verdict +
- *   story-plan-state on every Story; plan-summary on the primary → temp
- *   cleanup.
+ *   story-plan-state on every Story; plan-summary on the primary →
+ *   comment + close superseded source tickets → temp cleanup.
  *
  * CLI:
- *   --stories <file>         Required Story ticket array (default length 1)
- *   --risk-verdict <file>    Required risk verdict (no deliveryShape)
- *   --tech-spec <file>       Optional shared Tech Spec folded into each Story
- *   --plan-dir <dir>         Optional temp dir deleted at terminal success
- *   --plan-acceptance <file> Optional JSON string[] for partition coverage
- *   --dry-run                Assemble + validate without GitHub writes
- *   --force-review           Record operator-forced review routing
+ *   --stories <file>          Required Story ticket array (default length 1)
+ *   --risk-verdict <file>     Required risk verdict (no deliveryShape)
+ *   --tech-spec <file>        Optional shared Tech Spec folded into each Story
+ *   --plan-dir <dir>          Optional temp dir deleted at terminal success
+ *   --plan-acceptance <file>  Optional JSON string[] for partition coverage
+ *   --source-tickets <ids>    Ids passed to `/plan --tickets` — each must be
+ *                             claimed by exactly one Story's `supersedes[]`;
+ *                             they are commented on and closed as superseded
+ *   --no-close-superseded     Keep the source tickets open (no comment, no
+ *                             close) — for a genuinely partial supersede
+ *   --dry-run                 Assemble + validate without GitHub writes
+ *   --force-review            Record operator-forced review routing
  *   --allow-over-budget / --allow-large-fan-out
  *
  * Exit codes: 0 success; 1 fatal; 3 reachability orphans (nothing mutated).
@@ -53,6 +58,7 @@ import {
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './lib/orchestration/plan-persist/summary.js';
+import { normalizeSourceTicketIds } from './lib/orchestration/plan-persist/supersede-ops.js';
 import { loadRiskVerdict } from './lib/orchestration/planning/risk-verdict.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -70,6 +76,9 @@ const CLI_OPTIONS = {
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
   'plan-acceptance': { type: 'string' },
+  'source-tickets': { type: 'string' },
+  'close-superseded': { type: 'boolean', default: true },
+  'no-close-superseded': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
   'allow-over-budget': { type: 'boolean', default: false },
@@ -79,6 +88,7 @@ const CLI_OPTIONS = {
 const USAGE =
   'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-acceptance <file>] ' +
+  '[--source-tickets <ids>] [--no-close-superseded] ' +
   '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
@@ -137,6 +147,13 @@ function buildPersistOptions(values, paths) {
     dryRun: values['dry-run'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],
+    sourceTicketIds: normalizeSourceTicketIds(values['source-tickets']),
+    // Default-on: `--no-close-superseded` is the explicit escape and always
+    // wins over the (default `true`) `--close-superseded`.
+    closeSuperseded:
+      values['no-close-superseded'] === true
+        ? false
+        : values['close-superseded'] !== false,
   };
 }
 
