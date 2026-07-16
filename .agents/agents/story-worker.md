@@ -119,9 +119,10 @@ scores the working diff against **each** `acceptance[]` item and consumes the
   a full body. `story.heartbeat` is the only progress surface.
 - **Blocked.** If you genuinely cannot proceed, transition the Story to
   `agent::blocked`, post a `friction` comment naming the decision needed (or
-  the unmet criteria and their evidence), and **exit non-zero**. **Never fall
-  silent** — a child with no heartbeat, no commit, and no `agent::blocked`
-  label is exactly the dead-child failure the watchdog is built to catch.
+  the unmet criteria and their evidence), and **exit non-zero**.
+  **Never fall silent** — a child with no heartbeat, no commit, and no
+  `agent::blocked` label is exactly the dead-child failure the watchdog
+  is built to catch.
 - **Anti-thrashing.** If you hit the same error class twice with the same fix,
   or drift through reads without narrowing the problem, STOP: summarize what
   recurred and either re-plan or take the blocked path. Do not paper over a
