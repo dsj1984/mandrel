@@ -22,6 +22,9 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
 import {
@@ -32,6 +35,12 @@ import {
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
+import {
+  loadPlanContextEnvelope,
+  PLAN_CONTEXT_FILENAME,
+  resolvePlanContextPath,
+} from '../.agents/scripts/lib/orchestration/plan-persist/plan-context-source.js';
+import { resolveSourceTicketIds } from '../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -628,5 +637,73 @@ describe('plan-context tickets mode — concurrent source-ticket fetch', () => {
         }),
       /ticket #202 not found/,
     );
+  });
+});
+
+describe('plan-context --out envelope capture (Story #4554)', () => {
+  const sink = { write: () => true };
+
+  // The producer half of the flagless `--tickets` supersede path: persist can
+  // only derive source ids from an envelope that actually reached disk.
+  it('writes an envelope persist can read the source ids back out of', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-out-'));
+    const outPath = path.join(dir, PLAN_CONTEXT_FILENAME);
+
+    const envelope = await emitPlanContext({
+      mode: 'tickets',
+      ticketIds: [4525, 4526],
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      outPath,
+      stdout: sink,
+    });
+    assert.deepEqual(
+      envelope.sourceTickets.map((t) => t.id),
+      [4525, 4526],
+    );
+
+    // Round-trip through the exact reader plan-persist.js uses.
+    const loaded = await loadPlanContextEnvelope(
+      resolvePlanContextPath(null, dir),
+    );
+    assert.deepEqual(resolveSourceTicketIds({ envelope: loaded }), {
+      ids: [4525, 4526],
+      origin: 'envelope',
+    });
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('creates missing parent directories for --out', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-mkdir-'));
+    const outPath = path.join(dir, 'nested', 'deeper', PLAN_CONTEXT_FILENAME);
+
+    await emitPlanContext({
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      outPath,
+      stdout: sink,
+    });
+
+    const written = JSON.parse(await readFile(outPath, 'utf8'));
+    assert.equal(written.mode, 'seed-file');
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('writes nothing when --out is omitted (stdout-only remains the default)', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-noout-'));
+    await emitPlanContext({
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      stdout: sink,
+    });
+    assert.deepEqual(await readdir(dir), []);
+    await rm(dir, { recursive: true, force: true });
   });
 });

@@ -18,10 +18,16 @@
  *   --stories <file>          Required Story ticket array (default length 1)
  *   --risk-verdict <file>     Required risk verdict (no deliveryShape)
  *   --tech-spec <file>        Optional shared Tech Spec folded into each Story
- *   --plan-dir <dir>          Optional temp dir deleted at terminal success
+ *   --plan-dir <dir>          Optional temp dir deleted at terminal success.
+ *                             Also where the `plan-context.json` envelope is
+ *                             auto-discovered from (see --plan-context)
+ *   --plan-context <file>     Optional explicit path to the `plan-context.js`
+ *                             envelope. Its `sourceTickets[]` is what makes
+ *                             `--tickets` superseding work without a flag
  *   --plan-acceptance <file>  Optional JSON string[] for partition coverage
  *   --plan-run-id <id>        Optional plan-run token when N>1
- *   --source-tickets <ids>    Ids passed to `/plan --tickets` — each must be
+ *   --source-tickets <ids>    Explicit OVERRIDE of the envelope-derived source
+ *                             ids, for hand-driven runs. Each id must be
  *                             claimed by exactly one Story's `supersedes[]`;
  *                             they are commented on and closed as superseded
  *   --no-close-superseded     Keep the source tickets open (no comment, no
@@ -51,6 +57,10 @@ import {
   summarizePlanMetrics,
 } from './lib/orchestration/plan-metrics.js';
 import {
+  loadPlanContextEnvelope,
+  resolvePlanContextPath,
+} from './lib/orchestration/plan-persist/plan-context-source.js';
+import {
   runPlanPersist,
   writeCheckpointV2,
 } from './lib/orchestration/plan-persist/run-plan-persist.js';
@@ -59,7 +69,7 @@ import {
   buildWaveTable,
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './lib/orchestration/plan-persist/summary.js';
-import { normalizeSourceTicketIds } from './lib/orchestration/plan-persist/supersede-ops.js';
+import { resolveSourceTicketIds } from './lib/orchestration/plan-persist/supersede-ops.js';
 import { loadRiskVerdict } from './lib/orchestration/planning/risk-verdict.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -76,6 +86,7 @@ const CLI_OPTIONS = {
   'risk-verdict': { type: 'string' },
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
+  'plan-context': { type: 'string' },
   'plan-acceptance': { type: 'string' },
   'plan-run-id': { type: 'string' },
   'source-tickets': { type: 'string' },
@@ -89,7 +100,8 @@ const CLI_OPTIONS = {
 
 const USAGE =
   'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
-  '[--tech-spec <file>] [--plan-dir <dir>] [--plan-acceptance <file>] ' +
+  '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
+  '[--plan-acceptance <file>] ' +
   '[--plan-run-id <id>] [--source-tickets <ids>] [--no-close-superseded] ' +
   '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
@@ -114,7 +126,14 @@ async function readJsonFile(filePath, label) {
   }
 }
 
-function resolveInputPaths(values) {
+/**
+ * Resolve every input path the CLI accepts, including where the
+ * `plan-context.js` envelope is discovered from. Exported for tests.
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ */
+export function resolveInputPaths(values) {
+  const planDir = values['plan-dir'] ? path.resolve(values['plan-dir']) : null;
   return {
     storiesPath: path.resolve(values.stories),
     riskVerdictPath: path.resolve(values['risk-verdict']),
@@ -124,7 +143,8 @@ function resolveInputPaths(values) {
     planAcceptancePath: values['plan-acceptance']
       ? path.resolve(values['plan-acceptance'])
       : null,
-    planDir: values['plan-dir'] ? path.resolve(values['plan-dir']) : null,
+    planDir,
+    planContextPath: resolvePlanContextPath(values['plan-context'], planDir),
   };
 }
 
@@ -137,11 +157,37 @@ async function loadArtifacts(paths) {
   const planAcceptance = paths.planAcceptancePath
     ? await readJsonFile(paths.planAcceptancePath, 'plan-acceptance')
     : null;
+  const planContextEnvelope = await loadPlanContextEnvelope(
+    paths.planContextPath,
+  );
 
-  return { stories, riskVerdict, techSpecContent, planAcceptance };
+  return {
+    stories,
+    riskVerdict,
+    techSpecContent,
+    planAcceptance,
+    planContextEnvelope,
+  };
 }
 
-function buildPersistOptions(values, paths) {
+/**
+ * Assemble the `runPlanPersist` opts bag from parsed CLI values.
+ *
+ * Exported for tests: this is the join where the envelope-derived source ids
+ * meet the persist engine, so a regression here silently un-wires
+ * `/plan --tickets` superseding (Story #4554).
+ *
+ * @param {object} values Parsed `parseArgs` values.
+ * @param {ReturnType<typeof resolveInputPaths>} paths
+ * @param {object|null} planContextEnvelope
+ * @returns {object} opts for `runPlanPersist`.
+ */
+export function buildPersistOptions(values, paths, planContextEnvelope) {
+  const source = resolveSourceTicketIds({
+    explicitIds: values['source-tickets'],
+    envelope: planContextEnvelope,
+  });
+
   return {
     forceReview: values['force-review'],
     allowOverBudget: values['allow-over-budget'],
@@ -150,7 +196,8 @@ function buildPersistOptions(values, paths) {
     planRunId: values['plan-run-id'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],
-    sourceTicketIds: normalizeSourceTicketIds(values['source-tickets']),
+    sourceTicketIds: source.ids,
+    sourceTicketOrigin: source.origin,
     // Default-on: `--no-close-superseded` is the explicit escape and always
     // wins over the (default `true`) `--close-superseded`.
     closeSuperseded:
@@ -181,7 +228,7 @@ async function runPersistInvocation({ values, config, provider, artifacts }) {
         artifacts,
         config,
         settings,
-        opts: buildPersistOptions(values, paths),
+        opts: buildPersistOptions(values, paths, artifacts.planContextEnvelope),
       }),
   );
 }
