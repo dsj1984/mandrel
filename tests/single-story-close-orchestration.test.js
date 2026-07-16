@@ -28,8 +28,10 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO_ROOT = path
@@ -147,6 +149,21 @@ function makeFakeProvider({
   };
 }
 
+// Isolate the on-disk project-meta cache (issue #4555). The close flip routes
+// through `transitionTicketState` → ColumnSync, which reads and WRITES
+// `<tempRoot>/cache/project-meta.json`; a relative tempRoot anchors to the MAIN
+// checkout, so with no config the board-sync case below wrote its `owner/1`
+// fixture ids (`PROJ`/`FIELD`) into the cache real `/deliver` runs consume. An
+// ABSOLUTE tempRoot is used verbatim (`temp-paths.js#anchorTempRoot`), so this
+// can never reach the shared file.
+let tempRoot;
+beforeEach(() => {
+  tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-colsync-'));
+});
+afterEach(() => {
+  rmSync(tempRoot, { recursive: true, force: true });
+});
+
 function fakeConfig({
   baseBranch = 'main',
   reapOnSuccess = false,
@@ -154,7 +171,7 @@ function fakeConfig({
   autoMerge,
 } = {}) {
   return {
-    project: { baseBranch, commands: {} },
+    project: { baseBranch, commands: {}, paths: { tempRoot } },
     delivery: {
       worktreeIsolation: {
         enabled: true,

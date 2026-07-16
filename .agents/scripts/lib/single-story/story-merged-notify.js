@@ -41,7 +41,13 @@ export async function flipLabelAndNotify({
   config,
   progress,
 }) {
-  const labelFlipped = await flipLabel(provider, storyId, story, progress);
+  const labelFlipped = await flipLabel(
+    provider,
+    storyId,
+    story,
+    progress,
+    config,
+  );
   if (!labelFlipped) return;
   await fireStoryClosingNotify({
     notifyFn: notifyFn ?? defaultNotify,
@@ -55,7 +61,7 @@ export async function flipLabelAndNotify({
   });
 }
 
-async function flipLabel(provider, storyId, story, progress) {
+async function flipLabel(provider, storyId, story, progress, config) {
   try {
     // Story #3385 — flip to `agent::closing`, NOT `agent::done`. The
     // canonical mutator (`transitionTicketState`) only closes the GitHub
@@ -81,8 +87,13 @@ async function flipLabel(provider, storyId, story, progress) {
     // notification that `transitionTicketState` would dispatch is
     // redundant with the typed `story-closing` event that
     // `fireStoryClosingNotify` emits immediately afterwards.
+    //
+    // `config` is threaded so the on-disk board-metadata cache (issue #4555)
+    // lands under the project's configured `tempRoot` rather than the
+    // framework default, matching every other transition call site.
     await transitionTicketState(provider, storyId, STATE_LABELS.CLOSING, {
       ticketSnapshot: story,
+      config,
     });
     progress?.('LABELS', `🏷️  Story #${storyId} → agent::closing`);
     return true;
