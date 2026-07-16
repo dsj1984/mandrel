@@ -369,6 +369,10 @@ function renderDiffLines(diff) {
       '> ⚠️ **Combined landed diff unavailable — this is NOT "zero files changed".**',
       `> The pre-run base sha could not be resolved: ${diff.reason}`,
       '> Walk the lenses below against the run diff determined by hand.',
+      '> Lens selection was **keyword-only**: with no change set, no lens',
+      '> `filePatterns` trigger could fire, so the roster below reflects the',
+      "> primary Story's prose rather than what the run touched. Treat it as a",
+      '> starting point, not a roster.',
     ];
   }
   return [
@@ -397,6 +401,7 @@ async function executeAuditRoster({
   provider,
   config,
   git,
+  selectAuditsFn,
 }) {
   const primaryId = Number(stories[0]);
   const diff = resolveCombinedDiff({
@@ -405,14 +410,19 @@ async function executeAuditRoster({
     baseRef: resolveBaseRef(config),
     git,
   });
+  // Hand `selectAudits` the change set we just resolved — never a git range for
+  // it to re-derive. This function runs in the main checkout *after* the run's
+  // Stories merged, so every range it could name (`main...HEAD`) is empty by
+  // construction; asking for one is how the roster came to select lenses from
+  // zero files while printing the correct file list beside them (Story #4571).
+  const lensGrounding = diff.resolved ? 'diff' : 'keyword-only';
   let selectedAudits = [];
   if (Number.isInteger(primaryId) && primaryId > 0) {
-    const selected = await selectAudits({
+    const selected = await selectAuditsFn({
       ticketId: primaryId,
       gate: 'gate3',
       provider,
-      baseBranch: 'main',
-      headRef: 'HEAD',
+      changedFiles: diff.resolved ? diff.changedFiles : [],
     });
     selectedAudits = Array.isArray(selected?.selectedAudits)
       ? selected.selectedAudits
@@ -432,7 +442,8 @@ async function executeAuditRoster({
     '',
     ...renderDiffLines(diff),
     '',
-    '**Selected lenses** (host MUST walk each against the combined landed diff):',
+    `**Selected lenses** (host MUST walk each against the combined landed diff) — ` +
+      `grounding: \`${lensGrounding}\`:`,
     ...(selectedAudits.length > 0
       ? selectedAudits.map((lens) => `- \`${lens}\``)
       : ['- _(none — docs-only or no matching change-set lenses)_']),
@@ -450,6 +461,7 @@ async function executeAuditRoster({
           reason: diff.reason,
         },
         changedFiles: diff.resolved ? diff.changedFiles : null,
+        lensGrounding,
         selectedAudits,
       },
       null,
@@ -468,6 +480,12 @@ async function executeAuditRoster({
   return {
     kind: 'audit-roster',
     selectedAudits,
+    // Whether the lenses above were chosen from the run's landed files
+    // (`diff`) or, with no resolvable base, from the primary Story's prose
+    // alone (`keyword-only`). The two are not interchangeable: a keyword-only
+    // roster cannot select a lens that declares no keywords, so its silence
+    // about a lens says nothing about the code.
+    lensGrounding,
     // `null` — not `0` — when unresolved: a zero count must only ever mean
     // "the run genuinely changed nothing".
     changedFileCount: diff.resolved ? diff.changedFiles.length : null,
@@ -640,6 +658,7 @@ async function executeSiblingCoherence({ planRunId, stories, provider }) {
  * @param {object} [args.config]
  * @param {string} [args.cwd]
  * @param {{ gitSpawn: Function }} [args.git] - Injection seam for tests.
+ * @param {typeof selectAudits} [args.selectAuditsFn] - Injection seam for tests.
  * @returns {Promise<object>}
  */
 export async function runPlanRunEpilogue({
@@ -649,6 +668,7 @@ export async function runPlanRunEpilogue({
   config,
   cwd = process.cwd(),
   git = { gitSpawn },
+  selectAuditsFn = selectAudits,
 } = {}) {
   const plan = planRunEpilogue({ planRunId, stories });
   if (!plan.applicable) {
@@ -671,6 +691,7 @@ export async function runPlanRunEpilogue({
             provider,
             config,
             git,
+            selectAuditsFn,
           }),
         );
       } else if (step.kind === 'follow-up-rollup') {

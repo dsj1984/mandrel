@@ -287,3 +287,134 @@ describe('runPlanRunEpilogue — executor', () => {
     assert.ok(comments.some((c) => /plan-run-sibling-coherence/.test(c.body)));
   });
 });
+
+/**
+ * Story #4571 — the audit roster's LENS SELECTION must run over the run's
+ * landed diff.
+ *
+ * Story #4550 anchored the *reported* diff to the pre-run base, but the
+ * `selectAudits` call beside it still asked for `main...HEAD` — the very range
+ * that is empty by construction once the run's Stories have merged and the
+ * epilogue runs from the main checkout. The comment printed the right files
+ * while the lenses next to it were chosen from nothing: file-pattern triggers
+ * never fired, and keyword-less lenses were unreachable.
+ */
+describe('audit-roster — lens selection is grounded in the landed diff', () => {
+  function rosterProvider(comments) {
+    return {
+      getTicket: async (id) => ({
+        id,
+        title: `Story ${id}`,
+        body: '',
+        labels: ['type::story'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        comments.push({ ticketId, body: payload.body });
+        return { commentId: comments.length };
+      },
+      deleteComment: async () => {},
+    };
+  }
+
+  /** A run whose two Stories landed as squash-merges on `origin/main`. */
+  function landedRunGit(changedFiles) {
+    return {
+      gitSpawn: (_cwd, ...args) => {
+        if (args[0] === 'log') {
+          const stdout = [
+            `ccc${US}bbb${US}fix: second (#2)`,
+            `bbb${US}aaa${US}feat: first (#1)`,
+            `aaa${US}${US}chore: pre-run base`,
+          ].join('\n');
+          return { status: 0, stdout, stderr: '' };
+        }
+        if (args[0] === 'diff') {
+          return {
+            status: 0,
+            stdout: `${changedFiles.join('\n')}\n`,
+            stderr: '',
+          };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+  }
+
+  it('passes the resolved landed diff to selectAudits and reports lensGrounding: diff', async () => {
+    const comments = [];
+    const seen = [];
+    const result = await runPlanRunEpilogue({
+      planRunId: 'run-x',
+      stories: [1, 2],
+      provider: rosterProvider(comments),
+      git: landedRunGit(['src/scheduler/wave.js', 'src/scheduler/tick.js']),
+      selectAuditsFn: async (args) => {
+        seen.push(args);
+        return { selectedAudits: ['audit-clean-code'] };
+      },
+    });
+
+    const roster = result.results.find((r) => r.kind === 'audit-roster');
+    assert.deepEqual(
+      seen[0].changedFiles,
+      ['src/scheduler/wave.js', 'src/scheduler/tick.js'],
+      "the roster must select lenses over the run's landed files",
+    );
+    assert.equal(
+      seen[0].headRef,
+      undefined,
+      'the roster must not hand selectAudits a ref to diff — that range is empty by construction here',
+    );
+    assert.equal(seen[0].baseBranch, undefined);
+    assert.equal(roster.lensGrounding, 'diff');
+    assert.deepEqual(roster.selectedAudits, ['audit-clean-code']);
+  });
+
+  it('reports lensGrounding: keyword-only when the pre-run base is unresolved', async () => {
+    const comments = [];
+    const seen = [];
+    // No landed merge carries a `(#<storyId>)` marker → base unresolved.
+    const git = {
+      gitSpawn: (_cwd, ...args) => {
+        if (args[0] === 'log') {
+          return {
+            status: 0,
+            stdout: `zzz${US}yyy${US}chore: unrelated`,
+            stderr: '',
+          };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+
+    const result = await runPlanRunEpilogue({
+      planRunId: 'run-y',
+      stories: [1, 2],
+      provider: rosterProvider(comments),
+      git,
+      selectAuditsFn: async (args) => {
+        seen.push(args);
+        return { selectedAudits: [] };
+      },
+    });
+
+    const roster = result.results.find((r) => r.kind === 'audit-roster');
+    assert.deepEqual(
+      seen[0].changedFiles,
+      [],
+      'an unresolved base must select over an explicitly empty set, never fall back to a git range',
+    );
+    assert.equal(
+      roster.lensGrounding,
+      'keyword-only',
+      'a roster whose lenses were NOT chosen from the diff must say so — silence is what made the original bug invisible',
+    );
+    assert.equal(roster.changedFileCount, null);
+
+    const body = comments.find((c) =>
+      c.body.includes('plan-run-audit-roster'),
+    ).body;
+    assert.match(body, /keyword-only/);
+  });
+});

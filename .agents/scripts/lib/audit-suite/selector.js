@@ -308,6 +308,16 @@ export function matchesAnyFilePattern(patterns, files) {
  * @param {number} params.ticketId
  * @param {string} params.gate
  * @param {import('../ITicketingProvider.js').ITicketingProvider} params.provider
+ * @param {string[]} [params.changedFiles]
+ *   The change set to select over, when the caller already knows it. Supplying
+ *   it skips the internal `git diff` entirely and `baseBranch` / `headRef` are
+ *   then unused. Callers whose change set is NOT the working tree's
+ *   `baseBranch...headRef` MUST pass this: the plan-run epilogue runs from the
+ *   main checkout *after* its Stories have merged, where any `main...HEAD`
+ *   range is empty by construction and selection would silently degrade to
+ *   keyword-only matching (Story #4571). An empty array is honoured as
+ *   "the set is known, and it is empty" — distinct from omitting the option,
+ *   which means "derive it from git".
  * @param {string} [params.baseBranch]
  * @param {string} [params.headRef]
  *   Git ref whose diff-against-`baseBranch` defines the change set. Defaults
@@ -341,6 +351,7 @@ export async function selectAudits({
   ticketId,
   gate,
   provider,
+  changedFiles: injectedChangedFiles,
   baseBranch = 'main',
   headRef = 'HEAD',
   injectedGitSpawn,
@@ -370,6 +381,14 @@ export async function selectAudits({
 
   const runGit = injectedGitSpawn ?? (async (...args) => gitSpawn(...args));
 
+  // A caller that already knows the change set supplies it, and no git ref is
+  // consulted at all — `baseBranch` / `headRef` describe a diff that is not
+  // being taken. The plan-run epilogue is the motivating caller (Story #4571):
+  // it resolves the run's landed diff from the Stories' squash-merges, and any
+  // `main...HEAD` range it could name from the main checkout post-land is
+  // empty by construction.
+  const hasInjectedChangedFiles = Array.isArray(injectedChangedFiles);
+
   // Resolve `headRef` to a commit before diffing. A non-default `headRef`
   // (Epic-mode callers pass `refs/heads/epic/<id>`) that the repo can't
   // resolve means the requested Epic's branch is not present in this
@@ -378,7 +397,7 @@ export async function selectAudits({
   // degraded signal instead of leaking the wrong scope. `HEAD` is always
   // resolvable in a valid repo, so the default-path callers skip the probe
   // cost on the common case.
-  if (headRef !== 'HEAD') {
+  if (!hasInjectedChangedFiles && headRef !== 'HEAD') {
     let resolved;
     try {
       resolved = await withTimeout(
@@ -405,18 +424,22 @@ export async function selectAudits({
     }
   }
 
-  let changedFiles = [];
+  let changedFiles = hasInjectedChangedFiles
+    ? injectedChangedFiles.map((f) => String(f).trim()).filter(Boolean)
+    : [];
   try {
-    const diff = await withTimeout(
-      runGit(
-        process.cwd(),
-        'diff',
-        '--name-only',
-        `${baseBranch}...${headRef}`,
-      ),
-      timeoutMs,
-      { label: 'select-audits git diff' },
-    );
+    const diff = hasInjectedChangedFiles
+      ? null
+      : await withTimeout(
+          runGit(
+            process.cwd(),
+            'diff',
+            '--name-only',
+            `${baseBranch}...${headRef}`,
+          ),
+          timeoutMs,
+          { label: 'select-audits git diff' },
+        );
     if (diff?.status === 0) {
       changedFiles = diff.stdout
         .split('\n')
@@ -477,8 +500,10 @@ export async function selectAudits({
       changedFilesCount: changedFiles.length,
       // The ref the change set was actually diffed against. Epic-mode callers
       // assert this matches the requested Epic branch (Story #3362) so a
-      // mis-pinned diff never reaches the audit-lens selector silently.
-      resolvedRef: headRef,
+      // mis-pinned diff never reaches the audit-lens selector silently. `null`
+      // on the injected path: no ref was diffed, and naming one would invite
+      // exactly that assertion to pass against a diff nobody took.
+      resolvedRef: hasInjectedChangedFiles ? null : headRef,
       ticketTitle: ticket.title,
     },
   };
