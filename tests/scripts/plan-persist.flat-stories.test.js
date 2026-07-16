@@ -293,7 +293,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
         ],
         riskVerdict: VERDICT,
       },
-      opts: { skipCleanup: true, sourceTicketIds: [910, 911], planRunId: 'r1' },
+      opts: { skipCleanup: true, sourceTicketIds: [910, 911] },
     });
 
     const byslug = new Map(result.stories.map((s) => [s.slug, s.id]));
@@ -305,7 +305,9 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       sourceComments(provider, 911),
       new RegExp(`Superseded by #${byslug.get('two')}`),
     );
-    assert.match(sourceComments(provider, 910), /plan-run::r1/);
+    // Story #4540: the supersede comment used to list the batch label for
+    // N>1. The label is retired, so it must not appear for any N.
+    assert.doesNotMatch(sourceComments(provider, 910), /plan-run/);
   });
 
   it('fails closed on a partial supersede map before creating any Story', async () => {

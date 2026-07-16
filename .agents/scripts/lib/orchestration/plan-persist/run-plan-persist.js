@@ -399,7 +399,6 @@ export async function runPlanPersist({
     stories,
     created,
     sourceTicketIds,
-    planRunLabel,
     dryRun,
     closeSuperseded,
   });

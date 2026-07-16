@@ -165,13 +165,12 @@ describe('buildSupersedeCommentBody', () => {
     const body = buildSupersedeCommentBody({
       story: story4530,
       sourceTicketIds: [4525, 4526],
-      planRunLabel: 'plan-run::abc',
     });
     assert.match(
       body,
       /\*\*Superseded by #4530\*\* — \*feat\(plan\): close superseded\*/,
     );
-    assert.match(body, /`type::story`, `agent::ready`, `plan-run::abc`/);
+    assert.match(body, /`type::story`, `agent::ready`/);
     assert.match(body, /Planned via `\/plan --tickets 4525,4526`/);
     assert.match(
       body,
@@ -179,12 +178,17 @@ describe('buildSupersedeCommentBody', () => {
     );
   });
 
-  it('omits the plan-run label for N=1', () => {
-    const body = buildSupersedeCommentBody({
-      story: story4530,
-      sourceTicketIds: [4525],
-    });
-    assert.doesNotMatch(body, /plan-run/);
+  it('never names a plan-run label — Story #4540 retired it', () => {
+    // This comment used to list the batch label alongside the type/state
+    // labels for N>1. The label no longer exists, so the comment must not
+    // advertise it for any N.
+    for (const sourceTicketIds of [[4525], [4525, 4526]]) {
+      const body = buildSupersedeCommentBody({
+        story: story4530,
+        sourceTicketIds,
+      });
+      assert.doesNotMatch(body, /plan-run/);
+    }
   });
 
   it('renders the per-supersede note when present', () => {
