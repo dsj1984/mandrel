@@ -38,9 +38,14 @@ The skill library uses a **two-tier architecture**:
 
 When a task involves a specific domain or technology, you MUST read the
 corresponding `.agents/skills/[tier]/[category]/[skill-name]/SKILL.md` file and
-apply its constraints. Review the skill's `examples/` directory or
-`examples.md` sibling **when present and relevant** to the task — most skills
-do not ship one, so do not probe blindly. When uncertain which skill applies,
+apply its constraints. A `SKILL.md` leads with its **Policy Capsule** — the
+contract, and the whole cost of activating the skill — followed by pointers
+into an on-demand `reference.md` sibling holding the long-form material
+(patterns, worked examples, checklists). This is the same split the always-on
+rules use (§ 1.F): read the capsule on activation, and open a `reference.md`
+section only when the task actually engages it. Review the skill's `examples/`
+directory or `examples.md` sibling **when present and relevant** to the task —
+most skills do not ship one, so do not probe blindly. When uncertain which skill applies,
 match the task against the one-line `description` in each skill's frontmatter
 (catalogued in `.agents/skills/skills.index.json`). Skills compose: a complete
 feature typically flows `idea-refinement` → the `/plan` workflow →

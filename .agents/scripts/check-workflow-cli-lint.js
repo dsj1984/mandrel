@@ -61,6 +61,19 @@ const BACKTICK_CALL_RE = /`[A-Za-z_$][\w$]*\s*\(/;
 const EXPORTED_FROM_RE = /\bexported from\b/;
 const LIB_IMPORT_RE = /\b(?:import|require)\(\s*['"`][^'"`]*scripts\/lib\//;
 
+/** A markdown table row (leading pipe, optionally indented). */
+const TABLE_ROW_RE = /^\s*\|/;
+/** A markdown heading of any level — the lookback boundary for Rule 4. */
+const HEADING_RE = /^\s*#{1,6}\s/;
+/** A backticked `--flag` occupying a table row's first cell. */
+const FLAG_CELL_RE = /^\s*\|\s*`?--[\w-]+/;
+/** A `.js` script filename — bare or path-qualified. */
+const SCRIPT_NAME_RE = /([\w./-]*[\w-]+\.js)\b/;
+/** A markdown table's delimiter row (`| --- | --- |`). */
+const TABLE_DELIMITER_RE = /^\s*\|[\s|:-]+\|?\s*$/;
+/** Minimum `--flag` rows before a table counts as a flag *table*. */
+export const MIN_FLAG_ROWS = 2;
+
 /**
  * Strip fenced code blocks (``` / ~~~), replacing their lines with empty
  * strings so line numbers stay stable. Complete runnable commands live in
@@ -107,6 +120,82 @@ export function toParagraphs(lines) {
 }
 
 /**
+ * Rule 4 — CLI flag table. Find markdown tables that enumerate the `--flags`
+ * of a script the repo already owns, and flag them as duplicated surface.
+ *
+ * The script's own argument parser is the source of truth for its flags, and
+ * it prints them itself; a copy in prose is drift waiting to happen (the very
+ * drift Story #4546 removed). Prose must point at the command instead.
+ *
+ * The signal is deliberately narrow, to stay at zero false positives:
+ *
+ *   1. The table has at least `MIN_FLAG_ROWS` data rows whose **first cell**
+ *      is a `--flag`. One flag row among prose rows is a contract/behaviour
+ *      table (e.g. "Default | …", "`--dry-run` | …"), not a flag enumeration.
+ *   2. A `.js` script is named between the table and the nearest preceding
+ *      heading (inclusive) — i.e. the section is *about* that script, so the
+ *      table is restating its surface.
+ *
+ * A slash command's own argument table (`/plan`, `/deliver`) has no script
+ * behind it — nothing owns those flags but the workflow prose itself — so
+ * condition 2 leaves it alone by design.
+ *
+ * @param {string[]} rawLines unstripped source lines (fenced commands are the
+ *   usual place a script is named, so this rule reads the original text).
+ * @returns {Array<{ rule: string, line: number, hint: string }>}
+ */
+export function lintFlagTables(rawLines) {
+  const violations = [];
+  let inFence = false;
+
+  for (let i = 0; i < rawLines.length; i++) {
+    if (/^\s*(```|~~~)/.test(rawLines[i])) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence || !TABLE_ROW_RE.test(rawLines[i])) continue;
+
+    // Collect the contiguous table block starting here.
+    const start = i;
+    let end = i;
+    while (end + 1 < rawLines.length && TABLE_ROW_RE.test(rawLines[end + 1])) {
+      end += 1;
+    }
+    i = end; // continue scanning after this table
+
+    const flagRows = rawLines
+      .slice(start, end + 1)
+      .filter((l) => !TABLE_DELIMITER_RE.test(l) && FLAG_CELL_RE.test(l));
+    if (flagRows.length < MIN_FLAG_ROWS) continue;
+
+    // Look back to the nearest heading (inclusive) for a named script.
+    let script = null;
+    for (let j = start - 1; j >= 0; j--) {
+      const m = SCRIPT_NAME_RE.exec(rawLines[j]);
+      if (m) {
+        script = m[1];
+        break;
+      }
+      if (HEADING_RE.test(rawLines[j])) break;
+    }
+    if (!script) continue;
+
+    const base = script.split('/').pop();
+    violations.push({
+      rule: 'no-cli-flag-table',
+      line: start + 1,
+      hint:
+        `Workflow prose restates the flag surface of \`${base}\` as a table (${flagRows.length} flag rows). ` +
+        "The script's argument parser owns those flags, so a prose copy is drift waiting to happen. " +
+        `Delete the table and point at the command (\`node .agents/scripts/${base} …\`), keeping only the ` +
+        'judgement a reader cannot get from the command itself. If the script has no help output to point ' +
+        'at, add one — do not re-inline the table.',
+    });
+  }
+  return violations;
+}
+
+/**
  * Lint one markdown source. Returns violations
  * `{ rule, line, hint }[]` (empty when clean).
  *
@@ -115,7 +204,9 @@ export function toParagraphs(lines) {
  */
 export function lintWorkflowSource(source) {
   const violations = [];
+  const rawLines = source.split('\n');
   const lines = stripFences(source);
+  violations.push(...lintFlagTables(rawLines));
   for (const para of toParagraphs(lines)) {
     if (IMPERATIVE_CALL_RE.test(para.text)) {
       violations.push({

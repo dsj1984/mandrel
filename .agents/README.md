@@ -262,6 +262,13 @@ read-when-relevant pattern skills use).
   [`rules/test-seams.md`](rules/test-seams.md)) — when the task is in that
   domain.
 - Every `SKILL.md` under [`skills/`](skills/) — when the task hits its trigger.
+  A `SKILL.md` is itself split the same way: it leads with its **Policy
+  Capsule** (the contract, and the whole cost of activating the skill) plus
+  pointers into an on-demand `reference.md` sibling carrying the long-form
+  material. Activating a skill costs the capsule, not the essay — open a
+  `reference.md` section only when the task engages it. Routing does not
+  depend on the long-form being inline: skill descriptions live in the
+  generated [`skills/skills.index.json`](skills/skills.index.json).
 - [`docs/execution-reference.md`](docs/execution-reference.md) — log-level and
   token-budget reference detail lifted out of `instructions.md`.
 

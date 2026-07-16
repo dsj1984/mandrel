@@ -28,7 +28,7 @@ materialized into consumer projects' `.agents/` directories by
 
 > **Key distinction:** Only `.agents/` is distributed to consumers. Everything
 > else in this repository is internal development tooling.
-
+>
 > **Ticket hierarchy** is Story-only (`type::story`). The contract is stated
 > once in [`.agents/instructions.md` § 5.D](.agents/instructions.md) — that
 > section is the source of truth and this file does not restate it. The
