@@ -589,13 +589,53 @@ function registryRegistry(producers, assumptionEntries, patterns, cache) {
 }
 
 /**
- * Compute `fan-out-warning` findings (Story #2962).
+ * Normalize a fan-out probe result into `{ count, files, probe }`.
  *
- * For each `body.changes` entry whose `assumption` is `"deletes"` (or
- * `"refactors-existing"` when the planner declared a symbol replacement),
- * count the number of distinct files in the base branch that reference
- * the deleted module via its basename. When the count exceeds the
- * configured `largeFanOutThreshold`, emit a finding.
+ * The production probe reports its referencing files and the exact command
+ * that found them so an operator can reproduce the figure (Story #4547).
+ * A bare number stays valid — injected test counters and any consumer
+ * counter written against the Story #2962 contract keep working, they just
+ * carry no audit trail.
+ */
+function normalizeFanOutProbe(result) {
+  if (typeof result === 'number') {
+    return { count: result, files: [], probe: null };
+  }
+  if (result === null || typeof result !== 'object') {
+    return { count: 0, files: [], probe: null };
+  }
+  const files = Array.isArray(result.files) ? result.files : [];
+  const count = Number.isFinite(result.count) ? result.count : files.length;
+  return { count, files, probe: result.probe ?? null };
+}
+
+/**
+ * Index the basenames this spec *creates*, so a deletion that is really one
+ * half of a move can be told apart from a genuine wide-coupling removal.
+ */
+function indexCreatedBasenames(assumptionEntries) {
+  const byBasename = new Map();
+  for (const entry of assumptionEntries) {
+    if (entry.assumption !== 'creates') continue;
+    const base = entry.path.slice(entry.path.lastIndexOf('/') + 1);
+    if (!byBasename.has(base)) byBasename.set(base, entry.path);
+  }
+  return byBasename;
+}
+
+/**
+ * Compute `fan-out-warning` findings (Story #2962, reworked in #4547).
+ *
+ * For each `body.changes` entry whose `assumption` is `"deletes"`, probe the
+ * files at the base branch that genuinely import or require the deleted
+ * module. When that count exceeds the configured `largeFanOutThreshold`,
+ * emit a finding carrying the referencing files and the probe that produced
+ * them.
+ *
+ * The finding also records whether the deletion is **rename-shaped** — the
+ * same spec creates a file with the deleted module's basename elsewhere —
+ * because the remedy diverges: a move wants its importers repointed in one
+ * Story, not a subsystem-by-subsystem migration split across several.
  *
  * The default severity is always `'soft'` — the persist gate enforces a
  * hard refusal via the `--allow-large-fan-out` operator flag, since the
@@ -613,21 +653,28 @@ function computeFanOutFindings({
   if (!Number.isFinite(threshold) || threshold < 0) return [];
   const findings = [];
   const cache = new Map();
+  const createdBasenames = indexCreatedBasenames(assumptionEntries);
   for (const entry of assumptionEntries) {
     if (entry.assumption !== 'deletes') continue;
-    let count = cache.get(entry.path);
-    if (count === undefined) {
-      count = counter({ path: entry.path }) ?? 0;
-      cache.set(entry.path, count);
+    let probed = cache.get(entry.path);
+    if (probed === undefined) {
+      probed = normalizeFanOutProbe(counter({ path: entry.path }));
+      cache.set(entry.path, probed);
     }
-    if (count <= threshold) continue;
+    if (probed.count <= threshold) continue;
+    const base = entry.path.slice(entry.path.lastIndexOf('/') + 1);
+    const renameTarget = createdBasenames.get(base);
     findings.push({
       kind: 'fan-out-warning',
       severity,
       taskSlug: entry.taskSlug,
       storySlug: entry.storySlug,
       path: entry.path,
-      callSiteCount: count,
+      callSiteCount: probed.count,
+      callSites: probed.files,
+      probe: probed.probe,
+      renameShaped: renameTarget !== undefined && renameTarget !== entry.path,
+      renameTarget: renameTarget === entry.path ? null : (renameTarget ?? null),
       threshold,
     });
   }
@@ -701,6 +748,51 @@ export function computeConflictFindings({ stories, policy } = {}) {
   ];
 }
 
+/** Importers listed inline before the message degrades to a count + probe. */
+const MAX_LISTED_CALL_SITES = 10;
+
+/**
+ * Render the audit trail behind a fan-out finding's number, so an operator
+ * can check the figure rather than trust it (Story #4547). Names the
+ * referencing files, the probe that found them, or both when available.
+ * Returns `''` for a bare-number counter that carries neither.
+ */
+export function renderFanOutEvidence(finding) {
+  const files = Array.isArray(finding.callSites) ? finding.callSites : [];
+  const parts = [];
+  if (files.length > 0) {
+    const shown = files.slice(0, MAX_LISTED_CALL_SITES);
+    const more = files.length - shown.length;
+    const list = shown.map((f) => `      ${f}`).join('\n');
+    parts.push(
+      `    Importers:\n${list}${more > 0 ? `\n      …and ${more} more` : ''}`,
+    );
+  }
+  if (finding.probe) parts.push(`    Probe: ${finding.probe}`);
+  return parts.length > 0 ? `\n${parts.join('\n')}` : '';
+}
+
+/**
+ * Render the remedy that actually fits the finding. A rename-shaped
+ * deletion has nowhere to split to — the importers just need repointing at
+ * the path the same plan creates — so telling the operator to split it
+ * across Stories leaves the override as the only exit, which is exactly the
+ * habit that defeats the gate (Story #4547).
+ */
+export function renderFanOutRemedy(finding) {
+  if (finding.renameShaped && finding.renameTarget) {
+    return (
+      `This deletion is rename-shaped: the same plan creates "${finding.renameTarget}" under the same basename. ` +
+      `Repoint the importer(s) at the new path inside this Story — a move has no subsystems to split across — ` +
+      `then rerun --allow-large-fan-out.`
+    );
+  }
+  return (
+    `Split the deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
+    `or rerun --allow-large-fan-out after confirming the deletion is intentional.`
+  );
+}
+
 /**
  * Render a `'hard'`-severity conflict finding as a human-readable error
  * message. Used by the validator when policy flags upgrade a finding to
@@ -719,7 +811,11 @@ export function renderHardConflictError(finding) {
     return `Cross-cutting registry conflict: ${finding.storySlugs.length} concurrent Stories (${stories}) edit or register into "${finding.registryPath}". Add depends_on chains between them so the registry updates serialize, or split the registration into a dedicated late-wave wiring Story.`;
   }
   if (finding.kind === 'fan-out-warning') {
-    return `Large fan-out: Task "${finding.taskSlug}" in Story "${finding.storySlug}" deletes "${finding.path}" with ${finding.callSiteCount} call site(s) on the base branch (threshold ${finding.threshold}). Split into a subsystem-by-subsystem migration across multiple Stories, or rerun --allow-large-fan-out after confirming the deletion is intentional.`;
+    return (
+      `Large fan-out: Task "${finding.taskSlug}" in Story "${finding.storySlug}" deletes "${finding.path}" ` +
+      `with ${finding.callSiteCount} importer(s) on the base branch (threshold ${finding.threshold}). ` +
+      `${renderFanOutRemedy(finding)}${renderFanOutEvidence(finding)}`
+    );
   }
   if (finding.kind === 'missing-bdd-scaffold') {
     return `Missing BDD scaffold: Story "${finding.consumer.storySlug}" verifies against "${finding.path}" (created by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but "${finding.consumer.storySlug}" has no depends_on path to "${finding.producer.storySlug}" — the .feature file is scaffolded in the same wave (or later), so verification runs before the file exists. Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story so the scaffold lands in an earlier wave.`;

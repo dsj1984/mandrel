@@ -799,6 +799,121 @@ test('string body: fan-out finding fires on a string-body deletes entry', () => 
   assert.equal(fanOut[0].storySlug, 's-del');
 });
 
+// ---------------------------------------------------------------------------
+// Fan-out findings carry their evidence and a fitting remedy (Story #4547)
+// ---------------------------------------------------------------------------
+
+function fanOutFindingsFor(stories, policy) {
+  return computeConflictFindings({ stories, policy }).filter(
+    (f) => f.kind === 'fan-out-warning',
+  );
+}
+
+test('fan-out finding carries the referencing files and the probe behind its number', () => {
+  const del = makeStory('s-del', {
+    changes: [{ path: 'src/legacy/old.js', assumption: 'deletes' }],
+  });
+  const [finding] = fanOutFindingsFor([del], {
+    largeFanOutThreshold: 2,
+    fanOutCounter: () => ({
+      count: 3,
+      files: ['src/a.js', 'src/b.js', 'src/c.js'],
+      probe: 'git grep -n -E <pattern> main',
+    }),
+  });
+  assert.equal(finding.callSiteCount, 3);
+  assert.deepEqual(finding.callSites, ['src/a.js', 'src/b.js', 'src/c.js']);
+  assert.equal(finding.probe, 'git grep -n -E <pattern> main');
+
+  // The operator must be able to check the figure, not merely trust it.
+  const message = renderHardConflictError(finding);
+  assert.match(message, /3 importer\(s\)/);
+  assert.match(message, /src\/a\.js/);
+  assert.match(message, /src\/c\.js/);
+  assert.match(message, /Probe: git grep -n -E <pattern> main/);
+});
+
+test('a bare-number counter still produces a finding, without an audit trail', () => {
+  // The Story #2962 counter contract stays valid — injected and consumer
+  // counters that return a plain number keep working.
+  const del = makeStory('s-del', {
+    changes: [{ path: 'src/legacy/old.js', assumption: 'deletes' }],
+  });
+  const [finding] = fanOutFindingsFor([del], {
+    largeFanOutThreshold: 2,
+    fanOutCounter: () => 7,
+  });
+  assert.equal(finding.callSiteCount, 7);
+  assert.deepEqual(finding.callSites, []);
+  assert.equal(finding.probe, null);
+  assert.equal(finding.renameShaped, false);
+  assert.doesNotMatch(renderHardConflictError(finding), /Importers:|Probe:/);
+});
+
+test('a genuinely wide-coupling deletion still trips the gate and advises a split', () => {
+  const del = makeStory('s-del', {
+    changes: [{ path: 'src/legacy/old.js', assumption: 'deletes' }],
+  });
+  const [finding] = fanOutFindingsFor([del], {
+    largeFanOutThreshold: 10,
+    fanOutCounter: () => ({
+      count: 30,
+      files: ['src/a.js'],
+      probe: 'git grep -n -E <pattern> main',
+    }),
+  });
+  assert.equal(finding.callSiteCount, 30);
+  assert.equal(finding.renameShaped, false);
+  assert.match(
+    renderHardConflictError(finding),
+    /subsystem-by-subsystem migration across multiple Stories/,
+  );
+});
+
+test('a rename-shaped deletion is named as a move, not as a migration to split', () => {
+  // A move has no subsystems to split across, so the split advice leaves
+  // --allow-large-fan-out as the only exit — the habit that defeats the gate.
+  const move = makeStory('s-move', {
+    changes: [
+      { path: 'src/legacy/notification.js', assumption: 'deletes' },
+      { path: 'src/core/notification.js', assumption: 'creates' },
+    ],
+  });
+  const [finding] = fanOutFindingsFor([move], {
+    largeFanOutThreshold: 2,
+    fanOutCounter: () => ({
+      count: 12,
+      files: ['src/a.js'],
+      probe: 'git grep',
+    }),
+  });
+  assert.equal(finding.renameShaped, true);
+  assert.equal(finding.renameTarget, 'src/core/notification.js');
+
+  const message = renderHardConflictError(finding);
+  assert.match(message, /rename-shaped/);
+  assert.match(message, /src\/core\/notification\.js/);
+  assert.match(message, /Repoint the importer\(s\) at the new path/);
+  assert.doesNotMatch(message, /subsystem-by-subsystem/);
+});
+
+test('a deletion whose basename is created nowhere is not mistaken for a rename', () => {
+  const stories = [
+    makeStory('s-del', {
+      changes: [{ path: 'src/legacy/notification.js', assumption: 'deletes' }],
+    }),
+    makeStory('s-other', {
+      changes: [{ path: 'src/core/mailer.js', assumption: 'creates' }],
+    }),
+  ];
+  const [finding] = fanOutFindingsFor(stories, {
+    largeFanOutThreshold: 2,
+    fanOutCounter: () => 12,
+  });
+  assert.equal(finding.renameShaped, false);
+  assert.equal(finding.renameTarget, null);
+});
+
 test('string body: a depends_on chain still serialises string-body writers (no shared-editor)', () => {
   const tickets = [
     makeStringStory('s-a', {
