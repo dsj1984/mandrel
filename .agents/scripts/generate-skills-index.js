@@ -21,6 +21,11 @@
 //   --out <file>   Override the manifest output path (defaults to
 //                  `<root>/.agents/skills/skills.index.json`).
 //
+// Written output is passed through the project formatter (Biome) so that
+// regenerating on a clean tree leaves no format drift behind; the step is
+// best-effort and degrades to plain `JSON.stringify` output where Biome is
+// not installed. See `lib/format-generated-json.js`.
+//
 // Honors AGENT_LOG_LEVEL via the shared `Logger`. Stdout is reserved for
 // the diff text in --check failure mode; informational progress goes to
 // stderr.
@@ -30,6 +35,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseStandardCliArgs } from './lib/cli/standard-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { formatGeneratedJson } from './lib/format-generated-json.js';
 import { Logger } from './lib/Logger.js';
 import { parseSkill } from './lib/skills/parse-skill.js';
 import { collectSkillFiles } from './lib/skills/walk-skill-files.js';
@@ -125,6 +131,12 @@ export function buildManifest(repoRoot, { nowIso } = {}) {
  * Serialize a manifest object as canonical JSON: 2-space indent,
  * trailing newline. Two runs against an unchanged corpus produce
  * byte-identical output modulo `generatedAt`.
+ *
+ * This is the *pre-format* shape. `JSON.stringify` expands every array
+ * across multiple lines, while Biome collapses short ones that fit
+ * inside `lineWidth` (`"allowedTools": ["Read", "Bash"]`). Writing this
+ * text verbatim therefore leaves the tree format-dirty on every run —
+ * see `lib/format-generated-json.js`, which reconciles the two.
  */
 export function serializeManifest(manifest) {
   return `${JSON.stringify(manifest, null, 2)}\n`;
@@ -233,8 +245,12 @@ export function run({ argv = [], now = new Date(), repoRoot } = {}) {
   }
 
   const serialized = serializeManifest(fresh);
+  const opts = { cwd: root, filename: 'skills.index.json' };
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, serialized);
+  fs.writeFileSync(
+    outPath,
+    formatGeneratedJson(serialized, opts) ?? serialized,
+  );
   Logger.info(
     `wrote ${path.relative(root, outPath).split(path.sep).join('/')} (${fresh.skills.length} entries)`,
   );
