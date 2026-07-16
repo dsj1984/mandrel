@@ -396,6 +396,17 @@ export class TicketGateway {
    * so board membership never depends on GitHub's "Auto-add to project"
    * built-in workflow.
    *
+   * The POST is wrapped in `withTransientRetry` (Story #4541) so it absorbs
+   * the same 502/429/ECONNRESET blips the read surfaces already do. It used
+   * to post bare, which made a single transient failure at story *k* of *N*
+   * abort `/plan` persist with `1..k-1` already live on the tracker.
+   *
+   * Retry alone is not sufficient for that failure mode — a POST whose
+   * response is lost would double-create on the retry — so the caller
+   * (`plan-persist`'s `createStoryIssues`) carries the idempotency half via
+   * a plan fingerprint it looks up before creating. Retry narrows the
+   * window; the fingerprint closes it.
+   *
    * @field-manifest POST /repos/{owner}/{repo}/issues: number, id, node_id,
    *                 html_url
    *
@@ -410,11 +421,15 @@ export class TicketGateway {
    * }>}
    */
   async createIssue({ title, body, labels = [] }) {
-    const result = await this._gh.api({
-      method: 'POST',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues`,
-      body: { title, body, labels },
-    });
+    const result = await withTransientRetry(
+      () =>
+        this._gh.api({
+          method: 'POST',
+          endpoint: `/repos/${this.owner}/${this.repo}/issues`,
+          body: { title, body, labels },
+        }),
+      { label: `createIssue "${title}"`, onRetry: defaultRetryWarn },
+    );
     const issue = parseApiJson(result);
     this._listCache.clear();
 

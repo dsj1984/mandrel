@@ -10,8 +10,17 @@
  *  - Prefer `provider.searchIssues` to narrow open Stories server-side
  *    (`label:"type::story" state:open` + top seed tokens), capped at
  *    ~100 hits, then rank that set. Fall back to `listIssuesByLabel`
- *    when search errors or is unavailable (same try/catch pattern as
- *    `TicketGateway.getTickets`).
+ *    when search errors, is unavailable, or returns **nothing** (same
+ *    try/catch pattern as `TicketGateway.getTickets`).
+ *  - The narrowing query is deliberately weak (Story #4541). GitHub ANDs
+ *    free-text terms, so the former 8-token query demanded that a candidate
+ *    contain all eight of a multi-sentence seed's longest words — which no
+ *    real Story does. Gate #1 duplicate triage therefore reported "no
+ *    candidates" on every realistic seed while looking perfectly healthy.
+ *    Search is now a cheap best-case narrowing over a handful of tokens; an
+ *    empty result is treated as "search did not help", not "no duplicates",
+ *    and falls through to the label listing whose Jaccard ranker has real
+ *    recall.
  *  - Scoring is intentionally simple (token Jaccard over title + body).
  *    It is a triage signal, not a semantic-search replacement.
  *  - Provider errors on the list fallback propagate verbatim — the
@@ -79,8 +88,17 @@ const STOPWORDS = new Set([
 
 const DEFAULT_MIN_SCORE = 0.15;
 const DEFAULT_MAX_RESULTS = 5;
-/** How many seed tokens to pass as free-text search terms. */
-const DEFAULT_SEARCH_TOKEN_CAP = 8;
+/**
+ * How many seed tokens to pass as free-text search terms.
+ *
+ * GitHub ANDs these, so the cap is a precision/recall dial pointing the
+ * wrong way: every extra token shrinks the candidate set. Three is a
+ * best-case narrowing that can plausibly hit on a focused seed; anything
+ * beyond that reliably matched nothing on a multi-sentence one (Story
+ * #4541). Recall does not rest on this number — an empty result falls back
+ * to label-listing plus client-side ranking.
+ */
+const DEFAULT_SEARCH_TOKEN_CAP = 3;
 /** Hard cap on search hits ranked client-side (~one Search API page). */
 const SEARCH_RESULT_CAP = 100;
 
@@ -269,8 +287,16 @@ async function fetchOpenStoriesViaList(provider) {
 }
 
 /**
- * Fetch open-Story candidates: prefer Search API narrowing, fall back to
- * `listIssuesByLabel` when search errors or is unavailable.
+ * Fetch open-Story candidates: try Search API narrowing first, fall back to
+ * `listIssuesByLabel` when search errors, is unavailable, or **returns no
+ * hits**.
+ *
+ * The empty-result fallback is the load-bearing one (Story #4541). The
+ * narrowing query ANDs seed tokens, so on any real multi-sentence seed it
+ * matches nothing — and treating that as an authoritative "no duplicates
+ * exist" is what made Gate #1 triage report a clean bill of health while
+ * never actually looking. An empty search is evidence about the *query*, not
+ * about the backlog.
  *
  * @param {object} provider
  * @param {string} seed
@@ -291,7 +317,12 @@ async function fetchOpenStoryCandidates(provider, seed) {
 
   if (hasSearch) {
     try {
-      return await fetchOpenStoriesViaSearch(provider, seed);
+      const hits = await fetchOpenStoriesViaSearch(provider, seed);
+      if (hits.length > 0 || !hasList) return hits;
+      Logger.info(
+        '[duplicate-search] narrowed search matched no open Stories; ' +
+          'falling back to listIssuesByLabel + client-side ranking',
+      );
     } catch (err) {
       if (!hasList) throw err;
       const msg = typeof err?.message === 'string' ? err.message : String(err);

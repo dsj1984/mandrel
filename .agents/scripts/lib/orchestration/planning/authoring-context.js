@@ -15,13 +15,12 @@ import {
 } from '../../bdd-runner-detect.js';
 import { scanBddScenarios } from '../../bdd-scenario-scanner.js';
 import { buildCodebaseSnapshot } from '../../codebase-snapshot.js';
-import { getLimits, getPaths, PROJECT_ROOT } from '../../config-resolver.js';
+import { getPaths, PROJECT_ROOT } from '../../config-resolver.js';
 import { scanMemoryFreshness } from '../../feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from '../../feedback-loop/prior-feedback-fetcher.js';
 import { Logger } from '../../Logger.js';
 import { hasTicketSection } from '../../ticket-body-sections.js';
 import { ensureDocsDigest } from '../docs-digest.js';
-import { applyBudget } from '../planning-context-budget.js';
 import { collectReferences, hasNewFileCue } from '../spec-freshness.js';
 import { buildAuthoringGrounding } from './spec-authoring-grounding.js';
 
@@ -101,11 +100,16 @@ async function buildPlanningDocsContext({ epicId, settings, cwd }) {
  *
  * `docsContext` is digest-first (Story #4433): a pointer at the per-Epic
  * docs digest rather than embedded doc content, `null` when
- * `project.docsContextFiles` is unset. The Epic body itself stays bounded by
- * the planning-context budget (Epic #817 Story 9) — over-budget bodies
- * downgrade to a summary representation with headings + bounded excerpts.
- * Pass `{ fullContext: true }` (CLI: `--full-context`) to restore the
- * unbounded full Epic body.
+ * `project.docsContextFiles` is unset.
+ *
+ * The body carried here is **unbounded**. Story #4541 removed the
+ * `applyBudget` pass (and the `--full-context` flag that toggled it): both
+ * `plan-context.js` envelope builders discard this `epic` field entirely and
+ * ship the raw seed on `seed.content` instead, so the budget bounded nothing
+ * that shipped and the flag was a no-op. The raw-seed passthrough is
+ * deliberate and test-pinned; the budget pass was the orphan. Envelope size
+ * is guarded where it is actually decided — `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`
+ * in `lib/orchestration/plan-context.js`.
  */
 export async function buildAuthoringContext(
   epicId,
@@ -123,20 +127,13 @@ export async function buildAuthoringContext(
     throw new Error(`Epic #${epicId} not found.`);
   }
 
-  const planningLimits = getLimits(settings).planningContext;
-  const { fullContext = false, cwd = PROJECT_ROOT } = opts;
+  const { cwd = PROJECT_ROOT } = opts;
 
   const docsContext = await buildPlanningDocsContext({
     epicId: epic.id,
     settings,
     cwd,
   });
-
-  const epicBody = applyBudget(
-    [{ path: `epic-${epic.id}.md`, content: epic.body ?? '' }],
-    planningLimits,
-    { fullContext },
-  );
 
   // Story #2094 Task #2103 — verify the project's BDD runner pending-tag
   // support so the acceptance-spec body can record either the verified tag
@@ -249,8 +246,7 @@ export async function buildAuthoringContext(
     epic: {
       id: epic.id,
       title: epic.title,
-      body: epicBody.mode === 'full' ? epic.body : null,
-      bodySummary: epicBody.mode === 'summary' ? epicBody.items[0] : null,
+      body: epic.body ?? null,
       // Story #4324: the context-ticket classes are retired. A re-planned
       // Epic's previous Tech Spec / Acceptance Table content rides along
       // inside `body` (managed sections), which is how the author keeps

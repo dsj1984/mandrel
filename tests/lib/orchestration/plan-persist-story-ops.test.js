@@ -189,10 +189,15 @@ describe('assemblePlanStories', () => {
 });
 
 describe('createStoryIssues', () => {
-  it('creates issues with type::story + agent::ready and NO plan-run label, even when N>1', async () => {
+  it('creates issues with type::story and NO agent::ready or plan-run label, even when N>1', async () => {
     // Story #4540: N>1 used to mint an opaque `plan-run::<hex>` label that
     // nothing ever deleted, to express a grouping that ordering already
     // encodes via the blocked-by footers asserted in the next test.
+    //
+    // Story #4541: agent::ready is no longer part of the creating POST
+    // either. `markStoriesReady` applies it as the terminal step of persist,
+    // once every checkpoint is on the ticket — so a Story labelled ready
+    // always has its risk envelope.
     const calls = [];
     const provider = {
       createIssue: async (payload) => {
@@ -212,7 +217,10 @@ describe('createStoryIssues', () => {
     assert.equal(result.planRunLabel, undefined);
     for (const call of calls) {
       assert.ok(call.labels.includes(TYPE_LABELS.STORY));
-      assert.ok(call.labels.includes(AGENT_LABELS.READY));
+      assert.ok(
+        !call.labels.includes(AGENT_LABELS.READY),
+        'ready is the terminal flip, not part of the creating POST',
+      );
       assert.deepEqual(
         call.labels.filter((l) => l.startsWith('plan-run::')),
         [],

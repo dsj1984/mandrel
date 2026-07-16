@@ -82,7 +82,9 @@ Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI 
    - Thematic grouping is prose in the Story's folded \`## Spec\` / \`## Slicing\`, never sibling tickets for coupled work.
 
 ### LABEL CONVENTIONS:
-- Every ticket must have the \`type::story\` label. No other type label is allowed — the retired Feature and Task tiers have no labels under this hierarchy.
+- \`type::story\` is applied automatically by persist — you do not need to emit it, and no other type label is allowed (the retired Feature and Task tiers have no labels under this hierarchy).
+- \`labels[]\` is **optional**. Emit it only to request an *additional* label; persist sanitizes the list before applying it.
+- Do **not** emit \`agent::*\` labels — lifecycle state is runtime-owned, and persist applies \`agent::ready\` itself once every checkpoint is on the ticket.
 - Do **not** emit \`persona::*\` labels — the behavioral persona concept (and its label axis) was removed in v2.
 
 ### OUTPUT FORMAT:
@@ -97,7 +99,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
     "body": <string — see STORY BODY SCHEMA below>,
     "acceptance": ["<testable, observable criterion>", ...],
     "verify": ["<exact command or test path> (<tier>)", ...],
-    "labels": ["type::story"],
+    "labels": ["<extra-label>"] (optional — type::story is applied automatically; omit this field unless you need an additional label),
     "depends_on": ["slug-of-blocking-dependency"] (optional array of Story slugs that block execution)
   }
 ]
@@ -107,7 +109,9 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
 \`body\` MUST be a **string** — the serialized markdown produced by \`serialize()\` from \`lib/story-body/story-body.js\`. Do NOT emit \`body\` as a JSON object: an object body throws \`StoryBodyParseError\` in the reconciler (Story #3302) and is discarded by the GitHub provider, producing an empty issue body. Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
 
-The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object — that is the machine contract the validator reads. Persist syncs those arrays into the body's \`## Acceptance\` / \`## Verify\` sections so the GitHub issue stays a complete executable document. Prefer authoring the lists **once at top-level** and omitting those sections from the authored \`body\` string (or mirroring the exact same items). Do **not** invent a second criteria list inside \`## Spec\`, and do not author a separate Acceptance Spec / PRD artifact.
+The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object — that is the machine contract the validator reads. Author each list **once, at top level**, and **omit** the \`## Acceptance\` / \`## Verify\` sections from the authored \`body\` string: persist syncs the top-level arrays into those sections so the GitHub issue stays a complete executable document. The validator resolves both fields from the top level, so an omitted section is the expected shape, not a violation.
+
+If you do write those sections into the \`body\` string anyway, they must mirror the top-level arrays **item for item** — persist fails closed on a disagreement rather than guessing which list is authoritative. Do **not** invent a second criteria list inside \`## Spec\`, and do not author a separate Acceptance Spec / PRD artifact.
 
 The serialized \`body\` string renders these markdown sections (in order):
 

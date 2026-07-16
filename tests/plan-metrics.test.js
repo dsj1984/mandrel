@@ -254,6 +254,42 @@ describe('summarizePlanMetrics', () => {
     ],
   });
 
+  it('scopes the roll-up to one plan run via opts.since (Story #4541)', () => {
+    // The Epic-less ledger at temp/standalone/ is shared by every plan the
+    // repo has ever run, so an unfiltered roll-up reported lifetime totals
+    // under a line the reader takes to describe the invocation in front of
+    // them.
+    const withSkip = ledger();
+    withSkip.entries.push({
+      kind: PLAN_METRICS_KIND_CRITIC_SKIP,
+      cli: 'plan-persist',
+      critic: 'pre-mortem',
+      reasons: ['low risk'],
+      at: '2026-07-12T10:11:00.000Z',
+    });
+
+    const scoped = summarizePlanMetrics(withSkip, {
+      since: '2026-07-12T10:10:00.000Z',
+    });
+    // Only the third invocation (10:10) and the critic skip (10:11) are in
+    // scope; the two earlier invocations belong to previous plan runs.
+    assert.equal(scoped.invocations, 1);
+    assert.deepEqual(scoped.byCli, { 'epic-plan-decompose': 1 });
+    assert.equal(scoped.criticSkips, 1);
+    assert.equal(scoped.firstStartedAt, '2026-07-12T10:10:00.000Z');
+  });
+
+  it('returns null when `since` excludes every record', () => {
+    assert.equal(
+      summarizePlanMetrics(ledger(), { since: '2027-01-01T00:00:00.000Z' }),
+      null,
+    );
+  });
+
+  it('summarizes the whole ledger when `since` is omitted', () => {
+    assert.equal(summarizePlanMetrics(ledger()).invocations, 3);
+  });
+
   it('returns null when there is nothing to summarize', () => {
     assert.equal(summarizePlanMetrics(null), null);
     assert.equal(summarizePlanMetrics({ entries: [] }), null);

@@ -24,6 +24,15 @@
  * name at least one path-shaped token so vague verbs ("clean up",
  * "refactor") can't slip through.
  *
+ * `acceptance` / `verify` are the **top-level machine contract** (Story
+ * #4541). The decomposer prompt tells authors to write those lists once at
+ * the ticket's top level and omit the matching body sections; persist syncs
+ * them into the body at assemble time. Validation runs *before* that sync,
+ * so this validator resolves each contract field from the parsed body and
+ * falls back to the ticket's top-level array when the body section is
+ * absent. Without that fallback the validator rejected the very shape its
+ * own prompt prescribes.
+ *
  * `body.changes` items must be object-form `{ path: string, assumption: enum }`
  * entries (Story #2636 shape). Plain string bullets are rejected at parse
  * time and by this validator.
@@ -165,6 +174,39 @@ function resolveStructuredBody(ticket) {
 }
 
 /**
+ * The two contract fields that live at the ticket's top level and are
+ * synced into the body by `plan-persist` at assemble time.
+ */
+const CONTRACT_FIELDS = Object.freeze(['acceptance', 'verify']);
+
+/**
+ * Resolve the body's contract fields against the ticket's top-level arrays
+ * (Story #4541). The decomposer prompt prescribes authoring `acceptance[]`
+ * / `verify[]` **once** at top level and omitting the matching body
+ * sections; `assemblePlanStories#syncContractFieldFromTopLevel` performs
+ * the sync, but it runs *after* validation. So an absent body section is
+ * not a violation when the ticket carries the list at top level — it is the
+ * preferred shape. A body section that is present and disagrees with the
+ * top level is left alone here: the sync itself fails closed on that
+ * mismatch, and duplicating the check would report it twice.
+ *
+ * @param {object} ticket
+ * @param {object} bodyObject Parsed / structured body.
+ * @returns {object} A copy of `bodyObject` with the contract fields resolved.
+ */
+function resolveContractFieldsFromTopLevel(ticket, bodyObject) {
+  const resolved = { ...bodyObject };
+  for (const field of CONTRACT_FIELDS) {
+    const bodyValue = Array.isArray(resolved[field]) ? resolved[field] : [];
+    if (bodyValue.length > 0) continue;
+    const topLevel = Array.isArray(ticket?.[field]) ? ticket[field] : [];
+    if (topLevel.length === 0) continue;
+    resolved[field] = topLevel.map(String);
+  }
+  return resolved;
+}
+
+/**
  * Validate one Story body and return every violation it exhibits. Empty
  * array means clean. Splits the per-ticket cascade out of
  * `collectTaskBodyErrors` so the iteration stays straight-line and so
@@ -182,13 +224,14 @@ function resolveStructuredBody(ticket) {
  */
 export function validateTaskBodyShape(ticket) {
   const prefix = `Story "${ticket.title}" (${ticket.slug})`;
-  const { body, error } = resolveStructuredBody(ticket);
+  const { body: parsed, error } = resolveStructuredBody(ticket);
   if (error !== null) {
     return [error];
   }
-  if (body === null || typeof body !== 'object') {
-    return [`${prefix}: body must be an object, got ${typeof body}.`];
+  if (parsed === null || typeof parsed !== 'object') {
+    return [`${prefix}: body must be an object, got ${typeof parsed}.`];
   }
+  const body = resolveContractFieldsFromTopLevel(ticket, parsed);
   const errors = [];
   if (typeof body.goal !== 'string' || body.goal.trim() === '') {
     errors.push(`${prefix}: body.goal must be a non-empty string.`);
@@ -300,7 +343,9 @@ function collectReferencesErrors(prefix, rawReferences) {
 function collectAcceptanceErrors(prefix, rawAcceptance) {
   const acceptance = Array.isArray(rawAcceptance) ? rawAcceptance : [];
   if (acceptance.length === 0) {
-    return [`${prefix}: body.acceptance must list at least one criterion.`];
+    return [
+      `${prefix}: acceptance must list at least one criterion — author it at the ticket's top level (preferred) or in the body's ## Acceptance section.`,
+    ];
   }
   return [];
 }
@@ -323,7 +368,7 @@ function collectVerifyErrors(prefix, rawVerify) {
   const verify = Array.isArray(rawVerify) ? rawVerify : [];
   if (verify.length === 0) {
     return [
-      `${prefix}: body.verify must list at least one entry. Use "manual:<reason>" only when truly unverifiable in isolation.`,
+      `${prefix}: verify must list at least one entry — author it at the ticket's top level (preferred) or in the body's ## Verify section. Use "manual:<reason>" only when truly unverifiable in isolation.`,
     ];
   }
   const errors = [];

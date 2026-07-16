@@ -3,7 +3,10 @@ import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
-import { parse as parseStoryBody } from '../story-body/story-body.js';
+import {
+  parse as parseStoryBody,
+  StoryBodyParseError,
+} from '../story-body/story-body.js';
 import { validateStoryFileAssumptions } from './file-assumptions.js';
 import {
   computeConflictFindings,
@@ -41,6 +44,95 @@ function collectPathsFromText(text, paths) {
     paths.add(captured.slice(rootStart));
     match = FRESHNESS_PATH_RE.exec(text);
   }
+}
+
+/**
+ * Parse a Story's serialized markdown body, translating a
+ * `StoryBodyParseError` into a `ValidationError` that names the offending
+ * **section** and **entry** (Story #4541).
+ *
+ * `StoryBodyParseError` already carries `field` (the section the parser was
+ * reading) and `raw` (the entry text that failed); this lifts both into an
+ * operator-legible message and a structured `violation` payload so an
+ * authoring loop can point at the exact bullet instead of re-deriving it
+ * from a downstream freshness miss.
+ *
+ * @param {object} story Story whose `body` is a non-empty markdown string.
+ * @returns {object} The structured body.
+ * @throws {ValidationError} `code: 'story-body-unparseable'`.
+ */
+function parseStoryBodyOrThrow(story) {
+  try {
+    return parseStoryBody(story.body).body;
+  } catch (err) {
+    if (!(err instanceof StoryBodyParseError)) throw err;
+    const slug = story.slug ?? '<unknown>';
+    const section = err.field ?? 'body';
+    const entry = err.raw ?? null;
+    const entryLine = entry === null ? '' : `\n      entry: ${entry}`;
+    const violation = { slug, section, entry, reason: err.message };
+    const error = new ValidationError(
+      `Cross-Validation Failed: Story "${slug}" has an unparseable body — ` +
+        `the ## ${section} section could not be read: ${err.message}` +
+        `${entryLine}\n\nFix the offending entry; this is a malformed body, ` +
+        'not a stale path reference.',
+      { violations: [violation] },
+    );
+    error.code = 'story-body-unparseable';
+    error.violations = [violation];
+    throw error;
+  }
+}
+
+/**
+ * Refuse the plan when any Story's serialized body cannot be parsed, before
+ * either git-probe gate runs (Story #4541). Ordering matters: the freshness
+ * gate consults `body.changes` for its net-new whitelist, so an unparseable
+ * body used to reach the operator as a freshness miss naming declared paths.
+ *
+ * @param {{ tickets: object[] }} opts
+ * @throws {ValidationError} `code: 'story-body-unparseable'` on the first
+ *   offending Story.
+ */
+function assertStoryBodiesParse({ tickets }) {
+  for (const story of (tickets ?? []).filter((t) => t.type === 'story')) {
+    if (typeof story.body !== 'string' || story.body.trim().length === 0) {
+      continue;
+    }
+    parseStoryBodyOrThrow(story);
+  }
+}
+
+/**
+ * Resolve every acceptance line a Story declares, across both authoring
+ * shapes (Story #4541).
+ *
+ * The canonical shape is a **serialized string body** with the criteria at
+ * the ticket's **top level** — the machine contract persist syncs into the
+ * body. `validateAcceptanceSubjectPrefix` used to read `body.acceptance` on
+ * an object body only, so on every real plan it scanned nothing and the gate
+ * silently passed. Union both sources (deduplicated) so the gate fires on
+ * whichever surface the author used.
+ *
+ * @param {object} story
+ * @returns {string[]}
+ */
+function resolveAcceptanceLines(story) {
+  const lines = new Set();
+  if (Array.isArray(story?.acceptance)) {
+    for (const item of story.acceptance) lines.add(String(item ?? ''));
+  }
+  const body = story?.body;
+  let bodyAcceptance = null;
+  if (typeof body === 'string' && body.trim().length > 0) {
+    bodyAcceptance = parseStoryBodyOrThrow(story).acceptance;
+  } else if (body !== null && typeof body === 'object') {
+    bodyAcceptance = body.acceptance;
+  }
+  if (Array.isArray(bodyAcceptance)) {
+    for (const item of bodyAcceptance) lines.add(String(item ?? ''));
+  }
+  return [...lines];
 }
 
 function collectTaskPathReferences(task) {
@@ -100,15 +192,16 @@ function collectTaskChangesPaths(task) {
   // arrays before scanning. Without this, a string body causes the
   // object-form branch below to fall through on every item, leaving the
   // freshness gate blind to declared paths.
+  //
+  // Story #4541: a parse failure is NOT swallowed here. Swallowing it
+  // returned an empty whitelist, so a single malformed `## Changes` entry
+  // surfaced downstream as "files do not exist at main" naming the very
+  // paths the Story *had* declared — a misdiagnosis that cost two authoring
+  // round-trips. `assertStoryBodiesParse` runs before the freshness gate and
+  // owns that failure with a named error; the throw here is the same error
+  // for any caller that drives `validateAcFreshness` directly.
   if (typeof body === 'string' && body.trim().length > 0) {
-    let parsed;
-    try {
-      parsed = parseStoryBody(body).body;
-    } catch {
-      // Unparseable body — no paths to whitelist; the freshness gate will
-      // catch any real references in the text scan below.
-      return paths;
-    }
+    const parsed = parseStoryBodyOrThrow(task);
     for (const arrName of ['changes', 'references']) {
       const arr = parsed[arrName];
       if (!Array.isArray(arr)) continue;
@@ -307,10 +400,15 @@ const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
  * the form `baseline-refresh` is rejected because no Conventional-Commits
  * type starts with that token.
  *
- * Only `body.acceptance[]` is scanned; `body.goal` / `body.verify` /
+ * Only acceptance criteria are scanned; `body.goal` / `body.verify` /
  * `body.changes` are not commit-subject prescriptions by convention and
  * scanning them would surface false positives from prose that happens to
  * quote a forbidden prefix while explaining why it's forbidden.
+ *
+ * Both authoring shapes are covered (Story #4541): the canonical top-level
+ * `acceptance[]` on a serialized string body, and the pre-serialize
+ * `body.acceptance[]` object shape. Scanning only the latter made the gate
+ * inert on every real plan.
  *
  * @param {object}   opts
  * @param {object[]} opts.tickets - Validated ticket hierarchy.
@@ -324,11 +422,7 @@ export function validateAcceptanceSubjectPrefix({ tickets }) {
   const violations = [];
   const stories = (tickets ?? []).filter((t) => t.type === 'story');
   for (const story of stories) {
-    const body = story.body;
-    if (body === null || typeof body !== 'object') continue;
-    if (!Array.isArray(body.acceptance)) continue;
-    for (const item of body.acceptance) {
-      const line = String(item ?? '');
+    for (const line of resolveAcceptanceLines(story)) {
       // Reset the global regex between iterations.
       SUBJECT_PREFIX_RE.lastIndex = 0;
       let match = SUBJECT_PREFIX_RE.exec(line);
@@ -540,6 +634,14 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
   assertAcyclic(slugAdjacency);
 
+  // Story #4541 — refuse an unparseable Story body up front, with a named
+  // error pointing at the offending section + entry. Must precede both the
+  // subject-prefix scan and the freshness gate: each parses the body, and
+  // the freshness gate's net-new whitelist comes from `body.changes`, so a
+  // malformed body used to surface as a stale-path miss naming the paths the
+  // Story had legitimately declared.
+  assertStoryBodiesParse({ tickets });
+
   // Reject any Task acceptance item that prescribes a non-Conventional-Commits
   // subject prefix (e.g. legacy "Commit subject begins with 'baseline-refresh:'"
   // from pre-Epic-#2501 planner output). Runs before the freshness gate so
@@ -648,6 +750,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
 
 // Internal helpers exposed for unit tests; not part of the public surface.
 export const _internal = {
+  assertStoryBodiesParse,
   indexTicketsBySlug,
   assertAllTicketsAreStories,
   assertEveryStoryHasInlineContract,
