@@ -37,7 +37,8 @@
  *     totalStories: number,
  *     concurrencyCap: number,
  *     inFlight: number,
- *     cycleError: string | null
+ *     cycleError: string | null,
+ *     wedged: { reason, stories: [{ id, unmetBlockers }] } | null
  *   }
  *
  * The standalone loop calls this once per beat: after each Story closes it
@@ -54,7 +55,13 @@
  * deterministic config source (`delivery.deliverRunner.concurrencyCap`) and
  * one scheduling kernel with every `/deliver` multi-Story invocation.
  *
- * On cycle detection, exits with code 2 and sets cycleError in the envelope.
+ * Exit codes: 0 ok · 1 input error · 2 dependency cycle (`cycleError`) ·
+ * 3 wedged (`wedged`) — ready is empty, nothing is in flight, and undone
+ * Stories are waiting on blockers that are not done. A cycle is a
+ * self-referential DAG the operator must fix; a wedge is a well-formed DAG
+ * whose gates cannot be satisfied from the supplied `--done` set (usually a
+ * blocker outside the delivered set that has not landed). Both are distinct
+ * from the ordinary `ready: []` that means "waiting on in-flight work".
  */
 
 import { readFileSync } from 'node:fs';
@@ -67,6 +74,13 @@ import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { buildStoryAdjacency } from './lib/story-adjacency.js';
 import { selectReadySet } from './lib/wave-runner/ready-set.js';
+
+/**
+ * Exit code for a wedged run — deliberately distinct from the cycle exit (2)
+ * so a caller can tell "your DAG is self-referential" from "your DAG is fine
+ * but its gates can never be satisfied from this `--done` set".
+ */
+export const WEDGED_EXIT_CODE = 3;
 
 const HELP = `Usage: node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>] [--done <csv>] [--in-flight <n>]
 
@@ -102,13 +116,17 @@ Output envelope:
     "totalStories": 2,
     "concurrencyCap": 3,
     "inFlight": 0,
-    "cycleError": null
+    "cycleError": null,
+    "wedged": null
   }
 
 Exit codes:
   0 - Success, ready set emitted
   1 - Invalid input (missing/malformed DAG, invalid --concurrency/--in-flight/--done)
   2 - Cycle detected in dependency graph
+  3 - Wedged: ready is empty, nothing is in flight, and undone Stories are
+      waiting on blockers that are not done. Distinct from an ordinary empty
+      ready set (which means "waiting on in-flight work") and from a cycle.
 `;
 
 /**
@@ -322,6 +340,7 @@ export function buildReadySetEnvelope(
     concurrencyCap,
     inFlight,
     cycleError: null,
+    wedged: null,
   };
 
   if (totalStories === 0) {
@@ -365,7 +384,62 @@ export function buildReadySetEnvelope(
     globalCap: concurrencyCap,
   }).map((rec) => rec.id);
 
-  return { envelope: { ...base, ready }, exitCode: 0 };
+  // Wedge detection (Story #4540). `ready: []` is normal while work is in
+  // flight — the loop is simply waiting. But ready-empty AND nothing in
+  // flight AND undone Stories remaining means no beat can ever make
+  // progress: the run is stuck, and the previous behaviour was to return
+  // exit 0 with an empty ready set forever, indistinguishable from
+  // "waiting". Name the stuck ids and their unmet blockers.
+  //
+  // Distinct from `cycleError`/exit 2: a cycle is a self-referential DAG,
+  // whereas this is a DAG whose gates are real but unsatisfiable from the
+  // supplied `done` set (typically a blocker outside the delivered set that
+  // has not landed).
+  const wedge = detectWedge({ nodes, doneIds, ready, inFlight });
+  if (wedge) {
+    return {
+      envelope: { ...base, ready, wedged: wedge },
+      exitCode: WEDGED_EXIT_CODE,
+    };
+  }
+
+  return { envelope: { ...base, ready, wedged: null }, exitCode: 0 };
+}
+
+/**
+ * Identify a run that cannot progress: nothing dispatchable, nothing in
+ * flight, work remaining.
+ *
+ * @param {{ nodes: object[], doneIds: Set<number>, ready: number[], inFlight: number }} args
+ * @returns {{ reason: string, stories: Array<{ id: number, unmetBlockers: number[] }> }|null}
+ */
+export function detectWedge({ nodes, doneIds, ready, inFlight }) {
+  if (ready.length > 0 || inFlight > 0) return null;
+  const undone = nodes.filter((n) => !doneIds.has(n.id));
+  if (undone.length === 0) return null;
+
+  const stories = undone
+    .map((n) => ({
+      id: n.id,
+      unmetBlockers: (n.dependsOn ?? []).filter((dep) => !doneIds.has(dep)),
+    }))
+    .filter((s) => s.unmetBlockers.length > 0);
+
+  // Undone work with no unmet blockers would have been dispatched; if that
+  // is the whole set, the cap or in-flight accounting explains the empty
+  // ready set rather than a wedge.
+  if (stories.length === 0) return null;
+
+  const detail = stories
+    .map((s) => `#${s.id} ← ${s.unmetBlockers.map((d) => `#${d}`).join(', ')}`)
+    .join('; ');
+  return {
+    reason:
+      `No Story can be dispatched: nothing is in flight and ${stories.length} ` +
+      `Story(ies) are waiting on blockers that are not done — ${detail}. ` +
+      `A blocker outside the delivered set must land first, or be included in --ids.`,
+    stories,
+  };
 }
 
 /**
@@ -405,6 +479,7 @@ export function runStoriesWaveTick({
       concurrencyCap,
       inFlight: inFlightValue,
       cycleError: null,
+      wedged: null,
       inputError: message,
     },
     exitCode: 1,

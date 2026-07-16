@@ -15,8 +15,6 @@
  * @module lib/orchestration/plan-persist/story-ops
  */
 
-import { randomBytes } from 'node:crypto';
-
 import { AGENT_LABELS, TYPE_LABELS } from '../../label-constants.js';
 import {
   parse as parseStoryBody,
@@ -29,42 +27,11 @@ import {
   normalizeSupersedes,
 } from './supersede-ops.js';
 
-/** Label prefix grouping sibling Stories from one plan run (N>1). */
-export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
-
-/**
- * Normalize a caller-supplied plan-run token. Persistence and resolution
- * share this helper so human-readable ids map to one canonical label.
- *
- * @param {string} id
- * @returns {string}
- */
-export function normalizePlanRunId(id) {
-  const token = String(id ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/^plan-run::/, '')
-    .replace(/[^a-z0-9._-]+/g, '-');
-  if (!token) {
-    throw new Error('plan-run id requires a non-empty planRunId');
-  }
-  return token;
-}
-
-/**
- * Build a `plan-run::<id>` label. When `id` is omitted, generates a short
- * random hex token (8 chars) suitable for a rare multi-Story plan.
- *
- * @param {string} [id]
- * @returns {string}
- */
-export function planRunLabel(id) {
-  const token =
-    typeof id === 'string' && id.trim() !== ''
-      ? normalizePlanRunId(id)
-      : randomBytes(4).toString('hex');
-  return `${PLAN_RUN_LABEL_PREFIX}${token}`;
-}
+// Story #4540 removed PLAN_RUN_LABEL_PREFIX / normalizePlanRunId /
+// planRunLabel from here. They minted an opaque random-hex label per N>1
+// plan that nothing ever deleted, and their only external consumer was the
+// (now deleted) `--run` resolver. Sibling order survives in the
+// `blocked by #N` body footers this module already writes.
 
 function bodyObjectFromTicket(ticket) {
   if (typeof ticket.body === 'string') {
@@ -309,12 +276,17 @@ function orderStoriesByDependencies(stories) {
  * `agent::ready`, and — when N>1 — a shared plan-run label.
  *
  * @param {object} args
+ * Story #4540 retired the `plan-run::<id>` label this used to apply when
+ * N>1. Batch identity was the wrong axis to encode: it could not express an
+ * edge to a Story planned in a different run, and ordering already lives in
+ * the `blocked by #N` footers written below — which `/deliver`'s resolver
+ * reads directly, alongside native GitHub edges, from live state.
+ *
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
- * @param {string} [args.opts.planRunId]
  * @param {boolean} [args.opts.dryRun=false]
- * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string }>, planRunLabel: string|null }>}
+ * @returns {Promise<{ created: Array<{ slug: string, id: number, url?: string, title: string }> }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
   if (typeof provider?.createIssue !== 'function') {
@@ -324,9 +296,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const list = Array.isArray(stories) ? stories : [];
-  const planLabel = list.length > 1 ? planRunLabel(opts.planRunId) : null;
   const labels = [TYPE_LABELS.STORY, AGENT_LABELS.READY];
-  if (planLabel) labels.push(planLabel);
 
   if (opts.dryRun) {
     return {
@@ -336,7 +306,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
         title: s.title,
         url: undefined,
       })),
-      planRunLabel: planLabel,
     };
   }
 
@@ -373,5 +342,5 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     createdBySlug.set(story.slug, id);
   }
 
-  return { created, planRunLabel: planLabel };
+  return { created };
 }

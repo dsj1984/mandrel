@@ -1,14 +1,20 @@
+/**
+ * Router contract guards for the unified `/deliver` workflow prose.
+ *
+ * Story #4540 retired the `plan-run::<id>` label and the `--run` branch, so
+ * the sequencing test and the envelope block here were re-pointed at
+ * `resolve-stories.js`. The other guards in this file predate that change
+ * and are deliberately retained: they fence v2-cutover regressions (no Epic
+ * helper, no `epic/` wave merge, no Epic-era CLIs) that have nothing to do
+ * with plan-run — and the `hard-errors on Epic-attached or non-Story
+ * tickets` guard is the prose contract #4540's own resolver enforces.
+ */
+
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
-import {
-  buildPlanRunEnvelope,
-  normalizePlanRunLabel,
-  resolvePlanRunFromIssues,
-} from '../.agents/scripts/resolve-plan-run.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
@@ -59,9 +65,9 @@ describe('unified /deliver router', () => {
     assert.doesNotMatch(md, /helpers\/deliver-epic|git merge --no-ff/);
   });
 
-  it('router sequences N>1 via resolve-plan-run + stories-wave-tick + planRunEpilogue', () => {
+  it('sequences N>1 via resolve-stories + stories-wave-tick + the epilogue', () => {
     const md = readFileSync(DELIVER_MD, 'utf8');
-    assert.match(md, /resolve-plan-run\.js/);
+    assert.match(md, /resolve-stories\.js/);
     assert.match(md, /stories-wave-tick\.js/);
     assert.match(md, /plan-run-epilogue\.js/);
     assert.doesNotMatch(
@@ -71,44 +77,47 @@ describe('unified /deliver router', () => {
   });
 });
 
-describe('resolve-plan-run envelope', () => {
-  it('normalizes run ids and filters to Story tickets', () => {
-    const issues = [
-      {
-        number: 103,
-        title: 'later',
-        labels: ['type::story', 'plan-run::abc'],
-        body: 'blocked by #101',
-      },
-      { number: 102, title: 'non-story', labels: ['area::docs'], body: '' },
-      {
-        number: 101,
-        title: 'first',
-        labels: [{ name: 'type::story' }, { name: 'plan-run::abc' }],
-        body: '',
-      },
-    ];
-
-    const envelope = resolvePlanRunFromIssues({ run: 'plan-run::ABC', issues });
-
-    assert.equal(normalizePlanRunLabel('ABC'), 'plan-run::abc');
-    assert.equal(envelope.kind, 'plan-run');
-    assert.deepEqual(
-      envelope.stories.map((story) => story.id),
-      [101, 103],
+describe('/deliver takes only Story ids (Story #4540)', () => {
+  it('documents no --run, --dep, or hand-built DAG', () => {
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    // The retirement note may name them; the invocation surface may not.
+    const withoutTombstone = md.replace(
+      /> \*\*Retired \(Story #4540\)\.\*\*[\s\S]*?\n\n/,
+      '',
     );
-    assert.deepEqual(envelope.dag, [
-      { id: 101, dependsOn: [] },
-      { id: 103, dependsOn: [101] },
-    ]);
+    assert.doesNotMatch(
+      withoutTombstone,
+      /`--run <planRunId>`|\| `--run`|--dep <from>/,
+      'the ids-only entry point must not advertise --run or --dep',
+    );
+    assert.doesNotMatch(
+      withoutTombstone,
+      /resolve-plan-run\.js/,
+      'the label resolver is deleted',
+    );
   });
 
-  it('builds an empty Story set without throwing when no type::story matches', () => {
-    const envelope = buildPlanRunEnvelope(
-      [{ number: 1, labels: ['area::docs'], body: '' }],
-      { planRunId: 'empty', planRunLabel: 'plan-run::empty' },
+  it('never instructs the host to read depends_on from bodies by hand', () => {
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    assert.doesNotMatch(
+      md,
+      /read `depends_on` \/ `blocked by` from each body/,
+      'the graph is resolved from live state, not transcribed by the host',
     );
-    assert.deepEqual(envelope.stories, []);
-    assert.deepEqual(envelope.dag, []);
+    assert.match(md, /discovered, not declared|resolved.*from live state/i);
+  });
+
+  it('mandates seeding the first beat --done from the resolver envelope', () => {
+    // The acceptance-#4-to-#5 handoff: selectReadySet satisfies a foreign
+    // gate only via the done set, so seeding it empty silently discards
+    // the cross-run resolution and wedges the run.
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    assert.match(md, /Seed the first beat's `--done` from the resolver/);
+  });
+
+  it('documents the wedged verdict as distinct from waiting and from a cycle', () => {
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    assert.match(md, /wedged/);
+    assert.match(md, /cycleError/);
   });
 });

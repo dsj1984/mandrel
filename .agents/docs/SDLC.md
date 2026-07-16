@@ -2,7 +2,7 @@
 
 Mandrel uses **Story-centric GitHub orchestration** — GitHub Issues,
 Labels, and Projects V2 are the Single Source of Truth. Plans persist as
-`type::story` tickets (optionally grouped by a `plan-run::<id>` label);
+`type::story` tickets ordered by `depends_on` edges;
 each Story is delivered on its own `story-<id>` branch and reaches `main`
 through its own PR.
 
@@ -56,12 +56,16 @@ From zero to shipped:
       N>1 only under the default-single split policy.
    3. **Persist** — **gate #2** (risk-routed; typically skipped for N=1
       low-risk) then `plan-persist.js` runs every deterministic gate and
-      creates Story issue(s) with `type::story` + `agent::ready` (plus a
-      shared `plan-run::<id>` label when N>1).
+      creates Story issue(s) with `type::story` + `agent::ready`, writing
+      each authored `depends_on` edge into the sibling body as a
+      `blocked by #<id>` footer when N>1.
 
 2. **Deliver the Story.** Run [`/deliver <storyId>`](../workflows/deliver.md)
-   (or `/deliver <a> <b> …`, or `/deliver --run <planRunId>` for a
-   multi-Story plan-run) in your IDE. `/deliver` owns input resolution and
+   (or `/deliver <a> <b> …` for several) in your IDE. `/deliver` takes
+   only Story ids and resolves their dependency graph from live state —
+   body edges union native GitHub `blocked_by` edges, with every blocker
+   checked against its real issue state, so a Story whose blocker landed in
+   an earlier plan run is simply ready. `/deliver` owns input resolution and
    `depends_on` sequencing only — every Story runs through
    [`helpers/deliver-story`](../workflows/helpers/deliver-story.md), the
    single v2 delivery engine. Per-Story it:
@@ -88,7 +92,7 @@ From zero to shipped:
       `MERGED` PR the Story flips to `agent::done`; local branch cleanup
       and Projects-v2 Status re-assert run out-of-band.
 
-   For a multi-Story plan-run, `/deliver` sequences ready Stories by
+   For a multi-Story run, `/deliver` sequences ready Stories by
    `depends_on` and runs the per-run epilogue (audit roster · follow-up
    roll-up · sibling coherence) once after the last Story lands.
 
@@ -180,12 +184,12 @@ graph LR
         A["👤 /plan --seed | --seed-file | --tickets"]:::manual
         B["🤖 interrogate → author → persist"]:::agentic
         A --> B
-        B -.-> B_Art["📄 type::story issue(s)<br/>(+ optional plan-run::&lt;id&gt;)"]:::artifact
+        B -.-> B_Art["📄 type::story issue(s)<br/>(+ depends_on edges)"]:::artifact
     end
 
     subgraph Phase2 ["Phase 2: Deliver"]
         direction TB
-        E["👤 /deliver &lt;storyId&gt;<br/>(or --run &lt;planRunId&gt;)"]:::manual
+        E["👤 /deliver &lt;storyId&gt; [&lt;storyId&gt;…]"]:::manual
         F["🤖 deliver-story: story-&lt;id&gt; from main<br/>implement → self-eval → ceremony → close"]:::agentic
         G["🤖 close-validation → code-review → open PR"]:::agentic
         E --> F --> G
@@ -267,7 +271,7 @@ the SDLC depends on:
 - **One Story by default.** `/plan` authors a single `type::story` issue
   whose body carries a folded `## Spec` (inline only — never spilled to
   `docs/`) plus top-level `acceptance[]` / `verify[]`. It splits into N>1
-  siblings (sharing a `plan-run::<id>` label + `depends_on` edges) **only**
+  siblings (ordered by `depends_on` edges) **only**
   under the default-single split policy: near-zero overlap or a genuine
   architectural seam. Coupled work stays one Story and is decomposed inside
   `## Slicing` as intra-session checkpoints, not sibling tickets.
@@ -278,8 +282,7 @@ the SDLC depends on:
   `assertAcceptancePartition` so every acceptance criterion belongs to
   exactly one Story.
 - **Handoff.** Persist creates the Story issue(s) at `agent::ready` and
-  names the delivery command: `/deliver <storyId>` (or `/deliver --run
-  <planRunId>`).
+  names the delivery command: `/deliver <storyId> [<storyId> ...]`.
 
 Optional split advisory notes come from
 [`core/scope-triage`](../skills/core/scope-triage/SKILL.md); there is no
@@ -308,8 +311,7 @@ self-eval, ceremony, close, CI watch, confirm-merge, cleanup) lives in the
 | Mode | Entry point | When to use |
 | --- | --- | --- |
 | **Single Story** | `/deliver <storyId>` | Deliver one Story end-to-end; ends with a PR open to `main`. |
-| **Story set** | `/deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (default concurrency **3**); each lands through its own PR. |
-| **Plan-run** | `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<id>`, sequence them, and run the per-run epilogue after the set lands. |
+| **Story set** | `/deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (default concurrency **3**), resolved from live state so edges may point at Stories from earlier plan runs; each lands through its own PR, and the per-run epilogue runs after the set lands. |
 | **Story worker (internal)** | *helper* `helpers/deliver-story <storyId>` | Per-Story engine invoked internally by `/deliver`; not an operator slash command. |
 
 The single operator-facing entry point is `/deliver`. It performs no
@@ -490,7 +492,7 @@ pass — the tiers below *are* the audit machinery.
 
 - **`local`** lenses (decidable from a single Story's diff) are verified at
   Tiers 1–2 and are **not** re-run at run closeout.
-- **`cumulative`** lenses (only decidable across a plan-run's combined diff)
+- **`cumulative`** lenses (only decidable across a run's combined diff)
   and **`global`** lenses (whole-product properties) are verified at Tier 3.
 - **Risk-routed** lenses run regardless of tier when a high-risk axis (or a
   route-adding change set) demands them.
@@ -650,8 +652,7 @@ the ticket or re-plan the work as a v2 Story via `/plan --tickets <id>`.
 | `/plan --seed-file <path>` | Plan from on-disk notes / a plan seed (the `/audit-to-stories` handoff). |
 | `/plan --tickets <ids>` | Analyze existing issue(s) into proper Stories (prefer an N=1 rewrite). |
 | `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story` — `story-<id>` → PR → `main`. |
-| `/deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order; each lands through its own PR. |
-| `/deliver --run <planRunId>` | Resolve Stories labeled `plan-run::<id>`, sequence them, and run the per-run epilogue. |
+| `/deliver <storyId> [<storyId>…]` | Deliver multiple Stories in `depends_on` order (resolved from live state), then run the per-run epilogue. |
 | *helper* `helpers/deliver-story` | Per-Story engine invoked by `/deliver`; not an operator slash command. See [`deliver-story.md`](../workflows/helpers/deliver-story.md). |
 | `/audit-to-stories` | Convert audit findings into a plan seed / Stories → `/plan --seed-file`. |
 | `/qa-explore` · `/qa-assist` · `/qa-run` | Agent-led / human-led exploratory QA and the automated Gherkin harness. |

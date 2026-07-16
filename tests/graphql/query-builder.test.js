@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { ColumnSync } from '../../.agents/scripts/lib/orchestration/column-sync.js';
 
@@ -88,9 +91,29 @@ function recordingProvider() {
 }
 
 describe('shared GraphQL query builders', () => {
+  // Isolate the on-disk project-meta cache (issue #4555). ColumnSync reads
+  // and WRITES `<tempRoot>/cache/project-meta.json`, and a relative tempRoot
+  // anchors to the MAIN checkout — so with no config this test both (a) read
+  // a cache warmed by its own previous run, short-circuiting the `loadMeta`
+  // query it asserts was issued, and (b) wrote fixture ids (`PROJ`/`FIELD`)
+  // into the cache real `/deliver` runs consume. An ABSOLUTE tempRoot is used
+  // verbatim (`temp-paths.js#anchorTempRoot`), so this can never reach the
+  // shared file.
+  let tempRoot;
+  let isolatedConfig;
+
+  beforeEach(() => {
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-colsync-'));
+    isolatedConfig = { project: { paths: { tempRoot } } };
+  });
+
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
   it('ColumnSync emits no variableNotUsed for the loadMeta and getProjectItemId shapes', async () => {
     const provider = recordingProvider();
-    const sync = new ColumnSync({ provider });
+    const sync = new ColumnSync({ provider, config: isolatedConfig });
     await sync.sync(321, ['agent::executing']);
 
     const loadMeta = provider.calls.find((c) => c.query.includes('viewer {'));

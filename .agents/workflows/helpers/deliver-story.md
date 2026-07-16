@@ -18,7 +18,7 @@ description:
 large — uses the same machinery:
 
 ```text
-/deliver <storyId>   (or /deliver --run <planRunId> → one Story at a time)
+/deliver <storyId> [<storyId> ...]   (each Story runs through this engine)
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (optional ## Slicing intra-session checkpoints)
   → risk-routed ceremony           (acceptance critics · review · audit lenses)
@@ -205,7 +205,7 @@ Story-path specifics:
 Per-Story ceremony is selected by `delivery.routing.ceremonyProfile`
 (`minimal` | `standard` | `strict`, default `standard`) and the Story's
 own risk envelope (folded plan `planningRisk` / `risk-verdict` on the
-Story or its plan-run context — never an Epic parent). Resolve
+Story itself — never an Epic parent). Resolve
 fresh-vs-inline acceptance critics per AC-cluster with
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
 (`minimal` → always inline; `strict` → always fresh; `standard` →
@@ -529,7 +529,7 @@ safe.
 
 ## See also
 
-- [`/deliver`](../deliver.md) — unified entry point (`<storyId...>` or
-  `--run <planRunId>`; sequences via `depends_on`).
+- [`/deliver`](../deliver.md) — unified entry point (`<storyId...>`;
+  sequences via `depends_on`, resolved from live state).
 - [`deliver-story-reference.md`](deliver-story-reference.md) —
   lease, sweep, CI-recovery, and Status-column reference detail.

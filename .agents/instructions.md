@@ -429,10 +429,12 @@ v2 collapses the ticket model to **Story**. Acceptance criteria and
 verification steps live inline on the Story body (`acceptance[]` /
 `verify[]`); the folded Tech Spec lives inline in `## Spec` (over-budget
 Specs fail closed — split or tighten; never write under `docs/`). Optional
-`depends_on` edges order rare multi-Story plan-runs.
+`depends_on` edges order rare multi-Story runs — and, because `/deliver`
+resolves them from live state, they order Stories **across plan runs and
+over time**, not just within one batch.
 
-- `/plan` emits one or more `type::story` issues (default N=1); N>1 shares a
-  `plan-run::<id>` label.
+- `/plan` emits one or more `type::story` issues (default N=1). There is no
+  batch label: `/deliver` takes ids and discovers the graph.
 - Each Story is executed by `helpers/deliver-story` (invoked from
   [`/deliver`](workflows/deliver.md)). There is no per-Task sub-loop; the
   agent authors commit subjects directly per

@@ -33,8 +33,9 @@ package and materialized into consumer projects' `.agents/` directories by
 > lives in `## Spec` (inline only; over-budget Specs mean split or
 > tighten). `/plan` emits one or more `type::story` issues (default N=1);
 > `/deliver` runs each Story via `helpers/deliver-story` on
-> `story-<id>` → PR → `main`. Optional `depends_on` / `plan-run::<id>`
-> edges order rare multi-Story runs. There is no `type::epic` /
+> `story-<id>` → PR → `main`. `/deliver` takes only Story ids and resolves
+> their `depends_on` graph from live state, so edges order Stories across
+> plan runs and over time (there is no batch label). There is no `type::epic` /
 > `type::task` label, no Epic issue form, and no per-Task commit ceremony —
 > an Epic is at most an optional untyped human umbrella issue outside
 > orchestration. `/deliver` refuses tickets that still carry an

@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 /**
- * plan-run-epilogue.js — execute the real per-run closeout for
- * `/deliver --run <planRunId>` and positional multi-Story delivers.
+ * plan-run-epilogue.js — execute the real per-run closeout for a
+ * multi-Story `/deliver`.
  *
  * Usage:
- *   node .agents/scripts/plan-run-epilogue.js --run <planRunId>
- *   node .agents/scripts/plan-run-epilogue.js --run <planRunId> --stories 1,2,3
  *   node .agents/scripts/plan-run-epilogue.js --stories 1,2,3
  *
- * When `--stories` is omitted, `--run` is required and the set is resolved
- * via plan-run labels (`state=all` so landed Stories are included).
- * When `--stories` is supplied without `--run`, an adhoc planRunId is
- * synthesized from the sorted Story ids.
+ * Keyed on the delivered id set: an `adhoc-<sorted-ids>` run id is
+ * synthesized from `--stories`. Story #4540 retired the `--run <planRunId>`
+ * label-resolution branch along with the `plan-run::<id>` label itself.
  */
 
 import './lib/runtime-deps/ensure-installed.js';
@@ -20,16 +17,10 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import {
-  fetchPlanRunIssues,
-  normalizePlanRunLabel,
-  resolvePlanRunFromIssues,
-} from './lib/orchestration/resolve-plan-run.js';
 import { runPlanRunEpilogue } from './lib/orchestration/run-epilogue.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const CLI_OPTIONS = {
-  run: { type: 'string' },
   stories: { type: 'string' },
   cwd: { type: 'string' },
 };
@@ -44,13 +35,10 @@ export async function main(argv = process.argv.slice(2)) {
     options: CLI_OPTIONS,
     strict: false,
   });
-  const runFlag = typeof values.run === 'string' ? values.run.trim() : '';
   const hasStoriesFlag =
     typeof values.stories === 'string' && values.stories.trim().length > 0;
-  if (!runFlag && !hasStoriesFlag) {
-    throw new Error(
-      'Usage: node plan-run-epilogue.js (--run <planRunId> | --stories 1,2,3) [--stories 1,2,3]',
-    );
+  if (!hasStoriesFlag) {
+    throw new Error('Usage: node plan-run-epilogue.js --stories 1,2,3');
   }
   const cwd =
     typeof values.cwd === 'string' && values.cwd.trim()
@@ -59,26 +47,16 @@ export async function main(argv = process.argv.slice(2)) {
   const config = resolveConfig({ cwd });
   const provider = createProvider(config);
 
-  let stories = [];
-  if (hasStoriesFlag) {
-    stories = values.stories
-      .split(',')
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isInteger(n) && n > 0);
-  } else {
-    const planRunLabel = normalizePlanRunLabel(runFlag);
-    const issues = await fetchPlanRunIssues(provider, {
-      planRunLabel,
-      state: 'all',
-    });
-    const envelope = resolvePlanRunFromIssues({ run: runFlag, issues });
-    stories = (envelope.stories ?? [])
-      .map((s) => Number(s?.id ?? s))
-      .filter((n) => Number.isInteger(n) && n > 0);
-  }
+  // Story #4540 retired the `--run <planRunId>` label-resolution branch
+  // along with the label itself. The epilogue is keyed on the delivered id
+  // set, and the synthesized `adhoc-<ids>` id it already used for positional
+  // runs is now the only id it needs.
+  const stories = values.stories
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
 
-  const planRunId =
-    runFlag || `adhoc-${[...stories].sort((a, b) => a - b).join('-')}`;
+  const planRunId = `adhoc-${[...stories].sort((a, b) => a - b).join('-')}`;
 
   const result = await runPlanRunEpilogue({
     planRunId,

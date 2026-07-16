@@ -342,3 +342,50 @@ describe('lib/wave-runner/ready-set — selectReadySet edge cases', () => {
     assert.deepEqual(selectReadySet(), []);
   });
 });
+
+describe('storiesOverlap — glob footprints fail safe (Story #4540)', () => {
+  const glob = { id: 1, dependsOn: [], files: ['.agents/scripts/lib/**'] };
+  const exact = {
+    id: 2,
+    dependsOn: [],
+    files: ['.agents/scripts/lib/story-adjacency.js'],
+  };
+  const unrelated = { id: 3, dependsOn: [], files: ['docs/README.md'] };
+
+  it('a glob overlaps a path it would match — exact-string comparison missed this', () => {
+    // storiesOverlap compares strings, so `lib/**` never equalled
+    // `lib/story-adjacency.js` and the guard silently passed two Stories
+    // that genuinely race the same file.
+    assert.equal(storiesOverlap(glob, exact), true);
+  });
+
+  it('a glob overlaps everything — unknown width is not no width', () => {
+    assert.equal(storiesOverlap(glob, unrelated), true);
+    assert.equal(storiesOverlap(unrelated, glob), true);
+  });
+
+  it('exact footprints keep their precise semantics', () => {
+    assert.equal(storiesOverlap(exact, unrelated), false);
+    assert.equal(
+      storiesOverlap(exact, { id: 4, files: [exact.files[0]] }),
+      true,
+    );
+  });
+
+  it('an undeclared footprint is still never withheld', () => {
+    // Permissive by necessity: withholding on absence would serialize
+    // every run, since most Stories declare nothing.
+    assert.equal(storiesOverlap({ id: 5, files: [] }, glob), false);
+    assert.equal(storiesOverlap(glob, { id: 5 }), false);
+  });
+
+  it('a glob-bearing Story is not co-dispatched with anything', () => {
+    const ready = selectReadySet({
+      stories: [glob, exact, unrelated],
+      doneIds: new Set(),
+      inFlight: 0,
+      globalCap: 5,
+    }).map((s) => s.id);
+    assert.deepEqual(ready, [1], 'the glob Story takes the beat alone');
+  });
+});

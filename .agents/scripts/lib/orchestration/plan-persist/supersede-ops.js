@@ -295,17 +295,16 @@ export function assertSupersedePartition(stories, sourceTicketIds = []) {
  * @param {string|null} [args.note] Optional per-supersede note authored on
  *   the Story — carries a correction to this issue's analysis.
  * @param {number[]} args.sourceTicketIds Full `--tickets` argument.
- * @param {string|null} [args.planRunLabel]
  * @returns {string}
  */
 export function buildSupersedeCommentBody({
   story,
   note = null,
   sourceTicketIds,
-  planRunLabel = null,
 }) {
+  // Story #4540 retired the plan-run label, which used to be listed here
+  // alongside the type/state labels.
   const labels = ['`type::story`', '`agent::ready`'];
-  if (planRunLabel) labels.push(`\`${planRunLabel}\``);
 
   const lines = [
     `**Superseded by #${story.id}** — *${story.title}* (${labels.join(', ')}).`,
@@ -349,7 +348,6 @@ async function closeOneSupersededTicket({
   note,
   story,
   sourceTicketIds,
-  planRunLabel,
 }) {
   const probe = await probeSourceTicket(provider, id);
   if (!probe.ok) return { outcome: 'skipped', reason: probe.reason };
@@ -366,7 +364,6 @@ async function closeOneSupersededTicket({
         story,
         note,
         sourceTicketIds,
-        planRunLabel,
       }),
     );
     await provider.updateTicket(id, {
@@ -420,7 +417,6 @@ function emptyReport(overrides) {
  * @param {Array<{ slug: string, supersedes: Array<{ id: number, note: string|null }> }>} args.stories
  * @param {Array<{ slug: string, id: number, title: string }>} args.created
  * @param {number[]} args.sourceTicketIds
- * @param {string|null} [args.planRunLabel]
  * @param {boolean} [args.dryRun=false]
  * @param {boolean} [args.closeSuperseded=true]
  * @returns {Promise<SupersedeReport>}
@@ -430,7 +426,6 @@ export async function closeSupersededTickets({
   stories,
   created,
   sourceTicketIds,
-  planRunLabel = null,
   dryRun = false,
   closeSuperseded = true,
 }) {
@@ -465,7 +460,6 @@ export async function closeSupersededTickets({
         note,
         story: createdStory,
         sourceTicketIds: sources,
-        planRunLabel,
       });
       if (result.outcome === 'closed') {
         report.closed.push(id);

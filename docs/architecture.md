@@ -28,8 +28,8 @@ Mandrel follows a **Story-only GitHub Orchestration** model where
 GitHub Issues, Labels, and Projects V2 serve as the Single Source of Truth
 (SSOT). `/plan` authors one or more `type::story` tickets; `/deliver` runs
 each Story on `story-<id>` → PR → `main` via `helpers/deliver-story`, with
-optional `depends_on` / `plan-run::<id>` edges ordering rare multi-Story
-runs. An Epic is at most an optional untyped human umbrella issue outside
+optional `depends_on` edges ordering rare multi-Story runs — resolved
+from live state, so they order Stories across plan runs and over time. An Epic is at most an optional untyped human umbrella issue outside
 orchestration — there is no `type::epic` delivery path.
 
 ```mermaid
@@ -252,10 +252,10 @@ import them.
 | Submodule                 | Responsibility                                                                                     |
 | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `manifest-formatter.js`   | Pure Markdown / CLI rendering (`formatManifestMarkdown`, `printStoryDispatchTable`). No fs access. |
-| `manifest-persistence.js` | File I/O — writes plan-run artefacts to `temp/`.                                         |
+| `manifest-persistence.js` | File I/O — writes run artefacts to `temp/`.                                              |
 
 The data-shape owner (`lib/orchestration/manifest-builder.js`) is unchanged
-for residual plan-run envelopes. Pre-v2 Epic dispatch-manifest consumers
+for residual run envelopes. Pre-v2 Epic dispatch-manifest consumers
 are gone; `/deliver` no longer posts an Epic-scoped dispatch manifest.
 #### ErrorJournal
 
@@ -334,7 +334,7 @@ and surfaced on the ready-set envelopes that
 the `ProgressReporter` listener class — was deleted with the dead
 in-process stratum (#3908); do not confuse the surviving
 `resolveConcurrencyCap` with the deleted `resolveConcurrency`. Consumers
-monitoring throughput read the Story / plan-run perf summaries posted by
+monitoring throughput read the Story / run perf summaries posted by
 `analyze-execution.js` — they surface per-phase p50/p95 and the workload
 signals follow-up capture consumes.
 
@@ -643,7 +643,7 @@ inline-emit comments" framing is retired.
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
 | `column-sync`       | Drives the Projects v2 Status column from `agent::` labels (best-effort).                           |
 | `code-review`       | `lib/orchestration/code-review.js` — inline review (companion to `helpers/code-review.md`). |
-| `run-epilogue`      | Cross-Story epilogue for rare N>1 plan-runs (`plan-run-epilogue.js` / `lib/orchestration/run-epilogue.js`). |
+| `run-epilogue`      | Cross-Story epilogue for rare N>1 runs (`plan-run-epilogue.js` / `lib/orchestration/run-epilogue.js`). |
 
 The epic-runner-era `blocker-handler` and `wave-observer` listeners were
 deleted with the in-process stratum (#3908); `agent::blocked` remains the
@@ -748,14 +748,17 @@ changing its shape (full per-field reference:
 ## Ticket Hierarchy
 
 The framework uses a **Story-only** GitHub Issue model with
-label-based typing. Optional `depends_on` / `blocked by #NNN` edges and a
-shared `plan-run::<id>` label order rare multi-Story plans. The folded
+label-based typing. Optional `depends_on` / `blocked by #NNN` edges order
+rare multi-Story plans; there is no batch label (Story #4540 retired
+`plan-run::<id>`), because `/deliver` takes ids and resolves the graph from
+live state — which is what lets an edge point at a Story planned in an
+earlier run. The folded
 Tech Spec lives inline on the Story body (`## Spec` only — over-budget
 Specs fail closed as a sizing smell, never spill to `docs/`):
 
 ```text
 Story (type::story)              ← ## Spec + acceptance[] + verify[]
-└── (optional siblings under plan-run::<id>)
+└── (optional siblings ordered by `blocked by #NNN` edges)
 ```
 
 `/deliver` runs a single Story-implementation phase per Story on

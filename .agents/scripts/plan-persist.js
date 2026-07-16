@@ -25,7 +25,6 @@
  *                             envelope. Its `sourceTickets[]` is what makes
  *                             `--tickets` superseding work without a flag
  *   --plan-acceptance <file>  Optional JSON string[] for partition coverage
- *   --plan-run-id <id>        Optional plan-run token when N>1
  *   --source-tickets <ids>    Explicit OVERRIDE of the envelope-derived source
  *                             ids, for hand-driven runs. Each id must be
  *                             claimed by exactly one Story's `supersedes[]`;
@@ -88,7 +87,6 @@ const CLI_OPTIONS = {
   'plan-dir': { type: 'string' },
   'plan-context': { type: 'string' },
   'plan-acceptance': { type: 'string' },
-  'plan-run-id': { type: 'string' },
   'source-tickets': { type: 'string' },
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
@@ -102,7 +100,7 @@ const USAGE =
   'Usage: plan-persist.js --stories <file> --risk-verdict <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
   '[--plan-acceptance <file>] ' +
-  '[--plan-run-id <id>] [--source-tickets <ids>] [--no-close-superseded] ' +
+  '[--source-tickets <ids>] [--no-close-superseded] ' +
   '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
@@ -193,7 +191,6 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
     allowOverBudget: values['allow-over-budget'],
     allowLargeFanOut: values['allow-large-fan-out'],
     dryRun: values['dry-run'],
-    planRunId: values['plan-run-id'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],
     sourceTicketIds: source.ids,
