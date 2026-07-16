@@ -87,8 +87,8 @@ export function resolveWaitForMerge({
  * (`waitForMergeExplicit` / `noWaitForMerge`) for the runner to resolve once
  * the config and the arm outcome exist.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam, waitForMergeParam, noWaitForMergeParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMergeExplicit, noWaitForMerge }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -99,6 +99,7 @@ export function parseCloseOptions({
   noFullScopeCrapParam,
   waitForMergeParam,
   noWaitForMergeParam,
+  maxWaitSecondsParam,
 }) {
   const parsed =
     storyIdParam !== undefined
@@ -113,12 +114,22 @@ export function parseCloseOptions({
           // closeAndLand config default when neither flag was injected.
           waitForMerge: waitForMergeParam,
           noWaitForMerge: !!noWaitForMergeParam,
+          maxWaitSeconds: maxWaitSecondsParam,
         }
       : parseSprintArgs();
   const waitForMergeExplicit = waitForMergeParam ?? parsed.waitForMerge;
+  const maxWaitSeconds = maxWaitSecondsParam ?? parsed.maxWaitSeconds;
   return {
     storyId: parsed.storyId,
     cwd: path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT),
+    // `undefined` when unsupplied — the merge wait then reads
+    // `delivery.mergeWatch.maxWaitSeconds`. A per-run override exists so a
+    // headless caller with no host tool-invocation ceiling can keep
+    // single-block semantics without editing the consumer's config.
+    maxWaitSeconds:
+      Number.isInteger(maxWaitSeconds) && maxWaitSeconds > 0
+        ? maxWaitSeconds
+        : undefined,
     skipValidation: resolveFlag(
       skipValidationParam,
       parsed.skipValidation,

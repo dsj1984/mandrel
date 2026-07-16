@@ -392,29 +392,65 @@ up").
 
 ## Step 7 — Return-contract detail
 
-**The auto-merge wait does not produce a fourth status.** There is no
-"pending" or "waiting" terminal — the CI/auto-merge wait is handled
-*internally* by blocking on `pr-watch-with-update.js` (Step 4) and confirming
-the merge (Step 5). You return **only** when you have reached a genuinely
-terminal state:
+The field-level contract is the shipped schema
+[`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
+(Story #4543) — not this file, and not
+[`agents/story-worker.md`](../../agents/story-worker.md). All three used to
+carry their own prose version; the schema is now the only definition. What
+follows is the *judgement* around it, which a schema cannot express.
 
-- **`status: "done"`** — the PR is confirmed `state: "MERGED"` (Step 5),
-  the Story carries `agent::done`, and Steps 5.5 / 6 have run. `phase: "done"`,
-  `branchDeleted: true`.
-- **`status: "blocked"`** — you transitioned the Story to `agent::blocked`
-  and posted a `friction` comment (acceptance self-eval block in Step 1a, a
-  base-sync conflict, or an operator-blocking CI failure / Anti-Thrashing
-  stop in Step 4). `phase: "blocked"`, `blockerCommentId` set.
-- **`status: "failed"`** — an unrecoverable failure outside the blocked
-  protocol. `phase` reflects where it died.
+### `pending` is a real status — and it is not a park
 
-A turn that ends with prose ("I'll wait for the watch task…", "the next event
-will be its completion notification…") and an **unconfirmed merge** is a
-**contract violation** (the Story #1553 / PR #1554 failure mode): the parent
-wave loop cannot distinguish "still working" from "done but silent", and the
-Story strands at `agent::closing`. If you genuinely cannot confirm the merge,
-that is a `blocked` or `failed` outcome with the JSON contract — not a
-prose hand-off.
+Earlier revisions asserted "the auto-merge wait does not produce a fourth
+status", on the reasoning that the wait is internally blocking so a run either
+merges or blocks. That was true only while the wait was unbounded — and it was
+never actually unbounded, because the host kills a tool invocation at ~10
+minutes. So a close-and-land whose CI outlived that ceiling took **no**
+terminal path at all: no event, no label, the Story parked at
+`agent::closing`. The status the model refused to name was the one that kept
+happening.
+
+`pending` names it, with its own exit code (3):
+
+- It is **resumable**: no label was mutated, no `merge.unlanded` was emitted,
+  and `nextCommand` names the one command that continues it. The cumulative
+  budget is anchored at the PR's `createdAt`, so resuming does not restart the
+  clock and the give-up bound still means something.
+- It is **not** a park. Returning `pending` because you would rather not wait
+  is the Story #1553 / PR #1554 failure mode wearing a schema. Return it only
+  when the bound genuinely expired, or a human owns the merge.
+
+The no-park rule is therefore unchanged in substance: a turn that ends with
+prose ("I'll wait for the watch task…", "the next event will be its
+completion notification…") and an unconfirmed merge is a **contract
+violation** — the parent cannot distinguish "still working" from "done but
+silent". What changed is that there is now an honest, machine-readable way to
+say "not finished, here is exactly how to continue" instead of a choice
+between lying and blocking forever.
+
+### Exit-code compatibility note (`--no-wait-merge`)
+
+Every close flag keeps its meaning, but the **exit code** of a
+`--no-wait-merge` (or `--no-auto-merge` / `autoMerge: "strict"`) run changed:
+it now exits **3** (`pending`) rather than 0, because the PR is open and a
+human still owns the merge. Reporting `landed` would be a lie, and `landed` is
+what exit 0 means. A wrapper that shells out and tests `exit == 0` to mean
+"close finished" must be updated to treat 3 as the operator-merge success
+path; `!= 0` no longer implies failure.
+
+### Per-status judgement
+
+- **`landed`** — the only status that means done. A `false` in `tail.*`
+  degrades the report, never the land: the merge is on the base branch, and
+  failing it because a Projects v2 mutation flaked would report a false
+  negative about work that demonstrably shipped.
+- **`pending`** — see above.
+- **`blocked`** — you (or the close pipeline) transitioned the Story to
+  `agent::blocked` and posted a `friction` comment. `blocked.blockClass` comes
+  from the shared classifier, never an ad hoc string, and
+  `blocked.frictionCommentId` points at the remediation.
+- **`failed`** — an unrecoverable failure outside the blocked protocol.
+  `phase` reflects where it died.
 
 > **Handoff discipline — report state, not process.** Populate the envelope
 > with essential terminal state only (mirroring the fields

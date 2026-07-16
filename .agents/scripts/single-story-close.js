@@ -55,13 +55,40 @@
  * and therefore still blocks, which is what keeps the must-land contract
  * intact.
  *
- * Exit codes: 0 ok, 1 error (including a headless `--wait-merge` run that
- * gave up without a confirmed merge — see phase 9 above).
+ * Every invocation emits ONE schema-validated terminal envelope
+ * (`.agents/schemas/story-deliver-terminal.schema.json`, Story #4543) on
+ * stdout between `--- STORY DELIVER TERMINAL ---` markers. Its `status` is
+ * the contract; the exit code mirrors it:
+ *
+ *   0 — `landed`:  the PR merged, the Story is `agent::done`, and the
+ *                  post-land tail ran (follow-ups, status resync, local ref
+ *                  cleanup, base fast-forward).
+ *   3 — `pending`: RESUMABLE, not a failure. Either the per-invocation merge
+ *                  wait (`delivery.mergeWatch.maxWaitSeconds`, default 300s
+ *                  to fit a single host tool invocation) expired with the PR
+ *                  still healthy and in flight, or the operator owns the
+ *                  merge (`--no-wait-merge` / `--no-auto-merge` /
+ *                  `autoMerge: "strict"`). NO label was mutated and no
+ *                  `merge.unlanded` event was emitted. The envelope's
+ *                  `nextCommand` names the single command that resumes it,
+ *                  and the cumulative budget is anchored at the PR's
+ *                  createdAt so the resume does not restart the clock.
+ *   1 — `blocked` or `failed`: a classified hard block (the Story carries
+ *                  `agent::blocked` and a friction comment) or a phase crash.
+ *
+ * The distinct `pending` code is the point: before it, a close-and-land whose
+ * CI outlived the host's tool-invocation ceiling was killed mid-poll with no
+ * terminal path taken at all, and merely shrinking the budget instead would
+ * have misfiled every slow-CI run as a hard block.
  *
  * @see .agents/workflows/helpers/deliver-story.md
+ * @see .agents/schemas/story-deliver-terminal.schema.json
  */
 
+import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { formatCliError } from './lib/error-redactor.js';
+import { Logger } from './lib/Logger.js';
 import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
@@ -73,6 +100,11 @@ import {
   runStoryScopeReview,
 } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
+import {
+  buildTerminalEnvelope,
+  exitCodeForTerminal,
+  NEXT_COMMANDS,
+} from './lib/orchestration/story-deliver-terminal.js';
 
 // Story #2990 moved the `gh`-spawn boundary into the `lib/gh-exec.js`
 // facade (the same shim the `providers/github/` gateways use). The
@@ -100,6 +132,72 @@ export async function runSingleStoryClose(opts) {
   return mod.runSingleStoryClose(opts);
 }
 
-runAsCli(import.meta.url, runSingleStoryClose, {
+/**
+ * Build the `failed` terminal for a phase that crashed.
+ *
+ * The runner deliberately throws rather than returning a failure (a red gate
+ * must not look like a return value), so without this the most common
+ * non-happy ending — a failing close-validation gate — would emit **no
+ * envelope at all**, exiting 1 with only a stderr line while the workflow
+ * docs promise the agent a `failed` envelope naming the phase. Every close
+ * invocation emits exactly one envelope; this is the path that keeps that
+ * true when a phase dies.
+ *
+ * `err.closePhase` is tagged by the runner's phase tracker.
+ *
+ * @param {unknown} err
+ * @returns {object|null} A validated envelope, or null when even the story id
+ *   is unknown (a usage error — there is nothing to report an envelope about).
+ */
+function failedTerminalFor(err) {
+  const phase = err?.closePhase ?? 'init';
+  const storyId = Number(parseSprintArgs().storyId);
+  if (!Number.isInteger(storyId) || storyId <= 0) return null;
+  // Name the gate that died, so `gates` reports the honest outcome rather
+  // than only ever recording passes.
+  const gates =
+    phase === 'close-validation'
+      ? { validation: 'failed' }
+      : phase === 'base-sync'
+        ? { baseSync: 'failed' }
+        : phase === 'code-review'
+          ? { codeReview: 'failed' }
+          : undefined;
+  return buildTerminalEnvelope({
+    storyId,
+    status: 'failed',
+    phase,
+    gates,
+    failure: { reason: String(err?.message ?? err) },
+    nextCommand: NEXT_COMMANDS.recover(storyId),
+    elapsedSeconds: 0,
+  });
+}
+
+/**
+ * CLI entry — resolves the process exit code from the terminal envelope's
+ * status rather than from a thrown/not-thrown distinction, so `pending`
+ * (resumable) is distinguishable from `blocked` (come look) without parsing
+ * stdout.
+ */
+async function main() {
+  try {
+    const outcome = await runSingleStoryClose();
+    return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });
+  } catch (err) {
+    const terminal = failedTerminalFor(err);
+    if (!terminal) throw err;
+    // Mirror runAsCli's default error line (which this catch pre-empts) so the
+    // human-facing failure text is unchanged, then emit the envelope.
+    Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
+    Logger.info(
+      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
+    );
+    return exitCodeForTerminal(terminal);
+  }
+}
+
+runAsCli(import.meta.url, main, {
   source: 'single-story-close',
+  propagateExitCode: true,
 });

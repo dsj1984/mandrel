@@ -156,10 +156,28 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     assert.match(body, /story-close\.js/); // the only sanctioned landing
   });
 
-  test('returns the terminal-state schema (done | blocked)', () => {
+  test('references the terminal envelope schema rather than restating its fields', () => {
+    // Story #4543 — this used to assert the boot context declared its OWN
+    // `"state"` field. That was the bug: `helpers/deliver-story.md` declared a
+    // different shape, neither was validated, and the two drifted. The
+    // contract now lives in one schema and this file points at it.
     const { body } = bootContext('story-worker.md');
-    assert.match(body, /"state"/);
-    assert.match(body, /done \| blocked|done|blocked/);
+    assert.match(body, /story-deliver-terminal\.schema\.json/);
+    assert.match(body, /landed/);
+    assert.match(body, /pending/);
+    assert.match(body, /blocked/);
+    assert.match(body, /failed/);
+  });
+
+  test('does not re-declare the terminal envelope as its own JSON shape', () => {
+    // The guard that keeps the duplication from growing back: a JSON block
+    // naming the envelope's own fields means someone re-forked the contract.
+    const { body } = bootContext('story-worker.md');
+    assert.doesNotMatch(
+      body,
+      /"(status|state)"\s*:\s*"(done|landed)/,
+      'story-worker.md restates the terminal envelope — reference the schema instead',
+    );
   });
 
   test('enforces absolute paths (cwd may reset between calls)', () => {
