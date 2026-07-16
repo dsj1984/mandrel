@@ -1,10 +1,10 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-07-14T23:07:38.061Z",
+  "generatedAt": "2026-07-16T19:24:10.904Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
-      "totalBytes": 48357,
+      "totalBytes": 40417,
       "files": [
         {
           "path": ".agentrc.json",
@@ -12,7 +12,7 @@
         },
         {
           "path": ".agents/instructions.md",
-          "bytes": 25430
+          "bytes": 24688
         },
         {
           "path": ".agents/rules/git-conventions.md",
@@ -24,24 +24,24 @@
         },
         {
           "path": "AGENTS.md",
-          "bytes": 9956
+          "bytes": 3013
         },
         {
           "path": "CLAUDE.md",
-          "bytes": 1555
+          "bytes": 1300
         }
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 367723,
+      "totalBytes": 365842,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 84738
+          "bytes": 82523
         },
         {
           "path": "docs/data-dictionary.md",
-          "bytes": 45974
+          "bytes": 46028
         },
         {
           "path": "docs/decisions.md",
@@ -49,7 +49,7 @@
         },
         {
           "path": "docs/patterns.md",
-          "bytes": 51948
+          "bytes": 52228
         }
       ]
     }
@@ -59,11 +59,11 @@
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 5456
+        "bytes": 5505
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7892
+        "bytes": 7951
       }
     ]
   }

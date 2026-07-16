@@ -38,9 +38,14 @@ The skill library uses a **two-tier architecture**:
 
 When a task involves a specific domain or technology, you MUST read the
 corresponding `.agents/skills/[tier]/[category]/[skill-name]/SKILL.md` file and
-apply its constraints. Review the skill's `examples/` directory or
-`examples.md` sibling **when present and relevant** to the task — most skills
-do not ship one, so do not probe blindly. When uncertain which skill applies,
+apply its constraints. A `SKILL.md` leads with its **Policy Capsule** — the
+contract, and the whole cost of activating the skill — followed by pointers
+into an on-demand `reference.md` sibling holding the long-form material
+(patterns, worked examples, checklists). This is the same split the always-on
+rules use (§ 1.F): read the capsule on activation, and open a `reference.md`
+section only when the task actually engages it. Review the skill's `examples/`
+directory or `examples.md` sibling **when present and relevant** to the task —
+most skills do not ship one, so do not probe blindly. When uncertain which skill applies,
 match the task against the one-line `description` in each skill's frontmatter
 (catalogued in `.agents/skills/skills.index.json`). Skills compose: a complete
 feature typically flows `idea-refinement` → the `/plan` workflow →
@@ -273,55 +278,37 @@ budget grounds.
 
 1. **Context First:** Before proposing any solution, understand the
    repository's tech stack, historical context, and structure.
-   - **Digest-first Reading (planning & interactive tasks, Story #4433)**:
-     For planning (`/plan`) and interactive tasks, read the project's **docs
-     digest** before reading any full doc file — do not read every file
-     listed in `project.docsContextFiles` up front. The epic planning path
-     ensures (generates or reuses) a per-Epic docs digest — a single compact
-     outline (path, byte size, heading outline with line numbers, and the
-     first paragraph under each `##`) built from `project.docsContextFiles`
-     — at `temp/run-<id>/docs-digest.md` (`plan-context.js`, via the
-     shared generator in
-     `.agents/scripts/lib/orchestration/docs-digest.js`; the same file the
-     `/deliver` story sub-agents below already consume). Use the digest to
-     decide which docs bear on the task at hand, then **pull the full file
-     on demand** (jump to the section at the line number the digest names)
-     when a section actually bears on the decision. The decisions log
-     (`decisions.md`) may be either a single-file dated-entry log or an
-     **index** into a `decisions/` ADR directory — both are first-class
-     layouts (see
+   - **Digest-first Reading (Story #4433)** — stated once here; it governs
+     every call site. **Never ingest the whole `project.docsContextFiles` set
+     up front.** Read the **docs digest** — a compact outline (path, byte
+     size, heading outline with line numbers, and the first paragraph under
+     each `##`) built from those files — decide which docs bear on the task at
+     hand, then **pull the full file on demand**, jumping to the section at
+     the line number the digest names. This is a hard cutover: no
+     read-every-file branch is retained on any path.
+
+     The call sites differ only in how the digest reaches you — the
+     discipline above is identical for all of them:
+     - `/plan` and interactive tasks — a file at `temp/run-<id>/docs-digest.md`
+       (`plan-context.js`, via the shared generator in
+       `.agents/scripts/lib/orchestration/docs-digest.js`).
+     - `/deliver` Story sub-agents (`helpers/deliver-story`) — the
+       `docsDigestPath` the caller threads.
+     - Standalone-Story planning (`story-plan.js --emit-context`) — inline as
+       `corpusContext.docsDigest` (there is no per-Epic directory to anchor a
+       file), alongside `corpusContext.relevantSections`.
+
+     When no digest exists for the task at hand — an ad hoc task with no Epic
+     in scope, `project.docsContextFiles` unset, or a null `docsDigestPath` —
+     there is **no mandatory docs read**: read a full doc only when the task's
+     own context points you at one.
+
+     The decisions log (`decisions.md`) may be either a single-file
+     dated-entry log or an **index** into a `decisions/` ADR directory — both
+     are first-class layouts (see
      [`skills/core/documentation-and-adrs`](skills/core/documentation-and-adrs/SKILL.md)).
-     When it is an index, treat the index like any other digested doc —
-     link-follow the per-ADR bodies under `decisions/` on demand, not
-     auto-loaded into every task's context. When no digest exists yet for
-     the task at hand (an ad hoc interactive task with no Epic in scope, or
-     `project.docsContextFiles` unset) there is no mandatory docs read —
-     read a full doc only when the task itself points you at one. This is a
-     hard cutover: there is no read-every-`docsContextFiles`-file branch
-     retained.
-   - **Digest-first Reading (`/deliver` story sub-agents)**: A `/deliver`
-     Story delivery sub-agent (dispatched via `helpers/deliver-story`) does
-     **not** re-read the full `project.docsContextFiles` set per Story. When
-     the caller threads a `docsDigestPath`, use that compact outline to decide
-     which docs are relevant, then **pull the full file on demand**. When
-     `docsDigestPath` is null there is no digest to read and no per-Story docs
-     mandate — read a full doc only if the Story's own context points you at
-     one. This is the hard cutover from the former
-     read-every-file-per-Story rule: delivery children no longer ingest the
-     whole docs set up front.
-   - **Standalone-Story planning path (`story-plan.js --emit-context`)**:
-     The standalone counterpart to `/plan` for Stories that do not attach
-     to an Epic does not write a `docs-digest.md` file at all — there is
-     no per-Epic directory to anchor one. Instead `buildCorpusContext`
-     (`.agents/scripts/lib/planning-corpus.js`) builds the same compact
-     digest shape in memory and threads it inline as
-     `corpusContext.docsDigest` on the `--emit-context` envelope, next to
-     `corpusContext.relevantSections` (ranked excerpts from existing
-     Epics' Tech Spec sections). Treat `corpusContext.docsDigest` exactly
-     like the file-based digest above — decide relevance from the outline,
-     then pull the full file on demand — the only difference is the
-     delivery mechanism (inline JSON field vs. a temp file path), not the
-     content or the digest-first discipline.
+     Treat an index like any other digested doc: link-follow the per-ADR
+     bodies on demand rather than auto-loading them.
    - **Conditional Reads**: When the task touches UI copy, layout, or
      routing and the corresponding file is present in the project, also
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
