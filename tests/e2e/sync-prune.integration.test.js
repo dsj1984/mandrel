@@ -19,6 +19,11 @@
  *   1. Managed payload files are copied into ./.agents/.
  *   2. A stale managed file (no payload counterpart) is DELETED by prune.
  *   3. A `.agents/local/**` addition — and a `*.local.*` override — SURVIVE.
+ *
+ * Extended by Story #4534: every file in the generated, never-pruned registry
+ * SURVIVES a real sync, and the chain that motivated the registry —
+ * bootstrap → sync → `mandrel uninstall` — is proven end to end against the
+ * real binaries rather than inferred from the unit fakes.
  */
 
 import assert from 'node:assert/strict';
@@ -26,6 +31,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { LEDGER_SCHEMA_VERSION } from '../../.agents/scripts/lib/bootstrap/install-ledger.js';
+import { GITIGNORE_BLOCKS } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
 import {
   cleanupAll,
   makeTempConsumer,
@@ -206,6 +213,120 @@ describe('mandrel sync — real-binary copy + prune (e2e)', () => {
       second.stdout,
       /pruned \d+ stale file\(s\)/,
       'the marker must not be reported as a stale prune candidate',
+    );
+  });
+
+  it('a bootstrap-written .agents/.install-manifest.json survives two syncs (Story #4534)', () => {
+    // The reproduced bug (#4532): the bootstrap writes the install ledger, and
+    // the very next sync prunes it because it has no payload counterpart.
+    const ledgerPath = path.join(consumer.agentsDir, '.install-manifest.json');
+    const ledgerContent = `${JSON.stringify(
+      {
+        schemaVersion: LEDGER_SCHEMA_VERSION,
+        appliedAt: '2026-01-01T00:00:00.000Z',
+        repo: null,
+        approvedGroups: ['ide-wiring'],
+        entries: [
+          {
+            phaseGroup: 'ide-wiring',
+            target: '.gitignore',
+            action: 'merge',
+            reversible: true,
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`;
+
+    fs.mkdirSync(consumer.agentsDir, { recursive: true });
+    fs.writeFileSync(ledgerPath, ledgerContent);
+
+    const first = runMandrel(consumer.dir, ['sync']);
+    assert.equal(first.status, 0, `first sync failed: ${first.stderr}`);
+    assert.ok(
+      fs.existsSync(ledgerPath),
+      'ledger must survive the first sync — it is generated, not stale',
+    );
+
+    const second = runMandrel(consumer.dir, ['sync']);
+    assert.equal(second.status, 0, `second sync failed: ${second.stderr}`);
+    assert.equal(
+      fs.readFileSync(ledgerPath, 'utf8'),
+      ledgerContent,
+      'ledger must survive a second sync byte-for-byte — sync never owns deleting it',
+    );
+    assert.doesNotMatch(
+      second.stdout,
+      /pruned \d+ stale file\(s\)/,
+      'the ledger must not be reported as a stale prune candidate',
+    );
+  });
+
+  it('bootstrap → sync → uninstall: uninstall finds its ledger and reverses (Story #4534)', () => {
+    // The end-to-end chain the registry exists to protect. Before the fix,
+    // sync pruned the ledger and uninstall printed "No install ledger found —
+    // nothing to uninstall.", exited 0, and left every mutation applied.
+    //
+    // A `.gitignore` merge entry is used as the reversible mutation because it
+    // is a pure local-file reversal: no network, no GitHub admin surface.
+    const ledgerPath = path.join(consumer.agentsDir, '.install-manifest.json');
+    const gitignorePath = path.join(consumer.dir, '.gitignore');
+
+    // Arrange: a .gitignore carrying the block a real bootstrap would have
+    // merged in, plus the ledger recording that mutation.
+    const mandrelBlock = GITIGNORE_BLOCKS.mcp.block;
+    fs.writeFileSync(gitignorePath, `node_modules/\n${mandrelBlock}`);
+    fs.mkdirSync(consumer.agentsDir, { recursive: true });
+    fs.writeFileSync(
+      ledgerPath,
+      `${JSON.stringify(
+        {
+          schemaVersion: LEDGER_SCHEMA_VERSION,
+          appliedAt: '2026-01-01T00:00:00.000Z',
+          repo: null,
+          approvedGroups: ['ide-wiring'],
+          entries: [
+            {
+              phaseGroup: 'ide-wiring',
+              target: '.gitignore',
+              action: 'merge',
+              reversible: true,
+            },
+          ],
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    // Act 1: sync — the step that used to destroy the ledger.
+    const sync = runMandrel(consumer.dir, ['sync']);
+    assert.equal(sync.status, 0, `sync failed: ${sync.stderr}`);
+
+    // Act 2: uninstall — must find the ledger sync just ran over.
+    const uninstall = runMandrel(consumer.dir, ['uninstall']);
+
+    // Assert: the exact failure signature of the bug is absent.
+    assert.doesNotMatch(
+      uninstall.stdout,
+      /No install ledger found/,
+      'uninstall must find the ledger after a sync — this is the #4532 regression',
+    );
+    assert.equal(uninstall.status, 0, `uninstall failed: ${uninstall.stderr}`);
+
+    // …and the recorded mutation was actually reversed, not merely reported.
+    assert.match(uninstall.stdout, /reverted\s+\.gitignore/);
+    const gitignoreAfter = fs.readFileSync(gitignorePath, 'utf8');
+    assert.doesNotMatch(
+      gitignoreAfter,
+      /^\s*\.mcp\.json\s*$/m,
+      'the recorded .gitignore mutation must be reversed',
+    );
+    assert.match(
+      gitignoreAfter,
+      /node_modules\//,
+      'reversal must strip only the mandrel block, not the consumer’s own lines',
     );
   });
 
