@@ -472,7 +472,12 @@ export async function selectAudits({
     const keywords = triggers.keywords || [];
     let keywordMatch = false;
     for (const kw of keywords) {
-      if (contentToSearch.includes(kw.toLowerCase())) {
+      // Whole-word match: a bare substring test selects lenses on accidental
+      // fragments ("ui" inside "requires", "auth" inside "author" — #4579).
+      const escaped = kw
+        .toLowerCase()
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (new RegExp(`\\b${escaped}\\b`).test(contentToSearch)) {
         keywordMatch = true;
         break;
       }

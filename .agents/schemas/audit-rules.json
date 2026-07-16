@@ -7,7 +7,15 @@
       "substitutionKeys": []
     },
     "audit-architecture": {
-      "triggers": { "gates": ["gate1", "gate3"] },
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "filePatterns": [
+          ".agents/scripts/lib/**",
+          "lib/**",
+          "bin/**",
+          "src/**"
+        ]
+      },
       "scope": "cumulative",
       "substitutionKeys": []
     },
