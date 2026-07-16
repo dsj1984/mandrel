@@ -313,7 +313,7 @@ describe('delivery.* shape', () => {
       validate({
         ...REQ,
         delivery: {
-          deliverRunner: { concurrencyCap: 3, verifyConcurrencyCap: 4 },
+          deliverRunner: { concurrencyCap: 3 },
         },
       }),
       true,

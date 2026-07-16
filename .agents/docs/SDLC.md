@@ -110,8 +110,8 @@ rather than re-documenting the ceremony they own.
 - **Layered state stores with explicit precedence.** Ticket status lives
   in GitHub Issues and Labels; the lifecycle bus
   (`temp/run-<id>/lifecycle.ndjson`) is the canonical resume target for
-  in-flight runs; structured comments (`story-run-progress`,
-  `verification-results`, retro) are the operator-visible rollup. The
+  in-flight runs; structured comments (`verification-results`, retro) are
+  the operator-visible rollup. The
   stores, their owners, and their conflict-resolution rules are listed in
   [§ State stores](#state-stores) — that matrix is the single source of
   truth for "who owns which write."
@@ -154,7 +154,6 @@ on-disk layout resolved by
 | State Store | Owner (canonical writer) | Mutation API | Idempotency key | Conflict resolution |
 | --- | --- | --- | --- | --- |
 | GitHub labels | `transitionTicketState` via `ticketing.js` | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js` | `(ticketId, label-set)` — set-equality before write | Authoritative for current ticket lifecycle state; if a label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
-| `story-run-progress` comment | `story-phase.js` (per Story, per phase transition) | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='story-run-progress')` | Authoritative for Story-level phase progress. |
 | `verification-results` comment | `lib/orchestration/code-review.js` | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='verification-results')` | Authoritative for the Story-scope review + lens findings; critical findings block close. |
 | Lifecycle ledger NDJSON | `lifecycle-emit.js` (single append-only writer per run) | Append-only line write to `temp/run-<id>/lifecycle.ndjson` | `(runId, eventId)` — `eventId` is a content hash of `{type, ts, payload}` | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived. |
 | Validation evidence cache | `evidence-gate.js` | JSON cache file under the run temp tree, keyed by HEAD SHA | `(gate, git rev-parse HEAD)` | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe. |

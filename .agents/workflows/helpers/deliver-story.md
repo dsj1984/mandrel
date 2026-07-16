@@ -586,9 +586,8 @@ safe.
   your caller (the `/deliver` aggregator or the interactive operator),
   report essential terminal state only: the Story branch, the closing commit
   SHA, what changed, and what was verified. Mirror the fields the close
-  pipeline already emits (`single-story-close.js` / `story-phase.js`
-  envelopes, the `story-run-progress` snapshot) rather than inventing a new
-  contract. Do not narrate the steps you took, and do not prescribe how the
+  pipeline already emits (the `single-story-close.js` terminal envelope)
+  rather than inventing a new contract. Do not narrate the steps you took, and do not prescribe how the
   next stage should do its work. Prose process commentary only bloats the
   hydrated prompt.
 - **Label transitions**: drive every `agent::*` state change through

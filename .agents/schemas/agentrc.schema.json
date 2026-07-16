@@ -461,11 +461,6 @@
           "type": "integer",
           "minimum": 1,
           "description": "Maximum ready Stories dispatched by /deliver at once. Default 3. Moderate by design — keeps host-quota consumption predictable while allowing a small ready-set fan-out. Set 1 for strictly sequential delivery; raise further on hosts with adequate parallel-agent quota. See deliver.md for the sequencing model and throughput tradeoff."
-        },
-        "verifyConcurrencyCap": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Bounded-concurrency cap for the per-wave verifyWaveResults loop (Epic #3019 Tech Spec §1.4). Separate from the wave-execution `concurrencyCap` so operators can tune ticket-verification parallelism independently of Story dispatch parallelism. Default 4."
         }
       },
       "additionalProperties": false
@@ -1165,13 +1160,13 @@
     },
     "mergeWatch": {
       "type": "object",
-      "description": "Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880) and the close-and-land merge wait (Story #4543). `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR.",
+      "description": "Knobs consumed by the close-and-land merge wait (Story #4543; defaults in `lib/orchestration/merge-poll.js`). `intervalSeconds` is the poll cadence between `gh pr view` probes after the arm. `maxWaitSeconds` bounds ONE invocation of the merge wait and its expiry returns a resumable `pending` terminal with no label mutation; `maxBudgetSeconds` bounds the CUMULATIVE wait across resumes (anchored at the PR's createdAt, so a resume does not restart the clock) and exhausting it is the genuine give-up that classifies and blocks. `updateAttempts` caps the bounded update of a behind-the-base PR.",
       "properties": {
         "intervalSeconds": {
           "type": "integer",
           "minimum": 1,
           "default": 30,
-          "description": "Seconds between merge-wait / MergeWatcher polls. Default 30."
+          "description": "Seconds between merge-wait polls. Default 30."
         },
         "maxWaitSeconds": {
           "type": "integer",

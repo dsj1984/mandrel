@@ -116,8 +116,9 @@ scores the working diff against **each** `acceptance[]` item and consumes the
   transition (or when you stall on a long-running step) so the parent
   `/deliver` idle watchdog can tell a live child from a dead one. Relay one
   terse line per transition (e.g. `Story #<id>: implementing → closing`), not
-  a full body. The `story-run-progress` snapshot is **not** a heartbeat
-  surface — its renderer stopped writing a comment in Story #3909.
+  a full body. `story.heartbeat` is the only progress surface — Story #4545
+  deleted the `story-run-progress` renderer, which had stopped writing a
+  comment in Story #3909 and had no caller thereafter.
 - **Blocked.** If you genuinely cannot proceed, flip the snapshot to `blocked`,
   transition the Story to `agent::blocked`, post a `friction` comment naming
   the decision needed (or the unmet criteria and their evidence), and **exit

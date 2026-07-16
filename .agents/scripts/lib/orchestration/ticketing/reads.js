@@ -82,27 +82,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-run-progress',
   'epic-plan-state',
   'parked-follow-ons',
-  // Story #566 — per-phase wall-clock summary posted by single-story-close.js
-  // and consumed by analyze-execution / perf tooling to surface median /
-  // p95 phase timings across completed stories.
+  // Story #566 — per-phase wall-clock summary posted by single-story-close.js.
   'phase-timings',
   // Story #831 — story-init upserts a `story-init` comment that
   // surfaces `dependenciesInstalled` (and the underlying installStatus) so
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
   'story-init',
-  // Story #908 — /deliver upserts a `story-run-progress` snapshot
-  // on each Story per Task transition. The /deliver aggregator and
-  // `analyze-execution.js` both read this comment to derive
-  // Story-level state without re-fetching ticket labels.
-  'story-run-progress',
-  // Story #1123 — analyze-execution.js upserts perf summaries at close
-  // time. Story-mode posts `story-perf-summary` on each Story; Epic-mode
-  // posts `epic-perf-report` on the Epic. Both replace the legacy
-  // per-Task `friction` fan-out and the standalone `phase-timings`
-  // surface (Epic #1030).
-  'story-perf-summary',
-  'epic-perf-report',
   // Story #2128 — Phase 6 Epic Clarity Gate (CLI retired). Historical
   // `clarity-gate-update` comments may still exist on older tickets.
   'clarity-gate-update',
@@ -269,8 +255,8 @@ export function structuredCommentMarker(type, attrs = null) {
  * recent `findStructuredComment` / `upsertStructuredComment` call.
  * Story #1795 — every Epic run owns its process for the duration of
  * the run, so a single seed-then-reuse window saves one
- * `getTicketComments` per repeat upsert on the hot path (wave-level
- * `story-run-progress`, `wave-N-end`, etc).
+ * `getTicketComments` per repeat upsert on the hot path (`story-init`,
+ * `verification-results`, etc).
  *
  * Lifecycle:
  *   - First call to `findStructuredComment(provider, t, type, attrs)`
@@ -356,8 +342,8 @@ export function structuredCommentCacheKey(ticketId, type, attrs) {
  * array returned by the most recent `provider.getTicketComments(ticketId)`
  * call. Story #2465 — `findStructuredComment` is invoked back-to-back for
  * different `type` discriminators against the same ticket (e.g.
- * `story-run-progress` + `epic-run-progress` + a `friction` probe during
- * an Epic-close wave). Without this cache each lookup pays a full
+ * `story-init` + `verification-results` + a `friction` probe during a
+ * single close). Without this cache each lookup pays a full
  * pagination round-trip even when the prior call already fetched the
  * same comments. The structured-comment-id cache short-circuits *repeat*
  * lookups for the same `(type, attrs)` tuple but does not help across

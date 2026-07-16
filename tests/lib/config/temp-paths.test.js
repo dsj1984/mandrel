@@ -12,7 +12,6 @@ import {
   _clearMainCheckoutRootCache,
   epicArtifactPath,
   epicManifestPath,
-  epicPerfReportPath,
   epicRetroMirrorPath,
   epicTechSpecPath,
   epicTempDir,
@@ -124,10 +123,6 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
     assert.equal(
       epicRetroMirrorPath(1030),
       anchored('temp', 'run-1030', 'retro.md'),
-    );
-    assert.equal(
-      epicPerfReportPath(1030),
-      anchored('temp', 'run-1030', 'perf-report.md'),
     );
   });
 

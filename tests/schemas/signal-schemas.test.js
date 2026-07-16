@@ -1,10 +1,12 @@
 /**
- * Round-trip tests for the four JSON schemas published by Story #1039
- * under Epic #1030 — signal-event, story-perf-summary, epic-perf-report,
- * and the agentrc `agentSettings.limits.signals` block.
+ * Round-trip tests for the JSON schemas published by Story #1039 under
+ * Epic #1030 — signal-event and the agentrc `agentSettings.limits.signals`
+ * block. (The `story-perf-summary` / `epic-perf-report` schemas were deleted
+ * in Story #4545 along with the execution-analysis surface that produced
+ * them — the analyzer they fed had no workflow invoker.)
  *
  * The schemas are draft-07 JSON Schema files consumed by the signals
- * writer, the analyzer, and config validation. These tests assert:
+ * writer and config validation. These tests assert:
  *   1. Each `.json` file parses as a JSON Schema draft-07 document Ajv can
  *      compile without errors.
  *   2. A representative valid example for each schema validates clean.
@@ -151,122 +153,6 @@ describe('signal-event.schema.json', () => {
       stories: [{ id: 3143, title: 'x' }],
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-});
-
-describe('story-perf-summary.schema.json', () => {
-  const schema = loadSchema('story-perf-summary.schema.json');
-
-  it('declares draft-07', () => {
-    assert.equal(schema.$schema, 'http://json-schema.org/draft-07/schema#');
-  });
-
-  it('compiles cleanly', () => {
-    assert.doesNotThrow(() => compile(schema));
-  });
-
-  it('accepts the canonical payload from the Tech Spec', () => {
-    const validate = compile(schema);
-    const ok = validate({
-      kind: 'story-perf-summary',
-      storyId: 1042,
-      epicId: 1030,
-      closedAt: '2026-05-07T19:10:22Z',
-      frictionByCategory: { 'Prompt Ambiguity': 1, 'Execution Error': 3 },
-      phaseTimingsMs: {
-        bootstrap: 8421,
-        implement: 412300,
-        test: 65120,
-        close: 14200,
-      },
-      topSlowPhasesVsBaseline: [
-        {
-          phase: 'implement',
-          elapsedMs: 412300,
-          baselineP95Ms: 320000,
-          ratio: 1.29,
-        },
-      ],
-      reworkScore: {
-        filesEditedBeyondThreshold: 2,
-        topPath: 'lib/foo.js',
-        topPathEdits: 7,
-      },
-      retryDensity: { retries: 4, uniqueCommands: 2 },
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-
-  it('rejects a wrong kind discriminator', () => {
-    const validate = compile(schema);
-    const ok = validate({
-      kind: 'epic-perf-report',
-      storyId: 1042,
-      epicId: 1030,
-      closedAt: '2026-05-07T19:10:22Z',
-      frictionByCategory: {},
-      phaseTimingsMs: {},
-      topSlowPhasesVsBaseline: [],
-      reworkScore: { filesEditedBeyondThreshold: 0 },
-      retryDensity: { retries: 0, uniqueCommands: 0 },
-    });
-    assert.equal(ok, false);
-  });
-});
-
-describe('epic-perf-report.schema.json', () => {
-  const schema = loadSchema('epic-perf-report.schema.json');
-
-  it('declares draft-07', () => {
-    assert.equal(schema.$schema, 'http://json-schema.org/draft-07/schema#');
-  });
-
-  it('compiles cleanly', () => {
-    assert.doesNotThrow(() => compile(schema));
-  });
-
-  it('accepts the canonical payload from the Tech Spec', () => {
-    const validate = compile(schema);
-    const ok = validate({
-      kind: 'epic-perf-report',
-      epicId: 1030,
-      generatedAt: '2026-05-07T22:14:00Z',
-      signalCounts: {
-        friction: 12,
-        hotspot: 4,
-        rework: 3,
-        churn: 6,
-        idle: 2,
-        retry: 9,
-      },
-      waveParallelism: [
-        {
-          waveIndex: 0,
-          wallClockMs: 720000,
-          summedStoryMs: 1800000,
-          utilisation: 0.4,
-          capBinding: false,
-          verifyConcurrencyCap: 4,
-        },
-      ],
-      topHotspots: [{ phase: 'implement', occurrences: 3, avgRatio: 1.31 }],
-      mostFrictionStories: [{ storyId: 1042, frictionCount: 4 }],
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-
-  it('rejects an unknown signalCounts key', () => {
-    const validate = compile(schema);
-    const ok = validate({
-      kind: 'epic-perf-report',
-      epicId: 1030,
-      generatedAt: '2026-05-07T22:14:00Z',
-      signalCounts: { mystery: 1 },
-      waveParallelism: [],
-      topHotspots: [],
-      mostFrictionStories: [],
-    });
-    assert.equal(ok, false);
   });
 });
 

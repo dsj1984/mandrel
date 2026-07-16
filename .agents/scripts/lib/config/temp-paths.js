@@ -325,24 +325,6 @@ export const epicManifestPath = (eid, config) =>
   epicArtifactPath(eid, 'manifest.md', config);
 export const epicRetroMirrorPath = (eid, config) =>
   epicArtifactPath(eid, 'retro.md', config);
-export const epicPerfReportPath = (eid, config) =>
-  epicArtifactPath(eid, 'perf-report.md', config);
-
-/**
- * `temp/run-<eid>/epic-perf-report.json` — canonical JSON snapshot of
- * the `epic-perf-report` payload persisted at /deliver close
- * (Epic #3019 / Story #3029 / Task #3040). When present alongside the
- * `epic-perf-report` structured comment, the report is discoverable
- * from the file system without round-tripping the ticketing provider,
- * and the `epic-handoff` structured close comment links it by relative
- * path.
- *
- * @param {number} eid
- * @param {object} [config]
- * @returns {string}
- */
-export const epicPerfReportJsonPath = (eid, config) =>
-  epicArtifactPath(eid, 'epic-perf-report.json', config);
 
 /**
  * `temp/run-<eid>/lifecycle.ndjson` — append-only lifecycle bus ledger

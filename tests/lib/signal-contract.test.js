@@ -6,10 +6,8 @@
  * every emitter, read by every consumer" contract. For each live writer we
  * assert the emitted record:
  *   1. validates against `.agents/schemas/signal-event.schema.json`, and
- *   2. round-trips through its live consumers (perf-aggregator
- *      frictionByCategory / reworkScore / retryDensity, the retro routed
- *      extraction, and the baseline-friction windowing) producing
- *      correctly-keyed, non-empty output.
+ *   2. round-trips through its live consumers (the retro routed extraction)
+ *      producing correctly-keyed, non-empty output.
  *
  * The schema is compiled once with the same AJV settings the writer's
  * `signal-validator.js` uses, so the contract test and the write-time
@@ -27,12 +25,6 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { storyTempDir } from '../../.agents/scripts/lib/config/temp-paths.js';
-import {
-  computeEpicPerfReport,
-  computeStoryPerfSummary,
-  computeWaveParallelismRows,
-} from '../../.agents/scripts/lib/observability/perf-aggregator.js';
-import { aggregateBaselineFrictionFromSignals } from '../../.agents/scripts/lib/observability/perf-report-readers.js';
 import { readSignalRejectCount } from '../../.agents/scripts/lib/observability/signal-validator.js';
 import {
   appendSignal,
@@ -195,67 +187,14 @@ describe('signal contract — every live writer validates against the schema', (
   });
 });
 
+// Story #4545 — the perf round-trips that used to live here (frictionByCategory
+// / reworkScore / retryDensity via computeStoryPerfSummary, and the baseline
+// windowing via aggregateBaselineFrictionFromSignals) went with the
+// execution-analysis surface. Those consumers had no production caller: the
+// only CLI that drove them, analyze-execution.js, hard-failed without an Epic
+// id and no workflow invoked it. The retro extraction below is the remaining
+// live consumer of the envelope.
 describe('signal contract — round-trips through live consumers', () => {
-  it('categorized friction buckets under its real category (no Unknown) in computeStoryPerfSummary', () => {
-    const summary = computeStoryPerfSummary([diagnoseFriction, gateFriction], {
-      storyId: 4413,
-      epicId: 4406,
-    });
-    assert.deepEqual(summary.frictionByCategory, {
-      'Execution Error': 1,
-      maintainability: 1,
-    });
-    assert.equal(
-      Object.hasOwn(summary.frictionByCategory, 'Unknown'),
-      false,
-      'a record carrying a category must NOT bucket under Unknown',
-    );
-  });
-
-  it('rework detector output round-trips through reworkScore (non-empty)', async () => {
-    const rework = {
-      ts: NOW,
-      kind: 'rework',
-      emitter: { tool: 'rework-detector' },
-      epicId: 4406,
-      storyId: 4413,
-      taskId: null,
-      details: { targetHash: 'sha256:file', editCount: 5, threshold: 3 },
-    };
-    assertValid(rework, 'rework');
-    const summary = computeStoryPerfSummary([rework], {
-      storyId: 4413,
-      epicId: 4406,
-    });
-    assert.equal(summary.reworkScore.filesEditedBeyondThreshold, 1);
-    assert.equal(summary.reworkScore.topPath, 'sha256:file');
-    assert.equal(summary.reworkScore.topPathEdits, 5);
-  });
-
-  it('retry detector output round-trips through retryDensity (non-empty hash cardinality)', () => {
-    const retry = {
-      ts: NOW,
-      kind: 'retry',
-      emitter: { tool: 'retry-detector' },
-      epicId: 4406,
-      storyId: 4413,
-      taskId: null,
-      details: {
-        commandHash: 'sha256:cmd',
-        failureCount: 3,
-        threshold: 2,
-        normalizationRules: [],
-      },
-    };
-    assertValid(retry, 'retry');
-    const summary = computeStoryPerfSummary([retry], {
-      storyId: 4413,
-      epicId: 4406,
-    });
-    assert.equal(summary.retryDensity.retries, 1);
-    assert.equal(summary.retryDensity.uniqueCommands, 1);
-  });
-
   it('friction records route through the retro extraction (top-level category + string source)', () => {
     // gather-signals reads top-level `category` and the string `source`
     // classifier tag; feed the extracted pairs to the composer.
@@ -282,41 +221,6 @@ describe('signal contract — round-trips through live consumers', () => {
       'single-occurrence friction discarded',
     );
     assert.equal(Object.hasOwn(routed, 'memory'), false, 'memory pane is gone');
-  });
-
-  it('baseline friction windowing reads canonical `ts`', async () => {
-    const workRoot = mkdtempSync(path.join(tmpdir(), 'sig-window-'));
-    const cfg = { project: { paths: { tempRoot: workRoot } } };
-    try {
-      await appendSignal({
-        epicId: 4406,
-        storyId: 4413,
-        signal: {
-          kind: 'friction',
-          ts: NOW,
-          epicId: 4406,
-          storyId: 4413,
-          category: 'baseline-refresh-regression',
-          emitter: { tool: 'auto-refresh-runner' },
-          details: { message: 'refused' },
-          regressedFiles: [{ file: 'lib/x.js' }],
-        },
-        config: cfg,
-      });
-      const out = await aggregateBaselineFrictionFromSignals({
-        epicId: 4406,
-        storyIds: [4413],
-        config: cfg,
-        windowDays: 30,
-        now: () => new Date('2026-07-11T01:00:00.000Z'),
-      });
-      assert.ok(
-        out.totalRecords >= 1,
-        'windowing includes the ts-stamped record',
-      );
-    } finally {
-      rmSync(workRoot, { recursive: true, force: true });
-    }
   });
 });
 
@@ -430,50 +334,6 @@ describe('signal contract — wave-level canonical envelope (item 5)', () => {
       'the legacy `epic` alias no longer satisfies the envelope guard',
     );
     assert.equal(hasCommonEnvelope(waveStart), true);
-  });
-});
-
-describe('signal contract — waveParallelism is truthful (item 8)', () => {
-  it('renders real, non-empty rows from a canonical wave-start(index)+state-transition+wave-complete stream', () => {
-    const events = [
-      waveStart,
-      {
-        ts: '2026-07-11T00:00:01.000Z',
-        kind: 'state-transition',
-        epicId: 4406,
-        storyId: 4413,
-        details: { to: 'agent::executing' },
-      },
-      {
-        ts: '2026-07-11T00:00:05.000Z',
-        kind: 'state-transition',
-        epicId: 4406,
-        storyId: 4413,
-        details: { to: 'agent::done' },
-      },
-      {
-        ts: '2026-07-11T00:00:06.000Z',
-        epicId: 4406,
-        kind: 'wave-complete',
-        index: 0,
-      },
-    ];
-    const rows = computeWaveParallelismRows(events, { concurrencyCap: 2 });
-    assert.equal(
-      rows.length,
-      1,
-      'the bucketer produces a real row (not structurally empty)',
-    );
-    const [row] = rows;
-    assert.equal(row.waveIndex, 0);
-    assert.equal(row.storyCount, 1);
-    assert.ok(row.wallClockMs > 0, 'wall-clock is real');
-    assert.ok(row.summedStoryMs > 0, 'per-Story window time is real');
-
-    // And the full report surfaces the rows (no structurally-empty table).
-    const report = computeEpicPerfReport([], { epicId: 4406, events });
-    assert.equal(report.waveParallelism.length, 1);
-    assert.ok(report.waveParallelism[0].wallClockMs > 0);
   });
 });
 

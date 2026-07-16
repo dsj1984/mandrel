@@ -64,7 +64,6 @@ const DELIVER_RUNNER_SCHEMA = {
   type: 'object',
   properties: {
     concurrencyCap: { type: 'integer', minimum: 1 },
-    verifyConcurrencyCap: { type: 'integer', minimum: 1 },
   },
   additionalProperties: false,
 };
@@ -137,7 +136,7 @@ const SIGNALS_SCHEMA = {
 };
 
 /**
- * `delivery.mergeWatch` — knobs consumed by the MergeWatcher lifecycle
+ * `delivery.mergeWatch` — knobs consumed by the close-and-land merge wait
  * listener (Story #2896, Epic #2880) and by the close-and-land merge wait
  * (`single-story-close/phases/confirm-merge.js`). `intervalSeconds` is the
  * poll cadence between `gh pr view` probes after the arm.
