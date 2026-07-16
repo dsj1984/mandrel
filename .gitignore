@@ -24,6 +24,12 @@ dist
 # per-clone install record, not a checked-in source artifact.
 .agents/.install-manifest.json
 
+# Version marker written by `mandrel sync` after every materialization
+# (Story #4530). Carries the executing package's own version; it is a
+# per-clone sync record, not a checked-in source artifact, and is exempted
+# from the sync prune pass in lib/cli/sync.js (GENERATED_FILES).
+.agents/.mandrel-version
+
 # Agent local-additions zone (Story #3498, f-drift-local-zone).
 # `.agents/local/` is the consumer-owned, sync-exempt space for hand-authored
 # additions: `mandrel sync` never writes into nor prunes it, so files placed
