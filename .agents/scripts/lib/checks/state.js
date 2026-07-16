@@ -32,7 +32,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -46,22 +46,18 @@ import path from 'node:path';
  * @type {Record<string, readonly string[]>}
  */
 // Shared key set: story-close and epic-close probe the same surface
-// (integration branch + worktree set). Story #1289 introduced the
-// `epic-close` and `npm-test` aliases.
+// (branch list + worktree set). Story #1289 introduced the `epic-close`
+// and `npm-test` aliases.
 const STORY_CLOSE_KEYS = Object.freeze([
   'git.headRef',
-  'git.epicBranches',
-  'git.epicBranchSync',
   'git.localBranches',
   'git.coreBare',
   'fs.worktrees',
-  'fs.epicMergeLocks',
   'env.GITHUB_TOKEN',
 ]);
 
 const EPIC_DELIVER_KEYS = Object.freeze([
   'git.headRef',
-  'git.epicBranches',
   'git.coreBare',
   'fs.worktrees',
   'fs.dotEnv',
@@ -80,7 +76,7 @@ const SCOPE_KEYS = Object.freeze({
     'fs.dotEnv',
     'fs.dotMcp',
   ]),
-  retro: Object.freeze(['git.headRef', 'git.epicBranches', 'fs.worktrees']),
+  retro: Object.freeze(['git.headRef', 'fs.worktrees']),
   diagnose: EPIC_DELIVER_KEYS,
 });
 
@@ -139,78 +135,6 @@ function defaultEnvProbe(name) {
 }
 
 /**
- * Default lock-file probe — reads an epic merge lock file at the given
- * absolute path. Returns `{ exists, pid, acquiredAt, mtimeMs }` or
- * `{ exists: false }`. PID + timestamp are NOT secrets — they are
- * operational data the orphan-lock check uses to decide if a lock is
- * stale. This probe is separate from the privacy-bounded `fs` probe so
- * the README's "fs records existence only" contract for bootstrap files
- * (.env, .mcp.json) remains intact.
- *
- * @param {string} absPath
- * @returns {{ exists: boolean, pid?: number|null, acquiredAt?: number|null, mtimeMs?: number|null }}
- */
-function defaultLockProbe(absPath) {
-  let st;
-  try {
-    st = statSync(absPath);
-  } catch {
-    return { exists: false };
-  }
-  let pid = null;
-  let acquiredAt = null;
-  try {
-    const raw = readFileSync(absPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    pid = Number.isFinite(Number(parsed.pid)) ? Number(parsed.pid) : null;
-    acquiredAt = Number.isFinite(Number(parsed.acquiredAt))
-      ? Number(parsed.acquiredAt)
-      : null;
-  } catch {
-    // Corrupted or unreadable — still report existence with null fields so
-    // the consumer can surface "lock file exists but is unparseable".
-  }
-  return { exists: true, pid, acquiredAt, mtimeMs: st.mtimeMs };
-}
-
-/**
- * Predicate: is `pid` a shape we can hand to `process.kill(_, 0)`? Splits
- * the input-validity check out of `defaultPidLivenessProbe` so the
- * defensive guard cascade and the OS round-trip are independently
- * testable. Exported so sibling tests can exercise every branch without
- * monkey-patching `process.kill`.
- *
- * @param {*} pid
- * @returns {boolean}
- */
-export function validatePidProbeInputs(pid) {
-  if (pid === null || pid === undefined) return false;
-  if (typeof pid !== 'number') return false;
-  if (!Number.isFinite(pid)) return false;
-  if (pid <= 0) return false;
-  return true;
-}
-
-/**
- * Default process-liveness probe — `process.kill(pid, 0)` checks existence
- * without delivering a signal. Returns true for live, false for dead/missing.
- * Separated from the lock probe so tests can independently spy on each.
- *
- * @param {number|null|undefined} pid
- * @returns {boolean}
- */
-function defaultPidLivenessProbe(pid) {
-  if (!validatePidProbeInputs(pid)) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    // EPERM = exists but unsignalable — still alive.
-    return err && err.code === 'EPERM';
-  }
-}
-
-/**
  * Probe the current HEAD ref (short / abbreviated form). Returns the branch
  * name, or `null` when git cannot resolve HEAD (detached / non-repo).
  *
@@ -238,20 +162,6 @@ function parseBranchList(result) {
         .map((s) => s.trim())
         .filter(Boolean)
     : [];
-}
-
-/**
- * Probe the epic branches (`refs/heads/epic/`), short-name form.
- *
- * @param {object} args
- * @param {string} args.cwd
- * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
- * @returns {string[]}
- */
-function probeEpicBranches({ cwd, git }) {
-  return parseBranchList(
-    git(cwd, 'for-each-ref', '--format=%(refname:short)', 'refs/heads/epic/'),
-  );
 }
 
 /**
@@ -283,106 +193,23 @@ function probeCoreBare({ cwd, git }) {
 }
 
 /**
- * Build a map of epic branch → { local, remote, ahead } sync state.
- * Standalone (Story #3351): takes the already-assembled `epicBranches` as an
- * explicit argument rather than reading sibling probe output, so it is
- * independently testable and the ordering dependency on the epicBranches
- * probe is explicit at the call site.
- *
- * Story #2463 (preflight batching): the prior implementation issued
- * two `git rev-parse --verify` spawnSync calls per epic branch
- * (one for `epic/<id>`, one for `origin/epic/<id>`), giving an
- * O(branches × 2) probe cost. The collapsed implementation issues
- * exactly one `git for-each-ref` invocation that emits
- *   `<refname> <objectname> <upstream:short> <upstream:objectname>`
- * for every local branch, then filters to the epic branches the
- * scope already declared. Probe cost drops to O(1) for the spawn
- * surface while preserving the byte-identical return shape:
- *   { local: string|null, remote: string|null, ahead: boolean }.
- *
- * `ahead` stays true only when local AND remote SHAs both exist and
- * differ — branches with no upstream config (no `%(upstream:objectname)`)
- * report `remote: null, ahead: false`, matching the pre-batch behavior
- * where `rev-parse --verify origin/<branch>` failed for unpushed refs.
- *
- * @param {object} args
- * @param {string} args.cwd
- * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} args.git
- * @param {readonly string[]} args.epicBranches
- * @returns {Record<string, { local: string|null, remote: string|null, ahead: boolean }>}
- */
-function probeEpicBranchSync({ cwd, git, epicBranches }) {
-  const sync = {};
-  const branches = epicBranches ?? [];
-  const branchSet = new Set(branches);
-  const formatted = git(
-    cwd,
-    'for-each-ref',
-    '--format=%(refname:short) %(objectname) %(upstream:short) %(upstream:objectname)',
-    'refs/heads/',
-  );
-  const rows = new Map();
-  if (formatted.ok && formatted.stdout) {
-    for (const line of formatted.stdout.split('\n')) {
-      if (!line) continue;
-      // Split on whitespace; trailing fields may be empty strings.
-      // refname is mandatory (always present); objectname always populated
-      // for an existing ref; upstream fields may be missing.
-      const parts = line.split(' ');
-      const refname = parts[0];
-      if (!refname || !branchSet.has(refname)) continue;
-      const objectname = parts[1] || null;
-      const upstreamShort = parts[2] || null;
-      const upstreamObjectname = parts[3] || null;
-      rows.set(refname, {
-        local: objectname,
-        // Surface remote SHA only when an upstream is configured AND
-        // git resolved its objectname. An upstream short-name without
-        // an objectname (gone-upstream edge case) collapses to null.
-        remote: upstreamShort && upstreamObjectname ? upstreamObjectname : null,
-      });
-    }
-  }
-  for (const branch of branches) {
-    const row = rows.get(branch);
-    const localSha = row?.local ?? null;
-    const remoteSha = row?.remote ?? null;
-    sync[branch] = {
-      local: localSha,
-      remote: remoteSha,
-      ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
-    };
-  }
-  return sync;
-}
-
-/**
  * Handler map keyed by git probe field name (the part after `git.`). Each
- * handler receives `{ cwd, git, out }` and returns the field's value. `out`
- * exposes the already-assembled projection so dependent probes (e.g.
- * `epicBranchSync`, which needs `epicBranches`) can read upstream results.
+ * handler receives `{ cwd, git }` and returns the field's value.
  *
  * Story #3351: replaces the prior if/else ladder so each probe is
- * independently testable and the `epicBranchSync` → `epicBranches` ordering
- * dependency is explicit (it reads `out.epicBranches` and the SCOPE_KEYS
- * ordering guarantees that field is assembled first).
+ * independently testable.
  *
- * @type {Record<string, (ctx: { cwd: string, git: (cwd: string, ...args: string[]) => { ok: boolean, stdout: string }, out: Record<string, unknown> }) => unknown>}
+ * @type {Record<string, (ctx: { cwd: string, git: (cwd: string, ...args: string[]) => { ok: boolean, stdout: string } }) => unknown>}
  */
 const GIT_PROBES = Object.freeze({
   headRef: ({ cwd, git }) => probeHeadRef({ cwd, git }),
-  epicBranches: ({ cwd, git }) => probeEpicBranches({ cwd, git }),
   localBranches: ({ cwd, git }) => probeLocalBranches({ cwd, git }),
   coreBare: ({ cwd, git }) => probeCoreBare({ cwd, git }),
-  epicBranchSync: ({ cwd, git, out }) =>
-    probeEpicBranchSync({ cwd, git, epicBranches: out.epicBranches ?? [] }),
 });
 
 /**
  * Build the git projection for a key list by iterating the `GIT_PROBES`
- * handler map. Keys are processed in declaration order; a probe that depends
- * on a sibling field (e.g. `epicBranchSync` → `epicBranches`) relies on the
- * SCOPE_KEYS ordering placing its dependency first.
+ * handler map.
  *
  * @param {readonly string[]} keys
  * @param {string} cwd
@@ -396,7 +223,7 @@ function probeGit(keys, cwd, git) {
     const field = key.slice(4);
     const handler = GIT_PROBES[field];
     if (!handler) continue;
-    out[field] = handler({ cwd, git, out });
+    out[field] = handler({ cwd, git });
   }
   return out;
 }
@@ -407,12 +234,9 @@ function probeGit(keys, cwd, git) {
  * @param {readonly string[]} keys
  * @param {string} cwd
  * @param {(absPath: string) => boolean} fs
- * @param {{ epicBranches?: string[], gitCommonDir?: string }} ctx
- * @param {(absPath: string) => object} lockProbe
- * @param {(pid: number|null) => boolean} pidLivenessProbe
  * @returns {Record<string, unknown>}
  */
-function probeFs(keys, cwd, fs, ctx, lockProbe, pidLivenessProbe) {
+function probeFs(keys, cwd, fs) {
   const out = {};
   for (const key of keys) {
     if (!key.startsWith('fs.')) continue;
@@ -423,38 +247,6 @@ function probeFs(keys, cwd, fs, ctx, lockProbe, pidLivenessProbe) {
       out.dotEnv = fs(path.join(cwd, '.env'));
     } else if (field === 'dotMcp') {
       out.dotMcp = fs(path.join(cwd, '.mcp.json'));
-    } else if (field === 'epicMergeLocks') {
-      // For each epic branch, probe the matching lock file in the git
-      // common dir. The lock path mirrors epic-merge-lock.js's
-      // `lockPathFor()`: `<gitCommonDir>/epic-<id>.merge.lock`.
-      const commonDir = ctx.gitCommonDir ?? path.join(cwd, '.git');
-      const locks = {};
-      const branches = ctx.epicBranches ?? [];
-      for (const branch of branches) {
-        const id = branch.replace(/^epic\//, '');
-        const lockPath = path.join(commonDir, `epic-${id}.merge.lock`);
-        const meta = lockProbe(lockPath);
-        if (!meta.exists) {
-          locks[id] = {
-            exists: false,
-            path: lockPath,
-            pid: null,
-            holderAlive: false,
-            acquiredAt: null,
-            mtimeMs: null,
-          };
-          continue;
-        }
-        locks[id] = {
-          exists: true,
-          path: lockPath,
-          pid: meta.pid ?? null,
-          acquiredAt: meta.acquiredAt ?? null,
-          mtimeMs: meta.mtimeMs ?? null,
-          holderAlive: pidLivenessProbe(meta.pid ?? null),
-        };
-      }
-      out.epicMergeLocks = locks;
     }
   }
   return out;
@@ -506,31 +298,8 @@ export function assembleState({ scope, cwd = process.cwd(), probes } = {}) {
   const gitProbe = probes?.git ?? defaultGitProbe;
   const fsProbe = probes?.fs ?? defaultFsProbe;
   const envProbe = probes?.env ?? defaultEnvProbe;
-  const lockProbe = probes?.lock ?? defaultLockProbe;
-  const pidLivenessProbe = probes?.pidLiveness ?? defaultPidLivenessProbe;
   const gitProjection = probeGit(keys, cwd, gitProbe);
-  // Lock probes need the resolved git common dir; query it via the git
-  // probe so test injection still works. In a linked worktree this points
-  // at the parent repo's .git/, matching epic-merge-lock.js's lookup.
-  let gitCommonDir;
-  if (keys.includes('fs.epicMergeLocks')) {
-    const r = gitProbe(cwd, 'rev-parse', '--git-common-dir');
-    if (r.ok && r.stdout) {
-      gitCommonDir = path.isAbsolute(r.stdout)
-        ? r.stdout
-        : path.resolve(cwd, r.stdout);
-    } else {
-      gitCommonDir = path.join(cwd, '.git');
-    }
-  }
-  const fsProjection = probeFs(
-    keys,
-    cwd,
-    fsProbe,
-    { epicBranches: gitProjection.epicBranches, gitCommonDir },
-    lockProbe,
-    pidLivenessProbe,
-  );
+  const fsProjection = probeFs(keys, cwd, fsProbe);
   // Story #1289: `cwd` is surfaced so fs-scanning checks target the
   // worktree they were assembled for.
   const state = Object.freeze({

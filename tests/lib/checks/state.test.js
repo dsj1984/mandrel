@@ -4,7 +4,6 @@ import {
   assembleState,
   clearStateCache,
   getScopeKeys,
-  validatePidProbeInputs,
 } from '../../../.agents/scripts/lib/checks/state.js';
 
 /**
@@ -20,7 +19,7 @@ import {
  * routing.
  */
 function makeSpyProbes(overrides = {}) {
-  const calls = { git: [], fs: [], env: [], lock: [], pidLiveness: [] };
+  const calls = { git: [], fs: [], env: [] };
   return {
     calls,
     probes: {
@@ -35,14 +34,6 @@ function makeSpyProbes(overrides = {}) {
       env: (name) => {
         calls.env.push(name);
         return overrides.env?.(name) ?? 'missing';
-      },
-      lock: (absPath) => {
-        calls.lock.push(absPath);
-        return overrides.lock?.(absPath) ?? { exists: false };
-      },
-      pidLiveness: (pid) => {
-        calls.pidLiveness.push(pid);
-        return overrides.pidLiveness?.(pid) ?? false;
       },
     },
   };
@@ -59,30 +50,8 @@ describe('assembleState', () => {
         if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
           return { ok: true, stdout: 'story-1284' };
         }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
-          return { ok: true, stdout: 'epic/1143\nepic/1178' };
-        }
         if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
-          // The sync probe (Story #2463) reuses `refs/heads/` with a
-          // multi-token format including objectname + upstream. Differentiate
-          // by inspecting the --format= argument shape: the localBranches
-          // probe asks only for `%(refname:short)`, while the sync probe
-          // requests refname/objectname/upstream:short/upstream:objectname.
-          if (args[1].includes('%(objectname)')) {
-            // Sync probe: emit one row per epic branch with matching SHAs.
-            return {
-              ok: true,
-              stdout:
-                'main aaaaaaaa origin/main aaaaaaaa\n' +
-                'epic/1143 aaaaaaaa origin/epic/1143 aaaaaaaa\n' +
-                'epic/1178 aaaaaaaa origin/epic/1178 aaaaaaaa\n' +
-                'story/epic-1143/1 bbbbbbbb  ',
-            };
-          }
-          return {
-            ok: true,
-            stdout: 'main\nepic/1143\nepic/1178\nstory/epic-1143/1',
-          };
+          return { ok: true, stdout: 'main\nstory-1284\nstory-1310' };
         }
         if (args[0] === 'config') return { ok: true, stdout: 'false' };
         return { ok: false, stdout: '' };
@@ -97,173 +66,24 @@ describe('assembleState', () => {
     });
     assert.equal(state.scope, 'story-close');
     assert.equal(state.git.headRef, 'story-1284');
-    assert.deepEqual(state.git.epicBranches, ['epic/1143', 'epic/1178']);
     assert.deepEqual(state.git.localBranches, [
       'main',
-      'epic/1143',
-      'epic/1178',
-      'story/epic-1143/1',
+      'story-1284',
+      'story-1310',
     ]);
     assert.equal(state.git.coreBare, 'false');
-    // epicBranchSync now resolves from a single for-each-ref invocation.
-    assert.equal(typeof state.git.epicBranchSync, 'object');
-    assert.equal(state.git.epicBranchSync['epic/1143'].local, 'aaaaaaaa');
-    assert.equal(state.git.epicBranchSync['epic/1143'].remote, 'aaaaaaaa');
-    assert.equal(state.git.epicBranchSync['epic/1143'].ahead, false);
     assert.equal(state.fs.worktrees, true);
     assert.equal(state.env.GITHUB_TOKEN, 'set');
     // story-close scope does not include fs.dotEnv / fs.dotMcp
     assert.equal(state.fs.dotEnv, undefined);
     assert.equal(state.fs.dotMcp, undefined);
-    // git probe was called for: headRef (1), epicBranches (1),
-    // localBranches (1), coreBare (1), epicBranchSync — single batched
-    // for-each-ref (1) — and the git-common-dir lookup driven by
-    // fs.epicMergeLocks (1) = 6 total. Story #2463 dropped the per-branch
-    // rev-parse pair (was +4) to the single batched call.
-    assert.equal(calls.git.length, 6);
-    // fs probe was called for .worktrees only (1). epicMergeLocks routes to
-    // the dedicated lock probe, not the existence-only fs probe.
+    // git probe was called for: headRef (1), localBranches (1),
+    // coreBare (1) = 3 total.
+    assert.equal(calls.git.length, 3);
+    // fs probe was called for .worktrees only (1)
     assert.equal(calls.fs.length, 1);
-    // lock probe was called once per epic branch (2). pidLiveness was not
-    // called because no lock files exist in this fixture.
-    assert.equal(calls.lock.length, 2);
     // env probe was called for GITHUB_TOKEN only (1)
     assert.deepEqual(calls.env, ['GITHUB_TOKEN']);
-  });
-
-  it('fs.epicMergeLocks probes each epic branch and reports holder liveness', () => {
-    const { probes } = makeSpyProbes({
-      git: (_cwd, ...args) => {
-        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
-          return { ok: true, stdout: 'story-x' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
-          return { ok: true, stdout: 'epic/1143' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
-          // Sync probe: single batched row for the epic branch.
-          return {
-            ok: true,
-            stdout: 'epic/1143 aaaa origin/epic/1143 aaaa',
-          };
-        }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
-          return { ok: true, stdout: '/repo/.git' };
-        }
-        return { ok: false, stdout: '' };
-      },
-      lock: (lockPath) => {
-        if (lockPath.endsWith('epic-1143.merge.lock')) {
-          return {
-            exists: true,
-            pid: 99999,
-            acquiredAt: 1000,
-            mtimeMs: 1000,
-          };
-        }
-        return { exists: false };
-      },
-      pidLiveness: (pid) => pid === 1, // never matches 99999
-    });
-    const state = assembleState({
-      scope: 'story-close',
-      cwd: '/repo',
-      probes,
-    });
-    const lock = state.fs.epicMergeLocks['1143'];
-    assert.equal(lock.exists, true);
-    assert.equal(lock.pid, 99999);
-    assert.equal(lock.holderAlive, false);
-    assert.match(lock.path, /epic-1143\.merge\.lock$/);
-  });
-
-  it('fs.epicMergeLocks reports exists:false when no lock file is present', () => {
-    const { probes } = makeSpyProbes({
-      git: (_cwd, ...args) => {
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
-          return { ok: true, stdout: 'epic/1143' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
-          return {
-            ok: true,
-            stdout: 'epic/1143 aaaa origin/epic/1143 aaaa',
-          };
-        }
-        if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
-          return { ok: true, stdout: '/repo/.git' };
-        }
-        return { ok: false, stdout: '' };
-      },
-      lock: () => ({ exists: false }),
-    });
-    const state = assembleState({
-      scope: 'story-close',
-      cwd: '/repo-no-lock',
-      probes,
-    });
-    assert.equal(state.fs.epicMergeLocks['1143'].exists, false);
-    assert.equal(state.fs.epicMergeLocks['1143'].holderAlive, false);
-  });
-
-  it('epicBranchSync flags branches whose local SHA differs from origin', () => {
-    const { probes } = makeSpyProbes({
-      git: (_cwd, ...args) => {
-        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
-          return { ok: true, stdout: 'story-x' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
-          return { ok: true, stdout: 'epic/1143' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
-          // Local SHA aaaa, upstream resolves to bbbb → ahead=true.
-          return {
-            ok: true,
-            stdout: 'epic/1143 aaaa origin/epic/1143 bbbb',
-          };
-        }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        return { ok: false, stdout: '' };
-      },
-    });
-    const state = assembleState({
-      scope: 'story-close',
-      cwd: '/repo-stale',
-      probes,
-    });
-    assert.equal(state.git.epicBranchSync['epic/1143'].ahead, true);
-    assert.equal(state.git.epicBranchSync['epic/1143'].local, 'aaaa');
-    assert.equal(state.git.epicBranchSync['epic/1143'].remote, 'bbbb');
-  });
-
-  it('epicBranchSync reports null remote when origin ref is missing', () => {
-    const { probes } = makeSpyProbes({
-      git: (_cwd, ...args) => {
-        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
-          return { ok: true, stdout: 'story-x' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
-          return { ok: true, stdout: 'epic/9999' };
-        }
-        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
-          // Pre-push epic: no upstream configured → empty trailing fields.
-          return {
-            ok: true,
-            stdout: 'epic/9999 cccc  ',
-          };
-        }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        return { ok: false, stdout: '' };
-      },
-    });
-    const state = assembleState({
-      scope: 'story-close',
-      cwd: '/repo-pre-push',
-      probes,
-    });
-    assert.equal(state.git.epicBranchSync['epic/9999'].local, 'cccc');
-    assert.equal(state.git.epicBranchSync['epic/9999'].remote, null);
-    assert.equal(state.git.epicBranchSync['epic/9999'].ahead, false);
   });
 
   it('returns the same memoized object for the same scope+cwd (default probes)', () => {
@@ -371,14 +191,13 @@ describe('assembleState', () => {
     }, /Cannot assign|read.only/);
   });
 
-  it('covers unknown-scope, env-missing, and rev-parse-null branches', () => {
+  it('covers unknown-scope, env-missing, and branch-list-null branches', () => {
     // Three branch-coverage targets folded into one case to keep the
     // test file's MI score above the ratcheted baseline:
     //   (a) SCOPE_KEYS[scope] ?? [] fallback for a truthy unknown scope.
     //   (b) env probe returning 'missing' (the spy in the privacy test
     //       only hits the 'set' branch).
-    //   (c) epicBranchSync's local/remote null branches when rev-parse
-    //       fails (the existing sync tests stub both as ok:true).
+    //   (c) parseBranchList's non-ok fallback when for-each-ref fails.
     const { probes: empty, calls } = makeSpyProbes();
     const unknown = assembleState({
       scope: 'no-such-scope',
@@ -399,49 +218,18 @@ describe('assembleState', () => {
     assert.equal(miss.env.GITHUB_TOKEN, 'missing');
 
     const { probes: nullProbes } = makeSpyProbes({
-      git: (_cwd, cmd, ...rest) => {
-        if (cmd === 'for-each-ref') {
-          // Distinguish the two for-each-ref shapes by the path arg.
-          //   - rest[1] === 'refs/heads/epic/' → epicBranches enumeration
-          //   - rest[1] === 'refs/heads/' AND format includes objectname
-          //     → sync probe; returning a non-ok result models the "git
-          //       failed to enumerate refs" path so the sync map falls
-          //       back to local: null / remote: null / ahead: false.
-          if (rest[1] === 'refs/heads/epic/') {
-            return { ok: true, stdout: 'epic/9999' };
-          }
-          return { ok: false, stdout: '' };
-        }
+      git: (_cwd, cmd) => {
+        // A non-ok for-each-ref models "git failed to enumerate refs" so
+        // the branch list falls back to [].
+        if (cmd === 'for-each-ref') return { ok: false, stdout: '' };
         return { ok: true, stdout: '' };
       },
     });
-    const sync = assembleState({
+    const nullState = assembleState({
       scope: 'story-close',
       cwd: '/r-s',
       probes: nullProbes,
     });
-    assert.deepEqual(sync.git.epicBranchSync, {
-      'epic/9999': { local: null, remote: null, ahead: false },
-    });
+    assert.deepEqual(nullState.git.localBranches, []);
   });
-});
-
-describe('validatePidProbeInputs (predicate)', () => {
-  const cases = [
-    { name: 'null', pid: null, expected: false },
-    { name: 'undefined', pid: undefined, expected: false },
-    { name: 'string', pid: '123', expected: false },
-    { name: 'NaN', pid: Number.NaN, expected: false },
-    { name: 'Infinity', pid: Number.POSITIVE_INFINITY, expected: false },
-    { name: '-Infinity', pid: Number.NEGATIVE_INFINITY, expected: false },
-    { name: 'zero', pid: 0, expected: false },
-    { name: 'negative', pid: -1, expected: false },
-    { name: 'positive integer', pid: 1234, expected: true },
-    { name: 'positive finite float', pid: 1234.5, expected: true },
-  ];
-  for (const tc of cases) {
-    it(`returns ${tc.expected} for ${tc.name}`, () => {
-      assert.equal(validatePidProbeInputs(tc.pid), tc.expected);
-    });
-  }
 });

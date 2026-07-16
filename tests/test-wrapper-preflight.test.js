@@ -58,8 +58,6 @@ const noopProbes = {
   git: () => ({ ok: true, stdout: '' }),
   fs: () => false,
   env: () => 'missing',
-  lock: () => ({ exists: false }),
-  pidLiveness: () => false,
 };
 
 describe('runTestWrapperPreflight', () => {
