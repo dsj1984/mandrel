@@ -7,8 +7,35 @@ import { describe, it } from 'node:test';
 import {
   planRunEpilogue,
   RUN_EPILOGUE_STEP_KINDS,
+  resolveRunBaseSha,
   runPlanRunEpilogue,
 } from '../../../.agents/scripts/lib/orchestration/run-epilogue.js';
+
+const US = String.fromCharCode(31);
+
+/**
+ * Build a `gitSpawn` stub over a scripted `git log` first-parent history.
+ *
+ * @param {Array<{sha: string, parents?: string[], subject: string}>} commits
+ *   Newest-first, as real `git log --first-parent` emits.
+ */
+function gitStub(commits, { logStatus = 0, stderr = '' } = {}) {
+  return {
+    gitSpawn: (_cwd, ...args) => {
+      if (args[0] === 'log') {
+        if (logStatus !== 0) return { status: logStatus, stdout: '', stderr };
+        const stdout = commits
+          .map(
+            (c) =>
+              `${c.sha}${US}${(c.parents ?? []).join(' ')}${US}${c.subject}`,
+          )
+          .join('\n');
+        return { status: 0, stdout, stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  };
+}
 
 describe('planRunEpilogue — not applicable', () => {
   it('is inapplicable for a single-Story run (common case)', () => {
@@ -70,6 +97,140 @@ describe('planRunEpilogue — applicable (N>1)', () => {
   it('is pure — no side effects, deterministic output', () => {
     const args = { planRunId: 'run-9', stories: ['a', 'b'] };
     assert.deepEqual(planRunEpilogue(args), planRunEpilogue(args));
+  });
+});
+
+describe('resolveRunBaseSha — pre-run base derivation (Story #4550)', () => {
+  const HISTORY = [
+    { sha: 'ddd', parents: ['ccc'], subject: 'docs: unrelated later commit' },
+    {
+      sha: 'ccc',
+      parents: ['bbb'],
+      subject: 'feat: second story (#102) (#901)',
+    },
+    { sha: 'bbb', parents: ['aaa'], subject: 'fix: first story (#101) (#900)' },
+    { sha: 'aaa', parents: ['000'], subject: 'chore: pre-run tip' },
+  ];
+
+  it('anchors on the earliest run merge and returns its first parent', () => {
+    const base = resolveRunBaseSha({
+      stories: [101, 102],
+      cwd: '/repo',
+      git: gitStub(HISTORY),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.baseSha, 'aaa');
+    assert.equal(base.mergeSha, 'bbb');
+    assert.equal(base.storyId, 101);
+  });
+
+  it('matches the `(#id)` marker, not a bare `#id` prose mention', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'ccc',
+          parents: ['bbb'],
+          subject: 'fix: real story (#101) (#900)',
+        },
+        // An *earlier* commit that merely mentions the id — must not anchor.
+        {
+          sha: 'bbb',
+          parents: ['aaa'],
+          subject: 'docs: plan for #101 refactor',
+        },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(
+      base.baseSha,
+      'bbb',
+      'anchored on the (#101) merge, not the prose',
+    );
+  });
+
+  it('honours a non-default baseBranch ref', () => {
+    const seen = [];
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      baseRef: 'origin/trunk',
+      git: {
+        gitSpawn: (_cwd, ...args) => {
+          seen.push(args);
+          return {
+            status: 0,
+            stdout: `bbb${US}aaa${US}fix: s (#101) (#900)`,
+            stderr: '',
+          };
+        },
+      },
+    });
+    assert.equal(base.resolved, true);
+    assert.ok(seen[0].includes('origin/trunk'));
+  });
+
+  it('reports unresolved — not an empty set — when no run merge landed', () => {
+    const base = resolveRunBaseSha({
+      stories: [777],
+      cwd: '/repo',
+      git: gitStub(HISTORY),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /#777/);
+    assert.match(base.reason, /has the run landed/);
+  });
+
+  it('reports unresolved when the base ref is unreadable', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([], {
+        logStatus: 128,
+        stderr: "fatal: bad revision 'origin/main'",
+      }),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /git log origin\/main.*failed/);
+    assert.match(base.reason, /bad revision/);
+  });
+
+  it('reports unresolved when the run merge is a root commit', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        { sha: 'aaa', parents: [], subject: 'fix: s (#101) (#900)' },
+      ]),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /root commit/);
+  });
+
+  it('reports unresolved when the run carries no numeric Story ids', () => {
+    const base = resolveRunBaseSha({
+      stories: ['slug-a', 'slug-b'],
+      cwd: '/repo',
+      git: gitStub(HISTORY),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /no numeric Story ids/);
+  });
+
+  it('survives a throwing git without taking the epilogue down', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: {
+        gitSpawn: () => {
+          throw new Error('ENOENT: git not found');
+        },
+      },
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /could not be spawned/);
   });
 });
 

@@ -8,13 +8,28 @@ import {
   assertSupersedePartition,
   buildSupersedeCommentBody,
   closeSupersededTickets,
+  extractEnvelopeSourceTicketIds,
   normalizeSourceTicketIds,
   normalizeSupersedes,
+  resolveSourceTicketIds,
   SUPERSEDE_CLOSE_REASON,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 
 function story(slug, supersedes = []) {
   return { slug, supersedes };
+}
+
+/** A minimal `plan-context.js --tickets` envelope. */
+function ticketsEnvelope(ids) {
+  return {
+    mode: 'tickets',
+    sourceTickets: ids.map((id) => ({
+      id,
+      title: `source #${id}`,
+      body: '',
+      labels: [],
+    })),
+  };
 }
 
 describe('normalizeSupersedes', () => {
@@ -154,6 +169,85 @@ describe('assertSupersedePartition', () => {
     assert.throws(
       () => assertSupersedePartition([story('a', [{ id: 1 }])], []),
       /was not passed to --tickets/,
+    );
+  });
+});
+
+describe('extractEnvelopeSourceTicketIds', () => {
+  it('pulls the ids out of a --tickets envelope', () => {
+    assert.deepEqual(
+      extractEnvelopeSourceTicketIds(ticketsEnvelope([4525, 4526])),
+      [4525, 4526],
+    );
+  });
+
+  it('yields [] for a seed-mode envelope, a null envelope, and an empty set', () => {
+    assert.deepEqual(extractEnvelopeSourceTicketIds({ mode: 'seed' }), []);
+    assert.deepEqual(extractEnvelopeSourceTicketIds(null), []);
+    assert.deepEqual(
+      extractEnvelopeSourceTicketIds({ mode: 'tickets', sourceTickets: [] }),
+      [],
+    );
+  });
+
+  it('blames the envelope, not the flag, on a malformed id', () => {
+    assert.throws(
+      () =>
+        extractEnvelopeSourceTicketIds({
+          mode: 'tickets',
+          sourceTickets: [{ id: 0 }],
+        }),
+      /plan-context envelope sourceTickets\[\] expects positive issue ids/,
+    );
+  });
+});
+
+describe('resolveSourceTicketIds', () => {
+  // The Story #4554 regression: before the envelope was threaded through,
+  // omitting --source-tickets left the id set empty, so the partition passed
+  // vacuously and the close phase short-circuited on a run that had really
+  // fetched source tickets.
+  it('derives the ids from the envelope when no flag is passed', () => {
+    assert.deepEqual(
+      resolveSourceTicketIds({ envelope: ticketsEnvelope([4525, 4526]) }),
+      { ids: [4525, 4526], origin: 'envelope' },
+    );
+  });
+
+  it('lets an explicit --source-tickets value override the envelope', () => {
+    assert.deepEqual(
+      resolveSourceTicketIds({
+        explicitIds: '4525',
+        envelope: ticketsEnvelope([4525, 4526]),
+      }),
+      { ids: [4525], origin: 'flag' },
+    );
+  });
+
+  it('honours the flag when there is no envelope at all (hand-driven run)', () => {
+    assert.deepEqual(resolveSourceTicketIds({ explicitIds: '4525,4526' }), {
+      ids: [4525, 4526],
+      origin: 'flag',
+    });
+  });
+
+  it('reports origin "none" when neither channel carries ids (seed mode)', () => {
+    assert.deepEqual(resolveSourceTicketIds({ envelope: { mode: 'seed' } }), {
+      ids: [],
+      origin: 'none',
+    });
+    assert.deepEqual(resolveSourceTicketIds(), { ids: [], origin: 'none' });
+  });
+
+  it('an envelope-derived set still fail-closes the partition when a Story forgot supersedes[]', () => {
+    // The whole point: deriving the ids turns the old silent no-op into the
+    // existing loud partition error.
+    const { ids } = resolveSourceTicketIds({
+      envelope: ticketsEnvelope([4525]),
+    });
+    assert.throws(
+      () => assertSupersedePartition([story('a')], ids),
+      /#4525 is not claimed by any Story/,
     );
   });
 });
