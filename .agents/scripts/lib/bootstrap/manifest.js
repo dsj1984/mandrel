@@ -110,9 +110,14 @@ export function buildMutationManifest(ctx = {}) {
   const entries = [];
 
   // --- ide-wiring -------------------------------------------------------
-  // Claude Code / IDE integration: the system-prompt import, the
-  // UserPromptSubmit sync hook, the generated flat command surface, and the
-  // .gitignore entry that keeps the generated tree out of git.
+  // Claude Code / IDE integration: the system-prompt import, the generated
+  // flat command surface, and the .gitignore entry that keeps the
+  // generated tree out of git. (Story #4527/#4530: the UserPromptSubmit
+  // per-prompt re-sync hook entry was removed alongside the hook itself —
+  // it raced the harness's own read of the same directory and reported
+  // "0 file(s) synced" on effectively every invocation; the real sync
+  // points — `prepare`, `mandrel sync`/`update`, doctor's
+  // `commands-in-sync` — already cover every case.)
   entries.push(
     {
       phaseGroup: PHASE_GROUPS.IDE_WIRING,
@@ -120,14 +125,6 @@ export function buildMutationManifest(ctx = {}) {
       action: 'merge',
       detail:
         'Wire the @.agents/instructions.md system-prompt import so Claude Code hydrates the framework on cold start.',
-      reversible: true,
-    },
-    {
-      phaseGroup: PHASE_GROUPS.IDE_WIRING,
-      target: rel('.claude', 'settings.json'),
-      action: 'merge',
-      detail:
-        'Add the UserPromptSubmit re-sync hook so the /<command> tree stays current.',
       reversible: true,
     },
     {

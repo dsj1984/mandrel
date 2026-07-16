@@ -119,8 +119,9 @@ function makeWorkingTree() {
  * version SSOT under npm distribution); the `spawnPhase` stub then drives the
  * post-install phases keyed on the phase name — `sync` re-materializes the
  * `.agents/` payload, `sync-commands` regenerates the command tree (no-op
- * here), `migrate` is a no-op (empty registry on the 1.x line), and `doctor`
- * inspects the resulting tree and returns its verdict via `ok`.
+ * here); `sync-agents` regenerates the role-agent tree (no-op here, Story
+ * #4528/#4530); `migrate` is a no-op (empty registry on the 1.x line); and
+ * `doctor` inspects the resulting tree and returns its verdict via `ok`.
  */
 function makeGoldenPathSeams(tree) {
   const calls = [];
@@ -149,6 +150,10 @@ function makeGoldenPathSeams(tree) {
       }
       if (phase === 'sync-commands') {
         calls.push('sync-commands');
+        return { ok: true, stdout: '', stderr: '' };
+      }
+      if (phase === 'sync-agents') {
+        calls.push('sync-agents');
         return { ok: true, stdout: '', stderr: '' };
       }
       if (phase === 'migrate') {
@@ -198,7 +203,7 @@ function makeCapture() {
 // ---------------------------------------------------------------------------
 
 describe('update golden path — full cycle, doctor-pass, staged lockfile', () => {
-  it('drives resolve → npm-update → sync → sync-commands → migrate → doctor → changelog and reports success', async () => {
+  it('drives resolve → npm-update → sync → sync-commands → sync-agents → migrate → doctor → changelog and reports success', async () => {
     // Arrange
     const tree = makeWorkingTree();
     const seams = makeGoldenPathSeams(tree);
@@ -214,13 +219,15 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
     });
 
     // Assert — the full ordered cycle ran exactly once, in order; resolve is
-    // the observable entry point (sync-commands runs between sync and migrate —
-    // Story #4046 A1c).
+    // the observable entry point (sync-commands runs between sync and
+    // sync-agents — Story #4046 A1c; sync-agents runs between sync-commands
+    // and migrate — Story #4528/#4530).
     assert.deepEqual(seams.calls, [
       'resolve',
       `npm-update:${TARGET_VERSION}`,
       'sync',
       'sync-commands',
+      'sync-agents',
       `migrate:${CURRENT_VERSION}->${TARGET_VERSION}`,
       'doctor',
       `changelog:${TARGET_VERSION}`,
@@ -234,6 +241,7 @@ describe('update golden path — full cycle, doctor-pass, staged lockfile', () =
       'npm-update',
       'runSync',
       'sync-commands',
+      'sync-agents',
       'runMigrations',
       'doctor',
     ]);

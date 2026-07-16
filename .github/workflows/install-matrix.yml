@@ -294,6 +294,17 @@ jobs:
         working-directory: ${{ env.CONSUMER_DIR }}
         run: node "$MANDREL_BIN" sync-commands
 
+      - name: Sync role agents (mandrel sync-agents)
+        # Story #4530: doctor's agents-in-sync check is now fatal (not
+        # advisory) when delivery.routing.roleScopedAgents is true (the
+        # default) and .agents/agents/ sources exist but .claude/agents/ is
+        # unmaterialized. Populate it here — the same step the bootstrap/
+        # postinstall onboarding flow performs — so the verdict is honestly
+        # green rather than red on every fresh consumer install.
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: node "$MANDREL_BIN" sync-agents
+
       - name: Assert materialization + clean consumer manifest
         shell: bash
         run: |
@@ -413,6 +424,14 @@ jobs:
         working-directory: ${{ env.CONSUMER_DIR }}
         run: node "$MANDREL_BIN" sync-commands
 
+      - name: "[postinstall] Sync role agents (mandrel sync-agents)"
+        # Story #4530: agents-in-sync is fatal by default; populate
+        # .claude/agents/ so doctor-ready is honestly reachable here too.
+        if: matrix.leg == 'postinstall-materialization'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: node "$MANDREL_BIN" sync-agents
+
       - name: "[postinstall] Assert materialization without explicit sync"
         if: matrix.leg == 'postinstall-materialization'
         shell: bash
@@ -512,6 +531,14 @@ jobs:
         shell: bash
         working-directory: ${{ env.CONSUMER_DIR }}
         run: node "$MANDREL_BIN" sync-commands
+
+      - name: "[script-run] Sync role agents (mandrel sync-agents)"
+        # Story #4530: agents-in-sync is fatal by default; populate
+        # .claude/agents/ so the doctor-ready check below is honestly green.
+        if: matrix.leg == 'materialized-script-run'
+        shell: bash
+        working-directory: ${{ env.CONSUMER_DIR }}
+        run: node "$MANDREL_BIN" sync-agents
 
       - name: "[script-run] Run a materialized .agents/scripts/*.js from consumer root"
         if: matrix.leg == 'materialized-script-run'

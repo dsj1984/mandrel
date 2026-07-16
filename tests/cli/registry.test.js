@@ -70,8 +70,8 @@ describe('registry', () => {
     assert.ok(Array.isArray(registry), 'registry must be an array');
   });
 
-  it('contains exactly 11 checks', () => {
-    assert.equal(registry.length, 11);
+  it('contains exactly 12 checks', () => {
+    assert.equal(registry.length, 12);
   });
 
   it('every entry has a string name and a run function', () => {
@@ -98,6 +98,7 @@ describe('registry', () => {
       'runtime-deps',
       'agents-materialized',
       'agents-drift',
+      'pin-current',
       'version-current',
     ];
     assert.deepEqual(
@@ -518,14 +519,17 @@ describe('agents-in-sync check', () => {
     assert.match(result.detail, /0 agents up to date/);
   });
 
-  // Inert-scaffolding divergence (#4478 PR-2): sources present but the tree
-  // was never materialized (dest empty) is advisory (ok:true), not fatal —
-  // nothing spawns the role agents yet.
-  it('is advisory (ok:true) when sources exist but the dest tree is empty', () => {
+  // Tightened from advisory to fatal (Story #4530, M7-B): the never-
+  // materialized-tree tolerance existed only because nothing spawned the
+  // role agents yet. M7-B has landed (deliver-story Step 1a dispatches
+  // subagent_type: acceptance-critic by default), so under the default
+  // roleScopedAgents:true this is now a readiness failure.
+  it('is fatal (ok:false) when sources exist, the dest tree is empty, and roleScopedAgents is true (default)', () => {
     const check = findCheck('agents-in-sync');
     let callCount = 0;
     const result = check.run({
       projectRoot: '/fake/root',
+      roleScopedAgents: true,
       readDir: () => {
         callCount++;
         // First call = srcDir (3 defs), second call = destDir (empty).
@@ -535,8 +539,32 @@ describe('agents-in-sync check', () => {
         return [];
       },
     });
-    assertResultShape(result, { expectOk: true });
+    assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /3 agent def\(s\) not yet materialized/);
+    assert.doesNotMatch(result.detail, /inert/);
+    assert.match(result.remedy, /mandrel sync-agents/);
+  });
+
+  // roleScopedAgents:false is the documented kill-switch — an unmaterialized
+  // tree under that flag is expected, not a defect, so the check stays
+  // advisory.
+  it('stays advisory (ok:true) when sources exist, the dest tree is empty, and roleScopedAgents is false', () => {
+    const check = findCheck('agents-in-sync');
+    let callCount = 0;
+    const result = check.run({
+      projectRoot: '/fake/root',
+      roleScopedAgents: false,
+      readDir: () => {
+        callCount++;
+        if (callCount === 1) {
+          return ['story-worker.md', 'acceptance-critic.md', 'retro.md'];
+        }
+        return [];
+      },
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /3 agent def\(s\) not materialized/);
+    assert.match(result.detail, /roleScopedAgents is disabled/);
   });
 
   it('returns ok=false when a source def is not in the destination', () => {
@@ -552,7 +580,7 @@ describe('agents-in-sync check', () => {
       },
     });
     assertResultShape(result, { expectOk: false });
-    assert.match(result.remedy, /sync:agents/);
+    assert.match(result.remedy, /mandrel sync-agents/);
     assert.match(result.detail, /1 not synced/);
   });
 

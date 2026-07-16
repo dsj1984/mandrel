@@ -29,6 +29,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   cleanupAll,
   makeTempConsumer,
+  REPO_ROOT,
   runMandrel,
 } from './helpers/cli-harness.js';
 
@@ -177,6 +178,34 @@ describe('mandrel sync — real-binary copy + prune (e2e)', () => {
     assert.ok(
       fs.existsSync(staleManagedFile),
       'dry-run must not prune the stale file',
+    );
+  });
+
+  it('writes .agents/.mandrel-version and it survives a second sync (Story #4530)', () => {
+    const markerPath = path.join(consumer.agentsDir, '.mandrel-version');
+    const pkgJson = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'),
+    );
+
+    const first = runMandrel(consumer.dir, ['sync']);
+    assert.equal(first.status, 0, `first sync failed: ${first.stderr}`);
+    assert.ok(fs.existsSync(markerPath), 'marker must exist after first sync');
+    assert.equal(
+      fs.readFileSync(markerPath, 'utf8').trim(),
+      pkgJson.version,
+      'marker must carry the real package version',
+    );
+
+    const second = runMandrel(consumer.dir, ['sync']);
+    assert.equal(second.status, 0, `second sync failed: ${second.stderr}`);
+    assert.ok(
+      fs.existsSync(markerPath),
+      'marker must survive a second sync — it must never be pruned',
+    );
+    assert.doesNotMatch(
+      second.stdout,
+      /pruned \d+ stale file\(s\)/,
+      'the marker must not be reported as a stale prune candidate',
     );
   });
 

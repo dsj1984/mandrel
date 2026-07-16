@@ -1,19 +1,20 @@
-// tests/cli/sync-commands.test.js
+// tests/cli/sync-agents.test.js
 /**
- * Unit tests for lib/cli/sync-commands.js
+ * Unit tests for lib/cli/sync-agents.js (Story #4528 / #4530).
+ *
+ * Exact sibling of tests/cli/sync-commands.test.js — same coverage shape,
+ * targeting the role-agent tree instead of the command tree.
  *
  * AC coverage:
- *   1. The wrapper delegates to .agents/scripts/sync-claude-commands.js — it
+ *   1. The wrapper delegates to .agents/scripts/sync-claude-agents.js — it
  *      does not reimplement the sync logic.
  *   2. When the sync script exits 0, `run()` returns without calling
  *      process.exit.
  *   3. When the sync script exits non-zero, `run()` calls process.exit with
  *      that code.
- *   4. `mandrel sync-commands` (bin dispatch integration) exits 0 against the
+ *   4. `mandrel sync-agents` (bin dispatch integration) exits 0 against the
  *      real sync script and real filesystem.
- *   5. Story #4526/#4530 — the marker-gated refusal check: a marker/own-
- *      version mismatch refuses BEFORE the runner is invoked; a match (or an
- *      absent marker with clean agents-drift) proceeds as before.
+ *   5. The marker-gated refusal check (identical shape to sync-commands.js).
  */
 
 import assert from 'node:assert/strict';
@@ -29,7 +30,7 @@ const SYNC_SCRIPT = path.join(
   REPO_ROOT,
   '.agents',
   'scripts',
-  'sync-claude-commands.js',
+  'sync-claude-agents.js',
 );
 
 // ---------------------------------------------------------------------------
@@ -39,7 +40,7 @@ const SYNC_SCRIPT = path.join(
 let run;
 
 before(async () => {
-  const mod = await import('../../lib/cli/sync-commands.js');
+  const mod = await import('../../lib/cli/sync-agents.js');
   run = mod.default;
 });
 
@@ -47,7 +48,7 @@ before(async () => {
 // Unit — delegation contract
 // ---------------------------------------------------------------------------
 
-describe('sync-commands — delegates to sync-claude-commands.js', () => {
+describe('sync-agents — delegates to sync-claude-agents.js', () => {
   it('passes the sync script path as the first argument to the runner', () => {
     let capturedArgs;
     const fakeRunner = (cmd, args, _opts) => {
@@ -59,8 +60,8 @@ describe('sync-commands — delegates to sync-claude-commands.js', () => {
 
     assert.equal(capturedArgs.cmd, process.execPath);
     assert.ok(
-      capturedArgs.args[0].endsWith('sync-claude-commands.js'),
-      `Expected sync-claude-commands.js, got: ${capturedArgs.args[0]}`,
+      capturedArgs.args[0].endsWith('sync-claude-agents.js'),
+      `Expected sync-claude-agents.js, got: ${capturedArgs.args[0]}`,
     );
     assert.equal(capturedArgs.args[0], SYNC_SCRIPT);
   });
@@ -82,7 +83,7 @@ describe('sync-commands — delegates to sync-claude-commands.js', () => {
 // Unit — exit-code forwarding
 // ---------------------------------------------------------------------------
 
-describe('sync-commands — exit-code forwarding', () => {
+describe('sync-agents — exit-code forwarding', () => {
   let originalExit;
   let exitCalled;
   let exitCode;
@@ -168,7 +169,7 @@ function makeFsFake(seed = {}) {
   };
 }
 
-describe('sync-commands — refuses on a marker/own-version mismatch', () => {
+describe('sync-agents — refuses on a marker/own-version mismatch', () => {
   it('does not invoke the runner and exits 1 when the marker disagrees with ownVersion', () => {
     const fs = makeFsFake({
       [path.join(CONSUMER_ROOT, '.agents', '.mandrel-version')]: '1.87.0\n',
@@ -223,9 +224,9 @@ describe('sync-commands — refuses on a marker/own-version mismatch', () => {
   });
 });
 
-describe('sync-commands — falls back to agents-drift when the marker is absent', () => {
+describe('sync-agents — falls back to agents-drift when the marker is absent', () => {
   it('refuses when the marker is absent and the drift fallback reports dirty', () => {
-    const fs = makeFsFake({}); // no marker at all — pre-marker install
+    const fs = makeFsFake({});
     let runnerCalled = false;
     const errLines = [];
     let exitCode;
@@ -241,7 +242,7 @@ describe('sync-commands — falls back to agents-drift when the marker is absent
       checkAgentsDrift: () => ({
         ok: false,
         detail:
-          '.agents/rules/security-baseline.md differs from the installed package payload',
+          '.agents/agents/story-worker.md differs from the installed package payload',
       }),
       writeErr: (s) => errLines.push(s),
       exit: (code) => {
@@ -278,37 +279,15 @@ describe('sync-commands — falls back to agents-drift when the marker is absent
 
     assert.equal(runnerCalled, true);
   });
-
-  it('does not consult the drift fallback at all when the marker is present', () => {
-    const fs = makeFsFake({
-      [path.join(CONSUMER_ROOT, '.agents', '.mandrel-version')]: '2.0.0\n',
-    });
-    let driftConsulted = false;
-
-    run([], {
-      runner: () => ({ status: 0 }),
-      cwd: () => CONSUMER_ROOT,
-      fs,
-      ownVersion: '2.0.0',
-      checkAgentsDrift: () => {
-        driftConsulted = true;
-        return { ok: true, detail: 'clean' };
-      },
-      writeErr: () => {},
-      exit: () => {},
-    });
-
-    assert.equal(driftConsulted, false);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// Integration — bin dispatch: mandrel sync-commands exits 0
+// Integration — bin dispatch: mandrel sync-agents exits 0
 // ---------------------------------------------------------------------------
 
-describe('mandrel sync-commands — bin dispatch integration', () => {
+describe('mandrel sync-agents — bin dispatch integration', () => {
   it('exits 0 when dispatched via bin/mandrel.js', () => {
-    const result = spawnSync(process.execPath, [BIN, 'sync-commands'], {
+    const result = spawnSync(process.execPath, [BIN, 'sync-agents'], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
       env: process.env,
@@ -316,7 +295,7 @@ describe('mandrel sync-commands — bin dispatch integration', () => {
     assert.equal(
       result.status,
       0,
-      `mandrel sync-commands exited ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+      `mandrel sync-agents exited ${result.status}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
   });
 });

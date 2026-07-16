@@ -108,12 +108,13 @@ describe('ensureSystemPromptWiring', () => {
     assert.equal(countOccurrences(body, SYSTEM_PROMPT_IMPORT), 1);
   });
 
-  it('is registered in BOOTSTRAP_PHASES after claudeSettings', () => {
+  it('is registered in BOOTSTRAP_PHASES after validation (Story #4527/#4530: claudeSettings phase retired)', () => {
     const names = BOOTSTRAP_PHASES.map((p) => p.name);
-    const idxSettings = names.indexOf('claudeSettings');
+    const idxValidation = names.indexOf('validation');
     const idxWiring = names.indexOf('systemPromptWiring');
     assert.ok(idxWiring !== -1, 'systemPromptWiring phase must be registered');
-    assert.ok(idxWiring > idxSettings, 'must run after claudeSettings');
+    assert.ok(idxValidation !== -1, 'validation phase must be registered');
+    assert.ok(idxWiring > idxValidation, 'must run after validation');
   });
 });
 
