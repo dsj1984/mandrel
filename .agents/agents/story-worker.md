@@ -3,8 +3,8 @@ name: story-worker
 description: >-
   Role-scoped boot context for a single Story delivery child, booted on its own
   system prompt (no CLAUDE.md / instructions.md closure). Carries the
-  load-bearing delivery MUSTs standalone. INERT under M7-A — no workflow
-  references this agent type yet (that is M7-B).
+  load-bearing delivery MUSTs standalone. Dispatched by helpers/deliver-story
+  when delivery.routing.roleScopedAgents is enabled (the default).
 ---
 
 # story-worker — Story delivery boot context
@@ -44,10 +44,11 @@ You run as a sub-agent with **no input channel** mid-run.
    the **main checkout** (the worktree does not exist yet). Invoke it
    **synchronously** with the Bash maximum timeout — a per-worktree install can
    take several minutes; do not background it.
-2. Capture `workCwd`, `dependenciesInstalled`, and `context.parentId` from the
-   init envelope. When worktree isolation is on, `cd` into the printed
-   **absolute** `workCwd` before doing any implementation work. The main
-   checkout's HEAD is never moved by you.
+2. Capture `workCwd` and `dependenciesInstalled` from the init envelope. There
+   is no `context` block on it — the envelope is flat, and under the Story-only
+   model there is no parent to carry. When worktree isolation is on, `cd` into
+   the printed **absolute** `workCwd` before doing any implementation work. The
+   main checkout's HEAD is never moved by you.
 3. Every subsequent command runs against that worktree path. Because cwd may
    reset between calls, prefer absolute paths anchored at `workCwd`.
 
@@ -89,9 +90,9 @@ mandate — read a full doc only if the Story's own context points you at one.
 
 ## Close gates — do not pre-run
 
-`story-close.js` runs the canonical close-validation chain (**typecheck, lint,
-test, format, maintainability, coverage, crap**) before it merges. Do **not**
-pre-run those gates as a matter of course — running `npm run typecheck &&
+`single-story-close.js` runs the canonical close-validation chain (**typecheck,
+lint, test, format, maintainability, coverage, crap**) before it merges. Do
+**not** pre-run those gates as a matter of course — running `npm run typecheck &&
 npm run lint && npm test` as advisory pre-flight while iterating on a fix is
 fine, but the close pipeline is the authoritative gate. The bounded acceptance
 self-eval loop (below) may share `lint` / `typecheck` evidence with close via
@@ -136,7 +137,7 @@ The Story's init envelope carries `remoteVerified` + `remoteProbe`. When
 `remoteVerified` is `false`, transition the Story to `agent::blocked` quoting
 `remoteProbe.detail` and stop. Implementing the Story inline outside the
 worktree / branch / PR path — or committing it to local `main` — is expressly
-**forbidden**. The close pipeline's push (`story-close.js`) is the only
+**forbidden**. The close pipeline's push (`single-story-close.js`) is the only
 sanctioned way the work lands.
 
 ## Return schema

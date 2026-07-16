@@ -49,10 +49,7 @@
       "path": ".agents/skills/core/diagnose-friction/SKILL.md",
       "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
       "policyCapsuleBullets": 8,
-      "allowedTools": [
-        "Bash",
-        "Read"
-      ],
+      "allowedTools": ["Bash", "Read"],
       "vendor": null
     },
     {
@@ -72,11 +69,7 @@
       "path": ".agents/skills/core/gates-and-baselines/SKILL.md",
       "description": "Governs quality gates and the unified-baseline snapshots. Use when authoring a baseline refresh commit (CRAP, maintainability, dead-exports, lighthouse), when setting up or modifying CI quality gates, or when introducing a new gate that asserts on pre-existing state without turning the integration branch red.",
       "policyCapsuleBullets": 9,
-      "allowedTools": [
-        "Read",
-        "Write",
-        "Bash"
-      ],
+      "allowedTools": ["Read", "Write", "Bash"],
       "vendor": null
     },
     {
@@ -106,10 +99,7 @@
       "path": ".agents/skills/core/qa-coverage-mapping/SKILL.md",
       "description": "Map a quality finding to a per-tier coverage verdict (unit / contract / acceptance) aligned to `.agents/rules/testing-standards.md`. Use when a finding points at a symbol or surface and you need to know which test tiers already cover it and which are missing, so remediation lands the right tier. Delegates the verdict to the deterministic `lib/qa/coverage-verdict.js#coverageVerdict` helper.",
       "policyCapsuleBullets": 7,
-      "allowedTools": [
-        "Read",
-        "Bash"
-      ],
+      "allowedTools": ["Read", "Bash"],
       "vendor": null
     },
     {

@@ -95,7 +95,7 @@ export async function ensurePullRequestWith({
   const body = [
     `Closes #${storyId}`,
     '',
-    `_Auto-opened by \`/single-story-deliver\`._`,
+    `_Auto-opened by \`/deliver\`._`,
   ].join('\n');
   try {
     const createResult = await gh.pr.create([

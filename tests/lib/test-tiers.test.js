@@ -113,12 +113,29 @@ test('quick / integration walk .agents/scripts/**/__tests__ as a third root', ()
 test('INTEGRATION_INCLUDE matches documented slow suites', () => {
   assert.ok(
     INTEGRATION_INCLUDE.some((p) =>
-      p.includes('epic-execute-record-wave.test.js'),
-    ),
-  );
-  assert.ok(
-    INTEGRATION_INCLUDE.some((p) =>
       p.includes('check-baselines-regression.test.js'),
     ),
+  );
+});
+
+// Story #4545 — every curated (non-glob) entry must resolve to a real file.
+// Three entries named files deleted in the v2.0.0 cutover
+// (epic-execute-record-wave, push-epic-retry, concurrency-wiring). They failed
+// SILENTLY rather than loudly: `listTestFilesForTier` filters a real directory
+// walk through `matchesIntegration`, so a curated path with no file on disk
+// simply never matches and is dropped from the tier. The suite it was meant to
+// pin then stops running with no signal. This guard is what the old
+// membership assertion should have been — it pinned one of the dead paths by
+// name, which is precisely why the drift survived.
+test('every curated INTEGRATION_INCLUDE entry resolves to a file on disk', () => {
+  const repoRoot = path.resolve(import.meta.dirname, '..', '..');
+  const missing = INTEGRATION_INCLUDE.filter(
+    (entry) =>
+      !entry.includes('*') && !fs.existsSync(path.join(repoRoot, entry)),
+  );
+  assert.deepEqual(
+    missing,
+    [],
+    `curated integration entries name files that do not exist: ${missing.join(', ')}`,
   );
 });

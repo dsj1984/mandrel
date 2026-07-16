@@ -88,10 +88,10 @@ subject MUST conform. `release-please` consumes the subject on `main`;
 `chore(baselines):` keeps the refresh out of the user-facing changelog (correct —
 it is internal hygiene) while staying machine-parseable. The
 `baseline-refresh: true` **body trailer** is the canonical machine-readable
-marker (what
-[`.agents/scripts/lib/observability/baseline-refresh-rate.js`](../../../scripts/lib/observability/baseline-refresh-rate.js)
-classifies against) — subject-level leading tokens are not, and must not be, used
-for this purpose.
+marker — subject-level leading tokens are not, and must not be, used for this
+purpose. (Its only reader, `baseline-refresh-rate.js`, went with the
+execution-analysis surface in Story #4545; the trailer convention stands on its
+own as the parseable marker for any future reader.)
 
 ### Procedure
 

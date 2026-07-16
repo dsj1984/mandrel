@@ -1003,32 +1003,26 @@ The model has three layers:
    first write; `epicId` / `storyId` must be positive integers.
 2. **Detectors — `diagnose-friction.js` and the per-detector pure
    modules under `lib/signals/detectors/` (`rework.js`, `retry.js`,
-   `hotspot.js`).** Rework + retry run inside the post-Story close
-   pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot signals
-   are aggregated at Epic close by the retro's signal-gathering phase
-   (`lib/orchestration/retro/phases/gather-signals.js`) and the
-   epic-perf-report pipeline.
+   `hotspot.js`).** Signals are aggregated by the retro's signal-gathering
+   phase (`lib/orchestration/retro/phases/gather-signals.js`).
    Each call site resolves thresholds via `getSignals(config)`
    (defaults: `hotspot.p95Multiplier=1.25`, `rework.editsPerFile=5`,
    `retry.repeatCount=3`). Operators override individual keys in
    `.agentrc.json` under `delivery.signals.*`; the resolver shallow-
    merges per detector, so a re-tuned `hotspot.p95Multiplier` does not
    require re-listing the others.
-3. **Analyzers — Story close + Epic deliver retro.** At Story close,
-   `story-close.js` rolls the local NDJSON into a single
-   [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
-   comment carrying friction counts by category, phase timings,
-   top-slow phases vs baseline, a rework score, and retry density. At
-   `/deliver` Phase 6, `analyze-execution.js` aggregates every
-   Story's NDJSON into one
-   [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
-   comment alongside the retro: per-kind signal counts, per-wave
-   parallelism utilization, top hotspots, and the most-friction Stories.
+3. **Analyzers — the retro.** Story #4545 deleted the perf-summary /
+   perf-report analyzers (`analyze-execution.js` and the
+   `lib/observability/perf-*` modules it exclusively owned): the CLI
+   hard-failed without an Epic id, read signals from a path a standalone
+   Story can never produce, and no workflow invoked it. The surviving
+   consumer of the stream is the retro's signal-gathering phase, which routes
+   recurring friction into proposals. Nothing writes a
+   `structured:story-perf-summary` or `structured:epic-perf-report` comment.
 
 The split — events local, summaries on tickets — keeps the GitHub
-comment surface bounded (one summary per Story, one report per Epic) and
-keeps the raw stream cheap enough that detectors can fire on every
-tool-call without rate-limiting or batching. The per-Epic temp tree is
+comment surface bounded and keeps the raw stream cheap enough that detectors
+can fire on every tool-call without rate-limiting or batching. The per-Epic temp tree is
 reaped together with the worktree on `WorktreeManager.reap`. See
 [`docs/decisions.md`](decisions.md) ADR for the architectural rationale.
 

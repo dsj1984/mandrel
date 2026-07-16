@@ -6,7 +6,7 @@
 
 # Performance & Bottleneck Audit — authoring checklist
 
-> Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`epic-close`, dispatcher, gates); propose remediations.
+> Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`single-story-close`, dispatcher, gates); propose remediations.
 
 Self-check your change against this lens's concerns before you ship:
 

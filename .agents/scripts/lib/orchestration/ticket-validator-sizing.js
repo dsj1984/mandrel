@@ -14,10 +14,9 @@
  *
  * `DEFAULT_MODEL_CAPACITY` is the **single source of truth** for the capacity
  * thresholds. The decomposer prompt template
- * (`.agents/scripts/lib/templates/decomposer-prompts.js`) and the authoring
- * SKILL (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`) reference
- * these numbers rather than restating divergent ones — the prompt generates
- * its threshold sentence from this constant so the two surfaces cannot drift.
+ * (`.agents/scripts/lib/templates/decomposer-prompts.js`) generates its
+ * threshold sentence from this constant rather than restating divergent
+ * numbers, so the two surfaces cannot drift.
  *
  * Capacity model:
  *   - Plan-time **session mass** = authored tokens only (`estimateTokens` of

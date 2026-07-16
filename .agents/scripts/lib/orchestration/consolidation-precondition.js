@@ -123,7 +123,7 @@ export function parseDeliverySlicingTable(epicBody) {
 
 /**
  * True when `story` is the recognized wave-0 BDD scaffold Story — identified
- * by the literal `bdd-scaffold` goal token the `epic-plan-decompose-author`
+ * by the literal `bdd-scaffold` goal token the decomposer prompt
  * skill's WAVE-0 BDD SCAFFOLD STORY section requires. Scaffold Stories are
  * not a Delivery Slicing slice, so they are excluded from the count
  * comparison — BDD-adopting consumer repos still benefit from the
@@ -145,7 +145,7 @@ function isBddScaffoldStory(story) {
  *
  * @param {object} input
  * @param {object[]} input.draftStories - The draft `tickets.json` array
- *   (`epic-plan-decompose-author`'s output) — raw Story ticket objects with
+ *   (the decomposer's output) — raw Story ticket objects with
  *   top-level `slug` / `depends_on` / `body` (serialized string).
  * @param {string} input.epicBody - The Epic body carrying the folded Tech
  *   Spec sections (`## Delivery Slicing` onward).

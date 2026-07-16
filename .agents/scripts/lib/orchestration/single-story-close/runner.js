@@ -380,7 +380,6 @@ export async function runSingleStoryClose({
   skipValidation: skipValidationParam,
   skipSync: skipSyncParam,
   noAutoMerge: noAutoMergeParam,
-  noFullScopeCrap: noFullScopeCrapParam,
   waitForMerge: waitForMergeParam,
   noWaitForMerge: noWaitForMergeParam,
   maxWaitSeconds: maxWaitSecondsParam,
@@ -399,14 +398,13 @@ export async function runSingleStoryClose({
     skipValidationParam,
     skipSyncParam,
     noAutoMergeParam,
-    noFullScopeCrapParam,
     waitForMergeParam,
     noWaitForMergeParam,
     maxWaitSecondsParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>]',
     );
   }
 

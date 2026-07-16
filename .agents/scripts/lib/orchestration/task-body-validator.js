@@ -60,8 +60,8 @@ import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
 
 /**
  * Canonical testing-tier labels that a `verify[]` entry must name (in
- * parentheses) to pass plan-time validation. Mirrors the skill contract in
- * `core/epic-plan-decompose-author/SKILL.md § verify rules`.
+ * parentheses) to pass plan-time validation. Mirrors the verify-rules contract
+ * in `.agents/scripts/lib/templates/decomposer-prompts.js`.
  *
  * Entries that do not end with `(<tier>)` and are not `manual:<reason>` are
  * rejected by `collectVerifyErrors`.

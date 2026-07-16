@@ -33,45 +33,14 @@ summaries-on-tickets rationale.
 
 ---
 
-## StoryPerfSummary (`structured:story-perf-summary` comment)
+## StoryPerfSummary / EpicPerfReport — removed (Story #4545)
 
-Payload of the single performance summary comment posted on every Story
-ticket at close (Epic #1030). Replaces the per-Story friction comment fanout
-and the standalone phase-timings comment. Schema lives at
-[`story-perf-summary.schema.json`](../.agents/schemas/story-perf-summary.schema.json).
-
-| Field                     | Type                | Required | Description                                                                                              |
-| ------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
-| `kind`                    | `const string`      | Yes      | Always `"story-perf-summary"` so the analyzer can index the comment by kind.                              |
-| `storyId`                 | `integer ≥ 1`       | Yes      | Story this summary belongs to.                                                                            |
-| `epicId`                  | `integer ≥ 1`       | Yes      | Epic the Story rolls up to.                                                                               |
-| `closedAt`                | `ISO8601 date-time` | Yes      | When the close transitioned the Story to `agent::done`.                                                   |
-| `frictionByCategory`      | `object`            | Yes      | Counts of friction signals bucketed by category for this Story. Keys are category strings; values ≥ 0.    |
-| `phaseTimingsMs`          | `object`            | Yes      | Elapsed ms per phase, sourced from `phase-timer.js`. Keys are phase names; values ≥ 0.                    |
-| `topSlowPhasesVsBaseline` | `array`             | Yes      | Items: `{ phase, elapsedMs, baselineP95Ms, ratio }`. `ratio = elapsedMs / baselineP95Ms`.                 |
-| `reworkScore`             | `object`            | Yes      | `{ filesEditedBeyondThreshold, topPath?, topPathEdits? }`. Threshold from `signals.rework.editsPerFile`.  |
-| `retryDensity`            | `object`            | Yes      | `{ retries, uniqueCommands }`. `retries / uniqueCommands` is the density per Story.                       |
-
----
-
-## EpicPerfReport (`structured:epic-perf-report` comment)
-
-Payload of the single Epic-level performance comment posted alongside the
-retro at Epic close (Epic #1030). Aggregates every Story's NDJSON stream
-into one rolled-up report. Schema lives at
-[`epic-perf-report.schema.json`](../.agents/schemas/epic-perf-report.schema.json).
-
-| Field                 | Type                | Required | Description                                                                                                                                                |
-| --------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `kind`                | `const string`      | Yes      | Always `"epic-perf-report"`.                                                                                                                                |
-| `epicId`              | `integer ≥ 1`       | Yes      | Epic this report belongs to.                                                                                                                                |
-| `generatedAt`         | `ISO8601 date-time` | Yes      | When `epic-deliver runner` produced the report.                                                                                                                   |
-| `signalCounts`        | `object`            | Yes      | Rolled-up counts by `kind` for the entire Epic. Keys: `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry` (each integer ≥ 0).                         |
-| `waveParallelism`     | `array`             | Yes      | Items: `{ wave, wallClockMs, sumStoryMs, utilization, stories }`. `utilization = wallClockMs / sumStoryMs` (lower is better; ideal is `1/N` for `N` slots). |
-| `topHotspots`         | `array`             | Yes      | Items: `{ phase, occurrences, avgRatio }`. Phases that fired the hotspot detector most often, with the average `elapsedMs / baselineP95Ms` ratio.           |
-| `mostFrictionStories` | `array`             | Yes      | Items: `{ storyId, frictionCount }`. Stories that produced the highest count of `kind: friction` events.                                                    |
-
----
+Both payloads and their schemas were deleted with the execution-analysis
+surface that produced them: the analyzer hard-failed without an Epic id, read
+signals from a path a standalone Story can never produce, and no workflow
+invoked it. Nothing writes a `structured:story-perf-summary` or
+`structured:epic-perf-report` comment, and neither kind is a valid structured
+comment type any more.
 
 ## FrictionEvent (`friction` NDJSON signal)
 

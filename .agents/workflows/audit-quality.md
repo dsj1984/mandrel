@@ -15,7 +15,7 @@ infrastructure, test coverage, and overall quality assurance practices. Your
 goal is to identify testing gaps, flaky tests, inefficient mocking strategies,
 and opportunities to improve test execution speed and reliability without making
 any immediate changes. Additionally, you must evaluate the implemented tests
-against the active Epic and the current codebase to ensure all quality
+against the Story under audit and the current codebase to ensure all quality
 requirements are met and correctly documented.
 
 **Note on Testing Responsibilities**: When evaluating test maturity, note the
@@ -101,8 +101,8 @@ degrade to the sequential path.
 
 ## Step 0 - Project Context
 
-1.  Read the active Epic and its child tickets to identify the current milestone
-    and target features.
+1.  Read the Story under audit — its `## Goal`, inline `acceptance[]` /
+    `verify[]`, and folded `## Spec` — to identify the target features.
 2.  Identify the target codebase paths for the audit.
 
 ## Step 1: Context Gathering (Read-Only Scan)
@@ -116,8 +116,8 @@ files. Pay special attention to:
   `playwright.config.ts`, `cypress.json`).
 - Test directories and files (e.g., `__tests__/`, `spec/`, `e2e/`, `*.test.ts`,
   `*.spec.js`).
-- The active Epic and its child tickets to map out expected features versus
-  implemented tests.
+- The Story's `acceptance[]` / `verify[]` arrays, to map expected behaviour
+  versus implemented tests.
 - Mocking and stubbing setups (e.g., `__mocks__/`, `setupTests.js`, MSW
   handlers).
 - CI/CD workflow files to understand how and when tests are executed.
@@ -140,8 +140,8 @@ Evaluate the gathered context against the following test quality dimensions:
 5. **Performance & Execution:** Find bottlenecks in the test suite, such as
    unnecessary serial execution, heavy setup running too frequently, or
    opportunities for parallelization.
-6. **Requirement Alignment:** Cross-reference the features outlined in the
-   active Epic to ensure they have corresponding and complete test coverage.
+6. **Requirement Alignment:** Cross-reference the Story's `acceptance[]`
+   criteria to ensure they have corresponding and complete test coverage.
    Verify that the implementation found in the codebase correctly matches the
    architectural requirements and highlight any inconsistencies or gaps.
 
