@@ -21,7 +21,7 @@ high-quality, triage-ready ledger. The session has four movements:
    a final review of the **entire** ledger and asks any last clarifying
    questions.
 4. **Triage & Plan** (Phase 4) — only then does the agent route the full ledger
-   into [`/plan`](plan.md) to generate Epics and/or Stories.
+   into [`/plan`](plan.md) to generate Stories.
 
 Unlike [`/qa-explore`](qa-explore.md) (where the *agent* drives open-ended
 exploration of a named surface), `/qa-assist` is **human-led**: the human owns
@@ -224,7 +224,7 @@ every decision to the shared core helpers; never re-derive them in prose.
 
 3. **Hydrate the QA context** to locate code precisely, via
    [`qa-context-hydrator.js`](../scripts/lib/qa/qa-context-hydrator.js) — it
-   resolves the Epic (whose body carries the planning sections), the
+   resolves the source ticket body, the
    feature-file set, the surface
    map, and recent git log:
 

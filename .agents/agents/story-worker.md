@@ -60,8 +60,7 @@ git -C "<workCwd>" branch --show-current   # MUST print story-<storyId>
 ```
 
 If it does **not** report `story-<storyId>`, **STOP** — do not commit. Never
-commit Story work to `main`, to an Epic branch directly, or outside the
-worktree/branch. Re-run `single-story-init.js` (it is idempotent on partial state) to
+commit Story work to `main` or outside the worktree/branch. Re-run `single-story-init.js` (it is idempotent on partial state) to
 restore the branch before proceeding.
 
 ## Commit discipline
@@ -79,7 +78,7 @@ Author commits directly on `story-<storyId>` following the always-on git core
 ## Docs context — digest first
 
 Do **not** re-read every file in `project.docsContextFiles`. Your caller passes
-a `docsDigestPath` (the per-Epic docs digest — a compact per-file outline:
+a `docsDigestPath` (the per-run docs digest — a compact per-file outline:
 path, size, heading outline with line numbers, first paragraph under each
 `##`). Read that digest, decide which docs bear on this Story, then **pull the
 full file on demand** (jump to the section at the line number the digest names)

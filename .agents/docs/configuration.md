@@ -281,7 +281,7 @@ top-level keys are validation errors.
 | `routing.ceremonyProfile` | No | `"minimal"` \| `"standard"` \| `"strict"` | — | Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff, with the maker-checker sampling floor. |
 | `routing.closeAndLand` | No | `boolean` | — | When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge. |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
-| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
+| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story. |
 | `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
 
 <!-- END GENERATED:agentrc -->
@@ -456,7 +456,7 @@ is `soft` (visible to the planner, does not trip re-decompose). Set a
 ### `planning.context`
 
 Caps the size of `--emit-context` JSON payloads emitted during `/plan`
-so a runaway Epic body (with its folded Tech Spec sections) can't blow the
+so a runaway seed or source-ticket body can't blow the
 planning agent's context budget.
 
 | Field         | Required | Default  | Purpose                                                                                       |
@@ -845,7 +845,7 @@ git.
 per-contributor value with two jobs: the `@`-handle the framework @mentions on
 friction comments, **and** the lease owner the workflow guards
 ([`ticket-lease.js`](../scripts/lib/orchestration/ticket-lease.js))
-assign to a ticket so two contributors cannot drive the same Epic/Story
+assign to a ticket so two contributors cannot drive the same Story
 concurrently. Because the lease must distinguish *your* run from *another
 person's*, a shared committed handle would defeat it — everyone would coordinate
 under one identity. So each contributor sets their own in `.agentrc.local.json`:

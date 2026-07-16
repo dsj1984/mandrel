@@ -515,7 +515,7 @@ does not pause automatically on `risk::high`.
 
 The sole runtime HITL pause point is `agent::blocked`: when an agent
 encounters an unresolvable blocker (including unsafe destructive actions
-lacking explicit authorization), it flips the ticket/Epic to
+lacking explicit authorization), it flips the ticket to
 `agent::blocked`, posts friction context, and waits for operator resume
 (`agent::executing`).
 
@@ -753,10 +753,10 @@ Behaviour:
 - The `components` map is optional. When omitted, the default
   `{ "*": ["**"] }` applies and only `*` rows are ever evaluated.
 - The unified `check-baselines.js` reports breaches per component, with
-  `*` always present in the output. The per-component progress signals
-  (`crap-drift.js#detectComponentRegressions`,
-  `maintainability-drift.js#detectComponentRegressions`) name the
-  breached component in their bullet so a `*` rollup is not falsely
+  `*` always present in the output. The shared baselines kernel
+  (`lib/baselines/kernel.js`, via the per-kind rollups in
+  `lib/baselines/kinds/`) groups rows by component and names the
+  breached component in its output so a `*` rollup is not falsely
   implicated when only a component-scoped floor was crossed.
 
 #### Floor axes must match rollup axes

@@ -295,9 +295,8 @@ when `--pr` is omitted) and:
 - **Story already `agent::done` / issue already closed** → idempotent
   `{ action: 'noop', reason: 'already-done' }`.
 
-This is the standalone counterpart to the epic path's post-merge
-`agent::done` flip in `post-merge-close.js` (#2155): the issue closes
-exactly when the work has merged, never at PR-open.
+The issue closes exactly when the work has merged, never at PR-open
+(#2155).
 
 ---
 
@@ -454,7 +453,7 @@ path; `!= 0` no longer implies failure.
 
 > **Handoff discipline — report state, not process.** Populate the envelope
 > with essential terminal state only (mirroring the fields
-> `single-story-close.js` / `story-phase.js` already emit). Do not narrate the
+> `single-story-close.js` already emits). Do not narrate the
 > steps you took, and do not prescribe how the next stage should work. Prose
 > process commentary only bloats the hydrated prompt. When run **interactively** (no parent
 > aggregator), this JSON envelope is optional — relay terminal state to the

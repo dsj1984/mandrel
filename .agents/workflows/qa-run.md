@@ -388,10 +388,6 @@ For each untriaged ledger item:
 5. **Gate:** any ticket-filing, seed write, `/plan` invocation, or label
    mutation is a write — confirm each with the operator before it happens.
 
-If the run was triggered from an Epic-testing context, hand the approved,
-promoted findings to the Epic-testing helper for attachment to the Epic's QA
-evidence ticket.
-
 ## Step 6 — Report
 
 Summarize the sweep in chat with:

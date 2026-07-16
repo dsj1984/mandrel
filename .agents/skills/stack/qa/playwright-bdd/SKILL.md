@@ -122,9 +122,8 @@ authoring.
   expression across jobs — tag-sharding makes flake triage non-deterministic.
 - Run `bddgen` once per job before `playwright test`; cache the generated
   directory only if the cache key includes every `.feature` and step file.
-- Publish the Cucumber HTML/JSON report as the evidence artifact consumed by the
-  `epic-testing` helper, alongside the Playwright HTML report and any trace
-  zips.
+- Publish the Cucumber HTML/JSON report as the evidence artifact, alongside
+  the Playwright HTML report and any trace zips.
 - Quarantine `@flaky` scenarios with a dedicated job that does not gate the
   merge queue; do not silently retry flakes in the main suite.
 
@@ -185,4 +184,3 @@ those outcomes.
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Browser-level conventions: `.agents/skills/stack/qa/playwright/SKILL.md`.
 - Operator entry point: `.agents/workflows/qa-run.md`.
-- Evidence handoff: `.agents/workflows/helpers/epic-testing.md`.

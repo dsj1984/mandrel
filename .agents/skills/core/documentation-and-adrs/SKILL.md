@@ -17,7 +17,7 @@ description:
 - Do **not** document obvious code; do **not** restate what the code already says. Stale or redundant docs are worse than no docs.
 - Comments explain **non-obvious intent** (the why). If a comment describes what the code does, refactor the code instead.
 - Keep user-facing docs (README, API docs, changelog) updated as part of the change — out-of-date docs are bugs.
-- Pair every public API change with a changelog entry that links the relevant Story/Epic and any superseding ADR.
+- Pair every public API change with a changelog entry that links the relevant Story and any superseding ADR.
 - When you find yourself explaining the same thing repeatedly in chat, write it down — the explanation belongs in the project docs or an ADR.
 
 ## Long-form reference — read on demand

@@ -14,12 +14,12 @@ allowed_tools:
 
 ## Policy Capsule
 
-- Invoke via the wrapping CLI `node .agents/scripts/diagnose-friction.js --task <id> --story <id> --epic <id> --cmd <command args...>`; this is the single supported entry point.
+- Invoke via the wrapping CLI `node .agents/scripts/diagnose-friction.js --story <id> [--epic <id>] --cmd <command args...>`; this is the single supported entry point.
 - Pass the wrapped command's stdout and stderr through **unchanged** — never reformat, redact, or buffer in a way that loses the original failure shape.
 - Never mutate the wrapped command's exit code. The Skill observes; the caller decides whether the failure is fatal.
 - Operate as **best-effort observation**: a write failure on the signals stream MUST NOT halt the runner. A missing signal is preferable to a stalled wave.
 - On non-zero exit append a `friction` NDJSON record (`kind`, `ts`, `category`, `detail`, `exitCode`) only through the signals writer helper — never open `signals.ndjson` directly.
-- Resolve Story / Epic context from `--story` and `--epic` first; fall back to parsing `parent: #<storyId>` + `Epic: #<epicId>` from the Task body when only `--task` is supplied.
+- Resolve Story context from `--story` (and `--epic` when a run id applies); there is no body-parsing fallback — pass the flags explicitly.
 - Do **not** post GitHub comments from this Skill. Friction is local NDJSON: the retro is what aggregates the stream and routes recurring friction into proposals (Story #4545 deleted `analyze-execution`, the perf-summary comment surface).
 - Categorize failures deterministically (rebase abort, test-suite name, lint category, etc.) so the retro can attribute friction without re-running the command.
 
@@ -40,12 +40,10 @@ that want to dispatch via the Skill tool rather than spawn the CLI.
 ## Inputs
 
 - `--cmd <command args...>` — the command to invoke and observe.
-- `--story <id>` / `--epic <id>` (optional) — when both can be
-  resolved, the Skill appends a `friction` signal to
-  `<tempRoot>/epic-<eid>/story-<sid>/signals.ndjson` on non-zero exit.
-- `--task <id>` (optional) — used as a fallback so the body parser can
-  recover `parent: #<storyId>` + `Epic: #<epicId>` when neither flag
-  was supplied.
+- `--story <id>` / `--epic <id>` (optional) — when resolved, the Skill
+  appends a `friction` signal to
+  `temp/run-<eid>/stories/story-<sid>/signals.ndjson` on non-zero exit
+  (standalone Stories: `temp/standalone/stories/story-<sid>/`).
 
 ## Outputs
 
@@ -59,7 +57,7 @@ that want to dispatch via the Skill tool rather than spawn the CLI.
 
 ```bash
 node .agents/scripts/diagnose-friction.js \
-  --task <id> --story <id> --epic <id> \
+  --story <id> [--epic <id>] \
   --cmd <command args...>
 ```
 

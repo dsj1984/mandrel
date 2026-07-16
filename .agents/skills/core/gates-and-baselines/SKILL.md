@@ -20,8 +20,8 @@ allowed_tools:
 - **Refresh a baseline only when the change is deliberate** — a rename/move, an operator-approved complexity bump, a signed-off perf delta, an intentional API-surface change. Never refresh to paper over an unintentional regression; fix the regression instead.
 - Run the kind-specific update command (`npm run crap:update` / `maintainability:update` / `dead-exports:update` / `lighthouse:update`) on the **Story branch**, not on `main`.
 - Verify the refresh diff is scoped to the relevant `baselines/<kind>.json` (plus cosmetic `package-lock.json` churn only). If unrelated files appear, STOP — the refresh is contaminated. Stage baseline files **explicitly** (`git add baselines/<kind>.json`); never `git add -A` in a refresh commit.
-- Commit-subject contract: a **Conventional-Commits** subject `chore(baselines): refresh <kind> snapshot for <reason>` — never an ad-hoc leading token like `baseline-refresh:` (commitlint and the planner validator reject it). The body is **mandatory** and non-empty: what changed, why the new floor is correct, and the Story/Epic that triggered it.
-- Add the machine-readable trailer `baseline-refresh: true` (git-trailer `Key: value` style) and `Epic: #<epic-id>` to the body whenever observability classification matters. Never pass `--no-verify`; the `commit-msg` hook (commitlint) MUST run and pass.
+- Commit-subject contract: a **Conventional-Commits** subject `chore(baselines): refresh <kind> snapshot for <reason>` — never an ad-hoc leading token like `baseline-refresh:` (commitlint and the planner validator reject it). The body is **mandatory** and non-empty: what changed, why the new floor is correct, and the Story that triggered it.
+- Add the machine-readable trailer `baseline-refresh: true` (git-trailer `Key: value` style) and `Story: #<storyId>` to the body whenever observability classification matters. Never pass `--no-verify`; the `commit-msg` hook (commitlint) MUST run and pass.
 - After the refresh lands, re-run `node .agents/scripts/check-baselines.js` to confirm the gate passes against the new snapshot; if it still fails, a sibling kind drifted — refresh that kind too.
 - Keep credentials in GitHub Secrets (or platform equivalent) even for CI-only test databases; treat the security audit (`npm audit` or equivalent) as gating for critical/high vulnerabilities reachable in production code.
 
@@ -77,7 +77,7 @@ chore(baselines): refresh <kind> snapshot for <reason>
 baseline is the correct floor, and any operator sign-off reference>
 
 baseline-refresh: true
-Epic: #<epic-id>
+Story: #<storyId>
 ```
 
 The `commit-msg` hook (`commitlint`) rejects any subject whose leading token is
@@ -115,10 +115,10 @@ own as the parseable marker for any future reader.)
    git commit -m "$(cat <<'EOF'
    chore(baselines): refresh <kind> snapshot for <reason>
 
-   <body: what changed, why the new floor is correct, linking the Story/Epic.>
+   <body: what changed, why the new floor is correct, linking the Story.>
 
    baseline-refresh: true
-   Epic: #<epic-id>
+   Story: #<storyId>
    EOF
    )"
    ```

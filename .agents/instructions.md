@@ -162,18 +162,17 @@ technology context is intentionally kept out of `.agentrc.json`.
 
 You MUST log telemetry about operational difficulty or automation
 opportunities you hit. Friction is a **local NDJSON signal**:
-`diagnose-friction.js` appends one `kind: friction` record to the per-Epic/
+`diagnose-friction.js` appends one `kind: friction` record to the per-run/
 per-Story `signals.ndjson` stream on local disk — not posted to the ticket at
 capture time; the retro phase surfaces the aggregate as routed proposals.
 
 - **Command**:
   `node .agents/scripts/diagnose-friction.js --story [STORY_ID] --cmd [FAILED_COMMAND]`
-  (add `--epic [EPIC_ID]` under an Epic).
 - **When to fire**: after repeated tool-validation errors, an unrecoverable
   command failure, ambiguity needing self-correction, or repetitive
   boilerplate steps a workflow/skill could simplify.
 
-The schema validation, the standalone (no-Epic) stream path, and the
+The schema validation, the standalone stream path, and the
 never-silently-dropped guarantee are reference detail — see
 [`docs/execution-reference.md` § Friction telemetry](docs/execution-reference.md#friction-telemetry).
 
@@ -210,7 +209,7 @@ just-in-case retry.
 
 This protocol is not soft-prompt-only — it has a runtime substrate. While
 executing as a Story delivery sub-agent (via `helpers/deliver-story`), you
-MUST emit a `story.heartbeat` lifecycle event on every Task transition (or
+MUST emit a `story.heartbeat` lifecycle event on every phase transition (or
 whenever you stall on a long-running step) so the parent `/deliver`
 sequencer can distinguish a child still making progress from a dead one. If
 you genuinely cannot proceed, transition to `agent::blocked` and exit
@@ -295,11 +294,11 @@ budget grounds.
      - `/deliver` Story sub-agents (`helpers/deliver-story`) — the
        `docsDigestPath` the caller threads.
      - Standalone-Story planning (`story-plan.js --emit-context`) — inline as
-       `corpusContext.docsDigest` (there is no per-Epic directory to anchor a
+       `corpusContext.docsDigest` (no per-run directory to anchor a
        file), alongside `corpusContext.relevantSections`.
 
-     When no digest exists for the task at hand — an ad hoc task with no Epic
-     in scope, `project.docsContextFiles` unset, or a null `docsDigestPath` —
+     When no digest exists for the task at hand — an ad hoc task outside
+     `/deliver`, `project.docsContextFiles` unset, or a null `docsDigestPath` —
      there is **no mandatory docs read**: read a full doc only when the task's
      own context points you at one.
 
@@ -314,16 +313,15 @@ budget grounds.
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
      absent or unrelated to the task — they are not part of the universal
      mandatory set.
-   - **Epic Context**: Additionally, read the current Epic's body — the
-     single planning document (ideation sections plus the folded Tech
-     Spec sections; Story #4324 retired the separate context tickets) —
-     and the task-specific instructions.
+   - **Story Context**: Additionally, read the current Story's body — the
+     inline `## Spec` plus its `acceptance[]` / `verify[]` entries — and
+     the task-specific instructions.
    - **Optimization**: For large projects, prioritize targeted retrieval
      (semantic code search or focused text search) to isolate specific
      schemas or decisions before reading broad files.
 2. **Plan First:** For non-trivial tasks (3+ steps or architectural
-   decisions), enter **Plan Mode**. Update the Epic body's Tech Spec
-   sections (via `/plan`) or create a new Technical Specification document
+   decisions), enter **Plan Mode**. Update the Story's `## Spec`
+   (via `/plan`) or create a new Technical Specification document
    in the `docs/` root (if not already handled by a ticket) before
    touching code.
 3. **Artifacts over Chat:** Create log files for test results, build

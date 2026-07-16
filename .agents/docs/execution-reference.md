@@ -19,12 +19,13 @@ validated.
 
 - **Canonical record + schema validation**: `diagnose-friction.js` appends one
   `kind: friction` record, validated write-time against
-  `signal-event.schema.json`, to the per-Epic/per-Story `signals.ndjson`
-  stream on local disk. The retro roll-up reads that stream back to aggregate
+  `signal-event.schema.json`, to the per-run/per-Story `signals.ndjson`
+  stream on local disk (under `temp/run-<id>/`). The retro roll-up reads that
+  stream back to aggregate
   friction into routed proposals; nothing is posted to the GitHub ticket at
   capture time.
-- **No-Epic context**: Outside an Epic/Story loop there is no per-Epic stream
-  to anchor to, so the record lands on the **standalone signal stream**
+- **Standalone context**: Outside a delivery run there is no `temp/run-<id>/`
+  stream to anchor to, so the record lands on the **standalone signal stream**
   (`temp/standalone/stories/story-<sid>/signals.ndjson`) under the same
   canonical schema.
 - **Never silently dropped**: The signal is never silently dropped — a
