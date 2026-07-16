@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-14T21:42:10.296Z",
+  "generatedAt": "2026-07-16T17:27:06.020Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -7,7 +7,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
-      "description": "Aggregate per-Story or per-plan-run execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or during run closeout (plan-run mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
+      "description": "Aggregate per-Story or per-run execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or during run closeout (run mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
       "allowedTools": ["Read", "Bash"],
       "vendor": null

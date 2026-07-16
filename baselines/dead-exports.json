@@ -428,18 +428,6 @@
       "symbol": "DEFAULT_POLL_DELAY_MS"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/resolve-plan-run.js",
-      "symbol": "normalizeIssueLabels"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/resolve-plan-run.js",
-      "symbol": "storiesToDag"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/resolve-plan-run.js",
-      "symbol": "toStoryRecord"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/resolves-token.js",
       "symbol": "resolvesOrRefsGrepArgs"
     },

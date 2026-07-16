@@ -80,8 +80,10 @@ router: no scope triage verdict, no `deliveryShape`, no path helpers to choose
 between. The author step emits **one Story by default** — the shape decision
 collapses into the split policy (design decision 2): N>1 only on near-zero
 overlap or an architectural seam, with coupled work decomposed *inside* the
-Story as Delivery Slicing rows. Persist creates the Story/Stories (and a
-**plan-run id** label grouping them in the rare N>1 case).
+Story as Delivery Slicing rows. Persist creates the Story/Stories, writing
+each authored `depends_on` edge as a `blocked by #<id>` body footer in the
+rare N>1 case. There is no batch label — `/deliver` takes ids and resolves
+the graph from live state (Story #4540).
 
 **`/deliver`** becomes one engine: the M4 single-delivery guarded session,
 invoked per Story. `/deliver <storyId...>` or `/deliver --run <planRunId>`
@@ -105,7 +107,7 @@ they scale with the Story rather than bloating a trivial one:
 | --- | --- | --- |
 | **Per-Story (always)** | Quality gates (lint/test/format/coverage/CRAP/maintainability), branch discipline, heartbeat/watchdog, land-or-block | Non-negotiable floor — exists today, unchanged |
 | **Per-Story (risk-routed)** | Review depth; fresh-context vs inline acceptance critic (per AC-cluster, `[1,8]` floor preserved); audit lenses on risk-flagged surfaces | `planning-risk.js` envelope + `ceremony-routing.js` (M7-B) — the plan stamps each Story's risk verdict; routing picks rigor per Story |
-| **Per-run (once, N>1)** | Cross-Story audit sweep over the combined diff; retro + friction roll-up; spec-coherence check across siblings | Fires **once at run completion**, keyed to the plan-run id — not repeated per Story |
+| **Per-run (once, N>1)** | Cross-Story audit sweep over the combined diff; retro + friction roll-up; spec-coherence check across siblings | Fires **once at run completion**, keyed to the delivered id set — not repeated per Story |
 
 Invariants that do not relax in v2 (carried from the model-evolution audit):
 
@@ -223,7 +225,8 @@ below applies only to the rare, policy-compliant N>1 runs.
    siblings.
 5. **Feature-level grouping and legibility.** The GitHub sub-issue tree, one
    status view per feature, per-epic retro roll-up. *Mitigation:* the
-   plan-run id label + `/deliver --run`; weaker than a native hierarchy.
+   `depends_on` edges resolved from live state (Story #4540 retired the
+   plan-run label and `--run`); weaker than a native hierarchy.
 6. **Epic-scoped amend/re-plan semantics.** `--force` / `--amend` operate on
    a parent-anchored ticket tree today; in v2, amending a multi-Story plan is
    edits across flat Stories with only the run label anchoring them.
@@ -378,8 +381,9 @@ below applies only to the rare, policy-compliant N>1 runs.
   path (script-pair merge is Stage 5).
 - [x] Ceremony wiring: per-Story risk-routed (`ceremony-routing.js` in
   `deliver-story` Step 2 + `acceptance-self-eval`); per-run epilogue via
-  `planRunEpilogue` after `/deliver --run`; N>1 sequencer =
-  `resolve-plan-run.js` + `stories-wave-tick.js` (default concurrency 1).
+  `planRunEpilogue` keyed on the delivered id set; N>1 sequencer =
+  `resolve-stories.js` + `stories-wave-tick.js` (Story #4540 replaced
+  `resolve-plan-run.js`).
 
 #### Stage 5 — Deletion sweep
 

@@ -117,9 +117,11 @@ node .agents/scripts/plan-persist.js \
   [--allow-over-budget]
 ```
 
-Persist creates Story issue(s) with `type::story` + `agent::ready`. When
-N>1 it also applies a shared `plan-run::<id>` label. Ends by naming
-`/deliver <storyId>` (or `/deliver --run <planRunId>` for N>1).
+Persist creates Story issue(s) with `type::story` + `agent::ready` and, when
+N>1, writes each authored `depends_on` edge into the sibling's body as a
+`blocked by #<id>` footer — the ordering `/deliver` resolves from. No batch
+label is applied (Story #4540 retired `plan-run::<id>`). Ends by naming the
+exact command: `/deliver <storyId> [<storyId> ...]`.
 
 ## Constraints
 

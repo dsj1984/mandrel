@@ -205,7 +205,7 @@ Story-path specifics:
 Per-Story ceremony is selected by `delivery.routing.ceremonyProfile`
 (`minimal` | `standard` | `strict`, default `standard`) and the Story's
 own risk envelope (folded plan `planningRisk` / `risk-verdict` on the
-Story or its plan-run context — never an Epic parent). Resolve
+Story itself — never an Epic parent). Resolve
 fresh-vs-inline acceptance critics per AC-cluster with
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
 (`minimal` → always inline; `strict` → always fresh; `standard` →

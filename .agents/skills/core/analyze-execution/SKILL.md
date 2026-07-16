@@ -1,10 +1,10 @@
 ---
 name: analyze-execution
 description: >-
-  Aggregate per-Story or per-plan-run execution signals into a structured
+  Aggregate per-Story or per-run execution signals into a structured
   perf-summary or perf-report and upsert it onto the corresponding GitHub
   ticket. Use after a Story closes (Story mode) or during run closeout
-  (plan-run mode). Reads NDJSON via
+  (run mode). Reads NDJSON via
   `lib/signals/read` and writes a single structured comment.
 allowed_tools:
   - Read
@@ -16,12 +16,12 @@ allowed_tools:
 ## Policy Capsule
 
 - Invoke via the wrapping CLI `node .agents/scripts/analyze-execution.js`; do not duplicate the read/write logic from this Skill body.
-- Resolve mode strictly by flags: Story + run id → Story mode; run id alone → plan-run mode. The current CLI still spells the run-id flag as `--epic <id>`; treat that value as the run id and do not add a second executor path here.
+- Resolve mode strictly by flags: Story + run id → Story mode; run id alone → run mode. The current CLI still spells the run-id flag as `--epic <id>`; treat that value as the run id and do not add a second executor path here.
 - Read NDJSON signals only through `lib/signals/read` (the async-iterator entry point). Never open `<tempRoot>/run-<id>/stories/story-<sid>/signals.ndjson` directly — the reader owns the warn-once malformed-JSON policy.
 - Emit a single structured GitHub comment per ticket (`<!-- structured:story-perf-summary -->` or `<!-- structured:epic-perf-report -->`); rely on `upsertStructuredComment` for idempotence — never post duplicates.
 - Never rename or alter the structured-marker IDs; the retro composer and run dashboard grep them verbatim.
 - Validate the structured payload against `docs/data-dictionary.md §StoryPerfSummary` or `§EpicPerfReport` before posting. Schema violations exit non-zero.
-- Soft-fail (exit 0 with a warning) when NDJSON is missing for a Story or a plan-run has no children — observability output MUST NOT block the close pipeline.
+- Soft-fail (exit 0 with a warning) when NDJSON is missing for a Story or a run has no children — observability output MUST NOT block the close pipeline.
 - Do not write to disk. Persistence is GitHub; the Skill is read-NDJSON + post-comment only.
 
 ## Role
@@ -37,7 +37,7 @@ into the run dashboard.
   Story's NDJSON signals into a single `<!-- structured:story-perf-summary -->`
   marker comment on the Story ticket.
 - **Plan-run mode** — during run closeout (or the retro
-  composer), the Skill fans out across every Story under the plan-run,
+  composer), the Skill fans out across every Story under the run,
   reads each Story's structured perf summary, and posts a single
   `<!-- structured:epic-perf-report -->` marker on the run ticket.
 
@@ -65,7 +65,7 @@ the new one.
 ### Step 1 — Resolve mode
 
 If both Story id and run id are supplied → Story mode.
-If only run id is supplied → plan-run mode. The script
+If only run id is supplied → run mode. The script
 `analyze-execution.js` is the dispatcher today; this Skill documents the
 contract the dispatcher implements.
 
@@ -97,5 +97,5 @@ the contract so we never silently emit malformed comments.
   `<!-- structured:epic-perf-report -->`); the retro composer and the
   run dashboard both grep for them verbatim.
 - Soft-failure mode is intentional: missing NDJSON for a Story or no
-  children for a plan-run returns exit 0 with a warning so close pipelines
+  children for a run returns exit 0 with a warning so close pipelines
   never block on observability output.

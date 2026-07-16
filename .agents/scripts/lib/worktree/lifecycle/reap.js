@@ -15,7 +15,7 @@
 
 import fs from 'node:fs';
 import { rm as fsPromisesRm } from 'node:fs/promises';
-import { isInsideWorktree, samePath, storyIdFromPath } from '../inspector.js';
+import { isInsideWorktree, samePath } from '../inspector.js';
 import { sleepSync } from '../node-modules-strategy.js';
 import { checkMergeReachability } from './merge-reachability.js';
 import { recordPendingCleanup } from './pending-cleanup.js';

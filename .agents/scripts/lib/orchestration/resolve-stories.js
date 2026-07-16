@@ -39,10 +39,14 @@ import {
 const DONE_LABEL = 'agent::done';
 
 /**
+ * Module-private: `toStoryRecord` and `isSatisfiedBlocker` are its only
+ * callers. The ancestor exported it with no external consumer, which is how
+ * a symbol ends up baselined as a dead export.
+ *
  * @param {object} issue
  * @returns {string[]}
  */
-export function normalizeIssueLabels(issue) {
+function normalizeIssueLabels(issue) {
   const raw = issue?.labels;
   if (!Array.isArray(raw)) return [];
   return raw
