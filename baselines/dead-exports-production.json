@@ -1117,26 +1117,6 @@
       "symbol": "parseFingerprintFooter"
     },
     {
-      "file": ".agents/scripts/lib/framework-version.js",
-      "symbol": "extractFrameworkStamp"
-    },
-    {
-      "file": ".agents/scripts/lib/framework-version.js",
-      "symbol": "FALLBACK_VERSION"
-    },
-    {
-      "file": ".agents/scripts/lib/framework-version.js",
-      "symbol": "formatAuthoredDate"
-    },
-    {
-      "file": ".agents/scripts/lib/framework-version.js",
-      "symbol": "resolveFrameworkVersion"
-    },
-    {
-      "file": ".agents/scripts/lib/framework-version.js",
-      "symbol": "stampFrameworkVersion"
-    },
-    {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
       "symbol": "BaselineWriteError"
     },
