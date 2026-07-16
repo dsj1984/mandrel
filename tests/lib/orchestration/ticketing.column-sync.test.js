@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { transitionTicketState } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
 
@@ -93,10 +96,32 @@ function buildFakeProvider({ throwOnMutation = false } = {}) {
 }
 
 describe('transitionTicketState — Projects v2 Status column sync', () => {
+  // Isolate the on-disk project-meta cache (issue #4555). The ColumnSync
+  // driven here reads and WRITES `<tempRoot>/cache/project-meta.json`, and a
+  // relative tempRoot anchors to the MAIN checkout — so with no config this
+  // suite wrote its `acme/42` fixture ids (`PROJ`/`FIELD`) into the cache real
+  // `/deliver` runs consume, and the throwOnMutation case invalidated that key
+  // back out again. `transitionTicketState` threads `opts.config` down to
+  // ColumnSync; an ABSOLUTE tempRoot is used verbatim
+  // (`temp-paths.js#anchorTempRoot`), so this can never reach the shared file.
+  let tempRoot;
+  let isolatedConfig;
+
+  beforeEach(() => {
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'mandrel-colsync-'));
+    isolatedConfig = { project: { paths: { tempRoot } } };
+  });
+
+  afterEach(() => {
+    rmSync(tempRoot, { recursive: true, force: true });
+  });
+
   it('mirrors agent::executing onto the In Progress column via a single mutation', async () => {
     const provider = buildFakeProvider();
 
-    await transitionTicketState(provider, 321, 'agent::executing');
+    await transitionTicketState(provider, 321, 'agent::executing', {
+      config: isolatedConfig,
+    });
 
     const mutationCalls = provider.graphqlCalls.filter((c) =>
       c.query.includes('updateProjectV2ItemFieldValue'),
@@ -119,7 +144,9 @@ describe('transitionTicketState — Projects v2 Status column sync', () => {
   it('mirrors agent::blocked onto the In Progress column (label retains the granular signal)', async () => {
     const provider = buildFakeProvider();
 
-    await transitionTicketState(provider, 321, 'agent::blocked');
+    await transitionTicketState(provider, 321, 'agent::blocked', {
+      config: isolatedConfig,
+    });
 
     const mutation = provider.graphqlCalls.find((c) =>
       c.query.includes('updateProjectV2ItemFieldValue'),
@@ -136,7 +163,10 @@ describe('transitionTicketState — Projects v2 Status column sync', () => {
     // logged — the label flip outcome must not regress because the
     // board is misconfigured or the API is flapping.
     await assert.doesNotReject(
-      () => transitionTicketState(provider, 321, 'agent::executing'),
+      () =>
+        transitionTicketState(provider, 321, 'agent::executing', {
+          config: isolatedConfig,
+        }),
       'column-sync errors must be swallowed',
     );
 
