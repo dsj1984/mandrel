@@ -132,7 +132,9 @@ export function parseCloseOptions({
       false,
     ),
     waitForMergeExplicit:
-      typeof waitForMergeExplicit === 'boolean' ? waitForMergeExplicit : undefined,
+      typeof waitForMergeExplicit === 'boolean'
+        ? waitForMergeExplicit
+        : undefined,
     noWaitForMerge: resolveFlag(
       noWaitForMergeParam,
       parsed.noWaitForMerge,

@@ -565,9 +565,9 @@ describe('land tail + flip-failed reporting (Story #4539)', () => {
       emitMergeFlipFailedFn: () => ({ ledgerPath: '', record: {} }),
     });
 
-    const friction = provider._comments().filter(
-      (c) => c.payload?.type === 'friction',
-    );
+    const friction = provider
+      ._comments()
+      .filter((c) => c.payload?.type === 'friction');
     assert.equal(friction.length, 1);
     const body = friction[0].payload.body;
     assert.match(body, /merged successfully/i);

@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 /**
- * pr-watch-with-update.js — the single CI-watch mechanism for BOTH the
- * Epic Phase 8 path (`deliver-epic.md`) and the standalone single-Story
- * Step 4 path (`single-story-deliver.md`). Story #4358 retired the bare
- * `gh pr checks --watch` from the single-Story path so both drive this
- * one CLI.
+ * pr-watch-with-update.js — the single CI-watch mechanism for the Story
+ * delivery path (`helpers/deliver-story.md` Step 4). Story #4358 retired
+ * the bare `gh pr checks --watch` so every caller drives this one CLI.
  *
  * Polls the PR's required checks to a terminal state and auto-recovers
  * from `mergeStateStatus: BEHIND` (via bounded `gh pr update-branch`
@@ -17,10 +15,13 @@
  *   - GREEN — every required check terminal + green → exit 0.
  *   - RED   — one or more required checks genuinely failed → exit 1
  *             IMMEDIATELY, consuming no resume budget. On red the CLI
- *             writes `temp/epic-<id>-ci-digest.{json,md}` (failing check
+ *             writes `temp/story-<id>-ci-digest.{json,md}` (failing check
  *             name, run id, a `gh run view --log-failed` tail, and a
  *             coarse classification) and prints the red-green
- *             remediation handoff.
+ *             remediation handoff. The digest is scoped by filename, so
+ *             it requires `--story` (Story #4539: the digest was
+ *             Epic-scoped and therefore never written on the only
+ *             delivery path v2 has).
  *   - STILL-RUNNING — the poll cap fired with checks still pending and
  *             none failed; the watcher re-armed up to
  *             `delivery.ci.watch.maxResumes` times, then returned a
@@ -35,8 +36,8 @@
  *   CLI flags override config; config overrides the framework fallback.
  *
  * Usage:
- *   node .agents/scripts/pr-watch-with-update.js --pr <n> [--repo owner/repo]
- *     [--epic <id>] [--max-updates N] [--poll-interval-ms MS]
+ *   node .agents/scripts/pr-watch-with-update.js --pr <n> --story <id>
+ *     [--repo owner/repo] [--max-updates N] [--poll-interval-ms MS]
  *     [--max-polls N] [--max-resumes N]
  */
 import { spawnSync } from 'node:child_process';
@@ -162,12 +163,38 @@ function resolveRunId({ prRef, checkName, cwd, spawnFn = spawnSync }) {
 }
 
 /**
+ * Resolve which ticket the digest is keyed to. Story #4539: the digest used
+ * to be Epic-scoped by filename and returned `null` without an epic id — so
+ * on the v2 Story path (which has no Epic and invokes the watch with `--pr`
+ * alone) a red check wrote no digest at all, despite the module header
+ * advertising one. Story scope takes precedence; the Epic branch remains for
+ * any caller still supplying `--epic`.
+ *
+ * @param {{ storyId?: number|string|null, epicId?: number|string|null }} opts
+ * @returns {{ kind: 'story'|'epic', id: number } | null}
+ */
+export function resolveDigestScope({ storyId = null, epicId = null } = {}) {
+  const asId = (value) => {
+    if (value == null || String(value).length === 0) return null;
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  };
+  const story = asId(storyId);
+  if (story !== null) return { kind: 'story', id: story };
+  const epic = asId(epicId);
+  if (epic !== null) return { kind: 'epic', id: epic };
+  return null;
+}
+
+/**
  * Write the CI failure digest (`.json` + `.md`) for a red watch. Returns
- * the two paths written (or `null` when no epic id was supplied — the
- * digest is Epic-scoped by filename). Exported for tests.
+ * the two paths written, or `null` when neither a story nor an epic id was
+ * supplied (the digest is scoped by filename and has nothing to key on).
+ * Exported for tests.
  *
  * @param {object} opts
- * @param {number|string|null} opts.epicId
+ * @param {number|string|null} [opts.storyId] Preferred — the v2 delivery scope.
+ * @param {number|string|null} [opts.epicId]
  * @param {number} opts.prNumber
  * @param {Array<{name:string, outcome:string}>} opts.failures
  * @param {string} opts.tempRoot
@@ -178,7 +205,8 @@ function resolveRunId({ prRef, checkName, cwd, spawnFn = spawnSync }) {
  * @returns {{ jsonPath: string, mdPath: string } | null}
  */
 export function writeCiDigest({
-  epicId,
+  storyId = null,
+  epicId = null,
   prNumber,
   failures,
   tempRoot,
@@ -187,13 +215,14 @@ export function writeCiDigest({
   runIdFn = resolveRunId,
   logTailFn = ghRunLogTail,
 }) {
-  if (epicId == null || String(epicId).length === 0) return null;
+  const scope = resolveDigestScope({ storyId, epicId });
+  if (!scope) return null;
   const primary = failures[0] ?? { name: 'unknown', outcome: 'failure' };
   const runId = runIdFn({ prRef, checkName: primary.name, cwd });
   const logTail = logTailFn({ runId, cwd });
   const classification = classifyFailure(primary.name);
   const digest = {
-    epicId: Number.parseInt(String(epicId), 10),
+    ...(scope.kind === 'story' ? { storyId: scope.id } : { epicId: scope.id }),
     prNumber,
     failingCheck: primary.name,
     failingOutcome: primary.outcome,
@@ -205,12 +234,13 @@ export function writeCiDigest({
   };
   const dir = path.isAbsolute(tempRoot) ? tempRoot : path.join(cwd, tempRoot);
   mkdirSync(dir, { recursive: true });
-  const base = `epic-${digest.epicId}-ci-digest`;
+  const base = `${scope.kind}-${scope.id}-ci-digest`;
   const jsonPath = path.join(dir, `${base}.json`);
   const mdPath = path.join(dir, `${base}.md`);
   writeFileSync(jsonPath, `${JSON.stringify(digest, null, 2)}\n`);
+  const scopeLabel = scope.kind === 'story' ? 'Story' : 'Epic';
   const md = [
-    `# CI failure digest — Epic #${digest.epicId} (PR #${prNumber})`,
+    `# CI failure digest — ${scopeLabel} #${scope.id} (PR #${prNumber})`,
     '',
     `- **Failing check:** \`${digest.failingCheck}\` (${digest.failingOutcome})`,
     `- **Run id:** ${runId ?? 'unresolved'}`,
@@ -266,6 +296,7 @@ export function writeCiDigest({
 export async function runPrWatch({
   prNumber,
   repo = null,
+  storyId = null,
   epicId = null,
   maxUpdates,
   pollIntervalMs,
@@ -377,6 +408,7 @@ export async function runPrWatch({
   let digestPaths = null;
   try {
     digestPaths = writeDigestFn({
+      storyId,
       epicId,
       prNumber,
       failures,
@@ -416,6 +448,7 @@ async function main() {
       pr: { type: 'string' },
       repo: { type: 'string' },
       epic: { type: 'string' },
+      story: { type: 'string' },
       'max-updates': { type: 'string' },
       'poll-interval-ms': { type: 'string' },
       'max-polls': { type: 'string' },
@@ -426,6 +459,7 @@ async function main() {
   return runPrWatch({
     prNumber: Number.parseInt(values.pr ?? '', 10),
     repo: values.repo ?? null,
+    storyId: values.story ?? null,
     epicId: values.epic ?? null,
     maxUpdates: values['max-updates'],
     pollIntervalMs: values['poll-interval-ms'],

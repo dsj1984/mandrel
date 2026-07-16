@@ -47,16 +47,16 @@ import {
   confirmStoryMerged as defaultConfirmStoryMerged,
   readPrMergeState as defaultReadPrMergeState,
 } from '../../../single-story/confirm-merge.js';
+import {
+  emitMergeFlipFailed as defaultEmitMergeFlipFailed,
+  MERGED_FLIP_FAILED_BLOCK_CLASS,
+} from '../../lifecycle/emit-merge-flip-failed.js';
 import { emitMergeUnlanded as defaultEmitMergeUnlanded } from '../../lifecycle/emit-merge-unlanded.js';
 import {
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   deriveChecksStatus,
 } from '../../lifecycle/listeners/merge-watcher.js';
-import {
-  emitMergeFlipFailed as defaultEmitMergeFlipFailed,
-  MERGED_FLIP_FAILED_BLOCK_CLASS,
-} from '../../lifecycle/emit-merge-flip-failed.js';
 import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
 import { captureFollowUpsAfterConfirm as defaultCaptureFollowUpsAfterConfirm } from '../../story-follow-ups.js';
 import {

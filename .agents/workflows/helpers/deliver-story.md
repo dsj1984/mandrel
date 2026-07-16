@@ -311,8 +311,12 @@ terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do
 **not** fall back to a bare `gh pr checks` watch invocation:
 
 ```bash
-node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --story <storyId>
 ```
+
+`--story` is what keys the red-path CI digest
+(`temp/story-<id>-ci-digest.{json,md}` — failing check name, run id, and a
+`gh run view --log-failed` tail). Omit it and a red check writes no digest.
 
 Poll cadence and caps come from `delivery.ci.watch.*`
 (`pollIntervalMs`, `maxPolls`, `maxResumes`); pass `--poll-interval-ms`,

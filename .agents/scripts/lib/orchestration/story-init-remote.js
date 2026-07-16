@@ -5,7 +5,6 @@ import {
   upsertStructuredComment,
 } from './ticketing.js';
 
-
 /**
  * Fail closed when the repository remote cannot be verified. The Story is
  * blocked before lease/branch/worktree mutation so a host that misses the

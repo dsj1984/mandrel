@@ -161,9 +161,11 @@ The `single-story-close.js` script, in order:
    would strand a CLOSED issue with no merged work if the PR later failed
    CI, went `BEHIND` base, or was closed without merging. The Story rests
    at `agent::closing` while the PR is open with auto-merge armed; the
-   `agent::done` flip (which closes the issue) is deferred to Step 5.5's
-   `single-story-confirm-merge.js`. A Story only reaches `agent::done` once
-   its PR to `main` is confirmed merged.
+   `agent::done` flip (which closes the issue) is deferred to Step 5's
+   merge confirmation — `single-story-confirm-merge.js` on a
+   `--no-wait-merge` run, or the in-close confirm phase on the
+   close-and-land default. (Step 5.5 is the Status-column resync.) A Story
+   only reaches `agent::done` once its PR to `main` is confirmed merged.
 5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
 6. **Releases the Story lease** (Story #3483). Clears the Story assignment
@@ -171,8 +173,12 @@ The `single-story-close.js` script, in order:
    unclaimed ticket. The release is a no-op when the operator no longer
    holds the claim (a later run took over via reclaim/steal), so a late
    close never yanks a live claim away from its current owner. Best-effort:
-   a release failure is logged but does not fail an otherwise-clean close —
-   the lease goes stale via TTL regardless. The close result carries
+   a release failure is logged but does not fail an otherwise-clean close.
+   Note the lease does **not** expire on its own: the standalone lease is
+   fail-closed by design (it anchors its heartbeat to now, so a foreign
+   claim always reads as live regardless of the configured TTL), so a
+   claim stranded by a failed release is cleared only by `--steal` or by
+   de-assigning the ticket. The close result carries
    `leaseReleased: <boolean>`.
 
 `--skip-validation` bypasses Step 1 (gates). Use only when re-running
