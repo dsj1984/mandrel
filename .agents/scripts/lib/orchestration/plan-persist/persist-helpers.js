@@ -71,6 +71,15 @@ function buildProbePattern(tails) {
 /**
  * Resolve a relative specifier written in `importerPath` back onto a repo
  * path and report whether it names `deletedPath`.
+ *
+ * **Known boundary:** only relative (`./`, `../`) specifiers resolve. A
+ * consumer repo that imports its own modules through bare specifiers or a
+ * path alias (`#lib/x`, `@app/x`, a `tsconfig` `paths` entry) would
+ * under-count, because resolving those needs the resolver config this probe
+ * deliberately does not read. Mandrel's own internal imports are all
+ * relative. Under-counting is the *quiet* failure direction — it argues for
+ * a deletion rather than against one — so if alias-importing consumers
+ * appear, this is the place to teach the probe their resolver.
  */
 function specifierResolvesTo(importerPath, specifier, deletedPath) {
   if (!specifier.startsWith('./') && !specifier.startsWith('../')) return false;
