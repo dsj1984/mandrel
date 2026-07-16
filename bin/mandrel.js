@@ -57,14 +57,18 @@ const SUBCOMMANDS = new Map([
     'sync-commands',
     {
       description: 'regenerate .claude/commands/ from .agents/workflows/',
-      knownFlags: new Set(['--dry-run']),
+      // No --dry-run: the projection scripts have no preview mode, and
+      // accepting the flag while syncing for real overwrote .claude/ on an
+      // operator who asked for a preview. Reject it at the dispatcher.
+      knownFlags: new Set([]),
     },
   ],
   [
     'sync-agents',
     {
       description: 'regenerate .claude/agents/ from .agents/agents/',
-      knownFlags: new Set(['--dry-run']),
+      // Same contract as sync-commands: no preview mode, so no --dry-run.
+      knownFlags: new Set([]),
     },
   ],
   [

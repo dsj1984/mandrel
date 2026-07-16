@@ -31,6 +31,7 @@ authoritative verdict is the CI run on the pull request.
 > | --- | --- |
 > | `check-arch-cycles.js` | Via the `lint` step — `run-lint.js` has run it since Story #3991. Deliberately **not** repeated in `run-verify.js`; doing so would double-pay the gate. |
 > | `check-dead-exports.js` | Its own `dead-exports` step (Story #4549). |
+| `check-dead-exports.js --production` | Its own `dead-exports-production` step — added when the production-mode pass (#4582) joined CI's baselines job. |
 > | `check-context-budget.js` | Its own `context-budget` step (Story #4549). |
 >
 > Before #4549 the latter two sat in a contract hole — omitted from the mirror

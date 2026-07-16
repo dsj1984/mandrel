@@ -54,6 +54,11 @@ const STEPS = [
     args: ['.agents/scripts/check-dead-exports.js'],
   },
   {
+    label: 'dead-exports-production',
+    cmd: 'node',
+    args: ['.agents/scripts/check-dead-exports.js', '--production'],
+  },
+  {
     label: 'context-budget',
     cmd: 'node',
     args: ['.agents/scripts/check-context-budget.js'],

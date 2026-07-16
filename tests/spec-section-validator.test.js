@@ -17,9 +17,7 @@
  * (and its separate Phase 7.5 workflow step) is retired — `validateSpecFile`
  * and `formatMissingSectionMessage` now live on this retained library, and
  * `runSpecPhase` calls `validateSpecSections` directly as part of its
- * persist-path input validation (see
- * `tests/epic-plan-spec-risk-verdict.test.js` for the fail-closed
- * before-any-GitHub-call coverage).
+ * persist-path input validation.
  */
 
 import assert from 'node:assert/strict';
