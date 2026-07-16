@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/signal-event.schema.json",
   "title": "SignalEvent",
-  "description": "One NDJSON line emitted by the signals writer (Epic #1030; canonical envelope cutover Epic #4406 / Story #4413). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson (per-Story) and temp/epic-<eid>/signals.ndjson (Epic-level wave lifecycle); tickets carry only summaries (story-perf-summary, epic-perf-report). `kind: trace` is the raw tool-call trace; the named kinds are derived signals. This is the ONLY shape — the legacy `timestamp` / `epic` aliases and the `source: { tool }` provenance object were deleted in the same PR that moved every writer (no read-side compatibility branch).",
+  "description": "One NDJSON line emitted by the signals writer (Epic #1030; canonical envelope cutover Epic #4406 / Story #4413). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson (per-Story) and temp/epic-<eid>/signals.ndjson (Epic-level wave lifecycle); The stream stays local: Story #4545 deleted the perf-summary / perf-report comment surface that used to roll it up onto tickets, leaving the retro as the consumer. `kind: trace` is the raw tool-call trace; the named kinds are derived signals. This is the ONLY shape — the legacy `timestamp` / `epic` aliases and the `source: { tool }` provenance object were deleted in the same PR that moved every writer (no read-side compatibility branch).",
   "type": "object",
   "additionalProperties": true,
   "required": ["kind", "ts"],
@@ -57,7 +57,7 @@
     "category": {
       "type": "string",
       "minLength": 1,
-      "description": "Top-level friction category (e.g. Execution Error, baseline-refresh-regression). Read directly by perf-aggregator frictionByCategory and the retro routed-proposal extraction — never nested under details."
+      "description": "Top-level friction category (e.g. Execution Error, baseline-refresh-regression). Read directly by the retro routed-proposal extraction — never nested under details."
     },
     "phase": {
       "type": ["string", "null"],

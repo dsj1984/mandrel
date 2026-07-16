@@ -558,7 +558,7 @@ Severity vocabulary (`eventSeverity()` derives it for state transitions):
 
 | Severity | Used for | Webhook prefix |
 | --- | --- | --- |
-| `low` | `story-run-progress` upserts, intermediate transitions, audit reports. | `[low]` |
+| `low` | Intermediate transitions, audit reports. | `[low]` |
 | `medium` | Operator-visible milestones: Story state transitions, story merged, run complete. | `[medium]` |
 | `high` | Operator must act (HITL gates, Story blockers, autonomous-chain failures); body leads with `🚨 Action Required:`. | `[Action Required]` |
 

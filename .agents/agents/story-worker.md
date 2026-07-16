@@ -120,8 +120,8 @@ scores the working diff against **each** `acceptance[]` item and consumes the
   a full body. `story.heartbeat` is the only progress surface — Story #4545
   deleted the `story-run-progress` renderer, which had stopped writing a
   comment in Story #3909 and had no caller thereafter.
-- **Blocked.** If you genuinely cannot proceed, flip the snapshot to `blocked`,
-  transition the Story to `agent::blocked`, post a `friction` comment naming
+- **Blocked.** If you genuinely cannot proceed, transition the Story to
+  `agent::blocked`, post a `friction` comment naming
   the decision needed (or the unmet criteria and their evidence), and **exit
   non-zero**. **Never fall silent** — a child with no heartbeat, no commit, and
   no `agent::blocked` label is exactly the dead-child failure the watchdog is

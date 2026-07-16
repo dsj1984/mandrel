@@ -1,7 +1,12 @@
 /**
- * detectors-phase.js — pure post-merge phase that runs the per-Story
- * signal detectors (rework + retry) before `analyze-execution.js` shells
- * out to render the `<!-- structured:story-perf-summary -->` comment.
+ * detectors-phase.js — pure phase that runs the per-Story signal detectors
+ * (rework + retry) over the local NDJSON stream.
+ *
+ * Story #4545 — this phase has no production caller. Its sequencer
+ * (`post-merge-pipeline.js`) went in the v2.0.0 cutover, and the
+ * `analyze-execution.js` consumer it fed was deleted with the
+ * execution-analysis surface. Kept alive only by its own test — the
+ * test-importer blind spot the dead-exports ratchet cannot see.
  *
  * Extracted from `post-merge-pipeline.js` (Story #1770 / Task #1779) to
  * keep the parent sequencer's maintainability score above its baseline

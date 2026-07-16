@@ -10,12 +10,17 @@ import { getSpawnCount as defaultGetSpawnCount } from '../gh-exec.js';
  * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
  *
  * Writes the current `gh-exec` spawn counter to
- * `temp/epic-<eid>/stories/story-<sid>/gh-spawn-count.json` so the
- * `analyze-execution.js` child process can read it and emit a
- * `ghSpawnCount` field on the `story-perf-summary` payload. The Story-
- * close orchestrator calls this inside `runPostMergeClose` right before
- * the perf-summary phase, capturing every `gh` invocation from preflight
- * through the merge in one counter snapshot.
+ * `temp/epic-<eid>/stories/story-<sid>/gh-spawn-count.json`.
+ *
+ * Story #4545 — its reader is gone: `analyze-execution.js` consumed this file
+ * to emit a `ghSpawnCount` field on the `story-perf-summary` payload, and both
+ * that CLI and that payload were deleted with the execution-analysis surface.
+ * The writer itself already had no production caller before that (the
+ * `runPostMergeClose` orchestrator named below went in the v2.0.0 cutover), so
+ * this module is production-dead and kept alive only by its own test — the
+ * test-importer blind spot the dead-exports ratchet cannot see. It is left in
+ * place rather than deleted because reviving spawn telemetry against the live
+ * close path is a decision, not a sweep.
  *
  * @param {object} opts
  * @param {number|string} opts.epicId
