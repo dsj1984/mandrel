@@ -166,3 +166,115 @@ test('selector: default headRef (HEAD) skips the rev-parse probe and diffs HEAD'
   assert.equal(diffCall[2], 'main...HEAD');
   assert.equal(result.context.resolvedRef, 'HEAD');
 });
+
+/**
+ * Story #4571 — the injected-`changedFiles` seam.
+ *
+ * `selectAudits` derived its own change set from `git diff baseBranch...headRef`
+ * in `process.cwd()`. The plan-run epilogue calls it from the main checkout
+ * *after* the run's Stories have merged, so that range is empty by
+ * construction — selection collapsed to keyword-matching the Story prose and
+ * every file-pattern trigger was silently dead. Callers that already know the
+ * change set pass it in; the internal diff is then not spawned at all.
+ */
+
+test('selector: injected changedFiles are used verbatim and no git diff is spawned', async () => {
+  const seen = [];
+  const fakeGitSpawn = async (_cwd, ...args) => {
+    seen.push(args);
+    return { status: 0, stdout: 'SHOULD-NOT-BE-READ.js\n', stderr: '' };
+  };
+
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    changedFiles: ['src/auth/login.js', 'src/api/users.ts'],
+    injectedGitSpawn: fakeGitSpawn,
+  });
+
+  assert.equal(
+    seen.length,
+    0,
+    'an injected change set must short-circuit the git diff entirely',
+  );
+  assert.deepEqual(result.context.changedFiles, [
+    'src/auth/login.js',
+    'src/api/users.ts',
+  ]);
+  assert.equal(
+    result.context.changedFilesCount,
+    result.context.changedFiles.length,
+  );
+});
+
+test('selector: injected changedFiles drive file-pattern selection', async () => {
+  // `audit-clean-code` declares no keywords — it is reachable ONLY via its
+  // filePatterns. The provider's body is deliberately keyword-free, so a hit
+  // here proves selection ran over the injected files.
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate3',
+    provider: makeProvider(),
+    changedFiles: ['.agents/scripts/lib/orchestration/run-epilogue.js'],
+    injectedGitSpawn: async () => {
+      throw new Error('git must not be spawned on the injected path');
+    },
+  });
+
+  assert.ok(
+    result.selectedAudits.includes('audit-clean-code'),
+    `a keyword-less, file-pattern-only lens must be reachable from an injected change set; got ${JSON.stringify(result.selectedAudits)}`,
+  );
+});
+
+test('selector: an injected EMPTY change set is honoured, not treated as absent', async () => {
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate3',
+    provider: makeProvider(),
+    changedFiles: [],
+    injectedGitSpawn: async () => {
+      throw new Error('git must not be spawned on the injected path');
+    },
+  });
+
+  // `[]` is a caller saying "I know the set, and it is empty" — distinct from
+  // omitting the option, which means "derive it yourself".
+  assert.deepEqual(result.context.changedFiles, []);
+  assert.equal(result.context.changedFilesCount, 0);
+});
+
+test('selector: injected changedFiles report no resolvedRef — nothing was diffed', async () => {
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    changedFiles: ['a.js'],
+  });
+
+  assert.equal(
+    result.context.resolvedRef,
+    null,
+    'resolvedRef names the ref the change set was diffed against; on the injected path there is none, and claiming HEAD would be a lie',
+  );
+});
+
+test('selector: omitting changedFiles still derives the set from git (unchanged)', async () => {
+  const seen = [];
+  const fakeGitSpawn = async (_cwd, ...args) => {
+    seen.push(args);
+    return { status: 0, stdout: 'derived.js\n', stderr: '' };
+  };
+
+  const result = await selectAudits({
+    ticketId: 500,
+    gate: 'gate1',
+    provider: makeProvider(),
+    injectedGitSpawn: fakeGitSpawn,
+  });
+
+  assert.ok(seen.some((a) => a[0] === 'diff'));
+  assert.deepEqual(result.context.changedFiles, ['derived.js']);
+  assert.equal(result.context.resolvedRef, 'HEAD');
+});
