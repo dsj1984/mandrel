@@ -3,6 +3,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -19,6 +20,7 @@ import {
 } from '../../.agents/scripts/lib/label-constants.js';
 import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
 import {
+  makeDefaultFanOutCounter,
   resolveBaseBranchRef,
   validateTickets,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
@@ -177,6 +179,176 @@ describe('base-branch resolution (Story #4541)', () => {
         }),
       /do not exist at a-branch-that-does-not-exist/,
     );
+  });
+});
+
+describe('fan-out probe — importers, not basename word matches (Story #4547)', () => {
+  // The predecessor counter grepped the deleted file's basename stem as a
+  // bare word across the whole tree. A module named `notification` reported
+  // 59 call sites drawn from prose and unrelated schemas while having zero
+  // real importers — and the gate that fired on that number told the
+  // operator to split a migration that did not exist, leaving the override
+  // as the only exit. These fixtures pin the number to real coupling.
+
+  /**
+   * A `git grep -n -E` that actually greps: the fixture tree is matched
+   * against the probe's own pattern, so the assertions below exercise the
+   * real regex rather than a canned hit list.
+   */
+  function fakeGit(tree) {
+    return {
+      gitSpawn(_cwd, ...args) {
+        const [, , , , pattern, ref] = args;
+        const re = new RegExp(pattern.replaceAll('[[:space:]]', '\\s'));
+        const out = [];
+        for (const [file, content] of Object.entries(tree)) {
+          content.split('\n').forEach((text, idx) => {
+            if (re.test(text)) out.push(`${ref}:${file}:${idx + 1}:${text}`);
+          });
+        }
+        return {
+          status: out.length > 0 ? 0 : 1,
+          stdout: out.join('\n'),
+          stderr: '',
+        };
+      },
+    };
+  }
+
+  function probe(tree, path, { baseBranchRef = 'main' } = {}) {
+    return makeDefaultFanOutCounter({
+      baseBranchRef,
+      cwd: '/repo',
+      git: fakeGit(tree),
+    })({ path });
+  }
+
+  it('reports zero for a generic basename that no code imports', () => {
+    const result = probe(
+      {
+        '.agents/docs/SDLC.md':
+          'The post-merge notification phase fires after the merge lands.',
+        '.agents/schemas/agentrc.schema.json':
+          '  "notification": { "type": "object" },',
+        '.agents/scripts/lib/close.js':
+          "// notification is sent here\nimport { land } from './land.js';",
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 0);
+    assert.deepEqual(result.files, []);
+  });
+
+  it('counts the files that genuinely import the module', () => {
+    const result = probe(
+      {
+        '.agents/scripts/lib/a.js':
+          "import { notify } from './notification.js';",
+        '.agents/scripts/lib/nested/b.js':
+          "import { notify } from '../notification.js';",
+        '.agents/scripts/c.js': "const n = require('./lib/notification');",
+        '.agents/docs/SDLC.md': 'Prose about notification handling.',
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 3);
+    assert.deepEqual(result.files, [
+      '.agents/scripts/c.js',
+      '.agents/scripts/lib/a.js',
+      '.agents/scripts/lib/nested/b.js',
+    ]);
+  });
+
+  it('does not count a same-basename module in another directory', () => {
+    const result = probe(
+      {
+        '.agents/scripts/x.js': "import { n } from './b/notification.js';",
+      },
+      '.agents/scripts/a/notification.js',
+    );
+    assert.equal(result.count, 0);
+  });
+
+  it('probes a stem shorter than three characters instead of reporting zero', () => {
+    // The predecessor bailed out at `stem.length < 3` without probing at
+    // all — silently under-reporting a real deletion as safe.
+    const result = probe(
+      {
+        '.agents/scripts/lib/reader.js': "import { q } from './db.js';",
+        '.agents/scripts/lib/writer.js': "import { q } from './db.js';",
+      },
+      '.agents/scripts/lib/db.js',
+    );
+    assert.equal(result.count, 2);
+    assert.deepEqual(result.files, [
+      '.agents/scripts/lib/reader.js',
+      '.agents/scripts/lib/writer.js',
+    ]);
+  });
+
+  it('resolves an extensionless directory-index specifier', () => {
+    const result = probe(
+      { '.agents/scripts/x.js': "import { f } from './foo';" },
+      '.agents/scripts/foo/index.js',
+    );
+    assert.equal(result.count, 1);
+    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
+  });
+
+  it("excludes the deleted module's own self-references", () => {
+    const result = probe(
+      {
+        '.agents/scripts/lib/notification.js':
+          '// see ./notification.js\nexport const n = 1;',
+      },
+      '.agents/scripts/lib/notification.js',
+    );
+    assert.equal(result.count, 0);
+  });
+
+  it('reports a probe that survives a paste into a shell', () => {
+    // The reported probe is the operator's route to checking the number at
+    // any count, so "looks like a git command" is not the bar — it has to
+    // still be the same argv after the shell has had it. Unquoted, the
+    // ERE's `(`, `|` and `[[:space:]]` are glob metacharacters: zsh fails
+    // the paste with `no matches found` AND exits 0, so the gate's own
+    // audit trail would read as "zero importers".
+    const result = probe(
+      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
+      '.agents/scripts/lib/notification.js',
+    );
+    const argv = execFileSync(
+      'sh',
+      ['-c', `printf '%s\\n' ${result.probe.replace(/^git /, '')}`],
+      { encoding: 'utf-8' },
+    )
+      .split('\n')
+      .filter((l) => l.length > 0);
+
+    assert.deepEqual(argv.slice(0, 4), ['grep', '-n', '-E', '--full-name']);
+    assert.equal(argv.length, 6);
+    // The pattern reaches git as ONE intact argv entry, unmangled.
+    assert.match(argv[4], /^\(from\|require\|import\)\[\[:space:\]\]/);
+    assert.match(argv[4], /notification\\\.js\|notification/);
+    assert.equal(argv[5], 'main');
+  });
+
+  it('reports the probe that produced the number, against the configured ref', () => {
+    // AC: the figure must be checkable, not merely trusted.
+    const result = probe(
+      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
+      '.agents/scripts/lib/notification.js',
+      { baseBranchRef: 'develop' },
+    );
+    assert.match(result.probe, /^git grep -n -E /);
+    assert.match(result.probe, /develop$/);
+    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
+  });
+
+  it('maps an empty grep (exit 1) to zero rather than a failure', () => {
+    const result = probe({}, '.agents/scripts/lib/gone.js');
+    assert.equal(result.count, 0);
+    assert.deepEqual(result.files, []);
   });
 });
 
