@@ -9,11 +9,13 @@ filtering, idempotency enforcement, and the actionable per-step log line. The
 `migrations` array is the single source of truth for which steps exist and in
 what order they run.
 
-> The registry currently ships **empty**. The project sits on the 1.x line
-> under release-please `always-bump-minor`, and no real contract break has
-> landed yet. The machinery is exercised by fixture steps in
-> [`__tests__/index.test.js`](./__tests__/index.test.js). Add the first real
-> step here when the first contract cutover lands.
+> Story #4531 registered the first real step —
+> [`steps/2.1.0-retire-mi-drop-knobs.js`](./steps/2.1.0-retire-mi-drop-knobs.js),
+> which strips the retired `codingGuardrails.miDropMustRefactor` and
+> `autoRefresh.miDropCap` keys from a consumer's `.agentrc.json`. The
+> machinery itself is still exercised independently by fixture steps in
+> [`__tests__/index.test.js`](./__tests__/index.test.js). Add the next real
+> step here (ascending by version) when the next contract cutover lands.
 
 ## Step shape
 
