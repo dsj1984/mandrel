@@ -195,7 +195,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.routing.freshCriticSampleRate':
     'Fraction of low-risk acceptance clusters forced through a fresh-context critic (maker-checker floor).',
   'delivery.routing.ceremonyProfile':
-    'Acceptance-ceremony depth: minimal (always inline), standard (risk-routed), or strict (always fresh).',
+    'Acceptance-ceremony depth: minimal (always inline), standard (derived-level routed), or strict (always fresh).',
   'delivery.routing.closeAndLand':
     'When true, single-story-close lands through merge in one close (opt out with --no-wait-merge).',
   'delivery.feedbackLoop.auditResultsAutoFile':

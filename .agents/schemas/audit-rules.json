@@ -176,5 +176,56 @@
       "scope": "global",
       "substitutionKeys": []
     }
+  },
+  "sensitivePaths": {
+    "security": {
+      "description": "Authentication, authorization, session, and secret-handling surfaces.",
+      "filePatterns": [
+        "**/auth/**",
+        "**/authn/**",
+        "**/authz/**",
+        "**/crypto/**",
+        "**/session/**",
+        "**/*credential*",
+        "**/*permission*",
+        "**/*.pem",
+        "**/*.key"
+      ]
+    },
+    "data-migration": {
+      "description": "Schema migrations and seed data — changes that rewrite persisted state.",
+      "filePatterns": [
+        "**/migrations/**",
+        "**/migrate/**",
+        "**/seeds/**",
+        "**/*.sql",
+        "**/schema.prisma"
+      ]
+    },
+    "billing": {
+      "description": "Money movement: payment, checkout, invoicing, and subscription surfaces.",
+      "filePatterns": [
+        "**/billing/**",
+        "**/payment/**",
+        "**/payments/**",
+        "**/checkout/**",
+        "**/invoice*/**",
+        "**/subscription*/**"
+      ]
+    },
+    "destructive-mutation": {
+      "description": "Irreversible mutation paths — deletion, purge, and teardown.",
+      "filePatterns": ["**/*delete*", "**/*destroy*", "**/*purge*"]
+    },
+    "public-api": {
+      "description": "The externally-consumed contract surface: routes, controllers, and API schemas.",
+      "filePatterns": [
+        "**/api/**",
+        "**/routes/**",
+        "**/controllers/**",
+        "**/openapi/**",
+        "**/graphql/**"
+      ]
+    }
   }
 }

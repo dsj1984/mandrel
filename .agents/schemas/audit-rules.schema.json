@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://mandrel.dev/schemas/audit-rules.schema.json",
   "title": "AuditRulesManifest",
-  "description": "Schema describing the audit-rules.json manifest read by select-audits.js and lib/audit-suite/runner.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts.",
+  "description": "Schema describing the audit-rules.json manifest read by lib/audit-suite/selector.js and lib/audit-suite/runner.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts, plus the sensitive-path classes that derive review depth from a change set.",
   "type": "object",
   "required": ["version", "audits"],
   "additionalProperties": false,
@@ -19,9 +19,35 @@
         "^[a-z][a-z0-9-]*$": { "$ref": "#/definitions/auditEntry" }
       },
       "additionalProperties": false
+    },
+    "sensitivePaths": {
+      "type": "object",
+      "description": "Map of sensitive-path class name to the globs that identify it. A change set touching any registered pattern derives a `high` change level, which resolves review depth to `deep` and the acceptance critic to `fresh` regardless of how narrow the diff is (deriveChangeLevel in lib/orchestration/review-depth.js). This is configuration, not code: an operator extends the classes or their globs here without editing a module, and the globs run through the same picomatch machinery as the audit-lens `filePatterns` triggers above. An absent or empty block means no path is sensitive and depth falls back to diff width alone.",
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": { "$ref": "#/definitions/sensitivePathClass" }
+      },
+      "additionalProperties": false
     }
   },
   "definitions": {
+    "sensitivePathClass": {
+      "type": "object",
+      "required": ["filePatterns"],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "What this class covers — why a change here warrants a deeper pass."
+        },
+        "filePatterns": {
+          "type": "array",
+          "description": "Glob patterns matched against the changed files of the diff under review.",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "minItems": 1
+        }
+      }
+    },
     "auditEntry": {
       "type": "object",
       "required": ["triggers", "scope"],

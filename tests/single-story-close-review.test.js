@@ -194,10 +194,8 @@ describe('runStoryScopeReview (direct)', () => {
         headRef: opts.headRef,
         commentTargetId: opts.commentTargetId,
       };
-      // Story #3940 — the standalone path has no plan checkpoint, so its
-      // review input MUST NOT carry a `planningRisk` envelope (depth resolves
-      // from diff width alone). Pin the absence so the standalone path stays
-      // out of scope of the Epic-attached depth-inheritance change.
+      // Story #4542 — depth is derived inside runCodeReview from the diff, so
+      // the review input MUST NOT carry a planner-authored risk envelope.
       seen.hasPlanningRisk = 'planningRisk' in opts;
       // Simulate that runCodeReview already posted to the PR.
       return {
@@ -232,7 +230,7 @@ describe('runStoryScopeReview (direct)', () => {
     assert.equal(
       seen.hasPlanningRisk,
       false,
-      'standalone Story-scope review input must not carry a planningRisk envelope (Story #3940)',
+      'Story-scope review input must not carry a planningRisk envelope (Story #4542)',
     );
     assert.equal(out.halted, false);
     assert.equal(out.crossRefPosted, true);
@@ -273,50 +271,35 @@ describe('runStoryScopeReview (direct)', () => {
     assert.match(recorder.postedComments[0].payload.body, /critical:2/);
   });
 
-  it('forwards Story planning risk into review depth resolution', async () => {
+  it('never reads the story-plan-state checkpoint to resolve depth', async () => {
+    // Story #4542: the close path used to load `planningRisk` off the Story's
+    // checkpoint and thread it into the review depth. Depth is now derived from
+    // the diff, so the review must not round-trip the ticket for it at all —
+    // and must not resurrect the envelope even when a legacy checkpoint with
+    // risk fields is still sitting on the issue.
     const { runStoryScopeReview } = await import(SUT_URL);
     const recorder = fakeProviderRecorder();
-    let seenRisk = null;
-    await runStoryScopeReview({
-      cwd: '/repo',
-      storyId: 2839,
-      storyBranch: 'story-2839',
-      baseBranch: 'main',
-      prUrl: 'https://github.com/owner/repo/pull/123',
-      prNumber: 123,
-      provider: recorder.provider,
-      planningRisk: { overallLevel: 'high', axes: [] },
-      runCodeReviewFn: async (opts) => {
-        seenRisk = opts.planningRisk;
-        return {
-          severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
-          posted: false,
-          halted: false,
-        };
-      },
-      runLocalLensReviewFn: async () => ({ skipped: true }),
-      progress: () => {},
-    });
-    assert.deepEqual(seenRisk, { overallLevel: 'high', axes: [] });
-  });
-
-  it('loads planningRisk from story-plan-state when omitted', async () => {
-    const { runStoryScopeReview } = await import(SUT_URL);
-    const planningRisk = { overallLevel: 'high', axes: [] };
-    const recorder = fakeProviderRecorder();
-    recorder.provider.getTicketComments = async () => [
-      {
-        body: [
-          '<!-- ap:structured-comment type="story-plan-state" -->',
-          '### story-plan-state',
-          '',
-          '```json',
-          JSON.stringify({ version: 2, storyId: 2839, planningRisk }),
-          '```',
-        ].join('\n'),
-      },
-    ];
-    let seenRisk = null;
+    let commentsRead = false;
+    recorder.provider.getTicketComments = async () => {
+      commentsRead = true;
+      return [
+        {
+          body: [
+            '<!-- ap:structured-comment type="story-plan-state" -->',
+            '### story-plan-state',
+            '',
+            '```json',
+            JSON.stringify({
+              version: 2,
+              storyId: 2839,
+              planningRisk: { overallLevel: 'high', axes: [] },
+            }),
+            '```',
+          ].join('\n'),
+        },
+      ];
+    };
+    let seenOpts = null;
     await runStoryScopeReview({
       cwd: '/repo',
       storyId: 2839,
@@ -326,7 +309,7 @@ describe('runStoryScopeReview (direct)', () => {
       prNumber: 123,
       provider: recorder.provider,
       runCodeReviewFn: async (opts) => {
-        seenRisk = opts.planningRisk;
+        seenOpts = opts;
         return {
           severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
           posted: false,
@@ -336,7 +319,8 @@ describe('runStoryScopeReview (direct)', () => {
       runLocalLensReviewFn: async () => ({ skipped: true }),
       progress: () => {},
     });
-    assert.deepEqual(seenRisk, planningRisk);
+    assert.equal(commentsRead, false, 'no checkpoint read on the depth path');
+    assert.equal('planningRisk' in seenOpts, false);
   });
 
   it('skips when prNumber is null', async () => {

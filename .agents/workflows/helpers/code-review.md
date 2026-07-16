@@ -57,14 +57,16 @@ the argument envelope.
 
 ### Review depth (`depth`)
 
-`depth` is the risk-derived thoroughness lever introduced by Story #3876 and
-made a live consumed signal end to end by Story #3937. The live `/deliver`
-close path resolves it from the Story's judged `planningRisk` envelope
-(read from the per-Story `story-plan-state` checkpoint via
-[`resolveStoryPlanningRisk`](../../scripts/lib/orchestration/story-plan-state.js);
-`high` → `deep`, `low` → `light`, everything else — including a missing
-checkpoint — → `standard`) and passes it into `runCodeReview`.
-`runCodeReview` forwards `depth` to every provider's `runReview` input.
+`depth` is the thoroughness lever introduced by Story #3876, made a live
+consumed signal end to end by Story #3937, and re-based on an observable signal
+by Story #4542. `runCodeReview` derives it from the diff it already enumerates,
+via [`review-depth.js`](../../scripts/lib/orchestration/review-depth.js): the
+changed files' intersection with the `sensitivePaths` classes registered in
+`audit-rules.json` gives the level, their count gives the width, and
+`resolveDepth` folds the two (a sensitive path OR a wide diff → `deep`; neither,
+on a small diff → `light`; an unenumerable diff → `standard`). It takes no
+planner-authored input and reads no checkpoint. `runCodeReview` forwards `depth`
+to every provider's `runReview` input.
 
 It is an **input-only** signal: it changes *how thorough* the review is, never
 the findings envelope (`{ status, severity, posted, report, halted,
@@ -97,7 +99,7 @@ review yourself, honor the `depth` semantics above directly.
 2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
 3. Fetch the Story ticket and resolve the planning context from its own
    body: folded `## Spec` / `## Slicing`, acceptance criteria, and the
-   `story-plan-state` / `risk-verdict` structured comments when present.
+   `story-plan-state` structured comment when present.
 4. Read that Spec fully to understand the intended scope, architectural
    decisions, and acceptance criteria. Do **not** look for a parent Epic.
 

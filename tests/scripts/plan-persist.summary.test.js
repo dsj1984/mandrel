@@ -1,22 +1,25 @@
 /**
- * tests/scripts/plan-persist.summary.test.js — #4496 fix 2.
+ * tests/scripts/plan-persist.summary.test.js
  *
- * Unit coverage for the `plan-summary` comment body's auto-waiver line:
- * every auto-waiver the persist derives must be printed WITH its reason so
- * the summary is self-explanatory — the measured failure mode was a
- * headless run spending 3–5 turns re-deriving an unexplained
- * `required → not-applicable` acceptance flip from framework source.
+ * Unit coverage for the `plan-summary` comment body.
+ *
+ * Story #4542 retired the risk/routing receipts this file used to pin (the
+ * `- Risk: <level> · <gateDecision> (review routing: …)` line and the
+ * acceptance auto-waiver line, #4496 fix 2). Nothing computes a risk level, a
+ * gate decision, or an acceptance disposition at plan time any more, so
+ * printing one would document a mechanism that does not run — the regression
+ * guard below asserts exactly that. `--force-review` is the one review gate the
+ * planner still carries, and the summary reports it as an explicit operator
+ * receipt.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { buildPlanSummaryCommentBody } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
-import { deriveRiskEnvelope } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
 
 const BASE = {
   epicId: 4242,
   ticketCount: 2,
-  reviewRouting: { decision: 'auto-proceed' },
   freshness: { stale: 0, ambiguous: 0 },
   healthcheck: { ok: true },
   waveTable: [
@@ -25,54 +28,30 @@ const BASE = {
   ],
 };
 
-describe('plan-summary — auto-waiver reason line (#4496 fix 2)', () => {
-  it('prints the acceptance auto-waiver WITH its reason', () => {
-    // Derive a real waiver the way the persist does: an axes-required
-    // disposition forced to not-applicable by the no-BDD-runner probe.
-    const planningRisk = deriveRiskEnvelope(
-      {
-        axes: [
-          {
-            axis: 'visible-behavior',
-            level: 'high',
-            rationale: 'User-facing flow changes.',
-          },
-        ],
-        summary: 'High-risk fixture.',
-      },
-      { bddRunner: { fallback: true, reason: 'no-bdd-runner-detected' } },
-    );
-    assert.ok(
-      planningRisk.acceptanceWaivedReason,
-      'fixture must actually derive a waiver',
-    );
-    const body = buildPlanSummaryCommentBody({ ...BASE, planningRisk });
-    const waiverLine = body
-      .split('\n')
-      .find((l) => l.includes('Acceptance disposition auto-waived'));
-    assert.ok(waiverLine, 'the summary must carry a dedicated waiver line');
-    assert.ok(
-      waiverLine.includes(planningRisk.acceptanceWaivedReason),
-      'the waiver line must carry the full reason — the summary is authoritative',
-    );
-    assert.match(waiverLine, /not-applicable/);
-    assert.match(waiverLine, /no BDD runner detected/);
+describe('plan-summary — review receipt (Story #4542)', () => {
+  it('reports an operator-forced review stop', () => {
+    const body = buildPlanSummaryCommentBody({ ...BASE, forceReview: true });
+    const line = body.split('\n').find((l) => l.startsWith('- ⚠️ Review:'));
+    assert.ok(line, `expected a review line:\n${body}`);
+    assert.match(line, /--force-review/);
   });
 
-  it('omits the waiver line when no auto-waiver was derived', () => {
-    const planningRisk = deriveRiskEnvelope({
-      axes: [
-        {
-          axis: 'internal-refactor',
-          level: 'low',
-          rationale: 'Internal only.',
-        },
-      ],
-      summary: 'Low-risk fixture.',
-    });
-    assert.equal(planningRisk.acceptanceWaivedReason, undefined);
-    const body = buildPlanSummaryCommentBody({ ...BASE, planningRisk });
-    assert.ok(!body.includes('auto-waived'), 'no waiver line without a waiver');
+  it('says nothing about review when the operator did not force one', () => {
+    for (const args of [{ ...BASE }, { ...BASE, forceReview: false }]) {
+      const body = buildPlanSummaryCommentBody(args);
+      assert.doesNotMatch(body, /Review:/);
+    }
+  });
+
+  it('never reports a risk level, gate decision, or acceptance disposition', () => {
+    // The retired chain's receipts. Persist derives none of them, so the
+    // summary must not claim any — a stale line here is exactly the
+    // "documents a mechanism that does not run" defect #4542 removed.
+    const body = buildPlanSummaryCommentBody({ ...BASE, forceReview: true });
+    assert.doesNotMatch(body, /- Risk:/);
+    assert.doesNotMatch(body, /gateDecision|review routing/i);
+    assert.doesNotMatch(body, /acceptance disposition/i);
+    assert.doesNotMatch(body, /auto-waived/i);
   });
 });
 
@@ -80,8 +59,6 @@ describe('plan summary — names the exact deliver command (Story #4540)', () =>
   const base = {
     epicId: 101,
     ticketCount: 1,
-    planningRisk: { overallLevel: 'low', gateDecision: 'auto-proceed' },
-    reviewRouting: { decision: 'auto-proceed' },
     freshness: {},
     healthcheck: {},
     waveTable: [],

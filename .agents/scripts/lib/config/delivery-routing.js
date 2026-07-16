@@ -18,12 +18,13 @@
  * full-closure agent that ran before M7-B.
  *
  * `delivery.routing.freshCriticSampleRate` is the **maker-checker sampling
- * floor** (Epic #4478, M7-B, Part 2). Risk-routed ceremony sends a low-risk
- * acceptance cluster down the contract-identical *inline* critic path, but a
- * fraction of low-risk clusters are still forced through a *fresh-context*
- * critic so "low risk" never degrades to zero independent checking. The rate is
- * clamped into `[0, 1]`; `0` disables the floor (pure risk routing), `1` forces
- * every cluster fresh. The default is `0.2`. See `resolveCeremonyForRisk` in
+ * floor** (Epic #4478, M7-B, Part 2). Ceremony routing sends the acceptance
+ * clusters of a change set that touches no sensitive path down the
+ * contract-identical *inline* critic path, but a fraction of them are still
+ * forced through a *fresh-context* critic so a low derived level never degrades
+ * to zero independent checking. The rate is clamped into `[0, 1]`; `0` disables
+ * the floor (pure level routing), `1` forces every cluster fresh. The default is
+ * `0.2`. See `resolveCeremonyForRisk` in
  * `lib/orchestration/ceremony-routing.js`.
  *
  * Framework-defaults pattern mirrors `lib/config/ci.js#getCiDelivery`.

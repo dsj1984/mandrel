@@ -39,7 +39,7 @@
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
 import { gitSpawn } from '../git-utils.js';
-import { resolveDepth } from './review-depth.js';
+import { deriveChangeLevel, resolveDepth } from './review-depth.js';
 import {
   countBySeverity,
   renderFindings,
@@ -49,29 +49,30 @@ import { upsertStructuredComment } from './ticketing.js';
 
 /**
  * Review depth tiers, ordered light → standard → deep. The depth is resolved
- * by the shared {@link resolveDepth} resolver from the judged risk envelope's
- * `overallLevel` **and** the mechanical changed-file count of the diff under
- * review, then threaded into the review provider's `runReview` input so a
- * high-risk *or* wide-footprint change gets a deeper pass than a low-risk
- * small one. Depth is an **input** signal only — it never changes the
+ * by the shared {@link resolveDepth} resolver from two observable properties of
+ * the diff under review — whether its changed files touch a registered
+ * sensitive path ({@link deriveChangeLevel}) and their mechanical count — then
+ * threaded into the review provider's `runReview` input so a sensitive *or*
+ * wide-footprint change gets a deeper pass than a small, unremarkable one.
+ * Depth is an **input** signal only — it never changes the
  * `{ status, severity, posted, report, halted, blockerReason }` output
- * envelope nor the `code-review` structured-comment body (Story #3876,
- * extended by Story #3938).
+ * envelope nor the `verification-results` structured-comment body (Story #3876,
+ * extended by Story #3938; re-based off the diff by Story #4542).
  *
  * @typedef {import('./review-depth.js').ReviewDepth} ReviewDepth
  */
 
 /**
- * Count the files changed in the `baseRef...headRef` diff via
- * `git diff --name-only`. Returns the file count, or `null` when the diff
- * cannot be enumerated (git failure, missing ref). A `null` count is the
- * neutral "width unknown" signal {@link resolveDepth} tolerates without
- * downgrading or escalating the depth. Best-effort — never throws.
+ * Enumerate the files changed in the `baseRef...headRef` diff via
+ * `git diff --name-only`. Returns the file list, or `null` when the diff
+ * cannot be enumerated (git failure, missing ref). A `null` list is the neutral
+ * "diff unknown" signal both {@link deriveChangeLevel} and {@link resolveDepth}
+ * tolerate by failing safe to `standard`. Best-effort — never throws.
  *
  * @param {{ baseRef: string, headRef: string, gitSpawnFn?: typeof gitSpawn }} args
- * @returns {number|null}
+ * @returns {string[]|null}
  */
-function countChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
+function listChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
   try {
     const result = gitSpawnFn(
       process.cwd(),
@@ -83,9 +84,9 @@ function countChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
       return null;
     }
     return result.stdout
-      .trim()
       .split('\n')
-      .filter((line) => line.length > 0).length;
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   } catch {
     return null;
   }
@@ -264,7 +265,7 @@ function resolveScopeEnvelope(opts, config) {
  *   commentTargetId?: number|null,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function, fatal?: Function, createProgress?: Function },
- *   planningRisk?: { overallLevel?: ('low'|'medium'|'high'), axes?: Array<{ axis?: string, level?: string }> }|null,
+ *   changedFiles?: string[]|null,
  *   changedFileCount?: number|null,
  *   storyId?: number|null,
  *   bus?: object|null,
@@ -309,22 +310,26 @@ function resolveProviderName(codeReviewConfig) {
 
 /**
  * Build the provider `runReview` input, resolving the review depth from the
- * judged risk envelope's `overallLevel` and the mechanical changed-file
- * count of the diff under review (Story #3876 / #3938). The depth is an
- * input-only signal (light → standard → deep) and never touches the output
- * envelope or the posted comment. Absent risk envelope + unknown width →
- * `standard`. Story #4075 — extracted from `runCodeReview`.
+ * diff under review: its changed files derive the change level (sensitive path
+ * touched or not — Story #4542) and their count supplies the width. The depth
+ * is an input-only signal (light → standard → deep) and never touches the
+ * output envelope or the posted comment. An unenumerable diff → `standard`.
+ * Story #4075 — extracted from `runCodeReview`.
  */
 function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
+  const changedFiles = Array.isArray(opts.changedFiles)
+    ? opts.changedFiles
+    : listChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
   const changedFileCount =
     typeof opts.changedFileCount === 'number'
       ? opts.changedFileCount
-      : countChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
+      : (changedFiles?.length ?? null);
   // v2 Stage 2: review depth uses DEFAULT_DIFF_WIDTH (mechanical file count
   // of the diff under review). It is deliberately decoupled from the
   // planning model-capacity advisory (`DEFAULT_MODEL_CAPACITY`).
+  const { level } = deriveChangeLevel({ changedFiles });
   const depth = resolveDepth({
-    overallLevel: opts.planningRisk?.overallLevel,
+    derivedLevel: level,
     changedFileCount,
   });
   return {

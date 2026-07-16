@@ -4,8 +4,11 @@
  *
  *   - consolidation (8.3): precondition AND (>5 stories OR confirmed
  *     divergence) — a fail-open precondition on a small draft skips;
- *   - pre-mortem (8.5): high overall risk, OR ticket count ≥ ½ maxTickets,
- *     OR a planning.riskHeuristics phrase match (case-insensitive);
+ *   - pre-mortem (8.5): ticket count ≥ ½ maxTickets, OR a
+ *     planning.riskHeuristics phrase match (case-insensitive). Story #4542
+ *     retired the third condition — the authored risk verdict's overall level —
+ *     with the verdict itself, so both surviving conditions read the plan's own
+ *     observable shape and text;
  *   - the additive `cause` field on the underlying consolidation
  *     precondition ('match' | 'divergence' | 'fail-open').
  */
@@ -158,55 +161,31 @@ describe('consolidation dispatch — condition matrix (PR6)', () => {
 });
 
 describe('pre-mortem dispatch — condition matrix (PR6)', () => {
-  const lowVerdict = {
-    axes: [{ axis: 'internal-refactor', level: 'low', rationale: 'r' }],
-    summary: 'Low-risk fixture.',
-  };
-  const highVerdict = {
-    axes: [
-      { axis: 'internal-refactor', level: 'low', rationale: 'r' },
-      { axis: 'security', level: 'high', rationale: 'auth boundary' },
-    ],
-    summary: 'High-risk fixture.',
-  };
-  const mediumVerdict = {
-    axes: [{ axis: 'public-api', level: 'medium', rationale: 'r' }],
-    summary: 'Medium-risk fixture.',
-  };
-
   const matrix = [
     {
       name: 'no condition fires → skip',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 3,
         maxTickets: 80,
       },
       dispatch: false,
     },
     {
-      name: 'high overall risk alone → dispatch',
+      // Story #4542: with the verdict gone, a small plan touching an obviously
+      // sensitive surface fires ONLY if a configured heuristic phrase catches
+      // it — the planner can no longer self-assert its way into (or out of) the
+      // critic. This is the regression guard for that intent.
+      name: 'a small plan with no heuristic match → skip, whatever it claims',
       input: {
-        riskVerdict: highVerdict,
         ticketCount: 1,
         maxTickets: 80,
-      },
-      dispatch: true,
-      reasonMatch: /overall level is high/i,
-    },
-    {
-      name: 'medium overall risk is not high → skip',
-      input: {
-        riskVerdict: mediumVerdict,
-        ticketCount: 3,
-        maxTickets: 80,
+        planText: 'This plan is extremely high risk, honestly.',
       },
       dispatch: false,
     },
     {
       name: 'ticket count exactly half maxTickets → dispatch (boundary)',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 40,
         maxTickets: 80,
       },
@@ -216,7 +195,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     {
       name: 'odd budget: ceil boundary (5 of 10 fires, 4 of 9 skips)',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 4,
         maxTickets: 9,
       },
@@ -225,7 +203,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     {
       name: 'odd budget: 5 of 9 fires',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 5,
         maxTickets: 9,
       },
@@ -234,7 +211,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     {
       name: 'one under the half-budget boundary → skip',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 39,
         maxTickets: 80,
       },
@@ -243,7 +219,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     {
       name: 'risk-heuristic phrase match (case-insensitive) → dispatch',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 2,
         maxTickets: 80,
         riskHeuristics: ['Destructive Schema Migration'],
@@ -255,7 +230,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     {
       name: 'heuristic configured but absent from the plan text → skip',
       input: {
-        riskVerdict: lowVerdict,
         ticketCount: 2,
         maxTickets: 80,
         riskHeuristics: ['billing'],
@@ -264,16 +238,15 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
       dispatch: false,
     },
     {
-      name: 'all three conditions at once → dispatch with all reasons',
+      name: 'both conditions at once → dispatch with both reasons',
       input: {
-        riskVerdict: highVerdict,
         ticketCount: 40,
         maxTickets: 80,
         riskHeuristics: ['auth'],
         planText: 'Touches the auth boundary.',
       },
       dispatch: true,
-      minReasons: 3,
+      minReasons: 2,
     },
   ];
 
@@ -302,7 +275,6 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
     assert.throws(
       () =>
         evaluatePremortemDispatch({
-          riskVerdict: lowVerdict,
           ticketCount: 1,
           maxTickets: 0,
         }),

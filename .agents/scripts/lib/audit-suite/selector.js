@@ -6,10 +6,13 @@
  * without importing upward from a top-level CLI file.
  *
  * Pure (modulo `gitSpawn`) — exposed helpers are:
- *   - matchesFilePattern    — single file × single glob (picomatch with `dot`)
- *   - matchesAnyFilePattern — file list × pattern list, short-circuiting
- *   - selectAudits          — main entry; reads audit-rules.json, runs `git
- *                             diff --name-only`, applies keyword + glob rules.
+ *   - matchesFilePattern         — single file × single glob (picomatch, `dot`)
+ *   - matchesAnyFilePattern      — file list × pattern list, short-circuiting
+ *   - selectSensitivePathClasses — change set × the manifest's `sensitivePaths`
+ *                                  block; the review-depth derivation's matcher
+ *   - selectAudits               — main entry; reads audit-rules.json, runs `git
+ *                                  diff --name-only`, applies keyword + glob
+ *                                  rules.
  *
  * All rule-matching lives here; the former `select-audits.js` CLI wrapper
  * was retired in #4482 (consumers call `selectAudits` via the barrel).
@@ -198,6 +201,50 @@ export function selectLocalLenses({
 }
 
 /**
+ * Select the sensitive-path classes a change set touches, from the
+ * `sensitivePaths` block of [`audit-rules.json`](../../../schemas/audit-rules.json).
+ *
+ * This is the matcher behind the close-time review-depth derivation
+ * (`review-depth.js#deriveChangeLevel`, Story #4542): a change set intersecting
+ * any registered class's globs is *observably* sensitive — auth, a migration, a
+ * billing path — and earns a deep pass however narrow the diff is. The classes
+ * and their globs live in the manifest next to the lens `triggers.filePatterns`
+ * precisely so an operator can extend them without a code change, and matching
+ * runs through the same {@link matchesAnyFilePattern} picomatch machinery rather
+ * than a second matcher with its own glob semantics.
+ *
+ * An empty change set, an absent `sensitivePaths` block, or a class whose globs
+ * match nothing all contribute no class — the caller then resolves depth from
+ * diff width alone.
+ *
+ * Pure over its injected seam: `injectedRules` skips the manifest disk read.
+ * Selection order follows the manifest's declaration order, which is
+ * deterministic.
+ *
+ * @param {{
+ *   changedFiles?: string[],
+ *   injectedRules?: { sensitivePaths?: Record<string, { filePatterns?: string[] }> },
+ * }} [params]
+ * @returns {string[]} The matched class names, in manifest order.
+ */
+export function selectSensitivePathClasses({
+  changedFiles,
+  injectedRules,
+} = {}) {
+  const files = Array.isArray(changedFiles) ? changedFiles : [];
+  if (files.length === 0) return [];
+
+  const rules = injectedRules ?? readAuditRulesSync();
+  const matched = [];
+  for (const [name, entry] of Object.entries(rules.sensitivePaths ?? {})) {
+    if (matchesAnyFilePattern(entry?.filePatterns ?? [], files)) {
+      matched.push(name);
+    }
+  }
+  return matched;
+}
+
+/**
  * Resolve the consumer's navigability route globs from the resolved config.
  * Reads `delivery.quality.navigability.routeGlobs` — the route-tree SSOT the
  * navigability lens enumerates and the route-added routing predicate matches
@@ -221,9 +268,9 @@ export function resolveNavigabilityRouteGlobs(config) {
  * `false` (the unconfigured no-op), so the existing change-set-scoped lens
  * selection is unchanged.
  *
- * This is a pure predicate over the SAME inputs the existing risk-routed-lens
- * union already consumes; the caller folds its result into `riskRoutedAudits`
- * via the existing `unionAudits` — no new routing machinery is added.
+ * A pure predicate over a change set — the same input {@link selectAudits} and
+ * {@link selectLocalLenses} already match against. The caller unions its result
+ * into the lens roster it is assembling; no new routing machinery is added.
  *
  * @param {{ changedFiles?: string[], config?: object|null }} params
  * @returns {boolean}

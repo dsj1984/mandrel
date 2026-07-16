@@ -22,13 +22,13 @@
  *
  * Delegates the `runCodeReview` invocation to `runStoryReviewCore`
  * (exported from `story-close/phases/code-review.js`) so the close path
- * shares a single invocation pattern (Story #3653). When `planningRisk`
- * is omitted, loads it from the Story's `story-plan-state` checkpoint.
+ * shares a single invocation pattern (Story #3653). Review depth needs no
+ * input here: it is derived from this Story's own diff inside `runCodeReview`
+ * (Story #4542).
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
 import { runStoryReviewCore } from '../../story-close/phases/code-review.js';
-import { resolveStoryPlanningRisk } from '../../story-plan-state.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**
@@ -78,7 +78,6 @@ async function invokeStoryReviewCore({
   baseBranch,
   prNumber,
   provider,
-  planningRisk,
   runCodeReviewFn,
   runLocalLensReviewFn,
   progress,
@@ -89,11 +88,6 @@ async function invokeStoryReviewCore({
     headRef: storyBranch,
     commentTargetId: prNumber,
     provider,
-    planningRisk: await resolveStoryPlanningRisk({
-      provider,
-      storyId,
-      planningRisk,
-    }),
     progress,
     progressTag: 'REVIEW',
     runCodeReviewFn,
@@ -167,7 +161,6 @@ async function postStoryReviewCrossRef({
  *   prUrl: string,
  *   prNumber: number|null,
  *   provider: object,
- *   planningRisk?: object|null, // omit to load from story-plan-state
  *   runCodeReviewFn: Function,
  *   runLocalLensReviewFn?: Function,
  *   progress: (tag: string, msg: string) => void,
@@ -190,7 +183,6 @@ export async function runStoryScopeReview({
   prUrl,
   prNumber,
   provider,
-  planningRisk,
   runCodeReviewFn,
   runLocalLensReviewFn,
   progress,
@@ -214,7 +206,6 @@ export async function runStoryScopeReview({
     baseBranch,
     prNumber,
     provider,
-    planningRisk,
     runCodeReviewFn,
     runLocalLensReviewFn,
     progress,

@@ -184,8 +184,8 @@ const MERGE_WATCH_SCHEMA = {
 // context; false falls back to `subagent_type: general-purpose` (the instant
 // per-consumer revert + the escape for hosts that ignore `.claude/agents/`).
 // `delivery.routing.freshCriticSampleRate` (default 0.2, clamped [0, 1]) is the
-// maker-checker sampling floor forcing a fraction of low-risk acceptance
-// clusters through a fresh critic.
+// maker-checker sampling floor forcing a fraction of low-derived-level
+// acceptance clusters through a fresh critic.
 const ROUTING_SCHEMA = {
   type: 'object',
   properties: {

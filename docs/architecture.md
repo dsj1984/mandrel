@@ -650,17 +650,21 @@ deleted with the in-process stratum (#3908); `agent::blocked` remains the
 sole runtime pause point, enforced by the workflow prose rather than a
 resident listener.
 
-### Risk-routed audit lenses
+### Change-set-matched audit lenses
 
-During the risk-routed review/audit ceremony, `/deliver` resolves audit lenses
-inline with the Story review path. `plan-run-epilogue` / the Story close path
-call the audit-suite `selectAudits` SDK: it selects the audit lenses whose
-file patterns or keyword triggers match the change-set, unions in lenses
-mapped from the Story's model-judged high-risk axes (Story #3889 —
-`resolveAuditLenses`), and resolves an audit depth (`light` / `standard` /
-`deep`, Story #3939). Findings feed a bounded auto-fix loop. The retired
-`epic-audit-prepare.js` / `epic-audit-recheck.js` CLIs were deleted with the
-v2 Story-only cutover.
+During the review/audit ceremony, `/deliver` resolves audit lenses inline with
+the Story review path. `plan-run-epilogue` / the Story close path call the
+audit-suite `selectAudits` SDK: it selects the audit lenses whose file patterns
+or keyword triggers match the change-set. Findings feed a bounded auto-fix loop.
+The retired `epic-audit-prepare.js` / `epic-audit-recheck.js` CLIs were deleted
+with the v2 Story-only cutover.
+
+Lens selection is **not** risk-routed. Story #4542 deleted the risk→lens router
+(`resolveAuditLenses`): it had zero callers while this section and two other
+shipped documents claimed it ran inside close. What the sensitive-path classes
+in `audit-rules.json` route is review **depth** (`light` / `standard` / `deep`,
+via `review-depth.js#deriveChangeLevel`), derived from the diff rather than from
+a planner's self-assessment.
 
 ### HITL touchpoints
 
