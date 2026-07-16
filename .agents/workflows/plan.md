@@ -65,17 +65,17 @@ clarity, or reconciler ceremony for a single Story.
 ### 1. Interrogate
 
 ```bash
-mkdir -p temp/plan-<slug>
-node .agents/scripts/plan-context.js --seed "<seed>" > temp/plan-<slug>/plan-context.json
+node .agents/scripts/plan-context.js --seed "<seed>" \
+  --out temp/plan-<slug>/plan-context.json
 # or: --seed-file <path>
 # or: --tickets 123,456
 ```
 
-**Capture the envelope to `temp/plan-<slug>/plan-context.json`.** The CLI is
-stdout-pure precisely so it can be redirected. Persist auto-discovers that
-file from `--plan-dir` and derives the `--tickets` source ids from its
-`sourceTickets[]` — that is what makes superseding work without anyone
-remembering a flag (Story #4554).
+**Always pass `--out temp/plan-<slug>/plan-context.json`.** The CLI writes the
+envelope there (creating parent dirs); persist auto-discovers that file from
+`--plan-dir` and derives the `--tickets` source ids from its `sourceTickets[]`.
+That is what makes superseding work without anyone re-typing ids
+(Story #4554). The envelope still goes to stdout too, so piping is unaffected.
 
 The envelope carries docs context, codebase snapshot, BDD probe, risk
 heuristics, the story-author system prompt, `sourceTickets[]` (`--tickets`
@@ -172,18 +172,22 @@ them **envelope-first** (Story #4554):
 
 | Channel | When it wins |
 | --- | --- |
-| Envelope `sourceTickets[]` | **The normal path.** Read from `--plan-context <file>`, or auto-discovered at `<plan-dir>/plan-context.json`. No flag to forget. |
+| Envelope `sourceTickets[]` | **The normal path.** Written by step 1's `--out`, then read from `--plan-context <file>` or auto-discovered at `<plan-dir>/plan-context.json`. No ids to re-type. |
 | `--source-tickets <ids>` | Explicit **override** for hand-driven runs (no captured envelope, or deliberately narrowing the set). Wins over the envelope; a disagreement is warned about, not silently reconciled. |
 
 The result envelope's `supersede.sourceTicketOrigin` reports which channel was
 used (`envelope` \| `flag` \| `none`).
 
-An explicit `--plan-context` that is missing, or **any** envelope file that is
-present but unparseable, is a **fatal** error — a corrupt envelope is not the
-same as "no source tickets", and treating it as such is how a `--tickets` run
-used to report success having superseded nothing. An auto-discovered envelope
-that is simply absent warns and falls back to `--source-tickets`, because a
-`--seed` run legitimately has none.
+Every path with no envelope is **audible** — persist cannot tell a legitimate
+`--seed` run from a `--tickets` run whose envelope was never captured, so it
+says so rather than deciding silently:
+
+| Situation | Behaviour |
+| --- | --- |
+| Neither `--plan-dir` nor `--plan-context` | **Warn** — nothing was read; only `--source-tickets` can supply ids. |
+| Auto-discovered `<plan-dir>/plan-context.json` absent | **Warn** — degrade to `--source-tickets`; a `--seed` run legitimately has none. |
+| Explicit `--plan-context` missing | **Fatal** — the operator named a file and meant it. |
+| Envelope present but unparseable | **Fatal** — a corrupt envelope is not "no source tickets"; treating it as such is how a `--tickets` run used to report success having superseded nothing. |
 
 Whichever channel supplies them, the supersede-map partition above still
 fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is now

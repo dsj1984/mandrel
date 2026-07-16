@@ -18,6 +18,13 @@
  *                             Stories. Envelope carries `sourceTickets[]`.
  *
  * Flags:
+ *   --out <path>     Also write the envelope to <path> (parent dirs created).
+ *                    `/plan` points this at `<plan-dir>/plan-context.json`,
+ *                    which is where `plan-persist.js` auto-discovers the
+ *                    `--tickets` source ids from (Story #4554). Without a
+ *                    captured envelope persist cannot know a `--tickets` run
+ *                    happened, and superseding degrades to the
+ *                    `--source-tickets` flag.
  *   --pretty         Pretty-print the JSON envelope.
  *   --full-context   Bypass the planning-context budget (unbounded body).
  *
@@ -34,13 +41,15 @@
 // first import so the check runs before any third-party-importing sibling
 // module is evaluated (Story #3432).
 import './lib/runtime-deps/ensure-installed.js';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { routeAllOutputToStderr } from './lib/Logger.js';
+import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import { buildPlanContext } from './lib/orchestration/plan-context.js';
 import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -86,6 +95,7 @@ export async function emitPlanContext({
   settings,
   fullContext = false,
   pretty = false,
+  outPath = null,
   cwd,
   stdout = process.stdout,
 }) {
@@ -105,7 +115,32 @@ export async function emitPlanContext({
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify(envelope);
   stdout.write(`${json}\n`);
+  if (outPath) await writeEnvelopeFile(outPath, json);
   return envelope;
+}
+
+/**
+ * Persist the envelope to `--out` so `plan-persist.js` can derive the
+ * `--tickets` source ids from it without an operator re-typing them.
+ *
+ * Writing is part of emitting, not a best-effort extra: a failed write means
+ * persist will silently see no source tickets, so it throws rather than
+ * warning past the problem.
+ *
+ * @param {string} outPath
+ * @param {string} json
+ */
+async function writeEnvelopeFile(outPath, json) {
+  const resolved = path.resolve(outPath);
+  try {
+    await mkdir(path.dirname(resolved), { recursive: true });
+    await writeFile(resolved, `${json}\n`, 'utf8');
+  } catch (err) {
+    throw new Error(
+      `[plan-context] cannot write envelope to ${resolved}: ${err.message}`,
+    );
+  }
+  Logger.info(`[plan-context] wrote envelope to ${resolved}`);
 }
 
 async function main() {
@@ -114,6 +149,7 @@ async function main() {
       seed: { type: 'string' },
       'seed-file': { type: 'string' },
       tickets: { type: 'string' },
+      out: { type: 'string' },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
     },
@@ -187,6 +223,7 @@ async function main() {
         settings,
         fullContext: values['full-context'],
         pretty: values.pretty,
+        outPath: values.out || null,
       }),
   );
 }

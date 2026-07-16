@@ -57,6 +57,10 @@ import {
   summarizePlanMetrics,
 } from './lib/orchestration/plan-metrics.js';
 import {
+  loadPlanContextEnvelope,
+  resolvePlanContextPath,
+} from './lib/orchestration/plan-persist/plan-context-source.js';
+import {
   runPlanPersist,
   writeCheckpointV2,
 } from './lib/orchestration/plan-persist/run-plan-persist.js';
@@ -102,13 +106,6 @@ const USAGE =
   '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
-/**
- * Filename `plan-context.js`'s envelope is captured to inside `--plan-dir`.
- * `/plan` step 1 redirects stdout here, which is what lets persist derive the
- * `--tickets` source ids with no flag (Story #4554).
- */
-const PLAN_CONTEXT_FILENAME = 'plan-context.json';
-
 async function readOptional(filePath, { required }) {
   try {
     return await readFile(filePath, 'utf8');
@@ -143,75 +140,6 @@ function resolveInputPaths(values) {
     planDir,
     planContextPath: resolvePlanContextPath(values['plan-context'], planDir),
   };
-}
-
-/**
- * Where to look for the `plan-context.js` envelope: an explicit
- * `--plan-context` path wins; otherwise the conventional file inside
- * `--plan-dir`. Neither given → nothing to read.
- *
- * @param {string|undefined} explicitPath
- * @param {string|null} planDir
- * @returns {{ path: string, explicit: boolean }|null}
- */
-function resolvePlanContextPath(explicitPath, planDir) {
-  if (explicitPath) {
-    return { path: path.resolve(explicitPath), explicit: true };
-  }
-  if (planDir) {
-    return { path: path.join(planDir, PLAN_CONTEXT_FILENAME), explicit: false };
-  }
-  return null;
-}
-
-/**
- * Read the `plan-context.js` envelope so persist can derive the `--tickets`
- * source ids from the run that actually fetched them (Story #4554).
- *
- * Failure policy — the point is that a `--tickets` run can never *quietly*
- * lose its source set:
- *
- * - An **explicit** `--plan-context` that is missing or unparseable throws:
- *   the operator named a file and meant it.
- * - An auto-discovered `<plan-dir>/plan-context.json` that is simply absent
- *   warns and degrades to `--source-tickets` — a seed-mode run legitimately
- *   has no source tickets, so absence alone is not an error.
- * - A **present but unparseable** envelope throws either way: a corrupt
- *   envelope is not the same as no envelope, and silently treating it as
- *   "no source tickets" is exactly the vacuous pass this Story closes.
- *
- * @param {{ path: string, explicit: boolean }|null} planContext
- * @returns {Promise<object|null>}
- */
-async function loadPlanContextEnvelope(planContext) {
-  if (!planContext) return null;
-
-  let raw;
-  try {
-    raw = await readFile(planContext.path, 'utf8');
-  } catch (err) {
-    if (err?.code === 'ENOENT' && !planContext.explicit) {
-      Logger.warn(
-        `[plan-persist] no plan-context envelope at ${planContext.path} — ` +
-          'source tickets can only come from --source-tickets. Capture ' +
-          "step 1's stdout there so `/plan --tickets` supersedes without a flag.",
-      );
-      return null;
-    }
-    throw new Error(
-      `Cannot read plan-context envelope ${planContext.path}: ${err.message}`,
-    );
-  }
-
-  try {
-    return JSON.parse(raw);
-  } catch (err) {
-    throw new Error(
-      `Failed to parse plan-context envelope "${planContext.path}" as JSON: ` +
-        `${err.message}. Re-capture it with ` +
-        `\`node .agents/scripts/plan-context.js … > ${planContext.path}\`.`,
-    );
-  }
 }
 
 async function loadArtifacts(paths) {

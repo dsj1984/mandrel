@@ -2,11 +2,12 @@
  * supersede-ops.js — close the `/plan --tickets` source issues that the
  * authored Stories supersede (Story #4535).
  *
- * `plan-context.js` fetches the source issues and emits `sourceTickets[]` on
- * the `/plan` envelope. That envelope **is** the source of truth for which
- * ids were passed to `--tickets`: `resolveSourceTicketIds` below derives the
- * id set from it, and `--source-tickets` is only an explicit override for
- * hand-driven runs (Story #4554). Before that thread existed the ids reached
+ * `plan-context.js` fetches the source issues, emits `sourceTickets[]` on the
+ * `/plan` envelope, and (with `--out`) writes that envelope to disk.
+ * `resolveSourceTicketIds` below reads the id set back off it, so the normal
+ * `/plan --tickets` path needs no flag; an explicit `--source-tickets` still
+ * wins when passed, as the override for hand-driven runs (Story #4554).
+ * Before that thread existed the ids reached
  * this module *solely* via the hand-passed flag, so a forgotten flag left
  * `sourceTicketIds` empty — the partition below then passed **vacuously** (an
  * empty set trivially partitions), the close phase short-circuited, and the
@@ -174,7 +175,8 @@ function sameIdSet(a, b) {
 /**
  * Resolve which source-ticket ids reach the partition and the close phase.
  *
- * Precedence — **envelope-first, flag-as-override** (Story #4554):
+ * Precedence — an explicit flag wins, the envelope is the default channel
+ * (Story #4554):
  *
  *   1. `--source-tickets` when supplied — the explicit override for
  *      hand-driven runs. A disagreement with the envelope is warned about
