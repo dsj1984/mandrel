@@ -23,8 +23,9 @@
  * via the diff-scoped `npm run quality:preview` or a direct invocation, so a
  * clean `verify` could still hide a CI-red — the failure Story #4531 / PR #4548
  * paid for with a full push → CI → fix → push round-trip. Both are pure-Node
- * and baseline-aware, adding ~3s to a command that already carries the full
- * test suite.
+ * and baseline-aware, adding ~15s on a cold cache (dominated by knip's
+ * full-tree scan in check-dead-exports.js) to a command that already carries
+ * the full test suite.
  *
  * A handful of CI gates cannot be reproduced by this command (action pinning,
  * TruffleHog secret scan, the BASELINE_SCOPE=full push-scoped maintainability

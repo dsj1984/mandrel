@@ -38,7 +38,7 @@ authoritative verdict is the CI run on the pull request.
 > invocation or via `npm run quality:preview`, whose `--changed-since HEAD` diff
 > scoping makes it a pre-commit tool rather than a full-tree gate. That hole
 > cost Story #4531 / PR #4548 a full push → CI-red → fix → push round-trip on a
-> stray `export default` a two-second local check would have caught.
+> stray `export default` a local check would have caught in seconds.
 > `quality:preview` keeps its existing scope and gate set — the two commands
 > serve different moments.
 
