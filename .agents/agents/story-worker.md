@@ -114,11 +114,10 @@ scores the working diff against **each** `acceptance[]` item and consumes the
 
 - **Heartbeat.** Emit a `story.heartbeat` lifecycle event on every phase
   transition (or when you stall on a long-running step) so the parent
-  `/deliver` idle watchdog can tell a live child from a dead one. In practice
-  this is the `story-run-progress` structured comment (via
-  `post-structured-comment.js` / the close pipeline) at each transition;
-  write it at every transition, and relay one terse line per transition
-  (e.g. `Story #<id>: implementing → closing`), not the full body.
+  `/deliver` idle watchdog can tell a live child from a dead one. Relay one
+  terse line per transition (e.g. `Story #<id>: implementing → closing`), not
+  a full body. The `story-run-progress` snapshot is **not** a heartbeat
+  surface — its renderer stopped writing a comment in Story #3909.
 - **Blocked.** If you genuinely cannot proceed, flip the snapshot to `blocked`,
   transition the Story to `agent::blocked`, post a `friction` comment naming
   the decision needed (or the unmet criteria and their evidence), and **exit
@@ -141,21 +140,22 @@ sanctioned way the work lands.
 
 ## Return schema
 
-Your authoritative status is the `story-run-progress` snapshot comment that
-the deliver/close pipeline upserts at each transition — the parent
-`/deliver` aggregator reads that, not your chat. On completion, return a
-compact JSON object naming the terminal state and evidence:
+Your return contract is
+[`story-deliver-terminal.schema.json`](../schemas/story-deliver-terminal.schema.json)
+— the SSOT for every field (Story #4543). Fields are deliberately not
+restated here; that duplication is what drifted.
 
-```json
-{
-  "storyId": "<storyId>",
-  "state": "done | blocked",
-  "branch": "story-<storyId>",
-  "prUrl": "<url or null>",
-  "gates": { "acceptanceEval": "proceed | block", "close": "passed | n/a" },
-  "blockedReason": "<null, or the friction summary when state=blocked>"
-}
-```
+`single-story-close.js` emits a validated envelope between its
+`--- STORY DELIVER TERMINAL ---` markers. **Relay it**; never hand-compose
+one. Its `status` is one of four; your exit code mirrors it:
 
-Exit zero only when the Story reached `agent::done` (merged/landed via the
-close pipeline). Exit non-zero on any blocked terminus.
+- `landed` → 0. Merged, `agent::done`, tail attempted (a `false` in `tail.*`
+  degrades the report, not the land).
+- `pending` → 3. **Resumable, not a failure** — the bounded merge wait
+  expired with the PR healthy, or a human owns the merge. Nothing was
+  mutated; `nextCommand` resumes it. The only sanctioned no-merge ending.
+- `blocked` / `failed` → exit non-zero. Take the blocked path above.
+
+Stranded? Probe, don't guess:
+`node .agents/scripts/deliver-recover.js --story <id>` (read-only, prints
+one next command).

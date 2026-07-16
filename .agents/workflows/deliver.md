@@ -157,7 +157,26 @@ planning risk:
 | **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
 | **Per-Story (profile + risk)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
 | **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
-| **Per-Story land** | Actionable follow-ups from friction | `captureStoryFollowUps` in confirm-merge |
+| **Per-Story land tail** | Follow-up capture · status resync · ref cleanup · base fast-forward | `single-story-close/phases/post-land.js` (in-process, per-step reported) |
+
+## Reading a Story's outcome
+
+Each Story's delivery ends in exactly one schema-validated terminal envelope
+([`story-deliver-terminal.schema.json`](../schemas/story-deliver-terminal.schema.json),
+Story #4543) — `landed` | `pending` | `blocked` | `failed`. That schema is the
+SSOT for the shape; this workflow does not restate its fields.
+
+`pending` is **not** a failure: the bounded merge wait expired with the PR
+healthy and in flight (or a human owns the merge), nothing was mutated, and
+the envelope's `nextCommand` names what resumes it. Run that command rather
+than re-dispatching the Story.
+
+For a Story in an unclear state — including the merged-but-label-stale one a
+`/deliver` re-run refuses outright — probe it read-only:
+
+```bash
+node .agents/scripts/deliver-recover.js --story <storyId>
+```
 
 ## Constraints
 
