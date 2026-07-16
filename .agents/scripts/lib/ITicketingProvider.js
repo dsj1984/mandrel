@@ -165,9 +165,6 @@ export class ITicketingProvider {
    * }} ticketData - The ticket content and metadata.
    * @returns {Promise<{ id: number, url: string }>}
    */
-  async createTicket(_parentId, _ticketData) {
-    throw new Error('Not implemented: createTicket');
-  }
 
   /**
    * Link an existing issue as a sub-issue of a parent.

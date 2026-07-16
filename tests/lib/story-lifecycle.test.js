@@ -6,7 +6,6 @@ import {
   fetchChildTickets,
   resolveStoryHierarchy,
 } from '../../.agents/scripts/lib/story-lifecycle.js';
-import { composeStoryBody } from '../../.agents/scripts/providers/github/tickets.js';
 
 describe('story-lifecycle', () => {
   describe('resolveStoryHierarchy', () => {
@@ -66,38 +65,17 @@ describe('story-lifecycle', () => {
     });
   });
 
-  // Story #4102 — the producer↔consumer contract for the Story-body Epic
-  // reference. composeStoryBody is the sole writer of the `Epic: #N` trailer
-  // and resolveStoryHierarchy is the sole reader; under the 2-tier hierarchy a
-  // directly-attached Story has epicId === parentId, and the round-trip must
-  // recover a non-null epicId so story-init can resolve the hierarchy.
-  describe('composeStoryBody ↔ resolveStoryHierarchy round-trip (Story #4102)', () => {
+  // Story #4102 / Story #4545 — resolveStoryHierarchy must still READ the
+  // `Epic: #N` trailer, even though nothing writes it any more. Story #4545
+  // deleted composeStoryBody (the sole writer) because it composed the exact
+  // footer `pr-base-guard.js` hard-refuses at delivery, so this is no longer a
+  // producer↔consumer round-trip — it is the tombstone guard. Legacy Story
+  // bodies created before the cutover still carry the trailer, and the guard
+  // that refuses them can only fire if the parse keeps working. The fixture is
+  // therefore a literal in the byte-shape composeStoryBody used to emit.
+  describe('resolveStoryHierarchy on legacy Epic-footer bodies (Story #4102)', () => {
     it('recovers a non-null epicId for a directly-attached 2-tier Story', () => {
-      const body = composeStoryBody({
-        body: '# Story body',
-        parentId: 23,
-        epicId: 23,
-        dependencies: [],
-      });
-      assert.deepEqual(resolveStoryHierarchy(body), {
-        epicId: 23,
-        parentId: 23,
-      });
-    });
-
-    // Story #4300 — composeStoryBody({ parentId, no epicId }) is a synthetic
-    // input: every production createTicket call site resolves
-    // `epicId = ticketData.epicId || parentId` before calling
-    // composeStoryBody (tickets.js `createTicket`), so a real created Story
-    // body never carries `parent:` without `Epic:`. resolveStoryHierarchy's
-    // defense-in-depth fallback (Story #4300 AC #2) now recovers epicId from
-    // parentId in this shape too, so the round-trip stays non-null.
-    it('falls back to parentId when composeStoryBody omits epicId', () => {
-      const body = composeStoryBody({
-        body: '# Story body',
-        parentId: 23,
-        dependencies: [],
-      });
+      const body = '# Story body\n\n---\nparent: #23\nEpic: #23';
       assert.deepEqual(resolveStoryHierarchy(body), {
         epicId: 23,
         parentId: 23,

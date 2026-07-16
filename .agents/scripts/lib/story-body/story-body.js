@@ -105,10 +105,9 @@ import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js
 
 /**
  * @typedef {object} SerializeOptions
- * @property {boolean} [includeFooter=false] - Include `---\nparent/epic/blocked-by` footer.
+ * @property {boolean} [includeFooter=false] - Include `---\nparent/blocked-by` footer.
  * @property {object}  [footer]              - Footer fields when `includeFooter` is true.
  * @property {number}  [footer.parent]       - Parent feature issue number.
- * @property {number}  [footer.epic]         - Epic issue number.
  */
 
 // ---------------------------------------------------------------------------
@@ -967,8 +966,8 @@ function serializeAuthoredMarker(body) {
 }
 
 /**
- * Build the optional `---` footer block (`parent` / `Epic` / `blocked by`
- * lines). Returns the empty string when `opts.includeFooter` is falsy.
+ * Build the optional `---` footer block (`parent` / `blocked by` lines).
+ * Returns the empty string when `opts.includeFooter` is falsy.
  *
  * @param {StoryBody} body
  * @param {SerializeOptions} opts
@@ -978,7 +977,9 @@ function serializeFooter(body, opts) {
   if (!opts.includeFooter) return '';
   const footerLines = ['---'];
   if (opts.footer?.parent) footerLines.push(`parent: #${opts.footer.parent}`);
-  if (opts.footer?.epic) footerLines.push(`Epic: #${opts.footer.epic}`);
+  // Story #4545 — no `Epic: #N` branch. `pr-base-guard.js` hard-refuses a
+  // Story body carrying that footer, so composing one here would let the
+  // framework generate work it would then reject at delivery.
   if (Array.isArray(body.depends_on)) {
     for (const dep of body.depends_on) {
       footerLines.push(`blocked by ${dep}`);

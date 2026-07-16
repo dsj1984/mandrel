@@ -357,18 +357,31 @@ describe('serialize()', () => {
   it('includes footer when opts.includeFooter = true', () => {
     const out = serialize(CANONICAL_BODY, {
       includeFooter: true,
-      footer: { parent: 3225, epic: 3211 },
+      footer: { parent: 3225 },
     });
     assert.ok(out.includes('---'));
     assert.ok(out.includes('parent: #3225'));
-    assert.ok(out.includes('Epic: #3211'));
+  });
+
+  // Story #4545 — serializeFooter has no `Epic: #N` branch. `pr-base-guard.js`
+  // hard-refuses a Story body carrying that footer, so emitting one here would
+  // let the framework generate work it would then reject at delivery. A caller
+  // still passing the retired `footer.epic` field must get no Epic line rather
+  // than a silently-undeliverable body.
+  it('never emits an Epic: #N footer line, even when footer.epic is passed', () => {
+    const out = serialize(CANONICAL_BODY, {
+      includeFooter: true,
+      footer: { parent: 3225, epic: 3211 },
+    });
+    assert.ok(out.includes('parent: #3225'));
+    assert.doesNotMatch(out, /Epic: #/i);
   });
 
   it('includes `blocked by` lines in footer for non-empty depends_on', () => {
     const body = { ...CANONICAL_BODY, depends_on: ['#100', '#200'] };
     const out = serialize(body, {
       includeFooter: true,
-      footer: { epic: 3211 },
+      footer: { parent: 3211 },
     });
     assert.ok(out.includes('blocked by #100'));
     assert.ok(out.includes('blocked by #200'));

@@ -13,7 +13,6 @@ import {
   outboxPathFor,
 } from './lib/orchestration/bookkeeping-outbox.js';
 import {
-  cascadeCompletion,
   STATE_LABELS,
   transitionTicketState,
 } from './lib/orchestration/ticketing.js';
@@ -94,21 +93,14 @@ if (
     Logger.info(
       `[State-Sync] Transitioning ticket #${ticketId} to ${state}...`,
     );
+    // Story #4545 — no second cascade here. `transitionTicketState` already
+    // fires the upward cascade on every transition (bulk.js registers
+    // `cascadeParentState` as transition.js's cascade runner, and the DONE
+    // branch delegates to `cascadeCompletion`), so the explicit call this
+    // used to make re-walked the same parents and re-spent the same API
+    // calls a second time on every done transition — under a Story-only
+    // model where no orchestration parent exists to find.
     await transitionTicketState(provider, ticketId, state);
-
-    if (state === STATE_LABELS.DONE) {
-      Logger.info(`[State-Sync] Cascading completion from #${ticketId}...`);
-      const cascade = await cascadeCompletion(provider, ticketId);
-      // Hoisted out of the `for...of` initializer because typhonjs-escomplex
-      // mis-parses optional chaining there (it would zero out this file's
-      // maintainability score).
-      const cascadeFailures = cascade?.failed ?? [];
-      for (const { parentId, error } of cascadeFailures) {
-        Logger.warn(
-          `[State-Sync] ⚠️  Cascade partial-failure on parent #${parentId}: ${error}`,
-        );
-      }
-    }
 
     // Optional secondary label removal alongside the state transition
     // (e.g. clear `status::blocked` when transitioning back to ready).
