@@ -192,13 +192,16 @@ describe('mandrel update entrypoint — production wiring', () => {
     await run([], deps);
 
     // The newest version was probed, then the full ordered cycle ran:
-    // install → sync → sync-commands → migrate → doctor (changelog is surfaced
-    // via the fs; sync-commands sits between sync and migrate — Story #4046 A1c).
+    // install → sync → sync-commands → sync-agents → migrate → doctor
+    // (changelog is surfaced via the fs; sync-commands sits between sync and
+    // sync-agents — Story #4046 A1c; sync-agents sits between sync-commands
+    // and migrate — Story #4528/#4530).
     assert.deepEqual(calls, [
       'npm-view',
       `npm install mandrel@${TARGET_VERSION}`,
       'spawn:sync',
       'spawn:sync-commands',
+      'spawn:sync-agents',
       `migrate:${CURRENT_VERSION}->${TARGET_VERSION}`,
       'spawn:doctor',
     ]);
@@ -306,6 +309,7 @@ describe('mandrel update entrypoint — resolves current from the consumer pin',
       `npm install mandrel@${TARGET_VERSION}`,
       'spawn:sync',
       'spawn:sync-commands',
+      'spawn:sync-agents',
       'migrate:1.43.0->1.44.0',
       'spawn:doctor',
     ]);

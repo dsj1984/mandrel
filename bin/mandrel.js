@@ -61,6 +61,13 @@ const SUBCOMMANDS = new Map([
     },
   ],
   [
+    'sync-agents',
+    {
+      description: 'regenerate .claude/agents/ from .agents/agents/',
+      knownFlags: new Set(['--dry-run']),
+    },
+  ],
+  [
     'doctor',
     {
       description: 'run readiness checks and report remedies',

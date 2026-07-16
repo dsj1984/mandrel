@@ -27,9 +27,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
-  REPO_ROOT,
   cleanupAll,
   makeTempConsumer,
+  REPO_ROOT,
   runMandrel,
 } from './helpers/cli-harness.js';
 
