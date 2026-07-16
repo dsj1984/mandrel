@@ -56,7 +56,7 @@ describe('collectTaskBodyErrors — empty section detection', () => {
       story('t1', { ...validStoryBody, acceptance: [] }),
     ]);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /body\.acceptance/);
+    assert.match(errs[0], /acceptance must list at least one criterion/);
   });
 
   it('rejects empty verify[]', () => {
@@ -64,7 +64,7 @@ describe('collectTaskBodyErrors — empty section detection', () => {
       story('t1', { ...validStoryBody, verify: [] }),
     ]);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /body\.verify must list at least one entry/);
+    assert.match(errs[0], /verify must list at least one entry/);
   });
 
   it('rejects empty goal string', () => {
@@ -298,17 +298,17 @@ describe('validateTaskBodyShape (predicate)', () => {
     {
       name: 'acceptance empty array',
       body: { ...validStoryBody, acceptance: [] },
-      expectIncludes: 'body.acceptance must list at least one criterion',
+      expectIncludes: 'acceptance must list at least one criterion',
     },
     {
       name: 'acceptance not an array',
       body: { ...validStoryBody, acceptance: 'one' },
-      expectIncludes: 'body.acceptance must list at least one criterion',
+      expectIncludes: 'acceptance must list at least one criterion',
     },
     {
       name: 'verify empty array',
       body: { ...validStoryBody, verify: [] },
-      expectIncludes: 'body.verify must list at least one entry',
+      expectIncludes: 'verify must list at least one entry',
     },
     {
       name: 'verify manual: with no reason',
@@ -345,6 +345,80 @@ describe('validateTaskBodyShape (predicate)', () => {
       }
     });
   }
+});
+
+describe('contract fields resolve from the ticket top level (Story #4541)', () => {
+  // The decomposer prompt tells authors to write acceptance[] / verify[]
+  // once at top level and OMIT the matching body sections; persist syncs
+  // them in at assemble time, which is *after* this validator runs. The
+  // validator used to read the parsed body only, so it rejected the exact
+  // shape its own prompt prescribes — the pipeline worked solely because
+  // the authoring LLM ignored the instruction and mirrored the lists.
+  const acceptance = ['persist creates the Story'];
+  const verify = ['npm test (unit)'];
+
+  /** The canonical shape: serialized body with no ## Acceptance / ## Verify. */
+  function canonicalTicket(overrides = {}) {
+    return {
+      slug: 'canonical',
+      type: 'story',
+      title: 'Story canonical',
+      acceptance,
+      verify,
+      body: serialize({
+        goal: 'Author the lists once, at top level.',
+        changes: [
+          {
+            path: '.agents/scripts/plan-persist.js',
+            assumption: 'refactors-existing',
+          },
+        ],
+      }),
+      ...overrides,
+    };
+  }
+
+  it('validates a body authored without ## Acceptance / ## Verify sections', () => {
+    const ticket = canonicalTicket();
+    // Guard the fixture: if serialize() starts emitting these sections from
+    // an absent field, this test would pass for the wrong reason.
+    assert.ok(
+      !ticket.body.includes('## Acceptance'),
+      'fixture must omit the ## Acceptance section',
+    );
+    assert.ok(
+      !ticket.body.includes('## Verify'),
+      'fixture must omit the ## Verify section',
+    );
+    assert.deepEqual(collectTaskBodyErrors([ticket]), []);
+  });
+
+  it('still rejects a Story that carries neither top-level nor body lists', () => {
+    const errs = collectTaskBodyErrors([
+      canonicalTicket({ acceptance: undefined, verify: undefined }),
+    ]);
+    assert.equal(errs.length, 2);
+    assert.ok(errs.some((e) => /acceptance must list at least one/.test(e)));
+    assert.ok(errs.some((e) => /verify must list at least one/.test(e)));
+  });
+
+  it('keeps validating body sections when the author mirrored them', () => {
+    // Mirroring stays legal — the body value wins the resolve, so a body
+    // section with a bad verify tier must still be caught.
+    const errs = collectTaskBodyErrors([
+      canonicalTicket({
+        verify: ['npm test (unit)'],
+        body: serialize({
+          goal: 'Mirrored lists.',
+          changes: [{ path: 'lib/x.js', assumption: 'creates' }],
+          acceptance,
+          verify: ['npm test'],
+        }),
+      }),
+    ]);
+    assert.equal(errs.length, 1);
+    assert.match(errs[0], /must end with a tier in parentheses/);
+  });
 });
 
 describe('v2 — optional `## Slicing` slice plan', () => {

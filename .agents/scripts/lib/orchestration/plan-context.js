@@ -35,16 +35,21 @@ import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
 const SOURCE_TICKET_FETCH_CONCURRENCY = 4;
 /**
  * Envelope byte ceiling (regression guard for the design's named PR2 risk:
- * two envelopes → one bigger one). The folded envelope's bounded parts are:
- * the `applyBudget`-capped body (`planningContext.maxBytes` = 50 KB), the
- * tier-capped codebase snapshot (~35 KB skinny on this repo), the three
- * rendered system prompts (~15 KB), and the digest-first `docsContext`
- * (outline-only, or inline digest in one-pager/seed mode). Measured folded envelopes on this
- * repo land at ~42 KB; 256 KB (~64K tokens at the ≈4-chars/token estimate)
- * gives >2× headroom over a worst-case budgeted body + medium-tier snapshot
- * while staying an order of magnitude under the session budget. The test
- * suite asserts serialized envelopes stay under this value — raise it only
- * with a measured justification.
+ * two envelopes → one bigger one). This is the **only** live bound on
+ * envelope size: Story #4541 removed the `applyBudget` pass from
+ * `buildAuthoringContext`, because both builders below discard that budgeted
+ * body and ship the raw seed on `seed.content` instead — the budget bounded
+ * a field that never left the function.
+ *
+ * The envelope's bounded parts are: the tier-capped codebase snapshot
+ * (~35 KB skinny on this repo), the three rendered system prompts (~15 KB),
+ * and the digest-first `docsContext` (outline-only, or inline digest in
+ * one-pager/seed mode). The seed itself is operator-supplied and carried
+ * verbatim. Measured folded envelopes on this repo land at ~42 KB; 256 KB
+ * (~64K tokens at the ≈4-chars/token estimate) gives >2× headroom over a
+ * worst-case seed + medium-tier snapshot while staying an order of magnitude
+ * under the session budget. The test suite asserts serialized envelopes stay
+ * under this value — raise it only with a measured justification.
  */
 export const PLAN_CONTEXT_ENVELOPE_BYTE_CEILING = 256_000;
 
@@ -61,10 +66,13 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
     slug: 'string — ^[a-z0-9][a-z0-9-]*$ (hyphen-case, unique per decompose)',
     type: "string — literal 'story' (2-tier hierarchy: Epic → Story only)",
     title: 'string — short descriptive title',
-    body: 'string — serialized Story-body markdown (never a JSON object)',
-    acceptance: 'string[] — top-level testable criteria (not nested in body)',
-    verify: 'string[] — top-level exact commands/test paths with (<tier>)',
-    labels: "string[] — must include 'type::story' (no persona::* axis)",
+    body: 'string — serialized Story-body markdown (never a JSON object); omit the ## Acceptance / ## Verify sections, persist syncs them in',
+    acceptance:
+      'string[] — top-level testable criteria; the machine contract, authored here and not in the body',
+    verify:
+      'string[] — top-level exact commands/test paths with (<tier>); the machine contract, authored here and not in the body',
+    labels:
+      "string[]? — extra labels to apply; 'type::story' is applied automatically. agent::*, type::*, and persona::* are rejected (runtime-owned or retired axes)",
     depends_on: 'string[]? — sibling Story slugs that block execution',
   }),
   validatedBy:
@@ -373,7 +381,6 @@ async function buildSeedFileModeEnvelope({
   provider,
   config,
   settings,
-  fullContext,
   cwd,
   modeLabel = 'seed-file',
 }) {
@@ -401,7 +408,6 @@ async function buildSeedFileModeEnvelope({
     { ...settings, docsContextFiles: [] },
     {
       epic: { id: 0, title: seedFilePath ?? 'seed', body: content },
-      fullContext,
       github: config.github ?? null,
       cwd,
     },
@@ -454,7 +460,6 @@ async function buildSeedModeEnvelope({
   provider,
   config,
   settings,
-  fullContext,
   cwd,
 }) {
   if (typeof seedText !== 'string' || seedText.trim().length === 0) {
@@ -468,7 +473,6 @@ async function buildSeedModeEnvelope({
     provider,
     config,
     settings,
-    fullContext,
     cwd,
     modeLabel: 'seed',
   });
@@ -528,7 +532,6 @@ async function buildTicketsModeEnvelope({
   provider,
   config,
   settings,
-  fullContext,
   cwd,
 }) {
   if (!Array.isArray(ticketIds) || ticketIds.length === 0) {
@@ -558,7 +561,6 @@ async function buildTicketsModeEnvelope({
         title: sourceTickets[0]?.title ?? 'tickets',
         body: seed,
       },
-      fullContext,
       github: config.github ?? null,
       cwd,
     },
@@ -632,7 +634,6 @@ export async function buildPlanContext({
   provider,
   config = {},
   settings = {},
-  fullContext = false,
   cwd,
 }) {
   if (mode === 'seed-file') {
@@ -647,7 +648,6 @@ export async function buildPlanContext({
       provider,
       config,
       settings,
-      fullContext,
       cwd,
       modeLabel: 'seed-file',
     });
@@ -658,7 +658,6 @@ export async function buildPlanContext({
       provider,
       config,
       settings,
-      fullContext,
       cwd,
     });
   }
@@ -668,7 +667,6 @@ export async function buildPlanContext({
       provider,
       config,
       settings,
-      fullContext,
       cwd,
     });
   }

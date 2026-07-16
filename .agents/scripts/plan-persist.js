@@ -10,9 +10,10 @@
  *
  *   risk-verdict → ticket validator / DAG / capacity → reachability →
  *   split-policy partition → fold/spill Spec into each Story body →
- *   createIssue(s) with type::story + agent::ready → risk-verdict +
- *   story-plan-state on every Story; plan-summary on the primary →
- *   comment + close superseded source tickets → temp cleanup.
+ *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
+ *   agent::ready) → risk-verdict + story-plan-state on every Story;
+ *   plan-summary on the primary → flip every Story to agent::ready →
+ *   comment + close superseded source tickets → temp cleanup + stale reap.
  *
  * CLI:
  *   --stories <file>          Required Story ticket array (default length 1)
@@ -35,6 +36,15 @@
  *   --force-review            Record operator-forced review routing
  *   --allow-over-budget / --allow-large-fan-out
  *
+ * Run `--dry-run` first. It exercises every gate — validator, DAG, capacity,
+ * budget, reachability, split/supersede partition, Spec fold — write-free, so
+ * an authoring mistake surfaces before a single issue exists.
+ *
+ * stdout is reserved for the JSON result (Story #2278 discipline, extended to
+ * this CLI by Story #4541): `routeAllOutputToStderr()` runs before any
+ * pipeline code so a headless driver can `JSON.parse` stdout unconditionally.
+ * Human-readable log lines go to stderr, matching the sibling `plan-context`.
+ *
  * Exit codes: 0 success; 1 fatal; 3 reachability orphans (nothing mutated).
  */
 
@@ -48,7 +58,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { Logger } from './lib/Logger.js';
+import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import {
   readPlanMetrics,
   recordPlanInvocation,
@@ -204,7 +214,13 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
   };
 }
 
-async function runPersistInvocation({ values, config, provider, artifacts }) {
+async function runPersistInvocation({
+  values,
+  config,
+  provider,
+  artifacts,
+  metricsSince,
+}) {
   const paths = resolveInputPaths(values);
   const settings = {
     baseBranch: config.project?.baseBranch,
@@ -225,14 +241,37 @@ async function runPersistInvocation({ values, config, provider, artifacts }) {
         artifacts,
         config,
         settings,
-        opts: buildPersistOptions(values, paths, artifacts.planContextEnvelope),
+        opts: {
+          ...buildPersistOptions(values, paths, artifacts.planContextEnvelope),
+          metricsSince,
+        },
       }),
   );
 }
 
-async function attachPlanMetrics(result, config) {
+/**
+ * Attach the plan-metrics roll-up for **this** invocation.
+ *
+ * Two Story #4541 fixes meet here. `readPlanMetrics` is declared
+ * `(epicId, config)` but was called with `config` first, so it threw its
+ * `epicId` guard on every run and the catch below turned that into a
+ * silently missing summary — v2 persist is always Epic-less, hence the
+ * explicit `null`. And the Epic-less ledger is shared across every plan the
+ * repo has ever run, so `since` scopes the counts to the current invocation
+ * instead of reporting lifetime totals under an invocation-shaped line.
+ *
+ * This runs *after* `recordPlanInvocation` has appended this run's own
+ * record, so the summary always has at least that one entry to report.
+ *
+ * @param {object} result Mutated in place with `planMetrics`.
+ * @param {object} config
+ * @param {string} since ISO-8601 instant this invocation started.
+ */
+async function attachPlanMetrics(result, config, since) {
   try {
-    const summary = summarizePlanMetrics(await readPlanMetrics(config));
+    const summary = summarizePlanMetrics(await readPlanMetrics(null, config), {
+      since,
+    });
     if (summary) {
       result.planMetrics = summary;
       Logger.info(`[plan-persist] ${renderPlanMetricsSummaryLine(summary)}`);
@@ -248,6 +287,16 @@ async function main() {
   if (!values.stories || !values['risk-verdict']) {
     throw new Error(USAGE);
   }
+
+  // stdout is reserved for the JSON result: flip every Logger sink that could
+  // land on stdout to stderr BEFORE any pipeline code runs (Story #2278
+  // discipline, extended here by Story #4541 — this CLI interleaved Logger
+  // lines with its own JSON, so a headless driver could not parse stdout).
+  routeAllOutputToStderr();
+
+  // Boundary for this invocation's plan-metrics roll-up — stamped before any
+  // ledger-writing work so every record this run appends falls inside it.
+  const metricsSince = new Date().toISOString();
 
   let config;
   try {
@@ -267,6 +316,7 @@ async function main() {
       config,
       provider,
       artifacts,
+      metricsSince,
     });
   } catch (err) {
     if (err?.code === 'PLAN_REACHABILITY_ORPHANS') {
@@ -277,7 +327,7 @@ async function main() {
     throw err;
   }
 
-  await attachPlanMetrics(result, config);
+  await attachPlanMetrics(result, config, metricsSince);
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

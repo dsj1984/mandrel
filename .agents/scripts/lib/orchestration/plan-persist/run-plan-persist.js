@@ -8,13 +8,24 @@
  *   2. Ticket validator + file-assumption + DAG + capacity + budget
  *   3. Draft reachability (named soft failure, exit 3)
  *   4. Split-policy partition (`assertAcceptancePartition`) + spec fold/spill
- *   5. Create Story issues (`type::story` + `agent::ready`; `plan-run::`
- *      label when N>1)
+ *   5. Create Story issues (`type::story` + sanitized authored labels —
+ *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
  *   6. Upsert `risk-verdict` + `story-plan-state` on every created Story;
  *      upsert `plan-summary` on the primary Story
- *   7. Comment on + close the superseded `--tickets` source issues
+ *   7. Flip every Story to `agent::ready` — the terminal step, so `ready`
+ *      always implies "checkpoints written"
+ *   8. Comment on + close the superseded `--tickets` source issues
  *      (Story #4535) — bookkeeping only; never fails the run
- *   8. Temp cleanup at terminal success only
+ *   9. Temp cleanup at terminal success + a stale-plan-dir reap
+ *
+ * **Why `agent::ready` moved to the end (Story #4541).** Issues used to be
+ * born `agent::ready` in the creating POST while the checkpoints were
+ * written afterwards. Anything picking a Story up in that window — or after
+ * a comment failure aborted the loop — read the checkpoint as `null`
+ * (`story-plan-state.js` degrades missing/malformed to `null`) and delivered
+ * with the neutral posture, silently discarding the planner's risk signal.
+ * Creating unlabelled, writing checkpoints, then flipping closes both the
+ * race and the silent-posture loss.
  *
  * Hard cutover: no Epic parent, no reconciler, no `deliveryShape`, no
  * `--amend` tree cascades. Those surfaces die with Stages 4–5 for any
@@ -23,8 +34,10 @@
  * @module lib/orchestration/plan-persist/run-plan-persist
  */
 
-import { rm } from 'node:fs/promises';
+import { readdir, rm, stat } from 'node:fs/promises';
+import path from 'node:path';
 
+import { anchorTempRoot, tempRootFrom } from '../../config/temp-paths.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
@@ -46,8 +59,12 @@ import {
   enforceFanOutGate,
   surfaceSoftConflictFindings,
 } from './fan-out-gate.js';
-import { validateTickets } from './persist-helpers.js';
-import { assemblePlanStories, createStoryIssues } from './story-ops.js';
+import { resolveBaseBranchRef, validateTickets } from './persist-helpers.js';
+import {
+  assemblePlanStories,
+  createStoryIssues,
+  markStoriesReady,
+} from './story-ops.js';
 import {
   buildPlanSummaryCommentBody,
   buildWaveTable,
@@ -106,7 +123,14 @@ function enforceTicketValidation(validated, { config, settings, cwd }) {
     );
   }
   if (assumptionFailures.length === 0) return;
-  const gateBaseRef = config?.baseBranch ?? settings?.baseBranch ?? 'main';
+  // Story #4541: resolve through the canonical `project.baseBranch` (the
+  // shape `config-resolver` actually emits) with the legacy settings bag as
+  // a fallback — reading a bare `config.baseBranch` meant this probe always
+  // targeted the literal `main`.
+  const gateBaseRef =
+    config?.project?.baseBranch ??
+    settings?.baseBranch ??
+    resolveBaseBranchRef(config);
   const refResolves =
     gitSpawn(
       cwd ?? process.cwd(),
@@ -158,6 +182,64 @@ async function runSupersedePhase(args) {
       })),
     };
   }
+}
+
+/**
+ * Age after which an abandoned `temp/plan-*` directory is reaped. A plan run
+ * that is still being authored is minutes-to-hours old; a week is far past
+ * any live run and comfortably past an operator returning to a paused one.
+ */
+const STALE_PLAN_DIR_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Reap abandoned `plan-*` directories under the temp root (Story #4541).
+ *
+ * Terminal-success cleanup only ever removed the *current* run's `planDir`,
+ * so every plan that failed a gate, was abandoned mid-authoring, or ran
+ * `--dry-run` left its directory behind forever. This sweeps the stragglers
+ * on each persist.
+ *
+ * Best-effort throughout: this is hygiene, never a reason to fail a run that
+ * has already created Stories. The current run's own `planDir` is always
+ * excluded — its cleanup is the caller's decision.
+ *
+ * @param {{ config?: object, keepDir?: string|null, now?: number }} args
+ * @returns {Promise<{ reaped: string[] }>}
+ */
+export async function reapStalePlanDirs({
+  config = {},
+  keepDir = null,
+  now = Date.now(),
+} = {}) {
+  const reaped = [];
+  const tempRoot = anchorTempRoot(tempRootFrom(config));
+  let entries;
+  try {
+    entries = await readdir(tempRoot, { withFileTypes: true });
+  } catch {
+    return { reaped }; // No temp root yet — nothing to reap.
+  }
+  const keep = keepDir ? path.resolve(keepDir) : null;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !entry.name.startsWith('plan-')) continue;
+    const dir = path.resolve(tempRoot, entry.name);
+    if (keep !== null && dir === keep) continue;
+    try {
+      const { mtimeMs } = await stat(dir);
+      if (now - mtimeMs < STALE_PLAN_DIR_MS) continue;
+      await rm(dir, { recursive: true, force: true });
+      reaped.push(dir);
+    } catch {
+      // A racing writer or a permission error: leave it for the next run.
+    }
+  }
+  if (reaped.length > 0) {
+    Logger.info(
+      `[plan-persist] reaped ${reaped.length} abandoned plan director(ies) ` +
+        `older than 7d under ${tempRoot}.`,
+    );
+  }
+  return { reaped };
 }
 
 function riskVerdictCommentBody(riskVerdict) {
@@ -224,6 +306,12 @@ export async function runPlanPersist({
     sourceTicketOrigin = 'none',
     closeSuperseded = true,
   } = opts;
+
+  // Boundary for the plan-metrics summary below: everything this invocation
+  // appends to the ledger is stamped at or after this instant, so filtering
+  // on it scopes the counts to *this* run rather than every plan ever run
+  // through the shared standalone ledger (Story #4541).
+  const runStartedAt = opts.metricsSince ?? new Date().toISOString();
 
   if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
     throw new Error(
@@ -344,11 +432,20 @@ export async function runPlanPersist({
     })),
   );
 
+  // Story #4541: `readPlanMetrics` is declared `(epicId, config)` but was
+  // called with `config` first, so the ledger path resolver received the
+  // config object as an `epicId` and threw its guard on every single run —
+  // a throw this try/catch then swallowed into a silently absent summary.
+  // v2 persist is always Epic-less, hence the explicit `null`. The `since`
+  // filter keeps the counts about this invocation.
   let planMetricsLine = null;
   try {
-    const metrics = summarizePlanMetrics(await readPlanMetrics(config));
+    const metrics = summarizePlanMetrics(await readPlanMetrics(null, config), {
+      since: runStartedAt,
+    });
     planMetricsLine = renderPlanMetricsSummaryLine(metrics);
-  } catch {
+  } catch (err) {
+    Logger.warn(`[plan-persist] plan-metrics summary skipped: ${err.message}`);
     planMetricsLine = null;
   }
 
@@ -394,6 +491,11 @@ export async function runPlanPersist({
       PLAN_SUMMARY_COMMENT_TYPE,
       summaryBody,
     );
+
+    // Terminal step: every checkpoint above is now on every Story, so
+    // `agent::ready` can honestly mean "fully persisted" (Story #4541).
+    // Anything that picks a Story up from here reads a real checkpoint.
+    await markStoriesReady({ provider, created });
   }
 
   const supersede = await runSupersedePhase({
@@ -416,7 +518,17 @@ export async function runPlanPersist({
       Logger.warn(`[plan-persist] temp cleanup skipped: ${err.message}`);
     }
   }
+  // Terminal-success cleanup only ever removes *this* run's planDir, so
+  // abandoned ones accumulated forever. Sweep them (Story #4541).
+  await reapStalePlanDirs({ config, keepDir: skipCleanup ? planDir : null });
 
+  const adopted = created.filter((story) => story.adopted);
+  if (adopted.length > 0) {
+    Logger.info(
+      `[plan-persist] resumed ${adopted.length} of ${created.length} Story(ies) ` +
+        `from a previous persist: ${adopted.map((s2) => `#${s2.id}`).join(', ')}.`,
+    );
+  }
   Logger.info(
     `[plan-persist] Persisted ${created.length} Story(ies)` +
       `; primary #${primary.id} is agent::ready.`,

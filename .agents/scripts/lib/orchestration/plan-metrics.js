@@ -322,7 +322,15 @@ export async function readPlanMetrics(epicId, config) {
  * them down, so the skip-audit trail is visible in the persist summary
  * without inflating the turns-per-plan proxy.
  *
+ * Pass `opts.since` (an ISO-8601 instant) to scope the roll-up to one plan
+ * run (Story #4541). The Epic-less ledger at `temp/standalone/` is shared by
+ * every plan the repo has ever run, so an unfiltered summary reported
+ * lifetime totals under a line the reader takes to describe the invocation
+ * in front of them. Records are timestamped `startedAt` (invocations) or
+ * `at` (critic skips); either at-or-after `since` is in scope.
+ *
  * @param {{ entries: object[], malformedLines?: number }} ledger
+ * @param {{ since?: string|null }} [opts]
  * @returns {{
  *   invocations: number,
  *   failures: number,
@@ -337,8 +345,31 @@ export async function readPlanMetrics(epicId, config) {
  *   malformedLines: number,
  * }|null}
  */
-export function summarizePlanMetrics(ledger) {
-  const entries = ledger?.entries ?? [];
+/**
+ * Timestamp a ledger record is ordered by: `startedAt` for invocation
+ * records, `at` for critic-skip records.
+ *
+ * @param {object} entry
+ * @returns {string|null}
+ */
+function recordTimestamp(entry) {
+  const stamp =
+    entry?.kind === PLAN_METRICS_KIND_CRITIC_SKIP ? entry.at : entry.startedAt;
+  return typeof stamp === 'string' ? stamp : null;
+}
+
+export function summarizePlanMetrics(ledger, opts = {}) {
+  const all = ledger?.entries ?? [];
+  const since = typeof opts.since === 'string' ? opts.since : null;
+  // ISO-8601 UTC strings sort lexicographically in time order, so a string
+  // compare is a correct (and allocation-free) instant compare here.
+  const entries =
+    since === null
+      ? all
+      : all.filter((e) => {
+          const stamp = recordTimestamp(e);
+          return stamp !== null && stamp >= since;
+        });
   if (entries.length === 0) return null;
   const byCli = {};
   const byMode = {};

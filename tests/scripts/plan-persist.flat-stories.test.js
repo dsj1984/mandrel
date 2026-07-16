@@ -3,12 +3,33 @@
  */
 
 import assert from 'node:assert/strict';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   AGENT_LABELS,
   TYPE_LABELS,
 } from '../../.agents/scripts/lib/label-constants.js';
-import { runPlanPersist } from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
+import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
+import {
+  resolveBaseBranchRef,
+  validateTickets,
+} from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
+import {
+  reapStalePlanDirs,
+  runPlanPersist,
+} from '../../.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js';
+import {
+  planStoryFingerprint,
+  sanitizeAuthoredLabels,
+} from '../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { PLAN_SUMMARY_COMMENT_TYPE } from '../../.agents/scripts/lib/orchestration/plan-persist/summary.js';
 import { resolveSourceTicketIds } from '../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
@@ -48,7 +69,7 @@ function ticket(slug) {
   };
 }
 
-function fakeProvider({ sources = [] } = {}) {
+function fakeProvider({ sources = [], createHook = null } = {}) {
   const issues = new Map();
   const comments = [];
   const updates = [];
@@ -67,8 +88,9 @@ function fakeProvider({ sources = [] } = {}) {
     comments,
     updates,
     async createIssue({ title, body, labels }) {
+      if (createHook) await createHook({ title, body, labels });
       const id = nextId++;
-      issues.set(id, { id, title, body, labels });
+      issues.set(id, { id, title, body, labels: [...labels] });
       return { id, url: `https://example.test/${id}` };
     },
     async getTicket(id) {
@@ -76,11 +98,27 @@ function fakeProvider({ sources = [] } = {}) {
       if (!issue) throw new Error(`ticket #${id} not found`);
       return { ...issue, state: issue.state ?? 'open' };
     },
+    async listIssuesByLabel({ state, labels }) {
+      return [...issues.values()].filter(
+        (issue) =>
+          (issue.state ?? 'open') === state &&
+          (issue.labels ?? []).includes(labels),
+      );
+    },
     async updateTicket(id, mutations) {
       updates.push({ id, mutations });
       const issue = issues.get(id);
       if (!issue) throw new Error(`ticket #${id} not found`);
-      Object.assign(issue, mutations);
+      // Mirror the real provider's `{ labels: { add, remove } }` mutation
+      // shape rather than blind-assigning it over `issue.labels`.
+      const { labels: labelMutations, ...rest } = mutations;
+      Object.assign(issue, rest);
+      if (labelMutations) {
+        const next = new Set(issue.labels ?? []);
+        for (const l of labelMutations.remove ?? []) next.delete(l);
+        for (const l of labelMutations.add ?? []) next.add(l);
+        issue.labels = [...next];
+      }
     },
     async getTicketComments(issueNumber) {
       return comments.filter((c) => c.issueNumber === issueNumber);
@@ -97,6 +135,61 @@ function fakeProvider({ sources = [] } = {}) {
     },
   };
 }
+
+/**
+ * The supersede close is the only thing these assertions are about, but
+ * `provider.updates` also records the terminal `agent::ready` flip persist
+ * now performs on every created Story (Story #4541). Narrow to the state
+ * mutations so a close assertion stays a close assertion.
+ */
+function closeUpdates(provider) {
+  return provider.updates.filter((u) => u.mutations.state !== undefined);
+}
+
+describe('base-branch resolution (Story #4541)', () => {
+  // The gates read `config.baseBranch` — a key the canonical resolver never
+  // emits (it lives at `project.baseBranch`) — so every freshness /
+  // file-assumption / fan-out probe silently targeted the literal `main`
+  // regardless of configuration. Benign in a repo whose base branch IS
+  // main; wrong for any consumer that configured something else.
+  it('resolves the canonical project.baseBranch', () => {
+    assert.equal(
+      resolveBaseBranchRef({ project: { baseBranch: 'develop' } }),
+      'develop',
+    );
+  });
+
+  it('falls back to the legacy flat settings bag, then to main', () => {
+    assert.equal(resolveBaseBranchRef({ baseBranch: 'trunk' }), 'trunk');
+    assert.equal(resolveBaseBranchRef({}), 'main');
+    assert.equal(resolveBaseBranchRef(undefined), 'main');
+  });
+
+  it('prefers project.baseBranch over a stale flat key', () => {
+    assert.equal(
+      resolveBaseBranchRef({
+        baseBranch: 'stale',
+        project: { baseBranch: 'develop' },
+      }),
+      'develop',
+    );
+  });
+
+  it('threads the configured branch into the probes, not the literal main', () => {
+    // Observable end-to-end: the freshness gate names the ref it probed.
+    const undeclared = ticket('probe');
+    undeclared.acceptance = [
+      'The change is consistent with `.agents/scripts/does-not-exist.js`.',
+    ];
+    assert.throws(
+      () =>
+        validateTickets([undeclared], {
+          project: { baseBranch: 'a-branch-that-does-not-exist' },
+        }),
+      /do not exist at a-branch-that-does-not-exist/,
+    );
+  });
+});
 
 describe('runPlanPersist — flat Story ops', () => {
   it('creates one Story by default with agent::ready and plan-summary', async () => {
@@ -126,6 +219,201 @@ describe('runPlanPersist — flat Story ops', () => {
     assert.match(bodies, /Plan Summary/);
     assert.match(bodies, /internal-refactor|risk-verdict/);
     void PLAN_SUMMARY_COMMENT_TYPE;
+  });
+
+  it('creates Stories WITHOUT agent::ready and flips them only after the checkpoints land', async () => {
+    // Story #4541: issues used to be born agent::ready in the creating POST
+    // while risk-verdict / story-plan-state were upserted afterwards. A
+    // /deliver that picked a Story up inside that window read a null
+    // checkpoint and silently delivered with the neutral risk posture.
+    // Ready must mean fully persisted.
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+
+    // Record the ordering of every write against the created Story.
+    const order = [];
+    const { postComment } = provider;
+    provider.postComment = async (issueNumber, payload) => {
+      const body = typeof payload === 'string' ? payload : payload.body;
+      if (body.includes('story-plan-state')) order.push('checkpoint');
+      if (body.includes('risk-verdict')) order.push('risk-verdict');
+      return postComment(issueNumber, payload);
+    };
+    const { updateTicket } = provider;
+    provider.updateTicket = async (id, mutations) => {
+      if (mutations.labels?.add?.includes(AGENT_LABELS.READY)) {
+        order.push('ready');
+      }
+      return updateTicket(id, mutations);
+    };
+
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.deepEqual(
+      labelsAtCreate,
+      [[TYPE_LABELS.STORY]],
+      'the creating POST must not carry agent::ready',
+    );
+    assert.equal(order.at(-1), 'ready', 'the ready flip must be terminal');
+    assert.ok(order.includes('checkpoint'));
+    assert.ok(order.includes('risk-verdict'));
+    // And the end state is still a ready Story.
+    assert.ok(
+      provider.issues
+        .get(result.primaryStoryId)
+        .labels.includes(AGENT_LABELS.READY),
+    );
+  });
+
+  it('resumes a cohort after a mid-creation failure instead of duplicating', async () => {
+    // Story #4541: createIssue is a sequential loop with no dedup lookup, so
+    // a 502 at story k of N left 1..k-1 live and a retry recreated every
+    // story. Retry alone cannot fix this (a POST whose response is lost
+    // double-creates), so idempotency is the load-bearing half.
+    const stories = [ticket('alpha'), ticket('beta'), ticket('gamma')];
+
+    // First run: blow up on the third createIssue.
+    let creates = 0;
+    const provider = fakeProvider({
+      createHook: () => {
+        creates += 1;
+        if (creates === 3) throw new Error('502 Bad Gateway');
+      },
+    });
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider,
+          artifacts: { stories, riskVerdict: VERDICT },
+          config: {},
+          opts: { skipCleanup: true },
+        }),
+      /502 Bad Gateway/,
+    );
+    assert.equal(provider.issues.size, 2, 'two Stories are live and stranded');
+    // Crucially they are NOT deliverable — no agent::ready reached them.
+    for (const issue of provider.issues.values()) {
+      assert.ok(
+        !issue.labels.includes(AGENT_LABELS.READY),
+        'a stranded Story must not be picked up by /deliver',
+      );
+    }
+
+    // Second run: same authored artifacts, no transient failure.
+    const strandedIds = [...provider.issues.keys()];
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories, riskVerdict: VERDICT },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(
+      provider.issues.size,
+      3,
+      'the resume must complete the cohort, not create a second copy',
+    );
+    assert.equal(result.stories.length, 3);
+    // The two survivors were adopted by id, not recreated.
+    const adopted = result.stories.filter((s) => s.adopted).map((s) => s.id);
+    assert.deepEqual(adopted.sort(), strandedIds.sort());
+    // Every Story — adopted and new — ends up ready with its checkpoint.
+    for (const story of result.stories) {
+      assert.ok(
+        provider.issues.get(story.id).labels.includes(AGENT_LABELS.READY),
+      );
+    }
+  });
+
+  it('applies sanitized authored labels and drops runtime-owned axes', async () => {
+    // Story #4541: labels[] was described as required by the descriptor and
+    // the prompt schema but never read. Apply it, or stop asking — this is
+    // the "apply it" half.
+    const provider = fakeProvider();
+    const authored = ticket('labelled');
+    authored.labels = [
+      'type::story',
+      'area::planning',
+      'agent::done', // runtime-owned lifecycle axis
+      'persona::architect', // retired axis
+      '', // malformed
+    ];
+
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [authored], riskVerdict: VERDICT },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    const { labels } = provider.issues.get(result.primaryStoryId);
+    assert.ok(labels.includes(TYPE_LABELS.STORY));
+    assert.ok(labels.includes('area::planning'), 'authored label is applied');
+    assert.ok(!labels.includes('agent::done'), 'agent::* is runtime-owned');
+    assert.ok(!labels.includes('persona::architect'), 'persona::* is retired');
+    assert.ok(!labels.includes(''));
+  });
+
+  it('renders the plan-metrics line in the summary, scoped to this run', async () => {
+    // Story #4541: readPlanMetrics is declared (epicId, config) but was
+    // called with config first, so the ledger path resolver got the config
+    // object as an epicId and threw its guard on every run — a throw the
+    // call site swallowed into a silently absent summary line.
+    //
+    // An ABSOLUTE per-test tempRoot keeps this off the real checkout's
+    // shared standalone ledger (which would both poison it and make the
+    // assertion depend on the host's plan history).
+    const workRoot = mkdtempSync(path.join(tmpdir(), 'plan-metrics-'));
+    try {
+      const config = { project: { paths: { tempRoot: workRoot } } };
+      // A pre-existing record from a *previous* plan run: the scoped
+      // summary must not count it.
+      await appendPlanMetric(
+        {
+          cli: 'plan-persist',
+          mode: 'persist',
+          startedAt: '2020-01-01T00:00:00.000Z',
+          endedAt: '2020-01-01T00:00:01.000Z',
+          ok: true,
+        },
+        config,
+      );
+
+      const provider = fakeProvider();
+      await runPlanPersist({
+        provider,
+        artifacts: { stories: [ticket('metrics')], riskVerdict: VERDICT },
+        config,
+        opts: { skipCleanup: true },
+      });
+
+      const summary = provider.comments.find((c) =>
+        c.body.includes('Plan Summary'),
+      );
+      const line = summary.body
+        .split('\n')
+        .find((l) => l.includes('critic skip'));
+      assert.ok(
+        line,
+        `plan-metrics line missing from summary:\n${summary.body}`,
+      );
+      // This run's own critic skips ARE counted — the line describes work
+      // that just happened, which is the point.
+      assert.match(line, /3 critic skip/);
+      // ...and the 2020 invocation from a previous plan run is NOT. Before
+      // the `since` filter this read "1 invocation(s)", inviting the reader
+      // to attribute someone else's plan to this one.
+      assert.match(line, /0 invocation\(s\)/);
+    } finally {
+      rmSync(workRoot, { recursive: true, force: true });
+    }
   });
 
   it('refuses deliveryShape in the risk verdict', async () => {
@@ -253,7 +541,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     // Names the specific Story, not a blanket plan-run reference.
     assert.doesNotMatch(body, /superseded by this plan-run/i);
 
-    assert.deepEqual(provider.updates, [
+    assert.deepEqual(closeUpdates(provider), [
       { id: 900, mutations: { state: 'closed', state_reason: 'not_planned' } },
     ]);
     assert.equal(provider.issues.get(900).state, 'closed');
@@ -327,7 +615,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     );
     // Nothing was created: only the two pre-seeded sources remain.
     assert.equal(provider.issues.size, 2);
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
   });
 
   it('rejects a Story claiming a ticket that was not a source', async () => {
@@ -366,7 +654,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     assert.equal(result.supersede.enabled, false);
     assert.equal(result.supersede.reason, 'disabled-by-flag');
     assert.equal(sourceComments(provider, 940), '');
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
     assert.equal(provider.issues.get(940).state, 'open');
   });
 
@@ -389,7 +677,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     ]);
     assert.deepEqual(result.supersede.closed, []);
     assert.equal(sourceComments(provider, 950), '');
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
     assert.equal(provider.issues.get(950).state, 'open');
   });
 
@@ -411,7 +699,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       { ticket: 960, reason: 'already-closed' },
     ]);
     assert.equal(sourceComments(provider, 960), '');
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
   });
 
   it('skips an inaccessible source without failing the run', async () => {
@@ -468,7 +756,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     assert.equal(result.supersede.enabled, false);
     assert.equal(result.supersede.reason, 'no-source-tickets');
     assert.equal(result.supersede.sourceTicketOrigin, 'none');
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
   });
 
   // Story #4554 — the flagless path. `--source-tickets` is never passed; the
@@ -518,6 +806,111 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       /#4525 is not claimed by any Story/,
     );
     // Fail-closed means fail *before* any GitHub write.
-    assert.deepEqual(provider.updates, []);
+    assert.deepEqual(closeUpdates(provider), []);
+  });
+});
+
+describe('sanitizeAuthoredLabels (Story #4541)', () => {
+  it('always guarantees type::story and dedupes', () => {
+    assert.deepEqual(sanitizeAuthoredLabels(undefined, 's'), [
+      TYPE_LABELS.STORY,
+    ]);
+    assert.deepEqual(sanitizeAuthoredLabels([], 's'), [TYPE_LABELS.STORY]);
+    assert.deepEqual(sanitizeAuthoredLabels(['area::x', 'area::x'], 's'), [
+      TYPE_LABELS.STORY,
+      'area::x',
+    ]);
+  });
+
+  it('drops the axes the runtime owns and the retired persona axis', () => {
+    assert.deepEqual(
+      sanitizeAuthoredLabels(
+        ['agent::ready', 'type::epic', 'persona::qa', 'area::planning'],
+        's',
+      ),
+      [TYPE_LABELS.STORY, 'area::planning'],
+    );
+  });
+
+  it('drops malformed entries rather than posting them', () => {
+    assert.deepEqual(
+      sanitizeAuthoredLabels(['  ', 42, null, 'x'.repeat(51), 'ok'], 's'),
+      [TYPE_LABELS.STORY, 'ok'],
+    );
+  });
+
+  it('trims surrounding whitespace', () => {
+    assert.deepEqual(sanitizeAuthoredLabels(['  area::x  '], 's'), [
+      TYPE_LABELS.STORY,
+      'area::x',
+    ]);
+  });
+});
+
+describe('planStoryFingerprint (Story #4541)', () => {
+  it('is deterministic across runs over the same authored artifacts', () => {
+    const story = { slug: 'alpha', title: 'Story alpha' };
+    assert.equal(
+      planStoryFingerprint(story),
+      planStoryFingerprint({ ...story }),
+    );
+  });
+
+  it('distinguishes different slugs and titles', () => {
+    const base = planStoryFingerprint({ slug: 'alpha', title: 'T' });
+    assert.notEqual(base, planStoryFingerprint({ slug: 'beta', title: 'T' }));
+    assert.notEqual(base, planStoryFingerprint({ slug: 'alpha', title: 'U' }));
+  });
+
+  it('does not depend on the body — the resume lookup would break if it did', () => {
+    // Creation rewrites the body to substitute real issue ids into
+    // depends_on footers, so a body-derived fingerprint would differ
+    // between an aborted run and its resume.
+    assert.equal(
+      planStoryFingerprint({ slug: 'a', title: 'T', body: 'one' }),
+      planStoryFingerprint({ slug: 'a', title: 'T', body: 'two' }),
+    );
+  });
+});
+
+describe('reapStalePlanDirs (Story #4541)', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  it('reaps abandoned plan dirs, keeps fresh ones and non-plan dirs', async () => {
+    const workRoot = mkdtempSync(path.join(tmpdir(), 'plan-reap-'));
+    try {
+      const config = { project: { paths: { tempRoot: workRoot } } };
+      const make = (name, ageMs) => {
+        const dir = path.join(workRoot, name);
+        mkdirSync(dir, { recursive: true });
+        const when = new Date(Date.now() - ageMs);
+        utimesSync(dir, when, when);
+        return dir;
+      };
+      const stale = make('plan-abandoned', 30 * DAY);
+      const fresh = make('plan-in-progress', 1 * DAY);
+      const current = make('plan-current', 30 * DAY);
+      const unrelated = make('epic-4541', 30 * DAY);
+
+      const { reaped } = await reapStalePlanDirs({ config, keepDir: current });
+
+      assert.deepEqual(reaped, [stale]);
+      assert.equal(existsSync(stale), false);
+      assert.equal(existsSync(fresh), true, 'a live run must survive');
+      assert.equal(existsSync(current), true, 'this run keeps its own dir');
+      assert.equal(existsSync(unrelated), true, 'only plan-* is in scope');
+    } finally {
+      rmSync(workRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('is a silent no-op when the temp root does not exist', async () => {
+    const missing = path.join(tmpdir(), 'plan-reap-absent-does-not-exist');
+    assert.deepEqual(
+      await reapStalePlanDirs({
+        config: { project: { paths: { tempRoot: missing } } },
+      }),
+      { reaped: [] },
+    );
   });
 });

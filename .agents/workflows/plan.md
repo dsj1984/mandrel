@@ -42,7 +42,7 @@ Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
 | `--force-review` | Force gate #2 operator review even when risk routing would skip it. |
 | `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
-| `--dry-run` | Author + validate without GitHub writes. |
+| `--dry-run` | Author + validate without GitHub writes. Run it as a pre-pass before every real persist (see below). |
 
 ## Default-single split policy
 
@@ -103,8 +103,9 @@ Write artifacts under `temp/plan-<slug>/`:
 - optional `techspec.md` — **N===1 only** convenience when Spec was authored
   outside the Story JSON; persist folds it into that Story's `## Spec`.
   Forbidden for N>1 (each Story must carry its own Spec).
-- optional `acceptance-manifest.json` — plan-level AC list for partition
-  coverage when N>1.
+- optional `acceptance-manifest.json` — plan-level AC list (a JSON
+  `string[]`) for partition coverage when N>1. Pass it to persist as
+  `--plan-acceptance` or it is not read.
 
 For N=1, use the envelope `systemPrompts.story` and emit one cohesive
 Story. Split only under the policy above.
@@ -147,25 +148,90 @@ this plan-run" reference could not.
 for operator approval of the assembled plan before persist. Under `--yes`, auto-proceed.
 N=1 low-risk plans typically skip this gate.
 
+#### Dry-run pre-pass (always)
+
+Run persist with `--dry-run` **before** the real one. It is the same command
+with the same flags — only the GitHub writes are suppressed:
+
 ```bash
 node .agents/scripts/plan-persist.js \
   --stories temp/plan-<slug>/stories.json \
   --risk-verdict temp/plan-<slug>/risk-verdict.json \
+  [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
+  [--tech-spec temp/plan-<slug>/techspec.md] \
+  --plan-dir temp/plan-<slug> \
+  --dry-run
+```
+
+Every gate — ticket validator, body parse, subject-prefix, DAG, capacity,
+budget, reachability, split-policy and supersede partitions, Spec fold —
+runs **before** the first `createIssue`, so a dry-run exercises all of them
+write-free. An authoring mistake surfaces here, where the fix costs one
+re-author, instead of after `k` of `N` Stories are already live.
+
+#### The real persist
+
+```bash
+node .agents/scripts/plan-persist.js \
+  --stories temp/plan-<slug>/stories.json \
+  --risk-verdict temp/plan-<slug>/risk-verdict.json \
+  [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--plan-dir temp/plan-<slug>] \
   [--plan-context temp/plan-<slug>/plan-context.json] \
   [--source-tickets 123,456] \
   [--no-close-superseded] \
-  [--dry-run] \
   [--force-review] \
   [--allow-over-budget]
 ```
 
-Persist creates Story issue(s) with `type::story` + `agent::ready` and, when
-N>1, writes each authored `depends_on` edge into the sibling's body as a
-`blocked by #<id>` footer — the ordering `/deliver` resolves from. No batch
-label is applied (Story #4540 retired `plan-run::<id>`). Ends by naming the
-exact command: `/deliver <storyId> [<storyId> ...]`.
+Pass `--plan-acceptance` whenever step 2 wrote an `acceptance-manifest.json`
+— it is what `assertAcceptancePartition` checks the N>1 split against.
+
+Persist creates Story issue(s) with `type::story` (plus any sanitized
+authored `labels[]`) and, when N>1, writes each authored `depends_on` edge
+into the sibling's body as a `blocked by #<id>` footer — the ordering
+`/deliver` resolves from. No batch label is applied (Story #4540 retired
+`plan-run::<id>`). Ends by naming the exact command:
+`/deliver <storyId> [<storyId> ...]`.
+
+stdout is a pure JSON result; all log lines go to stderr, so a headless
+driver can `JSON.parse` the stdout stream directly.
+
+#### Ready means fully persisted
+
+`agent::ready` is the **terminal** step, not part of the creating POST
+(Story #4541). The order is: create unlabelled → upsert `risk-verdict` +
+`story-plan-state` on every Story → upsert `plan-summary` on the primary →
+flip every Story to `agent::ready`.
+
+This is what lets `/deliver` trust the label: a Story carrying
+`agent::ready` always has its planning checkpoint, so ceremony routing reads
+a real risk envelope rather than degrading to the neutral posture against a
+`null` it cannot distinguish from "low risk".
+
+#### Resuming a failed persist
+
+Persist is **idempotent over the same authored artifacts**. Each created body
+carries an invisible plan fingerprint (derived from the Story's slug +
+title), and persist indexes the open `type::story` backlog by it before
+creating anything.
+
+So if a transient GitHub failure strands the run at Story `k` of `N`:
+
+| | Behaviour |
+| --- | --- |
+| The `1..k-1` Stories | Live, but **not** `agent::ready` — invisible to `/deliver`, not half-delivered. |
+| Re-running persist | Adopts them by fingerprint, creates only the missing ones, then flips the whole cohort ready. |
+| Editing `stories.json` first | Changing a slug or title changes the fingerprint — the old issue is orphaned rather than adopted. Close it by hand. |
+
+Just re-run the same command. Do not hand-delete the stranded issues first.
+
+#### Temp hygiene
+
+A terminal-success run deletes its own `--plan-dir`. Every persist also reaps
+abandoned `temp/plan-*` directories older than 7 days, so dry-runs, failed
+gates, and abandoned authoring sessions do not accumulate under `temp/`.
 
 ### How the source ids reach persist
 

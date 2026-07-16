@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 
 /**
  * 2-tier ticket hierarchy (Story #4041): the backlog is a flat Story
@@ -242,4 +243,102 @@ test('ticket-validator: shared probe cache — each path probed once across both
     probeCalls,
     `Expected each path to be probed once; got ${probeCalls.length} calls for ${uniqueCalls.length} unique paths`,
   );
+});
+
+/**
+ * Story #4541 — the canonical authoring shape is a **serialized string
+ * body** with `acceptance[]` at the ticket's **top level**. Two gates read
+ * the body only, so on every real plan they scanned nothing and passed
+ * vacuously. These tests drive that exact shape rather than mirroring the
+ * criteria into both places (which is what hid the defect).
+ */
+
+/** Build a Story in the canonical shape: string body, top-level contract. */
+function canonicalStory(slug, { acceptance, body }) {
+  return {
+    slug,
+    type: 'story',
+    title: `Story ${slug}`,
+    acceptance,
+    verify: ['npm test (validate)'],
+    body:
+      body ??
+      serialize({
+        goal: `Deliver ${slug}.`,
+        changes: [
+          {
+            path: '.agents/scripts/plan-persist.js',
+            assumption: 'refactors-existing',
+          },
+        ],
+      }),
+  };
+}
+
+test('subject-prefix gate fires on the canonical shape (string body + top-level acceptance)', () => {
+  const tickets = [
+    canonicalStory('S1', {
+      acceptance: [
+        "Commit subject begins with 'baseline-refresh:' (forbidden)",
+      ],
+    }),
+  ];
+  let caught;
+  try {
+    validateAndNormalizeTickets(tickets);
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught, 'the gate must fire — it used to skip this shape entirely');
+  assert.equal(caught.code, 'forbidden-subject-prefix');
+  assert.equal(caught.violations[0].slug, 'S1');
+});
+
+test('subject-prefix gate passes a valid type on the canonical shape', () => {
+  assert.doesNotThrow(() =>
+    validateAndNormalizeTickets([
+      canonicalStory('S1', {
+        acceptance: [
+          "Commit subject begins with 'chore(baselines):' for the refresh",
+        ],
+      }),
+    ]),
+  );
+});
+
+test('an unparseable body fails as a named body error, not a freshness miss', () => {
+  // The defect: collectTaskChangesPaths swallowed the parse failure and
+  // returned an empty whitelist, so the freshness gate then reported "files
+  // do not exist at main" naming the very paths the Story *had* declared.
+  const declaredPath = '.agents/scripts/lib/duplicate-search.js';
+  const malformed = [
+    '## Goal',
+    '',
+    'Fix the duplicate search.',
+    '',
+    '## Changes',
+    '',
+    `- just a prose bullet about ${declaredPath}`,
+    '',
+  ].join('\n');
+
+  let caught;
+  try {
+    validateAndNormalizeTickets(
+      [canonicalStory('S1', { acceptance: ['It works.'], body: malformed })],
+      { baseBranchRef: 'main', gitRunner: () => false },
+    );
+  } catch (err) {
+    caught = err;
+  }
+
+  assert.ok(caught);
+  assert.equal(caught.code, 'story-body-unparseable');
+  // Names the offending section and entry...
+  assert.match(caught.message, /## changes/);
+  assert.match(caught.message, /just a prose bullet/);
+  // ...and is NOT the misleading stale-path diagnosis.
+  assert.doesNotMatch(caught.message, /do not exist at main/);
+  assert.equal(caught.violations[0].slug, 'S1');
+  assert.equal(caught.violations[0].section, 'changes');
 });

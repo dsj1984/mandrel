@@ -2,6 +2,8 @@
  * persist-helpers.js — pure helper surface for the flat Story `/plan` persist.
  *
  * Exports:
+ *   - `resolveBaseBranchRef(config)` — the one place the persist gates learn
+ *     which ref to probe.
  *   - `validateTickets(tickets, config)` — runs the cross-link, model-capacity,
  *     freshness, and task-body validators in one pass. Capacity settings are
  *     explicit inputs so the validator and decomposer share one live delivery
@@ -72,8 +74,29 @@ function resolveConflictPolicy(cfg) {
   return policy;
 }
 
+/**
+ * Resolve the ref the persist gates probe against.
+ *
+ * The canonical resolved config carries the base branch at
+ * `project.baseBranch` (`lib/config-resolver.js` defaults it to `main`).
+ * This helper used to read `config.baseBranch` — a key the resolver never
+ * produces — so every freshness / file-assumption / fan-out probe silently
+ * targeted the literal `main` regardless of configuration. Benign in a repo
+ * whose base branch *is* `main`; wrong for any consumer that configured
+ * something else (Story #4541).
+ *
+ * The flat `config.baseBranch` fallback is retained for the legacy
+ * `settings`-bag callers that pass `{ baseBranch, paths, planning }`.
+ *
+ * @param {object} [config] Resolved config, or a legacy settings bag.
+ * @returns {string}
+ */
+export function resolveBaseBranchRef(config) {
+  return config?.project?.baseBranch ?? config?.baseBranch ?? 'main';
+}
+
 export function validateTickets(tickets, config, opts = {}) {
-  const baseBranchRef = config?.baseBranch ?? 'main';
+  const baseBranchRef = resolveBaseBranchRef(config);
   const conflictPolicy = resolveConflictPolicy(config);
   if (typeof opts.fanOutCounter === 'function') {
     conflictPolicy.fanOutCounter = opts.fanOutCounter;
