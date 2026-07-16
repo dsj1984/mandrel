@@ -1,12 +1,14 @@
 // tests/code-review.test.js
 //
-// Unit tier (Story #3876, extended by Story #3938): the review-depth lever in
-// `code-review.js` is pure control flow. These tests pin:
+// Unit tier (Story #3876, extended by #3938, re-based on the derived level by
+// #4542): the review-depth lever in `code-review.js` is pure control flow.
+// These tests pin:
 //   1. The depth is resolved via the shared `resolveDepth` resolver from BOTH
-//      the judged risk `overallLevel` and the changed-file count of the diff,
-//      and threaded into the review provider's `runReview` input
-//      (low/small → light, high → deep, low/wide → deep, medium/unknown →
-//      standard, absent → standard).
+//      signals `code-review.js` reads off the diff it already enumerates — the
+//      changed files' sensitive-path intersection and their count — and
+//      threaded into the review provider's `runReview` input (unremarkable+small
+//      → light, sensitive → deep, unremarkable+wide → deep, unenumerable →
+//      standard). No caller passes a risk envelope in: there is none.
 //   2. The `{ status, severity, posted, report, halted, blockerReason }`
 //      output envelope is byte-compatible with the pre-change shape regardless
 //      of depth (depth is an input-only signal).
@@ -60,13 +62,14 @@ function fakeGitSpawn(n) {
 /**
  * Build a `runCodeReview` opts bag with all I/O seams stubbed. `findings` is
  * the array the mocked provider returns; `captured` collects the `runReview`
- * input so tests can assert the threaded depth. `changedFileCount` injects the
- * diff width directly (bypassing the git enumerator).
+ * input so tests can assert the threaded depth. `changedFiles` injects the diff
+ * contents directly and `changedFileCount` the width (both bypassing the git
+ * enumerator).
  */
 function buildOpts({
   findings = [],
   captured = {},
-  planningRisk,
+  changedFiles,
   changedFileCount,
   gitSpawnFn,
 } = {}) {
@@ -74,7 +77,7 @@ function buildOpts({
     ticketId: 100,
     provider: {},
     bus: makeBus(),
-    planningRisk,
+    changedFiles,
     changedFileCount,
     gitSpawnFn,
     reviewProvider: {
@@ -91,66 +94,70 @@ function buildOpts({
 
 // --- Depth threaded into runReview input ----------------------------------
 
-test('runCodeReview: threads a deep depth for a high-risk envelope', async () => {
+test('runCodeReview: threads a deep depth for a narrow diff on a sensitive path', async () => {
+  // The case the derivation exists for: one file, but it is an auth file.
   const captured = {};
   const opts = buildOpts({
     captured,
-    planningRisk: { overallLevel: 'high' },
+    changedFiles: ['src/auth/session.js'],
     changedFileCount: 1,
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'deep');
 });
 
-test('runCodeReview: threads a deep depth for a low-risk but wide diff', async () => {
+test('runCodeReview: threads a deep depth for a wide diff touching nothing sensitive', async () => {
   const captured = {};
   const opts = buildOpts({
     captured,
-    planningRisk: { overallLevel: 'low' },
+    changedFiles: ['docs/a.md'],
     changedFileCount: DEFAULT_DIFF_WIDTH.hardFiles + 1,
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'deep');
 });
 
-test('runCodeReview: threads a light depth for a low-risk small diff', async () => {
+test('runCodeReview: threads a light depth for a small diff touching nothing sensitive', async () => {
   const captured = {};
   const opts = buildOpts({
     captured,
-    planningRisk: { overallLevel: 'low' },
+    changedFiles: ['docs/a.md'],
     changedFileCount: DEFAULT_DIFF_WIDTH.softFiles,
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'light');
 });
 
-test('runCodeReview: low-risk with an unknown diff width still threads light', async () => {
-  // gitSpawn fails → width unknown → does not block light.
+test('runCodeReview: an unenumerable diff threads standard, never light', async () => {
+  // gitSpawn fails → no changed files and no width → the fail-safe tier.
   const captured = {};
   const opts = buildOpts({
     captured,
-    planningRisk: { overallLevel: 'low' },
     gitSpawnFn: () => ({ status: 1, stdout: '', stderr: 'no such ref' }),
   });
-  await runCodeReview(opts);
-  assert.equal(captured.input.depth, 'light');
-});
-
-test('runCodeReview: defaults to standard depth when no risk envelope is supplied', async () => {
-  const captured = {};
-  const opts = buildOpts({ captured, changedFileCount: 3 });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'standard');
 });
 
-test('runCodeReview: enumerates the diff width via the injected gitSpawn', async () => {
-  // A low-risk diff of 40 files (> hardFiles 30) read through the git
-  // enumerator escalates to deep — proving the count is threaded from the diff.
+test('runCodeReview: enumerates the diff via the injected gitSpawn', async () => {
+  // A 40-file diff (> hardFiles 30) of unremarkable paths, read through the git
+  // enumerator, escalates to deep — proving both signals come from the diff.
+  const captured = {};
+  const opts = buildOpts({ captured, gitSpawnFn: fakeGitSpawn(40) });
+  await runCodeReview(opts);
+  assert.equal(captured.input.depth, 'deep');
+});
+
+test('runCodeReview: derives the sensitive-path level from the enumerated diff', async () => {
+  // No changedFiles injected: the level must come from what git reports.
   const captured = {};
   const opts = buildOpts({
     captured,
-    planningRisk: { overallLevel: 'low' },
-    gitSpawnFn: fakeGitSpawn(40),
+    gitSpawnFn: () => ({
+      status: 0,
+      stdout: 'src/auth/token.js\nREADME.md\n',
+      stderr: '',
+    }),
   });
   await runCodeReview(opts);
   assert.equal(captured.input.depth, 'deep');

@@ -461,12 +461,10 @@ function renderStoryBodyForCreate(story, idBySlug) {
  * Create Story issues via `provider.createIssue`, resumably.
  *
  * **Stories are born without `agent::ready`** (Story #4541). They used to
- * carry it in the creating POST while the `risk-verdict` and
- * `story-plan-state` checkpoints were upserted afterwards, so anything that
- * picked a Story up inside that window — or after a comment failure aborted
- * the loop — read the checkpoint as `null`, degraded to the neutral risk
- * posture, and silently discarded the planner's risk signal. Creation now
- * applies `type::story` plus the sanitized authored labels only;
+ * carry it in the creating POST while the `story-plan-state` checkpoint was
+ * upserted afterwards, so anything that picked a Story up inside that window —
+ * or after a comment failure aborted the loop — read the checkpoint as `null`.
+ * Creation now applies `type::story` plus the sanitized authored labels only;
  * `markStoriesReady` performs the flip as the terminal step, once every
  * checkpoint is on the ticket.
  *
@@ -561,9 +559,8 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
  * (Story #4541).
  *
  * This is what makes `agent::ready` *mean* "fully persisted": by the time it
- * lands, the Story's `risk-verdict` and `story-plan-state` checkpoints are
- * already on the ticket, so a `/deliver` that picks it up cannot read a null
- * checkpoint and silently fall back to the neutral risk posture.
+ * lands, the Story's `story-plan-state` checkpoint is already on the ticket, so
+ * a `/deliver` that picks it up cannot read a null checkpoint.
  *
  * Fails closed: an un-flipped Story is invisible to `/deliver`, which is the
  * safe direction — the operator is told exactly which ids need the label.

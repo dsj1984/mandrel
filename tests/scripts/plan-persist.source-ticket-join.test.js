@@ -28,7 +28,6 @@ const TICKETS_ENVELOPE = {
 function values(overrides = {}) {
   return {
     stories: 'temp/stories.json',
-    'risk-verdict': 'temp/risk-verdict.json',
     ...overrides,
   };
 }

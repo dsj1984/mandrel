@@ -2,7 +2,7 @@
  * phases/authoring-context.js — emit-context phase.
  *
  * Builds the authoring context the host LLM (or the
- * `epic-plan-spec-author` Skill) needs to write the Tech Spec.
+ * `/plan` author step) needs to write the Tech Spec.
  * Returns a plain JSON-serialisable object; never hits the network beyond
  * the provider call needed to load the Epic.
  */
@@ -63,7 +63,7 @@ function resolveMemoryDir({ github } = {}) {
  * `ensureDocsDigest` export in `docs-digest.js` — one generator, one file,
  * reused across the planning and delivery surfaces for the same Epic. The
  * envelope carries only the digest path, not embedded doc content; the
- * planner (host LLM or the `epic-plan-spec-author` Skill) reads the digest
+ * planner (host LLM driving the `/plan` author step) reads the digest
  * and pulls a full file/section on demand when it bears on the decision.
  *
  * Returns `null` — a silent no-op — when `project.docsContextFiles` is not
@@ -96,7 +96,7 @@ async function buildPlanningDocsContext({ epicId, settings, cwd }) {
 
 /**
  * Build the authoring context the host LLM (or the
- * `epic-plan-spec-author` Skill) needs to write the Tech Spec.
+ * `/plan` author step) needs to write the Tech Spec.
  *
  * `docsContext` is digest-first (Story #4433): a pointer at the per-Epic
  * docs digest rather than embedded doc content, `null` when
@@ -150,7 +150,7 @@ export async function buildAuthoringContext(
     const featureRoots = resolveFeatureRoots({ cwd: PROJECT_ROOT });
     bddScenarios = scanBddScenarios({ featureRoots });
   } catch (err) {
-    Logger.warn(`[epic-plan-spec] BDD scenario scan skipped: ${err.message}`);
+    Logger.warn(`[plan-context] BDD scenario scan skipped: ${err.message}`);
   }
 
   // Story #2557 — memory-freshness pre-flight runs BEFORE the prior-feedback
@@ -217,7 +217,7 @@ export async function buildAuthoringContext(
       if (grounding.truncation) {
         const { dropped, matched, tier } = grounding.truncation;
         Logger.warn(
-          `[epic-plan-spec] codebase snapshot truncated: ${dropped} of ` +
+          `[plan-context] codebase snapshot truncated: ${dropped} of ` +
             `${matched} matched file(s) dropped from the ${tier}-tier view. ` +
             `The spec-author context is partial. To restore full grounding, ` +
             `set planning.codebaseSnapshot.tier: "medium" and/or narrow ` +
@@ -226,7 +226,7 @@ export async function buildAuthoringContext(
       }
       if (grounding.citedButAbsent.length > 0) {
         Logger.warn(
-          `[epic-plan-spec] ${grounding.citedButAbsent.length} path(s) cited ` +
+          `[plan-context] ${grounding.citedButAbsent.length} path(s) cited ` +
             `in the Epic body are absent from the codebase snapshot: ` +
             `${grounding.citedButAbsent.join(', ')}. The spec author will ` +
             `flag these as drift unless they are net-new.`,
@@ -234,13 +234,13 @@ export async function buildAuthoringContext(
       }
     }
   } catch (err) {
-    Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
+    Logger.warn(`[plan-context] codebase snapshot skipped: ${err.message}`);
   }
 
-  // Epic #3865 — planning risk is no longer classified at emit-context
-  // time. The `epic-plan-spec-author` Skill authors the risk verdict
-  // (`risk-verdict.json`) as the fourth planning artifact, and the persist
-  // half derives the planningRisk envelope from it via deriveRiskEnvelope.
+  // Story #4542 — planning authors no risk artifact at all. Review depth and
+  // the acceptance-critic mode are derived from the diff at close time
+  // (`review-depth.js#deriveChangeLevel`), so there is nothing to classify
+  // here and nothing for the author step to judge about itself.
 
   return {
     epic: {

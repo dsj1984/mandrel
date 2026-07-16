@@ -12,7 +12,7 @@
  *
  * Operator planning:
  *   node .agents/scripts/plan-context.js --seed "…" | --seed-file <path> | --tickets <ids>
- *   node .agents/scripts/plan-persist.js --stories … --risk-verdict …
+ *   node .agents/scripts/plan-persist.js --stories …
  */
 
 import { readFile } from 'node:fs/promises';
@@ -146,7 +146,7 @@ async function runEmitContext({
   // corpus digest reads the project's actual docs directory regardless
   // of the directory this CLI happens to be invoked from — matching the
   // sibling resolution pattern in
-  // epic-plan-spec/phases/authoring-context.js.
+  // planning/authoring-context.js.
   const docsRoot = path.resolve(
     PROJECT_ROOT,
     config?.project?.paths?.docsRoot ?? 'docs',

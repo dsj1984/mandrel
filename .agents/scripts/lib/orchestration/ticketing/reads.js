@@ -151,12 +151,6 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
-  // Story #3873 (Epic #3865) — `plan-persist.js` upserts a `risk-verdict`
-  // comment on the Epic at persist time, recording the planner-authored,
-  // schema-validated risk verdict and the planningRisk envelope derived
-  // from it (`deriveRiskEnvelope`). One entry per Epic; re-plans upsert in
-  // place. Schema: `.agents/schemas/risk-verdict.schema.json`.
-  'risk-verdict',
   // Story #4019 — `epic-plan-lease-guard.js` upserts a `plan-lease`
   // comment on the Epic at lease-acquire time, recording the claiming
   // operator and the claim timestamp. `/plan` emits no

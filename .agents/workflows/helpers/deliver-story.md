@@ -1,8 +1,8 @@
 ---
 description:
   Execute one Story end-to-end. Creates story-<id> from main, implements in a
-  worktree (optional ## Slicing checkpoints), runs risk-routed ceremony, opens
-  a PR against main, and lands.
+  worktree (optional ## Slicing checkpoints), runs derived-level ceremony,
+  opens a PR against main, and lands.
 ---
 
 # /deliver-story #[Story ID]
@@ -21,7 +21,7 @@ large — uses the same machinery:
 /deliver <storyId> [<storyId> ...]   (each Story runs through this engine)
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (optional ## Slicing intra-session checkpoints)
-  → risk-routed ceremony           (acceptance critics · review · audit lenses)
+  → derived-level ceremony         (acceptance critics · review depth)
   → single-story-close.js          (gates, push, gh pr create → main, agent::closing)
   → CI watch + fix loop            (until required checks pass + PR merged)
   → single-story-confirm-merge.js  (PR merged → agent::done + follow-ups)
@@ -34,7 +34,7 @@ large — uses the same machinery:
 | Merge target | `main` via PR (squash + required checks) |
 | Epic integration branch | **None** — no `epic/<id>`, no `--no-ff` wave merge |
 | Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session |
-| Ceremony | Per-Story risk-routed via `ceremony-routing.js` |
+| Ceremony | Per-Story, routed off the derived change level via `ceremony-routing.js` |
 
 If the Story still carries an `Epic: #N` reference, **stop** — that is a v1
 Epic-attached ticket; re-plan as a v2 Story or finish it on a pre-v2 checkout.
@@ -200,23 +200,28 @@ Story-path specifics:
 
 ---
 
-## Step 2 — Ceremony (profile + risk)
+## Step 2 — Ceremony (profile + derived level)
 
 Per-Story ceremony is selected by `delivery.routing.ceremonyProfile`
 (`minimal` | `standard` | `strict`, default `standard`) and the Story's
-own risk envelope (folded plan `planningRisk` / `risk-verdict` on the
-Story itself — never an Epic parent). Resolve
-fresh-vs-inline acceptance critics per AC-cluster with
+**derived change level** — not a planner-authored verdict (Story #4542 retired
+that). Derive the level with
+[`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js) over the
+Story's changed files (`git diff --name-only main...story-<id>`): a diff
+touching a sensitive path registered in `.agents/schemas/audit-rules.json`
+derives `high`, one touching none derives `low`, and an unenumerable diff
+derives `null`.
+
+Resolve fresh-vs-inline acceptance critics per AC-cluster with
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
 (`minimal` → always inline; `strict` → always fresh; `standard` →
-`high`/`medium`/`missing` → `fresh`, `low` → `inline` unless the
-`freshCriticSampleRate` floor forces `fresh`). Review depth and audit lenses
-follow the same envelope via `review-depth.js` /
-`audit-lens-routing.js#resolveAuditLenses` inside close.
+`high`/`null` → `fresh`, `low` → `inline` unless the `freshCriticSampleRate`
+floor forces `fresh`). Review depth reads the same derived level via
+`review-depth.js` inside close, so the two decisions cannot disagree.
 
 Hard gates (lint / test / format / coverage / CRAP / maintainability) always
-run in Step 3 — risk never disables them. Do **not** pre-run the full
-close-validation chain here unless interactively iterating on a fix.
+run in Step 3 — the derived level never disables them. Do **not** pre-run the
+full close-validation chain here unless interactively iterating on a fix.
 
 ---
 

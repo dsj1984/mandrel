@@ -2,8 +2,13 @@
  * summary.js — plan-persist terminal summary (v2 Stage 3).
  *
  * Upserts a single `plan-summary` structured comment on the primary Story
- * at terminal success. Carries risk / routing receipts and the dry-run
- * `depends_on` ordering table for the rare N>1 plan.
+ * at terminal success. Carries the persist receipts — including whether the
+ * operator forced a review stop — and the dry-run `depends_on` ordering table
+ * for the rare N>1 plan.
+ *
+ * Story #4542 removed the risk / review-routing line: no risk level, gate
+ * decision, or acceptance disposition is computed at plan time any more, so
+ * reporting one here would document a mechanism that does not run.
  *
  * @module lib/orchestration/plan-persist/summary
  */
@@ -69,8 +74,7 @@ function renderWaveTableLines(waveTable) {
 export function buildPlanSummaryCommentBody({
   epicId,
   ticketCount,
-  planningRisk,
-  reviewRouting,
+  forceReview = false,
   freshness,
   healthcheck,
   waveTable,
@@ -100,10 +104,10 @@ export function buildPlanSummaryCommentBody({
       ? stories.map((s) => `#${s.id} (\`${s.slug}\`)`).join(', ')
       : `${ticketCount} Story(ies)`;
 
-  const waiverLines = planningRisk?.acceptanceWaivedReason
-    ? [
-        `- ⚠️ Acceptance disposition auto-waived to \`not-applicable\` — ${planningRisk.acceptanceWaivedReason}`,
-      ]
+  // The only planning-time review gate left (Story #4542): an explicit
+  // operator flag, never a value derived from a self-authored risk verdict.
+  const reviewLines = forceReview
+    ? ['- ⚠️ Review: operator-forced via `--force-review`.']
     : [];
 
   // The exact command to run — Story #4540. This comment is posted to
@@ -118,8 +122,7 @@ export function buildPlanSummaryCommentBody({
     `### 📋 Plan Summary — Story #${epicId} is \`agent::ready\``,
     '',
     `- ${ticketCount} Story ticket(s) persisted: ${storyList}.`,
-    `- Risk: ${planningRisk?.overallLevel ?? 'unknown'} · ${planningRisk?.gateDecision ?? 'unknown'} (review routing: ${reviewRouting?.decision ?? 'unknown'}).`,
-    ...waiverLines,
+    ...reviewLines,
     freshnessLine,
     healthcheckLine,
     ...(typeof planMetricsLine === 'string' && planMetricsLine.length > 0

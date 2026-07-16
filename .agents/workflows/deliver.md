@@ -143,19 +143,22 @@ to `main`.
 ## Ceremony (profiles + two scopes)
 
 Ceremony depth is selected by `delivery.routing.ceremonyProfile`
-(`minimal` | `standard` | `strict`, default `standard`) and the Story's
-planning risk:
+(`minimal` | `standard` | `strict`, default `standard`) and the **change
+level derived from the Story's own diff** — the changed files' intersection
+with the sensitive-path classes in `audit-rules.json`
+(`review-depth.js#deriveChangeLevel`), not a planner-authored verdict
+(Story #4542):
 
 | Profile | Acceptance critic | When to use |
 | --- | --- | --- |
 | `minimal` | Always inline | Tiny trusted N=1 Stories |
-| `standard` | Risk-routed (+ sampling floor) | Default |
+| `standard` | Derived-level routed (+ sampling floor) | Default |
 | `strict` | Always fresh-context | High-assurance / regulated surfaces |
 
 | Scope | What runs | Mechanism |
 | --- | --- | --- |
 | **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
-| **Per-Story (profile + risk)** | Acceptance critic mode; review depth; audit lenses | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
+| **Per-Story (profile + derived level)** | Acceptance critic mode; review depth | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
 | **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
 | **Per-Story land** | Actionable follow-ups from friction | `captureStoryFollowUps` in confirm-merge |
 

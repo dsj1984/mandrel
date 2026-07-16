@@ -47,13 +47,12 @@ function resolveRiskHeuristics(config = {}) {
  *   - Consolidation: skipped outright when `tickets` is null/absent (the
  *     single-delivery shape authors no draft tickets); otherwise the
  *     deterministic precondition + size/divergence conditions.
- *   - Pre-mortem: risk verdict overall level high, OR ticket count at least
- *     half `maxTickets`, OR any `planning.riskHeuristics` phrase matching
- *     the plan text.
+ *   - Pre-mortem: ticket count at least half `maxTickets`, OR any
+ *     `planning.riskHeuristics` phrase matching the plan text. Story #4542
+ *     retired its authored-risk-level condition with the verdict itself.
  *
  * @param {{
  *   techSpecContent: string,
- *   riskVerdict: { summary?: string },
  *   tickets?: Array<object>|null,
  *   config?: object,
  * }} args
@@ -64,7 +63,6 @@ function resolveRiskHeuristics(config = {}) {
  */
 export function evaluatePlanCritics({
   techSpecContent,
-  riskVerdict,
   tickets = null,
   config = {},
 }) {
@@ -84,14 +82,12 @@ export function evaluatePlanCritics({
         });
 
   const premortem = evaluatePremortemDispatch({
-    riskVerdict,
     ticketCount: ticketList?.length ?? 0,
     maxTickets: getLimits(config).maxTickets,
     riskHeuristics: resolveRiskHeuristics(config),
     planText: [
       techSpecContent ?? '',
       ticketList ? JSON.stringify(ticketList) : '',
-      riskVerdict?.summary ?? '',
     ].join('\n'),
   });
 

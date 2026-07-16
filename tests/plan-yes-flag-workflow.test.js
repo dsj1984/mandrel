@@ -8,7 +8,7 @@
  *
  *   - `/plan` is one 3-step path, not an Epic/Story router.
  *   - `--yes` auto-proceeds gate #1 (interrogate confirmation).
- *   - `--yes` auto-proceeds gate #2 (risk-routed pre-persist review).
+ *   - `--yes` auto-proceeds gate #2 (the --force-review pre-persist review).
  *   - `--yes` does not relax deterministic validation gates.
  *   - the retired `deliveryShape` and scope-triage routing fields do not
  *     reappear in the workflow contract.
@@ -117,17 +117,20 @@ describe('/plan --yes headless flag — gate #1', () => {
 describe('/plan --yes headless flag — gate #2', () => {
   const persist = section('### 3\\. Persist');
 
-  it('anchors gate #2 at the risk-routed pre-persist review', () => {
+  it('anchors gate #2 at the --force-review pre-persist review', () => {
+    // Story #4542: gate #2 is raised solely by --force-review — the
+    // risk-derived routing that used to raise it is gone.
     assert.ok(persist, 'plan.md must carry the persist step');
     assert.match(
       persist,
-      /\*\*Gate #2\*\*[\s\S]*risk routing requires review/i,
-      'gate #2 must be risk-routed',
+      /\*\*Gate #2\*\*/,
+      'gate #2 must anchor the persist step',
     );
+    assert.doesNotMatch(persist, /risk routing/i, 'gate #2 is not risk-routed');
     assert.match(
       persist,
       /`--force-review`/,
-      'gate #2 must still honor --force-review',
+      'gate #2 must be raised by --force-review',
     );
     assert.match(
       persist,
@@ -174,13 +177,12 @@ describe('/plan --yes headless flag — v2 Stage 3 cutover guards', () => {
     );
   });
 
-  it('keeps risk verdicts free of deliveryShape fields', () => {
+  it('authors no risk verdict at all (Story #4542)', () => {
+    // The authored risk verdict — and the deliveryShape field it once carried
+    // — are retired. The author step must name neither artifact.
     const author = section('### 2\\. Author');
-    assert.match(
-      author,
-      /`risk-verdict\.json`[\s\S]*\*\*no `deliveryShape`\*\*/i,
-      'risk-verdict artifact must explicitly exclude deliveryShape',
-    );
+    assert.doesNotMatch(author, /risk-verdict/i);
+    assert.doesNotMatch(author, /deliveryShape/i);
   });
 
   it('does not link to the deleted planning helpers', () => {

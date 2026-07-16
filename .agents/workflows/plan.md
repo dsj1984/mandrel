@@ -39,7 +39,7 @@ Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
 | `--seed-file <path>` | Pre-authored notes / plan-seed path. |
 | `--tickets <ids>` | Comma-separated issue ids to analyze. Closed as superseded at persist (see below). |
 | `--no-close-superseded` | Keep the `--tickets` source issues open — no supersede comment, no close. |
-| `--force-review` | Force gate #2 operator review even when risk routing would skip it. |
+| `--force-review` | STOP at gate #2 for operator review of the assembled plan. The only thing that gates review — there is no risk-derived routing (Story #4542). |
 | `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
 | `--dry-run` | Author + validate without GitHub writes. Run it as a pre-pass before every real persist (see below). |
@@ -99,7 +99,6 @@ Write artifacts under `temp/plan-<slug>/`:
   `acceptance[]` / `verify[]` (persist syncs them into the body). Do not
   restate Goal/Acceptance inside Spec. Over-budget Specs fail closed —
   split the Story or tighten Spec; never write Specs under `docs/`.
-- `risk-verdict.json` — axes + summary only (**no `deliveryShape`**).
 - optional `techspec.md` — **N===1 only** convenience when Spec was authored
   outside the Story JSON; persist folds it into that Story's `## Spec`.
   Forbidden for N>1 (each Story must carry its own Spec).
@@ -144,9 +143,14 @@ this plan-run" reference could not.
 
 ### 3. Persist
 
-**Gate #2** — when risk routing requires review (or `--force-review`), STOP
-for operator approval of the assembled plan before persist. Under `--yes`, auto-proceed.
-N=1 low-risk plans typically skip this gate.
+**Gate #2** — when the operator passed `--force-review`, STOP for approval of
+the assembled plan before persist. Under `--yes`, auto-proceed.
+
+`--force-review` is the **only** thing that raises this gate. Story #4542
+retired the risk-derived alternative: the planner authored its own risk verdict,
+persist computed a `requiresStop` from it *after* `createStoryIssues` had already
+run, and nothing read the result — the STOP was prose executed by the same
+session that wrote the verdict. A gate a plan can lower for itself is not a gate.
 
 #### Dry-run pre-pass (always)
 
@@ -156,7 +160,6 @@ with the same flags — only the GitHub writes are suppressed:
 ```bash
 node .agents/scripts/plan-persist.js \
   --stories temp/plan-<slug>/stories.json \
-  --risk-verdict temp/plan-<slug>/risk-verdict.json \
   [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   --plan-dir temp/plan-<slug> \
@@ -174,7 +177,6 @@ re-author, instead of after `k` of `N` Stories are already live.
 ```bash
 node .agents/scripts/plan-persist.js \
   --stories temp/plan-<slug>/stories.json \
-  --risk-verdict temp/plan-<slug>/risk-verdict.json \
   [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--plan-dir temp/plan-<slug>] \
@@ -201,14 +203,13 @@ driver can `JSON.parse` the stdout stream directly.
 #### Ready means fully persisted
 
 `agent::ready` is the **terminal** step, not part of the creating POST
-(Story #4541). The order is: create unlabelled → upsert `risk-verdict` +
-`story-plan-state` on every Story → upsert `plan-summary` on the primary →
-flip every Story to `agent::ready`.
+(Story #4541). The order is: create unlabelled → upsert `story-plan-state` on
+every Story → upsert `plan-summary` on the primary → flip every Story to
+`agent::ready`.
 
 This is what lets `/deliver` trust the label: a Story carrying
-`agent::ready` always has its planning checkpoint, so ceremony routing reads
-a real risk envelope rather than degrading to the neutral posture against a
-`null` it cannot distinguish from "low risk".
+`agent::ready` always has its persist receipt on the ticket, so nothing can
+pick it up mid-write and read a half-persisted plan.
 
 #### Resuming a failed persist
 

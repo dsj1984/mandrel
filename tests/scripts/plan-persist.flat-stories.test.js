@@ -34,17 +34,6 @@ import { PLAN_SUMMARY_COMMENT_TYPE } from '../../.agents/scripts/lib/orchestrati
 import { resolveSourceTicketIds } from '../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
-const VERDICT = {
-  axes: [
-    {
-      axis: 'internal-refactor',
-      level: 'low',
-      rationale: 'Test fixture — internal tooling only.',
-    },
-  ],
-  summary: 'Low-risk internal refactor (test fixture).',
-};
-
 function ticket(slug) {
   const acceptance = [`${slug} done`];
   const verify = ['npm test (validate)'];
@@ -198,7 +187,6 @@ describe('runPlanPersist — flat Story ops', () => {
       provider,
       artifacts: {
         stories: [ticket('solo')],
-        riskVerdict: VERDICT,
         techSpecContent: '## Overview\n\nSmall folded spec.',
       },
       config: {},
@@ -217,15 +205,16 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const bodies = provider.comments.map((c) => c.body).join('\n');
     assert.match(bodies, /Plan Summary/);
-    assert.match(bodies, /internal-refactor|risk-verdict/);
+    // Story #4542: persist writes no risk artifact at all — neither the
+    // per-Story `risk-verdict` comment nor a risk line on the summary.
+    assert.doesNotMatch(bodies, /risk-verdict/);
     void PLAN_SUMMARY_COMMENT_TYPE;
   });
 
   it('creates Stories WITHOUT agent::ready and flips them only after the checkpoints land', async () => {
     // Story #4541: issues used to be born agent::ready in the creating POST
-    // while risk-verdict / story-plan-state were upserted afterwards. A
-    // /deliver that picked a Story up inside that window read a null
-    // checkpoint and silently delivered with the neutral risk posture.
+    // while story-plan-state was upserted afterwards, so a /deliver that picked
+    // a Story up inside that window read a null checkpoint.
     // Ready must mean fully persisted.
     const labelsAtCreate = [];
     const provider = fakeProvider({
@@ -238,7 +227,6 @@ describe('runPlanPersist — flat Story ops', () => {
     provider.postComment = async (issueNumber, payload) => {
       const body = typeof payload === 'string' ? payload : payload.body;
       if (body.includes('story-plan-state')) order.push('checkpoint');
-      if (body.includes('risk-verdict')) order.push('risk-verdict');
       return postComment(issueNumber, payload);
     };
     const { updateTicket } = provider;
@@ -251,7 +239,7 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      artifacts: { stories: [ticket('solo')] },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -263,7 +251,6 @@ describe('runPlanPersist — flat Story ops', () => {
     );
     assert.equal(order.at(-1), 'ready', 'the ready flip must be terminal');
     assert.ok(order.includes('checkpoint'));
-    assert.ok(order.includes('risk-verdict'));
     // And the end state is still a ready Story.
     assert.ok(
       provider.issues
@@ -291,7 +278,7 @@ describe('runPlanPersist — flat Story ops', () => {
       () =>
         runPlanPersist({
           provider,
-          artifacts: { stories, riskVerdict: VERDICT },
+          artifacts: { stories },
           config: {},
           opts: { skipCleanup: true },
         }),
@@ -310,7 +297,7 @@ describe('runPlanPersist — flat Story ops', () => {
     const strandedIds = [...provider.issues.keys()];
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories, riskVerdict: VERDICT },
+      artifacts: { stories },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -348,7 +335,7 @@ describe('runPlanPersist — flat Story ops', () => {
 
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [authored], riskVerdict: VERDICT },
+      artifacts: { stories: [authored] },
       config: {},
       opts: { skipCleanup: true },
     });
@@ -389,7 +376,7 @@ describe('runPlanPersist — flat Story ops', () => {
       const provider = fakeProvider();
       await runPlanPersist({
         provider,
-        artifacts: { stories: [ticket('metrics')], riskVerdict: VERDICT },
+        artifacts: { stories: [ticket('metrics')] },
         config,
         opts: { skipCleanup: true },
       });
@@ -414,26 +401,6 @@ describe('runPlanPersist — flat Story ops', () => {
     } finally {
       rmSync(workRoot, { recursive: true, force: true });
     }
-  });
-
-  it('refuses deliveryShape in the risk verdict', async () => {
-    const provider = fakeProvider();
-    await assert.rejects(
-      () =>
-        runPlanPersist({
-          provider,
-          artifacts: {
-            stories: [ticket('solo')],
-            riskVerdict: {
-              ...VERDICT,
-              deliveryShape: 'single',
-              deliveryShapeRationale: 'nope',
-            },
-          },
-          opts: { skipCleanup: true },
-        }),
-      /deliveryShape/,
-    );
   });
 
   it('rejects hard model-capacity findings before issue creation', async () => {
@@ -461,7 +428,6 @@ describe('runPlanPersist — flat Story ops', () => {
           provider,
           artifacts: {
             stories: [oversized],
-            riskVerdict: VERDICT,
           },
           opts: {
             modelCapacity: { hardSessionTokens: 100, softSessionTokens: 50 },
@@ -483,7 +449,6 @@ describe('runPlanPersist — flat Story ops', () => {
       provider,
       artifacts: {
         stories: [ticket('one'), ticket('two')],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true },
     });
@@ -499,7 +464,7 @@ describe('runPlanPersist — flat Story ops', () => {
         .filter((comment) => comment.issueNumber === s.id)
         .map((comment) => comment.body)
         .join('\n');
-      assert.match(storyComments, /risk-verdict/);
+      assert.doesNotMatch(storyComments, /risk-verdict/);
       assert.match(storyComments, /story-plan-state/);
     }
   });
@@ -525,7 +490,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [900])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [900] },
     });
@@ -560,7 +524,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
             },
           ]),
         ],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [901] },
     });
@@ -580,7 +543,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           supersedingTicket('one', [910]),
           supersedingTicket('two', [911]),
         ],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [910, 911] },
     });
@@ -607,7 +569,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           provider,
           artifacts: {
             stories: [supersedingTicket('solo', [920])],
-            riskVerdict: VERDICT,
           },
           opts: { skipCleanup: true, sourceTicketIds: [920, 921] },
         }),
@@ -626,7 +587,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
           provider,
           artifacts: {
             stories: [supersedingTicket('solo', [930, 999])],
-            riskVerdict: VERDICT,
           },
           opts: { skipCleanup: true, sourceTicketIds: [930] },
         }),
@@ -641,7 +601,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [940])],
-        riskVerdict: VERDICT,
       },
       opts: {
         skipCleanup: true,
@@ -664,7 +623,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [950])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [950], dryRun: true },
     });
@@ -689,7 +647,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [960])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [960] },
     });
@@ -708,7 +665,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [970])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [970] },
     });
@@ -730,7 +686,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [980, 981])],
-        riskVerdict: VERDICT,
       },
       opts: { skipCleanup: true, sourceTicketIds: [980, 981] },
     });
@@ -748,7 +703,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
-      artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+      artifacts: { stories: [ticket('solo')] },
       opts: { skipCleanup: true },
     });
 
@@ -774,7 +729,6 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
       provider,
       artifacts: {
         stories: [supersedingTicket('solo', [4525])],
-        riskVerdict: VERDICT,
       },
       opts: {
         skipCleanup: true,
@@ -800,7 +754,7 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     await assert.rejects(
       runPlanPersist({
         provider,
-        artifacts: { stories: [ticket('solo')], riskVerdict: VERDICT },
+        artifacts: { stories: [ticket('solo')] },
         opts: { skipCleanup: true, sourceTicketIds: ids },
       }),
       /#4525 is not claimed by any Story/,

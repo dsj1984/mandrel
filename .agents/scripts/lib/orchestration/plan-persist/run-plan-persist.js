@@ -4,28 +4,31 @@
  *
  * Ordered, fail-closed pipeline:
  *
- *   1. Risk-verdict presence (schema validation is CLI-owned)
- *   2. Ticket validator + file-assumption + DAG + capacity + budget
- *   3. Draft reachability (named soft failure, exit 3)
- *   4. Split-policy partition (`assertAcceptancePartition`) + spec fold/spill
- *   5. Create Story issues (`type::story` + sanitized authored labels —
+ *   1. Ticket validator + file-assumption + DAG + capacity + budget
+ *   2. Draft reachability (named soft failure, exit 3)
+ *   3. Split-policy partition (`assertAcceptancePartition`) + spec fold/spill
+ *   4. Create Story issues (`type::story` + sanitized authored labels —
  *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
- *   6. Upsert `risk-verdict` + `story-plan-state` on every created Story;
- *      upsert `plan-summary` on the primary Story
- *   7. Flip every Story to `agent::ready` — the terminal step, so `ready`
+ *   5. Upsert `story-plan-state` on every created Story; upsert `plan-summary`
+ *      on the primary Story
+ *   6. Flip every Story to `agent::ready` — the terminal step, so `ready`
  *      always implies "checkpoints written"
- *   8. Comment on + close the superseded `--tickets` source issues
+ *   7. Comment on + close the superseded `--tickets` source issues
  *      (Story #4535) — bookkeeping only; never fails the run
- *   9. Temp cleanup at terminal success + a stale-plan-dir reap
+ *   8. Temp cleanup at terminal success + a stale-plan-dir reap
  *
  * **Why `agent::ready` moved to the end (Story #4541).** Issues used to be
  * born `agent::ready` in the creating POST while the checkpoints were
  * written afterwards. Anything picking a Story up in that window — or after
  * a comment failure aborted the loop — read the checkpoint as `null`
- * (`story-plan-state.js` degrades missing/malformed to `null`) and delivered
- * with the neutral posture, silently discarding the planner's risk signal.
- * Creating unlabelled, writing checkpoints, then flipping closes both the
- * race and the silent-posture loss.
+ * (`story-plan-state.js` degrades missing/malformed to `null`). Creating
+ * unlabelled, writing checkpoints, then flipping closes that race.
+ *
+ * **No authored risk artifact (Story #4542).** Persist neither requires nor
+ * accepts a risk verdict, derives no envelope from one, and computes no
+ * review routing. Review depth and the acceptance-critic mode are derived from
+ * the diff at close time (`review-depth.js#deriveChangeLevel`); `--force-review`
+ * is an explicit operator flag, recorded here as a receipt and never inferred.
  *
  * Hard cutover: no Epic parent, no reconciler, no `deliveryShape`, no
  * `--amend` tree cascades. Those surfaces die with Stages 4–5 for any
@@ -52,8 +55,6 @@ import {
   evaluateDraftReachability,
   renderReachabilityOrphans,
 } from '../plan-reachability.js';
-import { resolveReviewRouting } from '../plan-review-routing.js';
-import { deriveRiskEnvelope } from '../planning-risk.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import {
   enforceFanOutGate,
@@ -242,16 +243,6 @@ export async function reapStalePlanDirs({
   return { reaped };
 }
 
-function riskVerdictCommentBody(riskVerdict) {
-  return [
-    '### risk-verdict',
-    '',
-    '```json',
-    JSON.stringify(riskVerdict, null, 2),
-    '```',
-  ].join('\n');
-}
-
 /**
  * Execute the flat Story persist end to end.
  *
@@ -259,7 +250,6 @@ function riskVerdictCommentBody(riskVerdict) {
  *   provider: object,
  *   artifacts: {
  *     stories: Array<object>,
- *     riskVerdict: object,
  *     techSpecContent?: string|null,
  *     planAcceptance?: string[]|null,
  *   },
@@ -289,7 +279,6 @@ export async function runPlanPersist({
 }) {
   const {
     stories: rawStories = null,
-    riskVerdict,
     techSpecContent = null,
     planAcceptance = null,
   } = artifacts ?? {};
@@ -313,18 +302,6 @@ export async function runPlanPersist({
   // through the shared standalone ledger (Story #4541).
   const runStartedAt = opts.metricsSince ?? new Date().toISOString();
 
-  if (!riskVerdict || !Array.isArray(riskVerdict.axes)) {
-    throw new Error(
-      '[plan-persist] risk verdict is required — author risk-verdict.json ' +
-        'and pass it with --risk-verdict.',
-    );
-  }
-  if ('deliveryShape' in (riskVerdict ?? {})) {
-    throw new Error(
-      '[plan-persist] risk-verdict.deliveryShape was removed in v2 Stage 3 — ' +
-        'delete the field; persist always creates Story issue(s).',
-    );
-  }
   if (!Array.isArray(rawStories) || rawStories.length === 0) {
     throw new Error(
       '[plan-persist] stories payload must be a non-empty array ' +
@@ -382,7 +359,6 @@ export async function runPlanPersist({
 
   const critics = evaluatePlanCritics({
     techSpecContent: techSpecContent ?? '',
-    riskVerdict,
     tickets: rawStories,
     config,
   });
@@ -409,12 +385,6 @@ export async function runPlanPersist({
     sharedSpec: techSpecContent,
     planAcceptance: planAcceptance ?? undefined,
     sourceTicketIds,
-  });
-
-  const planningRisk = deriveRiskEnvelope(riskVerdict);
-  const reviewRouting = resolveReviewRouting({
-    planningRisk,
-    forceReview,
   });
 
   const { created } = await createStoryIssues({
@@ -452,8 +422,7 @@ export async function runPlanPersist({
   const summaryBody = buildPlanSummaryCommentBody({
     epicId: primary.id,
     ticketCount: created.length,
-    planningRisk,
-    reviewRouting,
+    forceReview,
     freshness: { stale: 0, ambiguous: 0 },
     healthcheck: { skipped: true },
     waveTable,
@@ -464,16 +433,7 @@ export async function runPlanPersist({
 
   if (!dryRun) {
     for (const story of created) {
-      await upsertStructuredComment(
-        provider,
-        story.id,
-        'risk-verdict',
-        riskVerdictCommentBody(riskVerdict),
-      );
       await writeCheckpointV2(provider, story.id, {
-        planningRisk,
-        riskVerdict,
-        reviewRouting,
         persist: {
           completedAt: new Date().toISOString(),
           storyCount: created.length,
@@ -540,8 +500,7 @@ export async function runPlanPersist({
   return {
     stories: created,
     primaryStoryId: primary.id,
-    planningRisk,
-    reviewRouting,
+    forceReview,
     critics,
     reachability,
     waveTable,

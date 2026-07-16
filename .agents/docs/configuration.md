@@ -250,10 +250,10 @@ top-level keys are validation errors.
 | `quality.baselineEpsilon.bundle-size` | No | `number` | — | — |
 | `quality.baselineEpsilon.duplication` | No | `number` | — | — |
 | `quality.requireBaselines` | No | `boolean` | — | Story #4495. Fail-closed baseline-enforcement policy for the unified check-baselines close-validation gate. When false (default), a consumer that enables baseline gates (crap/maintainability/…) but has not committed the corresponding baseline artifacts under baselines/ gets a clean skip-with-reason instead of a deterministic first-try close failure. Set true to keep the gate registered so an absent baseline artifact fails close-validation with a preflight hint naming the fix (the fail-closed posture). |
-| `quality.navigability` | No | `object` | — | Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's risk-routed ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
+| `quality.navigability` | No | `object` | — | Navigability lens + journey-suite config (Epic #4131, F2/F3/F1/F4). Read by audit-suite/selector.js (route globs) and /deliver's per-Story ceremony (journey suite). Opt-in: absent or empty routeGlobs degrades to a silent no-op. |
 | `quality.navigability.routeGlobs` | No | `array<string>` | — | Glob patterns (pages/**, app/**/route.ts) marking paths that add a user-facing route — the route-tree SSOT the navigability lens enumerates and the route-added routing predicate matches against. |
 | `quality.navigability.navRegistry` | No | `array<string>` | — | Tokens identifying the nav-registry SSOT the navigability lens checks every route resolves a nav door against. |
-| `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite /deliver's risk-routed ceremony runs. |
+| `quality.navigability.journeySuite` | No | `string` | — | Path or command for the per-persona journey suite /deliver's per-Story ceremony runs. |
 | `mergeWatch` | No | `object` | — | Knobs consumed by the MergeWatcher lifecycle listener (Story #2896, Epic #2880). `intervalSeconds` is the poll cadence between `gh pr view --json mergeCommit,mergedAt` probes after epic.merge.armed; `maxBudgetSeconds` is the total wall-clock budget before the watcher surfaces `agent::blocked` with reason `budget-exceeded`. |
 | `mergeWatch.intervalSeconds` | No | `integer` | `30` | Seconds between MergeWatcher polls. Default 30. |
 | `mergeWatch.maxBudgetSeconds` | No | `integer` | `3600` | Total wall-clock budget (seconds) for the MergeWatcher poll loop. Default 3600 (60 minutes). |
@@ -276,8 +276,8 @@ top-level keys are validation errors.
 | `ci.autoMerge` | No | `"trust-ci"` \| `"strict"` | — | Story #4356 (Epic #4355). Merge posture. 'trust-ci' (default) merges once required checks pass; 'strict' additionally requires a clean review gate. |
 | `routing` | No | `object` | — | v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6. |
 | `routing.roleScopedAgents` | No | `boolean` | — | Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure (≈50KB → ≈8KB per spawn — the payoff of the context diet). When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate. |
-| `routing.freshCriticSampleRate` | No | `number` | — | Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Risk-routed ceremony sends a low-risk acceptance cluster down the contract-identical inline critic path, but this fraction of low-risk clusters is still forced through a fresh-context critic so low risk never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js). |
-| `routing.ceremonyProfile` | No | `"minimal"` \| `"standard"` \| `"strict"` | — | Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = risk-routed with the maker-checker sampling floor. |
+| `routing.freshCriticSampleRate` | No | `number` | — | Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Under the standard profile, a change set touching no sensitive path routes its acceptance clusters down the contract-identical inline critic path, but this fraction of them is still forced through a fresh-context critic so a low derived level never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Default 0.2. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js). |
+| `routing.ceremonyProfile` | No | `"minimal"` \| `"standard"` \| `"strict"` | — | Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff, with the maker-checker sampling floor. |
 | `routing.closeAndLand` | No | `boolean` | — | When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge. |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
 | `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
@@ -711,8 +711,8 @@ for chain-entry fields (`name`, `scopes`, `optional`, `manualPrompt`, `when`).
 
 #### Dual-scope fix budget
 
-`maxFixAttempts` and `maxFixScopeFiles` are enforced during the risk-routed
-Story review ceremony using the same configured values for every Story in
+`maxFixAttempts` and `maxFixScopeFiles` are enforced during the per-Story
+review ceremony using the same configured values for every Story in
 a `/deliver` run. Setting `maxFixAttempts: 0` disables auto-fix; there is
 no per-Story override.
 

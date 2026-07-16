@@ -412,10 +412,6 @@
       "symbol": "makeDefaultFanOutCounter"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/planning/risk-verdict.js",
-      "symbol": "RISK_VERDICT_SCHEMA_PATH"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/post-merge/phases/worktree-reap.js",
       "symbol": "createWorktreeReapState"
     },
@@ -530,10 +526,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/story-follow-ups.js",
       "symbol": "gatherStoryFrictionSignals"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/story-plan-state.js",
-      "symbol": "readStoryPlanState"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
