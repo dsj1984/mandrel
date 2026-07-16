@@ -36,8 +36,17 @@ v2 Story).
 | `--concurrency <n>` | Ready-set fan-out cap (default **3** from `delivery.deliverRunner.concurrencyCap`; set `1` for sequential). |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
-| `--wait-merge` | Force close-and-land (default when `delivery.routing.closeAndLand` is true). |
+| `--wait-merge` | Force close-and-land (the default; `delivery.routing.closeAndLand`, default `true`). |
 | `--no-wait-merge` | Opt out of close-and-land; stop at `agent::closing` for a human land. |
+
+**Operator-merge implies no-wait.** `--no-auto-merge` and
+`delivery.ci.autoMerge: "strict"` deliberately leave the PR un-armed, so
+there is nothing for close to land: the Story rests at `agent::closing` for
+the human merge, and is **not** flipped to `agent::blocked`. An explicit
+`--wait-merge` does not override this — close cannot land a PR that was
+never armed. A genuine *arm failure* is different: it still waits and still
+blocks, because that is a fault to report rather than an operator decision
+to respect.
 
 ## Procedure
 

@@ -523,7 +523,13 @@ test('gc: reaps only worktrees for stories NOT in openStoryIds', async () => {
   }
 });
 
-test('reap: refuses managed story worktrees when epicBranch is omitted', async () => {
+test('reap: reaps a clean managed story worktree without any epicBranch (Story #4539)', async () => {
+  // Regression for the gate that made the v2 close path unable to reap at
+  // all: a `story-<id>` worktree used to be refused with
+  // `epic-branch-required` unless an Epic integration branch was supplied,
+  // and v2 has no Epic branch to supply. Nothing is lost by reaping here —
+  // close pushes `story-<id>` to origin before this runs, and a dirty tree
+  // is still refused by the `uncommitted-changes` check below.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-'));
   const wtPath = path.join(tmp, '.worktrees', 'story-235');
   fs.mkdirSync(wtPath, { recursive: true });
@@ -532,6 +538,47 @@ test('reap: refuses managed story worktrees when epicBranch is omitted', async (
       'worktree list': () => ({
         status: 0,
         stdout: `worktree ${wtPath}\nHEAD x\nbranch refs/heads/story-235\n`,
+        stderr: '',
+      }),
+      'status --porcelain': () => ({ status: 0, stdout: '', stderr: '' }),
+      'rev-parse --abbrev-ref HEAD': () => ({
+        status: 0,
+        stdout: 'story-235\n',
+        stderr: '',
+      }),
+      'worktree remove': () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    const wm = new WorktreeManager({
+      repoRoot: tmp,
+      logger: SILENT_LOGGER,
+      git,
+      platform: 'linux',
+    });
+    const r = await wm.reap(235);
+    assert.equal(
+      r.removed,
+      true,
+      'a clean story worktree reaps without an Epic ref',
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('reap: still refuses a dirty managed story worktree — the safety net that actually matters', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-'));
+  const wtPath = path.join(tmp, '.worktrees', 'story-235');
+  fs.mkdirSync(wtPath, { recursive: true });
+  try {
+    const git = mockGit({
+      'worktree list': () => ({
+        status: 0,
+        stdout: `worktree ${wtPath}\nHEAD x\nbranch refs/heads/story-235\n`,
+        stderr: '',
+      }),
+      'status --porcelain': () => ({
+        status: 0,
+        stdout: ' M src/thing.js\n',
         stderr: '',
       }),
     });
@@ -543,7 +590,7 @@ test('reap: refuses managed story worktrees when epicBranch is omitted', async (
     });
     const r = await wm.reap(235);
     assert.equal(r.removed, false);
-    assert.equal(r.reason, 'epic-branch-required');
+    assert.equal(r.reason, 'uncommitted-changes');
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

@@ -9,17 +9,23 @@
  * executes. A hung check or a failed arm then leaves the PR silently open
  * forever with no operator watching.
  *
- * This phase closes that gap for **headless** runs (`--wait-merge`, threaded
- * from `phases/options.js`): instead of returning at `agent::closing`, it
- * polls the armed PR to merge confirmation — reusing the SAME
- * `confirmStoryMerged` flip logic `single-story-confirm-merge.js` calls
- * (Story #4428 AC4: exactly one merged/`agent::done` implementation) — on
- * the `delivery.mergeWatch.intervalSeconds` / `maxBudgetSeconds` cadence
- * (mirroring `MergeWatcher`'s poll/budget shape rather than forking it).
+ * This phase closes that gap. It is the **default terminal step for every
+ * run** — attended and headless alike — because `waitForMerge` defaults from
+ * `delivery.routing.closeAndLand` (`true`); `--no-wait-merge` is the opt-out,
+ * and a PR the operator deliberately left un-armed (`--no-auto-merge` /
+ * `autoMerge: "strict"`) resolves to no-wait and rests at `agent::closing`
+ * for the human. Instead of returning at `agent::closing`, it polls the armed
+ * PR to merge confirmation — reusing the SAME `confirmStoryMerged` flip logic
+ * `single-story-confirm-merge.js` calls (Story #4428 AC4: exactly one
+ * merged/`agent::done` implementation) — on the
+ * `delivery.mergeWatch.intervalSeconds` / `maxBudgetSeconds` cadence
+ * (mirroring `MergeWatcher`'s poll/budget shape rather than forking it), and
+ * runs the land tail (follow-up capture) on the confirmed path.
  *
  * Terminal outcomes:
- *   - `{ confirmed: true }` — the PR merged; `confirmStoryMerged` already
- *     flipped `agent::closing → agent::done` and closed the issue.
+ *   - `{ confirmed: true, followUps }` — the PR merged; `confirmStoryMerged`
+ *     already flipped `agent::closing → agent::done` and closed the issue,
+ *     and the land tail captured Story follow-ups.
  *   - `{ confirmed: false, blockClass, reason }` — the arm failed outright,
  *     the PR closed without merging, or the poll budget was exhausted
  *     first. The block is classified via the shared
@@ -28,9 +34,12 @@
  *     `friction` comment is posted, and the Story is transitioned to
  *     `agent::blocked`. The caller (`runSingleStoryClose`) throws so the
  *     CLI process exits non-zero — never a silent `agent::closing` rest.
- *
- * Attended (non-headless) runs never call this phase — `runner.js` only
- * invokes it when `options.waitForMerge` is `true`.
+ *   - `{ confirmed: false, blockClass: 'merged-flip-failed' }` — the PR
+ *     merged but the `agent::done` label write failed. Reported through its
+ *     own `merge.flip-failed` event and friction wording (Story #4539): the
+ *     merge landed, so attributing it to an unlanded merge would send the
+ *     operator to diagnose branch protection instead of re-running the
+ *     idempotent confirm.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
@@ -38,6 +47,10 @@ import {
   confirmStoryMerged as defaultConfirmStoryMerged,
   readPrMergeState as defaultReadPrMergeState,
 } from '../../../single-story/confirm-merge.js';
+import {
+  emitMergeFlipFailed as defaultEmitMergeFlipFailed,
+  MERGED_FLIP_FAILED_BLOCK_CLASS,
+} from '../../lifecycle/emit-merge-flip-failed.js';
 import { emitMergeUnlanded as defaultEmitMergeUnlanded } from '../../lifecycle/emit-merge-unlanded.js';
 import {
   DEFAULT_INTERVAL_SECONDS,
@@ -45,6 +58,7 @@ import {
   deriveChecksStatus,
 } from '../../lifecycle/listeners/merge-watcher.js';
 import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
+import { captureFollowUpsAfterConfirm as defaultCaptureFollowUpsAfterConfirm } from '../../story-follow-ups.js';
 import {
   postStructuredComment,
   STATE_LABELS,
@@ -141,6 +155,116 @@ function formatUnlandedFriction({
     `condition (branch protection, required checks, or a manual merge), ` +
     `then re-run \`single-story-confirm-merge.js\` or resume delivery.`
   );
+}
+
+/**
+ * Format the `friction` comment for a merge that **landed** while the
+ * `agent::done` label write failed. Deliberately not the unlanded wording:
+ * the merge is not in question, so pointing the operator at branch
+ * protection and required checks would send them to diagnose a fault that
+ * does not exist. Name the actual remedy instead.
+ */
+function formatFlipFailedFriction({
+  storyId,
+  prNumber,
+  prUrl,
+  reason,
+  elapsedSeconds,
+}) {
+  const prLabel =
+    Number.isInteger(prNumber) && prNumber > 0
+      ? `PR #${prNumber}${prUrl ? ` (${prUrl})` : ''}`
+      : (prUrl ?? 'the PR');
+  return (
+    `### merge landed; the agent::done flip failed\n\n` +
+    `Story #${storyId}: ${prLabel} **merged successfully** after ${elapsedSeconds}s, ` +
+    `but the \`agent::closing\` → \`agent::done\` label write failed. The code is ` +
+    `on the base branch — this is a label-write fault, not a merge fault, so ` +
+    `there is nothing to diagnose about branch protection or required checks.\n\n` +
+    `**Block class:** \`${MERGED_FLIP_FAILED_BLOCK_CLASS}\`\n\n` +
+    `**Reason:** ${reason}\n\n` +
+    `Story transitioned to \`agent::blocked\` so the merged-but-mislabelled ` +
+    `state is explicit rather than silently resting at \`agent::closing\`.\n\n` +
+    `**Remedy:** re-run the merge confirmation — it is idempotent and flips ` +
+    `the label from the already-merged PR:\n\n` +
+    `\`\`\`bash\nnode .agents/scripts/single-story-confirm-merge.js --story ${storyId}\n\`\`\``
+  );
+}
+
+/**
+ * Terminal for a confirmed merge whose `agent::done` flip failed. Emits
+ * `merge.flip-failed` (NOT `merge.unlanded` — the merge landed), posts the
+ * flip-failed friction, and blocks explicitly. Best-effort throughout: the
+ * caller owns the non-zero exit.
+ *
+ * @returns {Promise<{ confirmed: false, blockClass: string, reason: string, elapsedSeconds: number }>}
+ */
+async function blockOnFlipFailed({
+  storyId,
+  prNumber,
+  prUrl,
+  reason,
+  elapsedSeconds,
+  provider,
+  progress,
+  emitMergeFlipFailedFn,
+}) {
+  if (Number.isInteger(prNumber) && prNumber > 0) {
+    try {
+      emitMergeFlipFailedFn({
+        scope: 'story',
+        ticketId: storyId,
+        prNumber,
+        reason,
+        elapsedSeconds,
+      });
+    } catch (err) {
+      progress?.(
+        'CONFIRM',
+        `⚠️ merge.flip-failed emit failed (continuing): ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  try {
+    await postStructuredComment(
+      provider,
+      storyId,
+      'friction',
+      formatFlipFailedFriction({
+        storyId,
+        prNumber,
+        prUrl,
+        reason,
+        elapsedSeconds,
+      }),
+    );
+  } catch (err) {
+    progress?.(
+      'CONFIRM',
+      `⚠️ Failed to post merge.flip-failed friction comment: ${err?.message ?? err}`,
+    );
+  }
+
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
+    progress?.(
+      'CONFIRM',
+      `🛑 Story #${storyId} → agent::blocked (${MERGED_FLIP_FAILED_BLOCK_CLASS}) — merge landed, label flip failed.`,
+    );
+  } catch (err) {
+    progress?.(
+      'CONFIRM',
+      `⚠️ Failed to flip Story #${storyId} to agent::blocked: ${err?.message ?? err}`,
+    );
+  }
+
+  return {
+    confirmed: false,
+    blockClass: MERGED_FLIP_FAILED_BLOCK_CLASS,
+    reason,
+    elapsedSeconds,
+  };
 }
 
 /**
@@ -270,6 +394,8 @@ export async function runConfirmMergePhase({
   readPrClassificationProbeFn = readPrClassificationProbe,
   classifyMergeBlockFn = defaultClassifyMergeBlock,
   emitMergeUnlandedFn = defaultEmitMergeUnlanded,
+  emitMergeFlipFailedFn = defaultEmitMergeFlipFailed,
+  captureFollowUpsAfterConfirmFn = defaultCaptureFollowUpsAfterConfirm,
   sleepFn = defaultSleep,
   nowMsFn = Date.now,
 }) {
@@ -325,36 +451,50 @@ export async function runConfirmMergePhase({
         'CONFIRM',
         `✅ Story #${storyId} merge confirmed — agent::done.`,
       );
-      return { confirmed: true, action: confirmation.action };
+      // Land tail (Story #4539). `captureFollowUpsAfterConfirm` is the one
+      // shared helper both landing surfaces reach: the standalone
+      // `single-story-confirm-merge.js` CLI wraps it via
+      // `withConfirmFollowUps`, and close-and-land — the default path —
+      // calls it here. Before this, capture ran ONLY on the CLI path, which
+      // the default is told to skip, so per-Story follow-ups were captured
+      // never; and a belated manual confirm could not backfill (the Story is
+      // already agent::done, so confirm returns `noop` and the capture's
+      // `action === 'done'` gate never opens). It never throws — a flaked
+      // capture must not fail a landed merge.
+      const followUps = await captureFollowUpsAfterConfirmFn(confirmation, {
+        storyId,
+        provider,
+        config,
+        cwd,
+        progress,
+      });
+      return { confirmed: true, action: confirmation.action, followUps };
     }
 
     if (confirmation.merged && confirmation.action === 'flip-failed') {
       // The PR merged but the agent::closing → agent::done label flip
-      // itself threw — reporting confirmed:true here would strand the
-      // Story at agent::closing with no notification and no block, the
-      // silent-terminal-state gap the Epic exists to close (audit-quality
-      // Critical finding, Epic #4425). Route through the same
-      // blockOnUnlanded path as an unlanded merge so the run still
-      // terminates in an explicit agent::blocked state with a diagnosis.
+      // itself threw. Blocking explicitly is right — reporting confirmed:true
+      // would strand the Story at agent::closing with no notification, the
+      // silent-terminal-state gap Epic #4425 exists to close. Reporting it
+      // as UNLANDED was not (Story #4539): the merge landed, so the
+      // merge.unlanded event was false and its friction sent the operator to
+      // branch protection and required checks instead of the one-line
+      // remedy. Terminate explicitly, but with the truth.
       progress?.(
         'CONFIRM',
         `⚠️ Story #${storyId} merge confirmed but the agent::done flip failed — blocking explicitly.`,
       );
-      return blockOnUnlanded({
+      return blockOnFlipFailed({
         storyId,
         prNumber,
         prUrl,
-        prProbe: {
-          error: 'merge confirmed but agent::done label flip failed',
-        },
-        budget: {
-          exhausted: true,
-          elapsedSeconds: Math.round((nowMsFn() - startedAtMs) / 1000),
-        },
+        reason:
+          confirmation.reason ??
+          'merge confirmed but the agent::done label write failed',
+        elapsedSeconds: Math.round((nowMsFn() - startedAtMs) / 1000),
         provider,
         progress,
-        classifyMergeBlockFn,
-        emitMergeUnlandedFn,
+        emitMergeFlipFailedFn,
       });
     }
 

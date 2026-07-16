@@ -648,14 +648,6 @@
       "symbol": "findByPath"
     },
     {
-      "file": ".agents/scripts/lib/worktree/lifecycle-manager.js",
-      "symbol": "isStoryAlreadyMergedIntoEpic"
-    },
-    {
-      "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
-      "symbol": "isStoryAlreadyMergedIntoEpic"
-    },
-    {
       "file": ".agents/scripts/lib/worktree/node-modules-strategy.js",
       "symbol": "PNPM_STORE_PRIME_SENTINEL"
     },

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/merge.flip-failed.schema.json",
+  "title": "merge.flip-failed",
+  "description": "Emitted when a delivery run observed a CONFIRMED merge but the agent::closing → agent::done label write itself failed. Deliberately distinct from merge.unlanded (Story #4539): the merge landed, so attributing this to an unlanded merge sends the operator to branch protection and required checks when the real fault is an API failure on the label write, remedied by re-running single-story-confirm-merge.js. scope distinguishes the epic-path (ticketId = epicId) from the standalone story-path (ticketId = storyId).",
+  "type": "object",
+  "required": [
+    "event",
+    "scope",
+    "ticketId",
+    "prNumber",
+    "blockClass",
+    "reason",
+    "elapsedSeconds"
+  ],
+  "properties": {
+    "event": { "type": "string", "const": "merge.flip-failed" },
+    "scope": {
+      "type": "string",
+      "enum": ["epic", "story"]
+    },
+    "ticketId": { "type": "integer", "minimum": 1 },
+    "prNumber": { "type": "integer", "minimum": 1 },
+    "blockClass": {
+      "type": "string",
+      "enum": ["merged-flip-failed"]
+    },
+    "reason": { "type": "string", "minLength": 1 },
+    "elapsedSeconds": { "type": "number", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

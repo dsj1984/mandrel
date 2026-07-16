@@ -21,14 +21,17 @@
  *                          the post-merge confirmation step,
  *                          `single-story-confirm-merge.js`)
  *   8. worktree-reap     — drop the per-Story worktree
- *   9. confirm-merge      — Story #4428, headless-only (`--wait-merge`):
+ *   9. confirm-merge      — close-and-land (Story #4428; the DEFAULT for
+ *                          every run since `delivery.routing.closeAndLand`):
  *                          poll the just-armed PR to merge confirmation
- *                          (reusing `confirmStoryMerged`) or terminate
- *                          `agent::blocked` with a classified
- *                          `merge.unlanded` lifecycle event. Attended runs
- *                          (the default, no `--wait-merge`) skip this
- *                          phase entirely and keep resting at
- *                          `agent::closing`, exactly as before.
+ *                          (reusing `confirmStoryMerged`), capture the
+ *                          Story follow-ups, or terminate `agent::blocked`
+ *                          with a classified `merge.unlanded` event — or
+ *                          `merge.flip-failed` when the merge landed and
+ *                          only the label write failed. Skipped when the
+ *                          operator owns the merge (`--no-wait-merge`,
+ *                          `--no-auto-merge`, or `autoMerge: "strict"`),
+ *                          which rests at `agent::closing` for the human.
  *
  * Existing tests import the re-exported helpers
  * (`runSingleStoryClose`, `ensurePullRequest`, `parsePrNumber`,
@@ -41,13 +44,16 @@
  *                              [--no-auto-merge] [--no-full-scope-crap]
  *                              [--wait-merge | --no-wait-merge]
  *
- * `--wait-merge` is the headless must-land signal (Story #4428, Epic
- * #4425): the invoking surface (a headless `/deliver` run or a CI-driven
- * wrapper) opts in explicitly — attended runs never pass it, so the default
- * exit shape (rest at `agent::closing`, issue OPEN) is unchanged.
- * `--no-wait-merge` is the explicit opt-out that always wins over
- * `--wait-merge`, for a caller that wants to manage merge confirmation
- * externally even in an otherwise headless context.
+ * Close-and-land is the DEFAULT for every run (Story #4428 introduced it as
+ * `--wait-merge`; `delivery.routing.closeAndLand` — default `true` — made it
+ * the default, and Story #4539 made that knob actually readable). Resolution
+ * order, highest first: `--no-wait-merge` (explicit opt-out, always wins);
+ * operator-owns-the-merge (`--no-auto-merge` or `delivery.ci.autoMerge:
+ * "strict"` — the PR was deliberately left un-armed, so there is nothing to
+ * land and the Story rests at `agent::closing`); explicit `--wait-merge`;
+ * then the config. A genuine arm FAILURE is not an opt-out — it still waits
+ * and therefore still blocks, which is what keeps the must-land contract
+ * intact.
  *
  * Exit codes: 0 ok, 1 error (including a headless `--wait-merge` run that
  * gave up without a confirmed merge — see phase 9 above).

@@ -1,6 +1,9 @@
 import { Logger } from '../Logger.js';
-import { AGENT_LABELS } from '../label-constants.js';
-import { upsertStructuredComment } from './ticketing.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+  upsertStructuredComment,
+} from './ticketing.js';
 
 /**
  * Fail closed when the repository remote cannot be verified. The Story is
@@ -30,13 +33,14 @@ export async function handleRemoteVerificationFailure({
         `[single-story-init] failed to post remote-verification friction: ${err?.message ?? err}`,
       );
     }
+    // Story #4539 — the canonical mutator. This is the path where the
+    // skipped Projects v2 column sync (Story #2548) visibly drifts: the
+    // Story is still agent::ready (To Do) when the remote probe fails, so
+    // a direct label write leaves the board reading To Do for a blocked
+    // Story. single-story-init.js's own comment explains exactly why this
+    // must not bypass the mutator.
     try {
-      await provider.updateTicket(storyId, {
-        labels: {
-          add: [AGENT_LABELS.BLOCKED],
-          remove: [AGENT_LABELS.READY, AGENT_LABELS.EXECUTING],
-        },
-      });
+      await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {});
     } catch (err) {
       Logger.warn(
         `[single-story-init] failed to block Story after remote verification: ${err?.message ?? err}`,

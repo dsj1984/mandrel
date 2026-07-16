@@ -26,7 +26,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { runConfirmMergePhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
-import { parseCloseOptions } from '../.agents/scripts/lib/orchestration/single-story-close/phases/options.js';
+import {
+  parseCloseOptions,
+  resolveWaitForMerge,
+} from '../.agents/scripts/lib/orchestration/single-story-close/phases/options.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 
 /**
@@ -99,7 +102,8 @@ describe('runConfirmMergePhase — merge confirmed (no operator action)', () => 
       },
     });
 
-    assert.deepEqual(outcome, { confirmed: true, action: 'done' });
+    assert.equal(outcome.confirmed, true);
+    assert.equal(outcome.action, 'done');
     assert.equal(confirmCalls, 1, 'confirmStoryMerged runs exactly once');
     // No blocked transition, no friction comment, no merge.unlanded.
     assert.equal(provider._updates().length, 0);
@@ -112,6 +116,10 @@ describe('runConfirmMergePhase — merge confirmed (no operator action)', () => 
     // label flip itself threw (action: 'flip-failed') — reporting
     // confirmed:true in that case would exit 0 while the Story stayed
     // stuck at agent::closing with no notification and no block.
+    //
+    // Story #4539 kept that contract and corrected the attribution: the
+    // block now reports through `merge.flip-failed`, because the merge DID
+    // land and a `merge.unlanded` record was a false report.
     const provider = makeFakeProvider();
     const emitted = [];
     const outcome = await runConfirmMergePhase({
@@ -129,13 +137,14 @@ describe('runConfirmMergePhase — merge confirmed (no operator action)', () => 
         action: 'flip-failed',
         merged: true,
       }),
-      emitMergeUnlandedFn: (payload) => {
+      emitMergeFlipFailedFn: (payload) => {
         emitted.push(payload);
         return { ledgerPath: '/tmp/fake.ndjson', record: payload };
       },
     });
 
     assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.blockClass, 'merged-flip-failed');
     assert.equal(emitted.length, 1);
     assert.equal(emitted[0].scope, 'story');
     assert.equal(emitted[0].ticketId, 4428);
@@ -180,7 +189,8 @@ describe('runConfirmMergePhase — merge confirmed (no operator action)', () => 
       },
     });
 
-    assert.deepEqual(outcome, { confirmed: true, action: 'done' });
+    assert.equal(outcome.confirmed, true);
+    assert.equal(outcome.action, 'done');
     assert.equal(confirmCalls, 3);
     assert.equal(sleepCalls, 2, 'slept between the two pending polls');
   });
@@ -429,32 +439,244 @@ describe('runConfirmMergePhase — best-effort side effects never mask the block
   });
 });
 
-describe('parseCloseOptions — --wait-merge / --no-wait-merge (AC3)', () => {
-  it('defaults waitForMerge from delivery.routing.closeAndLand (true)', () => {
-    const opts = parseCloseOptions({ storyIdParam: 4428, cwdParam: '/repo' });
-    assert.equal(opts.waitForMerge, true);
+describe('land tail + flip-failed reporting (Story #4539)', () => {
+  it('captures Story follow-ups on the confirmed-merge path — the default path previously captured them never', async () => {
+    const provider = makeFakeProvider();
+    const captured = [];
+    const outcome = await runConfirmMergePhase({
+      cwd: '/repo',
+      storyId: 4539,
+      prNumber: 77,
+      prUrl: 'https://github.com/o/r/pull/77',
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      provider,
+      config: {},
+      progress: NOOP_PROGRESS,
+      nowMsFn: () => 0,
+      sleepFn: async () => {},
+      confirmStoryMergedFn: async () => ({
+        action: 'done',
+        merged: true,
+      }),
+      captureFollowUpsAfterConfirmFn: async (confirmation, ctx) => {
+        captured.push({ action: confirmation.action, storyId: ctx.storyId });
+        return { ok: true, filed: 2 };
+      },
+    });
+
+    assert.equal(outcome.confirmed, true);
+    assert.deepEqual(
+      captured,
+      [{ action: 'done', storyId: 4539 }],
+      'the shared capture helper runs on the in-close landing path',
+    );
+    assert.deepEqual(outcome.followUps, { ok: true, filed: 2 });
   });
 
-  it('injecting waitForMergeParam:true opts into headless wait', () => {
+  it('a flaked follow-up capture never fails a landed merge', async () => {
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase({
+      cwd: '/repo',
+      storyId: 4539,
+      prNumber: 77,
+      prUrl: 'https://github.com/o/r/pull/77',
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      provider,
+      config: {},
+      progress: NOOP_PROGRESS,
+      nowMsFn: () => 0,
+      sleepFn: async () => {},
+      confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      captureFollowUpsAfterConfirmFn: async () => null,
+    });
+    assert.equal(outcome.confirmed, true);
+  });
+
+  it('reports a merged-but-flip-failed PR as flip-failed, NOT as an unlanded merge', async () => {
+    const provider = makeFakeProvider();
+    const unlanded = [];
+    const flipFailed = [];
+    const outcome = await runConfirmMergePhase({
+      cwd: '/repo',
+      storyId: 4539,
+      prNumber: 88,
+      prUrl: 'https://github.com/o/r/pull/88',
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      provider,
+      config: {},
+      progress: NOOP_PROGRESS,
+      nowMsFn: () => 0,
+      sleepFn: async () => {},
+      confirmStoryMergedFn: async () => ({
+        action: 'flip-failed',
+        merged: true,
+        reason: 'labels API 500',
+      }),
+      emitMergeUnlandedFn: (p) => {
+        unlanded.push(p);
+        return { ledgerPath: '/tmp/f.ndjson', record: p };
+      },
+      emitMergeFlipFailedFn: (p) => {
+        flipFailed.push(p);
+        return { ledgerPath: '/tmp/f.ndjson', record: p };
+      },
+    });
+
+    assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.blockClass, 'merged-flip-failed');
+    assert.equal(
+      unlanded.length,
+      0,
+      'the merge landed — emitting merge.unlanded would be a false report',
+    );
+    assert.equal(flipFailed.length, 1);
+    assert.equal(flipFailed[0].ticketId, 4539);
+    assert.equal(flipFailed[0].prNumber, 88);
+    assert.equal(flipFailed[0].reason, 'labels API 500');
+
+    // Still terminates explicitly — a merged PR resting at agent::closing
+    // is the silent strand the must-land contract exists to prevent.
+    const [{ patch }] = provider._updates();
+    assert.deepEqual(patch.labels.add, ['agent::blocked']);
+  });
+
+  it('the flip-failed friction names the merge as landed and the confirm re-run as the remedy', async () => {
+    const provider = makeFakeProvider();
+    await runConfirmMergePhase({
+      cwd: '/repo',
+      storyId: 4539,
+      prNumber: 88,
+      prUrl: 'https://github.com/o/r/pull/88',
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      provider,
+      config: {},
+      progress: NOOP_PROGRESS,
+      nowMsFn: () => 0,
+      sleepFn: async () => {},
+      confirmStoryMergedFn: async () => ({
+        action: 'flip-failed',
+        merged: true,
+        reason: 'labels API 500',
+      }),
+      emitMergeFlipFailedFn: () => ({ ledgerPath: '', record: {} }),
+    });
+
+    const friction = provider
+      ._comments()
+      .filter((c) => c.payload?.type === 'friction');
+    assert.equal(friction.length, 1);
+    const body = friction[0].payload.body;
+    assert.match(body, /merged successfully/i);
+    assert.match(body, /single-story-confirm-merge\.js --story 4539/);
+    assert.doesNotMatch(
+      body,
+      /without observing a confirmed merge/i,
+      'must not reuse the unlanded wording — the merge landed',
+    );
+  });
+});
+
+describe('parseCloseOptions — raw --wait-merge / --no-wait-merge intent', () => {
+  it('carries the operator intent forward unresolved, so the runner can resolve it against config + arm outcome', () => {
+    const opts = parseCloseOptions({ storyIdParam: 4428, cwdParam: '/repo' });
+    assert.equal(
+      opts.waitForMergeExplicit,
+      undefined,
+      'no flag passed → no explicit intent',
+    );
+    assert.equal(opts.noWaitForMerge, false);
+  });
+
+  it('records an injected waitForMergeParam:true as explicit intent', () => {
     const opts = parseCloseOptions({
       storyIdParam: 4428,
       cwdParam: '/repo',
       waitForMergeParam: true,
     });
-    assert.equal(opts.waitForMerge, true);
+    assert.equal(opts.waitForMergeExplicit, true);
   });
 
-  it('the explicit opt-out (noWaitForMergeParam:true) always wins, even with waitForMergeParam:true', () => {
+  it('records the opt-out flag independently of the explicit intent', () => {
     const opts = parseCloseOptions({
       storyIdParam: 4428,
       cwdParam: '/repo',
       waitForMergeParam: true,
       noWaitForMergeParam: true,
     });
-    assert.equal(
-      opts.waitForMerge,
-      false,
-      'explicit opt-out preserves the pre-change exit shape even in headless mode',
-    );
+    assert.equal(opts.waitForMergeExplicit, true);
+    assert.equal(opts.noWaitForMerge, true);
+  });
+});
+
+describe('resolveWaitForMerge — config + flag + arm-outcome precedence (Story #4539)', () => {
+  it('defaults from delivery.routing.closeAndLand (framework default true)', () => {
+    const { waitForMerge, reason } = resolveWaitForMerge({});
+    assert.equal(waitForMerge, true);
+    assert.equal(reason, 'config-close-and-land');
+  });
+
+  it('honours delivery.routing.closeAndLand:false — the operator opt-out that was previously ignored', () => {
+    // Regression for the dead knob: resolveWaitForMerge used to call
+    // getDeliveryRouting() with NO config, so it always returned the
+    // framework default and this setting could never take effect.
+    const { waitForMerge, reason } = resolveWaitForMerge({
+      config: { delivery: { routing: { closeAndLand: false } } },
+    });
+    assert.equal(waitForMerge, false);
+    assert.equal(reason, 'config-close-and-land');
+  });
+
+  it('the explicit opt-out always wins, even over an explicit --wait-merge', () => {
+    const { waitForMerge, reason } = resolveWaitForMerge({
+      waitForMergeExplicit: true,
+      noWaitForMerge: true,
+    });
+    assert.equal(waitForMerge, false);
+    assert.equal(reason, 'opt-out-flag');
+  });
+
+  it('an explicit --wait-merge overrides a closeAndLand:false config', () => {
+    const { waitForMerge, reason } = resolveWaitForMerge({
+      waitForMergeExplicit: true,
+      config: { delivery: { routing: { closeAndLand: false } } },
+    });
+    assert.equal(waitForMerge, true);
+    assert.equal(reason, 'explicit-flag');
+  });
+
+  for (const armReason of ['disabled-by-flag', 'disabled-by-policy-strict']) {
+    it(`does not wait when the operator owns the merge (${armReason}) — the PR was deliberately left un-armed`, () => {
+      const { waitForMerge, reason } = resolveWaitForMerge({
+        autoMergeReason: armReason,
+      });
+      assert.equal(
+        waitForMerge,
+        false,
+        'waiting would burn the poll budget and then block a healthy Story',
+      );
+      assert.equal(reason, 'operator-merge');
+    });
+  }
+
+  it('operator-merge beats an explicit --wait-merge: you cannot land-in-one-close a PR you refused to arm', () => {
+    const { waitForMerge, reason } = resolveWaitForMerge({
+      waitForMergeExplicit: true,
+      autoMergeReason: 'disabled-by-flag',
+    });
+    assert.equal(waitForMerge, false);
+    assert.equal(reason, 'operator-merge');
+  });
+
+  it('a genuine arm FAILURE still waits (and therefore still blocks) — only deliberate disablement rests', () => {
+    // The distinction that keeps the must-land contract intact: an arm that
+    // failed is a fault to report, not an operator decision to respect.
+    const { waitForMerge } = resolveWaitForMerge({
+      autoMergeReason: 'pr-number-unparseable',
+    });
+    assert.equal(waitForMerge, true);
   });
 });
