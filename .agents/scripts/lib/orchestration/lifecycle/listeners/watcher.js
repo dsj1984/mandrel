@@ -5,10 +5,9 @@
  *
  * Subscribes to:
  *   - `pr.created` → resolve the required-check names from GitHub at
- *     runtime via `gh pr checks <pr> --required`, emit
- *     `epic.watch.start` carrying that list, poll until every check
- *     reaches a terminal state (or a per-listener wall-clock deadline
- *     expires), then emit `epic.watch.end` with the outcome map.
+ *     runtime via `gh pr checks <pr> --required`, then poll until every
+ *     check reaches a terminal state (or a per-listener wall-clock
+ *     deadline expires), recording the outcome in `classifications`.
  *
  * Critical contract:
  *   - Required-check **names** are resolved from `gh pr checks` at
@@ -28,11 +27,13 @@
  * re-runs the poll loop (which is itself idempotent: the outcome map
  * always reflects the live GitHub state).
  *
- * Side-effect firewall: the listener emits on the bus and shells out
- * to `gh`. It does NOT mutate ticket labels, post comments, or call
- * `notify` — those listeners receive `epic.watch.end` (via the
- * downstream AutomergePredicate → epic.merge.ready/blocked chain) and
- * own their own side effects.
+ * Side-effect firewall: the listener shells out to `gh` and records
+ * its outcome in the in-memory `classifications` log. It does NOT
+ * mutate ticket labels, post comments, call `notify`, or emit on the
+ * bus — the production consumer (`pr-watch-with-update.js`) drives
+ * `watchPrToTerminal` directly without a bus, and the retired
+ * `epic.watch.start` / `epic.watch.end` bus events went with the
+ * Epic-orchestration stratum.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -40,20 +41,20 @@ import { spawnSync } from 'node:child_process';
 import { parsePrNumberFromUrl } from '../../../github-url.js';
 
 /**
- * Map `gh pr checks` `state` values to the canonical outcome enum on
- * the `epic.watch.end` schema, with a fourth `'pending'` sentinel for
- * in-flight checks. Pure — exported for tests so the pin is explicit
- * and reviewable.
+ * Map `gh pr checks` `state` values to the canonical lowercase outcome
+ * vocabulary (`success` | `failure` | `timed_out` | `skipped`), with a
+ * fourth `'pending'` sentinel for in-flight checks. Pure — exported for
+ * tests so the pin is explicit and reviewable.
  *
  * `gh` returns capitalized SCREAMING_SNAKE values (`SUCCESS`,
- * `FAILURE`, `TIMED_OUT`, etc.); the schema enum is lowercase. An
- * empty / queued / in_progress state collapses to `'pending'` so the
- * poll loop can distinguish "still running" from terminal outcomes.
- * `'pending'` is intentionally NOT in the schema enum — `reduceOutcomes`
- * is called only on the live state, and the final emit gates on
- * `allTerminal()` so no `'pending'` ever leaks into `epic.watch.end`.
- * Unknown / non-pending unrecognized values collapse to `'skipped'`
- * so any future GitHub state we haven't enumerated still validates.
+ * `FAILURE`, `TIMED_OUT`, etc.). An empty / queued / in_progress state
+ * collapses to `'pending'` so the poll loop can distinguish "still
+ * running" from terminal outcomes. `'pending'` is intentionally NOT a
+ * terminal outcome — `reduceOutcomes` is called only on the live state,
+ * and the final outcome map gates on `allTerminal()` so no `'pending'`
+ * ever leaks into a finished watch. Unknown / non-pending unrecognized
+ * values collapse to `'skipped'` so any future GitHub state we haven't
+ * enumerated still maps into the vocabulary.
  */
 /**
  * The raw check-state tokens `normalizeCheckState` recognizes (lowercased).
@@ -264,8 +265,8 @@ export function parseGhPrChecks(stdout) {
 }
 
 /**
- * Reduce a list of check entries to the `{ checkName: outcome }` map
- * the `epic.watch.end` schema expects. Pure — exported for tests.
+ * Reduce a list of check entries to the canonical `{ checkName: outcome }`
+ * map. Pure — exported for tests.
  *
  * When `gh` returns the same `name` more than once (parallel matrix
  * builds, retries), the LAST entry wins. The poll loop calls this on
@@ -431,9 +432,9 @@ export async function pollUntilTerminal({
  * @param {{status:number,stdout:string,stderr:string}} [opts.firstProbe]
  *   Optional already-issued `gh pr checks` result. When the caller (the
  *   `Watcher` listener) has already probed once to resolve the required
- *   names for `epic.watch.start`, it threads that result here so the
- *   loop does not double-spend the first `gh pr checks` call. Omit it
- *   (the CLI path) and the loop issues the first probe itself.
+ *   check names, it threads that result here so the loop does not
+ *   double-spend the first `gh pr checks` call. Omit it (the CLI path)
+ *   and the loop issues the first probe itself.
  * @returns {Promise<{
  *   outcomes: object,
  *   requiredChecks: string[],
@@ -466,8 +467,8 @@ export async function watchPrToTerminal({
   firstProbe,
 }) {
   // First probe: resolve the required-check name set at runtime. Reuse a
-  // caller-supplied probe (the listener already issued one for
-  // `epic.watch.start`) so we never double-spend the first `gh` call.
+  // caller-supplied probe (the listener already issued one to resolve the
+  // required check names) so we never double-spend the first `gh` call.
   const first = firstProbe ?? ghPrChecksFn({ prUrl, cwd });
   // `gh` exits 8 when checks are still pending; this is expected and
   // does not indicate failure. Any other non-zero status with no
@@ -619,12 +620,8 @@ export class Watcher {
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
-    if (
-      !opts.bus ||
-      typeof opts.bus.on !== 'function' ||
-      typeof opts.bus.emit !== 'function'
-    ) {
-      throw new TypeError('Watcher requires a bus with on() and emit()');
+    if (!opts.bus || typeof opts.bus.on !== 'function') {
+      throw new TypeError('Watcher requires a bus with on()');
     }
     this.bus = opts.bus;
     this.cwd = opts.cwd ?? process.cwd();
@@ -688,11 +685,10 @@ export class Watcher {
       return;
     }
 
-    // First probe: resolve the required-check name set at runtime, so we
-    // can carry the list on `epic.watch.start` BEFORE the (potentially
-    // long) poll loop runs. We thread this probe into `watchPrToTerminal`
-    // (via `firstProbe`) so the shared loop reuses it instead of
-    // double-spending the first `gh pr checks` call.
+    // First probe: resolve the required-check name set at runtime BEFORE
+    // the (potentially long) poll loop runs. We thread this probe into
+    // `watchPrToTerminal` (via `firstProbe`) so the shared loop reuses it
+    // instead of double-spending the first `gh pr checks` call.
     const first = this.ghPrChecksFn({ prUrl, cwd: this.cwd });
     const firstEntries = parseGhPrChecks(first.stdout);
     if (firstEntries.length === 0 && first.status !== 0 && first.status !== 8) {
@@ -710,45 +706,24 @@ export class Watcher {
 
     const requiredChecks = firstEntries.map((e) => e.name);
 
-    try {
-      await this.bus.emit('epic.watch.start', { prUrl, requiredChecks });
-    } catch (err) {
-      this.classifications.push({
-        event,
-        seqId,
-        outcome: 'failed',
-        reason: `start-emit-failed:${err?.message ?? err}`,
-      });
-      this.logger.warn?.(
-        `[Watcher] epic.watch.start emit failed: ${err?.message ?? err}`,
-      );
-      return;
-    }
-
     // Delegate the poll + BEHIND-recovery loop to the shared plain
     // primitive so the CLI (`pr-watch-with-update.js`) and this listener
     // run identical logic.
-    const {
-      outcomes: emitOutcomes,
-      polls,
-      updatesApplied,
-      resumesApplied,
-      terminal,
-      stillRunning,
-    } = await watchPrToTerminal({
-      prUrl,
-      cwd: this.cwd,
-      maxPolls: this.maxPolls,
-      maxUpdates: this.maxUpdates,
-      maxResumes: this.maxResumes,
-      pollIntervalMs: this.pollIntervalMs,
-      ghPrChecksFn: this.ghPrChecksFn,
-      ghPrViewFn: this.ghPrViewFn,
-      ghPrUpdateBranchFn: this.ghPrUpdateBranchFn,
-      sleepFn: this.sleepFn,
-      logger: this.logger,
-      firstProbe: first,
-    });
+    const { polls, updatesApplied, resumesApplied, terminal, stillRunning } =
+      await watchPrToTerminal({
+        prUrl,
+        cwd: this.cwd,
+        maxPolls: this.maxPolls,
+        maxUpdates: this.maxUpdates,
+        maxResumes: this.maxResumes,
+        pollIntervalMs: this.pollIntervalMs,
+        ghPrChecksFn: this.ghPrChecksFn,
+        ghPrViewFn: this.ghPrViewFn,
+        ghPrUpdateBranchFn: this.ghPrUpdateBranchFn,
+        sleepFn: this.sleepFn,
+        logger: this.logger,
+        firstProbe: first,
+      });
 
     // `still-running` (slow CI, not red) is a distinct classification from
     // a genuine `timed-out` — reserved for a check that never went
@@ -768,16 +743,6 @@ export class Watcher {
       resumesApplied,
       requiredChecks: requiredChecks.length,
     });
-    try {
-      await this.bus.emit('epic.watch.end', {
-        prUrl,
-        checkOutcomes: emitOutcomes,
-      });
-    } catch (err) {
-      this.logger.warn?.(
-        `[Watcher] epic.watch.end emit failed (swallowed): ${err?.message ?? err}`,
-      );
-    }
   }
 
   reset() {

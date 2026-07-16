@@ -2,8 +2,9 @@
  * lease-guard-shared.js — Story #3992: single-source the lease-acquisition
  * kernel shared by the three per-surface lease guards.
  *
- * `epic-deliver-lease-guard.js`, `epic-plan-lease-guard.js`, and
- * `single-story-lease-guard.js` historically each carried their own copy of
+ * The per-surface lease guards — today `single-story-lease-guard.js`;
+ * historically also the retired Epic-tier deliver/plan guards —
+ * each carried their own copy of
  * the operator-handle resolution and the fail-closed acquire wrapper around
  * `ticket-lease.acquireLease` (anchor `heartbeatAt` to `now` so a foreign
  * assignee always reads as a live claim, then throw an operator-facing

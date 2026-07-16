@@ -195,8 +195,8 @@ export function clearActiveStoryEnv({
 
 /**
  * Render the single-delivery `.env.local` body. The single-delivery executor
- * (`deliver-epic-single.md`) walks the Delivery Slicing table inside ONE long
- * session; there is no Story fan-out and thus no `CC_STORY_ID`. Instead the
+ * (a pre-v2 workflow, since retired) walked the Delivery Slicing table inside
+ * ONE long session; there is no Story fan-out and thus no `CC_STORY_ID`. Instead the
  * "current slice" is exported as `CC_SLICE_ID` so the PostToolUse hook emits
  * `slice.heartbeat` — the watchdog's forward-progress signal for the single
  * session — as a free byproduct of tool activity.

@@ -12,7 +12,7 @@
  * reconcile — dispatching it is pure token spend for a no-op. This module
  * computes that decision **deterministically**, off the same two inputs the
  * critic itself reads (the draft array and the Epic body's Delivery Slicing
- * table), so `helpers/plan-epic.md` Phase 8.3 can skip the sub-agent
+ * table), so the planning workflow can skip the sub-agent
  * dispatch when it is provably safe to.
  *
  * **Fail-open by design.** Every ambiguous case — a missing or unparseable

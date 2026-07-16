@@ -14,7 +14,6 @@
 import {
   ACCEPTANCE_LABELS,
   AGENT_LABELS,
-  DELIVERY_LABELS,
   LABEL_COLORS,
   PLANNING_LABELS,
   STATUS_LABELS,
@@ -83,16 +82,6 @@ export const LABEL_TAXONOMY = [
     color: LABEL_COLORS.PLANNING,
     description:
       'Historical operator override for the retired post-plan healthcheck',
-  },
-
-  // Delivery routing — applied by `plan-persist.js` when the risk verdict
-  // declares `deliveryShape: "single"` (Epic #4474 PR4). Inert until #4475
-  // lands the deliver-side reader.
-  {
-    name: DELIVERY_LABELS.SINGLE,
-    color: LABEL_COLORS.DELIVERY,
-    description:
-      'Single-delivery plan — no Story tree; the Delivery Slicing table is the audit trail (#4474/#4475)',
   },
 ];
 

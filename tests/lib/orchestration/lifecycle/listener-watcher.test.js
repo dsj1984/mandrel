@@ -7,9 +7,10 @@
  *   - Subscribes to `pr.created` (and ONLY that event).
  *   - Required-check names come from `gh pr checks --required` at
  *     runtime — NOT from `.agentrc.json.branchProtection.requiredChecks`.
- *   - Emits `epic.watch.start` carrying the resolved required-check
- *     list, then polls until terminal, then emits `epic.watch.end`
- *     with the outcome map.
+ *   - Polls until every check is terminal, recording the outcome in the
+ *     `classifications` log. (The retired `epic.watch.start` / `.end`
+ *     bus emits were deleted with their schemas — the watch path has no
+ *     bus-observable side effects.)
  *   - Listener is idempotent on repeat `(event, seqId)`.
  */
 
@@ -29,17 +30,6 @@ import {
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };
-}
-
-function recordingBus() {
-  const bus = new Bus();
-  const emits = [];
-  const record = (event) => async (ctx) => {
-    emits.push({ event, seqId: ctx.seqId, payload: ctx.payload });
-  };
-  bus.on('epic.watch.start', record('epic.watch.start'));
-  bus.on('epic.watch.end', record('epic.watch.end'));
-  return { bus, emits };
 }
 
 describe('normalizeCheckState', () => {
@@ -240,8 +230,8 @@ describe('pollUntilTerminal', () => {
 });
 
 describe('Watcher (bus integration)', () => {
-  it('emits start → end with runtime-resolved required checks', async () => {
-    const { bus, emits } = recordingBus();
+  it('watches to terminal with runtime-resolved required checks', async () => {
+    const bus = new Bus();
     let ghCalls = 0;
     const watcher = new Watcher({
       bus,
@@ -271,18 +261,13 @@ describe('Watcher (bus integration)', () => {
       base: 'main',
     });
 
-    const ordered = emits.map((e) => e.event);
-    assert.deepEqual(ordered, ['epic.watch.start', 'epic.watch.end']);
-    const start = emits.find((e) => e.event === 'epic.watch.start');
-    assert.deepEqual(start.payload.requiredChecks, [
-      'Validate and Test',
-      'baselines',
-    ]);
-    const end = emits.find((e) => e.event === 'epic.watch.end');
-    assert.deepEqual(end.payload.checkOutcomes, {
-      'Validate and Test': 'success',
-      baselines: 'success',
-    });
+    const cls = watcher.classifications[0];
+    assert.equal(cls.outcome, 'watched');
+    assert.equal(
+      cls.requiredChecks,
+      2,
+      'required-check count resolved from the runtime gh probe',
+    );
     // First probe + one terminal iteration (the while-loop exits
     // before a second probe because outcomes are already terminal).
     assert.equal(ghCalls, 1);
@@ -320,15 +305,7 @@ describe('Watcher (bus integration)', () => {
   });
 
   it('listener is idempotent on repeat (event, seqId)', async () => {
-    const { emits } = recordingBus();
     const bus = new Bus();
-    bus.on('epic.watch.start', async (ctx) =>
-      emits.push({ event: 'epic.watch.start', seqId: ctx.seqId }),
-    );
-    bus.on('epic.watch.end', async (ctx) =>
-      emits.push({ event: 'epic.watch.end', seqId: ctx.seqId }),
-    );
-
     let ghCalls = 0;
     const watcher = new Watcher({
       bus,
@@ -366,7 +343,7 @@ describe('Watcher (bus integration)', () => {
   });
 
   it('handles polling: pending → terminal across multiple iterations', async () => {
-    const { bus, emits } = recordingBus();
+    const bus = new Bus();
     const responses = [
       // First probe — name resolution + initial state (pending).
       {
@@ -403,15 +380,13 @@ describe('Watcher (bus integration)', () => {
       head: 'epic/2172',
       base: 'main',
     });
-    const end = emits.find((e) => e.event === 'epic.watch.end');
-    assert.deepEqual(end.payload.checkOutcomes, { lint: 'success' });
     const cls = watcher.classifications[0];
     assert.equal(cls.outcome, 'watched');
     assert.equal(cls.polls, 2);
   });
 
   it('hits the iteration cap with checks still pending and classifies still-running (Story #4358)', async () => {
-    const { bus, emits } = recordingBus();
+    const bus = new Bus();
     // maxResumes defaults to 0, so the cap fires once with the check
     // still pending and none failed → the slow-but-not-red sentinel.
     const watcher = new Watcher({
@@ -433,15 +408,12 @@ describe('Watcher (bus integration)', () => {
       head: 'epic/2172',
       base: 'main',
     });
-    const end = emits.find((e) => e.event === 'epic.watch.end');
-    assert.ok(end, 'watch.end emitted even when checks are still running');
-    assert.equal(end.payload.checkOutcomes.slow, 'still-running');
     const cls = watcher.classifications[0];
     assert.equal(cls.outcome, 'still-running');
   });
 
   it('re-arms up to maxResumes before declaring still-running (Story #4358)', async () => {
-    const { bus, emits } = recordingBus();
+    const bus = new Bus();
     const watcher = new Watcher({
       bus,
       pollIntervalMs: 0,
@@ -467,8 +439,8 @@ describe('Watcher (bus integration)', () => {
     assert.equal(cls.resumesApplied, 2, 'resume budget fully spent');
   });
 
-  it('genuine gh failure (status != 0/8 with empty stdout) classifies failed; no emits', async () => {
-    const { bus, emits } = recordingBus();
+  it('genuine gh failure (status != 0/8 with empty stdout) classifies failed', async () => {
+    const bus = new Bus();
     const watcher = new Watcher({
       bus,
       pollIntervalMs: 0,
@@ -488,7 +460,6 @@ describe('Watcher (bus integration)', () => {
       head: 'epic/2172',
       base: 'main',
     });
-    assert.equal(emits.length, 0, 'no emits when gh fails');
     const failed = watcher.classifications.find((c) => c.outcome === 'failed');
     assert.ok(failed);
     assert.match(failed.reason, /gh-checks-failed/);

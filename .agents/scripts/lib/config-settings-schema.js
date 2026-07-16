@@ -109,16 +109,19 @@ const PROJECT_SCHEMA = {
 
 /**
  * Curated webhook event vocabulary. The webhook channel is gated by an
- * explicit allowlist of event names — the webhook narrative is "epic %
- * progress + blockers", not the firehose of per-story transitions that the
- * GitHub-comment channel still receives.
+ * explicit allowlist of event names — the vocabulary mirrors the events the
+ * v2 runtime actually emits through `notify()` (Story transitions, merge
+ * outcomes, loop/heartbeat lifecycle beats).
  */
 export const WEBHOOK_EVENT_NAMES = Object.freeze([
-  'epic-started',
-  'epic-progress',
-  'epic-blocked',
-  'epic-unblocked',
-  'epic-complete',
+  'state-transition',
+  'story-merged',
+  'story-closing',
+  'operator-message',
+  'merge.unlanded',
+  'merge.flip-failed',
+  'loop.tick',
+  'story.heartbeat',
 ]);
 
 /**

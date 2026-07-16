@@ -135,20 +135,6 @@ export const PLANNING_LABELS = {
  */
 export const PLANNING_HEALTHCHECK_WAIVED = 'planning::healthcheck-waived';
 
-/**
- * Delivery-routing labels (Epic #4474 PR4 — design §2 mode matrix).
- * `delivery::single` marks an Epic whose plan was persisted in the
- * spec-only single-delivery mode: no Story tree exists and the Delivery
- * Slicing table of the Epic body's Tech Spec is the audit trail.
- * `plan-persist.js` applies it when the risk verdict declares
- * `deliveryShape: "single"`; a fan-out re-persist over the same Epic
- * removes it. The marker is **inert until #4475** lands the deliver-side
- * reader — nothing in the deliver path consumes it yet.
- */
-export const DELIVERY_LABELS = {
-  SINGLE: 'delivery::single',
-};
-
 /** Palette for the taxonomy; consumed by label-taxonomy.js. */
 export const LABEL_COLORS = {
   TYPE: '#7057FF',
@@ -156,5 +142,4 @@ export const LABEL_COLORS = {
   STATUS_BLOCKED: '#D93F0B',
   ACCEPTANCE: '#FBCA04',
   PLANNING: '#FEF2C0',
-  DELIVERY: '#BFD4F2',
 };

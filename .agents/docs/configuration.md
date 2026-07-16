@@ -404,7 +404,7 @@ Repository-level merge-method allowlist applied by bootstrap.
 | ----------------- | -------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mentionOperator` | No       | `false`                                                                                | When `true`, friction comments @-mention `operatorHandle` for `medium`-severity dispatches (high always @mentions).                          |
 | `commentEvents`   | No       | `["state-transition", "story-merged", "operator-message"]`                             | Allowlist of event names that reach the GitHub ticket comment channel.                                                                       |
-| `webhookEvents`   | No       | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative; story-level events are excluded. |
+| `webhookEvents`   | No       | `["state-transition", "story-merged", "story-closing", "operator-message", "merge.unlanded", "merge.flip-failed", "loop.tick", "story.heartbeat"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The vocabulary mirrors the events the v2 runtime actually emits through `notify()`. |
 
 Both fields' enums are pinned in the schema and rejected if extended. To
 suppress a channel entirely, set its array to `[]`.

@@ -63,16 +63,16 @@ describe('resolveEpicTempTree', () => {
     assert.equal(resolveEpicTempTree(root), null);
   });
 
-  it('locates the most recently touched epic-<id> tree', () => {
-    const older = path.join(root, 'temp', 'epic-100');
-    const newer = path.join(root, 'temp', 'epic-200');
+  it('locates the most recently touched run-<id> tree', () => {
+    const older = path.join(root, 'temp', 'run-100');
+    const newer = path.join(root, 'temp', 'run-200');
     mkdirSync(older, { recursive: true });
     mkdirSync(newer, { recursive: true });
     // Stamp explicit mtimes so the "most recently touched" ordering is
     // deterministic. Relying on wall-clock mtime between two dirs created
     // microseconds apart is non-deterministic on CI filesystems with coarse
     // mtime granularity (both land in one tick, and resolveEpicTempTree's
-    // strict `>` tie-break then picks the readdir-first entry, epic-100).
+    // strict `>` tie-break then picks the readdir-first entry, run-100).
     utimesSync(older, new Date(1_000_000), new Date(1_000_000));
     utimesSync(newer, new Date(2_000_000), new Date(2_000_000));
     const tree = resolveEpicTempTree(root);
@@ -84,7 +84,7 @@ describe('resolveEpicTempTree', () => {
 
 describe('sampleStreamInvalidCount', () => {
   it('counts schema-invalid and unparseable lines within the tail window', () => {
-    const dir = path.join(root, 'temp', 'epic-1', 'stories', 'story-2');
+    const dir = path.join(root, 'temp', 'run-1', 'stories', 'story-2');
     mkdirSync(dir, { recursive: true });
     const stream = path.join(dir, 'signals.ndjson');
     writeFileSync(
@@ -103,7 +103,7 @@ describe('sampleStreamInvalidCount', () => {
   });
 
   it('only samples the most recent maxLines', () => {
-    const dir = path.join(root, 'temp', 'epic-1');
+    const dir = path.join(root, 'temp', 'run-1');
     mkdirSync(dir, { recursive: true });
     const stream = path.join(dir, 'signals.ndjson');
     const lines = [];
@@ -130,8 +130,8 @@ describe('sampleStreamInvalidCount', () => {
 });
 
 describe('findSignalStreams', () => {
-  it('collects the epic-level and every per-story stream', () => {
-    const epicDir = path.join(root, 'temp', 'epic-9');
+  it('collects the run-level and every per-story stream', () => {
+    const epicDir = path.join(root, 'temp', 'run-9');
     writeStream(epicDir, ['signals.ndjson'], [VALID('2026-07-10T00:00:00Z')]);
     writeStream(
       epicDir,
@@ -150,7 +150,7 @@ describe('findSignalStreams', () => {
 
 describe('readRejectTally', () => {
   it('reads the persisted count', () => {
-    const epicDir = path.join(root, 'temp', 'epic-3');
+    const epicDir = path.join(root, 'temp', 'run-3');
     mkdirSync(epicDir, { recursive: true });
     writeFileSync(
       path.join(epicDir, 'signal-rejects.json'),
@@ -161,7 +161,7 @@ describe('readRejectTally', () => {
   });
 
   it('returns 0 when the tally is absent', () => {
-    const epicDir = path.join(root, 'temp', 'epic-4');
+    const epicDir = path.join(root, 'temp', 'run-4');
     mkdirSync(epicDir, { recursive: true });
     assert.equal(readRejectTally(epicDir), 0);
   });
@@ -219,7 +219,7 @@ describe('scanRetroMirror', () => {
 
 describe('detectLoopHealth', () => {
   it('returns null for a clean substrate (valid lines, zero rejects, all filed)', () => {
-    const epicDir = path.join(root, 'temp', 'epic-500');
+    const epicDir = path.join(root, 'temp', 'run-500');
     writeStream(
       epicDir,
       ['signals.ndjson'],
@@ -251,7 +251,7 @@ describe('detectLoopHealth', () => {
   });
 
   it('reports schema-invalid samples and the persisted reject tally', () => {
-    const epicDir = path.join(root, 'temp', 'epic-501');
+    const epicDir = path.join(root, 'temp', 'run-501');
     writeStream(
       epicDir,
       ['stories', 'story-1', 'signals.ndjson'],
@@ -267,14 +267,14 @@ describe('detectLoopHealth', () => {
     assert.equal(finding.id, 'loop-health');
     assert.equal(finding.severity, 'warning');
     assert.equal(finding.autoCorrectable, false);
-    assert.match(finding.summary, /epic-501/);
+    assert.match(finding.summary, /run-501/);
     assert.match(finding.summary, /1 schema-invalid/);
     assert.match(finding.summary, /4 persisted reject/);
     assert.match(finding.detail, /persisted reject tally/);
   });
 
   it('reports unfiled retro proposals even when signals are clean', () => {
-    const epicDir = path.join(root, 'temp', 'epic-502');
+    const epicDir = path.join(root, 'temp', 'run-502');
     writeStream(epicDir, ['signals.ndjson'], [VALID('2026-07-10T00:00:00Z')]);
     writeFileSync(
       path.join(epicDir, 'retro.md'),
@@ -302,7 +302,7 @@ describe('loop-health via the checks registry', () => {
   afterEach(() => clearRegistryCache());
 
   it('is discovered and run under scope:retro (autoFix:false)', async () => {
-    const epicDir = path.join(root, 'temp', 'epic-777');
+    const epicDir = path.join(root, 'temp', 'run-777');
     writeStream(
       epicDir,
       ['stories', 'story-1', 'signals.ndjson'],

@@ -130,14 +130,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'epic.plan.start': { epicId: 9999 },
   'epic.snapshot.end': { epicId: 9999, storyIds: [] },
   'epic.snapshot.start': { epicId: 9999 },
-  'epic.watch.end': {
-    prUrl: 'https://example.test/pr/1',
-    checkOutcomes: {},
-  },
-  'epic.watch.start': {
-    prUrl: 'https://example.test/pr/1',
-    requiredChecks: [],
-  },
   'intervention.recorded': { epicId: 9999, reason: 'fixture' },
   'loop.tick': {
     event: 'loop.tick',

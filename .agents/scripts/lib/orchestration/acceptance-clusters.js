@@ -15,7 +15,7 @@
  * hard-clamped to `[1, 8]`), and the executor spawns ONE maker-blind
  * fresh-context `Agent` critic per cluster. The cluster count is therefore
  * `ceil(totalACs / clusterCeiling)` — a deterministic fan-out width the
- * `deliver-epic-single.md` executor and its isolation test both key off.
+ * consuming executor and its isolation test both key off.
  *
  * Pure and total — inputs in, clusters out. No I/O, no throws on malformed
  * input (a non-array / empty AC set yields zero clusters — the executor then

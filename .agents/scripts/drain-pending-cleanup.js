@@ -8,7 +8,7 @@
  * any still-stuck entries by enumerating the processes holding handles
  * inside the worktree path and terminating them.
  *
- * Invoked by `/deliver`, `/epic-plan-spec` / `/epic-plan-decompose`
+ * Invoked by `/deliver` and `/plan`
  * (via `drainPendingCleanupAtBoot` → `worktree-sweep.js`), and
  * `story-close` so the pending-cleanup ledger drains automatically
  * across the sprint lifecycle. Operators can also run it standalone:

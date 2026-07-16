@@ -73,8 +73,8 @@ const tasks = [
     // spans for axis-shaped tokens (`type/epic`, etc.) and asserts
     // only the canonical `<axis>::<value>` separator from
     // `lib/label-constants.js` appears. Closes the drift gap that
-    // let the original `type/epic` typo land at
-    // `.agents/workflows/helpers/plan-epic.md:49`.
+    // let the original `type/epic` typo land in a since-retired
+    // planning workflow helper.
     name: 'label-vocabulary',
     cmd: 'node',
     args: ['.agents/scripts/lint-label-vocabulary.js'],

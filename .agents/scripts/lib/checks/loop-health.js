@@ -10,15 +10,15 @@
  *
  *   1. **Schema-invalid signal lines.** It tails the most recent
  *      {@link MAX_SAMPLE_LINES} lines of every `signals.ndjson` stream under
- *      the Epic temp tree and validates each against the canonical
+ *      the run temp tree and validates each against the canonical
  *      `signal-event.schema.json` (via `validateSignal`, the same validator
  *      the writer uses — no hand-rolled drift).
- *   2. **Persisted write-time rejects.** It reads the per-Epic reject tally
- *      (`temp/epic-<id>/signal-rejects.json`, written by Story #4413's
+ *   2. **Persisted write-time rejects.** It reads the per-run reject tally
+ *      (`temp/run-<id>/signal-rejects.json`, written by Story #4413's
  *      signals-writer) so records that were dropped at write time — and thus
  *      never appear in the stream — are still counted.
  *   3. **Un-actioned retro proposals.** It reads the retro mirror
- *      (`temp/epic-<id>/retro.md`, Story #4418) and flags any actionable
+ *      (`temp/run-<id>/retro.md`, Story #4418) and flags any actionable
  *      "Proposed issues" item that carries neither a filed-issue reference
  *      (`Filed: [#N](url)`) nor lives under the explicit "One-off /
  *      discarded" record.
@@ -49,9 +49,10 @@ import { validateSignal } from '../observability/signal-validator.js';
 export const MAX_SAMPLE_LINES = 200;
 
 /**
- * Locate the most-recently-touched `epic-<id>` temp tree under
- * `<baseDir>/<tempRoot>`. Returns `{ epicId, epicDir }` or `null` when no
- * Epic temp tree exists (a fresh checkout, or a non-Epic context).
+ * Locate the most-recently-touched `run-<id>` temp tree under
+ * `<baseDir>/<tempRoot>` (the layout `lib/config/temp-paths.js` creates).
+ * Returns `{ epicId, epicDir }` or `null` when no run temp tree exists (a
+ * fresh checkout, or a context with no run in flight).
  *
  * @param {string} baseDir  The main checkout root.
  * @param {{ tempRoot?: string, fsImpl?: { readdirSync: typeof readdirSync, statSync: typeof statSync } }} [opts]
@@ -72,7 +73,7 @@ export function resolveEpicTempTree(
   }
   let best = null;
   for (const entry of entries) {
-    const match = /^epic-(\d+)$/.exec(entry);
+    const match = /^run-(\d+)$/.exec(entry);
     if (!match) continue;
     const full = path.join(tempDir, entry);
     let st;
@@ -168,7 +169,7 @@ export function sampleStreamInvalidCount(
 }
 
 /**
- * Read the per-Epic persisted reject count from `signal-rejects.json`.
+ * Read the per-run persisted reject count from `signal-rejects.json`.
  * Returns 0 when the tally is absent or unreadable.
  *
  * @param {string} epicDir
@@ -316,10 +317,10 @@ export function detectLoopHealth(
     id: 'loop-health',
     severity: 'warning',
     scope,
-    summary: `Loop-health (epic-${epicId}): ${summaryParts.join('; ')}.`,
+    summary: `Loop-health (run-${epicId}): ${summaryParts.join('; ')}.`,
     detail: detailLines.join('\n'),
     fixCommand:
-      'Inspect temp/epic-<id>/{signals.ndjson,signal-rejects.json,retro.md}; fix the signal producer or file/discard the surfaced proposals.',
+      'Inspect temp/run-<id>/{signals.ndjson,signal-rejects.json,retro.md}; fix the signal producer or file/discard the surfaced proposals.',
     autoCorrectable: false,
   };
 }

@@ -18,7 +18,7 @@
  * other draft-07 validators (see `tests/schemas/signal-schemas.test.js`).
  *
  * A per-Epic reject tally is persisted under the Epic temp tree
- * (`temp/epic-<eid>/signal-rejects.json`) so a cross-process reader (the
+ * (`temp/run-<eid>/signal-rejects.json`) so a cross-process reader (the
  * loop-health check, a follow-on Story) can surface how many records were
  * dropped. The tally is read-modify-written best-effort; a lost increment
  * under a write race is acceptable for a diagnostic counter.

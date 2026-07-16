@@ -28,7 +28,9 @@ const SCHEMA_DIR = path.resolve(
  * `acceptance.reconcile.*`, plus the `epic.automerge.*` / `epic.cleanup.*` /
  * `epic.close.*` / `epic.complete` / `epic.finalize.*` / `epic.merge.*` /
  * `epic.blocked` / `epic.plan.*` / `epic.snapshot.*` families) — their schema
- * files went with them.
+ * files went with them. The `epic.watch.*` pair followed later: the only
+ * production Watcher consumer (`pr-watch-with-update.js`) runs without a
+ * bus, so the emits (and schemas) were dead.
  *
  * Adding a new event here without adding the matching schema file fails this
  * test — that's the point. The bus reads the schema by name at emit time.
@@ -41,8 +43,6 @@ const REQUIRED_EVENTS = Object.freeze([
   'close-validate.start',
   'code-review.end',
   'code-review.start',
-  'epic.watch.end',
-  'epic.watch.start',
   'intervention.recorded',
   'loop.tick',
   'merge.flip-failed',

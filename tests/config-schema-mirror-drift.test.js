@@ -120,7 +120,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
           notifications: {
             mentionOperator: false,
             commentEvents: ['state-transition'],
-            webhookEvents: ['epic-started'],
+            webhookEvents: ['story-merged', 'story.heartbeat'],
           },
         },
         planning: {

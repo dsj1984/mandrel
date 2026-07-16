@@ -258,11 +258,14 @@
           "items": {
             "type": "string",
             "enum": [
-              "epic-started",
-              "epic-progress",
-              "epic-blocked",
-              "epic-unblocked",
-              "epic-complete"
+              "state-transition",
+              "story-merged",
+              "story-closing",
+              "operator-message",
+              "merge.unlanded",
+              "merge.flip-failed",
+              "loop.tick",
+              "story.heartbeat"
             ]
           },
           "uniqueItems": true
@@ -1369,7 +1372,7 @@
             "auditResultsAutoFile": {
               "type": "boolean",
               "default": true,
-              "description": "When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic."
+              "description": "When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story."
             },
             "retroProposals": {
               "type": "boolean",

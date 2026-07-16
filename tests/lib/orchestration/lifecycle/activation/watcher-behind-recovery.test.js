@@ -17,9 +17,10 @@
  *     view probe and `mergeStateStatus: CLEAN` on the second.
  *   - The stubbed `gh pr update-branch` invocation is recorded exactly
  *     once between the two view probes.
- *   - The Watcher emits `epic.watch.start` then `epic.watch.end`; the
- *     ledger (recording bus) shows the `epic.watch.end` emit after the
- *     recovery loop completes.
+ *   - The Watcher records a `watched` classification with the recovery
+ *     update count after the loop completes. (The retired
+ *     `epic.watch.start` / `.end` bus emits were deleted with their
+ *     schemas — the classification log is the observable surface.)
  */
 
 import assert from 'node:assert/strict';
@@ -32,18 +33,6 @@ function quietLogger() {
   return { info: () => {}, warn: () => {}, debug: () => {} };
 }
 
-function recordingBus() {
-  const bus = new Bus();
-  const emits = [];
-  bus.on('epic.watch.start', async (ctx) =>
-    emits.push({ event: 'epic.watch.start', payload: ctx.payload }),
-  );
-  bus.on('epic.watch.end', async (ctx) =>
-    emits.push({ event: 'epic.watch.end', payload: ctx.payload }),
-  );
-  return { bus, emits };
-}
-
 /**
  * Build a Watcher fixture wired against a deterministic stub gh CLI.
  * The fixture records every gh call in order so the test can assert
@@ -51,7 +40,7 @@ function recordingBus() {
  * checks → view (CLEAN).
  */
 function buildBehindRecoveryFixture() {
-  const { bus, emits } = recordingBus();
+  const bus = new Bus();
   const calls = [];
   const checksResponse = {
     status: 0,
@@ -88,26 +77,18 @@ function buildBehindRecoveryFixture() {
     logger: quietLogger(),
   });
   watcher.register();
-  return { bus, emits, calls, watcher };
+  return { bus, calls, watcher };
 }
 
 describe('Watcher — mergeStateStatus BEHIND auto-recovery (Task #2334)', () => {
   it('issues exactly one gh pr update-branch between two view probes when first probe is BEHIND and second is CLEAN', async () => {
-    const { bus, emits, calls } = buildBehindRecoveryFixture();
+    const { bus, calls, watcher } = buildBehindRecoveryFixture();
 
     await bus.emit('pr.created', {
       prUrl: 'https://github.com/owner/repo/pull/9',
       head: 'epic/2306',
       base: 'main',
     });
-
-    // The Watcher must emit start then end — the recovery loop runs
-    // BETWEEN them, so epic.watch.end is the terminal observation.
-    assert.deepEqual(
-      emits.map((e) => e.event),
-      ['epic.watch.start', 'epic.watch.end'],
-      'Watcher must emit start → end across the recovery loop',
-    );
 
     // Exactly one `gh pr update-branch` invocation, recorded between
     // the two `gh pr view` probes.
@@ -138,17 +119,15 @@ describe('Watcher — mergeStateStatus BEHIND auto-recovery (Task #2334)', () =>
       `update-branch must be between the two view probes; observed: ${cmdOrder.join(' → ')}`,
     );
 
-    // The Watcher's classification log records the update count so the
-    // ledger (and any downstream listener) can see that BEHIND recovery
-    // fired — this is the same surface the legacy CLI exposed via its
+    // The Watcher's classification log records the terminal outcome so
+    // downstream observers can see that the watch (with BEHIND recovery)
+    // completed — this is the same surface the legacy CLI exposed via its
     // stdout JSON envelope.
-    const watcher = calls; // alias for readability below
-    void watcher;
-    const endEmit = emits.find((e) => e.event === 'epic.watch.end');
-    assert.deepEqual(endEmit.payload.checkOutcomes, {
-      'Validate and Test': 'success',
-      baselines: 'success',
-    });
+    const watched = watcher.classifications.find(
+      (c) => c.outcome === 'watched',
+    );
+    assert.ok(watched, 'expected a watched classification');
+    assert.equal(watched.requiredChecks, 2);
   });
 
   it('records updatesApplied=1 on the watched classification for the BEHIND→CLEAN recovery path', async () => {
@@ -172,7 +151,7 @@ describe('Watcher — mergeStateStatus BEHIND auto-recovery (Task #2334)', () =>
   });
 
   it('does NOT call update-branch when mergeStateStatus is already CLEAN on the first probe', async () => {
-    const { bus, emits } = recordingBus();
+    const bus = new Bus();
     const calls = [];
     const watcher = new Watcher({
       bus,
@@ -217,9 +196,10 @@ describe('Watcher — mergeStateStatus BEHIND auto-recovery (Task #2334)', () =>
       0,
       'update-branch must not fire when mergeStateStatus is CLEAN',
     );
-    assert.deepEqual(
-      emits.map((e) => e.event),
-      ['epic.watch.start', 'epic.watch.end'],
+    const watched = watcher.classifications.find(
+      (c) => c.outcome === 'watched',
     );
+    assert.ok(watched, 'expected a watched classification');
+    assert.equal(watched.updatesApplied, 0);
   });
 });

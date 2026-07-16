@@ -53,20 +53,9 @@ export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
     // escomplex: same "pattern" parse failure as acceptance-spec-reconciler;
     // both files share the lifecycle-lint regex-driven scan helpers.
     '.agents/scripts/check-lifecycle-lint.js',
-    // escomplex: "traveler[node.type] is not a function" — AST node type the
-    // upstream traveler table is missing (top-level await / private fields).
-    '.agents/scripts/lib/orchestration/epic-cleanup.js',
-    // escomplex: same "traveler[node.type] is not a function" — emitted by
-    // the spec-reconciler's `async` operator-comment IIFE.
-    '.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js',
     // escomplex: "this[node.callee.type] is not a function" — the cyclomatic
     // visitor lacks a handler for one of the quality-watch CLI's call shapes.
     '.agents/scripts/quality-watch.js',
-    // escomplex: parse-fails (MI=0) on the spec-freshness phase's optional-
-    // chained destructuring fallthrough. Same upstream family as the other
-    // "pattern" / destructuring failures; carve-out so the phase split of
-    // epic-plan-spec doesn't poison the global rollup.
-    '.agents/scripts/lib/orchestration/epic-plan-spec/phases/spec-freshness.js',
     // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
     // the audit-to-stories parser reuses the same regex-property scan
     // patterns as acceptance-spec-reconciler.

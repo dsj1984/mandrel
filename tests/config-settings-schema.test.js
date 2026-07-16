@@ -157,7 +157,7 @@ describe('github.* shape', () => {
           notifications: {
             mentionOperator: false,
             commentEvents: ['state-transition'],
-            webhookEvents: ['epic-started'],
+            webhookEvents: ['story-merged', 'story.heartbeat'],
           },
         },
       }),
