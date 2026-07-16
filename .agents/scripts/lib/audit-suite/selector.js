@@ -474,9 +474,7 @@ export async function selectAudits({
     for (const kw of keywords) {
       // Whole-word match: a bare substring test selects lenses on accidental
       // fragments ("ui" inside "requires", "auth" inside "author" — #4579).
-      const escaped = kw
-        .toLowerCase()
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       if (new RegExp(`\\b${escaped}\\b`).test(contentToSearch)) {
         keywordMatch = true;
         break;
