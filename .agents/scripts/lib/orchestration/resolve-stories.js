@@ -109,6 +109,20 @@ export function isSatisfiedBlocker(issue) {
 }
 
 /**
+ * Footprint emitted when a Story's declared changes cannot be READ. It is a
+ * glob, so `storiesOverlap` (`lib/wave-runner/ready-set.js`) treats it as
+ * overlapping every other footprint and the Story takes its beat alone.
+ *
+ * Deliberately NOT `[]`. An empty footprint means "declares nothing", which
+ * the guard reads as "overlaps nothing" and never withholds — correct for a
+ * Story that genuinely declares no changes, and wrong for one whose changes
+ * we failed to parse. Those are different facts: the second is *unknown*
+ * width, and the same argument that makes a glob overlap everything
+ * ("unknown width is not no width") applies to a body we could not read.
+ */
+const UNKNOWN_FOOTPRINT = Object.freeze(['**']);
+
+/**
  * Extract a Story's declared file footprint as **plain path strings**.
  *
  * The shape matters: `stories-wave-tick.js`'s `parseDag` rejects any `files`
@@ -116,11 +130,10 @@ export function isSatisfiedBlocker(issue) {
  * `{ path, isGlob }` objects — so forwarding its output verbatim fails every
  * multi-Story run with an input error. Map to `.path`.
  *
- * Never throws: this parses live, human-editable issue bodies. An
- * unparseable body or a malformed `changes` entry yields an empty footprint
- * (the guard then treats the Story as overlapping nothing, which is the
- * pre-existing behaviour for an undeclared footprint) rather than taking the
- * whole resolution down.
+ * Never throws — these are live, human-editable issue bodies, and one
+ * malformed body must not take the whole resolution down. It fails **safe**
+ * rather than open: an unreadable footprint yields {@link UNKNOWN_FOOTPRINT},
+ * serializing that Story instead of silently letting it race.
  *
  * @param {string} body
  * @param {number} [id] Story id, for the warning.
@@ -133,22 +146,25 @@ export function storyFootprintPaths(body, id, warn) {
     parsed = parseStoryBody(String(body ?? '')).body;
   } catch (err) {
     warn?.(
-      `[resolve-stories] #${id}: body is unparseable, so no file footprint could be read ` +
-        `(${err?.message ?? err}). Co-dispatch overlap cannot be checked for this Story.`,
+      `[resolve-stories] #${id}: body is unparseable, so its file footprint is unknown ` +
+        `(${err?.message ?? err}). Treating it as overlapping every other Story, so it is ` +
+        `never co-dispatched — fix the body to restore parallelism.`,
     );
-    return [];
+    return [...UNKNOWN_FOOTPRINT];
   }
   try {
+    // An empty `changes` is a real declaration of "no files", not a read
+    // failure — it keeps the permissive empty footprint.
     return extractChangePaths(parsed?.changes ?? [])
       .map((entry) => entry?.path)
       .filter((p) => typeof p === 'string' && p.trim().length > 0)
       .map((p) => p.trim());
   } catch (err) {
     warn?.(
-      `[resolve-stories] #${id}: malformed changes entry, so no file footprint could be read ` +
-        `(${err?.message ?? err}).`,
+      `[resolve-stories] #${id}: malformed changes entry, so its file footprint is unknown ` +
+        `(${err?.message ?? err}). Treating it as overlapping every other Story.`,
     );
-    return [];
+    return [...UNKNOWN_FOOTPRINT];
   }
 }
 

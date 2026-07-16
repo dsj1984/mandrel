@@ -77,7 +77,6 @@ export function buildPlanSummaryCommentBody({
   mode = 'stories',
   planMetricsLine = null,
   stories = null,
-  planRunLabel = null,
   // legacy unused knobs kept so older test call sites don't crash mid-migration
   single = null,
   amend = null,
@@ -107,15 +106,18 @@ export function buildPlanSummaryCommentBody({
       ]
     : [];
 
-  const runLine = planRunLabel
-    ? `- Plan-run label: \`${planRunLabel}\` (N>1 — deliver with \`/deliver --run <planRunId>\`).`
-    : '- Plan-run: single Story (default).';
+  // The exact command to run — Story #4540. This comment is posted to
+  // GitHub on every plan, so it is the operator's primary instruction: it
+  // must name real ids, not a batch token that no longer exists.
+  const deliverCommand =
+    Array.isArray(stories) && stories.length > 0
+      ? `/deliver ${stories.map((s) => s.id).join(' ')}`
+      : '/deliver <storyId> [<storyId> ...]';
 
   return [
     `### 📋 Plan Summary — Story #${epicId} is \`agent::ready\``,
     '',
     `- ${ticketCount} Story ticket(s) persisted: ${storyList}.`,
-    runLine,
     `- Risk: ${planningRisk?.overallLevel ?? 'unknown'} · ${planningRisk?.gateDecision ?? 'unknown'} (review routing: ${reviewRouting?.decision ?? 'unknown'}).`,
     ...waiverLines,
     freshnessLine,
@@ -128,6 +130,7 @@ export function buildPlanSummaryCommentBody({
     '',
     ...renderWaveTableLines(waveTable),
     '',
-    '_Deliver with `/deliver <storyId>` (N=1) or `/deliver --run <planRunId>` (N>1)._',
+    `_Deliver with \`${deliverCommand}\` — \`/deliver\` resolves the dependency`,
+    '_graph from live state, so edges may point at Stories from earlier plan runs._',
   ].join('\n');
 }

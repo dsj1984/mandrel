@@ -86,8 +86,8 @@ rare N>1 case. There is no batch label — `/deliver` takes ids and resolves
 the graph from live state (Story #4540).
 
 **`/deliver`** becomes one engine: the M4 single-delivery guarded session,
-invoked per Story. `/deliver <storyId...>` or `/deliver --run <planRunId>`
-sequences the set in dependency order; N=1 and N=5 use identical machinery.
+invoked per Story. `/deliver <storyId...>` sequences the set in dependency
+order; N=1 and N=5 use identical machinery.
 Init → implement → gates → review → acceptance → PR → land, per Story, with
 the M5 hook-based bookkeeping and M7 role-scoped worker unchanged.
 

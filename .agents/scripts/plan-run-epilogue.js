@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 /**
- * plan-run-epilogue.js — execute the real per-run closeout for
- * `/deliver --run <planRunId>` and positional multi-Story delivers.
+ * plan-run-epilogue.js — execute the real per-run closeout for a
+ * multi-Story `/deliver`.
  *
  * Usage:
- *   node .agents/scripts/plan-run-epilogue.js --run <planRunId>
- *   node .agents/scripts/plan-run-epilogue.js --run <planRunId> --stories 1,2,3
  *   node .agents/scripts/plan-run-epilogue.js --stories 1,2,3
  *
- * When `--stories` is omitted, `--run` is required and the set is resolved
- * via plan-run labels (`state=all` so landed Stories are included).
- * When `--stories` is supplied without `--run`, an adhoc planRunId is
- * synthesized from the sorted Story ids.
+ * Keyed on the delivered id set: an `adhoc-<sorted-ids>` run id is
+ * synthesized from `--stories`. Story #4540 retired the `--run <planRunId>`
+ * label-resolution branch along with the `plan-run::<id>` label itself.
  */
 
 import './lib/runtime-deps/ensure-installed.js';

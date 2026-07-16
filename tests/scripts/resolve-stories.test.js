@@ -29,6 +29,10 @@ import {
   storyFootprintPaths,
   toStoryRecord,
 } from '../../.agents/scripts/lib/orchestration/resolve-stories.js';
+import {
+  selectReadySet,
+  storiesOverlap,
+} from '../../.agents/scripts/lib/wave-runner/ready-set.js';
 import { parseDag } from '../../.agents/scripts/stories-wave-tick.js';
 
 const REPO = { owner: 'dsj1984', repo: 'mandrel', issueNumber: 4534 };
@@ -133,15 +137,17 @@ describe('storyFootprintPaths — plain strings, never a crash', () => {
     assert.ok(paths.every((p) => typeof p === 'string'));
   });
 
-  it('degrades to an empty footprint on an unparseable body rather than throwing', () => {
-    // These are live, human-editable issue bodies.
+  it('never throws on an unparseable body — one bad body must not fail the whole resolution', () => {
+    // These are live, human-editable issue bodies. (What it returns on that
+    // path is the fail-safe contract asserted further down.)
     const warnings = [];
-    const paths = storyFootprintPaths(
-      '## Changes\n- a plain string bullet, not the object shape',
-      7,
-      (m) => warnings.push(m),
+    assert.doesNotThrow(() =>
+      storyFootprintPaths(
+        '## Changes\n- a plain string bullet, not the object shape',
+        7,
+        (m) => warnings.push(m),
+      ),
     );
-    assert.deepEqual(paths, []);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /#7/);
   });
@@ -323,5 +329,60 @@ describe('parseIds', () => {
   });
   it('rejects an empty list', () => {
     assert.throws(() => parseIds(''), /--ids is required/);
+  });
+});
+
+describe('storyFootprintPaths — an unreadable footprint fails SAFE, not open', () => {
+  it('an unparseable body yields a glob footprint, so the Story is never co-dispatched', () => {
+    // Returning [] here would be fail-OPEN: the guard reads an empty
+    // footprint as "overlaps nothing" and never withholds, so a Story whose
+    // changes we could not read would silently race a genuine conflict.
+    // Unknown width is not no width — the same argument that makes a glob
+    // overlap everything applies to a body we failed to parse.
+    const warnings = [];
+    const paths = storyFootprintPaths(
+      '## Changes\n- a plain string bullet, not the {path, assumption} shape',
+      7,
+      (m) => warnings.push(m),
+    );
+    assert.deepEqual(paths, ['**']);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /#7/);
+    assert.match(warnings[0], /unknown/i);
+  });
+
+  it('the unknown footprint actually withholds the Story from co-dispatch', () => {
+    const unreadable =
+      '## Changes\n- a plain string bullet, not the object shape';
+    const unknown = {
+      id: 1,
+      dependsOn: [],
+      files: storyFootprintPaths(unreadable, 1),
+    };
+    const other = { id: 2, dependsOn: [], files: ['docs/README.md'] };
+    assert.equal(storiesOverlap(unknown, other), true);
+    const ready = selectReadySet({
+      stories: [unknown, other],
+      doneIds: new Set(),
+      inFlight: 0,
+      globalCap: 5,
+    }).map((s) => s.id);
+    assert.deepEqual(ready, [1], 'the unreadable Story takes the beat alone');
+  });
+
+  it('a Story that genuinely declares NO changes keeps the permissive empty footprint', () => {
+    // "Declares nothing" and "we could not read it" are different facts.
+    // Withholding on the former would serialize every run.
+    const body = [
+      '## Goal',
+      'g',
+      '',
+      '## Acceptance',
+      '- [ ] a',
+      '',
+      '## Verify',
+      '- npm test (unit)',
+    ].join('\n');
+    assert.deepEqual(storyFootprintPaths(body, 1), []);
   });
 });

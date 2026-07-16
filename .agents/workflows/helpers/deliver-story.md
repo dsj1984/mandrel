@@ -18,7 +18,7 @@ description:
 large — uses the same machinery:
 
 ```text
-/deliver <storyId>   (or /deliver --run <planRunId> → one Story at a time)
+/deliver <storyId> [<storyId> ...]   (each Story runs through this engine)
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (optional ## Slicing intra-session checkpoints)
   → risk-routed ceremony           (acceptance critics · review · audit lenses)
@@ -529,7 +529,7 @@ safe.
 
 ## See also
 
-- [`/deliver`](../deliver.md) — unified entry point (`<storyId...>` or
-  `--run <planRunId>`; sequences via `depends_on`).
+- [`/deliver`](../deliver.md) — unified entry point (`<storyId...>`;
+  sequences via `depends_on`, resolved from live state).
 - [`deliver-story-reference.md`](deliver-story-reference.md) —
   lease, sweep, CI-recovery, and Status-column reference detail.

@@ -189,7 +189,7 @@ graph LR
 
     subgraph Phase2 ["Phase 2: Deliver"]
         direction TB
-        E["👤 /deliver &lt;storyId&gt;<br/>(or --run &lt;planRunId&gt;)"]:::manual
+        E["👤 /deliver &lt;storyId&gt; [&lt;storyId&gt;…]"]:::manual
         F["🤖 deliver-story: story-&lt;id&gt; from main<br/>implement → self-eval → ceremony → close"]:::agentic
         G["🤖 close-validation → code-review → open PR"]:::agentic
         E --> F --> G
@@ -282,8 +282,7 @@ the SDLC depends on:
   `assertAcceptancePartition` so every acceptance criterion belongs to
   exactly one Story.
 - **Handoff.** Persist creates the Story issue(s) at `agent::ready` and
-  names the delivery command: `/deliver <storyId>` (or `/deliver --run
-  <planRunId>`).
+  names the delivery command: `/deliver <storyId> [<storyId> ...]`.
 
 Optional split advisory notes come from
 [`core/scope-triage`](../skills/core/scope-triage/SKILL.md); there is no

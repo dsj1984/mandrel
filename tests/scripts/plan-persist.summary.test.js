@@ -75,3 +75,49 @@ describe('plan-summary — auto-waiver reason line (#4496 fix 2)', () => {
     assert.ok(!body.includes('auto-waived'), 'no waiver line without a waiver');
   });
 });
+
+describe('plan summary — names the exact deliver command (Story #4540)', () => {
+  const base = {
+    epicId: 101,
+    ticketCount: 1,
+    planningRisk: { overallLevel: 'low', gateDecision: 'auto-proceed' },
+    reviewRouting: { decision: 'auto-proceed' },
+    freshness: {},
+    healthcheck: {},
+    waveTable: [],
+  };
+
+  it('prints the literal ids for a multi-Story plan', () => {
+    // This comment is posted to GitHub on every plan run, so it is the
+    // operator's primary instruction. It used to end with
+    // "/deliver --run <planRunId> (N>1)" — a flag that no longer exists —
+    // and to claim "Plan-run: single Story (default)" even for N=3.
+    const body = buildPlanSummaryCommentBody({
+      ...base,
+      ticketCount: 3,
+      stories: [
+        { id: 4540, slug: 'a' },
+        { id: 4541, slug: 'b' },
+        { id: 4542, slug: 'c' },
+      ],
+    });
+    assert.match(body, /\/deliver 4540 4541 4542/);
+  });
+
+  it('never advertises the retired --run flag or a plan-run label', () => {
+    const body = buildPlanSummaryCommentBody({
+      ...base,
+      stories: [{ id: 4540, slug: 'a' }],
+    });
+    assert.doesNotMatch(body, /--run/);
+    assert.doesNotMatch(body, /plan-run/i);
+    assert.doesNotMatch(body, /Plan-run: single Story/);
+    assert.match(body, /\/deliver 4540/);
+  });
+
+  it('falls back to a generic form when no story ids are supplied', () => {
+    const body = buildPlanSummaryCommentBody(base);
+    assert.match(body, /\/deliver <storyId>/);
+    assert.doesNotMatch(body, /--run/);
+  });
+});
