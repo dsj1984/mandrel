@@ -5,6 +5,14 @@ command: false
 
 # Lighthouse Audit & Analysis
 
+## Applicability
+
+**Web targets only.** Registered with `target: "web"` in
+[`audit-rules.json`](../schemas/audit-rules.json): the selector skips this lens
+on a project with no web surface, since there is no page to launch Lighthouse
+against. See the `target` key's schema description for how applicability is
+probed from the consumer's checkout.
+
 ## Role
 
 Senior Web Performance & Quality Engineer. You operate Lighthouse end-to-end:

@@ -18,7 +18,7 @@
  * was retired in #4482 (consumers call `selectAudits` via the barrel).
  */
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import picomatch from 'picomatch';
@@ -282,6 +282,206 @@ export function routesNavigabilityLens({ changedFiles, config } = {}) {
 }
 
 /**
+ * Package names (or scope/name segments of them) that declare a **web
+ * rendering surface**. Matched against the consumer's root `package.json`
+ * `dependencies` + `devDependencies` keys, segment-wise, so `@angular/core`
+ * matches via `angular` and `@remix-run/react` via `react`.
+ */
+const WEB_FRAMEWORK_PACKAGES = Object.freeze([
+  'react',
+  'next',
+  'vue',
+  'svelte',
+  'sveltekit',
+  'astro',
+  'nuxt',
+  'remix',
+  'remix-run',
+  'gatsby',
+  'angular',
+]);
+
+/** File extensions whose presence in the source tree implies a web surface. */
+const WEB_ASSET_EXTENSIONS = Object.freeze(['.html', '.css', '.jsx', '.tsx']);
+
+/**
+ * Directories the web-surface file scan never descends into. `node_modules` is
+ * the load-bearing one (a dependency's bundled `.css` says nothing about the
+ * consumer's own surface); the test directories are excluded because a fixture
+ * `.html` is a test artifact, not a shipped page.
+ */
+const WEB_SCAN_SKIP_DIRS = Object.freeze([
+  'node_modules',
+  '.git',
+  '.worktrees',
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  'temp',
+  'tmp',
+  'tests',
+  'test',
+  '__tests__',
+  '__mocks__',
+  'spec',
+  'e2e',
+  'fixtures',
+]);
+
+/** Scan bounds — the probe is a cheap heuristic, not an exhaustive crawl. */
+const WEB_SCAN_MAX_DEPTH = 6;
+const WEB_SCAN_MAX_ENTRIES = 4000;
+
+/**
+ * Process-lifetime memo for the filesystem half of the web-surface probe,
+ * keyed by project root. The config half ({@link resolveNavigabilityRouteGlobs})
+ * is a free object read and is deliberately NOT memoized, so a caller passing a
+ * different config never reads a stale answer.
+ *
+ * @type {Map<string, boolean>}
+ */
+const _webSurfaceFsCache = new Map();
+
+/** Test-only: drop the memo so a fixture root can be re-probed after edits. */
+export function _resetWebSurfaceCache() {
+  _webSurfaceFsCache.clear();
+}
+
+/**
+ * True when the root `package.json` declares a web-framework dependency.
+ * Returns `null` — *indeterminate* — when the manifest exists but cannot be
+ * read or parsed; the caller fails open on that (see {@link hasWebSurface}).
+ * A genuinely absent manifest (`ENOENT`) is determinate: there is no
+ * declaration, so there is no signal, and the file scan gets its turn.
+ *
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function declaresWebFramework(root) {
+  let raw;
+  try {
+    raw = readFileSync(path.join(root, 'package.json'), 'utf8');
+  } catch (err) {
+    if (err?.code === 'ENOENT') return false;
+    return null;
+  }
+  let pkg;
+  try {
+    pkg = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const names = [
+    ...Object.keys(pkg?.dependencies ?? {}),
+    ...Object.keys(pkg?.devDependencies ?? {}),
+  ];
+  return names.some((name) =>
+    name
+      .replace(/^@/, '')
+      .split('/')
+      .some((segment) => WEB_FRAMEWORK_PACKAGES.includes(segment)),
+  );
+}
+
+/**
+ * True when a bounded scan of the source tree finds a web asset file
+ * (`.html` / `.css` / `.jsx` / `.tsx`) outside the skipped directories.
+ * Returns `null` — *indeterminate* — when the root itself is unreadable, or
+ * when the scan exhausted its entry budget without finding one: a truncated
+ * scan genuinely did not finish looking, and reporting "no web surface" from
+ * a half-walked tree would silently drop lens coverage.
+ *
+ * Uses `readdirSync(withFileTypes)` rather than `git ls-files` — a filesystem
+ * check suffices, and shelling out to git would make the probe cost a process
+ * spawn on every selection.
+ *
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function scanForWebAssets(root) {
+  let budget = WEB_SCAN_MAX_ENTRIES;
+  const queue = [{ dir: root, depth: 0 }];
+  let rootRead = false;
+
+  while (queue.length > 0) {
+    const { dir, depth } = queue.shift();
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      // A single unreadable subdirectory is skipped: a permissions oddity is
+      // far likelier than an entire web surface hiding behind it. An
+      // unreadable ROOT is a different story — see below.
+      if (dir === root) return null;
+      continue;
+    }
+    if (dir === root) rootRead = true;
+
+    for (const entry of entries) {
+      if (budget-- <= 0) return null; // truncated ⇒ indeterminate
+      if (entry.isDirectory()) {
+        if (WEB_SCAN_SKIP_DIRS.includes(entry.name)) continue;
+        if (depth + 1 <= WEB_SCAN_MAX_DEPTH) {
+          queue.push({ dir: path.join(dir, entry.name), depth: depth + 1 });
+        }
+        continue;
+      }
+      if (WEB_ASSET_EXTENSIONS.includes(path.extname(entry.name))) return true;
+    }
+  }
+  return rootRead ? false : null;
+}
+
+/**
+ * Decide whether the project has a **web surface** — the applicability
+ * predicate behind the `target: "web"` gate in `audit-rules.json` (#4579).
+ *
+ * Mandrel is materialized into other projects, so this cannot be a property of
+ * *this* repository: a consumer with a real web surface MUST still get the web
+ * lenses. It is therefore derived from observables in the consumer's own
+ * checkout, and deliberately NOT from a new `.agentrc` key — a new key would
+ * have to be threaded through the runtime AJV (`lib/config-settings-schema*.js`)
+ * *and* the published mirror, and would make consumers hand-configure something
+ * already derivable.
+ *
+ * A project is web-capable when ANY of these hold:
+ *   1. `delivery.quality.navigability.routeGlobs` is configured — the existing
+ *      web signal the navigability lens already routes off.
+ *   2. The root `package.json` declares a web framework (react / next / vue /
+ *      svelte / astro / nuxt / remix / gatsby / angular).
+ *   3. A bounded source scan finds a `.html` / `.css` / `.jsx` / `.tsx` file
+ *      outside test directories.
+ *
+ * **Fail direction: OPEN.** When a signal is indeterminate — an unparseable
+ * `package.json`, an unreadable root, a scan that hit its entry budget — the
+ * project is treated as web-capable. A false positive costs one wasted lens
+ * run; a false negative silently drops audit coverage on a project that has a
+ * real web surface, and nothing downstream would ever report the omission.
+ * Wasted spend is recoverable; dropped coverage is not.
+ *
+ * @param {{ config?: object|null, projectRoot?: string }} [params]
+ * @returns {boolean}
+ */
+export function hasWebSurface({ config, projectRoot = PROJECT_ROOT } = {}) {
+  if (resolveNavigabilityRouteGlobs(config).length > 0) return true;
+
+  if (_webSurfaceFsCache.has(projectRoot)) {
+    return _webSurfaceFsCache.get(projectRoot);
+  }
+
+  const declared = declaresWebFramework(projectRoot);
+  // `null` is indeterminate, not false — fail open.
+  const result =
+    declared === null || declared === true
+      ? true
+      : scanForWebAssets(projectRoot) !== false;
+
+  _webSurfaceFsCache.set(projectRoot, result);
+  return result;
+}
+
+/**
  * Test a single filename against a single glob pattern using the project's
  * configured matcher semantics (`picomatch` with `dot: true`). Exported so
  * regression tests can pin engine behaviour without stubbing audit-rules.
@@ -341,6 +541,9 @@ export function matchesAnyFilePattern(patterns, files) {
  *   Test-only seam to drive the `--gate-mode` / `MANDREL_GATE_MODE=1`
  *   detection; production callers leave unset and `isGateMode` reads
  *   `process.argv` / `process.env`.
+ * @param {typeof hasWebSurface} [params.hasWebSurfaceFn]
+ *   Test-only seam overriding the web-surface probe behind the
+ *   `target: "web"` applicability gate. Production callers leave unset.
  *
  * Returns either the success envelope (`{ selectedAudits, ticketId, gate, context }`)
  * OR the degraded envelope (`{ ok: false, degraded: true, reason, detail }`)
@@ -357,6 +560,7 @@ export async function selectAudits({
   injectedGitSpawn,
   gitTimeoutMsOverride,
   gateModeOpts,
+  hasWebSurfaceFn = hasWebSurface,
 }) {
   const config = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
@@ -463,11 +667,32 @@ export async function selectAudits({
 
   const selectedAudits = [];
 
+  // Resolved at most once per call, and only if a `target: "web"` lens
+  // actually clears its gate — a Node-only project must not pay a filesystem
+  // scan on a roster with no web lens in it.
+  let webSurfaceMemo = null;
+  const projectIsWebCapable = () => {
+    if (webSurfaceMemo === null) {
+      webSurfaceMemo = hasWebSurfaceFn({ config });
+    }
+    return webSurfaceMemo;
+  };
+
   for (const [auditName, ruleOpts] of Object.entries(rulesData.audits || {})) {
     const triggers = ruleOpts.triggers || {};
 
     const gateMatch = triggers.gates?.includes(gate);
     if (!gateMatch) continue;
+
+    // Target-applicability gate (#4579). A lens declaring `target: "web"`
+    // has nothing to read on a project with no web surface, yet still
+    // whole-word-matches ordinary prose — `audit-seo` fires on the `meta`
+    // inside every Story body's `<!-- meta: {...} -->` machine comment. The
+    // roster's own instruction is that the host MUST walk every listed lens,
+    // so an inapplicable entry is not just wasted spend: it teaches operators
+    // to ignore the MUST. An absent `target` means "always applicable", so no
+    // existing lens changes behaviour.
+    if (ruleOpts.target === 'web' && !projectIsWebCapable()) continue;
 
     const keywords = triggers.keywords || [];
     let keywordMatch = false;

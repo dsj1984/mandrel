@@ -4,6 +4,13 @@ description: Audit UX/UI consistency and design system adherence
 
 # UX/UI & Design System Audit
 
+## Applicability
+
+**Web targets only.** Registered with `target: "web"` in
+[`audit-rules.json`](../schemas/audit-rules.json): the selector skips this lens
+on a project with no rendered frontend. See the `target` key's schema
+description for how applicability is probed from the consumer's checkout.
+
 ## Role
 
 Lead Product Designer & Frontend Architect

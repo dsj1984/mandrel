@@ -228,3 +228,36 @@ export function buildTerminalEnvelope({
 export function exitCodeForTerminal(envelope) {
   return TERMINAL_EXIT_CODES[envelope?.status] ?? 1;
 }
+
+/** The markers a caller scans stdout for to recover the envelope. */
+export const TERMINAL_BEGIN_MARKER = '--- STORY DELIVER TERMINAL ---';
+export const TERMINAL_END_MARKER = '--- END TERMINAL ---';
+
+/**
+ * Write a terminal envelope to stdout, between its markers.
+ *
+ * **Deliberately not `Logger.info`.** The envelope is this CLI's
+ * machine-readable contract — every invocation emits exactly ONE, and a
+ * headless caller parses it out of stdout to decide what happened.
+ * `Logger.info` is level-gated, so under the documented
+ * `AGENT_LOG_LEVEL=silent` (§ 1.H) the envelope silently vanished and the
+ * caller got a bare exit code: precisely the "no envelope at all" outcome
+ * Story #4543 exists to remove. A contract payload must not be suppressible
+ * by a verbosity knob.
+ *
+ * Single home for the marker format so the four emit sites (the runner's
+ * terminal, the close CLI's failed-terminal catch, and both confirm-CLI
+ * paths) cannot drift apart.
+ *
+ * @param {object} envelope
+ * @param {{ write?: (s: string) => void }} [opts] `write` is a test seam.
+ * @returns {void}
+ */
+export function emitTerminalEnvelope(
+  envelope,
+  { write = (s) => process.stdout.write(s) } = {},
+) {
+  write(
+    `\n${TERMINAL_BEGIN_MARKER}\n${JSON.stringify(envelope, null, 2)}\n${TERMINAL_END_MARKER}\n`,
+  );
+}

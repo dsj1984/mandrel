@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getAgentrcValidator } from '../.agents/scripts/lib/config-settings-schema.js';
+import {
+  COMMENT_EVENT_NAMES,
+  getAgentrcValidator,
+  WEBHOOK_EVENT_NAMES,
+} from '../.agents/scripts/lib/config-settings-schema.js';
 
 const validate = getAgentrcValidator();
 
@@ -838,6 +842,74 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
         },
       }),
       true,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notification event vocabularies
+// ---------------------------------------------------------------------------
+
+describe('notification event vocabularies', () => {
+  it('lets `story-closing` be allowlisted for comment delivery, not just webhooks', () => {
+    // The event is Story-scoped and `level: "story"` (see
+    // `lib/single-story/story-merged-notify.js`), so the ticket comment
+    // channel is a meaningful destination for it. It was previously
+    // webhook-only, which made the allowlist unexpressible.
+    assert.ok(COMMENT_EVENT_NAMES.includes('story-closing'));
+    assert.equal(
+      validate({
+        ...REQ,
+        github: {
+          owner: 'o',
+          repo: 'r',
+          operatorHandle: '@op',
+          notifications: { commentEvents: ['story-merged', 'story-closing'] },
+        },
+      }),
+      true,
+    );
+  });
+
+  it('keeps the comment vocabulary a strict subset of the webhook vocabulary', () => {
+    for (const name of COMMENT_EVENT_NAMES) {
+      assert.ok(
+        WEBHOOK_EVENT_NAMES.includes(name),
+        `comment event "${name}" must also be a webhook event`,
+      );
+    }
+    assert.ok(COMMENT_EVENT_NAMES.length < WEBHOOK_EVENT_NAMES.length);
+  });
+
+  it('keeps run-scoped and firehose beats out of the comment vocabulary', () => {
+    // Narrower on the ticket-scope axis, deliberately: these are not about
+    // one Story issue, so a comment has nowhere meaningful to land.
+    for (const name of [
+      'merge.unlanded',
+      'merge.flip-failed',
+      'loop.tick',
+      'story.heartbeat',
+    ]) {
+      assert.ok(WEBHOOK_EVENT_NAMES.includes(name), `${name} is emitted`);
+      assert.ok(
+        !COMMENT_EVENT_NAMES.includes(name),
+        `run-scoped event "${name}" must stay out of the comment vocabulary`,
+      );
+    }
+  });
+
+  it('rejects a commentEvents entry outside the vocabulary', () => {
+    expectErrors(
+      {
+        ...REQ,
+        github: {
+          owner: 'o',
+          repo: 'r',
+          operatorHandle: '@op',
+          notifications: { commentEvents: ['loop.tick'] },
+        },
+      },
+      /must be equal to one of the allowed values/,
     );
   });
 });

@@ -60,6 +60,29 @@ function ticket(slug) {
   };
 }
 
+/**
+ * A `ticket()` whose authored content varies independently of slug/title —
+ * the axis the resume fingerprint has to be sensitive to.
+ */
+function ticketWithGoal(slug, goal) {
+  const acceptance = [`${slug} done`];
+  return {
+    ...ticket(slug),
+    body: serialize({
+      goal,
+      changes: [
+        {
+          path: 'tests/scripts/plan-persist.flat-stories.test.js',
+          assumption: 'refactors-existing',
+        },
+      ],
+      acceptance,
+      verify: ['npm test (validate)'],
+      reason_to_exist: `Ship ${slug}`,
+    }),
+  };
+}
+
 function fakeProvider({ sources = [], createHook = null } = {}) {
   const issues = new Map();
   const comments = [];
@@ -491,6 +514,69 @@ describe('runPlanPersist — flat Story ops', () => {
     }
   });
 
+  it('does not adopt a same-named Story whose authored content drifted', async () => {
+    // The resume fingerprint used to be sha256(slug + NUL + title), matched
+    // against every open type::story. So an operator who edited stories.json
+    // and re-ran got the *stale* Story adopted: body and Spec never rewritten,
+    // and this run's checkpoints/ready-flip landing on the pre-edit content.
+    const provider = fakeProvider();
+    const first = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticketWithGoal('alpha', 'Original goal.')] },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+    const staleId = first.primaryStoryId;
+
+    // Same slug, same title — only the authored content differs.
+    const second = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticketWithGoal('alpha', 'REVISED goal.')] },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.notEqual(
+      second.primaryStoryId,
+      staleId,
+      'an edited Story must not silently adopt the pre-edit issue',
+    );
+    assert.equal(second.stories[0].adopted, false);
+    assert.match(
+      provider.issues.get(second.primaryStoryId).body,
+      /REVISED goal/,
+      'the new Story carries the authored content',
+    );
+    assert.doesNotMatch(
+      provider.issues.get(staleId).body,
+      /REVISED goal/,
+      'adoption never rewrites a body, so the stale Story stays as it was',
+    );
+  });
+
+  it('still adopts when the authored content is unchanged (resume, not duplicate)', async () => {
+    // Positive control for the tightening above: identical artifacts must
+    // still resume, or the fingerprint would be useless.
+    const provider = fakeProvider();
+    const stories = [ticketWithGoal('alpha', 'Original goal.')];
+    const first = await runPlanPersist({
+      provider,
+      artifacts: { stories },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+    const second = await runPlanPersist({
+      provider,
+      artifacts: { stories },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(second.primaryStoryId, first.primaryStoryId);
+    assert.equal(second.stories[0].adopted, true);
+    assert.equal(provider.issues.size, 1, 'no duplicate was minted');
+  });
+
   it('applies sanitized authored labels and drops runtime-owned axes', async () => {
     // Story #4541: labels[] was described as required by the descriptor and
     // the prompt schema but never read. Apply it, or stop asking — this is
@@ -566,13 +652,89 @@ describe('runPlanPersist — flat Story ops', () => {
       // This run's own critic skips ARE counted — the line describes work
       // that just happened, which is the point.
       assert.match(line, /3 critic skip/);
-      // ...and the 2020 invocation from a previous plan run is NOT. Before
-      // the `since` filter this read "1 invocation(s)", inviting the reader
-      // to attribute someone else's plan to this one.
-      assert.match(line, /0 invocation\(s\)/);
+      // The run being summarized counts itself. `recordPlanInvocation`
+      // appends its record in a `finally` that fires only once runPlanPersist
+      // resolves — long after this comment body is composed — so reading the
+      // ledger alone summarized every run *except* this one and reported
+      // "0 invocation(s)" onto the very comment reporting it. The in-flight
+      // record is folded in to close that ordering gap.
+      assert.match(line, /1 invocation\(s\)/);
+      assert.match(line, /plan-persist ×1/);
+      // ...and the 2020 invocation from a previous plan run is still NOT
+      // counted: without the `since` filter this would read "2 invocation(s)",
+      // attributing someone else's plan to this one.
+      assert.doesNotMatch(line, /2 invocation\(s\)/);
     } finally {
       rmSync(workRoot, { recursive: true, force: true });
     }
+  });
+
+  it('reports degraded file-assumption findings as ambiguous, not clean', async () => {
+    // The posted summary hard-coded `freshness: { stale: 0, ambiguous: 0 }`,
+    // so it read "Spec freshness: clean" even on the one run where the gate
+    // had given up: an unresolvable base ref downgrades its mismatches to
+    // warnings, and the comment then asserted a clean result precisely where
+    // it had the least evidence for one.
+    //
+    // The downgrade is reachable because the two halves resolve the ref
+    // differently: validateTickets reads `config` (→ the real `main`, so the
+    // mismatch is found), while the gate's probe prefers `settings.baseBranch`
+    // (→ unresolvable, so the finding cannot be trusted).
+    const mismatched = ticket('drifted');
+    mismatched.body = serialize({
+      goal: 'Goal of drifted.',
+      changes: [
+        {
+          // This file exists on main, so declaring it as `creates` is a
+          // genuine assumption mismatch.
+          path: 'tests/scripts/plan-persist.flat-stories.test.js',
+          assumption: 'creates',
+        },
+      ],
+      acceptance: ['drifted done'],
+      verify: ['npm test (validate)'],
+      reason_to_exist: 'Ship drifted',
+    });
+
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [mismatched] },
+      config: {},
+      settings: { baseBranch: 'definitely-not-a-real-branch' },
+      opts: { skipCleanup: true },
+    });
+
+    assert.deepEqual(
+      result.freshness,
+      { stale: 0, ambiguous: 1 },
+      'an unverifiable finding is ambiguous — it is not confirmed stale, ' +
+        'and it is certainly not clean',
+    );
+    const summary = provider.comments.find((c) =>
+      c.body.includes('Plan Summary'),
+    );
+    const line = summary.body
+      .split('\n')
+      .find((l) => l.includes('Spec freshness'));
+    assert.match(line, /0 stale \/ 1 ambiguous/);
+    assert.doesNotMatch(line, /clean/);
+  });
+
+  it('reports freshness clean when the gate ran and found nothing', async () => {
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('tidy')] },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.deepEqual(result.freshness, { stale: 0, ambiguous: 0 });
+    const summary = provider.comments.find((c) =>
+      c.body.includes('Plan Summary'),
+    );
+    assert.match(summary.body, /Spec freshness: clean/);
   });
 
   it('rejects hard model-capacity findings before issue creation', async () => {
@@ -988,13 +1150,34 @@ describe('planStoryFingerprint (Story #4541)', () => {
     assert.notEqual(base, planStoryFingerprint({ slug: 'alpha', title: 'U' }));
   });
 
-  it('does not depend on the body — the resume lookup would break if it did', () => {
-    // Creation rewrites the body to substitute real issue ids into
-    // depends_on footers, so a body-derived fingerprint would differ
-    // between an aborted run and its resume.
-    assert.equal(
+  it('depends on the body — a same-named Story with different content is not the same Story', () => {
+    // The safety property of adoption: a fingerprint hit must mean "this open
+    // Story is byte-identical to what we would author". Keying on slug+title
+    // alone let an unrelated later plan adopt (and never rewrite) a stale
+    // Story, and let an edited stories.json resume onto its own pre-edit body.
+    assert.notEqual(
       planStoryFingerprint({ slug: 'a', title: 'T', body: 'one' }),
       planStoryFingerprint({ slug: 'a', title: 'T', body: 'two' }),
+    );
+  });
+
+  it('is stable across a run and its resume (assembled body, slug depends_on)', () => {
+    // The rationale that kept the body out was that creation substitutes real
+    // issue ids into depends_on footers. It does — but only into the *posted*
+    // body, in renderStoryBodyForCreate. The fingerprint is taken over the
+    // assembled body, which is a pure function of stories.json, so a resume
+    // reproduces it exactly.
+    const assembled = { slug: 'a', title: 'T', body: 'goal\n\nblocked by b' };
+    assert.equal(
+      planStoryFingerprint(assembled),
+      planStoryFingerprint({ ...assembled }),
+    );
+  });
+
+  it('treats a missing body as empty rather than throwing', () => {
+    assert.equal(
+      planStoryFingerprint({ slug: 'a', title: 'T' }),
+      planStoryFingerprint({ slug: 'a', title: 'T', body: '' }),
     );
   });
 });

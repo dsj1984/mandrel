@@ -8,6 +8,16 @@ description: >-
 
 # Navigability Audit
 
+## Applicability
+
+**Web targets only.** Registered with `target: "web"` in
+[`audit-rules.json`](../schemas/audit-rules.json). This is consistent with the
+lens's own no-op contract below rather than an additional constraint: the
+web-surface probe's first signal _is_ configured `routeGlobs`, so a consumer
+that has configured this lens's route-tree SSOT always clears the gate. The
+gate only bites where the lens had no route data to read anyway — it converts a
+silent no-op run into no run at all.
+
 ## Role
 
 Information-Architecture Reviewer & Frontend Navigation Auditor

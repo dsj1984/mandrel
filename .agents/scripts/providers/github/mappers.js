@@ -35,6 +35,11 @@ export function issueToTicket(issue) {
     labelSet: new Set(labels),
     assignees: (issue.assignees ?? []).map((a) => a.login),
     state: issue.state,
+    // `completed` | `not_planned` | `reopened` | null. `state` alone cannot
+    // tell a Story that landed from one closed as superseded — both read
+    // `closed` — so the close path needs this to avoid reporting a
+    // never-merged Story as landed.
+    stateReason: issue.state_reason ?? null,
   };
 }
 

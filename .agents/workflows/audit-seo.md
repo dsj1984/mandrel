@@ -4,6 +4,16 @@ description: Audit SEO fundamentals and Generative Engine Optimization signals (
 
 # SEO & Generative Engine Optimization Audit
 
+## Applicability
+
+**Web targets only.** This lens is registered with `target: "web"` in
+[`audit-rules.json`](../schemas/audit-rules.json), so the selector skips it
+entirely on a project with no web surface — however well its keyword triggers
+match the ticket prose. Applicability is derived from the consumer's own
+checkout (configured navigability `routeGlobs`, a declared web-framework
+dependency, or a tracked `.html` / `.css` / `.jsx` / `.tsx` source file), not
+from an `.agentrc` key, and the probe fails open when indeterminate.
+
 ## Role
 
 Senior Technical SEO and Generative Engine Optimization (GEO) Specialist. You

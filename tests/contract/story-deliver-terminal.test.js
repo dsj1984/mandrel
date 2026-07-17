@@ -26,12 +26,15 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { setLevel } from '../../.agents/scripts/lib/Logger.js';
 import { MERGE_UNLANDED_BLOCK_CLASSES } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
 import {
   buildTerminalEnvelope,
+  emitTerminalEnvelope,
   exitCodeForTerminal,
   NEXT_COMMANDS,
+  TERMINAL_BEGIN_MARKER,
+  TERMINAL_END_MARKER,
   TERMINAL_ENVELOPE_KIND,
   TERMINAL_EXIT_CODES,
   TERMINAL_STATUSES,
@@ -329,5 +332,50 @@ describe('story-deliver-terminal — validation surface', () => {
       surpriseField: true,
     });
     assert.equal(valid, false);
+  });
+});
+
+describe('emitTerminalEnvelope — the contract payload is not level-gated', () => {
+  const envelope = buildTerminalEnvelope({
+    storyId: 42,
+    status: 'landed',
+    phase: 'done',
+    nextCommand: null,
+    elapsedSeconds: 1,
+  });
+
+  it('writes the envelope between its markers', () => {
+    let out = '';
+    emitTerminalEnvelope(envelope, { write: (s) => (out += s) });
+    assert.ok(out.includes(TERMINAL_BEGIN_MARKER));
+    assert.ok(out.includes(TERMINAL_END_MARKER));
+    const body = out
+      .split(TERMINAL_BEGIN_MARKER)[1]
+      .split(TERMINAL_END_MARKER)[0];
+    assert.deepEqual(JSON.parse(body), envelope);
+  });
+
+  it('still emits under AGENT_LOG_LEVEL=silent', () => {
+    // The regression: the envelope used to go out via Logger.info, which is
+    // a no-op at `silent` — a documented level (instructions.md § 1.H). A
+    // headless caller got an exit code and no envelope: the "none at all"
+    // outcome the envelope exists to remove. A verbosity knob must not be
+    // able to suppress a machine contract.
+    const previous = process.env.AGENT_LOG_LEVEL;
+    setLevel('silent');
+    try {
+      let out = '';
+      emitTerminalEnvelope(envelope, { write: (s) => (out += s) });
+      assert.ok(
+        out.includes(TERMINAL_BEGIN_MARKER),
+        'envelope must survive AGENT_LOG_LEVEL=silent',
+      );
+      const body = out
+        .split(TERMINAL_BEGIN_MARKER)[1]
+        .split(TERMINAL_END_MARKER)[0];
+      assert.equal(JSON.parse(body).status, 'landed');
+    } finally {
+      setLevel(previous ?? 'info');
+    }
   });
 });

@@ -41,10 +41,15 @@ test('selectAudits: keyword matching against ticket title/body still selects the
     () => ({ status: 0, stdout: '', stderr: '' }),
   );
 
+  // `audit-lighthouse` declares `target: "web"` (#4579), so it only clears
+  // selection on a project that has a web surface. This test pins the KEYWORD
+  // mechanism, so it states the web-target premise explicitly rather than
+  // depending on the host repo's own (non-web) shape.
   const { selectedAudits, ticketId, gate, context } = await selectAudits({
     ticketId: 300,
     gate: 'gate2',
     provider,
+    hasWebSurfaceFn: () => true,
   });
 
   assert.equal(ticketId, 300);
@@ -54,6 +59,16 @@ test('selectAudits: keyword matching against ticket title/body still selects the
     selectedAudits.includes('audit-lighthouse'),
     'accessibility keyword should select the lighthouse audit (which covers a11y)',
   );
+
+  // The same keyword on a project with no web surface selects nothing: the
+  // target-applicability gate, not the keyword matcher, is what drops it.
+  const { selectedAudits: onNodeOnly } = await selectAudits({
+    ticketId: 300,
+    gate: 'gate2',
+    provider,
+    hasWebSurfaceFn: () => false,
+  });
+  assert.ok(!onNodeOnly.includes('audit-lighthouse'));
 });
 
 test('selectAudits: glob filePattern from audit-rules.json selects an audit on a matching changed file', async () => {

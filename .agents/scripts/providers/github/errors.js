@@ -272,22 +272,3 @@ export const REMOVE_SUB_ISSUE_MUTATION = `
       subIssue { number }
     }
   }`;
-
-// Story #2982 — native parent lookup for the cascade upward walk. The
-// inverse of `SUB_ISSUES_QUERY`: given a child Issue node, fetch the
-// `parent` field exposed by the Sub-Issues feature so `cascadeCompletion`
-// can resolve a parent even when the child body lacks the `parent: #N`
-// orchestrator footer.
-export const PARENT_ISSUE_QUERY = `query($id: ID!) {
-  node(id: $id) {
-    ... on Issue {
-      parent {
-        number
-        databaseId
-        id
-        title
-        state
-      }
-    }
-  }
-}`;

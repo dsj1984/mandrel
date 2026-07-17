@@ -127,10 +127,29 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
 /**
  * Curated GitHub-comment event vocabulary. The comment channel is gated by
  * an explicit allowlist of event names — same model as `webhookEvents`.
+ *
+ * **Deliberately narrower than {@link WEBHOOK_EVENT_NAMES}**, and the axis
+ * is ticket scope, not importance. A comment is written *onto a Story
+ * issue*, so only events that are about one Story, and whose message reads
+ * as narrative an operator wants durably on the ticket, belong here. The
+ * webhook-only remainder — `merge.unlanded`, `merge.flip-failed`,
+ * `loop.tick`, `story.heartbeat` — are run-scoped or firehose beats;
+ * mirroring them onto the ticket would bury the narrative under machine
+ * chatter, and `notify()` drops a comment for any dispatch without a
+ * resolvable ticket id regardless.
+ *
+ * `story-closing` IS in scope by that rule (Story-scoped, `level: 'story'`,
+ * human-readable — the same shape as `story-merged`) and its earlier
+ * absence was an oversight: the event was emittable to webhooks but could
+ * not be allowlisted for comments at all. It is in the vocabulary but NOT
+ * in the shipped default (`config/github.js` `NOTIFICATIONS_DEFAULTS`) —
+ * opting in is an operator choice, not a behaviour change forced on every
+ * consumer.
  */
 export const COMMENT_EVENT_NAMES = Object.freeze([
   'state-transition',
   'story-merged',
+  'story-closing',
   'operator-message',
 ]);
 

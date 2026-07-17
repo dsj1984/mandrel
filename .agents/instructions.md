@@ -262,14 +262,16 @@ Two carve-outs refine the ordering:
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
-Mandrel does **not** enforce live LLM spend from response metadata. It caps
-**planning context budget** (`planning.context.maxBytes`) and related
-envelopes; your host
-runtime owns session quota and hard stops. The config keys, the ≈4-char/token
-estimate, and the elision behaviour are reference detail — see
+Mandrel does **not** enforce live LLM spend from response metadata, and it has
+no operator-tunable context budget. What it does bound are fixed framework
+ceilings — the `/plan` context envelope and plan-time Story sizing — and they
+**fail closed** with a message naming what to trim, rather than silently
+handing the model a truncated context. Your host runtime owns session quota and
+hard stops. The constants, the ≈4-char/token estimate, and the trim options are
+reference detail — see
 [`docs/execution-reference.md` § FinOps & token budgeting](docs/execution-reference.md#finops--token-budgeting-economic-guardrails).
-Consult it when a task prompt was elided or `/deliver` refused a fan-out on
-budget grounds.
+Consult it when `/plan` refused an over-ceiling envelope or an over-budget
+Story count.
 
 ---
 

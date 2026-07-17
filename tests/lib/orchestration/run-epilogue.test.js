@@ -151,6 +151,91 @@ describe('resolveRunBaseSha — pre-run base derivation (Story #4550)', () => {
     );
   });
 
+  it('ignores a marker quoted inside a later revert subject', () => {
+    // The canonical false positive: a revert embeds the reverted subject
+    // verbatim, so `(#101)` appears mid-string on a commit that is not the
+    // Story's merge. A substring scan anchored here and swept every commit
+    // in between into the roster diff.
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'ddd',
+          parents: ['ccc'],
+          subject: 'fix: real story (#101) (#900)',
+        },
+        {
+          sha: 'ccc',
+          parents: ['bbb'],
+          subject: 'revert: "feat: old thing (#101) (#800)" (#850)',
+        },
+        { sha: 'bbb', parents: ['aaa'], subject: 'chore: unrelated' },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.mergeSha, 'ddd', 'anchored on the real merge');
+    assert.equal(
+      base.baseSha,
+      'ccc',
+      'base is the real merge’s first parent, not the revert’s',
+    );
+  });
+
+  it('matches the Story marker before the squash-appended PR number', () => {
+    // GitHub appends ` (#<prNumber>)` to the PR title, so the Story's own
+    // marker is second-to-last. Requiring the *last* marker to be the Story
+    // id would match no real squash merge at all.
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        { sha: 'bbb', parents: ['aaa'], subject: 'fix: s (#101) (#900)' },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.storyId, 101);
+    assert.equal(base.baseSha, 'aaa');
+  });
+
+  it('matches the `(refs #id)` PR-title form', () => {
+    const base = resolveRunBaseSha({
+      stories: [4575],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'bbb',
+          parents: ['aaa'],
+          subject:
+            'feat(dead-exports): add a production pass (refs #4575) (#4582)',
+        },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.storyId, 4575);
+    assert.equal(base.baseSha, 'aaa');
+  });
+
+  it('does not match a marker that is not part of the trailing run', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'bbb',
+          parents: ['aaa'],
+          subject: 'docs: describe (#101) handling in the guide',
+        },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /no landed squash-merge/);
+  });
+
   it('honours a non-default baseBranch ref', () => {
     const seen = [];
     const base = resolveRunBaseSha({

@@ -109,6 +109,25 @@ export async function writeCheckpointV2(provider, storyId, state) {
   return state;
 }
 
+/**
+ * Enforce the ticket validator's findings and report what the file-assumption
+ * gate actually concluded.
+ *
+ * The return value feeds the posted `plan-summary`'s freshness line, which
+ * used to be hard-coded `{ stale: 0, ambiguous: 0 }` — so the comment read
+ * "Spec freshness: clean" even on the one run where the gate had *given up*
+ * (Story #4541's unresolvable-base-ref downgrade). The summary asserted a
+ * clean result precisely when it had the least evidence for one.
+ *
+ * The mapping is deliberate. A confirmed mismatch is never reported here at
+ * all — it throws, and the run posts no summary. The only findings that
+ * survive to the summary are ones the gate could not *verify*, because the
+ * base ref they were computed against does not resolve; unverifiable is
+ * `ambiguous`, not `stale`.
+ *
+ * @returns {{ stale: number, ambiguous: number }} Freshness counts for the
+ *   posted summary.
+ */
 function enforceTicketValidation(validated, { config, settings, cwd }) {
   const validationErrors = validated.errors ?? [];
   const assumptionFailures = validationErrors.filter((error) =>
@@ -123,7 +142,7 @@ function enforceTicketValidation(validated, { config, settings, cwd }) {
         `hard error(s):\n${blockingErrors.map((error) => `  - ${error}`).join('\n')}`,
     );
   }
-  if (assumptionFailures.length === 0) return;
+  if (assumptionFailures.length === 0) return { stale: 0, ambiguous: 0 };
   // Story #4541: resolve through the canonical `project.baseBranch` (the
   // shape `config-resolver` actually emits) with the legacy settings bag as
   // a fallback — reading a bare `config.baseBranch` meant this probe always
@@ -150,6 +169,7 @@ function enforceTicketValidation(validated, { config, settings, cwd }) {
     `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
       `does not resolve — ${assumptionFailures.length} finding(s) downgraded.`,
   );
+  return { stale: 0, ambiguous: assumptionFailures.length };
 }
 
 /**
@@ -182,6 +202,63 @@ async function runSupersedePhase(args) {
         reason: err.message,
       })),
     };
+  }
+}
+
+/**
+ * Render the plan-metrics line for the **posted** `plan-summary` comment,
+ * scoped to this invocation.
+ *
+ * The ordering hazard this closes: the ledger record for the current run is
+ * appended by `recordPlanInvocation`'s `finally`, which by construction only
+ * fires once `runPlanPersist` has *resolved* — long after this comment body
+ * is composed. A plain `since`-filtered ledger read therefore summarized
+ * every run except the one being summarized, and on an otherwise-quiet
+ * ledger it rendered "plan-metrics: no invocations recorded" onto the very
+ * comment reporting the run. (The stdout envelope was always correct: its
+ * `attachPlanMetrics` read runs after the wrapper returns.)
+ *
+ * **The `finally` stays where it is.** It is what guarantees a persist that
+ * throws is still recorded, so moving the append earlier — or moving this
+ * read later, past the GitHub writes it feeds — would trade a cosmetic bug
+ * for a real one. Instead of racing it, fold in a synthetic record standing
+ * for the in-flight invocation. It is the same record the wrapper is about to
+ * write, minus a final duration; it cannot double-count, because the real one
+ * does not exist yet at this point in the pipeline.
+ *
+ * `ok: true` is honest here: this line is only ever composed on the success
+ * path, after `createStoryIssues` has returned.
+ *
+ * @param {{ config: object, since: string, startedAt: string, mode: string }} args
+ * @returns {Promise<string|null>}
+ */
+async function renderRunScopedPlanMetricsLine({
+  config,
+  since,
+  startedAt,
+  mode,
+}) {
+  try {
+    const ledger = await readPlanMetrics(null, config);
+    const endedAt = new Date().toISOString();
+    const inFlight = {
+      v: 1,
+      cli: 'plan-persist',
+      mode,
+      epicId: null,
+      startedAt,
+      endedAt,
+      durationMs: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)) || 0,
+      ok: true,
+    };
+    const summary = summarizePlanMetrics(
+      { ...ledger, entries: [...(ledger.entries ?? []), inFlight] },
+      { since },
+    );
+    return renderPlanMetricsSummaryLine(summary);
+  } catch (err) {
+    Logger.warn(`[plan-persist] plan-metrics summary skipped: ${err.message}`);
+    return null;
   }
 }
 
@@ -333,7 +410,11 @@ export async function runPlanPersist({
   });
   enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
   surfaceSoftConflictFindings(validated.findings, 'plan-persist');
-  enforceTicketValidation(validated, { config, settings, cwd });
+  const freshness = enforceTicketValidation(validated, {
+    config,
+    settings,
+    cwd,
+  });
 
   const reachability = evaluateDraftReachability({
     tickets: rawStories,
@@ -407,23 +488,21 @@ export async function runPlanPersist({
   // config object as an `epicId` and threw its guard on every single run —
   // a throw this try/catch then swallowed into a silently absent summary.
   // v2 persist is always Epic-less, hence the explicit `null`. The `since`
-  // filter keeps the counts about this invocation.
-  let planMetricsLine = null;
-  try {
-    const metrics = summarizePlanMetrics(await readPlanMetrics(null, config), {
-      since: runStartedAt,
-    });
-    planMetricsLine = renderPlanMetricsSummaryLine(metrics);
-  } catch (err) {
-    Logger.warn(`[plan-persist] plan-metrics summary skipped: ${err.message}`);
-    planMetricsLine = null;
-  }
+  // filter keeps the counts about this invocation, and the in-flight record
+  // is folded in because the wrapper has not written it yet — see
+  // `renderRunScopedPlanMetricsLine`.
+  const planMetricsLine = await renderRunScopedPlanMetricsLine({
+    config,
+    since: runStartedAt,
+    startedAt: runStartedAt,
+    mode: dryRun ? 'dry-run' : 'persist',
+  });
 
   const summaryBody = buildPlanSummaryCommentBody({
     epicId: primary.id,
     ticketCount: created.length,
     forceReview,
-    freshness: { stale: 0, ambiguous: 0 },
+    freshness,
     healthcheck: { skipped: true },
     waveTable,
     mode: 'stories',
@@ -503,6 +582,7 @@ export async function runPlanPersist({
     forceReview,
     critics,
     reachability,
+    freshness,
     waveTable,
     supersede,
   };

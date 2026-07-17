@@ -517,6 +517,86 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(provider._updates().length, 0, 'no label flip on noop');
   });
 
+  it('reports landed for a Story closed as completed', async (t) => {
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not be invoked when noop');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=noop-completed`);
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 1234,
+        state: 'closed',
+        stateReason: 'completed',
+        title: 'Done',
+        labels: ['agent::done'],
+      },
+    });
+
+    const { success, terminal } = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.equal(success, true);
+    assert.equal(terminal.status, 'landed');
+  });
+
+  it('fails loudly for a Story closed as not_planned rather than claiming it landed', async (t) => {
+    // `state: 'closed'` covers both "merged, footer closed it" and
+    // "superseded, nothing ever merged". Reporting the latter as `landed`
+    // told /deliver the work was on main — and would satisfy any dependent
+    // Story waiting on it.
+    const gh = makeFakeGh(() => {
+      throw new Error('gh must not be invoked when noop');
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=noop-notplanned`
+    );
+    const provider = makeFakeProvider({
+      initialStory: {
+        id: 1234,
+        state: 'closed',
+        stateReason: 'not_planned',
+        title: 'Superseded',
+        labels: [],
+      },
+    });
+
+    const { success, result, terminal } = await runSingleStoryClose({
+      storyId: 1234,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.equal(success, false);
+    assert.equal(terminal.status, 'failed');
+    assert.notEqual(terminal.status, 'landed');
+    assert.equal(result.reason, 'closed-not-planned');
+    assert.match(terminal.failure.reason, /not planned/i);
+    assert.equal(provider._updates().length, 0, 'no label flip on noop');
+  });
+
   it('honours --no-auto-merge by skipping the auto-merge gh call', async (t) => {
     const ghCalls = [];
     const gh = makeFakeGh((args) => {

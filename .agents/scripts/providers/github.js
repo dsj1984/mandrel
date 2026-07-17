@@ -131,7 +131,6 @@ const DELEGATIONS = [
   ['updateTicket', 'tickets.updateTicket'],
   ['_applyLabelMutations', 'tickets._applyLabelMutations'],
   ['_getNativeSubIssues', 'subIssues.getNativeSubIssues'],
-  ['_getNativeParent', 'subIssues.getNativeParent'],
   ['addSubIssue', 'subIssues.addSubIssue'],
   ['removeSubIssue', 'subIssues.removeSubIssue'],
   ['reconcileSubIssueLinks', 'subIssues.reconcileSubIssueLinks'],

@@ -438,6 +438,72 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
   });
 });
 
+describe('plan-context envelope byte ceiling — runtime enforcement', () => {
+  // The ceiling used to be asserted only by the fixture tests below, which
+  // bound nothing at runtime: the sizes that matter come from a consumer's
+  // seed or --tickets source bodies, and no fixture sees those. The
+  // documented cap (`planning.context.maxBytes`) resolves but is wired to
+  // nothing, so this is the only real bound on the path that needs one.
+  /** A seed large enough to carry the envelope past the real ceiling. */
+  const OVER_CEILING_SEED = 'lorem ipsum dolor sit amet consectetur. '.repeat(
+    9000,
+  );
+
+  it('refuses an envelope over the ceiling rather than emitting it', async () => {
+    // The risk the ceiling exists for: a seed (or --tickets source bodies)
+    // large enough to blow the planner's context. This used to return a
+    // happily unbounded envelope, because the only thing checking the ceiling
+    // was a fixture test that never sees a consumer's input.
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'seed',
+          seedText: OVER_CEILING_SEED,
+          provider: buildProvider(),
+          config: {},
+          settings: {},
+        }),
+      (err) => {
+        assert.match(err.message, /planner-context ceiling/);
+        assert.match(err.message, /"seed" envelope/);
+        // The operator has to know what to trim, so the largest contributing
+        // fields are named rather than just the total.
+        assert.match(err.message, /Largest fields:/);
+        assert.match(err.message, /seed \(\d+ KB\)/);
+        assert.match(err.message, /Trim the seed/);
+        return true;
+      },
+    );
+  });
+
+  it('refuses over-ceiling seed-file and tickets envelopes too', async () => {
+    // Every mode returns through the one choke point, so none of them can
+    // emit an unbounded envelope.
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'seed-file',
+          seedFileContent: OVER_CEILING_SEED,
+          provider: buildProvider(),
+          config: {},
+          settings: {},
+        }),
+      /planner-context ceiling/,
+    );
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'tickets',
+          ticketIds: [1],
+          provider: buildProvider({ body: OVER_CEILING_SEED }),
+          config: {},
+          settings: {},
+        }),
+      /planner-context ceiling/,
+    );
+  });
+});
+
 describe('plan-context envelope byte ceiling (PR2 named risk)', () => {
   it('seed-file and seed envelopes stay under the ceiling', async () => {
     const seedFileEnv = await buildPlanContext({

@@ -49,6 +49,7 @@ import { parseCloseOptions } from './lib/orchestration/single-story-close/phases
 import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
 import {
   buildTerminalEnvelope,
+  emitTerminalEnvelope,
   exitCodeForTerminal,
   NEXT_COMMANDS,
 } from './lib/orchestration/story-deliver-terminal.js';
@@ -108,12 +109,12 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
 }
 
 function logConfirmResult(result, terminal) {
+  // Human-facing dump stays level-gated; the envelope is the machine
+  // contract and must survive AGENT_LOG_LEVEL=silent.
   Logger.info(
     `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
-  Logger.info(
-    `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-  );
+  emitTerminalEnvelope(terminal);
   return { success: terminal.status !== 'failed', result, terminal };
 }
 
@@ -286,8 +287,16 @@ export async function runConfirmMerge({
   // wrapper. That wrapper was the whole reason the two landing surfaces
   // diverged: it captured follow-ups and nothing else, while the resync and
   // cleanup steps lived in prose the caller had to remember to run.
+  //
+  // Gated on `merged`, NOT on `action === 'done'`. `done` means "this run
+  // flipped the label"; a Story already at `agent::done` returns
+  // `action: 'noop', merged: true`, and gating on `done` skipped the tail for
+  // exactly that case — the belated-manual-confirm backfill this tail exists
+  // to make possible (see `story-follow-ups.js`, which documents the gap).
+  // Re-running is safe: every step is idempotent (the follow-ups comment is
+  // an upsert, ref cleanup and base fast-forward no-op when already done).
   const tail =
-    confirmation.action === 'done'
+    confirmation.merged === true
       ? await runPostLandTail({
           storyId,
           storyBranch,
@@ -349,9 +358,7 @@ async function main() {
     Logger.error(
       `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
     );
-    Logger.info(
-      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-    );
+    emitTerminalEnvelope(terminal);
     return exitCodeForTerminal(terminal);
   }
 }

@@ -160,12 +160,42 @@ describe('merge-block-class (Story #4426)', () => {
       // budget branch entirely. This case previously fell through to the
       // `api-race-other` fallback, which told the operator nothing about the
       // failing check actually blocking them.
+      //
+      // `mergeStateStatus: BLOCKED` is what makes the red check REQUIRED:
+      // GitHub gates the merge on it. Without that, a red check is not
+      // evidence the merge is blocked at all (see the UNSTABLE cases below).
       name: 'budget exhausted with a red required check → checks-failed',
+      input: {
+        prProbe: { checksStatus: 'failure', mergeStateStatus: 'BLOCKED' },
+        budget: { exhausted: true, elapsedSeconds: 120 },
+      },
+      expected: 'checks-failed',
+    },
+    {
+      // The bug this guards: `checksStatus` aggregates EVERY check on the PR,
+      // required or not. GitHub reports UNSTABLE for "mergeable with
+      // non-passing commit status" — i.e. the red checks are not required and
+      // native auto-merge will land the PR regardless. Calling that
+      // `checks-failed` sent the operator to fix a check that was never in
+      // their way, on a PR that merged anyway.
+      name: 'red OPTIONAL check (UNSTABLE) → not checks-failed',
+      input: {
+        prProbe: { checksStatus: 'failure', mergeStateStatus: 'UNSTABLE' },
+        budget: { exhausted: true, elapsedSeconds: 120 },
+      },
+      expected: 'api-race-other',
+    },
+    {
+      // A transient UNKNOWN merge state (GitHub still computing, or a token
+      // that cannot see the field) is not evidence the red check gates the
+      // merge. Degrade to the fallback rather than assert a block we have not
+      // established.
+      name: 'red check with an unknown merge state → not checks-failed',
       input: {
         prProbe: { checksStatus: 'failure' },
         budget: { exhausted: true, elapsedSeconds: 120 },
       },
-      expected: 'checks-failed',
+      expected: 'api-race-other',
     },
     {
       // The same red check on a protected base, where GitHub also reports
@@ -194,6 +224,16 @@ describe('merge-block-class (Story #4426)', () => {
       assert.ok(verdict.reason.length > 0);
     });
   }
+
+  it('names the non-required red checks in the fallback reason so the operator is not sent to fix them', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: { checksStatus: 'failure', mergeStateStatus: 'UNSTABLE' },
+      budget: { exhausted: true, elapsedSeconds: 120 },
+    });
+    assert.equal(verdict.blockClass, 'api-race-other');
+    assert.match(verdict.reason, /not required/i);
+    assert.match(verdict.reason, /auto-merge/i);
+  });
 
   it('every canonical block class is reachable from at least one table case', () => {
     const produced = new Set(

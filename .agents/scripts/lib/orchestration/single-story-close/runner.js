@@ -13,6 +13,7 @@ import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
 import { releaseStoryLease } from '../single-story-lease-guard.js';
 import {
   buildTerminalEnvelope,
+  emitTerminalEnvelope,
   NEXT_COMMANDS,
 } from '../story-deliver-terminal.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
@@ -38,26 +39,63 @@ const progress = Logger.createProgress('single-story-close', { stderr: true });
  * be emitted from a path that forgot it.
  */
 function emitTerminal({ terminal, result }) {
+  // The human-facing result dump stays level-gated; the terminal envelope is
+  // the machine contract and must survive AGENT_LOG_LEVEL=silent.
   if (result) {
     Logger.info(
       `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
     );
   }
-  Logger.info(
-    `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-  );
+  emitTerminalEnvelope(terminal);
 }
 
-function alreadyClosedResult(storyId) {
+/**
+ * Terminal for a Story that was already closed before this run started.
+ *
+ * `state: 'closed'` alone does NOT mean the work landed. GitHub closes an
+ * issue as `completed` (the `Closes #<id>` footer firing on merge — the work
+ * IS on the base branch) or as `not_planned` (superseded by a re-plan,
+ * abandoned — nothing ever merged). Reporting the second as `landed` told
+ * `/deliver` that work had reached `main` when no PR ever merged, which would
+ * also satisfy any dependent Story waiting on it. Fail loudly instead: being
+ * handed an abandoned Story is an input error only the operator can resolve.
+ *
+ * A null `stateReason` keeps the `completed` reading — GitHub defaults to it,
+ * and issues closed before the field existed carry null.
+ */
+function alreadyClosedResult(storyId, stateReason = null) {
+  if (stateReason === 'not_planned') {
+    const result = {
+      storyId,
+      standalone: true,
+      action: 'noop',
+      reason: 'closed-not-planned',
+    };
+    const terminal = buildTerminalEnvelope({
+      storyId,
+      status: 'failed',
+      phase: 'init',
+      failure: {
+        reason:
+          `Story #${storyId} is closed as not planned (superseded or abandoned) — ` +
+          'there is nothing to land. Re-plan it as a new Story, or pass a Story that is still open.',
+      },
+      nextCommand: null,
+      elapsedSeconds: 0,
+    });
+    emitTerminal({ terminal, result });
+    return { success: false, result, terminal };
+  }
+
   const result = {
     storyId,
     standalone: true,
     action: 'noop',
     reason: 'already-closed',
   };
-  // Idempotent re-run against a finished Story. `landed` is the honest
-  // status — the issue is closed, so the work is on the base branch — and
-  // there is nothing left to command.
+  // Idempotent re-run against a Story closed as completed. `landed` is the
+  // honest status — the issue closed on merge, so the work is on the base
+  // branch — and there is nothing left to command.
   const terminal = buildTerminalEnvelope({
     storyId,
     status: 'landed',
@@ -467,9 +505,11 @@ async function runClosePipeline({
   if (story.state === 'closed') {
     progress(
       'NOOP',
-      `Story #${options.storyId} is already closed. Nothing to do.`,
+      story.stateReason === 'not_planned'
+        ? `Story #${options.storyId} is closed as not planned — nothing to land.`
+        : `Story #${options.storyId} is already closed. Nothing to do.`,
     );
-    return alreadyClosedResult(options.storyId);
+    return alreadyClosedResult(options.storyId, story.stateReason);
   }
 
   const worktreePath = resolveWorktreePath({

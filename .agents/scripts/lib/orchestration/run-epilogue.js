@@ -196,6 +196,50 @@ function readFirstParentHistory({ cwd, baseRef, scanLimit, git }) {
 }
 
 /**
+ * One trailing `(#<n>)` / `(refs #<n>)` marker, anchored at the end of what
+ * is left of a subject after the markers to its right have been peeled off.
+ */
+const TRAILING_MARKER_RE = /\s*\((?:refs\s+)?#(\d+)\)$/;
+
+/**
+ * Peel the **trailing run** of `(#<n>)` markers off a squash subject.
+ *
+ * The shape this parses is fixed by the close pipeline plus GitHub: the PR
+ * title `normalizePrTitle` writes ends with `(#<storyId>)`, and GitHub's
+ * squash appends ` (#<prNumber>)` to it — so a landed Story merge reads
+ * `<subject> (#<storyId>) (#<prNumber>)` and the Story's own marker is the
+ * *second-to-last* marker, not the last one. Both are returned; the caller
+ * decides which ids it cares about.
+ *
+ * Why the trailing run rather than a substring scan (the bug this replaces):
+ * `subject.includes('(#101)')` matched the id **anywhere**, so an unrelated
+ * later commit quoting an old marker — canonically a revert, whose subject
+ * embeds the reverted title verbatim: `revert: "fix: x (#101) (#900)" (#950)`
+ * — anchored the run on a far-older commit and inflated the roster diff with
+ * everything in between. Peeling from the right stops at the first character
+ * that is not part of a marker (the closing quote, above), so a quoted marker
+ * is structurally out of reach.
+ *
+ * The `refs #` form is accepted because it is the other PR-title shape this
+ * repo's own history carries (`feat(x): … (refs #4575) (#4582)`) — the
+ * `refs #<id>` convention from `rules/git-conventions.md`. A plain substring
+ * scan for `(#4575)` never matched those at all.
+ *
+ * @param {string} subject
+ * @returns {number[]} Marker ids, right-to-left (PR number first).
+ */
+function trailingMarkerIds(subject) {
+  const ids = [];
+  let rest = typeof subject === 'string' ? subject.trimEnd() : '';
+  for (;;) {
+    const match = TRAILING_MARKER_RE.exec(rest);
+    if (!match) return ids;
+    ids.push(Number(match[1]));
+    rest = rest.slice(0, match.index).trimEnd();
+  }
+}
+
+/**
  * Resolve the **pre-run base sha**: the commit the base branch pointed at
  * before the run's first Story landed.
  *
@@ -248,17 +292,17 @@ export function resolveRunBaseSha({
 
   // `git log` is newest-first; walk backwards so the first hit is the
   // *earliest* merge belonging to the run.
-  const markers = ids.map((id) => ({ id, marker: `(#${id})` }));
+  const wanted = new Set(ids);
   for (let i = history.commits.length - 1; i >= 0; i -= 1) {
     const commit = history.commits[i];
-    const hit = markers.find(({ marker }) => commit.subject.includes(marker));
-    if (!hit) continue;
+    const hit = trailingMarkerIds(commit.subject).find((id) => wanted.has(id));
+    if (hit === undefined) continue;
     const baseSha = commit.parents[0];
     if (!baseSha) {
       return {
         resolved: false,
         baseRef,
-        reason: `the earliest landed merge for the run (${commit.sha}, Story #${hit.id}) is a root commit — it has no first parent to use as the pre-run base`,
+        reason: `the earliest landed merge for the run (${commit.sha}, Story #${hit}) is a root commit — it has no first parent to use as the pre-run base`,
       };
     }
     return {
@@ -266,7 +310,7 @@ export function resolveRunBaseSha({
       baseRef,
       baseSha,
       mergeSha: commit.sha,
-      storyId: hit.id,
+      storyId: hit,
     };
   }
 
