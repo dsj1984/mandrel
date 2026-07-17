@@ -17,6 +17,7 @@ import { normalizeHandleAnswer } from '../../.agents/scripts/bootstrap.js';
 import { LEDGER_RELATIVE_PATH } from '../../.agents/scripts/lib/bootstrap/install-ledger.js';
 import {
   checkNodeVersion,
+  checkParity,
   detectPackageManager,
   ensureAgentrc,
   ensureGitignore,
@@ -331,5 +332,52 @@ describe('ensureAgentrc', () => {
       fs.readFileSync(path.join(tmpRoot, '.agentrc.json'), 'utf8'),
       before,
     );
+  });
+});
+
+describe('checkParity — command:false workflows', () => {
+  function seed({ commandFalse = true, withCommand = true } = {}) {
+    const wf = path.join(tmpRoot, '.agents', 'workflows');
+    const cmd = path.join(tmpRoot, '.claude', 'commands');
+    // A normal projectable workflow + its generated command.
+    writeFile(
+      path.join(wf, 'plan.md'),
+      '---\ndescription: Plan\n---\n# Plan\n',
+    );
+    writeFile(path.join(cmd, 'plan.md'), '# Plan\n');
+    // A lens workflow that declines a command via frontmatter.
+    writeFile(
+      path.join(wf, 'audit-lighthouse.md'),
+      `---\ndescription: Lighthouse lens\n${commandFalse ? 'command: false\n' : ''}---\n# Lighthouse\n`,
+    );
+    // Optionally give it a command too (the caller controls the failing case).
+    if (withCommand) {
+      writeFile(path.join(cmd, 'audit-lighthouse.md'), '# Lighthouse\n');
+    }
+  }
+
+  it('does not report a command:false workflow as missing a command', () => {
+    // The Install Matrix cold-start regression: audit-lighthouse /
+    // audit-security carry `command: false`, sync-claude-commands skips them,
+    // and the parity check must skip them too rather than demand a command
+    // the sync is contracted never to emit.
+    seed({ commandFalse: true, withCommand: false });
+    const result = checkParity({ projectRoot: tmpRoot });
+    assert.equal(
+      result.ok,
+      true,
+      'command:false workflow must not fail parity',
+    );
+    assert.deepEqual(result.missingCommand, []);
+    assert.deepEqual(result.orphanCommand, []);
+  });
+
+  it('still flags a projectable workflow that is genuinely missing its command', () => {
+    // Guard against over-correcting: a normal workflow with no command is a
+    // real drift the check must keep catching.
+    seed({ commandFalse: false, withCommand: false });
+    const result = checkParity({ projectRoot: tmpRoot });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.missingCommand, ['audit-lighthouse']);
   });
 });

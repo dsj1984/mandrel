@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { isCommandExcluded } from '../command-header.js';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
 import { LEDGER_RELATIVE_PATH } from './install-ledger.js';
 import { ensureIssueForms } from './issue-forms-template.js';
@@ -512,6 +513,15 @@ export function runSyncCommands(ctx) {
  * this; this is a belt-and-braces verification that the command projection
  * covers every top-level workflow.
  *
+ * A workflow whose frontmatter carries `command: false` is deliberately NOT
+ * projected to a command — `sync-claude-commands.js` skips it via the same
+ * `isCommandExcluded` predicate used here. Such a workflow must therefore be
+ * excluded from the expected-command set, or this check would demand a
+ * command the sync is contracted never to emit (e.g. the `audit-lighthouse` /
+ * `audit-security` lenses, which are run by the audit suite, not as slash
+ * commands). Keeping the two surfaces on one predicate is what stops them
+ * drifting.
+ *
  * @param {object} ctx
  * @param {typeof fs} [ctx.fsImpl]
  */
@@ -530,7 +540,14 @@ export function checkParity(ctx) {
           .map((e) => e.name.replace(/\.md$/, ''))
           .sort()
       : [];
-  const workflows = new Set(list(workflowsDir));
+  // Expected commands = projectable workflows only. A `command: false`
+  // workflow is contracted out of the command tree, so it is not "missing" a
+  // command — it declined one.
+  const projectable = (name) =>
+    !isCommandExcluded(
+      fsImpl.readFileSync(path.join(workflowsDir, `${name}.md`), 'utf8'),
+    );
+  const workflows = new Set(list(workflowsDir).filter(projectable));
   const commands = new Set(list(commandsDir));
   const missingCommand = [...workflows].filter((n) => !commands.has(n));
   const orphanCommand = [...commands].filter((n) => !workflows.has(n));
