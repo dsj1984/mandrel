@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
+  acquireLockWithWait,
   acquireSweepLock,
   isLockStale,
   readLockMtime,
@@ -119,5 +120,84 @@ describe('acquireSweepLock', () => {
     const body = fs.readFileSync(lockPath, 'utf-8');
     assert.match(body, /test-owner-42/);
     result.release();
+  });
+});
+
+describe('acquireLockWithWait (Story #4622)', () => {
+  it('acquires immediately when the lock is free', async () => {
+    const lockPath = path.join(tmpDir, 'wait.lock');
+    let slept = 0;
+    const res = await acquireLockWithWait({
+      lockPath,
+      waitMs: 1_000,
+      pollMs: 50,
+      sleepFn: async () => {
+        slept += 1;
+      },
+    });
+    assert.equal(res.acquired, true);
+    assert.equal(slept, 0, 'no wait when the lock is free');
+    res.release();
+  });
+
+  it('polls until a contended lock is released, then acquires', async () => {
+    const lockPath = path.join(tmpDir, 'wait.lock');
+    const holder = acquireSweepLock({ lockPath });
+    assert.equal(holder.acquired, true);
+
+    let now = 0;
+    const nowFn = () => now;
+    // Release the holder on the second poll so the wrapper's retry succeeds.
+    let sleeps = 0;
+    const sleepFn = async (ms) => {
+      now += ms;
+      sleeps += 1;
+      if (sleeps === 2) holder.release();
+    };
+
+    const res = await acquireLockWithWait({
+      lockPath,
+      waitMs: 10_000,
+      pollMs: 100,
+      nowFn,
+      sleepFn,
+    });
+    assert.equal(res.acquired, true, 'acquires once the holder releases');
+    assert.ok(sleeps >= 2, 'waited across at least two polls');
+    res.release();
+  });
+
+  it('gives up with contended-after-wait when the deadline passes (never load-bearing)', async () => {
+    const lockPath = path.join(tmpDir, 'wait.lock');
+    const holder = acquireSweepLock({ lockPath });
+    assert.equal(holder.acquired, true);
+
+    let now = 0;
+    const res = await acquireLockWithWait({
+      lockPath,
+      waitMs: 300,
+      pollMs: 100,
+      // A fresh mtime every check so the lock never reads stale.
+      timeoutMs: 60_000,
+      nowFn: () => now,
+      sleepFn: async (ms) => {
+        now += ms;
+      },
+    });
+    assert.equal(res.acquired, false);
+    assert.equal(res.reason, 'contended-after-wait');
+    holder.release();
+  });
+
+  it('short-circuits on a hard error instead of spinning', async () => {
+    const res = await acquireLockWithWait({
+      lockPath: '',
+      waitMs: 1_000,
+      sleepFn: async () => {
+        throw new Error('sleep should never be called on a hard error');
+      },
+    });
+    assert.equal(res.acquired, false);
+    assert.equal(res.reason, 'error');
   });
 });

@@ -167,3 +167,76 @@ function buildAcquired(lockPath, ownerId, fsImpl) {
   }
   return { acquired: true, release, ownerId };
 }
+
+const DEFAULT_WAIT_MS = 8_000;
+const DEFAULT_POLL_MS = 150;
+
+/**
+ * Promise-based delay. Injectable so tests can drive the wait loop on a fake
+ * clock without a real timer.
+ *
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function defaultSleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Bounded-wait wrapper over {@link acquireSweepLock}.
+ *
+ * `acquireSweepLock` is single-attempt on purpose: a *skipped* sweep is
+ * harmless, so the sweep caller proceeds immediately on contention. The
+ * post-land tail is the opposite case — proceeding immediately IS the race
+ * two concurrent closes hit on a shared main checkout — so this wrapper
+ * polls the primitive with short backoff up to `waitMs` before giving up.
+ *
+ * It is still **never load-bearing**: on `waitMs` exhaustion it returns
+ * `{ acquired: false, reason: 'contended-after-wait' }` and the caller is
+ * expected to proceed anyway. The bounded wait is a best-effort collision
+ * damper, not a mutual-exclusion guarantee. A hard I/O error short-circuits
+ * the loop (spinning would just re-hit it).
+ *
+ * @param {object} opts
+ * @param {string} opts.lockPath
+ * @param {number} [opts.waitMs]     Max total time to wait for the lock.
+ * @param {number} [opts.pollMs]     Delay between acquire attempts.
+ * @param {number} [opts.timeoutMs]  Stale-lock expiry, forwarded to the
+ *                                   underlying acquire.
+ * @param {string} [opts.ownerId]
+ * @param {() => number} [opts.nowFn]
+ * @param {(ms: number) => Promise<void>} [opts.sleepFn]
+ * @param {object} [opts.fsImpl]
+ * @returns {Promise<{ acquired: true, release: () => void, ownerId: string }
+ *          | { acquired: false, reason: 'contended-after-wait' | 'error', detail?: string }>}
+ */
+export async function acquireLockWithWait({
+  lockPath,
+  waitMs = DEFAULT_WAIT_MS,
+  pollMs = DEFAULT_POLL_MS,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+  ownerId,
+  nowFn = Date.now,
+  sleepFn = defaultSleep,
+  fsImpl = fs,
+} = {}) {
+  const deadline = nowFn() + Math.max(0, waitMs);
+  for (;;) {
+    const res = acquireSweepLock({
+      lockPath,
+      timeoutMs,
+      ownerId,
+      nowFn,
+      fsImpl,
+    });
+    if (res.acquired) return res;
+    // A hard error will not resolve by retrying — surface it immediately.
+    if (res.reason === 'error') return res;
+    if (nowFn() >= deadline) {
+      return { acquired: false, reason: 'contended-after-wait' };
+    }
+    await sleepFn(Math.max(0, pollMs));
+  }
+}

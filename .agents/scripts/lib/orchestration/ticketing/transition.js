@@ -38,6 +38,7 @@ import {
   renderTransitionMessage,
 } from '../../notifications/notifier.js';
 import {
+  emitBlockRecoveredFriction,
   emitRuntimeFriction,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../observability/runtime-friction.js';
@@ -123,19 +124,40 @@ function validateTransitionInputs(newState) {
 }
 
 /**
+ * Active states a `agent::blocked` Story can recover into (Story #4622). A
+ * `blocked → {executing|ready}` transition is a self-resolved block; every
+ * other target (`done`, `closing`) is a real terminal outcome, not a
+ * recovery.
+ */
+const BLOCK_RECOVERY_TARGETS = [STATE_LABELS.EXECUTING, STATE_LABELS.READY];
+
+/**
  * Resolve the pre-transition ticket snapshot that drives the notify
  * payload and the provider's label-merge path. Honors the caller-supplied
  * `opts.ticketSnapshot` (Story #1795) when present; otherwise issues a
  * best-effort `getTicket` and returns `null` on transient failure.
  *
+ * The snapshot is loaded when a caller threads `notify` (its `fromState`
+ * feeds the notification payload) OR when `needFromState` is set — Story
+ * #4622's recovery detection needs the *prior* state, and `getTicket` after
+ * `updateTicket` would already read the new label. Bounding the extra read
+ * to recovery-target transitions keeps every other flip on the snapshot-free
+ * fast path.
+ *
  * @param {object} provider
  * @param {{ notify?: Function, ticketSnapshot?: object|null }} opts
  * @param {number} ticketId
+ * @param {boolean} [needFromState]
  * @returns {Promise<object|null>}
  */
-async function loadTicketSnapshot(provider, opts, ticketId) {
+async function loadTicketSnapshot(provider, opts, ticketId, needFromState) {
   if (opts.ticketSnapshot) return opts.ticketSnapshot;
-  if (!opts.notify || typeof provider.getTicket !== 'function') return null;
+  if (
+    (!opts.notify && !needFromState) ||
+    typeof provider.getTicket !== 'function'
+  ) {
+    return null;
+  }
   try {
     return await provider.getTicket(ticketId);
   } catch (err) {
@@ -301,26 +323,50 @@ function dispatchTransitionNotification(args) {
  * (see `frictionForTerminal`): the two would otherwise count one incident
  * twice.
  *
- * Best-effort and awaited: `emitRuntimeFriction` swallows its own failures
- * and resolves `false`, so this can neither throw nor block the transition.
+ * Story #4622 extends the hook to the inverse edge: a `blocked → active`
+ * transition emits a recovery marker so a transient block that self-resolved
+ * can be netted out of the retro's `story-blocked` recurrence total.
+ *
+ * Best-effort and awaited: the friction emitters swallow their own failures
+ * and resolve `false`, so this can neither throw nor block the transition.
  * It is awaited rather than fire-and-forget because CLI entry points exit
  * via `process.exit` as soon as `main` resolves (`cli-utils.runAsCli` with
  * `propagateExitCode`), which would discard a still-pending append.
  *
  * @param {number} ticketId
+ * @param {string|null} fromState  Prior state label, or null.
  * @param {string} newState
  * @param {{ config?: object }} opts
  * @returns {Promise<void>}
  */
-async function emitBlockedFriction(ticketId, newState, opts) {
-  if (newState !== STATE_LABELS.BLOCKED) return;
-  await emitRuntimeFriction({
-    storyId: ticketId,
-    category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
-    tool: 'transitionTicketState',
-    details: { toState: newState },
-    config: opts?.config,
-  });
+async function emitBlockedFriction(ticketId, fromState, newState, opts) {
+  if (newState === STATE_LABELS.BLOCKED) {
+    await emitRuntimeFriction({
+      storyId: ticketId,
+      category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+      tool: 'transitionTicketState',
+      details: { toState: newState },
+      config: opts?.config,
+    });
+    return;
+  }
+  // Story #4622 — a transition *out* of `agent::blocked` into an active state
+  // is a recovery: the earlier block self-resolved. Emit its recovery marker
+  // so the retro composer can net the transient block out of the
+  // `story-blocked` recurrence total (swarm-os friction #581). Only a genuine
+  // block→active recovery qualifies; blocked→done/closing is a real
+  // terminal outcome, not a recovery, so it is left counted.
+  if (
+    fromState === STATE_LABELS.BLOCKED &&
+    BLOCK_RECOVERY_TARGETS.includes(newState)
+  ) {
+    await emitBlockRecoveredFriction({
+      storyId: ticketId,
+      fromState,
+      toState: newState,
+      config: opts?.config,
+    });
+  }
 }
 
 /**
@@ -382,7 +428,12 @@ export async function transitionTicketState(
   // snapshot is also forwarded to `provider.updateTicket` so the label
   // merge path skips its own `getTicket` call (the second of the two
   // round-trips this seam eliminates).
-  const ticketSnapshot = await loadTicketSnapshot(provider, opts, ticketId);
+  const ticketSnapshot = await loadTicketSnapshot(
+    provider,
+    opts,
+    ticketId,
+    BLOCK_RECOVERY_TARGETS.includes(newState),
+  );
   const fromState =
     ticketSnapshot?.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
 
@@ -406,8 +457,9 @@ export async function transitionTicketState(
   });
 
   // Story #4578 — derive a friction signal from the block, at the point the
-  // runtime already knows. Best-effort; never blocks the transition.
-  await emitBlockedFriction(ticketId, newState, opts);
+  // runtime already knows. Story #4622 also emits the recovery marker on the
+  // inverse block→active transition. Best-effort; never blocks the transition.
+  await emitBlockedFriction(ticketId, fromState, newState, opts);
 
   // Story #2548 — mirror the new state onto the Projects v2 Status
   // column. Best-effort; never blocks the transition.

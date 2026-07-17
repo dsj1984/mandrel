@@ -34,6 +34,11 @@
  * @typedef {Object} FrictionSignal
  * @property {string} category   Free-form bucket (e.g. `"lint-loop"`).
  * @property {"framework"|"consumer"} source
+ * @property {number} [storyId]  Emitting Story id (used to net out recovered
+ *                               `story-blocked` incidents — Story #4622).
+ * @property {object} [details]  Kind-specific payload; a `story-blocked`
+ *                               record with `details.recovered === true` is a
+ *                               recovery marker.
  *
  * @typedef {Object} BlockedEvent
  * @property {number} ticketId
@@ -68,6 +73,11 @@
  * @property {DiscardedItem[]}  discarded
  */
 
+import {
+  isRecoveredBlockSignal,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../observability/runtime-friction.js';
+
 /**
  * Empty result helper — returned for zero-input callers so the consumer
  * never needs to defensively spread undefineds.
@@ -87,6 +97,44 @@ function emptyResult() {
 function asString(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
+}
+
+/**
+ * Net transient (self-resolved) blocks out of the signal stream before it is
+ * aggregated (Story #4622).
+ *
+ * A `blocked → active` recovery emits a `story-blocked` record carrying
+ * `details.recovered === true`. When a Story has such a marker, its block was
+ * transient — lease contention or a stale label read under concurrent
+ * shared-checkout pressure (swarm-os friction #581) that cleared on a later
+ * beat — not a terminal HITL pause. This drops **every** `story-blocked`
+ * record for such a Story (both the original block and its recovery marker),
+ * so the retro counts only Stories still parked at `agent::blocked`.
+ *
+ * The netting is by `storyId`, not 1:1 pairing: a Story that ever recovered
+ * from a block in the run is treated as non-terminal for the whole run. That
+ * is a deliberate coarsening — the aggregate is a routing heuristic, not an
+ * incident ledger, and the signal stream carries no reliable ordering to
+ * reconstruct interleaved block/recover cycles. Non-`story-blocked` records
+ * and Stories with no recovery marker pass through untouched.
+ *
+ * @param {FrictionSignal[]} signals
+ * @returns {FrictionSignal[]}
+ */
+function netOutRecoveredBlocks(signals) {
+  const recoveredStoryIds = new Set();
+  for (const sig of signals) {
+    if (isRecoveredBlockSignal(sig) && Number.isInteger(sig.storyId)) {
+      recoveredStoryIds.add(sig.storyId);
+    }
+  }
+  if (recoveredStoryIds.size === 0) return signals;
+  return signals.filter((sig) => {
+    if (sig === null || typeof sig !== 'object') return true;
+    const isBlocked =
+      sig.category === RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED;
+    return !(isBlocked && recoveredStoryIds.has(sig.storyId));
+  });
 }
 
 /**
@@ -403,7 +451,7 @@ export function composeRoutedProposals(input) {
   } = normalised;
 
   return routeCategoryBuckets({
-    byCategory: aggregateByCategory(signals),
+    byCategory: aggregateByCategory(netOutRecoveredBlocks(signals)),
     blockedForceActionable: blockedForceMap(unresolvedBlockedEvents),
     anchorId,
     anchorKind,

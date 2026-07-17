@@ -41,12 +41,12 @@ afterEach(async () => {
   await fs.rm(tempRoot, { recursive: true, force: true });
 });
 
-function buildFakeProvider() {
+function buildFakeProvider(labels = ['agent::executing']) {
   const updates = [];
   return {
     updates,
     async getTicket(id) {
-      return { id, title: 'fixture', labels: ['agent::executing'], body: '' };
+      return { id, title: 'fixture', labels: [...labels], body: '' };
     },
     async updateTicket(id, mutations) {
       updates.push({ id, mutations });
@@ -114,5 +114,45 @@ describe('agent::blocked → friction signal (Story #4578)', () => {
     assert.deepEqual(provider.updates[0].mutations.labels.add, [
       STATE_LABELS.BLOCKED,
     ]);
+  });
+});
+
+describe('agent::blocked → active recovery marker (Story #4622)', () => {
+  for (const target of [STATE_LABELS.EXECUTING, STATE_LABELS.READY]) {
+    it(`emits a recovered story-blocked marker on blocked → ${target}`, async () => {
+      const provider = buildFakeProvider(['agent::blocked']);
+      await transitionTicketState(provider, 4622, target, {
+        config,
+        cascade: false,
+        _makeColumnSync: noopColumnSync,
+      });
+
+      const rows = await readSignals(4622);
+      assert.equal(rows.length, 1, 'exactly one recovery marker');
+      assert.equal(rows[0].category, RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED);
+      assert.equal(rows[0].details.recovered, true);
+      assert.equal(rows[0].details.fromState, STATE_LABELS.BLOCKED);
+      assert.equal(rows[0].details.toState, target);
+    });
+  }
+
+  it('does NOT emit a recovery marker on blocked → done (a terminal outcome, not a recovery)', async () => {
+    const provider = buildFakeProvider(['agent::blocked']);
+    await transitionTicketState(provider, 4624, STATE_LABELS.DONE, {
+      config,
+      cascade: false,
+      _makeColumnSync: noopColumnSync,
+    });
+    assert.equal((await readSignals(4624)).length, 0);
+  });
+
+  it('does NOT emit a recovery marker when the prior state was not blocked', async () => {
+    const provider = buildFakeProvider(['agent::executing']);
+    await transitionTicketState(provider, 4625, STATE_LABELS.READY, {
+      config,
+      cascade: false,
+      _makeColumnSync: noopColumnSync,
+    });
+    assert.equal((await readSignals(4625)).length, 0);
   });
 });

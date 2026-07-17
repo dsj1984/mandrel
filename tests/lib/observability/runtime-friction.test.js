@@ -24,8 +24,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
+  emitBlockRecoveredFriction,
   emitRuntimeFriction,
   emitTerminalFriction,
+  isRecoveredBlockSignal,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { forEachLine } from '../../../.agents/scripts/lib/observability/signals-writer.js';
@@ -248,5 +250,74 @@ describe('emitRuntimeFriction (write path)', () => {
       config: { project: { paths: { tempRoot: filePath } } },
     });
     assert.equal(ok, false);
+  });
+});
+
+describe('block-recovery friction (Story #4622)', () => {
+  it('emits a story-blocked record carrying the recovered discriminator', async () => {
+    const ok = await emitBlockRecoveredFriction({
+      storyId: 4622,
+      fromState: 'agent::blocked',
+      toState: 'agent::executing',
+      config,
+    });
+    assert.equal(ok, true);
+
+    const rows = await readStorySignals(4622);
+    assert.equal(rows.length, 1);
+    const rec = rows[0];
+    assert.equal(rec.kind, 'friction');
+    assert.equal(rec.category, RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED);
+    assert.equal(rec.details.recovered, true);
+    assert.equal(rec.details.fromState, 'agent::blocked');
+    assert.equal(rec.details.toState, 'agent::executing');
+  });
+
+  it('keeps the category as story-blocked so it does not open a new routable bucket', async () => {
+    await emitBlockRecoveredFriction({ storyId: 4623, config });
+    const rows = await readStorySignals(4623);
+    assert.equal(rows[0].category, 'story-blocked');
+    assert.equal(rows[0].details.fromState, null);
+    assert.equal(rows[0].details.toState, null);
+  });
+});
+
+describe('isRecoveredBlockSignal (Story #4622)', () => {
+  const STORY_BLOCKED = RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED;
+
+  it('is true only for a story-blocked record with details.recovered === true', () => {
+    assert.equal(
+      isRecoveredBlockSignal({
+        category: STORY_BLOCKED,
+        details: { recovered: true },
+      }),
+      true,
+    );
+  });
+
+  it('is false for a plain (terminal) story-blocked record', () => {
+    assert.equal(
+      isRecoveredBlockSignal({
+        category: STORY_BLOCKED,
+        details: { toState: 'agent::blocked' },
+      }),
+      false,
+    );
+  });
+
+  it('is false for a recovered flag on a different category', () => {
+    assert.equal(
+      isRecoveredBlockSignal({
+        category: 'close-failed',
+        details: { recovered: true },
+      }),
+      false,
+    );
+  });
+
+  it('is false for null / non-object / detail-less input', () => {
+    assert.equal(isRecoveredBlockSignal(null), false);
+    assert.equal(isRecoveredBlockSignal('nope'), false);
+    assert.equal(isRecoveredBlockSignal({ category: STORY_BLOCKED }), false);
   });
 });

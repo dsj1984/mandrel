@@ -160,6 +160,68 @@ export async function emitRuntimeFriction({
 }
 
 /**
+ * Emit the recovery counterpart of a `story-blocked` record when a Story
+ * leaves `agent::blocked` for an active state (Story #4622).
+ *
+ * A transient block that self-resolves — lease contention or a stale label
+ * read under concurrent shared-checkout pressure (swarm-os friction #581) —
+ * still fired a `story-blocked` record at the block flip, which the retro
+ * composer counts toward the `story-blocked` recurrence total exactly like a
+ * terminal block. This emits a companion `story-blocked` record carrying the
+ * `details.recovered: true` discriminator, so the composer can net the whole
+ * incident out (see `retro-proposals.js`). The category is deliberately kept
+ * as `story-blocked` rather than a new bucket: a distinct category would
+ * itself aggregate into a routable proposal, re-introducing the noise.
+ *
+ * Best-effort; never throws.
+ *
+ * @param {object} args
+ * @param {number} args.storyId
+ * @param {string} [args.fromState] The state parked at (`agent::blocked`).
+ * @param {string} [args.toState]   The active state recovered into.
+ * @param {object} [args.config]
+ * @returns {Promise<boolean>} true when a record was appended.
+ */
+export async function emitBlockRecoveredFriction({
+  storyId,
+  fromState,
+  toState,
+  config,
+} = {}) {
+  return emitRuntimeFriction({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+    tool: 'transitionTicketState',
+    details: {
+      recovered: true,
+      fromState: fromState ?? null,
+      toState: toState ?? null,
+    },
+    config,
+  });
+}
+
+/**
+ * Pure predicate: is this signal a recovery-marked `story-blocked` record?
+ * Shared with the retro composer so the "recovered" discriminator is read
+ * from one place. A record is a recovery marker when its category is
+ * `story-blocked` and `details.recovered === true`.
+ *
+ * @param {object} signal
+ * @returns {boolean}
+ */
+export function isRecoveredBlockSignal(signal) {
+  return (
+    signal !== null &&
+    typeof signal === 'object' &&
+    signal.category === RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED &&
+    signal.details !== null &&
+    typeof signal.details === 'object' &&
+    signal.details.recovered === true
+  );
+}
+
+/**
  * Decide whether a `story-deliver-terminal` envelope is worth a friction
  * record, and describe it. **Pure** — no I/O — so the (interesting) policy
  * is unit-testable without touching disk.

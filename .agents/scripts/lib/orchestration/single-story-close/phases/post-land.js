@@ -29,14 +29,32 @@
  * is best-effort and records its own reason.
  */
 
+import path from 'node:path';
+
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
+import { acquireLockWithWait as defaultAcquireLockWithWait } from '../../../single-story-sweep/sweep-lock.js';
 import {
   executeFastForward as defaultExecuteFastForward,
   planFastForward as defaultPlanFastForward,
 } from '../../git-cleanup/phases/fast-forward.js';
 import { reassertStatusColumn as defaultReassertStatusColumn } from '../../reassert-status-column.js';
 import { captureStoryFollowUps as defaultCaptureStoryFollowUps } from '../../story-follow-ups.js';
+
+/**
+ * Lockfile that serializes the local-checkout git mutations of the land tail
+ * across concurrent closes. Keyed on the **main checkout** (never a
+ * worktree): every concurrent `single-story-close` runs its tail against the
+ * same `cwd`, so anchoring the lock under that checkout's `.git` directory
+ * makes them all contend on one file. `.git` is always present, is one per
+ * checkout, and is never itself tracked, so it is a safe rendezvous home.
+ *
+ * @param {string} cwd Main checkout root.
+ * @returns {string}
+ */
+function postLandLockPath(cwd) {
+  return path.join(cwd, '.git', 'mandrel-post-land-tail.lock');
+}
 
 /**
  * Run one tail step, converting any throw into a `false` + reason. Keeps
@@ -210,6 +228,19 @@ async function stepBaseFastForward({
  * after the ref reap so `git branch -D` is not fighting a checkout that just
  * moved HEAD.
  *
+ * **Cross-process serialization (Story #4622).** The two local-checkout
+ * mutations — `stepRefCleanup` (`git branch -D`) and `stepBaseFastForward`
+ * (fast-forward `baseBranch`) — run inside a best-effort cross-process lock
+ * keyed on the main checkout. Under concurrent delivery (multiple
+ * story-workers closing against one shared checkout + per-Story worktrees),
+ * an unserialized tail races on the `main` ref and the worktree registry —
+ * the `refCleanup:false` ("used by worktree") / `baseFastForward:false`
+ * ("not-fast-forward") signature reported in swarm-os friction #579. The
+ * GitHub-touching steps stay OUTSIDE the lock so a contended checkout never
+ * delays them. The lock is never load-bearing: on sustained contention the
+ * bounded wait expires and the mutations run anyway (proceeding is the same
+ * best-effort contract every tail step already has).
+ *
  * @param {object} args
  * @param {number} args.storyId
  * @param {string} args.storyBranch
@@ -223,6 +254,7 @@ async function stepBaseFastForward({
  * @param {Function} [args.gitSpawnFn]              Test seam.
  * @param {Function} [args.planFastForwardFn]       Test seam.
  * @param {Function} [args.executeFastForwardFn]    Test seam.
+ * @param {Function} [args.acquireLockWithWaitFn]   Test seam.
  * @returns {Promise<{ followUps: boolean, statusResync: boolean, refCleanup: boolean, baseFastForward: boolean, details: Record<string, string|null> }>}
  */
 export async function runPostLandTail({
@@ -238,6 +270,7 @@ export async function runPostLandTail({
   gitSpawnFn = defaultGitSpawn,
   planFastForwardFn = defaultPlanFastForward,
   executeFastForwardFn = defaultExecuteFastForward,
+  acquireLockWithWaitFn = defaultAcquireLockWithWait,
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
@@ -264,21 +297,46 @@ export async function runPostLandTail({
       }),
     { name: 'status-column resync', progress },
   );
-  const refCleanup = await step(
-    () => stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }),
-    { name: 'local ref cleanup', progress },
-  );
-  const baseFastForward = await step(
-    () =>
-      stepBaseFastForward({
-        cwd,
-        baseBranch,
-        progress,
-        planFastForwardFn,
-        executeFastForwardFn,
-      }),
-    { name: 'base fast-forward', progress },
-  );
+  // Local-checkout mutations: serialized behind a best-effort cross-process
+  // lock (Story #4622). Acquire once, run both steps, release in `finally`.
+  const lockCfg = config?.delivery?.postLandLock ?? {};
+  const lock = await acquireLockWithWaitFn({
+    lockPath: postLandLockPath(cwd),
+    waitMs: lockCfg.waitMs,
+    pollMs: lockCfg.pollMs,
+    timeoutMs: lockCfg.timeoutMs,
+    ownerId: `post-land-${storyId}`,
+  });
+  if (!lock.acquired) {
+    // Never load-bearing: proceed anyway. The bounded wait already gave the
+    // concurrent holder its window; blocking the land on a lock we could not
+    // take would turn a best-effort damper into a false negative.
+    progress?.(
+      'POST-LAND',
+      `⚠️ post-land lock not acquired (${lock.reason}); proceeding unserialized.`,
+    );
+  }
+  let refCleanup;
+  let baseFastForward;
+  try {
+    refCleanup = await step(
+      () => stepRefCleanup({ cwd, storyBranch, progress, gitSpawnFn }),
+      { name: 'local ref cleanup', progress },
+    );
+    baseFastForward = await step(
+      () =>
+        stepBaseFastForward({
+          cwd,
+          baseBranch,
+          progress,
+          planFastForwardFn,
+          executeFastForwardFn,
+        }),
+      { name: 'base fast-forward', progress },
+    );
+  } finally {
+    if (lock.acquired) lock.release();
+  }
 
   const tail = {
     followUps: followUps.ok,
