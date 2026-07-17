@@ -41,7 +41,7 @@
 
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
-import { gitSpawn } from '../git-utils.js';
+import { computeChangeSet } from './change-set.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
 import {
   countBySeverity,
@@ -64,36 +64,6 @@ import { upsertStructuredComment } from './ticketing.js';
  *
  * @typedef {import('./review-depth.js').ReviewDepth} ReviewDepth
  */
-
-/**
- * Enumerate the files changed in the `baseRef...headRef` diff via
- * `git diff --name-only`. Returns the file list, or `null` when the diff
- * cannot be enumerated (git failure, missing ref). A `null` list is the neutral
- * "diff unknown" signal both {@link deriveChangeLevel} and {@link resolveDepth}
- * tolerate by failing safe to `standard`. Best-effort — never throws.
- *
- * @param {{ baseRef: string, headRef: string, gitSpawnFn?: typeof gitSpawn }} args
- * @returns {string[]|null}
- */
-function listChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
-  try {
-    const result = gitSpawnFn(
-      process.cwd(),
-      'diff',
-      `${baseRef}...${headRef}`,
-      '--name-only',
-    );
-    if (!result || result.status !== 0 || typeof result.stdout !== 'string') {
-      return null;
-    }
-    return result.stdout
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Resolve the project base branch fallback used when a caller omits
@@ -192,7 +162,7 @@ function resolveScopeEnvelope(opts, config) {
  *   changedFileCount?: number|null,
  *   storyId?: number|null,
  *   reviewProvider?: { runReview: Function },
- *   gitSpawnFn?: typeof gitSpawn,
+ *   gitSpawnFn?: import('./change-set.js').GitSpawnFn,
  *   resolveConfigFn?: typeof resolveConfig,
  *   createReviewProviderFn?: typeof createReviewProvider,
  *   upsertCommentFn?: typeof upsertStructuredComment,
@@ -230,6 +200,27 @@ function resolveProviderName(codeReviewConfig) {
 }
 
 /**
+ * Resolve the change set the depth derivation reads (Story #4593).
+ *
+ * `opts.changedFiles` is an injection with three distinct states,
+ * and the difference is load-bearing: an **array** is the change set to use
+ * verbatim; an explicit **null** is a caller (`runStoryReviewCore`) reporting
+ * that it already tried and the diff is unenumerable — re-running git here would
+ * only fail again, so it degrades straight to the fail-safe tier; **absent**
+ * means no caller enumerated at all, so the shared {@link computeChangeSet}
+ * enumerator runs as the fallback (standalone CLI use). On the close path the
+ * spine always injects, so the diff is enumerated exactly once per delivery and
+ * this pillar can never disagree with the lens pass about what changed.
+ */
+function resolveInjectedChangedFiles({ opts, baseRef, headRef }) {
+  if (opts.changedFiles === undefined) {
+    return computeChangeSet({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn })
+      .files;
+  }
+  return Array.isArray(opts.changedFiles) ? opts.changedFiles : null;
+}
+
+/**
  * Build the provider `runReview` input, resolving the review depth from the
  * diff under review: its changed files derive the change level (sensitive path
  * touched or not — Story #4542) and their count supplies the width. The depth
@@ -238,9 +229,7 @@ function resolveProviderName(codeReviewConfig) {
  * Story #4075 — extracted from `runCodeReview`.
  */
 function buildReviewInput({ opts, scope, ticketId, baseRef, headRef }) {
-  const changedFiles = Array.isArray(opts.changedFiles)
-    ? opts.changedFiles
-    : listChangedFiles({ baseRef, headRef, gitSpawnFn: opts.gitSpawnFn });
+  const changedFiles = resolveInjectedChangedFiles({ opts, baseRef, headRef });
   const changedFileCount =
     typeof opts.changedFileCount === 'number'
       ? opts.changedFileCount

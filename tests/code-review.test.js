@@ -137,6 +137,25 @@ test('runCodeReview: enumerates the diff via the injected gitSpawn', async () =>
   assert.equal(captured.input.depth, 'deep');
 });
 
+test('runCodeReview: an explicit null changedFiles threads standard without re-enumerating', async () => {
+  // Story #4593 — `null` is the spine reporting "I already tried; the diff is
+  // unenumerable". Re-running git here would only fail again, so the fail-safe
+  // tier must be reached without a second enumeration.
+  const captured = {};
+  let enumerated = false;
+  const opts = buildOpts({
+    captured,
+    changedFiles: null,
+    gitSpawnFn: () => {
+      enumerated = true;
+      return { status: 0, stdout: 'src/auth/token.js', stderr: '' };
+    },
+  });
+  await runCodeReview(opts);
+  assert.equal(enumerated, false, 'an explicit null must not re-enumerate');
+  assert.equal(captured.input.depth, 'standard');
+});
+
 test('runCodeReview: derives the sensitive-path level from the enumerated diff', async () => {
   // No changedFiles injected: the level must come from what git reports.
   const captured = {};

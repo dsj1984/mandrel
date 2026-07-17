@@ -67,9 +67,12 @@ to respect.
    node .agents/scripts/resolve-stories.js --ids <id,id,...>
    ```
 
-   Capture `stories[]`, `dag[]`, and `done[]` from the envelope. Do **not**
-   rebuild the graph by hand — it is discovered from live state, including
-   edges a body does not spell out and blockers outside the delivered set.
+   This validates the set and shows the operator what will run: read
+   `stories[]`, `dag[]`, and `done[]` to present the order in step 2. You do
+   **not** thread them into step 3 — the tick re-resolves the graph itself
+   from the same machinery, every beat. Do **not** rebuild the graph by hand;
+   it is discovered from live state, including edges a body does not spell
+   out and blockers outside the delivered set.
 
    Resolution hard-errors (exit 1) on a named id that is not a Story, still
    carries an `Epic: #N` footer, or whose native dependency edges cannot be
@@ -78,23 +81,26 @@ to respect.
 
 2. **Confirm (N>1).** Present the order and wait unless `--yes`.
 
-3. **Sequence.** Loop until every Story is done:
+3. **Sequence.** Loop until the tick reports `epilogueDue: true`:
 
    ```bash
    node .agents/scripts/stories-wave-tick.js \
-     --dag '<dag from step 1>' --done <csv> --in-flight <n> --concurrency <n>
+     --stories <id,id,...> --probe-live --concurrency <n>
    ```
 
-   **Seed the first beat's `--done` from the resolver's `done[]`** — not from
-   an empty string. That array carries the blockers that have already landed,
-   including foreign ones outside the delivered set. Seeding it empty
-   discards exactly the cross-run resolution this step exists for, and the
-   run wedges on a blocker that finished weeks ago. On later beats, `--done`
-   is `done[]` plus every Story that has since closed.
+   **Pass the ids and nothing else.** Each beat re-probes live state: it
+   re-resolves the graph, classifies done (`agent::done` or a closed issue —
+   including foreign blockers that landed in another run), and derives the
+   in-flight count from live `agent::executing` / `agent::closing` labels.
+   You never compute `done` or `in-flight`, and there is nothing to carry
+   between beats — the accounting that used to be yours to maintain by hand
+   is now read from reality every beat (Story #4594).
 
    Branch on the exit code:
-   - **0** — dispatch each `ready` id. An empty `ready` with work in flight
-     means "waiting"; keep looping.
+   - **0** — dispatch each `ready` id (the set is already capped and
+     overlap-free). An empty `ready` with work in flight means "waiting";
+     keep looping. `epilogueDue: true` means every Story is done — leave the
+     loop and go to step 4.
    - **2** — `cycleError`: the graph is self-referential. Fix the
      `depends_on` declarations; do not retry.
    - **3** — `wedged`: nothing is dispatchable, nothing is in flight, and
@@ -109,8 +115,8 @@ to respect.
    `--yes` / injected helper content, execute directly without a re-read
    turn.
 
-4. **Per-run epilogue (N>1).** After the last Story lands, keyed on the
-   delivered id set:
+4. **Per-run epilogue (N>1).** Once step 3 reports `epilogueDue: true`
+   (every Story done), keyed on the delivered id set:
 
    ```bash
    node .agents/scripts/plan-run-epilogue.js --stories 101,102

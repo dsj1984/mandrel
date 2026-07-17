@@ -46,7 +46,10 @@ mid-delivery, and evaluates the actual work product.
    > — the same signal `review-depth.js` resolves depth from, so the two
    > decisions cannot disagree. Derive it with `deriveChangeLevel` from
    > [`review-depth.js`](../../scripts/lib/orchestration/review-depth.js) over
-   > the Story's changed files (`git diff --name-only main...story-<id>`), then
+   > the **change set your caller computed once** for this Story (Story #4593 —
+   > `computeChangeSet` from
+   > [`change-set.js`](../../scripts/lib/orchestration/change-set.js); see
+   > [`deliver-story.md`](deliver-story.md) Step 2), then
    > resolve the ceremony per cluster with `resolveCeremonyForRisk` from
    > [`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js)
    > using that `derivedLevel` and `delivery.routing.freshCriticSampleRate`:
@@ -87,8 +90,12 @@ mid-delivery, and evaluates the actual work product.
    > comment (if you block) that the inline fallback was used.
 
    The critic:
-   - Inspects the working diff (`git diff origin/<baseBranch>...HEAD`) and the
-     Story's inline `acceptance[]` / `verify[]` arrays.
+   - Inspects the **change set handed to it in its spawn context** — the one
+     list computed above — and the Story's inline `acceptance[]` / `verify[]`
+     arrays. Pass the file list explicitly when you dispatch the critic; it
+     does not re-enumerate the diff for itself (Story #4593), so a commit
+     landing mid-ceremony cannot leave the critic scoring a different change
+     than the one that routed it.
    - **Runs the `verify[]` commands** and consumes their output as **required
      evidence** when scoring the relevant acceptance items. `verify[]` is not
      optional advisory pre-flight — a criterion cannot be scored `met` without

@@ -107,12 +107,29 @@ describe('/deliver takes only Story ids (Story #4540)', () => {
     assert.match(md, /discovered, not declared|resolved.*from live state/i);
   });
 
-  it('mandates seeding the first beat --done from the resolver envelope', () => {
-    // The acceptance-#4-to-#5 handoff: selectReadySet satisfies a foreign
-    // gate only via the done set, so seeding it empty silently discards
-    // the cross-run resolution and wedges the run.
+  it('drives the beat from live state rather than hand-maintained flags (Story #4594)', () => {
+    // Was: "mandates seeding the first beat --done from the resolver
+    // envelope". That prose existed because selectReadySet satisfies a
+    // foreign gate only via the done set, so a host that seeded it empty
+    // silently discarded the cross-run resolution and wedged the run.
+    //
+    // Probe mode retires the instruction rather than restating it: the tick
+    // resolves the graph and derives done / in-flight itself, every beat, so
+    // there is no seed to get wrong. The invariant is now enforced by
+    // `lib/wave-runner/live-probe.js` (and pinned in
+    // tests/wave-runner/live-probe.test.js) instead of by operator prose.
     const md = readFileSync(DELIVER_MD, 'utf8');
-    assert.match(md, /Seed the first beat's `--done` from the resolver/);
+    assert.match(md, /--stories <id,id,\.\.\.> --probe-live/);
+    assert.doesNotMatch(
+      md,
+      /Seed the first beat/,
+      'the seed footgun is structurally impossible — it must not be re-documented',
+    );
+    assert.doesNotMatch(
+      md,
+      /--done <csv> --in-flight <n>/,
+      'the loop must not ask the host to maintain done / in-flight by hand',
+    );
   });
 
   it('documents the wedged verdict as distinct from waiting and from a cycle', () => {
