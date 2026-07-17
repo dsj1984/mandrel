@@ -677,15 +677,28 @@ describe('runPlanPersist — flat Story ops', () => {
     // it had the least evidence for one.
     //
     // The downgrade is reachable because the two halves resolve the ref
-    // differently: validateTickets reads `config` (→ the real `main`, so the
-    // mismatch is found), while the gate's probe prefers `settings.baseBranch`
-    // (→ unresolvable, so the finding cannot be trusted).
+    // differently: validateTickets reads `config` (→ a ref where the file
+    // exists, so the mismatch is found), while the gate's probe prefers
+    // `settings.baseBranch` (→ unresolvable, so the finding cannot be
+    // trusted).
+    //
+    // validateTickets' half is pinned to `HEAD`, NOT the ambient `main`:
+    // `resolveBaseBranchRef` falls through to the literal `main`, which
+    // resolves in a local clone/worktree but NOT on a CI `actions/checkout`
+    // (a detached HEAD where only `origin/main` exists) — there the
+    // `git cat-file -e main:<path>` probe fails, no mismatch is found, and
+    // the finding never becomes ambiguous. `HEAD` always resolves and the
+    // committed file is present at it, so the mismatch is found in both
+    // environments. The flat `config.baseBranch` key routes ONLY to
+    // validateTickets (`resolveBaseBranchRef`); the gate reads
+    // `config.project.baseBranch ?? settings.baseBranch`, so it still probes
+    // the unresolvable `settings.baseBranch` and the divergence holds.
     const mismatched = ticket('drifted');
     mismatched.body = serialize({
       goal: 'Goal of drifted.',
       changes: [
         {
-          // This file exists on main, so declaring it as `creates` is a
+          // This file exists at HEAD, so declaring it as `creates` is a
           // genuine assumption mismatch.
           path: 'tests/scripts/plan-persist.flat-stories.test.js',
           assumption: 'creates',
@@ -700,7 +713,7 @@ describe('runPlanPersist — flat Story ops', () => {
     const result = await runPlanPersist({
       provider,
       artifacts: { stories: [mismatched] },
-      config: {},
+      config: { baseBranch: 'HEAD' },
       settings: { baseBranch: 'definitely-not-a-real-branch' },
       opts: { skipCleanup: true },
     });
