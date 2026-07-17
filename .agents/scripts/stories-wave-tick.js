@@ -5,12 +5,10 @@
  * `/deliver` story-list path.
  *
  * Thin **adapter** over the path-agnostic ready-set scheduling core
- * (`lib/wave-runner/ready-set.js#selectReadySet`). It consumes an
- * operator-supplied dependency DAG of standalone Story IDs plus the live
- * progress of the run (which Stories are done, how many are in flight) and
- * emits the set of Stories safe to dispatch **on this beat** — a Story
- * becomes dispatchable the instant its own dependencies are done, under the
- * same global concurrency cap and the same file-overlap co-dispatch guard
+ * (`lib/wave-runner/ready-set.js#selectReadySet`). It emits the set of
+ * Stories safe to dispatch **on this beat** — a Story becomes dispatchable
+ * the instant its own dependencies are done, under the same global
+ * concurrency cap and the same file-overlap co-dispatch guard
  * `lib/wave-runner/ready-set.js` applies everywhere. There is no wave barrier: this no longer batches
  * Stories into fully-draining waves; it selects continuously.
  *
@@ -18,9 +16,25 @@
  * group N+1 opens, via `Graph.js#assignLayers`) is gone. The scheduling
  * kernel — adjacency derivation, the done-predicate classifier, the
  * eligibility rule, and the overlap guard — lives once in `selectReadySet`;
- * this file only parses input, resolves the cap, and renders the envelope.
+ * this file only gathers input, resolves the cap, and renders the envelope.
+ *
+ * **Two modes, one kernel.**
+ *
+ *   - **Probe mode** (`--stories <csv> --probe-live`) is the canonical
+ *     `/deliver` beat: the graph, the done set, and the in-flight count are
+ *     resolved from **live state** via `lib/wave-runner/live-probe.js`. The
+ *     caller supplies ids and nothing else, so there is no accounting to
+ *     hand-maintain across beats — the seed-the-first-beat's-`--done` footgun
+ *     the workflow used to warn about is now structurally impossible rather
+ *     than merely documented.
+ *   - **Flag mode** (`--dag`/`--dag-file` + `--done`/`--in-flight`) keeps the
+ *     caller-supplied contract byte-compatible for tests and hand-driven
+ *     runs. The two are mutually exclusive: honouring a supplied `--done`
+ *     under `--probe-live` would silently reintroduce exactly the
+ *     hand-maintained state probe mode retires.
  *
  * Usage:
+ *   node .agents/scripts/stories-wave-tick.js --stories 101,102 --probe-live
  *   node .agents/scripts/stories-wave-tick.js --dag '<json>'
  *   node .agents/scripts/stories-wave-tick.js --dag-file <path>
  *   node .agents/scripts/stories-wave-tick.js --dag '<json>' --concurrency 5
@@ -41,11 +55,17 @@
  *     wedged: { reason, stories: [{ id, unmetBlockers }] } | null
  *   }
  *
- * The standalone loop calls this once per beat: after each Story closes it
- * re-runs with the closed Story added to `--done` and the live in-flight
- * count in `--in-flight`, dispatching the returned `ready` set (already
- * capped at `concurrencyCap − inFlight` by the core). The run is complete
- * when every Story is in `--done` and `ready` is empty.
+ * Probe mode adds two fields the caller can no longer compute for itself:
+ * `done: number[]` (the resolved done set, in-set ∪ satisfied foreign
+ * blockers) and `epilogueDue: boolean` (true exactly when every listed Story
+ * is done — the run-end signal for `plan-run-epilogue.js`).
+ *
+ * The standalone loop calls this once per beat and dispatches the returned
+ * `ready` set (already capped at `concurrencyCap − inFlight` by the core).
+ * Under `--probe-live` each beat re-reads reality, so the run is complete
+ * when `epilogueDue` is true; under flag mode the caller re-supplies `--done`
+ * and `--in-flight` itself, and the run is complete when every Story is in
+ * `--done` and `ready` is empty.
  *
  * The per-beat concurrency cap is resolved from the same config seam
  * `/deliver` uses — `resolveConfig` + `getRunners` reading
@@ -72,7 +92,13 @@ import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { detectCycle } from './lib/Graph.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
+import { parseIds } from './lib/orchestration/resolve-stories.js';
 import { buildStoryAdjacency } from './lib/story-adjacency.js';
+import {
+  createProbeContext,
+  probeLiveState,
+  validateProbeFlags,
+} from './lib/wave-runner/live-probe.js';
 import { selectReadySet } from './lib/wave-runner/ready-set.js';
 
 /**
@@ -82,13 +108,22 @@ import { selectReadySet } from './lib/wave-runner/ready-set.js';
  */
 export const WEDGED_EXIT_CODE = 3;
 
-const HELP = `Usage: node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>] [--done <csv>] [--in-flight <n>]
+const HELP = `Usage:
+  node .agents/scripts/stories-wave-tick.js --stories <csv> --probe-live [--concurrency <n>]
+  node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>] [--done <csv>] [--in-flight <n>]
 
-Continuous ready-set planner for standalone Story delivery. Consumes a
-dependency graph of Story IDs plus the live run progress and emits the set
-of Stories safe to dispatch on this beat — a Story is dispatchable the
-instant its own dependencies are done — plus the resolved per-beat
-concurrency cap and the same file-overlap guard as selectReadySet.
+Continuous ready-set planner for standalone Story delivery. Emits the set of
+Stories safe to dispatch on this beat — a Story is dispatchable the instant
+its own dependencies are done — plus the resolved per-beat concurrency cap
+and the same file-overlap guard as selectReadySet.
+
+Two modes:
+  --probe-live  Resolve the graph and derive done / in-flight from LIVE state
+                (the canonical /deliver beat). Nothing is hand-maintained
+                across beats. Mutually exclusive with --dag/--dag-file/--done/
+                --in-flight. Adds "done" and "epilogueDue" to the envelope.
+  --dag         Legacy flag mode: the caller supplies the graph and the run
+                progress. Kept for tests and hand-driven runs.
 
 Input DAG format (JSON array):
   [{ "id": 101, "dependsOn": [] }, { "id": 102, "dependsOn": [101] }]
@@ -98,6 +133,10 @@ Each entry must include:
   dependsOn  - Array of Story IDs that must complete before this Story runs
 
 Options:
+  --stories <csv>    Story ids to deliver (probe mode). The graph, the done
+                     set, and the in-flight count are resolved from live
+                     state — no --done / --in-flight bookkeeping.
+  --probe-live       Enable probe mode. Requires --stories.
   --concurrency <n>  Override the per-beat concurrency cap for this run only.
                      Must be a positive integer. When omitted, the cap is
                      resolved from delivery.deliverRunner.concurrencyCap in
@@ -128,6 +167,32 @@ Exit codes:
       waiting on blockers that are not done. Distinct from an ordinary empty
       ready set (which means "waiting on in-flight work") and from a cycle.
 `;
+
+/**
+ * Build the exit-1 input-error result. Shared by both modes so a malformed
+ * `--concurrency` reports identically whether it arrived alongside `--dag` or
+ * `--probe-live`.
+ *
+ * @param {string} message
+ * @param {number|null} [concurrencyCap]
+ * @param {number} [inFlightValue]
+ * @returns {{ envelope: object, exitCode: 1 }}
+ */
+function inputErrorResult(message, concurrencyCap = null, inFlightValue = 0) {
+  return {
+    envelope: {
+      kind: 'stories-ready-set',
+      ready: [],
+      totalStories: 0,
+      concurrencyCap,
+      inFlight: inFlightValue,
+      cycleError: null,
+      wedged: null,
+      inputError: message,
+    },
+    exitCode: 1,
+  };
+}
 
 /**
  * Parse and validate the raw DAG input array.
@@ -371,7 +436,12 @@ export function buildReadySetEnvelope(
     const rec = {
       id: node.id,
       dependsOn: node.dependsOn,
-      labels: doneIds.has(node.id) ? [AGENT_LABELS.DONE] : [],
+      // A node's own live labels (probe mode) are preserved so the core's
+      // classifier withholds an in-flight `agent::executing` / `agent::closing`
+      // Story rather than re-dispatching it onto a second branch. Flag-mode
+      // nodes carry none — `parseDag` accepts no labels — so this is inert
+      // there and the legacy contract is unchanged.
+      labels: doneIds.has(node.id) ? [AGENT_LABELS.DONE] : (node.labels ?? []),
     };
     if (node.files !== undefined) rec.files = node.files;
     return rec;
@@ -471,37 +541,23 @@ export function runStoriesWaveTick({
   cwd,
   config,
 } = {}) {
-  const inputError = (message, concurrencyCap = null, inFlightValue = 0) => ({
-    envelope: {
-      kind: 'stories-ready-set',
-      ready: [],
-      totalStories: 0,
-      concurrencyCap,
-      inFlight: inFlightValue,
-      cycleError: null,
-      wedged: null,
-      inputError: message,
-    },
-    exitCode: 1,
-  });
-
   // Validate the --concurrency override before resolving config so an invalid
   // value fails fast with exit code 1 regardless of DAG validity.
   const { value: override, error: concurrencyError } =
     parseConcurrencyOverride(concurrency);
   if (concurrencyError) {
-    return inputError(concurrencyError);
+    return inputErrorResult(concurrencyError);
   }
 
   const { value: inFlightValue, error: inFlightError } =
     parseInFlight(inFlight);
   if (inFlightError) {
-    return inputError(inFlightError);
+    return inputErrorResult(inFlightError);
   }
 
   const { ids: doneIds, error: doneError } = parseDoneIds(done);
   if (doneError) {
-    return inputError(doneError, null, inFlightValue);
+    return inputErrorResult(doneError, null, inFlightValue);
   }
 
   const concurrencyCap = resolveConcurrencyCap({ cwd, config, override });
@@ -512,7 +568,7 @@ export function runStoriesWaveTick({
     try {
       rawJson = readFileSync(dagFile, 'utf8');
     } catch (err) {
-      return inputError(
+      return inputErrorResult(
         `Could not read DAG file "${dagFile}": ${err.message}`,
         concurrencyCap,
         inFlightValue,
@@ -521,7 +577,7 @@ export function runStoriesWaveTick({
   } else if (dagJson) {
     rawJson = dagJson;
   } else {
-    return inputError(
+    return inputErrorResult(
       'Either --dag <json> or --dag-file <path> is required',
       concurrencyCap,
       inFlightValue,
@@ -532,7 +588,7 @@ export function runStoriesWaveTick({
   try {
     parsed = JSON.parse(rawJson);
   } catch (err) {
-    return inputError(
+    return inputErrorResult(
       `Invalid JSON: ${err.message}`,
       concurrencyCap,
       inFlightValue,
@@ -541,7 +597,7 @@ export function runStoriesWaveTick({
 
   const { nodes, error: parseError } = parseDag(parsed);
   if (parseError) {
-    return inputError(parseError, concurrencyCap, inFlightValue);
+    return inputErrorResult(parseError, concurrencyCap, inFlightValue);
   }
 
   return buildReadySetEnvelope(nodes, {
@@ -551,12 +607,94 @@ export function runStoriesWaveTick({
   });
 }
 
+/**
+ * Probe mode: resolve the graph and the run's progress from **live state**,
+ * then run the same scheduling kernel the flag mode does.
+ *
+ * This is the flag-free beat. The caller supplies only the Story ids it was
+ * asked to deliver; `done` and `inFlight` are probed rather than transcribed,
+ * which is what makes the `/deliver` loop's old seed-the-first-beat footgun
+ * structurally impossible instead of merely documented.
+ *
+ * The envelope is the flag mode's, plus two probe-only fields the caller can
+ * no longer compute for itself:
+ *   - `done` — the resolved done set (in-set ∪ satisfied foreign blockers).
+ *   - `epilogueDue` — true exactly when every listed Story is done, which is
+ *     the run-end signal for `plan-run-epilogue.js`.
+ *
+ * @param {object} args
+ * @param {string} args.stories        Raw `--stories` CSV of Story ids.
+ * @param {string|number} [args.concurrency] Raw `--concurrency` override.
+ * @param {string} [args.cwd]          Repo root for config resolution.
+ * @param {object} [args.config]       Pre-resolved config (test injection).
+ * @param {Function} [args.probe]      Probe seam (test injection).
+ * @param {Function} [args.context]    Provider-context seam (test injection).
+ * @returns {Promise<{ envelope: object, exitCode: number }>}
+ */
+export async function runProbedStoriesWaveTick({
+  stories,
+  concurrency,
+  cwd,
+  config,
+  probe = probeLiveState,
+  context = createProbeContext,
+} = {}) {
+  const { value: override, error: concurrencyError } =
+    parseConcurrencyOverride(concurrency);
+  if (concurrencyError) {
+    return inputErrorResult(concurrencyError);
+  }
+
+  let ids;
+  try {
+    ids = parseIds(stories);
+  } catch (err) {
+    return inputErrorResult(err.message);
+  }
+
+  const concurrencyCap = resolveConcurrencyCap({ cwd, config, override });
+
+  let probed;
+  try {
+    const { provider, owner, repo } = context();
+    probed = await probe({
+      ids,
+      provider,
+      owner,
+      repo,
+      warn: (m) => Logger.warn(m),
+    });
+  } catch (err) {
+    // A failed probe must never degrade into "nothing is ready" — that is
+    // indistinguishable from a healthy waiting beat and would silently stall
+    // the run. Fail loud with the input-error contract instead.
+    return inputErrorResult(
+      `Could not probe live state: ${err?.message ?? err}`,
+      concurrencyCap,
+    );
+  }
+
+  const { nodes, doneIds, inFlight } = probed;
+  const { envelope, exitCode } = buildReadySetEnvelope(nodes, {
+    concurrencyCap,
+    doneIds,
+    inFlight,
+  });
+
+  const done = [...doneIds].sort((a, b) => a - b);
+  const epilogueDue =
+    nodes.length > 0 && nodes.every((node) => doneIds.has(node.id));
+  return { envelope: { ...envelope, done, epilogueDue }, exitCode };
+}
+
 async function main(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {
       dag: { type: 'string' },
       'dag-file': { type: 'string' },
+      stories: { type: 'string' },
+      'probe-live': { type: 'boolean' },
       concurrency: { type: 'string' },
       done: { type: 'string' },
       'in-flight': { type: 'string' },
@@ -571,13 +709,29 @@ async function main(argv) {
     return;
   }
 
-  const { envelope, exitCode } = runStoriesWaveTick({
-    dagJson: values.dag,
+  const flagError = validateProbeFlags({
+    probeLive: values['probe-live'],
+    stories: values.stories,
+    dag: values.dag,
     dagFile: values['dag-file'],
-    concurrency: values.concurrency,
     done: values.done,
     inFlight: values['in-flight'],
   });
+
+  const { envelope, exitCode } = flagError
+    ? inputErrorResult(flagError)
+    : values['probe-live']
+      ? await runProbedStoriesWaveTick({
+          stories: values.stories,
+          concurrency: values.concurrency,
+        })
+      : runStoriesWaveTick({
+          dagJson: values.dag,
+          dagFile: values['dag-file'],
+          concurrency: values.concurrency,
+          done: values.done,
+          inFlight: values['in-flight'],
+        });
 
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
 
