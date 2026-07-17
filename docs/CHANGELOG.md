@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.2.0...mandrel-v2.3.0) (2026-07-17)
+
+
+### Fixed
+
+* **test:** resolve Windows drive-letter path bug in quality-preview test ([#4614](https://github.com/dsj1984/mandrel/issues/4614)) ([a7da94d](https://github.com/dsj1984/mandrel/commit/a7da94d1c4a83b9b721e632e468bb34df07465dd))
+* **update:** make post-install bin re-exec pnpm/layout-agnostic ([#4613](https://github.com/dsj1984/mandrel/issues/4613)) ([#4616](https://github.com/dsj1984/mandrel/issues/4616)) ([82dc5a2](https://github.com/dsj1984/mandrel/commit/82dc5a2e9ce662f9b9c0c7880ea684fd370a507f))
+
 ## [2.2.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.1.0...mandrel-v2.2.0) (2026-07-17)
 
 
