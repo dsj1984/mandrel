@@ -23,13 +23,14 @@ import { fileURLToPath } from 'node:url';
 
 import { selectLocalLenses } from '../../.agents/scripts/lib/audit-suite/index.js';
 import { runStoryScopeReview } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/code-review.js';
+import { runStoryCodeReview } from '../../.agents/scripts/lib/orchestration/story-close/phases/code-review.js';
 import {
   enumerateChangedFiles,
+  resolveLensChangeSet,
   runLocalLensReview,
-  runStoryCodeReview,
-  runStoryReviewCore,
   STORY_SCOPE_LENS_DEPTH,
-} from '../../.agents/scripts/lib/orchestration/story-close/phases/code-review.js';
+} from '../../.agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js';
+import { runStoryReviewCore } from '../../.agents/scripts/lib/orchestration/story-close/phases/review-core.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.join(HERE, '..', '..');
@@ -325,6 +326,13 @@ test('runStoryReviewCore enumerates the diff exactly once and injects it into bo
 test('runStoryReviewCore injects an explicit null when the diff is unenumerable', async () => {
   // The fail-safe signal must reach both consumers as "unknown", not as a
   // deceptively-empty list, and must not trigger a retry enumeration.
+  //
+  // Story #4603 — this case previously passed a STUBBED `runLocalLensReviewFn`,
+  // so the real collaborator's null branch never ran and the suite reported the
+  // single-enumeration invariant as held while production re-spawned git on this
+  // exact path. The spy below DELEGATES to the real `runLocalLensReview` so the
+  // production null branch is what executes; `diffCalls` therefore counts the
+  // spine's enumeration plus any retry the lens pass performs.
   const diffCalls = [];
   const lensCalls = [];
   const reviewCalls = [];
@@ -340,7 +348,7 @@ test('runStoryReviewCore injects an explicit null when the diff is unenumerable'
     },
     runLocalLensReviewFn: async (args) => {
       lensCalls.push(args);
-      return { depth: 'light', lenses: [], skipped: true, materialized: null };
+      return runLocalLensReview(args);
     },
     runCodeReviewFn: async (opts) => {
       reviewCalls.push(opts);
@@ -354,9 +362,71 @@ test('runStoryReviewCore injects an explicit null when the diff is unenumerable'
       };
     },
   });
-  assert.equal(diffCalls.length, 1);
+  assert.equal(
+    diffCalls.length,
+    1,
+    `an unenumerable diff must be enumerated ONCE — the real lens pass must not ` +
+      `retry git on the null branch, got ${diffCalls.length} enumeration(s)`,
+  );
   assert.equal(lensCalls[0].changedFiles, null);
   assert.equal(reviewCalls[0].changedFiles, null);
+});
+
+// ---------------------------------------------------------------------------
+// The three-state changedFiles contract (Story #4603).
+// ---------------------------------------------------------------------------
+
+test('resolveLensChangeSet distinguishes null (degrade) from undefined (enumerate)', () => {
+  let enumerated = 0;
+  const gitSpawnFn = () => {
+    enumerated += 1;
+    return { status: 0, stdout: '.agents/scripts/enumerated.js', stderr: '' };
+  };
+  const args = { baseRef: 'main', headRef: 'story-4603', gitSpawnFn };
+
+  // An explicit null means "already tried, unenumerable" — degrade, never retry.
+  assert.deepEqual(resolveLensChangeSet({ changedFiles: null, ...args }), []);
+  assert.equal(enumerated, 0, 'an injected null must NOT re-spawn git');
+
+  // Absent means nobody enumerated — the CLI fallback runs.
+  assert.deepEqual(resolveLensChangeSet({ changedFiles: undefined, ...args }), [
+    '.agents/scripts/enumerated.js',
+  ]);
+  assert.equal(enumerated, 1, 'an absent list MUST self-enumerate');
+
+  // An array is used verbatim.
+  assert.deepEqual(resolveLensChangeSet({ changedFiles: ['a.js'], ...args }), [
+    'a.js',
+  ]);
+  assert.equal(enumerated, 1, 'an injected array must not re-spawn git');
+});
+
+test('runLocalLensReview degrades on an injected null without re-enumerating', async () => {
+  // The real collaborator, driven directly: an explicit null is the spine
+  // reporting an unenumerable diff. Re-running git here would only fail again.
+  let enumerated = false;
+  const selectCalls = [];
+  const runAuditSuiteFn = spy({ metadata: {}, findings: [], workflows: [] });
+  const out = await runLocalLensReview({
+    baseRef: 'main',
+    headRef: 'story-4603',
+    changedFiles: null,
+    progress: noopProgress,
+    gitSpawnFn: () => {
+      enumerated = true;
+      return { status: 0, stdout: '.agents/scripts/retry.js', stderr: '' };
+    },
+    selectLocalLensesFn: (args) => {
+      selectCalls.push(args);
+      return [];
+    },
+    runAuditSuiteFn,
+  });
+  assert.equal(enumerated, false, 'an injected null must NOT re-spawn git');
+  assert.deepEqual(selectCalls[0].changedFiles, []);
+  assert.deepEqual(out.lenses, []);
+  assert.equal(out.skipped, true);
+  assert.equal(runAuditSuiteFn.calls.length, 0);
 });
 
 test('runLocalLensReview selects from the injected change set without enumerating', async () => {

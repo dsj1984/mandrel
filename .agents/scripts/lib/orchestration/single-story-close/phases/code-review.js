@@ -28,7 +28,7 @@
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
-import { runStoryReviewCore } from '../../story-close/phases/code-review.js';
+import { runStoryReviewCore } from '../../story-close/phases/review-core.js';
 import { postStructuredComment } from '../../ticketing/state.js';
 
 /**

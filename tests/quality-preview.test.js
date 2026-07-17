@@ -81,6 +81,37 @@ test('parseChangedSinceArg — returns null when absent', () => {
   assert.equal(parseChangedSinceArg(['--json']), null);
 });
 
+test('parseChangedSinceArg — last occurrence wins (npm-alias passthrough)', () => {
+  // Story #4603. `npm run quality:preview -- --changed-since <base>` appends the
+  // operator's flag AFTER any flag baked into the npm script. A first-wins scan
+  // silently dropped the operator's base and scored against the script's
+  // hardcoded `HEAD`, printing a false green for a branch it never compared.
+  assert.equal(
+    parseChangedSinceArg([
+      '--changed-since',
+      'HEAD',
+      '--changed-since',
+      'main',
+    ]),
+    'main',
+  );
+  assert.equal(
+    parseChangedSinceArg([
+      '--changed-since',
+      'HEAD',
+      '--json',
+      '--changed-since',
+      'cf90bea7',
+    ]),
+    'cf90bea7',
+  );
+  // A bare trailing flag still resolves to the documented HEAD default.
+  assert.equal(
+    parseChangedSinceArg(['--changed-since', 'main', '--changed-since']),
+    'HEAD',
+  );
+});
+
 test('parseJsonFlag / parseStagedFlag — flag detection', () => {
   assert.equal(parseJsonFlag(['--json']), true);
   assert.equal(parseJsonFlag([]), false);

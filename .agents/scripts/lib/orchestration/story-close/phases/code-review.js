@@ -28,268 +28,111 @@
  * critical-halt path so the Epic-scoped lifecycle ledger still sees
  * the Story drop out.
  *
- * `runStoryReviewCore` is exported as the shared spine that the
- * `single-story-close` path imports, so both close paths call `runCodeReview`
- * through a single implementation rather than each maintaining its own
- * invocation pattern (Story #3653).
+ * The shared spine both close paths call `runCodeReview` through
+ * (`runStoryReviewCore`, Story #3653) and the shift-left local-lens pass
+ * (Epic #4405) live in `review-core.js` and `local-lens-review.js`
+ * respectively (extracted by Story #4603). This module is the Epic-attached
+ * phase entry point: it owns the advisory error posture and the
+ * critical-halt → blocked-envelope translation, and nothing else.
  */
 
-import {
-  runAuditSuite,
-  selectLocalLenses,
-} from '../../../audit-suite/index.js';
-import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
-import { computeChangeSet } from '../../change-set.js';
 import { runCodeReview } from '../../code-review.js';
 import { emitBlockedCloseResult } from '../emit-blocked.js';
+import { runLocalLensReview } from './local-lens-review.js';
+import { runStoryReviewCore } from './review-core.js';
 
 /**
- * The review depth the Story-scope local-lens pass runs at. Shift-left
- * (Epic #4405): local concerns are cheap to decide on a single Story's diff, so
- * the maker-blind Story-scope review runs its matched local lenses at `light`
- * depth here rather than paying a deeper pass at Epic close. Fixed for this
- * tier — it is not risk-scaled like the code-review pillar depth.
+ * Read a review envelope's severity counts, tolerating the partial envelope a
+ * misbehaving provider adapter can return. Pure.
+ *
+ * @param {object|null|undefined} reviewResult
+ * @returns {{ critical: number, high: number, medium: number, suggestion: number }}
  */
-export const STORY_SCOPE_LENS_DEPTH = 'light';
-
-/**
- * Enumerate the files changed in the `baseRef...headRef` diff. Thin adapter over
- * the shared {@link computeChangeSet} enumerator (Story #4593) that flattens its
- * `files: string[]|null` envelope to this phase's historical `[]`-on-failure
- * contract: the lens roster treats "nothing changed" and "diff unknown"
- * identically, because an unknown diff matches no `filePatterns` and therefore
- * adds no lens work either way.
- *
- * Best-effort and total — never throws, mirroring the advisory posture of the
- * surrounding review phase. Retained as the self-enumeration fallback for
- * {@link runLocalLensReview} when no change set is injected.
- *
- * @param {{
- *   baseRef: string,
- *   headRef: string,
- *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
- * }} args
- * @returns {string[]} Changed file paths, or `[]` on any failure.
- */
-export function enumerateChangedFiles({
-  baseRef,
-  headRef,
-  gitSpawnFn = gitSpawn,
-}) {
-  return computeChangeSet({ baseRef, headRef, gitSpawnFn }).files ?? [];
-}
-
-/**
- * Run the Story-scope local-lens pass: select the LOCAL-tier lenses whose
- * `filePatterns` match the actual Story diff (`baseRef...headRef`) and
- * materialize their lens-prompt bodies at `light` depth. This is the
- * shift-left tier from Epic #4405 — it runs **inside** the story-close
- * subprocess spine (called only from {@link runStoryReviewCore}), never in the
- * delivering child's (maker's) context, so a maker never grades its own work.
- *
- * A diff that matches no local lens adds **no** lens work: the roster is empty
- * and `runAuditSuite` is never invoked. Best-effort and total — a git or
- * materialization failure degrades to `{ skipped: true, lenses: [] }` and is
- * logged via `progress`, matching the advisory posture the review phase already
- * takes for provider/transport failures.
- *
- * Story #4593 — `changedFiles` is injected by {@link runStoryReviewCore}, which
- * computes the change set once per close run and hands the same list to this
- * pass and to `runCodeReview`. Self-enumeration is the **fallback only**, kept
- * for standalone callers that supply no list.
- *
- * @param {{
- *   baseRef: string,
- *   headRef: string,
- *   changedFiles?: string[]|null,
- *   progress: (tag: string, msg: string) => void,
- *   progressTag?: string,
- *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
- *   selectLocalLensesFn?: typeof selectLocalLenses,
- *   runAuditSuiteFn?: typeof runAuditSuite,
- * }} args
- * @returns {Promise<{
- *   depth: 'light',
- *   lenses: string[],
- *   skipped: boolean,
- *   materialized: object|null,
- * }>}
- */
-export async function runLocalLensReview({
-  baseRef,
-  headRef,
-  changedFiles: injectedChangedFiles,
-  progress,
-  progressTag = 'CODE-REVIEW',
-  gitSpawnFn = gitSpawn,
-  selectLocalLensesFn = selectLocalLenses,
-  runAuditSuiteFn = runAuditSuite,
-}) {
-  const empty = {
-    depth: STORY_SCOPE_LENS_DEPTH,
-    lenses: [],
-    skipped: true,
-    materialized: null,
-  };
-  let lenses;
-  try {
-    const changedFiles = Array.isArray(injectedChangedFiles)
-      ? injectedChangedFiles
-      : enumerateChangedFiles({ baseRef, headRef, gitSpawnFn });
-    lenses = selectLocalLensesFn({ changedFiles });
-    if (lenses.length === 0) {
-      progress(
-        progressTag,
-        'No local lens matched the Story diff — skipping the lens pass.',
-      );
-      return empty;
+function resolveSeverity(reviewResult) {
+  return (
+    reviewResult?.severity ?? {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      suggestion: 0,
     }
-    const materialized = await runAuditSuiteFn({ auditWorkflows: lenses });
-    progress(
-      progressTag,
-      `Ran ${lenses.length} local lens(es) at ${STORY_SCOPE_LENS_DEPTH} depth: ${lenses.join(', ')}.`,
-    );
-    return {
-      depth: STORY_SCOPE_LENS_DEPTH,
-      lenses,
-      skipped: false,
-      materialized,
-    };
-  } catch (err) {
-    // The lens pass is advisory: a git or materialization failure must not
-    // fail the close. Log and degrade to a skipped envelope.
-    progress(
-      progressTag,
-      `⚠️ local lens pass failed (continuing without it): ${err?.message ?? err}`,
-    );
-    return empty;
-  }
+  );
 }
 
 /**
- * Collect the extra fields for the code-review-critical blocked envelope.
- * Pure; used by `runStoryCodeReview` to populate the `extra` argument of
- * `emitBlockedCloseResult`.
+ * Collect the extra fields for the code-review-critical blocked envelope. Pure.
+ *
+ * @param {{ storyId: number, reviewResult: object }} args
+ * @returns {object}
  */
 function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
-  const severity = reviewResult?.severity ?? {
-    critical: 0,
-    high: 0,
-    medium: 0,
-    suggestion: 0,
-  };
   return {
-    storyId: Number(storyId),
+    storyId,
     blockerReason: reviewResult?.blockerReason ?? null,
-    severity,
+    severity: resolveSeverity(reviewResult),
     posted: reviewResult?.posted ?? false,
     exitCode: 1,
   };
 }
 
 /**
- * Invoke `runCodeReviewFn` with the canonical Story-scope envelope and return
- * the raw result. Shared by both the Epic-attached close path
- * (`runStoryCodeReview`) and the standalone close path
- * (`single-story-close/phases/code-review.js#runStoryScopeReview`) so the
- * invocation pattern lives in one place (Story #3653).
+ * Render the operator-facing one-line summary of a completed (non-halting)
+ * review. Pure.
  *
- * The caller is responsible for error handling and result interpretation —
- * this function propagates throws rather than swallowing them, because the
- * two callers have different advisory postures:
+ * @param {object} reviewResult
+ * @returns {string}
+ */
+function formatReviewSummary(reviewResult) {
+  const { high, medium, suggestion } = resolveSeverity(reviewResult);
+  const posted = reviewResult?.posted ?? false;
+  return `Review complete — high=${high} medium=${medium} suggestion=${suggestion} (posted=${posted}).`;
+}
+
+/**
+ * Run the shared review spine, absorbing an adapter / wiring failure into this
+ * phase's advisory posture: the review is best-effort when the provider cannot
+ * complete, and the gates already vouched for the diff at this point.
  *
- *   - Epic-attached close: swallows throws (non-blocking advisory, same as
- *     `refresh.js`).
- *   - Standalone close: propagates throws (a review failure stops the close).
- *
- * Review depth is not passed in: `runCodeReview` derives it from the changed
- * files — their sensitive-path intersection plus their count (Story #4542, which
- * retired the planner-authored risk envelope this spine used to forward). Depth
- * remains an **input-only** signal: it tells the provider how thorough to be and
- * never alters the review's output envelope or the posted structured-comment
- * body.
- *
- * Story #4593 — this spine is the **single injection point** for the change set.
- * It enumerates `baseRef...headRef` exactly once via {@link computeChangeSet}
- * and threads the resulting list into both the local-lens pass and
- * `runCodeReview`, which otherwise each enumerated the diff for themselves. Both
- * consumers ultimately route through `deriveChangeLevel`, so feeding them one
- * list is what makes the lens roster and the review depth provably agree about
- * what changed — even when a commit lands between the two calls.
+ * @param {object} args Spine arguments (see {@link runStoryReviewCore}).
+ * @returns {Promise<object|null>} The review envelope, or `null` when the
+ *   review threw and the close should proceed unblocked.
+ */
+async function invokeReviewCore(args) {
+  try {
+    return await runStoryReviewCore(args);
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] ⚠️ code-review phase failed (continuing without blocker): ${err?.message ?? err}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Translate a halting (critical-findings) review into the blocked envelope the
+ * caller returns verbatim, emitting `story.blocked` onto the bus on the way.
  *
  * @param {{
- *   storyId: number|string,
- *   baseRef: string,
- *   headRef: string,
- *   commentTargetId?: number|null,
- *   provider: object,
+ *   storyId: number,
+ *   reviewResult: object,
+ *   bus: { emit: Function }|null,
  *   progress: (tag: string, msg: string) => void,
- *   progressTag?: string,
- *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
- *   computeChangeSetFn?: typeof computeChangeSet,
- *   runCodeReviewFn?: typeof runCodeReview,
- *   runLocalLensReviewFn?: typeof runLocalLensReview,
  * }} args
- * @returns {Promise<object>} Raw result envelope from `runCodeReview`, augmented
- *   with a `localLensReview` field carrying the Story-scope local-lens pass
- *   outcome (Epic #4405, Story #4409) and the `changeSet` this run computed
- *   (Story #4593). Both close entry points reach the lens pass through this
- *   single spine, so it runs on the Epic-attached and standalone paths alike and
- *   always inside the close subprocess.
+ * @returns {Promise<object>} The blocked envelope.
  */
-export async function runStoryReviewCore({
-  storyId,
-  baseRef,
-  headRef,
-  commentTargetId = null,
-  provider,
-  progress,
-  progressTag = 'CODE-REVIEW',
-  gitSpawnFn = gitSpawn,
-  computeChangeSetFn = computeChangeSet,
-  runCodeReviewFn = runCodeReview,
-  runLocalLensReviewFn = runLocalLensReview,
-}) {
-  const storyIdNum = Number(storyId);
-
-  // The one enumeration per close run. Every consumer below is injected from
-  // this list; none of them re-derives the diff.
-  const changeSet = computeChangeSetFn({ baseRef, headRef, gitSpawnFn });
-
-  const opts = {
-    scope: 'story',
-    ticketId: storyIdNum,
-    baseRef,
-    headRef,
-    provider,
-    changedFiles: changeSet.files,
-    gitSpawnFn,
-    logger: {
-      info: (m) => progress(progressTag, m),
-      warn: (m) => progress(progressTag, `⚠️ ${m}`),
-    },
-  };
-  if (commentTargetId != null) {
-    opts.commentTargetId = commentTargetId;
-  }
-
-  // Shift-left local-lens pass (Epic #4405). Runs matched local lenses at
-  // `light` depth against the actual Story diff, inside this close-subprocess
-  // spine so the maker never grades its own work. Advisory — it never blocks
-  // the close and its outcome rides on the returned envelope for downstream
-  // consumers.
-  const localLensReview = await runLocalLensReviewFn({
-    baseRef,
-    headRef,
-    changedFiles: changeSet.files,
+async function emitCriticalBlock({ storyId, reviewResult, bus, progress }) {
+  const { critical } = resolveSeverity(reviewResult);
+  return emitBlockedCloseResult({
+    storyId,
+    phase: 'closing',
+    reason: 'code-review-critical',
+    extra: buildCodeReviewBlockedExtra({ storyId, reviewResult }),
+    bus,
     progress,
-    progressTag,
-    gitSpawnFn,
+    blockedMessage: `Story #${storyId} blocked: code-review reported ${critical} critical blocker(s).`,
+    logger: Logger,
   });
-
-  const result = await runCodeReviewFn(opts);
-  return { ...result, localLensReview, changeSet };
 }
 
 /**
@@ -321,65 +164,44 @@ export async function runStoryReviewCore({
  *   (Epic #4405, Story #4409) when the review completed; it is absent only when
  *   the whole review phase threw (advisory failure).
  */
-export async function runStoryCodeReview(args) {
-  const {
-    storyId,
-    baseBranch,
-    storyBranch,
-    provider,
-    bus,
-    progress,
-    runCodeReviewFn = runCodeReview,
-    runLocalLensReviewFn = runLocalLensReview,
-  } = args;
-
+export async function runStoryCodeReview({
+  storyId,
+  baseBranch,
+  storyBranch,
+  provider,
+  bus,
+  progress,
+  runCodeReviewFn = runCodeReview,
+  runLocalLensReviewFn = runLocalLensReview,
+}) {
   const storyIdNum = Number(storyId);
   progress(
     'CODE-REVIEW',
     `Running Story-scope review (${baseBranch}…${storyBranch})...`,
   );
 
-  let reviewResult;
-  try {
-    reviewResult = await runStoryReviewCore({
-      storyId: storyIdNum,
-      baseRef: baseBranch,
-      headRef: storyBranch,
-      provider,
-      progress,
-      runCodeReviewFn,
-      runLocalLensReviewFn,
-    });
-  } catch (err) {
-    // Adapter / wiring failure — log and proceed. The review is advisory
-    // when the provider cannot complete; the gates already vouched for
-    // the diff at this point.
-    Logger.warn?.(
-      `[story-close] ⚠️ code-review phase failed (continuing without blocker): ${err?.message ?? err}`,
-    );
-    return { blocked: null };
-  }
+  const reviewResult = await invokeReviewCore({
+    storyId: storyIdNum,
+    baseRef: baseBranch,
+    headRef: storyBranch,
+    provider,
+    progress,
+    runCodeReviewFn,
+    runLocalLensReviewFn,
+  });
+  if (reviewResult === null) return { blocked: null };
 
-  const localLensReview = reviewResult?.localLensReview;
-
-  if (reviewResult?.halted) {
-    const blocked = await emitBlockedCloseResult({
+  const localLensReview = reviewResult.localLensReview;
+  if (reviewResult.halted) {
+    const blocked = await emitCriticalBlock({
       storyId: storyIdNum,
-      phase: 'closing',
-      reason: 'code-review-critical',
-      extra: buildCodeReviewBlockedExtra({ storyId: storyIdNum, reviewResult }),
+      reviewResult,
       bus,
       progress,
-      blockedMessage: `Story #${storyIdNum} blocked: code-review reported ${reviewResult.severity.critical} critical blocker(s).`,
-      logger: Logger,
     });
     return { blocked, localLensReview };
   }
 
-  const counts = reviewResult?.severity ?? {};
-  progress(
-    'CODE-REVIEW',
-    `Review complete — high=${counts.high ?? 0} medium=${counts.medium ?? 0} suggestion=${counts.suggestion ?? 0} (posted=${reviewResult?.posted ?? false}).`,
-  );
+  progress('CODE-REVIEW', formatReviewSummary(reviewResult));
   return { blocked: null, localLensReview };
 }
