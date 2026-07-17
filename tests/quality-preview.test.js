@@ -81,6 +81,33 @@ test('parseChangedSinceArg — returns null when absent', () => {
   assert.equal(parseChangedSinceArg(['--json']), null);
 });
 
+test('quality:preview npm script keeps quality-preview.js LAST (passthrough reachability)', () => {
+  // Story #4603 — load-bearing ordering, proven by experiment: for a compound
+  // `A && B` npm script, `npm run <script> -- <args>` appends the passthrough
+  // args to the LAST command ONLY. When quality-preview.js ran first, an
+  // operator's `-- --changed-since <base>` landed on check-dead-exports.js
+  // (which ignores unknown flags) and the MI gate silently scored against its
+  // own default instead — printing a false green for a branch it never
+  // compared. That is how #4593's -5.86 ratchet violation cleared review.
+  //
+  // Any command appended AFTER quality-preview.js re-breaks this. Keep the
+  // flag-consuming gate last.
+  const pkgPath = path.join(
+    path.dirname(new URL(import.meta.url).pathname),
+    '..',
+    'package.json',
+  );
+  const script = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).scripts[
+    'quality:preview'
+  ];
+  const commands = script.split('&&').map((c) => c.trim());
+  assert.ok(
+    commands[commands.length - 1].includes('quality-preview.js'),
+    `quality-preview.js must be the LAST command in the quality:preview script so ` +
+      `npm's "--" passthrough reaches it; got: ${script}`,
+  );
+});
+
 test('parseChangedSinceArg — last occurrence wins (npm-alias passthrough)', () => {
   // Story #4603. `npm run quality:preview -- --changed-since <base>` appends the
   // operator's flag AFTER any flag baked into the npm script. A first-wins scan
