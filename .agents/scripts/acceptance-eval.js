@@ -4,8 +4,8 @@
  * acceptance-eval.js — bounded per-Story acceptance self-eval gate (Story #3819).
  *
  * The Story-implementation phase runs an independent (fresh-context)
- * critic pass that scores the working diff against each inline
- * `acceptance[]` item, emitting one verdict file per round
+ * critic pass that scores the caller-injected change set against each
+ * inline `acceptance[]` item, emitting one verdict file per round
  * (`.agents/schemas/acceptance-eval-verdict.schema.json`). This CLI is the
  * deterministic substrate that turns that verdict into the loop's next
  * action:

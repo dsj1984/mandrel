@@ -101,8 +101,10 @@ self-eval loop (below) may share `lint` / `typecheck` evidence with close via
 After the implementation commits land and **before** flipping to `closing`, run
 the bounded acceptance self-eval loop (see
 [`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)). It
-scores the working diff against **each** `acceptance[]` item and consumes the
-`verify[]` command output as **required evidence**. The gate returns one of:
+scores the change set you computed once and injected into the critic — never
+one the critic re-derives (Story #4593) — against **each** `acceptance[]` item,
+and consumes the `verify[]` command output as **required evidence**. The gate
+returns one of:
 
 - **`proceed`** (every criterion met) → flip to `closing` and close.
 - **`redraft`** (rounds remaining) → fix the flagged criteria, commit, re-eval.

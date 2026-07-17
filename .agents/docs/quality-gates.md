@@ -260,9 +260,9 @@ per-round mechanic lives in
 with the gate CLI at
 [`.agents/scripts/acceptance-eval.js`](../scripts/acceptance-eval.js)).
 Each round, a fresh-context **critic pass** — independent of the
-implementing agent — scores the working diff against every inline
-`acceptance[]` item, using `verify[]` output as evidence, and yields one
-of three decisions:
+implementing agent — scores the change set its caller injected (never one
+it re-derives) against every inline `acceptance[]` item, using `verify[]`
+output as evidence, and yields one of three decisions:
 
 - **proceed** — all criteria met; the Story continues to close.
 - **redraft** — unmet criteria are redrafted and re-implemented, then

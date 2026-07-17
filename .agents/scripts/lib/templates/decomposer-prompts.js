@@ -26,9 +26,8 @@ import {
  */
 export function renderDecomposerSystemPrompt({
   maxTickets = LIMITS_DEFAULTS.maxTickets,
-  epicId = null,
 } = {}) {
-  return render2TierPrompt({ maxTickets, epicId });
+  return render2TierPrompt({ maxTickets });
 }
 
 /**
@@ -37,7 +36,7 @@ export function renderDecomposerSystemPrompt({
  * on the Story body so the executing agent has everything it needs in one
  * ticket. Thematic grouping lives as prose in the Epic body / Tech Spec.
  */
-function render2TierPrompt({ maxTickets, epicId = null }) {
+function render2TierPrompt({ maxTickets }) {
   // v2 Stage 3: default-single — emit one Story unless the split policy clears.
   // Capacity thresholds are sourced from the single DEFAULT_MODEL_CAPACITY
   // constant (ticket-validator-sizing.js) so the prompt and the validator
@@ -64,13 +63,6 @@ function render2TierPrompt({ maxTickets, epicId = null }) {
     advisoryCaveat,
     newFileContract,
   } = AUTHORING_ALTITUDE_GUIDANCE;
-  // The namespaced AC-tag token the wave-0 BDD scaffold section below must
-  // require on every scaffolded scenario (Story #4301). When the Epic ID is
-  // known at render time, interpolate the concrete tag so the author has no
-  // placeholder to get wrong; otherwise fall back to the documented pattern.
-  const acTagExample = Number.isInteger(epicId)
-    ? `@epic-${epicId}-ac-1`
-    : '@epic-<id>-ac-N';
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.
 
@@ -154,6 +146,10 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **verify** (top-level array on the ticket object): Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Stories with zero verify entries SHOULD fail validation; if a story is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
 - **reason to exist** (REQUIRED, encoded as the \`reason_to_exist\` field of the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): One sentence stating the single coherent reason this Story exists, distinct from its broader \`## Goal\` prose. Every Story MUST carry a non-empty \`reason_to_exist\`; it is the machine-checkable form of the cohesion rule (**one Story = one coherent change with one reason to exist**) and the \`epic-plan-consolidate\` critic flags any Story whose body carries no non-empty reason to exist. Encode it as \`<!-- meta: {"reason_to_exist": "..."} -->\`.
 - **estimated_test_files** (optional, encoded in the \`<!-- meta: {...} -->\` comment appended to the serialized body string — NOT a top-level ticket field): Integer estimate of how many test files this Story creates or modifies. Omit when the number is not estimable. Informational only — it does not gate the decompose.
+- **Observed-behavior claims open with \`Current state (verified <date>)\`.** Any Spec claim about how the codebase behaves today MUST open with that preamble (e.g. \`Current state (verified 2026-07-17): …\`) so a reader can tell a verified observation from an assumption, and can tell when the observation went stale.
+- **Intent-then-proxy acceptance shape.** When an acceptance item verifies through a proxy check (a grep, a file-exists probe, an exit-code test), state the intent clause before the proxy check — what outcome the check stands in for — so the proxy never becomes the goal (e.g. "the workflow names hygiene findings as re-author input: \`grep -n "textHygiene" …\` exits 0").
+- **Slicing checkpoints are one line each.** Each \`## Slicing\` checkpoint is a single line naming the checkpoint; implementation detail lives in \`## Spec\`, never duplicated into Slicing. A Slicing section outweighing its Spec is a defect the text-hygiene lint flags.
+- **Bodies record decisions, never questions to the operator.** Never persist an open question ("Flag if…", "TBD", "confirm with the operator") into a Story body — the executing sub-agent is non-interactive and cannot answer it. Resolve the unknown before authoring, or restate it as a declarative Key Assumption the agent can act on.
 - **non_goals** (OPTIONAL, in body string as the \`## Non-Goals\` section): A short list of capabilities or changes this Story explicitly does NOT deliver — an advisory negative-scope bound that fences the executing agent away from adjacent work. It is **advisory and NON-GATING**: the validator does not require, count, or reject on it, and an absent or empty section renders nothing. Use the EXACT single-word hyphenated heading spelling \`## Non-Goals\` (a space-separated heading like \`## Out of Scope\` is NOT recognized by the parser and will be dropped). Reach for it when a Story's negative boundary is non-obvious from its \`acceptance[]\` alone; omit it otherwise.
 
 #### AUTHORING ALTITUDE — BINDING ACCEPTANCE vs ADVISORY CHANGES:
@@ -229,9 +225,8 @@ When the Acceptance Spec contains **one or more \`Disposition: new\` rows**, you
 - **goal**: contains the literal token \`bdd-scaffold\` (e.g. "bdd-scaffold: create the @skip-tagged feature files the implementation Stories verify against").
 - **depends_on**: EMPTY (\`[]\`) — it runs first, in wave 0.
 - **changes**: one entry per distinct \`.feature\` file named in a \`new\` row, each \`{ "path": "<feature file path>", "assumption": "creates" }\`.
-- **acceptance**: MUST assert (a) every new \`.feature\` file exists, (b) every new scenario within them carries an \`@skip\` tag, AND (c) every new scenario also carries its **namespaced per-Epic AC tag** \`${acTagExample}\` (one tag per AC ID the scenario satisfies — see below). Keep these observable (a grep/validate command exits 0, a file exists at a path).
-- **Namespaced AC tag is REQUIRED at scaffold time, not only at de-skip time.** Phase 7 finalize's \`acceptance-spec-reconciler.js\` matches AC IDs only against \`@epic-<id>-ac-*\` / \`@pending\` tags in \`tests/features/**\` — a bare \`@ac-N\` tag is deliberately ignored to prevent cross-Epic collision. A scaffolded scenario that carries \`@skip\` but omits \`@epic-<id>-ac-N\` reads as \`missing[]\` at finalize and aborts the close even after the implementation Story de-skips it, because the tag was never added. Tag each scenario with both \`@skip\` AND \`${acTagExample}\` (substituting the AC's own number) in this SAME wave-0 pass — do not defer the AC tag to the later de-skip edit.
-- **verify**: a grep/validate command (tier \`validate\`), NOT an e2e runner — verifying that a file exists with the required tags needs no browser/playwright run. Example: \`grep -rL '@skip' tests/features/<area>/*.feature (validate)\` paired with an existence check, AND a check that every new AC ID's namespaced tag (\`${acTagExample}\`) appears in the scaffolded files, e.g. \`grep -q '${acTagExample}' tests/features/<area>/<file>.feature (validate)\` for each new AC row.
+- **acceptance**: MUST assert (a) every new \`.feature\` file exists AND (b) every new scenario within them carries an \`@skip\` tag. Keep these observable (a grep/validate command exits 0, a file exists at a path).
+- **verify**: a grep/validate command (tier \`validate\`), NOT an e2e runner — verifying that a file exists with the required tags needs no browser/playwright run. Example: \`grep -rL '@skip' tests/features/<area>/*.feature (validate)\` paired with an existence check.
 - Each implementation Story whose \`verify[]\` references one of these scaffolded \`.feature\` paths MUST \`depends_on\` the scaffold Story (so the scaffold lands in an earlier wave). Omitting the link trips the soft \`missing-bdd-scaffold\` validator finding.
 
 When the Acceptance Spec contains **zero \`new\`-disposition rows** (every row is \`updated\` or \`unchanged\`), do NOT emit a scaffold Story — there is nothing to create.

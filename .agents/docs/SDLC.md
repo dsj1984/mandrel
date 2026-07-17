@@ -40,8 +40,9 @@ From zero to shipped:
 
    `/plan` is a **single path** — there is no Epic/Story router, no
    scope-triage `epic|story` verdict, and no `deliveryShape`. All GitHub
-   reads happen in `plan-context.js`, all writes in `plan-persist.js`, and
-   two HITL gates bracket the authoring middle. Duplicate search targets
+   reads happen in `plan-context.js`, the issue-creating writes in
+   `plan-persist.js`, and two HITL gates bracket the authoring middle.
+   Duplicate search targets
    open **Stories** (`type::story`), never Epics.
 
    1. **Interrogate** — `plan-context.js` emits the single authoring
@@ -54,6 +55,12 @@ From zero to shipped:
       Binding criteria live in top-level `acceptance[]` / `verify[]`;
       changes/references are `{ path, assumption }` objects. Split into
       N>1 only under the default-single split policy.
+   2.5. **Critics** — `plan-critics.js` evaluates the consolidation +
+      pre-mortem dispatch conditions against the authored draft and ledgers
+      every skip. This is the **only** critic gate (#4592 moved it out of
+      `plan-persist.js` into workflow prose), so skipping it silently skips
+      both critics: run it before Persist, per
+      [`/plan`](../workflows/plan.md) step 2.5.
    3. **Persist** — **gate #2** (raised only by an explicit `--force-review`)
       then `plan-persist.js` runs every deterministic gate and
       creates Story issue(s) with `type::story` + `agent::ready`, writing
@@ -76,8 +83,8 @@ From zero to shipped:
    2. **Implement** — the agent delivers the Story in one guarded session
       against its inline `acceptance[]` / `verify[]` contract (optional
       `## Slicing` intra-session checkpoints).
-   3. **Acceptance self-eval** — a bounded critic loop scores the working
-      diff against each acceptance item before close (see
+   3. **Acceptance self-eval** — a bounded critic loop scores the
+      caller-injected change set against each acceptance item before close (see
       [`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md)).
    4. **Ceremony** — acceptance critic mode and review depth, both routed off
       the change level derived from the Story's own diff

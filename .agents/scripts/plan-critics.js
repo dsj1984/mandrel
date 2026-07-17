@@ -31,8 +31,12 @@
  *
  *   {
  *     "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": [...] },
- *     "premortem":     { "critic": "pre-mortem",    "dispatch": true,  "reasons": [...] }
+ *     "premortem":     { "critic": "pre-mortem",    "dispatch": true,  "reasons": [...] },
+ *     "textHygiene":   { "critic": "text-hygiene",  "findings": [...] }
  *   }
+ *
+ * `textHygiene` (Story #4599) is advisory-only: deterministic body lints with
+ * no dispatch semantics — its findings fold into the re-author round.
  *
  * Human-readable log lines go to stderr, matching the sibling `plan-persist`.
  *
@@ -92,7 +96,7 @@ export async function loadCriticArtifacts({
  * ledger write is best-effort by `appendCriticSkip`'s own contract — it can
  * never fail the plan step.
  *
- * @param {{ consolidation: object, premortem: object }} verdict
+ * @param {{ consolidation: object, premortem: object, textHygiene?: object }} verdict
  * @param {object} config
  * @param {{ append?: typeof appendCriticSkip }} [deps]
  * @returns {Promise<void>}
@@ -119,6 +123,27 @@ export async function recordCriticSkips(
       );
     }
   }
+
+  // Text hygiene (Story #4599) is advisory-only — no dispatch semantics, so
+  // "skip" here means "zero findings". Recording that keeps the lint's
+  // fire/skip accounting on the same ledger as the dispatching critics.
+  const hygiene = verdict.textHygiene;
+  if (hygiene) {
+    const count = hygiene.findings.length;
+    Logger.info(
+      `[plan-critics] critic ${hygiene.critic}: ${count} finding(s) (advisory).`,
+    );
+    if (count === 0) {
+      await append(
+        {
+          critic: hygiene.critic,
+          reasons: ['No text-hygiene findings over the draft stories.'],
+          cli: PLAN_CRITICS_CLI,
+        },
+        config,
+      );
+    }
+  }
 }
 
 /**
@@ -132,7 +157,7 @@ export async function recordCriticSkips(
  *   config?: object,
  *   append?: typeof appendCriticSkip,
  * }} args
- * @returns {Promise<{ consolidation: object, premortem: object }>}
+ * @returns {Promise<{ consolidation: object, premortem: object, textHygiene: object }>}
  */
 export async function evaluateCriticArtifacts({
   storiesPath,
