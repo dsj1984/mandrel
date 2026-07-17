@@ -211,6 +211,16 @@ export async function describeLease(opts) {
  *                                     `reason: 'reclaimed'`.
  *   - Foreign claim + `steal:true` → reassign operator, `acquired: true`,
  *                                     `reason: 'stolen'`.
+ *   - Lost a write race            → a foreign login co-assigned between our
+ *                                     PATCH and the verify re-read; back the
+ *                                     operator out, `acquired: false`,
+ *                                     `owner: <foreign>`, `reason: 'lost-race'`.
+ *
+ * Every claiming write is verified: GitHub's assignee PATCH is not a
+ * compare-and-set, so two runs that both read the ticket unassigned will both
+ * write themselves. {@link claimAndVerify} re-reads after the write and refuses
+ * (fail-closed) when a foreign login is present, so the loser of a simultaneous
+ * claim never proceeds as though it holds the lease.
  *
  * @param {object} opts
  * @param {object} opts.provider              Ticketing provider.
@@ -225,7 +235,7 @@ export async function describeLease(opts) {
  *   acquired: boolean,
  *   owner: string,
  *   previousOwner: string|null,
- *   reason: 'unclaimed'|'already-held'|'reclaimed'|'stolen'|'held',
+ *   reason: 'unclaimed'|'already-held'|'reclaimed'|'stolen'|'held'|'lost-race',
  * }>}
  */
 export async function acquireLease(opts) {
@@ -240,13 +250,13 @@ export async function acquireLease(opts) {
 
   // Unclaimed → take it.
   if (owner === null) {
-    await provider.updateTicket(ticketId, { assignees: [operator] });
-    return {
-      acquired: true,
-      owner: operator,
+    return claimAndVerify({
+      provider,
+      ticketId,
+      operator,
       previousOwner: null,
       reason: 'unclaimed',
-    };
+    });
   }
 
   // Already ours → no write needed.
@@ -270,12 +280,70 @@ export async function acquireLease(opts) {
     };
   }
 
-  await provider.updateTicket(ticketId, { assignees: [operator] });
-  return {
-    acquired: true,
-    owner: operator,
+  return claimAndVerify({
+    provider,
+    ticketId,
+    operator,
     previousOwner: owner,
     reason: steal && live ? 'stolen' : 'reclaimed',
+  });
+}
+
+/**
+ * Write the operator to a ticket's assignees, then re-read to confirm the
+ * claim actually stuck before reporting success.
+ *
+ * The assignee write is not atomic — GitHub offers no compare-and-set on the
+ * assignees surface — so two runs that both observed the ticket unassigned (or
+ * a stale foreign claim) will both PATCH themselves in. Without a check the
+ * loser of that race returns `acquired: true` and marches into the worktree
+ * the winner is already building. The verify closes that window: it re-reads
+ * with `fresh: true` (bypassing any provider cache so it sees the other run's
+ * write, not our own), and if a foreign login is present it concedes — removes
+ * the operator from the assignee set so no phantom co-owner lingers, and
+ * returns `acquired: false` / `reason: 'lost-race'` so the fail-closed caller
+ * refuses. A clean read (assignees exactly `[operator]`) confirms the claim.
+ *
+ * It does not eliminate the race — two writes still happen — but it makes the
+ * outcome deterministic: exactly one operator survives as the sole assignee,
+ * and the other is told it lost.
+ *
+ * @param {object} args
+ * @param {object} args.provider              Ticketing provider.
+ * @param {number} args.ticketId              Ticket being claimed.
+ * @param {string} args.operator              Operator acquiring the lease.
+ * @param {string|null} args.previousOwner    Owner before this write (for the result).
+ * @param {string} args.reason                Success reason when the claim holds.
+ * @returns {Promise<{ acquired: boolean, owner: string, previousOwner: string|null, reason: string }>}
+ */
+async function claimAndVerify({
+  provider,
+  ticketId,
+  operator,
+  previousOwner,
+  reason,
+}) {
+  await provider.updateTicket(ticketId, { assignees: [operator] });
+
+  const after = await provider.getTicket(ticketId, { fresh: true });
+  const assignees = Array.isArray(after?.assignees) ? after.assignees : [];
+  const foreign = assignees.filter((login) => login !== operator);
+
+  if (foreign.length === 0) {
+    return { acquired: true, owner: operator, previousOwner, reason };
+  }
+
+  // A foreign login co-assigned after our write — we lost a simultaneous
+  // claim. Back ourselves out so the winner is the sole assignee, and report
+  // the loss so the fail-closed caller refuses rather than double-delivering.
+  await provider
+    .updateTicket(ticketId, { assignees: foreign })
+    .catch(() => undefined);
+  return {
+    acquired: false,
+    owner: foreign[0],
+    previousOwner,
+    reason: 'lost-race',
   };
 }
 

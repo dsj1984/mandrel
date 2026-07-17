@@ -105,12 +105,27 @@ to respect.
    accounting is read from reality every beat (Story #4594).
 
    **`--dispatched` is the one thing you must tell it (Story #4601).** List
-   every Story id you have spawned this run. Live state cannot report a Story
-   you dispatched ninety seconds ago: `single-story-init.js` flips
-   `agent::executing` at step 6 of 6, *after* a 3–6 minute worktree install,
-   so until then the Story still reads `agent::ready` and the next beat hands
-   it back — a second sub-agent then joins the first on the same branch and
-   worktree, interleaving commits.
+   every Story id you have spawned this run. Live state cannot instantly report
+   a Story you dispatched moments ago: `single-story-init.js` publishes
+   `agent::executing` before the worktree install (Story #4620 moved it ahead
+   of the multi-minute install, so the window is now short rather than
+   minutes-long), but it is not zero — until the label lands the Story still
+   reads `agent::ready` and, without `--dispatched`, the next beat would hand
+   it back and a second sub-agent would join the first on the same branch and
+   worktree, interleaving commits. `--dispatched` closes that residual
+   same-run window.
+
+   **Cross-run de-confliction is automatic (Story #4620).** A Story another
+   operator is delivering is withheld without any bookkeeping from you: the
+   probe reads the Story's assignee lease and, when it belongs to a different
+   operator, withholds the Story and reports it in the envelope's
+   `foreignHeld: [{ id, holder }]` (with `foreignHeldReason`). That is not a
+   failure or a wedge — the holder's run owns the branch, and this run picks
+   the Story up automatically once their lease clears. Init is the backstop:
+   it refuses a Story already labelled `agent::executing`, or one whose lease a
+   different operator holds, unless you pass `--steal`. Assignee-based
+   withholding needs `github.operatorHandle` set (in `.agentrc.local.json`);
+   without it the probe logs a warning and leans on init's lease refusal alone.
 
    The rule is **append-only: add each id as you dispatch it and never remove
    one.** The flag is additive, not authoritative — the probe unions it into

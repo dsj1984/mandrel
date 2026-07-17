@@ -709,12 +709,13 @@ export async function runProbedStoriesWaveTick({
 
   let probed;
   try {
-    const { provider, owner, repo } = context();
+    const { provider, owner, repo, self } = context();
     probed = await probe({
       ids,
       provider,
       owner,
       repo,
+      self,
       dispatched: [...dispatchedIds],
       warn: (m) => Logger.warn(m),
     });
@@ -728,7 +729,13 @@ export async function runProbedStoriesWaveTick({
     );
   }
 
-  const { nodes, doneIds, inFlight, blockedIds = [] } = probed;
+  const {
+    nodes,
+    doneIds,
+    inFlight,
+    blockedIds = [],
+    foreignHeld = [],
+  } = probed;
   const { envelope, exitCode } = buildReadySetEnvelope(nodes, {
     concurrencyCap,
     doneIds,
@@ -745,6 +752,11 @@ export async function runProbedStoriesWaveTick({
       epilogueDue,
       blocked: blockedIds,
       blockedReason: blockedReasonFor(blockedIds),
+      // Stories another operator's lease holds — withheld from dispatch this
+      // beat (folded into in-flight) and surfaced so the run can report
+      // "#<id> held by @<holder>" instead of dispatching into an init refusal.
+      foreignHeld,
+      foreignHeldReason: foreignHeldReasonFor(foreignHeld),
     },
     // A blocked Story outranks the scheduler's own verdict — including a
     // wedge, whose named blockers are moot while a human owes a decision.
@@ -773,6 +785,31 @@ function blockedReasonFor(blockedIds) {
     `the loop must stop rather than poll. Read each Story's friction comment ` +
     `(gh issue view <id> --comments), resolve the blocker, then flip it back ` +
     `with: node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready`
+  );
+}
+
+/**
+ * Render the operator-facing note for Stories held by another operator's
+ * lease, or `null` when none are held.
+ *
+ * These are not errors and not a wedge: the holder's run is progressing
+ * normally, this run simply must not join it on the same branch. The Story
+ * stays withheld and re-probes each beat, so it dispatches on its own the
+ * moment the holder's lease clears (their run lands or is stolen).
+ *
+ * @param {Array<{id: number, holder: string}>} foreignHeld
+ * @returns {string|null}
+ */
+function foreignHeldReasonFor(foreignHeld) {
+  if (!Array.isArray(foreignHeld) || foreignHeld.length === 0) return null;
+  const list = foreignHeld
+    .map((h) => `#${h.id} held by @${h.holder}`)
+    .join(', ');
+  return (
+    `${foreignHeld.length} Story(ies) are held by another operator's lease — ` +
+    `${list}. They are withheld this beat, not failed: the holder's run owns ` +
+    `the branch and worktree. This run picks each up automatically once that ` +
+    `lease clears (their run lands, or you --steal it after confirming it is dead).`
   );
 }
 

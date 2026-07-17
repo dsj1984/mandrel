@@ -62,7 +62,7 @@ function normalizeIssueLabels(issue) {
  *
  * @param {object} issue
  * @param {number} [requestedId] The id the operator asked for, for error text.
- * @returns {{ id, title, body, url, labels, state }}
+ * @returns {{ id, title, body, url, labels, state, assignees }}
  */
 export function toStoryRecord(issue, requestedId) {
   const id = Number(issue?.number ?? issue?.id ?? requestedId);
@@ -93,6 +93,14 @@ export function toStoryRecord(issue, requestedId) {
     url: issue?.html_url ?? issue?.url ?? null,
     labels,
     state: String(issue?.state ?? 'open').toLowerCase(),
+    // The assignee list carries the Story lease (`ticket-lease.js`): its sole
+    // assignee is the operator that owns the in-flight run. The probe reads it
+    // to withhold a Story another operator holds (`live-probe.js`), so it is
+    // threaded onto the record here rather than dropped. `issueToTicket`
+    // already reduces assignees to bare login strings; keep only those.
+    assignees: Array.isArray(issue?.assignees)
+      ? issue.assignees.filter((a) => typeof a === 'string' && a.length > 0)
+      : [],
   };
 }
 
