@@ -40,6 +40,7 @@ import {
 } from '../../../audit-suite/index.js';
 import { gitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
+import { computeChangeSet } from '../../change-set.js';
 import { runCodeReview } from '../../code-review.js';
 import { emitBlockedCloseResult } from '../emit-blocked.js';
 
@@ -53,14 +54,22 @@ import { emitBlockedCloseResult } from '../emit-blocked.js';
 export const STORY_SCOPE_LENS_DEPTH = 'light';
 
 /**
- * Enumerate the files changed in the `baseRef...headRef` diff via
- * `git diff --name-only`. Best-effort: returns `[]` when the diff cannot be
- * enumerated (git failure, missing ref) and never throws, mirroring the
- * advisory posture of the surrounding review phase. Synchronous `gitSpawn`
- * (returns `{ status, stdout }`) is the same seam `code-review.js#countChangedFiles`
- * uses.
+ * Enumerate the files changed in the `baseRef...headRef` diff. Thin adapter over
+ * the shared {@link computeChangeSet} enumerator (Story #4593) that flattens its
+ * `files: string[]|null` envelope to this phase's historical `[]`-on-failure
+ * contract: the lens roster treats "nothing changed" and "diff unknown"
+ * identically, because an unknown diff matches no `filePatterns` and therefore
+ * adds no lens work either way.
  *
- * @param {{ baseRef: string, headRef: string, gitSpawnFn?: typeof gitSpawn }} args
+ * Best-effort and total — never throws, mirroring the advisory posture of the
+ * surrounding review phase. Retained as the self-enumeration fallback for
+ * {@link runLocalLensReview} when no change set is injected.
+ *
+ * @param {{
+ *   baseRef: string,
+ *   headRef: string,
+ *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
+ * }} args
  * @returns {string[]} Changed file paths, or `[]` on any failure.
  */
 export function enumerateChangedFiles({
@@ -68,23 +77,7 @@ export function enumerateChangedFiles({
   headRef,
   gitSpawnFn = gitSpawn,
 }) {
-  try {
-    const result = gitSpawnFn(
-      process.cwd(),
-      'diff',
-      '--name-only',
-      `${baseRef}...${headRef}`,
-    );
-    if (!result || result.status !== 0 || typeof result.stdout !== 'string') {
-      return [];
-    }
-    return result.stdout
-      .split('\n')
-      .map((f) => f.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
+  return computeChangeSet({ baseRef, headRef, gitSpawnFn }).files ?? [];
 }
 
 /**
@@ -101,12 +94,18 @@ export function enumerateChangedFiles({
  * logged via `progress`, matching the advisory posture the review phase already
  * takes for provider/transport failures.
  *
+ * Story #4593 — `changedFiles` is injected by {@link runStoryReviewCore}, which
+ * computes the change set once per close run and hands the same list to this
+ * pass and to `runCodeReview`. Self-enumeration is the **fallback only**, kept
+ * for standalone callers that supply no list.
+ *
  * @param {{
  *   baseRef: string,
  *   headRef: string,
+ *   changedFiles?: string[]|null,
  *   progress: (tag: string, msg: string) => void,
  *   progressTag?: string,
- *   gitSpawnFn?: typeof gitSpawn,
+ *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
  *   selectLocalLensesFn?: typeof selectLocalLenses,
  *   runAuditSuiteFn?: typeof runAuditSuite,
  * }} args
@@ -120,6 +119,7 @@ export function enumerateChangedFiles({
 export async function runLocalLensReview({
   baseRef,
   headRef,
+  changedFiles: injectedChangedFiles,
   progress,
   progressTag = 'CODE-REVIEW',
   gitSpawnFn = gitSpawn,
@@ -134,11 +134,9 @@ export async function runLocalLensReview({
   };
   let lenses;
   try {
-    const changedFiles = enumerateChangedFiles({
-      baseRef,
-      headRef,
-      gitSpawnFn,
-    });
+    const changedFiles = Array.isArray(injectedChangedFiles)
+      ? injectedChangedFiles
+      : enumerateChangedFiles({ baseRef, headRef, gitSpawnFn });
     lenses = selectLocalLensesFn({ changedFiles });
     if (lenses.length === 0) {
       progress(
@@ -205,12 +203,20 @@ function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
  *     `refresh.js`).
  *   - Standalone close: propagates throws (a review failure stops the close).
  *
- * Review depth is not passed in: `runCodeReview` derives it entirely from the
- * `baseRef...headRef` diff it enumerates itself — the changed files' sensitive-
- * path intersection plus their count (Story #4542, which retired the
- * planner-authored risk envelope this spine used to forward). Depth remains an
- * **input-only** signal: it tells the provider how thorough to be and never
- * alters the review's output envelope or the posted structured-comment body.
+ * Review depth is not passed in: `runCodeReview` derives it from the changed
+ * files — their sensitive-path intersection plus their count (Story #4542, which
+ * retired the planner-authored risk envelope this spine used to forward). Depth
+ * remains an **input-only** signal: it tells the provider how thorough to be and
+ * never alters the review's output envelope or the posted structured-comment
+ * body.
+ *
+ * Story #4593 — this spine is the **single injection point** for the change set.
+ * It enumerates `baseRef...headRef` exactly once via {@link computeChangeSet}
+ * and threads the resulting list into both the local-lens pass and
+ * `runCodeReview`, which otherwise each enumerated the diff for themselves. Both
+ * consumers ultimately route through `deriveChangeLevel`, so feeding them one
+ * list is what makes the lens roster and the review depth provably agree about
+ * what changed — even when a commit lands between the two calls.
  *
  * @param {{
  *   storyId: number|string,
@@ -220,14 +226,17 @@ function buildCodeReviewBlockedExtra({ storyId, reviewResult }) {
  *   provider: object,
  *   progress: (tag: string, msg: string) => void,
  *   progressTag?: string,
+ *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
+ *   computeChangeSetFn?: typeof computeChangeSet,
  *   runCodeReviewFn?: typeof runCodeReview,
  *   runLocalLensReviewFn?: typeof runLocalLensReview,
  * }} args
  * @returns {Promise<object>} Raw result envelope from `runCodeReview`, augmented
  *   with a `localLensReview` field carrying the Story-scope local-lens pass
- *   outcome (Epic #4405, Story #4409). Both close entry points reach the lens
- *   pass through this single spine, so it runs on the Epic-attached and
- *   standalone paths alike and always inside the close subprocess.
+ *   outcome (Epic #4405, Story #4409) and the `changeSet` this run computed
+ *   (Story #4593). Both close entry points reach the lens pass through this
+ *   single spine, so it runs on the Epic-attached and standalone paths alike and
+ *   always inside the close subprocess.
  */
 export async function runStoryReviewCore({
   storyId,
@@ -237,16 +246,25 @@ export async function runStoryReviewCore({
   provider,
   progress,
   progressTag = 'CODE-REVIEW',
+  gitSpawnFn = gitSpawn,
+  computeChangeSetFn = computeChangeSet,
   runCodeReviewFn = runCodeReview,
   runLocalLensReviewFn = runLocalLensReview,
 }) {
   const storyIdNum = Number(storyId);
+
+  // The one enumeration per close run. Every consumer below is injected from
+  // this list; none of them re-derives the diff.
+  const changeSet = computeChangeSetFn({ baseRef, headRef, gitSpawnFn });
+
   const opts = {
     scope: 'story',
     ticketId: storyIdNum,
     baseRef,
     headRef,
     provider,
+    changedFiles: changeSet.files,
+    gitSpawnFn,
     logger: {
       info: (m) => progress(progressTag, m),
       warn: (m) => progress(progressTag, `⚠️ ${m}`),
@@ -264,12 +282,14 @@ export async function runStoryReviewCore({
   const localLensReview = await runLocalLensReviewFn({
     baseRef,
     headRef,
+    changedFiles: changeSet.files,
     progress,
     progressTag,
+    gitSpawnFn,
   });
 
   const result = await runCodeReviewFn(opts);
-  return { ...result, localLensReview };
+  return { ...result, localLensReview, changeSet };
 }
 
 /**

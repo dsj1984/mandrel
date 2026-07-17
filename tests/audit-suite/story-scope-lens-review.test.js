@@ -266,6 +266,147 @@ function cleanReviewStub() {
   });
 }
 
+// ---------------------------------------------------------------------------
+// The change set is computed ONCE per close run and injected (Story #4593).
+// ---------------------------------------------------------------------------
+
+test('runStoryReviewCore enumerates the diff exactly once and injects it into both consumers', async () => {
+  // One gitSpawn spy threaded into every seam that could enumerate: the spine's
+  // own computeChangeSet, the lens pass, and runCodeReview. If either consumer
+  // ever re-derived the diff for itself, this count would climb.
+  const diffCalls = [];
+  const gitSpawnFn = (cwd, ...args) => {
+    if (args[0] === 'diff') diffCalls.push(args);
+    return { status: 0, stdout: 'b.js\n.agents/scripts/a.js\n', stderr: '' };
+  };
+
+  const lensCalls = [];
+  const reviewCalls = [];
+  const result = await runStoryReviewCore({
+    storyId: 4593,
+    baseRef: 'main',
+    headRef: 'story-4593',
+    provider: {},
+    progress: noopProgress,
+    gitSpawnFn,
+    runLocalLensReviewFn: async (args) => {
+      lensCalls.push(args);
+      return { depth: 'light', lenses: [], skipped: true, materialized: null };
+    },
+    runCodeReviewFn: async (opts) => {
+      reviewCalls.push(opts);
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: false,
+        postedCommentId: null,
+        halted: false,
+        blockerReason: null,
+      };
+    },
+  });
+
+  assert.equal(
+    diffCalls.length,
+    1,
+    `the diff must be enumerated exactly once per close run, got ${diffCalls.length}`,
+  );
+  assert.deepEqual(diffCalls[0], ['diff', '--name-only', 'main...story-4593']);
+
+  // Both consumers received the SAME (sorted, de-duplicated) list.
+  const expected = ['.agents/scripts/a.js', 'b.js'];
+  assert.deepEqual(lensCalls[0].changedFiles, expected);
+  assert.deepEqual(reviewCalls[0].changedFiles, expected);
+  assert.deepEqual(result.changeSet.files, expected);
+  assert.equal(result.changeSet.baseRef, 'main');
+  assert.equal(result.changeSet.headRef, 'story-4593');
+});
+
+test('runStoryReviewCore injects an explicit null when the diff is unenumerable', async () => {
+  // The fail-safe signal must reach both consumers as "unknown", not as a
+  // deceptively-empty list, and must not trigger a retry enumeration.
+  const diffCalls = [];
+  const lensCalls = [];
+  const reviewCalls = [];
+  await runStoryReviewCore({
+    storyId: 4593,
+    baseRef: 'main',
+    headRef: 'story-4593',
+    provider: {},
+    progress: noopProgress,
+    gitSpawnFn: (_cwd, ...args) => {
+      if (args[0] === 'diff') diffCalls.push(args);
+      return { status: 128, stdout: '', stderr: 'bad ref' };
+    },
+    runLocalLensReviewFn: async (args) => {
+      lensCalls.push(args);
+      return { depth: 'light', lenses: [], skipped: true, materialized: null };
+    },
+    runCodeReviewFn: async (opts) => {
+      reviewCalls.push(opts);
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: false,
+        postedCommentId: null,
+        halted: false,
+        blockerReason: null,
+      };
+    },
+  });
+  assert.equal(diffCalls.length, 1);
+  assert.equal(lensCalls[0].changedFiles, null);
+  assert.equal(reviewCalls[0].changedFiles, null);
+});
+
+test('runLocalLensReview selects from the injected change set without enumerating', async () => {
+  let enumerated = false;
+  const selectCalls = [];
+  const out = await runLocalLensReview({
+    baseRef: 'main',
+    headRef: 'story-4593',
+    changedFiles: ['.agents/scripts/injected.js'],
+    progress: noopProgress,
+    gitSpawnFn: () => {
+      enumerated = true;
+      return { status: 0, stdout: 'some/other/file.js', stderr: '' };
+    },
+    selectLocalLensesFn: (args) => {
+      selectCalls.push(args);
+      return ['audit-performance'];
+    },
+    runAuditSuiteFn: spy({ metadata: {}, findings: [], workflows: [] }),
+  });
+  assert.equal(enumerated, false, 'an injected list must short-circuit git');
+  assert.deepEqual(selectCalls[0].changedFiles, [
+    '.agents/scripts/injected.js',
+  ]);
+  assert.deepEqual(out.lenses, ['audit-performance']);
+});
+
+test('runLocalLensReview falls back to self-enumeration only when no list is injected', async () => {
+  let enumerated = false;
+  const selectCalls = [];
+  await runLocalLensReview({
+    baseRef: 'main',
+    headRef: 'story-4593',
+    progress: noopProgress,
+    gitSpawnFn: () => {
+      enumerated = true;
+      return { status: 0, stdout: '.agents/scripts/enumerated.js', stderr: '' };
+    },
+    selectLocalLensesFn: (args) => {
+      selectCalls.push(args);
+      return [];
+    },
+    runAuditSuiteFn: spy({ metadata: {}, findings: [], workflows: [] }),
+  });
+  assert.equal(enumerated, true, 'no injected list → the CLI fallback runs');
+  assert.deepEqual(selectCalls[0].changedFiles, [
+    '.agents/scripts/enumerated.js',
+  ]);
+});
+
 test('runStoryReviewCore invokes the lens pass and attaches localLensReview', async () => {
   const lensReview = {
     depth: 'light',

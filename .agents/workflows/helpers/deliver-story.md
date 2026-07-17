@@ -205,12 +205,28 @@ Story-path specifics:
 Per-Story ceremony is selected by `delivery.routing.ceremonyProfile`
 (`minimal` | `standard` | `strict`, default `standard`) and the Story's
 **derived change level** — not a planner-authored verdict (Story #4542 retired
-that). Derive the level with
-[`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js) over the
-Story's changed files (`git diff --name-only main...story-<id>`): a diff
-touching a sensitive path registered in `.agents/schemas/audit-rules.json`
-derives `high`, one touching none derives `low`, and an unenumerable diff
-derives `null`.
+that).
+
+**Compute the change set once** (Story #4593) with the shared enumerator
+[`computeChangeSet`](../../scripts/lib/orchestration/change-set.js) — the same
+module close uses — and reuse that one list for everything downstream:
+
+```bash
+node --input-type=module -e '
+  import { computeChangeSet } from "<main-repo>/.agents/scripts/lib/orchestration/change-set.js";
+  const { files } = computeChangeSet({ baseRef: "main", headRef: "story-<storyId>" });
+  console.log(JSON.stringify(files));
+'
+```
+
+Then derive the level with
+[`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js) over that
+list: a diff touching a sensitive path registered in
+`.agents/schemas/audit-rules.json` derives `high`, one touching none derives
+`low`, and an unenumerable diff (`files === null`) derives `null`. Hand the
+**same** list to every acceptance critic you spawn (Step 1a) — a critic that
+re-ran its own `git diff` could score against a different set than the one that
+routed it.
 
 Resolve fresh-vs-inline acceptance critics per AC-cluster with
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
