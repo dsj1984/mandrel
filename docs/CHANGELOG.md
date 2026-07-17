@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.3.0...mandrel-v2.4.0) (2026-07-17)
+
+
+### Added
+
+* **deliver:** cross-run Story de-confliction — lease-aware probe, executing refusal, race-verified acquire, early claim publish (refs [#4620](https://github.com/dsj1984/mandrel/issues/4620)) ([#4621](https://github.com/dsj1984/mandrel/issues/4621)) ([c493bbf](https://github.com/dsj1984/mandrel/commit/c493bbf14cf9a9ff2bc70fe7fea081f866668b2e))
+
+
+### Fixed
+
+* **deliver:** keep --concurrency opt-in so local cap override is honored ([#4618](https://github.com/dsj1984/mandrel/issues/4618)) ([a9c61dc](https://github.com/dsj1984/mandrel/commit/a9c61dcde654b746d176581f606a40c559c6f80a))
+* **deliver:** serialize post-land checkout mutations under concurrent close (refs [#4622](https://github.com/dsj1984/mandrel/issues/4622)) ([#4623](https://github.com/dsj1984/mandrel/issues/4623)) ([a502405](https://github.com/dsj1984/mandrel/commit/a502405d38f5dc57e245b212904139c4479a0e98))
+
 ## [2.3.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.2.0...mandrel-v2.3.0) (2026-07-17)
 
 
