@@ -3,7 +3,7 @@
  *
  * Owns the remaining read-side surface that did not belong to any of the
  * earlier six gateways: the raw GraphQL shim (`graphql` / `_ghGraphql`),
- * epic enumeration (`getEpics`, `getEpic`), repository-wide label scans
+ * epic reads (`getEpic`), repository-wide label scans
  * (`listIssuesByLabel`), branch existence probes (`branchExists`), and the
  * three-strategy sub-ticket aggregator (`getSubTickets`).
  *
@@ -149,16 +149,6 @@ export class IssuesGateway {
       title: item.title ?? '',
       html_url: item.html_url ?? undefined,
     }));
-  }
-
-  /**
-   * Historical Epic enumeration surface. Stage 5 removed the Epic type from
-   * the taxonomy; callers that have not yet collapsed their planning corpus
-   * reads receive an empty list rather than querying a deleted label.
-   */
-  /* node:coverage ignore next */
-  async getEpics(_filters = {}) {
-    return [];
   }
 
   /**

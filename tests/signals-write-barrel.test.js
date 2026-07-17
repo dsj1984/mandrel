@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  appendEpicSignal as observabilityAppendEpicSignal,
   appendSignal as observabilityAppendSignal,
   appendTrace as observabilityAppendTrace,
   forEachLine as observabilityForEachLine,
 } from '../.agents/scripts/lib/observability/signals-writer.js';
 import {
-  appendEpicSignal as barrelAppendEpicSignal,
   appendSignal as barrelAppendSignal,
   appendTrace as barrelAppendTrace,
   forEachLine as barrelForEachLine,
@@ -16,7 +14,6 @@ import {
   schema,
 } from '../.agents/scripts/lib/signals/index.js';
 import {
-  appendEpicSignal as writeAppendEpicSignal,
   appendSignal as writeAppendSignal,
   appendTrace as writeAppendTrace,
   forEachLine as writeForEachLine,
@@ -35,9 +32,6 @@ describe('lib/signals/write.js — writer re-export', () => {
   it('appendSignal is identity-equal to the observability writer', () => {
     assert.equal(writeAppendSignal, observabilityAppendSignal);
   });
-  it('appendEpicSignal is identity-equal to the observability writer', () => {
-    assert.equal(writeAppendEpicSignal, observabilityAppendEpicSignal);
-  });
   it('appendTrace is identity-equal to the observability writer', () => {
     assert.equal(writeAppendTrace, observabilityAppendTrace);
   });
@@ -49,7 +43,6 @@ describe('lib/signals/write.js — writer re-export', () => {
 describe('lib/signals/index.js — barrel surface', () => {
   it('exposes the writer surface via the barrel', () => {
     assert.equal(barrelAppendSignal, observabilityAppendSignal);
-    assert.equal(barrelAppendEpicSignal, observabilityAppendEpicSignal);
     assert.equal(barrelAppendTrace, observabilityAppendTrace);
     assert.equal(barrelForEachLine, observabilityForEachLine);
   });

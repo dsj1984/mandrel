@@ -18,21 +18,6 @@ export class ITicketingProvider {
   // ---------------------------------------------------------------------------
 
   /**
-   * Fetch all Epic tickets in the repository.
-   *
-   * @param {{ state?: 'open'|'closed'|'all' }} [filters={}]
-   * @returns {Promise<Array<{
-   *   id: number,
-   *   title: string,
-   *   labels: string[],
-   *   state: 'open'|'closed'
-   * }>>}
-   */
-  async getEpics(_filters = {}) {
-    throw new Error('Not implemented: getEpics');
-  }
-
-  /**
    * Fetch the Epic issue with its body — the single planning document
    * (ideation sections plus the folded Tech Spec / Acceptance Table
    * managed sections, Story #4324).

@@ -269,8 +269,7 @@
               "operator-message",
               "merge.unlanded",
               "merge.flip-failed",
-              "loop.tick",
-              "story.heartbeat"
+              "loop.tick"
             ]
           },
           "uniqueItems": true
@@ -319,28 +318,11 @@
       },
       "additionalProperties": false
     },
-    "planningContext": {
-      "type": "object",
-      "properties": {
-        "maxBytes": {
-          "type": "integer",
-          "minimum": 1024
-        },
-        "summaryMode": {
-          "type": "string",
-          "enum": ["auto", "always", "never"]
-        }
-      },
-      "additionalProperties": false
-    },
     "planning": {
       "type": "object",
       "properties": {
         "riskHeuristics": {
           "$ref": "#/$defs/listOrExtenderOfStrings"
-        },
-        "context": {
-          "$ref": "#/$defs/planningContext"
         },
         "codebaseSnapshot": {
           "$ref": "#/$defs/codebaseSnapshot"
@@ -434,7 +416,7 @@
     },
     "lease": {
       "type": "object",
-      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js.",
+      "description": "Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner's last heartbeat is older than this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js. Note the shipped guards fail closed (there is no live heartbeat source), so a stranded claim is cleared with --steal rather than by TTL expiry.",
       "properties": {
         "ttlMs": {
           "type": "integer",

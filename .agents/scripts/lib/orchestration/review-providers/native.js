@@ -50,11 +50,6 @@ import {
 } from '../../maintainability-engine.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { transpileIfNeeded } from '../../transpile.js';
-import {
-  hashCommandConfig,
-  recordPass,
-  shouldSkip,
-} from '../../validation-evidence.js';
 
 /** Worker entry that scores one file into a full maintainability report. */
 const MAINTAINABILITY_REPORT_WORKER_URL = new URL(
@@ -139,13 +134,6 @@ export function partitionFilesForLint(changedFiles) {
     else if (/\.md$/i.test(f)) md.push(f);
   }
   return { code, md };
-}
-
-function resolveCurrentSha(cwd, gitSpawnFn = gitSpawn) {
-  const res = gitSpawnFn(cwd, 'rev-parse', 'HEAD');
-  if (res.status !== 0) return null;
-  const sha = (res.stdout || '').trim();
-  return sha.length > 0 ? sha : null;
 }
 
 /**
@@ -258,28 +246,6 @@ export function runScopedLint(changedFiles, cwd, runnerFn = spawnLintRunner) {
   }
   const summary = parseLintOutput({ status, stdout, stderr });
   return { ...summary, skipped: false, mode: 'changed-only' };
-}
-
-/**
- * Compute the canonical command-config hash for the scoped-lint runner. The
- * caller passes the partitioned biome + markdown lists so the hash captures
- * the exact set of files; any change to that set invalidates the prior
- * evidence and forces a re-lint.
- *
- * Exported for testing.
- */
-export function buildLintEvidenceConfig(changedFiles, cwd) {
-  const { code, md } = partitionFilesForLint(changedFiles);
-  const args = [];
-  if (code.length > 0) args.push('biome', 'lint', ...code);
-  if (md.length > 0) {
-    args.push('markdownlint', ...md, '--ignore', 'node_modules');
-  }
-  return hashCommandConfig({
-    cmd: 'epic-code-review/scoped-lint',
-    args,
-    cwd,
-  });
 }
 
 /**
@@ -548,87 +514,9 @@ function _emptyResults() {
   };
 }
 
-function tryEvidenceSkip({
-  storyId,
-  epicId,
-  useEvidence,
-  headSha,
-  evidenceCfg,
-  shouldSkipFn,
-  logger,
-}) {
-  if (!(useEvidence && storyId && epicId && headSha)) return null;
-  const verdict = shouldSkipFn(
-    {
-      storyId,
-      gateName: 'epic-code-review/lint',
-      currentSha: headSha,
-      configHash: evidenceCfg,
-    },
-    { cwd: PROJECT_ROOT, epicId },
-  );
-  if (!verdict.skip) return null;
-  logger?.info?.(
-    `[native-review] Scoped lint skipped (evidence match: SHA=${headSha.slice(
-      0,
-      7,
-    )}, recorded ${verdict.record?.timestamp ?? 'n/a'}).`,
-  );
-  return {
-    errors: 0,
-    warnings: 0,
-    parsed: false,
-    skipped: true,
-    mode: 'changed-only',
-    evidenceSkipped: true,
-  };
-}
-
-function maybeRecordLintEvidence({
-  storyId,
-  epicId,
-  useEvidence,
-  headSha,
-  evidenceCfg,
-  lintSummary,
-  recordPassFn,
-  logger,
-}) {
-  const eligible =
-    useEvidence &&
-    storyId &&
-    epicId &&
-    headSha &&
-    lintSummary.errors === 0 &&
-    !lintSummary.skipped;
-  if (!eligible) return;
-  try {
-    recordPassFn(
-      {
-        storyId,
-        gateName: 'epic-code-review/lint',
-        sha: headSha,
-        configHash: evidenceCfg,
-        exitCode: 0,
-      },
-      { cwd: PROJECT_ROOT, epicId },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[native-review] Failed to record lint evidence: ${err?.message ?? err}`,
-    );
-  }
-}
-
 async function runLintPhase({
   scopeLint,
   changedFiles,
-  storyId,
-  epicId,
-  useEvidence,
-  gitSpawnFn,
-  shouldSkipFn,
-  recordPassFn,
   runScopedLintFn,
   logger,
 }) {
@@ -644,34 +532,10 @@ async function runLintPhase({
       mode: 'off',
     };
   }
-  const evidenceCfg = buildLintEvidenceConfig(changedFiles, PROJECT_ROOT);
-  const headSha = resolveCurrentSha(PROJECT_ROOT, gitSpawnFn);
-  const skipSummary = tryEvidenceSkip({
-    storyId,
-    epicId,
-    useEvidence,
-    headSha,
-    evidenceCfg,
-    shouldSkipFn,
-    logger,
-  });
-  if (skipSummary) return skipSummary;
-
   logger?.info?.(
     '[native-review] Linting changed files only (biome + markdownlint, scoped to diff)...',
   );
-  const lintSummary = runScopedLintFn(changedFiles, PROJECT_ROOT);
-  maybeRecordLintEvidence({
-    storyId,
-    epicId,
-    useEvidence,
-    headSha,
-    evidenceCfg,
-    lintSummary,
-    recordPassFn,
-    logger,
-  });
-  return lintSummary;
+  return runScopedLintFn(changedFiles, PROJECT_ROOT);
 }
 
 /**
@@ -686,12 +550,8 @@ async function runLintPhase({
  *   runScopedLintFn?: typeof runScopedLint,
  *   analyzeChangedFilesFn?: typeof analyzeChangedFiles,
  *   buildLintFindingsFn?: typeof buildLintFindings,
- *   shouldSkipFn?: typeof shouldSkip,
- *   recordPassFn?: typeof recordPass,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  *   scopeLint?: 'changed-only'|'off',
- *   storyId?: number|null,
- *   useEvidence?: boolean,
  * }} [deps]
  * @returns {ReviewProvider}
  */
@@ -701,12 +561,8 @@ export function createNativeProvider(deps = {}) {
     runScopedLintFn = runScopedLint,
     analyzeChangedFilesFn = analyzeChangedFiles,
     buildLintFindingsFn = buildLintFindings,
-    shouldSkipFn = shouldSkip,
-    recordPassFn = recordPass,
     logger,
     scopeLint = 'changed-only',
-    storyId = null,
-    useEvidence = true,
   } = deps;
 
   return {
@@ -761,18 +617,9 @@ export function createNativeProvider(deps = {}) {
         gitSpawnFn,
       });
 
-      // Epic-scope reviews flow through validation-evidence; story-scope
-      // reviews currently share the same gate name, keyed on the storyId.
-      const epicId = scope === 'epic' ? ticketId : null;
       const lintSummary = await runLintPhase({
         scopeLint,
         changedFiles,
-        storyId: storyId ?? (scope === 'story' ? ticketId : null),
-        epicId,
-        useEvidence,
-        gitSpawnFn,
-        shouldSkipFn,
-        recordPassFn,
         runScopedLintFn,
         logger,
       });

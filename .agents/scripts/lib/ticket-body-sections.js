@@ -108,20 +108,6 @@ export function hasTicketSection(body, kind) {
 }
 
 /**
- * Extract a managed region's content (between the markers, trimmed).
- * Returns `null` when the region is absent.
- *
- * @param {string} body
- * @param {'techSpec'|'acceptanceTable'} kind
- * @returns {string|null}
- */
-export function extractTicketSection(body, kind) {
-  const loc = locate(body, kind);
-  if (!loc) return null;
-  return body.slice(loc.contentStart, loc.contentEnd).trim();
-}
-
-/**
  * Insert or replace a managed region, preserving every byte outside it.
  *
  * When the region exists, only the content between the markers is

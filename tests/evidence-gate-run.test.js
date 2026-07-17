@@ -38,7 +38,7 @@ test('runEvidenceGate: skips runner when evidence verdict says skip', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 817,
-      epicId: 802,
+      standalone: true,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -86,7 +86,7 @@ test('runEvidenceGate: runs the runner and records evidence on pass', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 817,
-      epicId: 802,
+      standalone: true,
       gate: 'test',
       useEvidence: true,
       cwd: '/repo',
@@ -129,7 +129,7 @@ test('runEvidenceGate: failing runner does NOT record evidence', async () => {
   const out = await runEvidenceGate(
     {
       scopeId: 901,
-      epicId: 802,
+      standalone: true,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -171,7 +171,7 @@ test('runEvidenceGate: --no-evidence path skips both shouldSkip and recordPass',
   const out = await runEvidenceGate(
     {
       scopeId: 901,
-      epicId: 802,
+      standalone: true,
       gate: 'lint',
       useEvidence: false,
       cwd: '/repo',
@@ -212,31 +212,7 @@ test('runEvidenceGate: missing scopeId falls into fatal-usage path', async () =>
   const out = await runEvidenceGate(
     {
       scopeId: null,
-      epicId: 802,
-      gate: 'lint',
-      useEvidence: true,
-      cwd: '/repo',
-      runnerArgs: ['npm', 'run', 'lint'],
-    },
-    {
-      gitSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
-      spawnFn: () => ({ status: 0 }),
-      shouldSkipFn: () => ({ skip: false }),
-      recordPassFn: () => {},
-      logger,
-    },
-  );
-  assert.equal(out.status, 1);
-  assert.equal(out.skipped, false);
-  assert.equal(logger.calls.fatal.length, 1);
-});
-
-test('runEvidenceGate: missing epicId falls into fatal-usage path', async () => {
-  const logger = makeLogger();
-  const out = await runEvidenceGate(
-    {
-      scopeId: 901,
-      epicId: null,
+      standalone: true,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -260,7 +236,7 @@ test('runEvidenceGate: empty runnerArgs falls into fatal-usage path', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 1,
-      epicId: 1,
+      standalone: true,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -283,7 +259,7 @@ test('runEvidenceGate: recordPass exception is swallowed (gate still passes)', a
   const out = await runEvidenceGate(
     {
       scopeId: 1,
-      epicId: 1,
+      standalone: true,
       gate: 'test',
       useEvidence: true,
       cwd: '/repo',
@@ -306,14 +282,13 @@ test('runEvidenceGate: recordPass exception is swallowed (gate still passes)', a
   );
 });
 
-test('runEvidenceGate: --standalone substitutes for --epic-id (Story #4250)', async () => {
+test('runEvidenceGate: --standalone records into the storyId-anchored keyspace (Story #4250)', async () => {
   const logger = makeLogger();
   const recordCalls = [];
 
   const out = await runEvidenceGate(
     {
       scopeId: 4250,
-      epicId: null,
       standalone: true,
       gate: 'lint',
       useEvidence: true,
@@ -336,10 +311,9 @@ test('runEvidenceGate: --standalone substitutes for --epic-id (Story #4250)', as
   assert.equal(recordCalls.length, 1, 'standalone path records evidence');
   assert.equal(recordCalls[0].rec.storyId, 4250);
   assert.equal(recordCalls[0].rec.gateName, 'lint');
-  // The evidence-store opts must carry standalone:true (so recordPass routes
-  // to the storyId-anchored keyspace) and NOT a stray positive epicId.
+  // The evidence-store opts must carry standalone:true so recordPass routes
+  // to the storyId-anchored keyspace.
   assert.equal(recordCalls[0].opts.standalone, true);
-  assert.equal(recordCalls[0].opts.epicId, null);
 });
 
 test('runEvidenceGate: --standalone shouldSkip is called with standalone store opts', async () => {
@@ -349,7 +323,6 @@ test('runEvidenceGate: --standalone shouldSkip is called with standalone store o
   await runEvidenceGate(
     {
       scopeId: 4250,
-      epicId: null,
       standalone: true,
       gate: 'typecheck',
       useEvidence: true,
@@ -371,16 +344,14 @@ test('runEvidenceGate: --standalone shouldSkip is called with standalone store o
 
   assert.equal(shouldSkipCalls.length, 1);
   assert.equal(shouldSkipCalls[0].opts.standalone, true);
-  assert.equal(shouldSkipCalls[0].opts.epicId, null);
   assert.equal(shouldSkipCalls[0].input.gateName, 'typecheck');
 });
 
-test('runEvidenceGate: neither epicId nor standalone falls into fatal-usage path', async () => {
+test('runEvidenceGate: missing standalone falls into fatal-usage path', async () => {
   const logger = makeLogger();
   const out = await runEvidenceGate(
     {
       scopeId: 901,
-      epicId: null,
       standalone: false,
       gate: 'lint',
       useEvidence: true,
@@ -406,7 +377,7 @@ test('runEvidenceGate: HEAD-resolution failure bypasses evidence (no skip, no re
   const out = await runEvidenceGate(
     {
       scopeId: 1,
-      epicId: 1,
+      standalone: true,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',

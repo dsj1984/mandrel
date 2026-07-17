@@ -54,7 +54,6 @@ const REQUIRED_EVENTS = Object.freeze([
   'story.blocked',
   'story.dispatch.end',
   'story.dispatch.start',
-  'story.heartbeat',
   'story.merged',
 ]);
 

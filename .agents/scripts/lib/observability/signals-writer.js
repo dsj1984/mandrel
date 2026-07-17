@@ -36,17 +36,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 
-import {
-  epicArtifactPath,
-  signalsFile,
-  storyTempDir,
-} from '../config/temp-paths.js';
+import { signalsFile, storyTempDir } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 import { recordSignalReject, validateSignal } from './signal-validator.js';
 import { classifyPathSource } from './source-classifier.js';
 
 const TRACES_BASENAME = 'traces.ndjson';
-const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
 
 /**
  * Async traces-file path (kept private — consumers thread through
@@ -200,41 +195,6 @@ export async function appendSignal(args) {
 }
 
 /**
- * Append one signal record to the per-Epic stream at
- * `temp/epic-<eid>/signals.ndjson` — used for Epic-scoped signals not tied
- * to an individual Story: the wave-window forensics kinds (`wave-start`,
- * `wave-complete`), notification-derived anchors (`state-transition`,
- * `notification.emitted`), and Epic-level `friction` (e.g.
- * `lifecycle-emit.js`). The retired write-only kinds `wave-tick` /
- * `epic-complete` are gone (Story #3909) and are NOT valid here.
- *
- * @param {{ epicId: number, signal: unknown, config?: object }} args
- * @returns {Promise<boolean>}
- */
-export async function appendEpicSignal(args) {
-  const { epicId, signal, config } = args ?? {};
-  let target;
-  try {
-    target = epicArtifactPath(epicId, EPIC_SIGNALS_BASENAME, config);
-  } catch (err) {
-    Logger.warn(
-      `signals-writer: invalid epicId for appendEpicSignal: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return false;
-  }
-  const tagged = tagSignalSource(signal);
-  const ok = await validateOrDrop(tagged, {
-    epicId: Number.isInteger(epicId) ? epicId : null,
-    config,
-    label: 'epic signal',
-  });
-  if (!ok) return false;
-  return appendOne(target, tagged);
-}
-
-/**
  * Append one trace record to `temp/epic-<eid>/stories/story-<sid>/traces.ndjson`.
  * Same robustness contract as `appendSignal` — never throws.
  *
@@ -270,7 +230,7 @@ export async function appendTrace(args) {
  * lines are skipped with a `Logger.warn`. A missing file resolves with
  * `missing: true` rather than throwing.
  *
- * Shared spine for `forEachLine` (per-Story stream) and `forEachEpicLine`
+ * Shared spine for `forEachLine`
  * (per-Epic stream) so the two readers cannot drift in their
  * malformed-line / missing-file / cb-throw handling.
  *
@@ -360,40 +320,4 @@ export async function forEachLine(epicId, storyId, cb, config) {
   }
 
   return forEachLineIn(target, cb, 'forEachLine');
-}
-
-/**
- * Stream the per-Epic `signals.ndjson` line by line, invoking
- * `cb(parsed, lineNumber)` for each successfully parsed JSON line. This is
- * the read side of `appendEpicSignal` — the wave-lifecycle stream at
- * `temp/epic-<eid>/signals.ndjson` written by `appendEpicSignal` callers
- * (e.g. `lifecycle-emit`). A missing file resolves with `missing: true`
- * rather than throwing, mirroring the per-Story `forEachLine` contract so
- * the retro's unified counts scan can fold the Epic stream in alongside the
- * Story streams without a special-cased absence branch.
- *
- * @param {number} epicId
- * @param {(parsed: unknown, lineNumber: number) => unknown | Promise<unknown>} cb
- * @param {object} [config]
- * @returns {Promise<{ linesRead: number, linesParsed: number, missing: boolean }>}
- */
-export async function forEachEpicLine(epicId, cb, config) {
-  if (typeof cb !== 'function') {
-    Logger.warn('signals-writer: forEachEpicLine called without a callback');
-    return { linesRead: 0, linesParsed: 0, missing: false };
-  }
-
-  let target;
-  try {
-    target = epicArtifactPath(epicId, EPIC_SIGNALS_BASENAME, config);
-  } catch (err) {
-    Logger.warn(
-      `signals-writer: invalid epicId for forEachEpicLine: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return { linesRead: 0, linesParsed: 0, missing: false };
-  }
-
-  return forEachLineIn(target, cb, 'forEachEpicLine');
 }

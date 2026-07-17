@@ -11,9 +11,6 @@ import { describe, it } from 'node:test';
 import {
   _clearMainCheckoutRootCache,
   epicArtifactPath,
-  epicManifestPath,
-  epicRetroMirrorPath,
-  epicTechSpecPath,
   epicTempDir,
   mainCheckoutRoot,
   signalsFile,
@@ -110,21 +107,6 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
     );
   });
 
-  it('Run-level canonical filenames live directly under the run dir', () => {
-    assert.equal(
-      epicTechSpecPath(1030),
-      anchored('temp', 'run-1030', 'techspec.md'),
-    );
-    assert.equal(
-      epicManifestPath(1030),
-      anchored('temp', 'run-1030', 'manifest.md'),
-    );
-    assert.equal(
-      epicRetroMirrorPath(1030),
-      anchored('temp', 'run-1030', 'retro.md'),
-    );
-  });
-
   it('Story-level canonical filenames live under the Story dir', () => {
     assert.equal(
       storyManifestPath(1030, 1042),
@@ -176,7 +158,6 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
       epicTempDir(1030, cfg),
       storyTempDir(1030, 1042, cfg),
       signalsFile(1030, 1042, cfg),
-      epicTechSpecPath(1030, cfg),
       storyManifestPath(1030, 1042, cfg),
     ];
     for (const p of candidates) {

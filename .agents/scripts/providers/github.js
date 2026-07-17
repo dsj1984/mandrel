@@ -80,11 +80,6 @@ export class GitHubProvider extends ITicketingProvider {
     return this._memoizedToken;
   }
 
-  /* node:coverage ignore next */
-  async listIssues(filters = {}) {
-    return this.getEpics(filters);
-  }
-
   /**
    * The identifiers a native dependency-edge writer needs, handed over as an
    * explicit interface (Story #4544).
@@ -119,7 +114,6 @@ const DELEGATIONS = [
   ['graphql', 'issues.ghGraphql'],
   ['searchIssues', 'issues.searchIssues'],
   ['listIssuesByLabel', 'issues.listIssuesByLabel'],
-  ['getEpics', 'issues.getEpics'],
   ['getEpic', 'issues.getEpic'],
   ['branchExists', 'issues.branchExists'],
   ['getSubTickets', 'issues.getSubTickets'],

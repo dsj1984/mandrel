@@ -12,7 +12,6 @@
  */
 
 export {
-  appendEpicSignal,
   appendSignal,
   appendTrace,
   forEachLine,

@@ -111,7 +111,18 @@ const PROJECT_SCHEMA = {
  * Curated webhook event vocabulary. The webhook channel is gated by an
  * explicit allowlist of event names — the vocabulary mirrors the events the
  * v2 runtime actually emits through `notify()` (Story transitions, merge
- * outcomes, loop/heartbeat lifecycle beats).
+ * outcomes, loop lifecycle beats).
+ *
+ * `story.heartbeat` was retired here (A22): the vocabulary's contract is
+ * "events the runtime actually emits", and nothing could emit this one. Its
+ * emitter (`emit-story-heartbeat.js`) demanded an `epicId >= 1` while the
+ * sole call path (`single-story-init.js` → `setActiveStoryEnv`) passed
+ * `epicId: null`, so `CC_EPIC_ID` was never set and the hook that would have
+ * fired the beat always short-circuited. Emitter, hook, and schema are all
+ * deleted; keeping the name allowlistable would let an operator subscribe to
+ * a channel that can never deliver. Removing it from the enum makes a
+ * resurrection fail loudly at config-validation time rather than silently
+ * never firing.
  */
 export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'state-transition',
@@ -121,7 +132,6 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'merge.unlanded',
   'merge.flip-failed',
   'loop.tick',
-  'story.heartbeat',
 ]);
 
 /**
@@ -133,7 +143,7 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
  * issue*, so only events that are about one Story, and whose message reads
  * as narrative an operator wants durably on the ticket, belong here. The
  * webhook-only remainder — `merge.unlanded`, `merge.flip-failed`,
- * `loop.tick`, `story.heartbeat` — are run-scoped or firehose beats;
+ * `loop.tick` — are run-scoped or firehose beats;
  * mirroring them onto the ticket would bury the narrative under machine
  * chatter, and `notify()` drops a comment for any dispatch without a
  * resolvable ticket id regardless.
@@ -230,19 +240,14 @@ const GITHUB_SCHEMA = {
 // planning.* — inputs to /plan
 // ---------------------------------------------------------------------------
 
-/**
- * `planning.context` — bounded planning-context budget for `--emit-context`
- * payloads. When the full payload would exceed `maxBytes`, planners switch
- * to a summary representation.
- */
-const PLANNING_CONTEXT_SCHEMA = {
-  type: 'object',
-  properties: {
-    maxBytes: { type: 'integer', minimum: 1024 },
-    summaryMode: { type: 'string', enum: ['auto', 'always', 'never'] },
-  },
-  additionalProperties: false,
-};
+// Story #4541: `planning.context.{maxBytes, summaryMode}` was retired. The
+// `applyBudget` pass it fed lost its last caller in the v2 cutover, and it
+// bounded a field the envelope builders discarded before shipping the raw seed
+// anyway — so the key resolved but capped nothing. The live bound on
+// planner-context size is the fixed `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` in
+// `lib/orchestration/plan-context.js`. Setting `planning.context` is now
+// rejected as an additional property, so a resurrected key fails loudly rather
+// than silently doing nothing.
 
 /**
  * Story #2634 — `planning.codebaseSnapshot` controls the structural
@@ -272,7 +277,6 @@ const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
-    context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to

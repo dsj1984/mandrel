@@ -6,6 +6,7 @@ import { getCiDelivery } from '../../config/ci.js';
 import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
+import { emitTerminalFriction } from '../../observability/runtime-friction.js';
 import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
@@ -38,8 +39,20 @@ const progress = Logger.createProgress('single-story-close', { stderr: true });
  * #4543), while `STORY CLOSE RESULT` stays byte-compatible for the existing
  * surfaces that grep it. One writer, one place — so the envelope can never
  * be emitted from a path that forgot it.
+ *
+ * Story #4578 — the same one-place property is why the runtime-derived
+ * friction emit hangs here: a close that ends `failed`, or parks `pending`
+ * on an exhausted merge-wait budget, is friction the retro must see, and
+ * routing it through the single emitter means no terminal path can forget
+ * it. `emitTerminalFriction` decides what (if anything) is worth a record —
+ * see `frictionForTerminal` for why `blocked` and a `--no-wait-merge`
+ * `pending` are deliberately NOT flagged here.
+ *
+ * Async, and awaited by every caller: the CLI exits via `process.exit` the
+ * moment `main` resolves, so a fire-and-forget append would be discarded.
+ * The emit is best-effort internally and cannot throw.
  */
-function emitTerminal({ terminal, result }) {
+async function emitTerminal({ terminal, result, config }) {
   // The human-facing result dump stays level-gated; the terminal envelope is
   // the machine contract and must survive AGENT_LOG_LEVEL=silent.
   if (result) {
@@ -48,6 +61,7 @@ function emitTerminal({ terminal, result }) {
     );
   }
   emitTerminalEnvelope(terminal);
+  await emitTerminalFriction({ envelope: terminal, config });
 }
 
 /**
@@ -64,7 +78,7 @@ function emitTerminal({ terminal, result }) {
  * A null `stateReason` keeps the `completed` reading — GitHub defaults to it,
  * and issues closed before the field existed carry null.
  */
-function alreadyClosedResult(storyId, stateReason = null) {
+async function alreadyClosedResult(storyId, stateReason = null, config) {
   if (stateReason === 'not_planned') {
     const result = {
       storyId,
@@ -84,7 +98,7 @@ function alreadyClosedResult(storyId, stateReason = null) {
       nextCommand: null,
       elapsedSeconds: 0,
     });
-    emitTerminal({ terminal, result });
+    await emitTerminal({ terminal, result, config });
     return { success: false, result, terminal };
   }
 
@@ -104,7 +118,7 @@ function alreadyClosedResult(storyId, stateReason = null) {
     nextCommand: null,
     elapsedSeconds: 0,
   });
-  emitTerminal({ terminal, result });
+  await emitTerminal({ terminal, result, config });
   return { success: true, result, terminal };
 }
 
@@ -419,7 +433,11 @@ async function runClosePipeline({
         ? `Story #${options.storyId} is closed as not planned — nothing to land.`
         : `Story #${options.storyId} is already closed. Nothing to do.`,
     );
-    return alreadyClosedResult(options.storyId, story.stateReason);
+    return await alreadyClosedResult(
+      options.storyId,
+      story.stateReason,
+      config,
+    );
   }
 
   const worktreePath = resolveWorktreePath({
@@ -574,7 +592,7 @@ async function runClosePipeline({
       waitedForMerge: true,
       merged: waitOutcome.confirmed === true,
     });
-    emitTerminal({ terminal, result });
+    await emitTerminal({ terminal, result, config });
 
     if (terminal.status === 'landed') {
       progress('DONE', `✅ Story #${options.storyId}: PR merged → ${prUrl}`);
@@ -628,7 +646,7 @@ async function runClosePipeline({
     nextCommand: NEXT_COMMANDS.confirmMerge(options.storyId),
     elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
   });
-  emitTerminal({ terminal, result });
+  await emitTerminal({ terminal, result, config });
   progress(
     'DONE',
     `✅ Story #${options.storyId}: PR ready → ${prUrl} (${waitForMergeReason})`,

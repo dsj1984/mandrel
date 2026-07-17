@@ -9,14 +9,12 @@
  * appends an inspectable `emitted` line a reconciler can read for
  * forward-progress evidence.
  *
- * Distinct from `story.heartbeat` (emit-story-heartbeat.js): the
- * heartbeat carries Story-phase info for a single in-flight Story and is
- * always Epic-scoped (its ledger path is `epicLedgerPath(epicId)`). A
- * host loop is not bound to a Story tier, so `loop.tick` carries a
+ * A host loop is not bound to a Story tier, so `loop.tick` carries a
  * free-form `loopName`, a monotonic `round` counter, the loop's
- * configured `cadence` label, and a per-round `status` instead. Keeping
- * the two events separate means a loop tick never masquerades as Story
- * progress (and vice versa).
+ * configured `cadence` label, and a per-round `status`. It is now the only
+ * forward-progress beat: the Story-scoped `story.heartbeat` it was once
+ * contrasted against was Epic-scoped by construction, could never fire under
+ * v2 (which has no Epics), and was deleted (A22).
  *
  * Bus path (Story acceptance: "Emitting a loop.tick event THROUGH the
  * lifecycle bus appends a record to the per-run ledger"): this helper

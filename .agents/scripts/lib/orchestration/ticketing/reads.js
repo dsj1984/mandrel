@@ -137,13 +137,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // the documented remediation actually executable
   // (assertValidStructuredCommentType would otherwise throw).
   'wave-stall',
-  // Story #4019 — `epic-plan-lease-guard.js` upserts a `plan-lease`
-  // comment on the Epic at lease-acquire time, recording the claiming
-  // operator and the claim timestamp. `/plan` emits no
-  // `story.heartbeat`, so this claim-time is the liveness signal that
-  // makes the documented `--steal` contract decidable: a foreign claim
-  // older than the lease TTL is reclaimed automatically; a fresh one
-  // refuses with the claim age. One entry per Epic; re-acquires upsert
+  // Story #4019 — the plan-tier lease guard upserts a `plan-lease`
+  // comment at lease-acquire time, recording the claiming operator and the
+  // claim timestamp. Nothing emits a per-run liveness beat, so this
+  // claim-time is the only age signal a reader has when reasoning about the
+  // documented `--steal` contract. The guard itself fails closed regardless
+  // (it anchors liveness to `now`), so a stranded claim is cleared with
+  // `--steal`, not by TTL expiry. One entry per ticket; re-acquires upsert
   // in place.
   'plan-lease',
   // Story #4415 (Epic #4406) — the feedback-loop graduators

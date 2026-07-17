@@ -40,11 +40,12 @@
  * resolve a *relative* `tempRoot` against the **main checkout root** (the
  * parent of `git rev-parse --git-common-dir`) rather than `process.cwd()`.
  * Without this, a story child that `cd`s into `.worktrees/story-<id>/` before
- * calling `story-phase.js` would append `story.heartbeat` records to
+ * emitting a lifecycle record would append it to
  * `<worktree>/temp/run-N/lifecycle.ndjson`, while the `/deliver` host
  * (running from the main checkout) reads the main-checkout copy — so the
- * idle-watchdog never sees heartbeats and the Epic-lease guard silently
- * reclaims live foreign claims (the audit-#3513 bug class). Anchoring the
+ * host never sees the child's records (the audit-#3513 bug class; its
+ * original `story.heartbeat` instance is gone with that emitter, but the
+ * divergence applies to every ledger writer). Anchoring the
  * ledger to the git common dir makes the worktree child writer and the
  * main-checkout host reader converge on a single file regardless of cwd. An
  * absolute `tempRoot` is honoured verbatim; only relative roots are anchored.
@@ -313,15 +314,6 @@ export function epicArtifactPath(eid, name, config) {
 export function storyArtifactPath(eid, sid, name, config) {
   return path.join(storyTempDir(eid, sid, config), artifactName(name));
 }
-
-// --- Canonical Epic-level filenames (Tech Spec #1032 §tempRoot) ---
-
-export const epicTechSpecPath = (eid, config) =>
-  epicArtifactPath(eid, 'techspec.md', config);
-export const epicManifestPath = (eid, config) =>
-  epicArtifactPath(eid, 'manifest.md', config);
-export const epicRetroMirrorPath = (eid, config) =>
-  epicArtifactPath(eid, 'retro.md', config);
 
 /**
  * `temp/run-<eid>/lifecycle.ndjson` — append-only lifecycle bus ledger

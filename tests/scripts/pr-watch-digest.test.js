@@ -2,7 +2,7 @@
  * pr-watch-digest.test.js — Story #4539.
  *
  * The red-path CI digest was Epic-scoped by filename and bailed out
- * (`return null`) whenever no epic id was supplied. The v2 Story delivery
+ * (`return null`) whenever no story id was supplied. The v2 Story delivery
  * path has no Epic and invoked the watch with `--pr` alone, so a red check
  * wrote no digest at all — while the module header advertised one. These
  * tests pin the Story-scoped keying and the no-scope bail-out.
@@ -38,20 +38,6 @@ describe('resolveDigestScope', () => {
     assert.deepEqual(resolveDigestScope({ storyId: 4539 }), {
       kind: 'story',
       id: 4539,
-    });
-  });
-
-  it('prefers the Story scope when both are supplied', () => {
-    assert.deepEqual(resolveDigestScope({ storyId: 4539, epicId: 99 }), {
-      kind: 'story',
-      id: 4539,
-    });
-  });
-
-  it('still resolves an Epic scope for a caller that supplies one', () => {
-    assert.deepEqual(resolveDigestScope({ epicId: 99 }), {
-      kind: 'epic',
-      id: 99,
     });
   });
 

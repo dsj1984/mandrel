@@ -66,13 +66,15 @@ stops. Consult this section when reasoning about why `/plan` refused an
 over-ceiling envelope or an over-budget Story count.
 
 > **There is no configurable context budget.** `planning.context.maxBytes` /
-> `summaryMode` still resolve through `getLimits`, and the schema still accepts
-> them, but nothing reads the result: the `applyBudget` pass they fed lost its
-> last caller in the v2 cutover, and it was already bounding a field the
-> envelope builders discarded before that. Treat the key as dead pending its
-> removal — setting it changes nothing. Likewise `elideEnvelope` in
-> `lib/orchestration/context-envelope.js`, which this section used to credit
-> with limiting hydrated prompt size: it has no production caller either (it is
+> `summaryMode` were removed outright in Story #4541, along with the
+> `applyBudget` pass they fed: that pass lost its last caller in the v2
+> cutover, and it was already bounding a field the envelope builders discarded
+> before shipping the raw seed anyway. The schema now **rejects**
+> `planning.context`, so a config carrying it fails loudly rather than silently
+> capping nothing. The ceiling below is the replacement and the only live bound
+> on planner-context size. Separately, `elideEnvelope` in
+> `lib/orchestration/context-envelope.js` — which this section used to credit
+> with limiting hydrated prompt size — has no production caller either (it is
 > carried in `baselines/dead-exports-production.json`). Only `estimateTokens`
 > from that module is live.
 

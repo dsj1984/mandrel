@@ -223,12 +223,10 @@ export async function reapMergedStoryBranches({
 /**
  * Fetch remote refs, reap merged story branches, and fast-forward the local
  * base branch so new story branches seed from origin's tip. Exported for
- * testing (owns the fast-forward cascade; mirrors `fetchMainRefs` +
- * `ensureEpicBranch` in `branch-initializer.js`).
+ * testing (owns the fast-forward cascade).
  *
- * Routes the `origin` fetch through `cachedGitFetch` so concurrent standalone
- * Story waves share the same per-process coalescing window that Epic-attached
- * stories get via `branch-initializer.js#fetchMainRefs`. Pass `fetchFn` to
+ * Routes the `origin` fetch through `cachedGitFetch` so concurrent Story
+ * waves share a per-process fetch-coalescing window. Pass `fetchFn` to
  * inject a stub in tests without touching real git.
  *
  * @param {object} opts
@@ -413,12 +411,10 @@ export async function provisionWorktree({
   }
 
   try {
-    // Story #2874 — standalone Stories have no parent Epic; pass
-    // `epicId: null` so the helper omits CC_EPIC_ID from env + file
-    // instead of throwing on a 0 sentinel. The trace hook keys its
-    // standalone-trace branch on CC_EPIC_ID being absent.
+    // v2 Stories are standalone — no parent Epic. The helper omits
+    // CC_EPIC_ID from env + file; the trace hook keys its standalone-trace
+    // branch on CC_EPIC_ID being absent.
     setActiveStoryEnv({
-      epicId: null,
       storyId,
       workCwd,
       logger: {

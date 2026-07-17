@@ -178,12 +178,12 @@ describe('runPrWatch — three-way exit codes (Story #4358)', () => {
     assert.equal(code, 0);
   });
 
-  it('red → exit 1 immediately and writes the epic-scoped digest', async () => {
+  it('red → exit 1 immediately and writes the story-scoped digest', async () => {
     const { print, lines } = collectPrint();
     let digestArgs = null;
     const code = await runPrWatch({
       prNumber: 2,
-      epicId: 4355,
+      storyId: 4355,
       config: null,
       pollIntervalMs: 0,
       maxResumes: 3,
@@ -192,14 +192,14 @@ describe('runPrWatch — three-way exit codes (Story #4358)', () => {
       ghPrViewFn: cleanView,
       writeDigestFn: (args) => {
         digestArgs = args;
-        return { jsonPath: '/tmp/epic-4355-ci-digest.json', mdPath: '/x.md' };
+        return { jsonPath: '/tmp/story-4355-ci-digest.json', mdPath: '/x.md' };
       },
       logger: quietLogger(),
       print,
     });
     assert.equal(code, 1);
     assert.ok(digestArgs, 'digest writer invoked on red');
-    assert.equal(digestArgs.epicId, 4355);
+    assert.equal(digestArgs.storyId, 4355);
     assert.deepEqual(digestArgs.failures, [
       { name: 'test', outcome: 'failure' },
     ]);
@@ -213,7 +213,7 @@ describe('runPrWatch — three-way exit codes (Story #4358)', () => {
     let digestCalled = false;
     const code = await runPrWatch({
       prNumber: 3,
-      epicId: 4355,
+      storyId: 4355,
       config: null,
       pollIntervalMs: 0,
       maxPolls: 2,

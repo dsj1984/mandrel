@@ -17,7 +17,6 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
-  appendEpicSignal,
   appendSignal,
   appendTrace,
   forEachLine,
@@ -277,46 +276,6 @@ describe('signals-writer — source tagging (framework/consumer classifier)', ()
       config: cfg,
     });
     const raw = await fs.readFile(signalsPath(100, 105), 'utf8');
-    const parsed = JSON.parse(raw.trim());
-    assert.equal(parsed.source, 'consumer');
-  });
-
-  it('tags signals appended via appendEpicSignal', async () => {
-    await appendEpicSignal({
-      epicId: 200,
-      signal: {
-        kind: 'wave-start',
-        ts: '2026-07-11T00:00:00.000Z',
-        epicId: 200,
-        index: 0,
-        emitter: { tool: 'x', command: 'node .agents/scripts/epic-deliver.js' },
-      },
-      config: cfg,
-    });
-    const raw = await fs.readFile(
-      path.join(workRoot, 'run-200', 'signals.ndjson'),
-      'utf8',
-    );
-    const parsed = JSON.parse(raw.trim());
-    assert.equal(parsed.source, 'framework');
-  });
-
-  it('appendEpicSignal preserves caller-supplied source', async () => {
-    await appendEpicSignal({
-      epicId: 201,
-      signal: {
-        kind: 'wave-start',
-        ts: '2026-07-11T00:00:00.000Z',
-        epicId: 201,
-        index: 0,
-        source: 'consumer',
-      },
-      config: cfg,
-    });
-    const raw = await fs.readFile(
-      path.join(workRoot, 'run-201', 'signals.ndjson'),
-      'utf8',
-    );
     const parsed = JSON.parse(raw.trim());
     assert.equal(parsed.source, 'consumer');
   });

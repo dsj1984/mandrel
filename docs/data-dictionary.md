@@ -187,10 +187,6 @@ graduator keeps its `audit-results` name and label prefix from when it read a
 separate `audit-results` comment; that comment type is retired (Stories #4411 /
 #4412 folded it into `verification-results`) but the graduator is unchanged.
 
-`lib/orchestration/bookkeeping-outbox.js` is a generic transport, not a type:
-it replays buffered `{ticketId, marker, body}` ops through
-`upsertStructuredComment` for headless runs, carrying whichever marker the
-caller enqueued.
 The `mcp__mandrel__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
@@ -298,7 +294,6 @@ ratchet.
 | `resolveWorktreeEnabled(opts, env)` | Helper      | `lib/config-resolver.js`. Returns the resolved boolean (env override → web auto-detect → committed config).                                                                                                          |
 | `resolveSessionId(env)`           | Helper        | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line.                                                                                                                    |
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
-| `DEFAULT_STORY_MERGE_RETRY`     | Framework constant | `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`, exported from `.agents/scripts/lib/config/runners.js` (surfaced as `storyMergeRetry` by the `getRunners` accessor). Its original consumer — the bounded retry on the epic-branch push (`lib/push-epic-retry.js`) — was deleted with the Epic tier in v2.0.0, and the constant currently has **no runtime consumer**; it is retained only as accessor surface. See `docs/CHANGELOG.md` for the rename history. |
 
 ---
 

@@ -442,8 +442,9 @@ describe('plan-context envelope byte ceiling — runtime enforcement', () => {
   // The ceiling used to be asserted only by the fixture tests below, which
   // bound nothing at runtime: the sizes that matter come from a consumer's
   // seed or --tickets source bodies, and no fixture sees those. The
-  // documented cap (`planning.context.maxBytes`) resolves but is wired to
-  // nothing, so this is the only real bound on the path that needs one.
+  // documented cap (`planning.context.maxBytes`) resolved but was wired to
+  // nothing and has since been removed (Story #4541), so this is the only
+  // real bound on the path that needs one.
   /** A seed large enough to carry the envelope past the real ceiling. */
   const OVER_CEILING_SEED = 'lorem ipsum dolor sit amet consectetur. '.repeat(
     9000,

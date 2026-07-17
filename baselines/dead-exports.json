@@ -281,10 +281,6 @@
     },
     {
       "file": ".agents/scripts/lib/git-utils.js",
-      "symbol": "getEpicBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/git-utils.js",
       "symbol": "slugify"
     },
     {
@@ -306,10 +302,6 @@
     {
       "file": ".agents/scripts/lib/observability/hook-heartbeat.js",
       "symbol": "shouldEmitHeartbeat"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/signals-writer.js",
-      "symbol": "forEachEpicLine"
     },
     {
       "file": ".agents/scripts/lib/observability/source-classifier.js",
@@ -406,10 +398,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/findings-renderer.js",
       "symbol": "renderManualPromptsSection"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "buildLintEvidenceConfig"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/review-depth.js",

@@ -33,7 +33,7 @@
     "source": {
       "type": "string",
       "enum": ["framework", "consumer"],
-      "description": "Framework/consumer classification injected by `tagSignalSource` (signals-writer.js) for records appended via appendSignal/appendEpicSignal. Reserved exclusively for this classifier tag — the originating tool/surface lives in `emitter`."
+      "description": "Framework/consumer classification injected by `tagSignalSource` (signals-writer.js) for records appended via appendSignal. Reserved exclusively for this classifier tag — the originating tool/surface lives in `emitter`."
     },
     "emitter": {
       "type": "object",

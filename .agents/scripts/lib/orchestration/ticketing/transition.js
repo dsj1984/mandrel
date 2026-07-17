@@ -37,6 +37,10 @@ import {
   eventSeverity,
   renderTransitionMessage,
 } from '../../notifications/notifier.js';
+import {
+  emitRuntimeFriction,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../observability/runtime-friction.js';
 import { ColumnSync } from '../column-sync.js';
 import {
   ALL_STATES,
@@ -280,6 +284,46 @@ function dispatchTransitionNotification(args) {
 }
 
 /**
+ * Emit a runtime-derived `friction` signal when a ticket parks at
+ * `agent::blocked` (Story #4578). No-op for every other target state.
+ *
+ * Why here: `agent::blocked` is the single runtime HITL pause point
+ * (`.agents/instructions.md` § 1.J), and this is its canonical mutator — so
+ * one hook catches every block regardless of which path drove it (the
+ * `merge.unlanded` and `merge.flip-failed` paths in
+ * `single-story-close/phases/confirm-merge.js`, the review-block path, an
+ * operator's `update-ticket-state.js`, a Story worker giving up). Before
+ * this, a block was only ever a *label* — it left no trace in the friction
+ * stream the retro reads, so a run could park a worker and still produce a
+ * zero-signal roll-up.
+ *
+ * This is also why the terminal-envelope hook deliberately skips `blocked`
+ * (see `frictionForTerminal`): the two would otherwise count one incident
+ * twice.
+ *
+ * Best-effort and awaited: `emitRuntimeFriction` swallows its own failures
+ * and resolves `false`, so this can neither throw nor block the transition.
+ * It is awaited rather than fire-and-forget because CLI entry points exit
+ * via `process.exit` as soon as `main` resolves (`cli-utils.runAsCli` with
+ * `propagateExitCode`), which would discard a still-pending append.
+ *
+ * @param {number} ticketId
+ * @param {string} newState
+ * @param {{ config?: object }} opts
+ * @returns {Promise<void>}
+ */
+async function emitBlockedFriction(ticketId, newState, opts) {
+  if (newState !== STATE_LABELS.BLOCKED) return;
+  await emitRuntimeFriction({
+    storyId: ticketId,
+    category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+    tool: 'transitionTicketState',
+    details: { toState: newState },
+    config: opts?.config,
+  });
+}
+
+/**
  * Transitions a ticket's label to the new state.
  * Removes other agent:: state labels.
  *
@@ -360,6 +404,10 @@ export async function transitionTicketState(
     // `mutations` shape.
     _ticketSnapshot: ticketSnapshot,
   });
+
+  // Story #4578 — derive a friction signal from the block, at the point the
+  // runtime already knows. Best-effort; never blocks the transition.
+  await emitBlockedFriction(ticketId, newState, opts);
 
   // Story #2548 — mirror the new state onto the Projects v2 Status
   // column. Best-effort; never blocks the transition.

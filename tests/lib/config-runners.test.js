@@ -2,23 +2,24 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   DEFAULT_DECOMPOSER,
-  DEFAULT_STORY_MERGE_RETRY,
   getRunners,
 } from '../../.agents/scripts/lib/config/runners.js';
 
 // Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner` and
 // `delivery.codeReview` are configurable via getRunners; `delivery.epicAudit`
 // was removed on v2 (Story-only delivery). Legacy `planRunner`,
-// `concurrency`, `storyMergeRetry`, and `decomposer` sub-blocks moved to
-// framework-internal constants.
+// `concurrency` and `decomposer` sub-blocks moved to framework-internal
+// constants. `storyMergeRetry` went with `push-epic-retry.js`: the v2
+// cutover deleted its only consumer (the bounded retry on the epic-branch
+// push), leaving a policy nothing could apply.
 
 describe('getRunners', () => {
   it('returns defaulted shape for null/undefined/empty config', () => {
     for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
       assert.equal(r.deliverRunner.concurrencyCap, 3);
-      assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
+      assert.equal(r.storyMergeRetry, undefined);
       assert.equal(r.epicAudit, undefined);
     }
   });
@@ -45,12 +46,6 @@ describe('getRunners', () => {
     };
     const r = getRunners(config);
     assert.equal(r.deliverRunner.concurrencyCap, 3);
-  });
-
-  it('exposes the hardcoded story-merge-retry defaults', () => {
-    const r = getRunners({});
-    assert.equal(r.storyMergeRetry.maxAttempts, 3);
-    assert.deepEqual([...r.storyMergeRetry.backoffMs], [250, 500, 1000]);
   });
 
   it('exposes the hardcoded decomposer concurrency cap', () => {

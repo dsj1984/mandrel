@@ -207,15 +207,11 @@ recurred, and what assumption you would test next, then either Re-Plan or
 hand back to the operator. Do not paper over the loop with another
 just-in-case retry.
 
-This protocol is not soft-prompt-only — it has a runtime substrate. While
-executing as a Story delivery sub-agent (via `helpers/deliver-story`), you
-MUST emit a `story.heartbeat` lifecycle event on every phase transition (or
-whenever you stall on a long-running step) so the parent `/deliver`
-sequencer can distinguish a child still making progress from a dead one. If
-you genuinely cannot proceed, transition to `agent::blocked` and exit
-non-zero — never fall silent. A child with no recent `story.heartbeat`, no
-commit on its `story-<id>` branch, and no `agent::blocked` label is exactly
-the stall shape the parent run must detect and escalate.
+While executing as a Story delivery sub-agent (via `helpers/deliver-story`),
+if you genuinely cannot proceed you MUST transition to `agent::blocked` and
+exit non-zero — **never fall silent**. A stalled child that reports nothing
+is indistinguishable from a dead one, and the parent `/deliver` run can only
+escalate what you surface.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 

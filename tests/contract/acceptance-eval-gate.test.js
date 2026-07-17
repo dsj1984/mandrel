@@ -224,91 +224,6 @@ describe('runAcceptanceEval — decision → exit-code mapping + signal emission
   });
 });
 
-describe('runAcceptanceEval — single-delivery cluster mode (Epic #4475)', () => {
-  const config = {};
-
-  it('routes the signal to the EPIC stream and tags it with clusterId', async () => {
-    const epicEmits = [];
-    const storyEmits = [];
-    const { envelope, exitCode } = await runAcceptanceEval(
-      {
-        storyId: null,
-        epicId: 4475,
-        clusterId: 'ac-cluster-2',
-        verdict: validVerdict({ storyId: undefined }),
-        config,
-        emitSignal: true,
-      },
-      {
-        appendEpicSignalFn: async (a) => {
-          epicEmits.push(a);
-          return true;
-        },
-        appendSignalFn: async (a) => {
-          storyEmits.push(a);
-          return true;
-        },
-        deriveRoundFn: () => 1,
-      },
-    );
-    assert.equal(envelope.decision, 'proceed');
-    assert.equal(exitCode, 0);
-    assert.equal(envelope.clusterId, 'ac-cluster-2');
-    assert.equal(envelope.storyId, null);
-    // Cluster mode writes to the epic stream, NOT the per-Story stream.
-    assert.equal(epicEmits.length, 1);
-    assert.equal(storyEmits.length, 0);
-    assert.equal(epicEmits[0].signal.clusterId, 'ac-cluster-2');
-    assert.equal(epicEmits[0].signal.storyId, null);
-  });
-
-  it('derives the per-cluster round with clusterId threaded through', async () => {
-    const seen = [];
-    await runAcceptanceEval(
-      {
-        storyId: null,
-        epicId: 4475,
-        clusterId: 'ac-cluster-1',
-        verdict: validVerdict({ storyId: undefined }),
-        config,
-        emitSignal: false,
-      },
-      {
-        deriveRoundFn: (args) => {
-          seen.push(args);
-          return 1;
-        },
-      },
-    );
-    assert.equal(seen.length, 1);
-    assert.equal(seen[0].clusterId, 'ac-cluster-1');
-    assert.equal(seen[0].epicId, 4475);
-  });
-
-  it('a blocked cluster still exits 1 (halts before close)', async () => {
-    const verdict = validVerdict({
-      storyId: undefined,
-      round: 2,
-      criteria: [
-        { index: 0, criterion: 'a', verdict: 'unmet', evidence: 'missing' },
-      ],
-    });
-    const { envelope, exitCode } = await runAcceptanceEval(
-      {
-        storyId: null,
-        epicId: 4475,
-        clusterId: 'ac-cluster-1',
-        verdict,
-        config,
-        emitSignal: false,
-      },
-      { deriveRoundFn: () => 2 },
-    );
-    assert.equal(envelope.decision, 'block');
-    assert.equal(exitCode, 1);
-  });
-});
-
 describe('emitted signal conforms to signal-event.schema.json', () => {
   it('the acceptance-eval signal validates against the signal-event schema', async () => {
     const signalValidate = compile('signal-event.schema.json');
@@ -316,8 +231,7 @@ describe('emitted signal conforms to signal-event.schema.json', () => {
     await runAcceptanceEval(
       {
         storyId: 3819,
-        epicId: 98,
-        verdict: validVerdict({ epicId: 98 }),
+        verdict: validVerdict({ epicId: null }),
         config: {},
         emitSignal: true,
       },

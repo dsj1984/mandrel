@@ -62,7 +62,6 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
     'merge.unlanded',
     'merge.flip-failed',
     'loop.tick',
-    'story.heartbeat',
   ]),
 });
 

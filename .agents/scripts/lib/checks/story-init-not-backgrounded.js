@@ -9,7 +9,7 @@
  * Monitor wait kills `single-story-init.js` mid-run, leaving a
  * half-initialized worktree.
  *
- * Scope: 'epic-deliver', 'story-close', 'retro'. The check runs at every
+ * Scope: 'story-close', 'retro'. The check runs at every
  * preflight surface that has the opportunity to invoke Story init —
  * primarily `/deliver`'s init step — and surfaces as a retro audit
  * signal if the failure mode resurfaces during a sprint.
@@ -146,7 +146,7 @@ const FIX_COMMAND = [
 export default {
   id: 'story-init-not-backgrounded',
   severity: 'blocker',
-  scope: ['epic-deliver', 'story-close', 'retro'],
+  scope: ['story-close', 'retro'],
   autoCorrect: 'refuse-and-print',
 
   detect(state) {
@@ -178,7 +178,7 @@ export default {
     return {
       id: 'story-init-not-backgrounded',
       severity: 'blocker',
-      scope: state?.scope ?? 'epic-deliver',
+      scope: state?.scope ?? 'story-close',
       summary: `${offences.length} orchestration call site(s) invoke single-story-init.js with Monitor backgrounding`,
       detail,
       fixCommand: FIX_COMMAND,

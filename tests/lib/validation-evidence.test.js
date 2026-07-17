@@ -44,7 +44,6 @@ function makeFakeFs() {
 const FIXED_NOW = new Date('2026-04-25T20:00:00Z');
 const fixedNow = () => FIXED_NOW;
 const FAKE_CWD = path.resolve('/fake-worktree');
-const FAKE_EPIC_ID = 802;
 
 function baseOpts(extra = {}) {
   const fs = extra.fs ?? makeFakeFs();
@@ -52,44 +51,18 @@ function baseOpts(extra = {}) {
   return {
     cwd: FAKE_CWD,
     now: fixedNow,
-    epicId: FAKE_EPIC_ID,
+    standalone: true,
     ...rest,
     fs,
   };
 }
 
-test('evidencePath() resolves a Story-scoped path under temp/run-<eid>/stories/story-<sid>/', () => {
-  const expected = path.join(
-    FAKE_CWD,
-    'temp',
-    'run-802',
-    'stories',
-    'story-901',
-    'validation-evidence.json',
-  );
-  assert.equal(
-    evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID }),
-    expected,
-  );
-});
-
-test('evidencePath() resolves an Epic-scoped path when scopeId === epicId', () => {
-  const expected = path.join(
-    FAKE_CWD,
-    'temp',
-    'run-802',
-    'validation-evidence.json',
-  );
-  assert.equal(
-    evidencePath(FAKE_EPIC_ID, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID }),
-    expected,
-  );
-});
-
-test('evidencePath() throws when epicId is missing', () => {
+test('evidencePath() throws when standalone is not set', () => {
+  // v2.0.0 removed the Epic tier: the storyId-anchored standalone keyspace
+  // is the only keyspace, so `standalone` is no longer optional.
   assert.throws(
     () => evidencePath(901, { cwd: FAKE_CWD }),
-    /requires opts\.epicId/,
+    /requires opts\.standalone/,
   );
 });
 
@@ -105,24 +78,6 @@ test('evidencePath() resolves a standalone storyId-anchored path (Story #4250)',
   assert.equal(
     evidencePath(4250, { cwd: FAKE_CWD, standalone: true }),
     expected,
-  );
-});
-
-test('evidencePath() ignores epicId when standalone is set (Story #4250)', () => {
-  // A stray epicId must NOT route the standalone evidence file into the
-  // Epic-keyed tree — standalone branches on storyId alone.
-  const standalonePath = evidencePath(4250, {
-    cwd: FAKE_CWD,
-    epicId: 99,
-    standalone: true,
-  });
-  assert.ok(
-    standalonePath.includes(path.join('standalone', 'stories', 'story-4250')),
-    `standalone path must anchor on storyId, got: ${standalonePath}`,
-  );
-  assert.ok(
-    !standalonePath.includes('run-99'),
-    'standalone path must not include the run-<id> segment',
   );
 });
 
@@ -405,31 +360,31 @@ test('forceClear() is a no-op when no evidence file exists', () => {
 
 test('loadEvidence() ignores a corrupt JSON file', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
+  const file = evidencePath(901, { cwd: FAKE_CWD, standalone: true });
   fs.writeFileSync(file, 'not-json{{{');
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, standalone: true, fs });
   assert.deepEqual(doc.records, []);
 });
 
 test('loadEvidence() ignores a file whose storyId disagrees with the path', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
+  const file = evidencePath(901, { cwd: FAKE_CWD, standalone: true });
   fs.writeFileSync(
     file,
     JSON.stringify({ storyId: 902, schemaVersion: 1, records: [] }),
   );
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, standalone: true, fs });
   assert.deepEqual(doc.records, []);
 });
 
 test('loadEvidence() ignores a file whose schemaVersion does not match', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
+  const file = evidencePath(901, { cwd: FAKE_CWD, standalone: true });
   fs.writeFileSync(
     file,
     JSON.stringify({ storyId: 901, schemaVersion: 999, records: [] }),
   );
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, standalone: true, fs });
   assert.deepEqual(doc.records, []);
 });
 

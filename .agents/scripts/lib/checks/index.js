@@ -182,7 +182,7 @@ export async function getCheck(id, opts) {
  *
  * @param {object} opts
  * @param {string} [opts.scope]      Surface scope, e.g. 'story-close',
- *   'epic-deliver', 'retro', 'diagnose'. When omitted, every check runs.
+ *   'story-close', 'npm-test', 'retro', 'diagnose'. When omitted, every check runs.
  * @param {boolean} [opts.autoFix=false]  Invoke `fix()` for checks with
  *   `autoCorrect: 'auto'`. Forbidden when `scope === 'retro'`.
  * @param {object} opts.state        Probed state from `assembleState()`.

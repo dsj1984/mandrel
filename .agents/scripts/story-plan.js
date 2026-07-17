@@ -157,7 +157,7 @@ async function runEmitContext({
       loadBodyTemplate(projectRoot),
       fetchOpenStories(provider),
       readTechStackSummary(projectRoot),
-      buildCorpusContext({ seed, provider, docsContextFiles, docsRoot }),
+      buildCorpusContext({ docsContextFiles, docsRoot }),
     ]);
 
   const duplicateCandidates = rankDuplicateCandidates({

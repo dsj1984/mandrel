@@ -1,6 +1,6 @@
-## 🔬 Code Review — Epic #4242
+## 🔬 Code Review — Story #4242
 
-**Comparison**: `main` … `epic/4242`
+**Comparison**: `main` … `story-4242`
 **Provider**: `native`
 **Findings**: 4
 

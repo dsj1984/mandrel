@@ -161,7 +161,7 @@ describe('github.* shape', () => {
           notifications: {
             mentionOperator: false,
             commentEvents: ['state-transition'],
-            webhookEvents: ['story-merged', 'story.heartbeat'],
+            webhookEvents: ['story-merged', 'loop.tick'],
           },
         },
       }),
@@ -268,13 +268,20 @@ describe('planning.* shape', () => {
     );
   });
 
-  it('rejects unknown planning.context summaryMode', () => {
+  it('rejects the retired planning.context block (Story #4541)', () => {
+    // `planning.context.{maxBytes, summaryMode}` fed an `applyBudget` pass
+    // that lost its last caller in the v2 cutover — the key resolved but
+    // capped nothing. It is gone; `additionalProperties: false` on the
+    // planning block now rejects it, so a resurrected key fails loudly
+    // instead of silently doing nothing. The live bound on planner-context
+    // size is PLAN_CONTEXT_ENVELOPE_BYTE_CEILING (a framework constant).
     expectErrors(
-      {
-        ...REQ,
-        planning: { context: { summaryMode: 'sideways' } },
-      },
-      /summaryMode/,
+      { ...REQ, planning: { context: { maxBytes: 50000 } } },
+      /additional propert/i,
+    );
+    expectErrors(
+      { ...REQ, planning: { context: { summaryMode: 'auto' } } },
+      /additional propert/i,
     );
   });
 });
@@ -884,12 +891,7 @@ describe('notification event vocabularies', () => {
   it('keeps run-scoped and firehose beats out of the comment vocabulary', () => {
     // Narrower on the ticket-scope axis, deliberately: these are not about
     // one Story issue, so a comment has nowhere meaningful to land.
-    for (const name of [
-      'merge.unlanded',
-      'merge.flip-failed',
-      'loop.tick',
-      'story.heartbeat',
-    ]) {
+    for (const name of ['merge.unlanded', 'merge.flip-failed', 'loop.tick']) {
       assert.ok(WEBHOOK_EVENT_NAMES.includes(name), `${name} is emitted`);
       assert.ok(
         !COMMENT_EVENT_NAMES.includes(name),

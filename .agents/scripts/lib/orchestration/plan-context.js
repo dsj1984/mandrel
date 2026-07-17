@@ -64,9 +64,11 @@ const OVERSIZE_REPORT_FIELDS = 3;
  * repo's own fixtures, which bounds nothing at runtime: the value it actually
  * has to hold for is a consumer's seed or `--tickets` source bodies, and no
  * test sees those. That left the documented planner-context cap resting
- * entirely on `planning.context.maxBytes` — which resolves but is wired to
+ * entirely on `planning.context.maxBytes` — which resolved but was wired to
  * nothing (its `applyBudget` pass lost its last caller in the v2 cutover), so
- * in practice no bound existed at all on the path that needed one.
+ * in practice no bound existed at all on the path that needed one. That key
+ * and its budget module were removed outright in Story #4541; this ceiling is
+ * the replacement.
  *
  * Failing closed is the right direction here and matches how an over-budget
  * `## Spec` is handled (`spec-spill.js`): an envelope this size does not

@@ -114,10 +114,6 @@ const KEY_MEANINGS = Object.freeze({
     'Allowlist of events that fire a webhook notification.',
 
   // planning.*
-  'planning.context.maxBytes':
-    'Byte budget for the planning-context payload before summary mode kicks in.',
-  'planning.context.summaryMode':
-    'When the planner switches to a summarized context representation.',
   'planning.codebaseSnapshot.tier':
     'Depth of the structural codebase view threaded into spec authoring.',
   'planning.codebaseSnapshot.include':

@@ -5,7 +5,6 @@
  * Post-reshape, the surviving operator-configurable keys are split across
  * `planning.*` and `delivery.*`:
  *
- *   - `planning.context.{maxBytes, summaryMode}` (planning-context budget)
  *   - `delivery.execution.timeoutMs` (per-process execution timeout)
  *   - `delivery.lease.ttlMs` (assignee-as-lease staleness window — Story #3480)
  *   - `delivery.signals.{rework, retry}` (performance-signal detector
@@ -17,7 +16,12 @@
  * Dropped entirely: `maxInstructionSteps`, `friction.*`, `executionMaxBuffer`,
  * `signals.{churn, idle}`, `delivery.preflight`, `delivery.maxTokenBudget`
  * (planning no longer sizes against a token-budget envelope; session-mass
- * ceilings are absolute in `DEFAULT_MODEL_CAPACITY`).
+ * ceilings are absolute in `DEFAULT_MODEL_CAPACITY`), and
+ * `planning.context.{maxBytes, summaryMode}` (Story #4541 — the `applyBudget`
+ * pass they fed lost its last caller in the v2 cutover, and it bounded a field
+ * the envelope builders discarded; the live bound on planner-context size is
+ * the fixed `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` in
+ * `lib/orchestration/plan-context.js`).
  *
  * The historic combined accessor `getLimits(config)` is preserved as a
  * compatibility surface: it returns a wrapper carrying the surviving
@@ -37,10 +41,14 @@ export const SIGNALS_DEFAULTS = Object.freeze({
 
 /**
  * Default TTL for the assignee-as-lease primitive (Story #3480). A claim
- * whose owner has not emitted a `story.heartbeat` within this window is
- * considered stale and may be reclaimed by another operator. 15 minutes
- * gives a healthy run comfortable headroom over the §2e idle watchdog's
- * 10-minute re-tick while still releasing a genuinely dead claim promptly.
+ * whose owner's last heartbeat is older than this window is considered stale
+ * and may be reclaimed by another operator.
+ *
+ * Note: no shipped caller supplies a real heartbeat — the emitter was inert
+ * and was deleted (A22), so the guards anchor liveness to `now` and every
+ * foreign claim reads live (fail-closed; clear a stranded claim with
+ * `--steal`). This value is therefore only consulted by a caller that threads
+ * its own `heartbeatAt`, and is kept as the documented default for that seam.
  */
 export const LEASE_TTL_MS_DEFAULT = 900000;
 
@@ -51,10 +59,6 @@ export const LIMITS_DEFAULTS = Object.freeze({
   maxTickets: 80,
   executionTimeoutMs: 600000,
   leaseTtlMs: LEASE_TTL_MS_DEFAULT,
-  planningContext: Object.freeze({
-    maxBytes: 50000,
-    summaryMode: 'auto',
-  }),
   signals: SIGNALS_DEFAULTS,
 });
 
@@ -83,8 +87,7 @@ function mergeSignals(userSignals) {
 /**
  * Resolve the surviving limits surface against a `.agentrc.json` shape
  * (post-reshape). `maxTickets` is a framework constant (never read from
- * config); pulls `planningContext` from `planning.*`, pulls
- * `executionTimeoutMs` from `delivery.*`, pulls signals from
+ * config); pulls `executionTimeoutMs` from `delivery.*`, pulls signals from
  * `delivery.signals.*`.
  *
  * @param {object|undefined} config
@@ -92,22 +95,13 @@ function mergeSignals(userSignals) {
  *   maxTickets: number,
  *   executionTimeoutMs: number,
  *   leaseTtlMs: number,
- *   planningContext: { maxBytes: number, summaryMode: string },
  *   signals: ReturnType<typeof mergeSignals>,
  * }}
  */
 export function resolveLimits(config) {
-  const planning =
-    config?.planning && typeof config.planning === 'object'
-      ? config.planning
-      : {};
   const delivery =
     config?.delivery && typeof config.delivery === 'object'
       ? config.delivery
-      : {};
-  const planningContextUser =
-    planning.context && typeof planning.context === 'object'
-      ? planning.context
       : {};
   const execution =
     delivery.execution && typeof delivery.execution === 'object'
@@ -120,10 +114,6 @@ export function resolveLimits(config) {
     executionTimeoutMs:
       execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
     leaseTtlMs: lease.ttlMs ?? LIMITS_DEFAULTS.leaseTtlMs,
-    planningContext: {
-      ...LIMITS_DEFAULTS.planningContext,
-      ...planningContextUser,
-    },
     signals: mergeSignals(delivery.signals),
   };
 }

@@ -19,7 +19,6 @@ import test from 'node:test';
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
 import { createChainProvider } from '../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 
-const stubBus = { emit: async () => {} };
 function noopUpsert() {
   return async () => {};
 }
@@ -67,8 +66,8 @@ test('runCodeReview: chain provider with prompt → comment body contains sugges
   const upsert = recordingUpsert();
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: chain,
     resolveConfigFn: baseConfig,
     upsertCommentFn: upsert.fn,
@@ -101,8 +100,8 @@ test('runCodeReview: empty prompt list omits the suggestions section', async () 
   const upsert = recordingUpsert();
   await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: chain,
     resolveConfigFn: baseConfig,
     upsertCommentFn: upsert.fn,
@@ -121,8 +120,8 @@ test('runCodeReview: ticketLabels opt is forwarded into ReviewInput.labels', asy
   };
   await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: adapter,
     resolveConfigFn: baseConfig,
     upsertCommentFn: noopUpsert(),
@@ -153,8 +152,8 @@ test('runCodeReview: chain critical finding triggers halted=true', async () => {
   });
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: chain,
     resolveConfigFn: baseConfig,
     upsertCommentFn: noopUpsert(),
@@ -174,8 +173,8 @@ test('runCodeReview: getPromptMessages throw is swallowed (treated as empty)', a
   const upsert = recordingUpsert();
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: chain,
     resolveConfigFn: baseConfig,
     upsertCommentFn: upsert.fn,
@@ -192,8 +191,8 @@ test('runCodeReview: provider name in comment reflects chain shape when configur
   const upsert = recordingUpsert();
   await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: adapter, // legacy injection seam
     resolveConfigFn: () => ({
       project: { baseBranch: 'main' },

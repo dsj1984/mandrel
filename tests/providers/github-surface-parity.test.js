@@ -80,7 +80,6 @@ function buildProvider() {
   provider.issues = {
     ghGraphql: async () => 'issues.ghGraphql',
     listIssuesByLabel: async () => 'issues.listIssuesByLabel',
-    getEpics: async () => 'issues.getEpics',
     getEpic: async () => 'issues.getEpic',
     branchExists: async () => 'issues.branchExists',
     getSubTickets: async () => 'issues.getSubTickets',
@@ -163,7 +162,6 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       // issues
       ['graphql', ['query {}'], 'issues.ghGraphql'],
       ['listIssuesByLabel', [{}], 'issues.listIssuesByLabel'],
-      ['getEpics', [{}], 'issues.getEpics'],
       ['getEpic', [1], 'issues.getEpic'],
       ['branchExists', ['main'], 'issues.branchExists'],
       ['getSubTickets', [1], 'issues.getSubTickets'],

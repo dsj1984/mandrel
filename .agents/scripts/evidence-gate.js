@@ -13,42 +13,22 @@
  *
  * Usage:
  *   node .agents/scripts/evidence-gate.js \
- *     (--epic-id <epicId> | --standalone) --scope-id <storyOrEpicId> --gate <name> \
+ *     --standalone --scope-id <storyId> --gate <name> \
  *     [--worktree <path>] [--no-evidence] -- <cmd> [args...]
  *
  * Examples:
- *   node .agents/scripts/evidence-gate.js --epic-id 802 --scope-id 817 --gate lint -- npm run lint
- *   node .agents/scripts/evidence-gate.js --epic-id 1030 --scope-id 1030 --gate test -- npm test
- *   node .agents/scripts/evidence-gate.js --epic-id 1114 --scope-id 1120 --gate test \
- *     --worktree .worktrees/story-1120 -- npm test
  *   node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 --gate lint \
  *     --worktree .worktrees/story-4250 -- npm run lint
+ *   node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 --gate test \
+ *     --worktree .worktrees/story-4250 -- npm test
  *
- * Either `--epic-id` or `--standalone` is required. When `scope-id ===
- * epic-id` the evidence file is Epic-scoped
- * (`<tempRoot>/epic-<eid>/validation-evidence.json`); when `scope-id !==
- * epic-id` it is Story-scoped under
- * `<tempRoot>/epic-<eid>/story-<sid>/validation-evidence.json`. With
- * `--standalone` (Story #4250) the file is anchored on the Story id alone at
+ * `--standalone` (Story #4250) is required: the evidence file is anchored on
+ * the Story id at
  * `<tempRoot>/standalone/stories/story-<sid>/validation-evidence.json` — the
  * same keyspace the standalone close consults, so the acceptance-self-eval
  * critic's verify[] runs (lint / typecheck) are shared with the close.
- *
- * **Worktree-aware spawn (Story #1120).** `--cwd` (default `PROJECT_ROOT`)
- * is the *evidence cwd* — it locates the per-Epic temp tree under the main
- * checkout's `.git/`. `--worktree` is the *spawn cwd* — when supplied, the
- * gate runner is launched with `cwd: <worktree>` and the HEAD-SHA used as
- * the evidence key is read from the worktree (so caching keys to the Story
- * branch's HEAD, not the main branch's). When `--worktree` is omitted,
- * spawn cwd falls back to `--cwd` (legacy single-tree behaviour).
- *
- * Exit codes:
- *   0 — gate passed (or skipped via evidence)
- *   N — gate failed (passes through the runner's exit code)
- *
- * `--no-evidence` forces the runner regardless of recorded state. The
- * evidence file is gitignored — evidence is a perf optimization, not a
- * trust boundary; pre-push hooks and CI continue to verify independently.
+ * v2.0.0 removed the Epic tier along with the `--epic-id` Epic-keyed
+ * keyspace.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -88,7 +68,6 @@ export function parseWrapperArgs(argv) {
     args: argv,
     options: {
       'scope-id': { type: 'string' },
-      'epic-id': { type: 'string' },
       gate: { type: 'string' },
       'no-evidence': { type: 'boolean', default: false },
       standalone: { type: 'boolean', default: false },
@@ -98,10 +77,8 @@ export function parseWrapperArgs(argv) {
     strict: false,
   });
   const scopeId = Number.parseInt(values['scope-id'] ?? '', 10);
-  const epicId = Number.parseInt(values['epic-id'] ?? '', 10);
   return {
     scopeId: Number.isNaN(scopeId) || scopeId <= 0 ? null : scopeId,
-    epicId: Number.isNaN(epicId) || epicId <= 0 ? null : epicId,
     standalone: values.standalone === true,
     gate: values.gate ?? null,
     useEvidence: values['no-evidence'] !== true,
@@ -126,15 +103,13 @@ function resolveHeadShaDefault(cwd, gitSpawnFn) {
  * Exported for tests + the CLI `main()`.
  *
  * @param {object} params
- * @param {number}   params.scopeId      — Story / Epic ID (positive integer).
- * @param {number|null} [params.epicId]  — Parent Epic id (Epic-keyed path).
- * @param {boolean}  [params.standalone] — When true, route to the
- *   storyId-anchored standalone keyspace instead of the Epic-keyed path
- *   (Story #4250). Substitutes for `epicId`.
+ * @param {number}   params.scopeId      — Story ID (positive integer).
+ * @param {boolean}  [params.standalone] — Required. Routes to the
+ *   storyId-anchored standalone keyspace (Story #4250).
  * @param {string}   params.gate         — Logical gate name (`lint`, `typecheck`, …).
  * @param {boolean}  params.useEvidence  — When false, force the runner.
- * @param {string}   params.cwd          — Evidence cwd (locates the per-Epic
- *   temp tree). The runner is spawned in `worktreePath` when set, else `cwd`.
+ * @param {string}   params.cwd          — Evidence cwd (locates the temp
+ *   tree). The runner is spawned in `worktreePath` when set, else `cwd`.
  * @param {string|null} [params.worktreePath] — Spawn cwd override (Story #1120).
  *   When set, the runner runs in the Story worktree and the HEAD-SHA used as
  *   the evidence cache key is read from the worktree, not from `cwd`.
@@ -159,7 +134,6 @@ export async function runEvidenceGate(params, deps = {}) {
   } = deps;
   const {
     scopeId,
-    epicId,
     standalone = false,
     gate,
     useEvidence,
@@ -168,31 +142,27 @@ export async function runEvidenceGate(params, deps = {}) {
     runnerArgs,
   } = params ?? {};
 
-  // `--epic-id` is required for the Epic-keyed path; `--standalone` (Story
-  // #4250) substitutes for it and routes the evidence file to the
-  // storyId-anchored standalone keyspace so the acceptance-self-eval critic
-  // can record verify[] evidence into the same keyspace the standalone close
-  // consults.
+  // `--standalone` (Story #4250) routes the evidence file to the
+  // storyId-anchored keyspace so the acceptance-self-eval critic can record
+  // verify[] evidence into the same keyspace the standalone close consults.
   if (
     !scopeId ||
-    (!epicId && !standalone) ||
+    !standalone ||
     !gate ||
     !runnerArgs ||
     runnerArgs.length === 0
   ) {
     logger.fatal(
-      'Usage: node evidence-gate.js (--epic-id <epicId> | --standalone) --scope-id <id> --gate <name> [--worktree <path>] [--no-evidence] -- <cmd> [args...]',
+      'Usage: node evidence-gate.js --standalone --scope-id <id> --gate <name> [--worktree <path>] [--no-evidence] -- <cmd> [args...]',
     );
     return { status: 1, skipped: false };
   }
-  // Evidence-store opts shared by shouldSkip + recordPass below. `standalone`
-  // routes to the storyId-anchored keyspace; otherwise the Epic-keyed path
-  // resolves under `epicId`.
-  const evidenceStoreOpts = { cwd, epicId, standalone };
+  // Evidence-store opts shared by shouldSkip + recordPass below.
+  const evidenceStoreOpts = { cwd, standalone };
 
   // Spawn cwd is the worktree when supplied — every gate command sees the
   // Story branch's tree, not the main checkout. Evidence cwd stays anchored
-  // to the main checkout so the per-Epic temp tree resolves under the main
+  // to the main checkout so the temp tree resolves under the main
   // `.git/`. The HEAD-SHA used as the cache key is read from the spawn cwd
   // (the worktree), so cache entries key against the Story branch's HEAD.
   const spawnCwd = worktreePath ?? cwd;

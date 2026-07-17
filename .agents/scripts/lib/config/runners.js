@@ -3,17 +3,10 @@
  *
  * Post-reshape, only `delivery.deliverRunner` and `delivery.codeReview` are
  * configurable via this accessor; everything else lives in framework-internal
- * constants exported alongside (`DEFAULT_STORY_MERGE_RETRY`,
- * `DEFAULT_DECOMPOSER`). `delivery.epicAudit` was removed on v2 (Story-only
- * delivery — no epic-audit runner; remediation policy lives on
- * `delivery.codeReview`).
+ * constants exported alongside (`DEFAULT_DECOMPOSER`).
+ * `delivery.epicAudit` was removed on v2 (Story-only delivery — no
+ * epic-audit runner; remediation policy lives on `delivery.codeReview`).
  */
-
-/** Hardcoded story-merge retry policy (was `orchestration.runners.storyMergeRetry`). */
-export const DEFAULT_STORY_MERGE_RETRY = Object.freeze({
-  maxAttempts: 3,
-  backoffMs: Object.freeze([250, 500, 1000]),
-});
 
 /** Hardcoded decomposer concurrency cap (was `orchestration.runners.decomposer.concurrencyCap`). */
 export const DEFAULT_DECOMPOSER = Object.freeze({
@@ -60,7 +53,6 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  * @returns {{
  *   deliverRunner: { concurrencyCap: number },
  *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
- *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
  *   decomposer: { concurrencyCap: number },
  * }}
  */
@@ -81,7 +73,6 @@ export function getRunners(config) {
       autoFixSeverity:
         codeReviewUser.autoFixSeverity ?? DEFAULT_CODE_REVIEW.autoFixSeverity,
     },
-    storyMergeRetry: DEFAULT_STORY_MERGE_RETRY,
     decomposer: DEFAULT_DECOMPOSER,
   };
 }

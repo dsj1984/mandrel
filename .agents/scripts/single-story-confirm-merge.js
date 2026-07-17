@@ -43,6 +43,7 @@ import { formatCliError } from './lib/error-redactor.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
@@ -132,13 +133,22 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
   }
 }
 
-function logConfirmResult(result, terminal) {
+/**
+ * Story #4578 — async so the runtime-derived friction emit can be awaited.
+ * This CLI is the resume path for a parked worker (`--wait`), so a `pending`
+ * terminal here means a bounded wait expired again with the PR still in
+ * flight: the exact observable the retro was blind to. The emit is
+ * best-effort and cannot throw; awaiting it matters because `runAsCli`
+ * exits via `process.exit` the moment `main` resolves.
+ */
+async function logConfirmResult(result, terminal, config) {
   // Human-facing dump stays level-gated; the envelope is the machine
   // contract and must survive AGENT_LOG_LEVEL=silent.
   Logger.info(
     `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
   emitTerminalEnvelope(terminal);
+  await emitTerminalFriction({ envelope: terminal, config });
   return { success: terminal.status !== 'failed', result, terminal };
 }
 
@@ -289,7 +299,7 @@ export async function runConfirmMerge({
       reason: 'no-pr',
       merged: false,
     };
-    return logConfirmResult(
+    return await logConfirmResult(
       noPr,
       buildConfirmTerminal({
         storyId,
@@ -300,6 +310,7 @@ export async function runConfirmMerge({
         tail: null,
         elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
       }),
+      config,
     );
   }
 
@@ -346,7 +357,7 @@ export async function runConfirmMerge({
       gates: undefined,
       elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
     });
-    return logConfirmResult(
+    return await logConfirmResult(
       {
         storyId,
         standalone: true,
@@ -355,6 +366,7 @@ export async function runConfirmMerge({
         tail: waitOutcome.tail ?? null,
       },
       terminal,
+      config,
     );
   }
 
@@ -409,9 +421,10 @@ export async function runConfirmMerge({
   if (confirmation.action === 'done') {
     progress('DONE', `✅ Story #${storyId} → agent::done (merged).`);
   }
-  return logConfirmResult(
+  return await logConfirmResult(
     { ...confirmation, standalone: true, tail },
     terminal,
+    config,
   );
 }
 
@@ -448,6 +461,7 @@ async function main() {
       `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
     );
     emitTerminalEnvelope(terminal);
+    await emitTerminalFriction({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
 }

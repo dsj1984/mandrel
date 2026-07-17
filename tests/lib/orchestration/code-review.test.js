@@ -9,14 +9,16 @@
  * `findings-renderer`, and post via `upsertStructuredComment`. These
  * tests now stub the factory + upsert seam (the runner-stub indirection
  * is gone — the adapter is the seam).
+ *
+ * v2.0.0 removed the Epic tier: Story is the only scope, and the
+ * Epic-scoped `code-review.start` / `.end` lifecycle emits (whose schema
+ * requires `epicId`) are gone with it — hence no bus wiring here.
  */
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
-
-const stubBus = { emit: async () => {} };
 
 function noopUpsert() {
   return async () => {};
@@ -50,24 +52,17 @@ function baseResolveConfig() {
 
 test('runCodeReview: rejects missing/invalid ticketId', async () => {
   await assert.rejects(
-    () => runCodeReview({ provider: {}, bus: stubBus }),
+    () => runCodeReview({ provider: {}, headRef: 'story-42' }),
     /ticketId is required/,
   );
   await assert.rejects(
     () =>
       runCodeReview({
         ticketId: 0,
+        headRef: 'story-42',
         provider: {},
-        bus: stubBus,
       }),
     /ticketId is required/,
-  );
-});
-
-test('runCodeReview: rejects missing bus', async () => {
-  await assert.rejects(
-    () => runCodeReview({ ticketId: 42, provider: {} }),
-    /bus is required/,
   );
 });
 
@@ -77,8 +72,8 @@ test('runCodeReview: clean run posts the structured comment and reports posted=t
 
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: { kind: 'github' },
-    bus: stubBus,
     reviewProvider: adapter,
     resolveConfigFn: baseResolveConfig,
     upsertCommentFn: upsert.fn,
@@ -99,15 +94,15 @@ test('runCodeReview: clean run posts the structured comment and reports posted=t
   assert.deepEqual(provider, { kind: 'github' });
   assert.equal(ticketId, 42);
   assert.equal(type, 'verification-results');
-  assert.match(body, /Code Review — Epic #42/);
+  assert.match(body, /Code Review — Story #42/);
 });
 
 test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', async () => {
   const adapter = fakeAdapter([]);
   await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     baseRef: 'develop',
     reviewProvider: adapter,
     resolveConfigFn: baseResolveConfig,
@@ -121,10 +116,10 @@ test('runCodeReview: passes scope/ticketId/baseRef/headRef to the adapter', asyn
   // the judged risk envelope's overallLevel. With no planningRisk supplied it
   // resolves to the neutral `standard` default.
   assert.deepEqual(adapter.calls[0], {
-    scope: 'epic',
+    scope: 'story',
     ticketId: 42,
     baseRef: 'develop',
-    headRef: 'epic/42',
+    headRef: 'story-42',
     labels: [],
     depth: 'standard',
   });
@@ -141,8 +136,8 @@ test('runCodeReview: critical findings set halted=true with a reason', async () 
   ]);
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: adapter,
     resolveConfigFn: baseResolveConfig,
     upsertCommentFn: noopUpsert(),
@@ -157,8 +152,8 @@ test('runCodeReview: defaults baseRef to project.baseBranch when arg is null', a
   const adapter = fakeAdapter([]);
   await runCodeReview({
     ticketId: 7,
+    headRef: 'story-7',
     provider: {},
-    bus: stubBus,
     reviewProvider: adapter,
     resolveConfigFn: () => ({
       project: { baseBranch: 'trunk' },
@@ -173,8 +168,8 @@ test('runCodeReview: surfaces upsert failure as posted=false but still returns o
   const adapter = fakeAdapter([]);
   const out = await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     reviewProvider: adapter,
     resolveConfigFn: baseResolveConfig,
     upsertCommentFn: async () => {
@@ -185,90 +180,13 @@ test('runCodeReview: surfaces upsert failure as posted=false but still returns o
   assert.equal(out.posted, false);
 });
 
-test('runCodeReview: adapter throw emits code-review.end with status=invalid and rethrows', async () => {
-  const events = [];
-  const bus = {
-    emit: async (ev, payload) => {
-      events.push({ ev, payload });
-    },
-  };
-  await assert.rejects(
-    () =>
-      runCodeReview({
-        ticketId: 42,
-        provider: {},
-        bus,
-        reviewProvider: {
-          runReview: async () => {
-            throw new Error('adapter blew up');
-          },
-        },
-        resolveConfigFn: baseResolveConfig,
-        upsertCommentFn: noopUpsert(),
-      }),
-    /adapter blew up/,
-  );
-  assert.equal(events[0].ev, 'code-review.start');
-  const end = events.find((e) => e.ev === 'code-review.end');
-  assert.equal(end.payload.status, 'invalid');
-});
-
-test('runCodeReview: adapter returning non-array throws TypeError and emits invalid', async () => {
-  const events = [];
-  const bus = {
-    emit: async (ev, payload) => {
-      events.push({ ev, payload });
-    },
-  };
-  await assert.rejects(
-    () =>
-      runCodeReview({
-        ticketId: 42,
-        provider: {},
-        bus,
-        reviewProvider: { runReview: async () => 'not-an-array' },
-        resolveConfigFn: baseResolveConfig,
-        upsertCommentFn: noopUpsert(),
-      }),
-    /expected Finding\[\]/,
-  );
-  const end = events.find((e) => e.ev === 'code-review.end');
-  assert.equal(end.payload.status, 'invalid');
-});
-
-test('runCodeReview: emits code-review.start then code-review.end on clean run', async () => {
-  const events = [];
-  const bus = {
-    emit: async (ev, payload) => {
-      events.push({ ev, payload });
-    },
-  };
-  const out = await runCodeReview({
-    ticketId: 42,
-    provider: {},
-    bus,
-    reviewProvider: fakeAdapter([
-      { severity: 'medium', title: 'one', body: 'x' },
-    ]),
-    resolveConfigFn: baseResolveConfig,
-    upsertCommentFn: noopUpsert(),
-  });
-  assert.equal(events[0].ev, 'code-review.start');
-  assert.equal(events[1].ev, 'code-review.end');
-  assert.equal(events[1].payload.epicId, 42);
-  assert.equal(events[1].payload.status, 'ok');
-  assert.deepEqual(events[1].payload.severity, out.severity);
-  assert.equal(events[1].payload.halted, false);
-  assert.equal(events[1].payload.posted, true);
-});
-
 test('runCodeReview: routes provider name from delivery.codeReview to the factory', async () => {
   const factoryCalls = [];
   const adapter = fakeAdapter([]);
   await runCodeReview({
     ticketId: 42,
+    headRef: 'story-42',
     provider: {},
-    bus: stubBus,
     resolveConfigFn: () => ({
       project: { baseBranch: 'main' },
       delivery: { codeReview: { providers: [{ name: 'native' }] } },

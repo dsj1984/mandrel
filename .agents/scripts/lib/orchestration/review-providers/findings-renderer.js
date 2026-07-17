@@ -13,7 +13,6 @@
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').Severity} Severity
- * @typedef {import('./types.js').ReviewScope} ReviewScope
  */
 
 /**
@@ -117,7 +116,6 @@ export function renderManualPromptsSection(messages) {
  * non-empty.
  *
  * @param {{
- *   scope: ReviewScope,
  *   ticketId: number,
  *   baseRef: string,
  *   headRef: string,
@@ -128,26 +126,18 @@ export function renderManualPromptsSection(messages) {
  * @returns {string}
  */
 export function renderFindings(input) {
-  const {
-    scope,
-    ticketId,
-    baseRef,
-    headRef,
-    findings,
-    provider,
-    promptMessages,
-  } = input;
+  const { ticketId, baseRef, headRef, findings, provider, promptMessages } =
+    input;
   const counts = countBySeverity(findings);
   const totalKnown =
     counts.critical + counts.high + counts.medium + counts.suggestion;
 
-  const scopeLabel = scope === 'epic' ? 'Epic' : 'Story';
   const providerLine = provider
     ? `**Provider**: \`${provider}\``
     : '**Provider**: _(unspecified)_';
 
   const lines = [
-    `## 🔬 Code Review — ${scopeLabel} #${ticketId}`,
+    `## 🔬 Code Review — Story #${ticketId}`,
     '',
     `**Comparison**: \`${baseRef}\` … \`${headRef}\``,
     providerLine,

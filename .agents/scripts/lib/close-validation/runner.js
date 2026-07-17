@@ -72,21 +72,19 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  * Worktree locality (Story #1120): when `worktreePath` is supplied, every
  * gate runner is spawned with `cwd: worktreePath` so the gate sees the
  * Story branch's post-rebase tree. Evidence reads/writes still key against
- * `cwd` (the main checkout) because the per-Epic temp tree lives under
- * the main `.git/`. Failure messages name the worktree path.
+ * `cwd` (the main checkout) because the temp tree lives under the main
+ * `.git/`. Failure messages name the worktree path.
  *
- * Evidence-aware: when `storyId` is provided alongside either `epicId` or
- * `standalone: true`, and `useEvidence !== false`, each gate consults
+ * Evidence-aware: when `storyId` is provided alongside `standalone: true`,
+ * and `useEvidence !== false`, each gate consults
  * `validation-evidence.shouldSkip()` against current HEAD + the gate's
  * command-config hash. A matching record skips the gate; a successful run
  * is recorded so the next caller in the local hot path can skip in turn.
  *
- * Standalone keyspace (Story #4250): the standalone path has no parent
- * Epic, so it passes `standalone: true` (and leaves `epicId` null) to route
- * the evidence file to the storyId-anchored
+ * Standalone keyspace (Story #4250): `standalone: true` routes the evidence
+ * file to the storyId-anchored
  * `<tempRoot>/standalone/stories/story-<id>/validation-evidence.json`
- * keyspace instead of feeding a null `epicId` into the Epic-keyed path
- * (which structurally disabled the cache before).
+ * keyspace. v2.0.0 removed the Epic tier and its Epic-keyed keyspace.
  *
  * `onGateStart` is invoked immediately before each gate's runner spawn.
  * story-close uses it to drive `phaseTimer.mark(...)` for per-gate
@@ -100,7 +98,6 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   log?: (m: string) => void,
  *   onGateStart?: (gate: Gate) => void,
  *   storyId?: number|null,
- *   epicId?: number|null,
  *   standalone?: boolean,
  *   useEvidence?: boolean,
  *   evidenceClock?: () => number,
@@ -118,7 +115,6 @@ export async function runCloseValidation({
   log = () => {},
   onGateStart,
   storyId = null,
-  epicId = null,
   standalone = false,
   useEvidence = true,
   evidenceClock = () => Date.now(),
@@ -129,16 +125,12 @@ export async function runCloseValidation({
   const failed = [];
   const skipped = [];
   // Evidence is active when a Story id is present AND there is a keyspace to
-  // anchor on: either a real Epic id (Epic path) or `standalone: true`
-  // (Story #4250 — standalone storyId-anchored keyspace). A bare `epicId:
-  // null` without `standalone` keeps the cache off, as before.
-  const evidenceActive =
-    useEvidence && storyId != null && (epicId != null || standalone);
-  // The evidence-store opts: `standalone` routes to the storyId-anchored
-  // keyspace; otherwise the Epic-keyed path resolves under `epicId`.
-  const evidenceStoreOpts = { cwd, epicId, standalone };
-  // Evidence keys against the main checkout's HEAD because the per-Epic
-  // evidence file lives under the main `.git/`. Gate spawn, in contrast,
+  // anchor on (`standalone: true` — Story #4250's storyId-anchored
+  // keyspace, now the only one).
+  const evidenceActive = useEvidence && storyId != null && standalone;
+  const evidenceStoreOpts = { cwd, standalone };
+  // Evidence keys against the main checkout's HEAD because the evidence
+  // file lives under the main `.git/`. Gate spawn, in contrast,
   // runs in the worktree when one is supplied — that's the whole point of
   // Story #1120.
   const spawnCwd = worktreePath ?? cwd;

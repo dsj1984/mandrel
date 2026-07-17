@@ -393,7 +393,6 @@ abstract interface, enabling future portability beyond GitHub.
 classDiagram
     class ITicketingProvider {
         <<abstract>>
-        +getEpics(filters) Promise
         +getEpic(epicId) Promise
         +getTickets(epicId, filters) Promise
         +getSubTickets(parentId) Promise
@@ -412,7 +411,6 @@ classDiagram
         -owner: string
         -repo: string
         -token: string
-        +getEpics(filters) Promise
         +getEpic(epicId) Promise
         ...all interface methods
     }
@@ -492,7 +490,7 @@ readers, kept in sync by a drift test.
 | `project.paths`          | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`).        |
 | `project.commands`       | Validate / lint / test / typecheck / build commands; `null` disables.  |
 | `delivery.quality`       | Maintainability + CRAP + lint baselines and gate configuration.         |
-| `planning.context`, `delivery.maxTokenBudget`, `delivery.execution` | Resource ceilings (planning-context budget, token budget, execution timeout). |
+| `delivery.execution`, `delivery.lease` | Resource ceilings (per-process execution timeout, assignee-as-lease TTL). Planner-context size is bounded by the fixed `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`, not a config knob. |
 | `github` + `delivery`    | GitHub provider config, worktree isolation, deliver-runner tuning.      |
 
 Each grouped block is read through a typed accessor (`getPaths(config)`,
@@ -689,7 +687,6 @@ Story. The script surface is:
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `single-story-init.js`         | Validates the standalone Story, branches directly from `main` (no `epic/<id>` seed, no dispatch-manifest gate).   |
 | `stories-wave-tick.js`         | Continuous ready-set planner for the standalone fan-out — a thin adapter over the shared `selectReadySet` core; emits the per-beat dispatch set on the `stories-ready-set` envelope and resolves the global `concurrencyCap` (default 3). |
-| `lib/observability/hook-heartbeat.js` | `story.heartbeat` liveness writer, invoked from the PostToolUse trace hook (`tool-trace-hook.js`) so every tool call refreshes the heartbeat — no dedicated bookkeeping turn. Appends via `lib/orchestration/lifecycle/emit-story-heartbeat.js`. |
 | `single-story-close.js`        | Runs the canonical close-validation gate chain against the base branch, opens the PR straight to `main` with auto-merge armed, and rests the Story at `agent::closing`. |
 | `single-story-confirm-merge.js` | Post-merge confirmation: once `gh pr checks --watch` exits green and the PR merges, flips `agent::closing → agent::done` and closes the issue. |
 
@@ -943,16 +940,19 @@ summarizes, and re-plans (or yields to the operator) on any of three cues:
   once for the same error class and the failure mode hasn't changed — the
   diagnosis is wrong.
 
-The protocol has a runtime substrate: a Story delivery sub-agent emits a
-`story.heartbeat` lifecycle event on each meaningful progress boundary (or
-when it stalls on a long-running step), and the parent `/deliver` host
-reads those heartbeats from the lifecycle ledger under `temp/run-<id>/`
-(and the PostToolUse hook auto-emits via `lib/observability/hook-heartbeat.js`)
-to distinguish a child still making progress from a dead one. Multi-Story
-ready-set sequencing is owned by `stories-wave-tick.js` (not an idle
-watchdog CLI). A child with no recent `story.heartbeat`, no commit on its
-`story-<id>` branch, and no `agent::blocked` label is the failure mode the
-host re-dispatches or escalates without the child's participation.
+The protocol is prompt-level, not runtime-enforced. A Story delivery
+sub-agent that genuinely cannot proceed transitions to `agent::blocked` and
+exits non-zero rather than falling silent; its commits on `story-<id>` and
+that label are the observable progress surface. Multi-Story ready-set
+sequencing is owned by `stories-wave-tick.js` (not an idle watchdog CLI).
+
+There is **no live liveness beat**. A `story.heartbeat` event and its
+PostToolUse-hook emitter once existed, but the emitter required an
+`epicId >= 1` that v2 — which has no Epics — never supplied, so it could
+never fire; it was deleted (A22) rather than repaired. A child that stalls
+without an `agent::blocked` label and without commits is indistinguishable
+from a dead one, and is escalated by operator observation, not by an
+automatic staleness check.
 
 ---
 
@@ -1129,14 +1129,10 @@ CI    ▶ │ ci.yml:                               │
 Local close-validation, the `helpers/code-review.md` review pass, and `/deliver` Phase 3
 (close-validation) wrap each gate in `evidence-gate.js`. On a successful
 run the wrapper records
-`{ gateName, commitSha, commandConfigHash, timestamp }` under the run
-tree at `temp/run-<id>/validation-evidence.json` for run-scoped
-gates and `temp/run-<id>/stories/story-<storyId>/validation-evidence.json`
-for Story-scoped gates (standalone Stories use
-`temp/standalone/stories/story-<storyId>/validation-evidence.json`; both
-gitignored via `temp/`). Callers must pass both `--scope-id` and the
-owning run id (`--epic-id` remains the CLI flag name for historical
-reasons). Subsequent invocations against the same
+`{ gateName, commitSha, commandConfigHash, timestamp }` at
+`temp/standalone/stories/story-<storyId>/validation-evidence.json`
+(gitignored via `temp/`). Callers pass `--standalone --scope-id
+<storyId>`. Subsequent invocations against the same
 `git rev-parse HEAD` and resolved command config skip in milliseconds.
 `--no-evidence` forces a re-run; pre-push and CI ignore the evidence file
 entirely so independent verification is never bypassed.

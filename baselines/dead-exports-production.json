@@ -893,10 +893,6 @@
       "symbol": "DEFAULT_DECOMPOSER"
     },
     {
-      "file": ".agents/scripts/lib/config/runners.js",
-      "symbol": "DEFAULT_STORY_MERGE_RETRY"
-    },
-    {
       "file": ".agents/scripts/lib/config/runtime.js",
       "symbol": "resolveSessionId"
     },
@@ -922,19 +918,15 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicManifestPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicRetroMirrorPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicTechSpecPath"
+      "symbol": "epicLedgerPath"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "mainCheckoutRoot"
+    },
+    {
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "symbol": "runTempDir"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
@@ -1226,19 +1218,7 @@
     },
     {
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "symbol": "ensureEpicBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "symbol": "ensureEpicBranchRef"
-    },
-    {
-      "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "symbol": "ensureLocalBranch"
-    },
-    {
-      "file": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "symbol": "planEnsureEpicBranchRefAction"
     },
     {
       "file": ".agents/scripts/lib/git-utils.js",
@@ -1251,10 +1231,6 @@
     {
       "file": ".agents/scripts/lib/git-utils.js",
       "symbol": "__setSleep"
-    },
-    {
-      "file": ".agents/scripts/lib/git-utils.js",
-      "symbol": "getEpicBranch"
     },
     {
       "file": ".agents/scripts/lib/git-utils.js",
@@ -1322,23 +1298,11 @@
     },
     {
       "file": ".agents/scripts/lib/observability/active-story-env.js",
-      "symbol": "renderActiveSliceEnvFile"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/active-story-env.js",
       "symbol": "renderActiveStoryEnvFile"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/active-story-env.js",
-      "symbol": "setActiveSliceEnv"
     },
     {
       "file": ".agents/scripts/lib/observability/signal-validator.js",
       "symbol": "readSignalRejectCount"
-    },
-    {
-      "file": ".agents/scripts/lib/observability/signals-writer.js",
-      "symbol": "forEachEpicLine"
     },
     {
       "file": ".agents/scripts/lib/observability/source-classifier.js",
@@ -1351,22 +1315,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/auto-merge-cwd.js",
       "symbol": "pickPrimaryWorktreePath"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/bookkeeping-outbox.js",
-      "symbol": "enqueueComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/bookkeeping-outbox.js",
-      "symbol": "readOutbox"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/bookkeeping-outbox.js",
-      "symbol": "reconcileOutbox"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/bookkeeping-outbox.js",
-      "symbol": "transitionStateOrBuffer"
     },
     {
       "file": ".agents/scripts/lib/orchestration/column-sync.js",
@@ -1511,18 +1459,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "reduceOutcomes"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "symbol": "TraceLogger"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "symbol": "formatDurationChunk"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/trace-logger.js",
-      "symbol": "render"
     },
     {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
@@ -1739,10 +1675,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
       "symbol": "analyzeChangedFiles"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
-      "symbol": "buildLintEvidenceConfig"
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-providers/native.js",
@@ -2057,10 +1989,6 @@
       "symbol": "isClaimLive"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/ticket-lease.js",
-      "symbol": "latestHeartbeatForOwner"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "symbol": "_internal"
     },
@@ -2209,22 +2137,6 @@
       "symbol": "transitionStoryDirect"
     },
     {
-      "file": ".agents/scripts/lib/planning-corpus.js",
-      "symbol": "DEFAULT_CORPUS_BODY_FETCH_TOP_K"
-    },
-    {
-      "file": ".agents/scripts/lib/planning-corpus.js",
-      "symbol": "extractRelevantSections"
-    },
-    {
-      "file": ".agents/scripts/lib/planning-corpus.js",
-      "symbol": "fetchCandidateBodies"
-    },
-    {
-      "file": ".agents/scripts/lib/planning-corpus.js",
-      "symbol": "rankCandidateEpics"
-    },
-    {
       "file": ".agents/scripts/lib/preflight-runner.js",
       "symbol": "logBlockers"
     },
@@ -2251,10 +2163,6 @@
     {
       "file": ".agents/scripts/lib/signals/detectors/common.js",
       "symbol": "validateDetectorArgs"
-    },
-    {
-      "file": ".agents/scripts/lib/signals/index.js",
-      "symbol": "appendEpicSignal"
     },
     {
       "file": ".agents/scripts/lib/signals/index.js",

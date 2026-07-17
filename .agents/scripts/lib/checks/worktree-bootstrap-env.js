@@ -8,7 +8,7 @@
  * tests that read environment variables silently take a different code
  * path.
  *
- * Surface: `epic-deliver` preflight and the `/diagnose` CLI. Surfaced as a
+ * Surface: the `/diagnose` CLI. Surfaced as a
  * warning rather than a blocker — the missing file may be a deliberate
  * choice (e.g. a worktree that doesn't need MCP), but the operator should
  * see the divergence from the main checkout.
@@ -28,7 +28,7 @@ const ID = 'worktree-bootstrap-env';
 export default {
   id: ID,
   severity: 'warning',
-  scope: ['epic-deliver', 'diagnose'],
+  scope: ['diagnose'],
   autoCorrect: 'refuse-and-print',
   detect(state) {
     const status = state?.fs?.worktreeBootstrapStatus ?? {};

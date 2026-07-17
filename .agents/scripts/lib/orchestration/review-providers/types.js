@@ -26,7 +26,7 @@
  * @property {number=}  line         - 1-based line number, when attributable.
  * @property {string=}  category     - Free-form tag (e.g. 'security', 'docs', 'lint').
  *
- * @typedef {'story'|'epic'} ReviewScope
+ * @typedef {'story'} ReviewScope
  *
  * @typedef {'light'|'standard'|'deep'} ReviewDepth
  *

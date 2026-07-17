@@ -376,14 +376,14 @@ Concurrent runs are serialised by **two distinct layers**:
   assignee; `--steal` is the only override. See
   [`README.md` § Multi-developer coordination](../README.md#multi-developer-coordination).
 
-### Concurrent close — push retry
+### Concurrent close
 
 `single-story-close.js` syncs the Story branch from `origin/main` before
-pushing and opening/locating the PR. Bounded retry constants live in
-`.agents/scripts/lib/config/runners.js` (`DEFAULT_STORY_MERGE_RETRY`:
-3 attempts, `[250, 500, 1000]` ms backoff). A real content conflict aborts
-the loop with a clear error, leaves the tree clean, and exits non-zero for
-manual resolution.
+pushing and opening/locating the PR, so concurrent closes serialize through
+their own worktrees rather than racing one shared branch. The push does not
+retry: a rejected push, or a real content conflict at base-sync, aborts with
+a clear error, leaves the tree clean, and exits non-zero for manual
+resolution.
 
 ---
 

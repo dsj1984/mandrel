@@ -601,6 +601,10 @@ async function executeFollowUpRollup({
       storyId: primaryId,
       proposals,
       graduated,
+      // Story #4578 — the run's Story count is what lets an empty roll-up
+      // render as a flagged claim ("0 signals across N Stories") rather than
+      // as "nothing to follow up".
+      storyCount: stories.length,
     }).replace(
       `from Story #${primaryId}`,
       `from plan-run \`${planRunId}\` (primary Story #${primaryId})`,
@@ -610,7 +614,12 @@ async function executeFollowUpRollup({
   return {
     kind: 'follow-up-rollup',
     signalCount: signals.length,
+    storyCount: stories.length,
     filed: graduated.filed?.length ?? 0,
+    // Story #4578 — zero signals across a multi-Story run is a claim, not a
+    // clean bill of health. Surfaced on the step result so the CLI can warn
+    // the operator without re-deriving it from the comment prose.
+    emptyRollupSuspect: signals.length === 0 && stories.length > 1,
   };
 }
 

@@ -27,16 +27,16 @@ test('ULTRAREVIEW_PROMPT_TEMPLATE: contains the placeholder tokens', () => {
   assert.match(ULTRAREVIEW_PROMPT_TEMPLATE, /ultrareview/);
 });
 
-test('buildUltrareviewMessage: substitutes Epic scope and refs', () => {
+test('buildUltrareviewMessage: substitutes refs', () => {
   const msg = buildUltrareviewMessage({
-    scope: 'epic',
+    scope: 'story',
     ticketId: 42,
     baseRef: 'main',
-    headRef: 'epic/42',
+    headRef: 'story-42',
   });
-  assert.match(msg, /Epic/);
+  assert.match(msg, /Story/);
   assert.match(msg, /`main`/);
-  assert.match(msg, /`epic\/42`/);
+  assert.match(msg, /`story-42`/);
   assert.doesNotMatch(msg, /{scopeLabel}/);
 });
 

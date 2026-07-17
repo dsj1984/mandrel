@@ -9,10 +9,8 @@
  * and the NDJSON append live here once rather than being copy-pasted.
  *
  * Like its callers, this is a bare `appendFileSync` rather than a bus
- * publish: these events fire from both the epic-path finalize flow (which
- * owns a bus for its own run) and the standalone `single-story-close` flow
- * (which has no bus at all), so a direct append keeps both call sites
- * dependency-free.
+ * publish: these events fire from the `single-story-close` flow, which has
+ * no bus at all, so a direct append keeps the call site dependency-free.
  */
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -22,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 
-import { epicLedgerPath, storyLedgerPath } from '../../config/temp-paths.js';
+import { storyLedgerPath } from '../../config/temp-paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMA_DIR = path.resolve(
@@ -35,7 +33,17 @@ const SCHEMA_DIR = path.resolve(
   'lifecycle',
 );
 
-const VALID_SCOPES = new Set(['epic', 'story']);
+/**
+ * The scopes a merge-terminal event may be WRITTEN with. v2.0.0 removed the
+ * Epic tier, so `'story'` is the only emittable scope.
+ *
+ * Note the deliberate asymmetry with the `merge.unlanded` /
+ * `merge.flip-failed` schema enums, which still accept `'epic'`: archived
+ * ledger records carry `scope: 'epic'` and the schemas must keep validating
+ * them on read. The value stays READABLE; only the writer path is gone —
+ * the same split `merge-block-class.js` keeps for `predicate-refused`.
+ */
+const VALID_SCOPES = new Set(['story']);
 
 /** @type {Map<string, Function>} */
 const _validators = new Map();
@@ -97,7 +105,6 @@ export function assertMergeTerminalFields(
  * @param {string} args.emitter       Caller name, for error attribution.
  * @param {string} args.schemaFile    Basename under `schemas/lifecycle/`.
  * @param {object} args.payload       The event payload (already assembled).
- * @param {'epic'|'story'} args.scope
  * @param {number} args.ticketId
  * @param {string} args.timestamp
  * @param {object} [args.config]
@@ -108,7 +115,6 @@ export function appendLedgerEvent({
   emitter,
   schemaFile,
   payload,
-  scope,
   ticketId,
   timestamp,
   config,
@@ -123,10 +129,7 @@ export function appendLedgerEvent({
   }
 
   const ledgerPath =
-    ledgerPathOverride ??
-    (scope === 'epic'
-      ? epicLedgerPath(ticketId, config)
-      : storyLedgerPath(null, ticketId, config));
+    ledgerPathOverride ?? storyLedgerPath(null, ticketId, config);
   mkdirSync(path.dirname(ledgerPath), { recursive: true });
   const record = {
     kind: 'emitted',

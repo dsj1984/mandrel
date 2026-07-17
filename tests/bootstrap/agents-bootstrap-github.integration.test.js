@@ -281,17 +281,35 @@ describe('agents-bootstrap-github — CI workflow template (Story #1401)', () =>
     );
   });
 
-  it('threads --epic-ref through both gates when EPIC_REF is set', () => {
+  it('pins the baseline read to the PR base branch via the BASELINE_REF env var', () => {
     const yaml = renderCiWorkflow();
-    assert.ok(yaml.includes('EPIC_REF:'));
-    assert.ok(yaml.includes('--epic-ref "$' + '{EPIC_REF}"'));
-    // Both gates must accept --epic-ref — count occurrences.
-    const epicRefMatches = yaml.match(/--epic-ref "\$\{EPIC_REF\}"/g) ?? [];
+    // BASELINE_REF is the mechanism check-baselines.js actually reads
+    // (resolveDispatchScope). It must reach both gate steps' env.
+    assert.ok(yaml.includes('BASELINE_REF:'));
+    const envWirings =
+      yaml.match(/BASELINE_REF: \$\{\{ env\.BASELINE_REF \}\}/g) ?? [];
     assert.equal(
-      epicRefMatches.length,
+      envWirings.length,
       2,
-      'expected --epic-ref on both maintainability and crap PR legs',
+      'expected BASELINE_REF wired into both the maintainability and crap steps',
     );
+    assert.match(
+      yaml,
+      /BASELINE_REF: \$\{\{ github\.event_name == 'pull_request' && format\('origin\/\{0\}', github\.event\.pull_request\.base\.ref\) \|\| '' \}\}/,
+      'the ref must be the PR base branch, resolved only on pull_request',
+    );
+  });
+
+  it('never emits an epic branch ref or the retired --epic-ref flag', () => {
+    // The template used to compute `epic/<base.ref>` — a branch the
+    // Story-only model never creates — and pass it via `--epic-ref`, a flag
+    // check-baselines.js does not parse at all (it died with the separate
+    // check-crap.js / check-maintainability.js CLIs). Every consumer CI run
+    // was therefore threading a bogus ref through a nonexistent flag.
+    const yaml = renderCiWorkflow();
+    assert.doesNotMatch(yaml, /--epic-ref/);
+    assert.doesNotMatch(yaml, /EPIC_REF/);
+    assert.doesNotMatch(yaml, /epic\//);
   });
 
   it('writes the workflow to .github/workflows/ci.yml and is idempotent', () => {

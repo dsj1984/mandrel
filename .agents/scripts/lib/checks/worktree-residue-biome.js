@@ -6,8 +6,8 @@
  * root `npm run lint` walks into the orphan tree, hits the nested config,
  * and fails. The close-time biome block is the canonical symptom.
  *
- * Surface: `epic-deliver` preflight, `story-close` preflight, and the
- * `/diagnose` CLI. Surfaced as a blocker so the operator clears the residue
+ * Surface: `story-close` preflight, the `/diagnose` CLI, and retro.
+ * Surfaced as a blocker so the operator clears the residue
  * with `rm -rf` before close re-runs the validation chain.
  *
  * AutoCorrect is `refuse-and-print`. Recursive deletion under `.worktrees/`
@@ -21,7 +21,7 @@ const ID = 'worktree-residue-biome';
 export default {
   id: ID,
   severity: 'blocker',
-  scope: ['epic-deliver', 'story-close', 'diagnose', 'retro'],
+  scope: ['story-close', 'diagnose', 'retro'],
   autoCorrect: 'refuse-and-print',
   detect(state) {
     const orphans = state?.fs?.worktreeBiomeOrphans ?? [];

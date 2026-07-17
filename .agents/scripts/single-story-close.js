@@ -89,6 +89,7 @@ import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { formatCliError } from './lib/error-redactor.js';
 import { Logger } from './lib/Logger.js';
+import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
@@ -239,6 +240,10 @@ async function main() {
     // human-facing failure text is unchanged, then emit the envelope.
     Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
     emitTerminalEnvelope(terminal);
+    // Story #4578 — a close that died before the runner could report its own
+    // terminal is exactly the friction the retro must see, so the crash path
+    // gets the same emit the happy path does. Best-effort; cannot throw.
+    await emitTerminalFriction({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
 }

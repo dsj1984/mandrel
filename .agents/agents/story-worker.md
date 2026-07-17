@@ -109,19 +109,16 @@ scores the working diff against **each** `acceptance[]` item and consumes the
 - **`block`** (round cap reached, criteria still unmet) → take the blocked path.
   Never silently proceed to close.
 
-## Lifecycle: heartbeat & blocked (MUST)
+## Lifecycle: progress & blocked (MUST)
 
-- **Heartbeat.** Emit a `story.heartbeat` lifecycle event on every phase
-  transition (or when you stall on a long-running step) so the parent
-  `/deliver` idle watchdog can tell a live child from a dead one. Relay one
-  terse line per transition (e.g. `Story #<id>: implementing → closing`), not
-  a full body. `story.heartbeat` is the only progress surface.
+- **Progress.** Relay one terse line per phase transition (e.g.
+  `Story #<id>: implementing → closing`), not a full body. Your commits on
+  `story-<id>` and these lines are the progress surface.
 - **Blocked.** If you genuinely cannot proceed, transition the Story to
   `agent::blocked`, post a `friction` comment naming the decision needed (or
   the unmet criteria and their evidence), and **exit non-zero**.
-  **Never fall silent** — a child with no heartbeat, no commit, and no
-  `agent::blocked` label is exactly the dead-child failure the watchdog
-  is built to catch.
+  **Never fall silent** — a child that stalls without an `agent::blocked`
+  label and no commit is indistinguishable from a dead one.
 - **Anti-thrashing.** If you hit the same error class twice with the same fix,
   or drift through reads without narrowing the problem, STOP: summarize what
   recurred and either re-plan or take the blocked path. Do not paper over a

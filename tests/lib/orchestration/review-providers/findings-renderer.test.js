@@ -129,18 +129,18 @@ test('renderFindings: deterministic snapshot for a fixed Finding[]', () => {
   ];
 
   const out = renderFindings({
-    scope: 'epic',
+    scope: 'story',
     ticketId: 2815,
     baseRef: 'main',
-    headRef: 'epic/2815',
+    headRef: 'story-2815',
     findings,
     provider: 'native',
   });
 
   const expected = [
-    '## 🔬 Code Review — Epic #2815',
+    '## 🔬 Code Review — Story #2815',
     '',
-    '**Comparison**: `main` … `epic/2815`',
+    '**Comparison**: `main` … `story-2815`',
     '**Provider**: `native`',
     '**Findings**: 4',
     '',
