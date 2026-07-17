@@ -59,7 +59,7 @@ function resolveMemoryDir({ github } = {}) {
  *
  * Ensures a docs digest exists at the **same** per-Epic temp path the
  * `/deliver` story sub-agents already consume
- * (`<tempRoot>/epic-<epicId>/docs-digest.md`) via the shared
+ * (`<tempRoot>/epic-<seedIssueId>/docs-digest.md`) via the shared
  * `ensureDocsDigest` export in `docs-digest.js` — one generator, one file,
  * reused across the planning and delivery surfaces for the same Epic. The
  * envelope carries only the digest path, not embedded doc content; the
@@ -71,10 +71,10 @@ function resolveMemoryDir({ github } = {}) {
  * planning; that fallback remains a `doc-reader.js` primitive used
  * elsewhere, not part of this envelope.
  *
- * @param {{ epicId: number, settings: object, cwd: string }} args
+ * @param {{ seedIssueId: number, settings: object, cwd: string }} args
  * @returns {Promise<{ mode: 'digest', digestPath: string } | null>}
  */
-async function buildPlanningDocsContext({ epicId, settings, cwd }) {
+async function buildPlanningDocsContext({ seedIssueId, settings, cwd }) {
   const docsContextFiles = Array.isArray(settings?.docsContextFiles)
     ? settings.docsContextFiles
     : [];
@@ -82,7 +82,11 @@ async function buildPlanningDocsContext({ epicId, settings, cwd }) {
 
   const paths = getPaths({ project: { paths: settings?.paths } });
   const docsRoot = path.resolve(cwd, paths.docsRoot);
-  const relPath = path.join(paths.tempRoot, `epic-${epicId}`, 'docs-digest.md');
+  const relPath = path.join(
+    paths.tempRoot,
+    `epic-${seedIssueId}`,
+    'docs-digest.md',
+  );
   const absPath = path.resolve(cwd, relPath);
 
   const result = await ensureDocsDigest({
@@ -112,7 +116,7 @@ async function buildPlanningDocsContext({ epicId, settings, cwd }) {
  * in `lib/orchestration/plan-context.js`.
  */
 export async function buildAuthoringContext(
-  epicId,
+  seedIssueId,
   provider,
   settings = {},
   opts = {},
@@ -122,15 +126,15 @@ export async function buildAuthoringContext(
   // envelope build, which also needs the raw body for clarity scoring and
   // re-plan detection) does not pay a second provider fetch. Absent, the
   // fetch behaviour is unchanged.
-  const epic = opts.epic ?? (await provider.getEpic(epicId));
+  const epic = opts.epic ?? (await provider.getEpic(seedIssueId));
   if (!epic) {
-    throw new Error(`Epic #${epicId} not found.`);
+    throw new Error(`Epic #${seedIssueId} not found.`);
   }
 
   const { cwd = PROJECT_ROOT } = opts;
 
   const docsContext = await buildPlanningDocsContext({
-    epicId: epic.id,
+    seedIssueId: epic.id,
     settings,
     cwd,
   });

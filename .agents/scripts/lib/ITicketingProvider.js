@@ -1,7 +1,7 @@
 /**
  * ITicketingProvider — Abstract Ticketing Provider Interface
  *
- * All ticketing interactions in the v5 Epic-centric orchestration are mediated
+ * All ticketing interactions in the v5 Story-centric orchestration are mediated
  * through this interface. Concrete implementations (e.g., `providers/github.js`)
  * extend this class and override every method.
  *

@@ -338,18 +338,18 @@ For each untriaged ledger item:
    const { promotions } = await promoteFindings(ledgerItems, {
      searchIssues, // GitHub provider, open + closed
      createStory, // tight cluster (≤2 surfaces): seed → /plan --seed-file
-     createEpic, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
+     createPlanSeed, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
    });
    ```
 
    - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
      `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
      distinct coverage surfaces routes to `createStory`; **>2** routes to
-     `createEpic`. Neither port opens an Epic ticket — both chain
+     `createPlanSeed`. Neither port opens an Epic ticket — both chain
      `/plan --seed-file`. The workflow introduces no new sizing, clustering,
      or dedup logic — `route-finding.js` / `promote-finding.js` remain the
      single implementation.
-   - **`createStory` / `createEpic` (`/plan --seed-file`)** — render a
+   - **`createStory` / `createPlanSeed` (`/plan --seed-file`)** — render a
      **redacted** plan seed from the cluster (reuse the `/audit-to-stories`
      Phase 5a seed shape; redaction already ran in Capture), **stamp the
      cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then

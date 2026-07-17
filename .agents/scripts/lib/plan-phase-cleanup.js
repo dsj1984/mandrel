@@ -1,9 +1,9 @@
 /**
  * plan-phase-cleanup.js — Post-phase temp-file cleanup for `/plan`.
  *
- * The spec and decompose phases write several Epic-scoped temp files under
- * the per-Epic tree (`temp/epic-<id>/planner-context.json`,
- * `temp/epic-<id>/techspec.md`, etc. — see `lib/config/temp-paths.js`). The
+ * The spec and decompose phases write several run-scoped temp files under
+ * the per-run tree (`temp/run-<id>/planner-context.json`,
+ * `temp/run-<id>/techspec.md`, etc. — see `lib/config/temp-paths.js`). The
  * workflow .md previously told the operator to `Remove-Item` those files by
  * name at the end of each phase, which rots: adding a new temp file in the
  * script required a synchronized markdown edit, and missed edits left
@@ -19,20 +19,20 @@
  * never sinks a successful phase.
  *
  * Migration note (Epic #1030 Story #1040): the legacy flat layout
- * (`temp/planner-context-epic-<id>.json` etc.) has been retired. The
- * resolver now delegates to `epicArtifactPath` from
- * `lib/config/temp-paths.js`, which yields `temp/epic-<id>/<basename>`
+ * (`temp/planner-context-for-<id>.json` etc.) has been retired. The
+ * resolver now delegates to `runArtifactPath` from
+ * `lib/config/temp-paths.js`, which yields `temp/run-<id>/<basename>`
  * under the configured `tempRoot`.
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { epicArtifactPath } from './config/temp-paths.js';
+import { runArtifactPath } from './config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './config-resolver.js';
 
 /**
- * Map of phase → artifact basenames (no path components). The per-Epic
- * directory prefix is supplied by `epicArtifactPath` at resolution time.
+ * Map of phase → artifact basenames (no path components). The per-run
+ * directory prefix is supplied by `runArtifactPath` at resolution time.
  */
 export const PHASE_TEMP_BASENAMES = Object.freeze({
   spec: Object.freeze([
@@ -82,8 +82,8 @@ export function resolvePhaseTempPaths(phase, epicId, repoRoot = PROJECT_ROOT) {
     config = undefined;
   }
   return basenames.map((basename) => {
-    const rel = epicArtifactPath(epicId, basename, config);
-    // `epicArtifactPath` yields a path under `tempRoot` (relative when
+    const rel = runArtifactPath(epicId, basename, config);
+    // `runArtifactPath` yields a path under `tempRoot` (relative when
     // tempRoot is itself relative — the framework default). Rebase
     // relative paths against `repoRoot` so callers always receive an
     // absolute path — matches the pre-migration contract that

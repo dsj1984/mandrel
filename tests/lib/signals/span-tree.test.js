@@ -5,7 +5,7 @@
  * Covers the AC from the Task ticket:
  *   - Pure function: identical input → identical output (no globals).
  *   - Missing `end` events leave `durationMs: null` (does not throw).
- *   - Empty input → `{ epic: null, stories: [] }` (does not throw).
+ *   - Empty input → `{ run: null, stories: [] }` (does not throw).
  *
  * The viewer's surface-level tests live alongside `signals-view.test.js`;
  * this file pins the builder's contract in isolation.
@@ -21,9 +21,9 @@ async function* fromArray(events) {
 }
 
 describe('signals/span-tree — empty + edge cases', () => {
-  it('empty input → { epic: null, stories: [] }', async () => {
+  it('empty input → { run: null, stories: [] }', async () => {
     const tree = await buildSpanTree(fromArray([]));
-    assert.deepEqual(tree, { epic: null, stories: [] });
+    assert.deepEqual(tree, { run: null, stories: [] });
   });
 
   it('throws TypeError when iter is null/undefined/non-object', async () => {
@@ -41,7 +41,7 @@ describe('signals/span-tree — empty + edge cases', () => {
         { kind: 'friction', ts: '2026-05-11T00:00:00Z', epicId: 1 },
       ]),
     );
-    assert.equal(tree.epic, 1);
+    assert.equal(tree.run, 1);
     assert.equal(tree.stories.length, 1);
   });
 });
@@ -203,7 +203,7 @@ describe('signals/span-tree — grouping', () => {
         },
       ]),
     );
-    assert.equal(tree.epic, 99);
+    assert.equal(tree.run, 99);
     assert.equal(tree.stories[0].id, 9);
   });
 

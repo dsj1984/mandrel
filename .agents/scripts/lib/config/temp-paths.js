@@ -15,7 +15,7 @@
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
  *     ├─ lifecycle.ndjson     (lifecycle bus ledger)
  *     ├─ checkpoints/...      (pre-v2 epic-runner state store; retained layout)
- *     ├─ <name>               (epicArtifactPath escape hatch)
+ *     ├─ <name>               (runArtifactPath escape hatch)
  *     └─ stories/
  *        └─ story-<sid>/
  *           ├─ manifest.md       (story dispatch manifest)
@@ -154,11 +154,9 @@ export function tempRootFrom(config) {
     : 'temp';
 }
 
-const epicId = (id) => {
+const runId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
-    throw new Error(
-      `[temp-paths] epicId must be a positive integer; got ${id}`,
-    );
+    throw new Error(`[temp-paths] runId must be a positive integer; got ${id}`);
   }
   return id;
 };
@@ -205,19 +203,14 @@ const artifactName = (name) => {
 };
 
 /**
- * `temp/run-<eid>/` — every Epic-scoped artifact lives under here.
+ * `temp/run-<id>/` — every run-scoped artifact lives under here.
  *
- * @param {number} eid
+ * @param {number} rid
  * @param {object} [config]
  * @returns {string}
  */
 export function runTempDir(rid, config) {
-  return path.join(anchorTempRoot(tempRootFrom(config)), `run-${epicId(rid)}`);
-}
-
-/** @deprecated Use {@link runTempDir}. */
-export function epicTempDir(eid, config) {
-  return runTempDir(eid, config);
+  return path.join(anchorTempRoot(tempRootFrom(config)), `run-${runId(rid)}`);
 }
 
 /**
@@ -245,7 +238,7 @@ export function storyTempDir(eid, sid, config) {
   const parent =
     checkedEid === null
       ? path.join(anchorTempRoot(tempRootFrom(config)), 'standalone')
-      : epicTempDir(checkedEid, config);
+      : runTempDir(checkedEid, config);
   return path.join(parent, 'stories', `story-${storyId(sid)}`);
 }
 
@@ -271,7 +264,7 @@ export function signalsFile(eid, sid, config) {
  * needs an on-disk home even though there is no `run-<id>/` directory to
  * anchor the event to.
  *
- * Mirrors `epicLedgerPath` exactly, one level down: `eid === null` routes
+ * Mirrors `runLedgerPath` exactly, one level down: `eid === null` routes
  * through `storyTempDir`'s standalone branch to
  * `<tempRoot>/standalone/stories/story-<sid>/lifecycle.ndjson`; a real
  * `eid` routes to `<tempRoot>/run-<eid>/stories/story-<sid>/lifecycle.ndjson`,
@@ -297,8 +290,8 @@ export const storyLedgerPath = (eid, sid, config) =>
  * @param {object} [config]
  * @returns {string}
  */
-export function epicArtifactPath(eid, name, config) {
-  return path.join(epicTempDir(eid, config), artifactName(name));
+export function runArtifactPath(eid, name, config) {
+  return path.join(runTempDir(eid, config), artifactName(name));
 }
 
 /**
@@ -328,8 +321,8 @@ export function storyArtifactPath(eid, sid, name, config) {
  * @param {object} [config]
  * @returns {string}
  */
-export const epicLedgerPath = (eid, config) =>
-  epicArtifactPath(eid, 'lifecycle.ndjson', config);
+export const runLedgerPath = (eid, config) =>
+  runArtifactPath(eid, 'lifecycle.ndjson', config);
 
 // --- Canonical Story-level filenames ---
 

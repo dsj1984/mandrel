@@ -174,13 +174,13 @@ function describeEvent(evt) {
  * `process.stdout.write`). Logger is intentionally not used: the
  * viewer's contract is "dumb terminal compatible, parseable output".
  *
- * @param {{ epic: number | null, stories: Array<object> }} tree
+ * @param {{ run: number | null, stories: Array<object> }} tree
  * @param {{ storyFilter?: number | null }} [opts]
  * @returns {void}
  */
 export function renderTree(tree, opts = {}) {
   const filter = opts.storyFilter ?? null;
-  println(`Run #${tree.epic ?? '?'}`);
+  println(`Run #${tree.run ?? '?'}`);
   const stories =
     filter == null ? tree.stories : tree.stories.filter((s) => s.id === filter);
 
@@ -231,10 +231,10 @@ export async function main(argv, deps = {}) {
   const buildSpanTree = deps.buildSpanTree ?? signals.buildSpanTree;
   const config = buildConfig(tempRoot);
 
-  // The reader API still accepts the historical `epic` key while resolving
-  // the run directory through temp-paths (`temp/run-<id>/`).
+  // The reader resolves the run directory through temp-paths
+  // (`temp/run-<id>/`) keyed by the `run` id.
   const iter = read(
-    story != null ? { epic: runId, story, config } : { epic: runId, config },
+    story != null ? { run: runId, story, config } : { run: runId, config },
   );
 
   // Eagerly collect to detect the missing-file case before we start
@@ -267,11 +267,10 @@ export async function main(argv, deps = {}) {
   }
 
   // Pin the run id on the tree to the requested one — `buildSpanTree`
-  // stores it in the legacy `epic` field from the first observed event,
-  // which is normally the same, but if every event lacks that field the
-  // tree's `epic` would be
-  // `null` while we still know what was requested.
-  if (tree.epic == null) tree = { ...tree, epic: runId };
+  // stores it in the `run` field from the first observed event, which is
+  // normally the same, but if every event lacks that field the tree's
+  // `run` would be `null` while we still know what was requested.
+  if (tree.run == null) tree = { ...tree, run: runId };
 
   renderTree(tree, { storyFilter: story });
   return 0;

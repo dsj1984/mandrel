@@ -43,7 +43,7 @@
  *
  * @typedef {Object} RoutedProposalsInput
  * @property {number}                anchorId      Story or run/Epic id in titles.
- * @property {'epic'|'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `epic`).
+ * @property {'story'|'run'}  [anchorKind]    Wording in titles/bodies (default `story`).
  * @property {string}                frameworkRepo   `"<owner>/<repo>"`.
  * @property {string}                consumerRepo    `"<owner>/<repo>"`.
  * @property {FrictionSignal[]}      [signals]
@@ -144,7 +144,7 @@ function dominantSource(entry) {
 }
 
 /**
- * @param {'epic'|'story'|'run'} kind
+ * @param {'story'|'run'} kind
  * @param {number} id
  * @returns {string}
  */
@@ -154,7 +154,7 @@ function formatAnchor(kind, id) {
   return `Epic #${id}`;
 }
 
-/** Story scope promotes single-occurrence friction; Epic/run keep ≥2. */
+/** Story scope promotes single-occurrence friction; run keeps ≥2. */
 function isActionableFriction(total, force, anchorKind) {
   const threshold = anchorKind === 'story' ? 1 : 2;
   return total >= threshold || Boolean(force);
@@ -167,7 +167,7 @@ function isActionableFriction(total, force, anchorKind) {
  *
  * @param {{
  *   anchorId: number,
- *   anchorKind: 'epic'|'story'|'run',
+ *   anchorKind: 'story'|'run',
  *   category: string,
  *   occurrences: number,
  *   source: "framework"|"consumer",
@@ -225,7 +225,7 @@ function renderIssueCommand({ repo, title, metaLabel, category, body }) {
  *
  * @param {{
  *   anchorId: number,
- *   anchorKind: 'epic'|'story'|'run',
+ *   anchorKind: 'story'|'run',
  *   category: string,
  *   occurrences: number,
  *   source: "framework"|"consumer",
@@ -272,7 +272,7 @@ function buildRoutedItem({
  * @param {unknown} input
  * @returns {{
  *   anchorId: number,
- *   anchorKind: 'epic'|'story'|'run',
+ *   anchorKind: 'story'|'run',
  *   frameworkRepo: string,
  *   consumerRepo: string,
  *   signals: FrictionSignal[],
@@ -280,7 +280,7 @@ function buildRoutedItem({
  * } | null}
  */
 function normalizeAnchorKind(kind) {
-  return kind === 'story' || kind === 'run' || kind === 'epic' ? kind : 'epic';
+  return kind === 'story' || kind === 'run' ? kind : 'story';
 }
 
 function normaliseInput(input) {

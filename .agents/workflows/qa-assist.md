@@ -230,7 +230,7 @@ every decision to the shared core helpers; never re-derive them in prose.
 
    ```js
    import { hydrateQaContext } from '../scripts/lib/qa/qa-context-hydrator.js';
-   const context = await hydrateQaContext({ epicNumber, githubPort, gitPort, surfaceMap });
+   const context = await hydrateQaContext({ ticketNumber, githubPort, gitPort, surfaceMap });
    ```
 
 4. **Compute the coverage verdict** for the surface the observation points at,
@@ -320,20 +320,20 @@ its transition is **explicitly operator-gated**.
    const { promotions } = await promoteFindings(ledgerItems, {
      searchIssues, // GitHub provider, open + closed
      createStory, // tight cluster (≤2 surfaces): seed → /plan --seed-file
-     createEpic, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
+     createPlanSeed, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
    });
    ```
 
    - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
      `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
      distinct coverage surfaces routes to `createStory`; **>2** routes to
-     `createEpic`. Neither port opens an Epic ticket — both chain
+     `createPlanSeed`. Neither port opens an Epic ticket — both chain
      `/plan --seed-file`. Do not re-cluster, re-size, or re-dedup in the
      workflow —
      [`route-finding.js`](../scripts/lib/findings/route-finding.js) /
      [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) are the
      single implementation.
-   - **`createStory` / `createEpic` (`/plan --seed-file`)** — render a
+   - **`createStory` / `createPlanSeed` (`/plan --seed-file`)** — render a
      **redacted** plan seed from the cluster (reuse the `/audit-to-stories`
      Phase 5a seed shape; redaction already ran in Phase 2), **stamp the
      cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then

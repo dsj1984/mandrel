@@ -3,7 +3,7 @@
  * inputs.js — shared input validator for close-validation projection helpers.
  *
  * Used by `projections/maintainability.js` (and any future projection that
- * shares the same `{ cwd, epicBranch, storyBranch, baselinePath }` argument
+ * shares the same `{ cwd, baseBranch, storyBranch, baselinePath }` argument
  * shape) to collapse the inline guard cascade into a single predicate that
  * returns a typed `reason` on failure.
  *
@@ -16,7 +16,7 @@
 /**
  * @typedef {Object} ProjectionInputs
  * @property {string} [cwd]
- * @property {string} [epicBranch]
+ * @property {string} [baseBranch]
  * @property {string} [storyBranch]
  * @property {string} [baselinePath]
  */
@@ -32,7 +32,7 @@
 /**
  * @typedef {Object} ValidationFail
  * @property {false} ok
- * @property {'missing-cwd'|'missing-epic-branch'|'missing-story-branch'|'missing-baseline-path'|'no-baseline'} reason
+ * @property {'missing-cwd'|'missing-base-branch'|'missing-story-branch'|'missing-baseline-path'|'no-baseline'} reason
  */
 
 /**
@@ -40,7 +40,7 @@
  *
  * Reason branches (in order):
  *   - `missing-cwd`           — cwd is falsy
- *   - `missing-epic-branch`   — epicBranch is falsy
+ *   - `missing-base-branch`   — baseBranch is falsy
  *   - `missing-story-branch`  — storyBranch is falsy
  *   - `missing-baseline-path` — baselinePath is falsy
  *   - `no-baseline`           — loadBaseline returned null/undefined/empty
@@ -54,9 +54,9 @@
  * @returns {ValidationOk | ValidationFail}
  */
 export function validateProjectionInputs(inputs, opts = {}) {
-  const { cwd, epicBranch, storyBranch, baselinePath } = inputs ?? {};
+  const { cwd, baseBranch, storyBranch, baselinePath } = inputs ?? {};
   if (!cwd) return { ok: false, reason: 'missing-cwd' };
-  if (!epicBranch) return { ok: false, reason: 'missing-epic-branch' };
+  if (!baseBranch) return { ok: false, reason: 'missing-base-branch' };
   if (!storyBranch) return { ok: false, reason: 'missing-story-branch' };
   if (!baselinePath) return { ok: false, reason: 'missing-baseline-path' };
 
@@ -80,7 +80,7 @@ export function validateProjectionInputs(inputs, opts = {}) {
  */
 export const MISSING_ARG_REASONS = new Set([
   'missing-cwd',
-  'missing-epic-branch',
+  'missing-base-branch',
   'missing-story-branch',
   'missing-baseline-path',
 ]);

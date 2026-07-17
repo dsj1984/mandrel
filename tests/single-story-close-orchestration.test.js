@@ -756,8 +756,8 @@ describe('runSingleStoryClose orchestration', () => {
     // intercepts the gate factory on that path.
     mockCloseValidation(t, {
       namedExports: {
-        buildDefaultGates: ({ config, epicBranch }) => {
-          validationCalls.push({ config, epicBranch, phase: 'build' });
+        buildDefaultGates: ({ config, baseBranch }) => {
+          validationCalls.push({ config, baseBranch, phase: 'build' });
           return [{ name: 'fake-gate' }];
         },
         runCloseValidation: async (opts) => {
@@ -800,7 +800,7 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.pushed, true);
     const buildCall = validationCalls.find((c) => c.phase === 'build');
     assert.ok(buildCall, 'buildDefaultGates must be invoked');
-    assert.equal(buildCall.epicBranch, 'main');
+    assert.equal(buildCall.baseBranch, 'main');
     const runCall = validationCalls.find((c) => c.phase === 'run');
     assert.ok(runCall, 'runCloseValidation must be invoked');
     // Story #4250 — the standalone phase routes evidence through the

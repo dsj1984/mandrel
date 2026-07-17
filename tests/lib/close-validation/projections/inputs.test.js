@@ -5,7 +5,7 @@
  *
  * The predicate is the engine behind the guard cascade in
  * `projections/maintainability.js` (and any future projection helper that
- * accepts the same `{ cwd, epicBranch, storyBranch, baselinePath }` shape).
+ * accepts the same `{ cwd, baseBranch, storyBranch, baselinePath }` shape).
  * The tests exercise every reason branch in isolation so a regression at
  * the predicate level surfaces here rather than in a downstream consumer.
  */
@@ -19,7 +19,7 @@ import {
 
 const goodInputs = {
   cwd: '/repo',
-  epicBranch: 'epic/1831',
+  baseBranch: 'epic/1831',
   storyBranch: 'story-1850',
   baselinePath: '/repo/baselines/maintainability.json',
 };
@@ -31,10 +31,10 @@ describe('validateProjectionInputs — missing-arg branches', () => {
     assert.equal(result.reason, 'missing-cwd');
   });
 
-  it('returns missing-epic-branch when epicBranch is empty', () => {
-    const result = validateProjectionInputs({ ...goodInputs, epicBranch: '' });
+  it('returns missing-base-branch when baseBranch is empty', () => {
+    const result = validateProjectionInputs({ ...goodInputs, baseBranch: '' });
     assert.equal(result.ok, false);
-    assert.equal(result.reason, 'missing-epic-branch');
+    assert.equal(result.reason, 'missing-base-branch');
   });
 
   it('returns missing-story-branch when storyBranch is null', () => {
@@ -98,7 +98,7 @@ describe('validateProjectionInputs — baseline check', () => {
 describe('MISSING_ARG_REASONS', () => {
   it('lists every missing-* reason branch the predicate can emit', () => {
     assert.ok(MISSING_ARG_REASONS.has('missing-cwd'));
-    assert.ok(MISSING_ARG_REASONS.has('missing-epic-branch'));
+    assert.ok(MISSING_ARG_REASONS.has('missing-base-branch'));
     assert.ok(MISSING_ARG_REASONS.has('missing-story-branch'));
     assert.ok(MISSING_ARG_REASONS.has('missing-baseline-path'));
     assert.equal(MISSING_ARG_REASONS.size, 4);

@@ -63,13 +63,13 @@ const SECRET_SEGMENT_PATTERNS = Object.freeze([
 const KEY_MEANINGS = Object.freeze({
   // project.*
   'project.baseBranch':
-    'Default base branch Epics and Stories branch from and merge back into.',
+    'Default base branch Stories branch from and merge back into.',
   'project.paths.agentRoot':
     'Directory holding the distributed agent bundle (instructions, skills, scripts).',
   'project.paths.docsRoot':
     'Directory the mandatory docs-context reads resolve against.',
   'project.paths.tempRoot':
-    'Root for gitignored scratch output (per-Epic run state, mirrors, logs).',
+    'Root for gitignored scratch output (per-run state, mirrors, logs).',
   'project.docsContextFiles':
     'Authoritative files an agent must read before starting any task.',
   'project.commands.lintBaseline':
@@ -145,7 +145,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.execution.timeoutMs':
     'Per-execution timeout for orchestrated delivery steps.',
   'delivery.lease.ttlMs':
-    'Time-to-live for the Epic lease before a stale claim is reclaimable.',
+    'Time-to-live for the delivery lease before a stale claim is reclaimable.',
   'delivery.ci.watch.pollIntervalMs':
     'Poll cadence (ms) for the merge/CI watch loop.',
   'delivery.ci.watch.maxPolls':
@@ -157,7 +157,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.docsFreshness.paths':
     'Docs whose freshness is checked at delivery time.',
   'delivery.deliverRunner.concurrencyCap':
-    'Maximum Stories dispatched in parallel within one wave. Default 3 — conservative by design to keep host-quota consumption predictable. Operators running wide-wave Epics with adequate parallel-agent quota should raise this to reduce wall-clock time proportionally.',
+    'Maximum Stories dispatched in parallel within one wave. Default 3 — conservative by design to keep host-quota consumption predictable. Operators running wide waves with adequate parallel-agent quota should raise this to reduce wall-clock time proportionally.',
   'delivery.worktreeIsolation.enabled':
     'Whether each Story runs in its own git worktree.',
   'delivery.worktreeIsolation.root':
@@ -211,7 +211,7 @@ const KEY_MEANINGS = Object.freeze({
   'delivery.acceptanceEval.maxRounds':
     'Redraft rounds the per-Story acceptance self-eval loop runs before escalating to agent::blocked (default 2; clamped to a hard ceiling that cannot be disabled).',
   'delivery.acceptanceEval.clusterCeiling':
-    'Max acceptance criteria one single-delivery acceptance critic scores per fresh-context pass; the Epic ACs are split into ceil(totalACs / clusterCeiling) maker-blind critic clusters (default 4; clamped to [1, 8]).',
+    'Max acceptance criteria one single-delivery acceptance critic scores per fresh-context pass; the Story ACs are split into ceil(totalACs / clusterCeiling) maker-blind critic clusters (default 4; clamped to [1, 8]).',
 
   // qa.*
   'qa.featureRoot': 'Root directory holding the QA harness .feature files.',

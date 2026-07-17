@@ -54,22 +54,22 @@ function buildChangedFileScope(baseRef) {
  *
  * The baselines gate resolves its compare ref through `resolveScope`,
  * whose environment layer reads `BASELINE_REF`. Threading
- * `origin/<epicBranch>` here makes the gate diff head against the epic
+ * `origin/<baseBranch>` here makes the gate diff head against the epic
  * integration branch instead of the framework-default `origin/main`, so
  * drift that already landed on `main` but is outside the Story's own diff
  * does not surface as a phantom regression. The same convention
- * (`origin/<epicBranch>`) is used by the baseline-attribution and
+ * (`origin/<baseBranch>`) is used by the baseline-attribution and
  * auto-refresh paths, keeping read/compare bases aligned.
  *
  * Returns `null` when no integration branch is supplied (the gate then
  * keeps its existing default-ref / consumer-config behaviour untouched).
  *
- * @param {string|undefined|null} epicBranch
+ * @param {string|undefined|null} baseBranch
  * @returns {{ BASELINE_REF: string } | null}
  */
-function buildBaselinesGateEnv(epicBranch) {
-  if (typeof epicBranch !== 'string' || epicBranch.length === 0) return null;
-  return { BASELINE_REF: `origin/${epicBranch}` };
+function buildBaselinesGateEnv(baseBranch) {
+  if (typeof baseBranch !== 'string' || baseBranch.length === 0) return null;
+  return { BASELINE_REF: `origin/${baseBranch}` };
 }
 
 /**
@@ -240,11 +240,11 @@ function probeBaselinesGate({ config, cwd, presentBaselines } = {}) {
  * shared in-process runner. The unified `check-baselines` gate is now the
  * single source of truth for per-kind regression enforcement
  * (attribution-wired floor + tolerance + schema).
- * The `epicBranch` parameter threads the close run's integration branch
+ * The `baseBranch` parameter threads the close run's integration branch
  * into two gates: the `format` gate's `changedFileScope` (existing) and —
  * since Story #3890 — the `check-baselines` gate's `BASELINE_REF` env, so
  * the baselines regression compare diffs head against the epic integration
- * branch (`origin/<epicBranch>`) rather than the framework-default
+ * branch (`origin/<baseBranch>`) rather than the framework-default
  * `origin/main`. Without this, every child Story on an `epic/<id>` branch
  * re-discovered inherited main-vs-epic drift in untouched files as phantom
  * regressions and worked around it by hand-setting `BASELINE_REF`.
@@ -268,10 +268,10 @@ function probeBaselinesGate({ config, cwd, presentBaselines } = {}) {
  * none are required, the gate is skipped with a logged reason (via `log`)
  * instead of a blocking failure.
  *
- * @param {{ config?: object, epicBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void }} [opts]
+ * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void }} [opts]
  *   `config` is the canonical resolved config (`{ project, delivery, ... }`);
  *   gate commands resolve from `project.commands` and the CRAP toggle from
- *   `delivery.quality.gates.crap.enabled`. `epicBranch` is the close run's
+ *   `delivery.quality.gates.crap.enabled`. `baseBranch` is the close run's
  *   integration branch (`epic/<id>` for Epic-attached Stories, the base
  *   branch for standalone Stories). `cwd` is where the `package.json`
  *   coverage-script probe and the `baselines/<kind>.json` presence probe
@@ -285,7 +285,7 @@ function probeBaselinesGate({ config, cwd, presentBaselines } = {}) {
  */
 export function buildDefaultGates({
   config,
-  epicBranch,
+  baseBranch,
   cwd,
   packageScripts,
   presentBaselines,
@@ -305,9 +305,9 @@ export function buildDefaultGates({
   const formatWriteString = resolveFormatWriteCommand(config);
   const formatChangedFileScope =
     formatCheckString === FORMAT_CHECK_FALLBACK
-      ? buildChangedFileScope(epicBranch)
+      ? buildChangedFileScope(baseBranch)
       : null;
-  const baselinesGateEnv = buildBaselinesGateEnv(epicBranch);
+  const baselinesGateEnv = buildBaselinesGateEnv(baseBranch);
   const baselinesDecision = probeBaselinesGate({
     config,
     cwd,

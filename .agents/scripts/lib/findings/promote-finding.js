@@ -6,7 +6,7 @@
  * session's ledger items (see `.agents/schemas/qa-ledger.schema.json` and
  * `lib/qa/qa-session.js`), the still-untriaged backlog is clustered and each
  * cluster is promoted to a follow-up ticket — a single Story (via `/plan`)
- * for a tight, one-deliverable cluster, or an Epic (via `/plan --seed`) for
+ * for a tight, one-deliverable cluster, or a multi-Story plan-seed (via `/plan --seed`) for
  * a broad cluster that spans multiple coverage surfaces. Each contributing
  * ledger item then has the resulting `routedTo` issue link written back onto it
  * so a resume run sees the item as filed rather than re-promoting it.
@@ -32,15 +32,24 @@ import { highestSeverity as highestSeverityOf } from './severity.js';
 /** Triaged dispositions, mirrored from the `disposition` enum in the schema. */
 const TRIAGED_DISPOSITIONS = Object.freeze(['file', 'defer', 'dismiss']);
 
-/** The two promotion targets a cluster routes to. */
+/**
+ * The two promotion targets a cluster routes to.
+ *
+ * `PLAN_SEED` promotes a broad cluster by seeding a multi-Story `/plan`
+ * run (`/plan --seed`). Its persisted wire token is the legacy string
+ * `'epic'`: archived qa-ledger records (and the distributed
+ * `qa-ledger.schema.json` `routedTo.kind` enum) still carry `'epic'`, so
+ * the value is kept read-compatible while the write-side constant name is
+ * modernised.
+ */
 export const PROMOTION_TARGETS = Object.freeze({
   STORY: 'story',
-  EPIC: 'epic',
+  PLAN_SEED: 'epic',
 });
 
 /**
  * A cluster of more than this many distinct coverage surfaces is broad enough
- * to warrant an Epic (`/plan --seed`) rather than a single Story
+ * to warrant a plan-seed (`/plan --seed`) rather than a single Story
  * (`/plan`). One or two surfaces is a tight, single-deliverable cluster.
  */
 const EPIC_COVERAGE_THRESHOLD = 2;
@@ -70,7 +79,7 @@ export function isPromotable(item) {
  * Stable cluster key for a ledger item: its `class`. Items sharing a class
  * describe the same kind of signal (a product bug, a tooling-DX gap, …) and
  * merge into one follow-up ticket. A class whose items span many distinct
- * coverage surfaces is broad enough to promote to an Epic (see
+ * coverage surfaces is broad enough to promote to a plan-seed (see
  * {@link targetForCluster}); a class confined to one or two surfaces is a
  * single-deliverable Story. Coverage is therefore a *secondary* signal that
  * sizes the cluster rather than splitting it.
@@ -159,7 +168,7 @@ export function clusterLedgerItems(items) {
 /**
  * Decide a cluster's promotion target. A cluster that spans more than
  * {@link EPIC_COVERAGE_THRESHOLD} distinct coverage surfaces is broad enough to
- * warrant an Epic (`/plan --seed`); otherwise it is a single-deliverable
+ * warrant a plan-seed (`/plan --seed`); otherwise it is a single-deliverable
  * Story (`/plan`).
  *
  * @param {{ coverages: string[] }} cluster
@@ -170,7 +179,7 @@ export function targetForCluster(cluster) {
     ? cluster.coverages.length
     : 0;
   return surfaces > EPIC_COVERAGE_THRESHOLD
-    ? PROMOTION_TARGETS.EPIC
+    ? PROMOTION_TARGETS.PLAN_SEED
     : PROMOTION_TARGETS.STORY;
 }
 
@@ -224,7 +233,7 @@ function routedToLink(issue, kind) {
 }
 
 /**
- * Promote the clustered untriaged ledger items into Stories / Epics via the
+ * Promote the clustered untriaged ledger items into Stories / plan-seeds via the
  * shared findings/route logic, then write the resulting `routedTo` issue link
  * back onto each contributing ledger item.
  *
@@ -233,7 +242,7 @@ function routedToLink(issue, kind) {
  *      shared `routeFinding` against existing Issues (via the injected search
  *      port). This dedups against work already filed.
  *   2. On a `new` decision, open the follow-up ticket through the injected
- *      `createStory` (`/plan`) or `createEpic` (`/plan --seed`) port,
+ *      `createStory` (`/plan`) or `createPlanSeed` (`/plan --seed`) port,
  *      chosen by {@link targetForCluster}. On any other decision, link back to
  *      the matched Issue rather than creating a duplicate.
  *   3. Stamp the resolved `routedTo` link onto every contributing ledger item
@@ -251,8 +260,8 @@ function routedToLink(issue, kind) {
  *   Optional semantic candidate search, forwarded to `routeFinding`.
  * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createStory
  *   Opens a single Story (`/plan`) for a tight cluster.
- * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createEpic
- *   Opens an Epic (`/plan --seed`) for a broad cluster.
+ * @param {(cluster: object) => Promise<{ number: number, url?: string }>} ports.createPlanSeed
+ *   Opens a plan-seed (`/plan --seed`) run for a broad cluster.
  * @returns {Promise<{
  *   promotions: Array<{
  *     clusterKey: string,
@@ -268,7 +277,7 @@ function routedToLink(issue, kind) {
  * @throws {Error} when a required create port is missing for a routed cluster.
  */
 export async function promoteFindings(ledgerItems, ports = {}) {
-  const { searchIssues, searchCandidates, createStory, createEpic } = ports;
+  const { searchIssues, searchCandidates, createStory, createPlanSeed } = ports;
   if (
     typeof searchCandidates !== 'function' &&
     typeof searchIssues !== 'function'
@@ -294,10 +303,10 @@ export async function promoteFindings(ledgerItems, ports = {}) {
 
     if (route.decision === 'new') {
       const createPort =
-        target === PROMOTION_TARGETS.EPIC ? createEpic : createStory;
+        target === PROMOTION_TARGETS.PLAN_SEED ? createPlanSeed : createStory;
       if (typeof createPort !== 'function') {
         throw new Error(
-          `promoteFindings: a ${target === PROMOTION_TARGETS.EPIC ? 'createEpic' : 'createStory'} port is required to promote cluster ${cluster.key}`,
+          `promoteFindings: a ${target === PROMOTION_TARGETS.PLAN_SEED ? 'createPlanSeed' : 'createStory'} port is required to promote cluster ${cluster.key}`,
         );
       }
       issue = await createPort(cluster);

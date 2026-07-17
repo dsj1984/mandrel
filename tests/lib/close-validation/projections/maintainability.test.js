@@ -46,7 +46,7 @@ function makeFakeGit({ files, sources, fetchOk = true, diffOk = true }) {
 
 const baseOpts = {
   cwd: '/repo',
-  epicBranch: 'epic/1831',
+  baseBranch: 'epic/1831',
   storyBranch: 'story-1850',
   baselinePath: '/repo/baselines/maintainability.json',
 };
@@ -58,7 +58,7 @@ describe('projectMaintainabilityRegressions — submodule', () => {
   });
 
   it('returns "missing-args" for any missing required option', () => {
-    for (const omit of ['cwd', 'epicBranch', 'storyBranch', 'baselinePath']) {
+    for (const omit of ['cwd', 'baseBranch', 'storyBranch', 'baselinePath']) {
       const opts = { ...baseOpts, [omit]: undefined };
       const result = projectMaintainabilityRegressions({
         ...opts,
@@ -112,7 +112,7 @@ describe('projectMaintainabilityRegressions — submodule', () => {
   });
 
   it('propagates fetch-failed detail without making a diff call', () => {
-    // Use unique cwd/epicBranch so the module-level fetch cache from an
+    // Use unique cwd/baseBranch so the module-level fetch cache from an
     // earlier passing fetch doesn't short-circuit this test's failing fetch.
     let diffCalls = 0;
     const git = {
@@ -129,7 +129,7 @@ describe('projectMaintainabilityRegressions — submodule', () => {
     const result = projectMaintainabilityRegressions({
       ...baseOpts,
       cwd: `/repo-fetch-fail-${Math.random()}`,
-      epicBranch: `epic/fetch-fail-${Math.random()}`,
+      baseBranch: `epic/fetch-fail-${Math.random()}`,
       git,
       loadBaseline: () => ({ 'a.js': 80 }),
     });

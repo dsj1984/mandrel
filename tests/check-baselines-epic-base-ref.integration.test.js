@@ -2,7 +2,7 @@
 //
 // Story #3890 — the close-validation `check-baselines` gate must compare a
 // Story/Epic's head baseline against the **epic integration branch**
-// (`origin/<epicBranch>`), not the framework-default `origin/main`, so
+// (`origin/<baseBranch>`), not the framework-default `origin/main`, so
 // inherited main-vs-epic drift in files OUTSIDE the Story's own diff does
 // not surface as a phantom regression — while a genuine regression
 // introduced by the Story's own diff still fails.

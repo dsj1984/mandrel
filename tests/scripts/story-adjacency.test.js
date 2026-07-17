@@ -89,11 +89,14 @@ describe('lib/story-adjacency — buildStoryAdjacency', () => {
     assert.deepEqual(adjacency.get(2), [1]);
   });
 
-  it('drops self-edges and foreign ids by default', () => {
-    const adjacency = buildStoryAdjacency([
-      { id: 1, body: 'blocked by #1', dependencies: [99] },
-      { id: 2, dependencies: [1, 2, 500] },
-    ]);
+  it('drops self-edges and foreign ids when dropForeign is true', () => {
+    const adjacency = buildStoryAdjacency(
+      [
+        { id: 1, body: 'blocked by #1', dependencies: [99] },
+        { id: 2, dependencies: [1, 2, 500] },
+      ],
+      { dropForeign: true },
+    );
     assert.deepEqual(adjacency.get(1), []);
     assert.deepEqual(adjacency.get(2), [1]);
   });
@@ -162,7 +165,7 @@ describe('lib/story-adjacency — wave-numbering parity', () => {
         ),
       );
     }
-    const shared = buildStoryAdjacency(stories);
+    const shared = buildStoryAdjacency(stories, { dropForeign: true });
     const wavesRef = computeWaves(
       reference,
       new Map(stories.map((s) => [s.id, s])),

@@ -17,7 +17,7 @@
  *   Any module under `.agents/scripts/lib/orchestration/lifecycle/listeners/**`
  *   that calls `bus.on('*', …)` MUST NOT import a side-effecting module.
  *   The static blocklist is small (the modules that mutate GitHub state,
- *   the worktree, or write outside `temp/epic-<id>/`); we match by module
+ *   the worktree, or write outside `temp/run-<id>/`); we match by module
  *   specifier suffix to keep the rule simple and stable.
  *
  * Rule 3 — "Auto-merge lockout" (Story #2253 / Task #2255, Epic #2172

@@ -918,15 +918,11 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "epicLedgerPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "mainCheckoutRoot"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "runTempDir"
+      "symbol": "runLedgerPath"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",

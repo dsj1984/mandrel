@@ -37,7 +37,7 @@
  * Ledger path resolution: a caller supplies EITHER an explicit
  * `ledgerPath` (the host-loop case — the loop owns where its ledger
  * lives) OR an `epicId`, in which case the canonical
- * `epicLedgerPath(epicId)` is used so an Epic-scoped loop's ticks land
+ * `runLedgerPath(epicId)` is used so an Epic-scoped loop's ticks land
  * in the same `temp/run-<id>/lifecycle.ndjson` the rest of the run
  * reads. Exactly one of the two MUST be supplied.
  */
@@ -45,7 +45,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { epicLedgerPath } from '../../config/temp-paths.js';
+import { runLedgerPath } from '../../config/temp-paths.js';
 import { createBus } from './bus.js';
 import { createLedgerWriter } from './ledger-writer.js';
 
@@ -102,7 +102,7 @@ function decomposeLedgerPath(ledgerPath) {
  *                                   One of running|done|blocked.
  * @param {string} [opts.timestamp]  ISO-8601 wall clock. Defaults to now().
  * @param {number} [opts.epicId]     When supplied (and no `ledgerPath`),
- *                                   the canonical `epicLedgerPath(epicId)`
+ *                                   the canonical `runLedgerPath(epicId)`
  *                                   is used for the ledger.
  * @param {object} [opts.config]     Optional resolved config for tempRoot
  *                                   (only consulted on the `epicId` path).
@@ -156,7 +156,7 @@ export async function emitLoopTick(opts) {
     if (!Number.isInteger(epicId) || epicId < 1) {
       throw new Error('emitLoopTick: epicId must be a positive integer');
     }
-    ledgerPath = epicLedgerPath(epicId, config);
+    ledgerPath = runLedgerPath(epicId, config);
   }
 
   const payload = {

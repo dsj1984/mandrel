@@ -192,15 +192,15 @@ function bootstrapStoryWindow(storyNode, ts) {
  * from `buildSpanTree` so the outer function's CRAP score stays under
  * the new-method ceiling.
  *
- * @param {object} state — mutable accumulator (stories, tasksByStory, epic)
+ * @param {object} state — mutable accumulator (stories, tasksByStory, run)
  * @param {unknown} evt
  * @returns {void}
  */
 function ingestEvent(state, evt) {
   if (evt == null || typeof evt !== 'object') return;
 
-  const eEpic = epicOf(evt);
-  if (state.epic == null && eEpic != null) state.epic = eEpic;
+  const eRun = epicOf(evt);
+  if (state.run == null && eRun != null) state.run = eRun;
 
   const ts = tsOf(evt);
   const sid = storyOf(evt);
@@ -258,11 +258,11 @@ function finalizeStory(state, story) {
  * Build the span tree from an async iterable of signal events.
  *
  * @param {AsyncIterable<object> | Iterable<object>} iter
- * @returns {Promise<{ epic: number | null, stories: Array<object> }>}
+ * @returns {Promise<{ run: number | null, stories: Array<object> }>}
  *
  * @example
  *   import { read, buildSpanTree } from './lib/signals/index.js';
- *   const tree = await buildSpanTree(read({ epic: 1181 }));
+ *   const tree = await buildSpanTree(read({ run: 1181 }));
  */
 export async function buildSpanTree(iter) {
   if (iter == null || typeof iter !== 'object') {
@@ -274,7 +274,7 @@ export async function buildSpanTree(iter) {
   // Accumulator state. `stories` keys are `storyKeyOf(sid)` strings;
   // `tasksByStory` mirrors that and holds per-task sub-maps.
   const state = {
-    epic: null,
+    run: null,
     stories: new Map(),
     tasksByStory: new Map(),
   };
@@ -287,5 +287,5 @@ export async function buildSpanTree(iter) {
   storyEntries.sort(compareNodeIds);
   for (const story of storyEntries) finalizeStory(state, story);
 
-  return { epic: state.epic, stories: storyEntries };
+  return { run: state.run, stories: storyEntries };
 }

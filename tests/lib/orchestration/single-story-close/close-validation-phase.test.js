@@ -72,7 +72,7 @@ describe('runCloseValidationPhase — standalone parity (Story #4250)', () => {
       ['autofix', 'validate'],
       'format-autofix must run before the gate chain',
     );
-    assert.equal(autofixArgs[0].epicBranch, 'main');
+    assert.equal(autofixArgs[0].baseBranch, 'main');
     assert.equal(autofixArgs[0].storyBranch, 'story-4250');
     assert.equal(
       autofixArgs[0].worktreePath,

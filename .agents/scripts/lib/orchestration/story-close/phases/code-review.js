@@ -288,7 +288,7 @@ export async function runStoryReviewCore({
  *
  * @param {{
  *   storyId: number|string,
- *   epicBranch: string,
+ *   baseBranch: string,
  *   storyBranch: string,
  *   provider: object,
  *   bus: { emit: Function }|null,
@@ -304,7 +304,7 @@ export async function runStoryReviewCore({
 export async function runStoryCodeReview(args) {
   const {
     storyId,
-    epicBranch,
+    baseBranch,
     storyBranch,
     provider,
     bus,
@@ -316,14 +316,14 @@ export async function runStoryCodeReview(args) {
   const storyIdNum = Number(storyId);
   progress(
     'CODE-REVIEW',
-    `Running Story-scope review (${epicBranch}…${storyBranch})...`,
+    `Running Story-scope review (${baseBranch}…${storyBranch})...`,
   );
 
   let reviewResult;
   try {
     reviewResult = await runStoryReviewCore({
       storyId: storyIdNum,
-      baseRef: epicBranch,
+      baseRef: baseBranch,
       headRef: storyBranch,
       provider,
       progress,

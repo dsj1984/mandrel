@@ -4,7 +4,7 @@
  * Every GitHub side-effect flows through an injected port; these tests pass
  * in-memory stubs so the whole suite runs with NO network. The `searchIssues`
  * stub models a fingerprint-keyed issue index (the contract `routeFinding`
- * expects); `createStory` / `createEpic` model the `/plan` and
+ * expects); `createStory` / `createPlanSeed` model the `/plan` and
  * `/plan --idea` surfaces by handing back a fresh issue record.
  */
 
@@ -174,10 +174,10 @@ test('targetForCluster: tight cluster (≤2 surfaces) routes to a Story', () => 
   );
 });
 
-test('targetForCluster: broad cluster (>2 surfaces) routes to an Epic', () => {
+test('targetForCluster: broad cluster (>2 surfaces) routes to a plan-seed', () => {
   assert.equal(
     targetForCluster({ coverages: ['a', 'b', 'c'] }),
-    PROMOTION_TARGETS.EPIC,
+    PROMOTION_TARGETS.PLAN_SEED,
   );
 });
 
@@ -190,7 +190,7 @@ test('promoteFindings: new tight cluster opens a Story via /plan port', async ()
   const result = await promoteFindings(items, {
     searchIssues,
     createStory: story.port,
-    createEpic: epic.port,
+    createPlanSeed: epic.port,
   });
 
   assert.equal(result.promotions.length, 1);
@@ -204,7 +204,7 @@ test('promoteFindings: new tight cluster opens a Story via /plan port', async ()
   assert.equal(epic.calls.length, 0);
 });
 
-test('promoteFindings: broad cluster opens an Epic via /plan --idea port', async () => {
+test('promoteFindings: broad cluster opens a plan-seed via /plan --idea port', async () => {
   const items = [
     untriagedItem({ id: 'L1', coverage: 'a' }),
     untriagedItem({ id: 'L2', coverage: 'b' }),
@@ -217,11 +217,11 @@ test('promoteFindings: broad cluster opens an Epic via /plan --idea port', async
   const result = await promoteFindings(items, {
     searchIssues,
     createStory: story.port,
-    createEpic: epic.port,
+    createPlanSeed: epic.port,
   });
 
   assert.equal(result.promotions.length, 1);
-  assert.equal(result.promotions[0].target, PROMOTION_TARGETS.EPIC);
+  assert.equal(result.promotions[0].target, PROMOTION_TARGETS.PLAN_SEED);
   assert.equal(result.promotions[0].issue, 201);
   assert.equal(epic.calls.length, 1);
   assert.equal(story.calls.length, 0);
@@ -236,7 +236,7 @@ test('promoteFindings: writes routedTo back onto every contributing item (AC #2)
   await promoteFindings(items, {
     searchIssues,
     createStory: story.port,
-    createEpic: epic.port,
+    createPlanSeed: epic.port,
   });
 
   for (const item of items) {
@@ -263,7 +263,7 @@ test('promoteFindings: dedups against an existing open Issue — no new ticket (
   const result = await promoteFindings(items, {
     searchIssues,
     createStory: story.port,
-    createEpic: epic.port,
+    createPlanSeed: epic.port,
   });
 
   const [promotion] = result.promotions;
@@ -292,7 +292,7 @@ test('promoteFindings: routes a closed-fingerprint match as regression-of-closed
   const result = await promoteFindings(items, {
     searchIssues,
     createStory: story.port,
-    createEpic: makeCreatePort(201, 'epic').port,
+    createPlanSeed: makeCreatePort(201, 'epic').port,
   });
 
   assert.equal(result.promotions[0].decision, 'regression-of-closed');
@@ -325,7 +325,7 @@ test('promoteFindings: no promotable items → empty promotions', async () => {
   const result = await promoteFindings(items, {
     searchIssues,
     createStory: async () => ({ number: 1 }),
-    createEpic: async () => ({ number: 2 }),
+    createPlanSeed: async () => ({ number: 2 }),
   });
   assert.equal(result.promotions.length, 0);
 });
@@ -345,7 +345,7 @@ test('promoteFindings: runs offline through injected ports (AC #3)', async () =>
       assert.ok(cluster.title, 'cluster carries a title for /plan');
       return { number: 500, url: 'https://github.com/o/r/issues/500' };
     },
-    createEpic: async () => {
+    createPlanSeed: async () => {
       networkTouched = true;
       return { number: 600 };
     },
@@ -406,7 +406,7 @@ test('AC #4: a routed issue with no url throws rather than stamping an empty rou
       promoteFindings(items, {
         searchIssues,
         createStory: async () => ({ number: 77 }), // no url — violates contract
-        createEpic: async () => ({ number: 88 }),
+        createPlanSeed: async () => ({ number: 88 }),
       }),
     /missing a url/,
   );
@@ -429,7 +429,7 @@ test('AC #4: a matched issue with a blank url throws rather than stamping it', a
       promoteFindings(items, {
         searchIssues,
         createStory: makeCreatePort(101, 'story').port,
-        createEpic: makeCreatePort(201, 'epic').port,
+        createPlanSeed: makeCreatePort(201, 'epic').port,
       }),
     /missing a url/,
   );

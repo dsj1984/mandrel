@@ -24,6 +24,7 @@ const CONSUMER_REPO = 'dsj1984/domio';
 function baseInput(overrides = {}) {
   return {
     anchorId: 2547,
+    anchorKind: 'run',
     frameworkRepo: FRAMEWORK_REPO,
     consumerRepo: CONSUMER_REPO,
     signals: [],
@@ -218,7 +219,7 @@ test('composeRoutedProposals: gh issue create command shape is correct', () => {
   assert.match(cmd, /gh issue create --repo dsj1984\/mandrel/);
   assert.match(
     cmd,
-    /--title "Friction: lint-loop recurred 2 times in Epic #2547"/,
+    /--title "Friction: lint-loop recurred 2 times in plan-run 2547"/,
   );
   assert.match(cmd, /--label "meta::framework-gap,friction::lint-loop"/);
   assert.match(cmd, /--body-file - <<EOF/);

@@ -266,7 +266,7 @@ export function render(ledger, opts = {}) {
  *
  * The wildcard-firewall rule (Tech Spec § Bus contract) requires that
  * trace observers do NOT import any module that mutates GitHub state,
- * the worktree, or the filesystem outside `temp/epic-<id>/`. This
+ * the worktree, or the filesystem outside `temp/run-<id>/`. This
  * module satisfies that constraint: the only filesystem writes are to
  * the companion path under the same temp directory the ledger lives
  * in.

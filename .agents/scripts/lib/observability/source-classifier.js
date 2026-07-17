@@ -5,7 +5,7 @@
  * materialized `.agents/` directory).
  *
  * Used by `signals-writer.js#appendSignal` so every
- * record in `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` carries an
+ * record in `temp/run-<id>/stories/story-<sid>/signals.ndjson` carries an
  * authoritative `source` field, allowing downstream retro consumers to
  * route framework signals back to mandrel and keep consumer signals in
  * the host project (Epic #2547 / Story #2553).

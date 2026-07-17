@@ -3,7 +3,7 @@
  * agents-bootstrap-github — Idempotent Label & Field Setup
  *
  * Creates the required label taxonomy and project board custom fields
- * for the v5 Epic-centric flow on a target GitHub repo. Idempotent —
+ * for the v5 Story-centric flow on a target GitHub repo. Idempotent —
  * skips resources that already exist.
  *
  * Usage:

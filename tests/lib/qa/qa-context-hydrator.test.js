@@ -168,7 +168,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     fs.writeFileSync(path.join(featureRoot, 'x.feature'), 'Feature: X');
 
     const ctx = await hydrateQaContext({
-      epicNumber: 3798,
+      ticketNumber: 3798,
       githubPort,
       gitPort,
       featureRoot,
@@ -215,7 +215,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     const gitPort = fakeGitPort();
 
     const ctx = await hydrateQaContext({
-      epicNumber: 42,
+      ticketNumber: 42,
       githubPort,
       gitPort,
     });
@@ -229,7 +229,7 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     const { githubPort, gitPort } = buildPorts();
 
     await hydrateQaContext({
-      epicNumber: 3798,
+      ticketNumber: 3798,
       githubPort,
       gitPort,
       baseRef: 'develop',
@@ -245,14 +245,14 @@ describe('hydrateQaContext — full assembly with injected ports (no network)', 
     const { githubPort, gitPort } = buildPorts();
     await assert.rejects(
       () => hydrateQaContext({ githubPort, gitPort }),
-      /epicNumber/,
+      /ticketNumber/,
     );
     await assert.rejects(
-      () => hydrateQaContext({ epicNumber: 1, gitPort }),
+      () => hydrateQaContext({ ticketNumber: 1, gitPort }),
       /githubPort/,
     );
     await assert.rejects(
-      () => hydrateQaContext({ epicNumber: 1, githubPort }),
+      () => hydrateQaContext({ ticketNumber: 1, githubPort }),
       /gitPort/,
     );
   });
