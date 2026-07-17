@@ -2,6 +2,46 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.0.0...mandrel-v2.1.0) (2026-07-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plan:** plan-persist.js no longer accepts --risk-verdict and no plan-time step authors a risk verdict; review depth and the acceptance critic mode are derived from the diff at close time.
+* /deliver no longer accepts --run <planRunId> or --dep, and /plan no longer applies a plan-run::<id> label. Deliver Story ids; the graph resolves itself from live state.
+
+### Added
+
+* /deliver takes only Story ids and resolves dependencies dynamically (retire plan-run) ([#4540](https://github.com/dsj1984/mandrel/issues/4540)) ([#4560](https://github.com/dsj1984/mandrel/issues/4560)) ([e9935cc](https://github.com/dsj1984/mandrel/commit/e9935cc332b43862d79dca9979691077327e1882))
+* **dead-exports:** add a production-mode pass that discounts test-only importers (refs [#4575](https://github.com/dsj1984/mandrel/issues/4575)) ([#4582](https://github.com/dsj1984/mandrel/issues/4582)) ([0a77ca9](https://github.com/dsj1984/mandrel/commit/0a77ca91bdd67a294b66cc076e45c43bc4d691c8))
+* **deliver:** script-owned land tail, resumable pending status, terminal envelope, and deliver-recover ([#4543](https://github.com/dsj1984/mandrel/issues/4543)) ([#4566](https://github.com/dsj1984/mandrel/issues/4566)) ([f234306](https://github.com/dsj1984/mandrel/commit/f234306d1465fe96d19d361f1501ad8edf055cc3))
+* **plan:** close --tickets source issues as superseded by default ([#4535](https://github.com/dsj1984/mandrel/issues/4535)) ([#4553](https://github.com/dsj1984/mandrel/issues/4553)) ([c35e298](https://github.com/dsj1984/mandrel/commit/c35e29880edba4fec0c45687071fbea242236370))
+* **plan:** mirror sibling depends_on into native blocked_by edges (refs [#4544](https://github.com/dsj1984/mandrel/issues/4544)) ([#4570](https://github.com/dsj1984/mandrel/issues/4570)) ([6b94968](https://github.com/dsj1984/mandrel/commit/6b949688e4fd487c979044f2473e3837a4637e1a))
+
+
+### Fixed
+
+* **bootstrap:** honor command:false in the workflow/command parity check ([#4588](https://github.com/dsj1984/mandrel/issues/4588)) ([493b3eb](https://github.com/dsj1984/mandrel/commit/493b3eb039eefabbd2e33af6a08933d43876c052))
+* **cli:** resolve versions from the consumer, not the running CLI — and make the sync surface fail loudly on skew ([#4530](https://github.com/dsj1984/mandrel/issues/4530)) ([#4536](https://github.com/dsj1984/mandrel/issues/4536)) ([5f20563](https://github.com/dsj1984/mandrel/commit/5f20563eca79203096b49e8fa3dfaa64e2487e12))
+* **cli:** stop sync pruning generated .agents/ files — declare a never-pruned registry so the install ledger survives ([#4534](https://github.com/dsj1984/mandrel/issues/4534)) ([#4552](https://github.com/dsj1984/mandrel/issues/4552)) ([ceccd57](https://github.com/dsj1984/mandrel/commit/ceccd572614a7d8c5226bdd9f1a3b793381be4dd))
+* **column-sync:** stop two more test suites leaking into the shared meta cache ([#4561](https://github.com/dsj1984/mandrel/issues/4561)) ([757e509](https://github.com/dsj1984/mandrel/commit/757e509ff4aa95a091fe9a5de053396a78a26793)), closes [#4555](https://github.com/dsj1984/mandrel/issues/4555)
+* **deliver:** diff the plan-run epilogue against the pre-run base, not origin/main...HEAD (refs [#4550](https://github.com/dsj1984/mandrel/issues/4550)) ([#4558](https://github.com/dsj1984/mandrel/issues/4558)) ([79ddbf6](https://github.com/dsj1984/mandrel/commit/79ddbf61d19bdf256a06aabb860651be6bdce94b))
+* **deliver:** ground the audit roster's lens selection in the landed diff (refs [#4571](https://github.com/dsj1984/mandrel/issues/4571)) ([#4573](https://github.com/dsj1984/mandrel/issues/4573)) ([fa06aca](https://github.com/dsj1984/mandrel/commit/fa06acaedc0c3070516ec32d447f0755a06ea0eb))
+* **deliver:** repair the close-and-land default path (config, operator-merge, follow-ups, reap, reporting) ([#4539](https://github.com/dsj1984/mandrel/issues/4539)) ([#4551](https://github.com/dsj1984/mandrel/issues/4551)) ([9b5c3ee](https://github.com/dsj1984/mandrel/commit/9b5c3ee61b2030e96ff88091761b258eb43fdf43))
+* make `npm run verify` a true CI mirror: include dead-exports + arch-cycles (or catalogue them as CI-only) ([#4549](https://github.com/dsj1984/mandrel/issues/4549)) ([#4557](https://github.com/dsj1984/mandrel/issues/4557)) ([70d088a](https://github.com/dsj1984/mandrel/commit/70d088a646fd1867f3d536c541f89c1c49b0b866))
+* **plan:** make persist resumable and align its gates with the authoring contract ([#4541](https://github.com/dsj1984/mandrel/issues/4541)) ([#4565](https://github.com/dsj1984/mandrel/issues/4565)) ([1cbe974](https://github.com/dsj1984/mandrel/commit/1cbe974154403edab14e006e83f42a5c414150d1))
+* **plan:** make the fan-out deletion gate count importers, not basename word matches ([#4547](https://github.com/dsj1984/mandrel/issues/4547)) ([#4567](https://github.com/dsj1984/mandrel/issues/4567)) ([4c5c724](https://github.com/dsj1984/mandrel/commit/4c5c7248e88136bac83cd91db38658390139c588))
+* **plan:** thread sourceTickets through the envelope so --tickets superseding cannot silently no-op ([#4554](https://github.com/dsj1984/mandrel/issues/4554)) ([#4559](https://github.com/dsj1984/mandrel/issues/4559)) ([4546c40](https://github.com/dsj1984/mandrel/commit/4546c405b2131f6c5afd3ccf40bccb357f4223a0))
+* **quality:** retire the unconsumed miDropMustRefactor/miDropCap knobs and make maintainability.tolerance the single MI-drop control ([#4531](https://github.com/dsj1984/mandrel/issues/4531)) ([#4548](https://github.com/dsj1984/mandrel/issues/4548)) ([fe0c7ce](https://github.com/dsj1984/mandrel/commit/fe0c7ce3ad40e21b957cd6d0a916efbc5e75f634))
+* **skills-index:** emit biome-formatted JSON so regeneration leaves no drift (refs [#4546](https://github.com/dsj1984/mandrel/issues/4546)) ([#4568](https://github.com/dsj1984/mandrel/issues/4568)) ([bdb223e](https://github.com/dsj1984/mandrel/commit/bdb223e2979c0d386ca260b6743cdf2062dbff09))
+
+
+### Changed
+
+* **checks:** drop the dead epic merge-lock and epic-branch probes ([#4581](https://github.com/dsj1984/mandrel/issues/4581)) ([28cb4ab](https://github.com/dsj1984/mandrel/commit/28cb4abf4aa9c0c0120598c26dd5b7220b195678))
+* **docs:** move weight out of always-loaded prompts and skill essays into on-demand references ([#4546](https://github.com/dsj1984/mandrel/issues/4546)) ([#4564](https://github.com/dsj1984/mandrel/issues/4564)) ([14381b3](https://github.com/dsj1984/mandrel/commit/14381b3efd7ce774e39dd47f535bb55991387617))
+* **plan:** derive review depth from the diff and retire the authored risk verdict (refs [#4542](https://github.com/dsj1984/mandrel/issues/4542)) ([#4569](https://github.com/dsj1984/mandrel/issues/4569)) ([7a7fb50](https://github.com/dsj1984/mandrel/commit/7a7fb50f7ec0e33d616fa54618fc0b93c2e310a6))
+
 ## [2.0.0](https://github.com/dsj1984/mandrel/compare/mandrel-v1.94.0...mandrel-v2.0.0) (2026-07-14)
 
 
