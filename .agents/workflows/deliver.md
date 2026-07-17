@@ -85,16 +85,31 @@ to respect.
 
    ```bash
    node .agents/scripts/stories-wave-tick.js \
-     --stories <id,id,...> --probe-live --concurrency <n>
+     --stories <id,id,...> --probe-live --concurrency <n> \
+     --dispatched <every id you have dispatched so far>
    ```
 
-   **Pass the ids and nothing else.** Each beat re-probes live state: it
-   re-resolves the graph, classifies done (`agent::done` or a closed issue —
-   including foreign blockers that landed in another run), and derives the
-   in-flight count from live `agent::executing` / `agent::closing` labels.
-   You never compute `done` or `in-flight`, and there is nothing to carry
-   between beats — the accounting that used to be yours to maintain by hand
-   is now read from reality every beat (Story #4594).
+   Each beat re-probes live state: it re-resolves the graph, classifies done
+   (`agent::done` or a closed issue — including foreign blockers that landed
+   in another run), and derives in-flight from live `agent::executing` /
+   `agent::closing` labels. You never compute `done` or `in-flight` — that
+   accounting is read from reality every beat (Story #4594).
+
+   **`--dispatched` is the one thing you must tell it (Story #4601).** List
+   every Story id you have spawned this run. Live state cannot report a Story
+   you dispatched ninety seconds ago: `single-story-init.js` flips
+   `agent::executing` at step 6 of 6, *after* a 3–6 minute worktree install,
+   so until then the Story still reads `agent::ready` and the next beat hands
+   it back — a second sub-agent then joins the first on the same branch and
+   worktree, interleaving commits.
+
+   The rule is **append-only: add each id as you dispatch it and never remove
+   one.** The flag is additive, not authoritative — the probe unions it into
+   the label-derived set and then filters it against live state, so an id that
+   has since gone `agent::done` is dropped for you. Re-listing an id costs
+   nothing and cannot double-count a slot; *omitting* one is the only way to
+   get this wrong. This is why `--dispatched` is not the `--done` bookkeeping
+   #4594 retired, and why `--in-flight` remains rejected under `--probe-live`.
 
    Branch on the exit code:
    - **0** — dispatch each `ready` id (the set is already capped and
@@ -108,6 +123,20 @@ to respect.
      names the stuck ids and their unmet blockers. Either land the blocker
      first or include it in `--ids`. Do not retry unchanged — the state
      cannot improve on its own.
+   - **4** — `blocked`: one or more Stories carry `agent::blocked`, named in
+     `blocked[]` with `blockedReason`. This is the protocol's HITL pause
+     ([`instructions.md` § 1.J](../instructions.md)) — **stop the loop and
+     surface it to the operator; do not poll.** No beat can clear it, because
+     a human owes a decision. Read the Story's friction comment, and resume
+     only once the operator has unblocked it:
+
+     ```bash
+     gh issue view <id> --comments
+     node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready
+     ```
+
+     A blocked Story outranks a wedge (its blockers are moot while a human
+     owes a decision) but not a cycle (exit 2 — fix the graph first).
 
    For each `ready` Story id, read
    [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and

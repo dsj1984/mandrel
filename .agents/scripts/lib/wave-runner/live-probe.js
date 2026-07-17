@@ -22,7 +22,18 @@
  *     cross-run delivery work: a blocker that merged weeks ago in another run
  *     is simply done.
  *   - **in-flight** — derived from live `agent::executing` / `agent::closing`
- *     labels rather than a `--in-flight <n>` the caller incremented.
+ *     labels, **unioned with the ids the host says it has dispatched**
+ *     (`--dispatched`). The label alone is not sufficient: the kernel's
+ *     contract counts "executing / closing / dispatched-not-yet-labelled" as
+ *     in-flight, and `single-story-init.js` flips `agent::executing` at step 6
+ *     of 6 — *after* a 3–6 minute worktree install. For that whole window a
+ *     dispatched Story still reads `agent::ready`, so a label-only derivation
+ *     re-emits it in the next beat's `ready[]` and the host dispatches it a
+ *     second time onto the same branch and worktree (Story #4601).
+ *   - **blocked** — the ids carrying `agent::blocked`. `classifyStory` has
+ *     always returned this class; nothing consumed it, so a blocked Story was
+ *     neither done, ready, nor in-flight and the beat reported a permanent
+ *     "waiting" (Story #4601).
  *
  * It is an **adapter, not a kernel change**: it gathers inputs and hands them
  * to `selectReadySet` unchanged. The kernel stays pure and flag-driven, and
@@ -43,24 +54,79 @@ import {
   resolveForeignDone,
   resolveStoriesProvider,
 } from '../../resolve-stories.js';
+import { AGENT_LABELS } from '../label-constants.js';
 import { buildStoriesEnvelope } from '../orchestration/resolve-stories.js';
-import { classifyStory } from './ready-set.js';
+import { classifyStory, storyIdOf } from './ready-set.js';
 
 /**
- * Count the Stories that currently occupy a dispatch slot.
+ * Identify the Stories that currently occupy a dispatch slot, as an id set.
  *
- * `classifyStory` folds `agent::executing` and `agent::closing` into one
- * `executing` class — both are in-flight, and neither may be re-dispatched.
- * Deriving this from live labels (rather than a caller-maintained counter) is
- * the whole point of probe mode: a host that miscounts a slot either
- * over-dispatches past the cap or starves the run.
+ * Two sources, unioned — which is exactly the kernel's stated contract
+ * ("executing / closing / dispatched-not-yet-labelled"):
  *
- * @param {Array<{labels?: string[], state?: string}>} storyRecords
- * @returns {number}
+ *   1. **Live labels.** `classifyStory` folds `agent::executing` and
+ *      `agent::closing` into one `executing` class — both are in-flight and
+ *      neither may be re-dispatched.
+ *   2. **`dispatched`** — ids the host has spawned. This closes the init
+ *      window: `single-story-init.js` flips `agent::executing` last, after a
+ *      3–6 minute install, so between spawn and flip a dispatched Story reads
+ *      `agent::ready` and a label-only derivation hands it back as ready.
+ *
+ * `dispatched` is deliberately **not** the `--done`-style accounting probe
+ * mode retired. Three properties keep it from becoming one:
+ *
+ *   - **It is a set union, not a counter.** Re-passing an id that has since
+ *     picked up its `agent::executing` label cannot double-count a slot.
+ *   - **Live state overrules the claim.** An id the host still lists but that
+ *     now classifies `done` (or `blocked`) is dropped, so a stale entry can
+ *     never occupy a slot forever and starve the run.
+ *   - **Therefore the host's correct strategy is monotonic append**: pass
+ *     every id you have dispatched this run and never reason about removing
+ *     one. There is no drop-a-slot decision to get wrong — the probe subtracts
+ *     reality from the claim. Forgetting an id degrades to the pre-#4601
+ *     behaviour rather than to something worse.
+ *
+ * Ids outside the probed set are ignored: they are not part of this run and
+ * must not consume its cap.
+ *
+ * @param {Array<{id?: number, number?: number, labels?: string[], state?: string}>} storyRecords
+ * @param {Iterable<number>} [dispatched] Ids the host has spawned.
+ * @returns {Set<number>} In-flight Story ids.
  */
-function deriveInFlight(storyRecords) {
-  return storyRecords.filter((rec) => classifyStory(rec) === 'executing')
-    .length;
+function deriveInFlightIds(storyRecords, dispatched = []) {
+  const claimed = new Set(dispatched);
+  const inFlight = new Set();
+  for (const rec of storyRecords) {
+    const id = storyIdOf(rec);
+    if (id === null) continue;
+    const cls = classifyStory(rec);
+    if (cls === 'executing' || (claimed.has(id) && cls === 'ready')) {
+      inFlight.add(id);
+    }
+  }
+  return inFlight;
+}
+
+/**
+ * The ids carrying `agent::blocked`.
+ *
+ * `classifyStory` has always returned a `blocked` class, but no adapter
+ * consumed it: a blocked Story was never done, never ready, and never counted
+ * in-flight, so `detectWedge` dropped it (its "undone work with no unmet
+ * blockers would have been dispatched" invariant is precisely what probe mode
+ * broke) and the beat reported exit 0 / `ready: []` / `wedged: null` forever.
+ * `/deliver` reads that as "waiting", so the `agent::blocked` HITL pause — the
+ * one runtime gate in the protocol — was never surfaced to the operator.
+ *
+ * @param {Array<{id?: number, number?: number, labels?: string[], state?: string}>} storyRecords
+ * @returns {number[]} Blocked Story ids, ascending.
+ */
+function deriveBlockedIds(storyRecords) {
+  return storyRecords
+    .filter((rec) => classifyStory(rec) === 'blocked')
+    .map((rec) => storyIdOf(rec))
+    .filter((id) => id !== null)
+    .sort((a, b) => a - b);
 }
 
 /**
@@ -97,6 +163,8 @@ export function createProbeContext({
  * @param {string} [args.owner]
  * @param {string} [args.repo]
  * @param {boolean} [args.native=true]   Read native `blocked_by` edges.
+ * @param {number[]} [args.dispatched=[]] Ids the host has spawned but may not
+ *   yet have observed labelled `agent::executing` (see `deriveInFlightIds`).
  * @param {(msg: string) => void} [args.warn]
  * Each returned node carries its **live labels**. That is load-bearing, not
  * decoration: `selectReadySet` classifies from labels, so a node stripped of
@@ -108,7 +176,8 @@ export function createProbeContext({
  * @returns {Promise<{
  *   nodes: Array<{id: number, dependsOn: number[], files: string[], labels: string[]}>,
  *   doneIds: Set<number>,
- *   inFlight: number
+ *   inFlight: number,
+ *   blockedIds: number[]
  * }>}
  */
 export async function probeLiveState({
@@ -117,6 +186,7 @@ export async function probeLiveState({
   owner,
   repo,
   native = true,
+  dispatched = [],
   warn,
 }) {
   const stories = await fetchStories(provider, ids);
@@ -138,14 +208,49 @@ export async function probeLiveState({
   });
 
   const labelsById = new Map(stories.map((s) => [s.id, s.labels ?? []]));
+  const inFlightIds = deriveInFlightIds(stories, dispatched);
   return {
     nodes: envelope.dag.map((node) => ({
       ...node,
-      labels: labelsById.get(node.id) ?? [],
+      labels: projectInFlightLabels(
+        labelsById.get(node.id) ?? [],
+        inFlightIds.has(node.id),
+      ),
     })),
     doneIds: new Set(envelope.done),
-    inFlight: deriveInFlight(stories),
+    inFlight: inFlightIds.size,
+    blockedIds: deriveBlockedIds(stories),
   };
+}
+
+/**
+ * Project the in-flight fact onto a node's labels, synthesizing
+ * `agent::executing` for a Story that is dispatched but not yet labelled.
+ *
+ * This is the load-bearing half of the dispatch-window fix, and it is why
+ * `inFlight` alone is not enough. The two inputs do **different** jobs inside
+ * `selectReadySet`:
+ *
+ *   - `inFlight` is only a **count**. It reserves capacity (`slots = cap −
+ *     inFlight`) and nothing more.
+ *   - **Eligibility is decided per-record by `classifyStory`**, from labels.
+ *
+ * So a dispatched-but-unlabelled Story counted only via `inFlight` still
+ * classifies `ready`, stays eligible, and — whenever a slot remains — is
+ * admitted to the very same beat that reserved a slot for it. It would be
+ * re-dispatched onto its own live branch, with the miscount merely reshaped
+ * rather than fixed. Handing the kernel the label makes it apply the rule it
+ * already has, and keeps the kernel itself untouched: the adapter's job is to
+ * supply the input the kernel's contract ("executing / closing / dispatched-
+ * not-yet-labelled") already specifies.
+ *
+ * @param {string[]} labels    The Story's live labels.
+ * @param {boolean} inFlight   Whether the Story occupies a dispatch slot.
+ * @returns {string[]} Labels, with `agent::executing` added when needed.
+ */
+function projectInFlightLabels(labels, inFlight) {
+  if (!inFlight || classifyStory({ labels }) === 'executing') return labels;
+  return [...labels, AGENT_LABELS.EXECUTING];
 }
 
 /**
@@ -157,6 +262,13 @@ export async function probeLiveState({
  * silently reintroduce the hand-maintained accounting probe mode exists to
  * retire — and quietly disagree with reality when the two differ.
  *
+ * `--dispatched` is the deliberate exception, and it is **additive rather than
+ * authoritative**: it does not replace the derived in-flight set, it is unioned
+ * into it and then filtered by live state (see `deriveInFlightIds`). It carries
+ * the one fact the host knows and GitHub does not yet — "I spawned this id, the
+ * label has not appeared yet" — so it cannot disagree with reality the way an
+ * authoritative `--in-flight <n>` could. `--in-flight` therefore stays excluded.
+ *
  * @param {object} flags
  * @param {boolean} [flags.probeLive]
  * @param {string} [flags.stories]
@@ -164,6 +276,7 @@ export async function probeLiveState({
  * @param {string} [flags.dagFile]
  * @param {string} [flags.done]
  * @param {string} [flags.inFlight]
+ * @param {string} [flags.dispatched]
  * @returns {string|null} An error message, or `null` when the flags are valid.
  */
 export function validateProbeFlags({
@@ -173,8 +286,12 @@ export function validateProbeFlags({
   dagFile,
   done,
   inFlight,
+  dispatched,
 } = {}) {
   if (!probeLive) {
+    if (dispatched != null) {
+      return '--dispatched requires --probe-live (it augments the live-derived in-flight set; flag mode uses --in-flight <n>)';
+    }
     return stories
       ? '--stories requires --probe-live (it names the run to probe from live state)'
       : null;
