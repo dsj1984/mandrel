@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   computeExitCode,
   mergeEnvelopes,
@@ -92,11 +93,10 @@ test('quality:preview npm script keeps quality-preview.js LAST (passthrough reac
   //
   // Any command appended AFTER quality-preview.js re-breaks this. Keep the
   // flag-consuming gate last.
-  const pkgPath = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    '..',
-    'package.json',
-  );
+  // fileURLToPath (not `new URL(...).pathname`) so the drive letter resolves
+  // correctly on Windows — the raw pathname is `/D:/…`, and path.join would
+  // yield a doubled-drive `D:\D:\…` that ENOENTs. See Windows Smoke CI.
+  const pkgPath = fileURLToPath(new URL('../package.json', import.meta.url));
   const script = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')).scripts[
     'quality:preview'
   ];
