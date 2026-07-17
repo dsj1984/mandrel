@@ -44,8 +44,9 @@
  * @module lib/orchestration/detectors-phase
  */
 
+import path from 'node:path';
 import { getSignals } from '../config/limits.js';
-import { storyArtifactPath } from '../config/temp-paths.js';
+import { storyTempDir } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 import { appendSignal } from '../observability/signals-writer.js';
 import { detectRetry, detectRework } from '../signals/detectors/index.js';
@@ -164,7 +165,7 @@ export async function detectorsPhase(ctx) {
     return { rework: 0, retry: 0 };
   }
 
-  const tracesPath = storyArtifactPath(eid, sid, 'traces.ndjson', config);
+  const tracesPath = path.join(storyTempDir(eid, sid, config), 'traces.ndjson');
   const taskId = resolveLastTaskId(tasks);
   const baseArgs = { tracesPath, epicId: eid, storyId: sid, taskId };
   const common = {

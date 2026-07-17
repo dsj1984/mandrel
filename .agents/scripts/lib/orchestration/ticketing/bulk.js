@@ -357,7 +357,7 @@ async function processCascadeParentLocked(
  *   unset so the module-level {@link Logger} is used.
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
-export async function cascadeCompletion(provider, ticketId, opts = {}) {
+async function cascadeCompletion(provider, ticketId, opts = {}) {
   const ticket = await provider.getTicket(ticketId);
 
   // Determine if this ticket is agent::done

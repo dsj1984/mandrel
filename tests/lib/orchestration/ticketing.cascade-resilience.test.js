@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { cascadeParentState } from '../../../.agents/scripts/lib/orchestration/ticketing/bulk.js';
 import {
   __resetParentCascadeLocks,
   __setCascadeRetryDelays,
-  cascadeCompletion,
 } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
 
 /**
@@ -112,7 +112,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
         error: (m) => captured.push({ level: 'error', message: m }),
       };
 
-      const result = await cascadeCompletion(provider, 100, {
+      const result = await cascadeParentState(provider, 100, {
         _logger: captureLogger,
       });
 
@@ -172,7 +172,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
         error: (m) => captured.push({ level: 'error', message: m }),
       };
 
-      const result = await cascadeCompletion(provider, 100, {
+      const result = await cascadeParentState(provider, 100, {
         _logger: captureLogger,
       });
 
@@ -234,8 +234,8 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
       // should observe `agent::done` after the first finishes and
       // short-circuit (idempotency) rather than fire a second PATCH.
       const [r1, r2] = await Promise.all([
-        cascadeCompletion(provider, 100),
-        cascadeCompletion(provider, 101),
+        cascadeParentState(provider, 100),
+        cascadeParentState(provider, 101),
       ]);
 
       // Exactly one transition must have run end-to-end.
@@ -293,7 +293,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
         },
       });
 
-      const result = await cascadeCompletion(provider, 100);
+      const result = await cascadeParentState(provider, 100);
       assert.equal(attempts, 3);
       assert.deepEqual(result.cascadedTo, [41]);
     },
@@ -328,7 +328,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
           },
         },
       });
-      const result = await cascadeCompletion(provider, 100);
+      const result = await cascadeParentState(provider, 100);
       assert.equal(result.failed.length, 1);
       // Truncated to ~400 chars + ellipsis marker.
       assert.ok(
@@ -381,7 +381,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
           throw new Error('cache invalidation hook explodes');
         },
       };
-      const result = await cascadeCompletion(provider, 100);
+      const result = await cascadeParentState(provider, 100);
       assert.deepEqual(result.cascadedTo, [41]);
       assert.deepEqual(result.failed, []);
     },
@@ -424,7 +424,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
             },
           },
         });
-        const result = await cascadeCompletion(provider, 100);
+        const result = await cascadeParentState(provider, 100);
         assert.equal(attempts, 2);
         assert.deepEqual(result.cascadedTo, [41]);
       } finally {
@@ -461,7 +461,7 @@ test('cascadeCompletion resilience (Story #1817)', async (t) => {
         },
       });
 
-      const result = await cascadeCompletion(provider, 100);
+      const result = await cascadeParentState(provider, 100);
       assert.equal(transitions, 0, 'parent already done — no transition');
       assert.deepEqual(result.cascadedTo, []);
       assert.deepEqual(result.failed, []);

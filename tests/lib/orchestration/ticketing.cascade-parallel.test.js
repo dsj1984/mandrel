@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cascadeCompletion } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
+import { cascadeParentState } from '../../../.agents/scripts/lib/orchestration/ticketing/bulk.js';
 
 /**
  * Build a fake ITicketingProvider for cascade scenarios. The harness:
@@ -83,7 +83,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
       parentLatencyMs: { 41: 60, 42: 60 },
     });
 
-    await cascadeCompletion(provider, 100);
+    await cascadeParentState(provider, 100);
 
     const u41 = provider.updateRecords.find((r) => r.id === 41);
     const u42 = provider.updateRecords.find((r) => r.id === 42);
@@ -143,7 +143,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
         parentLatencyMs: { 41: 50, 42: 50 },
       });
 
-      await cascadeCompletion(provider, 100);
+      await cascadeParentState(provider, 100);
 
       const u41 = provider.updateRecords.find((r) => r.id === 41);
       const u42 = provider.updateRecords.find((r) => r.id === 42);
@@ -203,7 +203,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
         },
       };
       const provider = makeProvider({ tickets, subTicketsMap });
-      await cascadeCompletion(provider, 3, { _logger: captureLogger });
+      await cascadeParentState(provider, 3, { _logger: captureLogger });
 
       assert.deepEqual(captured, []);
 
@@ -225,7 +225,7 @@ test('cascadeCompletion sequential dispatch (Story #4017)', async (t) => {
         },
       };
       const provider2 = makeProvider({ tickets, subTicketsMap });
-      await cascadeCompletion(provider2, 3, { _logger: captureLogger2 });
+      await cascadeParentState(provider2, 3, { _logger: captureLogger2 });
       assert.deepEqual(captured2, captured);
     },
   );

@@ -926,10 +926,6 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
-      "symbol": "storyArtifactPath"
-    },
-    {
-      "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "storyManifestPath"
     },
     {
@@ -2034,10 +2030,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "cascadeCompletion"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "findStructuredComment"
     },
     {
@@ -2063,10 +2055,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "symbol": "__setCascadeRetryDelays"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "symbol": "cascadeCompletion"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",

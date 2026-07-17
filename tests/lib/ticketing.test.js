@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ITicketingProvider } from '../../.agents/scripts/lib/ITicketingProvider.js';
+import { cascadeParentState } from '../../.agents/scripts/lib/orchestration/ticketing/bulk.js';
 import {
   assertValidStructuredCommentType,
-  cascadeCompletion,
   isValidStructuredCommentType,
   postStructuredComment,
   STRUCTURED_COMMENT_TYPES,
@@ -359,7 +359,7 @@ test('ticketing.js', async (t) => {
         return Promise.resolve();
       };
 
-      await cascadeCompletion(mock, 3, { notify: fakeNotify });
+      await cascadeParentState(mock, 3, { notify: fakeNotify });
       await Promise.resolve();
 
       // #2 and #1 should both have been transitioned to agent::done via
@@ -534,7 +534,7 @@ test('ticketing.js', async (t) => {
         return origGetSub(id);
       };
 
-      const result = await cascadeCompletion(mock, 3);
+      const result = await cascadeParentState(mock, 3);
 
       assert.ok(
         result.cascadedTo.length > 0,
@@ -557,7 +557,7 @@ test('ticketing.js', async (t) => {
       mock.tickets[3].labels = ['agent::done'];
 
       // Should transition 2 to agent::done and then 1 to agent::done
-      await cascadeCompletion(mock, 3);
+      await cascadeParentState(mock, 3);
 
       // Checks on cascade effects:
       assert.ok(
@@ -615,7 +615,7 @@ test('ticketing.js', async (t) => {
       mock.subTickets[21] = [];
       mock.subTickets[22] = [];
 
-      const result = await cascadeCompletion(mock, 21);
+      const result = await cascadeParentState(mock, 21);
 
       assert.equal(
         result.cascadedTo.length,
@@ -725,7 +725,7 @@ test('ticketing.js', async (t) => {
         },
       };
 
-      const result = await cascadeCompletion(fakeProvider, 31);
+      const result = await cascadeParentState(fakeProvider, 31);
 
       assert.equal(
         result.cascadedTo.length,
@@ -863,7 +863,7 @@ test('ticketing.js', async (t) => {
         },
       };
 
-      await cascadeCompletion(fakeProvider, 50);
+      await cascadeParentState(fakeProvider, 50);
 
       // Sequential semantics: the entire #41 sub-flow (toggle → fresh-read →
       // parent get → updateTicket) must complete before #42 begins.
@@ -962,7 +962,7 @@ test('ticketing.js', async (t) => {
         },
       };
 
-      await cascadeCompletion(fakeProvider, trigger.id);
+      await cascadeParentState(fakeProvider, trigger.id);
 
       assert.ok(
         maxInFlight > 0,

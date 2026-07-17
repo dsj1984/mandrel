@@ -3,7 +3,8 @@
  */
 
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
-import { storyArtifactPath } from '../config/temp-paths.js';
+import path from 'node:path';
+import { storyTempDir } from '../config/temp-paths.js';
 import { getSpawnCount as defaultGetSpawnCount } from '../gh-exec.js';
 
 /**
@@ -55,7 +56,10 @@ export async function emitGhSpawnCount({
     );
     return { status: 'failed', reason: 'counter-read-failed' };
   }
-  const targetPath = storyArtifactPath(eid, sid, 'gh-spawn-count.json', config);
+  const targetPath = path.join(
+    storyTempDir(eid, sid, config),
+    'gh-spawn-count.json',
+  );
   const payload = {
     kind: 'gh-spawn-count',
     epicId: eid,
