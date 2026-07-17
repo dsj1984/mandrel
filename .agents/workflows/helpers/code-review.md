@@ -30,7 +30,7 @@ the change set is reviewed by a process the maker cannot influence. The
 enforcing code path is
 [`runStoryScopeReview`](../../scripts/lib/orchestration/single-story-close/phases/code-review.js)
 → shared
-[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/code-review.js).
+[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/review-core.js).
 A future refactor MUST preserve this isolation: do not move Story-scope
 review into the maker's context or run it as a step of the delivering
 child.
@@ -122,7 +122,7 @@ The pipeline will:
 ### Step 1a — Story-scope local-lens pass (`scope: story` only, Epic #4405)
 
 When `scope === 'story'`, the shared review spine
-[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/code-review.js)
+[`runStoryReviewCore`](../../scripts/lib/orchestration/story-close/phases/review-core.js)
 runs a **shift-left local-lens pass** in the same close subprocess, *before*
 returning the review envelope. It:
 
