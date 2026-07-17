@@ -113,8 +113,22 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     assert.match(critics, /dispatch/);
     assert.match(critics, /maker-blind/i);
     assert.match(critics, /never the authoring\s*\n?\s*transcript/i);
-    // Advisory, not a mechanical gate: the CLI always exits 0.
-    assert.match(critics, /always exits 0/i);
+    // Advisory, not a mechanical gate: the CLI exits 0 on any verdict.
+    assert.match(critics, /exits 0 on \*\*any\*\* verdict/i);
+  });
+
+  it('names the exit-1 usage/IO case and forbids proceeding to Persist on it', () => {
+    // plan-critics.js is advisory only for a *verdict*; a usage/IO error exits
+    // 1 having run no critic and ledgered no skip. Documenting that as "always
+    // exits 0" (Story #4602) read as "advisory, proceed", so a mistyped
+    // --stories path silently persisted with both critics skipped.
+    const critics = section('### 2\\.5 Critics');
+    // Whitespace-tolerant: prose reflows across line breaks, and an assertion
+    // that a newline can defeat is a false green.
+    assert.match(critics, /exits\s+\*\*1\*\*/i);
+    assert.match(critics, /usage\/IO\s+error/i);
+    assert.doesNotMatch(critics, /always\s+exits\s+0/i);
+    assert.match(critics, /\*\*do\s+not\s+proceed\s+to\s+Persist\*\*/i);
   });
 
   it('names textHygiene findings as re-author input in the critic step (#4599)', () => {

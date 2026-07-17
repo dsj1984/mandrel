@@ -249,9 +249,9 @@ const REFACTOR_STAGE_SCHEMA = {
  * `delivery.acceptanceEval` — bounded per-Story acceptance self-eval loop
  * (Story #3819). After the implementation commits land and before the
  * Story-implementation phase flips to `closing`, an independent
- * (fresh-context) critic pass scores the working diff against each inline
- * `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped
- * at `maxRounds` redraft rounds.
+ * (fresh-context) critic pass scores the caller-injected change set against
+ * each inline `acceptance[]` item, redrafts the unmet items, and
+ * re-evaluates — capped at `maxRounds` redraft rounds.
  *
  * `maxRounds` is the operator-tunable redraft ceiling (default 2 via
  * `lib/config/acceptance-eval.js`). It is a soft knob inside an

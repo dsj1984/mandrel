@@ -13,8 +13,10 @@ description: >-
 > only its wrapper (Story label transitions).
 
 After the implementation commits land and **before** the Story proceeds to
-close, run an explicit, **independent** eval pass that scores the working diff
-against **each** `acceptance[]` item individually. This is the acceptance gate
+close, run an explicit, **independent** eval pass that scores the change set
+computed once for this Story and injected into the critic — never one the
+critic re-derives (Story #4593) — against **each** `acceptance[]` item
+individually. This is the acceptance gate
 the close-validation chain does not provide: that chain (lint / test / format /
 maintainability / coverage / crap) proves the code is *healthy*, not that it
 satisfies *this Story's* acceptance criteria.

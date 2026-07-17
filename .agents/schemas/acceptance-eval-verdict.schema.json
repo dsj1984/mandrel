@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "acceptance-eval-verdict",
   "title": "Acceptance Self-Eval Verdict",
-  "description": "Structured output of one independent (fresh-context) acceptance self-eval round (Story #3819). Produced by the critic pass in the Story-implementation phase (helpers/deliver-story.md Step 1a), written under the gitignored temp tree, and consumed by acceptance-eval.js to enforce the bounded round cap and decide whether the Story proceeds to `closing`, redrafts, or escalates to `agent::blocked`. The author MUST NOT be the evaluator — the verdict is an independent judgment of the working diff against each inline acceptance[] item.",
+  "description": "Structured output of one independent (fresh-context) acceptance self-eval round (Story #3819). Produced by the critic pass in the Story-implementation phase (helpers/deliver-story.md Step 1a), written under the gitignored temp tree, and consumed by acceptance-eval.js to enforce the bounded round cap and decide whether the Story proceeds to `closing`, redrafts, or escalates to `agent::blocked`. The author MUST NOT be the evaluator — the verdict is an independent judgment of the caller-injected change set against each inline acceptance[] item.",
   "type": "object",
   "required": ["storyId", "schemaVersion", "round", "criteria"],
   "properties": {
@@ -52,7 +52,7 @@
           "verdict": {
             "type": "string",
             "enum": ["met", "partial", "unmet"],
-            "description": "Per-criterion judgment of the working diff. `met` clears the criterion; `partial` and `unmet` both trigger a redraft round (subject to the cap)."
+            "description": "Per-criterion judgment of the caller-injected change set. `met` clears the criterion; `partial` and `unmet` both trigger a redraft round (subject to the cap)."
           },
           "evidence": {
             "type": "string",

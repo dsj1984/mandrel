@@ -153,8 +153,11 @@ node .agents/scripts/plan-critics.js \
   [--tech-spec temp/plan-<slug>/techspec.md]
 ```
 
-It prints a verdict on stdout and always exits 0 — the verdict routes work,
-it does not gate the run:
+It prints a verdict on stdout and exits 0 on **any** verdict — the verdict
+routes work, it does not gate the run. It exits **1** only on a usage/IO
+error (an unreadable or malformed `--stories` / `--tech-spec` path). That is
+not an advisory "proceed": no critic ran and no skip was ledgered, so **do
+not proceed to Persist** — fix the path and re-run:
 
 ```jsonc
 {

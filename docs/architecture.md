@@ -216,7 +216,7 @@ graph TB
 | Script                           | Responsibility                                                                                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plan-context.js`                | Single authoring-envelope emitter for `/plan`: Story brief + docs digest + `codebaseSnapshot` + duplicate search + clarity + rendered system prompts. |
-| `plan-critics.js`                | Single critic-dispatch evaluation point for `/plan`, run between Author and Persist: prints the consolidation + pre-mortem verdict as JSON (advisory — always exits 0) and ledgers every skip. |
+| `plan-critics.js`                | Single critic-dispatch evaluation point for `/plan`, run between Author and Persist: prints the consolidation + pre-mortem verdict as JSON (advisory — exits 0 on any verdict) and ledgers every skip. Exits 1 on a usage/IO error, where no critic ran and no skip was ledgered: do not proceed to Persist. |
 | `plan-persist.js`                | Single GitHub-write surface for `/plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, `plan-summary` comment. |
 | `single-story-init.js`           | Validates a standalone Story, branches from `main`, creates the worktree, flips `agent::executing`. |
 | `stories-wave-tick.js`           | Ready-set planner for multi-Story `/deliver` (shared `selectReadySet` core; default concurrency 3). |
@@ -230,6 +230,7 @@ graph TB
 | Module                                   | Role                                                                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/code-review.js`       | Inline review companion to `helpers/code-review.md`; persists results as a `code-review` structured comment. |
+| `lib/orchestration/change-set.js`        | The **one** Story change-set enumerator (`computeChangeSet`): computed once per delivery and injected into ceremony routing, review depth, and every acceptance critic, so no consumer re-derives a different set. Total — an unenumerable diff yields `{ files: null }`. |
 | `lib/duplicate-search.js`                | `/plan` ideation entry — title + body keyword search across open Stories; returns a ranked list or `[]`. |
 
 #### Ready-set / DAG helpers
@@ -243,6 +244,7 @@ import them.
 | Helper                        | Responsibility                                                                            |
 | ----------------------------- | ----------------------------------------------------------------------------------------- |
 | `lib/wave-runner/ready-set.js` | Select the next ready Story set given deps + concurrency. |
+| `lib/wave-runner/live-probe.js` | State-probing adapter feeding the pure `selectReadySet` kernel from live GitHub state (done / in-flight / foreign blockers) instead of caller-transcribed flags. |
 | `dependency-parser.js`        | Parse `depends_on` / `blocked by #N` edges from Story bodies. |
 
 #### ErrorJournal
@@ -710,9 +712,11 @@ Inside each Story delivery (`helpers/deliver-story` Step 1a), a bounded
 before the Story proceeds to close. Each acceptance-criteria cluster is
 scored either by a **fresh-context critic** sub-agent — independent of
 the implementing turn — or inline, per the ceremony routing described
-under **Sub-agent topology** above; the critic scores the working diff
-against each inline `acceptance[]` item, using `verify[]` as evidence,
-and `acceptance-eval.js` records the per-criterion verdict.
+under **Sub-agent topology** above; the critic scores the change set its
+caller computed once via `change-set.js` and injected — it must not
+re-derive one (Story #4593) — against each inline `acceptance[]` item,
+using `verify[]` as evidence, and `acceptance-eval.js` records the
+per-criterion verdict.
 On `proceed` the Story flips to `closing`; unmet criteria trigger a
 redraft round, bounded by `delivery.acceptanceEval.maxRounds`
 (default 2, clamped into `[1, hard ceiling]` — the loop cannot be
