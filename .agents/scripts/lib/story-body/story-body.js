@@ -165,13 +165,35 @@ function stripListMarker(line) {
   return line.replace(/^-\s+(?:\[\s*[xX ]?\s*\]\s+)?/, '').trim();
 }
 
+// Humanized PathEntry bullet (Story #4600): `path` — assumption. This is the
+// shape serialize() now emits for `## Changes` / `## References`; the legacy
+// inline-JSON object bullet remains accepted at parse time indefinitely (live
+// issue bodies are never rewritten).
+const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
+
+// AC-<n> presentation prefix on acceptance checkboxes (Story #4600). The
+// numbering is a stable 1-based human handle only — parse() strips it so the
+// top-level acceptance[] machine contract round-trips byte-identical.
+const AC_PREFIX_RE = /^AC-\d+:\s+/;
+
+// Visible wide-rationale line (Story #4600): `> **Wide:** <reason>` rendered
+// under `## Goal`. Presentation only — the `<!-- meta -->` block stays the
+// canonical machine carrier, so the parser skips this line wherever it
+// appears (same treatment as the authored-provenance marker).
+const WIDE_MARKER_LINE_RE = /^>\s*\*\*Wide:\*\*/;
+
 /**
  * Parse a single `changes` / `references` bullet into a `PathEntry`.
  *
- * Object form: `{ path: "...", assumption: "creates" }` (stored as
- * `- { "path": "...", "assumption": "..." }` or just recognized from the
- * structured body directly — when deserializing from a structured object
- * that was never serialized to markdown, the entry arrives as-is).
+ * Accepted markdown shapes (both parsed indefinitely — live issue bodies
+ * are never rewritten):
+ *   - Humanized bullet (canonical serialize() output since Story #4600):
+ *     `` `src/x.js` — refactors-existing ``
+ *   - Legacy inline-JSON object bullet:
+ *     `- { "path": "...", "assumption": "..." }`
+ *
+ * A structured object entry (from a parsed JSON body that was never
+ * serialized to markdown) arrives as-is and is validated directly.
  *
  * @param {string|object} raw
  * @param {string[]} warnings
@@ -196,6 +218,21 @@ function parsePathEntry(raw, warnings) {
 
   const str = typeof raw === 'string' ? raw.trim() : String(raw).trim();
   if (str.length === 0) return null;
+
+  // Humanized bullet shape (the canonical serialize() output since
+  // Story #4600): `path` — assumption.
+  const humanized = str.match(HUMANIZED_PATH_ENTRY_RE);
+  if (humanized) {
+    const path = humanized[1].trim();
+    if (path.length > 0 && FILE_ASSUMPTION_VALUES.includes(humanized[2])) {
+      return { path, assumption: humanized[2] };
+    }
+    // Recognized the humanized shape but the fields are invalid: fail closed.
+    throw new StoryBodyParseError(
+      `changes/references entry is a humanized bullet but not a valid PathEntry: ${str.slice(0, 120)}`,
+      { field: 'changes', raw: str },
+    );
+  }
 
   // Try to detect inline JSON object shape: `{ "path": "...", "assumption": "..." }`
   if (str.startsWith('{')) {
@@ -433,6 +470,14 @@ function splitSections(markdown) {
       continue;
     }
 
+    // The visible `> **Wide:** <reason>` rationale line is presentation only
+    // (Story #4600): the meta block remains the canonical carrier for
+    // `wide.reason`, so this line must not bleed into the goal (or any other)
+    // section. Skip it wherever it appears.
+    if (WIDE_MARKER_LINE_RE.test(line)) {
+      continue;
+    }
+
     if (inPreamble) {
       preambleLines.push(line);
     } else if (currentSection !== null) {
@@ -637,7 +682,11 @@ export function parse(input) {
     sections.get('changes') ?? [],
     warnings,
   );
-  const acceptance = parseTextListSection(sections.get('acceptance') ?? []);
+  // The AC-<n> checkbox prefix is presentation-only (Story #4600): strip it
+  // so acceptance[] round-trips byte-identical to the authored array.
+  const acceptance = parseTextListSection(sections.get('acceptance') ?? []).map(
+    (a) => a.replace(AC_PREFIX_RE, ''),
+  );
   const verify = parseTextListSection(sections.get('verify') ?? []);
   const references = parsePathEntrySection(
     sections.get('references') ?? [],
@@ -820,8 +869,10 @@ function parseStructuredObject(obj) {
  */
 function serializePathEntry(entry) {
   if (typeof entry === 'string') return entry;
-  // Canonical object form: render as JSON inline for round-trip fidelity.
-  return JSON.stringify({ path: entry.path, assumption: entry.assumption });
+  // Canonical object form (Story #4600): render as a human-readable bullet —
+  // path in backticks, em-dash, assumption. parsePathEntry recognizes this
+  // shape (and the legacy inline-JSON shape) for round-trip fidelity.
+  return `\`${entry.path}\` — ${entry.assumption}`;
 }
 
 /**
@@ -844,6 +895,18 @@ const SERIALIZE_SECTIONS = [
       typeof goal === 'string' && goal.trim().length > 0
         ? `## Goal\n${goal.trim()}`
         : null,
+  },
+  {
+    // Visible wide-rationale line (Story #4600), rendered directly under
+    // `## Goal`. Presentation only: the `<!-- meta -->` block remains the
+    // canonical machine carrier and the parser skips this line, so `wide`
+    // round-trips through the meta block alone. Absent/invalid wide emits
+    // nothing, keeping every non-wide body byte-identical to before.
+    field: 'wide',
+    render: (wide) => {
+      const normalized = normalizeWide(wide);
+      return normalized === null ? null : `> **Wide:** ${normalized.reason}`;
+    },
   },
   {
     // Optional v2 intra-Story delivery slice plan. Single-token `## Slicing`
@@ -873,10 +936,14 @@ const SERIALIZE_SECTIONS = [
         : null,
   },
   {
+    // Each checkbox carries a stable 1-based `AC-<n>:` handle (Story #4600)
+    // so humans and reviewers can reference criteria by number. The prefix
+    // is presentation-only — parse() strips it, and validators compare the
+    // top-level acceptance[] array, so numbering never affects gating.
     field: 'acceptance',
     render: (acceptance) =>
       Array.isArray(acceptance) && acceptance.length > 0
-        ? `## Acceptance\n${acceptance.map((a) => `- [ ] ${a}`).join('\n')}`
+        ? `## Acceptance\n${acceptance.map((a, i) => `- [ ] AC-${i + 1}: ${a}`).join('\n')}`
         : null,
   },
   {
