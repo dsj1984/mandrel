@@ -9,6 +9,10 @@
 //     node baselines/agents-loc-baseline.mjs --backfill 10
 //   Add / refresh the current version at release (upsert, keeps history):
 //     node baselines/agents-loc-baseline.mjs            (or: npm run baseline:agents-loc)
+//   Record a specific (e.g. not-yet-cut) version at a given ref:
+//     node baselines/agents-loc-baseline.mjs --version 2.1.0 [--ref <ref>]
+//     (--ref defaults to HEAD; use this to seed the next release's row from
+//     `main` before release-please cuts the tag and bumps package.json.)
 //
 // Output: baselines/agents-loc.csv — one row per version, with `(loc)` (all
 // lines, the `wc -l` proxy, via `git grep -c ^`) and `(bytes)` (blob sizes via
@@ -120,11 +124,20 @@ function main() {
     for (const v of tags) rows.set(v, rowFor(v, `mandrel-v${v}`));
     console.log(`backfilled ${tags.length} version(s): ${tags.join(', ')}`);
   } else {
-    const pkg = JSON.parse(
-      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url))),
-    );
-    rows.set(pkg.version, rowFor(pkg.version, 'HEAD'));
-    console.log(`upserted current version ${pkg.version} at HEAD`);
+    const vi = args.indexOf('--version');
+    const ri = args.indexOf('--ref');
+    const ref = ri !== -1 ? args[ri + 1] : 'HEAD';
+    const version =
+      vi !== -1
+        ? args[vi + 1]
+        : JSON.parse(
+            readFileSync(
+              fileURLToPath(new URL('../package.json', import.meta.url)),
+            ),
+          ).version;
+    if (!version) throw new Error('--version requires a value (e.g. 2.1.0)');
+    rows.set(version, rowFor(version, ref));
+    console.log(`upserted version ${version} at ${ref}`);
   }
 
   writeCsv(rows);
