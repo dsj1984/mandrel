@@ -141,6 +141,48 @@ total by default — an authored map is the only thing that can say
 `#4525-#4528 → #4530` while `#4529 → #4531`, which a blanket "superseded by
 this plan-run" reference could not.
 
+### 2.5 Critics
+
+Evaluate the critic-dispatch conditions against the authored draft — here,
+**before** persist, because this is the last point where a finding can still
+be folded into a re-author round rather than into live issues:
+
+```bash
+node .agents/scripts/plan-critics.js \
+  --stories temp/plan-<slug>/stories.json \
+  [--tech-spec temp/plan-<slug>/techspec.md]
+```
+
+It prints a verdict on stdout and always exits 0 — the verdict routes work,
+it does not gate the run:
+
+```jsonc
+{
+  "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": ["…"] },
+  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] }
+}
+```
+
+- **Both `dispatch: false`** — proceed straight to Persist. The conditions
+  provably have nothing for a critic to find, and each skip is recorded on the
+  plan-metrics ledger so under-firing stays auditable.
+- **Either `dispatch: true`** — dispatch **one fresh-context sub-agent per
+  firing critic** (a generic sub-agent), then fold its findings into the
+  Gate #2 view or a re-author round before persist. Each critic is
+  **maker-blind**: hand it the draft artifacts (`stories.json`, and
+  `techspec.md` when present) plus its charter below — never the authoring
+  transcript or the reasons the planner believed its own draft is sound. A
+  critic that reads the maker's case grades the case, not the draft.
+  - `consolidation` — the draft's shape: Stories that should be one cohesive
+    slice, a slice split per-module rather than per-capability, and
+    `depends_on` edges that disagree with the Delivery Slicing table.
+  - `pre-mortem` — assume the plan shipped and failed: name the most likely
+    failure modes and what the draft would have to say to prevent them.
+
+Fold what survives back into `stories.json` and re-run this step. Findings are
+advisory input to the operator's Gate #2 decision, not an automatic re-author
+mandate.
+
 ### 3. Persist
 
 **Gate #2** — when the operator passed `--force-review`, STOP for approval of

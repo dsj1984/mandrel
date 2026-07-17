@@ -2,9 +2,9 @@
  * plan-critic-conditions.test.js — table-driven condition matrix for the
  * #4474 PR6 conditional-critic dispatch layer:
  *
- *   - consolidation (8.3): precondition AND (>5 stories OR confirmed
+ *   - consolidation: precondition AND (>5 stories OR confirmed
  *     divergence) — a fail-open precondition on a small draft skips;
- *   - pre-mortem (8.5): ticket count ≥ ½ maxTickets, OR a
+ *   - pre-mortem: ticket count ≥ ½ maxTickets, OR a
  *     planning.riskHeuristics phrase match (case-insensitive). Story #4542
  *     retired the third condition — the authored risk verdict's overall level —
  *     with the verdict itself, so both surviving conditions read the plan's own

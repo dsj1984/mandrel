@@ -1,20 +1,22 @@
 /**
  * plan-critics-evaluate.js — shared critic-dispatch evaluation for the
- * collapsed /plan flow (#4496 fix 6; extracted from the `plan-critics.js`
- * CLI so the persist surface folds the same evaluation in as a pre-write
- * phase).
+ * collapsed /plan flow (#4496 fix 6).
  *
- * Two consumers:
- *   - `plan-persist.js` (via `runPlanPersist`) — evaluates the dispatch
- *     conditions as a deterministic pre-write phase, prints the verdicts,
- *     and records every skip on the plan-metrics ledger, so the headless
- *     path never pays a standalone CLI turn for the same decision.
- *   - `plan-critics.js` — the standalone CLI survives one release as a
- *     thin shim over this module for the attended pre-gate evaluation
- *     (the verdict folds into gate #2's view before the persist runs).
+ * One consumer: the `plan-critics.js` CLI, which `/plan` runs between its
+ * Author and Persist steps. The CLI loads the draft artifacts, calls this
+ * module, prints the verdict as JSON, and records every skip on the
+ * plan-metrics ledger; the workflow dispatches a fresh-context critic
+ * sub-agent on a `dispatch: true` verdict and folds the findings into a
+ * re-author round before persist.
+ *
+ * Story #4592 moved that evaluation here from `run-plan-persist.js`, which
+ * ran it after authoring was finished and immediately before
+ * `createStoryIssues` — the one point where a `dispatch: true` verdict has
+ * no re-author loop to route to. Persist no longer evaluates critics; this
+ * module has exactly one evaluation point.
  *
  * Pure evaluation: no file I/O, no GitHub calls, no ledger writes — the
- * callers own artifact loading and skip recording.
+ * caller owns artifact loading and skip recording.
  *
  * @module lib/orchestration/plan-critics-evaluate
  */
@@ -41,8 +43,7 @@ function resolveRiskHeuristics(config = {}) {
 
 /**
  * Evaluate the consolidation + pre-mortem critic dispatch conditions over
- * the authored planning artifacts (design §4 / #4474 PR6 conditions,
- * unchanged):
+ * the authored planning artifacts (#4474 PR6 conditions, unchanged):
  *
  *   - Consolidation: skipped outright when `tickets` is null/absent (the
  *     single-delivery shape authors no draft tickets); otherwise the
