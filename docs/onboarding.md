@@ -158,3 +158,4 @@ consulted at release time, not on every task.
 | [`.agents/docs/SDLC.md`](../.agents/docs/SDLC.md)           | End-to-end SDLC narrative           |
 | [`.agentrc.json`](../.agentrc.json)                         | Runtime configuration               |
 | [`CHANGELOG.md`](CHANGELOG.md)                              | Release history                     |
+| [`claude-coupling-review.md`](claude-coupling-review.md)    | Where the Claude Code coupling lives |
