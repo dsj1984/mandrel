@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.1.0...mandrel-v2.2.0) (2026-07-17)
+
+
+### Added
+
+* **deliver:** probe live state per beat, retiring hand-maintained --done/--in-flight (refs [#4594](https://github.com/dsj1984/mandrel/issues/4594)) ([#4597](https://github.com/dsj1984/mandrel/issues/4597)) ([96b2ef6](https://github.com/dsj1984/mandrel/commit/96b2ef6ce5f0526de2e5033e8cdb0ca02f6d5d89))
+* **plan:** add deterministic text-hygiene lints to the critic gate and codify authoring conventions (refs [#4599](https://github.com/dsj1984/mandrel/issues/4599)) ([#4607](https://github.com/dsj1984/mandrel/issues/4607)) ([8794459](https://github.com/dsj1984/mandrel/commit/87944593f8ba5c304cdbaef40a4d3e4430e5d71d))
+* **plan:** retire the [@epic](https://github.com/epic)-&lt;id&gt;-ac-N Gherkin AC tag namespace (refs [#4604](https://github.com/dsj1984/mandrel/issues/4604)) ([#4608](https://github.com/dsj1984/mandrel/issues/4608)) ([7388c58](https://github.com/dsj1984/mandrel/commit/7388c581d43e10a26c538e19a15897d2b5adafa7))
+* rewire the /plan critics into a live pre-persist gate ([#4592](https://github.com/dsj1984/mandrel/issues/4592)) ([#4598](https://github.com/dsj1984/mandrel/issues/4598)) ([349367d](https://github.com/dsj1984/mandrel/commit/349367d46bfbe59be5ce56952bca46cac8e5828c))
+* **story-body:** render numbered ACs, humanized path bullets, and visible wide rationale (refs [#4600](https://github.com/dsj1984/mandrel/issues/4600)) ([#4606](https://github.com/dsj1984/mandrel/issues/4606)) ([843779e](https://github.com/dsj1984/mandrel/commit/843779e2730832a1d7a6e081a0a18b40dd621981))
+
+
+### Fixed
+
+* fix probe mode's incomplete live classification: double-dispatch window and blocked-Story wedge ([#4601](https://github.com/dsj1984/mandrel/issues/4601)) ([#4605](https://github.com/dsj1984/mandrel/issues/4605)) ([0875b6a](https://github.com/dsj1984/mandrel/commit/0875b6af857fcfadc423e4e3731d792dc2a5fe60))
+* **story-close:** close [#4593](https://github.com/dsj1984/mandrel/issues/4593)'s single-enumeration leak and root-cause the un-fired MI gate ([#4610](https://github.com/dsj1984/mandrel/issues/4610)) ([1edf5a6](https://github.com/dsj1984/mandrel/commit/1edf5a67ceaf868f8faae92aec1c6280f191d33f))
+
+
+### Changed
+
+* **orchestration:** compute the Story change-set once and thread it through delivery (refs [#4593](https://github.com/dsj1984/mandrel/issues/4593)) ([#4595](https://github.com/dsj1984/mandrel/issues/4595)) ([d116015](https://github.com/dsj1984/mandrel/commit/d1160150836e8bf7107fac24189cde258ea93458))
+
 ## [2.1.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.0.0...mandrel-v2.1.0) (2026-07-17)
 
 
