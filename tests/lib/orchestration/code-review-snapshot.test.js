@@ -54,8 +54,8 @@ test('runCodeReview renders a known Finding[] to the committed snapshot body', a
   let postedBody = null;
   await runCodeReview({
     ticketId: 4242,
+    headRef: 'story-4242',
     provider: { kind: 'github' },
-    bus: { emit: async () => {} },
     baseRef: 'main',
     reviewProvider: { runReview: async () => SEEDED_FINDINGS },
     resolveConfigFn: () => ({

@@ -120,12 +120,11 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
           notifications: {
             mentionOperator: false,
             commentEvents: ['state-transition'],
-            webhookEvents: ['epic-started'],
+            webhookEvents: ['story-merged', 'loop.tick'],
           },
         },
         planning: {
           riskHeuristics: ['no destructive ops'],
-          context: { maxBytes: 50000, summaryMode: 'auto' },
         },
         delivery: {
           execution: { timeoutMs: 600000 },
@@ -176,6 +175,17 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         },
       },
       'fully populated doc',
+    );
+  });
+
+  it('rejects the retired planning.context block on both sides (Story #4541)', () => {
+    assertAgree(
+      { ...REQ, planning: { context: { maxBytes: 50000 } } },
+      'retired planning.context.maxBytes',
+    );
+    assertAgree(
+      { ...REQ, planning: { context: { summaryMode: 'auto' } } },
+      'retired planning.context.summaryMode',
     );
   });
 

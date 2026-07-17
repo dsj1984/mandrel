@@ -9,8 +9,16 @@ import {
   resolvePreviewScope,
 } from '../.agents/scripts/lib/changed-files.js';
 
+// Env with every `GIT_*` variable dropped. Under a husky pre-push from a
+// linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
+// a fixture `git init` under that env writes `core.bare=true` into the MAIN
+// checkout's `.git/config` (#4580).
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
 function git(cwd, ...args) {
-  execSync(['git', ...args].join(' '), { cwd, stdio: 'pipe' });
+  execSync(['git', ...args].join(' '), { cwd, stdio: 'pipe', env: CLEAN_ENV });
 }
 
 function initRepo() {

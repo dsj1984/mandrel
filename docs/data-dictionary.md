@@ -112,39 +112,36 @@ outside this set MUST be proposed in a PR that updates the rule before use.
 
 ## Orchestration Submodule Boundaries
 
-The orchestration SDK splits its three largest modules into cohesive submodules
-behind façade files. Only the façade paths are part of the stable public
+The orchestration SDK splits its largest module into cohesive submodules
+behind a façade file. Only the façade path is part of the stable public
 surface; submodule paths are internal implementation detail and may be renamed
 without a major version bump.
 
 | Façade (public)                          | Submodule directory                 | Internal submodules                                                                                             |
 | ---------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `lib/worktree-manager.js`                | `lib/worktree/`                     | `lifecycle-manager`, `node-modules-strategy`, `bootstrapper`, `inspector`                                       |
-| `lib/orchestration/dispatch-engine.js`   | `lib/orchestration/` (co-located)   | `dispatch-pipeline`, `risk-gate-handler`                                                                        |
-| `lib/presentation/manifest-renderer.js`  | `lib/presentation/` (co-located)    | `manifest-formatter` (pure), `manifest-persistence` (fs I/O)                                                    |
 
-Downstream consumers must import from the façade column. Tests, MCP tools, and
+Downstream consumers must import from the façade column. Tests and
 CLI entry points inside this repository also import from the façade column —
 the split is internal. See `docs/architecture.md` and `docs/patterns.md` for
 the responsibility map.
 
 ---
 
-## Epic Deliver Runner Vocabulary
+## Deliver Runner Vocabulary
 
 Vocabulary specific to the runner over and above the existing label/comment
-taxonomy.
+taxonomy. The pre-v2 Epic-runner terms (`epic-run-state` checkpoint,
+`wave-<N>-start` / `wave-<N>-end` markers) are **historical** — the Epic
+tier and its wave loop were deleted in v2.0.0, and no producer writes them.
 
 | Term                       | Kind                | Definition                                                                                                                          |
 | -------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/deliver` phases.    |
-| `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                                       |
-| `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                                               |
-| `concurrencyCap`           | Config (integer)    | `delivery.deliverRunner.concurrencyCap`; max parallel `/deliver <storyId>` sub-agents per wave.                  |
+| `concurrencyCap`           | Config (integer)    | `delivery.deliverRunner.concurrencyCap`; max parallel Story sub-agents in flight per ready-set beat (`stories-wave-tick.js`).       |
 | Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                                                    |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                                            |
 
-`risk::high` is metadata only — it ranks work in the dispatch table and helps
+`risk::high` is metadata only — it ranks work and helps
 reviewers prioritize, but does not pause execution.
 
 ### Structured-comment types
@@ -190,10 +187,6 @@ graduator keeps its `audit-results` name and label prefix from when it read a
 separate `audit-results` comment; that comment type is retired (Stories #4411 /
 #4412 folded it into `verification-results`) but the graduator is unchanged.
 
-`lib/orchestration/bookkeeping-outbox.js` is a generic transport, not a type:
-it replays buffered `{ticketId, marker, body}` ops through
-`upsertStructuredComment` for headless runs, carrying whichever marker the
-caller enqueued.
 The `mcp__mandrel__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
@@ -206,27 +199,16 @@ readers should not re-implement the fence-extraction logic inline.
 
 ---
 
-## Dispatch Manifest
+## Dispatch Manifest (historical)
 
-`temp/dispatch-manifest-<epicId>.json` is the frozen Story manifest the
-wave-gate reads. The structured comment of type `dispatch-manifest` posted on
-the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
-`render-manifest.js --epic <id>`.
-
-| Field                    | Type    | Description                                                                                       |
-| ------------------------ | ------- | ------------------------------------------------------------------------------------------------- |
-| `type`                   | `enum`  | `"epic-dispatch"` or `"story-execution"` discriminator.                                            |
-| `epicId`                 | `int`   | GitHub Issue number of the Epic.                                                                  |
-| `storyManifest[]`        | `array` | Frozen list of Stories per wave. Each row carries `{ storyId, storyTitle, wave, … }`. `model_tier` was removed from this row in Epic #990 (audit remediation) — the orchestrator no longer selects models; the executing agent / external router does. |
-| `agentTelemetry`         | `object`| Open object for runner telemetry (cap-source, runner version, etc.).                              |
-| `summary`                | `object`| Summary counts (total, by-wave, by-status).                                                       |
-
-> **Story-centric manifest.** The dispatch manifest is Story-centric:
-> `waves[].stories[]` lists the Stories per wave and `storyManifest[]`
-> rows carry inline `acceptance[]` / `verify[]` from each Story body.
-> Schema-version identifiers on the manifest let a future consumer
-> detect "I cannot read this artifact" (per the
-> [hard-cutover policy](decisions.md)).
+> **Historical.** The dispatch manifest
+> (`temp/dispatch-manifest-<epicId>.json`, the `dispatch-manifest`
+> structured comment on the Epic, and its renderer
+> `render-manifest.js`) was deleted with the Epic tier in v2.0.0. No
+> producer writes it, and the live structured-comment table above omits
+> it. The dispatch record in v2 is the Story's own GitHub surface —
+> labels, structured comments, and the `story-<id>` PR. Manifests on
+> historical Epics remain readable as plain comments.
 
 ---
 
@@ -234,12 +216,8 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 
 | Term                                                | Kind     | Definition                                                                                                                                                                       |
 | --------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
-| `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                                 | Script   | Standalone hierarchy-completeness CLI (`node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>`). Walks the Epic's live Story sub-issue graph (2-tier: Epic → Story, Story #4041 — `getSubTickets(<storyId>)` returns `[]`, so the walk terminates at the Story) and requires every Story closed; legacy `context::*` artifacts on historical Epics are ignored (Story #4324 folded planning content into the Epic body). Exits 0 when every descendant is closed, 1 when any is open, 2 on configuration/provider error. |
+| Resumable merge-wait (`terminal: 'pending'`)        | Contract | `single-story-close.js`'s confirm-merge phase (Story #4543) bounds each invocation by `maxWaitSeconds` and the cumulative wait by `maxBudgetSeconds` (anchored at the PR's `createdAt`). An expired invocation returns a resumable `pending` terminal naming the `nextCommand` — no label mutation — so an interrupted close is re-entrant instead of stranding the Story at `agent::closing`. |
 | `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/run-<eid>/stories/story-<sid>/signals.ndjson` (standalone: `temp/standalone/stories/story-<sid>/`). Consumers: `diagnose-friction.js`, Story close / follow-up capture, the retro's gather-signals phase. Per-kind quality-gate logic formerly in `check-crap.js` / `check-maintainability.js` now lives in `lib/baselines/kinds/{lint,coverage,crap,maintainability,mutation}.js` behind `check-baselines.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
-| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
-| Version-bump-intent snapshot                        | Checkpoint | `/deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` (from `lib/config/validate-orchestration.js`) runs at launcher startup in `plan-context.js`, `plan-persist.js`, `bootstrap.js`, and `agents-bootstrap-github.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
 
 ---
@@ -301,7 +279,7 @@ ratchet.
 | Term                            | Kind             | Definition                                                                                                                                          |
 | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
+| `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the base ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
 
 ---
 
@@ -316,9 +294,6 @@ ratchet.
 | `resolveWorktreeEnabled(opts, env)` | Helper      | `lib/config-resolver.js`. Returns the resolved boolean (env override → web auto-detect → committed config).                                                                                                          |
 | `resolveSessionId(env)`           | Helper        | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line.                                                                                                                    |
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
-| `DEFAULT_STORY_MERGE_RETRY`     | Framework constant | `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`, exported from `.agents/scripts/lib/config/runners.js`. Drives the bounded retry on the epic-branch push at story close. Post-reshape this is a framework-internal constant — no `.agentrc.json` override. See `docs/CHANGELOG.md` for the rename history. |
-| `pushEpicWithRetry(...)`          | Helper        | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work.                |
-| `validateBlockers({ provider, logger, input })` | Helper | `lib/story-init/blocker-validator.js` (Stage 3 of the story-init pipeline). Parses `blocked by #N` references from the Story body and verifies each is resolved (`agent::done` label or GitHub state `closed`). Returns `{ openBlockers }`; fetch failures are treated as blocking (`fetchError: true`) so an agent never proceeds past a dependency whose state is unknown. |
 
 ---
 
@@ -332,7 +307,6 @@ authoritative SDK.
 | ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `post-structured-comment.js`               | CLI      | `--ticket <id> --marker <key> --body-file <path>`. Wraps `upsertStructuredComment(provider, ticketId, marker, body)` from `lib/orchestration/ticketing.js`; idempotent by marker. |
 | `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
-| `hydrate-context.js`                       | CLI      | `hydrate-context.js --ticket <id> [--epic <id>]` emits the `{"prompt": …}` JSON envelope. `--emit envelope` emits the raw envelope; `--emit prompt` writes the raw hydrated prompt (no JSON wrapper). The only supported hydration entry point. |
 | `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story reaches `agent::done`.                                    |
 | `dispatcher.js`                            | CLI      | **Deleted in v2.** Pre-v2 DAG / wave / dispatch-manifest CLI. Multi-Story ordering now uses `stories-wave-tick.js` + `lib/wave-runner/ready-set.js`. |
 | `process.env`-only secrets resolution      | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is not consulted as a secrets backstop.       |

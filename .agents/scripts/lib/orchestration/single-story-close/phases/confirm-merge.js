@@ -87,6 +87,7 @@ import {
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   deriveChecksStatus,
+  failingChecksBlockMerge,
 } from '../../merge-poll.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
@@ -344,6 +345,7 @@ async function blockOnFlipFailed({
   provider,
   progress,
   emitMergeFlipFailedFn,
+  prProbe,
 }) {
   if (Number.isInteger(prNumber) && prNumber > 0) {
     try {
@@ -395,6 +397,11 @@ async function blockOnFlipFailed({
     reason,
     frictionCommentId,
     elapsedSeconds,
+    // The merge is CONFIRMED here — only the label write failed — so the
+    // envelope must say MERGED even when the probe that got us here was read
+    // before the merge landed. Reporting the stale OPEN (or null) would tell
+    // the operator to chase a merge that already happened.
+    prProbe: { ...(prProbe ?? {}), state: 'MERGED' },
   };
 }
 
@@ -480,6 +487,12 @@ async function blockOnUnlanded({
     reason,
     frictionCommentId,
     elapsedSeconds,
+    // The probe the classifier just read. The terminal envelope reports
+    // `pr.state` / `pr.checksStatus` from here; dropping it made every
+    // blocked envelope claim `null` for facts we had just observed — a
+    // `checks-failed` envelope reporting `checksStatus: null` contradicts
+    // itself. Schema wants "live PR facts as observed at terminal time".
+    prProbe,
   };
 }
 
@@ -580,6 +593,7 @@ async function onMergeObserved({
       provider,
       progress,
       emitMergeFlipFailedFn,
+      prProbe,
     });
   }
 
@@ -768,10 +782,14 @@ export async function runConfirmMergePhase({
       });
     }
 
-    // Fail fast on a red required check. No remaining budget turns a failed
+    // Fail fast on a red REQUIRED check. No remaining budget turns a failed
     // check green, and waiting it out is what made the pre-#4543 wait report
     // the operator's red test run as a branch-protection block.
-    if (probe.checksStatus === 'failure') {
+    //
+    // Gated on `failingChecksBlockMerge`, not on the raw rollup: a red
+    // OPTIONAL check does not stop native auto-merge, so failing fast on it
+    // would block the Story while the PR lands anyway.
+    if (failingChecksBlockMerge(probe)) {
       progress?.(
         'CONFIRM',
         `🛑 PR #${prNumber}: a required check went red — failing fast rather than burning the budget.`,

@@ -19,12 +19,13 @@ validated.
 
 - **Canonical record + schema validation**: `diagnose-friction.js` appends one
   `kind: friction` record, validated write-time against
-  `signal-event.schema.json`, to the per-Epic/per-Story `signals.ndjson`
-  stream on local disk. The retro roll-up reads that stream back to aggregate
+  `signal-event.schema.json`, to the per-run/per-Story `signals.ndjson`
+  stream on local disk (under `temp/run-<id>/`). The retro roll-up reads that
+  stream back to aggregate
   friction into routed proposals; nothing is posted to the GitHub ticket at
   capture time.
-- **No-Epic context**: Outside an Epic/Story loop there is no per-Epic stream
-  to anchor to, so the record lands on the **standalone signal stream**
+- **Standalone context**: Outside a delivery run there is no `temp/run-<id>/`
+  stream to anchor to, so the record lands on the **standalone signal stream**
   (`temp/standalone/stories/story-<sid>/signals.ndjson`) under the same
   canonical schema.
 - **Never silently dropped**: The signal is never silently dropped — a
@@ -57,12 +58,40 @@ schema mechanics are in [§ Friction telemetry](#friction-telemetry) above.
 
 ## FinOps & token budgeting (economic guardrails)
 
-Mandrel does **not** enforce live LLM spend from response metadata. The
-framework limits **hydrated prompt size** via section-aware elision
-(`elideEnvelope`) and optional **pre-dispatch estimates**; your host
-runtime (editor / CLI) owns session quota and hard stops. Consult this
-section when reasoning about why a task prompt was elided or why `/deliver`
-refused a fan-out on budget grounds.
+Mandrel does **not** enforce live LLM spend from response metadata. It bounds
+two things, both **fixed framework constants** rather than operator knobs, and
+both **fail closed**: the assembled `/plan` context envelope, and plan-time
+Story sizing. Your host runtime (editor / CLI) owns session quota and hard
+stops. Consult this section when reasoning about why `/plan` refused an
+over-ceiling envelope or an over-budget Story count.
+
+> **There is no configurable context budget.** `planning.context.maxBytes` /
+> `summaryMode` were removed outright in Story #4541, along with the
+> `applyBudget` pass they fed: that pass lost its last caller in the v2
+> cutover, and it was already bounding a field the envelope builders discarded
+> before shipping the raw seed anyway. The schema now **rejects**
+> `planning.context`, so a config carrying it fails loudly rather than silently
+> capping nothing. The ceiling below is the replacement and the only live bound
+> on planner-context size. Separately, `elideEnvelope` in
+> `lib/orchestration/context-envelope.js` — which this section used to credit
+> with limiting hydrated prompt size — has no production caller either (it is
+> carried in `baselines/dead-exports-production.json`). Only `estimateTokens`
+> from that module is live.
+
+### Planner-context envelope (`/plan`)
+
+- **`PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`** (`lib/orchestration/plan-context.js`):
+  256 KB (≈64K tokens at the ≈4-chars/token estimate) on the serialized
+  envelope `buildPlanContext` assembles, checked at the single choke point
+  every mode returns through. Measured envelopes on this repo land at ~42 KB,
+  so the ceiling is >2× headroom over a worst-case seed plus a medium-tier
+  codebase snapshot.
+- **On refusal**, the error names the envelope's largest fields. Trim the seed,
+  plan fewer `--tickets` source issues in one run, or narrow
+  `planning.codebaseSnapshot`. The seed is carried **verbatim** by design — it
+  is the operator's request, and summarizing it silently would degrade planning
+  quality precisely when the input is richest — so there is no elision path to
+  fall back on. Raising the ceiling needs a measured justification.
 
 ### Session-mass capacity (plan-time sizing)
 

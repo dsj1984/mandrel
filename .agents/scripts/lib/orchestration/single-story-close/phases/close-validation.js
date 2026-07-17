@@ -8,7 +8,7 @@
  *
  * Standalone evidence keyspace (Story #4250). Standalone Stories have no
  * parent Epic, so they cannot scope a `validation-evidence.json` under a
- * `temp/epic-<id>/` tree. Rather than feed a null `epicId` into the
+ * `temp/run-<id>/` tree. Rather than feed a null `epicId` into the
  * Epic-keyed path (which structurally disabled the evidence cache and
  * forced every re-run — base-sync conflict, review remediation, baseline
  * absorb — to re-execute ALL gates including the coverage suite), the
@@ -45,7 +45,7 @@ import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../s
  *
  * Gates are built from the canonical resolved config (`buildDefaultGates`
  * reads `project.commands` and `delivery.quality.gates.crap.enabled`); the
- * `baseBranch` is forwarded as the gate `epicBranch` so the format gate's
+ * `baseBranch` is forwarded as the gate `baseBranch` so the format gate's
  * changed-file scope anchors on it. `standalone: true` routes the evidence
  * cache to the storyId-anchored keyspace.
  *
@@ -92,7 +92,7 @@ export async function runCloseValidationPhase({
         cwd,
         worktreePath,
         storyId,
-        epicBranch: baseBranch,
+        baseBranch,
         storyBranch,
         config,
         logger: Logger,
@@ -127,7 +127,7 @@ export async function runCloseValidationPhase({
     worktreePath,
     gates: buildDefaultGates({
       config,
-      epicBranch: baseBranch,
+      baseBranch,
       cwd: worktreePath || cwd,
       log: (m) => Logger.info(m),
     }),

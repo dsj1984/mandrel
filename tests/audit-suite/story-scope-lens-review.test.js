@@ -297,7 +297,7 @@ test('epic-attached close (runStoryCodeReview) reaches the lens pass through the
   const lensSpy = spy(lensReview);
   const out = await runStoryCodeReview({
     storyId: 4409,
-    epicBranch: 'epic/4405',
+    baseBranch: 'epic/4405',
     storyBranch: 'story-4409',
     provider: {},
     bus: { emit: async () => {} },

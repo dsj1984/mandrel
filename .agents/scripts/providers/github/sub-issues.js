@@ -30,7 +30,6 @@ import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import {
   ADD_SUB_ISSUE_MUTATION,
   classifyGithubError as defaultClassifyGithubError,
-  PARENT_ISSUE_QUERY,
   REMOVE_SUB_ISSUE_MUTATION,
   SUB_ISSUES_QUERY,
   withTransientRetry,
@@ -132,52 +131,6 @@ export class SubIssueGateway {
       throw err;
     }
     return childIds;
-  }
-
-  /**
-   * Strategy 2 — native GitHub Sub-Issues, inverse direction. Given a
-   * child Issue node, return the parent's issue number (or `null` when
-   * the child has no native parent link, or the feature is disabled on
-   * this repo). Story #2982: used by `cascadeCompletion` as a third
-   * fallback so a Story whose body lost the `parent: #N` orchestrator
-   * footer still cascades upward to its true Sub-Issue parent.
-   *
-   * @param {string} childNodeId  GraphQL node ID of the child Issue.
-   * @param {number} childNumber  Issue number, for log context only.
-   * @returns {Promise<number|null>}
-   */
-  async getNativeParent(childNodeId, childNumber) {
-    if (!childNodeId) return null;
-    try {
-      const data = await withTransientRetry(
-        () =>
-          this._ghGraphql(
-            PARENT_ISSUE_QUERY,
-            { id: childNodeId },
-            { headers: { 'GraphQL-Features': 'sub_issues' } },
-          ),
-        {
-          label: `getNativeParent child=#${childNumber}`,
-          classify: this._classify,
-          onRetry: defaultRetryWarn,
-        },
-      );
-      const parent = data?.node?.parent;
-      if (!parent || typeof parent.number !== 'number') return null;
-      return parent.number;
-    } catch (err) {
-      const category = this._classify(err);
-      if (category === 'feature-disabled') {
-        Logger.warn(
-          `[GitHubProvider] sub-issues parent lookup unavailable (child #${childNumber})`,
-        );
-        return null;
-      }
-      Logger.error(
-        `[GitHubProvider] native parent lookup failed (child #${childNumber}, category=${category}): ${err.message}`,
-      );
-      throw err;
-    }
   }
 
   /**

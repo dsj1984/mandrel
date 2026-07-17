@@ -105,8 +105,8 @@ The bootstrap pipeline, in order:
    mutations are **opt-in** (prompted y/N, defaulting No, or passed as flags):
    - `--with-project-board` — provision the Projects V2 Status field and
      custom fields on an existing board.
-   - `--with-issue-forms` — generate `.github/ISSUE_TEMPLATE/story.yml` and
-     `epic.yml` from the ticket-body schema.
+   - `--with-issue-forms` — generate `.github/ISSUE_TEMPLATE/story.yml`
+     from the ticket-body schema.
 
 The bootstrap is idempotent — safe to re-run; an already-configured
 clone produces zero file mutations.
@@ -430,9 +430,9 @@ rule:
 > GitHub I/O, label transitions, JSON validators, NDJSON readers,
 > diff-vs-baseline gates, template renderers.
 >
-> **Prompt + judgment → make it a Skill.** Examples: composing a Tech
-> Spec from an Epic body, classifying friction signals from a failed shell
-> command, decomposing a Tech Spec into a ticket hierarchy.
+> **Prompt + judgment → make it a Skill.** Examples: composing a Story's
+> `## Spec` from planning context, classifying friction signals from a
+> failed shell command, decomposing a Spec into Stories.
 
 The rule is two-sided on purpose. "Has an LLM step adjacent" is *not*
 the signal — many deterministic scripts emit a JSON envelope that a host
@@ -446,17 +446,18 @@ The collapsed plan pipeline (`plan-context.js` → author → `plan-persist.js`,
 Epic #4474) is a **split**: the deterministic halves stay as scripts, the
 judgment middle moves to a Skill.
 
-- **`--emit-context`** (script half) — fetches the Epic body (which
-  carries the folded Tech Spec sections), scrapes project docs, emits a
-  JSON envelope. Parseable in, parseable out. Stays a script.
+- **`--emit-context`** (script half) — fetches the seed/source tickets
+  and scrapes project docs, emits a JSON envelope. Parseable in,
+  parseable out. Stays a script.
 - **Authoring middle** (Skill half) — given the envelope, author the
-  ticket hierarchy JSON. Pure prompt + judgment. Migrates to a Skill
+  Story JSON. Pure prompt + judgment. Migrates to a Skill
   under `.agents/skills/core/` so it ships with declarative
   `allowed_tools` and a smoke test rather than bespoke prompt-template
   plumbing inside a Node module.
 - **Persist half** (script half) — given the author-provided tickets
-  JSON, validate against the schema, create GitHub issues, flip the Epic
-  label. Deterministic GitHub I/O + schema validation. Stays a script.
+  JSON, validate against the schema, create the `type::story` issue(s)
+  and label them `agent::ready`. Deterministic GitHub I/O + schema
+  validation. Stays a script.
 
 The split codifies the "host LLM authors directly" pattern explicitly:
 the prompt+judgment step gets a `description`, an
@@ -546,8 +547,8 @@ comment) is the cross-runtime contract.
 The SDK barrel is `scripts/lib/orchestration/index.js`; its exports are
 the source of truth for the public in-process surface. Key families
 include dispatch (`dispatch-engine.js`, `manifest-builder.js`), context
-hydration, planning state, label transitions, Epic runner phases,
-Story-close internals, retro heuristics, and structured error capture.
+hydration, planning state, label transitions, Story-close internals,
+retro proposals, and structured error capture.
 
 ### GitHub authentication
 
@@ -600,7 +601,7 @@ environment inside the check. A finding includes `id`, `severity`,
 `autoCorrectable`.
 
 `autoCorrect: 'auto'` means the fix is local, bounded, and reversible.
-Auto-fixes must not push to remotes, commit to `epic/*` or `main`, amend
+Auto-fixes must not push to remotes, commit to `main`, amend
 history, recursively delete outside `.worktrees/<id>/`, write GitHub
 state, or read secret values. Anything requiring those operations must be
 `refuse-and-print` with a human-run `fixCommand`.
@@ -866,8 +867,16 @@ The lease primitive lives in
 [`scripts/lib/orchestration/ticket-lease.js`](scripts/lib/orchestration/ticket-lease.js).
 Rather than inventing a new state column, the lease rides the ticket's
 existing **assignees** field: the single assignee *is* the lease owner.
-Liveness is decided by the owner's most-recent `story.heartbeat` timestamp
-compared against a configurable TTL (`delivery.lease.ttlMs`).
+Liveness is decided by the owner's last-heartbeat timestamp compared against
+a configurable TTL (`delivery.lease.ttlMs`).
+
+> **In practice the lease always fails closed.** There is no live heartbeat
+> source — the `story.heartbeat` emitter was structurally inert and has been
+> deleted (A22) — so every guard anchors the owner's heartbeat to *now*,
+> making **any** foreign claim read as live. The **stale-claim reclaim** row
+> below is therefore unreachable in normal operation: a stranded claim is
+> cleared with `--steal`, never by TTL expiry. The TTL and the reclaim branch
+> remain as a seam for a caller that supplies its own `heartbeatAt`.
 
 The model has five behaviours, all expressed through `acquireLease` /
 `releaseLease`:
@@ -877,7 +886,7 @@ The model has five behaviours, all expressed through `acquireLease` /
 | **Acquire by self-assign** | The ticket is unassigned. | The operator is written to `assignees`; the run proceeds (`reason: 'unclaimed'`). |
 | **Re-affirm a self-held claim** | The operator already holds the lease. | No write; the run proceeds (`reason: 'already-held'`). |
 | **Refuse-if-foreign** | A *different* operator holds the lease and their heartbeat is within the TTL (the claim is **live**). | The acquire **fails closed** — the run refuses to start and names the current owner so you know who to coordinate with (`reason: 'held'`). |
-| **Stale-claim reclaim** | A foreign claim exists but its heartbeat is older than the TTL (or the owner never heartbeated). | The lease is automatically reassigned to the operator (`reason: 'reclaimed'`). An abandoned claim never wedges the ticket. |
+| **Stale-claim reclaim** *(unreachable — see above)* | A foreign claim exists but the caller supplied a `heartbeatAt` older than the TTL. | The lease is reassigned to the operator (`reason: 'reclaimed'`). No shipped caller supplies one, so this never fires today. |
 | **`--steal` override** | A foreign claim is *live* and the operator passes `--steal`. | The live claim is forcibly transferred (`reason: 'stolen'`). This is the **only** way past a live foreign claim. |
 
 On a clean completion the holder **releases** the lease (clears the

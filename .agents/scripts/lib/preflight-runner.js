@@ -52,8 +52,8 @@ const DEFAULT_LOGGER = {
  * flag, finding/fix routing, and pretty-print of the blocker table.
  *
  * @param {object} opts
- * @param {string} opts.scope          Consumer surface — `'epic-close'`,
- *   `'story-close'`, `'npm-test'`, etc.
+ * @param {string} opts.scope          Consumer surface — `'story-close'`,
+ *   `'npm-test'`, `'diagnose'`, etc.
  * @param {boolean} [opts.autoFix=true] Forwarded to `runChecks`. Defaults
  *   to `true` because every wiring call site at this Story's level wants
  *   auto-correction (the `retro` consumer that needs `autoFix:false` does

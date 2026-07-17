@@ -9,7 +9,6 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 //
 // The surviving operator-configurable budget/timeout keys are spread across
 // the new top-level blocks rather than a single `agentSettings.limits` block:
-//   - planning.context.{maxBytes, summaryMode}
 //   - delivery.execution.timeoutMs
 //   - delivery.signals.{rework, retry}
 //
@@ -35,10 +34,16 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     );
   });
 
-  it('declares planning.context matching LIMITS_DEFAULTS.planningContext', () => {
-    assert.deepEqual(parsed?.planning?.context, {
-      ...LIMITS_DEFAULTS.planningContext,
-    });
+  it('does not declare the removed planning.context knob (Story #4541)', () => {
+    // The `applyBudget` pass it fed lost its last caller in the v2 cutover,
+    // so the key resolved but capped nothing. Removed from LIMITS_DEFAULTS
+    // and from the exhaustive reference alike.
+    assert.equal(
+      'context' in (parsed?.planning ?? {}),
+      false,
+      'agentrc-reference.json must not document the removed planning.context knob',
+    );
+    assert.equal('planningContext' in LIMITS_DEFAULTS, false);
   });
 
   it('does not declare the removed delivery.maxTokenBudget knob', () => {

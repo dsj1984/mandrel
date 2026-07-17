@@ -89,6 +89,7 @@ import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { formatCliError } from './lib/error-redactor.js';
 import { Logger } from './lib/Logger.js';
+import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { enableAutoMergeWith } from './lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
   buildSyncFailureCommentBody,
@@ -102,6 +103,7 @@ import {
 import { ensurePullRequestWith } from './lib/orchestration/single-story-close/phases/pull-request.js';
 import {
   buildTerminalEnvelope,
+  emitTerminalEnvelope,
   exitCodeForTerminal,
   NEXT_COMMANDS,
 } from './lib/orchestration/story-deliver-terminal.js';
@@ -133,6 +135,62 @@ export async function runSingleStoryClose(opts) {
 }
 
 /**
+ * The close pipeline's phase order, as `setPhase` walks it. Only used to
+ * decide whether a gate had already run when a later phase died.
+ */
+const PHASE_ORDER = Object.freeze([
+  'init',
+  'wrong-tree-guard',
+  'close-validation',
+  'base-sync',
+  'push',
+  'pull-request',
+  'code-review',
+  'auto-merge',
+  'confirm-merge',
+  'post-land',
+  'done',
+]);
+
+/** Each reported gate and the pipeline phase that decides it. */
+const GATE_PHASES = Object.freeze([
+  ['validation', 'close-validation'],
+  ['baseSync', 'base-sync'],
+  ['codeReview', 'code-review'],
+]);
+
+/**
+ * Report every gate's outcome for a run that died at `phase`.
+ *
+ * The schema's contract: "A gate the run skipped … reports `skipped` rather
+ * than being omitted, so a missing gate is never mistaken for a passing one."
+ * The previous shape named only the gate that died and omitted the rest
+ * entirely — exactly the ambiguity the contract forbids.
+ *
+ * Reconstructed from the phase order, which is sound because the pipeline is
+ * strictly sequential: reaching phase N means every gate before it completed.
+ * A gate whose phase the run never reached is `skipped`; one the operator
+ * turned off via `--skip-validation` / `--skip-sync` is `skipped` too (it did
+ * not pass — it never ran).
+ *
+ * @param {string} phase The phase the run died in.
+ * @param {{ skipValidation?: boolean, skipSync?: boolean }} args Parsed CLI args.
+ * @returns {Record<string, 'passed'|'failed'|'skipped'>}
+ */
+export function gatesForFailedPhase(phase, args = {}) {
+  const skipped = { validation: args.skipValidation, baseSync: args.skipSync };
+  const failedAt = PHASE_ORDER.indexOf(phase);
+  const gates = {};
+  for (const [gate, gatePhase] of GATE_PHASES) {
+    const at = PHASE_ORDER.indexOf(gatePhase);
+    if (gatePhase === phase) gates[gate] = 'failed';
+    else if (failedAt < 0 || at > failedAt) gates[gate] = 'skipped';
+    else gates[gate] = skipped[gate] ? 'skipped' : 'passed';
+  }
+  return gates;
+}
+
+/**
  * Build the `failed` terminal for a phase that crashed.
  *
  * The runner deliberately throws rather than returning a failure (a red gate
@@ -151,23 +209,14 @@ export async function runSingleStoryClose(opts) {
  */
 function failedTerminalFor(err) {
   const phase = err?.closePhase ?? 'init';
-  const storyId = Number(parseSprintArgs().storyId);
+  const args = parseSprintArgs();
+  const storyId = Number(args.storyId);
   if (!Number.isInteger(storyId) || storyId <= 0) return null;
-  // Name the gate that died, so `gates` reports the honest outcome rather
-  // than only ever recording passes.
-  const gates =
-    phase === 'close-validation'
-      ? { validation: 'failed' }
-      : phase === 'base-sync'
-        ? { baseSync: 'failed' }
-        : phase === 'code-review'
-          ? { codeReview: 'failed' }
-          : undefined;
   return buildTerminalEnvelope({
     storyId,
     status: 'failed',
     phase,
-    gates,
+    gates: gatesForFailedPhase(phase, args),
     failure: { reason: String(err?.message ?? err) },
     nextCommand: NEXT_COMMANDS.recover(storyId),
     elapsedSeconds: 0,
@@ -190,9 +239,11 @@ async function main() {
     // Mirror runAsCli's default error line (which this catch pre-empts) so the
     // human-facing failure text is unchanged, then emit the envelope.
     Logger.error(`[single-story-close] Fatal error: ${formatCliError(err)}`);
-    Logger.info(
-      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-    );
+    emitTerminalEnvelope(terminal);
+    // Story #4578 — a close that died before the runner could report its own
+    // terminal is exactly the friction the retro must see, so the crash path
+    // gets the same emit the happy path does. Best-effort; cannot throw.
+    await emitTerminalFriction({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
 }

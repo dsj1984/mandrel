@@ -3,15 +3,12 @@
  *
  * Tech Spec #819 §"Evidence record (Story 7)". Each successful gate run
  * writes a record keyed by `{ gateName, commitSha, commandConfigHash }` to
- * a per-Epic-tree path under the resolved `tempRoot`:
+ * a storyId-anchored path under the resolved `tempRoot`:
  *
- *   - Epic-scoped (scopeId === epicId):
- *       `<tempRoot>/epic-<epicId>/validation-evidence.json`
- *   - Story-scoped (scopeId === storyId):
- *       `<tempRoot>/epic-<epicId>/story-<storyId>/validation-evidence.json`
+ *   `<tempRoot>/standalone/stories/story-<storyId>/validation-evidence.json`
  *
- * Both paths sit inside the per-Epic durable workspace (Epic #1030, Stories
- * #1039 + #1054) and are gitignored via `temp/`.
+ * The path is gitignored via `temp/`. v2.0.0 removed the Epic tier along
+ * with the Epic-keyed `<tempRoot>/epic-<epicId>/…` keyspace.
  *
  * A subsequent caller can `shouldSkip(...)` to learn whether the same gate
  * has already passed against the current HEAD with an identical
@@ -34,7 +31,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import { epicTempDir, storyTempDir } from './config/temp-paths.js';
+import { storyTempDir } from './config/temp-paths.js';
 
 export const SCHEMA_VERSION = 1;
 const DEFAULT_TEMP_DIR = 'temp';
@@ -97,37 +94,28 @@ function requirePositiveInt(value, label) {
 
 /**
  * Compute the absolute path of the evidence file for `scopeId` under the
- * per-Epic temp tree.
+ * storyId-anchored temp tree.
  *
- * The resolution rule mirrors `lib/config/temp-paths.js`:
- *   - `scopeId === epicId` → `<tempRoot>/epic-<epicId>/validation-evidence.json`
- *   - `scopeId !== epicId` → treated as a Story id → `<tempRoot>/epic-<epicId>/story-<scopeId>/validation-evidence.json`
- *
- * **Standalone keyspace (Story #4250).** When `opts.standalone === true`,
+ * **Standalone keyspace (Story #4250).** `opts.standalone` must be `true`:
  * the Story has no parent Epic, so the evidence file is anchored on the
  * Story id alone at
  * `<tempRoot>/standalone/stories/story-<scopeId>/validation-evidence.json`
- * (the `storyTempDir(null, sid)` layout from Story #2874). In this mode
- * `epicId` is ignored — callers MUST NOT feed a `0`/`null` epicId into the
- * Epic-keyed branch (the historical bug this keyspace replaces). Outside
- * standalone mode `epicId` remains required.
+ * (the `storyTempDir(null, sid)` layout from Story #2874).
  *
- * The legacy flat `temp/validation-evidence-<scopeId>.json` layout is no
- * longer supported — Epic-scoped callers must thread the Epic id through
- * (Epic #1030 follow-up to Story #1054). The synthetic config bag passed to
- * `epicTempDir` / `storyTempDir` keeps the resolver from doing a disk-bound
- * `.agentrc.json` lookup; bare callers can pass `tempDir` via `opts` to
- * override the default `'temp'`.
+ * The legacy flat `temp/validation-evidence-<scopeId>.json` layout and the
+ * Epic-keyed `<tempRoot>/epic-<epicId>/…` layout are both gone. The
+ * synthetic config bag passed to `storyTempDir` keeps the resolver from
+ * doing a disk-bound `.agentrc.json` lookup; bare callers can pass
+ * `tempDir` via `opts` to override the default `'temp'`.
  *
  * @param {number|string} scopeId
- * @param {{ cwd?: string, tempDir?: string, epicId?: number|string|null, standalone?: boolean }} opts
+ * @param {{ cwd?: string, tempDir?: string, standalone?: boolean }} opts
  * @returns {string}
  */
 export function evidencePath(scopeId, opts = {}) {
-  const standalone = opts.standalone === true;
-  if (!standalone && opts.epicId == null) {
+  if (opts.standalone !== true) {
     throw new Error(
-      '[validation-evidence] evidencePath requires opts.epicId (Epic-scoped path resolution) unless opts.standalone is set.',
+      '[validation-evidence] evidencePath requires opts.standalone (the storyId-anchored keyspace is the only keyspace).',
     );
   }
   const { cwd, tempDir } = resolveOpts(opts);
@@ -143,18 +131,9 @@ export function evidencePath(scopeId, opts = {}) {
     ? tempDir
     : path.join(cwd, tempDir);
   const configBag = { project: { paths: { tempRoot: absTempRoot } } };
-  let dir;
-  if (standalone) {
-    // Story #4250 — storyId-anchored standalone keyspace. `null` is the
-    // standalone-story sentinel `storyTempDir` accepts (Story #2874).
-    dir = storyTempDir(null, scope, configBag);
-  } else {
-    const epicId = requirePositiveInt(opts.epicId, 'epicId');
-    dir =
-      scope === epicId
-        ? epicTempDir(epicId, configBag)
-        : storyTempDir(epicId, scope, configBag);
-  }
+  // Story #4250 — storyId-anchored standalone keyspace. `null` is the
+  // standalone-story sentinel `storyTempDir` accepts (Story #2874).
+  const dir = storyTempDir(null, scope, configBag);
   return path.join(dir, EVIDENCE_FILENAME);
 }
 
@@ -189,19 +168,17 @@ function emptyDoc(scopeId) {
  * cross-scopeId cases — callers don't have to branch on those failure
  * modes; they manifest as `shouldSkip()` returning `skip: false`.
  *
- * `opts.epicId` is required so the per-Epic-tree path can be resolved,
- * unless `opts.standalone === true` (Story #4250) routes to the
- * storyId-anchored standalone keyspace.
+ * `opts.standalone` is required (Story #4250) — it routes to the
+ * storyId-anchored keyspace.
  *
  * @param {number|string} scopeId
- * @param {{ cwd?: string, tempDir?: string, epicId?: number|string|null, standalone?: boolean, fs?: object }} opts
+ * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts
  * @returns {{ storyId: number, schemaVersion: number, records: object[] }}
  */
 export function loadEvidence(scopeId, opts = {}) {
   const resolved = resolveOpts(opts);
   const file = evidencePath(scopeId, {
     ...resolved,
-    epicId: opts.epicId,
     standalone: opts.standalone,
   });
   if (!resolved.fs.existsSync(file)) return emptyDoc(scopeId);
@@ -223,9 +200,8 @@ export function loadEvidence(scopeId, opts = {}) {
  * Validates the resulting document against the schema before writing — a
  * malformed write throws so the bug surfaces immediately.
  *
- * `opts.epicId` is required so the per-Epic-tree path can be resolved,
- * unless `opts.standalone === true` (Story #4250) routes to the
- * storyId-anchored standalone keyspace.
+ * `opts.standalone` is required (Story #4250) — it routes to the
+ * storyId-anchored keyspace.
  *
  * @param {{
  *   storyId: number|string,
@@ -235,7 +211,7 @@ export function loadEvidence(scopeId, opts = {}) {
  *   exitCode?: number,
  *   durationMs?: number|null,
  * }} input
- * @param {{ cwd?: string, tempDir?: string, epicId?: number|string|null, standalone?: boolean, fs?: object, now?: Function }} opts
+ * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object, now?: Function }} opts
  * @returns {object} The persisted record.
  */
 export function recordPass(
@@ -258,7 +234,6 @@ export function recordPass(
   const resolved = resolveOpts(opts);
   const evidenceOpts = {
     ...resolved,
-    epicId: opts.epicId,
     standalone: opts.standalone,
   };
   const doc = loadEvidence(storyId, evidenceOpts);
@@ -297,13 +272,12 @@ export function recordPass(
  * with a machine-readable `reason` so callers can log why the skip didn't
  * fire.
  *
- * `opts.epicId` is required so the per-Epic-tree path can be resolved,
- * unless `opts.standalone === true` (Story #4250) routes to the
- * storyId-anchored standalone keyspace. `opts` is forwarded verbatim to
+ * `opts.standalone` is required (Story #4250) — it routes to the
+ * storyId-anchored keyspace. `opts` is forwarded verbatim to
  * `loadEvidence`, so `standalone` flows through unchanged.
  *
  * @param {{ storyId: number|string, gateName: string, currentSha: string, configHash: string }} input
- * @param {{ cwd?: string, tempDir?: string, epicId?: number|string|null, standalone?: boolean, fs?: object }} opts
+ * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts
  * @returns {{ skip: boolean, reason: string, record?: object }}
  */
 export function shouldSkip(
@@ -340,19 +314,17 @@ export function shouldSkip(
  * start of each Story so a re-run always starts clean. Idempotent —
  * absent file is not an error.
  *
- * `opts.epicId` is required so the per-Epic-tree path can be resolved,
- * unless `opts.standalone === true` (Story #4250) routes to the
- * storyId-anchored standalone keyspace.
+ * `opts.standalone` is required (Story #4250) — it routes to the
+ * storyId-anchored keyspace.
  *
  * @param {number|string} scopeId
- * @param {{ cwd?: string, tempDir?: string, epicId?: number|string|null, standalone?: boolean, fs?: object }} opts
+ * @param {{ cwd?: string, tempDir?: string, standalone?: boolean, fs?: object }} opts
  * @returns {{ cleared: boolean, path: string }}
  */
 export function forceClear(scopeId, opts = {}) {
   const resolved = resolveOpts(opts);
   const file = evidencePath(scopeId, {
     ...resolved,
-    epicId: opts.epicId,
     standalone: opts.standalone,
   });
   if (!resolved.fs.existsSync(file)) return { cleared: false, path: file };

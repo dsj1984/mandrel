@@ -35,8 +35,8 @@ export const MERGED_FLIP_FAILED_BLOCK_CLASS = 'merged-flip-failed';
  * Append exactly one `merge.flip-failed` record to the resolved ledger.
  *
  * @param {object} opts
- * @param {'epic'|'story'} opts.scope
- * @param {number} opts.ticketId       epicId for `epic`, storyId for `story`.
+ * @param {'story'} opts.scope
+ * @param {number} opts.ticketId       The storyId.
  * @param {number} opts.prNumber       The PR that merged.
  * @param {string} opts.reason         What failed on the label write.
  * @param {number} opts.elapsedSeconds Elapsed poll time when the flip failed.
@@ -78,7 +78,6 @@ export function emitMergeFlipFailed(opts) {
       elapsedSeconds,
       timestamp,
     },
-    scope,
     ticketId,
     timestamp,
     config,

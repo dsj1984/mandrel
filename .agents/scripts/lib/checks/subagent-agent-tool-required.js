@@ -22,8 +22,7 @@
  * catches an over-deep fan-out. The self-healing surface is preserved — it is
  * re-scoped, not removed.
  *
- * Scope: 'epic-deliver', 'retro'. Surfaces as a blocker at preflight for
- * `epic-deliver` (the fan-out site) and as audit signal at retro.
+ * Scope: 'retro'. Surfaces as audit signal at retro.
  *
  * The check is `refuse-and-print` — auto-rewriting a workflow's declared
  * depth or tool list would silently change runtime behavior in ways the
@@ -208,7 +207,7 @@ const FIX_COMMAND = [
 export default {
   id: 'subagent-agent-tool-required',
   severity: 'blocker',
-  scope: ['epic-deliver', 'retro'],
+  scope: ['retro'],
   autoCorrect: 'refuse-and-print',
 
   detect(state) {
@@ -249,7 +248,7 @@ export default {
     return {
       id: 'subagent-agent-tool-required',
       severity: 'blocker',
-      scope: state?.scope ?? 'epic-deliver',
+      scope: state?.scope ?? 'retro',
       summary: `${offences.length} sub-agent workflow(s) declare an Agent fan-out deeper than the supported nesting ceiling (${ceiling})`,
       detail,
       fixCommand: FIX_COMMAND,

@@ -352,8 +352,8 @@ envelope's `nextCommand`.
 > [`deliver-story-reference.md` § The auto-merge wait is an internally-blocking step](deliver-story-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
 
 To watch the checks on the red path, drive
-`pr-watch-with-update.js` — the **single CI-watch mechanism** shared with
-the Epic Phase 8 path (Story #4358). It polls the required checks to a
+`pr-watch-with-update.js` — the **single CI-watch mechanism**
+(Story #4358). It polls the required checks to a
 terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do
 **not** fall back to a bare `gh pr checks` watch invocation:
 

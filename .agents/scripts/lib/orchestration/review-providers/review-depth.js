@@ -3,8 +3,9 @@
  * LLM-backed review providers.
  *
  * Story #3937 / #3938 — the depth lever (`light` / `standard` / `deep`,
- * resolved from judged risk AND diff width by `resolveDepth` in
- * `lib/orchestration/review-depth.js`) is threaded into every
+ * derived from the diff's observable width and sensitive-path hits by
+ * `lib/orchestration/review-depth.js`; #4542 retired the judged-risk
+ * input) is threaded into every
  * provider's `runReview` input. LLM-backed providers (codex, security-review,
  * ultrareview) must render that lever into the prompt/instructions they emit so
  * the model actually changes its thoroughness; the native (mechanical) provider

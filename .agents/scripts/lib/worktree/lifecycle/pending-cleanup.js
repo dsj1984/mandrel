@@ -7,7 +7,7 @@
  * on a Windows lock-class failure, the entry is appended to
  * `.worktrees/.pending-cleanup.json`. The plan-time `worktree-sweep.js`
  * reader (shipped in Epic #349) picks up the manifest on the next
- * `/epic-plan-spec` / `/epic-plan-decompose` runs and retries removal
+ * `/plan` run and retries removal
  * (`git worktree remove` then `fs.rm`) — by then the live file handles from Node / AV / the Windows
  * Search indexer are almost always gone. If `MAX_SWEEP_ATTEMPTS` elapses
  * without clearing, an `OPERATOR ACTION REQUIRED: persistent-lock` line

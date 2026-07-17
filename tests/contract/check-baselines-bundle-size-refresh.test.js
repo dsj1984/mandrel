@@ -52,11 +52,20 @@ function bundleSizeEnvelope({ rollup, rows } = {}) {
   };
 }
 
+// Env with every `GIT_*` variable dropped. Under a husky pre-push from a
+// linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
+// a fixture `git init` under that env writes `core.bare=true` into the MAIN
+// checkout's `.git/config` (#4580).
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
 function runGit(args, cwd) {
   const res = spawnSync('git', args, {
     cwd,
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
+    env: CLEAN_ENV,
   });
   if (res.status !== 0) {
     throw new Error(

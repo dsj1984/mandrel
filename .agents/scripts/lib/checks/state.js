@@ -5,7 +5,7 @@
  * that checks declared for the given scope actually need. The runner in
  * `index.js` filters the registry by `scope` first, then asks this module
  * for state; the per-scope projection keeps probe cost proportional to the
- * call site (e.g. `story-close` does not pay for `epic-deliver` probes, and
+ * call site (e.g. `story-close` does not pay for `diagnose` probes, and
  * the `retro` consumer only probes inputs the retro-scoped checks need).
  *
  * Privacy contract:
@@ -45,9 +45,8 @@ import path from 'node:path';
  *
  * @type {Record<string, readonly string[]>}
  */
-// Shared key set: story-close and epic-close probe the same surface
-// (branch list + worktree set). Story #1289 introduced the `epic-close`
-// and `npm-test` aliases.
+// Story-close probe surface: branch list + worktree set. Story #1289
+// introduced the `npm-test` alias.
 const STORY_CLOSE_KEYS = Object.freeze([
   'git.headRef',
   'git.localBranches',
@@ -56,7 +55,7 @@ const STORY_CLOSE_KEYS = Object.freeze([
   'env.GITHUB_TOKEN',
 ]);
 
-const EPIC_DELIVER_KEYS = Object.freeze([
+const DIAGNOSE_KEYS = Object.freeze([
   'git.headRef',
   'git.coreBare',
   'fs.worktrees',
@@ -67,8 +66,6 @@ const EPIC_DELIVER_KEYS = Object.freeze([
 
 const SCOPE_KEYS = Object.freeze({
   'story-close': STORY_CLOSE_KEYS,
-  'epic-close': STORY_CLOSE_KEYS,
-  'epic-deliver': EPIC_DELIVER_KEYS,
   'npm-test': Object.freeze([
     'git.headRef',
     'git.coreBare',
@@ -76,8 +73,11 @@ const SCOPE_KEYS = Object.freeze({
     'fs.dotEnv',
     'fs.dotMcp',
   ]),
-  retro: Object.freeze(['git.headRef', 'fs.worktrees']),
-  diagnose: EPIC_DELIVER_KEYS,
+  // git.coreBare: core-bare-clean declares scope ['story-close', 'retro',
+  // 'npm-test']; without the probe key its detect() reads undefined and the
+  // retro leg is a silent no-op (#4580).
+  retro: Object.freeze(['git.headRef', 'git.coreBare', 'fs.worktrees']),
+  diagnose: DIAGNOSE_KEYS,
 });
 
 /**

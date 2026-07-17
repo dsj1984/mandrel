@@ -53,5 +53,10 @@ describe('core-bare-clean check', () => {
     assert.equal(check.severity, 'blocker');
     assert.equal(check.autoCorrect, 'refuse-and-print');
     assert.ok(check.scope.includes('story-close'));
+    assert.ok(
+      check.scope.includes('npm-test'),
+      'npm-test scope catches a poisoned shared config before a suite inherits it (#4580)',
+    );
+    assert.ok(check.scope.includes('retro'));
   });
 });

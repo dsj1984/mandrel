@@ -10,7 +10,7 @@ description: >-
 # /git-deliver [Message] [--no-push] [--pr] [--draft] [--no-auto-merge] [--branch <name>] [--base <branch>]
 
 The **single source of truth** for getting outstanding working-tree changes
-out the door when they do not belong to a planned Epic (typo fixes, doc
+out the door when they do not belong to a planned Story (typo fixes, doc
 tweaks, dependency bumps, operator housekeeping, benchmark result commits
 from mandrel-bench's `/benchmark` Step 4). It is the ad-hoc counterpart to
 the heavyweight `/deliver` pipeline: one command that **detects the git

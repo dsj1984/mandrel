@@ -10,9 +10,10 @@
 // assert every MUST survives:
 //
 //   story-worker:      creates + verifies its branch, hits the close gate list,
-//                      emits story.heartbeat (the M5 watchdog signal), can
-//                      transition agent::blocked, and lands only via the
-//                      sanctioned close path (#4483).
+//                      can transition agent::blocked, and lands only via the
+//                      sanctioned close path (#4483). (The story.heartbeat MUST
+//                      was dropped in A22 — its emitter was structurally inert
+//                      and has been deleted; agent::blocked is the real signal.)
 //   acceptance-critic: is maker-blind and emits a schema-VALID verdict against
 //                      acceptance-eval-verdict.schema.json.
 //
@@ -134,12 +135,6 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
         `close gate "${gate}" missing from the boot context`,
       );
     }
-  });
-
-  test('emits the story.heartbeat M5 watchdog signal', () => {
-    const { body } = bootContext('story-worker.md');
-    assert.match(body, /story\.heartbeat/);
-    assert.match(body, /watchdog/i);
   });
 
   test('can transition agent::blocked and never falls silent', () => {

@@ -91,7 +91,7 @@ source, route definitions, and rendered markup rather than a running browser.
 
 The agent-driven Capture phase is **strictly read-only**. This invariant is
 inviolable per [`security-baseline.md`](../../../../rules/security-baseline.md)
-and the Epic's security considerations — it is not a soft preference.
+and the Story's security considerations — it is not a soft preference.
 
 - **No source edits.** The agent does not modify application code, config, or
   tests while driving. Exploration observes; it never repairs.

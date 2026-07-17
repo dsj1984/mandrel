@@ -116,7 +116,7 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 
 ### When to run it manually
 
-- The end-of-epic banner reports `pending-cleanup persistent-lock: story-N, ...`.
+- The close output reports `pending-cleanup persistent-lock: story-N, ...`.
 - `git worktree list` shows `.worktrees/story-N/` for a closed Story.
 - `npm run lint` fails because of a nested `biome.json` in a half-reaped
   worktree. The `worktree-residue-biome` self-healing check detects this
@@ -234,7 +234,7 @@ Symlink strategy:
   the pre-flight warning below catches those cases before a build breaks.
 - **Long-path warning**: when `worktreePath.length + 80` exceeds
   `windowsPathLengthWarnThreshold` (default 240), `WorktreeManager` emits a
-  warning locally and the dispatcher posts an `⚠️` comment on the Epic issue.
+  warning locally.
   Relocate `delivery.worktreeIsolation.root` to a shorter prefix (e.g.
   `C:\w`) if you see this.
 - **`packed-refs` contention**: two worktrees fetching concurrently can collide
@@ -332,12 +332,11 @@ Pick single-tree mode when:
 
 Human reviewers should **keep using the main checkout** — not a worktree:
 
-- The Epic branch accumulates the cumulative diff for code review; that lives on
-  the main checkout, not in any per-story worktree.
+- Each Story's diff is reviewed on its PR on GitHub (`story-<id>` → `main`);
+  no local branch accumulates a cumulative diff for review.
 - Opening a worktree in an IDE can mislead: the working directory looks like the
   main repo but carries a different HEAD. The main checkout is the canonical
-  place to read Epic planning bodies and run the `helpers/code-review.md`
-  procedure.
+  place to run the `helpers/code-review.md` procedure.
 - `git worktree list --porcelain` on the main checkout enumerates any still
   in-flight story worktrees if you need to inspect one — prefer read-only
   operations (`git log`, `git show`) when you do.

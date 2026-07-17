@@ -77,7 +77,7 @@ describe('signals/read — happy path', () => {
       baseEnvelope({ id: 2, kind: 'retry' }),
       baseEnvelope({ id: 3, kind: 'trace' }),
     ]);
-    const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
+    const evts = await collect(read({ run: 1181, story: 1438, config: cfg }));
     assert.equal(evts.length, 3);
     assert.deepEqual(
       evts.map((e) => e.id),
@@ -89,7 +89,7 @@ describe('signals/read — happy path', () => {
     await writeSignalsFile(1181, 1438, [baseEnvelope({ marker: 'A' })]);
     await writeSignalsFile(1181, 1439, [baseEnvelope({ marker: 'B' })]);
     await writeSignalsFile(1181, 1440, [baseEnvelope({ marker: 'C' })]);
-    const evts = await collect(read({ epic: 1181, config: cfg }));
+    const evts = await collect(read({ run: 1181, config: cfg }));
     // Order: ascending storyId
     assert.deepEqual(
       evts.map((e) => e.marker),
@@ -103,7 +103,7 @@ describe('signals/read — happy path', () => {
     // either find no file or pick up real data — both would fail this
     // assertion.
     await writeSignalsFile(99, 9, [baseEnvelope({ ok: true })]);
-    const evts = await collect(read({ epic: 99, story: 9, config: cfg }));
+    const evts = await collect(read({ run: 99, story: 9, config: cfg }));
     assert.equal(evts.length, 1);
     assert.equal(evts[0].ok, true);
   });
@@ -116,7 +116,7 @@ describe('signals/read — happy path', () => {
       baseEnvelope({ kind: 'trace', id: 4 }),
     ]);
     const evts = await collect(
-      read({ epic: 1181, story: 1438, kind: 'friction', config: cfg }),
+      read({ run: 1181, story: 1438, kind: 'friction', config: cfg }),
     );
     assert.deepEqual(
       evts.map((e) => e.id),
@@ -127,12 +127,12 @@ describe('signals/read — happy path', () => {
 
 describe('signals/read — absence handling', () => {
   it('yields nothing when the signals file is missing', async () => {
-    const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
+    const evts = await collect(read({ run: 1181, story: 1438, config: cfg }));
     assert.deepEqual(evts, []);
   });
 
   it('yields nothing when the Epic directory is missing entirely', async () => {
-    const evts = await collect(read({ epic: 2222, config: cfg }));
+    const evts = await collect(read({ run: 2222, config: cfg }));
     assert.deepEqual(evts, []);
   });
 });
@@ -145,7 +145,7 @@ describe('signals/read — envelope discipline', () => {
       { kind: 'mystery', ts: '2026-05-11T00:00:00.000Z', epicId: 1181, id: 3 },
       baseEnvelope({ id: 4 }),
     ]);
-    const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
+    const evts = await collect(read({ run: 1181, story: 1438, config: cfg }));
     assert.deepEqual(
       evts.map((e) => e.id),
       [1, 4],
@@ -164,7 +164,7 @@ describe('signals/read — envelope discipline', () => {
       '',
     ];
     await fs.writeFile(target, `${lines.join('\n')}\n`, 'utf8');
-    const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
+    const evts = await collect(read({ run: 1181, story: 1438, config: cfg }));
     assert.deepEqual(
       evts.map((e) => e.id),
       [1, 2],
@@ -186,7 +186,7 @@ describe('signals/read — warn-once policy', () => {
       baseEnvelope({ id: 2 }),
       '{ nope',
     ]);
-    const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
+    const evts = await collect(read({ run: 1181, story: 1438, config: cfg }));
     assert.deepEqual(
       evts.map((e) => e.id),
       [1, 2],
@@ -198,19 +198,19 @@ describe('signals/read — warn-once policy', () => {
 });
 
 describe('signals/read — input validation', () => {
-  it('throws on missing epic', async () => {
+  it('throws on missing run', async () => {
     await assert.rejects(async () => {
       // eslint-disable-next-line no-empty-pattern
       for await (const _ of read({ config: cfg })) {
         /* drain */
       }
-    }, /epic/);
+    }, /run/);
   });
 
   it('throws on non-positive story', async () => {
     await assert.rejects(async () => {
       // eslint-disable-next-line no-empty-pattern
-      for await (const _ of read({ epic: 1, story: 0, config: cfg })) {
+      for await (const _ of read({ run: 1, story: 0, config: cfg })) {
         /* drain */
       }
     }, /story/);
@@ -219,7 +219,7 @@ describe('signals/read — input validation', () => {
   it('throws on non-string kind', async () => {
     await assert.rejects(async () => {
       // eslint-disable-next-line no-empty-pattern
-      for await (const _ of read({ epic: 1, kind: 42, config: cfg })) {
+      for await (const _ of read({ run: 1, kind: 42, config: cfg })) {
         /* drain */
       }
     }, /kind/);
@@ -280,7 +280,7 @@ describe('signals/read — streaming, not slurping', () => {
     // single-record read because we'd have to parse every line
     // before yielding the first.
     const startTotal = Date.now();
-    const iter = read({ epic: 1181, story: 1438, config: cfg });
+    const iter = read({ run: 1181, story: 1438, config: cfg });
 
     const tFirstStart = Date.now();
     const first = await iter.next();

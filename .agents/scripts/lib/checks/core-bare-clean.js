@@ -24,7 +24,10 @@
 export default {
   id: 'core-bare-clean',
   severity: 'blocker',
-  scope: ['story-close', 'retro'],
+  // 'npm-test' keeps the test-wrapper preflight's refusal claim true: a
+  // poisoned shared config is caught before a suite (or N concurrent
+  // /deliver workers) inherits it, not only at close/retro time (#4580).
+  scope: ['story-close', 'retro', 'npm-test'],
   autoCorrect: 'refuse-and-print',
   detect(state) {
     const coreBare = state?.git?.coreBare;

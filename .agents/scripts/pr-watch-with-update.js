@@ -167,34 +167,28 @@ function resolveRunId({ prRef, checkName, cwd, spawnFn = spawnSync }) {
  * to be Epic-scoped by filename and returned `null` without an epic id — so
  * on the v2 Story path (which has no Epic and invokes the watch with `--pr`
  * alone) a red check wrote no digest at all, despite the module header
- * advertising one. Story scope takes precedence; the Epic branch remains for
- * any caller still supplying `--epic`.
+ * advertising one. v2.0.0 removed the Epic tier; Story scope is the only
+ * scope.
  *
- * @param {{ storyId?: number|string|null, epicId?: number|string|null }} opts
- * @returns {{ kind: 'story'|'epic', id: number } | null}
+ * @param {{ storyId?: number|string|null }} opts
+ * @returns {{ kind: 'story', id: number } | null}
  */
-export function resolveDigestScope({ storyId = null, epicId = null } = {}) {
-  const asId = (value) => {
-    if (value == null || String(value).length === 0) return null;
-    const parsed = Number.parseInt(String(value), 10);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-  };
-  const story = asId(storyId);
-  if (story !== null) return { kind: 'story', id: story };
-  const epic = asId(epicId);
-  if (epic !== null) return { kind: 'epic', id: epic };
-  return null;
+export function resolveDigestScope({ storyId = null } = {}) {
+  if (storyId == null || String(storyId).length === 0) return null;
+  const parsed = Number.parseInt(String(storyId), 10);
+  return Number.isInteger(parsed) && parsed > 0
+    ? { kind: 'story', id: parsed }
+    : null;
 }
 
 /**
  * Write the CI failure digest (`.json` + `.md`) for a red watch. Returns
- * the two paths written, or `null` when neither a story nor an epic id was
- * supplied (the digest is scoped by filename and has nothing to key on).
- * Exported for tests.
+ * the two paths written, or `null` when no story id was supplied (the
+ * digest is scoped by filename and has nothing to key on). Exported for
+ * tests.
  *
  * @param {object} opts
- * @param {number|string|null} [opts.storyId] Preferred — the v2 delivery scope.
- * @param {number|string|null} [opts.epicId]
+ * @param {number|string|null} [opts.storyId] The v2 delivery scope.
  * @param {number} opts.prNumber
  * @param {Array<{name:string, outcome:string}>} opts.failures
  * @param {string} opts.tempRoot
@@ -206,7 +200,6 @@ export function resolveDigestScope({ storyId = null, epicId = null } = {}) {
  */
 export function writeCiDigest({
   storyId = null,
-  epicId = null,
   prNumber,
   failures,
   tempRoot,
@@ -215,14 +208,14 @@ export function writeCiDigest({
   runIdFn = resolveRunId,
   logTailFn = ghRunLogTail,
 }) {
-  const scope = resolveDigestScope({ storyId, epicId });
+  const scope = resolveDigestScope({ storyId });
   if (!scope) return null;
   const primary = failures[0] ?? { name: 'unknown', outcome: 'failure' };
   const runId = runIdFn({ prRef, checkName: primary.name, cwd });
   const logTail = logTailFn({ runId, cwd });
   const classification = classifyFailure(primary.name);
   const digest = {
-    ...(scope.kind === 'story' ? { storyId: scope.id } : { epicId: scope.id }),
+    storyId: scope.id,
     prNumber,
     failingCheck: primary.name,
     failingOutcome: primary.outcome,
@@ -238,9 +231,8 @@ export function writeCiDigest({
   const jsonPath = path.join(dir, `${base}.json`);
   const mdPath = path.join(dir, `${base}.md`);
   writeFileSync(jsonPath, `${JSON.stringify(digest, null, 2)}\n`);
-  const scopeLabel = scope.kind === 'story' ? 'Story' : 'Epic';
   const md = [
-    `# CI failure digest — ${scopeLabel} #${scope.id} (PR #${prNumber})`,
+    `# CI failure digest — Story #${scope.id} (PR #${prNumber})`,
     '',
     `- **Failing check:** \`${digest.failingCheck}\` (${digest.failingOutcome})`,
     `- **Run id:** ${runId ?? 'unresolved'}`,
@@ -277,7 +269,6 @@ export function writeCiDigest({
  * @param {object} opts
  * @param {number} opts.prNumber
  * @param {string|null} [opts.repo]
- * @param {number|string|null} [opts.epicId]  Epic id for the red-path digest.
  * @param {number|string} [opts.maxUpdates]
  * @param {number|string} [opts.pollIntervalMs]
  * @param {number|string} [opts.maxPolls]
@@ -297,7 +288,6 @@ export async function runPrWatch({
   prNumber,
   repo = null,
   storyId = null,
-  epicId = null,
   maxUpdates,
   pollIntervalMs,
   maxPolls,
@@ -409,7 +399,6 @@ export async function runPrWatch({
   try {
     digestPaths = writeDigestFn({
       storyId,
-      epicId,
       prNumber,
       failures,
       tempRoot: effectiveTempRoot,
@@ -447,7 +436,6 @@ async function main() {
     options: {
       pr: { type: 'string' },
       repo: { type: 'string' },
-      epic: { type: 'string' },
       story: { type: 'string' },
       'max-updates': { type: 'string' },
       'poll-interval-ms': { type: 'string' },
@@ -460,7 +448,6 @@ async function main() {
     prNumber: Number.parseInt(values.pr ?? '', 10),
     repo: values.repo ?? null,
     storyId: values.story ?? null,
-    epicId: values.epic ?? null,
     maxUpdates: values['max-updates'],
     pollIntervalMs: values['poll-interval-ms'],
     maxPolls: values['max-polls'],

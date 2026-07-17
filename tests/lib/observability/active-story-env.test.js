@@ -1,14 +1,20 @@
 /**
  * Unit tests for `active-story-env.js`.
  *
- * Story #2874 — verifies the null-epicId standalone-Story contract:
- *   - `setActiveStoryEnv({ epicId: null, storyId, workCwd })` succeeds
- *     and writes only `CC_STORY_ID` to env + `.env.local`.
- *   - `renderActiveStoryEnvFile` omits the `CC_EPIC_ID=` line when
- *     `epicId === null`.
- *   - All other invalid `epicId` values (0, negative, NaN, non-int)
- *     still throw — `null` is the only standalone signal.
- *   - `clearActiveStoryEnv` still works the same way.
+ * v2 Stories are standalone — there is no parent Epic — so this module writes
+ * only `CC_STORY_ID`:
+ *   - `setActiveStoryEnv({ storyId, workCwd })` writes `CC_STORY_ID` to env +
+ *     `.env.local`, and never `CC_EPIC_ID` (the trace hook's no-op contract is
+ *     keyed on that var's ABSENCE, so an empty-string value would break it).
+ *   - A pre-existing `CC_EPIC_ID` is removed, so a leaked value cannot key
+ *     this Story's traces to a foreign Epic directory.
+ *   - `clearActiveStoryEnv` wipes what the trace path reads.
+ *
+ * A22 — the `story.heartbeat` substrate was deleted (its emitter demanded an
+ * `epicId >= 1` that v2 never supplies, so it could never fire). The slice env
+ * surface (`setActiveSliceEnv` / `renderActiveSliceEnvFile`, `CC_SLICE_ID`,
+ * `CC_OPERATOR`) existed only to feed it and went with it; its tests are gone
+ * with the code they covered.
  */
 
 import assert from 'node:assert/strict';
@@ -20,9 +26,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   ACTIVE_STORY_ENV_KEYS,
   clearActiveStoryEnv,
-  renderActiveSliceEnvFile,
   renderActiveStoryEnvFile,
-  setActiveSliceEnv,
   setActiveStoryEnv,
 } from '../../../.agents/scripts/lib/observability/active-story-env.js';
 
@@ -38,146 +42,54 @@ afterEach(() => {
   rmSync(tmp, { recursive: true, force: true });
 });
 
-describe('renderActiveStoryEnvFile — null epicId omits CC_EPIC_ID line', () => {
-  it('includes CC_EPIC_ID line when epicId is a positive integer', () => {
-    const body = renderActiveStoryEnvFile({ epicId: 42, storyId: 7 });
-    assert.match(body, /CC_EPIC_ID=42/);
+describe('renderActiveStoryEnvFile — writes CC_STORY_ID only', () => {
+  it('emits the CC_STORY_ID line', () => {
+    const body = renderActiveStoryEnvFile({ storyId: 7 });
     assert.match(body, /CC_STORY_ID=7/);
   });
 
-  it('omits CC_EPIC_ID line entirely when epicId === null', () => {
-    const body = renderActiveStoryEnvFile({ epicId: null, storyId: 7 });
+  it('never emits a CC_EPIC_ID line', () => {
+    const body = renderActiveStoryEnvFile({ storyId: 7 });
     assert.doesNotMatch(body, /CC_EPIC_ID/);
-    assert.match(body, /CC_STORY_ID=7/);
   });
 });
 
-describe('setActiveStoryEnv — accepts null epicId (Story #2874)', () => {
-  it('null epicId: sets CC_STORY_ID, does NOT set CC_EPIC_ID', () => {
-    const result = setActiveStoryEnv({
-      epicId: null,
-      storyId: 42,
-      env,
-    });
+describe('setActiveStoryEnv', () => {
+  it('sets CC_STORY_ID and does NOT set CC_EPIC_ID', () => {
+    const result = setActiveStoryEnv({ storyId: 42, env });
     assert.equal(result.envSet, true);
     assert.equal(env.CC_STORY_ID, '42');
     assert.equal('CC_EPIC_ID' in env, false);
   });
 
-  it('null epicId: removes pre-existing CC_EPIC_ID (no empty-string fallthrough)', () => {
+  it('removes a pre-existing CC_EPIC_ID (no empty-string fallthrough)', () => {
     env.CC_EPIC_ID = '99';
-    setActiveStoryEnv({ epicId: null, storyId: 42, env });
+    setActiveStoryEnv({ storyId: 42, env });
     assert.equal('CC_EPIC_ID' in env, false);
   });
 
-  it('null epicId: writes .env.local without CC_EPIC_ID line', () => {
-    const result = setActiveStoryEnv({
-      epicId: null,
-      storyId: 42,
-      workCwd: tmp,
-      env,
-    });
+  it('writes .env.local without a CC_EPIC_ID line', () => {
+    const result = setActiveStoryEnv({ storyId: 42, workCwd: tmp, env });
     assert.equal(result.fileWritten, true);
     const body = readFileSync(result.filePath, 'utf8');
     assert.doesNotMatch(body, /CC_EPIC_ID/);
     assert.match(body, /CC_STORY_ID=42/);
   });
-
-  it('positive-integer epicId: behaviour unchanged (CC_EPIC_ID set)', () => {
-    setActiveStoryEnv({ epicId: 1030, storyId: 1042, env });
-    assert.equal(env.CC_EPIC_ID, '1030');
-    assert.equal(env.CC_STORY_ID, '1042');
-  });
-});
-
-describe('setActiveStoryEnv — non-null invalid epicId still throws', () => {
-  for (const bad of [0, -1, 1.5, Number.NaN, 'fish']) {
-    it(`epicId=${String(bad)} → throws`, () => {
-      assert.throws(
-        () => setActiveStoryEnv({ epicId: bad, storyId: 1, env }),
-        /epicId must be a positive integer or null/,
-      );
-    });
-  }
 });
 
 describe('setActiveStoryEnv — storyId validation unchanged', () => {
-  for (const bad of [0, -1, 1.5, Number.NaN, null, undefined]) {
+  for (const bad of [0, -1, 1.5, Number.NaN, null, undefined, 'fish']) {
     it(`storyId=${String(bad)} → throws`, () => {
       assert.throws(
-        () => setActiveStoryEnv({ epicId: null, storyId: bad, env }),
+        () => setActiveStoryEnv({ storyId: bad, env }),
         /storyId must be a positive integer/,
       );
     });
   }
 });
 
-describe('setActiveSliceEnv — single-delivery slice context (Epic #4476)', () => {
-  it('renders CC_EPIC_ID + CC_SLICE_ID and omits CC_STORY_ID', () => {
-    const body = renderActiveSliceEnvFile({ epicId: 42, sliceId: 'slice-1' });
-    assert.match(body, /CC_EPIC_ID=42/);
-    assert.match(body, /CC_SLICE_ID=slice-1/);
-    assert.doesNotMatch(body, /CC_STORY_ID/);
-  });
-
-  it('includes CC_OPERATOR only when an operator is supplied', () => {
-    assert.doesNotMatch(
-      renderActiveSliceEnvFile({ epicId: 42, sliceId: 'slice-1' }),
-      /CC_OPERATOR/,
-    );
-    assert.match(
-      renderActiveSliceEnvFile({
-        epicId: 42,
-        sliceId: 'slice-1',
-        operator: 'octocat',
-      }),
-      /CC_OPERATOR=octocat/,
-    );
-  });
-
-  it('sets env + writes .env.local and clears any prior CC_STORY_ID', () => {
-    env.CC_STORY_ID = '99'; // a leaked prior Story context
-    const res = setActiveSliceEnv({
-      epicId: 42,
-      sliceId: 'slice-2',
-      workCwd: tmp,
-      env,
-    });
-    assert.equal(res.fileWritten, true);
-    assert.equal(env.CC_EPIC_ID, '42');
-    assert.equal(env.CC_SLICE_ID, 'slice-2');
-    assert.equal('CC_STORY_ID' in env, false);
-    const body = readFileSync(path.join(tmp, '.env.local'), 'utf8');
-    assert.match(body, /CC_SLICE_ID=slice-2/);
-  });
-
-  it('rejects a bad epicId / empty sliceId', () => {
-    assert.throws(
-      () => setActiveSliceEnv({ epicId: 0, sliceId: 'slice-1', env }),
-      /epicId must be a positive integer/,
-    );
-    assert.throws(
-      () => setActiveSliceEnv({ epicId: 1, sliceId: '', env }),
-      /sliceId must be a non-empty string/,
-    );
-  });
-
-  it('clearActiveStoryEnv also wipes CC_SLICE_ID + CC_OPERATOR', () => {
-    setActiveSliceEnv({
-      epicId: 42,
-      sliceId: 'slice-1',
-      operator: 'octocat',
-      env,
-    });
-    clearActiveStoryEnv({ env });
-    assert.equal('CC_SLICE_ID' in env, false);
-    assert.equal('CC_OPERATOR' in env, false);
-    assert.equal('CC_EPIC_ID' in env, false);
-  });
-});
-
-describe('clearActiveStoryEnv — unchanged', () => {
-  it('removes both env vars when present', () => {
+describe('clearActiveStoryEnv', () => {
+  it('removes every owned env var when present', () => {
     env.CC_EPIC_ID = '1';
     env.CC_STORY_ID = '2';
     clearActiveStoryEnv({ env });
@@ -186,7 +98,7 @@ describe('clearActiveStoryEnv — unchanged', () => {
     }
   });
 
-  it('removes only CC_STORY_ID when CC_EPIC_ID was never set (standalone close)', () => {
+  it('removes only CC_STORY_ID when CC_EPIC_ID was never set', () => {
     env.CC_STORY_ID = '2';
     const result = clearActiveStoryEnv({ env });
     assert.equal(result.envCleared, true);
@@ -194,7 +106,7 @@ describe('clearActiveStoryEnv — unchanged', () => {
   });
 
   it('removes .env.local when present', () => {
-    setActiveStoryEnv({ epicId: null, storyId: 7, workCwd: tmp, env });
+    setActiveStoryEnv({ storyId: 7, workCwd: tmp, env });
     const filePath = path.join(tmp, '.env.local');
     assert.equal(existsSync(filePath), true);
     clearActiveStoryEnv({ workCwd: tmp, env });

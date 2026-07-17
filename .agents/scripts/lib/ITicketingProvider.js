@@ -1,7 +1,7 @@
 /**
  * ITicketingProvider — Abstract Ticketing Provider Interface
  *
- * All ticketing interactions in the v5 Epic-centric orchestration are mediated
+ * All ticketing interactions in the v5 Story-centric orchestration are mediated
  * through this interface. Concrete implementations (e.g., `providers/github.js`)
  * extend this class and override every method.
  *
@@ -16,21 +16,6 @@ export class ITicketingProvider {
   // ---------------------------------------------------------------------------
   // Read Operations
   // ---------------------------------------------------------------------------
-
-  /**
-   * Fetch all Epic tickets in the repository.
-   *
-   * @param {{ state?: 'open'|'closed'|'all' }} [filters={}]
-   * @returns {Promise<Array<{
-   *   id: number,
-   *   title: string,
-   *   labels: string[],
-   *   state: 'open'|'closed'
-   * }>>}
-   */
-  async getEpics(_filters = {}) {
-    throw new Error('Not implemented: getEpics');
-  }
 
   /**
    * Fetch the Epic issue with its body — the single planning document

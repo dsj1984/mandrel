@@ -17,9 +17,8 @@ the lift the floor gate represents.
 
 The configuration knobs that drive these gates live in
 [`.agents/docs/configuration.md`](../docs/configuration.md) under
-`delivery.quality.*` and the framework-internal `DEFAULT_STORY_MERGE_RETRY` constant. This
-file is the runbook side — what the gate does, when it fires, and how to
-bootstrap or refresh it.
+`delivery.quality.*`. This file is the runbook side — what the gate does,
+when it fires, and how to bootstrap or refresh it.
 
 The **baseline envelope, per-kind shapes, component model, writer/reader
 contract, and floor-override path** are documented in the
@@ -37,14 +36,13 @@ it once and reuse the context as you read through any individual gate.
 ## Concurrent close safety
 
 `/deliver` may close multiple Stories from separate Story branches in quick
-succession. The push step inside `single-story-close.js` refreshes against the
-latest `main` and retries a rejected Story-branch push — bounded by
-`DEFAULT_STORY_MERGE_RETRY.maxAttempts` (3) and
-`DEFAULT_STORY_MERGE_RETRY.backoffMs` (`[250, 500, 1000]`) from
-`.agents/scripts/lib/config/runners.js`.
-A real
-content conflict (both stories touched the same lines) aborts the loop
-with a clear error and leaves the local tree clean for manual resolution.
+succession. Each Story rebases onto the latest `main` in its own base-sync
+phase (`phases/base-sync.js`) before the push, so concurrent closes serialize
+through their own worktrees rather than racing one shared branch. The push
+step itself does not retry: a rejected push fails the close non-zero and the
+operator resolves it, and a real content conflict (both Stories touched the
+same lines) surfaces at base-sync with a clear error, leaving the local tree
+clean for manual resolution.
 
 ---
 
@@ -515,7 +513,7 @@ does not pause automatically on `risk::high`.
 
 The sole runtime HITL pause point is `agent::blocked`: when an agent
 encounters an unresolvable blocker (including unsafe destructive actions
-lacking explicit authorization), it flips the ticket/Epic to
+lacking explicit authorization), it flips the ticket to
 `agent::blocked`, posts friction context, and waits for operator resume
 (`agent::executing`).
 
@@ -753,10 +751,10 @@ Behaviour:
 - The `components` map is optional. When omitted, the default
   `{ "*": ["**"] }` applies and only `*` rows are ever evaluated.
 - The unified `check-baselines.js` reports breaches per component, with
-  `*` always present in the output. The per-component progress signals
-  (`crap-drift.js#detectComponentRegressions`,
-  `maintainability-drift.js#detectComponentRegressions`) name the
-  breached component in their bullet so a `*` rollup is not falsely
+  `*` always present in the output. The shared baselines kernel
+  (`lib/baselines/kernel.js`, via the per-kind rollups in
+  `lib/baselines/kinds/`) groups rows by component and names the
+  breached component in its output so a `*` rollup is not falsely
   implicated when only a component-scoped floor was crossed.
 
 #### Floor axes must match rollup axes

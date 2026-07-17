@@ -19,7 +19,7 @@ import check from '../../../.agents/scripts/lib/checks/worktree-bootstrap-env.js
 
 function makeState(status, overrides = {}) {
   return {
-    scope: 'epic-deliver',
+    scope: 'diagnose',
     cwd: '/repo',
     git: {},
     fs: { worktreeBootstrapStatus: status },
@@ -33,7 +33,7 @@ describe('check: worktree-bootstrap-env', () => {
     assert.equal(check.id, 'worktree-bootstrap-env');
     assert.equal(check.severity, 'warning');
     assert.equal(check.autoCorrect, 'refuse-and-print');
-    assert.ok(check.scope.includes('epic-deliver'));
+    assert.ok(check.scope.includes('diagnose'));
     assert.equal(typeof check.detect, 'function');
     assert.equal(check.fix, undefined);
   });

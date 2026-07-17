@@ -51,7 +51,6 @@ export class TicketGateway {
    *   owner: string,
    *   repo: string,
    *   hooks?: {
-   *     addSubIssue?: (parentNumber: number, childNodeId: string) => Promise<unknown>,
    *     addItemToProject?: (nodeId: string) => Promise<unknown>,
    *     getProjectNumber?: () => number|null,
    *   },

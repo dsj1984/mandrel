@@ -10,7 +10,7 @@ import { getSpawnCount as defaultGetSpawnCount } from '../gh-exec.js';
  * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
  *
  * Writes the current `gh-exec` spawn counter to
- * `temp/epic-<eid>/stories/story-<sid>/gh-spawn-count.json`.
+ * `temp/run-<id>/stories/story-<sid>/gh-spawn-count.json`.
  *
  * Story #4545 — its reader is gone: `analyze-execution.js` consumed this file
  * to emit a `ghSpawnCount` field on the `story-perf-summary` payload, and both

@@ -2,13 +2,12 @@
 /**
  * merge-block-class.js — Story #4426 (Epic #4425, slice 1: foundation).
  *
- * Shared block-class classifier consumed by BOTH delivery paths — the
- * epic-path must-land terminal step and the standalone
- * `single-story-close` must-land terminal step (the not-yet-landed
- * follow-on Stories under Epic #4425) — so a headless delivery run that
- * finishes its work without a confirmed merge is attributable to exactly
- * one of four classes from the SAME decision logic, instead of each path
- * inventing its own ad hoc diagnosis.
+ * Shared block-class classifier for the `single-story-close` must-land
+ * terminal step and `deliver-recover`, so a headless delivery run that
+ * finishes its work without a confirmed merge is attributable to exactly one
+ * class from ONE decision logic, instead of each caller inventing its own ad
+ * hoc diagnosis. (It was written to serve an epic-path terminal too; the v2
+ * cutover left `single-story-close` as the only delivery path.)
  *
  * Block classes (Epic #4425 Goal; `predicate-refused` added by #4472):
  *   - `checks-pending-timeout`           The watch/poll budget was
@@ -16,7 +15,10 @@
  *                                         were still pending/running — not
  *                                         a hard block, the run simply ran
  *                                         out of time.
- *   - `checks-failed`                    A required check went RED. A
+ *   - `checks-failed`                    A required check went RED — red
+ *                                         checks that branch protection does
+ *                                         not require are NOT this class
+ *                                         (see `failingChecksBlockMerge`). A
  *                                         definitive terminal the merge wait
  *                                         must fail fast on (Story #4543):
  *                                         before this class the in-close poll
@@ -68,6 +70,8 @@
  * `{ blockClass, reason }` verdict ready to hand to `emitMergeUnlanded`
  * (`emit-merge-unlanded.js`).
  */
+
+import { failingChecksBlockMerge } from './merge-poll.js';
 
 /**
  * Every class `classifyMergeBlock` can return. Order is the evaluation
@@ -143,6 +147,12 @@ function describeApiRaceFallback(prProbe, budget) {
   if (prProbe?.error) {
     return `PR probe error: ${prProbe.error}`;
   }
+  // Red checks that do not gate the merge (step 1b declined them). Name the
+  // situation precisely: the operator must NOT be sent to fix the red check,
+  // because auto-merge was free to land this PR and did not.
+  if (prProbe?.checksStatus === 'failure') {
+    return `PR did not land although its failing checks are not required (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}); the red checks are not the block — check that auto-merge is still armed`;
+  }
   if (budget && budget.exhausted === true) {
     return `watch budget exhausted with an unrecognised checks status (${prProbe?.checksStatus ?? 'unknown'})`;
   }
@@ -192,9 +202,10 @@ function describeApiRaceFallback(prProbe, budget) {
  *   (`REVIEW_REQUIRED`, `APPROVED`, …).
  * @param {string} [input.prProbe.mergeStateStatus] GitHub merge-state
  *   status (`BLOCKED`, `BEHIND`, `CLEAN`, …).
- * @param {string} [input.prProbe.checksStatus] Aggregate required-check
- *   status observed on the last probe (`success` | `pending` |
- *   `still-running` | `failure` | `unknown`).
+ * @param {string} [input.prProbe.checksStatus] Aggregate status across ALL
+ *   checks observed on the last probe (`success` | `pending` |
+ *   `still-running` | `failure` | `unknown`) — required-ness is decided by
+ *   `mergeStateStatus`, not by this field.
  * @param {string} [input.prProbe.error] Set when the probe call itself
  *   errored (network / API failure reading the PR).
  * @param {object} [input.budget] Poll-budget accounting.
@@ -237,7 +248,13 @@ export function classifyMergeBlock(input) {
   // failed check pass — so this precedes both the budget branch and the
   // BLOCKED-merge-state heuristic, which would otherwise attribute the red
   // check to branch protection on any protected base.
-  if (checksStatus === 'failure') {
+  //
+  // Gated on `failingChecksBlockMerge` rather than the raw rollup status:
+  // `checksStatus: 'failure'` covers optional checks too, and naming an
+  // optional red check as THE block sends the operator to fix a check that
+  // was never gating the merge. A red-but-not-gating PR that still failed to
+  // land falls through to the fallback, whose reason says exactly that.
+  if (failingChecksBlockMerge(prProbe)) {
     return {
       blockClass: 'checks-failed',
       reason: `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'})`,

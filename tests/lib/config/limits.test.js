@@ -12,8 +12,10 @@ import {
 // Post-reshape (Epic #1720 Story #1739) — the signals taxonomy is trimmed
 // to two detectors (rework, retry) and reads from `delivery.signals.*`.
 // `hotspot` was retired with its detector (Epic #4406). Other limits move:
-//   - planning.context.{maxBytes,summaryMode}
 //   - delivery.execution.timeoutMs
+//
+// `planning.context.{maxBytes,summaryMode}` was removed in Story #4541 — the
+// budget pass it fed lost its last caller in the v2 cutover.
 //
 // `maxTickets` is no longer an operator knob (Story #4163) — it is the
 // framework constant LIMITS_DEFAULTS.maxTickets (default 80) and

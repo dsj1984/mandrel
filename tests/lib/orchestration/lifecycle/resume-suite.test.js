@@ -130,14 +130,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
   'epic.plan.start': { epicId: 9999 },
   'epic.snapshot.end': { epicId: 9999, storyIds: [] },
   'epic.snapshot.start': { epicId: 9999 },
-  'epic.watch.end': {
-    prUrl: 'https://example.test/pr/1',
-    checkOutcomes: {},
-  },
-  'epic.watch.start': {
-    prUrl: 'https://example.test/pr/1',
-    requiredChecks: [],
-  },
   'intervention.recorded': { epicId: 9999, reason: 'fixture' },
   'loop.tick': {
     event: 'loop.tick',
@@ -187,13 +179,6 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     durationMs: 0,
   },
   'story.dispatch.start': { storyId: 9999, waveIndex: 0 },
-  'story.heartbeat': {
-    event: 'story.heartbeat',
-    storyId: 9999,
-    epicId: 9998,
-    phase: 'implementing',
-    timestamp: '2026-05-26T00:00:00.000Z',
-  },
   'story.merged': { storyId: 9999, sha: 'abcdef1' },
 });
 

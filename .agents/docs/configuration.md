@@ -97,9 +97,6 @@ top-level keys are validation errors.
 | Key | Required | Type | Default | Description |
 | --- | --- | --- | --- | --- |
 | `riskHeuristics` | No | `string[]` or `{ append?, prepend? }` | — | — |
-| `context` | No | `object` | — | Nested configuration block. |
-| `context.maxBytes` | No | `integer` | — | — |
-| `context.summaryMode` | No | `"auto"` \| `"always"` \| `"never"` | — | — |
 | `codebaseSnapshot` | No | `object` | — | Nested configuration block. |
 | `codebaseSnapshot.tier` | No | `"skinny"` \| `"medium"` | — | — |
 | `codebaseSnapshot.include` | No | `array<string>` | — | — |
@@ -121,7 +118,7 @@ top-level keys are validation errors.
 | --- | --- | --- | --- | --- |
 | `execution` | No | `object` | — | Nested configuration block. |
 | `execution.timeoutMs` | No | `integer` | — | — |
-| `lease` | No | `object` | — | Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner has not emitted a story.heartbeat within this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js. |
+| `lease` | No | `object` | — | Story #3480 (Epic #3457). Assignee-as-lease primitive. ttlMs is the staleness window — a ticket claim whose owner's last heartbeat is older than this many milliseconds is reclaimable by another operator. Defaults to 900000 (15 min) in lib/config/limits.js. Note the shipped guards fail closed (there is no live heartbeat source), so a stranded claim is cleared with --steal rather than by TTL expiry. |
 | `lease.ttlMs` | No | `integer` | — | — |
 | `docsFreshness` | No | `object` | — | Nested configuration block. |
 | `docsFreshness.paths` | No | `array` | — | — |
@@ -281,7 +278,7 @@ top-level keys are validation errors.
 | `routing.ceremonyProfile` | No | `"minimal"` \| `"standard"` \| `"strict"` | — | Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff, with the maker-checker sampling floor. |
 | `routing.closeAndLand` | No | `boolean` | — | When true (default), single-story-close lands through merge in one close. Opt out per-run with --no-wait-merge. |
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
-| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic. |
+| `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story. |
 | `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
 
 <!-- END GENERATED:agentrc -->
@@ -404,7 +401,7 @@ Repository-level merge-method allowlist applied by bootstrap.
 | ----------------- | -------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mentionOperator` | No       | `false`                                                                                | When `true`, friction comments @-mention `operatorHandle` for `medium`-severity dispatches (high always @mentions).                          |
 | `commentEvents`   | No       | `["state-transition", "story-merged", "operator-message"]`                             | Allowlist of event names that reach the GitHub ticket comment channel.                                                                       |
-| `webhookEvents`   | No       | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative; story-level events are excluded. |
+| `webhookEvents`   | No       | `["state-transition", "story-merged", "story-closing", "operator-message", "merge.unlanded", "merge.flip-failed", "loop.tick"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The vocabulary mirrors the events the v2 runtime actually emits through `notify()`. |
 
 Both fields' enums are pinned in the schema and rejected if extended. To
 suppress a channel entirely, set its array to `[]`.
@@ -452,17 +449,6 @@ is `soft` (visible to the planner, does not trip re-decompose). Set a
 4. Stays soft unless `failOnLargeFanOut: true`. Persist can still require an
    explicit `--allow-large-fan-out` operator flag for very large delete blasts;
    that is separate from Story sizing.
-
-### `planning.context`
-
-Caps the size of `--emit-context` JSON payloads emitted during `/plan`
-so a runaway Epic body (with its folded Tech Spec sections) can't blow the
-planning agent's context budget.
-
-| Field         | Required | Default  | Purpose                                                                                       |
-| ------------- | -------- | -------- | --------------------------------------------------------------------------------------------- |
-| `maxBytes`    | No       | `50000`  | Hard ceiling on the JSON payload size (bytes). Truncation is summary-mode-aware.              |
-| `summaryMode` | No       | `'auto'` | `'auto'` truncates intelligently; `'never'` errors over the cap; `'always'` always summarizes. |
 
 ### `planning.codebaseSnapshot`
 
@@ -845,7 +831,7 @@ git.
 per-contributor value with two jobs: the `@`-handle the framework @mentions on
 friction comments, **and** the lease owner the workflow guards
 ([`ticket-lease.js`](../scripts/lib/orchestration/ticket-lease.js))
-assign to a ticket so two contributors cannot drive the same Epic/Story
+assign to a ticket so two contributors cannot drive the same Story
 concurrently. Because the lease must distinguish *your* run from *another
 person's*, a shared committed handle would defeat it — everyone would coordinate
 under one identity. So each contributor sets their own in `.agentrc.local.json`:

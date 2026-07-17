@@ -33,7 +33,7 @@
  * in `lib/dynamic-workflow/architecture-report-contract.js`. The orchestrated
  * path assembles its cross-checked findings into exactly that skeleton and
  * self-verifies with `assertReportContract` before writing, so downstream
- * consumers (`/deliver` Phase 4 epic-audit, `audit-to-stories`) cannot
+ * consumers (`audit-to-stories`) cannot
  * tell which path produced the report.
  *
  * ## Shared orchestration engine
@@ -58,10 +58,10 @@
  *
  * ## Scope parity
  *
- * Honours the lens's `## Scope (Epic mode)` `{{changedFiles}}` contract:
- * when `inputs.changedFiles` is a non-empty newline-delimited list (Epic-mode
- * invocation from `/deliver` Phase 4) the scan is restricted to those
- * files; otherwise it is a full codebase-wide scan, identical to a manual
+ * Honours the lens's `## Scope (Story / plan-run mode)` `{{changedFiles}}`
+ * contract: when `inputs.changedFiles` is a non-empty newline-delimited
+ * list (a scoped run) the scan is restricted to those files; otherwise
+ * it is a full codebase-wide scan, identical to a manual
  * `/audit-architecture`. The lens's Architecture Guardrail Coverage maturity
  * assessment is a repo-wide property: in scoped mode the synthesis stage marks
  * it `Not Assessed — scoped run` per the lens's Step 2 scope-mode behavior.
@@ -75,7 +75,7 @@
  * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
  *
  * @typedef {object} ArchitectureInputs
- * @property {string} [changedFiles]  Epic-mode change-set list (newline-delimited).
+ * @property {string} [changedFiles]  Scoped-run change-set list (newline-delimited).
  * @property {string} [auditOutputDir] Resolved audit output dir.
  */
 

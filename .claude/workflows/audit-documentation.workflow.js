@@ -42,8 +42,7 @@
  * defined in `lib/dynamic-workflow/documentation-report-contract.js`. The
  * orchestrated path assembles its verified findings into exactly that
  * skeleton and self-verifies with `assertReportContract` before writing, so
- * downstream consumers (`/deliver` Phase 4 epic-audit,
- * `audit-to-stories`) cannot tell which path produced the report.
+ * downstream consumers (`audit-to-stories`) cannot tell which path produced the report.
  *
  * ## Shared orchestration engine
  *
@@ -66,7 +65,7 @@
  * @typedef {import('../../.agents/scripts/lib/dynamic-workflow/audit-orchestrator.js').WorkflowContext} WorkflowContext
  *
  * @typedef {object} DocumentationInputs
- * @property {string} [changedFiles]  Epic-mode change-set list (newline-delimited).
+ * @property {string} [changedFiles]  Scoped-run change-set list (newline-delimited).
  * @property {string} [auditOutputDir] Resolved audit output dir.
  * @property {string} [deterministicFindings] Pre-rendered Step 1 finding
  *   blocks from the calling session's deterministic-checker run.

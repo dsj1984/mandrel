@@ -7,7 +7,10 @@
       "substitutionKeys": []
     },
     "audit-architecture": {
-      "triggers": { "gates": ["gate1", "gate3"] },
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "filePatterns": [".agents/scripts/lib/**", "lib/**", "bin/**", "src/**"]
+      },
       "scope": "cumulative",
       "substitutionKeys": []
     },
@@ -58,6 +61,7 @@
           "**/frontend/**/*.js"
         ]
       },
+      "target": "web",
       "scope": "local",
       "substitutionKeys": []
     },
@@ -147,6 +151,7 @@
         "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
         "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
       },
+      "target": "web",
       "scope": "local",
       "substitutionKeys": []
     },
@@ -160,6 +165,7 @@
           "**/*.css"
         ]
       },
+      "target": "web",
       "scope": "local",
       "substitutionKeys": []
     },
@@ -173,6 +179,7 @@
           "route tree"
         ]
       },
+      "target": "web",
       "scope": "global",
       "substitutionKeys": []
     }

@@ -59,11 +59,42 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
-import {
-  diff,
-  parseLedgerText,
-} from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-diff.js';
 import { LedgerWriter } from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
+
+/**
+ * Inline ledger parse / compare helpers. These lived in
+ * `lib/orchestration/lifecycle/ledger-diff.js` until that module was
+ * deleted as production-dead (this test was its only importer); the
+ * comparison contract — record-by-record equality modulo the volatile
+ * `ts` and `seqId` fields — is pinned here instead.
+ */
+function parseLedgerText(text) {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
+/** Project out the volatile fields the parity contract ignores. */
+function projectRecord(rec) {
+  const { ts, seqId, ...rest } = rec;
+  return rest;
+}
+
+/** Positional diff of two ledgers, ignoring `ts` and `seqId`. */
+function diff(left, right) {
+  const mismatches = [];
+  const len = Math.max(left.length, right.length);
+  for (let i = 0; i < len; i += 1) {
+    const l = left[i] ? projectRecord(left[i]) : undefined;
+    const r = right[i] ? projectRecord(right[i]) : undefined;
+    if (JSON.stringify(l) !== JSON.stringify(r)) {
+      mismatches.push({ index: i, left: l ?? null, right: r ?? null });
+    }
+  }
+  return mismatches;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -124,7 +155,9 @@ const FIXTURE_EVENTS = [
   ],
   ['code-review.start', { epicId: FIXTURE_EPIC_ID }],
   ['code-review.end', { epicId: FIXTURE_EPIC_ID, status: 'ok' }],
-  // PR created on the v2 story-<id> branch, then watched to terminal.
+  // PR created on the v2 story-<id> branch. (The epic.watch.start/.end
+  // pair that used to follow was retired with its schemas — the production
+  // watch path runs without a bus.)
   [
     'pr.created',
     {
@@ -132,11 +165,6 @@ const FIXTURE_EVENTS = [
       head: 'story-9102',
       base: 'main',
     },
-  ],
-  ['epic.watch.start', { prUrl: FIXTURE_PR_URL, requiredChecks: ['lint'] }],
-  [
-    'epic.watch.end',
-    { prUrl: FIXTURE_PR_URL, checkOutcomes: { lint: 'success' } },
   ],
 ];
 
@@ -258,7 +286,7 @@ describe('Epic #2307 — Acceptance Criterion 8 (lifecycle ledger parity)', () =
   it('the diff helper ignores ts and seqId fields (regression guard for the Tech Spec contract)', async () => {
     // This is the inner half of AC-8: the diff comparator must not
     // care about the two volatile fields. Pin it directly so a future
-    // refactor of `lifecycle-diff.js` that loses the projection is
+    // refactor of the inline diff helper that loses the projection is
     // caught here rather than only on the slower full-ledger path.
     const { records } = await captureFreshLedger(tempRoot);
     const drifted = records.map((rec, idx) => ({
@@ -270,7 +298,7 @@ describe('Epic #2307 — Acceptance Criterion 8 (lifecycle ledger parity)', () =
     assert.deepEqual(
       mismatches,
       [],
-      'lifecycle-diff.diff() regressed: ts/seqId drift is no longer ignored. Restore the projection in lifecycle-diff.js or pin the new contract here.',
+      'diff() regressed: ts/seqId drift is no longer ignored. Restore the projectRecord projection or pin the new contract here.',
     );
   });
 });

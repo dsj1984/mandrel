@@ -46,6 +46,7 @@ test('runVerifySteps runs audit, lint, test, baselines, then the ratchets in ord
     ['npm', 'test'],
     ['node', '.agents/scripts/check-baselines.js'],
     ['node', '.agents/scripts/check-dead-exports.js'],
+    ['node', '.agents/scripts/check-dead-exports.js', '--production'],
     ['node', '.agents/scripts/check-context-budget.js'],
   ]);
 });

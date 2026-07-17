@@ -431,7 +431,7 @@ export function ensureGitignore(ctx) {
 
 /**
  * Materialize the generated GitHub Issue Forms
- * (`.github/ISSUE_TEMPLATE/story.yml` + `epic.yml`) into the consumer
+ * (`.github/ISSUE_TEMPLATE/story.yml`) into the consumer
  * project (Story #4227). Derived from the Story-body SSOT so a human-filed
  * ticket round-trips through `story-body.parse()`. Idempotent and additive,
  * mirroring `ensureGitignore`: byte-identical forms are `unchanged`,

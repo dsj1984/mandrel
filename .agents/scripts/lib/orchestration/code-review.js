@@ -11,12 +11,15 @@
  * adapter's `runReview()` to collect a `Finding[]`, render the
  * structured-comment body via `findings-renderer`, and post the
  * comment through the GitHub provider here (the adapter is post-free
- * by design). The lifecycle events (`code-review.start`/`.end`)
- * preserve their previous payload shape so the ledger and listener
- * chain are unchanged.
+ * by design).
+ *
+ * v2.0.0 removed the Epic tier. The Epic-scope envelope and the
+ * Epic-scoped `code-review.start` / `.end` lifecycle emits (whose schema
+ * requires `epicId`) went with it; Story scope is the only scope and the
+ * module no longer touches the lifecycle bus.
  *
  * Public API:
- *   - `runCodeReview({ scope, ticketId, provider, logger, bus, ... })` →
+ *   - `runCodeReview({ ticketId, headRef, provider, logger, ... })` →
  *       `{ status, severity, posted, report, halted, blockerReason }`.
  *
  * Behaviour:
@@ -24,7 +27,7 @@
  *     a single `native` chain entry when `delivery.codeReview.providers`
  *     is unset or empty.
  *   - Always posts the unified `verification-results` structured comment on
- *     the Epic issue (the adapter never posts; the orchestrator owns
+ *     the target issue/PR (the adapter never posts; the orchestrator owns
  *     persistence). Story #4411 (Epic #4405) unified the former
  *     `code-review` and `audit-results` findings contracts into this one
  *     `verification-results` marker.
@@ -93,42 +96,6 @@ function listChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
 }
 
 /**
- * Build the `code-review.end` payload from the normalized result envelope.
- * The runner result may carry a `report` field (full markdown body) which
- * is NOT included in the lifecycle payload: the schema's
- * `additionalProperties: false` forbids it, and the body can carry inline
- * severity counts that drift from the structured `severity` field. The
- * lifecycle ledger is the structured surface; the report is GitHub's
- * surface (posted via the structured comment).
- *
- * Story #2839: `epicId` is preserved verbatim in the lifecycle payload so
- * the `code-review.end` schema (additionalProperties: false, requires
- * `epicId`) stays unchanged. Story-scope invocations never reach this
- * helper — `runCodeReview` short-circuits the bus emit for `scope: 'story'`
- * because story-scope review sits outside the Epic lifecycle ledger.
- */
-function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
-  const payload = {
-    epicId,
-    status: result.status,
-  };
-  if (result.severity && typeof result.severity === 'object') {
-    payload.severity = {
-      critical: result.severity.critical ?? 0,
-      high: result.severity.high ?? 0,
-      medium: result.severity.medium ?? 0,
-      suggestion: result.severity.suggestion ?? 0,
-    };
-  }
-  if (typeof result.halted === 'boolean') payload.halted = result.halted;
-  if (typeof result.posted === 'boolean') payload.posted = result.posted;
-  if (Number.isFinite(durationMs) && durationMs >= 0) {
-    payload.durationMs = Math.floor(durationMs);
-  }
-  return payload;
-}
-
-/**
  * Resolve the project base branch fallback used when a caller omits
  * `baseRef`.
  */
@@ -153,7 +120,6 @@ function resolveCommentTargetId(commentTargetId, fallback) {
  *   baseRef: string,
  *   headRef: string,
  *   commentTargetId: number,
- *   epicIdForLedger: null,
  * }}
  */
 function resolveStoryScope(opts, config) {
@@ -176,53 +142,16 @@ function resolveStoryScope(opts, config) {
       opts.commentTargetId,
       opts.ticketId,
     ),
-    epicIdForLedger: null,
   };
 }
 
 /**
- * Resolve the Epic-scope envelope from the parameterized
- * `{ scope: 'epic', ticketId, baseRef, headRef, commentTargetId }` shape.
- * `headRef` defaults to `epic/<ticketId>` and `baseRef` to the project
- * base branch.
- *
- * @returns {{
- *   scope: 'epic',
- *   ticketId: number,
- *   baseRef: string,
- *   headRef: string,
- *   commentTargetId: number,
- *   epicIdForLedger: number,
- * }}
- */
-function resolveEpicScope(opts, config) {
-  if (!Number.isInteger(opts.ticketId) || opts.ticketId <= 0) {
-    throw new TypeError(
-      'runCodeReview: ticketId is required (positive integer) when scope="epic".',
-    );
-  }
-  return {
-    scope: 'epic',
-    ticketId: opts.ticketId,
-    baseRef: opts.baseRef ?? resolveConfigBase(config),
-    headRef: opts.headRef ?? `epic/${opts.ticketId}`,
-    commentTargetId: resolveCommentTargetId(
-      opts.commentTargetId,
-      opts.ticketId,
-    ),
-    epicIdForLedger: opts.ticketId,
-  };
-}
-
-/**
- * Dispatch the parameterized scope envelope
- * (`{ scope, ticketId, baseRef, headRef, commentTargetId }`) to the
- * matching pure resolver. `scope` defaults to `'epic'`.
+ * Resolve the scope envelope
+ * (`{ scope, ticketId, baseRef, headRef, commentTargetId }`). v2.0.0
+ * removed the Epic tier, so `'story'` is the only scope.
  */
 function resolveScopeEnvelope(opts, config) {
-  return opts.scope === 'story'
-    ? resolveStoryScope(opts, config)
-    : resolveEpicScope(opts, config);
+  return resolveStoryScope(opts, config);
 }
 
 /**
@@ -240,25 +169,19 @@ function resolveScopeEnvelope(opts, config) {
  * derived from the `Finding[]` returned by the adapter (no separate
  * severity field on the runner result).
  *
- * Story #2839 (Epic #2815) — accepts a parameterized scope envelope
- * so the standalone Story closer can request a Story-scope review
- * against `main`, post the structured findings comment to the PR
- * (via `commentTargetId`), and surface critical findings to the
- * caller as `halted: true`. Lifecycle bus emits are confined to
- * `scope: 'epic'` because the `code-review.end` schema requires
- * `epicId` and the ledger only spans Epic lifecycles.
+ * Story #2839 (Epic #2815) — the Story closer requests a Story-scope
+ * review against `main`, posts the structured findings comment to the PR
+ * (via `commentTargetId`), and surfaces critical findings to the caller
+ * as `halted: true`.
  *
- * Argument shape (parameterized, Epic or Story):
- *   `{ scope, ticketId, baseRef, headRef, [commentTargetId],
- *      provider, bus }`
- *   `scope` defaults to `'epic'`; `baseRef` defaults to the project base
- *   branch and (Epic scope only) `headRef` defaults to `epic/<ticketId>`.
- *   For `scope === 'story'`, `commentTargetId` overrides the post
- *   target (e.g. PR number) while `ticketId` continues to label the
- *   rendered header ("Story #N").
+ * Argument shape:
+ *   `{ ticketId, baseRef, headRef, [commentTargetId], provider }`
+ *   `baseRef` defaults to the project base branch; `headRef` is required.
+ *   `commentTargetId` overrides the post target (e.g. PR number) while
+ *   `ticketId` continues to label the rendered header ("Story #N").
  *
  * @param {{
- *   scope?: 'epic'|'story',
+ *   scope?: 'story',
  *   ticketId: number,
  *   baseRef?: string|null,
  *   headRef?: string|null,
@@ -268,8 +191,6 @@ function resolveScopeEnvelope(opts, config) {
  *   changedFiles?: string[]|null,
  *   changedFileCount?: number|null,
  *   storyId?: number|null,
- *   bus?: object|null,
- *   now?: () => number,
  *   reviewProvider?: { runReview: Function },
  *   gitSpawnFn?: typeof gitSpawn,
  *   resolveConfigFn?: typeof resolveConfig,
@@ -423,7 +344,7 @@ async function executeReviewPipeline({ opts, config, envelope }) {
     injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
 
   logger?.info?.(
-    `[code-review] Running ${providerName} adapter for ${scope === 'epic' ? 'Epic' : 'Story'} #${ticketId} (${baseRef}...${headRef})...`,
+    `[code-review] Running ${providerName} adapter for Story #${ticketId} (${baseRef}...${headRef})...`,
   );
 
   const reviewInput = buildReviewInput({
@@ -482,49 +403,13 @@ async function executeReviewPipeline({ opts, config, envelope }) {
 }
 
 export async function runCodeReview(opts = {}) {
-  const { bus, now = Date.now, resolveConfigFn = resolveConfig } = opts;
+  const { resolveConfigFn = resolveConfig } = opts;
 
   const config = resolveConfigFn();
   const envelope = resolveScopeEnvelope(opts, config);
-  const { scope } = envelope;
 
-  // Epic-scope lifecycle ledger requires `bus`; Story-scope sits outside
-  // the Epic lifecycle so the bus is optional there. A caller without a
-  // bus on the Story path still gets the full review semantics — only the
-  // `code-review.start`/`.end` events are suppressed.
-  if (scope === 'epic' && (!bus || typeof bus.emit !== 'function')) {
-    throw new TypeError('runCodeReview: bus is required (object with emit()).');
-  }
-  const ledgerEnabled =
-    scope === 'epic' && bus && typeof bus.emit === 'function';
-
-  const startedAt = typeof now === 'function' ? now() : Date.now();
-  // Emit the matched `code-review.end` boundary; the ledger must always
-  // show a start/end pair (even on adapter throw, where `result` is the
-  // canonical `{ status: 'invalid' }`).
-  const emitEnd = async (result) => {
-    if (!ledgerEnabled) return;
-    const endedAt = typeof now === 'function' ? now() : Date.now();
-    await bus.emit(
-      'code-review.end',
-      buildCodeReviewEndPayload({
-        epicId: envelope.epicIdForLedger,
-        result,
-        durationMs: Math.max(0, endedAt - startedAt),
-      }),
-    );
-  };
-
-  if (ledgerEnabled) {
-    await bus.emit('code-review.start', { epicId: envelope.epicIdForLedger });
-  }
-
-  try {
-    const result = await executeReviewPipeline({ opts, config, envelope });
-    await emitEnd(result);
-    return result;
-  } catch (err) {
-    await emitEnd({ status: 'invalid' });
-    throw err;
-  }
+  // No lifecycle-bus emit: the `code-review.start` / `.end` ledger pair was
+  // Epic-scoped (its schema requires `epicId`), and v2.0.0 removed the Epic
+  // tier. Story-scope review sits outside the lifecycle ledger entirely.
+  return executeReviewPipeline({ opts, config, envelope });
 }

@@ -813,7 +813,7 @@ export function renderHardConflictError(finding) {
     return `Shared-editor conflict: "${finding.path}" is written by ${finding.storySlugs.length} concurrent Stories (${stories}). Add depends_on chains between them or split the edits into a dedicated late-wave wiring Story.`;
   }
   if (finding.kind === 'implicit-cross-story-dep') {
-    return `Implicit cross-Story dependency: Task "${finding.consumer.taskSlug}" in Story "${finding.consumer.storySlug}" references "${finding.path}" (produced by Task "${finding.producer.taskSlug}" in Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but Story "${finding.consumer.storySlug}" has no depends_on link to Story "${finding.producer.storySlug}". Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story or remove the reference.`;
+    return `Implicit cross-Story dependency: Story "${finding.consumer.storySlug}" references "${finding.path}" (produced by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but Story "${finding.consumer.storySlug}" has no depends_on link to Story "${finding.producer.storySlug}". Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story or remove the reference.`;
   }
   if (finding.kind === 'cross-cutting-registries') {
     const stories = finding.storySlugs.map((s) => `"${s}"`).join(', ');
@@ -821,7 +821,7 @@ export function renderHardConflictError(finding) {
   }
   if (finding.kind === 'fan-out-warning') {
     return (
-      `Large fan-out: Task "${finding.taskSlug}" in Story "${finding.storySlug}" deletes "${finding.path}" ` +
+      `Large fan-out: Story "${finding.storySlug}" deletes "${finding.path}" ` +
       `with ${finding.callSiteCount} importer(s) on the base branch (threshold ${finding.threshold}). ` +
       `${renderFanOutRemedy(finding)}${renderFanOutEvidence(finding)}`
     );

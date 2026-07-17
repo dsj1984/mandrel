@@ -56,8 +56,16 @@ function makeTmpDir() {
   return dir;
 }
 
+// Env with every `GIT_*` variable dropped. Under a husky pre-push from a
+// linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
+// git under that env acts on the MAIN checkout instead of the fixture
+// (#4580).
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
 function git(args, cwd) {
-  return spawnSync('git', args, { cwd, encoding: 'utf8' });
+  return spawnSync('git', args, { cwd, encoding: 'utf8', env: CLEAN_ENV });
 }
 
 /**

@@ -25,7 +25,7 @@ mandrel/
 │   ├── workflows/            # SDLC & audit slash-command workflows
 │   ├── scripts/              # Deterministic JS tooling (orchestration engine)
 │   ├── schemas/              # JSON Schemas for structured output validation
-│   ├── templates/            # Epic / planning prompt templates
+│   ├── templates/            # Planning prompt templates
 │   ├── docs/                 # Shipped consumer reference docs (SDLC.md, configuration.md, agentrc-reference.json)
 │   ├── starter-agentrc.json  # Bootstrap delta-seed — consumers copy to project root
 │   └── README.md             # Detailed consumer user guide
@@ -126,7 +126,7 @@ Read the summary file to spot regressions: **suite** rows are parent `describe`
 blocks (often whole files), **test** rows are leaf cases. Compare reports from
 the same machine before and after an optimization. Optional flags:
 `--out-dir <path>`, `--top <n>`, plus any `node --test` args after `--` (e.g.
-`npm run test:profile -- --test-name-pattern "epic-execute"`).
+`npm run test:profile -- --test-name-pattern "single-story"`).
 
 ---
 

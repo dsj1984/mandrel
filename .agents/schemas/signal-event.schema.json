@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/signal-event.schema.json",
   "title": "SignalEvent",
-  "description": "One NDJSON line emitted by the signals writer (Epic #1030; canonical envelope cutover Epic #4406 / Story #4413). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson (per-Story) and temp/epic-<eid>/signals.ndjson (Epic-level wave lifecycle); The stream stays local: Story #4545 deleted the perf-summary / perf-report comment surface that used to roll it up onto tickets, leaving the retro as the consumer. `kind: trace` is the raw tool-call trace; the named kinds are derived signals. This is the ONLY shape — the legacy `timestamp` / `epic` aliases and the `source: { tool }` provenance object were deleted in the same PR that moved every writer (no read-side compatibility branch).",
+  "description": "One NDJSON line emitted by the signals writer (Epic #1030; canonical envelope cutover Epic #4406 / Story #4413). Runtime events live in append-only NDJSON on local disk under temp/run-<id>/stories/story-<sid>/signals.ndjson (per-Story) and temp/run-<id>/signals.ndjson (Epic-level wave lifecycle); The stream stays local: Story #4545 deleted the perf-summary / perf-report comment surface that used to roll it up onto tickets, leaving the retro as the consumer. `kind: trace` is the raw tool-call trace; the named kinds are derived signals. This is the ONLY shape — the legacy `timestamp` / `epic` aliases and the `source: { tool }` provenance object were deleted in the same PR that moved every writer (no read-side compatibility branch).",
   "type": "object",
   "additionalProperties": true,
   "required": ["kind", "ts"],
@@ -33,7 +33,7 @@
     "source": {
       "type": "string",
       "enum": ["framework", "consumer"],
-      "description": "Framework/consumer classification injected by `tagSignalSource` (signals-writer.js) for records appended via appendSignal/appendEpicSignal. Reserved exclusively for this classifier tag — the originating tool/surface lives in `emitter`."
+      "description": "Framework/consumer classification injected by `tagSignalSource` (signals-writer.js) for records appended via appendSignal. Reserved exclusively for this classifier tag — the originating tool/surface lives in `emitter`."
     },
     "emitter": {
       "type": "object",

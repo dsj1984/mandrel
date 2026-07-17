@@ -185,7 +185,7 @@ export const SECURITY_REVIEW_INVOKE_PROMPT =
  * @returns {string}
  */
 export function buildSecurityReviewPrompt(input) {
-  const scopeLabel = input?.scope === 'epic' ? 'Epic' : 'Story';
+  const scopeLabel = 'Story';
   const baseRef = typeof input?.baseRef === 'string' ? input.baseRef : '?';
   const headRef = typeof input?.headRef === 'string' ? input.headRef : '?';
   const ticketId =

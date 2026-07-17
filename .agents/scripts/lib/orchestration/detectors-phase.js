@@ -119,7 +119,7 @@ function isValidIdPair(eid, sid) {
 
 /**
  * Run the rework + retry detectors for one Story and persist every
- * emission to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`.
+ * emission to `temp/run-<id>/stories/story-<sid>/signals.ndjson`.
  *
  * @param {{
  *   epicId: number|string,

@@ -13,7 +13,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   ACCEPTANCE_TABLE_HEADING,
-  extractTicketSection,
   hasTechSpecContent,
   hasTicketSection,
   sliceTicketBodyForDelivery,
@@ -22,6 +21,19 @@ import {
   TICKET_BODY_SECTIONS,
   upsertTicketSection,
 } from '../.agents/scripts/lib/ticket-body-sections.js';
+
+// Local read helper (the module's `extractTicketSection` export was retired
+// when its last production caller — the Epic-ranking corpus path — was
+// deleted with the Epic tier). The tests still round-trip upsert results
+// through it, so it lives here on the exported marker descriptors.
+function extractTicketSection(body, kind) {
+  const { start, end } = TICKET_BODY_SECTIONS[kind];
+  const s = body.indexOf(start);
+  if (s === -1) return null;
+  const e = body.indexOf(end, s + start.length);
+  if (e === -1) return null;
+  return body.slice(s + start.length, e).trim();
+}
 
 const IDEATION_BODY = [
   '## Context',
@@ -153,7 +165,7 @@ describe('ticket-body-sections', () => {
 
     it('throws on an unknown section kind', () => {
       assert.throws(
-        () => extractTicketSection(IDEATION_BODY, 'prd'),
+        () => hasTicketSection(IDEATION_BODY, 'prd'),
         /unknown section kind/,
       );
     });

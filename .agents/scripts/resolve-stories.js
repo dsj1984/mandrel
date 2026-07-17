@@ -174,6 +174,10 @@ async function main() {
       native: { type: 'boolean', default: true },
       help: { type: 'boolean', default: false },
     },
+    // The documented opt-out is `--no-native`; without allowNegative,
+    // parseArgs rejects it as an unknown option and the CLI has no working
+    // way to skip the dependencies API.
+    allowNegative: true,
     allowPositionals: false,
   });
 

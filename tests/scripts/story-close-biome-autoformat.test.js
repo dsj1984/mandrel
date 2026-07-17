@@ -105,7 +105,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
     const result = runScopedFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,
@@ -144,7 +144,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
     const result = runScopedFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,
@@ -175,7 +175,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
     const result = runScopedFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,
@@ -200,7 +200,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
     const result = runScopedFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,
@@ -231,7 +231,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
       cwd: '/tmp/main-checkout',
       worktreePath: '/tmp/.worktrees/story-2533',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,
@@ -267,7 +267,7 @@ describe('runScopedFormatAutofix — Story #2533 (Task #2536)', () => {
       cwd: '/tmp/main-checkout',
       worktreePath: '/tmp/.worktrees/story-2533',
       storyId: 2533,
-      epicBranch: 'epic/2527',
+      baseBranch: 'epic/2527',
       storyBranch: 'story-2533',
       logger,
       spawnSync: spawn,

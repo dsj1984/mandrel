@@ -109,25 +109,57 @@ const PROJECT_SCHEMA = {
 
 /**
  * Curated webhook event vocabulary. The webhook channel is gated by an
- * explicit allowlist of event names — the webhook narrative is "epic %
- * progress + blockers", not the firehose of per-story transitions that the
- * GitHub-comment channel still receives.
+ * explicit allowlist of event names — the vocabulary mirrors the events the
+ * v2 runtime actually emits through `notify()` (Story transitions, merge
+ * outcomes, loop lifecycle beats).
+ *
+ * `story.heartbeat` was retired here (A22): the vocabulary's contract is
+ * "events the runtime actually emits", and nothing could emit this one. Its
+ * emitter (`emit-story-heartbeat.js`) demanded an `epicId >= 1` while the
+ * sole call path (`single-story-init.js` → `setActiveStoryEnv`) passed
+ * `epicId: null`, so `CC_EPIC_ID` was never set and the hook that would have
+ * fired the beat always short-circuited. Emitter, hook, and schema are all
+ * deleted; keeping the name allowlistable would let an operator subscribe to
+ * a channel that can never deliver. Removing it from the enum makes a
+ * resurrection fail loudly at config-validation time rather than silently
+ * never firing.
  */
 export const WEBHOOK_EVENT_NAMES = Object.freeze([
-  'epic-started',
-  'epic-progress',
-  'epic-blocked',
-  'epic-unblocked',
-  'epic-complete',
+  'state-transition',
+  'story-merged',
+  'story-closing',
+  'operator-message',
+  'merge.unlanded',
+  'merge.flip-failed',
+  'loop.tick',
 ]);
 
 /**
  * Curated GitHub-comment event vocabulary. The comment channel is gated by
  * an explicit allowlist of event names — same model as `webhookEvents`.
+ *
+ * **Deliberately narrower than {@link WEBHOOK_EVENT_NAMES}**, and the axis
+ * is ticket scope, not importance. A comment is written *onto a Story
+ * issue*, so only events that are about one Story, and whose message reads
+ * as narrative an operator wants durably on the ticket, belong here. The
+ * webhook-only remainder — `merge.unlanded`, `merge.flip-failed`,
+ * `loop.tick` — are run-scoped or firehose beats;
+ * mirroring them onto the ticket would bury the narrative under machine
+ * chatter, and `notify()` drops a comment for any dispatch without a
+ * resolvable ticket id regardless.
+ *
+ * `story-closing` IS in scope by that rule (Story-scoped, `level: 'story'`,
+ * human-readable — the same shape as `story-merged`) and its earlier
+ * absence was an oversight: the event was emittable to webhooks but could
+ * not be allowlisted for comments at all. It is in the vocabulary but NOT
+ * in the shipped default (`config/github.js` `NOTIFICATIONS_DEFAULTS`) —
+ * opting in is an operator choice, not a behaviour change forced on every
+ * consumer.
  */
 export const COMMENT_EVENT_NAMES = Object.freeze([
   'state-transition',
   'story-merged',
+  'story-closing',
   'operator-message',
 ]);
 
@@ -208,19 +240,14 @@ const GITHUB_SCHEMA = {
 // planning.* — inputs to /plan
 // ---------------------------------------------------------------------------
 
-/**
- * `planning.context` — bounded planning-context budget for `--emit-context`
- * payloads. When the full payload would exceed `maxBytes`, planners switch
- * to a summary representation.
- */
-const PLANNING_CONTEXT_SCHEMA = {
-  type: 'object',
-  properties: {
-    maxBytes: { type: 'integer', minimum: 1024 },
-    summaryMode: { type: 'string', enum: ['auto', 'always', 'never'] },
-  },
-  additionalProperties: false,
-};
+// Story #4541: `planning.context.{maxBytes, summaryMode}` was retired. The
+// `applyBudget` pass it fed lost its last caller in the v2 cutover, and it
+// bounded a field the envelope builders discarded before shipping the raw seed
+// anyway — so the key resolved but capped nothing. The live bound on
+// planner-context size is the fixed `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING` in
+// `lib/orchestration/plan-context.js`. Setting `planning.context` is now
+// rejected as an additional property, so a resurrected key fails loudly rather
+// than silently doing nothing.
 
 /**
  * Story #2634 — `planning.codebaseSnapshot` controls the structural
@@ -250,7 +277,6 @@ const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
-    context: PLANNING_CONTEXT_SCHEMA,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to

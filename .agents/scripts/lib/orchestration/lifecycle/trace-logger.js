@@ -40,28 +40,17 @@ function formatClock(iso) {
  * mapping is stable across runs.
  */
 const PHASE_BY_PREFIX = Object.freeze({
-  'epic.snapshot': 'Snapshot',
-  'epic.plan': 'Plan',
   'story.dispatch': 'Waves',
   'story.merged': 'Waves',
   'story.blocked': 'Waves',
-  'epic.blocked': 'Waves',
-  'epic.close': 'Close-tail',
-  'acceptance.reconcile': 'Acceptance Reconciliation',
-  'epic.finalize': 'Finalize',
   'pr.created': 'Finalize',
-  'epic.watch': 'Watch',
-  'epic.automerge': 'Automerge',
-  'epic.merge': 'Automerge',
-  'epic.cleanup': 'Cleanup',
-  'epic.complete': 'Complete',
   'notification.emitted': 'Notifications',
   'checkpoint.written': 'Checkpoint',
 });
 
 function phaseFor(eventName) {
-  // Match longest prefix first so `epic.snapshot.start` resolves before
-  // `epic.snapshot` would match an unrelated `epic.*` block.
+  // Match longest prefix first so `story.dispatch.start` resolves before
+  // `story.dispatch` would match an unrelated `story.*` block.
   const keys = Object.keys(PHASE_BY_PREFIX).sort((a, b) => b.length - a.length);
   for (const k of keys) {
     if (eventName === k || eventName.startsWith(`${k}.`)) {
@@ -277,7 +266,7 @@ export function render(ledger, opts = {}) {
  *
  * The wildcard-firewall rule (Tech Spec § Bus contract) requires that
  * trace observers do NOT import any module that mutates GitHub state,
- * the worktree, or the filesystem outside `temp/epic-<id>/`. This
+ * the worktree, or the filesystem outside `temp/run-<id>/`. This
  * module satisfies that constraint: the only filesystem writes are to
  * the companion path under the same temp directory the ledger lives
  * in.

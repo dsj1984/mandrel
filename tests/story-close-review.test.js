@@ -45,7 +45,7 @@ function makeRecordingBus() {
 
 const baseArgs = {
   storyId: 2840,
-  epicBranch: 'epic/2815',
+  baseBranch: 'epic/2815',
   storyBranch: 'story-2840',
   provider: { kind: 'github-stub' },
 };

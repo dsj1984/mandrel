@@ -39,17 +39,6 @@ function fakeRenderFindings() {
   return '## Code Review\n\n(stub body)\n';
 }
 
-/** Capture the bus events emitted during a run. */
-function makeBus() {
-  const events = [];
-  return {
-    events,
-    emit: async (name, payload) => {
-      events.push({ name, payload });
-    },
-  };
-}
-
 /**
  * A fake `gitSpawn` returning `n` changed files for the diff, so the depth
  * resolver sees a deterministic, injected width with no real git subprocess.
@@ -75,8 +64,8 @@ function buildOpts({
 } = {}) {
   return {
     ticketId: 100,
+    headRef: 'story-100',
     provider: {},
-    bus: makeBus(),
     changedFiles,
     changedFileCount,
     gitSpawnFn,

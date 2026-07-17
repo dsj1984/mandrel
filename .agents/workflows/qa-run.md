@@ -382,15 +382,11 @@ For each untriaged ledger item:
    same cluster/size/route/file path `/qa-explore` and `/audit-to-stories`
    consume (`clusterLedgerItems` + `targetForCluster`: a cluster spanning ≤2
    coverage surfaces routes to `createStory` via `/plan --seed-file`, >2 to
-   `createEpic` via `/plan --seed`, with the cluster's `fingerprintFooter(sha)`
+   `createPlanSeed` via `/plan --seed`, with the cluster's `fingerprintFooter(sha)`
    stamped verbatim into the seed). A `file` disposition never opens a raw
    GitHub Issue; only `defer` and `dismiss` skip the `/plan` handoff.
 5. **Gate:** any ticket-filing, seed write, `/plan` invocation, or label
    mutation is a write — confirm each with the operator before it happens.
-
-If the run was triggered from an Epic-testing context, hand the approved,
-promoted findings to the Epic-testing helper for attachment to the Epic's QA
-evidence ticket.
 
 ## Step 6 — Report
 

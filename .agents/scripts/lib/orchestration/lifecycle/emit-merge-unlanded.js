@@ -6,23 +6,16 @@
  * finishes its work without a confirmed merge. Pattern mirrors
  * `emit-story-heartbeat.js`: direct schema validation via Ajv followed by
  * a synchronous `appendFileSync` — this event is NOT routed through the
- * bus (unlike `emit-loop-tick.js`) because it can fire from either the
- * epic-path finalize flow (which already owns an Epic-scoped bus
- * instance for its own run) or the standalone `single-story-close` flow,
- * which has no bus at all. A bare append keeps both call sites simple
- * and dependency-free.
+ * bus (unlike `emit-loop-tick.js`) because it fires from the standalone
+ * `single-story-close` flow, which has no bus at all. A bare append keeps
+ * the call site simple and dependency-free.
  *
- * Ledger destination is scope-driven (Story #4426 AC4):
- *   - `scope: 'epic'`  → `epicLedgerPath(ticketId)` — the same
- *     `temp/epic-<id>/lifecycle.ndjson` every other Epic-scoped event
- *     lands in. `ticketId` is the epicId.
- *   - `scope: 'story'` → `storyLedgerPath(null, ticketId)` — the
- *     standalone story-scope destination
- *     `temp/standalone/stories/story-<id>/lifecycle.ndjson`. `ticketId`
- *     is the storyId. The standalone `single-story-close` path has no
- *     parent Epic to anchor a `temp/epic-<id>/` directory to, mirroring
- *     the `eid === null` standalone convention `signalsFile` already
- *     uses for Story-level signals.
+ * Ledger destination (Story #4426 AC4): `storyLedgerPath(null, ticketId)`
+ * — the standalone story-scope destination
+ * `temp/standalone/stories/story-<id>/lifecycle.ndjson`, where `ticketId`
+ * is the storyId. The `single-story-close` path has no parent Epic to
+ * anchor a run directory to, mirroring the `eid === null` standalone
+ * convention `signalsFile` already uses for Story-level signals.
  *
  * A caller may always override the destination via `ledgerPath` (tests,
  * or a future caller with a non-default temp layout).
@@ -68,10 +61,9 @@ import {
  * lifecycle ledger.
  *
  * @param {object} opts
- * @param {'epic'|'story'} opts.scope  Which delivery path is reporting the
+ * @param {'story'} opts.scope         Which delivery path is reporting the
  *                                     unlanded merge.
- * @param {number} opts.ticketId       epicId when `scope === 'epic'`,
- *                                     storyId when `scope === 'story'`.
+ * @param {number} opts.ticketId       The storyId.
  * @param {number} opts.prNumber       The PR number that did not land.
  * @param {string} opts.blockClass     A valid `merge.unlanded` attribution
  *                                     (`MERGE_UNLANDED_BLOCK_CLASSES` in
@@ -127,7 +119,6 @@ export function emitMergeUnlanded(opts) {
       elapsedSeconds,
       timestamp,
     },
-    scope,
     ticketId,
     timestamp,
     config,

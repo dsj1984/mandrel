@@ -56,13 +56,13 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
     writeConfigs({
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
-        planning: { context: { maxBytes: 40000 } },
+        delivery: { execution: { timeoutMs: 900000 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
     assert.equal(config.project.baseBranch, 'develop');
-    assert.equal(config.planning.context.maxBytes, 40000);
+    assert.equal(config.delivery.execution.timeoutMs, 900000);
     assert.equal(config.source, path.join(FIXTURE_ROOT, '.agentrc.json'));
   });
 
@@ -70,17 +70,21 @@ describe('config-resolver — .agentrc.local.json overlay (Story #3388)', () => 
     writeConfigs({
       agentrc: {
         project: { ...REQ.project, baseBranch: 'develop' },
-        planning: { context: { maxBytes: 40000 } },
-        delivery: { execution: { timeoutMs: 900000 } },
+        delivery: {
+          execution: { timeoutMs: 900000 },
+          lease: { ttlMs: 600000 },
+        },
       },
       local: {
-        planning: { context: { maxBytes: 12000 } },
+        delivery: { execution: { timeoutMs: 120000 } },
       },
     });
 
     const config = resolveConfig({ bustCache: true, cwd: FIXTURE_ROOT });
-    assert.equal(config.planning.context.maxBytes, 12000);
-    assert.equal(config.delivery.execution.timeoutMs, 900000);
+    assert.equal(config.delivery.execution.timeoutMs, 120000);
+    // `delivery.lease` is a sibling of the overridden `delivery.execution`
+    // block — the deep merge must not clobber it.
+    assert.equal(config.delivery.lease.ttlMs, 600000);
     assert.match(
       config.source,
       /\.agentrc\.local\.json.*overrides.*\.agentrc\.json/,

@@ -99,10 +99,12 @@ describe('full-agentrc-runtime-parity', () => {
     assert.deepEqual(ref.project.commands, { ...COMMANDS_DEFAULTS });
   });
 
-  it('planning.context matches LIMITS_DEFAULTS.planningContext', () => {
-    assert.deepEqual(ref.planning.context, {
-      ...LIMITS_DEFAULTS.planningContext,
-    });
+  it('omits the retired planning.context block (Story #4541)', () => {
+    // The budget it fed lost its last caller in the v2 cutover, so the key
+    // resolved but capped nothing. Gone from both the runtime defaults and
+    // the exhaustive reference; the schema now rejects it outright.
+    assert.equal(ref.planning.context, undefined);
+    assert.equal('planningContext' in LIMITS_DEFAULTS, false);
   });
 
   it('omits planning.modelCapacity (framework constant DEFAULT_MODEL_CAPACITY)', () => {
@@ -265,6 +267,7 @@ describe('full-agentrc-runtime-parity', () => {
       'delivery.deliverRunner.progressReportIntervalSec',
       'delivery.worktreeIsolation.reapOnCancel',
       'planning.taskSizing',
+      'planning.context',
     ]) {
       assert.equal(
         lookupPath(ref, dead).present,

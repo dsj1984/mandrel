@@ -18,7 +18,7 @@
  * other draft-07 validators (see `tests/schemas/signal-schemas.test.js`).
  *
  * A per-Epic reject tally is persisted under the Epic temp tree
- * (`temp/epic-<eid>/signal-rejects.json`) so a cross-process reader (the
+ * (`temp/run-<eid>/signal-rejects.json`) so a cross-process reader (the
  * loop-health check, a follow-on Story) can surface how many records were
  * dropped. The tally is read-modify-written best-effort; a lost increment
  * under a write race is acceptable for a diagnostic counter.
@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
-import { epicArtifactPath } from '../config/temp-paths.js';
+import { runArtifactPath } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -141,7 +141,7 @@ export async function recordSignalReject({ epicId, config, field }) {
   if (!Number.isInteger(epicId) || epicId <= 0) return null;
   let target;
   try {
-    target = epicArtifactPath(epicId, REJECT_TALLY_BASENAME, config);
+    target = runArtifactPath(epicId, REJECT_TALLY_BASENAME, config);
   } catch {
     return null;
   }
@@ -190,7 +190,7 @@ export async function readSignalRejectCount({ epicId, config }) {
   if (!Number.isInteger(epicId) || epicId <= 0) return 0;
   let target;
   try {
-    target = epicArtifactPath(epicId, REJECT_TALLY_BASENAME, config);
+    target = runArtifactPath(epicId, REJECT_TALLY_BASENAME, config);
   } catch {
     return 0;
   }

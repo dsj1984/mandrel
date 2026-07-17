@@ -121,14 +121,14 @@ test('parseSecurityReviewFindings: non-JSON throws', () => {
 
 test('buildSecurityReviewPrompt: substitutes scope/refs/ticketId', () => {
   const prompt = buildSecurityReviewPrompt({
-    scope: 'epic',
+    scope: 'story',
     ticketId: 42,
     baseRef: 'main',
-    headRef: 'epic/42',
+    headRef: 'story-42',
   });
-  assert.match(prompt, /Epic/);
+  assert.match(prompt, /Story/);
   assert.match(prompt, /`main`/);
-  assert.match(prompt, /`epic\/42`/);
+  assert.match(prompt, /`story-42`/);
   assert.match(prompt, /#42/);
   assert.match(prompt, /JSON/);
 });

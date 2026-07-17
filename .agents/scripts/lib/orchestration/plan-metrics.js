@@ -5,7 +5,7 @@
  * phase is removed, every plan CLI invocation stamps an entry/exit record so
  * the current 12-phase baseline is captured on disk. Each record is one
  * newline-terminated JSON line appended to
- * `temp/epic-<id>/plan-metrics.json` (per-Epic plan CLIs) or
+ * `temp/run-<id>/plan-metrics.json` (per-Epic plan CLIs) or
  * `temp/standalone/plan-metrics.json` (the standalone `story-plan.js` path
  * and Epic-less healthcheck runs — same standalone routing the friction
  * ledger uses).
@@ -61,7 +61,7 @@ import path from 'node:path';
 
 import {
   anchorTempRoot,
-  epicArtifactPath,
+  runArtifactPath,
   tempRootFrom,
 } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
@@ -95,7 +95,7 @@ export function planMetricsPath(epicId, config) {
       PLAN_METRICS_BASENAME,
     );
   }
-  return epicArtifactPath(epicId, PLAN_METRICS_BASENAME, config);
+  return runArtifactPath(epicId, PLAN_METRICS_BASENAME, config);
 }
 
 /**

@@ -22,10 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import {
-  epicLedgerPath,
-  storyLedgerPath,
-} from '../../.agents/scripts/lib/config/temp-paths.js';
+import { storyLedgerPath } from '../../.agents/scripts/lib/config/temp-paths.js';
 import { emitMergeUnlanded } from '../../.agents/scripts/lib/orchestration/lifecycle/emit-merge-unlanded.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -106,42 +103,25 @@ describe('lifecycle/emit-merge-unlanded', () => {
     }
   });
 
-  it('scope:"epic" emits a schema-valid record at the canonical epic ledger path', () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'merge-unlanded-epic-'));
-    roots.push(root);
-    const config = { project: { paths: { tempRoot: root } } };
-
-    const result = emitMergeUnlanded({
-      scope: 'epic',
-      ticketId: 4425,
-      prNumber: 4440,
-      blockClass: 'branch-protection-human-required',
-      reason:
-        'PR requires human action (reviewDecision=REVIEW_REQUIRED, mergeStateStatus=BLOCKED)',
-      elapsedSeconds: 120,
-      timestamp: '2026-07-11T12:05:00.000Z',
-      config,
-    });
-
-    const expectedPath = epicLedgerPath(4425, config);
-    assert.equal(result.ledgerPath, expectedPath);
-
-    const validate = compileSchema();
-    const records = readRecords(expectedPath);
-    const emitted = records.find(
-      (r) => r.kind === 'emitted' && r.event === 'merge.unlanded',
+  // v2.0.0 removed the Epic tier: `scope: 'epic'` is no longer emittable.
+  // The schema deliberately still accepts it (archived ledger records carry
+  // it and must keep validating on read — see the schema suite above); only
+  // the writer path is gone. This pins that asymmetry.
+  it('refuses to WRITE scope:"epic" even though the schema still reads it', () => {
+    assert.throws(
+      () =>
+        emitMergeUnlanded({
+          scope: 'epic',
+          ticketId: 4425,
+          prNumber: 4440,
+          blockClass: 'checks-pending-timeout',
+          reason: 'watch budget exhausted',
+          elapsedSeconds: 120,
+        }),
+      /scope "epic" must be one of: story/,
     );
-    assert.ok(
-      emitted,
-      'expected an emitted merge.unlanded record in the ledger',
-    );
-    assert.equal(
-      validate(emitted.payload),
-      true,
-      JSON.stringify(validate.errors),
-    );
-    assert.equal(emitted.payload.scope, 'epic');
-    assert.equal(emitted.payload.ticketId, 4425);
+    // The read side is unchanged: an archived epic-scoped payload validates.
+    assert.equal(compileSchema()(SAMPLE_PAYLOAD), true);
   });
 
   it('scope:"story" resolves the story-scope ledger destination and round-trips through it (not only via injected fakes)', () => {

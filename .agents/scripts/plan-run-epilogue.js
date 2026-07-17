@@ -66,6 +66,7 @@ export async function main(argv = process.argv.slice(2)) {
     cwd,
   });
   warnOnUnresolvedBase(result);
+  warnOnEmptyRollup(result);
   Logger.info(JSON.stringify(result, null, 2));
   if (result.errors?.length) {
     process.exitCode = 1;
@@ -78,8 +79,9 @@ export async function main(argv = process.argv.slice(2)) {
  *
  * The roster's changed-file set is the input the host walks its audit lenses
  * against; a silent absence would read as "nothing changed" and the lens walk
- * would look complete while covering nothing. Not fatal — lens selection is
- * independent of the diff, so the rest of the roster is still useful.
+ * would look complete while covering nothing. Not fatal — with no diff the
+ * selector degrades to keyword-only lens selection, so the rest of the
+ * roster is still useful.
  *
  * @param {object} result - `runPlanRunEpilogue` envelope.
  * @returns {void}
@@ -95,6 +97,45 @@ function warnOnUnresolvedBase(result) {
       `resolved against \`${base.baseRef}\`: ${base.reason}\n` +
       `    changedFiles is null (NOT an empty set). Determine the run diff by ` +
       `hand before walking the selected lenses.`,
+  );
+}
+
+/**
+ * Surface a zero-signal roll-up over a multi-Story run as a loud operator
+ * warning (Story #4578).
+ *
+ * The failure this exists to prevent is a *reassuring* one. The roll-up read
+ * "No friction signals — nothing to follow up" for a 7-Story run that
+ * contained a mid-run git outage, a parked worker needing an operator
+ * resume, and an acceptance critic that needed four rounds. Nothing was
+ * broken in the roll-up — the stream really was empty — but the report was
+ * indistinguishable from a clean run, so the retro loop that exists to learn
+ * from a run was silently blind to that run's pain.
+ *
+ * Not fatal: a genuinely friction-free multi-Story run is possible, and this
+ * cannot tell the two apart — which is precisely why it asks the operator
+ * rather than asserting either reading.
+ *
+ * @param {object} result - `runPlanRunEpilogue` envelope.
+ * @returns {void}
+ */
+function warnOnEmptyRollup(result) {
+  const rollup = (result?.results ?? []).find(
+    (r) => r?.kind === 'follow-up-rollup',
+  );
+  if (!rollup?.emptyRollupSuspect) return;
+  Logger.warn(
+    `⚠️  0 friction signals across ${rollup.storyCount} Stories — telemetry may not ` +
+      `have fired.\n` +
+      `    An empty roll-up is NOT evidence of a clean run: it is the same output a ` +
+      `run with\n` +
+      `    heavy friction produces when nothing recorded it. The runtime emits ` +
+      `friction from its\n` +
+      `    own observables (agent::blocked transitions, failed closes, exhausted ` +
+      `merge waits), so\n` +
+      `    zero here also means none of those fired. If this run had friction you ` +
+      `can name, that\n` +
+      `    telemetry gap is itself worth filing.`,
   );
 }
 

@@ -328,7 +328,7 @@ export function runFormatAutofix({
 }
 
 /**
- * List the files changed between `epicBranch` and `storyBranch` using the
+ * List the files changed between `baseBranch` and `storyBranch` using the
  * three-dot merge-base diff. Delegates parsing to `diffNameOnly` from
  * `changed-files.js` so the stdout → path-list conversion lives in one place.
  *
@@ -336,10 +336,10 @@ export function runFormatAutofix({
  * `(args: string[], opts: object) => string`. A bridge adapter wraps it into
  * the `gitSpawn(cwd, ...args)` shape that `diffNameOnly` expects.
  *
- * @param {{ cwd: string, epicBranch: string, storyBranch: string, git: Function }} opts
+ * @param {{ cwd: string, baseBranch: string, storyBranch: string, git: Function }} opts
  * @returns {string[]}
  */
-function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
+function listChangedFiles({ cwd, baseBranch, storyBranch, git }) {
   // Bridge the (args, opts) → string interface into gitSpawn(cwd, ...args).
   const gitSpawn = (_cwd, ...args) => {
     try {
@@ -358,7 +358,7 @@ function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
     }
   };
   return diffNameOnly({
-    range: `${epicBranch}...${storyBranch}`,
+    range: `${baseBranch}...${storyBranch}`,
     cwd,
     gitSpawn,
   });
@@ -401,7 +401,7 @@ function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
  *   cwd: string,
  *   worktreePath?: string,
  *   storyId: number|string,
- *   epicBranch: string,
+ *   baseBranch: string,
  *   storyBranch: string,
  *   config?: object,
  *   logger?: object,
@@ -420,7 +420,7 @@ export function runScopedFormatAutofix({
   cwd,
   worktreePath,
   storyId,
-  epicBranch,
+  baseBranch,
   storyBranch,
   config,
   logger = DefaultLogger,
@@ -428,8 +428,8 @@ export function runScopedFormatAutofix({
   gitSync,
 } = {}) {
   if (!cwd) throw new Error('runScopedFormatAutofix: cwd is required');
-  if (!epicBranch)
-    throw new Error('runScopedFormatAutofix: epicBranch is required');
+  if (!baseBranch)
+    throw new Error('runScopedFormatAutofix: baseBranch is required');
   if (!storyBranch)
     throw new Error('runScopedFormatAutofix: storyBranch is required');
 
@@ -449,13 +449,13 @@ export function runScopedFormatAutofix({
 
   const changed = listChangedFiles({
     cwd: workTree,
-    epicBranch,
+    baseBranch,
     storyBranch,
     git,
   });
   if (changed.length === 0) {
     logger.info?.(
-      `${SCOPED_TAG} skipped — no changed files between ${epicBranch} and ${storyBranch}.`,
+      `${SCOPED_TAG} skipped — no changed files between ${baseBranch} and ${storyBranch}.`,
     );
     return { ran: false, committed: false, reason: 'no-changed-files' };
   }

@@ -2,7 +2,7 @@
 //
 // Story #3890 — the close-validation `check-baselines` gate must compare a
 // Story/Epic's head baseline against the **epic integration branch**
-// (`origin/<epicBranch>`), not the framework-default `origin/main`, so
+// (`origin/<baseBranch>`), not the framework-default `origin/main`, so
 // inherited main-vs-epic drift in files OUTSIDE the Story's own diff does
 // not surface as a phantom regression — while a genuine regression
 // introduced by the Story's own diff still fails.
@@ -36,6 +36,14 @@ import {
   runCompareStage,
 } from '../.agents/scripts/lib/orchestration/check-baselines/phases/compare.js';
 
+// Env with every `GIT_*` variable dropped. Under a husky pre-push from a
+// linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
+// a fixture `git init` under that env writes `core.bare=true` into the MAIN
+// checkout's `.git/config` (#4580).
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
 const KIND = 'maintainability';
 const BASELINE_PATH = 'baselines/maintainability.json';
 
@@ -68,6 +76,7 @@ function makeEpicBaselineRepo() {
       cwd: dir,
       stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf-8',
+      env: CLEAN_ENV,
     });
   const commit = (msg) =>
     execFileSync(
@@ -83,7 +92,12 @@ function makeEpicBaselineRepo() {
         '-m',
         msg,
       ],
-      { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
+      {
+        cwd: dir,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        encoding: 'utf-8',
+        env: CLEAN_ENV,
+      },
     );
 
   git('init', '-q', '-b', 'main');

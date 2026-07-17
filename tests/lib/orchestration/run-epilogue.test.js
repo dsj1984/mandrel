@@ -3,6 +3,9 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   planRunEpilogue,
@@ -149,6 +152,91 @@ describe('resolveRunBaseSha — pre-run base derivation (Story #4550)', () => {
       'bbb',
       'anchored on the (#101) merge, not the prose',
     );
+  });
+
+  it('ignores a marker quoted inside a later revert subject', () => {
+    // The canonical false positive: a revert embeds the reverted subject
+    // verbatim, so `(#101)` appears mid-string on a commit that is not the
+    // Story's merge. A substring scan anchored here and swept every commit
+    // in between into the roster diff.
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'ddd',
+          parents: ['ccc'],
+          subject: 'fix: real story (#101) (#900)',
+        },
+        {
+          sha: 'ccc',
+          parents: ['bbb'],
+          subject: 'revert: "feat: old thing (#101) (#800)" (#850)',
+        },
+        { sha: 'bbb', parents: ['aaa'], subject: 'chore: unrelated' },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.mergeSha, 'ddd', 'anchored on the real merge');
+    assert.equal(
+      base.baseSha,
+      'ccc',
+      'base is the real merge’s first parent, not the revert’s',
+    );
+  });
+
+  it('matches the Story marker before the squash-appended PR number', () => {
+    // GitHub appends ` (#<prNumber>)` to the PR title, so the Story's own
+    // marker is second-to-last. Requiring the *last* marker to be the Story
+    // id would match no real squash merge at all.
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        { sha: 'bbb', parents: ['aaa'], subject: 'fix: s (#101) (#900)' },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.storyId, 101);
+    assert.equal(base.baseSha, 'aaa');
+  });
+
+  it('matches the `(refs #id)` PR-title form', () => {
+    const base = resolveRunBaseSha({
+      stories: [4575],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'bbb',
+          parents: ['aaa'],
+          subject:
+            'feat(dead-exports): add a production pass (refs #4575) (#4582)',
+        },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, true);
+    assert.equal(base.storyId, 4575);
+    assert.equal(base.baseSha, 'aaa');
+  });
+
+  it('does not match a marker that is not part of the trailing run', () => {
+    const base = resolveRunBaseSha({
+      stories: [101],
+      cwd: '/repo',
+      git: gitStub([
+        {
+          sha: 'bbb',
+          parents: ['aaa'],
+          subject: 'docs: describe (#101) handling in the guide',
+        },
+        { sha: 'aaa', parents: ['000'], subject: 'chore: root' },
+      ]),
+    });
+    assert.equal(base.resolved, false);
+    assert.match(base.reason, /no landed squash-merge/);
   });
 
   it('honours a non-default baseBranch ref', () => {
@@ -416,5 +504,71 @@ describe('audit-roster — lens selection is grounded in the landed diff', () =>
       c.body.includes('plan-run-audit-roster'),
     ).body;
     assert.match(body, /keyword-only/);
+  });
+});
+
+/**
+ * Story #4578 — an empty follow-up roll-up over a multi-Story run must
+ * report as a CLAIM, not as success.
+ *
+ * The bug this pins: a 7-Story run containing a mid-run git outage, a parked
+ * worker, and a four-round acceptance critic rendered byte-identically to a
+ * genuinely clean run ("No friction signals — nothing to follow up"). The
+ * roll-up was truthful about the stream and misleading about the run.
+ */
+describe('follow-up-rollup — an empty roll-up over N>1 asserts (Story #4578)', () => {
+  function rollupProvider(comments) {
+    return {
+      getTicket: async (id) => ({
+        id,
+        title: `Story ${id}`,
+        body: '',
+        labels: ['type::story'],
+      }),
+      getTicketComments: async () => [],
+      postComment: async (ticketId, payload) => {
+        comments.push({ ticketId, body: payload.body });
+        return { commentId: comments.length };
+      },
+      deleteComment: async () => {},
+    };
+  }
+
+  it('flags emptyRollupSuspect and names the count when no Story emitted a signal', async () => {
+    const comments = [];
+    // An absolute tempRoot with no signals.ndjson under it → an empty stream.
+    const tempRoot = mkdtempSync(path.join(tmpdir(), 'rollup-empty-'));
+    try {
+      const result = await runPlanRunEpilogue({
+        planRunId: 'adhoc-1-2-3',
+        stories: [1, 2, 3],
+        provider: rollupProvider(comments),
+        config: {
+          github: { owner: 'o', repo: 'r' },
+          project: { paths: { tempRoot } },
+        },
+        cwd: process.cwd(),
+      });
+
+      const rollup = result.results.find((r) => r.kind === 'follow-up-rollup');
+      assert.equal(rollup.signalCount, 0);
+      assert.equal(rollup.storyCount, 3);
+      assert.equal(
+        rollup.emptyRollupSuspect,
+        true,
+        'zero signals across 3 Stories is a claim the epilogue must flag',
+      );
+
+      const body = comments.find((c) => /### follow-ups/.test(c.body))?.body;
+      assert.match(body, /0 friction signals across 3 Stories/);
+      assert.match(body, /not a clean bill of health/);
+      assert.doesNotMatch(
+        body,
+        /nothing to follow up/,
+        'the reassuring line is exactly what made the zero-signal retro invisible',
+      );
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
   });
 });

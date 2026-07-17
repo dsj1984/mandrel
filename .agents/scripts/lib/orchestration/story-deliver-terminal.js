@@ -77,9 +77,15 @@ export const TERMINAL_STATUSES = Object.freeze([
  * naming different commands for the same observed state.
  */
 export const NEXT_COMMANDS = Object.freeze({
-  /** Resume a bounded merge wait that expired with the PR still in flight. */
+  /**
+   * Resume a bounded merge wait that expired with the PR still in flight.
+   *
+   * `--wait` is load-bearing: without it the confirm CLI probes once and
+   * answers `pending` again, so the cumulative-budget give-up never fires and
+   * a wedged PR is never escalated to anyone.
+   */
   resumeLand: (storyId) =>
-    `node .agents/scripts/single-story-confirm-merge.js --story ${storyId}`,
+    `node .agents/scripts/single-story-confirm-merge.js --story ${storyId} --wait`,
   /** Confirm a merged-but-mislabelled Story (the idempotent flip + tail). */
   confirmMerge: (storyId) =>
     `node .agents/scripts/single-story-confirm-merge.js --story ${storyId}`,
@@ -227,4 +233,128 @@ export function buildTerminalEnvelope({
  */
 export function exitCodeForTerminal(envelope) {
   return TERMINAL_EXIT_CODES[envelope?.status] ?? 1;
+}
+
+/** The markers a caller scans stdout for to recover the envelope. */
+export const TERMINAL_BEGIN_MARKER = '--- STORY DELIVER TERMINAL ---';
+export const TERMINAL_END_MARKER = '--- END TERMINAL ---';
+
+/**
+ * Write a terminal envelope to stdout, between its markers.
+ *
+ * **Deliberately not `Logger.info`.** The envelope is this CLI's
+ * machine-readable contract — every invocation emits exactly ONE, and a
+ * headless caller parses it out of stdout to decide what happened.
+ * `Logger.info` is level-gated, so under the documented
+ * `AGENT_LOG_LEVEL=silent` (§ 1.H) the envelope silently vanished and the
+ * caller got a bare exit code: precisely the "no envelope at all" outcome
+ * Story #4543 exists to remove. A contract payload must not be suppressible
+ * by a verbosity knob.
+ *
+ * Single home for the marker format so the four emit sites (the runner's
+ * terminal, the close CLI's failed-terminal catch, and both confirm-CLI
+ * paths) cannot drift apart.
+ *
+ * @param {object} envelope
+ * @param {{ write?: (s: string) => void }} [opts] `write` is a test seam.
+ * @returns {void}
+ */
+export function emitTerminalEnvelope(
+  envelope,
+  { write = (s) => process.stdout.write(s) } = {},
+) {
+  write(
+    `\n${TERMINAL_BEGIN_MARKER}\n${JSON.stringify(envelope, null, 2)}\n${TERMINAL_END_MARKER}\n`,
+  );
+}
+
+/**
+ * Map a `runConfirmMergePhase` outcome onto the schema-validated terminal
+ * envelope (Story #4543). One writer, one shape — the two prose contracts
+ * this replaces disagreed with each other precisely because each surface
+ * assembled its own.
+ *
+ * @returns {object} A validated `story-deliver-terminal` envelope.
+ */
+export function terminalFromWaitOutcome({
+  waitOutcome,
+  storyId,
+  storyBranch,
+  baseBranch,
+  prNumber,
+  prUrl,
+  autoMergeEnabled,
+  gates,
+  elapsedSeconds,
+}) {
+  const prBase = {
+    number: prNumber,
+    url: prUrl ?? null,
+    autoMergeEnabled: Boolean(autoMergeEnabled),
+  };
+  const common = {
+    storyId,
+    storyBranch,
+    baseBranch,
+    gates,
+    elapsedSeconds,
+  };
+
+  if (waitOutcome.terminal === 'landed') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'landed',
+      phase: 'post-land',
+      pr: {
+        ...prBase,
+        state: 'MERGED',
+        // The observed rollup, not an assumed 'success' — a merge can land by
+        // admin override or with non-required checks red.
+        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+      },
+      tail: waitOutcome.tail,
+      nextCommand: null,
+    });
+  }
+
+  if (waitOutcome.terminal === 'pending') {
+    return buildTerminalEnvelope({
+      ...common,
+      status: 'pending',
+      phase: 'confirm-merge',
+      pr: {
+        ...prBase,
+        state: waitOutcome.prProbe?.state ?? 'OPEN',
+        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+      },
+      waitBudget: waitOutcome.waitBudget,
+      nextCommand: NEXT_COMMANDS.resumeLand(storyId),
+    });
+  }
+
+  // blocked — the classifier already named the class and the friction
+  // comment already carries the class-specific remediation, so the next
+  // command mirrors it rather than inventing a second opinion.
+  const nextCommand =
+    waitOutcome.blockClass === 'checks-failed'
+      ? NEXT_COMMANDS.watchCi(storyId, prNumber)
+      : waitOutcome.blockClass === 'merged-flip-failed'
+        ? NEXT_COMMANDS.confirmMerge(storyId)
+        : NEXT_COMMANDS.recover(storyId);
+  return buildTerminalEnvelope({
+    ...common,
+    status: 'blocked',
+    phase: 'confirm-merge',
+    pr: {
+      ...prBase,
+      state: waitOutcome.prProbe?.state ?? null,
+      checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
+    },
+    blocked: {
+      blockClass: waitOutcome.blockClass,
+      reason: waitOutcome.reason,
+      frictionCommentId: waitOutcome.frictionCommentId ?? null,
+    },
+    nextCommand,
+  });
 }

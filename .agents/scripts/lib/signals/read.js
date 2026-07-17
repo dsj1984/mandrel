@@ -1,18 +1,18 @@
 /**
  * Streaming signals reader (Epic #1181 / Story #1438 / Task #1459).
  *
- * Provides one async-iterator entry point — `read({ epic, story?, kind?,
+ * Provides one async-iterator entry point — `read({ run, story?, kind?,
  * config? })` — that consumers use instead of opening the NDJSON file
  * themselves. The reader streams line-by-line so callers never load the
  * full file into memory (50MB+ traces stay under file size in RSS).
  *
  * On-disk layout (resolved via `lib/config/temp-paths.js`):
  *
- *   <tempRoot>/epic-<epic>/story-<story>/signals.ndjson
+ *   <tempRoot>/run-<run>/story-<story>/signals.ndjson
  *
  * When `story` is omitted, the reader fans out across every
- * `story-<id>/signals.ndjson` under `<tempRoot>/epic-<epic>/`. When the
- * Epic directory is missing, the iterator yields nothing (consumers
+ * `story-<id>/signals.ndjson` under `<tempRoot>/run-<run>/`. When the
+ * run directory is missing, the iterator yields nothing (consumers
  * treat absence as "no signals yet").
  *
  * ## Filter semantics
@@ -21,7 +21,7 @@
  *     argument are yielded. Filtering happens after the per-line JSON
  *     parse + envelope guard (see `lib/signals/schema.js`).
  *   - `story` — narrows to a single Story's stream; otherwise we walk
- *     every Story directory under the Epic.
+ *     every Story directory under the run.
  *
  * ## Warn-once policy (AC #3)
  *
@@ -46,8 +46,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import {
-  epicArtifactPath,
-  epicTempDir,
+  runArtifactPath,
+  runTempDir,
   signalsFile,
   storyTempDir,
 } from '../config/temp-paths.js';
@@ -145,43 +145,43 @@ async function* streamFile(target, kindFilter) {
 }
 
 /**
- * List every `stories/story-<id>/signals.ndjson` path under the Epic's
- * `<tempRoot>/epic-<epic>/` directory. Returns an empty array when the
- * Epic directory is missing.
+ * List every `stories/story-<id>/signals.ndjson` path under the run's
+ * `<tempRoot>/run-<run>/` directory. Returns an empty array when the
+ * run directory is missing.
  *
  * The returned paths are sorted by Story ID ascending so the iterator's
  * output is stable across runs.
  *
  * Story #2940 nested per-Story directories under a `stories/` segment.
- * Epic-level signals continue to live at the Epic root.
+ * Run-level signals continue to live at the run root.
  *
- * @param {number} epic
+ * @param {number} run
  * @param {object | undefined} config
  * @returns {Promise<string[]>}
  */
-async function listEpicStorySignalsFiles(epic, config) {
-  const epicDir = epicTempDir(epic, config);
-  let epicEntries;
+async function listRunStorySignalsFiles(run, config) {
+  const runDir = runTempDir(run, config);
+  let runEntries;
   try {
-    epicEntries = await fs.readdir(epicDir, { withFileTypes: true });
+    runEntries = await fs.readdir(runDir, { withFileTypes: true });
   } catch {
     return [];
   }
-  let hasEpicLevelSignals = false;
+  let hasRunLevelSignals = false;
   let hasStoriesDir = false;
-  for (const ent of epicEntries) {
+  for (const ent of runEntries) {
     if (ent.isDirectory() && ent.name === 'stories') {
       hasStoriesDir = true;
     } else if (ent.isFile() && ent.name === 'signals.ndjson') {
       // Story #1430 — wave-runner lifecycle signals land here.
-      hasEpicLevelSignals = true;
+      hasRunLevelSignals = true;
     }
   }
   const storyIds = [];
   if (hasStoriesDir) {
     let storyEntries;
     try {
-      storyEntries = await fs.readdir(path.join(epicDir, 'stories'), {
+      storyEntries = await fs.readdir(path.join(runDir, 'stories'), {
         withFileTypes: true,
       });
     } catch {
@@ -195,43 +195,43 @@ async function listEpicStorySignalsFiles(epic, config) {
     }
   }
   storyIds.sort((a, b) => a - b);
-  // Yield epic-level signals first (wave-start precedes per-Story friction),
+  // Yield run-level signals first (wave-start precedes per-Story friction),
   // then walk the per-Story streams in ascending ID order.
-  const targets = hasEpicLevelSignals
-    ? [epicArtifactPath(epic, 'signals.ndjson', config)]
+  const targets = hasRunLevelSignals
+    ? [runArtifactPath(run, 'signals.ndjson', config)]
     : [];
   for (const sid of storyIds) {
-    targets.push(path.join(storyTempDir(epic, sid, config), 'signals.ndjson'));
+    targets.push(path.join(storyTempDir(run, sid, config), 'signals.ndjson'));
   }
   return targets;
 }
 
 /**
- * Stream every event matching `{ epic, story?, kind? }` from the
- * configured `tempRoot`'s `epic-<epic>/[story-<story>/]signals.ndjson`
+ * Stream every event matching `{ run, story?, kind? }` from the
+ * configured `tempRoot`'s `run-<run>/[story-<story>/]signals.ndjson`
  * file(s).
  *
  * Returns an async iterable so callers can `for await` over it without
  * buffering. The reader is **streaming** — peak memory stays below the
  * file size for any input.
  *
- * @param {{ epic: number, story?: number, kind?: string, config?: object }} args
+ * @param {{ run: number, story?: number, kind?: string, config?: object }} args
  * @returns {AsyncGenerator<object>}
  *
  * @example
- *   for await (const evt of read({ epic: 1181 })) { ... }
- *   for await (const evt of read({ epic: 1181, story: 1438, kind: 'friction' })) { ... }
+ *   for await (const evt of read({ run: 1181 })) { ... }
+ *   for await (const evt of read({ run: 1181, story: 1438, kind: 'friction' })) { ... }
  */
 export async function* read(args) {
   if (args == null || typeof args !== 'object') {
     throw new TypeError(
-      `signals/read: args must be an object with at minimum { epic }; got ${args}`,
+      `signals/read: args must be an object with at minimum { run }; got ${args}`,
     );
   }
-  const { epic, story, kind, config } = args;
-  if (!isPositiveInt(epic)) {
+  const { run, story, kind, config } = args;
+  if (!isPositiveInt(run)) {
     throw new RangeError(
-      `signals/read: epic must be a positive integer (got ${epic})`,
+      `signals/read: run must be a positive integer (got ${run})`,
     );
   }
   if (story !== undefined && !isPositiveInt(story)) {
@@ -259,8 +259,8 @@ export async function* read(args) {
   const kindFilter = kind ?? null;
   const targets =
     story !== undefined
-      ? [signalsFile(epic, story, config)]
-      : await listEpicStorySignalsFiles(epic, config);
+      ? [signalsFile(run, story, config)]
+      : await listRunStorySignalsFiles(run, config);
 
   for (const target of targets) {
     yield* streamFile(target, kindFilter);

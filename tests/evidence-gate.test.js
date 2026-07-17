@@ -27,10 +27,9 @@ test('splitOnDashDash() returns empty runner side when -- is missing', () => {
   assert.deepEqual(runnerArgs, []);
 });
 
-test('parseWrapperArgs() coerces --scope-id + --epic-id and toggles --no-evidence', () => {
+test('parseWrapperArgs() coerces --scope-id and toggles --no-evidence', () => {
   const args = parseWrapperArgs([
-    '--epic-id',
-    '802',
+    '--standalone',
     '--scope-id',
     '817',
     '--gate',
@@ -38,15 +37,13 @@ test('parseWrapperArgs() coerces --scope-id + --epic-id and toggles --no-evidenc
     '--no-evidence',
   ]);
   assert.equal(args.scopeId, 817);
-  assert.equal(args.epicId, 802);
   assert.equal(args.gate, 'lint');
   assert.equal(args.useEvidence, false);
 });
 
 test('parseWrapperArgs() defaults --no-evidence to false (evidence ON)', () => {
   const args = parseWrapperArgs([
-    '--epic-id',
-    '802',
+    '--standalone',
     '--scope-id',
     '817',
     '--gate',
@@ -61,12 +58,6 @@ test('parseWrapperArgs() yields scopeId=null on non-positive input', () => {
   assert.equal(parseWrapperArgs([]).scopeId, null);
 });
 
-test('parseWrapperArgs() yields epicId=null on non-positive input', () => {
-  assert.equal(parseWrapperArgs(['--epic-id', '0']).epicId, null);
-  assert.equal(parseWrapperArgs(['--epic-id', 'abc']).epicId, null);
-  assert.equal(parseWrapperArgs([]).epicId, null);
-});
-
 test('parseWrapperArgs() parses --standalone (Story #4250)', () => {
   const args = parseWrapperArgs([
     '--standalone',
@@ -77,7 +68,6 @@ test('parseWrapperArgs() parses --standalone (Story #4250)', () => {
   ]);
   assert.equal(args.standalone, true);
   assert.equal(args.scopeId, 4250);
-  assert.equal(args.epicId, null);
 });
 
 test('parseWrapperArgs() defaults --standalone to false', () => {

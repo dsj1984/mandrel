@@ -19,13 +19,6 @@
  *                                   file). Importing Logger would violate
  *                                   the "no new dependencies" contract the
  *                                   script documents.
- *   - `lib/orchestration/error-journal.js` — emits `::add-mask::<value>`
- *                                   GitHub Actions workflow commands; the
- *                                   runner only parses these when the
- *                                   directive is the literal first content
- *                                   of a line, so the Logger prefix would
- *                                   defeat masking.
- *
  * Machine-parsable stdout (e.g. the JSON envelopes emitted by
  * `lint-baseline.js` and `check-crap.js --json`) is not an exception to this
  * rule because that path uses `process.stdout.write`, not `console.log`. The
@@ -54,9 +47,6 @@ const ALLOWLIST = new Set([
   'lib/cli-utils.js',
   // Stdlib-only optional perf check; opts out of any framework dependency.
   'check-windows-git-perf.js',
-  // Emits ::add-mask:: GitHub Actions workflow commands that must be the
-  // literal first content of a stdout line; Logger prefix would break them.
-  'lib/orchestration/error-journal.js',
 ]);
 
 const CONSOLE_RE = /\bconsole\s*\.\s*(?:log|warn|error)\b/;

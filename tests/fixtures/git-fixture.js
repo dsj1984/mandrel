@@ -19,6 +19,20 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 /**
+ * Env with every `GIT_*` variable dropped. When a test runs inside a git
+ * hook (husky pre-push via coverage-capture), the parent git invocation
+ * exports GIT_DIR — from a linked worktree, the shared
+ * `<main>/.git/worktrees/<name>` path. A fixture `git init` under that env
+ * re-initializes the shared gitdir and writes `core.bare=true` into the
+ * MAIN checkout's `.git/config` (#4580). Scrub here so the fixture is safe
+ * even when a single test file is run directly, bypassing the run-tests
+ * wrapper's scrubbed env.
+ */
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
+/**
  * Create a throwaway git repository in the OS temp directory with one
  * committed file (`baseline.json`) at HEAD.
  *
@@ -49,6 +63,7 @@ export function makeGitRepo({
       cwd: dir,
       stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf-8',
+      env: CLEAN_ENV,
     });
 
   // -q suppresses "Initialized empty Git repository" noise.
@@ -72,7 +87,12 @@ export function makeGitRepo({
       '-m',
       'seed',
     ],
-    { cwd: dir, stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
+    {
+      cwd: dir,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+      env: CLEAN_ENV,
+    },
   );
 
   return dir;

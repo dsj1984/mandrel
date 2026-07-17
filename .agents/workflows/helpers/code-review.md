@@ -378,7 +378,7 @@ in-place.
      structured comment for the operator to triage in Step 5.
 2. **Leave the finding on the structured comment for Step 5.** Required
    when the finding falls into any of the following classes:
-   - `spec-deviation` — the change diverges from the Epic/Tech Spec.
+   - `spec-deviation` — the change diverges from the Story `## Spec`.
    - `secrets` — credentials, tokens, or PII surfaced in the diff.
    - `test-deletion` — coverage was removed without an explicit
      decision in the spec.

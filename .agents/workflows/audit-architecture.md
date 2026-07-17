@@ -19,8 +19,7 @@ existing external APIs or business logic.
 ## Execution strategy (dual-path)
 
 This lens runs along one of two execution paths. Both emit the **identical**
-report contract (Step 3); downstream consumers (`/deliver` Phase 4
-epic-audit, `audit-to-stories`) are agnostic to which path produced it.
+report contract (Step 3); downstream consumers (`audit-to-stories`) are agnostic to which path produced it.
 
 - **Orchestrated (dynamic-workflow) path.** When Claude Code's
   [dynamic workflows](https://code.claude.com/docs/en/workflows) are

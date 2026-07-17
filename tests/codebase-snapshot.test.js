@@ -11,6 +11,14 @@ import {
   resolveSnapshotConfig,
 } from '../.agents/scripts/lib/codebase-snapshot.js';
 
+// Env with every `GIT_*` variable dropped. Under a husky pre-push from a
+// linked worktree, git exports GIT_DIR pointing at the shared main gitdir —
+// a fixture `git init` under that env writes `core.bare=true` into the MAIN
+// checkout's `.git/config` (#4580).
+const CLEAN_ENV = Object.fromEntries(
+  Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+);
+
 /**
  * Story #2634 — codebase snapshot.
  *
@@ -170,7 +178,7 @@ describe('buildCodebaseSnapshot — memoized glob compilation is output-stable',
 
   function gitInit(dir) {
     const run = (args) =>
-      execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+      execFileSync('git', args, { cwd: dir, stdio: 'pipe', env: CLEAN_ENV });
     run(['init', '-q']);
     run(['config', 'user.email', 'test@example.com']);
     run(['config', 'user.name', 'Test']);
@@ -202,10 +210,15 @@ describe('buildCodebaseSnapshot — memoized glob compilation is output-stable',
     for (const [rel, body] of Object.entries(files)) {
       writeFileSync(path.join(fixture, rel), body);
     }
-    execFileSync('git', ['add', '-A'], { cwd: fixture, stdio: 'pipe' });
+    execFileSync('git', ['add', '-A'], {
+      cwd: fixture,
+      stdio: 'pipe',
+      env: CLEAN_ENV,
+    });
     execFileSync('git', ['commit', '-q', '-m', 'fixture'], {
       cwd: fixture,
       stdio: 'pipe',
+      env: CLEAN_ENV,
     });
   }
 
@@ -280,7 +293,7 @@ describe('buildCodebaseSnapshot — skinny-tier proportional cap (Story #3959)',
   // truncation is flagged, and an under-cap tree is untouched.
   function gitInit(dir) {
     const run = (args) =>
-      execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+      execFileSync('git', args, { cwd: dir, stdio: 'pipe', env: CLEAN_ENV });
     run(['init', '-q']);
     run(['config', 'user.email', 'test@example.com']);
     run(['config', 'user.name', 'Test']);
@@ -288,10 +301,15 @@ describe('buildCodebaseSnapshot — skinny-tier proportional cap (Story #3959)',
   }
 
   function commitAll(dir) {
-    execFileSync('git', ['add', '-A'], { cwd: dir, stdio: 'pipe' });
+    execFileSync('git', ['add', '-A'], {
+      cwd: dir,
+      stdio: 'pipe',
+      env: CLEAN_ENV,
+    });
     execFileSync('git', ['commit', '-q', '-m', 'fixture'], {
       cwd: dir,
       stdio: 'pipe',
+      env: CLEAN_ENV,
     });
   }
 

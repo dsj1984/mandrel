@@ -13,14 +13,18 @@
  *      framework default at the next bump. The push-to-main job still passes
  *      `--full-scope` so a self-diff doesn't degrade to "no files in diff".
  *
- *   2. **Pass `--epic-ref` where the firing site is Epic-aware.** Inside
- *      `/deliver` the close-validation chain already threads
- *      `--epic-ref epic/<id>`; on CI the equivalent surface is the PR's
- *      base branch. The template wires `--epic-ref ${EPIC_REF}` through an
- *      env var the workflow computes from `github.head_ref` (story-N
- *      branches name their Epic in the PR title or via the dispatch
- *      manifest). When `EPIC_REF` is empty, both gates fall through to the
- *      `main`-tracked baseline — so the env-var expansion is always safe.
+ *   2. **Pin the baseline read to the PR's base branch via `BASELINE_REF`.**
+ *      Inside `/deliver` the close-validation chain sets the same env var
+ *      (`close-validation/gates.js` → `BASELINE_REF: origin/<baseBranch>`);
+ *      on CI the equivalent surface is the PR's base branch. This is an
+ *      ENV VAR, not a CLI flag: `check-baselines.js` resolves it through
+ *      `resolveDispatchScope`, and the `--epic-ref` flag this template used
+ *      to pass never existed on it — it was left over from the separate
+ *      `check-crap.js` / `check-maintainability.js` CLIs that were unified
+ *      away, and it named the ref `epic/<base>`, a branch the Story-only
+ *      model never creates. When `BASELINE_REF` is empty (push-to-base,
+ *      where there is no base to compare against) both gates fall through to
+ *      the working-tree baseline, so the expansion is always safe.
  *
  * The renderer is a pure string template so the integration test can assert
  * on its exact shape without instantiating a YAML parser.
@@ -61,19 +65,15 @@ export function renderCiWorkflow(opts = {}) {
         # Diff-scoped via the framework default (Story #1394 flipped
         # --changed-since to '${baseRef}'). On PRs we let the default win;
         # on push-to-main we pass --full-scope so a self-diff doesn't
-        # collapse to an empty file set. EPIC_REF is set when the head ref
-        # points at a story branch under an Epic — the gate then reads the
-        # per-Epic baseline snapshot via baseline-loader.readBaselineAtRef.
+        # collapse to an empty file set. BASELINE_REF makes the gate read
+        # the baseline at the base branch tip via
+        # baseline-loader.readBaselineAtRef.
         env:
-          EPIC_REF: \${{ env.EPIC_REF }}
+          BASELINE_REF: \${{ env.BASELINE_REF }}
         run: |
           mkdir -p temp
           if [[ "\${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ -n "\${EPIC_REF}" ]]; then
-              npm run crap:check -- --epic-ref "\${EPIC_REF}" --json temp/crap-report.json
-            else
-              npm run crap:check -- --json temp/crap-report.json
-            fi
+            npm run crap:check -- --json temp/crap-report.json
           else
             npm run crap:check -- --full-scope --json temp/crap-report.json
           fi
@@ -112,15 +112,14 @@ jobs:
     permissions:
       contents: read
     env:
-      # Story #1120: when the PR head ref names an Epic story branch
-      # (story-N or story/epic-<id>/<n>), the gate CLIs read the canonical
-      # main baseline at the Epic branch HEAD via --epic-ref (git show).
-      # Empty when the head ref is not an Epic story branch — both gates
-      # fall through to the working-tree baseline, so the env-var
-      # expansion is always safe. Per-epic ratchet snapshots themselves
-      # live under temp/epic/<id>/baselines/ (Story #1467) — ephemeral
-      # scratch state, never read by this CI gate.
-      EPIC_REF: \${{ github.head_ref && contains(github.head_ref, 'story') && format('epic/{0}', github.event.pull_request.base.ref) || '' }}
+      # Story #1120: on a PR the gate CLIs read the canonical baseline at
+      # the BASE branch tip via --baseline-ref (git show), not from the
+      # PR head's working tree — a branch that edited its own baseline
+      # must not be allowed to grade itself against the edit.
+      # Empty on push-to-${baseRef} (there is no base to compare against),
+      # where both gates fall through to the working-tree baseline, so the
+      # env-var expansion is always safe.
+      BASELINE_REF: \${{ github.event_name == 'pull_request' && format('origin/{0}', github.event.pull_request.base.ref) || '' }}
       BASE_REF: ${baseRef}
     steps:
       - name: Checkout Code
@@ -147,16 +146,12 @@ jobs:
         # the project's BASE_REF, so PRs no longer pass --changed-since
         # explicitly. push-to-${baseRef} runs with --full-scope so the
         # diff-scoped default doesn't degrade to a self-diff (= empty file
-        # set). EPIC_REF carries the per-Epic snapshot when present.
+        # set). BASELINE_REF pins the baseline read to the base branch tip.
         env:
-          EPIC_REF: \${{ env.EPIC_REF }}
+          BASELINE_REF: \${{ env.BASELINE_REF }}
         run: |
           if [[ "\${{ github.event_name }}" == "pull_request" ]]; then
-            if [[ -n "\${EPIC_REF}" ]]; then
-              npm run maintainability:check -- --epic-ref "\${EPIC_REF}"
-            else
-              npm run maintainability:check
-            fi
+            npm run maintainability:check
           else
             npm run maintainability:check -- --full-scope
           fi

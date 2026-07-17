@@ -37,8 +37,10 @@ which deleted the existing compatibility shim layer across
 `wave-session.js`, `IExecutionAdapter` / `ManualDispatchAdapter`, lifecycle
 emit shims, and duplicate progress/comment writers in one pass. The
 per-finding closing references (audit Findings #10, #11, #13, #17) live in
-the merged PRs and the Epic #2646 history; the standing forward-looking
-audit lives at [`docs/roadmap.md`](../../docs/roadmap.md) (Part 1 — Model-Evolution Audit).
+the merged PRs and the Epic #2646 history; the Part 1 — Model-Evolution
+Audit analysis this section grew out of is preserved at
+`docs/roadmap.md` @ tag `mandrel-v1.94.0` (see the Historical-anchors
+table in the live [`docs/roadmap.md`](../../docs/roadmap.md)).
 
 Practical guidance when authoring a contract change:
 

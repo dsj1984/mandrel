@@ -53,6 +53,64 @@ const SOURCE_TICKET_FETCH_CONCURRENCY = 4;
  */
 export const PLAN_CONTEXT_ENVELOPE_BYTE_CEILING = 256_000;
 
+/** Fields named in the over-ceiling error, to point at what to trim. */
+const OVERSIZE_REPORT_FIELDS = 3;
+
+/**
+ * Fail closed when an assembled envelope exceeds
+ * {@link PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}.
+ *
+ * Until now the ceiling was enforced *only* by a test assertion over this
+ * repo's own fixtures, which bounds nothing at runtime: the value it actually
+ * has to hold for is a consumer's seed or `--tickets` source bodies, and no
+ * test sees those. That left the documented planner-context cap resting
+ * entirely on `planning.context.maxBytes` — which resolved but was wired to
+ * nothing (its `applyBudget` pass lost its last caller in the v2 cutover), so
+ * in practice no bound existed at all on the path that needed one. That key
+ * and its budget module were removed outright in Story #4541; this ceiling is
+ * the replacement.
+ *
+ * Failing closed is the right direction here and matches how an over-budget
+ * `## Spec` is handled (`spec-spill.js`): an envelope this size does not
+ * degrade the planner gracefully, it silently produces garbage Stories from a
+ * truncated-by-the-host context. Better to refuse and say what to trim. The
+ * bound is deliberately a fixed framework constant rather than an operator
+ * knob — a cap the operator can raise past what the model can read is a cap
+ * that fails silently again.
+ *
+ * Deliberately **not** exported: its only external caller would be a test, and
+ * a test-only export is a production-dead one. It is reachable end to end
+ * through {@link buildPlanContext}, which is where the behaviour matters.
+ *
+ * @param {object} envelope
+ * @param {{ ceiling?: number }} [opts]
+ * @returns {object} `envelope`, unchanged, when it fits.
+ */
+function assertPlanContextWithinCeiling(envelope, opts = {}) {
+  const ceiling = opts.ceiling ?? PLAN_CONTEXT_ENVELOPE_BYTE_CEILING;
+  const bytes = Buffer.byteLength(JSON.stringify(envelope) ?? '', 'utf-8');
+  if (bytes <= ceiling) return envelope;
+
+  const largest = Object.entries(envelope)
+    .map(([field, value]) => [
+      field,
+      Buffer.byteLength(JSON.stringify(value) ?? '', 'utf-8'),
+    ])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, OVERSIZE_REPORT_FIELDS)
+    .map(([field, size]) => `${field} (${Math.round(size / 1024)} KB)`)
+    .join(', ');
+
+  throw new Error(
+    `[plan-context] the assembled "${envelope?.mode}" envelope is ` +
+      `${Math.round(bytes / 1024)} KB, over the ` +
+      `${Math.round(ceiling / 1024)} KB planner-context ceiling. Largest ` +
+      `fields: ${largest}. Trim the seed, plan fewer --tickets source issues ` +
+      'in one run, or narrow `planning.codebaseSnapshot`. Raising the ceiling ' +
+      'needs a measured justification — see PLAN_CONTEXT_ENVELOPE_BYTE_CEILING.',
+  );
+}
+
 /**
  * Compact, machine-readable descriptor of the `tickets.json` array the
  * authoring pass writes and `validateAndNormalizeTickets` gates at persist
@@ -612,6 +670,10 @@ async function buildTicketsModeEnvelope({
 /**
  * Build the single planner-context envelope.
  *
+ * Every mode returns through here, which makes this the one place the
+ * envelope's total size is decided — and therefore the only honest place to
+ * bound it (see {@link assertPlanContextWithinCeiling}).
+ *
  * @param {{
  *   mode: 'seed-file'|'seed'|'tickets',
  *   seedFilePath?: string,
@@ -634,6 +696,36 @@ export async function buildPlanContext({
   provider,
   config = {},
   settings = {},
+  cwd,
+}) {
+  return assertPlanContextWithinCeiling(
+    await buildPlanContextEnvelope({
+      mode,
+      seedFilePath,
+      seedFileContent,
+      seedText,
+      ticketIds,
+      provider,
+      config,
+      settings,
+      cwd,
+    }),
+  );
+}
+
+/**
+ * Mode dispatch for {@link buildPlanContext}. Split out so the ceiling check
+ * wraps every mode exactly once.
+ */
+async function buildPlanContextEnvelope({
+  mode,
+  seedFilePath,
+  seedFileContent,
+  seedText,
+  ticketIds,
+  provider,
+  config,
+  settings,
   cwd,
 }) {
   if (mode === 'seed-file') {

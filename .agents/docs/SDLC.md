@@ -155,7 +155,7 @@ on-disk layout resolved by
 | --- | --- | --- | --- | --- |
 | GitHub labels | `transitionTicketState` via `ticketing.js` | `gh issue edit --add-label / --remove-label`, wrapped in `update-ticket-state.js` | `(ticketId, label-set)` — set-equality before write | Authoritative for current ticket lifecycle state; if a label disagrees with the lifecycle ledger, the **ledger wins on resume** and the label is re-derived. |
 | `verification-results` comment | `lib/orchestration/code-review.js` | `post-structured-comment.js` (upsert by `kind`) | `(storyId, kind='verification-results')` | Authoritative for the Story-scope review + lens findings; critical findings block close. |
-| Lifecycle ledger NDJSON | `lifecycle-emit.js` (single append-only writer per run) | Append-only line write to `temp/run-<id>/lifecycle.ndjson` | `(runId, eventId)` — `eventId` is a content hash of `{type, ts, payload}` | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived. |
+| Lifecycle ledger NDJSON | `LedgerWriter` (`lib/orchestration/lifecycle/ledger-writer.js`, registered as the first listener on every bus event — single append-only writer per run) | Append-only line write to `temp/run-<id>/lifecycle.ndjson` | `(runId, eventId)` — `eventId` is a content hash of `{type, ts, payload}` | **Canonical resume target.** When labels / comments disagree with the ledger, the ledger wins and the others are re-derived. |
 | Validation evidence cache | `evidence-gate.js` | JSON cache file under the run temp tree, keyed by HEAD SHA | `(gate, git rev-parse HEAD)` | Pure cache: a missing entry triggers a re-run; presence is a fast-path skip. Cache eviction is safe. |
 | PR / auto-merge state | `single-story-close.js` (sole authorized caller of `gh pr merge`) | `gh pr merge --auto --squash --delete-branch`; PR open via the close pipeline's `gh pr create` | `(prNumber, head-branch SHA)` — `gh pr list --head` probes before create | GitHub is authoritative for PR + auto-merge arming state; the ledger records the *intent* to arm, GitHub records the outcome. |
 | Worktree cleanup state | `WorktreeManager.reap` (via `single-story-close.js` / `git-cleanup.js`) | `git worktree remove` + on-disk pending-cleanup JSON under the run temp tree | `(storyId, worktree-path)` | Filesystem is authoritative for "is the worktree gone?"; the pending-cleanup JSON only tracks stale-registry entries needing a follow-up sweep. |
@@ -376,14 +376,14 @@ Concurrent runs are serialised by **two distinct layers**:
   assignee; `--steal` is the only override. See
   [`README.md` § Multi-developer coordination](../README.md#multi-developer-coordination).
 
-### Concurrent close — push retry
+### Concurrent close
 
 `single-story-close.js` syncs the Story branch from `origin/main` before
-pushing and opening/locating the PR. Bounded retry constants live in
-`.agents/scripts/lib/config/runners.js` (`DEFAULT_STORY_MERGE_RETRY`:
-3 attempts, `[250, 500, 1000]` ms backoff). A real content conflict aborts
-the loop with a clear error, leaves the tree clean, and exits non-zero for
-manual resolution.
+pushing and opening/locating the PR, so concurrent closes serialize through
+their own worktrees rather than racing one shared branch. The push does not
+retry: a rejected push, or a real content conflict at base-sync, aborts with
+a clear error, leaves the tree clean, and exits non-zero for manual
+resolution.
 
 ---
 
@@ -519,12 +519,14 @@ Epic-branch review path was removed with the v2 cutover.
 
 ### Quality ratchets
 
-- **Maintainability ratchet** (`check-maintainability.js`) — fails if the
+- **Maintainability ratchet** (`check-baselines.js` via
+  `lib/baselines/kinds/maintainability.js`) — fails if the
   composite score drops below the established baseline.
-- **CRAP gate** (`check-crap.js`) — per-method complexity × coverage risk
+- **CRAP gate** (`check-baselines.js` via `lib/baselines/kinds/crap.js`) —
+  per-method complexity × coverage risk
   against `baselines/crap.json`, wired into close-validation, `ci.yml`, and
-  `.husky/pre-push`. The `baseline-refresh:`-tagged commit convention is the
-  project standard for baseline edits (see
+  `.husky/pre-push`. The `baseline-refresh: true` commit-trailer convention
+  is the project standard for baseline edits (see
   [`core/gates-and-baselines`](../skills/core/gates-and-baselines/SKILL.md)).
 
 ### Audits → Stories

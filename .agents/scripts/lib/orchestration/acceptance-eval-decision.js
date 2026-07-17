@@ -41,7 +41,7 @@
 
 import { readFileSync } from 'node:fs';
 
-import { epicArtifactPath, signalsFile } from '../config/temp-paths.js';
+import { runArtifactPath, signalsFile } from '../config/temp-paths.js';
 
 /** Epic-level signals stream basename (mirrors signals-writer). */
 const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
@@ -231,7 +231,7 @@ export function deriveAcceptanceEvalRound({
   readFile = (p) => readFileSync(p, 'utf8'),
   signalsPathResolver = signalsFile,
   epicSignalsPathResolver = (eid, cfg) =>
-    epicArtifactPath(eid, EPIC_SIGNALS_BASENAME, cfg),
+    runArtifactPath(eid, EPIC_SIGNALS_BASENAME, cfg),
 }) {
   // Epic #4475 (M4-B): single-delivery critics score AC clusters, not
   // Stories. When `clusterId` is supplied the round is counted per cluster

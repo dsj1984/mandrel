@@ -23,10 +23,6 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import {
-  outboxPathFor,
-  postCommentOrBuffer,
-} from './lib/orchestration/bookkeeping-outbox.js';
-import {
   assertValidStructuredCommentType,
   upsertStructuredComment,
 } from './lib/orchestration/ticketing.js';
@@ -41,11 +37,6 @@ Flags:
                  retro, epic-run-state, wave-0-start) (required).
   --body-file    Path to a file containing the markdown body (required).
   --provider     Provider name (default: inferred from .agentrc.json github block).
-  --buffer       Headless mode: buffer this upsert to the per-Epic bookkeeping
-                 outbox instead of posting live. Requires --epic. Drained to
-                 GitHub once at finalize by bookkeeping-reconcile.js (Epic
-                 #4476). Omit for attended runs (posts live, unchanged).
-  --epic <id>    Epic id owning the outbox (required with --buffer).
   --help         Show this message.
 `;
 
@@ -73,8 +64,6 @@ export function parseArgv(argv) {
       marker: { type: 'string' },
       'body-file': { type: 'string' },
       provider: { type: 'string' },
-      buffer: { type: 'boolean' },
-      epic: { type: 'string' },
       help: { type: 'boolean' },
     },
     strict: false,
@@ -125,33 +114,6 @@ export async function main(argv = process.argv.slice(2)) {
     ? { ...config, provider: values.provider }
     : config;
   const provider = createProvider(effectiveConfig);
-
-  // Headless buffering (Epic #4476 M5): route the upsert to the per-Epic
-  // outbox instead of a live GitHub round-trip. Requires --epic to locate the
-  // outbox; finalize's bookkeeping-reconcile.js drains it once. Attended runs
-  // (no --buffer) are unchanged.
-  if (values.buffer) {
-    const epicId = Number.parseInt(values.epic ?? '', 10);
-    if (!Number.isInteger(epicId) || epicId <= 0) {
-      process.stderr.write(
-        '[post-structured-comment] --buffer requires --epic <id>.\n',
-      );
-      process.exit(2);
-    }
-    assertValidStructuredCommentType(values.marker);
-    const { buffered } = await postCommentOrBuffer({
-      provider,
-      ticketId,
-      marker: values.marker,
-      body,
-      headless: true,
-      outboxPath: outboxPathFor(epicId, config),
-    });
-    process.stdout.write(
-      `${JSON.stringify({ success: true, ticketId, type: values.marker, buffered })}\n`,
-    );
-    return;
-  }
 
   const envelope = await runPostStructuredComment({
     ticketId,

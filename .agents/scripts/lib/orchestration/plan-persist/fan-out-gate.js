@@ -28,7 +28,7 @@ export function enforceFanOutGate(
     for (const f of fanOut) {
       Logger.warn(
         `[${tag}] Persisting a large-fan-out deletion: ` +
-          `Task "${f.taskSlug}" deletes "${f.path}" with ${f.callSiteCount} ` +
+          `Story "${f.storySlug}" deletes "${f.path}" with ${f.callSiteCount} ` +
           `importer(s) (threshold ${f.threshold}). Operator override --allow-large-fan-out.` +
           renderFanOutEvidence(f),
       );
@@ -38,7 +38,7 @@ export function enforceFanOutGate(
   const lines = fanOut
     .map(
       (f) =>
-        `  - Task "${f.taskSlug}" (Story "${f.storySlug}") deletes "${f.path}" — ` +
+        `  - Story "${f.storySlug}" deletes "${f.path}" — ` +
         `${f.callSiteCount} importer(s) (threshold ${f.threshold})` +
         renderFanOutEvidence(f),
     )

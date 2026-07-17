@@ -162,18 +162,17 @@ technology context is intentionally kept out of `.agentrc.json`.
 
 You MUST log telemetry about operational difficulty or automation
 opportunities you hit. Friction is a **local NDJSON signal**:
-`diagnose-friction.js` appends one `kind: friction` record to the per-Epic/
+`diagnose-friction.js` appends one `kind: friction` record to the per-run/
 per-Story `signals.ndjson` stream on local disk — not posted to the ticket at
 capture time; the retro phase surfaces the aggregate as routed proposals.
 
 - **Command**:
   `node .agents/scripts/diagnose-friction.js --story [STORY_ID] --cmd [FAILED_COMMAND]`
-  (add `--epic [EPIC_ID]` under an Epic).
 - **When to fire**: after repeated tool-validation errors, an unrecoverable
   command failure, ambiguity needing self-correction, or repetitive
   boilerplate steps a workflow/skill could simplify.
 
-The schema validation, the standalone (no-Epic) stream path, and the
+The schema validation, the standalone stream path, and the
 never-silently-dropped guarantee are reference detail — see
 [`docs/execution-reference.md` § Friction telemetry](docs/execution-reference.md#friction-telemetry).
 
@@ -208,15 +207,11 @@ recurred, and what assumption you would test next, then either Re-Plan or
 hand back to the operator. Do not paper over the loop with another
 just-in-case retry.
 
-This protocol is not soft-prompt-only — it has a runtime substrate. While
-executing as a Story delivery sub-agent (via `helpers/deliver-story`), you
-MUST emit a `story.heartbeat` lifecycle event on every Task transition (or
-whenever you stall on a long-running step) so the parent `/deliver`
-sequencer can distinguish a child still making progress from a dead one. If
-you genuinely cannot proceed, transition to `agent::blocked` and exit
-non-zero — never fall silent. A child with no recent `story.heartbeat`, no
-commit on its `story-<id>` branch, and no `agent::blocked` label is exactly
-the stall shape the parent run must detect and escalate.
+While executing as a Story delivery sub-agent (via `helpers/deliver-story`),
+if you genuinely cannot proceed you MUST transition to `agent::blocked` and
+exit non-zero — **never fall silent**. A stalled child that reports nothing
+is indistinguishable from a dead one, and the parent `/deliver` run can only
+escalate what you surface.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 
@@ -263,14 +258,16 @@ Two carve-outs refine the ordering:
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
-Mandrel does **not** enforce live LLM spend from response metadata. It caps
-**planning context budget** (`planning.context.maxBytes`) and related
-envelopes; your host
-runtime owns session quota and hard stops. The config keys, the ≈4-char/token
-estimate, and the elision behaviour are reference detail — see
+Mandrel does **not** enforce live LLM spend from response metadata, and it has
+no operator-tunable context budget. What it does bound are fixed framework
+ceilings — the `/plan` context envelope and plan-time Story sizing — and they
+**fail closed** with a message naming what to trim, rather than silently
+handing the model a truncated context. Your host runtime owns session quota and
+hard stops. The constants, the ≈4-char/token estimate, and the trim options are
+reference detail — see
 [`docs/execution-reference.md` § FinOps & token budgeting](docs/execution-reference.md#finops--token-budgeting-economic-guardrails).
-Consult it when a task prompt was elided or `/deliver` refused a fan-out on
-budget grounds.
+Consult it when `/plan` refused an over-ceiling envelope or an over-budget
+Story count.
 
 ---
 
@@ -295,11 +292,11 @@ budget grounds.
      - `/deliver` Story sub-agents (`helpers/deliver-story`) — the
        `docsDigestPath` the caller threads.
      - Standalone-Story planning (`story-plan.js --emit-context`) — inline as
-       `corpusContext.docsDigest` (there is no per-Epic directory to anchor a
+       `corpusContext.docsDigest` (no per-run directory to anchor a
        file), alongside `corpusContext.relevantSections`.
 
-     When no digest exists for the task at hand — an ad hoc task with no Epic
-     in scope, `project.docsContextFiles` unset, or a null `docsDigestPath` —
+     When no digest exists for the task at hand — an ad hoc task outside
+     `/deliver`, `project.docsContextFiles` unset, or a null `docsDigestPath` —
      there is **no mandatory docs read**: read a full doc only when the task's
      own context points you at one.
 
@@ -314,16 +311,15 @@ budget grounds.
      read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
      absent or unrelated to the task — they are not part of the universal
      mandatory set.
-   - **Epic Context**: Additionally, read the current Epic's body — the
-     single planning document (ideation sections plus the folded Tech
-     Spec sections; Story #4324 retired the separate context tickets) —
-     and the task-specific instructions.
+   - **Story Context**: Additionally, read the current Story's body — the
+     inline `## Spec` plus its `acceptance[]` / `verify[]` entries — and
+     the task-specific instructions.
    - **Optimization**: For large projects, prioritize targeted retrieval
      (semantic code search or focused text search) to isolate specific
      schemas or decisions before reading broad files.
 2. **Plan First:** For non-trivial tasks (3+ steps or architectural
-   decisions), enter **Plan Mode**. Update the Epic body's Tech Spec
-   sections (via `/plan`) or create a new Technical Specification document
+   decisions), enter **Plan Mode**. Update the Story's `## Spec`
+   (via `/plan`) or create a new Technical Specification document
    in the `docs/` root (if not already handled by a ticket) before
    touching code.
 3. **Artifacts over Chat:** Create log files for test results, build

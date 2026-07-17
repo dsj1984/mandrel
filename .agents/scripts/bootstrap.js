@@ -45,8 +45,8 @@
  *                             and custom fields. Off by default — the project
  *                             board object is still created when a project
  *                             name is supplied, but decoration is skipped.
- *   --with-issue-forms        Opt-in: generate .github/ISSUE_TEMPLATE/story.yml
- *                             and epic.yml. Off by default.
+ *   --with-issue-forms        Opt-in: generate .github/ISSUE_TEMPLATE/story.yml.
+ *                             Off by default.
  *   --reap-conflicting-workflows  Delete Projects V2 built-in workflows that
  *                             race against the orchestrator (destructive)
  *   --help                    Print this help
@@ -112,7 +112,7 @@ Flags:
   --with-project-board      Opt-in: provision the Projects V2 Status field
                             and custom fields (default: off — prompted y/N).
   --with-issue-forms        Opt-in: generate .github/ISSUE_TEMPLATE/story.yml
-                            and epic.yml (default: off — prompted y/N).
+                            (default: off — prompted y/N).
   --reap-conflicting-workflows  Delete Projects V2 built-in workflows that
                             race against the orchestrator (destructive)
   --help                    Print this help

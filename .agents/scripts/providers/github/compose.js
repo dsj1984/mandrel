@@ -42,7 +42,6 @@ export function composeGateways(provider) {
     ...ghDeps,
     cache: p._cache,
     hooks: {
-      addSubIssue: (a, b) => p.addSubIssue(a, b),
       addItemToProject,
       getProjectNumber,
     },

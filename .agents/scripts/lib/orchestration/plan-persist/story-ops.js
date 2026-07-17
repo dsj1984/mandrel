@@ -50,26 +50,50 @@ const PLAN_FINGERPRINT_LENGTH = 16;
 /**
  * Compute the deterministic identity of one authored Story within a plan.
  *
- * Derived from `slug` + `title` only — deliberately **not** the body. The
- * body is rewritten during creation to substitute real issue ids into
- * `depends_on` footers, so a body-derived fingerprint would differ between
- * the aborted run and its resume and defeat the lookup. Slug and title are
- * fixed by `stories.json`, so re-running persist over the same authored
- * artifacts reproduces the same fingerprint.
+ * Derived from `slug` + `title` + the **assembled** body, so the fingerprint
+ * identifies the authored *content*, not merely a name. Because the marker is
+ * what `createStoryIssues` adopts on, that is the whole safety property of the
+ * resume path: a fingerprint hit means the open Story on the tracker is
+ * byte-identical to what this run would author, so adopting it instead of
+ * creating it is a genuine no-op.
  *
- * The two fields are joined on a NUL separator, written as the `\u0000`
- * escape and never as a raw byte — a literal NUL would make git classify
- * this file as binary and silently drop its diffs. NUL cannot occur in a
- * slug or a title, so the join is unambiguous: `{slug:'a-b', title:'c'}` and
- * `{slug:'a', title:'b-c'}` cannot collide the way a hyphen or space
- * separator would let them.
+ * **Why the body is in scope.** It used to be excluded, on the rationale that
+ * creation rewrites the body to substitute real issue ids into `depends_on`
+ * footers, so a body-derived fingerprint would differ between an aborted run
+ * and its resume. That conflated two different bodies. The fingerprint is
+ * computed in `assembleOnePlanStory` over the *assembled* body — whose
+ * `depends_on` are still sibling **slugs**, and which is a pure function of
+ * `stories.json` plus the shared Spec. The id substitution happens later, and
+ * only inside `renderStoryBodyForCreate`, which produces the *posted* body.
+ * Nothing ever re-derives a fingerprint from a posted body; the lookup reads
+ * the marker that body carries. The assembled body is therefore stable across
+ * a run and its resume, and folding it in defeats no lookup.
  *
- * @param {{ slug: string, title: string }} story
+ * Excluding it cost two silent failures, both closed by this:
+ *
+ *   1. A later, unrelated plan that reused a slug **and** title adopted the
+ *      stale open Story — never rewriting its body or Spec, and landing this
+ *      run's checkpoints, ready-flip, and supersede comments on the wrong
+ *      issue.
+ *   2. A legitimate resume after the operator edited `stories.json` adopted
+ *      the pre-edit Story and kept its stale body, discarding the edit.
+ *
+ * With the body in scope both cases simply miss the lookup, and a correct new
+ * Story is created; only a genuinely identical Story is ever adopted.
+ *
+ * The fields are joined on NUL separators, written as the `\u0000` escape and
+ * never as a raw byte — a literal NUL would make git classify this file as
+ * binary and silently drop its diffs. NUL cannot occur in a slug, a title, or
+ * a serialized body, so the join is unambiguous: `{slug:'a-b', title:'c'}` and
+ * `{slug:'a', title:'b-c'}` cannot collide the way a hyphen or space separator
+ * would let them.
+ *
+ * @param {{ slug: string, title: string, body?: string }} story
  * @returns {string} Hex digest.
  */
-export function planStoryFingerprint({ slug, title }) {
+export function planStoryFingerprint({ slug, title, body = '' }) {
   return createHash('sha256')
-    .update(`${slug}\u0000${title}`)
+    .update(`${slug}\u0000${title}\u0000${body}`)
     .digest('hex')
     .slice(0, PLAN_FINGERPRINT_LENGTH);
 }
@@ -282,8 +306,10 @@ function assembleOnePlanStory(ticket, opts) {
   const { bodyObject: folded } = foldSpecIntoStoryBody(bodyObject, slug, {
     sharedSpec: opts.sharedSpec ?? null,
   });
-  const fingerprint = planStoryFingerprint({ slug, title });
+  // Body first: the fingerprint is an identity over the *assembled* content,
+  // so it cannot be computed until that content exists.
   const body = serializeStoryBody({ ...folded, depends_on });
+  const fingerprint = planStoryFingerprint({ slug, title, body });
   return {
     story: {
       slug,
@@ -382,26 +408,38 @@ function orderStoriesByDependencies(stories) {
 }
 
 /**
- * Index the open `type::story` backlog by plan fingerprint so a re-run can
- * recognise Stories a previous, partially-failed persist already created.
+ * Index the open `type::story` backlog so a re-run can recognise Stories a
+ * previous, partially-failed persist already created.
+ *
+ * Two indexes come back. `byFingerprint` is the adoption key — an exact match
+ * on the authored content (see {@link planStoryFingerprint}). `idsByTitle` is
+ * only used to *warn*: it catches the near miss where a Story with this title
+ * is already open but its content differs, which is what an abandoned earlier
+ * plan or an edited `stories.json` leaves behind. Adoption deliberately does
+ * not key on it — a title is not an identity, and adopting on one would let a
+ * later unrelated plan overwrite someone else's Story.
  *
  * Best-effort by construction: a provider with no `listIssuesByLabel` (or a
- * listing that errors) yields an empty index and the create loop proceeds
+ * listing that errors) yields empty indexes and the create loop proceeds
  * un-deduplicated, exactly as it did before. That degrades resume, not
  * correctness of a first run — so it warns rather than throws.
  *
  * @param {object} provider
- * @returns {Promise<Map<string, { id: number, title: string, url?: string }>>}
+ * @returns {Promise<{
+ *   byFingerprint: Map<string, { id: number, title: string, url?: string }>,
+ *   idsByTitle: Map<string, number[]>,
+ * }>}
  */
-async function indexExistingStoriesByFingerprint(provider) {
-  const index = new Map();
+async function indexExistingStories(provider) {
+  const byFingerprint = new Map();
+  const idsByTitle = new Map();
   if (typeof provider?.listIssuesByLabel !== 'function') {
     Logger.warn(
       '[plan-persist] provider does not expose listIssuesByLabel — cannot ' +
         'check for Stories a previous persist already created. A re-run after ' +
         'a mid-creation failure may duplicate them.',
     );
-    return index;
+    return { byFingerprint, idsByTitle };
   }
   let issues;
   try {
@@ -414,9 +452,15 @@ async function indexExistingStoriesByFingerprint(provider) {
       `[plan-persist] open-Story lookup failed (${err.message}) — proceeding ` +
         'without resume; a re-run may duplicate Stories.',
     );
-    return index;
+    return { byFingerprint, idsByTitle };
   }
   for (const issue of Array.isArray(issues) ? issues : []) {
+    const id = Number(issue?.number ?? issue?.id);
+    if (!Number.isInteger(id)) continue;
+    const title = issue?.title ?? '';
+    if (title !== '') {
+      idsByTitle.set(title, [...(idsByTitle.get(title) ?? []), id]);
+    }
     const body = typeof issue?.body === 'string' ? issue.body : '';
     const match = body.match(
       new RegExp(
@@ -424,15 +468,39 @@ async function indexExistingStoriesByFingerprint(provider) {
       ),
     );
     if (!match) continue;
-    const id = Number(issue.number ?? issue.id);
-    if (!Number.isInteger(id)) continue;
-    index.set(match[1], {
+    byFingerprint.set(match[1], {
       id,
-      title: issue.title ?? '',
+      title,
       url: issue.html_url ?? issue.url ?? undefined,
     });
   }
-  return index;
+  return { byFingerprint, idsByTitle };
+}
+
+/**
+ * Warn when a Story with this title is already open but did **not** match the
+ * fingerprint — i.e. its authored content differs from what this run is about
+ * to create.
+ *
+ * This is the visible half of the fingerprint tightening. Keying adoption on
+ * content means these cases correctly get a fresh Story rather than a silent
+ * stale-body adoption, but the divergent Story stays open, and a duplicate the
+ * operator never hears about is its own small trap. Naming it converts silent
+ * litter into a decision.
+ *
+ * @param {{ slug: string, title: string }} story
+ * @param {Map<string, number[]>} idsByTitle
+ */
+function warnOnDivergentSameTitleStory(story, idsByTitle) {
+  const ids = idsByTitle.get(story.title) ?? [];
+  if (ids.length === 0) return;
+  Logger.warn(
+    `[plan-persist] Story "${story.slug}": ${ids.length} open Story(ies) ` +
+      `already carry this exact title (${ids.map((id) => `#${id}`).join(', ')}) ` +
+      'but none match the authored content, so a new Story is being created ' +
+      'rather than silently adopting a stale body. If that is an abandoned ' +
+      'plan or a superseded draft, close it.',
+  );
 }
 
 /**
@@ -550,11 +618,18 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
  * `markStoriesReady` performs the flip as the terminal step, once every
  * checkpoint is on the ticket.
  *
- * **The loop is resumable.** Each body carries a plan-fingerprint marker,
- * and the open `type::story` backlog is indexed by it before the first POST.
- * A Story whose fingerprint already exists is adopted rather than
- * re-created, so a re-run after a 502 at story *k* of *N* completes the
- * cohort instead of minting a second copy of `1..k-1`.
+ * **The loop is resumable, and adoption is content-keyed.** Each body carries
+ * a plan-fingerprint marker, and the open `type::story` backlog is indexed by
+ * it before the first POST. A Story whose fingerprint already exists is
+ * adopted rather than re-created, so a re-run after a 502 at story *k* of *N*
+ * completes the cohort instead of minting a second copy of `1..k-1`.
+ *
+ * The fingerprint covers the assembled body, not just slug + title, so a hit
+ * means the open Story *is* what this run would author and adoption changes
+ * nothing. A same-named Story whose content has drifted — an abandoned plan, or
+ * an edited `stories.json` — misses the lookup, gets a correct new Story, and
+ * is named in a warning. Adoption never rewrites a body, so keying it on
+ * anything weaker than content would silently ship a stale one.
  *
  * Story #4540 retired the `plan-run::<id>` label this used to apply when
  * N>1. Batch identity was the wrong axis to encode: it could not express an
@@ -598,16 +673,18 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     };
   }
 
-  const existing = await indexExistingStoriesByFingerprint(provider);
+  const { byFingerprint, idsByTitle } = await indexExistingStories(provider);
   const created = [];
   const idBySlug = new Map();
 
   for (const story of orderStoriesByDependencies(list)) {
-    const already = existing.get(story.fingerprint);
+    const already = byFingerprint.get(story.fingerprint);
+    if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
       Logger.info(
         `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
-          `#${already.id} (plan fingerprint ${story.fingerprint}) — skipping create.`,
+          `#${already.id} with byte-identical authored content ` +
+          `(plan fingerprint ${story.fingerprint}) — skipping create.`,
       );
       created.push({
         slug: story.slug,

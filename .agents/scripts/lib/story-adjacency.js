@@ -42,16 +42,17 @@ import { parseBlockedBy } from './dependency-parser.js';
  *   Story records (live ticket payloads, fixture tickets, or operator
  *   DAG nodes).
  * @param {object} [opts]
- * @param {boolean} [opts.dropForeign=true] When true (the default,
- *   matching pre-v2 Epic-scoped wrappers), edges pointing at ids outside
+ * @param {boolean} [opts.dropForeign=false] When `false` (the v2 default,
+ *   matching the `/deliver` path — `stories-wave-tick.js` and the
+ *   `selectReadySet` core), the operator-DAG contract is preserved: a
+ *   dependency on an id absent from the input is treated as not-yet-done
+ *   and withholds the dependent until it completes. When `true` (the
+ *   pre-v2 Epic-scoped-wrapper semantics), edges pointing at ids outside
  *   the supplied story set are dropped so the DAG stays closed over the
- *   scheduled set. The v2 `/deliver` path (`stories-wave-tick.js` and the
- *   `selectReadySet` core) passes `false` to preserve the operator-DAG
- *   contract, where a dependency on an id absent from the input is treated
- *   as not-yet-done and withholds the dependent until it completes.
+ *   scheduled set.
  * @returns {Map<number, number[]>}
  */
-export function buildStoryAdjacency(stories, { dropForeign = true } = {}) {
+export function buildStoryAdjacency(stories, { dropForeign = false } = {}) {
   const records = Array.isArray(stories) ? stories : [];
   const storyIds = new Set(records.map((s) => Number(s?.id ?? s?.number)));
   const adjacency = new Map();

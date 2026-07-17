@@ -41,18 +41,18 @@ function normaliseSkipReason(reason) {
 }
 
 /**
- * Refresh `origin/<epicBranch>` so the diff range resolves even when the
+ * Refresh `origin/<baseBranch>` so the diff range resolves even when the
  * close script hasn't reached its own pull/rebase step yet. Routed through
  * the shared `(cwd, ref, windowMs)` cache so a story-init fetch in the same
  * wave satisfies the projection without re-hitting origin.
  *
  * @param {string} cwd
- * @param {string} epicBranch
+ * @param {string} baseBranch
  * @param {{ gitSpawn: typeof defaultGitSpawn }} git
  * @returns {{ ok: true } | { ok: false, detail: string }}
  */
-function refreshEpicRef(cwd, epicBranch, git) {
-  const fetchRes = cachedGitFetchSync(cwd, epicBranch, {
+function refreshEpicRef(cwd, baseBranch, git) {
+  const fetchRes = cachedGitFetchSync(cwd, baseBranch, {
     gitSpawn: git.gitSpawn,
   });
   if (fetchRes.status !== 0) {
@@ -69,13 +69,13 @@ function refreshEpicRef(cwd, epicBranch, git) {
  * the changed-files list. Normalises Windows-style backslash paths to
  * forward slashes so the baseline lookup is platform-agnostic.
  *
- * @param {{ cwd: string, epicBranch: string, storyBranch: string, git: { gitSpawn: typeof defaultGitSpawn } }} opts
+ * @param {{ cwd: string, baseBranch: string, storyBranch: string, git: { gitSpawn: typeof defaultGitSpawn } }} opts
  * @returns {{ ok: true, files: string[] } | { ok: false, detail: string }}
  */
-function diffChangedFiles({ cwd, epicBranch, storyBranch, git }) {
+function diffChangedFiles({ cwd, baseBranch, storyBranch, git }) {
   try {
     const files = diffNameOnly({
-      range: `origin/${epicBranch}...${storyBranch}`,
+      range: `origin/${baseBranch}...${storyBranch}`,
       cwd,
       gitSpawn: git.gitSpawn,
     });
@@ -190,7 +190,7 @@ function collectRegressions({
  *
  * @param {{
  *   cwd: string,
- *   epicBranch: string,
+ *   baseBranch: string,
  *   storyBranch: string,
  *   baselinePath: string,
  *   tolerance?: number,
@@ -207,7 +207,7 @@ function collectRegressions({
  */
 export function projectMaintainabilityRegressions({
   cwd,
-  epicBranch,
+  baseBranch,
   storyBranch,
   baselinePath,
   tolerance = DEFAULT_MI_TOLERANCE,
@@ -216,7 +216,7 @@ export function projectMaintainabilityRegressions({
   loadBaseline = getBaseline,
 } = {}) {
   const validation = validateProjectionInputs(
-    { cwd, epicBranch, storyBranch, baselinePath },
+    { cwd, baseBranch, storyBranch, baselinePath },
     { loadBaseline },
   );
   if (!validation.ok) {
@@ -227,7 +227,7 @@ export function projectMaintainabilityRegressions({
     };
   }
 
-  const fetchOutcome = refreshEpicRef(cwd, epicBranch, git);
+  const fetchOutcome = refreshEpicRef(cwd, baseBranch, git);
   if (!fetchOutcome.ok) {
     return {
       ok: true,
@@ -237,7 +237,7 @@ export function projectMaintainabilityRegressions({
     };
   }
 
-  const diffOutcome = diffChangedFiles({ cwd, epicBranch, storyBranch, git });
+  const diffOutcome = diffChangedFiles({ cwd, baseBranch, storyBranch, git });
   if (!diffOutcome.ok) {
     return {
       ok: true,

@@ -51,7 +51,30 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       labelSet: new Set(['type::task', 'agent::ready']),
       assignees: ['alice', 'bob'],
       state: 'open',
+      stateReason: null,
     });
+  });
+
+  it('issueToTicket carries state_reason so a superseded close is not read as landed', () => {
+    // `state: 'closed'` covers both "merged" and "abandoned"; only
+    // state_reason separates them, and the close path fails loudly on
+    // not_planned rather than reporting a landed Story.
+    assert.equal(
+      issueToTicket({ number: 1, state: 'closed', state_reason: 'not_planned' })
+        .stateReason,
+      'not_planned',
+    );
+    assert.equal(
+      issueToTicket({ number: 1, state: 'closed', state_reason: 'completed' })
+        .stateReason,
+      'completed',
+    );
+    // Absent (pre-dates the field, or GitHub omitted it) reads as completed
+    // downstream — the historical default.
+    assert.equal(
+      issueToTicket({ number: 1, state: 'closed' }).stateReason,
+      null,
+    );
   });
 
   it('issueToTicket handles array-of-strings labels and missing body/assignees', () => {

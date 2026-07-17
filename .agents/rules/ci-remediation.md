@@ -26,8 +26,8 @@ guess.
 
 Fetch the failing job log and record the failure signature (the failing check
 name, the run id / run link, and the first distinctive error line). The
-watcher already writes this to `temp/epic-<epicId>-ci-digest.{json,md}` (Epic
-path) or surfaces it inline (standalone path) — start from that digest.
+watcher already writes this to `temp/story-<id>-ci-digest.{json,md}` — start
+from that digest.
 
 ### 2. Classify the failure
 
@@ -71,7 +71,7 @@ get to wave it off because "CI was flaky."
    genuine attempt, that itself is a finding — record it in the issue you file
    in step 4.
 2. **Check whether it also fails on `main`.** Run the same check against an
-   unmodified `main` (or the Epic base branch) checkout. If it fails on `main`
+   unmodified `main` checkout. If it fails on `main`
    too, the defect is **pre-existing** — it is not caused by the diff under
    review, and the fix belongs in a separate change, not silently folded into
    this delivery.

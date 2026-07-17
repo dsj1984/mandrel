@@ -205,6 +205,7 @@ describe('signal contract — round-trips through live consumers', () => {
     ];
     const routed = composeRoutedProposals({
       anchorId: 4406,
+      anchorKind: 'run',
       frameworkRepo: 'dsj1984/mandrel',
       consumerRepo: 'acme/app',
       signals,

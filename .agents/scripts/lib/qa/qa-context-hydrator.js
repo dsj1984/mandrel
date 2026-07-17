@@ -142,7 +142,7 @@ export async function verifySurfaceMap(surfaceMap, gitPort, baseRef) {
  * with no network when the ports are fakes.
  *
  * @param {{
- *   epicNumber: number,
+ *   ticketNumber: number,
  *   githubPort: GithubPort,
  *   gitPort: GitPort,
  *   surfaceMap?: SurfaceMapEntry[],
@@ -162,7 +162,7 @@ export async function verifySurfaceMap(surfaceMap, gitPort, baseRef) {
  */
 export async function hydrateQaContext(opts) {
   const {
-    epicNumber,
+    ticketNumber,
     githubPort,
     gitPort,
     surfaceMap = [],
@@ -172,9 +172,9 @@ export async function hydrateQaContext(opts) {
     fsImpl,
   } = opts ?? {};
 
-  if (!Number.isInteger(epicNumber)) {
+  if (!Number.isInteger(ticketNumber)) {
     throw new Error(
-      'hydrateQaContext: `epicNumber` is required and must be an integer',
+      'hydrateQaContext: `ticketNumber` is required and must be an integer',
     );
   }
   if (!githubPort || typeof githubPort.fetchIssue !== 'function') {
@@ -192,7 +192,7 @@ export async function hydrateQaContext(opts) {
     );
   }
 
-  const epicIssue = await githubPort.fetchIssue(epicNumber);
+  const epicIssue = await githubPort.fetchIssue(ticketNumber);
   const epic = {
     number: epicIssue.number,
     body: epicIssue.body ?? '',

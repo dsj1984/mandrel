@@ -15,9 +15,9 @@
 **Mandrel** is a Claude Code-first opinionated workflow framework: a
 collection of instructions, skills, rules, and SDLC workflows that govern AI
 coding assistants. The `.claude/` / hook / skill surface leans in on Claude
-Code as the reference runtime, and the dispatcher under `.agents/scripts/`
-treats the dispatch manifest (md + structured comment) as the cross-runtime
-contract. The framework is distributed as the
+Code as the reference runtime, and the orchestration library under
+`.agents/scripts/` treats the Story issue's body and structured comments as
+the cross-runtime contract. The framework is distributed as the
 [`mandrel`](https://www.npmjs.com/package/mandrel) npm package and
 materialized into consumer projects' `.agents/` directories by
 `mandrel sync`.

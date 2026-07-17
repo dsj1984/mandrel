@@ -55,7 +55,7 @@ export const ULTRAREVIEW_PROMPT_TEMPLATE =
  * @returns {string}
  */
 export function buildUltrareviewMessage(input) {
-  const scopeLabel = input?.scope === 'epic' ? 'Epic' : 'Story';
+  const scopeLabel = 'Story';
   const baseRef = typeof input?.baseRef === 'string' ? input.baseRef : '?';
   const headRef = typeof input?.headRef === 'string' ? input.headRef : '?';
   return ULTRAREVIEW_PROMPT_TEMPLATE.replace('{scopeLabel}', scopeLabel)

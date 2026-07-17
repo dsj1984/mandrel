@@ -1,8 +1,8 @@
 /**
  * GitHubProvider facade — issues surface.
  *
- * Tests GitHubProvider's issue methods (listIssues/getEpics, getEpic,
- * getTicket, getTicketDependencies, updateTicket) with a mocked
+ * Tests GitHubProvider's issue methods (getEpic, getTicket,
+ * getTicketDependencies, updateTicket) with a mocked
  * gh-exec facade — no live API calls. Split from the former root monolith
  * `tests/providers-github.test.js` (Story #4084).
  */
@@ -10,52 +10,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createTestProvider, makeGh } from './_helpers.js';
-
-// ---------------------------------------------------------------------------
-// listIssues & getEpics
-// ---------------------------------------------------------------------------
-describe('GitHubProvider — listIssues() & getEpics()', () => {
-  const mockIssues = [
-    {
-      number: 101,
-      title: 'Epic 1',
-      labels: [{ name: 'type::story' }],
-      state: 'open',
-    },
-    {
-      number: 102,
-      title: 'Epic 2',
-      labels: ['type::story'],
-      state: 'closed',
-      state_reason: 'completed',
-    },
-    {
-      number: 104,
-      title: 'A PR',
-      labels: ['type::story'],
-      state: 'open',
-      pull_request: {},
-    },
-  ];
-
-  it('listIssues() returns the story-only getEpics stub result', async () => {
-    const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
-    const provider = createTestProvider({ gh });
-    const epics = await provider.listIssues({ state: 'all' });
-
-    assert.deepEqual(epics, []);
-    assert.equal(gh.__exec.calls.length, 0);
-  });
-
-  it('getEpics() returns [] without querying a deleted type label', async () => {
-    const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
-    const provider = createTestProvider({ gh });
-    const epics = await provider.getEpics();
-
-    assert.deepEqual(epics, []);
-    assert.equal(gh.__exec.calls.length, 0);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // getEpic

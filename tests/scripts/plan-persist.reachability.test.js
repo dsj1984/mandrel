@@ -26,17 +26,6 @@ import { serialize } from '../../.agents/scripts/lib/story-body/story-body.js';
 
 const OPERATOR = 'plan-persist-reachability-tester';
 
-const LOW_VERDICT = {
-  axes: [
-    {
-      axis: 'internal-refactor',
-      level: 'low',
-      rationale: 'Test fixture — internal tooling only.',
-    },
-  ],
-  summary: 'Low-risk fixture.',
-};
-
 function ticket(slug, { filePath, acceptance } = {}) {
   const acceptanceLines = acceptance ?? [`${slug} done`];
   return {
@@ -130,7 +119,6 @@ function baseInput(provider, { artifacts = {}, planning, opts = {} } = {}) {
     provider,
     artifacts: {
       stories: [ticket('default', { filePath: 'src/default.js' })],
-      riskVerdict: LOW_VERDICT,
       techSpecContent: '## Overview\nReachability fixture.\n',
       ...artifacts,
     },

@@ -107,7 +107,7 @@ describe('cutover: no flat `temp/<artifact>-run-<id>` paths', () => {
     assert.equal(
       hits.length,
       0,
-      `Found ${hits.length} flat-temp path reference(s). Use \`lib/config/temp-paths.js\` (epicTempDir / storyTempDir / signalsFile / ...) instead:\n${hits
+      `Found ${hits.length} flat-temp path reference(s). Use \`lib/config/temp-paths.js\` (runTempDir / storyTempDir / signalsFile / ...) instead:\n${hits
         .map((h) => `  ${h.file}:${h.lineNumber}: ${h.line}`)
         .join('\n')}`,
     );

@@ -45,6 +45,7 @@ import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
 import { C8_CLI } from './lib/c8-cli-path.js';
+import { buildWebhookSafeTestEnv } from './lib/test-env.js';
 import { TEST_RUNNER_FLAGS } from './run-tests.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -89,7 +90,9 @@ function runCoveragePipeline() {
   const testRun = spawnSync(process.execPath, buildCoverageTestArgs(), {
     cwd: ROOT,
     stdio: 'inherit',
-    env: { ...process.env, NODE_V8_COVERAGE: V8_TMP },
+    // GIT_*-scrubbed: under a husky pre-push from a linked worktree the
+    // inherited GIT_DIR poisons fixture `git init` runs (#4580).
+    env: { ...buildWebhookSafeTestEnv(process.env), NODE_V8_COVERAGE: V8_TMP },
   });
 
   cleanupRepoTestTempArtifacts({ repoRoot: ROOT });

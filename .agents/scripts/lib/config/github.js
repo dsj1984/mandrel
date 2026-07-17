@@ -55,11 +55,13 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
     'operator-message',
   ]),
   webhookEvents: Object.freeze([
-    'epic-started',
-    'epic-progress',
-    'epic-blocked',
-    'epic-unblocked',
-    'epic-complete',
+    'state-transition',
+    'story-merged',
+    'story-closing',
+    'operator-message',
+    'merge.unlanded',
+    'merge.flip-failed',
+    'loop.tick',
   ]),
 });
 

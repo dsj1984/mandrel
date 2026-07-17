@@ -192,9 +192,7 @@ Bundle findings **by likely root cause** into proposed follow-up tickets with
 `Depends-on` / `Blocks` relationships, then present the draft for operator
 approval. The harness **MUST NOT** create tickets autonomously — it stops at a
 draft. The operator-approval gate is the safety boundary against spurious
-filing. When the run was triggered from an Epic-testing context, hand the
-**approved** findings to the Epic-testing helper for attachment to the Epic's
-QA evidence ticket.
+filing.
 
 ## 6. Sign-In & Contract Discipline
 

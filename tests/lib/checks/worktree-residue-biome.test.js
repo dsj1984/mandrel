@@ -33,7 +33,7 @@ describe('check: worktree-residue-biome', () => {
     assert.equal(check.severity, 'blocker');
     assert.equal(check.autoCorrect, 'refuse-and-print');
     assert.ok(check.scope.includes('story-close'));
-    assert.ok(check.scope.includes('epic-deliver'));
+    assert.ok(check.scope.includes('diagnose'));
     assert.equal(typeof check.detect, 'function');
     // refuse-and-print contract: no fix() body.
     assert.equal(check.fix, undefined);

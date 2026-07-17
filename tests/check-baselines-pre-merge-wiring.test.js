@@ -59,8 +59,8 @@ describe('pre-merge gate chain — Task #1917 contract', () => {
 });
 
 describe('check-baselines epic baseRef threading — Story #3890', () => {
-  it('pins BASELINE_REF to origin/<epicBranch> when an epic branch is supplied', () => {
-    const gates = buildDefaultGates({ epicBranch: 'epic/3865' });
+  it('pins BASELINE_REF to origin/<baseBranch> when an epic branch is supplied', () => {
+    const gates = buildDefaultGates({ baseBranch: 'epic/3865' });
     const gate = gates.find((g) => g.name === 'check-baselines');
     assert.ok(gate);
     assert.deepEqual(
@@ -71,8 +71,8 @@ describe('check-baselines epic baseRef threading — Story #3890', () => {
   });
 
   it('pins BASELINE_REF to origin/<baseBranch> for the standalone path', () => {
-    // single-story-close forwards `baseBranch` (e.g. `main`) as `epicBranch`.
-    const gates = buildDefaultGates({ epicBranch: 'main' });
+    // single-story-close forwards `baseBranch` (e.g. `main`) as `baseBranch`.
+    const gates = buildDefaultGates({ baseBranch: 'main' });
     const gate = gates.find((g) => g.name === 'check-baselines');
     assert.ok(gate);
     assert.deepEqual(gate.env, { BASELINE_REF: 'origin/main' });
@@ -98,7 +98,7 @@ describe('check-baselines epic baseRef threading — Story #3890', () => {
     // Build the canonical gate list, then isolate the check-baselines +
     // an env-less control gate so the test exercises the env-threading
     // path without invoking the format gate's git-backed changedFileScope.
-    const built = buildDefaultGates({ epicBranch: 'epic/4242' });
+    const built = buildDefaultGates({ baseBranch: 'epic/4242' });
     const baselinesGate = built.find((g) => g.name === 'check-baselines');
     assert.ok(baselinesGate?.env, 'fixture: baselines gate must carry env');
     const gates = [{ name: 'lint', cmd: 'noop', args: [] }, baselinesGate];

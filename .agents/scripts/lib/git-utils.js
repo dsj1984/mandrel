@@ -316,20 +316,6 @@ export function gitPullWithRetry(cwd, ...args) {
 }
 
 /**
- * Resolves the canonical branch name for an Epic.
- * v5 Standard: epic/[EPIC_ID]
- * @param {string|number} epicId
- * @returns {string}
- */
-export function getEpicBranch(epicId) {
-  const id = typeof epicId === 'number' ? epicId : Number.parseInt(epicId, 10);
-  if (!Number.isFinite(id) || id <= 0) {
-    throw new Error(`getEpicBranch: invalid epicId: ${epicId}`);
-  }
-  return `epic/${id}`;
-}
-
-/**
  * Sanitize a string into a URL/branch-safe slug.
  * Lowercases, replaces non-alphanumeric characters with hyphens,
  * collapses multiple hyphens, and trims leading/trailing hyphens.

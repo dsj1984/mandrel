@@ -10,12 +10,9 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   _clearMainCheckoutRootCache,
-  epicArtifactPath,
-  epicManifestPath,
-  epicRetroMirrorPath,
-  epicTechSpecPath,
-  epicTempDir,
   mainCheckoutRoot,
+  runArtifactPath,
+  runTempDir,
   signalsFile,
   storyArtifactPath,
   storyManifestPath,
@@ -78,12 +75,12 @@ describe('lib/config/temp-paths.js — tempRoot resolution', () => {
 
 describe('lib/config/temp-paths.js — Run / Story directory helpers', () => {
   it('builds the canonical run dir (default tempRoot)', () => {
-    assert.equal(epicTempDir(1030), anchored('temp', 'run-1030'));
+    assert.equal(runTempDir(1030), anchored('temp', 'run-1030'));
   });
 
   it('honours a custom tempRoot via config bag', () => {
     const cfg = { project: { paths: { tempRoot: 'workspace' } } };
-    assert.equal(epicTempDir(42, cfg), anchored('workspace', 'run-42'));
+    assert.equal(runTempDir(42, cfg), anchored('workspace', 'run-42'));
   });
 
   it('builds the canonical story dir', () => {
@@ -94,9 +91,9 @@ describe('lib/config/temp-paths.js — Run / Story directory helpers', () => {
   });
 
   it('rejects non-positive epicId / storyId', () => {
-    assert.throws(() => epicTempDir(0), /positive integer/);
-    assert.throws(() => epicTempDir(-1), /positive integer/);
-    assert.throws(() => epicTempDir(1.5), /positive integer/);
+    assert.throws(() => runTempDir(0), /positive integer/);
+    assert.throws(() => runTempDir(-1), /positive integer/);
+    assert.throws(() => runTempDir(1.5), /positive integer/);
     assert.throws(() => storyTempDir(1, 0), /positive integer/);
     assert.throws(() => storyTempDir(1, -2), /positive integer/);
   });
@@ -110,21 +107,6 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
     );
   });
 
-  it('Run-level canonical filenames live directly under the run dir', () => {
-    assert.equal(
-      epicTechSpecPath(1030),
-      anchored('temp', 'run-1030', 'techspec.md'),
-    );
-    assert.equal(
-      epicManifestPath(1030),
-      anchored('temp', 'run-1030', 'manifest.md'),
-    );
-    assert.equal(
-      epicRetroMirrorPath(1030),
-      anchored('temp', 'run-1030', 'retro.md'),
-    );
-  });
-
   it('Story-level canonical filenames live under the Story dir', () => {
     assert.equal(
       storyManifestPath(1030, 1042),
@@ -134,9 +116,9 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
 });
 
 describe('lib/config/temp-paths.js — artifact-name guards', () => {
-  it('epicArtifactPath / storyArtifactPath accept a leaf name', () => {
+  it('runArtifactPath / storyArtifactPath accept a leaf name', () => {
     assert.equal(
-      epicArtifactPath(1030, 'custom.md'),
+      runArtifactPath(1030, 'custom.md'),
       anchored('temp', 'run-1030', 'custom.md'),
     );
     assert.equal(
@@ -146,18 +128,18 @@ describe('lib/config/temp-paths.js — artifact-name guards', () => {
   });
 
   it('rejects an empty / non-string artifact name', () => {
-    assert.throws(() => epicArtifactPath(1030, ''), /non-empty string/);
+    assert.throws(() => runArtifactPath(1030, ''), /non-empty string/);
     assert.throws(() => storyArtifactPath(1, 2, undefined), /non-empty string/);
-    assert.throws(() => epicArtifactPath(1030, 42), /non-empty string/);
+    assert.throws(() => runArtifactPath(1030, 42), /non-empty string/);
   });
 
   it('rejects a name containing path separators (traversal guard)', () => {
     assert.throws(
-      () => epicArtifactPath(1030, '../escape.md'),
+      () => runArtifactPath(1030, '../escape.md'),
       /must not contain path separators/,
     );
     assert.throws(
-      () => epicArtifactPath(1030, 'sub/dir.md'),
+      () => runArtifactPath(1030, 'sub/dir.md'),
       /must not contain path separators/,
     );
     assert.throws(
@@ -173,10 +155,9 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     // through path.normalize should be a no-op.
     const cfg = { project: { paths: { tempRoot: 'temp' } } };
     const candidates = [
-      epicTempDir(1030, cfg),
+      runTempDir(1030, cfg),
       storyTempDir(1030, 1042, cfg),
       signalsFile(1030, 1042, cfg),
-      epicTechSpecPath(1030, cfg),
       storyManifestPath(1030, 1042, cfg),
     ];
     for (const p of candidates) {
@@ -194,7 +175,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
 
   it('handles a tempRoot with a trailing separator', () => {
     const cfg = { project: { paths: { tempRoot: `tmp${SEP}` } } };
-    const dir = epicTempDir(1030, cfg);
+    const dir = runTempDir(1030, cfg);
     assert.ok(
       !dir.includes(`${SEP}${SEP}`),
       `expected trailing-slash tempRoot to collapse: ${dir}`,
@@ -206,10 +187,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     const cfg = {
       project: { paths: { tempRoot: path.join('a', 'b', 'temp') } },
     };
-    assert.equal(
-      epicTempDir(1030, cfg),
-      anchored('a', 'b', 'temp', 'run-1030'),
-    );
+    assert.equal(runTempDir(1030, cfg), anchored('a', 'b', 'temp', 'run-1030'));
     assert.equal(
       signalsFile(1030, 1042, cfg),
       anchored(
@@ -227,7 +205,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
   it('honours an absolute tempRoot verbatim (no main-checkout anchoring)', () => {
     const absRoot = path.resolve(SEP, 'var', 'mandrel-temp');
     const cfg = { project: { paths: { tempRoot: absRoot } } };
-    assert.equal(epicTempDir(1030, cfg), path.join(absRoot, 'run-1030'));
+    assert.equal(runTempDir(1030, cfg), path.join(absRoot, 'run-1030'));
   });
 
   it('honours platform-native separators', () => {

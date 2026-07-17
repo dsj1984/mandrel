@@ -43,14 +43,18 @@ import { formatCliError } from './lib/error-redactor.js';
 import { gh as defaultGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
+import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
 import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
 import {
   buildTerminalEnvelope,
+  emitTerminalEnvelope,
   exitCodeForTerminal,
   NEXT_COMMANDS,
+  terminalFromWaitOutcome,
 } from './lib/orchestration/story-deliver-terminal.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
@@ -76,6 +80,28 @@ function readPrFlag() {
     return values.pr;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * `--wait`: resume the bounded merge wait rather than probing once.
+ *
+ * This CLI serves two callers behind one command string. `confirmMerge` wants
+ * a fast idempotent flip for a merge that ALREADY happened (an operator-merge
+ * flow, or a `merged-flip-failed` retry) and must not stall. `resumeLand`
+ * wants to pick up a merge wait the close handed off at its per-invocation
+ * bound — that one must actually wait, and must be able to give up.
+ */
+function readWaitFlag() {
+  try {
+    const { values } = parseArgs({
+      args: process.argv.slice(2),
+      options: { wait: { type: 'boolean', default: false } },
+      strict: false,
+    });
+    return values.wait === true;
+  } catch {
+    return false;
   }
 }
 
@@ -107,13 +133,22 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
   }
 }
 
-function logConfirmResult(result, terminal) {
+/**
+ * Story #4578 — async so the runtime-derived friction emit can be awaited.
+ * This CLI is the resume path for a parked worker (`--wait`), so a `pending`
+ * terminal here means a bounded wait expired again with the PR still in
+ * flight: the exact observable the retro was blind to. The emit is
+ * best-effort and cannot throw; awaiting it matters because `runAsCli`
+ * exits via `process.exit` the moment `main` resolves.
+ */
+async function logConfirmResult(result, terminal, config) {
+  // Human-facing dump stays level-gated; the envelope is the machine
+  // contract and must survive AGENT_LOG_LEVEL=silent.
   Logger.info(
     `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
-  Logger.info(
-    `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-  );
+  emitTerminalEnvelope(terminal);
+  await emitTerminalFriction({ envelope: terminal, config });
   return { success: terminal.status !== 'failed', result, terminal };
 }
 
@@ -141,9 +176,16 @@ function buildConfirmTerminal({
   tail,
   elapsedSeconds,
 }) {
+  // `pr-not-merged` means the PR is CLOSED — reporting it as OPEN put a
+  // fact in the envelope that the blocked reason directly contradicts.
+  const prState = confirmation.merged
+    ? 'MERGED'
+    : confirmation.reason === 'pr-not-merged'
+      ? 'CLOSED'
+      : 'OPEN';
   const pr =
     Number.isInteger(prNumber) && prNumber > 0
-      ? { number: prNumber, state: confirmation.merged ? 'MERGED' : 'OPEN' }
+      ? { number: prNumber, state: prState }
       : null;
   const common = { storyId, storyBranch, baseBranch, pr, elapsedSeconds };
 
@@ -210,11 +252,13 @@ export async function runConfirmMerge({
   storyId: storyIdParam,
   cwd: cwdParam,
   pr: prParam,
+  wait: waitParam,
   injectedProvider,
   injectedConfig,
   injectedGh,
   injectedNotify,
   injectedReadPrMergeState,
+  runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
 } = {}) {
   const { storyId, cwd } = parseCloseOptions({
     storyIdParam,
@@ -223,9 +267,10 @@ export async function runConfirmMerge({
 
   if (!storyId) {
     throw new Error(
-      'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--cwd <main-repo>]',
+      'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait] [--cwd <main-repo>]',
     );
   }
+  const wait = waitParam ?? readWaitFlag();
 
   const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd });
@@ -254,7 +299,7 @@ export async function runConfirmMerge({
       reason: 'no-pr',
       merged: false,
     };
-    return logConfirmResult(
+    return await logConfirmResult(
       noPr,
       buildConfirmTerminal({
         storyId,
@@ -265,6 +310,63 @@ export async function runConfirmMerge({
         tail: null,
         elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
       }),
+      config,
+    );
+  }
+
+  // `--wait` (what `NEXT_COMMANDS.resumeLand` passes): resume the merge wait
+  // the close handed off at its per-invocation bound, by running the SAME
+  // phase the in-close path runs. Without this the resume was a single probe
+  // that reported `pending` and exited, so the cumulative `maxBudgetSeconds`
+  // give-up — the only thing that ever emits `merge.unlanded` and flips a
+  // wedged Story to `agent::blocked` — was reachable ONLY inside the original
+  // close invocation. A PR that wedged after the close returned could be
+  // resumed forever, always answering `pending`, never escalating to anyone.
+  //
+  // The phase anchors its cumulative budget at the PR's `createdAt`, so the
+  // resume does not restart the clock — exactly what the envelope's
+  // `waitBudget` contract already promised.
+  if (wait) {
+    const waitOutcome = await runConfirmMergePhaseFn({
+      cwd,
+      storyId,
+      storyBranch,
+      baseBranch,
+      prNumber,
+      prUrl: `${storyBranch} PR #${prNumber}`,
+      // The close already armed it; this CLI is resuming that wait, not
+      // deciding whether to arm.
+      autoMergeEnabled: true,
+      provider,
+      config,
+      progress,
+      injectedGh: gh,
+      injectedNotify,
+      readPrMergeStateFn: injectedReadPrMergeState,
+    });
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome,
+      storyId,
+      storyBranch,
+      baseBranch,
+      prNumber,
+      prUrl: null,
+      autoMergeEnabled: true,
+      // This CLI runs no close gates, so it reports none — `gates` is
+      // "each gate this invocation was responsible for".
+      gates: undefined,
+      elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+    });
+    return await logConfirmResult(
+      {
+        storyId,
+        standalone: true,
+        action: waitOutcome.terminal,
+        resumed: true,
+        tail: waitOutcome.tail ?? null,
+      },
+      terminal,
+      config,
     );
   }
 
@@ -286,8 +388,16 @@ export async function runConfirmMerge({
   // wrapper. That wrapper was the whole reason the two landing surfaces
   // diverged: it captured follow-ups and nothing else, while the resync and
   // cleanup steps lived in prose the caller had to remember to run.
+  //
+  // Gated on `merged`, NOT on `action === 'done'`. `done` means "this run
+  // flipped the label"; a Story already at `agent::done` returns
+  // `action: 'noop', merged: true`, and gating on `done` skipped the tail for
+  // exactly that case — the belated-manual-confirm backfill this tail exists
+  // to make possible (see `story-follow-ups.js`, which documents the gap).
+  // Re-running is safe: every step is idempotent (the follow-ups comment is
+  // an upsert, ref cleanup and base fast-forward no-op when already done).
   const tail =
-    confirmation.action === 'done'
+    confirmation.merged === true
       ? await runPostLandTail({
           storyId,
           storyBranch,
@@ -311,9 +421,10 @@ export async function runConfirmMerge({
   if (confirmation.action === 'done') {
     progress('DONE', `✅ Story #${storyId} → agent::done (merged).`);
   }
-  return logConfirmResult(
+  return await logConfirmResult(
     { ...confirmation, standalone: true, tail },
     terminal,
+    config,
   );
 }
 
@@ -349,9 +460,8 @@ async function main() {
     Logger.error(
       `[single-story-confirm-merge] Fatal error: ${formatCliError(err)}`,
     );
-    Logger.info(
-      `\n--- STORY DELIVER TERMINAL ---\n${JSON.stringify(terminal, null, 2)}\n--- END TERMINAL ---\n`,
-    );
+    emitTerminalEnvelope(terminal);
+    await emitTerminalFriction({ envelope: terminal });
     return exitCodeForTerminal(terminal);
   }
 }
