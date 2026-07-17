@@ -18,7 +18,9 @@ structured, how components interact, and where to find each subsystem.
 > surface leans in on Claude Code as the in-session reference runtime.
 > See ADR `20260512-coupling-stance` and the adapter-removal ADR in
 > [`decisions.md`](decisions.md) for the rationale and what it
-> explicitly is and isn't.
+> explicitly is and isn't. For a file-level inventory of *where* that
+> coupling actually lives — and what is deliberately not coupled — see
+> [`claude-coupling-review.md`](claude-coupling-review.md).
 
 ---
 
