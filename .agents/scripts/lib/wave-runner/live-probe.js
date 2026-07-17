@@ -93,7 +93,7 @@ import { classifyStory, storyIdOf } from './ready-set.js';
  * @param {Iterable<number>} [dispatched] Ids the host has spawned.
  * @returns {Set<number>} In-flight Story ids.
  */
-export function deriveInFlightIds(storyRecords, dispatched = []) {
+function deriveInFlightIds(storyRecords, dispatched = []) {
   const claimed = new Set(dispatched);
   const inFlight = new Set();
   for (const rec of storyRecords) {
@@ -121,7 +121,7 @@ export function deriveInFlightIds(storyRecords, dispatched = []) {
  * @param {Array<{id?: number, number?: number, labels?: string[], state?: string}>} storyRecords
  * @returns {number[]} Blocked Story ids, ascending.
  */
-export function deriveBlockedIds(storyRecords) {
+function deriveBlockedIds(storyRecords) {
   return storyRecords
     .filter((rec) => classifyStory(rec) === 'blocked')
     .map((rec) => storyIdOf(rec))
