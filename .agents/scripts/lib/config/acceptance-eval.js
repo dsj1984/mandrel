@@ -3,8 +3,8 @@
  *
  * Resolves `.agentrc.json → delivery.acceptanceEval` into the canonical
  * shape the per-Story acceptance self-eval loop consumes. The loop scores
- * the working diff against each inline `acceptance[]` item, redrafts the
- * unmet items, and re-evaluates — capped at `maxRounds` redraft rounds,
+ * the caller-injected change set against each inline `acceptance[]` item,
+ * redrafts the unmet items, and re-evaluates — capped at `maxRounds` rounds,
  * then escalates to `agent::blocked` when criteria remain unmet.
  *
  * ## The undisableable cap
