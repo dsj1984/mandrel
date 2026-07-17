@@ -339,6 +339,93 @@ describe('ticket-lease — acquireLease', () => {
   });
 });
 
+describe('ticket-lease — acquireLease verify-after-write (lost-race, Story #4620)', () => {
+  /**
+   * Simulate a simultaneous claim: the ticket reads unassigned before our
+   * write, but the post-write verify re-read shows a foreign login that raced
+   * in. `reads` is a queue consumed one entry per getTicket call.
+   *
+   * @param {string[][]} reads  Assignee lists returned by successive getTicket calls.
+   */
+  function racingProvider(reads) {
+    const state = { assignees: [...(reads[0] ?? [])] };
+    const updateCalls = [];
+    let call = 0;
+    return {
+      state,
+      updateCalls,
+      async getTicket() {
+        const at = Math.min(call, reads.length - 1);
+        call += 1;
+        return { assignees: [...reads[at]] };
+      },
+      async updateTicket(id, mutations) {
+        updateCalls.push({ id, mutations });
+        if (Array.isArray(mutations?.assignees)) {
+          state.assignees = [...mutations.assignees];
+        }
+      },
+    };
+  }
+
+  it('confirms the claim when the verify re-read shows only the operator', async () => {
+    // read #1 (pre-write): unassigned; read #2 (verify): our own write stuck.
+    const provider = racingProvider([[], ['alice']]);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, true);
+    assert.equal(result.reason, 'unclaimed');
+    // one claiming write only — the happy path does not back anything out.
+    assert.equal(provider.updateCalls.length, 1);
+  });
+
+  it('detects a lost race and backs the operator out when a foreign co-assignee appears', async () => {
+    // read #1 (pre-write): unassigned → we PATCH ['alice'];
+    // read #2 (verify): ['bob','alice'] — bob raced in and we lost.
+    const provider = racingProvider([[], ['bob', 'alice']]);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, false);
+    assert.equal(result.reason, 'lost-race');
+    assert.equal(result.owner, 'bob');
+    // Two writes: the claiming PATCH, then the back-off that removes us so the
+    // winner is the sole assignee.
+    assert.equal(provider.updateCalls.length, 2);
+    assert.deepEqual(provider.updateCalls[1].mutations, { assignees: ['bob'] });
+  });
+
+  it('reports lost-race when the verify re-read shows the operator fully replaced', async () => {
+    // read #2 (verify): ['bob'] only — bob's write clobbered ours entirely.
+    const provider = racingProvider([[], ['bob']]);
+
+    const result = await acquireLease({
+      provider,
+      ticketId: 42,
+      operator: 'alice',
+      ttlMs: 5000,
+      now: NOW,
+    });
+
+    assert.equal(result.acquired, false);
+    assert.equal(result.reason, 'lost-race');
+    assert.equal(result.owner, 'bob');
+  });
+});
+
 describe('ticket-lease — releaseLease', () => {
   // AC5: clears the assignment when the operator still holds it
   it('clears the assignment when the operator still holds the lease', async () => {

@@ -11,14 +11,19 @@
  *
  * What this script does:
  *   1. Validate the Story (type::story, not closed).
- *   2. Fetch origin.
- *   3. Create the Story branch from `project.baseBranch` (default
+ *   2. Acquire the assignee lease, then refuse a Story already labelled
+ *      `agent::executing` this run does not hold (unless `--steal`).
+ *   3. Flip the Story to `agent::executing` — BEFORE provisioning, so the
+ *      claim is label-visible to concurrent operators' probes during the
+ *      multi-minute install window (Story #4620). A provisioning failure after
+ *      this reverts the label and releases the lease.
+ *   4. Fetch origin.
+ *   5. Create the Story branch from `project.baseBranch` (default
  *      `main`) — local-only, no remote push at this stage.
- *   4. Materialise a worktree at `.worktrees/story-<id>/` when worktree
+ *   6. Materialise a worktree at `.worktrees/story-<id>/` when worktree
  *      isolation is enabled; otherwise check out the branch in-place.
- *   5. Upsert a `story-init` structured comment carrying
+ *   7. Upsert a `story-init` structured comment carrying
  *      `standalone: true`.
- *   6. Flip the Story to `agent::executing`.
  *
  * What this script does NOT do:
  *   - Child-Task transitions — a Story is atomic (one branch, one
@@ -55,7 +60,10 @@ import {
   planFastForward,
 } from './lib/orchestration/git-cleanup/phases/fast-forward.js';
 import { verifyRemote } from './lib/orchestration/remote-verifier.js';
-import { acquireStoryLease } from './lib/orchestration/single-story-lease-guard.js';
+import {
+  acquireStoryLease,
+  releaseStoryLease,
+} from './lib/orchestration/single-story-lease-guard.js';
 import { handleRemoteVerificationFailure } from './lib/orchestration/story-init-remote.js';
 import {
   STATE_LABELS,
@@ -123,6 +131,127 @@ export function assertDeliverableStory(story, storyId) {
     throw new Error(
       `Story #${storyId} still declares an Epic/Parent footer. ` +
         'v2 delivery is Story-only — re-plan as a standalone Story before /deliver.',
+    );
+  }
+}
+
+/**
+ * Defense-in-depth refusal for a Story already labelled `agent::executing`
+ * that this run does not already hold.
+ *
+ * The assignee lease is the primary cross-run guard, but the label and the
+ * assignee can drift apart: a prior run that crashed *after* the early
+ * `agent::executing` flip but *before* (or without) taking/holding the lease
+ * leaves the Story labelled executing with no live foreign lease to trip the
+ * lease preflight. Left unchecked, a fresh run would seed the branch and
+ * worktree straight over that drift. Refuse unless the caller already holds the
+ * lease (`reason === 'already-held'`, i.e. a legitimate idempotent re-init) or
+ * passed `--steal`.
+ *
+ * Runs *after* the lease acquire (so it can read the acquire's reason) but
+ * *before* any git mutation. On refusal it releases the lease this run just
+ * took so the ticket is left exactly as found — a clean state for the operator
+ * to inspect before re-running with `--steal`.
+ *
+ * @param {object} args
+ * @param {{ labels?: string[] }} args.story        Fetched Story ticket.
+ * @param {{ reason: string, previousOwner: string|null }} args.lease  Acquire result.
+ * @param {boolean} args.stealRequested
+ * @param {number} args.storyId
+ * @param {object} args.provider
+ * @param {object} args.config
+ */
+export async function assertNotForeignExecuting({
+  story,
+  lease,
+  stealRequested,
+  storyId,
+  provider,
+  config,
+}) {
+  const labelled =
+    Array.isArray(story?.labels) &&
+    story.labels.includes(STATE_LABELS.EXECUTING);
+  if (!labelled || stealRequested || lease.reason === 'already-held') return;
+
+  // Back out the lease we just took so the refusal leaves the ticket unchanged.
+  try {
+    await releaseStoryLease({ provider, storyId, config });
+  } catch (err) {
+    Logger.error(
+      `[single-story-init] ⚠️ Failed to release lease during executing-refusal: ${err?.message ?? err}`,
+    );
+  }
+  throw new Error(
+    `Story #${storyId} is already labelled agent::executing` +
+      (lease.previousOwner
+        ? ` (assignee @${lease.previousOwner})`
+        : ' with no assignee') +
+      '. Another /deliver run may already own it. Confirm that run is dead, ' +
+      'then re-run with --steal to take it.',
+  );
+}
+
+/**
+ * Publish this run's claim as the `agent::executing` label **before** the
+ * multi-minute worktree install, so a concurrent operator's probe sees the
+ * claim during the install window instead of reading `agent::ready` and
+ * dispatching the Story a second time.
+ *
+ * Best-effort: the assignee lease is the real guard, so a failed flip logs and
+ * proceeds rather than aborting init. Routes through `transitionTicketState`
+ * so the Projects v2 Status column follows the label (Story #2548).
+ *
+ * @param {object} provider
+ * @param {number} storyId
+ * @param {object} story  Prefetched snapshot (round-trip elimination).
+ * @returns {Promise<void>}
+ */
+async function flipStoryToExecuting(provider, storyId, story) {
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.EXECUTING, {
+      ticketSnapshot: story,
+      cascade: false,
+    });
+    progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
+  } catch (err) {
+    Logger.error(
+      `[single-story-init] ⚠️ Failed to flip Story labels: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
+ * Undo this run's claim when provisioning fails after the early
+ * `agent::executing` flip: revert the label to `agent::ready` and release the
+ * lease, both best-effort. Without this a crashed init would strand the Story
+ * as phantom-executing — claimed and labelled in-flight but with no live run —
+ * which every other operator's probe would then withhold indefinitely.
+ *
+ * @param {object} provider
+ * @param {number} storyId
+ * @param {object} config
+ * @returns {Promise<void>}
+ */
+async function rollbackClaimOnInitFailure(provider, storyId, config) {
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.READY, {
+      cascade: false,
+    });
+    progress(
+      'ROLLBACK',
+      `↩️  Reverted Story #${storyId} → agent::ready after init failure`,
+    );
+  } catch (err) {
+    Logger.error(
+      `[single-story-init] ⚠️ Failed to revert label after init failure: ${err?.message ?? err}`,
+    );
+  }
+  try {
+    await releaseStoryLease({ provider, storyId, config });
+  } catch (err) {
+    Logger.error(
+      `[single-story-init] ⚠️ Failed to release lease after init failure: ${err?.message ?? err}`,
     );
   }
 }
@@ -449,6 +578,11 @@ export async function runSingleStoryInit({
   steal = false,
   leaseNow,
   injectedVerifyRemote,
+  // Story #4620: swap the git-touching provisioning steps so the
+  // early-flip-then-rollback ordering is unit-testable without a real worktree.
+  injectedMaterialize = materializeBaseBranch,
+  injectedSeedBranch = seedStoryBranch,
+  injectedProvisionWorktree = provisionWorktree,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -523,6 +657,10 @@ export async function runSingleStoryInit({
   // assignee is treated as a live claim and aborts init (naming the current
   // owner) unless --steal forcibly transfers it. Unclaimed / self-held claims
   // proceed. Skipped under --dry-run (no assignee mutation).
+  let workCwd = cwd;
+  let worktreeCreated = false;
+  let installStatus = { status: 'skipped', reason: 'dry-run' };
+
   if (!dryRun) {
     const acquire = injectedAcquireLease ?? acquireStoryLease;
     const lease = await acquire({
@@ -536,31 +674,51 @@ export async function runSingleStoryInit({
       'LEASE',
       `🔒 Story #${storyId} lease ${lease.reason} (owner=@${lease.owner}).`,
     );
-  }
 
-  let workCwd = cwd;
-  let worktreeCreated = false;
-  let installStatus = { status: 'skipped', reason: 'dry-run' };
-
-  if (!dryRun) {
-    await materializeBaseBranch({
-      cwd,
-      baseBranch,
-      storyBranch,
-      config,
-      provider,
-      injectedSweep,
-      progress,
-    });
-    seedStoryBranch({ cwd, storyBranch, baseBranch, progress });
-    ({ workCwd, worktreeCreated, installStatus } = await provisionWorktree({
-      runtime,
-      cwd,
+    // Defense in depth: refuse a Story already labelled agent::executing that
+    // this run does not hold (label/assignee drift the lease alone misses).
+    // Runs before any git mutation; releases the just-taken lease on refusal.
+    await assertNotForeignExecuting({
+      story,
+      lease,
+      stealRequested,
       storyId,
-      storyBranch,
+      provider,
       config,
-      progress,
-    }));
+    });
+
+    // Publish the claim as agent::executing BEFORE the multi-minute worktree
+    // install (not after), so a concurrent operator's probe sees it during the
+    // install window instead of reading agent::ready and double-dispatching.
+    await flipStoryToExecuting(provider, storyId, story);
+
+    // Any failure from here on leaves a claimed, executing-labelled Story with
+    // no live run behind it — revert the label and release the lease so the
+    // Story is not stranded as phantom-executing.
+    try {
+      await injectedMaterialize({
+        cwd,
+        baseBranch,
+        storyBranch,
+        config,
+        provider,
+        injectedSweep,
+        progress,
+      });
+      injectedSeedBranch({ cwd, storyBranch, baseBranch, progress });
+      ({ workCwd, worktreeCreated, installStatus } =
+        await injectedProvisionWorktree({
+          runtime,
+          cwd,
+          storyId,
+          storyBranch,
+          config,
+          progress,
+        }));
+    } catch (err) {
+      await rollbackClaimOnInitFailure(provider, storyId, config);
+      throw err;
+    }
   }
 
   const dependenciesInstalled =
@@ -589,8 +747,9 @@ export async function runSingleStoryInit({
     remoteProbe: { remoteUrl: remote.remoteUrl, detail: remote.detail },
   };
 
-  // Upsert the `story-init` structured comment + flip Story to executing.
-  // Both are no-ops under --dry-run.
+  // Upsert the `story-init` structured comment (no-op under --dry-run). The
+  // `agent::executing` flip already happened above, before provisioning, so the
+  // claim is label-visible during the install window (see `flipStoryToExecuting`).
   if (!dryRun) {
     try {
       await upsertStructuredComment(
@@ -606,27 +765,6 @@ export async function runSingleStoryInit({
     } catch (err) {
       Logger.error(
         `[single-story-init] ⚠️ Failed to upsert story-init structured comment: ${err?.message ?? err}`,
-      );
-    }
-
-    try {
-      // Route through the canonical state mutator so the Projects v2
-      // Status column mirrors the label flip (Story #2548 wires column-
-      // sync inside `transitionTicketState`). A direct
-      // `provider.updateTicket({ labels })` would skip the board update
-      // and leave the Story on its prior status column for the entire
-      // run. `cascade: false` is correct — a standalone Story has no
-      // parent chain — and threading the prefetched `story` as
-      // `ticketSnapshot` preserves the round-trip elimination from
-      // Story #1795.
-      await transitionTicketState(provider, storyId, STATE_LABELS.EXECUTING, {
-        ticketSnapshot: story,
-        cascade: false,
-      });
-      progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
-    } catch (err) {
-      Logger.error(
-        `[single-story-init] ⚠️ Failed to flip Story labels: ${err?.message ?? err}`,
       );
     }
   }

@@ -25,11 +25,16 @@
  *     labels, **unioned with the ids the host says it has dispatched**
  *     (`--dispatched`). The label alone is not sufficient: the kernel's
  *     contract counts "executing / closing / dispatched-not-yet-labelled" as
- *     in-flight, and `single-story-init.js` flips `agent::executing` at step 6
- *     of 6 — *after* a 3–6 minute worktree install. For that whole window a
- *     dispatched Story still reads `agent::ready`, so a label-only derivation
- *     re-emits it in the next beat's `ready[]` and the host dispatches it a
- *     second time onto the same branch and worktree (Story #4601).
+ *     in-flight, and there is still a window between the host spawning a
+ *     sub-agent and that sub-agent's `single-story-init.js` publishing the
+ *     `agent::executing` label. Story #4620 shrank that window sharply — the
+ *     flip now lands before the multi-minute worktree install rather than
+ *     after it — but it is not zero (init still runs the lease acquire and a
+ *     branch fetch first), so a label-only derivation could still re-emit a
+ *     just-dispatched Story in the next beat's `ready[]` and dispatch it a
+ *     second time onto the same branch (Story #4601). `--dispatched` closes
+ *     the residual window; foreign runs are covered by the assignee lease
+ *     (see `deriveForeignHeld`).
  *   - **blocked** — the ids carrying `agent::blocked`. `classifyStory` has
  *     always returned this class; nothing consumed it, so a blocked Story was
  *     neither done, ready, nor in-flight and the beat reported a permanent
@@ -56,6 +61,10 @@ import {
 } from '../../resolve-stories.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { buildStoriesEnvelope } from '../orchestration/resolve-stories.js';
+import {
+  currentOwner,
+  normalizeOperatorHandle,
+} from '../orchestration/ticket-lease.js';
 import { classifyStory, storyIdOf } from './ready-set.js';
 
 /**
@@ -67,10 +76,13 @@ import { classifyStory, storyIdOf } from './ready-set.js';
  *   1. **Live labels.** `classifyStory` folds `agent::executing` and
  *      `agent::closing` into one `executing` class — both are in-flight and
  *      neither may be re-dispatched.
- *   2. **`dispatched`** — ids the host has spawned. This closes the init
- *      window: `single-story-init.js` flips `agent::executing` last, after a
- *      3–6 minute install, so between spawn and flip a dispatched Story reads
- *      `agent::ready` and a label-only derivation hands it back as ready.
+ *   2. **`dispatched`** — ids the host has spawned. This closes the residual
+ *      init window: between the host spawning a sub-agent and that agent's
+ *      `single-story-init.js` publishing `agent::executing`, a dispatched Story
+ *      still reads `agent::ready` and a label-only derivation hands it back as
+ *      ready. Story #4620 moved the flip ahead of the worktree install, so the
+ *      window is now short rather than minutes-long, but `--dispatched` still
+ *      covers it deterministically.
  *
  * `dispatched` is deliberately **not** the `--done`-style accounting probe
  * mode retired. Three properties keep it from becoming one:
@@ -130,6 +142,54 @@ function deriveBlockedIds(storyRecords) {
 }
 
 /**
+ * Identify Stories claimed by a **different** operator's lease.
+ *
+ * The Story lease rides the ticket's assignees (`ticket-lease.js`): the sole
+ * assignee is the operator driving that Story's run. `single-story-init.js`
+ * takes the lease at init, but flips `agent::executing` only after a 3–6 minute
+ * worktree install — so for that whole window a Story another operator is
+ * actively delivering still reads `agent::ready` with no in-flight label. A
+ * label-only probe classifies it `ready` and hands it to this run, which then
+ * dispatches into a guaranteed init failure (the fail-closed lease refuses a
+ * foreign assignee) mid-batch. Reading the assignee lets the probe withhold it
+ * up front and report who holds it instead.
+ *
+ * Only Stories that would otherwise be `ready` are considered — a `done`,
+ * `blocked`, or already-`executing` Story is handled by its own class, and a
+ * self-held assignee is this run's own claim and never withholds.
+ *
+ * When `self` is unresolved (no `github.operatorHandle`), foreign cannot be
+ * told from self, so this returns empty and warns once: the probe is a
+ * read-only path that must not fail closed, and init's lease acquire remains
+ * the backstop.
+ *
+ * @param {Array<{id?: number, number?: number, labels?: string[], state?: string, assignees?: string[]}>} storyRecords
+ * @param {string|null|undefined} self  Resolved bare operator login for this run.
+ * @param {(msg: string) => void} [warn]
+ * @returns {Map<number, string>} Foreign-held Story id → holder login.
+ */
+function deriveForeignHeld(storyRecords, self, warn) {
+  const held = new Map();
+  if (!self) {
+    warn?.(
+      '[live-probe] github.operatorHandle is unset (or the shipped ' +
+        '@[USERNAME] placeholder), so a foreign lease cannot be told from ' +
+        'this run’s own claim — skipping assignee-based withholding. ' +
+        'Set your handle in .agentrc.local.json to de-conflict concurrent ' +
+        'runs at probe time; init’s lease still refuses a foreign claim.',
+    );
+    return held;
+  }
+  for (const rec of storyRecords) {
+    const id = storyIdOf(rec);
+    if (id === null || classifyStory(rec) !== 'ready') continue;
+    const owner = currentOwner(rec.assignees);
+    if (owner && owner !== self) held.set(id, owner);
+  }
+  return held;
+}
+
+/**
  * Resolve the provider + repo coordinates the probe reads through.
  *
  * Shares `resolve-stories.js`'s provider seam, so probe mode authenticates and
@@ -138,13 +198,21 @@ function deriveBlockedIds(storyRecords) {
  *
  * @param {object} [deps]
  * @param {Function} [deps.resolveProvider] Injection seam for tests.
- * @returns {{ provider: object, owner: string|undefined, repo: string|undefined }}
+ * @returns {{ provider: object, owner: string|undefined, repo: string|undefined, self: string|null }}
  */
 export function createProbeContext({
   resolveProvider = resolveStoriesProvider,
 } = {}) {
   const { provider, config } = resolveProvider();
-  return { provider, owner: config?.github?.owner, repo: config?.github?.repo };
+  return {
+    provider,
+    owner: config?.github?.owner,
+    repo: config?.github?.repo,
+    // Bare login this run claims leases under. Normalised (leading `@` stripped,
+    // `@[USERNAME]` placeholder → null) so it compares against the bare assignee
+    // logins GitHub returns; `null` disables assignee-based withholding.
+    self: normalizeOperatorHandle(config?.github?.operatorHandle),
+  };
 }
 
 /**
@@ -165,6 +233,10 @@ export function createProbeContext({
  * @param {boolean} [args.native=true]   Read native `blocked_by` edges.
  * @param {number[]} [args.dispatched=[]] Ids the host has spawned but may not
  *   yet have observed labelled `agent::executing` (see `deriveInFlightIds`).
+ * @param {string|null} [args.self]     Resolved bare operator login for this
+ *   run, used to withhold Stories another operator's lease holds
+ *   (`deriveForeignHeld`). Absent/unresolved → assignee-based withholding is
+ *   skipped (the probe never fails closed).
  * @param {(msg: string) => void} [args.warn]
  * Each returned node carries its **live labels**. That is load-bearing, not
  * decoration: `selectReadySet` classifies from labels, so a node stripped of
@@ -177,7 +249,8 @@ export function createProbeContext({
  *   nodes: Array<{id: number, dependsOn: number[], files: string[], labels: string[]}>,
  *   doneIds: Set<number>,
  *   inFlight: number,
- *   blockedIds: number[]
+ *   blockedIds: number[],
+ *   foreignHeld: Array<{id: number, holder: string}>
  * }>}
  */
 export async function probeLiveState({
@@ -187,6 +260,7 @@ export async function probeLiveState({
   repo,
   native = true,
   dispatched = [],
+  self,
   warn,
 }) {
   const stories = await fetchStories(provider, ids);
@@ -209,6 +283,12 @@ export async function probeLiveState({
 
   const labelsById = new Map(stories.map((s) => [s.id, s.labels ?? []]));
   const inFlightIds = deriveInFlightIds(stories, dispatched);
+  // A Story another operator's lease holds occupies a (global) dispatch slot
+  // just like an in-flight one: fold it into the in-flight set so it is both
+  // withheld (via the projected label) and excluded from a false wedge, but
+  // never dispatched by this run.
+  const foreignHeld = deriveForeignHeld(stories, self, warn);
+  for (const id of foreignHeld.keys()) inFlightIds.add(id);
   return {
     nodes: envelope.dag.map((node) => ({
       ...node,
@@ -220,6 +300,7 @@ export async function probeLiveState({
     doneIds: new Set(envelope.done),
     inFlight: inFlightIds.size,
     blockedIds: deriveBlockedIds(stories),
+    foreignHeld: [...foreignHeld].map(([id, holder]) => ({ id, holder })),
   };
 }
 

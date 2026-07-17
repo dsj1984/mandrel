@@ -21,7 +21,9 @@
  * both of which presented as an ordinary "waiting" beat:
  *
  *   5. A **dispatched-but-unlabelled** Story holds its slot and is not handed
- *      back. `single-story-init.js` flips `agent::executing` last, so every
+ *      back. There is a window between the host spawning a sub-agent and that
+ *      agent publishing `agent::executing` (Story #4620 shrank it by flipping
+ *      before the install rather than after, but it is non-zero), so every
  *      test here that sets the label explicitly was skipping the window where
  *      the bug lives.
  *   6. An **`agent::blocked`** Story ends the loop (exit 4) instead of being
@@ -82,25 +84,29 @@ function stubProvider(issues, { native = {} } = {}) {
   };
 }
 
-function issue(id, { labels = [], state = 'open', ...bodyArgs } = {}) {
+function issue(
+  id,
+  { labels = [], state = 'open', assignees = [], ...bodyArgs } = {},
+) {
   return {
     number: id,
     title: `Story ${id}`,
     body: storyBody(bodyArgs),
     labels: [{ name: 'type::story' }, ...labels.map((name) => ({ name }))],
     state,
+    assignees,
   };
 }
 
 /** Run a probe-mode tick against a stubbed provider — no network, no config. */
-function tick(issues, { ids, native, concurrency, dispatched } = {}) {
+function tick(issues, { ids, native, concurrency, dispatched, self } = {}) {
   const provider = stubProvider(issues, { native });
   return runProbedStoriesWaveTick({
     stories: ids ?? Object.keys(issues).join(','),
     concurrency,
     dispatched,
     config: CONFIG,
-    context: () => ({ provider, owner: 'dsj1984', repo: 'mandrel' }),
+    context: () => ({ provider, owner: 'dsj1984', repo: 'mandrel', self }),
   });
 }
 
@@ -145,8 +151,8 @@ describe('probeLiveState — done and in-flight come from live state', () => {
   });
 
   it('counts a dispatched-but-unlabelled Story as in-flight (the init window)', async () => {
-    // #101 was spawned this beat; single-story-init.js flips agent::executing
-    // last, after the install, so live state still reads agent::ready.
+    // #101 was spawned this beat but its init has not yet published
+    // agent::executing, so live state still reads agent::ready.
     const provider = stubProvider({ 101: issue(101), 102: issue(102) });
 
     const { inFlight, nodes } = await probeLiveState({
@@ -605,5 +611,107 @@ describe('createProbeContext — shares the resolver provider seam', () => {
     assert.equal(ctx.provider, provider);
     assert.equal(ctx.owner, 'dsj1984');
     assert.equal(ctx.repo, 'mandrel');
+  });
+
+  it('resolves `self` from operatorHandle, stripping @ and the placeholder', () => {
+    const provider = { getTicket: async () => null };
+    const withHandle = createProbeContext({
+      resolveProvider: () => ({
+        provider,
+        config: { github: { operatorHandle: '@dsj1984' } },
+      }),
+    });
+    assert.equal(withHandle.self, 'dsj1984');
+
+    const placeholder = createProbeContext({
+      resolveProvider: () => ({
+        provider,
+        config: { github: { operatorHandle: '@[USERNAME]' } },
+      }),
+    });
+    assert.equal(placeholder.self, null);
+  });
+});
+
+describe('probeLiveState — foreign-lease withholding (Story #4620)', () => {
+  it('withholds a Story assigned to another operator and names the holder', async () => {
+    // #101 is otherwise ready but bob holds its lease — his init flips the
+    // label only after a multi-minute install, so live labels still read ready.
+    const provider = stubProvider({
+      101: issue(101, { assignees: ['bob'] }),
+      102: issue(102),
+    });
+
+    const { nodes, inFlight, foreignHeld } = await probeLiveState({
+      ids: [101, 102],
+      provider,
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      self: 'dsj1984',
+    });
+
+    // Withheld via a projected executing label — not dispatched — and folded
+    // into in-flight so it neither races nor triggers a false wedge.
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    assert.equal(byId.get(101).labels.includes('agent::executing'), true);
+    assert.equal(byId.get(102).labels.includes('agent::executing'), false);
+    assert.equal(inFlight, 1);
+    assert.deepEqual(foreignHeld, [{ id: 101, holder: 'bob' }]);
+  });
+
+  it('does not withhold a Story this operator holds', async () => {
+    const provider = stubProvider({
+      101: issue(101, { assignees: ['dsj1984'] }),
+    });
+
+    const { nodes, inFlight, foreignHeld } = await probeLiveState({
+      ids: [101],
+      provider,
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      self: 'dsj1984',
+    });
+
+    assert.equal(nodes[0].labels.includes('agent::executing'), false);
+    assert.equal(inFlight, 0);
+    assert.deepEqual(foreignHeld, []);
+  });
+
+  it('degrades open with a warning when `self` is unresolved', async () => {
+    const provider = stubProvider({ 101: issue(101, { assignees: ['bob'] }) });
+    const warnings = [];
+
+    const { nodes, foreignHeld } = await probeLiveState({
+      ids: [101],
+      provider,
+      owner: 'dsj1984',
+      repo: 'mandrel',
+      // self omitted — operatorHandle unset / placeholder
+      warn: (m) => warnings.push(m),
+    });
+
+    // No assignee-based withholding: the node stays ready and nothing is held.
+    assert.equal(nodes[0].labels.includes('agent::executing'), false);
+    assert.deepEqual(foreignHeld, []);
+    assert.equal(
+      warnings.some((m) => /operatorHandle/.test(m)),
+      true,
+    );
+  });
+
+  it('surfaces foreignHeld + reason through the probed tick envelope', async () => {
+    const { envelope, exitCode } = await tick(
+      {
+        101: issue(101, { assignees: ['bob'] }),
+        102: issue(102),
+      },
+      { self: 'dsj1984' },
+    );
+
+    // Only #102 is dispatchable; #101 is withheld and reported.
+    assert.deepEqual(envelope.ready, [102]);
+    assert.deepEqual(envelope.foreignHeld, [{ id: 101, holder: 'bob' }]);
+    assert.match(envelope.foreignHeldReason, /#101 held by @bob/);
+    assert.equal(exitCode, 0);
   });
 });
