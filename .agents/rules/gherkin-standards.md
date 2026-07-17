@@ -23,6 +23,16 @@ scenarios. Use the canonical set below; do not invent ad-hoc tags.
 - `@flaky` — operational quarantine tag. Scenarios carrying this tag are
   excluded from the gating suite and run in a dedicated non-blocking job
   until stabilized. Treat `@flaky` as a debt marker, not a permanent label.
+- `@skip` — scaffold-gating tag. Applied to scenarios scaffolded ahead of
+  their implementation (e.g. by a wave-0 BDD scaffold Story); the scenario
+  is excluded from the gating suite until the implementing Story removes
+  the tag (the "de-skip" edit). Unlike `@flaky`, `@skip` marks planned
+  not-yet-implemented behavior, never a stability problem.
+
+Retired: the `@epic-<id>-ac-N` namespaced AC tag. Its consumer
+(`acceptance-spec-reconciler.js`) was deleted in the v2 Epic removal, so
+the tag is inert — do not apply it to new scenarios. The `mandrel update`
+migration strips surviving instances from consumer feature files.
 
 Rules:
 
