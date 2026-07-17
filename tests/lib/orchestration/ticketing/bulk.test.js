@@ -11,7 +11,6 @@ import { ITicketingProvider } from '../../../../.agents/scripts/lib/ITicketingPr
 import {
   __resetParentCascadeLocks,
   __setCascadeRetryDelays,
-  cascadeCompletion,
   cascadeParentState,
   deriveParentState,
   logCascadePartialFailures,
@@ -81,7 +80,7 @@ class MockProvider extends ITicketingProvider {
   }
 }
 
-describe('ticketing/bulk — cascadeCompletion happy path', () => {
+describe('ticketing/bulk — cascadeParentState DONE delegation happy path', () => {
   let mock;
 
   beforeEach(() => {
@@ -90,15 +89,18 @@ describe('ticketing/bulk — cascadeCompletion happy path', () => {
     __setCascadeRetryDelays({ delays: [] });
   });
 
-  it('returns empty cascade when the ticket is not agent::done', async () => {
+  it('does not close the parent when the child is not agent::done', async () => {
+    // Drive through the public entry with a non-DONE trigger: the DONE
+    // delegation (which owns completion cascade) must not fire, so the
+    // parent is never flipped to agent::done.
     mock.tickets[2].labels = ['agent::executing'];
-    const result = await cascadeCompletion(mock, 2);
-    assert.deepEqual(result.cascadedTo, []);
+    const result = await cascadeParentState(mock, 2);
     assert.deepEqual(result.failed, []);
+    assert.equal(mock.tickets[1].labels.includes(STATE_LABELS.DONE), false);
   });
 
   it('cascades the parent to agent::done when its only child closes', async () => {
-    const result = await cascadeCompletion(mock, 2);
+    const result = await cascadeParentState(mock, 2);
     assert.deepEqual(result.cascadedTo, [1]);
     assert.deepEqual(result.failed, []);
     // Parent label flipped.
@@ -122,7 +124,7 @@ describe('ticketing/bulk — cascadeCompletion happy path', () => {
       state: 'open',
     };
     mock.subTickets[1] = [mock.tickets[2], mock.tickets[3]];
-    const result = await cascadeCompletion(mock, 2);
+    const result = await cascadeParentState(mock, 2);
     assert.deepEqual(result.cascadedTo, []);
     assert.equal(mock.tickets[1].labels.includes(STATE_LABELS.DONE), false);
   });

@@ -14,7 +14,6 @@ import {
   runArtifactPath,
   runTempDir,
   signalsFile,
-  storyArtifactPath,
   storyManifestPath,
   storyTempDir,
   tempRootFrom,
@@ -116,20 +115,16 @@ describe('lib/config/temp-paths.js — signals + canonical artifact paths', () =
 });
 
 describe('lib/config/temp-paths.js — artifact-name guards', () => {
-  it('runArtifactPath / storyArtifactPath accept a leaf name', () => {
+  it('runArtifactPath accepts a leaf name', () => {
     assert.equal(
       runArtifactPath(1030, 'custom.md'),
       anchored('temp', 'run-1030', 'custom.md'),
-    );
-    assert.equal(
-      storyArtifactPath(1030, 1042, 'custom.txt'),
-      anchored('temp', 'run-1030', 'stories', 'story-1042', 'custom.txt'),
     );
   });
 
   it('rejects an empty / non-string artifact name', () => {
     assert.throws(() => runArtifactPath(1030, ''), /non-empty string/);
-    assert.throws(() => storyArtifactPath(1, 2, undefined), /non-empty string/);
+    assert.throws(() => runArtifactPath(1030, undefined), /non-empty string/);
     assert.throws(() => runArtifactPath(1030, 42), /non-empty string/);
   });
 
@@ -143,7 +138,7 @@ describe('lib/config/temp-paths.js — artifact-name guards', () => {
       /must not contain path separators/,
     );
     assert.throws(
-      () => storyArtifactPath(1030, 1042, 'a\\b.md'),
+      () => runArtifactPath(1030, 'a\\b.md'),
       /must not contain path separators/,
     );
   });
@@ -234,8 +229,8 @@ describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', 
     );
   });
 
-  it('storyArtifactPath(null, sid, name) routes through the standalone parent', () => {
-    const file = storyArtifactPath(null, 7, 'manifest.md');
+  it('storyManifestPath(null, sid) routes through the standalone parent', () => {
+    const file = storyManifestPath(null, 7);
     assert.equal(
       file,
       anchored('temp', 'standalone', 'stories', 'story-7', 'manifest.md'),

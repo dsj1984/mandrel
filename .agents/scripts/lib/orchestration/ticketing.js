@@ -26,7 +26,6 @@
 export {
   __resetParentCascadeLocks,
   __setCascadeRetryDelays,
-  cascadeCompletion,
   logCascadePartialFailures,
 } from './ticketing/bulk.js';
 // Re-export the read surface.

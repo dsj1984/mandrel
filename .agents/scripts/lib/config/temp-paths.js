@@ -304,7 +304,7 @@ export function runArtifactPath(eid, name, config) {
  * @param {object} [config]
  * @returns {string}
  */
-export function storyArtifactPath(eid, sid, name, config) {
+function storyArtifactPath(eid, sid, name, config) {
   return path.join(storyTempDir(eid, sid, config), artifactName(name));
 }
 
