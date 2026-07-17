@@ -20,13 +20,15 @@
  *
  * **Two modes, one kernel.**
  *
- *   - **Probe mode** (`--stories <csv> --probe-live`) is the canonical
- *     `/deliver` beat: the graph, the done set, and the in-flight count are
- *     resolved from **live state** via `lib/wave-runner/live-probe.js`. The
- *     caller supplies ids and nothing else, so there is no accounting to
- *     hand-maintain across beats — the seed-the-first-beat's-`--done` footgun
- *     the workflow used to warn about is now structurally impossible rather
- *     than merely documented.
+ *   - **Probe mode** (`--stories <csv> --probe-live [--dispatched <csv>]`) is
+ *     the canonical `/deliver` beat: the graph, the done set, and the in-flight
+ *     count are resolved from **live state** via `lib/wave-runner/live-probe.js`.
+ *     The caller supplies ids, so there is no accounting to hand-maintain
+ *     across beats — the seed-the-first-beat's-`--done` footgun the workflow
+ *     used to warn about is structurally impossible rather than merely
+ *     documented. `--dispatched` is the one fact live state cannot yet report
+ *     ("I spawned this id; its label has not appeared"); it is additive and
+ *     live-state-filtered, never authoritative (Story #4601).
  *   - **Flag mode** (`--dag`/`--dag-file` + `--done`/`--in-flight`) keeps the
  *     caller-supplied contract byte-compatible for tests and hand-driven
  *     runs. The two are mutually exclusive: honouring a supplied `--done`
@@ -55,10 +57,12 @@
  *     wedged: { reason, stories: [{ id, unmetBlockers }] } | null
  *   }
  *
- * Probe mode adds two fields the caller can no longer compute for itself:
+ * Probe mode adds fields the caller can no longer compute for itself:
  * `done: number[]` (the resolved done set, in-set ∪ satisfied foreign
- * blockers) and `epilogueDue: boolean` (true exactly when every listed Story
- * is done — the run-end signal for `plan-run-epilogue.js`).
+ * blockers), `epilogueDue: boolean` (true exactly when every listed Story
+ * is done — the run-end signal for `plan-run-epilogue.js`), and `blocked:
+ * number[]` + `blockedReason: string|null` (Story #4601 — the `agent::blocked`
+ * HITL pause, which ends the loop rather than being polled).
  *
  * The standalone loop calls this once per beat and dispatches the returned
  * `ready` set (already capped at `concurrencyCap − inFlight` by the core).
@@ -77,11 +81,15 @@
  *
  * Exit codes: 0 ok · 1 input error · 2 dependency cycle (`cycleError`) ·
  * 3 wedged (`wedged`) — ready is empty, nothing is in flight, and undone
- * Stories are waiting on blockers that are not done. A cycle is a
- * self-referential DAG the operator must fix; a wedge is a well-formed DAG
- * whose gates cannot be satisfied from the supplied `--done` set (usually a
- * blocker outside the delivered set that has not landed). Both are distinct
- * from the ordinary `ready: []` that means "waiting on in-flight work".
+ * Stories are waiting on blockers that are not done · 4 blocked (`blocked`) —
+ * a Story carries `agent::blocked`. A cycle is a self-referential DAG the
+ * operator must fix; a wedge is a well-formed DAG whose gates cannot be
+ * satisfied from the supplied `--done` set (usually a blocker outside the
+ * delivered set that has not landed); a block is the protocol's HITL pause,
+ * where a human owes a decision no beat can supply. All three are distinct
+ * from the ordinary `ready: []` that means "waiting on in-flight work" — and
+ * that distinction is the point: each of them previously presented AS that
+ * ordinary empty set, so the loop polled a state that could never improve.
  */
 
 import { readFileSync } from 'node:fs';
@@ -108,8 +116,18 @@ import { selectReadySet } from './lib/wave-runner/ready-set.js';
  */
 export const WEDGED_EXIT_CODE = 3;
 
+/**
+ * Exit code for a run holding an `agent::blocked` Story — distinct from the
+ * cycle (2) and wedge (3) exits because the remediation is categorically
+ * different: a cycle is a malformed DAG and a wedge is an unlanded blocker,
+ * whereas this is the protocol's one runtime HITL pause. A human must decide
+ * something before any beat can help. Probe-mode only: flag-mode nodes carry
+ * no labels, so nothing there can classify blocked.
+ */
+export const BLOCKED_EXIT_CODE = 4;
+
 const HELP = `Usage:
-  node .agents/scripts/stories-wave-tick.js --stories <csv> --probe-live [--concurrency <n>]
+  node .agents/scripts/stories-wave-tick.js --stories <csv> --probe-live [--dispatched <csv>] [--concurrency <n>]
   node .agents/scripts/stories-wave-tick.js --dag '<json>' | --dag-file <path> [--concurrency <n>] [--done <csv>] [--in-flight <n>]
 
 Continuous ready-set planner for standalone Story delivery. Emits the set of
@@ -137,6 +155,15 @@ Options:
                      set, and the in-flight count are resolved from live
                      state — no --done / --in-flight bookkeeping.
   --probe-live       Enable probe mode. Requires --stories.
+  --dispatched <csv> Probe mode only. Ids you have SPAWNED this run. Unioned
+                     into the live-derived in-flight set, then filtered by
+                     live state, so it closes the init window: a Story reads
+                     agent::ready for the 3-6 minutes single-story-init.js
+                     takes to flip agent::executing, and without this it is
+                     dispatched a second time onto the same branch. Append
+                     every id you dispatch and never remove one — a stale id
+                     that has since gone done is dropped automatically, so
+                     over-supplying is free and forgetting is the only error.
   --concurrency <n>  Override the per-beat concurrency cap for this run only.
                      Must be a positive integer. When omitted, the cap is
                      resolved from delivery.deliverRunner.concurrencyCap in
@@ -166,6 +193,8 @@ Exit codes:
   3 - Wedged: ready is empty, nothing is in flight, and undone Stories are
       waiting on blockers that are not done. Distinct from an ordinary empty
       ready set (which means "waiting on in-flight work") and from a cycle.
+  4 - Blocked: a Story carries agent::blocked (probe mode only). The HITL
+      pause — no beat can clear it. STOP the loop; do not poll.
 `;
 
 /**
@@ -265,15 +294,16 @@ export function parseDag(raw) {
 }
 
 /**
- * Parse a comma-separated `--done` list of Story IDs into a deduped set of
- * positive integers. Empty / absent input yields an empty set. Rejects any
- * token that is not a positive integer so a typo never silently drops a
- * dependency gate.
+ * Parse a comma-separated list of Story IDs into a deduped set of positive
+ * integers. Empty / absent input yields an empty set. Rejects any token that
+ * is not a positive integer so a typo never silently drops a dependency gate
+ * (`--done`) or a held dispatch slot (`--dispatched`).
  *
  * @param {string|undefined} raw
+ * @param {string} flag Flag name, for the error message.
  * @returns {{ ids: Set<number>|null, error: string|null }}
  */
-export function parseDoneIds(raw) {
+export function parseIdCsv(raw, flag) {
   if (raw == null || raw === '') {
     return { ids: new Set(), error: null };
   }
@@ -285,12 +315,22 @@ export function parseDoneIds(raw) {
     if (!Number.isInteger(num) || num <= 0) {
       return {
         ids: null,
-        error: `--done must be a comma-separated list of positive integers, got "${trimmed}"`,
+        error: `${flag} must be a comma-separated list of positive integers, got "${trimmed}"`,
       };
     }
     ids.add(num);
   }
   return { ids, error: null };
+}
+
+/**
+ * Parse the `--done` CSV of already-completed Story IDs (flag mode).
+ *
+ * @param {string|undefined} raw
+ * @returns {{ ids: Set<number>|null, error: string|null }}
+ */
+export function parseDoneIds(raw) {
+  return parseIdCsv(raw, '--done');
 }
 
 /**
@@ -616,15 +656,19 @@ export function runStoriesWaveTick({
  * which is what makes the `/deliver` loop's old seed-the-first-beat footgun
  * structurally impossible instead of merely documented.
  *
- * The envelope is the flag mode's, plus two probe-only fields the caller can
+ * The envelope is the flag mode's, plus three probe-only fields the caller can
  * no longer compute for itself:
  *   - `done` — the resolved done set (in-set ∪ satisfied foreign blockers).
  *   - `epilogueDue` — true exactly when every listed Story is done, which is
  *     the run-end signal for `plan-run-epilogue.js`.
+ *   - `blocked` — ids carrying `agent::blocked` (Story #4601). Non-empty means
+ *     the loop must END, not poll: see `BLOCKED_EXIT_CODE`.
  *
  * @param {object} args
  * @param {string} args.stories        Raw `--stories` CSV of Story ids.
  * @param {string|number} [args.concurrency] Raw `--concurrency` override.
+ * @param {string} [args.dispatched]   Raw `--dispatched` CSV of ids the host
+ *   has spawned but may not yet have observed labelled.
  * @param {string} [args.cwd]          Repo root for config resolution.
  * @param {object} [args.config]       Pre-resolved config (test injection).
  * @param {Function} [args.probe]      Probe seam (test injection).
@@ -634,6 +678,7 @@ export function runStoriesWaveTick({
 export async function runProbedStoriesWaveTick({
   stories,
   concurrency,
+  dispatched,
   cwd,
   config,
   probe = probeLiveState,
@@ -652,6 +697,14 @@ export async function runProbedStoriesWaveTick({
     return inputErrorResult(err.message);
   }
 
+  const { ids: dispatchedIds, error: dispatchedError } = parseIdCsv(
+    dispatched,
+    '--dispatched',
+  );
+  if (dispatchedError) {
+    return inputErrorResult(dispatchedError);
+  }
+
   const concurrencyCap = resolveConcurrencyCap({ cwd, config, override });
 
   let probed;
@@ -662,6 +715,7 @@ export async function runProbedStoriesWaveTick({
       provider,
       owner,
       repo,
+      dispatched: [...dispatchedIds],
       warn: (m) => Logger.warn(m),
     });
   } catch (err) {
@@ -674,7 +728,7 @@ export async function runProbedStoriesWaveTick({
     );
   }
 
-  const { nodes, doneIds, inFlight } = probed;
+  const { nodes, doneIds, inFlight, blockedIds = [] } = probed;
   const { envelope, exitCode } = buildReadySetEnvelope(nodes, {
     concurrencyCap,
     doneIds,
@@ -684,7 +738,42 @@ export async function runProbedStoriesWaveTick({
   const done = [...doneIds].sort((a, b) => a - b);
   const epilogueDue =
     nodes.length > 0 && nodes.every((node) => doneIds.has(node.id));
-  return { envelope: { ...envelope, done, epilogueDue }, exitCode };
+  return {
+    envelope: {
+      ...envelope,
+      done,
+      epilogueDue,
+      blocked: blockedIds,
+      blockedReason: blockedReasonFor(blockedIds),
+    },
+    // A blocked Story outranks the scheduler's own verdict — including a
+    // wedge, whose named blockers are moot while a human owes a decision.
+    // A cycle (2) does not yield: a self-referential DAG is a planning error
+    // that must be fixed before any of this run's state means anything.
+    exitCode:
+      blockedIds.length > 0 && !envelope.cycleError
+        ? BLOCKED_EXIT_CODE
+        : exitCode,
+  };
+}
+
+/**
+ * Render the operator-facing reason for a blocked run, or `null` when nothing
+ * is blocked.
+ *
+ * @param {number[]} blockedIds
+ * @returns {string|null}
+ */
+function blockedReasonFor(blockedIds) {
+  if (blockedIds.length === 0) return null;
+  const list = blockedIds.map((id) => `#${id}`).join(', ');
+  return (
+    `${blockedIds.length} Story(ies) carry agent::blocked — ${list}. ` +
+    `agent::blocked is the protocol's HITL pause: no beat can clear it and ` +
+    `the loop must stop rather than poll. Read each Story's friction comment ` +
+    `(gh issue view <id> --comments), resolve the blocker, then flip it back ` +
+    `with: node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready`
+  );
 }
 
 async function main(argv) {
@@ -695,6 +784,7 @@ async function main(argv) {
       'dag-file': { type: 'string' },
       stories: { type: 'string' },
       'probe-live': { type: 'boolean' },
+      dispatched: { type: 'string' },
       concurrency: { type: 'string' },
       done: { type: 'string' },
       'in-flight': { type: 'string' },
@@ -716,6 +806,7 @@ async function main(argv) {
     dagFile: values['dag-file'],
     done: values.done,
     inFlight: values['in-flight'],
+    dispatched: values.dispatched,
   });
 
   const { envelope, exitCode } = flagError
@@ -724,6 +815,7 @@ async function main(argv) {
       ? await runProbedStoriesWaveTick({
           stories: values.stories,
           concurrency: values.concurrency,
+          dispatched: values.dispatched,
         })
       : runStoriesWaveTick({
           dagJson: values.dag,
@@ -737,7 +829,13 @@ async function main(argv) {
 
   if (exitCode !== 0) {
     Logger.error(
-      `stories-wave-tick: ${envelope.inputError ?? envelope.cycleError ?? 'error'}`,
+      `stories-wave-tick: ${
+        envelope.inputError ??
+        envelope.cycleError ??
+        envelope.blockedReason ??
+        envelope.wedged?.reason ??
+        'error'
+      }`,
     );
     process.exitCode = exitCode;
   }
