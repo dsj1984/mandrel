@@ -650,8 +650,13 @@ describe('runPlanPersist — flat Story ops', () => {
         `plan-metrics line missing from summary:\n${summary.body}`,
       );
       // This run's own critic skips ARE counted — the line describes work
-      // that just happened, which is the point.
-      assert.match(line, /3 critic skip/);
+      // that just happened, which is the point. Reachability is the only
+      // skip persist still records: Story #4592 moved the consolidation +
+      // pre-mortem evaluation out to the `plan-critics.js` CLI, which runs
+      // between Author and Persist where a dispatch verdict still has a
+      // re-author loop to route to.
+      assert.match(line, /1 critic skip/);
+      assert.match(line, /reachability ×1/);
       // The run being summarized counts itself. `recordPlanInvocation`
       // appends its record in a `finally` that fires only once runPlanPersist
       // resolves — long after this comment body is composed — so reading the

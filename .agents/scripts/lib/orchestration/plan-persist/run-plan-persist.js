@@ -44,7 +44,6 @@ import { anchorTempRoot, tempRootFrom } from '../../config/temp-paths.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
-import { evaluatePlanCritics } from '../plan-critics-evaluate.js';
 import {
   appendCriticSkip,
   readPlanMetrics,
@@ -438,29 +437,6 @@ export async function runPlanPersist({
     );
   }
 
-  const critics = evaluatePlanCritics({
-    techSpecContent: techSpecContent ?? '',
-    tickets: rawStories,
-    config,
-  });
-  for (const decision of [critics.consolidation, critics.premortem]) {
-    Logger.info(
-      `[plan-persist] critic ${decision.critic}: ` +
-        `${decision.dispatch ? 'dispatch' : 'skip'} — ` +
-        decision.reasons.join('; '),
-    );
-    if (!decision.dispatch) {
-      await appendCriticSkip(
-        {
-          critic: decision.critic,
-          reasons: decision.reasons,
-          cli: 'plan-persist',
-        },
-        config,
-      );
-    }
-  }
-
   // Split policy + inline Spec fold (over-budget Specs fail closed — no docs/).
   const { stories } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
@@ -580,7 +556,6 @@ export async function runPlanPersist({
     stories: created,
     primaryStoryId: primary.id,
     forceReview,
-    critics,
     reachability,
     freshness,
     waveTable,
