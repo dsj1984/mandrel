@@ -17,22 +17,13 @@
  */
 
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { selectLocalLenses } from '../../.agents/scripts/lib/audit-suite/index.js';
 import { runStoryScopeReview } from '../../.agents/scripts/lib/orchestration/single-story-close/phases/code-review.js';
-import {
-  enumerateChangedFiles,
-  runLocalLensReview,
-  runStoryCodeReview,
-  runStoryReviewCore,
-  STORY_SCOPE_LENS_DEPTH,
-} from '../../.agents/scripts/lib/orchestration/story-close/phases/code-review.js';
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.join(HERE, '..', '..');
+import { runStoryCodeReview } from '../../.agents/scripts/lib/orchestration/story-close/phases/code-review.js';
+import { runLocalLensReview } from '../../.agents/scripts/lib/orchestration/story-close/phases/local-lens-review.js';
+import { runStoryReviewCore } from '../../.agents/scripts/lib/orchestration/story-close/phases/review-core.js';
 
 const noopProgress = () => {};
 
@@ -149,37 +140,53 @@ test('selectLocalLenses against the REAL manifest: a docs-only diff matches only
 });
 
 // ---------------------------------------------------------------------------
-// enumerateChangedFiles — best-effort diff enumeration.
+// Self-enumeration fallback — exercised through the public runLocalLensReview.
+//
+// `enumerateChangedFiles` is a module-local detail (Story #4603): rather than
+// import it directly (a production-dead public export), these cases drive it
+// through the public entry point with `changedFiles` absent, and observe what
+// the (spied) lens selector received.
 // ---------------------------------------------------------------------------
 
-test('enumerateChangedFiles parses git diff --name-only output', () => {
-  const files = enumerateChangedFiles({
+test('self-enumeration parses git diff --name-only output into the lens roster', async () => {
+  const selectCalls = [];
+  await runLocalLensReview({
     baseRef: 'epic/1',
     headRef: 'story-1',
+    // changedFiles absent → self-enumerate.
+    progress: noopProgress,
     gitSpawnFn: () => ({ status: 0, stdout: 'a.js\n b.js \n\n', stderr: '' }),
+    selectLocalLensesFn: (args) => {
+      selectCalls.push(args);
+      return [];
+    },
+    runAuditSuiteFn: spy({ metadata: {}, findings: [], workflows: [] }),
   });
-  assert.deepEqual(files, ['a.js', 'b.js']);
+  assert.deepEqual(selectCalls[0].changedFiles, ['a.js', 'b.js']);
 });
 
-test('enumerateChangedFiles returns [] on a git failure (best-effort)', () => {
-  assert.deepEqual(
-    enumerateChangedFiles({
+test('self-enumeration degrades to [] on a git failure (best-effort)', async () => {
+  for (const gitSpawnFn of [
+    () => ({ status: 128, stdout: '', stderr: 'bad ref' }),
+    () => {
+      throw new Error('spawn failed');
+    },
+  ]) {
+    const selectCalls = [];
+    const out = await runLocalLensReview({
       baseRef: 'epic/1',
       headRef: 'story-1',
-      gitSpawnFn: () => ({ status: 128, stdout: '', stderr: 'bad ref' }),
-    }),
-    [],
-  );
-  assert.deepEqual(
-    enumerateChangedFiles({
-      baseRef: 'epic/1',
-      headRef: 'story-1',
-      gitSpawnFn: () => {
-        throw new Error('spawn failed');
+      progress: noopProgress,
+      gitSpawnFn,
+      selectLocalLensesFn: (args) => {
+        selectCalls.push(args);
+        return [];
       },
-    }),
-    [],
-  );
+      runAuditSuiteFn: spy({ metadata: {}, findings: [], workflows: [] }),
+    });
+    assert.deepEqual(selectCalls[0].changedFiles, []);
+    assert.equal(out.skipped, true);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -200,8 +207,7 @@ test('runLocalLensReview runs matched local lenses at light depth', async () => 
     selectLocalLensesFn: () => ['audit-performance', 'audit-quality'],
     runAuditSuiteFn,
   });
-  assert.equal(out.depth, STORY_SCOPE_LENS_DEPTH);
-  assert.equal(STORY_SCOPE_LENS_DEPTH, 'light');
+  assert.equal(out.depth, 'light');
   assert.deepEqual(out.lenses, ['audit-performance', 'audit-quality']);
   assert.equal(out.skipped, false);
   assert.equal(runAuditSuiteFn.calls.length, 1);
@@ -325,6 +331,13 @@ test('runStoryReviewCore enumerates the diff exactly once and injects it into bo
 test('runStoryReviewCore injects an explicit null when the diff is unenumerable', async () => {
   // The fail-safe signal must reach both consumers as "unknown", not as a
   // deceptively-empty list, and must not trigger a retry enumeration.
+  //
+  // Story #4603 — this case previously passed a STUBBED `runLocalLensReviewFn`,
+  // so the real collaborator's null branch never ran and the suite reported the
+  // single-enumeration invariant as held while production re-spawned git on this
+  // exact path. The spy below DELEGATES to the real `runLocalLensReview` so the
+  // production null branch is what executes; `diffCalls` therefore counts the
+  // spine's enumeration plus any retry the lens pass performs.
   const diffCalls = [];
   const lensCalls = [];
   const reviewCalls = [];
@@ -340,7 +353,7 @@ test('runStoryReviewCore injects an explicit null when the diff is unenumerable'
     },
     runLocalLensReviewFn: async (args) => {
       lensCalls.push(args);
-      return { depth: 'light', lenses: [], skipped: true, materialized: null };
+      return runLocalLensReview(args);
     },
     runCodeReviewFn: async (opts) => {
       reviewCalls.push(opts);
@@ -354,9 +367,103 @@ test('runStoryReviewCore injects an explicit null when the diff is unenumerable'
       };
     },
   });
-  assert.equal(diffCalls.length, 1);
+  assert.equal(
+    diffCalls.length,
+    1,
+    `an unenumerable diff must be enumerated ONCE — the real lens pass must not ` +
+      `retry git on the null branch, got ${diffCalls.length} enumeration(s)`,
+  );
   assert.equal(lensCalls[0].changedFiles, null);
   assert.equal(reviewCalls[0].changedFiles, null);
+});
+
+// ---------------------------------------------------------------------------
+// The three-state changedFiles contract (Story #4603), asserted through the
+// public runLocalLensReview. The discriminating logic lives in the module-local
+// `resolveLensChangeSet`; these cases pin its three states by their observable
+// effect — what the lens selector received, and whether git was re-spawned.
+// ---------------------------------------------------------------------------
+
+test('changedFiles contract: null degrades, undefined self-enumerates, array is verbatim', async () => {
+  const run = async (changedFiles) => {
+    let enumerated = 0;
+    const selectCalls = [];
+    await runLocalLensReview({
+      baseRef: 'main',
+      headRef: 'story-4603',
+      ...(changedFiles === undefined ? {} : { changedFiles }),
+      progress: noopProgress,
+      gitSpawnFn: () => {
+        enumerated += 1;
+        return {
+          status: 0,
+          stdout: '.agents/scripts/enumerated.js',
+          stderr: '',
+        };
+      },
+      selectLocalLensesFn: (args) => {
+        selectCalls.push(args);
+        return [];
+      },
+      runAuditSuiteFn: spy({ metadata: {}, findings: [], workflows: [] }),
+    });
+    return { enumerated, received: selectCalls[0].changedFiles };
+  };
+
+  // An explicit null means "already tried, unenumerable" — degrade, never retry.
+  const nullCase = await run(null);
+  assert.equal(
+    nullCase.enumerated,
+    0,
+    'an injected null must NOT re-spawn git',
+  );
+  assert.deepEqual(nullCase.received, []);
+
+  // Absent means nobody enumerated — the self-enumeration fallback runs.
+  const undefinedCase = await run(undefined);
+  assert.equal(
+    undefinedCase.enumerated,
+    1,
+    'an absent list MUST self-enumerate',
+  );
+  assert.deepEqual(undefinedCase.received, ['.agents/scripts/enumerated.js']);
+
+  // An array is used verbatim.
+  const arrayCase = await run(['a.js']);
+  assert.equal(
+    arrayCase.enumerated,
+    0,
+    'an injected array must not re-spawn git',
+  );
+  assert.deepEqual(arrayCase.received, ['a.js']);
+});
+
+test('runLocalLensReview degrades on an injected null without re-enumerating', async () => {
+  // The real collaborator, driven directly: an explicit null is the spine
+  // reporting an unenumerable diff. Re-running git here would only fail again.
+  let enumerated = false;
+  const selectCalls = [];
+  const runAuditSuiteFn = spy({ metadata: {}, findings: [], workflows: [] });
+  const out = await runLocalLensReview({
+    baseRef: 'main',
+    headRef: 'story-4603',
+    changedFiles: null,
+    progress: noopProgress,
+    gitSpawnFn: () => {
+      enumerated = true;
+      return { status: 0, stdout: '.agents/scripts/retry.js', stderr: '' };
+    },
+    selectLocalLensesFn: (args) => {
+      selectCalls.push(args);
+      return [];
+    },
+    runAuditSuiteFn,
+  });
+  assert.equal(enumerated, false, 'an injected null must NOT re-spawn git');
+  assert.deepEqual(selectCalls[0].changedFiles, []);
+  assert.deepEqual(out.lenses, []);
+  assert.equal(out.skipped, true);
+  assert.equal(runAuditSuiteFn.calls.length, 0);
 });
 
 test('runLocalLensReview selects from the injected change set without enumerating', async () => {

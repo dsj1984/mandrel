@@ -45,7 +45,7 @@
     "crap:update": "node .agents/scripts/update-crap-baseline.js",
     "duplication:check": "node .agents/scripts/check-baselines.js --gate duplication",
     "duplication:update": "node .agents/scripts/update-duplication-baseline.js",
-    "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD && node .agents/scripts/check-dead-exports.js",
+    "quality:preview": "node .agents/scripts/check-dead-exports.js && node .agents/scripts/quality-preview.js",
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node bin/mandrel.js sync-commands",
     "sync:agents": "node .agents/scripts/sync-claude-agents.js",

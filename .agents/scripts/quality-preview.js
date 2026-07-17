@@ -35,18 +35,25 @@ import {
  * present without a value. Returns `null` when the flag is absent so callers
  * can fall through to the gate scripts' own diff defaults.
  *
+ * **Last occurrence wins** (Story #4603). `npm run <alias> -- --changed-since <base>`
+ * appends the operator's flag *after* any flag baked into the npm script, so a
+ * first-wins scan silently discarded the operator's base and compared against
+ * the script's hardcoded one instead — reporting a false green for a branch the
+ * gate had never actually scored. Last-wins matches the convention every
+ * mainstream CLI parser follows for repeated scalar flags, and makes the
+ * npm-alias passthrough behave the way its callers already assume.
+ *
  * @param {string[]} argv
  * @returns {string | null}
  */
 export function parseChangedSinceArg(argv) {
+  let resolved = null;
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--changed-since') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) return next;
-      return 'HEAD';
-    }
+    if (argv[i] !== '--changed-since') continue;
+    const next = argv[i + 1];
+    resolved = next && !next.startsWith('--') ? next : 'HEAD';
   }
-  return null;
+  return resolved;
 }
 
 /**
