@@ -44,7 +44,7 @@ silently dropping the offending id and under-delivering.
 
 | Flag | Meaning |
 | --- | --- |
-| `--concurrency <n>` | Ready-set fan-out cap (default **3** from `delivery.deliverRunner.concurrencyCap`; set `1` for sequential). |
+| `--concurrency <n>` | **Optional** per-run override of the ready-set fan-out cap. Omit it to honor `delivery.deliverRunner.concurrencyCap` (config default **3**, including any `.agentrc.local.json` override); pass it **only** when the operator explicitly wants a one-run cap. Set `1` for sequential. |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
 | `--wait-merge` | Force close-and-land (the default; `delivery.routing.closeAndLand`, default `true`). |
@@ -85,9 +85,18 @@ to respect.
 
    ```bash
    node .agents/scripts/stories-wave-tick.js \
-     --stories <id,id,...> --probe-live --concurrency <n> \
+     --stories <id,id,...> --probe-live \
      --dispatched <every id you have dispatched so far>
    ```
+
+   **Do not add `--concurrency` unless the operator explicitly asked for a
+   per-run cap.** Omitting it is what lets the tick resolve the cap from
+   `delivery.deliverRunner.concurrencyCap` — including a `.agentrc.local.json`
+   override. An explicit `--concurrency <n>` wins over config for that run
+   (`resolveConcurrencyCap` returns the flag before it ever reads config), so
+   filling in a literal — e.g. the documented default `3` — silently defeats
+   the operator's configured override. Thread `--concurrency` through here
+   only when it was passed to `/deliver`.
 
    Each beat re-probes live state: it re-resolves the graph, classifies done
    (`agent::done` or a closed issue — including foreign blockers that landed

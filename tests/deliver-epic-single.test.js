@@ -75,6 +75,35 @@ describe('unified /deliver router', () => {
       /resolveEpicDeliveryRoute|wave-tick\.js --check-idle/,
     );
   });
+
+  it('keeps --concurrency opt-in so a local override is not silently defeated', () => {
+    // `resolveConcurrencyCap` returns the `--concurrency` flag before it ever
+    // reads config, so any explicit value outranks
+    // `delivery.deliverRunner.concurrencyCap` (including a `.agentrc.local.json`
+    // override). The canonical sequencing command must therefore NOT hardcode
+    // the flag — an executing agent that fills in `<n>` (typically the
+    // documented default 3) would defeat the operator's configured cap.
+    const md = readFileSync(DELIVER_MD, 'utf8');
+    const commandTemplate = md.match(
+      /stories-wave-tick\.js \\\n\s*--stories <id,id,\.\.\.> --probe-live[^\n]*/,
+    );
+    assert.ok(
+      commandTemplate,
+      'the sequencing command template must be present',
+    );
+    assert.doesNotMatch(
+      commandTemplate[0],
+      /--concurrency/,
+      'the default sequencing command must not hardcode --concurrency',
+    );
+    // The opt-in contract must be spelled out so the flag is threaded through
+    // only when the operator explicitly passed one.
+    assert.match(
+      md,
+      /Do not add `--concurrency` unless the operator explicitly asked/,
+    );
+    assert.match(md, /\.agentrc\.local\.json/);
+  });
 });
 
 describe('/deliver takes only Story ids (Story #4540)', () => {
