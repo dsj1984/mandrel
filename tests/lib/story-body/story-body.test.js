@@ -38,6 +38,24 @@ const CANONICAL_MARKDOWN = `## Goal
 Create the shared canonical Story-body parser/serializer.
 
 ## Changes
+- \`.agents/scripts/lib/story-body/story-body.js\` — creates
+- \`tests/lib/story-body/story-body.test.js\` — creates
+
+## Acceptance
+- [ ] AC-1: parse() returns a StoryBody with all sections populated
+- [ ] AC-2: serialize(parse(md)) round-trips cleanly
+
+## Verify
+- npm test -- tests/lib/story-body/story-body.test.js (unit)`;
+
+// Pre-cutover (Story #4600) body shape: `## Changes` / `## References` as raw
+// inline-JSON object bullets and unnumbered acceptance checkboxes. Live issue
+// bodies in this shape are never rewritten, so parse() must accept it
+// indefinitely.
+const LEGACY_JSON_BULLET_MARKDOWN = `## Goal
+Create the shared canonical Story-body parser/serializer.
+
+## Changes
 - ${JSON.stringify({ path: '.agents/scripts/lib/story-body/story-body.js', assumption: 'creates' })}
 - ${JSON.stringify({ path: 'tests/lib/story-body/story-body.test.js', assumption: 'creates' })}
 
@@ -46,7 +64,10 @@ Create the shared canonical Story-body parser/serializer.
 - [ ] serialize(parse(md)) round-trips cleanly
 
 ## Verify
-- npm test -- tests/lib/story-body/story-body.test.js (unit)`;
+- npm test -- tests/lib/story-body/story-body.test.js (unit)
+
+## References
+- ${JSON.stringify({ path: 'docs/architecture.md', assumption: 'exists' })}`;
 
 const CANONICAL_BODY = {
   goal: 'Create the shared canonical Story-body parser/serializer.',
@@ -349,9 +370,10 @@ describe('serialize()', () => {
     assert.ok(out.includes('docs/arch.md'));
   });
 
-  it('emits acceptance items with `- [ ]` prefix', () => {
+  it('emits acceptance items with `- [ ] AC-<n>:` prefix', () => {
     const out = serialize(CANONICAL_BODY);
-    assert.ok(out.includes('- [ ] parse() returns'));
+    assert.ok(out.includes('- [ ] AC-1: parse() returns'));
+    assert.ok(out.includes('- [ ] AC-2: serialize(parse(md)) round-trips'));
   });
 
   it('includes footer when opts.includeFooter = true', () => {
@@ -874,5 +896,140 @@ Use the existing repository.
     });
     assert.equal(body.spec, 'Use the existing story-body serializer.');
     assert.equal(info.hasSpecSection, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #4600 — human-readable rendering (numbered ACs, humanized bullets,
+// visible wide rationale)
+// ---------------------------------------------------------------------------
+
+describe('Story #4600 — numbered AC-<n> acceptance handles', () => {
+  it('serialize() renders stable 1-based AC-<n> prefixes and parse() strips them (round-trip)', () => {
+    const acceptance = [
+      'first observable outcome',
+      'second observable outcome',
+      'third observable outcome',
+    ];
+    const body = { ...CANONICAL_BODY, acceptance };
+    const md = serialize(body);
+    assert.ok(md.includes('- [ ] AC-1: first observable outcome'));
+    assert.ok(md.includes('- [ ] AC-2: second observable outcome'));
+    assert.ok(md.includes('- [ ] AC-3: third observable outcome'));
+    const { body: reparsed } = parse(md);
+    assert.deepEqual(reparsed.acceptance, acceptance);
+  });
+
+  it('parse() leaves an unnumbered legacy acceptance checkbox unchanged', () => {
+    const { body } = parse(LEGACY_JSON_BULLET_MARKDOWN);
+    assert.deepEqual(body.acceptance, [
+      'parse() returns a StoryBody with all sections populated',
+      'serialize(parse(md)) round-trips cleanly',
+    ]);
+  });
+
+  it('does not strip AC-like prose that is not a leading handle', () => {
+    const body = {
+      ...CANONICAL_BODY,
+      acceptance: ['the AC-3: marker mid-sentence survives'],
+    };
+    const { body: reparsed } = parse(serialize(body));
+    assert.deepEqual(reparsed.acceptance, body.acceptance);
+  });
+});
+
+describe('Story #4600 — humanized Changes / References bullets', () => {
+  it('serialize() emits prose bullets with no raw JSON and parse() recovers identical entries', () => {
+    const body = {
+      ...CANONICAL_BODY,
+      references: [{ path: 'docs/architecture.md', assumption: 'exists' }],
+    };
+    const md = serialize(body);
+    assert.ok(!md.includes('{"path":'));
+    assert.ok(
+      md.includes('- `.agents/scripts/lib/story-body/story-body.js` — creates'),
+    );
+    assert.ok(md.includes('- `docs/architecture.md` — exists'));
+    const { body: reparsed } = parse(md);
+    assert.deepEqual(reparsed.changes, body.changes);
+    assert.deepEqual(reparsed.references, body.references);
+  });
+
+  it('parse() still accepts the legacy JSON-object bullet shape (never rewritten)', () => {
+    const { body: legacy } = parse(LEGACY_JSON_BULLET_MARKDOWN);
+    // The legacy fixture parses to the same changes[]/references[] as its
+    // humanized re-serialization.
+    const { body: rehumanized } = parse(serialize(legacy));
+    assert.deepEqual(rehumanized.changes, legacy.changes);
+    assert.deepEqual(rehumanized.references, legacy.references);
+    assert.deepEqual(legacy.changes, [
+      {
+        path: '.agents/scripts/lib/story-body/story-body.js',
+        assumption: 'creates',
+      },
+      {
+        path: 'tests/lib/story-body/story-body.test.js',
+        assumption: 'creates',
+      },
+    ]);
+    assert.deepEqual(legacy.references, [
+      { path: 'docs/architecture.md', assumption: 'exists' },
+    ]);
+  });
+
+  it('fails closed on a humanized bullet with an invalid assumption', () => {
+    const md = `## Goal
+g
+
+## Changes
+- \`src/foo.js\` — not-an-assumption
+
+## Acceptance
+- [ ] x`;
+    assert.throws(
+      () => parse(md),
+      (err) => {
+        assert.ok(err instanceof StoryBodyParseError);
+        assert.match(err.message, /humanized bullet but not a valid PathEntry/);
+        return true;
+      },
+    );
+  });
+});
+
+describe('Story #4600 — visible wide rationale line', () => {
+  it('renders one visible `> **Wide:**` line under ## Goal and round-trips wide.reason', () => {
+    const body = {
+      ...CANONICAL_BODY,
+      wide: { reason: 'mechanical sweep across every consumer site' },
+    };
+    const md = serialize(body);
+    // The visible line sits between the Goal text and the next section,
+    // outside any HTML comment.
+    assert.match(
+      md,
+      /## Goal\nCreate the shared canonical Story-body parser\/serializer\.\n\n> \*\*Wide:\*\* mechanical sweep across every consumer site\n\n## Changes/,
+    );
+    const withoutComments = md.replace(/<!--[\s\S]*?-->/g, '');
+    assert.ok(withoutComments.includes('> **Wide:** mechanical sweep'));
+    // The meta block stays the canonical machine carrier.
+    assert.ok(
+      md.includes(
+        '"wide":{"reason":"mechanical sweep across every consumer site"}',
+      ),
+    );
+    const { body: reparsed } = parse(md);
+    assert.deepEqual(reparsed.wide, body.wide);
+    // The visible line never bleeds into the goal text.
+    assert.equal(reparsed.goal, CANONICAL_BODY.goal);
+    // Byte-identical serialize → parse → serialize round-trip.
+    assert.equal(serialize(reparsed), md);
+  });
+
+  it('renders no wide line when wide is absent', () => {
+    const md = serialize(CANONICAL_BODY);
+    assert.doesNotMatch(md, /\*\*Wide:\*\*/);
+    const { body: reparsed } = parse(md);
+    assert.equal(reparsed.wide, null);
   });
 });
