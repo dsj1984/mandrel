@@ -280,11 +280,12 @@ detected test/BDD surface. Tier is controlled by
 - **`medium`** — skinny + a per-file export signature list extracted via
   a regex pass over each `.js` / `.ts` body. Target: ~15–30k tokens.
 
-The Architect persona is instructed (via the
-`epic-plan-spec-author` skill) to prefer module / file names that
-appear in the snapshot over names that appear only in the docs digest
-(`docsContext.digestPath` — digest-first since Story #4433), because the
-docs may be stale relative to the source tree. Any error in
+The `/plan` authoring step (host LLM, per
+[`workflows/plan.md`](../.agents/workflows/plan.md) — v2 has no persona
+packs and no spec-author skill) is instructed to prefer module / file
+names that appear in the snapshot over names that appear only in the
+docs digest (`docsContext.digestPath` — digest-first since Story #4433),
+because the docs may be stale relative to the source tree. Any error in
 the snapshot generation degrades to a `Logger.warn` and an empty
 envelope so Phase 7 stays non-blocking.
 
@@ -588,6 +589,46 @@ ledger format, and listener model — that document is the canonical
 reference for the lifecycle bus, and the older "phase boundaries
 inline-emit comments" framing is retired.
 
+### Sub-agent topology
+
+A `/deliver` run is a three-level agent tree; everything else on the
+close path (code review, audit lenses, gates) runs in-process or as
+deterministic CLIs, not as sub-agents:
+
+- **Depth 0 — host orchestrator.** The operator's session executing
+  [`workflows/deliver.md`](../.agents/workflows/deliver.md). It loops
+  `stories-wave-tick.js` per beat and dispatches each `ready` id; it
+  performs no git or label mutation itself.
+- **Depth 1 — `story-worker`** (one per ready Story, parallel up to
+  `concurrencyCap`). When `delivery.routing.roleScopedAgents` is enabled
+  (the default) the spawn uses the role-scoped boot context at
+  [`.agents/agents/story-worker.md`](../.agents/agents/story-worker.md)
+  — its own system prompt with no CLAUDE.md / `instructions.md` closure,
+  re-importing only `rules/security-baseline.md`; with routing off it
+  falls back to a generic sub-agent carrying the full closure.
+- **Depth 2 — `acceptance-critic`** (maker-blind, per AC-cluster). Spawned
+  from Step 1a of `helpers/deliver-story` only for clusters the ceremony
+  router resolves to `fresh` (see below). Requires nested Agent dispatch
+  (verified depth 2); where nesting is unavailable the critic is authored
+  inline — same gate, schema, and round cap, weaker isolation.
+
+**Ceremony routing (fresh vs. inline).** `resolveCeremonyForRisk`
+(`lib/orchestration/ceremony-routing.js`) routes each acceptance-criteria
+cluster: profile `minimal` → always inline, `strict` → always fresh, and
+the default `standard` routes by the same `deriveChangeLevel` signal that
+sets review depth — sensitive-path (`high`) clusters go fresh, `low`
+clusters stay inline except for a deterministic sampling floor
+(`freshCriticSampleRate`, default 0.2), and an unknown level fails safe
+to fresh. Cluster count is `ceil(totalACs / clusterCeiling)` clamped to
+`[1, 8]` (`acceptance-clusters.js`); routing never changes it.
+
+**Evidence share.** A fresh critic re-runs the Story's `verify[]`
+commands itself as required evidence; its byte-identical `lint` /
+`typecheck` runs go through `evidence-gate.js --standalone` so close can
+short-circuit those two gates at unchanged HEAD. Coverage and CRAP
+evidence are deliberately excluded from the share and always re-run at
+close.
+
 ### State machine (Story labels)
 
 ```text
@@ -623,7 +664,7 @@ inline-emit comments" framing is retired.
 | Module              | Role                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | `stories-wave-tick` | Continuous ready-set planner for multi-Story `/deliver` — adapter over `selectReadySet`; emits the per-beat dispatch set (no Epic wave barrier). |
-| `story-launcher`    | Fans out up to `concurrencyCap` `/deliver <storyId>` Agent-tool sub-agents in one message.    |
+| (host fan-out)      | There is no `story-launcher` module: the `/deliver` host session itself fans out up to `concurrencyCap` Story sub-agents per ready-set beat, per [`workflows/deliver.md`](../.agents/workflows/deliver.md). |
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
 | `column-sync`       | Drives the Projects v2 Status column from `agent::` labels (best-effort).                           |
 | `code-review`       | `lib/orchestration/code-review.js` — inline review (companion to `helpers/code-review.md`). |
@@ -665,10 +706,12 @@ Either way, required status checks gate the squash onto `main`.
 
 Inside each Story delivery (`helpers/deliver-story` Step 1a), a bounded
 **acceptance self-eval** loop runs after the implementation commits land and
-before the Story proceeds to close. A **fresh-context critic** sub-agent —
-independent of the implementing turn — scores the working diff against
-each inline `acceptance[]` item, using `verify[]` as evidence;
-`acceptance-eval.js` records the per-criterion verdict.
+before the Story proceeds to close. Each acceptance-criteria cluster is
+scored either by a **fresh-context critic** sub-agent — independent of
+the implementing turn — or inline, per the ceremony routing described
+under **Sub-agent topology** above; the critic scores the working diff
+against each inline `acceptance[]` item, using `verify[]` as evidence,
+and `acceptance-eval.js` records the per-criterion verdict.
 On `proceed` the Story flips to `closing`; unmet criteria trigger a
 redraft round, bounded by `delivery.acceptanceEval.maxRounds`
 (default 2, clamped into `[1, hard ceiling]` — the loop cannot be
@@ -696,6 +739,33 @@ The exit contract: each Story reaches `main` via its own human-visible PR
 (auto-merge armed at close), and the deferred confirm-merge step — not an
 in-script merge — performs the terminal label flip after GitHub's
 asynchronous auto-merge completes.
+
+### Scheduler safety mechanics
+
+The per-beat selector (`lib/wave-runner/ready-set.js#selectReadySet`) is
+stateless and side-effect-free; these guards make the loop fail safe:
+
+- **File-overlap footprint guard.** Ready candidates are admitted
+  greedily in ascending-id order and skipped when their declared `files`
+  footprint overlaps an already-admitted Story's. An **empty** footprint
+  means "no known overlap" and is never withheld; a **glob** footprint —
+  or the UNKNOWN sentinel `resolve-stories.js` substitutes for an
+  unparseable body — overlaps *everything* and serializes the rest of
+  the beat. Safe by construction, but a broadly-scoped glob footprint
+  silently drops the beat to concurrency 1.
+- **Cycle vs. wedge, distinct exits.** A dependency cycle is detected up
+  front (`detectCycle`, exit 2); a wedge — nothing ready, nothing in
+  flight, undone work with unmet blockers — exits 3 via `detectWedge`.
+  An ordinary empty `ready[]` with work in flight just means "waiting".
+- **Fail-closed Story lease.** `single-story-init.js` acquires a
+  per-Story lease (`lib/orchestration/ticket-lease.js`); any foreign
+  assignee is treated as a live claim and init refuses unless `--steal`,
+  so two operators driving the same Story from separate clones fail
+  closed instead of clobbering each other.
+- **Strand recovery.** `deliver-recover.js` is a read-only decision
+  table over `label × PR × branch × worktree` state that prints the one
+  next command — the sanctioned way out of strands (e.g.
+  merged-but-label-stale) that a `/deliver` re-run refuses to touch.
 
 ### Operator-tunable delivery knobs
 
