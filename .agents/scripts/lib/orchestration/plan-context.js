@@ -361,17 +361,12 @@ export function buildDeliveryShapeSignal({ body } = {}) {
  * authoritative from day one); the decompose prompt reuses the existing
  * Story #4162 carrier including the risk-heuristics suffix.
  *
- * @param {{ heuristics?: string[], maxTickets?: number, epicId?: number|null }} args
+ * @param {{ heuristics?: string[], maxTickets?: number }} args
  * @returns {{ spec: string, acceptance: string, decompose: string }}
  */
-export function buildSystemPrompts({
-  heuristics = [],
-  maxTickets,
-  epicId = null,
-} = {}) {
+export function buildSystemPrompts({ heuristics = [], maxTickets } = {}) {
   const decompose = buildDecomposerSystemPrompt(heuristics, {
     maxTickets,
-    epicId,
   });
   return {
     spec: renderTechSpecSystemPrompt(),
@@ -500,7 +495,6 @@ async function buildSeedFileModeEnvelope({
     systemPrompts: buildSystemPrompts({
       heuristics,
       maxTickets: limits.maxTickets,
-      epicId: null,
     }),
     planState: null,
     // N=1 default: author one Story; skip Epic-scale decompose ceremony.
@@ -654,7 +648,6 @@ async function buildTicketsModeEnvelope({
     systemPrompts: buildSystemPrompts({
       heuristics,
       maxTickets: limits.maxTickets,
-      epicId: null,
     }),
     planState: null,
     planProfile:

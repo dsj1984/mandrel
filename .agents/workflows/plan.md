@@ -162,9 +162,19 @@ not proceed to Persist** — fix the path and re-run:
 ```jsonc
 {
   "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": ["…"] },
-  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] }
+  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] },
+  "textHygiene": { "critic": "text-hygiene", "findings": [] }
 }
 ```
+
+The verdict's third entry, `textHygiene`, is advisory-only (Story #4599): it
+carries deterministic body lints (`dangling-citation` / `open-question` /
+`slicing-mass`) with no dispatch semantics — it spawns nothing and never
+gates the run. Fold `textHygiene.findings[]` into the re-author round the
+same way critic findings fold in: fix each named defect in `stories.json`
+(anchor or inline the citation, resolve the question into a declarative
+assumption, thin the Slicing checkpoint) and re-run this step. Empty
+`findings` add nothing to the round.
 
 - **Both `dispatch: false`** — proceed straight to Persist. The conditions
   provably have nothing for a critic to find, and each skip is recorded on the

@@ -205,7 +205,6 @@ async function main() {
     {
       cli: 'plan-context',
       mode,
-      epicId: null,
       config,
     },
     () =>

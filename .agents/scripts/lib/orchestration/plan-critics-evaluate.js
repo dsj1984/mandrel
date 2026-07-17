@@ -26,6 +26,7 @@ import {
   evaluateConsolidationDispatch,
   evaluatePremortemDispatch,
 } from './plan-critic-conditions.js';
+import { evaluateTextHygiene } from './plan-text-hygiene.js';
 
 /**
  * Resolve the planning risk heuristics list from the canonical config
@@ -51,6 +52,11 @@ function resolveRiskHeuristics(config = {}) {
  *   - Pre-mortem: ticket count at least half `maxTickets`, OR any
  *     `planning.riskHeuristics` phrase matching the plan text. Story #4542
  *     retired its authored-risk-level condition with the verdict itself.
+ *   - Text hygiene (Story #4599, advisory-only): deterministic body lints
+ *     (dangling-citation / open-question / slicing-mass) over the draft
+ *     stories. It has no `dispatch` semantics and spawns nothing — its
+ *     `findings[]` are re-author-round input, and the consolidation /
+ *     premortem dispatch verdicts are untouched by it.
  *
  * @param {{
  *   techSpecContent: string,
@@ -60,6 +66,7 @@ function resolveRiskHeuristics(config = {}) {
  * @returns {{
  *   consolidation: { critic: string, dispatch: boolean, reasons: string[] },
  *   premortem: { critic: string, dispatch: boolean, reasons: string[] },
+ *   textHygiene: { critic: string, findings: Array<object> },
  * }}
  */
 export function evaluatePlanCritics({
@@ -92,5 +99,10 @@ export function evaluatePlanCritics({
     ].join('\n'),
   });
 
-  return { consolidation, premortem };
+  const textHygiene = {
+    critic: 'text-hygiene',
+    findings: evaluateTextHygiene({ draftStories: ticketList }).findings,
+  };
+
+  return { consolidation, premortem, textHygiene };
 }
