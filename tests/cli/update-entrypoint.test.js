@@ -145,16 +145,22 @@ function makeDeps(fsFake, cap, { onNpmView, onNpmInstall } = {}) {
         if (onNpmInstall) onNpmInstall(installCmd, cwd);
         return { status: 0, stderr: '' };
       },
+      // Story #4613 — the re-exec resolves the bin *script* from the consumer
+      // root; stub it so this test needs no real `mandrel` resolution (absent
+      // in this dev repo).
+      resolveBinScript: () =>
+        '/fake/consumer/node_modules/mandrel/bin/mandrel.js',
       // Downstream materialize/migrate/verify phases run through the spawn
       // boundary (the sole post-install path since Story #4182 retired the
       // in-process runSync/runMigrations/runDoctor seam set). The boundary under
       // test is the entrypoint ↔ npm/network/fs wiring, not sync.js's real
       // mandrel resolution (absent in this dev repo), so spawnFn is stubbed:
-      // each phase records its name and exits 0 (doctor passes). The stub keys
-      // off argv[0] = the mandrel sub-command (sync / sync-commands / migrate /
-      // doctor).
-      spawnFn: (_binPath, argv) => {
-        const phase = argv[0];
+      // each phase records its name and exits 0 (doctor passes). Story #4613
+      // spawns `node <binScript> <phase> …`, so the phase is argv[1] (argv[0]
+      // is the resolved bin script), and the stub's first arg is
+      // `process.execPath`.
+      spawnFn: (_nodeExec, argv) => {
+        const phase = argv[1];
         if (phase === 'migrate') {
           const from = argv[argv.indexOf('--from') + 1];
           const to = argv[argv.indexOf('--to') + 1];

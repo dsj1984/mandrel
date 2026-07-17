@@ -74,6 +74,10 @@ async function captureHint(failPhase) {
       stderr: '',
     }),
     cwd: () => '/fake/cwd',
+    // Story #4613 — the re-exec resolves the bin *script* from the consumer
+    // root; stub it so this fake cwd needs no real `mandrel` on disk and the
+    // captured hint is the phase-failure remedy, not a module-resolution error.
+    resolveBinScript: () => '/fake/cwd/node_modules/mandrel/bin/mandrel.js',
     surfaceChangelog: async () => {},
     write: () => {},
     writeErr: (s) => errChunks.push(s),

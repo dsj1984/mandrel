@@ -129,6 +129,10 @@ function makeGoldenPathSeams(tree) {
     calls,
     currentVersion: CURRENT_VERSION,
     cwd: () => '/fake/consumer',
+    // Story #4613 — the re-exec resolves the bin *script* from the consumer
+    // root; stub it so the fake cwd needs no real `mandrel` install on disk.
+    resolveBinScript: () =>
+      '/fake/consumer/node_modules/mandrel/bin/mandrel.js',
     resolveTargetVersion: async () => {
       calls.push('resolve');
       return TARGET_VERSION;
