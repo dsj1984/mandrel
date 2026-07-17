@@ -257,3 +257,66 @@ test('composeRoutedProposals: skips malformed signal records without crashing', 
   assert.equal(out.framework.length, 1);
   assert.equal(out.framework[0].category, 'good');
 });
+
+// --- Story #4622: net out transient (self-resolved) blocks ---------------
+
+const blk = (storyId, extra = {}) => ({
+  category: 'story-blocked',
+  source: 'consumer',
+  storyId,
+  details: {},
+  ...extra,
+});
+const recovered = (storyId) =>
+  blk(storyId, { details: { recovered: true, toState: 'agent::executing' } });
+
+test('netOutRecoveredBlocks: a recovered block drops the whole incident (no proposal)', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      // Two Stories, each blocked then recovered → 4 story-blocked records,
+      // all transient. Nothing should route or even be discarded.
+      signals: [blk(1), recovered(1), blk(2), recovered(2)],
+    }),
+  );
+  assert.deepEqual(out, { framework: [], consumer: [], discarded: [] });
+});
+
+test('netOutRecoveredBlocks: terminal blocks (no recovery) still count', () => {
+  const out = composeRoutedProposals(baseInput({ signals: [blk(3), blk(4)] }));
+  const blocked = out.consumer.find((i) => i.category === 'story-blocked');
+  assert.ok(blocked, 'two terminal blocks route as an actionable proposal');
+  assert.equal(blocked.occurrences, 2);
+});
+
+test('netOutRecoveredBlocks: only the recovered Story is netted out; terminal peers remain', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      // Story 5 recovered; Stories 6 and 7 stayed blocked.
+      signals: [blk(5), recovered(5), blk(6), blk(7)],
+    }),
+  );
+  const blocked = out.consumer.find((i) => i.category === 'story-blocked');
+  assert.ok(blocked, 'the two terminal peers still route');
+  assert.equal(blocked.occurrences, 2, 'Story 5 (block + marker) is excluded');
+});
+
+test('netOutRecoveredBlocks: does not touch other categories', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      signals: [
+        blk(8),
+        recovered(8),
+        { category: 'lint-loop', source: 'framework', storyId: 8 },
+        { category: 'lint-loop', source: 'framework', storyId: 9 },
+      ],
+    }),
+  );
+  const lint = out.framework.find((i) => i.category === 'lint-loop');
+  assert.ok(lint, 'lint-loop is untouched by block netting');
+  assert.equal(lint.occurrences, 2);
+  assert.equal(
+    out.consumer.find((i) => i.category === 'story-blocked'),
+    undefined,
+    'the recovered block contributes nothing',
+  );
+});
