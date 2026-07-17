@@ -59,6 +59,36 @@ export function planFastForward(ctx) {
   return { runnable: true, behind: ff.behind, currentBranch: cur };
 }
 
+/**
+ * Return HEAD to the branch it started on.
+ *
+ * {@link maybeCheckout} moves the checkout to `baseBranch` so `merge
+ * --ff-only` has somewhere to land. Leaving it there silently relocates the
+ * operator: this phase runs from the MAIN checkout — which may be parked on
+ * unrelated work — and the close tail can reach it long after the operator
+ * walked away (a belated `single-story-confirm-merge --wait`, for instance).
+ * Fast-forwarding the base branch is the contract every delivering flow owes
+ * the checkout; moving someone off the branch they were using is not, and it
+ * is the kind of surprise that gets subsequent work committed to the wrong
+ * branch.
+ *
+ * Best-effort: a failed restore warns and never fails the phase — the
+ * fast-forward already succeeded, and `planFastForward` refuses on a dirty
+ * tree, so nothing uncommitted is ever at risk here.
+ */
+function restoreBranchIfMoved({ plan, baseBranch, cwd, checkoutFn, logger }) {
+  const original = plan.currentBranch;
+  if (!original || original === baseBranch) return;
+  const co = checkoutFn(cwd, original);
+  if (!co.ok) {
+    logger.warn?.(
+      `${TAG} ⚠️ checkout left on ${baseBranch}: restoring ${original} failed: ${co.stderr}`,
+    );
+    return;
+  }
+  logger.info?.(`${TAG} ↩️  restored checkout to ${original}`);
+}
+
 function maybeCheckout({ plan, baseBranch, cwd, checkoutFn, logger }) {
   if (!plan.currentBranch || plan.currentBranch === baseBranch) {
     return { ok: true };
@@ -108,6 +138,9 @@ export function executeFastForward(ctx) {
     logger.warn?.(
       `${TAG} ❌ merge --ff-only ${ref} failed: ${mergeRes.stderr}`,
     );
+    // We already moved HEAD to run the merge; put it back even on the
+    // failure path rather than stranding the operator on the base branch.
+    restoreBranchIfMoved({ plan, baseBranch, cwd, checkoutFn, logger });
     return {
       ok: false,
       applied: false,
@@ -119,5 +152,6 @@ export function executeFastForward(ctx) {
   logger.info?.(
     `${TAG} ✅ fast-forwarded ${baseBranch} by ${plan.behind} commit(s)`,
   );
+  restoreBranchIfMoved({ plan, baseBranch, cwd, checkoutFn, logger });
   return { ok: true, applied: true, skipped: false, behind: plan.behind };
 }

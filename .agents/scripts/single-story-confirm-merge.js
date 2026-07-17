@@ -45,6 +45,7 @@ import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
+import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
 import { runPostLandTail } from './lib/orchestration/single-story-close/phases/post-land.js';
 import {
@@ -52,6 +53,7 @@ import {
   emitTerminalEnvelope,
   exitCodeForTerminal,
   NEXT_COMMANDS,
+  terminalFromWaitOutcome,
 } from './lib/orchestration/story-deliver-terminal.js';
 import { createProvider } from './lib/provider-factory.js';
 import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
@@ -77,6 +79,28 @@ function readPrFlag() {
     return values.pr;
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * `--wait`: resume the bounded merge wait rather than probing once.
+ *
+ * This CLI serves two callers behind one command string. `confirmMerge` wants
+ * a fast idempotent flip for a merge that ALREADY happened (an operator-merge
+ * flow, or a `merged-flip-failed` retry) and must not stall. `resumeLand`
+ * wants to pick up a merge wait the close handed off at its per-invocation
+ * bound — that one must actually wait, and must be able to give up.
+ */
+function readWaitFlag() {
+  try {
+    const { values } = parseArgs({
+      args: process.argv.slice(2),
+      options: { wait: { type: 'boolean', default: false } },
+      strict: false,
+    });
+    return values.wait === true;
+  } catch {
+    return false;
   }
 }
 
@@ -142,9 +166,16 @@ function buildConfirmTerminal({
   tail,
   elapsedSeconds,
 }) {
+  // `pr-not-merged` means the PR is CLOSED — reporting it as OPEN put a
+  // fact in the envelope that the blocked reason directly contradicts.
+  const prState = confirmation.merged
+    ? 'MERGED'
+    : confirmation.reason === 'pr-not-merged'
+      ? 'CLOSED'
+      : 'OPEN';
   const pr =
     Number.isInteger(prNumber) && prNumber > 0
-      ? { number: prNumber, state: confirmation.merged ? 'MERGED' : 'OPEN' }
+      ? { number: prNumber, state: prState }
       : null;
   const common = { storyId, storyBranch, baseBranch, pr, elapsedSeconds };
 
@@ -211,11 +242,13 @@ export async function runConfirmMerge({
   storyId: storyIdParam,
   cwd: cwdParam,
   pr: prParam,
+  wait: waitParam,
   injectedProvider,
   injectedConfig,
   injectedGh,
   injectedNotify,
   injectedReadPrMergeState,
+  runConfirmMergePhaseFn = defaultRunConfirmMergePhase,
 } = {}) {
   const { storyId, cwd } = parseCloseOptions({
     storyIdParam,
@@ -224,9 +257,10 @@ export async function runConfirmMerge({
 
   if (!storyId) {
     throw new Error(
-      'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--cwd <main-repo>]',
+      'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait] [--cwd <main-repo>]',
     );
   }
+  const wait = waitParam ?? readWaitFlag();
 
   const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd });
@@ -266,6 +300,61 @@ export async function runConfirmMerge({
         tail: null,
         elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
       }),
+    );
+  }
+
+  // `--wait` (what `NEXT_COMMANDS.resumeLand` passes): resume the merge wait
+  // the close handed off at its per-invocation bound, by running the SAME
+  // phase the in-close path runs. Without this the resume was a single probe
+  // that reported `pending` and exited, so the cumulative `maxBudgetSeconds`
+  // give-up — the only thing that ever emits `merge.unlanded` and flips a
+  // wedged Story to `agent::blocked` — was reachable ONLY inside the original
+  // close invocation. A PR that wedged after the close returned could be
+  // resumed forever, always answering `pending`, never escalating to anyone.
+  //
+  // The phase anchors its cumulative budget at the PR's `createdAt`, so the
+  // resume does not restart the clock — exactly what the envelope's
+  // `waitBudget` contract already promised.
+  if (wait) {
+    const waitOutcome = await runConfirmMergePhaseFn({
+      cwd,
+      storyId,
+      storyBranch,
+      baseBranch,
+      prNumber,
+      prUrl: `${storyBranch} PR #${prNumber}`,
+      // The close already armed it; this CLI is resuming that wait, not
+      // deciding whether to arm.
+      autoMergeEnabled: true,
+      provider,
+      config,
+      progress,
+      injectedGh: gh,
+      injectedNotify,
+      readPrMergeStateFn: injectedReadPrMergeState,
+    });
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome,
+      storyId,
+      storyBranch,
+      baseBranch,
+      prNumber,
+      prUrl: null,
+      autoMergeEnabled: true,
+      // This CLI runs no close gates, so it reports none — `gates` is
+      // "each gate this invocation was responsible for".
+      gates: undefined,
+      elapsedSeconds: Math.round((Date.now() - startedAtMs) / 1000),
+    });
+    return logConfirmResult(
+      {
+        storyId,
+        standalone: true,
+        action: waitOutcome.terminal,
+        resumed: true,
+        tail: waitOutcome.tail ?? null,
+      },
+      terminal,
     );
   }
 

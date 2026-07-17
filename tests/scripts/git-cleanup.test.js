@@ -1422,7 +1422,11 @@ describe('git-cleanup.executeFastForward', () => {
     assert.equal(merged, false);
   });
 
-  it('checks out base when current branch differs, then merges', () => {
+  it('checks out base when current branch differs, merges, then restores the branch', () => {
+    // The checkout is a means to run `merge --ff-only`, not a licence to
+    // relocate the operator: this phase runs from the MAIN checkout, which
+    // may be parked on unrelated work, and the close tail can reach it long
+    // after the operator walked away.
     const order = [];
     const res = executeFastForward({
       cwd: '/repo',
@@ -1439,7 +1443,46 @@ describe('git-cleanup.executeFastForward', () => {
       logger: { info() {}, warn() {} },
     });
     assert.equal(res.applied, true);
-    assert.deepEqual(order, ['checkout:main', 'merge:origin/main']);
+    assert.deepEqual(order, [
+      'checkout:main',
+      'merge:origin/main',
+      'checkout:story-1',
+    ]);
+  });
+
+  it('restores the original branch even when the merge fails', () => {
+    const order = [];
+    const res = executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: runnablePlan({ currentBranch: 'story-1' }),
+      checkoutFn: (_c, b) => {
+        order.push(`checkout:${b}`);
+        return { ok: true };
+      },
+      mergeFn: () => ({ ok: false, stderr: 'diverged' }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, false);
+    assert.deepEqual(order, ['checkout:main', 'checkout:story-1']);
+  });
+
+  it('keeps the fast-forward successful when the restore checkout fails', () => {
+    // The base branch IS fast-forwarded at this point; a failed restore is a
+    // warning, not a reason to report the phase as failed.
+    const warnings = [];
+    const res = executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: runnablePlan({ currentBranch: 'story-1' }),
+      checkoutFn: (_c, b) =>
+        b === 'main' ? { ok: true } : { ok: false, stderr: 'gone' },
+      mergeFn: () => ({ ok: true }),
+      logger: { info() {}, warn: (m) => warnings.push(m) },
+    });
+    assert.equal(res.ok, true);
+    assert.equal(res.applied, true);
+    assert.ok(warnings.some((w) => /restoring story-1 failed/.test(w)));
   });
 
   it('skips checkout when already on base branch', () => {

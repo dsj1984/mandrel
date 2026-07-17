@@ -1469,10 +1469,6 @@
       "symbol": "decideStashAnswer"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/lifecycle/emit-merge-flip-failed.js",
-      "symbol": "emitMergeFlipFailed"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
       "symbol": "RECOGNIZED_CHECK_STATES"
     },
@@ -1529,16 +1525,12 @@
       "symbol": "render"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "symbol": "DEFAULT_INTERVAL_SECONDS"
+      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "symbol": "BLOCK_CLASSES"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "symbol": "DEFAULT_MAX_BUDGET_SECONDS"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
-      "symbol": "failingChecksBlockMerge"
+      "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
+      "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
@@ -1913,6 +1905,30 @@
       "symbol": "runBaseSyncPhase"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "DEFAULT_MAX_WAIT_SECONDS"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "DEFAULT_UPDATE_ATTEMPTS"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "MIN_POLLS_BEFORE_BUDGET_BLOCK"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "readPrWaitProbe"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "resolveBudgetAnchorMs"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "resolveMergeWaitConfig"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",
       "symbol": "CONVENTIONAL_TYPES"
     },
@@ -2110,10 +2126,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "symbol": "postStructuredComment"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "symbol": "toggleTasklistCheckbox"
     },
     {
@@ -2303,10 +2315,6 @@
     {
       "file": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
       "symbol": "readLockMtime"
-    },
-    {
-      "file": ".agents/scripts/lib/single-story/confirm-merge.js",
-      "symbol": "readPrMergeState"
     },
     {
       "file": ".agents/scripts/lib/skills/walk-skill-files.js",

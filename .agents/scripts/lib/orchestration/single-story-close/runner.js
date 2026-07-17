@@ -15,6 +15,7 @@ import {
   buildTerminalEnvelope,
   emitTerminalEnvelope,
   NEXT_COMMANDS,
+  terminalFromWaitOutcome,
 } from '../story-deliver-terminal.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
@@ -319,97 +320,6 @@ function closeResult({
         ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done and close the issue (the Closes #<id> footer also auto-closes it).'
         : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done (the Closes #<id> footer also auto-closes the issue).',
   };
-}
-
-/**
- * Map a `runConfirmMergePhase` outcome onto the schema-validated terminal
- * envelope (Story #4543). One writer, one shape — the two prose contracts
- * this replaces disagreed with each other precisely because each surface
- * assembled its own.
- *
- * @returns {object} A validated `story-deliver-terminal` envelope.
- */
-function terminalFromWaitOutcome({
-  waitOutcome,
-  storyId,
-  storyBranch,
-  baseBranch,
-  prNumber,
-  prUrl,
-  autoMergeEnabled,
-  gates,
-  elapsedSeconds,
-}) {
-  const prBase = {
-    number: prNumber,
-    url: prUrl ?? null,
-    autoMergeEnabled: Boolean(autoMergeEnabled),
-  };
-  const common = {
-    storyId,
-    storyBranch,
-    baseBranch,
-    gates,
-    elapsedSeconds,
-  };
-
-  if (waitOutcome.terminal === 'landed') {
-    return buildTerminalEnvelope({
-      ...common,
-      status: 'landed',
-      phase: 'post-land',
-      pr: {
-        ...prBase,
-        state: 'MERGED',
-        // The observed rollup, not an assumed 'success' — a merge can land by
-        // admin override or with non-required checks red.
-        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
-      },
-      tail: waitOutcome.tail,
-      nextCommand: null,
-    });
-  }
-
-  if (waitOutcome.terminal === 'pending') {
-    return buildTerminalEnvelope({
-      ...common,
-      status: 'pending',
-      phase: 'confirm-merge',
-      pr: {
-        ...prBase,
-        state: waitOutcome.prProbe?.state ?? 'OPEN',
-        checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
-      },
-      waitBudget: waitOutcome.waitBudget,
-      nextCommand: NEXT_COMMANDS.resumeLand(storyId),
-    });
-  }
-
-  // blocked — the classifier already named the class and the friction
-  // comment already carries the class-specific remediation, so the next
-  // command mirrors it rather than inventing a second opinion.
-  const nextCommand =
-    waitOutcome.blockClass === 'checks-failed'
-      ? NEXT_COMMANDS.watchCi(storyId, prNumber)
-      : waitOutcome.blockClass === 'merged-flip-failed'
-        ? NEXT_COMMANDS.confirmMerge(storyId)
-        : NEXT_COMMANDS.recover(storyId);
-  return buildTerminalEnvelope({
-    ...common,
-    status: 'blocked',
-    phase: 'confirm-merge',
-    pr: {
-      ...prBase,
-      state: waitOutcome.prProbe?.state ?? null,
-      checksStatus: waitOutcome.prProbe?.checksStatus ?? null,
-    },
-    blocked: {
-      blockClass: waitOutcome.blockClass,
-      reason: waitOutcome.reason,
-      frictionCommentId: waitOutcome.frictionCommentId ?? null,
-    },
-    nextCommand,
-  });
 }
 
 export async function runSingleStoryClose({
