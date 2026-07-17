@@ -20,6 +20,7 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import {
   evaluateCriticArtifacts,
   loadCriticArtifacts,
@@ -114,6 +115,38 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     assert.match(critics, /never the authoring\s*\n?\s*transcript/i);
     // Advisory, not a mechanical gate: the CLI always exits 0.
     assert.match(critics, /always exits 0/i);
+  });
+
+  it('names textHygiene findings as re-author input in the critic step (#4599)', () => {
+    // The workflow wires hygiene findings into the re-author round: the
+    // critic step must name the verdict entry and route its findings.
+    const critics = section('### 2\\.5 Critics');
+    assert.match(critics, /textHygiene/);
+    assert.match(critics, /textHygiene\.findings\[\]/);
+    assert.match(critics, /re-author round/i);
+    assert.match(critics, /advisory-only/i);
+  });
+});
+
+describe('story-author prompt — codified text-hygiene conventions (#4599)', () => {
+  const prompt = renderDecomposerSystemPrompt();
+
+  it('mandates the "Current state (verified <date>)" preamble for observed-behavior claims', () => {
+    assert.match(prompt, /Current state \(verified <date>\)/);
+  });
+
+  it('mandates the intent-then-proxy acceptance shape', () => {
+    assert.match(prompt, /state the intent clause before the proxy check/i);
+  });
+
+  it('mandates one-line Slicing checkpoints with detail in Spec', () => {
+    assert.match(prompt, /Slicing checkpoints are one line each/i);
+    assert.match(prompt, /detail lives in `## Spec`/i);
+  });
+
+  it('mandates decisions-not-questions bodies with declarative Key Assumptions', () => {
+    assert.match(prompt, /record decisions, never questions to the operator/i);
+    assert.match(prompt, /declarative Key Assumption/i);
   });
 });
 
@@ -210,6 +243,9 @@ describe('plan-critics.js CLI — verdict contract', () => {
     assert.ok(Array.isArray(verdict.consolidation.reasons));
     assert.ok(Array.isArray(verdict.premortem.reasons));
     assert.ok(verdict.consolidation.reasons.length > 0);
+    // The advisory text-hygiene entry rides the same verdict JSON (#4599).
+    assert.equal(verdict.textHygiene.critic, 'text-hygiene');
+    assert.ok(Array.isArray(verdict.textHygiene.findings));
   });
 
   it('fires consolidation on a draft above the story threshold', () => {
@@ -313,7 +349,7 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
     assert.equal(verdict.premortem.dispatch, false);
     assert.deepEqual(
       appended.map((e) => e.critic),
-      ['consolidation', 'pre-mortem'],
+      ['consolidation', 'pre-mortem', 'text-hygiene'],
     );
     for (const entry of appended) {
       assert.equal(entry.cli, PLAN_CRITICS_CLI);
@@ -339,6 +375,32 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
     assert.equal(verdict.premortem.dispatch, true);
     assert.equal(
       appended.some((e) => e.critic === 'pre-mortem'),
+      false,
+    );
+  });
+
+  it('records no text-hygiene skip when the lint has findings', async () => {
+    const storiesPath = write('hygiene-stories.json', [
+      {
+        slug: 'cited',
+        depends_on: [],
+        body: '## Goal\nPer the design note (§4, Q5), the gate is dead.\n',
+      },
+    ]);
+    const appended = [];
+
+    const verdict = await evaluateCriticArtifacts({
+      storiesPath,
+      config: {},
+      append: async (entry) => {
+        appended.push(entry);
+        return true;
+      },
+    });
+
+    assert.ok(verdict.textHygiene.findings.length > 0);
+    assert.equal(
+      appended.some((e) => e.critic === 'text-hygiene'),
       false,
     );
   });
