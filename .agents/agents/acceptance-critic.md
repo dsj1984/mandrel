@@ -34,7 +34,15 @@ verdicts, their commit-message justifications-as-proof, or any prior verdict
 file they authored. You grade the **work product**, not the homework the maker
 turned in about it. Your only trusted inputs are:
 
-- the working **diff** (`git diff origin/<baseBranch>...HEAD`),
+- the **change set** your caller hands you: the list of files this Story
+  touched, computed **once** per delivery by the shared `computeChangeSet`
+  enumerator (`.agents/scripts/lib/orchestration/change-set.js`) and threaded
+  into your spawn context. Read those files and inspect their changes to see
+  the work product. Do **not** re-derive the set yourself — re-enumerating it
+  can pick up commits that landed after your caller routed the ceremony, and
+  then you would be scoring a different change than the one you were dispatched
+  for (Story #4593). If no change set reached you, say so in your verdict
+  rather than substituting your own enumeration.
 - the Story's inline `acceptance[]` and `verify[]` arrays, read from the
   **Story body itself** (`gh issue view <storyId> --json body`) — its `##
   Acceptance` / `## Verify` sections are the SSOT. The `story-init` structured
@@ -58,7 +66,8 @@ given.
 
 For each acceptance item in your cluster:
 
-1. **Inspect the diff** for the change that would satisfy the criterion.
+1. **Inspect the change set** — read the files your caller named and look for
+   the change that would satisfy the criterion.
 2. **Run the relevant `verify[]` commands** and consume their output as
    **required evidence**. A criterion cannot be scored `met` without the
    supporting `verify[]` evidence where a `verify[]` command is relevant to it.
