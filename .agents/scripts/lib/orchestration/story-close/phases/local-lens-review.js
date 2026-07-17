@@ -22,8 +22,13 @@ import { computeChangeSet } from '../../change-set.js';
 /**
  * The review depth the Story-scope local-lens pass runs at. Fixed for this
  * tier — it is not risk-scaled like the code-review pillar depth.
+ *
+ * Module-local: it is an implementation detail of {@link runLocalLensReview}
+ * (it rides out on the returned envelope's `depth` field), not a public seam.
+ * Tests assert the observable `'light'` on that envelope rather than importing
+ * the constant, so it stays off the public surface (Story #4603).
  */
-export const STORY_SCOPE_LENS_DEPTH = 'light';
+const STORY_SCOPE_LENS_DEPTH = 'light';
 
 /**
  * Enumerate the files changed in the `baseRef...headRef` diff. Thin adapter over
@@ -42,13 +47,13 @@ export const STORY_SCOPE_LENS_DEPTH = 'light';
  *   headRef: string,
  *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
  * }} args
+ * Module-local (Story #4603): a private fallback of {@link runLocalLensReview},
+ * exercised through that public entry point rather than imported directly, so it
+ * adds no public export a production path fails to reach.
+ *
  * @returns {string[]} Changed file paths, or `[]` on any failure.
  */
-export function enumerateChangedFiles({
-  baseRef,
-  headRef,
-  gitSpawnFn = gitSpawn,
-}) {
+function enumerateChangedFiles({ baseRef, headRef, gitSpawnFn = gitSpawn }) {
   return computeChangeSet({ baseRef, headRef, gitSpawnFn }).files ?? [];
 }
 
@@ -70,6 +75,12 @@ export function enumerateChangedFiles({
  * into one branch and re-spawned git on the unenumerable path, contradicting the
  * spine's documented "the one enumeration per close run" invariant.
  *
+ * Module-local (Story #4603): a private detail of {@link runLocalLensReview}.
+ * The three-state contract is asserted through that public entry point (does an
+ * injected `null` re-spawn git? does `undefined` self-enumerate?), so it needs
+ * no public export — keeping the fix from re-introducing the very kind of
+ * production-dead public symbol this Story's ratchet root-cause is about.
+ *
  * @param {{
  *   changedFiles: string[]|null|undefined,
  *   baseRef: string,
@@ -78,7 +89,7 @@ export function enumerateChangedFiles({
  * }} args
  * @returns {string[]}
  */
-export function resolveLensChangeSet({
+function resolveLensChangeSet({
   changedFiles,
   baseRef,
   headRef,
