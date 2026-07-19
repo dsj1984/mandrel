@@ -51,7 +51,7 @@ const EXPECTED_TIERS = {
   'audit-privacy': 'local',
   'audit-performance': 'local',
   'audit-quality': 'local',
-  'audit-lighthouse': 'local',
+  'audit-accessibility': 'local',
   'audit-ux-ui': 'local',
   'audit-seo': 'local',
   'audit-architecture': 'cumulative',

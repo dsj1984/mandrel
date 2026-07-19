@@ -347,20 +347,20 @@ describe('checkParity — command:false workflows', () => {
     writeFile(path.join(cmd, 'plan.md'), '# Plan\n');
     // A lens workflow that declines a command via frontmatter.
     writeFile(
-      path.join(wf, 'audit-lighthouse.md'),
-      `---\ndescription: Lighthouse lens\n${commandFalse ? 'command: false\n' : ''}---\n# Lighthouse\n`,
+      path.join(wf, 'audit-security.md'),
+      `---\ndescription: Security lens\n${commandFalse ? 'command: false\n' : ''}---\n# Security\n`,
     );
     // Optionally give it a command too (the caller controls the failing case).
     if (withCommand) {
-      writeFile(path.join(cmd, 'audit-lighthouse.md'), '# Lighthouse\n');
+      writeFile(path.join(cmd, 'audit-security.md'), '# Security\n');
     }
   }
 
   it('does not report a command:false workflow as missing a command', () => {
-    // The Install Matrix cold-start regression: audit-lighthouse /
-    // audit-security carry `command: false`, sync-claude-commands skips them,
-    // and the parity check must skip them too rather than demand a command
-    // the sync is contracted never to emit.
+    // The Install Matrix cold-start regression: audit-security carries
+    // `command: false`, sync-claude-commands skips it, and the parity check
+    // must skip it too rather than demand a command the sync is contracted
+    // never to emit.
     seed({ commandFalse: true, withCommand: false });
     const result = checkParity({ projectRoot: tmpRoot });
     assert.equal(
@@ -378,6 +378,6 @@ describe('checkParity — command:false workflows', () => {
     seed({ commandFalse: false, withCommand: false });
     const result = checkParity({ projectRoot: tmpRoot });
     assert.equal(result.ok, false);
-    assert.deepEqual(result.missingCommand, ['audit-lighthouse']);
+    assert.deepEqual(result.missingCommand, ['audit-security']);
   });
 });

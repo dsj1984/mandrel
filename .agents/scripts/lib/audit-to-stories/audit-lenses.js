@@ -25,13 +25,13 @@
  * @type {ReadonlyArray<string>}
  */
 export const AUDIT_LENSES = Object.freeze([
+  'accessibility',
   'architecture',
   'clean-code',
   'data-model',
   'dependencies',
   'devops',
   'documentation',
-  'lighthouse',
   'navigability',
   'performance',
   'privacy',

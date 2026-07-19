@@ -38,6 +38,10 @@ import { gh as defaultGh, GhExecError } from './lib/gh-exec.js';
  * register colour/description here first.
  */
 const LENS_META = Object.freeze({
+  accessibility: {
+    color: 'c5def5',
+    description: 'Audit-sourced finding: WCAG accessibility conformance',
+  },
   architecture: {
     color: '6f42c1',
     description: 'Audit-sourced finding: architectural concerns',
@@ -57,10 +61,6 @@ const LENS_META = Object.freeze({
   documentation: {
     color: '1d76db',
     description: 'Audit-sourced finding: documentation staleness / gaps',
-  },
-  lighthouse: {
-    color: 'c5def5',
-    description: 'Audit-sourced finding: Lighthouse score regressions',
   },
   navigability: {
     color: 'bfdadc',
