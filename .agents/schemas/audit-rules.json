@@ -149,7 +149,15 @@
       "triggers": {
         "gates": ["gate2", "gate3"],
         "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
-        "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
+        "filePatterns": [
+          "**/*.html",
+          "**/*.astro",
+          "**/sitemap*",
+          "**/robots*",
+          "**/app/**/{page,layout,route,head,default,template,loading,error,not-found,opengraph-image,twitter-image}.{js,jsx,ts,tsx}",
+          "**/pages/**/*.{js,jsx,ts,tsx,vue}",
+          "**/routes/**/*.{jsx,tsx,vue,svelte}"
+        ]
       },
       "target": "web",
       "scope": "local",
@@ -162,7 +170,12 @@
         "filePatterns": [
           "**/components/**/*.{tsx,jsx,vue,svelte}",
           "**/styles/**",
-          "**/*.css"
+          "**/*.css",
+          "**/*.{scss,sass,less}",
+          "**/tailwind.config.{js,ts,cjs,mjs}",
+          "**/theme/**",
+          "**/tokens/**",
+          "**/design-system/**"
         ]
       },
       "target": "web",
