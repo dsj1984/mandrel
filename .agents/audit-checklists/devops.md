@@ -10,6 +10,10 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Workflow static analysis (`actionlint`).
+- [ ] Workflow security posture (`zizmor`).
+- [ ] Container linting (`hadolint`), presence-gated on Dockerfiles.
+- [ ] Pipeline reliability history (`gh run list`).
 - [ ] Redundancy & Duplication
 - [ ] Performance Gaps
 - [ ] Security & Compliance

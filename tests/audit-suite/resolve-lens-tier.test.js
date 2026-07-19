@@ -6,8 +6,9 @@
  *   - `resolveLensTier` (imported from the audit-suite SDK barrel) returns one
  *     of `local | cumulative | global` for every lens registered in
  *     `audit-rules.json`, and throws on an unknown lens.
- *   - `audit-rules.json` declares a scope on all 14 lenses (including the
- *     gate4-only `audit-sre`) and no longer carries `alwaysRun`.
+ *   - `audit-rules.json` declares a scope on all 14 lenses (including
+ *     `audit-sre`, re-homed from the dead gate4-only state to gate3 with ops
+ *     filePatterns by Story #4629) and no longer carries `alwaysRun`.
  *   - `audit-rules.schema.json` requires the `scope` enum and no longer
  *     permits `alwaysRun` (a fixture rule carrying it fails validation).
  */
@@ -55,8 +56,8 @@ const EXPECTED_TIERS = {
   'audit-dependencies': 'cumulative',
   'audit-devops': 'cumulative',
   'audit-documentation': 'cumulative',
+  'audit-sre': 'cumulative',
   'audit-navigability': 'global',
-  'audit-sre': 'global',
 };
 
 test('LENS_TIERS is the frozen local|cumulative|global tuple', () => {
@@ -79,10 +80,24 @@ test('audit-rules.json registers all 14 lenses, each with a scope in the enum', 
   }
 });
 
-test('the gate4-only audit-sre lens carries a scope', () => {
+test('audit-sre is re-homed from the dead gate4 state to gate3 with ops filePatterns (Story #4629)', () => {
+  const sre = rules.audits['audit-sre'];
+  assert.ok(LENS_TIERS.includes(sre?.scope), 'audit-sre must declare a scope');
+  const gates = sre?.triggers?.gates ?? [];
   assert.ok(
-    LENS_TIERS.includes(rules.audits['audit-sre']?.scope),
-    'audit-sre must declare a scope even though it is not wired into the delivery gates',
+    gates.includes('gate3'),
+    `audit-sre must route at gate3 so a production caller reaches it; got ${JSON.stringify(gates)}`,
+  );
+  assert.ok(
+    !gates.includes('gate4'),
+    'audit-sre must no longer be pinned to the dead gate4-only state',
+  );
+  const patterns = sre?.triggers?.filePatterns ?? [];
+  assert.ok(
+    patterns.includes('.github/workflows/**') &&
+      patterns.some((p) => p.includes('Dockerfile')) &&
+      patterns.includes('**/migrations/**'),
+    `audit-sre must carry ops filePatterns (workflows, Dockerfile, migrations); got ${JSON.stringify(patterns)}`,
   );
 });
 

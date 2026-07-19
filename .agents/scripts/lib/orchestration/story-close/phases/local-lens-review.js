@@ -31,6 +31,58 @@ import { computeChangeSet } from '../../change-set.js';
 const STORY_SCOPE_LENS_DEPTH = 'light';
 
 /**
+ * Render the host-MUST-walk roster of materialized lens-prompt artifacts
+ * (Story #4627). The Story-scope lens pass materializes each matched lens's
+ * substituted prompt body to a scoped artifact file; the default review
+ * provider is a mechanical sweep that never reads them, so the artifacts are
+ * inert unless the close's stdout tells the host to walk them. This mirrors
+ * the plan-run audit-roster comment's "host MUST walk each" contract
+ * (`run-epilogue.js`): the close names each artifact path and the host reads
+ * each one against the diff.
+ *
+ * Pure: derives the block from the `runAuditSuite` envelope's `workflows[]`,
+ * keeping only entries that actually wrote an artifact. Returns `null` when no
+ * artifact was written (nothing to walk), so the caller emits nothing.
+ *
+ * Module-local: an implementation detail of {@link runLocalLensReview}, whose
+ * host-MUST-walk output rides out on the `progress` stream. Exercised through
+ * that public entry point (assert the progress lines name each artifact path)
+ * rather than imported directly, so it adds no production-dead public export.
+ *
+ * @param {object|null} materialized the `runAuditSuite` result envelope.
+ * @returns {string|null} the roster block, or `null` when there is nothing to walk.
+ */
+function renderLensArtifactRoster(materialized) {
+  const paths = (materialized?.workflows ?? [])
+    .map((w) => w?.artifactPath)
+    .filter((p) => typeof p === 'string' && p.length > 0);
+  if (paths.length === 0) return null;
+  return [
+    `Lens prompts materialized (host MUST read/walk each against the Story diff):`,
+    ...paths.map((p) => `  - ${p}`),
+  ].join('\n');
+}
+
+/**
+ * Build the `runAuditSuite` substitutions for the Story-scope lens pass
+ * (Story #4627). Resolves the `{{changedFiles}}` token from the actual Story
+ * diff (newline-joined, the shape the lens templates' `## Scope` block reads)
+ * and the `{{ticketId}}` token from the Story id when known. Both are built-in
+ * substitution keys (`substitutions.js#BUILT_IN_SUBSTITUTION_KEYS`), so the
+ * runner accepts them without a per-lens `substitutionKeys` declaration.
+ *
+ * @param {{ changedFiles: string[], storyId?: number|string|null }} args
+ * @returns {Record<string, string>}
+ */
+function buildLensSubstitutions({ changedFiles, storyId }) {
+  const substitutions = { changedFiles: changedFiles.join('\n') };
+  if (storyId != null && `${storyId}`.length > 0) {
+    substitutions.ticketId = String(storyId);
+  }
+  return substitutions;
+}
+
+/**
  * Enumerate the files changed in the `baseRef...headRef` diff. Thin adapter over
  * the shared {@link computeChangeSet} enumerator (Story #4593) that flattens its
  * `files: string[]|null` envelope to this phase's historical `[]`-on-failure
@@ -120,10 +172,20 @@ function resolveLensChangeSet({
  * for standalone callers that supply no list; see {@link resolveLensChangeSet}
  * for the three-state contract.
  *
+ * Story #4627 — the pass now delivers lens **content** to a reader. It threads
+ * `{{changedFiles}}` / `{{ticketId}}` substitutions and an `artifactPrefix`
+ * into `runAuditSuite` so each matched lens's substituted prompt body is
+ * written to a scoped artifact under the run's audit output dir, then emits a
+ * host-MUST-walk roster of those artifact paths to the close's stdout. Before
+ * this the default review provider dropped the materialized envelope, so the
+ * pass was a progress log line with no reader.
+ *
  * @param {{
  *   baseRef: string,
  *   headRef: string,
  *   changedFiles?: string[]|null,
+ *   storyId?: number|string|null,
+ *   artifactPrefix?: string,
  *   progress: (tag: string, msg: string) => void,
  *   progressTag?: string,
  *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
@@ -135,12 +197,15 @@ function resolveLensChangeSet({
  *   lenses: string[],
  *   skipped: boolean,
  *   materialized: object|null,
+ *   artifactPaths: string[],
  * }>}
  */
 export async function runLocalLensReview({
   baseRef,
   headRef,
   changedFiles: injectedChangedFiles,
+  storyId,
+  artifactPrefix,
   progress,
   progressTag = 'CODE-REVIEW',
   gitSpawnFn = gitSpawn,
@@ -152,6 +217,7 @@ export async function runLocalLensReview({
     lenses: [],
     skipped: true,
     materialized: null,
+    artifactPaths: [],
   };
   try {
     const changedFiles = resolveLensChangeSet({
@@ -168,16 +234,30 @@ export async function runLocalLensReview({
       );
       return empty;
     }
-    const materialized = await runAuditSuiteFn({ auditWorkflows: lenses });
+    // Scope the artifact filenames to this Story so concurrent closes on a
+    // shared audit output dir cannot clobber each other's prompts.
+    const effectivePrefix =
+      artifactPrefix ?? (storyId != null ? `story-${storyId}` : 'story-scope');
+    const materialized = await runAuditSuiteFn({
+      auditWorkflows: lenses,
+      substitutions: buildLensSubstitutions({ changedFiles, storyId }),
+      artifactPrefix: effectivePrefix,
+    });
     progress(
       progressTag,
       `Ran ${lenses.length} local lens(es) at ${STORY_SCOPE_LENS_DEPTH} depth: ${lenses.join(', ')}.`,
     );
+    const roster = renderLensArtifactRoster(materialized);
+    if (roster) progress(progressTag, roster);
+    const artifactPaths = (materialized?.workflows ?? [])
+      .map((w) => w?.artifactPath)
+      .filter((p) => typeof p === 'string' && p.length > 0);
     return {
       depth: STORY_SCOPE_LENS_DEPTH,
       lenses,
       skipped: false,
       materialized,
+      artifactPaths,
     };
   } catch (err) {
     // The lens pass is advisory: a git or materialization failure must not

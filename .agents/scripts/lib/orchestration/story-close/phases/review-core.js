@@ -110,6 +110,7 @@ export async function runStoryReviewCore({
     baseRef,
     headRef,
     changedFiles: changeSet.files,
+    storyId: storyIdNum,
     progress,
     progressTag,
     gitSpawnFn,
