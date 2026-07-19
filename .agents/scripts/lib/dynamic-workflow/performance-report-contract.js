@@ -12,9 +12,10 @@ import { assertSectionsContract } from './report-contract-core.js';
  * contract-tier test assert report conformance against one definition rather
  * than re-deriving headings from prose in two places.
  *
- * Changing the report contract is explicitly **out of scope** for this Story —
- * this module documents the existing shape already declared by the lens
- * markdown's Step 3 template, it does not introduce a new one.
+ * The report shape is declared by the lens markdown's Step 4 template. Story
+ * #4631 added the mandatory per-finding **Evidence** field (a repro command
+ * plus a `measured`/`estimated` tag) so measurement-first evidence is part of
+ * the contract both paths must emit, not just prose in the lens.
  *
  * @module dynamic-workflow/performance-report-contract
  */
@@ -48,6 +49,7 @@ export const REPORT_TITLE = 'Performance Audit Report';
 export const FINDING_FIELDS = Object.freeze([
   'Dimension',
   'Impact',
+  'Evidence',
   'Current State',
   'Recommendation & Rationale',
   'Agent Prompt',
