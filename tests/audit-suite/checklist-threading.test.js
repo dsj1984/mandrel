@@ -131,8 +131,8 @@ test('buildChecklistPayload: a cumulative-only footprint threads only the univer
 });
 
 test('buildChecklistPayload: a global-only footprint threads only the universal clean-code lens', () => {
-  // `audit-navigability` / `audit-sre` (global) are never threaded at
-  // write-time. A route-ish path matches no other local lens's filePattern,
+  // `audit-navigability` (global) / `audit-sre` (cumulative) are never threaded
+  // at write-time. A route-ish path matches no other local lens's filePattern,
   // so only the universal `audit-clean-code` is threaded.
   const result = buildChecklistPayload({
     footprint: ['app/routes/registry.config'],
