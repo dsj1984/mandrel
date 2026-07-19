@@ -14,6 +14,7 @@
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import test from 'node:test';
 
 import { buildDispatchChecklist } from '../../.agents/scripts/lib/audit-suite/index.js';
@@ -92,11 +93,17 @@ test('writes the payload to <runTempDir>/story-<id>-checklist.md and returns the
     writeFileFn: (filePath, content) => writes.push({ filePath, content }),
   });
 
-  assert.equal(out.checklistPath, 'temp/run-abc/story-4627-checklist.md');
+  assert.equal(
+    out.checklistPath,
+    path.join('temp/run-abc', 'story-4627-checklist.md'),
+  );
   assert.equal(out.skipped, false);
   assert.deepEqual(out.includedLenses, ['clean-code']);
   assert.equal(writes.length, 1);
-  assert.equal(writes[0].filePath, 'temp/run-abc/story-4627-checklist.md');
+  assert.equal(
+    writes[0].filePath,
+    path.join('temp/run-abc', 'story-4627-checklist.md'),
+  );
   assert.equal(writes[0].content, '# checklist\n\n- do the thing');
 });
 
@@ -142,7 +149,10 @@ test('integration: real payload builder assembles a footprint-matched checklist'
     writeFileFn: (filePath, content) => writes.push({ filePath, content }),
   });
 
-  assert.equal(out.checklistPath, 'temp/run-int/story-4627-checklist.md');
+  assert.equal(
+    out.checklistPath,
+    path.join('temp/run-int', 'story-4627-checklist.md'),
+  );
   assert.equal(out.skipped, false);
   assert.ok(
     out.includedLenses.length >= 1,
