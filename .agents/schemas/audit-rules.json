@@ -183,8 +183,27 @@
     "audit-performance": {
       "triggers": {
         "gates": ["gate1", "gate3"],
-        "keywords": ["performance", "n+1", "hot path", "latency", "throughput"],
-        "filePatterns": [".agents/scripts/**", "src/**/*.{ts,js}"]
+        "keywords": [
+          "performance",
+          "n+1",
+          "hot path",
+          "latency",
+          "throughput",
+          "concurrency",
+          "race",
+          "toctou",
+          "atomic",
+          "idempotent",
+          "bundle",
+          "memory leak"
+        ],
+        "filePatterns": [
+          ".agents/scripts/**",
+          "src/**/*.{ts,js}",
+          "**/*.html",
+          "**/*.css",
+          "**/components/**/*.js"
+        ]
       },
       "scope": "local",
       "substitutionKeys": []

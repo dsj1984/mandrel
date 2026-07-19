@@ -26,8 +26,12 @@ import {
   REQUIRED_SECTIONS,
 } from '../../.agents/scripts/lib/dynamic-workflow/performance-report-contract.js';
 import {
+  buildDimensionPrompt,
   buildScopeClause,
   buildSynthesisPrompt,
+  MEASUREMENT_COMMAND_ALLOWLIST,
+  MEASUREMENT_TOOLS,
+  READ_ONLY_TOOLS,
 } from '../../.claude/workflows/audit-performance.workflow.js';
 
 const REPO_ROOT = path.resolve(
@@ -145,6 +149,64 @@ test('buildScopeClause: a real file list → scoped analysis', () => {
   assert.match(clause, /Restrict analysis/i);
   assert.ok(clause.includes('src/a.js'));
   assert.ok(clause.includes('src/b.js'));
+});
+
+// --- AC-5: the orchestrated path can EXECUTE measurements -------------------
+
+test('measurement agents are granted Bash on top of the read-only trio', () => {
+  assert.ok(
+    MEASUREMENT_TOOLS.includes('Bash'),
+    'measurement agents must be granted Bash to run Step 0 measurements',
+  );
+  for (const tool of READ_ONLY_TOOLS) {
+    assert.ok(
+      MEASUREMENT_TOOLS.includes(tool),
+      `measurement allowlist dropped read-only tool ${tool}`,
+    );
+  }
+});
+
+test('the command allowlist is non-empty and holds only non-mutating commands', () => {
+  assert.ok(
+    MEASUREMENT_COMMAND_ALLOWLIST.length > 0,
+    'measurement command allowlist is empty — execution was stripped, not restricted',
+  );
+  // The measurement toolkit the lens Step 0 names must be present.
+  for (const cmd of ['hyperfine', 'node --cpu-prof']) {
+    assert.ok(
+      MEASUREMENT_COMMAND_ALLOWLIST.includes(cmd),
+      `measurement allowlist omits the Step 0 command "${cmd}"`,
+    );
+  }
+  // No mutating command may leak into a "non-mutating" allowlist.
+  const joined = MEASUREMENT_COMMAND_ALLOWLIST.join('\n');
+  for (const forbidden of [
+    'rm ',
+    'git commit',
+    'git push',
+    'git checkout',
+    'npm install',
+    'npm ci',
+    'sed -i',
+    'mv ',
+  ]) {
+    assert.ok(
+      !joined.includes(forbidden),
+      `measurement allowlist must not contain the mutating command "${forbidden.trim()}"`,
+    );
+  }
+});
+
+test('every dimension prompt embeds the allowlist and the Evidence requirement', () => {
+  const prompt = buildDimensionPrompt('CPU & algorithmic hot paths', LENS, '');
+  for (const cmd of MEASUREMENT_COMMAND_ALLOWLIST) {
+    assert.ok(
+      prompt.includes(cmd),
+      `dimension prompt does not surface allowlisted command "${cmd}"`,
+    );
+  }
+  assert.match(prompt, /Evidence field/i);
+  assert.match(prompt, /measured|estimated/i);
 });
 
 // --- downstream consumer parity --------------------------------------------

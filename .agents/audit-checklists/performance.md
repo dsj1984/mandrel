@@ -6,17 +6,14 @@
 
 # Performance & Bottleneck Audit — authoring checklist
 
-> Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`single-story-close`, dispatcher, gates); propose remediations.
+> Audit performance by measuring first — profile hot paths, I/O, memory, and payload against the repo's own numbers — and audit interleaving/partial-failure correctness (TOCTOU, unawaited promises, non-atomic writes) as a first-class dimension.
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Database/API Efficiency
-- [ ] Frontend Rendering
-- [ ] Bundle Size
-- [ ] Resource Usage
-- [ ] Network Path
-- [ ] Latency
-- [ ] Throughput
-- [ ] Efficiency
-- [ ] Scalability
-- [ ] Core Web Vitals
+- [ ] Diff against the previous baseline
+- [ ] Suppress unchanged known findings.
+- [ ] CPU & algorithmic hot paths
+- [ ] I/O & syscall efficiency
+- [ ] Memory & leaks
+- [ ] Payload & bundle (web only)
+- [ ] Interleaving & partial-failure correctness
