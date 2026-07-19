@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.4.0...mandrel-v2.5.0) (2026-07-19)
+
+
+### Added
+
+* audit findings contract: parse-visible templates, unified severity, deterministic identity, CI conformance gate ([#4625](https://github.com/dsj1984/mandrel/issues/4625)) ([#4635](https://github.com/dsj1984/mandrel/issues/4635)) ([63a4f63](https://github.com/dsj1984/mandrel/commit/63a4f639a5626467c5eb6bbb5ef1944fa431782d))
+* **audit:** activate dormant shift-left tiers — lens delivery, checklist dispatch, self-check guard (refs [#4627](https://github.com/dsj1984/mandrel/issues/4627)) ([#4639](https://github.com/dsj1984/mandrel/issues/4639)) ([3d3b1ee](https://github.com/dsj1984/mandrel/commit/3d3b1ee1493117d11f1e1d000239fbc823c8ac64))
+* **audit:** add audit-data-model lens with persistence-layer applicability probe (refs [#4633](https://github.com/dsj1984/mandrel/issues/4633)) ([#4644](https://github.com/dsj1984/mandrel/issues/4644)) ([c584293](https://github.com/dsj1984/mandrel/commit/c58429323b4cdde8d6aaf2358d71963c85bb7a0a))
+* **audit:** implement advertised dependency checks, reachability-triaged vulns, and supply-chain scoped mode (refs [#4632](https://github.com/dsj1984/mandrel/issues/4632)) ([#4643](https://github.com/dsj1984/mandrel/issues/4643)) ([47f18f6](https://github.com/dsj1984/mandrel/commit/47f18f68fca3c86904ebf77b2558522f21e6b4d2))
+* **audit:** replace audit-lighthouse with WCAG audit-accessibility lens (refs [#4634](https://github.com/dsj1984/mandrel/issues/4634)) ([#4645](https://github.com/dsj1984/mandrel/issues/4645)) ([800c69e](https://github.com/dsj1984/mandrel/commit/800c69e96701f321619febe12a4b2f9f30fd35d7))
+* **audit:** rework audit-performance — measure-first, repo profiling, concurrency dimension (refs [#4631](https://github.com/dsj1984/mandrel/issues/4631)) ([#4642](https://github.com/dsj1984/mandrel/issues/4642)) ([ed5fd9a](https://github.com/dsj1984/mandrel/commit/ed5fd9a39b9fc4b9442484822e17553380ddccc8))
+* **audit:** tool-first detection for ops/security lenses + SRE rewrite (refs [#4629](https://github.com/dsj1984/mandrel/issues/4629)) ([#4640](https://github.com/dsj1984/mandrel/issues/4640)) ([13d0439](https://github.com/dsj1984/mandrel/commit/13d0439b0a6adb6235cf305a16ee5abce61c919d))
+* **audit:** tool-first detection for the code-quality lenses (refs [#4628](https://github.com/dsj1984/mandrel/issues/4628)) ([#4637](https://github.com/dsj1984/mandrel/issues/4637)) ([858f793](https://github.com/dsj1984/mandrel/commit/858f793f4d24a6b6059dc97da2067337a6937713))
+* **audit:** tool-first detection for the seo, ux-ui, and navigability web lenses (refs [#4630](https://github.com/dsj1984/mandrel/issues/4630)) ([#4641](https://github.com/dsj1984/mandrel/issues/4641)) ([3885d22](https://github.com/dsj1984/mandrel/commit/3885d227087311de3a28bdaa4e882c69915b0a00))
+* cross-run audit findings ledger, dedup repair, and unattended /audit-to-stories ([#4626](https://github.com/dsj1984/mandrel/issues/4626)) ([#4638](https://github.com/dsj1984/mandrel/issues/4638)) ([d8ecc2d](https://github.com/dsj1984/mandrel/commit/d8ecc2dbc23840f9ca071ce858c93a65506dfc14))
+
 ## [2.4.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.3.0...mandrel-v2.4.0) (2026-07-17)
 
 
