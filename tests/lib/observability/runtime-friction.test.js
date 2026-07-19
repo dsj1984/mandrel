@@ -25,9 +25,10 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   emitBlockRecoveredFriction,
+  emitCloseRecoveredFriction,
   emitRuntimeFriction,
   emitTerminalFriction,
-  isRecoveredBlockSignal,
+  isRecoveredSignal,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { forEachLine } from '../../../.agents/scripts/lib/observability/signals-writer.js';
@@ -282,12 +283,33 @@ describe('block-recovery friction (Story #4622)', () => {
   });
 });
 
-describe('isRecoveredBlockSignal (Story #4622)', () => {
+describe('close-recovery friction (Story #4649)', () => {
+  it('emits a close-failed record carrying the recovered discriminator', async () => {
+    const ok = await emitCloseRecoveredFriction({ storyId: 4649, config });
+    assert.equal(ok, true);
+
+    const rows = await readStorySignals(4649);
+    assert.equal(rows.length, 1);
+    const rec = rows[0];
+    assert.equal(rec.kind, 'friction');
+    assert.equal(rec.category, RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED);
+    assert.equal(rec.details.recovered, true);
+    assert.equal(rec.storyId, 4649);
+  });
+
+  it('keeps the category as close-failed so it does not open a new routable bucket', async () => {
+    await emitCloseRecoveredFriction({ storyId: 4650, config });
+    const rows = await readStorySignals(4650);
+    assert.equal(rows[0].category, 'close-failed');
+  });
+});
+
+describe('isRecoveredSignal (Story #4622, generalized by #4649)', () => {
   const STORY_BLOCKED = RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED;
 
-  it('is true only for a story-blocked record with details.recovered === true', () => {
+  it('is true for a story-blocked record with details.recovered === true', () => {
     assert.equal(
-      isRecoveredBlockSignal({
+      isRecoveredSignal({
         category: STORY_BLOCKED,
         details: { recovered: true },
       }),
@@ -297,7 +319,7 @@ describe('isRecoveredBlockSignal (Story #4622)', () => {
 
   it('is false for a plain (terminal) story-blocked record', () => {
     assert.equal(
-      isRecoveredBlockSignal({
+      isRecoveredSignal({
         category: STORY_BLOCKED,
         details: { toState: 'agent::blocked' },
       }),
@@ -305,19 +327,30 @@ describe('isRecoveredBlockSignal (Story #4622)', () => {
     );
   });
 
-  it('is false for a recovered flag on a different category', () => {
+  it('is category-agnostic — a recovered close-failed is a marker too', () => {
+    // Pre-#4649 this returned false, which is why `close-failed` had no
+    // recovery path at all. The composer nets per (category, storyId), so a
+    // marker can still only cancel records in its own bucket.
     assert.equal(
-      isRecoveredBlockSignal({
-        category: 'close-failed',
+      isRecoveredSignal({
+        category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
         details: { recovered: true },
       }),
+      true,
+    );
+  });
+
+  it('is false for a category-less record', () => {
+    assert.equal(isRecoveredSignal({ details: { recovered: true } }), false);
+    assert.equal(
+      isRecoveredSignal({ category: '  ', details: { recovered: true } }),
       false,
     );
   });
 
   it('is false for null / non-object / detail-less input', () => {
-    assert.equal(isRecoveredBlockSignal(null), false);
-    assert.equal(isRecoveredBlockSignal('nope'), false);
-    assert.equal(isRecoveredBlockSignal({ category: STORY_BLOCKED }), false);
+    assert.equal(isRecoveredSignal(null), false);
+    assert.equal(isRecoveredSignal('nope'), false);
+    assert.equal(isRecoveredSignal({ category: STORY_BLOCKED }), false);
   });
 });

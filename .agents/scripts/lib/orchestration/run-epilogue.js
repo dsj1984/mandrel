@@ -564,7 +564,18 @@ async function executeFollowUpRollup({
           typeof parsed.category === 'string' ? parsed.category.trim() : '';
         if (!category) return;
         const source = parsed.source === 'framework' ? 'framework' : 'consumer';
-        signals.push({ category, source });
+        // `storyId` + `details` are what the composer's recovery-netting
+        // keys on; flattening them away made it unreachable (Story #4649).
+        const recordStoryId = Number(parsed.storyId);
+        signals.push({
+          category,
+          source,
+          storyId: Number.isInteger(recordStoryId) ? recordStoryId : sid,
+          details:
+            parsed.details && typeof parsed.details === 'object'
+              ? parsed.details
+              : {},
+        });
       },
       config,
     );

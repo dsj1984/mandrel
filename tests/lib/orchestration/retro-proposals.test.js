@@ -270,7 +270,7 @@ const blk = (storyId, extra = {}) => ({
 const recovered = (storyId) =>
   blk(storyId, { details: { recovered: true, toState: 'agent::executing' } });
 
-test('netOutRecoveredBlocks: a recovered block drops the whole incident (no proposal)', () => {
+test('netOutRecoveredIncidents: a recovered block drops the whole incident (no proposal)', () => {
   const out = composeRoutedProposals(
     baseInput({
       // Two Stories, each blocked then recovered → 4 story-blocked records,
@@ -281,14 +281,14 @@ test('netOutRecoveredBlocks: a recovered block drops the whole incident (no prop
   assert.deepEqual(out, { framework: [], consumer: [], discarded: [] });
 });
 
-test('netOutRecoveredBlocks: terminal blocks (no recovery) still count', () => {
+test('netOutRecoveredIncidents: terminal blocks (no recovery) still count', () => {
   const out = composeRoutedProposals(baseInput({ signals: [blk(3), blk(4)] }));
   const blocked = out.consumer.find((i) => i.category === 'story-blocked');
   assert.ok(blocked, 'two terminal blocks route as an actionable proposal');
   assert.equal(blocked.occurrences, 2);
 });
 
-test('netOutRecoveredBlocks: only the recovered Story is netted out; terminal peers remain', () => {
+test('netOutRecoveredIncidents: only the recovered Story is netted out; terminal peers remain', () => {
   const out = composeRoutedProposals(
     baseInput({
       // Story 5 recovered; Stories 6 and 7 stayed blocked.
@@ -300,7 +300,7 @@ test('netOutRecoveredBlocks: only the recovered Story is netted out; terminal pe
   assert.equal(blocked.occurrences, 2, 'Story 5 (block + marker) is excluded');
 });
 
-test('netOutRecoveredBlocks: does not touch other categories', () => {
+test('netOutRecoveredIncidents: does not touch other categories', () => {
   const out = composeRoutedProposals(
     baseInput({
       signals: [
@@ -319,4 +319,142 @@ test('netOutRecoveredBlocks: does not touch other categories', () => {
     undefined,
     'the recovered block contributes nothing',
   );
+});
+
+// --- Story #4649: netting generalizes past story-blocked -------------------
+
+const closeFailed = (storyId, extra = {}) => ({
+  category: 'close-failed',
+  source: 'framework',
+  storyId,
+  details: {},
+  ...extra,
+});
+const closeRecovered = (storyId) =>
+  closeFailed(storyId, { details: { recovered: true } });
+
+test('netOutRecoveredIncidents: a fail-then-land close nets out to nothing', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      signals: [
+        closeFailed(1),
+        closeRecovered(1),
+        closeFailed(2),
+        closeRecovered(2),
+      ],
+    }),
+  );
+  assert.deepEqual(out, { framework: [], consumer: [], discarded: [] });
+});
+
+test('netOutRecoveredIncidents: a close that never recovered still counts', () => {
+  const out = composeRoutedProposals(
+    baseInput({ signals: [closeFailed(3), closeFailed(4)] }),
+  );
+  const failed = out.framework.find((i) => i.category === 'close-failed');
+  assert.ok(failed, 'two unrecovered closes route as an actionable proposal');
+  assert.equal(failed.occurrences, 2);
+});
+
+test('netOutRecoveredIncidents: netting is per-category, not per-Story', () => {
+  // Story 5 recovered its close but stayed blocked. Netting the Story
+  // wholesale would wrongly cancel the block too.
+  const out = composeRoutedProposals(
+    baseInput({
+      signals: [closeFailed(5), closeRecovered(5), blk(5), blk(6)],
+    }),
+  );
+  assert.equal(
+    out.framework.find((i) => i.category === 'close-failed'),
+    undefined,
+    'the recovered close contributes nothing',
+  );
+  const blocked = out.consumer.find((i) => i.category === 'story-blocked');
+  assert.ok(blocked, 'the untouched blocks still route');
+  assert.equal(blocked.occurrences, 2);
+});
+
+test('netOutRecoveredIncidents: a marker only cancels its own Story', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      signals: [
+        closeFailed(7),
+        closeRecovered(7),
+        closeFailed(8),
+        closeFailed(9),
+      ],
+    }),
+  );
+  const failed = out.framework.find((i) => i.category === 'close-failed');
+  assert.ok(failed, 'Stories 8 and 9 still route');
+  assert.equal(failed.occurrences, 2, 'Story 7 (fail + marker) is excluded');
+});
+
+test('netOutRecoveredIncidents: a marker with no story id nets nothing', () => {
+  // Without a `storyId` there is no incident to attribute the recovery to;
+  // guessing would silently swallow a real failure.
+  const out = composeRoutedProposals(
+    baseInput({
+      signals: [
+        closeFailed(10),
+        closeFailed(11),
+        {
+          category: 'close-failed',
+          source: 'framework',
+          details: { recovered: true },
+        },
+      ],
+    }),
+  );
+  const failed = out.framework.find((i) => i.category === 'close-failed');
+  assert.ok(failed);
+  assert.equal(failed.occurrences, 3, 'the unattributable marker nets nothing');
+});
+
+// --- Story #4649: the threshold is uniform across anchors ------------------
+
+test('isActionableFriction: story anchor discards a singleton, same as run', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorKind: 'story',
+      anchorId: 42,
+      signals: [{ category: 'lint-loop', source: 'framework', storyId: 42 }],
+    }),
+  );
+  assert.deepEqual(out.framework, []);
+  assert.deepEqual(out.discarded, [
+    { category: 'lint-loop', occurrences: 1, source: 'framework' },
+  ]);
+});
+
+test('isActionableFriction: a forced block still routes at one occurrence', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorKind: 'story',
+      anchorId: 42,
+      signals: [blk(42)],
+      unresolvedBlockedEvents: [
+        { ticketId: 42, source: 'consumer', category: 'story-blocked' },
+      ],
+    }),
+  );
+  assert.equal(out.consumer.length, 1);
+  assert.equal(out.consumer[0].category, 'story-blocked');
+  assert.equal(out.consumer[0].occurrences, 1);
+});
+
+test('anchorKind still selects the wording', () => {
+  const story = composeRoutedProposals(
+    baseInput({
+      anchorKind: 'story',
+      anchorId: 42,
+      signals: [closeFailed(42), closeFailed(42)],
+    }),
+  );
+  assert.match(story.framework[0].title, /in Story #42/);
+
+  const run = composeRoutedProposals(
+    baseInput({ signals: [closeFailed(42), closeFailed(42)] }),
+  );
+  assert.match(run.framework[0].title, /in plan-run 2547/);
 });

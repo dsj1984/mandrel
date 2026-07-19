@@ -202,19 +202,63 @@ export async function emitBlockRecoveredFriction({
 }
 
 /**
- * Pure predicate: is this signal a recovery-marked `story-blocked` record?
+ * Emit the recovery counterpart of a `close-failed` record when a Story's
+ * close ultimately lands (Story #4649).
+ *
+ * A close that fails once — CI/lease contention, a transient GitHub fault —
+ * and succeeds on a later attempt still fired a `close-failed` record at the
+ * failed terminal, which the composer counts exactly like a close that never
+ * recovered. This is the `close-failed` analogue of
+ * {@link emitBlockRecoveredFriction}: same `recovered: true` discriminator,
+ * same category (a distinct bucket would itself aggregate into a routable
+ * proposal, re-introducing the noise).
+ *
+ * **Why this is not emitted from `frictionForTerminal`.** A `landed` terminal
+ * envelope is emitted at the very END of close — *after* the post-land tail
+ * has already gathered the signal stream and filed its follow-ups. A marker
+ * written there would arrive too late to net anything out of the run that
+ * produced it. So the emit hangs off `runPostLandTail`, which is the single
+ * shared land point (reached from both the in-close land and the standalone
+ * `single-story-confirm-merge.js` resume) and runs BEFORE follow-up capture.
+ *
+ * Best-effort; never throws.
+ *
+ * @param {object} args
+ * @param {number} args.storyId
+ * @param {object} [args.config]
+ * @returns {Promise<boolean>} true when a record was appended.
+ */
+export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
+  return emitRuntimeFriction({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
+    tool: 'runPostLandTail',
+    details: { recovered: true },
+    config,
+  });
+}
+
+/**
+ * Pure predicate: is this signal a recovery marker for its own category?
  * Shared with the retro composer so the "recovered" discriminator is read
- * from one place. A record is a recovery marker when its category is
- * `story-blocked` and `details.recovered === true`.
+ * from one place.
+ *
+ * **Category-agnostic by design (Story #4649).** The predicate used to hard-
+ * code `story-blocked`, which meant every new category needing recovery
+ * semantics had to re-implement the netting. A record is a recovery marker
+ * when it carries a usable `category` and `details.recovered === true`; the
+ * composer nets per `(category, storyId)`, so a marker can only ever cancel
+ * records in its OWN bucket.
  *
  * @param {object} signal
  * @returns {boolean}
  */
-export function isRecoveredBlockSignal(signal) {
+export function isRecoveredSignal(signal) {
   return (
     signal !== null &&
     typeof signal === 'object' &&
-    signal.category === RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED &&
+    typeof signal.category === 'string' &&
+    signal.category.trim() !== '' &&
     signal.details !== null &&
     typeof signal.details === 'object' &&
     signal.details.recovered === true

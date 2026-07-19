@@ -13,7 +13,10 @@ import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduat
 import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
 import { Logger } from '../Logger.js';
 import { forEachLine } from '../observability/signals-writer.js';
-import { composeRoutedProposals } from './retro-proposals.js';
+import {
+  composeRoutedProposals,
+  deriveUnresolvedBlockedEvents,
+} from './retro-proposals.js';
 import { upsertStructuredComment } from './ticketing.js';
 
 export const FOLLOW_UPS_COMMENT_TYPE = 'follow-ups';
@@ -46,9 +49,23 @@ export function resolveFollowUpRepos(config) {
 }
 
 /**
+ * Gather the Story's friction signals for the composer.
+ *
+ * **`storyId` and `details` are load-bearing (Story #4649).** This function
+ * used to flatten every record to `{ category, source }`, which silently
+ * dropped exactly the two fields `netOutRecoveredIncidents` keys on — so the
+ * Story #4622 recovery-netting could never fire on real data, and every
+ * transient friction event survived to be auto-filed. The composer's unit
+ * tests passed throughout, because they fed it synthetic signals carrying
+ * both fields that no production path ever produced. Preserve them.
+ *
+ * The record's own `storyId` is preferred over the argument so a stream that
+ * carries foreign rows attributes each one correctly; the argument is the
+ * fallback for records written before the field existed.
+ *
  * @param {number} storyId
  * @param {object} [config]
- * @returns {Promise<Array<{ category: string, source: 'framework'|'consumer' }>>}
+ * @returns {Promise<Array<{ category: string, source: 'framework'|'consumer', storyId: number, details: object }>>}
  */
 export async function gatherStoryFrictionSignals(storyId, config) {
   const signals = [];
@@ -57,15 +74,20 @@ export async function gatherStoryFrictionSignals(storyId, config) {
     storyId,
     (parsed) => {
       if (!parsed || typeof parsed !== 'object') return;
-      const kind = parsed.kind;
-      if (kind !== 'friction' && kind !== undefined) {
-        // Prefer friction records; also accept category-bearing rows.
-      }
       const category =
         typeof parsed.category === 'string' ? parsed.category.trim() : '';
       if (!category) return;
       const source = parsed.source === 'framework' ? 'framework' : 'consumer';
-      signals.push({ category, source });
+      const recordStoryId = Number(parsed.storyId);
+      signals.push({
+        category,
+        source,
+        storyId: Number.isInteger(recordStoryId) ? recordStoryId : storyId,
+        details:
+          parsed.details && typeof parsed.details === 'object'
+            ? parsed.details
+            : {},
+      });
     },
     config,
   );
@@ -250,7 +272,11 @@ export async function captureStoryFollowUps({
       frameworkRepo: repos.frameworkRepo,
       consumerRepo: repos.consumerRepo,
       signals,
-      unresolvedBlockedEvents: [],
+      // Derived, not hardcoded `[]` (Story #4649). This is the escape hatch
+      // the retired story-scope threshold carve-out was standing in for: a
+      // Story still parked at `agent::blocked` files at a single occurrence,
+      // while one that blocked and self-resolved nets out entirely.
+      unresolvedBlockedEvents: deriveUnresolvedBlockedEvents(signals),
     });
     const graduated = await graduateRetroProposals({
       epicId: sid,
