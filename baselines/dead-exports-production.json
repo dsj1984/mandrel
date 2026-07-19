@@ -1153,6 +1153,14 @@
       "symbol": "parseFingerprintFooter"
     },
     {
+      "file": ".agents/scripts/lib/findings/semantic-issue-search.js",
+      "symbol": "__testing"
+    },
+    {
+      "file": ".agents/scripts/lib/findings/semantic-issue-search.js",
+      "symbol": "buildQuery"
+    },
+    {
       "file": ".agents/scripts/lib/gates/baseline-store.js",
       "symbol": "BaselineWriteError"
     },

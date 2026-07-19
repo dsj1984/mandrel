@@ -32,7 +32,12 @@ import crypto from 'node:crypto';
 
 const SEP = '␟'; // unit separator — keeps fingerprint fields unambiguous
 const MARKER = 'audit-fingerprints:';
+const SEMANTIC_MARKER = 'audit-semantic-keys:';
 const SHA1_RE = /^[0-9a-f]{40}$/;
+// A semantic key round-trips through a comma-joined footer, so it must not
+// carry a comma or a `>` (which would truncate the HTML comment). Both are
+// stripped when the key is built, so this guard is defence-in-depth.
+const SEMANTIC_KEY_RE = /^[^,>]+$/;
 
 /**
  * Normalise a single scalar identity field to a stable string.
@@ -93,6 +98,67 @@ export function fingerprintFinding(finding) {
 }
 
 /**
+ * Compute the **location-based semantic key** for a finding. Unlike the
+ * fingerprint (which folds in the title, so any prose rewording mints a fresh
+ * sha), the semantic key is stable across a reworded title and a re-severitied
+ * finding: it is derived solely from the finding's identity *location* —
+ * `area` (the audit dimension) plus `primaryFile`. Two scans that describe the
+ * same problem at the same location produce the same semantic key even when
+ * their titles diverge, so a reworded finding still confirms against the Issue
+ * that already tracks that location.
+ *
+ * Returns the empty string when the location is unknown (no `area` and no
+ * `primaryFile`) — an empty key never confirms a match, exactly as an absent
+ * fingerprint footer never does.
+ *
+ * @param {object} finding — canonical finding ({ area, primaryFile, ... }).
+ * @returns {string}
+ */
+export function semanticKeyFor(finding) {
+  const area = normaliseField(finding?.area);
+  const primaryFile = normaliseField(finding?.primaryFile);
+  if (!area && !primaryFile) return '';
+  const key = `${area}${SEP}${primaryFile}`;
+  return SEMANTIC_KEY_RE.test(key) ? key : key.replace(/[,>]/g, ' ').trim();
+}
+
+/**
+ * Render the machine-readable semantic-key footer for one or more keys
+ * (`<!-- audit-semantic-keys: key,key,... -->`). Stamped alongside the
+ * fingerprint footer by the audit filers so a later reworded finding can
+ * confirm identity by location when its fingerprint has drifted. Round-trips
+ * through {@link parseSemanticKeyFooter}. Empty keys are dropped.
+ *
+ * @param {string | string[]} keys — one semantic key or an array of them.
+ * @returns {string}
+ */
+export function semanticKeyFooter(keys) {
+  const list = (Array.isArray(keys) ? keys : [keys])
+    .filter((k) => typeof k === 'string' && k.length > 0)
+    .map((k) => k.replace(/[,>]/g, ' ').trim())
+    .filter((k) => k.length > 0);
+  return `<!-- ${SEMANTIC_MARKER} ${list.join(',')} -->`;
+}
+
+/**
+ * Extract semantic keys from an Issue body carrying the semantic-key footer.
+ * Internal — the audit filers stamp the footer via {@link semanticKeyFooter};
+ * only the confirmation path here reads it back.
+ *
+ * @param {string} body
+ * @returns {string[]}
+ */
+function parseSemanticKeyFooter(body) {
+  if (typeof body !== 'string') return [];
+  const match = body.match(/<!--\s*audit-semantic-keys:\s*([^>]*?)\s*-->/);
+  if (!match) return [];
+  return match[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/**
  * Render the machine-readable fingerprint footer for one or more shas.
  *
  * Accepts either a single 40-char sha1 or an array of them, so a footer
@@ -148,6 +214,21 @@ function issueCarriesFingerprint(issue, sha) {
 }
 
 /**
+ * Confirm an issue body's footer carries the target semantic key. Unlike
+ * {@link issueCarriesFingerprint}, this is strict on a missing body — a
+ * location match is only meaningful when the issue actually carries a
+ * semantic-key footer to compare against.
+ *
+ * @param {{ body?: string }} issue
+ * @param {string} key
+ * @returns {boolean}
+ */
+function issueCarriesSemanticKey(issue, key) {
+  if (!key || typeof issue?.body !== 'string') return false;
+  return parseSemanticKeyFooter(issue.body).includes(key);
+}
+
+/**
  * Decide the route decision from a confirmed matched issue's state.
  * @param {{ state?: string }} issue
  * @returns {'update-existing'|'regression-of-closed'}
@@ -194,23 +275,29 @@ function decideFromConfirmed(confirmed, sha) {
 }
 
 /**
- * Keep only the issue records that have the right wire shape AND carry the
- * target fingerprint in their footer. A semantic candidate that merely *looks*
- * similar but does not carry the sha is dropped here — semantic similarity
- * widens the net; the fingerprint footer is what confirms identity.
+ * Keep only the issue records that have the right wire shape AND carry a
+ * confirming footer. Confirmation is by the exact **fingerprint** footer and,
+ * when a `semanticKey` is supplied (audit dedup opts in via
+ * `options.semanticKeyConfirm`), ALSO by the location-based **semantic-key**
+ * footer. A semantic candidate that merely *looks* similar but carries neither
+ * footer is dropped here — semantic similarity widens the net; a deterministic
+ * footer (fingerprint or semantic key) is what confirms identity. The semantic
+ * key catches a reworded finding whose fingerprint has drifted but whose
+ * location is unchanged.
  *
  * @param {Array<unknown>} hits
- * @param {string} sha
+ * @param {{ sha: string, semanticKey?: string }} identity
  * @returns {Array<{ number: number, state: string }>}
  */
-function confirmFingerprint(hits, sha) {
+function confirmCandidates(hits, { sha, semanticKey = '' }) {
   if (!Array.isArray(hits)) return [];
   return hits.filter(
     (h) =>
       h &&
       typeof h.number === 'number' &&
       typeof h.state === 'string' &&
-      issueCarriesFingerprint(h, sha),
+      (issueCarriesFingerprint(h, sha) ||
+        issueCarriesSemanticKey(h, semanticKey)),
   );
 }
 
@@ -245,11 +332,18 @@ function confirmFingerprint(hits, sha) {
  *   Meaning-first candidate search over open+closed issues (and Epic
  *   sub-issues). When supplied, runs FIRST; its candidates are then
  *   fingerprint-confirmed.
+ * @param {object} [options]
+ * @param {boolean} [options.semanticKeyConfirm=false] — also confirm a
+ *   candidate by the location-based semantic-key footer, not the fingerprint
+ *   alone. Opt-in so the audit dedup path catches a reworded finding at an
+ *   unchanged location while the qa-explore path (which does not stamp
+ *   semantic-key footers) stays fingerprint-exact and byte-identical.
  * @returns {Promise<{ decision: 'new'|'update-existing'|'duplicate'|'regression-of-closed', matchedIssue: object|null, fingerprint: string }>}
  */
 export async function routeFinding(
   finding,
   { searchIssues, searchCandidates } = {},
+  options = {},
 ) {
   if (
     typeof searchCandidates !== 'function' &&
@@ -261,6 +355,7 @@ export async function routeFinding(
   }
 
   const { full: sha } = fingerprintFinding(finding);
+  const semanticKey = options.semanticKeyConfirm ? semanticKeyFor(finding) : '';
 
   // Stage 1: semantic candidate pass first (when wired); else fingerprint
   // lookup. Both yield a candidate pool drawn from open AND closed issues.
@@ -269,15 +364,18 @@ export async function routeFinding(
       ? await searchCandidates(finding)
       : await searchIssues(sha);
 
-  // Stage 2: confirm identity by fingerprint footer over the candidate pool.
-  const confirmed = confirmFingerprint(hits, sha);
+  // Stage 2: confirm identity by fingerprint footer (and, when opted in, the
+  // location-based semantic-key footer) over the candidate pool.
+  const confirmed = confirmCandidates(hits, { sha, semanticKey });
 
   return decideFromConfirmed(confirmed, sha);
 }
 
 export const __testing = {
   MARKER,
+  SEMANTIC_MARKER,
   SEP,
-  confirmFingerprint,
+  confirmCandidates,
   decideFromConfirmed,
+  issueCarriesSemanticKey,
 };

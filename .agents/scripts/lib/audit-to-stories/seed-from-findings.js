@@ -17,6 +17,11 @@
  * Pure: returns a string. The caller decides where to persist it.
  */
 
+import {
+  renderFingerprintFooter,
+  renderSemanticKeyFooter,
+} from './finding-adapter.js';
+
 const DIMENSION_LABEL = {
   security: 'Security',
   privacy: 'Privacy',
@@ -84,7 +89,20 @@ function formatMVPScope(groups) {
     .map((g, idx) => {
       const dims = g.dimensions.join(' / ');
       const file = g.files[0] ? ` (\`${g.files[0]}\`)` : '';
-      return `${idx + 1}. **${g.title}** — ${dims}${file}`;
+      // Carry each group's fingerprint (and location-based semantic-key)
+      // footer into the seed so a Story authored from it via `/plan` inherits
+      // the dedup identity — without this the recommended `/plan --seed-file`
+      // path is invisible to the next sweep's dedup (Story #4626). The footers
+      // are HTML comments, so they never render in the visible one-pager but
+      // stay machine-readable for the dedup probe.
+      const findings = Array.isArray(g.findings) ? g.findings : [];
+      const footers = [
+        renderFingerprintFooter(findings),
+        renderSemanticKeyFooter(findings),
+      ]
+        .map((f) => `   ${f}`)
+        .join('\n');
+      return `${idx + 1}. **${g.title}** — ${dims}${file}\n${footers}`;
     })
     .join('\n');
 }
