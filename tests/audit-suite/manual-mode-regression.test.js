@@ -25,12 +25,12 @@ import test from 'node:test';
 import { applySubstitutions } from '../../.agents/scripts/lib/audit-suite/substitutions.js';
 
 const LENSES = [
+  'audit-accessibility',
   'audit-architecture',
   'audit-clean-code',
   'audit-dependencies',
   'audit-devops',
   'audit-documentation',
-  'audit-lighthouse',
   'audit-performance',
   'audit-privacy',
   'audit-quality',

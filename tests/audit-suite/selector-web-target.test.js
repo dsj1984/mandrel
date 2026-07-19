@@ -111,7 +111,7 @@ test('selector: no web lens survives the gate on a no-web-surface repo', async (
   for (const lens of [
     'audit-seo',
     'audit-ux-ui',
-    'audit-lighthouse',
+    'audit-accessibility',
     'audit-navigability',
   ]) {
     assert.ok(
@@ -132,7 +132,7 @@ test('selector: end-to-end on THIS repo, the real probe drops audit-seo (no seam
 
   assert.ok(!selected.includes('audit-seo'), `got: ${selected}`);
   assert.ok(!selected.includes('audit-ux-ui'), `got: ${selected}`);
-  assert.ok(!selected.includes('audit-lighthouse'), `got: ${selected}`);
+  assert.ok(!selected.includes('audit-accessibility'), `got: ${selected}`);
   assert.ok(!selected.includes('audit-navigability'), `got: ${selected}`);
   // …while the applicable lenses still select, so this is a targeted gate and
   // not a roster-wide silencing.
@@ -316,7 +316,7 @@ test('audit-rules.json declares target: "web" on exactly the web lenses', () => 
     .sort();
 
   assert.deepEqual(webLenses, [
-    'audit-lighthouse',
+    'audit-accessibility',
     'audit-navigability',
     'audit-seo',
     'audit-ux-ui',

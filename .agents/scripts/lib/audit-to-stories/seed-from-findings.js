@@ -29,7 +29,7 @@ const DIMENSION_LABEL = {
   'clean-code': 'Clean code',
   dependencies: 'Dependencies',
   devops: 'DevOps',
-  lighthouse: 'Lighthouse',
+  accessibility: 'Accessibility',
   performance: 'Performance',
   seo: 'SEO',
   sre: 'SRE',

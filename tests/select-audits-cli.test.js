@@ -41,7 +41,7 @@ test('selectAudits: keyword matching against ticket title/body still selects the
     () => ({ status: 0, stdout: '', stderr: '' }),
   );
 
-  // `audit-lighthouse` declares `target: "web"` (#4579), so it only clears
+  // `audit-accessibility` declares `target: "web"` (#4634), so it only clears
   // selection on a project that has a web surface. This test pins the KEYWORD
   // mechanism, so it states the web-target premise explicitly rather than
   // depending on the host repo's own (non-web) shape.
@@ -56,8 +56,8 @@ test('selectAudits: keyword matching against ticket title/body still selects the
   assert.equal(gate, 'gate2');
   assert.equal(context.ticketTitle, 'Improve accessibility of modal dialogs');
   assert.ok(
-    selectedAudits.includes('audit-lighthouse'),
-    'accessibility keyword should select the lighthouse audit (which covers a11y)',
+    selectedAudits.includes('audit-accessibility'),
+    'accessibility keyword should select the audit-accessibility WCAG lens',
   );
 
   // The same keyword on a project with no web surface selects nothing: the
@@ -68,7 +68,7 @@ test('selectAudits: keyword matching against ticket title/body still selects the
     provider,
     hasWebSurfaceFn: () => false,
   });
-  assert.ok(!onNodeOnly.includes('audit-lighthouse'));
+  assert.ok(!onNodeOnly.includes('audit-accessibility'));
 });
 
 test('selectAudits: glob filePattern from audit-rules.json selects an audit on a matching changed file', async () => {

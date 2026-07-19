@@ -5,7 +5,7 @@
  *
  * 1. Keyword triggers match **whole words only**. The old bare substring
  *    test selected web lenses on accidental fragments — `"ui"` inside
- *    "requires" (audit-ux-ui / audit-lighthouse), `"auth"` inside "author"
+ *    "requires" (audit-ux-ui), `"auth"` inside "author"
  *    (audit-security) — on a repo with no web surface at all.
  *
  * 2. `audit-architecture` is reachable. Its manifest entry used to carry
@@ -54,8 +54,8 @@ test('selector: "ui" fragment inside "requires" does not select the web lenses',
     `audit-ux-ui selected on a "requires" fragment: ${selected}`,
   );
   assert.ok(
-    !selected.includes('audit-lighthouse'),
-    `audit-lighthouse selected on a "requires" fragment: ${selected}`,
+    !selected.includes('audit-accessibility'),
+    `audit-accessibility selected on a "requires" fragment: ${selected}`,
   );
 });
 

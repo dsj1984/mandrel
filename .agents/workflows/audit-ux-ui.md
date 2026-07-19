@@ -99,8 +99,14 @@ baseline — a mechanical hit is a *candidate*, not automatically a finding.
    frustrating?
 3. **Loading States:** Are there skeletons or spinners for async operations?
 4. **Responsiveness:** Check layouts at mobile, tablet, and desktop breakpoints.
-5. **Accessibility (UX-focused):** Focus on tab order, touch target sizes, and
-   color contrast.
+5. **Accessibility (UX-focused):** Focus on tab order, touch-target sizes, and
+   whether interaction colours come from a sanctioned token. **WCAG conformance
+   is out of scope here** — semantic structure, ARIA correctness,
+   keyboard/focus operability, form labelling, media alternatives, and the WCAG
+   contrast-ratio verdict are owned by [`/audit-accessibility`](audit-accessibility.md).
+   This lens keeps token/component design-system adherence; defer every WCAG
+   success-criterion judgement to the accessibility lens so the two never
+   double-report.
 
 ## Step 3: Output Requirements
 
