@@ -217,6 +217,18 @@ describe('lens findings contract (Story #4625)', () => {
           `audit-${lens} does not write the canonical output path`,
         );
       });
+
+      it('references the shared self-cross-check helper (Story #4627)', () => {
+        // Standing gate for the sequential-path false-positive guard: every
+        // non-retired lens must carry the self-cross-check step, so a later
+        // lens rewrite that drops it fails the suite instead of silently
+        // shipping an unguarded lens. New lenses added after this Story are
+        // covered because this assertion iterates NON_RETIRED_LENSES.
+        assert.ok(
+          md.includes('](helpers/audit-self-check.md)'),
+          `audit-${lens} does not reference the self-cross-check helper (helpers/audit-self-check.md) — the sequential-path false-positive guard is missing`,
+        );
+      });
     });
   }
 
@@ -262,6 +274,13 @@ describe('lens findings contract (Story #4625)', () => {
     assert.ok(
       fs.existsSync(path.join(HELPERS_DIR, 'audit-severity-scale.md')),
       'helpers/audit-severity-scale.md does not exist',
+    );
+  });
+
+  it('ships the shared self-cross-check helper (Story #4627)', () => {
+    assert.ok(
+      fs.existsSync(path.join(HELPERS_DIR, 'audit-self-check.md')),
+      'helpers/audit-self-check.md does not exist',
     );
   });
 });

@@ -19,6 +19,7 @@ export {
   matchLocalLenses,
   readAuditRules,
 } from './checklist-threading.js';
+export { buildDispatchChecklist } from './dispatch-checklist.js';
 export { runAuditSuite } from './runner.js';
 export {
   GLOBAL_LENS_ALLOWLIST,
