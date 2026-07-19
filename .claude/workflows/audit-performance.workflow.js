@@ -48,13 +48,19 @@
  * the performance report-contract self-check — and delegates the fan-out
  * plumbing to the engine.
  *
- * ## Read-only guarantee
+ * ## Measurement allowlist (read source, run non-mutating measurements)
  *
- * The lens is read-only. Dynamic-workflow subagents run in `acceptEdits` and
- * inherit the session tool allowlist, but the engine grants the analysis
- * agents NO write/edit/shell-mutation tools — they receive only read/search
- * tools (`Read`, `Grep`, `Glob`). The single write in the run is the final
- * report artifact, performed by the synthesis stage.
+ * The lens is read-only **with respect to source** — the engine grants the
+ * analysis agents no write/edit tools and no source-mutating shell. But this
+ * lens must *measure* before it judges (the lens Step 0), so instead of
+ * stripping execution entirely it grants a `Bash` tool restricted to the
+ * {@link MEASUREMENT_COMMAND_ALLOWLIST}: profilers, timers, and size probes
+ * that read the repo's own numbers without mutating source, installing
+ * packages, or touching git/labels. The analysis agents receive
+ * {@link MEASUREMENT_TOOLS} (`Read`, `Grep`, `Glob`, `Bash`); the allowlist
+ * itself is embedded in every dimension prompt so the agent knows exactly which
+ * commands it may run. The single source *write* in the run is the final report
+ * artifact, performed by the synthesis stage.
  *
  * ## Scope parity
  *
@@ -98,26 +104,67 @@ const LENS_PATH = path.join(
 );
 
 /**
- * The independent analysis dimensions the lens decomposes into. These names
- * map 1:1 onto the lens's Step 1 "Bottleneck Discovery" bullets and Step 2
- * "Evaluation Dimensions"; each fans out to its own subagent so they run in
- * parallel and can be cross-checked independently.
+ * The orthogonal analysis dimensions the lens decomposes into. These map 1:1
+ * onto the lens's Step 2 "Analysis dimensions (orthogonal set)": the four
+ * resource dimensions plus the interleaving/partial-failure correctness
+ * dimension. Each fans out to its own subagent so they run in parallel and can
+ * be cross-checked independently. The historically overlapping ten dimensions
+ * (Latency / Throughput / Efficiency / Scalability / …) collapsed into these —
+ * Step 1 of the lens gates the web-only "Payload & bundle" dimension by repo
+ * profile.
  */
-const DIMENSIONS = Object.freeze([
-  'Latency',
-  'Throughput',
-  'Efficiency',
-  'Scalability',
-  'Database/API Efficiency',
-  'Frontend Rendering',
-  'Bundle Size',
-  'Resource Usage',
-  'Network Path',
-  'Core Web Vitals',
+export const DIMENSIONS = Object.freeze([
+  'CPU & algorithmic hot paths',
+  'I/O & syscall efficiency',
+  'Memory & leaks',
+  'Payload & bundle (web only)',
+  'Interleaving & partial-failure correctness',
 ]);
 
-/** Read-only tool allowlist for analysis agents — no write/edit/shell. */
-const READ_ONLY_TOOLS = Object.freeze(['Read', 'Grep', 'Glob']);
+/**
+ * Read/search tool allowlist for analysis agents — no write/edit, no shell.
+ * The measurement agents additionally receive `Bash` (see
+ * {@link MEASUREMENT_TOOLS}) constrained to {@link MEASUREMENT_COMMAND_ALLOWLIST}.
+ */
+export const READ_ONLY_TOOLS = Object.freeze(['Read', 'Grep', 'Glob']);
+
+/**
+ * The restricted, **non-mutating** shell command allowlist granted to the
+ * measurement agents. Each entry is a command prefix the agent may run to
+ * produce the Step 0 evidence every finding must cite. The set is deliberately
+ * narrow: profilers, timers, and size/stat probes that read the repo's own
+ * numbers. It grants nothing that writes source, installs dependencies, or
+ * mutates git refs / issue labels.
+ *
+ * The distinction the lens turns on: this list replaces the old
+ * "strip execution entirely" posture — the agent can now *measure*, but only
+ * with these commands.
+ */
+export const MEASUREMENT_COMMAND_ALLOWLIST = Object.freeze([
+  'hyperfine', // stable multi-run timing statistics
+  'time', // /usr/bin/time -v fallback timing + RSS
+  'node --cpu-prof', // V8 sampling profiler on an entry script
+  'node --prof', // legacy V8 profiler
+  'npm test', // time the repo's own suite (non-mutating to source)
+  'npm run test', // suite alias
+  'npx vite build --profile', // web bundle stats
+  'du', // directory / artifact size
+  'wc', // byte counts
+  'find', // enumerate + size shipped assets
+  'ls', // list build output
+  'stat', // file size / mtime probe
+  'cat', // read a profile / stats file
+  'git log', // read-only history (churn on a hot path)
+  'git diff', // read-only diff (never a mutation)
+]);
+
+/**
+ * The tool allowlist granted to the measurement (analysis) and cross-check
+ * agents: the read/search tools plus `Bash`. `Bash` is only useful in concert
+ * with {@link MEASUREMENT_COMMAND_ALLOWLIST}, which every dimension prompt
+ * embeds so the agent stays inside the non-mutating set.
+ */
+export const MEASUREMENT_TOOLS = Object.freeze([...READ_ONLY_TOOLS, 'Bash']);
 
 /**
  * Load the authoritative lens markdown so per-dimension prompts derive from
@@ -162,7 +209,13 @@ export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
   return [
     `You are auditing the codebase for the "${dimension}" performance`,
     'dimension only.',
-    'You are READ-ONLY: do not edit, create, or run mutating commands.',
+    'You do NOT edit, create, or delete source. You MAY run measurements, but',
+    'ONLY these non-mutating commands (Step 0 of the lens spec):',
+    ...MEASUREMENT_COMMAND_ALLOWLIST.map((cmd) => `  - ${cmd}`),
+    'Any other shell command is out of bounds — never install, write source,',
+    'or mutate git refs / issue labels. Every finding you return MUST carry an',
+    'Evidence field naming the repro command above whose output produced it,',
+    'tagged `measured` or `estimated`.',
     '',
     scopeClause,
     '',
@@ -173,10 +226,10 @@ export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
     lensSpec,
     '--- END LENS SPEC ---',
     '',
-    `Return ONLY the bottleneck findings for the "${dimension}" dimension,`,
-    'each as a `### <Short Title of the Bottleneck>` block using the exact',
-    'field structure from the lens Step 3 template (Dimension, Impact,',
-    'Current State, Recommendation & Rationale, Agent Prompt). Where the',
+    `Return ONLY the findings for the "${dimension}" dimension, each as a`,
+    '`### <Short Title>` block using the exact field structure from the lens',
+    'Step 4 template (Dimension, Impact, Location, Evidence, Current State,',
+    'Recommendation & Rationale, Acceptance signal, Agent Prompt). Where the',
     'bottleneck has a cheap, immediate remediation, also note it as a',
     'candidate quick win so the synthesis stage can populate the',
     '"Low-Hanging Fruit" section.',
@@ -228,8 +281,10 @@ export function buildSynthesisPrompt(crossCheckedBlocks, auditOutputDir) {
     `The report MUST open with "# ${REPORT_TITLE}" and contain these "##"`,
     `sections in order: ${REQUIRED_SECTIONS.join(', ')}.`,
     'Place each cross-checked `### <title>` finding under "## Detailed',
-    'Findings"; summarise overall performance posture vs target benchmarks',
-    'and the primary themes in "## Executive Summary"; and list 3 quick',
+    'Findings", preserving its Evidence field (repro command + measured/',
+    'estimated tag) verbatim; summarise overall performance posture vs the',
+    'Step 0 measurements, the detected repo profile, and the baseline trend',
+    'verdict in "## Executive Summary"; and list 3 quick',
     'changes that provide immediate performance gains under "## Low-Hanging',
     'Fruit". Sum the per-dimension `CROSS-CHECK: kept/dropped` lines and note',
     'the total dropped count in the Executive Summary so the benchmark can',
@@ -266,7 +321,7 @@ export default async function auditPerformanceWorkflow(ctx) {
   await runAuditOrchestration({
     ctx,
     dimensions: DIMENSIONS,
-    readOnlyTools: READ_ONLY_TOOLS,
+    readOnlyTools: MEASUREMENT_TOOLS,
     buildDimensionPrompt: (dimension) =>
       buildDimensionPrompt(dimension, lensSpec, scopeClause),
     buildCrossCheckPrompt,
