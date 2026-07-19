@@ -57,6 +57,10 @@
       "symbol": "readAuditRules"
     },
     {
+      "file": ".agents/scripts/lib/audit-suite/dispatch-checklist.js",
+      "symbol": "buildDispatchChecklist"
+    },
+    {
       "file": ".agents/scripts/lib/audit-suite/findings.js",
       "symbol": "aggregateBaselineDelta"
     },
@@ -83,6 +87,10 @@
     {
       "file": ".agents/scripts/lib/audit-suite/index.js",
       "symbol": "buildChecklistPayload"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/index.js",
+      "symbol": "buildDispatchChecklist"
     },
     {
       "file": ".agents/scripts/lib/audit-suite/index.js",
