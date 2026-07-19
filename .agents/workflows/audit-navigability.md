@@ -107,6 +107,9 @@ path and the persona shell it renders in.
 Generate and save a structured Markdown audit report to
 `{{auditOutputDir}}/audit-navigability-results.md`, using the template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # Navigability Audit report
 
@@ -116,19 +119,22 @@ Generate and save a structured Markdown audit report to
 
 ## Detailed Findings
 
-[For every orphaned route or dead nav href, use the following strict
-structure:]
+[For every orphaned route or dead nav href, use the following strict structure.
+Lead each title with the primary file (route module or nav registry) the
+finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/nav-registry-or-route.ext` — [Short title of the issue]
 
 - **Dimension:** [Orphaned Route | Dead Nav Href]
-- **Impact:** [High | Medium | Low]
+- **Impact:** [Critical | High | Medium | Low]
+- **Location:** `path/to/nav-registry-or-route.ext:line`
 - **Route / Door:** [the route path or nav-door identifier — identifier only]
 - **Persona(s):** [the persona(s) affected]
 - **Current State:** [why the route is unreachable or the href is dead]
 - **Recommendation & Rationale:** [the nav-registry change that restores
   reachability — add a door for the orphaned route, or fix/remove the dead
   href]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a re-run of this lens reporting the route reachable]
 - **Agent Prompt:**
   `[A copy-pasteable, specific prompt to execute the nav-registry fix.]`
 ```

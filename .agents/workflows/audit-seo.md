@@ -84,6 +84,9 @@ Evaluate the gathered context against the following dimensions:
 Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-seo-results.md`, using the exact template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # SEO & GEO Audit Report
 
@@ -94,9 +97,13 @@ primary gaps and the most impactful opportunities.]
 
 ## Detailed Audit Table
 
-| Issue               | Impact           | Category   | Suggested Fix |
-| ------------------- | ---------------- | ---------- | ------------- |
-| [Issue description] | High / Med / Low | SEO or GEO | [Brief fix]   |
+[A supplementary at-a-glance index only. Every row MUST also have a full
+`## Detailed Findings` entry below — the Detailed Findings blocks are the
+machine-parsed source of record; this table is not parsed.]
+
+| Issue               | Impact                      | Category   | Suggested Fix |
+| ------------------- | --------------------------- | ---------- | ------------- |
+| [Issue description] | Critical / High / Med / Low | SEO or GEO | [Brief fix]   |
 
 ## GEO-Specific Recommendations
 
@@ -106,16 +113,19 @@ reformatting key content as FAQ blocks.]
 
 ## Detailed Findings
 
-[For any issue requiring deeper explanation, use the following strict
-structure:]
+[Mandatory: emit one entry per issue in the Detailed Audit Table above, using
+the following strict structure. Lead each title with the primary file the
+finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/primary-file.ext` — [Short title of the issue]
 
 - **Category:** [SEO | GEO | Core Web Vitals | Crawlability]
-- **Impact:** [High | Medium | Low]
+- **Impact:** [Critical | High | Medium | Low]
+- **Location:** `path/to/primary-file.ext:line`
 - **Current State:** [What exists in the codebase and why it's suboptimal]
 - **Recommendation & Rationale:** [The specific fix and how it improves
   discoverability or LLM retrieval]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. the meta tag now present in the rendered head, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this fix independently]`
 ```

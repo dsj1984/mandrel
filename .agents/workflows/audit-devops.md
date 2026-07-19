@@ -73,6 +73,9 @@ Evaluate the gathered context against the following dimensions:
 Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-devops-results.md`, using the exact template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # DevOps Infrastructure Audit Report
 
@@ -83,15 +86,18 @@ highlight the most critical overarching themes from the findings.]
 
 ## Detailed Findings
 
-[For every gap identified, use the following strict structure:]
+[For every gap identified, use the following strict structure. Lead each title
+with the primary file the finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/primary-file.ext` — [Short title of the issue]
 
 - **Dimension:** [e.g., Security & Compliance]
-- **Impact:** [High | Medium | Low]
+- **Impact:** [Critical | High | Medium | Low]
+- **Location:** `path/to/primary-file.ext:line`
 - **Current State:** [What is currently configured in the codebase]
 - **Recommendation & Rationale:** [The specific fix and why it improves the
   system]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a green CI run, a hardened config lint, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this fix independently]`
 

@@ -57,6 +57,9 @@ Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-dependencies-results.md`, using the exact template
 below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # Dependency Audit Report
 
@@ -68,15 +71,17 @@ below.
 ## Detailed Findings
 
 [For every security fix or major update identified, use the following strict
-structure:]
+structure. Lead each title with the manifest the dependency lives in:]
 
-### [Package Name Update]
+### `path/to/package.json` — [Package name update]
 
 - **Dimension:** [Security Fix | Major Upgrade | Removal]
-- **Impact:** [High | Medium | Low]
+- **Impact:** [Critical | High | Medium | Low]
+- **Location:** `path/to/package.json:line`
 - **Current State:** [Current vs Target version and reason for update]
 - **Recommendation & Rationale:** [How to perform the update and potential
   breaking changes to watch for]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm audit` reporting zero for this advisory, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this update independently (e.g., npm install package@version)]`
 

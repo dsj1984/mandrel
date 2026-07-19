@@ -74,6 +74,9 @@ Scan frontend components for:
 Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-ux-ui-results.md`, using the exact template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # UX/UI & Design System Audit report
 
@@ -85,15 +88,17 @@ tokens/components.]
 ## Detailed Findings
 
 [For every inconsistency or UX improvement identified, use the following strict
-structure:]
+structure. Lead each title with the primary file the finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/primary-file.ext` — [Short title of the issue]
 
 - **Dimension:** [e.g., Visual Consistency | UX Best Practices | Accessibility]
-- **Impact:** [High | Medium | Low]
+- **Impact:** [Critical | High | Medium | Low]
+- **Location:** `path/to/primary-file.ext:line`
 - **Current State:** [What is currently implemented and why it is sub-optimal]
 - **Recommendation & Rationale:** [The specific UI/UX change and how it improves
   premium feel or usability]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. the token now applied in the rendered component, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this UI change independently]`
 
