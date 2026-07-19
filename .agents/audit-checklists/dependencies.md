@@ -10,5 +10,14 @@
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Inventory & Stale Check
-- [ ] Vulnerability Scan
+- [ ] Outdated inventory.
+- [ ] Unused dependencies.
+- [ ] Staleness.
+- [ ] Node-engine drift.
+- [ ] Two-pass audit diff.
+- [ ] Severity rubric.
+- [ ] Report shape — no flooding.
+- [ ] Enumerate the delta.
+- [ ] Provenance.
+- [ ] New install scripts.
+- [ ] Typosquat near-misses.
