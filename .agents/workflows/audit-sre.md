@@ -10,9 +10,10 @@ Senior Site Reliability Engineer (SRE) & Lead Developer
 
 ## Context & Objective
 
-You are conducting a rigorous, read-only final code audit for a production
-release candidate. Your goal is to surface critical risks across configuration
-integrity, security, observability, and code quality — providing a prioritized,
+You are conducting a rigorous, read-only operational-readiness audit for a
+production release candidate. Your goal is to surface critical risks across
+rollback & recovery paths, observability & instrumentation, resilience &
+failure handling, and runbooks & operational docs — providing a prioritized,
 actionable report that can be handed off for remediation before deployment.
 
 ## Scope (Story / plan-run mode)
@@ -36,63 +37,80 @@ before this section existed.
   proceed with the full codebase-wide scan defined in the remaining
   steps.
 
-## Step 1: Context Gathering (Read-Only Scan)
+## Step 1: Resilience Detection Battery (Read-Only, Tool-First)
 
 > Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
-Before generating the report, silently scan the workspace. Pay special attention
-to:
+This lens audits **operational readiness** — can this release be observed,
+survive failure, and be rolled back? It deliberately does **not** re-audit
+secrets, injection, dead code, or complexity; those are owned by
+[`audit-security`](audit-security.md) and [`audit-clean-code`](audit-clean-code.md).
+Ground findings in the greps below, then read the operational surfaces they
+flag.
 
-- Application configuration files (e.g., `site.config.ts`, `.env.example`,
-  `wrangler.toml`, `app.config.ts`).
-- Source files for hardcoded values (strings resembling secrets, IDs, or
-  environment-specific data).
-- Error handling patterns across services, API routes, and background jobs.
-- `package.json` for unused, deprecated, or overly heavy dependencies.
-- Any debugging artifacts likely introduced during development.
+1. **Run the resilience battery.** Each grep maps to a Step 2 dimension:
+
+   ```bash
+   # Network calls without a timeout (a hung upstream stalls the whole request)
+   rg -n "\b(fetch|axios(\.\w+)?|http\.request|got|ky)\s*\(" --glob '!**/*.test.*' | \
+     rg -v -i "timeout|signal|AbortController"
+   # Graceful-shutdown handlers (their ABSENCE is the finding for long-lived processes)
+   rg -n "process\.on\(\s*['\"]SIG(TERM|INT)['\"]" || echo "no SIGTERM/SIGINT handler found"
+   # Error-swallowing empty catch blocks (silent failure — no signal to observe)
+   rg -n "catch\s*(\([^)]*\))?\s*\{\s*\}"
+   # Retry / backoff on network-dependent work (resilience to transient failure)
+   rg -n -i "retr(y|ies)|backoff|circuit.?breaker|p-retry"
+   # Health / readiness endpoints (needed for orchestrated rollout & rollback)
+   rg -n -i "/(health|healthz|readyz|livez|ping)\b|healthCheck"
+   ```
 
 ## Step 2: Analysis Dimensions
 
-Evaluate the gathered context against the following production-readiness
-criteria:
+Evaluate the release candidate against these **production-readiness** criteria.
 
-### 1. Configuration Architecture
+### 1. Rollback & Recovery Paths
 
-- **Config Integrity:** Audit the application config to ensure it defines a
-  clear schema for all variable/environment-specific data.
-- **Hardcoding Scan:** Scan components, utils, and services for any hardcoded
-  values that should come from config or environment variables (e.g., API URLs,
-  feature flags, region/locale data, identifiers).
-- **Fallback Logic:** Verify how the app behaves if a required config value is
-  missing — does it fail gracefully or crash silently?
+- **Rollback Path:** Is there a defined, tested way to revert this release —
+  a versioned deploy, blue-green/canary, or a documented `git revert` + redeploy
+  path? A release with no rollback path is a Critical finding.
+- **Migration Reversibility:** Any schema migration in scope must ship a
+  down-migration (or a documented forward-fix); an irreversible destructive
+  migration blocks the release.
+- **Feature-Flag Kill Switch:** Risky new behaviour should sit behind a flag
+  that can be disabled without a redeploy.
 
-### 2. Security & Secrets Management
+### 2. Observability & Instrumentation
 
-- **Secret Leaks:** Check for hardcoded API keys, tokens, or credentials
-  committed to source. Ensure all secrets use environment variables.
-- **Input Sanitization:** Identify potential XSS or injection vectors,
-  particularly where user input or URL parameters are reflected in the DOM or
-  database.
-- **Dependency Risks:** Flag obviously deprecated, unmaintained, or unused heavy
-  dependencies in `package.json`.
+- **Structured Logging:** Are operational events emitted through a structured
+  logger (levels, correlation ids) rather than bare `console.*`, so they are
+  queryable in production?
+- **Metrics & Tracing:** Are latency/error/throughput metrics and trace spans
+  emitted for the new code path? Missing instrumentation on a critical path is
+  a High finding.
+- **Alerting & SLOs:** Is there an SLO (or error budget) and an alert wired to
+  the signals above, so a regression pages someone?
 
-### 3. Error Handling & Observability
+### 3. Resilience & Failure Handling
 
-- **Console Hygiene:** Identify debugging artifacts (`console.log`, `debugger`,
-  commented-out test code) that must be removed before release.
-- **Error Swallowing:** Flag empty `catch` blocks or places where errors are
-  silently ignored rather than logged or re-thrown.
-- **Boundary Handling:** Ensure the app handles unexpected or invalid inputs
-  (e.g., bad URL params, missing DB records) with appropriate error responses.
+- **Timeouts & Cancellation:** Every outbound call needs a timeout /
+  `AbortSignal` (grep 1 in Step 1). A call without one is a Reliability finding.
+- **Retry & Backoff:** Transient-failure-prone calls should retry with backoff;
+  flag network work that fails hard on the first error.
+- **Graceful Shutdown:** Long-lived processes must handle `SIGTERM`/`SIGINT`
+  and drain in-flight work (grep 2). Its absence risks dropped requests on
+  every deploy.
+- **Error Boundaries:** Empty `catch` blocks (grep 3) swallow failures with no
+  signal — flag each as an Observability + Resilience finding.
 
-### 4. Code Quality & Performance
+### 4. Runbooks & Operational Docs
 
-- **Dead Code:** Identify unused variables, imports, functions, or unreachable
-  code blocks.
-- **Complexity:** Highlight logic with high cyclomatic complexity (deeply nested
-  `if/else`, massive switch statements) that violates DRY principles.
-- **Asset Loading:** Flag synchronous heavy operations or unoptimized asset
-  loading patterns that could hurt Core Web Vitals or API response times.
+- **Runbook Coverage:** Does an operational runbook exist for this
+  service/feature (how to deploy, roll back, and respond to the top failure
+  modes)? A new production surface with no runbook is a finding.
+- **Health & Readiness:** Are health/readiness endpoints (grep 5) present and
+  wired into the orchestrator so a bad rollout is caught before it takes
+  traffic?
+- **On-Call Escalation:** Is ownership / escalation for this surface documented?
 
 ## Step 3: Output Requirements
 
@@ -117,7 +135,7 @@ Lead each title with the primary file the finding lives in:]
 
 ### `path/to/primary-file.ext` — [Short title of the issue]
 
-- **Category:** [Configuration | Security | Observability | Code Quality]
+- **Category:** [Rollback & Recovery | Observability | Resilience | Runbooks]
 - **Severity:** [Critical | High | Medium | Low]
 - **Location:** `path/to/primary-file.ext:line`
 - **Current State:** [What exists and why it's a risk]
@@ -128,12 +146,12 @@ Lead each title with the primary file the finding lives in:]
 
 ## Release Readiness Checklist
 
-| Category                | Status                     |
-| ----------------------- | -------------------------- |
-| Configuration Integrity | ✅ Clear / ⚠️ Issues Found |
-| Security & Secrets      | ✅ Clear / ⚠️ Issues Found |
-| Error Handling          | ✅ Clear / ⚠️ Issues Found |
-| Code Quality            | ✅ Clear / ⚠️ Issues Found |
+| Category             | Status                     |
+| -------------------- | -------------------------- |
+| Rollback & Recovery  | ✅ Clear / ⚠️ Issues Found |
+| Observability        | ✅ Clear / ⚠️ Issues Found |
+| Resilience           | ✅ Clear / ⚠️ Issues Found |
+| Runbooks             | ✅ Clear / ⚠️ Issues Found |
 ```
 
 ---
