@@ -10,11 +10,10 @@
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Input Validation
-- [ ] Injection Risks
-- [ ] Authentication/Authorization
-- [ ] Dependency Security
-- [ ] Secret Management
+- [ ] Dependency CVEs (`npm audit`).
+- [ ] Secret scanning (`gitleaks` / `trufflehog`), with a grep fallback.
+- [ ] Grep battery (deterministic fallback / augmentation).
+- [ ] Manual surface review.
 - [ ] Injection
 - [ ] Broken Access Control
 - [ ] Cryptographic Failures

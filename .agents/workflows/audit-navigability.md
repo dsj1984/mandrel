@@ -69,17 +69,19 @@ exemption never lets a foreign Epic's change set leak into a scoped lens.
 
 Read the consumer's navigability config (resolved from `.agentrc.json`):
 
-- `delivery.quality.navigability.routeGlobs` — globs identifying the
-  route-adding files / route tree (e.g. `pages/**`, `app/**/route.ts`). Drives
-  both the route-tree enumeration here and the plan-persist draft
-  reachability gate
-  ([`plan-reachability.js`](../scripts/lib/orchestration/plan-reachability.js)).
-- `delivery.quality.navigability.navRegistry` — path(s) to the consumer's
-  nav-registry SSOT this lens reads.
+- `planning.navigation.routeGlobs` — globs identifying the route-adding files /
+  route tree (e.g. `pages/**`, `app/**/route.ts`). This is the same key the
+  plan-persist draft reachability gate
+  ([`plan-reachability.js`](../scripts/lib/orchestration/plan-reachability.js))
+  reads via `resolveNavConfig`, so the lens and the plan gate enumerate the
+  route tree from one SSOT.
+- `planning.navigation.navRegistry` — path(s) to the consumer's nav-registry
+  SSOT this lens reads.
 
-If **neither** `routeGlobs` nor `navRegistry` is present, emit a one-line
-"navigability not configured — skipped" note and exit without findings. Do
-**not** invent a route tree or guess a nav registry.
+If **neither** `routeGlobs` nor `navRegistry` is present under
+`planning.navigation`, emit a one-line "navigability not configured — skipped"
+note and exit without findings. Do **not** invent a route tree or guess a nav
+registry.
 
 ## Step 1: Enumerate the route tree
 
@@ -93,14 +95,52 @@ only** — never the full route body or any persona PII.
 Read every nav door from the `navRegistry` SSOT. Record each door's target
 path and the persona shell it renders in.
 
-## Step 3: Cross-check (the two invariants)
+## Step 3: Run the deterministic cross-check
 
-1. **Every route has a persona nav door.** For each enumerated route, assert at
-   least one nav-registry entry surfaces it for an entitled persona. A route
-   with no door for any of its personas is an **orphaned route**.
-2. **No nav href is dead.** For each nav door, assert its target resolves to a
-   real route in the route tree. A door whose target is absent is a **dead nav
-   href**.
+The two invariants are a **set-difference over two identifier lists**, not a
+judgement call — so run them mechanically rather than eyeballing the two files.
+Serialize the enumerated route tree (Step 1) and nav registry (Step 2) to two
+JSON files and run the shipped diff tool:
+
+```bash
+node .agents/scripts/nav-registry-diff.js \
+  --routes <routes.json> --nav <nav-registry.json> [--refs <inbound-refs.json>] --json
+```
+
+It prints, deterministically, the two invariants:
+
+1. **Every route has a persona nav door.** A route no door surfaces for an
+   entitled persona is an **orphaned route** (`orphanedRoutes`).
+2. **No nav href is dead.** A door whose target resolves to no route is a
+   **dead nav href** (`deadHrefs`).
+
+The tool also returns `exemptRoutes` — routes it verified are _not_ genuine
+orphans (see Step 3a). **Triage the tool's output**: promote each
+`orphanedRoutes` / `deadHrefs` entry to a Detailed Finding, and do not report
+anything the tool placed in `exemptRoutes`.
+
+## Step 3a: Orphan-verification exemption taxonomy
+
+A naive route-minus-nav set-difference over-reports. Before an unsurfaced route
+is reported as orphaned, it must survive this exemption taxonomy (the diff tool
+applies it, and you MUST apply the same reasoning to anything you assess by
+hand):
+
+- **Dynamic-segment children of a surfaced parent** — a detail route such as
+  `/users/:id` (or `/blog/[slug]`) is reached _through_ its surfaced parent
+  list, so it is exempt when its parent path has a nav door. It is **not** exempt
+  when the parent itself is unsurfaced.
+- **System routes** — `/login`, `/logout`, `/register`, `/auth/callback`,
+  `/404`, `/401`, `/403`, `/500`, `/unauthorized`, `/forbidden`, and similar are
+  reachable by construction (auth walls, error boundaries), never through a
+  persona nav door.
+- **Inbound in-app references** — a route linked from within the app (a
+  `<Link to="…">`, a programmatic `router.push`, an in-content anchor) is
+  reachable even without a top-level nav door. Grep the source for an inbound
+  reference before reporting the route as orphaned; feed the referenced paths to
+  the tool via `--refs`.
+
+Only a route that clears **all** of these is a genuine orphan worth a finding.
 
 ## Step 4: Output Requirements
 

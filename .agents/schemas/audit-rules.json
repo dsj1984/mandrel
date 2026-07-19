@@ -25,7 +25,19 @@
           "password",
           "encrypt"
         ],
-        "filePatterns": ["**/*.lock", "**/auth/*.js", "**/crypto/*.js"]
+        "filePatterns": [
+          "**/*.lock",
+          "**/auth/**",
+          "**/authn/**",
+          "**/authz/**",
+          "**/middleware/**",
+          "**/crypto/**",
+          "**/session/**",
+          "**/*credential*",
+          "**/*permission*",
+          "**/*.pem",
+          "**/*.key"
+        ]
       },
       "scope": "local",
       "substitutionKeys": []
@@ -33,8 +45,27 @@
     "audit-privacy": {
       "triggers": {
         "gates": ["gate1", "gate3"],
-        "keywords": ["privacy", "pii", "gdpr", "cookie", "tracking"],
-        "filePatterns": ["**/user-profile/**/*.js"]
+        "keywords": [
+          "privacy",
+          "pii",
+          "gdpr",
+          "cookie",
+          "tracking",
+          "telemetry",
+          "analytics",
+          "logging",
+          "consent"
+        ],
+        "filePatterns": [
+          "**/user-profile/**",
+          "**/*logger*",
+          "**/*logging*",
+          "**/logging/**",
+          "**/*telemetry*",
+          "**/telemetry/**",
+          "**/*analytics*",
+          "**/analytics/**"
+        ]
       },
       "scope": "local",
       "substitutionKeys": []
@@ -80,8 +111,30 @@
       "substitutionKeys": []
     },
     "audit-sre": {
-      "triggers": { "gates": ["gate4"] },
-      "scope": "global",
+      "triggers": {
+        "gates": ["gate3"],
+        "keywords": [
+          "sre",
+          "slo",
+          "observability",
+          "runbook",
+          "rollback",
+          "error budget",
+          "on-call",
+          "incident",
+          "resilience"
+        ],
+        "filePatterns": [
+          "**/Dockerfile",
+          "**/Dockerfile.*",
+          "**/migrations/**",
+          "**/deploy/**",
+          "**/*deploy*.sh",
+          ".github/workflows/**",
+          "**/*health*"
+        ]
+      },
+      "scope": "cumulative",
       "substitutionKeys": []
     },
     "audit-documentation": {
@@ -168,7 +221,15 @@
       "triggers": {
         "gates": ["gate2", "gate3"],
         "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
-        "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
+        "filePatterns": [
+          "**/*.html",
+          "**/*.astro",
+          "**/sitemap*",
+          "**/robots*",
+          "**/app/**/{page,layout,route,head,default,template,loading,error,not-found,opengraph-image,twitter-image}.{js,jsx,ts,tsx}",
+          "**/pages/**/*.{js,jsx,ts,tsx,vue}",
+          "**/routes/**/*.{jsx,tsx,vue,svelte}"
+        ]
       },
       "target": "web",
       "scope": "local",
@@ -181,7 +242,12 @@
         "filePatterns": [
           "**/components/**/*.{tsx,jsx,vue,svelte}",
           "**/styles/**",
-          "**/*.css"
+          "**/*.css",
+          "**/*.{scss,sass,less}",
+          "**/tailwind.config.{js,ts,cjs,mjs}",
+          "**/theme/**",
+          "**/tokens/**",
+          "**/design-system/**"
         ]
       },
       "target": "web",

@@ -49,35 +49,70 @@ before this section existed.
   proceed with the full codebase-wide scan defined in the remaining
   steps.
 
-## Step 1: Context Gathering (Read-Only Scan)
+## Step 0: Indexability gate (run first)
+
+**Open every SEO audit by deciding whether the surface is meant to be indexed at
+all.** SEO findings on an auth-walled, private, or internal surface are noise —
+a login-gated dashboard is *supposed* to be invisible to crawlers, so a missing
+`<meta name="description">` there is not a defect.
+
+- **Auth-walled / private surface** (every route under the change set sits
+  behind an authentication guard, a `noindex` directive, or a `Disallow`-all
+  `robots.txt`) ⇒ record a single **"SEO not applicable — surface is not
+  indexable"** note and stop. Do not emit per-file findings.
+- **Publicly indexable surface** (marketing pages, docs, blog, product pages, a
+  public app shell) ⇒ proceed to Step 1.
+- **Mixed** ⇒ scope the remaining steps to the indexable routes only, and say so
+  in the Executive Summary.
+
+## Step 1: Framework-aware metadata detection matrix
 
 > Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
-Before generating the report, silently scan the codebase. Pay special attention
-to:
+Modern web consumers almost never ship literal `<head><meta></head>` HTML — the
+metadata is produced by a framework mechanism. **Identify the mechanism first,
+then probe the surfaces that mechanism uses.** Reporting "no `<meta>` tags found"
+on a Next.js app that sets them through `generateMetadata` is a false finding.
 
-- Page `<head>` elements: `<title>`, `<meta name="description">`, canonical
-  tags, Open Graph, and Twitter Card tags.
-- Semantic HTML structure: heading hierarchy (`h1`–`h6`), landmark elements
-  (`<main>`, `<nav>`, `<article>`, `<section>`), and `<img alt>` attributes.
-- Structured data: JSON-LD blocks and Schema.org types in use.
-- Internal linking patterns and URL structure.
-- Content layout: answer-friendly formatting (FAQs, numbered steps, definition
-  lists) vs. dense prose.
+- **Step 1a — Identify the meta mechanism.** Determine which one (or more) of the
+  following the consumer uses, from its dependencies and source layout:
+
+  | Framework / library | Metadata mechanism | Where to probe |
+  | --- | --- | --- |
+  | Next.js (App Router) | `metadata` export / `generateMetadata()` | `app/**/{layout,page}.{js,jsx,ts,tsx}` |
+  | Next.js (Pages Router) | `next/head` `<Head>` | `pages/**/*.{js,jsx,ts,tsx}` |
+  | React (generic) | `react-helmet` / `react-helmet-async` | components importing `Helmet` |
+  | Vue / Nuxt | `@unhead/vue` / `useHead()` / `nuxt.config` `head` | `*.vue`, `nuxt.config.*` |
+  | Svelte / SvelteKit | `<svelte:head>` | `*.svelte` |
+  | Astro | frontmatter `<head>` in layouts | `*.astro` |
+  | Plain static | literal `<head>` HTML | `*.html` |
+
+- **Step 1b — Enumerate the routes.** Take the route list from the navigability
+  `routeGlobs` SSOT (the same route tree the navigability lens enumerates), not
+  from a guess. Each public route is a page whose metadata you assess.
+- **Step 1c — Per-route metadata probe.** For each indexable route, assert the
+  detected mechanism supplies: a `<title>`, a meta description, canonical URL,
+  Open Graph / Twitter Card tags, and (where relevant) JSON-LD structured data.
+  A route whose mechanism sets none of these is a real finding.
 
 ## Step 2: Analysis Dimensions
 
 Evaluate the gathered context against the following dimensions:
 
-1. **Traditional SEO:** Meta tags, semantic structure, accessibility, internal
-   linking logic, and keyword placement.
+1. **Traditional SEO:** Meta mechanism coverage (per Step 1), semantic structure,
+   heading hierarchy, `<img alt>`, internal linking logic, and canonical URLs.
 2. **AIO & GEO (Answer Engine Optimization):** Entity clarity, concise answer
    formatting, structured data (Schema.org), and token efficiency for LLM
    retrieval.
-3. **Core Web Vitals:** CLS, LCP, and INP risk factors visible from the codebase
-   (e.g., unsized images, render-blocking resources, large layout shifts).
-4. **Crawlability:** `robots.txt`, `sitemap.xml`, and any `noindex` directives
-   that may unintentionally block pages.
+3. **Statically-provable Core Web Vitals defects only:** flag *code-visible*
+   regressions — unsized images or media embeds (CLS risk), render-blocking synchronous
+   scripts, and fonts loaded without `display=swap`. **Do not estimate or score
+   measured CWV** (LCP/INP/CLS numbers): measured Core Web Vitals are owned by
+   the `audit-performance` lens — defer them there explicitly rather than
+   guessing a score from source.
+4. **Crawlability:** `robots.txt`, `sitemap.xml` (including generated
+   `sitemap.*`/`robots.*` route handlers), and any `noindex` directives that may
+   unintentionally block indexable pages.
 
 ## Step 3: Output Requirements
 

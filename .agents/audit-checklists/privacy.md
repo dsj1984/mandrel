@@ -10,10 +10,9 @@
 
 Self-check your change against this lens's concerns before you ship:
 
-- [ ] Log Statements
-- [ ] Storage
-- [ ] API Requests
-- [ ] Analytics
+- [ ] Enumerate the sinks.
+- [ ] Secret scan.
+- [ ] Trace PII sources to the enumerated sinks.
 - [ ] Data Minimization
 - [ ] Leaky Logging
 - [ ] Insecure Transmission
