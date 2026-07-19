@@ -188,3 +188,13 @@ those mutate state and cost minutes). Reading the **committed** coverage / CRAP
 / mutation artifacts under `baselines/` is explicitly permitted and required
 (Step 0): citing an already-computed metric is read-only analysis, not a suite
 run. Output the report and stop.
+
+## Self-cross-check (mandatory — filter false positives before you finalize)
+
+Before you write the report artifact from the previous step, run the shared
+adversarial self-cross-check over your Detailed Findings — see
+[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
+per-finding evidence bar, the exclusion list, and the final re-open-and-drop
+pass whose `kept <k> / dropped <d>` counts you record in the Executive
+Summary, so the sequential single-pass path filters unverified findings just as
+the orchestrated path's adversarial reviewer does.

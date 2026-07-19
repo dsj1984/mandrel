@@ -94,3 +94,13 @@ structure. Lead each title with the manifest the dependency lives in:]
 
 This is a **read-only** evaluation. Do not run `npm install` or `npm update`
 unless explicitly requested by the user after reviewing this report.
+
+## Self-cross-check (mandatory — filter false positives before you finalize)
+
+Before you write the report artifact from the previous step, run the shared
+adversarial self-cross-check over your Detailed Findings — see
+[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
+per-finding evidence bar, the exclusion list, and the final re-open-and-drop
+pass whose `kept <k> / dropped <d>` counts you record in the Executive
+Summary, so the sequential single-pass path filters unverified findings just as
+the orchestrated path's adversarial reviewer does.

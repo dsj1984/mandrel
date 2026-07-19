@@ -132,6 +132,31 @@ Operator/agent responsibilities while in the worktree:
    read it before you write and self-check as you author. When absent,
    lens-aware coverage still runs maker-blind at Story-scope review inside
    the close subprocess.
+
+   **Producing `checklistPath` at dispatch (Story #4627).** The dispatch that
+   spawns this worker threads `checklistPath` the same way it threads
+   `docsDigestPath`. Before the spawn, compute the payload from the Story's
+   predicted footprint (its `changes[]` / `references[]` path entries) with
+   `buildDispatchChecklist` and write it to the run temp dir:
+
+   ```bash
+   node --input-type=module -e '
+     import { buildDispatchChecklist } from "<main-repo>/.agents/scripts/lib/audit-suite/index.js";
+     import { parse } from "<main-repo>/.agents/scripts/lib/story-body/story-body.js";
+     // storyBody is the fetched Story issue body.
+     const { changes, references } = parse(process.env.STORY_BODY);
+     const { checklistPath } = buildDispatchChecklist({
+       storyId: <storyId>, changes, references, runTempDir: "temp/run-<id>",
+     });
+     console.log(checklistPath ?? "");
+   '
+   ```
+
+   A non-empty `checklistPath` is threaded into this worker's prompt; an empty
+   footprint match prints nothing and the worker runs with no write-time
+   checklist (the maker-blind close-scope pass still covers it). The builder is
+   a pure function of the footprint and the on-disk checklists —
+   `buildDispatchChecklist` (`lib/audit-suite/dispatch-checklist.js`).
 2. Implement the changes. When the body has a `## Slicing` / Delivery
    Slicing table, walk rows as **intra-session checkpoints** (commit +
    flip each row when done) — never as sibling tickets.
