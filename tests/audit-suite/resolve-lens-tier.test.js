@@ -6,9 +6,10 @@
  *   - `resolveLensTier` (imported from the audit-suite SDK barrel) returns one
  *     of `local | cumulative | global` for every lens registered in
  *     `audit-rules.json`, and throws on an unknown lens.
- *   - `audit-rules.json` declares a scope on all 14 lenses (including
+ *   - `audit-rules.json` declares a scope on all 15 lenses (including
  *     `audit-sre`, re-homed from the dead gate4-only state to gate3 with ops
- *     filePatterns by Story #4629) and no longer carries `alwaysRun`.
+ *     filePatterns by Story #4629, and `audit-data-model`, the persistence
+ *     lens added by Story #4633) and no longer carries `alwaysRun`.
  *   - `audit-rules.schema.json` requires the `scope` enum and no longer
  *     permits `alwaysRun` (a fixture rule carrying it fails validation).
  */
@@ -45,6 +46,7 @@ const LENS_KEYS = Object.keys(rules.audits);
  */
 const EXPECTED_TIERS = {
   'audit-clean-code': 'local',
+  'audit-data-model': 'local',
   'audit-security': 'local',
   'audit-privacy': 'local',
   'audit-performance': 'local',
@@ -65,11 +67,11 @@ test('LENS_TIERS is the frozen local|cumulative|global tuple', () => {
   assert.ok(Object.isFrozen(LENS_TIERS), 'LENS_TIERS must be frozen');
 });
 
-test('audit-rules.json registers all 14 lenses, each with a scope in the enum', () => {
+test('audit-rules.json registers all 15 lenses, each with a scope in the enum', () => {
   assert.equal(
     LENS_KEYS.length,
-    14,
-    `expected 14 registered lenses, got ${LENS_KEYS.length}: ${LENS_KEYS.join(', ')}`,
+    15,
+    `expected 15 registered lenses, got ${LENS_KEYS.length}: ${LENS_KEYS.join(', ')}`,
   );
   for (const lens of LENS_KEYS) {
     const { scope } = rules.audits[lens];
