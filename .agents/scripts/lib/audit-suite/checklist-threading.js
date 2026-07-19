@@ -42,7 +42,11 @@ import { AUDIT_LENSES } from '../audit-to-stories/audit-lenses.js';
 import { getPaths, PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { Logger } from '../Logger.js';
 import { estimateTokens } from '../orchestration/context-envelope.js';
-import { matchesAnyFilePattern, resolveLensTier } from './selector.js';
+import {
+  changeSetLacksSiblingTest,
+  matchesAnyFilePattern,
+  resolveLensTier,
+} from './selector.js';
 
 /**
  * Hard cap on the assembled checklist payload, in the ≈4-char/token estimate
@@ -123,6 +127,18 @@ function filePatternsFor(rules, lens) {
 }
 
 /**
+ * The full `triggers` block a lens declares in the manifest (or `undefined`).
+ * Used to read non-glob trigger fields (e.g. `sourceWithoutSiblingTest`).
+ *
+ * @param {object} rules parsed `audit-rules.json`.
+ * @param {string} lens canonical lens name.
+ * @returns {object|undefined}
+ */
+function triggerFor(rules, lens) {
+  return rules?.audits?.[lensKeyFor(lens)]?.triggers;
+}
+
+/**
  * Normalize a predicted footprint into a clean path list. Accepts a plain
  * `string[]` (the shape the caller derives from a Story's `changes[]` /
  * `references[]` entries); drops empty and non-string entries.
@@ -175,8 +191,15 @@ export function matchLocalLenses({
     if (tier !== 'local') continue;
 
     const patterns = filePatternsFor(rules, lens);
-    if (patterns.length === 0) continue;
-    if (matchesAnyFilePattern(patterns, paths)) matched.push(lens);
+    const fileMatch =
+      patterns.length > 0 && matchesAnyFilePattern(patterns, paths);
+    // Coverage-gap routing (#4628): thread the quality checklist at write-time
+    // on the same sibling-test predicate the selector uses, so a source change
+    // that ships without a test is reminded of the quality lens up front.
+    const siblingMatch =
+      triggerFor(rules, lens)?.sourceWithoutSiblingTest === true &&
+      changeSetLacksSiblingTest(paths);
+    if (fileMatch || siblingMatch) matched.push(lens);
   }
   return matched;
 }

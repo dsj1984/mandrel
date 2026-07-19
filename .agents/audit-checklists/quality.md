@@ -10,6 +10,8 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Story-scoped mode
+- [ ] Codebase-wide mode
 - [ ] Coverage vs. Confidence
 - [ ] Test Fragility & Flakiness
 - [ ] Mocking & Stubbing Strategy

@@ -53,13 +53,28 @@ function makeLoggerSpy() {
   };
 }
 
-test('matchLocalLenses: footprint matching a local lens returns that lens', () => {
-  // `tests/**` and `**/*.test.{ts,js}` are the `audit-quality` (local)
-  // triggers. `audit-clean-code` (local, universal `**/*` pattern) also
-  // matches every footprint, so it is threaded alongside — both in stable
-  // AUDIT_LENSES order (clean-code precedes quality).
+test('matchLocalLenses: a test-only footprint threads only the universal clean-code lens', () => {
+  // Since Story #4628 `audit-quality` routes on `sourceWithoutSiblingTest`, not
+  // a test-file glob: a diff that only touches tests has, if anything, *more*
+  // coverage, so quality must NOT thread. `audit-clean-code` (local, universal
+  // `**/*` pattern) still matches every footprint.
   const matched = matchLocalLenses({ footprint: ['tests/foo.test.js'] });
+  assert.deepEqual(matched, ['clean-code']);
+});
+
+test('matchLocalLenses: source lacking a sibling test threads the quality lens', () => {
+  // The coverage-gap trigger: `src/foo.js` with no `foo.test.js` in the change
+  // set threads `audit-quality` (alongside the universal clean-code lens), in
+  // stable AUDIT_LENSES order (clean-code precedes quality).
+  const matched = matchLocalLenses({ footprint: ['app/service.js'] });
   assert.deepEqual(matched, ['clean-code', 'quality']);
+});
+
+test('matchLocalLenses: source WITH its sibling test does not thread the quality lens', () => {
+  const matched = matchLocalLenses({
+    footprint: ['app/service.js', 'tests/service.test.js'],
+  });
+  assert.deepEqual(matched, ['clean-code']);
 });
 
 test('matchLocalLenses: the universal clean-code lens matches EVERY footprint', () => {
@@ -83,9 +98,9 @@ test('matchLocalLenses: the universal clean-code lens matches EVERY footprint', 
 });
 
 test('buildChecklistPayload: local-lens footprint returns that checklist', () => {
-  const result = buildChecklistPayload({ footprint: ['tests/foo.test.js'] });
-  // The universal clean-code lens is threaded alongside the footprint-matched
-  // quality lens, in AUDIT_LENSES order.
+  // `src/foo.js` lacks a sibling test, so the coverage-gap quality lens threads
+  // alongside the universal clean-code lens, in AUDIT_LENSES order.
+  const result = buildChecklistPayload({ footprint: ['app/service.js'] });
   assert.deepEqual(result.matchedLenses, ['clean-code', 'quality']);
   assert.deepEqual(result.includedLenses, ['clean-code', 'quality']);
   assert.deepEqual(result.droppedLenses, []);
@@ -139,8 +154,9 @@ test('buildChecklistPayload: empty / absent footprint returns nothing', () => {
 
 test('buildChecklistPayload: over-budget match is truncated deterministically and logged', () => {
   // This footprint matches multiple LOCAL lenses: lighthouse (**/*.html),
-  // performance (src/**/*.js), quality (tests/**), security (**/auth/*.js),
-  // seo (**/*.html) — in AUDIT_LENSES order.
+  // performance (src/**/*.js), security (**/auth/*.js), seo (**/*.html), plus
+  // the universal clean-code — in AUDIT_LENSES order. (Quality does NOT match:
+  // src/auth/login.js has its sibling tests/login.test.js in the same set.)
   const footprint = [
     'app/index.html',
     'src/auth/login.js',
@@ -207,9 +223,9 @@ test('buildChecklistPayload: default budget is generous enough to never truncate
   const footprint = [
     'app/index.html', // lighthouse, seo
     'app/styles/main.css', // ux-ui, lighthouse
-    'src/auth/login.js', // security, performance
-    'src/user-profile/settings.js', // privacy
-    'tests/login.test.js', // quality
+    'src/auth/login.js', // security, performance (sibling test present)
+    'src/user-profile/settings.js', // privacy, quality (no sibling test)
+    'tests/login.test.js', // login.js's sibling
   ];
   const result = buildChecklistPayload({ footprint });
   assert.equal(result.tokenBudget, DEFAULT_CHECKLIST_TOKEN_BUDGET);
