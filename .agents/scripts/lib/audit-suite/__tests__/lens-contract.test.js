@@ -285,6 +285,86 @@ describe('lens findings contract (Story #4625)', () => {
   });
 });
 
+describe('audit-performance lens rework (Story #4631)', () => {
+  const md = readLens('performance');
+
+  it('AC-1: measures before judging — mandates cpu-prof and an Evidence field', () => {
+    assert.ok(
+      md.includes('cpu-prof'),
+      'performance lens names no `node --cpu-prof` measurement command',
+    );
+    assert.ok(
+      /##\s+Step 0/.test(md) && /measure/i.test(md),
+      'performance lens has no mandatory measurement Step 0',
+    );
+    assert.ok(
+      md.includes('**Evidence:**'),
+      'performance lens template has no per-finding Evidence field',
+    );
+    assert.ok(
+      /measured/.test(md) && /estimated/.test(md),
+      'performance lens does not require a measured-or-estimated tag',
+    );
+  });
+
+  it('AC-2: interleaving is a first-class dimension covering the concurrency defect classes', () => {
+    assert.ok(
+      /TOCTOU/i.test(md),
+      'performance lens does not cover TOCTOU / check-then-act',
+    );
+    for (const concern of [
+      /unawaited|floating/i,
+      /read-modify-write/i,
+      /temp-file/i,
+      /idempoten/i,
+      /shared-cache poisoning/i,
+    ]) {
+      assert.ok(
+        concern.test(md),
+        `performance lens omits a required concurrency concern: ${concern}`,
+      );
+    }
+  });
+
+  it('AC-3: dimensions adapt to the detected repo profile', () => {
+    assert.ok(
+      /profile/i.test(md) && /inapplicable/i.test(md),
+      'performance lens does not branch on repo profile / declare inapplicable dimensions',
+    );
+    // Web-only dimension must be gated, not universal.
+    assert.ok(
+      /web only/i.test(md),
+      'performance lens does not gate the payload/bundle dimension to web repos',
+    );
+  });
+
+  it('AC-4: runs trend instead of amnesia — per-run baseline + delta reporting', () => {
+    assert.ok(
+      /perf-baseline\.json/.test(md),
+      'performance lens does not mandate a per-run perf baseline artifact',
+    );
+    assert.ok(
+      /(delta|diff)/i.test(md) && /baseline/i.test(md),
+      'performance lens does not report deltas vs the previous baseline',
+    );
+    assert.ok(
+      /suppress/i.test(md) && /unchanged/i.test(md),
+      'performance lens does not suppress unchanged known findings',
+    );
+    assert.ok(
+      /regress/i.test(md) && /High/.test(md),
+      'performance lens does not make a regression vs baseline an automatic High',
+    );
+  });
+
+  it("re-homes lighthouse's measured CWV material into the web branch", () => {
+    assert.ok(
+      /median-of-3/i.test(md) && /per-route/i.test(md),
+      'performance lens web branch does not carry the per-route / median-of-3 CWV protocol',
+    );
+  });
+});
+
 describe('parseAuditReport findings-contract units (Story #4625)', () => {
   const wrap = (block) => `# Report\n\n## Detailed Findings\n\n${block}\n`;
 

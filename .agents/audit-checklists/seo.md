@@ -10,7 +10,13 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Auth-walled / private surface
+- [ ] Publicly indexable surface
+- [ ] Mixed
+- [ ] Step 1a — Identify the meta mechanism.
+- [ ] Step 1b — Enumerate the routes.
+- [ ] Step 1c — Per-route metadata probe.
 - [ ] Traditional SEO
 - [ ] AIO & GEO (Answer Engine Optimization)
-- [ ] Core Web Vitals
+- [ ] Statically-provable Core Web Vitals defects only
 - [ ] Crawlability

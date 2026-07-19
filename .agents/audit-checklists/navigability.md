@@ -12,3 +12,6 @@ Self-check your change against this lens's concerns before you ship:
 
 - [ ] Every route has a persona nav door.
 - [ ] No nav href is dead.
+- [ ] Dynamic-segment children of a surfaced parent
+- [ ] System routes
+- [ ] Inbound in-app references

@@ -10,8 +10,12 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Design tokens / theme
+- [ ] Component library
+- [ ] Documented conventions
 - [ ] Hardcoded Values
 - [ ] Component Re-implementation
+- [ ] Inline-style census
 - [ ] Interactive States
 - [ ] Typography
 - [ ] Information Hierarchy
