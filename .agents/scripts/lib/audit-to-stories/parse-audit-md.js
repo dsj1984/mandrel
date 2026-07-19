@@ -2,11 +2,14 @@
  * lib/audit-to-stories/parse-audit-md.js — Parse `audit-*-results.md` reports.
  *
  * Extracts the `## Detailed Findings` section of an audit report and turns
- * every `### <title>` block into a normalised finding record. The 12 audit
- * workflows use slightly different field names — `Severity` vs `Impact`,
- * `Dimension` vs `Category` — so the parser captures every key/value pair
- * the block carries and normalises the two axes the downstream pipeline
- * relies on (severity + dimension).
+ * every `### <title>` block into a normalised finding record. Every audit lens
+ * report now shares one findings contract (Story #4625): a `Critical | High |
+ * Medium | Low` severity scale, a mandated `Location:` path anchor, and a
+ * dimension axis. Lenses still label the axes slightly differently — `Severity`
+ * vs `Impact`, `Dimension` vs `Category` vs `Type` — so the parser captures
+ * every key/value pair the block carries and normalises the two axes the
+ * downstream pipeline relies on (severity + dimension), harvesting the
+ * `Location:` field into `files[]` ahead of prose scraping.
  *
  * Pure: no filesystem I/O. The caller supplies the report text and source
  * path; the parser returns plain objects.
@@ -54,7 +57,7 @@ function normaliseSeverity(token) {
 }
 
 function deriveDimension(fields, fallbackDimension) {
-  for (const key of ['dimension', 'category', 'area']) {
+  for (const key of ['dimension', 'category', 'area', 'type']) {
     const raw = fields[key];
     if (typeof raw === 'string' && raw.trim().length > 0) {
       return raw
@@ -64,6 +67,33 @@ function deriveDimension(fields, fallbackDimension) {
     }
   }
   return fallbackDimension;
+}
+
+/**
+ * Harvest the mandated `Location:` field into concrete file paths. Every
+ * non-retired lens template now carries a `- **Location:** <path>:<line>`
+ * bullet (Story #4625); extracting it here — ahead of the heuristic prose
+ * scrape — gives a finding a deterministic identity anchor instead of relying
+ * on whatever path text happens to appear in the prose. The value may wrap the
+ * path in backticks and/or append a `:line` (or `:line:col`) suffix; both are
+ * stripped. Only tokens that look like paths (containing a separator) survive.
+ *
+ * @param {Record<string, string>} fields
+ * @returns {string[]}
+ */
+function deriveLocationFiles(fields) {
+  const raw = fields.location;
+  if (typeof raw !== 'string' || raw.trim().length === 0) return [];
+  const cleaned = raw.replace(/[`[\]]/g, ' ');
+  const out = [];
+  for (const token of cleaned.split(/[\s,]+/)) {
+    if (!token) continue;
+    const withoutLine = token.replace(/:\d+(?::\d+)?$/, '');
+    if (withoutLine.includes('/') || withoutLine.includes('\\')) {
+      out.push(withoutLine);
+    }
+  }
+  return out;
 }
 
 function deriveSeverity(fields) {
@@ -166,7 +196,8 @@ function parseBlockFields(bodyLines) {
  * @param {object} params
  * @param {string} params.markdown — full report text.
  * @param {string} params.sourceReport — path used for `sourceReport` field
- *   and dimension inference when the report omits a `Dimension:` line.
+ *   and dimension inference when the report omits a `Dimension:` / `Category:`
+ *   / `Type:` line.
  * @returns {Array<{
  *   dimension: string,
  *   severity: 'critical'|'high'|'medium'|'low'|null,
@@ -200,6 +231,7 @@ export function parseAuditReport({ markdown, sourceReport }) {
       fields['recommendation & rationale'] ?? fields.recommendation ?? '';
     const agentPrompt = fields['agent prompt'] ?? '';
     const fileSet = new Set([
+      ...deriveLocationFiles(fields),
       ...extractFilePaths(currentState),
       ...extractFilePaths(recommendation),
       ...extractFilePaths(agentPrompt),
@@ -243,4 +275,6 @@ export const __testing = {
   normaliseSeverity,
   extractFilePaths,
   normaliseTitle,
+  deriveDimension,
+  deriveLocationFiles,
 };

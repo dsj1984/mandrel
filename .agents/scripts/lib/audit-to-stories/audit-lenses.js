@@ -41,6 +41,41 @@ export const AUDIT_LENSES = Object.freeze([
   'ux-ui',
 ]);
 
+/**
+ * Lenses retired from the findings contract (Story #4625). A retired lens keeps
+ * its `audit-<lens>.md` workflow for history but is **exempt** from the
+ * suite-wide report-contract conformance gate — its template is not required to
+ * carry the unified `Location:` / severity-scale / acceptance-signal fields.
+ * `audit-lighthouse` is retired wholesale by the accessibility Story; the
+ * conformance test and the AC-4 `grep -L "Location:"` check both key off this
+ * list.
+ *
+ * @type {ReadonlyArray<string>}
+ */
+export const RETIRED_LENSES = Object.freeze(['lighthouse']);
+
+/**
+ * Lenses whose `## Scope` block deliberately deviates from the shared,
+ * byte-identical scope block every other lens carries (Story #4625). Both run
+ * a whole-repo / target-set scan rather than a change-set filter, so their
+ * scope prose is intentionally different — the conformance gate exempts them
+ * from the byte-identity assertion rather than forcing a false uniformity.
+ *
+ * @type {ReadonlyArray<string>}
+ */
+export const SCOPE_BLOCK_EXEMPT_LENSES = Object.freeze([
+  'documentation',
+  'navigability',
+]);
+
+/**
+ * @param {string} lens
+ * @returns {boolean} true when `lens` is retired from the findings contract.
+ */
+export function isRetiredLens(lens) {
+  return RETIRED_LENSES.includes(lens);
+}
+
 /** O(1) membership set for {@link isCanonicalLens}. */
 const LENS_SET = new Set(AUDIT_LENSES);
 

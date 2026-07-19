@@ -99,6 +99,9 @@ criteria:
 Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-sre-results.md`, using the exact template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # Production Release Candidate Audit
 
@@ -107,17 +110,19 @@ Generate and save a highly structured Markdown audit report to
 [A brief overview of the release candidate's health. Highlight the most critical
 risks that must be resolved before deployment.]
 
-## Findings
+## Detailed Findings
 
-[Group findings by the categories below. Use this structure for each item:]
+[Group findings by the categories below. Use this structure for each item.
+Lead each title with the primary file the finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/primary-file.ext` — [Short title of the issue]
 
 - **Category:** [Configuration | Security | Observability | Code Quality]
-- **Severity:** [High | Medium | Low]
-- **Location:** [`path/to/file.ts` or relevant area]
+- **Severity:** [Critical | High | Medium | Low]
+- **Location:** `path/to/primary-file.ext:line`
 - **Current State:** [What exists and why it's a risk]
 - **Recommendation:** [The specific fix and rationale]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm test`, a grep that now returns empty, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this fix independently]`
 

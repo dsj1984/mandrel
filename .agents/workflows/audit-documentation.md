@@ -70,56 +70,12 @@ before this section existed.
 
 ## Execution strategy (dual-path)
 
-This lens runs along one of two execution paths. Both emit the **identical**
-report contract (Step 3); downstream consumers (`audit-to-stories`) are agnostic to which path produced it.
-
-- **Orchestrated (dynamic-workflow) path.** When Claude Code's
-  [dynamic workflows](https://code.claude.com/docs/en/workflows) are
-  available, the saved project workflow
-  `.claude/workflows/audit-documentation.workflow.js` fans the semantic
-  dimensions below out as parallel read-only subagents — each agent walks
-  the full target set per doc for its dimension — runs an **adversarial
-  verify** stage (an independent agent re-checks every stale-claim finding
-  against the current code and drops claims it cannot reproduce — doc
-  staleness is notoriously false-positive-prone), then synthesises the
-  Step 3 report. The orchestrator derives its per-dimension prompts from
-  *this* markdown at run time — the lens stays the single source of truth;
-  the script does not fork a second copy of the spec. Step 1's
-  deterministic checkers still run in the calling session (the analysis
-  subagents are read-only and cannot execute them); their results are
-  passed to the workflow as the `deterministicFindings` input and folded
-  into the synthesis.
-- **Sequential (single-pass) path.** When dynamic workflows are unavailable,
-  follow Steps 1–3 below turn-by-turn exactly as before. This is the default
-  fallback and changes nothing about the existing behaviour.
-
-**Strategy selection** is computed by
-[`lib/dynamic-workflow/capability.js`](../scripts/lib/dynamic-workflow/capability.js)
-(`selectAuditStrategy`). The orchestrated path is chosen only when the runtime
-is Claude Code, `disableWorkflows` is not set (settings.json **or**
-`CLAUDE_CODE_DISABLE_WORKFLOWS`), and the Claude Code version meets the
-research-preview floor (`>= 2.1.154`). Any other runtime, a disabled setting,
-or an older version degrades gracefully to the sequential path.
-
-> **Capability degradation, not a contract shim.** This dual path is **not**
-> covered by the No-Shim / hard-cutover rule in
-> [`git-conventions.md`](../rules/git-conventions.md). That rule forbids
-> running two shapes of the *same contract* side by side. Here there is **one**
-> report contract; only the *execution strategy* is selected from a runtime
-> capability — the same pattern the protocol already endorses for live-docs
-> fallback in [`instructions.md` §1.C/§1.D](../instructions.md). The full
-> capability-degradation rationale lives in the
-> [`capability.js`](../scripts/lib/dynamic-workflow/capability.js) module
-> docstring; the orchestrated-run evidence and per-lens cost/precision gate
-> verdicts live in [`docs/roadmap.md`](../../docs/roadmap.md) (Part 3 —
-> Dynamic-Workflow Orchestration).
-
-**Forcing a path (for testing).** Set `MANDREL_AUDIT_STRATEGY=sequential` to
-verify the fallback path with the feature notionally disabled, or
-`MANDREL_AUDIT_STRATEGY=orchestrated` to pin the dynamic path. To exercise the
-real disable signals instead, set `CLAUDE_CODE_DISABLE_WORKFLOWS=1` (env) or
-`disableWorkflows: true` in `.claude/settings.json` and re-run the lens — both
-degrade to the sequential path.
+This lens runs along one of two execution paths (orchestrated dynamic-workflow
+or sequential single-pass). Both emit the **identical** Step 3 report contract;
+downstream consumers (`audit-to-stories`) are agnostic to which path produced
+it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
+selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
+there as this lens's name.
 
 ## Step 1: Deterministic Signal First
 
@@ -245,6 +201,9 @@ Generate and save a highly structured Markdown audit report to
 `{{auditOutputDir}}/audit-documentation-results.md`, using the exact
 template below.
 
+> Grade every finding's severity on the shared
+> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+
 ```markdown
 # Documentation Audit Report
 
@@ -261,16 +220,19 @@ match the code), the deterministic-gate verdicts, and primary drift themes.]
 
 ## Detailed Findings
 
-[For every gap identified, use the following strict structure:]
+[For every gap identified, use the following strict structure. Lead each title
+with the primary doc the finding lives in:]
 
-### [Short Title of the Issue]
+### `path/to/primary-doc.md` — [Short title of the issue]
 
 - **Category:** [Broken Instruction | Stale Description | Missing Coverage | Generator Drift | Link Integrity | History Bloat | Contradiction | Authority Drift]
-- **Impact:** [High | Medium | Low] — for a Context Economy finding, this is the base severity **after** any read-tier escalation (Step 2.5); state the doc's tier in Current State.
+- **Impact:** [Critical | High | Medium | Low] — for a Context Economy finding, this is the base severity **after** any read-tier escalation (Step 2.5); state the doc's tier in Current State.
+- **Location:** `path/to/primary-doc.md:line`
 - **Current State:** [The doc, the exact claim, and what the code actually
   does — cite file paths and lines on both sides]
 - **Recommendation & Rationale:** [The specific doc edit (or generator
   rerun) and why it restores accuracy]
+- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm run docs:check` passing, the corrected claim now matching the code, or a re-run of this lens]
 - **Agent Prompt:**
   `[A copy-pasteable, highly specific prompt to execute this doc fix independently]`
 ```
