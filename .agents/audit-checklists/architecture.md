@@ -10,13 +10,12 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Cycle detection.
+- [ ] Dead-export detection.
+- [ ] Hotspot ranking.
+- [ ] LLM triage on top.
 - [ ] Documented architecture boundaries
 - [ ] Automated boundary checks
-- [ ] Over-Engineering & Abstractions
-- [ ] Cognitive Load & Nesting
-- [ ] Dead Code & Redundancy
-- [ ] Naming & Self-Documentation
-- [ ] Coupling & Cohesion
 - [ ] Testable Surface (Humble-Object Boundary)
 - [ ] High
 - [ ] Medium

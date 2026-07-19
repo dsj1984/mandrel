@@ -28,6 +28,8 @@ import {
 import {
   buildScopeClause,
   buildSynthesisPrompt,
+  DIMENSION_FINDING_FIELDS,
+  DIMENSIONS,
 } from '../../.claude/workflows/audit-architecture.workflow.js';
 
 const REPO_ROOT = path.resolve(
@@ -139,6 +141,67 @@ test('buildScopeClause: a real file list → scoped analysis', () => {
   assert.match(clause, /Restrict analysis/i);
   assert.ok(clause.includes('src/a.js'));
   assert.ok(clause.includes('src/b.js'));
+});
+
+// --- dimension/field parity: the orchestrated path cannot drift (Story #4628)
+
+/**
+ * Extract the bold lead-in label of every top-level numbered item under the
+ * lens's `## Step 2: Analysis Dimensions` section — the canonical dimension
+ * roster the orchestrated `DIMENSIONS` export must mirror. Sub-bullets
+ * (`- **High** —`) are `-` items, never numbered, so they are not harvested.
+ *
+ * @param {string} md
+ * @returns {string[]}
+ */
+function lensAnalysisDimensions(md) {
+  const lines = md.split(/\r?\n/);
+  const start = lines.findIndex((l) =>
+    /^## Step 2: Analysis Dimensions/.test(l),
+  );
+  assert.ok(
+    start !== -1,
+    'lens is missing its "## Step 2: Analysis Dimensions" section',
+  );
+  const dims = [];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^## /.test(lines[i])) break; // next top-level section ends Step 2
+    const m = /^\d+\.\s+\*\*(.+?):\*\*/.exec(lines[i]);
+    if (m) dims.push(m[1].trim());
+  }
+  return dims;
+}
+
+test('DIMENSIONS mirrors the lens Step 2 roster exactly (no orchestrated drift)', () => {
+  assert.deepEqual([...DIMENSIONS], lensAnalysisDimensions(LENS));
+});
+
+test('the pinned roster keeps Testable Surface after ceding the clean-code dimensions', () => {
+  assert.ok(
+    DIMENSIONS.includes('Testable Surface (Humble-Object Boundary)'),
+    `DIMENSIONS dropped Testable Surface: ${DIMENSIONS.join(', ')}`,
+  );
+  // The five ceded dimensions must NOT reappear in the orchestrated roster.
+  for (const ceded of [
+    'Over-Engineering & Abstractions',
+    'Cognitive Load & Nesting',
+    'Dead Code & Redundancy',
+    'Naming & Self-Documentation',
+    'Coupling & Cohesion',
+  ]) {
+    assert.ok(
+      !DIMENSIONS.includes(ceded),
+      `ceded dimension "${ceded}" must not appear in the orchestrated roster`,
+    );
+  }
+});
+
+test('the dimension prompt field list includes Impact (was dropped by the frozen list)', () => {
+  assert.ok(
+    DIMENSION_FINDING_FIELDS.includes('Impact'),
+    `DIMENSION_FINDING_FIELDS omits Impact: ${DIMENSION_FINDING_FIELDS.join(', ')}`,
+  );
+  assert.ok(DIMENSION_FINDING_FIELDS.includes('Location'));
 });
 
 // --- downstream consumer parity --------------------------------------------

@@ -103,14 +103,42 @@ const LENS_PATH = path.join(
  * The independent analysis dimensions the lens decomposes into. These names
  * map 1:1 onto the lens's Step 2 "Analysis Dimensions"; each fans out to its
  * own subagent so they run in parallel and can be cross-checked independently.
+ *
+ * Since Story #4628 the architecture lens **cedes** its five
+ * clean-code-overlapping dimensions (Over-Engineering, Cognitive Load, Dead
+ * Code, Naming, Coupling & Cohesion) to `audit-clean-code` and keeps only the
+ * two structural dimensions no other lens owns. This list is pinned against
+ * the lens markdown's Step 2 roster by the parity test in
+ * `tests/contract/architecture-report-contract.test.js`, which fails on any
+ * drift — so the orchestrated path can no longer silently diverge from its
+ * lens (the frozen-list bug that dropped Testable Surface).
+ *
+ * @type {readonly string[]}
  */
-const DIMENSIONS = Object.freeze([
-  'Over-Engineering & Abstractions',
-  'Cognitive Load & Nesting',
-  'Dead Code & Redundancy',
-  'Naming & Self-Documentation',
-  'Coupling & Cohesion',
+export const DIMENSIONS = Object.freeze([
+  'Testable Surface (Humble-Object Boundary)',
   'Automated Architecture Guardrails',
+]);
+
+/**
+ * The per-finding field labels the dimension prompt instructs each analysis
+ * agent to emit, in template order. Derived from the lens markdown's Step 3
+ * `### <finding>` structure and pinned by the parity test so the orchestrated
+ * path can never omit a mandated field again — notably **Impact** and
+ * **Location**, which the pre-#4628 frozen prompt dropped, leaving orchestrated
+ * findings severity-less and unanchored.
+ *
+ * @type {readonly string[]}
+ */
+export const DIMENSION_FINDING_FIELDS = Object.freeze([
+  'Impact',
+  'Category',
+  'Dimension',
+  'Location',
+  'Current State',
+  'Recommendation & Rationale',
+  'Acceptance signal',
+  'Agent Prompt',
 ]);
 
 /** Read-only tool allowlist for analysis agents — no write/edit/shell. */
@@ -171,8 +199,9 @@ export function buildDimensionPrompt(dimension, lensSpec, scopeClause) {
     '',
     `Return ONLY the findings for the "${dimension}" dimension, each as a`,
     '`### <Short Title>` block using the exact field structure from the lens',
-    'Step 3 template (Category, Dimension, Current State, Recommendation &',
-    'Rationale, Agent Prompt). For the "Automated Architecture Guardrails"',
+    `Step 3 template (${DIMENSION_FINDING_FIELDS.join(', ')}). Grade Impact on`,
+    'the Critical | High | Medium | Low scale and anchor Location to a',
+    '`path:line`. For the "Automated Architecture Guardrails"',
     'dimension, also return the Architecture Guardrail Coverage assessment',
     "using the lens's Maturity Rubric (Current Maturity, Documented",
     'Boundaries, Automated Checks Found, CI Enforcement, Axes Covered,',

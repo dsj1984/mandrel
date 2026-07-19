@@ -95,6 +95,10 @@
           "items": { "type": "string", "minLength": 1 },
           "uniqueItems": true,
           "description": "Glob patterns matched against changed files in the diff."
+        },
+        "sourceWithoutSiblingTest": {
+          "type": "boolean",
+          "description": "Coverage-gap routing trigger (Story #4628). When true, the lens is selected whenever the change set touches a production source file whose sibling test (matched by stem, e.g. foo.js ↔ foo.test.js) is NOT also in the change set — the classic 'shipped source without a test' signal. Implemented by changeSetLacksSiblingTest() in lib/audit-suite/selector.js. Used by audit-quality in place of the backwards test-file filePatterns trigger, which fired the coverage-gap detector on test-only diffs."
         }
       }
     }
