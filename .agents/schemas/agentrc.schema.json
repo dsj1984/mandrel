@@ -1368,6 +1368,23 @@
             }
           },
           "additionalProperties": false
+        },
+        "auditToStories": {
+          "type": "object",
+          "properties": {
+            "severityFloor": {
+              "type": "string",
+              "enum": ["critical", "high", "medium", "low", "all"],
+              "default": "high",
+              "description": "Minimum severity a finding must meet to be proposed as a Story on an unattended `/audit-to-stories --auto` sweep (Story #4626). Default high."
+            },
+            "autoComment": {
+              "type": "boolean",
+              "default": true,
+              "description": "When true (default), `/audit-to-stories --auto` posts a re-detected comment on an already-open matched Issue instead of silently skipping it."
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

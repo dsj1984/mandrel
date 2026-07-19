@@ -46,6 +46,12 @@
  */
 
 import {
+  fingerprintFinding,
+  fingerprintFooter,
+  semanticKeyFooter,
+  semanticKeyFor,
+} from '../findings/route-finding.js';
+import {
   contentFingerprint,
   graduate,
   makeIsAutoFileEnabled,
@@ -119,6 +125,50 @@ export function buildContentMarker(epicId, finding) {
     title: finding.summary,
   });
   return `<!-- audit-results-followup: epic-${epicId}-${fp} -->`;
+}
+
+/**
+ * Project a graduator audit finding onto the canonical identity the shared
+ * dedup helper (`lib/findings/route-finding.js`) fingerprints over, so a
+ * close-time graduator filing and a sweep-time `/audit-to-stories` filing
+ * share ONE identity namespace (Story #4626). The graduator's `lens`
+ * (`audit-<dimension>`) maps to the identity `area`; its cited `path` is the
+ * primary file; its `summary` is the title. Historically the graduator only
+ * stamped its own content-hash `audit-results-followup` marker, disjoint from
+ * route-finding's `audit-fingerprints` footer — so a `/audit-to-stories`
+ * sweep could not recognize a graduator-filed issue and would re-file it.
+ *
+ * @param {{ lens?: string, path?: string, summary?: string }} finding
+ * @returns {{ title: string, area: string, primaryFile: string, severity: string, labels: string[] }}
+ */
+export function toCanonicalFinding(finding) {
+  const lens = typeof finding?.lens === 'string' ? finding.lens : '';
+  return {
+    title: typeof finding?.summary === 'string' ? finding.summary : '',
+    area: lens,
+    primaryFile: typeof finding?.path === 'string' ? finding.path : '',
+    severity: '',
+    labels: lens ? [lens] : [],
+  };
+}
+
+/**
+ * Render the canonical `audit-fingerprints` (and location-based
+ * `audit-semantic-keys`) footer for a graduator finding, computed off the
+ * shared helper's canonical hash. Stamped into every filed follow-up body so
+ * the `/audit-to-stories` dedup probe recognizes a graduator-filed issue
+ * (Story #4626).
+ *
+ * @param {{ lens?: string, path?: string, summary?: string }} finding
+ * @returns {string}
+ */
+export function canonicalFingerprintFooter(finding) {
+  const canonical = toCanonicalFinding(finding);
+  const { full } = fingerprintFinding(canonical);
+  const key = semanticKeyFor(canonical);
+  const lines = [fingerprintFooter(full)];
+  if (key) lines.push(semanticKeyFooter(key));
+  return lines.join('\n');
 }
 
 /**
@@ -260,6 +310,12 @@ export async function graduateAuditResults(opts = {}) {
           finding.summary,
           '',
           `_See Epic #${epicId} for the full audit-results report._`,
+          '',
+          // Canonical dedup identity so the `/audit-to-stories` sweep-time
+          // probe recognizes this close-time filing and never re-files it
+          // (Story #4626). The content-hash `audit-results-followup` marker
+          // above stays the graduator's own re-file guard.
+          canonicalFingerprintFooter(finding),
         ].join('\n');
         const labels = [
           'meta::audit-finding',

@@ -16,6 +16,11 @@
  * The GitHub lookup is delegated to a `provider` port the caller injects,
  * exposing `findIssuesByFingerprint(sha)` → `{ number, state, body }[]`. The
  * port is adapted into the `searchIssues` shape the shared helper expects.
+ * When the caller ALSO injects a `searchCandidates(finding)` port (production
+ * wires it to `semantic-issue-search.js`), routing runs the meaning-first
+ * Stage-1 pass and opts into location-based semantic-key confirmation so a
+ * reworded finding at an unchanged location still dedupes against its Issue
+ * (Story #4626).
  *
  * Pure orchestration: this module performs no network I/O itself.
  */
@@ -35,9 +40,17 @@ import { toCanonicalFinding } from './finding-adapter.js';
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
  * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
+ * @param {(finding: object) => Promise<Array<{ number: number, state: string, title?: string, body?: string }>>} [params.searchCandidates]
+ *   Optional meaning-first candidate search (production: `semantic-issue-search.js`).
+ *   When supplied, routing runs the Stage-1 semantic pass and opts into
+ *   location-based semantic-key confirmation.
  * @returns {Promise<{ classifications: GroupClassification[], summary: { create: number, skipOpen: number, skipReoccurring: number } }>}
  */
-export async function classifyGroupsAgainstGitHub({ groups, provider }) {
+export async function classifyGroupsAgainstGitHub({
+  groups,
+  provider,
+  searchCandidates,
+}) {
   if (!Array.isArray(groups)) {
     throw new Error('classifyGroupsAgainstGitHub: groups must be an array');
   }
@@ -52,6 +65,9 @@ export async function classifyGroupsAgainstGitHub({ groups, provider }) {
   // projection, which equals the sha the group already carries (both come
   // from the same `toCanonicalFinding` projection).
   const searchIssues = (sha) => provider.findIssuesByFingerprint(sha);
+  const semanticPort =
+    typeof searchCandidates === 'function' ? searchCandidates : undefined;
+  const routeOptions = { semanticKeyConfirm: Boolean(semanticPort) };
 
   const classifications = [];
   const summary = { create: 0, skipOpen: 0, skipReoccurring: 0 };
@@ -68,9 +84,13 @@ export async function classifyGroupsAgainstGitHub({ groups, provider }) {
       const sha = finding?.fingerprint?.full;
       if (typeof sha !== 'string' || sha.length !== 40) continue;
 
+      const canonical = toCanonicalFinding(finding);
       const { decision, matchedIssue, fingerprint } = await routeFinding(
-        toCanonicalFinding(finding),
-        { searchIssues },
+        canonical,
+        semanticPort
+          ? { searchIssues, searchCandidates: () => semanticPort(canonical) }
+          : { searchIssues },
+        routeOptions,
       );
 
       if (decision === 'new') continue;

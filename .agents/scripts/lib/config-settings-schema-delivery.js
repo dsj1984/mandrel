@@ -303,6 +303,26 @@ const FEEDBACK_LOOP_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.auditToStories` — knobs for the `/audit-to-stories` unattended
+ * (`--auto`) sweep (Story #4626). `severityFloor` is the minimum severity a
+ * finding must meet to be proposed as a Story on an unattended run (default
+ * `high`); `autoComment`, when true (default), lets `--auto` post a
+ * "re-detected" comment on an already-open matched Issue instead of silently
+ * skipping it.
+ */
+const AUDIT_TO_STORIES_SCHEMA = {
+  type: 'object',
+  properties: {
+    severityFloor: {
+      type: 'string',
+      enum: ['critical', 'high', 'medium', 'low', 'all'],
+    },
+    autoComment: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
 export const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -318,6 +338,7 @@ export const DELIVERY_SCHEMA = {
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
+    auditToStories: AUDIT_TO_STORIES_SCHEMA,
     ci: CI_DELIVERY_SCHEMA,
     routing: ROUTING_SCHEMA,
   },

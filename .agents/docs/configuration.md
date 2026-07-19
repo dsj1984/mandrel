@@ -280,6 +280,9 @@ top-level keys are validation errors.
 | `feedbackLoop` | No | `object` | — | Nested configuration block. |
 | `feedbackLoop.auditResultsAutoFile` | No | `boolean` | `true` | When true (default), the close-time audit-results graduator auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Story. |
 | `feedbackLoop.retroProposals` | No | `boolean` | `true` | When true (default), the retro auto-files its actionable routed proposals as meta::<framework-gap\|consumer-improvement> + friction::<category> issues via the graduator pre-parsed-findings seam, and the rendered retro sections list the filed issue numbers instead of paste-ready gh command stanzas. Set to false to fall back to the command stanzas. |
+| `auditToStories` | No | `object` | — | Nested configuration block. |
+| `auditToStories.severityFloor` | No | `"critical"` \| `"high"` \| `"medium"` \| `"low"` \| `"all"` | `"high"` | Minimum severity a finding must meet to be proposed as a Story on an unattended `/audit-to-stories --auto` sweep (Story #4626). Default high. |
+| `auditToStories.autoComment` | No | `boolean` | `true` | When true (default), `/audit-to-stories --auto` posts a re-detected comment on an already-open matched Issue instead of silently skipping it. |
 
 <!-- END GENERATED:agentrc -->
 
