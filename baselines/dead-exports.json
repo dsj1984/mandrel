@@ -29,6 +29,14 @@
     },
     {
       "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "_resetPersistenceLayerCache"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "symbol": "hasPersistenceLayer"
+    },
+    {
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
       "symbol": "isGlobalLens"
     },
     {
