@@ -54,11 +54,45 @@ it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
 selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
 there as this lens's name.
 
-## Step 0 - Project Context
+## Step 0 - Mode split + tool-first artifact read (mandatory)
 
-1.  Read the Story under audit — its `## Goal`, inline `acceptance[]` /
-    `verify[]`, and folded `## Spec` — to identify the target features.
-2.  Identify the target codebase paths for the audit.
+**Resolve the mode first**, then read the numbers before judging. The two modes
+do not share a Step 0 — a codebase-wide run must not try to read a Story it was
+never given.
+
+- **Story-scoped mode** (the `## Scope` block above is populated with a change
+  set): read the Story under audit — its `## Goal`, inline `acceptance[]` /
+  `verify[]`, and folded `## Spec` — to identify the target features, and scope
+  the audit to the change set and its direct dependencies.
+- **Codebase-wide mode** (the `## Scope` block renders the literal
+  `{{changedFiles}}` token): there is **no Story** — do not look for one. Audit
+  the whole test surface, ranked (below).
+
+**Read the committed test-quality artifacts as evidence** (both modes). This
+lens grounds every coverage/quality claim in the metrics the delivery gates
+already compute and commit, rather than prose-scanning the tests:
+
+- `baselines/coverage.json` — per-file line/branch coverage. Cite the covered
+  ratio for any file you flag as under-tested.
+- `baselines/crap.json` — the CRAP score (complexity × uncoveredness). A high
+  CRAP row is a measured "complex **and** under-tested" hotspot — the single
+  strongest coverage-gap signal.
+- `baselines/mutation.json` — mutation-testing survivors where present: tests
+  that execute code without asserting on it (coverage without confidence).
+
+**Rank churn-by-coverage.** Order candidate findings by **churn × coverage
+gap** — frequently-changed files (`git log --format= --name-only -n 200 | sort
+| uniq -c | sort -rn`) that also score low coverage / high CRAP are the
+highest-value gaps. Lead the report with them; cap the Detailed Findings at the
+top hotspots so the output is an actionable batch, not an exhaustive dump.
+
+**Anchor the rubric** to [`rules/testing-standards.md`](../rules/testing-standards.md):
+the three-tier pyramid, assertion-placement, and mocking/isolation MUSTs are the
+standard a finding is measured against — cite the rule the test violates rather
+than asserting a bare opinion.
+
+Reading these committed artifacts is **read-only** and explicitly permitted (see
+the Constraint) — it is not "running the suite".
 
 ## Step 1: Context Gathering (Read-Only Scan)
 
@@ -148,5 +182,9 @@ with the primary file the finding lives in:]
 
 ## Constraint
 
-Do NOT execute any code modifications, edit files, create branches, or run the
-test suite. This is strictly a read-only analysis. Output the report and stop.
+Do NOT execute any code modifications, edit files, create branches, or **run**
+the test suite (do not invoke `npm test`, a coverage run, or a mutation run —
+those mutate state and cost minutes). Reading the **committed** coverage / CRAP
+/ mutation artifacts under `baselines/` is explicitly permitted and required
+(Step 0): citing an already-computed metric is read-only analysis, not a suite
+run. Output the report and stop.

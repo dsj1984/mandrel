@@ -140,7 +140,7 @@
       "triggers": {
         "gates": ["gate1", "gate3"],
         "keywords": ["test", "coverage", "flaky", "assertion"],
-        "filePatterns": ["tests/**", "**/*.test.{ts,js}", "**/*.spec.{ts,js}"]
+        "sourceWithoutSiblingTest": true
       },
       "scope": "local",
       "substitutionKeys": []

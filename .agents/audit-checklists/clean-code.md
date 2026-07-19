@@ -10,6 +10,16 @@
 
 Self-check your change against this lens's concerns before you ship:
 
+- [ ] Complexity / maintainability (scoped mode).
+- [ ] Committed baselines (codebase-wide mode).
+- [ ] Duplication.
+- [ ] Dead code.
+- [ ] Entry points
+- [ ] Public API surface
+- [ ] Dynamic imports
+- [ ] Test-only seams
+- [ ] Framework/registration hooks
+- [ ] Churn-by-complexity hotspot cap.
 - [ ] Logic Complexity
 - [ ] Duplication
 - [ ] Component Health

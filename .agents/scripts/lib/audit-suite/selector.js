@@ -500,6 +500,80 @@ export function matchesAnyFilePattern(patterns, files) {
   return files.some((file) => matchers.some((m) => m(file)));
 }
 
+/** Extensions the sibling-test predicate treats as production source code. */
+const SOURCE_CODE_EXTENSIONS = Object.freeze([
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.jsx',
+  '.ts',
+  '.tsx',
+]);
+
+// biome-ignore lint/complexity/useRegexLiterals: constructor form keeps the MI walker able to score this module.
+const TEST_FILE_RE = new RegExp(String.raw`\.(test|spec)\.[cm]?[jt]sx?$`);
+// biome-ignore lint/complexity/useRegexLiterals: constructor form keeps the MI walker able to score this module.
+const TEST_DIR_RE = new RegExp(
+  String.raw`(^|/)(tests?|__tests__|spec|e2e|__mocks__)(/|$)`,
+);
+// biome-ignore lint/complexity/useRegexLiterals: constructor form keeps the MI walker able to score this module.
+const CODE_EXT_RE = new RegExp(String.raw`\.[cm]?[jt]sx?$`);
+
+/**
+ * True when `file` is a test/spec file — either by the `.test.` / `.spec.`
+ * infix or by living under a conventional test directory.
+ *
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isTestFile(file) {
+  return TEST_FILE_RE.test(file) || TEST_DIR_RE.test(file);
+}
+
+/**
+ * The sibling stem of a path: its basename with any `.test` / `.spec` infix and
+ * the code extension stripped (`src/foo.test.js` and `src/foo.js` both → `foo`).
+ *
+ * @param {string} file
+ * @returns {string}
+ */
+function stemOf(file) {
+  const base = file.split('/').pop() ?? file;
+  return base.replace(TEST_FILE_RE, '').replace(CODE_EXT_RE, '');
+}
+
+/**
+ * The coverage-gap routing predicate behind the `sourceWithoutSiblingTest`
+ * trigger (Story #4628): a change set warrants the `audit-quality` lens when it
+ * touches at least one **production source** file whose **sibling test is not
+ * also in the change set**. This flips the historical (backwards) trigger that
+ * fired the coverage-gap detector on test-file changes — a diff that only edits
+ * tests has, if anything, *more* coverage, not less; the risk lives in source
+ * that shipped without a matching test.
+ *
+ * A source file's sibling is matched by stem (`src/foo.js` ↔ any changed
+ * `foo.test.js` / `foo.spec.js`, regardless of directory). Test-only diffs,
+ * doc/config-only diffs, and source diffs whose every file has a sibling test
+ * in the same change set all return `false` and route no quality lens.
+ *
+ * Pure over its input; no git, no disk.
+ *
+ * @param {string[]|null|undefined} changedFiles
+ * @returns {boolean}
+ */
+export function changeSetLacksSiblingTest(changedFiles) {
+  const files = (Array.isArray(changedFiles) ? changedFiles : []).filter(
+    (f) => typeof f === 'string' && f.length > 0,
+  );
+  const testStems = new Set(
+    files.filter((f) => isTestFile(f)).map((f) => stemOf(f)),
+  );
+  const sources = files.filter(
+    (f) => !isTestFile(f) && SOURCE_CODE_EXTENSIONS.includes(path.extname(f)),
+  );
+  return sources.some((src) => !testStems.has(stemOf(src)));
+}
+
 /**
  * Filter audits based on logic in audit-rules.json (validated against
  * audit-rules.schema.json).
@@ -711,7 +785,13 @@ export async function selectAudits({
       changedFiles,
     );
 
-    if (keywordMatch || fileMatch) {
+    // Coverage-gap routing (#4628): a lens declaring `sourceWithoutSiblingTest`
+    // fires when the change set touches source lacking a sibling test.
+    const siblingMatch =
+      triggers.sourceWithoutSiblingTest === true &&
+      changeSetLacksSiblingTest(changedFiles);
+
+    if (keywordMatch || fileMatch || siblingMatch) {
       selectedAudits.push(auditName);
     }
   }
