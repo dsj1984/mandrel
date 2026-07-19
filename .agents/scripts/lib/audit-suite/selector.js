@@ -482,6 +482,194 @@ export function hasWebSurface({ config, projectRoot = PROJECT_ROOT } = {}) {
 }
 
 /**
+ * Package names (or scope/name segments of them) that declare a **persistence
+ * layer** — ORMs and query builders that own a database schema. Matched
+ * segment-wise against the consumer's root `package.json` dependency keys, so
+ * `@prisma/client` matches via `prisma` and `@mikro-orm/core` via `mikro-orm`.
+ */
+const ORM_PACKAGES = Object.freeze([
+  'prisma',
+  'drizzle-orm',
+  'typeorm',
+  'sequelize',
+  'mongoose',
+  'knex',
+  'objection',
+  'kysely',
+  'mikro-orm',
+  'bookshelf',
+  'waterline',
+]);
+
+/** File extensions whose tracked presence implies a persistence schema. */
+const PERSISTENCE_SCHEMA_EXTENSIONS = Object.freeze(['.sql', '.prisma']);
+
+/** Directory basenames that name a schema-migrations directory. */
+const MIGRATION_DIR_NAMES = Object.freeze(['migrations', 'migrate']);
+
+/**
+ * Parent directory basenames that qualify a `migrations`/`migrate` directory as
+ * a **database** migrations directory rather than an unrelated one (e.g.
+ * Mandrel's own `lib/migrations/` of framework-version upgrade steps). A
+ * migrations directory only counts as a persistence marker when it sits under
+ * one of these conventional ORM/database parents.
+ */
+const DB_MIGRATION_PARENTS = Object.freeze([
+  'db',
+  'database',
+  'prisma',
+  'drizzle',
+  'supabase',
+  'sql',
+]);
+
+/**
+ * Process-lifetime memo for the filesystem half of the persistence probe,
+ * keyed by project root — the persistence-layer analogue of
+ * {@link _webSurfaceFsCache}.
+ *
+ * @type {Map<string, boolean>}
+ */
+const _persistenceFsCache = new Map();
+
+/** Test-only: drop the memo so a fixture root can be re-probed after edits. */
+export function _resetPersistenceLayerCache() {
+  _persistenceFsCache.clear();
+}
+
+/**
+ * True when the root `package.json` declares an ORM / query-builder dependency.
+ * Returns `null` — *indeterminate* — when the manifest exists but cannot be
+ * read or parsed (the caller fails open on that). A genuinely absent manifest
+ * (`ENOENT`) is determinate: there is no declaration, so the file scan gets its
+ * turn. Mirrors {@link declaresWebFramework}.
+ *
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function declaresOrmDependency(root) {
+  let raw;
+  try {
+    raw = readFileSync(path.join(root, 'package.json'), 'utf8');
+  } catch (err) {
+    if (err?.code === 'ENOENT') return false;
+    return null;
+  }
+  let pkg;
+  try {
+    pkg = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const names = [
+    ...Object.keys(pkg?.dependencies ?? {}),
+    ...Object.keys(pkg?.devDependencies ?? {}),
+  ];
+  return names.some((name) =>
+    name
+      .replace(/^@/, '')
+      .split('/')
+      .some((segment) => ORM_PACKAGES.includes(segment)),
+  );
+}
+
+/**
+ * True when a bounded scan of the source tree finds a persistence-schema
+ * artifact: a tracked `.sql` / `.prisma` file, or a `migrations` / `migrate`
+ * directory sitting under a conventional database parent (`db/`, `prisma/`, …).
+ *
+ * Unlike the web-asset scan, a truncated or completed no-find scan resolves to
+ * **false** (not `null`): persistence artifacts live near the repo root by
+ * convention, so a bounded near-root scan that does not find one is strong
+ * evidence of absence — and it keeps a large ORM-less repo (Mandrel itself)
+ * determinately not-applicable regardless of tree size. Only an unreadable
+ * ROOT is indeterminate (`null`), which the caller fails open on.
+ *
+ * @param {string} root
+ * @returns {boolean|null}
+ */
+function scanForPersistenceArtifacts(root) {
+  let budget = WEB_SCAN_MAX_ENTRIES;
+  const queue = [{ dir: root, depth: 0 }];
+
+  while (queue.length > 0) {
+    const { dir, depth } = queue.shift();
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      if (dir === root) return null;
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (budget-- <= 0) return false; // bounded near-root scan exhausted
+      if (entry.isDirectory()) {
+        if (WEB_SCAN_SKIP_DIRS.includes(entry.name)) continue;
+        if (
+          MIGRATION_DIR_NAMES.includes(entry.name) &&
+          DB_MIGRATION_PARENTS.includes(path.basename(dir))
+        ) {
+          return true;
+        }
+        if (depth + 1 <= WEB_SCAN_MAX_DEPTH) {
+          queue.push({ dir: path.join(dir, entry.name), depth: depth + 1 });
+        }
+        continue;
+      }
+      if (PERSISTENCE_SCHEMA_EXTENSIONS.includes(path.extname(entry.name))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Decide whether the project has a **persistence layer** — the applicability
+ * predicate behind the `target: "data-model"` gate in `audit-rules.json`
+ * (Story #4633). The data-model lens reads ORM models, schema migrations, and
+ * seed data; a project with none of those has nothing for it to inspect, so the
+ * lens self-skips with an explicit not-applicable report rather than running to
+ * empty findings.
+ *
+ * Like {@link hasWebSurface}, this is derived from observables in the
+ * consumer's own checkout — Mandrel is materialized into other projects, so a
+ * consumer with a real database MUST still get the lens. A project has a
+ * persistence layer when ANY of these hold:
+ *   1. The root `package.json` declares an ORM / query-builder dependency
+ *      (prisma / drizzle / typeorm / sequelize / mongoose / knex / …).
+ *   2. A bounded source scan finds a tracked `.prisma` / `.sql` schema file.
+ *   3. A bounded source scan finds a `migrations` / `migrate` directory under a
+ *      conventional database parent (`db/`, `prisma/`, `drizzle/`, …).
+ *
+ * **Fail direction: OPEN.** When the ORM-dependency signal is indeterminate —
+ * an unparseable `package.json`, an unreadable root — the project is treated as
+ * having a persistence layer, for the same reason as the web probe: a wasted
+ * lens run is recoverable, silently dropped coverage is not. A determinate
+ * "no ORM dependency + no schema artifact found" (Mandrel's own shape) is a
+ * clean not-applicable.
+ *
+ * @param {{ config?: object|null, projectRoot?: string }} [params]
+ * @returns {boolean}
+ */
+export function hasPersistenceLayer({ projectRoot = PROJECT_ROOT } = {}) {
+  if (_persistenceFsCache.has(projectRoot)) {
+    return _persistenceFsCache.get(projectRoot);
+  }
+
+  const declared = declaresOrmDependency(projectRoot);
+  // `null` is indeterminate, not false — fail open.
+  const result =
+    declared === null || declared === true
+      ? true
+      : scanForPersistenceArtifacts(projectRoot) !== false;
+
+  _persistenceFsCache.set(projectRoot, result);
+  return result;
+}
+
+/**
  * Test a single filename against a single glob pattern using the project's
  * configured matcher semantics (`picomatch` with `dot: true`). Exported so
  * regression tests can pin engine behaviour without stubbing audit-rules.
@@ -635,6 +823,7 @@ export async function selectAudits({
   gitTimeoutMsOverride,
   gateModeOpts,
   hasWebSurfaceFn = hasWebSurface,
+  hasPersistenceLayerFn = hasPersistenceLayer,
 }) {
   const config = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
@@ -741,15 +930,21 @@ export async function selectAudits({
 
   const selectedAudits = [];
 
-  // Resolved at most once per call, and only if a `target: "web"` lens
-  // actually clears its gate — a Node-only project must not pay a filesystem
-  // scan on a roster with no web lens in it.
-  let webSurfaceMemo = null;
-  const projectIsWebCapable = () => {
-    if (webSurfaceMemo === null) {
-      webSurfaceMemo = hasWebSurfaceFn({ config });
+  // Applicability probes, resolved at most once per target per call, and only
+  // if a lens declaring that target actually clears its gate — a Node-only
+  // project must not pay a filesystem scan on a roster with no `web` lens in
+  // it, nor a DB-less project pay one for `data-model`.
+  const targetProbes = {
+    web: hasWebSurfaceFn,
+    'data-model': hasPersistenceLayerFn,
+  };
+  const targetApplicabilityMemo = new Map();
+  const projectSupportsTarget = (target) => {
+    if (!targetApplicabilityMemo.has(target)) {
+      const probe = targetProbes[target];
+      targetApplicabilityMemo.set(target, probe ? probe({ config }) : true);
     }
-    return webSurfaceMemo;
+    return targetApplicabilityMemo.get(target);
   };
 
   for (const [auditName, ruleOpts] of Object.entries(rulesData.audits || {})) {
@@ -758,15 +953,16 @@ export async function selectAudits({
     const gateMatch = triggers.gates?.includes(gate);
     if (!gateMatch) continue;
 
-    // Target-applicability gate (#4579). A lens declaring `target: "web"`
-    // has nothing to read on a project with no web surface, yet still
+    // Target-applicability gate (#4579, #4633). A lens declaring a `target`
+    // has nothing to read on a project lacking that surface, yet still
     // whole-word-matches ordinary prose — `audit-seo` fires on the `meta`
     // inside every Story body's `<!-- meta: {...} -->` machine comment. The
     // roster's own instruction is that the host MUST walk every listed lens,
     // so an inapplicable entry is not just wasted spend: it teaches operators
-    // to ignore the MUST. An absent `target` means "always applicable", so no
-    // existing lens changes behaviour.
-    if (ruleOpts.target === 'web' && !projectIsWebCapable()) continue;
+    // to ignore the MUST. An absent `target` (or `any`) means "always
+    // applicable", so no existing lens changes behaviour.
+    const { target } = ruleOpts;
+    if (target && target !== 'any' && !projectSupportsTarget(target)) continue;
 
     const keywords = triggers.keywords || [];
     let keywordMatch = false;

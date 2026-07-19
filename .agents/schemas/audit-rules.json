@@ -14,6 +14,33 @@
       "scope": "cumulative",
       "substitutionKeys": []
     },
+    "audit-data-model": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "migration",
+          "schema",
+          "orm",
+          "prisma",
+          "foreign key",
+          "constraint",
+          "cascade",
+          "backfill"
+        ],
+        "filePatterns": [
+          "**/migrations/**",
+          "**/migrate/**",
+          "**/seeds/**",
+          "**/*.sql",
+          "**/*.prisma",
+          "**/entities/**",
+          "**/models/**"
+        ]
+      },
+      "target": "data-model",
+      "scope": "local",
+      "substitutionKeys": []
+    },
     "audit-security": {
       "triggers": {
         "gates": ["gate1", "gate3"],

@@ -27,6 +27,7 @@
 export const AUDIT_LENSES = Object.freeze([
   'architecture',
   'clean-code',
+  'data-model',
   'dependencies',
   'devops',
   'documentation',
