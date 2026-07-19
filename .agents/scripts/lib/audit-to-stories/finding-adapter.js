@@ -16,6 +16,8 @@
 import {
   fingerprintFinding,
   fingerprintFooter,
+  semanticKeyFooter,
+  semanticKeyFor,
 } from '../findings/route-finding.js';
 
 /**
@@ -56,6 +58,18 @@ export function fingerprintAuditFinding(finding) {
 }
 
 /**
+ * Compute the location-based semantic key for a single audit finding via the
+ * shared helper. Stable across a reworded title; used to confirm a dedup
+ * match when the fingerprint has drifted (Story #4626).
+ *
+ * @param {object} finding
+ * @returns {string}
+ */
+export function semanticKeyForAuditFinding(finding) {
+  return semanticKeyFor(toCanonicalFinding(finding));
+}
+
+/**
  * Stamp every audit finding with its shared-helper fingerprint and return a
  * new array. Mirrors the legacy `withFingerprints` contract so downstream
  * grouping / story-body / dedupe consumers keep reading `finding.fingerprint`.
@@ -90,4 +104,28 @@ export function renderFingerprintFooter(findings) {
     .map((f) => f?.fingerprint?.full)
     .filter((sha) => typeof sha === 'string' && sha.length > 0);
   return fingerprintFooter(shas);
+}
+
+/**
+ * Render the location-based semantic-key footer for a group of findings, via
+ * the shared helper's single footer renderer. Stamped alongside the
+ * fingerprint footer so a later reworded finding at the same location still
+ * confirms a dedup match (Story #4626). Findings do not need a precomputed
+ * key — it is derived from each finding's canonical projection here.
+ *
+ * @param {Array<object>} findings
+ * @returns {string}
+ */
+export function renderSemanticKeyFooter(findings) {
+  if (!Array.isArray(findings)) {
+    throw new Error('renderSemanticKeyFooter: findings must be an array');
+  }
+  const keys = [
+    ...new Set(
+      findings
+        .map((f) => semanticKeyForAuditFinding(f))
+        .filter((k) => typeof k === 'string' && k.length > 0),
+    ),
+  ];
+  return semanticKeyFooter(keys);
 }

@@ -36,9 +36,16 @@ import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
 import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
+import {
+  DEFAULT_LEDGER_PATH,
+  readLedger,
+  reconcileLedger,
+  writeLedger,
+} from './lib/audit-to-stories/ledger.js';
 import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { searchSemanticCandidates } from './lib/findings/semantic-issue-search.js';
 import { Logger } from './lib/Logger.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
@@ -78,30 +85,54 @@ function tallyBySeverity(findings) {
   return t;
 }
 
-async function loadProvider() {
+async function loadProvider({ createProviderImpl, resolveConfigImpl } = {}) {
   // The provider is optional — when missing, the dedupe step emits a
-  // create-only classification and the workflow operator is informed.
+  // create-only classification and the workflow operator is informed. The
+  // `createProviderImpl` / `resolveConfigImpl` seams let a contract test drive
+  // this exact adapter (fingerprint + semantic-candidate ports) with an
+  // in-memory issue store instead of the live GitHub provider.
   try {
-    const mod = await import('./lib/provider-factory.js');
-    const { resolveConfig } = await import('./lib/config-resolver.js');
+    const resolveConfig =
+      resolveConfigImpl ??
+      (await import('./lib/config-resolver.js')).resolveConfig;
+    const createProvider =
+      createProviderImpl ??
+      (await import('./lib/provider-factory.js')).createProvider;
     const config = resolveConfig();
-    const provider = mod.createProvider(config ?? {});
+    const provider = createProvider(config ?? {});
     // The existing provider exposes higher-level ticket I/O. The dedupe
-    // module only needs `findIssuesByFingerprint(sha)`. Adapt here so we
-    // don't bake provider-shape knowledge into the dedupe module.
+    // module needs `findIssuesByFingerprint(sha)` for the exact-fingerprint
+    // pass and — since Story #4626 — a `searchCandidates(finding)` port for
+    // the meaning-first Stage-1 pass. Adapt both here so we don't bake
+    // provider-shape knowledge into the dedupe module.
     if (typeof provider.searchIssues === 'function') {
+      const owner = config?.github?.owner;
+      const repo = config?.github?.repo;
+      const normalise = (h) => ({
+        number: h.number,
+        state: (h.state ?? h.state_reason ?? 'open')
+          .toString()
+          .toLowerCase()
+          .includes('closed')
+          ? 'closed'
+          : 'open',
+        title: h.title ?? '',
+        body: h.body ?? '',
+      });
       return {
         async findIssuesByFingerprint(sha) {
-          const hits = await provider.searchIssues({
-            query: sha,
-            owner: config?.github?.owner,
-            repo: config?.github?.repo,
-          });
-          return (hits ?? []).map((h) => ({
-            number: h.number,
-            state: h.state ?? h.state_reason ?? 'OPEN',
-            body: h.body ?? '',
-          }));
+          const hits = await provider.searchIssues({ query: sha, owner, repo });
+          return (hits ?? []).map(normalise);
+        },
+        async searchCandidates(finding) {
+          // Wire the shared semantic search onto the provider's full-text
+          // issue search (open + closed) so route-finding's Stage-1 pass runs.
+          const search = async (query) => {
+            if (!query || query.trim().length === 0) return [];
+            const hits = await provider.searchIssues({ query, owner, repo });
+            return (hits ?? []).map(normalise);
+          };
+          return searchSemanticCandidates(finding, { search });
         },
       };
     }
@@ -149,7 +180,7 @@ function dedupSkippedWarning(reason) {
   );
 }
 
-async function buildPlan({ glob: pattern, severity, useProvider }) {
+async function buildPlan({ glob: pattern, severity, useProvider, ledger }) {
   const reportPaths = await collectReportPaths(pattern ?? DEFAULT_GLOB);
   if (reportPaths.length === 0) {
     return {
@@ -188,7 +219,11 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
   if (useProvider) {
     const provider = await loadProvider();
     if (provider) {
-      const result = await classifyGroupsAgainstGitHub({ groups, provider });
+      const result = await classifyGroupsAgainstGitHub({
+        groups,
+        provider,
+        searchCandidates: provider.searchCandidates,
+      });
       classifications = result.classifications;
       summary = result.summary;
       dedupApplied = true;
@@ -205,6 +240,35 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
     Logger.warn(dedupSkippedWarning('disabled'));
   }
 
+  // Cross-run ledger (Story #4626): fold this scan onto the committed memory,
+  // suppress findings a prior run recorded as accepted-risk, and (unless the
+  // caller asked not to write) persist the updated ledger. Opt-in — the plain
+  // --scan path leaves it untouched so it never mutates a committed file.
+  let ledgerSummary;
+  if (ledger) {
+    const suppressed = reconcileScanLedger({
+      ledgerPath: ledger.path ?? DEFAULT_LEDGER_PATH,
+      findings: stamped,
+      classifications,
+      write: ledger.write !== false,
+    });
+    if (suppressed.size > 0) {
+      for (const c of classifications) {
+        const findings = c.group?.findings ?? [];
+        if (
+          findings.length > 0 &&
+          findings.every((f) => suppressed.has(f?.fingerprint?.full))
+        ) {
+          c.action = 'skip-accepted-risk';
+        }
+      }
+    }
+    ledgerSummary = {
+      path: ledger.path ?? DEFAULT_LEDGER_PATH,
+      suppressed: suppressed.size,
+    };
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     sourceReports: reportPaths,
@@ -218,14 +282,155 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
       filtered: filtered.length,
       tally: tallyBySeverity(filtered),
       dedupApplied,
+      ...(ledgerSummary ? { ledger: ledgerSummary } : {}),
       ...summary,
     },
   };
 }
 
+/**
+ * Fold the current scan onto the committed cross-run ledger and persist it.
+ * Returns the set of finding fingerprints the ledger says are accepted-risk
+ * (deliberately rejected) so the caller can suppress them.
+ *
+ * @param {object} params
+ * @param {string} params.ledgerPath
+ * @param {Array<object>} params.findings — stamped scan findings.
+ * @param {Array<{ group?: object, matchedIssues?: Array<{ number: number, state: string }>, matchedFingerprints?: string[] }>} params.classifications
+ * @param {boolean} [params.write=true]
+ * @returns {Set<string>}
+ */
+function reconcileScanLedger({ ledgerPath, findings, classifications, write }) {
+  const prior = readLedger(ledgerPath);
+  const issueStates = issueStatesFromClassifications(classifications);
+  const { ledger: next } = reconcileLedger({
+    ledger: prior,
+    findings,
+    issueStates,
+  });
+  if (write !== false) writeLedger(ledgerPath, next);
+  return new Set(
+    next.entries
+      .filter((e) => e.status === 'accepted-risk')
+      .map((e) => e.fingerprint),
+  );
+}
+
+/**
+ * Derive a `{ fingerprint → issueState }` map from dedupe classifications so
+ * the ledger reconcile sees the live open/closed state of matched Issues.
+ * @param {Array<object>} classifications
+ * @returns {Record<string, { state: string, number: number|null }>}
+ */
+function issueStatesFromClassifications(classifications) {
+  const states = {};
+  for (const c of classifications ?? []) {
+    const issue = (c.matchedIssues ?? [])[0];
+    if (!issue) continue;
+    const state = String(issue.state ?? '')
+      .toLowerCase()
+      .includes('closed')
+      ? 'closed'
+      : 'open';
+    for (const fp of c.matchedFingerprints ?? []) {
+      states[fp] = { state, number: issue.number ?? null };
+    }
+  }
+  return states;
+}
+
 function loadPlan(planPath) {
   if (!planPath) throw new Error('--plan <path> is required');
   return JSON.parse(fs.readFileSync(planPath, 'utf8'));
+}
+
+const DEFAULT_SEVERITY_FLOOR = 'high';
+
+/**
+ * Resolve the unattended-sweep severity floor: an explicit `--severity` wins,
+ * else `delivery.auditToStories.severityFloor` from config, else the built-in
+ * default (`high`). Reads config defensively so a missing/failed resolve never
+ * breaks the run.
+ *
+ * @param {string|undefined} explicit
+ * @returns {Promise<string>}
+ */
+async function resolveSeverityFloor(explicit) {
+  if (explicit) return explicit;
+  try {
+    const { resolveConfig } = await import('./lib/config-resolver.js');
+    const config = resolveConfig();
+    const floor = config?.delivery?.auditToStories?.severityFloor;
+    if (typeof floor === 'string' && floor.length > 0) return floor;
+  } catch (_) {
+    // fall through to default
+  }
+  return DEFAULT_SEVERITY_FLOOR;
+}
+
+/**
+ * Unattended `--auto` sweep. No interactive gates: it resolves the severity
+ * floor from config, builds the plan (with cross-run ledger reconciliation),
+ * and reports a run summary. Under `--dry-run` it performs zero GitHub writes
+ * and emits the summary only; otherwise it returns the create-eligible Story
+ * payloads for the caller to open. Always resolves — never prompts.
+ *
+ * @param {object} params
+ * @param {string} [params.glob]
+ * @param {string} [params.severity] — explicit floor override.
+ * @param {boolean} [params.dryRun]
+ * @param {boolean} [params.useProvider]
+ * @param {string} [params.ledgerPath]
+ * @returns {Promise<{ summary: object, stories: Array<object> }>}
+ */
+async function runAuto({ glob, severity, dryRun, useProvider, ledgerPath }) {
+  const floor = await resolveSeverityFloor(severity);
+  const plan = await buildPlan({
+    glob,
+    severity: floor,
+    useProvider,
+    ledger: { path: ledgerPath ?? DEFAULT_LEDGER_PATH, write: !dryRun },
+  });
+
+  const byAction = {
+    create: [],
+    skipOpen: [],
+    skipReoccurring: [],
+    suppressed: [],
+  };
+  for (const c of plan.classifications ?? []) {
+    if (c.action === 'create') byAction.create.push(c);
+    else if (c.action === 'skip-open') byAction.skipOpen.push(c);
+    else if (c.action === 'skip-reoccurring') byAction.skipReoccurring.push(c);
+    else if (c.action === 'skip-accepted-risk') byAction.suppressed.push(c);
+  }
+
+  const eligible = byAction.create.map((c) => c.group);
+  const stories = dryRun ? [] : buildAndGateStories(eligible, plan.edges ?? []);
+
+  const summary = {
+    mode: 'auto',
+    dryRun: Boolean(dryRun),
+    severityFloor: floor,
+    sourceReports: plan.sourceReports ?? [],
+    totals: {
+      findings: plan.summary?.totalFindings ?? 0,
+      filtered: plan.summary?.filtered ?? 0,
+      groups: (plan.groups ?? []).length,
+      create: byAction.create.length,
+      skipOpen: byAction.skipOpen.length,
+      skipReoccurring: byAction.skipReoccurring.length,
+      suppressedByLedger: byAction.suppressed.length,
+    },
+    // Re-detected open Issues the operator may want a "re-detected" comment on.
+    reDetected: byAction.skipOpen
+      .flatMap((c) => c.matchedIssues ?? [])
+      .map((i) => i.number)
+      .filter((n) => typeof n === 'number'),
+    ledger: plan.summary?.ledger ?? null,
+  };
+
+  return { summary, stories };
 }
 
 /**
@@ -284,6 +489,10 @@ export const __testing = {
   loadProvider,
   dedupSkippedWarning,
   buildAndGateStories,
+  runAuto,
+  resolveSeverityFloor,
+  reconcileScanLedger,
+  issueStatesFromClassifications,
 };
 
 async function main() {
@@ -291,10 +500,13 @@ async function main() {
     args: process.argv.slice(2),
     options: {
       scan: { type: 'boolean' },
+      auto: { type: 'boolean' },
+      'dry-run': { type: 'boolean' },
       'emit-plan-seed': { type: 'boolean' },
       'emit-stories': { type: 'boolean' },
       glob: { type: 'string' },
       severity: { type: 'string' },
+      ledger: { type: 'string' },
       plan: { type: 'string' },
       out: { type: 'string' },
       'no-provider': { type: 'boolean' },
@@ -302,6 +514,19 @@ async function main() {
     },
     strict: false,
   });
+
+  if (values.auto) {
+    const { summary } = await runAuto({
+      glob: values.glob,
+      severity: values.severity,
+      dryRun: values['dry-run'],
+      useProvider: !values['no-provider'],
+      ledgerPath: values.ledger,
+    });
+    persist(JSON.stringify(summary, null, 2), values.out);
+    if (!values.out) process.stdout.write('\n');
+    return;
+  }
 
   if (values.scan) {
     const plan = await buildPlan({

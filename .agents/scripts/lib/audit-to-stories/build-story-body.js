@@ -24,7 +24,10 @@
 
 import { serialize } from '../story-body/story-body.js';
 import { auditLabelsForFindings } from './audit-lenses.js';
-import { renderFingerprintFooter } from './finding-adapter.js';
+import {
+  renderFingerprintFooter,
+  renderSemanticKeyFooter,
+} from './finding-adapter.js';
 
 const STATIC_LABELS = Object.freeze(['type::story', 'agent::ready']);
 
@@ -239,6 +242,7 @@ export function buildStoryBody({ group, edges = [] }) {
     contextLinksFromGroup(group),
     '',
     renderFingerprintFooter(group.findings),
+    renderSemanticKeyFooter(group.findings),
   ].join('\n');
 
   return { title, body, labels: labelsForGroup(group) };

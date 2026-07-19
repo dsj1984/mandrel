@@ -210,9 +210,36 @@ workflow owns **no** parallel dedup or footer-parsing code: the
 fingerprint, footer round-trip, and routing all live in that one shared
 module.
 
+Dedup runs in **two stages** when a provider resolves (Story #4626): a
+meaning-first **semantic candidate** pass (`searchCandidates`, wired to
+[`lib/findings/semantic-issue-search.js`](../scripts/lib/findings/semantic-issue-search.js))
+runs FIRST and widens the net across open + closed issues; the exact
+**fingerprint / semantic-key** confirmation runs SECOND. A finding whose title
+was reworded but whose *location* is unchanged still confirms against the Issue
+that already tracks that location, because the audit filers stamp a
+location-based `audit-semantic-keys` footer alongside the `audit-fingerprints`
+footer. Close-time filings from the
+[`audit-results-graduator`](../scripts/lib/feedback-loop/audit-results-graduator.js)
+carry the same canonical `audit-fingerprints` footer, so a sweep recognizes a
+graduator-filed issue and never re-files it.
+
 When no provider is available (e.g. air-gapped dev environment), pass
 `--no-provider` to the `--scan` step — every group is classified
 `create` and the operator is informed that dedupe was skipped.
+
+### Cross-run ledger
+
+The `--scan` classifications only see *live* issues. To decay findings across
+runs — recognizing re-detections, suppressing deliberately-rejected findings,
+and flagging genuine regressions — the sweep folds each scan onto a committed
+**ledger** (`baselines/audit-ledger.json`, the arch-cycles-baseline envelope
+shape). Each entry is keyed by the finding's fingerprint plus a location-based
+`semanticKey` and carries a lifecycle `status`
+(`new | filed | fixed | accepted-risk | regressed`). A finding whose tracking
+Issue was closed as `not_planned` becomes `accepted-risk` and is **suppressed**
+on every later scan; a `fixed` finding that re-appears becomes `regressed`. The
+ledger is written by the unattended `--auto` sweep and by any `--scan --ledger`
+run; the plain `--scan` path leaves it untouched.
 
 ## Phase 7 — Summary & cleanup
 
@@ -253,11 +280,23 @@ When the single-plan path ran, link the Story (or plan-run) the chained
 To run an unattended maintenance sweep, `/schedule` a nightly (or weekly)
 job that (1) runs the relevant `audit-*` lens workflows full-scope — no
 `--paths`, no change-set filter, so the whole target-set union is audited —
-writing their `temp/audits/audit-*-results.md` reports, then (2) invokes
-`/audit-to-stories` over those results to dedupe and route the findings.
-The host scheduler owns the cadence; this workflow owns the routing. (This
-paragraph folds in the `loops/nightly-audit.md` starter unit retired in
-issue 4482.)
+writing their `temp/audits/audit-*-results.md` reports, then (2) invokes the
+CLI's **`--auto` mode** over those results:
+
+```bash
+node .agents/scripts/audit-to-stories.js --auto [--dry-run] \
+  [--glob "temp/audits/audit-*-results.md"] [--severity <floor>]
+```
+
+`--auto` runs with **no interactive gates**: it resolves the severity floor
+from `delivery.auditToStories.severityFloor` (default `high`, overridable with
+`--severity`), applies the two-stage dedup, reconciles the cross-run ledger,
+and prints a run-summary JSON (create / skip-open / skip-reoccurring /
+suppressed-by-ledger tallies, plus the re-detected open Issue numbers an
+operator may want a "re-detected" comment on). `--dry-run` performs zero GitHub
+writes and skips the ledger write, emitting only the summary. The host
+scheduler owns the cadence; this workflow owns the routing. (This paragraph
+folds in the `loops/nightly-audit.md` starter unit retired in issue 4482.)
 
 ## See also
 
