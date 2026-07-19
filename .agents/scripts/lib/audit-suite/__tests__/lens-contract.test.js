@@ -33,15 +33,32 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import {
-  AUDIT_LENSES,
-  isRetiredLens,
-  SCOPE_BLOCK_EXEMPT_LENSES,
-} from '../../audit-to-stories/audit-lenses.js';
+import { AUDIT_LENSES } from '../../audit-to-stories/audit-lenses.js';
 import {
   __testing,
   parseAuditReport,
 } from '../../audit-to-stories/parse-audit-md.js';
+
+/**
+ * Registered exemption lists for the findings-contract gate (Story #4625).
+ * These are conformance-gate policy, consumed only here, so they live beside
+ * the assertions that key off them rather than as production exports.
+ *
+ * `RETIRED_LENSES` — a retired lens keeps its `audit-<lens>.md` workflow for
+ * history but is exempt from the unified contract; `audit-lighthouse` is
+ * retired wholesale by the accessibility Story, and the AC-4
+ * `grep -L "Location:"` check keys off the same set.
+ *
+ * `SCOPE_BLOCK_EXEMPT_LENSES` — lenses whose `## Scope` block deliberately
+ * deviates (whole-repo / target-set scans rather than a change-set filter), so
+ * the byte-identity assertion skips them rather than forcing false uniformity.
+ */
+const RETIRED_LENSES = Object.freeze(['lighthouse']);
+const SCOPE_BLOCK_EXEMPT_LENSES = Object.freeze([
+  'documentation',
+  'navigability',
+]);
+const isRetiredLens = (lens) => RETIRED_LENSES.includes(lens);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
