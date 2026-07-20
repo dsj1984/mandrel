@@ -223,12 +223,22 @@ export async function emitBlockRecoveredFriction({
  *
  * **Conditional on an actual failure.** The marker is appended only when the
  * Story's stream already carries an un-recovered `close-failed`. Emitting
- * unconditionally on every land would (a) write a `close-failed` row for
- * Stories whose close never failed — a category-mislabelled record — and (b)
- * pre-net any FUTURE close failure for that Story, since the netting is
- * per `(category, storyId)` over the cumulative stream. That would make
- * `close-failed` permanently un-routable at story scope rather than merely
- * netting out a fail-then-land, which is broader suppression than intended.
+ * unconditionally on every land would write a `close-failed` row for Stories
+ * whose close never failed — a category-mislabelled record — and, because the
+ * netting is per `(category, storyId)` over the cumulative stream, that
+ * spurious marker would suppress the Story's `close-failed` bucket outright,
+ * making the category un-routable at story scope for a Story that never had
+ * a close failure at all.
+ *
+ * What this guard does NOT do is bound the netting once a *legitimate* marker
+ * exists. The netting inherits the Story #4622 coarsening — per
+ * `(category, storyId)` across the whole stream, not 1:1 pairing — so a
+ * later, genuinely un-landed `close-failed` for a Story that already
+ * recovered once is still netted away, and does not even reach `discarded`.
+ * Reaching that needs a re-close after a land (a confirm-merge resume, or a
+ * close after a revert). Deliberate, inherited, and called out here rather
+ * than papered over: an aggregate is a routing heuristic, not an incident
+ * ledger.
  *
  * Best-effort; never throws. A read failure yields no marker (the failure
  * stays counted) rather than a speculative write.
