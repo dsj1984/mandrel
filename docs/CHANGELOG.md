@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.5.0...mandrel-v2.6.0) (2026-07-20)
+
+
+### Fixed
+
+* **retro:** generalize friction recovery-netting, preserve signal fields on gather, and retire the story-scope singleton auto-file ([#4649](https://github.com/dsj1984/mandrel/issues/4649)) ([#4650](https://github.com/dsj1984/mandrel/issues/4650)) ([bdb8250](https://github.com/dsj1984/mandrel/commit/bdb82507d188bfe53bbd47fea7b18b2c3160439c))
+
 ## [2.5.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.4.0...mandrel-v2.5.0) (2026-07-19)
 
 
