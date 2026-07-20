@@ -41,6 +41,14 @@ function fakeGitSpawn(trace) {
 /** Base seams that let both git mutations run to a clean success. */
 function baseSeams(trace) {
   return {
+    // Stubbed deliberately: the real emit takes its tempRoot from `config`,
+    // which these tests do not pass, so an unstubbed call would append a
+    // `close-failed` record to the MAIN checkout's signals stream for a real
+    // Story id. Test isolation, not convenience.
+    emitCloseRecoveredFrictionFn: async () => {
+      trace?.push('closeRecovered');
+      return true;
+    },
     captureStoryFollowUpsFn: async () => {
       trace?.push('followUps');
       return { ok: true };
@@ -107,8 +115,12 @@ describe('runPostLandTail — lock scope (Story #4622)', () => {
       },
     });
     assert.ok(released, 'the lock is released');
-    // GitHub steps precede the lock; both mutations are inside it.
+    // The close-recovery marker is emitted FIRST (Story #4649): follow-up
+    // capture reads the signal stream, so a marker written after it would
+    // arrive too late to net the failure it cancels out of this very run.
+    // GitHub steps then precede the lock; both mutations are inside it.
     assert.deepEqual(events, [
+      'closeRecovered',
       'followUps',
       'statusResync',
       'acquire',
@@ -199,6 +211,10 @@ describe('runPostLandTail — real cross-process serialization (Story #4622)', (
     const yieldTick = () => new Promise((r) => setImmediate(r));
 
     const seams = () => ({
+      // Same isolation contract as `baseSeams` — an unstubbed emit takes its
+      // tempRoot from `config`, which this test does not pass, and would
+      // append to the MAIN checkout's stream for these fixture ids.
+      emitCloseRecoveredFrictionFn: async () => true,
       captureStoryFollowUpsFn: async () => ({ ok: true }),
       reassertStatusColumnFn: async () => ({ status: 'synced' }),
       gitSpawnFn: (_cwd, ...args) => {

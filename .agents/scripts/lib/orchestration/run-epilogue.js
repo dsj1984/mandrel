@@ -19,10 +19,10 @@ import { selectAudits } from '../audit-suite/index.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
-import { forEachLine } from '../observability/signals-writer.js';
 import { composeRoutedProposals } from './retro-proposals.js';
 import {
   buildFollowUpsCommentBody,
+  gatherRunFrictionSignals,
   resolveFollowUpRepos,
 } from './story-follow-ups.js';
 import { upsertStructuredComment } from './ticketing.js';
@@ -551,24 +551,10 @@ async function executeFollowUpRollup({
   config,
   cwd,
 }) {
-  const signals = [];
-  for (const raw of stories) {
-    const sid = Number(raw);
-    if (!Number.isInteger(sid) || sid <= 0) continue;
-    await forEachLine(
-      null,
-      sid,
-      (parsed) => {
-        if (!parsed || typeof parsed !== 'object') return;
-        const category =
-          typeof parsed.category === 'string' ? parsed.category.trim() : '';
-        if (!category) return;
-        const source = parsed.source === 'framework' ? 'framework' : 'consumer';
-        signals.push({ category, source });
-      },
-      config,
-    );
-  }
+  // Shared with the story-scoped gather (Story #4649): `storyId` + `details`
+  // are what the composer's recovery-netting keys on, and two hand-rolled
+  // copies of this loop are how they got dropped in the first place.
+  const signals = await gatherRunFrictionSignals(stories, config);
   const repos = resolveFollowUpRepos(config);
   const primaryId = Number(stories[0]);
   const proposals = composeRoutedProposals({

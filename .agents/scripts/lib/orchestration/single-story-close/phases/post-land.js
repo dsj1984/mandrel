@@ -33,6 +33,7 @@ import path from 'node:path';
 
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
+import { emitCloseRecoveredFriction as defaultEmitCloseRecoveredFriction } from '../../../observability/runtime-friction.js';
 import { acquireLockWithWait as defaultAcquireLockWithWait } from '../../../single-story-sweep/sweep-lock.js';
 import {
   executeFastForward as defaultExecuteFastForward,
@@ -250,6 +251,7 @@ async function stepBaseFastForward({
  * @param {object} [args.config]
  * @param {(tag: string, msg: string) => void} [args.progress]
  * @param {Function} [args.captureStoryFollowUpsFn] Test seam.
+ * @param {Function} [args.emitCloseRecoveredFrictionFn] Test seam.
  * @param {Function} [args.reassertStatusColumnFn]  Test seam.
  * @param {Function} [args.gitSpawnFn]              Test seam.
  * @param {Function} [args.planFastForwardFn]       Test seam.
@@ -266,6 +268,7 @@ export async function runPostLandTail({
   config,
   progress,
   captureStoryFollowUpsFn = defaultCaptureStoryFollowUps,
+  emitCloseRecoveredFrictionFn = defaultEmitCloseRecoveredFriction,
   reassertStatusColumnFn = defaultReassertStatusColumn,
   gitSpawnFn = defaultGitSpawn,
   planFastForwardFn = defaultPlanFastForward,
@@ -273,6 +276,14 @@ export async function runPostLandTail({
   acquireLockWithWaitFn = defaultAcquireLockWithWait,
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
+
+  // Story #4649 — the close landed, so any earlier `close-failed` for this
+  // Story was transient. Emit the recovery marker BEFORE follow-up capture
+  // reads the stream: the `landed` terminal envelope is emitted after this
+  // whole tail, so a marker written there would arrive too late to net
+  // anything out of the very run that produced the failure. Best-effort and
+  // never throws, exactly like every other tail step.
+  await emitCloseRecoveredFrictionFn({ storyId, config });
 
   const followUps = await step(
     () =>

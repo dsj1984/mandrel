@@ -45,7 +45,7 @@
 import crypto from 'node:crypto';
 
 import { Logger } from '../Logger.js';
-import { appendSignal } from './signals-writer.js';
+import { appendSignal, forEachLine } from './signals-writer.js';
 
 /**
  * The friction categories this module emits.
@@ -202,19 +202,150 @@ export async function emitBlockRecoveredFriction({
 }
 
 /**
- * Pure predicate: is this signal a recovery-marked `story-blocked` record?
+ * Emit the recovery counterpart of a `close-failed` record when a Story's
+ * close ultimately lands (Story #4649).
+ *
+ * A close that fails once — CI/lease contention, a transient GitHub fault —
+ * and succeeds on a later attempt still fired a `close-failed` record at the
+ * failed terminal, which the composer counts exactly like a close that never
+ * recovered. This is the `close-failed` analogue of
+ * {@link emitBlockRecoveredFriction}: same `recovered: true` discriminator,
+ * same category (a distinct bucket would itself aggregate into a routable
+ * proposal, re-introducing the noise).
+ *
+ * **Why this is not emitted from `frictionForTerminal`.** A `landed` terminal
+ * envelope is emitted at the very END of close — *after* the post-land tail
+ * has already gathered the signal stream and filed its follow-ups. A marker
+ * written there would arrive too late to net anything out of the run that
+ * produced it. So the emit hangs off `runPostLandTail`, which is the single
+ * shared land point (reached from both the in-close land and the standalone
+ * `single-story-confirm-merge.js` resume) and runs BEFORE follow-up capture.
+ *
+ * **Conditional on an actual failure.** The marker is appended only when the
+ * Story's stream already carries an un-recovered `close-failed`. Emitting
+ * unconditionally on every land would write a `close-failed` row for Stories
+ * whose close never failed — a category-mislabelled record — and, because the
+ * netting is per `(category, storyId)` over the cumulative stream, that
+ * spurious marker would suppress the Story's `close-failed` bucket outright,
+ * making the category un-routable at story scope for a Story that never had
+ * a close failure at all.
+ *
+ * What this guard does NOT do is bound the netting once a *legitimate* marker
+ * exists. The netting inherits the Story #4622 coarsening — per
+ * `(category, storyId)` across the whole stream, not 1:1 pairing — so a
+ * later, genuinely un-landed `close-failed` for a Story that already
+ * recovered once is still netted away, and does not even reach `discarded`.
+ * Reaching that needs a re-close after a land (a confirm-merge resume, or a
+ * close after a revert). Deliberate, inherited, and called out here rather
+ * than papered over: an aggregate is a routing heuristic, not an incident
+ * ledger.
+ *
+ * Best-effort; never throws. A read failure yields no marker (the failure
+ * stays counted) rather than a speculative write.
+ *
+ * @param {object} args
+ * @param {number} args.storyId
+ * @param {object} [args.config]
+ * @returns {Promise<boolean>} true when a record was appended.
+ */
+export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
+  const sid = positiveIntOrNull(storyId);
+  if (sid === null) return false;
+
+  let failed = false;
+  let recovered = false;
+  try {
+    await forEachLine(
+      null,
+      sid,
+      (parsed) => {
+        if (!parsed || typeof parsed !== 'object') return;
+        if (parsed.category !== RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED) {
+          return;
+        }
+        if (isRecoveredSignal(parsed)) recovered = true;
+        else failed = true;
+      },
+      config,
+    );
+  } catch (err) {
+    Logger.warn(
+      `[runtime-friction] close-recovery probe failed for Story #${sid}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return false;
+  }
+  // Nothing to cancel, or already cancelled — a second marker would be noise.
+  if (!failed || recovered) return false;
+
+  return emitRuntimeFriction({
+    storyId: sid,
+    category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
+    tool: 'runPostLandTail',
+    details: { recovered: true },
+    config,
+  });
+}
+
+/**
+ * Normalize one raw signals-stream row into the shape the retro composer
+ * consumes, or `null` when the row carries no usable category.
+ *
+ * Single-homed because BOTH production gathers need it identically —
+ * `gatherStoryFrictionSignals` (story scope) and `executeFollowUpRollup`
+ * (run scope) — and the bug this exists to prevent is precisely the two of
+ * them drifting: they each independently flattened rows to
+ * `{ category, source }`, dropping the `storyId` / `details` the composer's
+ * recovery-netting keys on, which left that netting unreachable on real data
+ * while its unit tests stayed green (Story #4649).
+ *
+ * The row's own `storyId` wins over `fallbackStoryId` so a stream carrying
+ * foreign rows attributes each one correctly; the fallback covers records
+ * written before the field existed.
+ *
+ * @param {unknown} parsed          One parsed NDJSON row.
+ * @param {number}  fallbackStoryId Stream owner, used when the row has none.
+ * @returns {{ category: string, source: 'framework'|'consumer', storyId: number, details: object }|null}
+ */
+export function normalizeGatheredSignal(parsed, fallbackStoryId) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const category =
+    typeof parsed.category === 'string' ? parsed.category.trim() : '';
+  if (!category) return null;
+  const recordStoryId = Number(parsed.storyId);
+  return {
+    category,
+    source: parsed.source === 'framework' ? 'framework' : 'consumer',
+    storyId: Number.isInteger(recordStoryId) ? recordStoryId : fallbackStoryId,
+    details:
+      parsed.details && typeof parsed.details === 'object'
+        ? parsed.details
+        : {},
+  };
+}
+
+/**
+ * Pure predicate: is this signal a recovery marker for its own category?
  * Shared with the retro composer so the "recovered" discriminator is read
- * from one place. A record is a recovery marker when its category is
- * `story-blocked` and `details.recovered === true`.
+ * from one place.
+ *
+ * **Category-agnostic by design (Story #4649).** The predicate used to hard-
+ * code `story-blocked`, which meant every new category needing recovery
+ * semantics had to re-implement the netting. A record is a recovery marker
+ * when it carries a usable `category` and `details.recovered === true`; the
+ * composer nets per `(category, storyId)`, so a marker can only ever cancel
+ * records in its OWN bucket.
  *
  * @param {object} signal
  * @returns {boolean}
  */
-export function isRecoveredBlockSignal(signal) {
+export function isRecoveredSignal(signal) {
   return (
     signal !== null &&
     typeof signal === 'object' &&
-    signal.category === RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED &&
+    typeof signal.category === 'string' &&
+    signal.category.trim() !== '' &&
     signal.details !== null &&
     typeof signal.details === 'object' &&
     signal.details.recovered === true
