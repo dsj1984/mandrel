@@ -12,6 +12,7 @@
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
 import { Logger } from '../Logger.js';
+import { normalizeGatheredSignal } from '../observability/runtime-friction.js';
 import { forEachLine } from '../observability/signals-writer.js';
 import {
   composeRoutedProposals,
@@ -73,24 +74,37 @@ export async function gatherStoryFrictionSignals(storyId, config) {
     null,
     storyId,
     (parsed) => {
-      if (!parsed || typeof parsed !== 'object') return;
-      const category =
-        typeof parsed.category === 'string' ? parsed.category.trim() : '';
-      if (!category) return;
-      const source = parsed.source === 'framework' ? 'framework' : 'consumer';
-      const recordStoryId = Number(parsed.storyId);
-      signals.push({
-        category,
-        source,
-        storyId: Number.isInteger(recordStoryId) ? recordStoryId : storyId,
-        details:
-          parsed.details && typeof parsed.details === 'object'
-            ? parsed.details
-            : {},
-      });
+      const signal = normalizeGatheredSignal(parsed, storyId);
+      if (signal) signals.push(signal);
     },
     config,
   );
+  return signals;
+}
+
+/**
+ * Gather friction signals across every Story in a run, for the run-scoped
+ * roll-up.
+ *
+ * Homed beside {@link gatherStoryFrictionSignals} on purpose: the two used to
+ * be independent copies of the same loop in two modules, and they drifted in
+ * exactly the way that made the recovery-netting unreachable (Story #4649).
+ * One reader, one normalizer, no second place to forget a field.
+ *
+ * Unusable ids are skipped rather than throwing — a roll-up must not fail the
+ * epilogue over one malformed entry.
+ *
+ * @param {Array<number|string>} storyIds
+ * @param {object} [config]
+ * @returns {Promise<Array<{ category: string, source: 'framework'|'consumer', storyId: number, details: object }>>}
+ */
+export async function gatherRunFrictionSignals(storyIds, config) {
+  const signals = [];
+  for (const raw of Array.isArray(storyIds) ? storyIds : []) {
+    const sid = Number(raw);
+    if (!Number.isInteger(sid) || sid <= 0) continue;
+    signals.push(...(await gatherStoryFrictionSignals(sid, config)));
+  }
   return signals;
 }
 

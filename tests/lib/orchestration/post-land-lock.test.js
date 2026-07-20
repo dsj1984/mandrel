@@ -211,6 +211,10 @@ describe('runPostLandTail — real cross-process serialization (Story #4622)', (
     const yieldTick = () => new Promise((r) => setImmediate(r));
 
     const seams = () => ({
+      // Same isolation contract as `baseSeams` — an unstubbed emit takes its
+      // tempRoot from `config`, which this test does not pass, and would
+      // append to the MAIN checkout's stream for these fixture ids.
+      emitCloseRecoveredFrictionFn: async () => true,
       captureStoryFollowUpsFn: async () => ({ ok: true }),
       reassertStatusColumnFn: async () => ({ status: 'synced' }),
       gitSpawnFn: (_cwd, ...args) => {

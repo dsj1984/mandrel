@@ -32,6 +32,8 @@ import {
   RUNTIME_FRICTION_CATEGORIES,
 } from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { forEachLine } from '../../../.agents/scripts/lib/observability/signals-writer.js';
+import { composeRoutedProposals } from '../../../.agents/scripts/lib/orchestration/retro-proposals.js';
+import { gatherStoryFrictionSignals } from '../../../.agents/scripts/lib/orchestration/story-follow-ups.js';
 
 /** An absolute, per-test tempRoot — never the shared main-checkout temp. */
 let tempRoot;
@@ -284,23 +286,104 @@ describe('block-recovery friction (Story #4622)', () => {
 });
 
 describe('close-recovery friction (Story #4649)', () => {
+  /** Put an un-recovered `close-failed` on the Story's stream. */
+  const seedCloseFailure = (storyId) =>
+    emitRuntimeFriction({
+      storyId,
+      category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
+      tool: 'test',
+      details: { phase: 'push', reason: 'boom' },
+      config,
+    });
+
   it('emits a close-failed record carrying the recovered discriminator', async () => {
+    await seedCloseFailure(4649);
     const ok = await emitCloseRecoveredFriction({ storyId: 4649, config });
     assert.equal(ok, true);
 
     const rows = await readStorySignals(4649);
-    assert.equal(rows.length, 1);
-    const rec = rows[0];
+    assert.equal(rows.length, 2);
+    const rec = rows[1];
     assert.equal(rec.kind, 'friction');
     assert.equal(rec.category, RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED);
     assert.equal(rec.details.recovered, true);
     assert.equal(rec.storyId, 4649);
   });
 
+  it('writes nothing when the close never failed', async () => {
+    // The common case — a clean first-try land. An unconditional marker
+    // would file a category-mislabelled row AND pre-net any future close
+    // failure for this Story out of the aggregate.
+    const ok = await emitCloseRecoveredFriction({ storyId: 4651, config });
+    assert.equal(ok, false);
+    assert.deepEqual(await readStorySignals(4651), []);
+  });
+
+  it('does not write a second marker when one is already present', async () => {
+    await seedCloseFailure(4652);
+    assert.equal(
+      await emitCloseRecoveredFriction({ storyId: 4652, config }),
+      true,
+    );
+    assert.equal(
+      await emitCloseRecoveredFriction({ storyId: 4652, config }),
+      false,
+      'idempotent across a re-run of the land tail',
+    );
+    assert.equal((await readStorySignals(4652)).length, 2);
+  });
+
+  it('ignores an unusable story id', async () => {
+    assert.equal(
+      await emitCloseRecoveredFriction({ storyId: 0, config }),
+      false,
+    );
+    assert.equal(await emitCloseRecoveredFriction({ config }), false);
+  });
+
   it('keeps the category as close-failed so it does not open a new routable bucket', async () => {
+    await seedCloseFailure(4650);
     await emitCloseRecoveredFriction({ storyId: 4650, config });
     const rows = await readStorySignals(4650);
-    assert.equal(rows[0].category, 'close-failed');
+    assert.equal(rows[1].category, 'close-failed');
+  });
+
+  it('nets a fail-then-land close out to zero filed proposals', async () => {
+    // The AC-6 contract, end to end: writer → marker → composer.
+    await seedCloseFailure(4653);
+    await emitCloseRecoveredFriction({ storyId: 4653, config });
+
+    const signals = await gatherStoryFrictionSignals(4653, config);
+    assert.equal(signals.length, 2);
+    const proposals = composeRoutedProposals({
+      anchorId: 4653,
+      anchorKind: 'story',
+      frameworkRepo: 'a/b',
+      consumerRepo: 'c/d',
+      signals,
+    });
+    assert.deepEqual(proposals, {
+      framework: [],
+      consumer: [],
+      discarded: [],
+    });
+  });
+
+  it('leaves a close failure that never landed fully counted', async () => {
+    await seedCloseFailure(4654);
+    await seedCloseFailure(4654);
+    const signals = await gatherStoryFrictionSignals(4654, config);
+    const proposals = composeRoutedProposals({
+      anchorId: 4654,
+      anchorKind: 'story',
+      frameworkRepo: 'a/b',
+      consumerRepo: 'c/d',
+      signals,
+    });
+    const filed = [...proposals.framework, ...proposals.consumer];
+    assert.equal(filed.length, 1, 'no land, no netting — it still routes');
+    assert.equal(filed[0].category, 'close-failed');
+    assert.equal(filed[0].occurrences, 2);
   });
 });
 

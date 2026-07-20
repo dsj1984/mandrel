@@ -45,7 +45,7 @@
 import crypto from 'node:crypto';
 
 import { Logger } from '../Logger.js';
-import { appendSignal } from './signals-writer.js';
+import { appendSignal, forEachLine } from './signals-writer.js';
 
 /**
  * The friction categories this module emits.
@@ -221,7 +221,17 @@ export async function emitBlockRecoveredFriction({
  * shared land point (reached from both the in-close land and the standalone
  * `single-story-confirm-merge.js` resume) and runs BEFORE follow-up capture.
  *
- * Best-effort; never throws.
+ * **Conditional on an actual failure.** The marker is appended only when the
+ * Story's stream already carries an un-recovered `close-failed`. Emitting
+ * unconditionally on every land would (a) write a `close-failed` row for
+ * Stories whose close never failed — a category-mislabelled record — and (b)
+ * pre-net any FUTURE close failure for that Story, since the netting is
+ * per `(category, storyId)` over the cumulative stream. That would make
+ * `close-failed` permanently un-routable at story scope rather than merely
+ * netting out a fail-then-land, which is broader suppression than intended.
+ *
+ * Best-effort; never throws. A read failure yields no marker (the failure
+ * stays counted) rather than a speculative write.
  *
  * @param {object} args
  * @param {number} args.storyId
@@ -229,13 +239,80 @@ export async function emitBlockRecoveredFriction({
  * @returns {Promise<boolean>} true when a record was appended.
  */
 export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
+  const sid = positiveIntOrNull(storyId);
+  if (sid === null) return false;
+
+  let failed = false;
+  let recovered = false;
+  try {
+    await forEachLine(
+      null,
+      sid,
+      (parsed) => {
+        if (!parsed || typeof parsed !== 'object') return;
+        if (parsed.category !== RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED) {
+          return;
+        }
+        if (isRecoveredSignal(parsed)) recovered = true;
+        else failed = true;
+      },
+      config,
+    );
+  } catch (err) {
+    Logger.warn(
+      `[runtime-friction] close-recovery probe failed for Story #${sid}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return false;
+  }
+  // Nothing to cancel, or already cancelled — a second marker would be noise.
+  if (!failed || recovered) return false;
+
   return emitRuntimeFriction({
-    storyId,
+    storyId: sid,
     category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
     tool: 'runPostLandTail',
     details: { recovered: true },
     config,
   });
+}
+
+/**
+ * Normalize one raw signals-stream row into the shape the retro composer
+ * consumes, or `null` when the row carries no usable category.
+ *
+ * Single-homed because BOTH production gathers need it identically —
+ * `gatherStoryFrictionSignals` (story scope) and `executeFollowUpRollup`
+ * (run scope) — and the bug this exists to prevent is precisely the two of
+ * them drifting: they each independently flattened rows to
+ * `{ category, source }`, dropping the `storyId` / `details` the composer's
+ * recovery-netting keys on, which left that netting unreachable on real data
+ * while its unit tests stayed green (Story #4649).
+ *
+ * The row's own `storyId` wins over `fallbackStoryId` so a stream carrying
+ * foreign rows attributes each one correctly; the fallback covers records
+ * written before the field existed.
+ *
+ * @param {unknown} parsed          One parsed NDJSON row.
+ * @param {number}  fallbackStoryId Stream owner, used when the row has none.
+ * @returns {{ category: string, source: 'framework'|'consumer', storyId: number, details: object }|null}
+ */
+export function normalizeGatheredSignal(parsed, fallbackStoryId) {
+  if (!parsed || typeof parsed !== 'object') return null;
+  const category =
+    typeof parsed.category === 'string' ? parsed.category.trim() : '';
+  if (!category) return null;
+  const recordStoryId = Number(parsed.storyId);
+  return {
+    category,
+    source: parsed.source === 'framework' ? 'framework' : 'consumer',
+    storyId: Number.isInteger(recordStoryId) ? recordStoryId : fallbackStoryId,
+    details:
+      parsed.details && typeof parsed.details === 'object'
+        ? parsed.details
+        : {},
+  };
 }
 
 /**
