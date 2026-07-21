@@ -960,7 +960,8 @@ known scenario set:
 - **`/qa-run <selector>`** — the **automated complement**: it drives a
   consumer's Gherkin `.feature` scenarios through a real browser (the
   `chrome-devtools` MCP surface), captures per-surface console/network into
-  structured `F#` findings, and drafts follow-up tickets for operator
+  structured `F#` findings, records them on the shared session ledger, and
+  triages them through the classify/route/promote core for operator
   sign-off. The end-to-end procedure is the SSOT in
   [`workflows/qa-run.md`](workflows/qa-run.md); the
   instrumentation conventions live in the
