@@ -20,7 +20,7 @@ Every Story lands on a dedicated **Story branch** named `story-<storyId>`
 (e.g., `story-104`), seeded from `project.baseBranch` (`main` by default).
 The runtime owns branch creation via `single-story-init.js`; agents commit
 on that branch only. Close opens a PR against `main` (squash + required
-checks). There is **no** `epic/<id>` integration branch and no `--no-ff`
+checks). There is no `epic/<id>` integration branch and no `--no-ff`
 wave merge.
 
 > **Commit subjects.** Stories have no child tickets. Commits land on
