@@ -31,17 +31,6 @@ therefore:
    by side for a release window. If a shape changes, the old shape is
    deleted in the same PR.
 
-The codifying decision is **Epic #2646** (the "Hard-Cutover Cleanup Epic"),
-which deleted the existing compatibility shim layer across
-`config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
-`wave-session.js`, `IExecutionAdapter` / `ManualDispatchAdapter`, lifecycle
-emit shims, and duplicate progress/comment writers in one pass. The
-per-finding closing references (audit Findings #10, #11, #13, #17) live in
-the merged PRs and the Epic #2646 history; the Part 1 — Model-Evolution
-Audit analysis this section grew out of is preserved at
-`docs/roadmap.md` @ tag `mandrel-v1.94.0` (see the Historical-anchors
-table in the live [`docs/roadmap.md`](../../docs/roadmap.md)).
-
 Practical guidance when authoring a contract change:
 
 - If you are tempted to add a "legacy shape" branch in a parser or
@@ -74,63 +63,41 @@ signature is worth naming:
   (`--no-errors-on-unmatched` or equivalent) before escalating via
   `agent::blocked`.
 
-## Local checkout hygiene — full mechanics
+## Local checkout hygiene — outcome contract
 
 **Invariant (stated in the core): the delivering flow owns tidying the local
 checkout — reaping its own merged refs and fast-forwarding the base branch.
-`/git-cleanup` is a recovery tool, not a routine chore.** The mechanics behind
-that invariant:
+`/git-cleanup` is a recovery tool, not a routine chore.** The outcome every
+delivering flow (`/deliver`, `/git-deliver`) guarantees, with the mechanics
+owned by `boot-sweep.js` / `git-cleanup.js`:
 
-Every flow that lands work — `/deliver` and `/git-deliver` — is responsible
-for leaving the local checkout tidy without
-operator intervention:
+- **`main` is fast-forwarded** by the flow itself in its cleanup phase, so the
+  next init seeds from a current base. No workflow ends by telling the operator
+  to run `/git-cleanup` to catch up.
+- **Merged local refs are reaped** at the next workflow boot's protected sweep
+  (`boot-sweep.js`) — every local branch whose PR is already merged, skipping
+  any candidate with unpushed work, a dirty worktree, or a still-open parent
+  ticket. `/plan` and `/git-deliver` widen the sweep's `--include` scope beyond
+  the default `story-*` to their own branch namespaces at their boot call site.
+- **Content-merged branches are report-only.** A branch detected only via the
+  weaker content-equivalence signal (`detectedBy: 'content-merged'` — content
+  already landed in the base by another route, with no merged PR or git
+  ancestry of its own) is **never** reaped by the boot sweep; it is surfaced
+  under `contentMerged` for the operator to send to `/git-cleanup` for a
+  confirmed, eyeballed reap.
+- **`/git-cleanup` is recovery, not routine.** Run it by hand only for a state
+  the automated hygiene does not cover — triaging stashes, reaping across
+  non-standard namespaces, or `--remote` pruning after a force-push. Reaching
+  for it after every routine delivery signals the owning flow's hygiene step
+  regressed — fix the flow, do not codify the manual sweep.
 
-- **Fast-forwarding the base branch is owned by the flow.** `/deliver`
-  fast-forwards `main` itself in its cleanup phase (via
-  `git-cleanup.js --fast-forward-main --execute --yes`). No workflow ends by
-  telling the operator to "run `/git-cleanup` afterwards to catch up".
-- **Reaping merged local refs is owned by the flow's next boot.** `/plan` and
-  `/git-deliver` open with a **protected boot sweep**
-  (`boot-sweep.js`) that fast-forwards `main`, prunes stale remote-tracking
-  refs, and reaps every local branch whose PR is already merged — skipping any
-  candidate with unpushed work, a dirty worktree, or a still-open parent
-  ticket. A branch a flow leaves behind (e.g. a `/git-deliver` feature branch
-  whose PR merges out of band) is therefore reaped automatically at the next
-  workflow boot, not left for the operator to sweep by hand. `boot-sweep.js`
-  defaults its `--include` glob to `story-*` — a bare invocation only sweeps
-  Story branches; `/plan` and `/git-deliver` widen the scope to their own
-  branch namespaces (`epic/*`, `feat/*`, `fix/*`, `chore/*`, `docs/*`,
-  `refactor/*`) by passing `--include` explicitly at their boot call site.
-  A branch the planner detects only via the weaker content-equivalence
-  signal (`detectedBy: 'content-merged'`, Story #4395's
-  `git merge-tree --write-tree` probe — content already landed in the base
-  branch by another route, such as a squash-merged Epic PR, with no merged
-  PR or git ancestry of its own) is **never** reaped by the boot sweep: it
-  is report-only, surfaced under `contentMerged` in the result envelope and
-  a routing hint in the summary line (Story #4396), so the operator can
-  send it to `/git-cleanup` for a confirmed, eyeballed reap.
-- **`/git-cleanup` is recovery, not routine.** Run it by hand only to recover
-  an unusual state the automated hygiene does not cover — triaging stashes,
-  reaping across non-standard branch namespaces, or `--remote` pruning after a
-  force-push diverged a tip. It is **not** the expected way to keep `main`
-  current or to clear merged branches after a normal delivery; the delivering
-  flows already own that. If you find yourself reaching for `/git-cleanup`
-  after every routine `/deliver` or `/git-deliver` run, that is a signal the
-  owning flow's hygiene step regressed — fix the flow, do not codify the manual
-  sweep.
-
-### Shared-checkout contention (Stories #4460, #4424, #4545)
+### Shared-checkout contention
 
 **One delivery per checkout is the model.** v2 has no Epic integration branch
 and no merge phase that parks the shared checkout on someone else's branch:
 each Story works in its own worktree (`.worktrees/story-<id>/`) and lands by
-pushing `story-<id>` and opening a PR. The Epic-era collision this section used
-to describe — `story-close.js` running `git checkout <epic-branch>` in the
-shared main checkout under a per-Epic `epic-*.merge.lock` — is gone with the
-machinery that caused it (Story #4545 deleted the last of that prose; the six
-modules it named had already been removed in the v2.0.0 cutover).
-
-Two guards remain, and they cover different hazards:
+pushing `story-<id>` and opening a PR. Two guards remain, and they cover
+different hazards:
 
 - **Per-Story lease** (`lib/orchestration/single-story-lease-guard.js`). The
   standalone path has no Epic-scoped dispatch manifest to serialize two

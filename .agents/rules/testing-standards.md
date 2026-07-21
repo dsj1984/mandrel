@@ -101,23 +101,13 @@ semantics, including:
 - Header values that carry protocol semantics (`Location`, `ETag`,
   `Retry-After`)
 
-When a reviewer finds one of the above in a `.feature` file, the required
-remediation is to delete it from the scenario and add (or extend) a
-contract test that covers the assertion. The scenario should assert the
-**user-visible outcome** only ("the invoice appears in the outbox"), not
-the wire shape that produced it.
-
-This rule is enforced bidirectionally: the companion prohibition on
-`.feature` authoring lives in
-[`gherkin-standards.md § Forbidden Patterns`](./gherkin-standards.md#forbidden-patterns),
-which forbids raw SQL, HTTP status codes, DOM selectors, URLs, and JSON
-payloads inside scenarios. That list and this section are two sides of the
-same constraint: shape and state belong in contract tests; business
-outcomes belong in acceptance scenarios.
-
-This is the pyramid's load-bearing constraint. It is why the contract
-tier exists as a distinct layer, and why acceptance scenarios stay
-readable, stable, and free of implementation churn.
+When one of the above appears in a `.feature` file, delete it from the
+scenario and add (or extend) a contract test that covers it; the scenario
+asserts the **user-visible outcome** only ("the invoice appears in the
+outbox"). The companion prohibition on `.feature` authoring lives in
+[`gherkin-standards.md § Forbidden Patterns`](./gherkin-standards.md#forbidden-patterns)
+— the two are the same constraint from both sides, and it is the pyramid's
+load-bearing one.
 
 ## Test Structure (Arrange, Act, Assert)
 
