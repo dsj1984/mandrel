@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.7.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.6.0...mandrel-v2.7.0) (2026-07-21)
+
+
+### Fixed
+
+* **feedback-loop:** repair the graduator idempotency probe — an HTML-comment-wrapped search query never matches, so every rollup re-files ([#4657](https://github.com/dsj1984/mandrel/issues/4657)) ([#4661](https://github.com/dsj1984/mandrel/issues/4661)) ([9bb9d3a](https://github.com/dsj1984/mandrel/commit/9bb9d3ad674dafb11bcd2fbce771a81b79e8cd51))
+* **retro:** generalize post-land recovery marking and gate merge-wait-exhausted on real budget exhaustion (refs [#4654](https://github.com/dsj1984/mandrel/issues/4654)) ([#4658](https://github.com/dsj1984/mandrel/issues/4658)) ([54c45ae](https://github.com/dsj1984/mandrel/commit/54c45ae4f522688e018c092da0137cc6562e0c73))
+
 ## [2.6.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.5.0...mandrel-v2.6.0) (2026-07-20)
 
 
