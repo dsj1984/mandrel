@@ -234,48 +234,17 @@ system-prompt mechanism (`.cursorrules`, Custom Instructions, etc.).
 ### What to always-load vs read on-demand
 
 The always-loaded context is re-paid on every session **and every subagent
-spawn**, so the shipped set is kept deliberately lean. Load this core into your
-system prompt; read everything else only when the task engages it (the same
-read-when-relevant pattern skills use).
-
-**Always-load (the recommended core):**
-
-- [`instructions.md`](instructions.md) — the core agent protocol.
-- [`rules/security-baseline.md`](rules/security-baseline.md) — inviolable
-  security MUSTs, relevant to every change.
-- [`rules/git-conventions.md`](rules/git-conventions.md) — every commit,
-  branch, and PR touches it.
-
-**Read on-demand (do the read before the matching work):**
-
-- [`rules/shell-conventions.md`](rules/shell-conventions.md) — before chaining
-  shell commands or writing cross-platform command strings.
-- [`rules/testing-standards.md`](rules/testing-standards.md) — before authoring
-  or restructuring tests.
-- [`rules/orchestration-error-handling.md`](rules/orchestration-error-handling.md)
-  — before writing or modifying orchestration scripts under
-  `.agents/scripts/**`.
-- The remaining domain rules
-  ([`rules/api-conventions.md`](rules/api-conventions.md),
-  [`rules/gherkin-standards.md`](rules/gherkin-standards.md),
-  [`rules/changelog-style.md`](rules/changelog-style.md),
-  [`rules/test-seams.md`](rules/test-seams.md)) — when the task is in that
-  domain.
-- Every `SKILL.md` under [`skills/`](skills/) — when the task hits its trigger.
-  A `SKILL.md` is itself split the same way: it leads with its **Policy
-  Capsule** (the contract, and the whole cost of activating the skill) plus
-  pointers into an on-demand `reference.md` sibling carrying the long-form
-  material. Activating a skill costs the capsule, not the essay — open a
-  `reference.md` section only when the task engages it. Routing does not
-  depend on the long-form being inline: skill descriptions live in the
-  generated [`skills/skills.index.json`](skills/skills.index.json).
-- [`docs/execution-reference.md`](docs/execution-reference.md) — log-level and
-  token-budget reference detail lifted out of `instructions.md`.
-
-Each on-demand rule opens with a one-line "this rule applies when…" scope
-header, so a quick skim of its first paragraph tells you whether it governs the
-task at hand. `instructions.md` § 1.F is the canonical in-prompt statement of
-this split.
+spawn**, so the shipped set is kept deliberately lean. The recommended core to
+load into your system prompt is [`instructions.md`](instructions.md),
+[`rules/security-baseline.md`](rules/security-baseline.md), and
+[`rules/git-conventions.md`](rules/git-conventions.md). Read everything else —
+the on-demand rules, every `SKILL.md` under [`skills/`](skills/) (each split
+into a Policy Capsule plus an on-demand `reference.md`; descriptions live in
+[`skills/skills.index.json`](skills/skills.index.json)), and
+[`docs/execution-reference.md`](docs/execution-reference.md) — only when the
+task engages it. Each on-demand rule opens with a one-line "this rule applies
+when…" scope header. `instructions.md` § 1.F is the canonical statement of
+this split and enumerates the full always-on / on-demand rule set.
 
 ---
 
@@ -350,18 +319,13 @@ in `runtime-deps.json`.
 
 ## Ticket Hierarchy
 
-Orchestration and planning are **Story-only** (`type::story`): `/plan`
+Orchestration and planning are **Story-only** (`type::story`) — `/plan`
 persists Stories with inline `acceptance[]` / `verify[]` and a folded
-`## Spec`; `/deliver` runs `helpers/deliver-story` on
-`story-<id>` → PR → `main`. There is no `type::epic` / `type::task`
-label and no Epic issue form — an Epic is at most an optional untyped
-human umbrella issue outside orchestration. There is no Epic wave /
-`epic/<id>` integration branch. Tickets that still carry an `Epic: #N`
-footer are refused by `/deliver` and must be closed or re-planned as
-v2 Stories.
-
-See [`docs/SDLC.md`](docs/SDLC.md) and [`instructions.md` § 5.D](instructions.md)
-for the execution-model contract.
+`## Spec`; `/deliver` runs `helpers/deliver-story` on `story-<id>` → PR →
+`main`. There is no `type::epic` / `type::task` label, Epic issue form, or
+`epic/<id>` integration branch; a ticket carrying an `Epic: #N` footer is
+refused by `/deliver`. The execution-model contract is owned by
+[`instructions.md` § 5.D](instructions.md) and [`docs/SDLC.md`](docs/SDLC.md).
 
 ---
 
@@ -623,41 +587,21 @@ Module boundary rules:
 
 ## Baselines
 
-The framework's quality gates compare against per-kind baseline files
-under `baselines/<kind>.json` (lint, coverage, crap, maintainability,
-mutation, lighthouse, bundle-size). Every baseline shares a single
-envelope, every gate reads through one shared module
-([`.agents/scripts/lib/baselines/reader.js`](scripts/lib/baselines/reader.js)),
-and every refresher writes through one shared writer
-([`.agents/scripts/lib/baselines/writer.js`](scripts/lib/baselines/writer.js)).
-
-See the [Baseline reference](docs/quality-gates.md#baseline-reference)
-section of `.agents/docs/quality-gates.md` for the full reference: envelope shape,
-per-kind axes, component model, path canonicalisation, writer/reader
-contract, kernel-version friction, and — most relevant to consumers — the
-**floor override** path. Consumers add a `floors` block
-(and optional `components`) under their gate in `.agentrc.json`:
-
-```json
-{
-  "delivery": {
-    "quality": {
-      "gates": {
-        "coverage": {
-          "floors": { "*": { "lines": 90, "branches": 85 } },
-          "components": { "api": ["src/api/**"] }
-        }
-      }
-    }
-  }
-}
-```
-
+The framework's quality gates compare against per-kind baseline files under
+`baselines/<kind>.json` (lint, coverage, crap, maintainability, mutation,
+lighthouse, bundle-size), all sharing one envelope and funnelled through a
+shared reader / writer
+([`reader.js`](scripts/lib/baselines/reader.js) /
+[`writer.js`](scripts/lib/baselines/writer.js)). The full reference — envelope
+shape, per-kind axes, component model, path canonicalisation, writer/reader
+contract, kernel-version friction, and the consumer **floor override** path
+(add a `floors` block, and optional `components`, under your gate in
+`.agentrc.json`) — is owned by
+[`quality-gates.md` § Baseline reference](docs/quality-gates.md#baseline-reference).
 The unified runtime gate
-[`.agents/scripts/check-baselines.js`](scripts/check-baselines.js)
-currently runs floor + tolerance + schema + kernel-mismatch checks only;
-full regression absorption and per-kind CLI deletion are tracked in
-follow-up **Epic #1943**.
+[`check-baselines.js`](scripts/check-baselines.js) currently runs floor +
+tolerance + schema + kernel-mismatch checks only; full regression absorption
+and per-kind CLI deletion are tracked in **Epic #1943**.
 
 ---
 
@@ -694,155 +638,31 @@ Schema conventions:
 ## Code review providers (pluggable chain)
 
 `runCodeReview()` (invoked from `helpers/deliver-story` and `/deliver`'s
-risk-routed ceremony) loads its review backend through a pluggable registry.
-Configure a provider chain via `delivery.codeReview.providers` — an array
-of entries iterated in declaration order. Inline adapters merge their
-`Finding[]`; manual-prompt entries append a non-blocking
-"Manual Review Suggestions" section. When `providers` is unset or empty,
-the factory defaults to `[{ name: "native" }]`.
-
-```json
-{
-  "delivery": {
-    "codeReview": {
-      "providers": [
-        { "name": "native" },
-        { "name": "security-review", "scopes": ["story"], "optional": true },
-        {
-          "name": "ultrareview",
-          "scopes": ["story"],
-          "manualPrompt": true,
-          "when": { "label": "risk::high" }
-        }
-      ]
-    }
-  }
-}
-```
-
-Each chain entry accepts:
-
-- `name` (required) — registered key. Inline: `native`, `codex`,
-  `security-review`. Manual-prompt: `ultrareview`.
-- `scopes` — invocation scopes this entry fires on (`["story", "epic"]`).
-  Default is both.
-- `optional` — when `true`, a construction failure (host missing the
-  required CLI/plugin) is logged and the entry is skipped instead of
-  hard-failing the chain. Use for portable configs that ship across
-  Claude and non-Claude runtimes — for example,
-  `security-review` requires the `claude` CLI on PATH and degrades
-  cleanly on a non-Claude host when `optional: true`.
-- `manualPrompt` — when `true`, the entry is loaded from the
-  manual-prompt registry and contributes a one-line operator suggestion
-  via `renderPrompt()` instead of running a real review. Manual-prompt
-  contributions do NOT affect severity counts or the `halted` gate.
-- `when` — optional label predicate evaluated at invocation time
-  against the ticket's labels (`when.label` for a single required
-  label, `when.labelAny` for "any of these"). False predicates skip
-  the entry silently for that run.
-
-Cross-runtime contract: manual-prompt providers (e.g. `ultrareview`)
-emit Markdown only and MUST NEVER throw under any host. Inline
-providers that require a host-specific binary (e.g.
-`security-review` shells out to `claude --print /security-review`)
-SHOULD be declared `optional: true` so non-Claude consumers can pin
-the same `.agents/` version without modifying their config.
-
-The pluggable backend was introduced in Epic #2815; the multi-provider
-chain, `security-review`, and `ultrareview` were added in Story #2871.
-
----
+risk-routed ceremony) loads its review backend through a pluggable registry
+configured via `delivery.codeReview.providers` — an array of entries iterated
+in declaration order. The chain-entry field semantics (`name`, `scopes`,
+`optional`, `manualPrompt`, `when`), the fix budget, and the cross-runtime
+contract are documented once in
+[`docs/configuration.md` § delivery.codeReview](docs/configuration.md#deliverycodereview--provider-chain).
 
 ## Feedback loop — verification-results auto-graduation
 
-When a Story (or plan-run) finalize path runs, non-blocking findings
-(severity `high`, `medium`, or `suggestion`) that survived merge are
-auto-graduated into follow-up issues in a SINGLE pass over the unified
-`verification-results` structured comment (Story #4411 folded the former
-`code-review` and `audit-results` comments into one), routed by source
-classification into the framework repo or the consumer repo. The toggle
-lives at `delivery.feedbackLoop.auditResultsAutoFile` and defaults to
-`true`. (The former `codeReviewAutoFile` key was retired with its
-graduator when the pass unified — a config carrying it fails validation;
-delete the key.)
-
-To opt out (for example, to triage findings manually during a
-stabilization window), set the toggle to `false` in your root
-`.agentrc.json`:
-
-```json
-{
-  "delivery": {
-    "feedbackLoop": {
-      "auditResultsAutoFile": false
-    }
-  }
-}
-```
-
-When disabled, the listener short-circuits and leaves the
-`verification-results` comment on the Story ticket untouched. Re-enabling
-the toggle is safe: the graduator embeds a content-derived idempotency
-marker in each filed issue body, so re-runs skip findings that already
-have an issue.
-
----
+When a Story (or plan-run) finalize path runs, non-blocking findings that
+survived merge are auto-graduated into follow-up issues in a single pass over
+the unified `verification-results` structured comment, routed by source
+classification into the framework or consumer repo. The toggle
+(`delivery.feedbackLoop.auditResultsAutoFile`, default `true`), the opt-out
+example, and the idempotency-marker behaviour are documented once in
+[`docs/configuration.md` § delivery.feedbackLoop](docs/configuration.md#deliveryfeedbackloop--verification-results-auto-graduation).
 
 ## Worktree dependency strategies
 
-When `delivery.worktreeIsolation.enabled` is `true`, each Story runs in
-its own worktree under `.worktrees/story-<id>/`. The
-`nodeModulesStrategy` field on `delivery.worktreeIsolation` controls how
-`node_modules` is populated in that worktree. Three values are supported,
-each with different cost/portability trade-offs:
-
-| Strategy       | When to use                                                      | Cold-start cost          | Notes                                                                                                       |
-| -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| `clone`        | **Shipped default on darwin/linux** — copy-on-write clone of donor `node_modules`. | Near-zero on APFS/reflink FS. | Falls back to `per-worktree` on unsupported filesystems or cross-volume clones. |
-| `per-worktree` | Default on Windows; also the safe fallback everywhere.           | Full `npm ci` per Story. | Each worktree gets an independent `node_modules`.                                                           |
-| `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
-| `pnpm-store`   | pnpm repos. **Opt-in.**                                          | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
-
-The **shipped consumer default in
-[`.agents/docs/agentrc-reference.json`](./docs/agentrc-reference.json) is
-`clone`** (Windows resolves to `per-worktree` via the platform-aware
-accessor). Repos that use pnpm or want symlink semantics should set
-`nodeModulesStrategy` explicitly in their root `.agentrc.json`.
-
-### Symlink opt-in (npm / yarn)
-
-To opt in, set three fields on `delivery.worktreeIsolation` in your root
-`.agentrc.json`:
-
-```json
-{
-  "delivery": {
-    "worktreeIsolation": {
-      "enabled": true,
-      "nodeModulesStrategy": "symlink",
-      "primeFromPath": ".",
-      "allowSymlinkOnWindows": true
-    }
-  }
-}
-```
-
-- **`nodeModulesStrategy: "symlink"`** — switch off the per-worktree
-  install and link instead.
-- **`primeFromPath`** — relative path (from the repo root) to the donor
-  worktree whose `node_modules/` is reused. `"."` means the root
-  checkout, which must already have `node_modules/` populated before a
-  Story initializes. `single-story-init.js` enforces this with a pre-check.
-- **`allowSymlinkOnWindows`** — required on Windows. The strategy uses
-  junctions (no admin rights needed) on Windows when this is `true`; it
-  refuses with an explanatory error otherwise, because symlink semantics
-  vary by Windows version.
-
-Once these are set, `single-story-init.js` skips `npm ci` in the worktree and
-junctions/symlinks `node_modules` from the donor — typical cold-start
-falls from minutes to under a second.
-
----
+When `delivery.worktreeIsolation.enabled` is `true`, each Story runs in its own
+worktree under `.worktrees/story-<id>/`, and `nodeModulesStrategy` controls how
+`node_modules` is populated there. The strategy trade-offs (`clone` /
+`per-worktree` / `symlink` / `pnpm-store`) and the symlink opt-in are
+documented once in
+[`docs/configuration.md` § delivery.worktreeIsolation](docs/configuration.md#deliveryworktreeisolation--node_modules-strategies).
 
 ## Multi-developer coordination
 
@@ -921,73 +741,37 @@ diverge are documented in
 ## Adopting the QA harness
 
 Mandrel ships **three** complementary QA loops, all adopting the `qa-engineer`
-persona and all reading the same `qa.*` project contract from `.agentrc.json`.
-Two are exploratory siblings that differ on **who drives**; the third steps a
-known scenario set:
+persona and all reading the same `qa.*` project contract from `.agentrc.json`
+through the single seam
+[`resolve-qa-contract.js`](scripts/lib/qa/resolve-qa-contract.js) (a consumer
+that has not bound a `qa` block gets a loud, actionable failure — there is no
+auto-detection fallback):
 
-- **`/qa-explore <surface>`** — an **agent-led**, open-ended
-  **Plan → Capture → Triage** exploratory sweep. The operator names a surface;
-  the **agent drives** it (through the browser MCP by default, or statically as
-  a documented interim), probing for product bugs, environment-setup friction,
-  tooling/DX gaps, missing tests, and enhancement ideas, recording each
-  observation as a `QaLedgerItem` against the
-  [`qa-ledger.schema.json`](schemas/qa-ledger.schema.json) contract. Capture is
-  strictly read-only — the only write it performs is appending ledger lines to
-  the session ledger at **`temp/qa/<sessionId>.ndjson`** (session scratch under
-  `project.paths.tempRoot`, gitignored, never committed). Triage then
-  classifies, dedups, and routes each item into a `file` / `defer` / `dismiss`
-  disposition; the session is HITL-gated — every phase transition and every
-  ticket-filing write is operator-gated. A resumed session
-  (`--session-id <id>`) appends and carries its un-triaged backlog forward. The
-  end-to-end procedure is the SSOT in
-  [`workflows/qa-explore.md`](workflows/qa-explore.md), with the deterministic
-  decision seams under `scripts/lib/qa/` (session, redaction, coverage,
-  missing-test) and `scripts/lib/findings/` (classification, dedup/route).
-- **`/qa-assist`** — the **human-led** sibling of `/qa-explore`: a
-  single-observation **Intake → Enrich → Record** loop. Here the **human
-  drives** — the operator reports one thing they observed (a bug, a flaky
-  behavior, a "this feels off") and the agent enriches it into a triage-ready
-  `QaLedgerItem` (a clean repro, a `file:line` root-cause locus, a coverage
-  verdict), asking clarifying questions when the observation is ambiguous, then
-  appends it — after explicit confirmation — to a persistent, resumable rolling
-  session under `temp/qa/`. It writes the **same** ledger contract `/qa-explore`
-  produces, so a `/qa-assist` item flows through the identical dedup,
-  classification, and promotion machinery later. The end-to-end procedure is
-  the SSOT in [`workflows/qa-assist.md`](workflows/qa-assist.md). Reach for
-  `/qa-assist` when you hit something mid-flight and want it captured well
-  without breaking stride; reach for `/qa-explore` when you want the agent to
-  go hunt a named surface.
-- **`/qa-run <selector>`** — the **automated complement**: it drives a
-  consumer's Gherkin `.feature` scenarios through a real browser (the
-  `chrome-devtools` MCP surface), captures per-surface console/network into
-  structured `F#` findings, records them on the shared session ledger, and
-  triages them through the classify/route/promote core for operator
-  sign-off. The end-to-end procedure is the SSOT in
-  [`workflows/qa-run.md`](workflows/qa-run.md); the
-  instrumentation conventions live in the
-  [`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md) skill; the
-  architectural overview (run pipeline, contract fields, finding shape) is in
-  [`docs/architecture.md` § Agent-driven QA harness](../docs/architecture.md#agent-driven-qa-harness).
+- **`/qa-explore <surface>`** — **agent-led** open-ended Plan → Capture →
+  Triage sweep of a named surface. SSOT:
+  [`workflows/qa-explore.md`](workflows/qa-explore.md).
+- **`/qa-assist`** — the **human-led** sibling: a single-observation Intake →
+  Enrich → Record loop writing the same ledger contract. SSOT:
+  [`workflows/qa-assist.md`](workflows/qa-assist.md).
+- **`/qa-run <selector>`** — the **automated complement**: steps a known set of
+  Gherkin `.feature` scenarios through the `chrome-devtools` browser MCP into
+  structured `F#` findings. SSOT: [`workflows/qa-run.md`](workflows/qa-run.md);
+  instrumentation conventions in
+  [`skills/stack/qa/qa-harness`](skills/stack/qa/qa-harness/SKILL.md).
 
-Reach for `/qa-explore` when you want the **agent** to hunt a freshly delivered
-Story/Feature or run a structured bug-hunt captured into a triageable ledger;
-reach for `/qa-assist` when **you** hit something mid-flight and want it
-enriched into a single triage-ready ledger item; reach for `/qa-run` to
-step a **known** scenario set through the browser for a regression pass.
-
-Binding the QA contract is **opt-in**. All three workflows resolve the
-consumer's `qa` block through the single seam
-[`resolve-qa-contract.js`](scripts/lib/qa/resolve-qa-contract.js); a consumer
-that has not bound it gets a loud, actionable failure ("this project has not
-bound the QA harness") when either workflow runs — there is no auto-detection
-fallback. To adopt the QA surface, a consumer project takes three concrete
-steps.
+All three record observations as a `QaLedgerItem`
+([`qa-ledger.schema.json`](schemas/qa-ledger.schema.json)) on a session ledger
+under **`temp/qa/<sessionId>.ndjson`** (gitignored scratch under
+`project.paths.tempRoot`), then triage each item into a `file` / `defer` /
+`dismiss` disposition; every phase transition and ticket-filing write is
+operator-gated. Binding the QA contract is **opt-in** — a consumer adopts the
+surface in three concrete steps.
 
 ### 1. Bind the `qa` block in `.agentrc.json`
 
-Add a top-level `qa` block. It is optional in the schema (so config
-validation never breaks a non-QA consumer), but the four core fields are
-required at run time by `resolveQaContract`. Copy the reference shape from
+Add a top-level `qa` block. It is optional in the schema (so config validation
+never breaks a non-QA consumer), but the four core fields are required at run
+time by `resolveQaContract`. Copy the reference shape from
 [`agentrc-reference.json`](docs/agentrc-reference.json) and adapt the paths:
 
 ```jsonc
@@ -1003,22 +787,21 @@ required at run time by `resolveQaContract`. Copy the reference shape from
 }
 ```
 
-`featureRoot`, `fixturesManifest`, `signInSeam`, and `personas` are
-mandatory; omitting any one makes the resolver throw a field-named error.
+`featureRoot`, `fixturesManifest`, `signInSeam`, and `personas` are mandatory;
+omitting any one makes the resolver throw a field-named error.
 `consoleAllowlist` and `designTokens` default to `[]` and `null`.
 
 `personas` accepts **two shapes** (the resolver normalizes both to one
 canonical internal map keyed by persona name):
 
-- **Name-only array** (above) — `["admin", "member"]`. This is the honest
-  shape under a `urlTemplate` dev-impersonation seam, where the persona name
-  is the only input the harness consumes (it is substituted into the URL) and
-  no per-persona auth material is ever read. Do **not** fabricate
-  `credentialRef`/`signInSkill` values a url-template seam ignores.
-- **Object map** — keyed by persona name, each entry carrying per-persona
-  auth material (`{ credentialRef }` or `{ signInSkill }`). Use this only
-  under a `skill` (or credential) seam where that material is genuinely
-  consulted:
+- **Name-only array** (above) — `["admin", "member"]`. The honest shape under a
+  `urlTemplate` dev-impersonation seam, where the persona name is the only input
+  the harness consumes (substituted into the URL) and no per-persona auth
+  material is read. Do **not** fabricate `credentialRef`/`signInSkill` values a
+  url-template seam ignores.
+- **Object map** — keyed by persona name, each entry carrying per-persona auth
+  material (`{ credentialRef }` or `{ signInSkill }`). Use only under a `skill`
+  (or credential) seam where that material is genuinely consulted:
 
   ```jsonc
   "signInSeam": { "skill": "stack/qa/sign-in" },
@@ -1030,10 +813,10 @@ canonical internal map keyed by persona name):
 
 ### 2. Author the fixtures manifest
 
-Create the file referenced by `fixturesManifest`. It binds each persona to
-the seed data the harness loads before signing that persona in, so scenarios
-start from a known state. Every persona named under `qa.personas` should have
-a corresponding entry. Keep the manifest free of real secrets — it carries
+Create the file referenced by `fixturesManifest`. It binds each persona to the
+seed data the harness loads before signing that persona in, so scenarios start
+from a known state. Every persona named under `qa.personas` should have a
+corresponding entry. Keep the manifest free of real secrets — it carries
 seed-data shape, not credentials (credentials resolve through `credentialRef`
 or a sign-in skill).
 
@@ -1042,25 +825,15 @@ or a sign-in skill).
 The harness signs in once per persona using a **dev-only seam** — real
 credentials are never entered. Expose one of two shapes:
 
-- **`{ urlTemplate }`** — a dev sign-in route where `{persona}` is
-  substituted (e.g. `/dev/sign-in-as/{persona}` → `/dev/sign-in-as/admin`).
-  Gate this route to non-production builds.
-- **`{ skill }`** — when sign-in is multi-step or non-URL, point at a
-  consumer skill whose `SKILL.md` the harness reads and follows.
+- **`{ urlTemplate }`** — a dev sign-in route where `{persona}` is substituted
+  (e.g. `/dev/sign-in-as/{persona}` → `/dev/sign-in-as/admin`); gate it to
+  non-production builds. Pair with the name-only `personas` array.
+- **`{ skill }`** — when sign-in is multi-step or non-URL, point at a consumer
+  skill whose `SKILL.md` the harness reads. Pair with the object-map
+  `personas` form (per step 1).
 
-Which seam kinds consult per-persona material: under a `{ urlTemplate }` seam
-the persona **name** is the sole input, so author `personas` as a name-only
-array and supply no auth material. Under a `{ skill }` (or credential) seam,
-author `personas` as the object map and supply per-persona overrides:
-`{ credentialRef }` points at a stored-credential reference (resolved from the
-environment, never inlined) and `{ signInSkill }` points at a per-persona
-sign-in skill.
-
-Once these three `qa.*` keys are in place, `/qa-explore <surface>`,
-`/qa-assist`, and `/qa-run <selector>` all resolve the contract and
-operate against the bound surface. For `/qa-run`, the `chrome-devtools`
-MCP surface is a host-provided runtime dependency; when it is unavailable the
-harness degrades with a clear error rather than falling back to a headless
-runner. `/qa-explore` and `/qa-assist` read the same `qa.*` keys to scope their
-work and to drive the deterministic coverage/missing-test verdicts, then record
-each observation into the `temp/qa/` ledger described above.
+Once these three `qa.*` keys are in place, `/qa-explore <surface>`, `/qa-assist`,
+and `/qa-run <selector>` all resolve the contract and operate against the bound
+surface. For `/qa-run`, the `chrome-devtools` MCP surface is a host-provided
+runtime dependency; when unavailable the harness degrades with a clear error
+rather than falling back to a headless runner.
