@@ -79,10 +79,35 @@ That is what makes superseding work without anyone re-typing ids
 
 The envelope carries docs context, codebase snapshot, BDD probe, risk
 heuristics, the story-author system prompt, `sourceTickets[]` (`--tickets`
-mode), and `duplicates[]` (open **Stories** whose title/body overlap the
-seed — never Epics).
+mode), `duplicates[]` (open **Stories** whose title/body overlap the
+seed — never Epics), and the `complexityRoute` ceremony-lite signal (below).
 Under `--yes`, do not ask free-form operator questions — unresolved
 unknowns land in Key Assumptions.
+
+#### Ceremony-lite complexity gate (`complexityRoute`)
+
+The envelope's `complexityRoute` field is a **deterministic, conservative**
+plan-time gate (Story #4683) that routes a genuinely trivial single-artifact
+seed onto a collapsed path so it stops paying the full two-session
+plan/deliver ceremony that measurably buys no quality at that size:
+
+- **`route: "lite"`** — a trivial scope (seed ≤ `maxSeedWords` words **and** ≤
+  `maxArtifacts` enumerated items). Collapse the ceremony: author **one minimal
+  Story** and skip the fresh-critic / Tech-Spec ceremony a one-artifact scope
+  does not earn. The lite route is **not** licence to drop a non-negotiable —
+  its `preserves` field enumerates exactly what still holds: the Story ticket,
+  the PR-to-`main` landing, every repo quality gate, and the security baseline.
+  Those gates still run in `single-story-close.js` regardless of route.
+- **`route: "full"`** — everything else. The gate fails toward `full` on any
+  doubt (empty seed, over the word ceiling, a multi-capability enumeration, or
+  the gate disabled via `planning.complexityGate.enabled=false`), so a real
+  capability slice never loses ceremony. Author normally under the split policy.
+
+The threshold and its override knob (`planning.complexityGate.{enabled,
+maxSeedWords, maxArtifacts}`) are documented in
+[`.agents/docs/configuration.md`](../docs/configuration.md) under `### planning`;
+the defaults live on `DEFAULT_COMPLEXITY_GATE` in
+[`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js).
 
 **Gate #1** — STOP to confirm the sharpened plan intent and any
 duplicate-candidate review. Under `--yes`, auto-proceed.

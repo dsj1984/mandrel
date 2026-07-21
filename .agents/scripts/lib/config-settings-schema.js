@@ -278,6 +278,38 @@ const PLANNING_SCHEMA = {
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
+    // Story #4683 — plan-time ceremony-lite complexity gate. Routes a trivial
+    // single-artifact seed onto a collapsed plan/deliver path while a
+    // multi-capability seed keeps the full ceremony. Deterministic and
+    // conservative (full on any doubt); the lite path never relaxes a
+    // non-negotiable (Story ticket, PR-to-main, repo gates, security baseline).
+    // Defaults live on DEFAULT_COMPLEXITY_GATE in
+    // `lib/orchestration/complexity-gate.js`.
+    complexityGate: {
+      type: 'object',
+      description:
+        'Plan-time ceremony-lite complexity gate. Routes trivial single-artifact seeds onto a collapsed plan/deliver path; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables.',
+      properties: {
+        enabled: {
+          type: 'boolean',
+          description:
+            'Master switch. When false, every seed takes the full plan/deliver ceremony. Default true.',
+        },
+        maxSeedWords: {
+          type: 'integer',
+          minimum: 0,
+          description:
+            'Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 60.',
+        },
+        maxArtifacts: {
+          type: 'integer',
+          minimum: 0,
+          description:
+            'Enumerated-artifact ceiling for the lite path. A seed enumerating more than this many candidate artifacts is multi-capability and takes the full path. Default 1.',
+        },
+      },
+      additionalProperties: false,
+    },
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to
     // `true` upgrades the matching finding class to `'hard'`, which routes

@@ -39,6 +39,16 @@ large — uses the same machinery:
 If the Story still carries an `Epic: #N` reference, **stop** — that is a v1
 Epic-attached ticket; re-plan as a v2 Story or finish it on a pre-v2 checkout.
 
+> **Ceremony-lite Stories still land through this engine unchanged (Story
+> #4683).** A Story that `/plan` routed onto the ceremony-lite path (its
+> `complexityRoute.route === "lite"`) collapses only the *advisory* plan/deliver
+> ceremony — the fresh-critic / Tech-Spec authoring a one-artifact scope does
+> not earn. It does **not** get a cheaper landing: the close-validation gates
+> (lint / test / format / coverage / CRAP / maintainability), the PR to `main`,
+> and the `rules/security-baseline.md` MUSTs all run here exactly as for a
+> full-ceremony Story. The lite route's `preserves` field is the machine-readable
+> record of those non-negotiables; there is no lite-specific gate bypass.
+
 ## Prerequisites
 
 1. A GitHub Issue with the `type::story` label and **no** `Epic: #N`

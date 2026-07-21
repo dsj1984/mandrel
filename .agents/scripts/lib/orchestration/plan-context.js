@@ -26,6 +26,7 @@ import {
   renderTechSpecSystemPrompt,
 } from '../templates/spec-author-prompts.js';
 import { concurrentMap } from '../util/concurrent-map.js';
+import { buildComplexityRouteSignal } from './complexity-gate.js';
 import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { buildDocsDigest } from './docs-digest.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
@@ -482,6 +483,7 @@ async function buildSeedFileModeEnvelope({
   return {
     mode: modeLabel,
     seed: { path: seedFilePath ?? null, content },
+    complexityRoute: buildComplexityRouteSignal({ seedText: content, config }),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
@@ -635,6 +637,7 @@ async function buildTicketsModeEnvelope({
     mode: 'tickets',
     sourceTickets,
     seed: { text: seed, path: null },
+    complexityRoute: buildComplexityRouteSignal({ seedText: seed, config }),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
