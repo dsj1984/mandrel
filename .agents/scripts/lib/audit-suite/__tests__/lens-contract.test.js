@@ -1,31 +1,28 @@
 /**
  * lib/audit-suite/__tests__/lens-contract.test.js — the suite-wide findings
- * contract conformance gate (Story #4625).
+ * contract conformance gate (Story #4625, recomposed under Story #4665).
  *
  * Every non-retired audit lens report must be machine-visible to the
- * `audit-to-stories` pipeline. Historically two lenses (`audit-sre`,
- * `audit-seo`) silently parsed to zero findings because their templates hid the
- * findings under a non-`Detailed Findings` heading, and `audit-privacy` lost
- * its dimension because it labelled the axis `Type:` — none of which any test
- * would have caught. This gate renders each lens's *own mandated template
- * example* through the real `parseAuditReport` and asserts the contract holds:
+ * `audit-to-stories` pipeline. Under Story #4665 the shared finding-block
+ * skeleton, severity scale, self-cross-check, and execution strategy are
+ * single-sourced into `helpers/audit-lens-core.md`, and each lens carries only
+ * its own frontmatter, preamble, `{{changedFiles}}` fence, and lens-specific
+ * dimensions. This gate therefore asserts a **composition** contract rather
+ * than per-lens template byte-identity:
  *
- *   - the template parses to >= 1 finding under `## Detailed Findings`;
- *   - the finding carries a recognized severity on the shared
- *     `Critical | High | Medium | Low` scale;
- *   - the finding carries a recognized dimension key (never a report-name
- *     fallback);
- *   - the mandated `Location:` bullet is harvested into `files[]`;
- *   - the template documents the severity scale, an `Acceptance signal:` field,
- *     and the canonical `{{auditOutputDir}}/audit-<lens>-results.md` path;
- *   - the `## Scope` block is byte-identical across every lens that is not a
- *     registered deviant;
- *   - the dual-path preamble is single-sourced into `helpers/audit-dual-path.md`
- *     and referenced (not inlined) by each dual-path lens.
+ *   - the shared core exposes a `## Detailed Findings` finding-block skeleton
+ *     that renders — through the real `parseAuditReport` — to a finding with a
+ *     recognized severity, a recognized dimension key, and a harvested
+ *     `Location:` into `files[]`;
+ *   - the three absorbed helpers (severity-scale / self-check / dual-path) are
+ *     gone and no lens references them;
+ *   - each lens references the core, keeps its own `{{changedFiles}}` fence,
+ *     names its canonical `{{auditOutputDir}}/audit-<lens>-results.md` path,
+ *     and states subagent dispatch as its execution path.
  *
- * The template example is deliberately the fixture: the same markdown an agent
- * is told to emit is the markdown the pipeline must be able to parse, so the
- * two can never drift.
+ * The parsed report contract consumed by `audit-to-stories` is unchanged: the
+ * `parseAuditReport` findings-contract units at the bottom still pin the exact
+ * field normalisation the pipeline relies on.
  */
 
 import assert from 'node:assert/strict';
@@ -40,24 +37,12 @@ import {
 } from '../../audit-to-stories/parse-audit-md.js';
 
 /**
- * Registered exemption lists for the findings-contract gate (Story #4625).
- * These are conformance-gate policy, consumed only here, so they live beside
- * the assertions that key off them rather than as production exports.
- *
- * `RETIRED_LENSES` — a retired lens keeps its `audit-<lens>.md` workflow for
- * history but is exempt from the unified contract; `audit-lighthouse` is
- * retired wholesale by the accessibility Story, and the AC-4
- * `grep -L "Location:"` check keys off the same set.
- *
- * `SCOPE_BLOCK_EXEMPT_LENSES` — lenses whose `## Scope` block deliberately
- * deviates (whole-repo / target-set scans rather than a change-set filter), so
- * the byte-identity assertion skips them rather than forcing false uniformity.
+ * Registered exemption list for the findings-contract gate (Story #4625). A
+ * retired lens keeps its `audit-<lens>.md` workflow for history but is exempt
+ * from the unified contract; `audit-lighthouse` is retired wholesale by the
+ * accessibility Story.
  */
 const RETIRED_LENSES = Object.freeze(['lighthouse']);
-const SCOPE_BLOCK_EXEMPT_LENSES = Object.freeze([
-  'documentation',
-  'navigability',
-]);
 const isRetiredLens = (lens) => RETIRED_LENSES.includes(lens);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -71,15 +56,13 @@ const WORKFLOWS_DIR = path.resolve(
   'workflows',
 );
 const HELPERS_DIR = path.join(WORKFLOWS_DIR, 'helpers');
+const CORE_HELPER = path.join(HELPERS_DIR, 'audit-lens-core.md');
 
-/** Lenses whose `## Execution strategy (dual-path)` block is single-sourced. */
-const DUAL_PATH_LENSES = Object.freeze([
-  'architecture',
-  'clean-code',
-  'documentation',
-  'performance',
-  'quality',
-  'security',
+/** Helpers absorbed into `audit-lens-core.md` (Story #4665) and deleted. */
+const ABSORBED_HELPERS = Object.freeze([
+  'audit-severity-scale.md',
+  'audit-self-check.md',
+  'audit-dual-path.md',
 ]);
 
 const RECOGNIZED_SEVERITIES = new Set(['critical', 'high', 'medium', 'low']);
@@ -97,7 +80,8 @@ function readLens(lens) {
 
 /**
  * Extract the fenced ```markdown report-template block that contains the
- * `## Detailed Findings` section — the exact example an agent is told to emit.
+ * `## Detailed Findings` section — the exact finding-block skeleton the core
+ * mandates and every lens composes onto.
  *
  * @param {string} md
  * @returns {string|null}
@@ -124,165 +108,133 @@ function extractReportTemplate(md) {
   return null;
 }
 
-/**
- * Extract the `## Scope (Story / plan-run mode)` section (heading through the
- * line before the next `##` heading) for byte-identity comparison.
- *
- * @param {string} md
- * @returns {string|null}
- */
-function extractScopeBlock(md) {
-  const lines = md.split(/\r?\n/);
-  const start = lines.findIndex((l) => /^## Scope \(Story/.test(l));
-  if (start === -1) return null;
-  let end = lines.length;
-  for (let i = start + 1; i < lines.length; i += 1) {
-    if (/^## /.test(lines[i])) {
-      end = i;
-      break;
-    }
-  }
-  return lines.slice(start, end).join('\n');
-}
+describe('audit-lens-core shared contract (Story #4665)', () => {
+  const coreMd = fs.readFileSync(CORE_HELPER, 'utf8');
+  const coreTemplate = extractReportTemplate(coreMd);
 
-describe('lens findings contract (Story #4625)', () => {
+  it('single-sources the core helper and deletes the three absorbed helpers', () => {
+    assert.ok(
+      fs.existsSync(CORE_HELPER),
+      'helpers/audit-lens-core.md does not exist',
+    );
+    for (const gone of ABSORBED_HELPERS) {
+      assert.ok(
+        !fs.existsSync(path.join(HELPERS_DIR, gone)),
+        `helpers/${gone} should be absorbed into audit-lens-core.md and deleted`,
+      );
+    }
+  });
+
+  it('exposes a Detailed Findings finding-block skeleton', () => {
+    assert.ok(
+      coreTemplate,
+      'audit-lens-core.md has no ```markdown skeleton containing "## Detailed Findings"',
+    );
+  });
+
+  it('the skeleton parses to a finding with a recognized severity and dimension', () => {
+    const findings = parseAuditReport({
+      markdown: coreTemplate,
+      sourceReport: 'temp/audits/audit-security-results.md',
+    });
+    assert.ok(findings.length >= 1, 'core skeleton parsed to zero findings');
+    const [first] = findings;
+    assert.ok(
+      RECOGNIZED_SEVERITIES.has(first.severity),
+      `core skeleton severity "${first.severity}" is not on the Critical|High|Medium|Low scale`,
+    );
+    const hasDimensionKey = DIMENSION_KEYS.some((k) =>
+      Object.hasOwn(first.rawFields, k),
+    );
+    assert.ok(
+      hasDimensionKey,
+      'core skeleton finding carries no dimension/category/area/type field',
+    );
+  });
+
+  it('harvests the mandated Location bullet into files[]', () => {
+    const [first] = parseAuditReport({
+      markdown: coreTemplate,
+      sourceReport: 'temp/audits/audit-security-results.md',
+    });
+    assert.ok(
+      first.files.length >= 1,
+      'core skeleton Location bullet was not harvested into files[]',
+    );
+  });
+
+  it('documents the severity scale, self-cross-check, and Acceptance signal + Agent Prompt fields', () => {
+    assert.match(
+      coreTemplate,
+      /\*\*Severity:\*\*\s*\[Critical \| High \| Medium \| Low\]/,
+      'core skeleton does not offer the Critical|High|Medium|Low scale',
+    );
+    assert.ok(
+      coreTemplate.includes('**Acceptance signal:**'),
+      'core skeleton has no Acceptance signal field',
+    );
+    assert.ok(
+      coreTemplate.includes('**Agent Prompt:**'),
+      'core skeleton has no Agent Prompt field',
+    );
+    assert.ok(
+      /##\s+Severity scale/.test(coreMd),
+      'audit-lens-core.md has no Severity scale section',
+    );
+    assert.ok(
+      /self-cross-check/i.test(coreMd),
+      'audit-lens-core.md has no self-cross-check section',
+    );
+    assert.ok(
+      /subagent_type: auditor/.test(coreMd),
+      'audit-lens-core.md does not name the subagent_type: auditor dispatch',
+    );
+  });
+});
+
+describe('lens composition contract (Story #4665)', () => {
   for (const lens of NON_RETIRED_LENSES) {
     describe(`audit-${lens}`, () => {
       const md = readLens(lens);
-      const template = extractReportTemplate(md);
 
-      it('exposes a Detailed Findings report template', () => {
+      it('references the shared audit-lens-core helper', () => {
         assert.ok(
-          template,
-          `audit-${lens}.md has no \`\`\`markdown report template containing "## Detailed Findings"`,
+          md.includes('](helpers/audit-lens-core.md)'),
+          `audit-${lens} does not reference helpers/audit-lens-core.md — the shared contract is not composed`,
         );
       });
 
-      it('parses to >= 1 finding with a recognized severity and dimension', () => {
-        const findings = parseAuditReport({
-          markdown: template,
-          sourceReport: `temp/audits/audit-${lens}-results.md`,
-        });
+      it('keeps its own {{changedFiles}} substitution fence', () => {
         assert.ok(
-          findings.length >= 1,
-          `audit-${lens} template parsed to zero findings`,
-        );
-        const [first] = findings;
-        assert.ok(
-          RECOGNIZED_SEVERITIES.has(first.severity),
-          `audit-${lens} finding severity "${first.severity}" is not on the Critical|High|Medium|Low scale`,
-        );
-        const hasDimensionKey = DIMENSION_KEYS.some((k) =>
-          Object.hasOwn(first.rawFields, k),
-        );
-        assert.ok(
-          hasDimensionKey,
-          `audit-${lens} finding carries no dimension/category/area/type field — dimension would fall back to the report name`,
+          md.includes('{{changedFiles}}'),
+          `audit-${lens} dropped its {{changedFiles}} fence — the substitution anchor consumed by lib/audit-suite/ must stay per-file`,
         );
       });
 
-      it('harvests the mandated Location bullet into files[]', () => {
-        const [first] = parseAuditReport({
-          markdown: template,
-          sourceReport: `temp/audits/audit-${lens}-results.md`,
-        });
-        assert.ok(
-          first.files.length >= 1,
-          `audit-${lens} finding has no files[] — the Location bullet was not extracted`,
-        );
-      });
-
-      it('documents the severity scale via the shared helper', () => {
-        assert.match(
-          template,
-          /\*\*(?:Severity|Impact):\*\*\s*\[Critical \| High \| Medium \| Low\]/,
-          `audit-${lens} template does not offer the Critical|High|Medium|Low scale`,
-        );
-        assert.ok(
-          md.includes('](helpers/audit-severity-scale.md)'),
-          `audit-${lens} does not reference the shared severity-scale helper`,
-        );
-      });
-
-      it('mandates an Acceptance signal field', () => {
-        assert.ok(
-          template.includes('**Acceptance signal:**'),
-          `audit-${lens} template has no Acceptance signal field`,
-        );
-      });
-
-      it('names the canonical audit output path', () => {
+      it('names its canonical audit output path', () => {
         assert.ok(
           md.includes(`{{auditOutputDir}}/audit-${lens}-results.md`),
-          `audit-${lens} does not write the canonical output path`,
+          `audit-${lens} does not name its canonical output path`,
         );
       });
 
-      it('references the shared self-cross-check helper (Story #4627)', () => {
-        // Standing gate for the sequential-path false-positive guard: every
-        // non-retired lens must carry the self-cross-check step, so a later
-        // lens rewrite that drops it fails the suite instead of silently
-        // shipping an unguarded lens. New lenses added after this Story are
-        // covered because this assertion iterates NON_RETIRED_LENSES.
+      it('does not re-reference the three absorbed helpers', () => {
+        for (const gone of ABSORBED_HELPERS) {
+          assert.ok(
+            !md.includes(`](helpers/${gone})`),
+            `audit-${lens} still links the absorbed helper helpers/${gone}`,
+          );
+        }
+      });
+
+      it('states subagent dispatch as its execution path', () => {
         assert.ok(
-          md.includes('](helpers/audit-self-check.md)'),
-          `audit-${lens} does not reference the self-cross-check helper (helpers/audit-self-check.md) — the sequential-path false-positive guard is missing`,
+          /subagent_type: auditor/.test(md),
+          `audit-${lens} does not state the subagent_type: auditor execution path`,
         );
       });
     });
   }
-
-  it('shares one byte-identical scope block across all non-deviant lenses', () => {
-    const exempt = new Set(SCOPE_BLOCK_EXEMPT_LENSES);
-    const blocks = new Map();
-    for (const lens of NON_RETIRED_LENSES) {
-      if (exempt.has(lens)) continue;
-      const block = extractScopeBlock(readLens(lens));
-      assert.ok(block, `audit-${lens} has no "## Scope (Story ..." block`);
-      blocks.set(lens, block);
-    }
-    const entries = [...blocks.entries()];
-    const [refLens, refBlock] = entries[0];
-    for (const [lens, block] of entries) {
-      assert.equal(
-        block,
-        refBlock,
-        `audit-${lens} scope block diverges from audit-${refLens}`,
-      );
-    }
-  });
-
-  it('single-sources the dual-path preamble into a helper', () => {
-    assert.ok(
-      fs.existsSync(path.join(HELPERS_DIR, 'audit-dual-path.md')),
-      'helpers/audit-dual-path.md does not exist',
-    );
-    for (const lens of DUAL_PATH_LENSES) {
-      const md = readLens(lens);
-      assert.ok(
-        md.includes('](helpers/audit-dual-path.md)'),
-        `audit-${lens} does not reference the dual-path helper`,
-      );
-      assert.ok(
-        !md.includes('**Strategy selection** is computed by'),
-        `audit-${lens} still inlines the dual-path block body`,
-      );
-    }
-  });
-
-  it('ships the shared severity-scale helper', () => {
-    assert.ok(
-      fs.existsSync(path.join(HELPERS_DIR, 'audit-severity-scale.md')),
-      'helpers/audit-severity-scale.md does not exist',
-    );
-  });
-
-  it('ships the shared self-cross-check helper (Story #4627)', () => {
-    assert.ok(
-      fs.existsSync(path.join(HELPERS_DIR, 'audit-self-check.md')),
-      'helpers/audit-self-check.md does not exist',
-    );
-  });
 });
 
 describe('audit-performance lens rework (Story #4631)', () => {

@@ -4,6 +4,25 @@ description: Audit WCAG accessibility conformance (static-first) with an optiona
 
 # Accessibility (WCAG) Audit
 
+You are a Senior Accessibility Engineer holding the frontend to **WCAG 2.x
+conformance** — semantic structure, ARIA correctness, keyboard operability, form
+labelling, media alternatives, and contrast — grounding every finding in a
+concrete element and the success criterion it violates. Default to **static**
+detection over source; escalate to a **runtime** pass only when a live target is
+configured. The shared lens machinery — read-only constraint, scope
+interpretation, report envelope + finding-block skeleton, severity scale,
+self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-accessibility-results.md`. Extra finding fields:
+**WCAG:** (the violated success criterion, e.g. `1.1.1 Non-text Content (A)`)
+and **Evidence:** (`measured | static` + the observable; single-run runtime
+numbers are tagged `provisional`). The report adds a **Runtime Verification**
+section.
+
+> **No conformance certification.** The lens reports findings against WCAG
+> success criteria; it does **not** assert a conformance level (A / AA / AAA)
+> for the product. "No findings in scope" is not "certified conformant".
+
 ## Applicability
 
 **Web targets only.** Registered with `target: "web"` in
@@ -11,28 +30,6 @@ description: Audit WCAG accessibility conformance (static-first) with an optiona
 on a project with no rendered frontend, since there are no components, templates,
 or routes to hold to WCAG. See the `target` key's schema description for how
 applicability is probed from the consumer's checkout.
-
-## Role
-
-Senior Accessibility Engineer. You hold the frontend to **WCAG 2.x
-conformance** — semantic structure, ARIA correctness, keyboard operability,
-form labelling, media alternatives, and contrast — grounding every finding in a
-concrete element and the success criterion it violates. You default to
-**static** detection over the source, and escalate to a **runtime** pass only
-when a live target is configured.
-
-## Context & Objective
-
-This is a **read-only** audit. Detect WCAG violations statically from the
-component/template/route source, optionally corroborate them against a running
-build, and emit a structured Markdown report at
-`{{auditOutputDir}}/audit-accessibility-results.md`. Do not modify application
-code — surfacing the violations (each keyed to a WCAG success criterion) is the
-deliverable; fixing them is a separate pass.
-
-> **No conformance certification.** The lens reports findings against WCAG
-> success criteria; it does **not** assert a conformance level (A / AA / AAA)
-> for the product. "No findings in scope" is not "certified conformant".
 
 ## Boundary with `audit-ux-ui`
 
@@ -43,35 +40,26 @@ These two web lenses share a border and must not double-report:
   understand the surface? Semantic HTML, ARIA, keyboard/focus, labelled
   controls, text alternatives, and contrast against the WCAG ratio thresholds.
 - **`audit-ux-ui`** owns **design-system adherence** — the consistency
-  question: do components and tokens match the project's own design system
-  (hardcoded values that bypass a token, raw elements that should defer to a
-  design-system component, interaction/loading/error states, premium feel)?
+  question: do components and tokens match the project's own design system?
 
 Contrast is the one axis both can touch: **accessibility owns the WCAG ratio
 verdict** (4.5:1 body / 3:1 large text / 3:1 non-text), while ux-ui owns whether
 the colour came from a sanctioned token. When a contrast defect is in scope for
 both, report the WCAG failure here and leave the token-adherence note to ux-ui.
 
-## Scope (Story / plan-run mode)
+## Scope
 
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 0: Discover the frontend surface and config (run first)
 
@@ -97,8 +85,6 @@ discovered surface and config_, not a generic ideal. If **no** frontend surface
 exists in scope, say so and emit an empty report rather than inventing findings.
 
 ## Step 1: Static WCAG detection, then triage
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Run the **mechanical detectors first** (cheap, deterministic greps and the
 static a11y linters discovered in Step 0), then apply **LLM triage** to each
@@ -173,71 +159,11 @@ Corroborate static findings against the runtime results (a statically-flagged
 contrast defect confirmed by the engine graduates from provisional to
 confirmed), and surface runtime-only violations the static pass could not see.
 
-## Step 3: Output Requirements
+## Report additions
 
-Generate and save a structured Markdown report to
-`{{auditOutputDir}}/audit-accessibility-results.md`, using the exact template
-below. The report MUST include all sections, even if empty (write
-"_No findings._" rather than omitting a section).
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md), and
-> key every finding to the WCAG success criterion it violates.
-
-```markdown
-# Accessibility (WCAG) Audit report
-
-## Executive Summary
-
-[Overview of WCAG conformance health across the scope, the runtime mode's
-status (ran against `<env>` / skipped — no target configured), and the
-self-cross-check line.]
-
-## Detailed Findings
-
-[For every WCAG violation identified, use the following strict structure. Lead
-each title with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Dimension:** [e.g., Semantic Structure | ARIA | Keyboard & Focus | Forms & Labels | Media Alternatives | Contrast]
-- **Severity:** [Critical | High | Medium | Low]
-- **WCAG:** [success criterion — e.g. `1.1.1 Non-text Content (A)`]
-- **Location:** `path/to/primary-file.ext:line`
-- **Evidence:** [measured | static] [the observable — a quoted element, the
-  computed contrast ratio, the failing axe/Lighthouse audit id + median score.
-  Runtime numbers from a single run are tagged `provisional`.]
-- **Current State:** [what is implemented and why it fails the criterion]
-- **Recommendation & Rationale:** [the specific change — attribute to add,
-  element to swap, token to adjust — and the assistive-technology behaviour it
-  restores]
-- **Acceptance signal:** [the command or observable that proves this finding is
-  remediated — e.g. the axe rule now passing on the route, or a re-run of this
-  lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this a11y fix independently]`
-
-## Runtime Verification
-
-[Per-route median-of-3 accessibility scores when the runtime mode ran, or
-"_Runtime corroboration unavailable — no `qa.environments` target configured._"]
-```
-
-## Constraint
-
-This is a **read-only** audit. Provide the critique and implementation
-suggestions, but do not modify components, styles, or configuration. The
-runtime mode runs **non-mutating** measurements only and starts no arbitrary
-dev server.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does. Drop every claimed
-violation that names no concrete element and no specific WCAG success
-criterion.
+Beyond the shared skeleton, the Executive Summary states the runtime mode's
+status (ran against `<env>` / skipped — no target configured), and the report
+ends with a **Runtime Verification** section: per-route median-of-3
+accessibility scores when the runtime mode ran, or "_Runtime corroboration
+unavailable — no `qa.environments` target configured._" Drop every claimed
+violation that names no concrete element and no specific WCAG success criterion.

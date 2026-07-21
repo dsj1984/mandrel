@@ -4,18 +4,20 @@ description: Audit the persistence layer as a first-class artifact — model↔m
 
 # Data Model & Persistence Audit
 
-## Role
+You are a Data Modeler & Database Reliability Engineer analyzing the persistence
+layer — ORM model definitions, the migrations they should produce, and the seed
+data — as a first-class artifact, finding where model, migrations, and runtime
+schema silently disagree, where an assumed invariant is not enforced by a
+constraint, and where a migration is unsafe against a live database. The shared
+lens machinery — read-only constraint, scope interpretation, report envelope +
+finding-block skeleton, severity scale, self-cross-check, and execution
+strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-data-model-results.md`. Dimension values:
+`Drift | Constraint Completeness | Migration Hygiene | Type Fidelity |
+Access-Pattern Fit`; the report adds a **Low-Hanging Fruit** section.
 
-Data Modeler & Database Reliability Engineer
-
-## Context & Objective
-
-Analyze the project's persistence layer — its ORM model definitions, the schema
-migrations those definitions are supposed to produce, and the seed data that
-populates them — as a first-class artifact. Your goal is to find where the
-model, the migrations, and the runtime schema silently disagree, where an
-invariant the application assumes is not actually enforced by a constraint, and
-where a migration is unsafe to run against a live database.
+## Applicability
 
 This lens is **only applicable to a project that has a persistence layer.** A
 repository with no ORM dependency, no migrations directory, and no tracked
@@ -28,47 +30,28 @@ by `target: "data-model"` in
 automatically in `/deliver` and plan-run modes; in a manual invocation you MUST
 make the same determination yourself before reading anything else.
 
-## Scope (Story / plan-run mode)
+## Scope
 
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation. In
+scoped mode, restrict analysis to the changed models and migrations plus their
+**direct dependents** — a model related to a changed model, a migration ordered
+after a changed one. A Story that adds a destructive migration is the canonical
+routed case: the change set names the migration and the models it rewrites, and
+this lens inspects exactly that surface.
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
 
-## Execution strategy (dual-path)
-
-This lens runs along one of two execution paths (orchestrated dynamic-workflow
-or sequential single-pass). Both emit the **identical** Step 3 report contract;
-downstream consumers (`audit-to-stories`) are agnostic to which path produced
-it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
-selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
-there as this lens's name.
-
-In scoped mode, restrict analysis to the changed models and migrations plus
-their **direct dependents** — a model related to a changed model, a migration
-ordered after a changed one. A Story that adds a destructive migration is the
-canonical routed case: the change set names the migration and the models it
-rewrites, and this lens inspects exactly that surface.
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 1: Applicability & Persistence-Surface Discovery
 
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
-
-First confirm the project **has a persistence layer** (see Context above). If it
+First confirm the project **has a persistence layer** (see Applicability). If it
 does not, stop and emit the not-applicable report. If it does, discover the
 persistence surface, preferring **tool-first** detection over hand-reading where
 the consumer ships the tooling:
@@ -118,51 +101,10 @@ Evaluate the persistence layer along these five dimensions:
    force N+1 access, and soft-delete rows that leak through default queries
    because no default scope excludes them.
 
-## Step 3: Output Requirements
+## Not-applicable report
 
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-data-model-results.md`, using the exact template
-below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-When the project **has a persistence layer**, use the findings template:
-
-```markdown
-# Data Model & Persistence Audit Report
-
-## Executive Summary
-
-[Overview of the persistence layer's health, plus the `kept <k> / dropped <d>`
-self-cross-check counts from the mandatory step below.]
-
-## Detailed Findings
-
-[For every issue identified, use the following strict structure. Lead each
-title with the primary file the issue lives in:]
-
-### `path/to/migration-or-model.ext` — [Short title of the issue]
-
-- **Dimension:** [e.g., Drift | Constraint Completeness | Migration Hygiene | Type Fidelity | Access-Pattern Fit]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/migration-or-model.ext:line`
-- **Current State:** [Technical explanation of the drift, missing constraint,
-  or unsafe migration step — cite the model definition and the migration it
-  disagrees with]
-- **Recommendation & Rationale:** [The specific corrective migration or
-  constraint, and the failure it prevents]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `prisma migrate status` clean, a constraint present in the schema, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this fix independently]`
-
-## Low-Hanging Fruit
-
-- [List up to 3 low-risk schema/constraint fixes that provide immediate safety gains.]
-```
-
-When the project has **no persistence layer**, emit the explicit
-not-applicable report instead — never empty findings — and stop:
+When the project has **no persistence layer**, emit this explicit report instead
+of empty findings — and stop:
 
 ```text
 # Data Model & Persistence Audit Report
@@ -178,21 +120,11 @@ data-model lens has nothing to inspect and was skipped.
 _None — lens not applicable._
 ```
 
-## Constraint
+## Constraint (lens-specific carve-out)
 
-This is a **read-only** audit over repo-observable state only — schema files,
+This lens is read-only over **repo-observable state only** — schema files,
 migrations, ORM config, and read-only ORM drift/status commands. It MUST NOT
 connect to, read from, or mutate a production database; it MUST NOT run a
 migration or a destructive ORM command. API-contract/serialization coverage is
 out of scope (deferred `audit-contract-compat` territory), and runtime query
 profiling belongs to `audit-performance`, which owns measured behavior.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

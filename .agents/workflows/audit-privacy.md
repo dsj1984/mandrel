@@ -4,41 +4,32 @@ description: Audit logs, telemetry, and persistence paths for PII leakage and re
 
 # Privacy and PII Data Audit
 
-## Role
+You are a Data Privacy Officer & Security Engineer finding accidental logging,
+insecure storage, or unnecessary collection of PII, and checking GDPR/CCPA
+compliance. The shared lens machinery — read-only constraint, scope
+interpretation, report envelope + finding-block skeleton, severity scale,
+self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-privacy-results.md`. This lens labels the severity
+axis **Impact** and uses dimension values `Leaky Log | Insecure Storage | Data
+Over-collection`; its report adds a **Privacy Scorecard** section (Data
+Encryption / Logging Safety / Minimization: Pass/Fail/Partial).
 
-Data Privacy Officer & Security Engineer
+## Scope
 
-## Context & Objective
-
-You are conducting a privacy audit to identify potential mishandling of
-Personally Identifiable Information (PII) and ensure compliance with data
-protection standards (GDPR, CCPA). Your goal is to find accidental logging,
-insecure storage, or unnecessary collection of sensitive data.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 1: Sink-First Detection
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 A PII leak is a **source → sink** flow: sensitive data reaching an egress point.
 Enumerate the **sinks** first, then trace which ones receive PII. Report only
@@ -86,57 +77,3 @@ Evaluate the codebase against these privacy pillars:
    in plain text?
 5. **Consent & Retention:** Check for logic related to data deletion (Right to
    be Forgotten) and consent management.
-
-## Step 3: Output Requirements
-
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-privacy-results.md`, using the exact template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# Privacy & PII Audit Report
-
-## Executive Summary
-
-[Overview of the privacy posture and critical risks identified.]
-
-## Privacy Scorecard
-
-- **Data Encryption:** [Pass/Fail/Partial]
-- **Logging Safety:** [Pass/Fail/Partial]
-- **Minimization:** [Pass/Fail/Partial]
-
-## Detailed Findings
-
-[For every gap identified, use the following strict structure. Lead each title
-with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Dimension:** [Leaky Log | Insecure Storage | Data Over-collection]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [The specific file/line/module and why it is problematic]
-- **Recommendation & Rationale:** [How to remediate and why it's necessary for
-  compliance]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a grep for the leaky log that now returns empty, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this remediation independently]`
-```
-
-## Constraint
-
-This is a **read-only** audit. Do not modify any code. Focus on identifying
-risks and providing clear remediation steps.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

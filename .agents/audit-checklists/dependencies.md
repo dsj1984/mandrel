@@ -21,3 +21,10 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Provenance.
 - [ ] New install scripts.
 - [ ] Typosquat near-misses.
+- [ ] Outdated Packages
+- [ ] Unused Dependencies
+- [ ] Vulnerabilities
+- [ ] Node-engine drift
+- [ ] Dev-only advisories (aggregate)
+- [ ] Upgrade Batches
+- [ ] Recommended Removals/Replacements

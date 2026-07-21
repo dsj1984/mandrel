@@ -21,3 +21,5 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Medium
 - [ ] Low
 - [ ] Automated Architecture Guardrails
+- [ ] Triage Summary
+- [ ] Architecture Guardrail Coverage
