@@ -291,9 +291,12 @@ describe('AC5 — legacy (epicId, parse-index) marker recognition', () => {
     const spawnImpl = makeSpawnStub({
       git: () => ({ code: 0 }),
       ghSearch: (args) => {
-        const marker = args[2];
-        // Content marker not found; the legacy `-finding-<idx>` marker is.
-        if (/-finding-\d+ -->/.test(marker)) {
+        // The probe now queries the delimiter-stripped marker text
+        // (Story #4657), so the query ends with `-finding-<idx>` and carries
+        // no trailing `-->`. Content marker not found; the legacy
+        // `-finding-<idx>` marker is.
+        const query = args[2];
+        if (/-finding-\d+$/.test(query)) {
           return { stdout: '[{"number":88}]', code: 0 };
         }
         return { stdout: '[]', code: 0 };
