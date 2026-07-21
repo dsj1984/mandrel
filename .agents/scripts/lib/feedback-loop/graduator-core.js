@@ -288,7 +288,7 @@ export async function probePathStatus({
  * @param {string} marker
  * @returns {string}
  */
-export function normalizeMarkerQuery(marker) {
+function normalizeMarkerQuery(marker) {
   if (typeof marker !== 'string') return '';
   return marker.replaceAll('<!--', '').replaceAll('-->', '').trim();
 }
@@ -361,7 +361,7 @@ export async function probeMarkerExists({
  * @param {number} [opts.timeoutMs]
  * @returns {Promise<boolean>}
  */
-export async function confirmMarkerFiled({
+async function confirmMarkerFiled({
   marker,
   owner,
   repo,

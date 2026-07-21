@@ -17,11 +17,9 @@ import { EventEmitter } from 'node:events';
 import { describe, it } from 'node:test';
 
 import {
-  confirmMarkerFiled,
   createFollowUpIssue,
   graduate,
   makeIsAutoFileEnabled,
-  normalizeMarkerQuery,
   probeMarkerExists,
   probePathStatus,
   runChild,
@@ -339,23 +337,12 @@ describe('graduate (parametrized walk)', () => {
 /**
  * Story #4657 — the idempotency probe repair. The wrapped `<!-- … -->`
  * marker form never matched the search index; these pin the delimiter
- * normalization, the strong-read confirmation on the would-file path, and
- * the preserved degrade-toward-filing posture.
+ * normalization (via the exported `probeMarkerExists` seam), the strong-read
+ * confirmation on the would-file path, and the preserved degrade-toward-
+ * filing posture (via the exported `graduate` seam). The delimiter stripper
+ * and the strong-read helper are internal to the module and exercised
+ * through those two public seams rather than imported directly.
  */
-describe('normalizeMarkerQuery (Story #4657)', () => {
-  it('strips the HTML-comment delimiters and trims', () => {
-    assert.equal(
-      normalizeMarkerQuery('<!-- retro-proposal-followup: epic-1-abc -->'),
-      'retro-proposal-followup: epic-1-abc',
-    );
-  });
-
-  it('is a no-op string for a non-string input', () => {
-    assert.equal(normalizeMarkerQuery(undefined), '');
-    assert.equal(normalizeMarkerQuery(null), '');
-  });
-});
-
 describe('probeMarkerExists — query normalization (AC-1)', () => {
   it('never sends comment delimiters to the search index', async () => {
     const spawnImpl = makeSpawnStub({
@@ -380,52 +367,6 @@ describe('probeMarkerExists — query normalization (AC-1)', () => {
     assert.ok(
       searchCall.args.includes('retro-proposal-followup: epic-1-abc'),
       'the undelimited marker text is the query',
-    );
-  });
-});
-
-describe('confirmMarkerFiled — strong read (Story #4657)', () => {
-  it('matches the marker as a substring of a returned body and scopes by label', async () => {
-    const marker = '<!-- audit-results-followup: epic-1-abc -->';
-    const spawnImpl = makeSpawnStub({
-      ghList: () => ({
-        stdout: JSON.stringify([{ number: 9, body: `head\n${marker}\ntail` }]),
-        code: 0,
-      }),
-    });
-    const found = await confirmMarkerFiled({
-      marker,
-      owner: 'o',
-      repo: 'r',
-      labels: ['meta::audit-finding', 'audit-results::low'],
-      ghPath: 'gh',
-      spawnImpl,
-    });
-    assert.equal(found, true);
-    const listCall = spawnImpl.calls.find(
-      (c) => c.args[0] === 'issue' && c.args[1] === 'list',
-    );
-    // The list is strongly consistent (--state all) and label-scoped.
-    assert.ok(listCall.args.includes('--state'));
-    assert.ok(listCall.args.includes('all'));
-    assert.ok(listCall.args.includes('--label'));
-    assert.ok(listCall.args.includes('meta::audit-finding'));
-  });
-
-  it('degrades to false (proceed to file) on a spawn error', async () => {
-    const spawnImpl = () => {
-      throw new Error('gh missing');
-    };
-    assert.equal(
-      await confirmMarkerFiled({
-        marker: 'm',
-        owner: 'o',
-        repo: 'r',
-        labels: [],
-        ghPath: 'gh',
-        spawnImpl,
-      }),
-      false,
     );
   });
 });
@@ -527,6 +468,18 @@ describe('graduate — dedup dispatch (Story #4657)', () => {
     assert.ok(
       !spawnImpl.calls.some((c) => c.args[1] === 'create'),
       'createFollowUpIssue was never spawned',
+    );
+    // The strong read is a strongly-consistent (`--state all`), label-scoped
+    // `gh issue list` — scoped by the labels the follow-up would carry.
+    const listCall = spawnImpl.calls.find(
+      (c) => c.args[0] === 'issue' && c.args[1] === 'list',
+    );
+    assert.ok(listCall, 'a gh issue list strong read ran');
+    assert.ok(
+      listCall.args.includes('--state') && listCall.args.includes('all'),
+    );
+    assert.ok(
+      listCall.args.includes('--label') && listCall.args.includes('lbl'),
     );
   });
 
