@@ -3,17 +3,11 @@
 **Read this when** a task engages one of the sections below and the Policy
 Capsule in [`SKILL.md`](SKILL.md) does not settle it on its own. The capsule
 is the contract; this file is the reference material behind it. Nothing here
-relaxes a capsule MUST, and nothing here is required reading merely because
-the skill is active.
-
-## When to Use
-
-- Building anything that accepts user input
-- Implementing authentication or authorization
-- Storing or transmitting sensitive data
-- Integrating with external APIs or services
-- Adding file uploads, webhooks, or callbacks
-- Handling payment or PII data
+relaxes a capsule MUST, and the generic *how* of each MUST (parameterize
+queries, hash passwords, encode output, verify ownership, set headers,
+restrict CORS, validate at the boundary) is stated once in the SSOT rule,
+[`security-baseline.md`](../../../rules/security-baseline.md) — not duplicated
+here.
 
 ## Security Surfacing, Not Runtime Pause
 
@@ -40,185 +34,17 @@ unrecoverable blockers (missing prerequisite, ambiguous spec a sub-agent
 cannot resolve), not for "this change is sensitive." Sensitive changes
 ship through the documentation path above.
 
-## OWASP Top 10 Prevention Patterns
+## Validation-Error Responses
 
-The patterns below show **how** to satisfy the MUSTs in
-[`security-baseline.md`](../../../rules/security-baseline.md). The MUSTs
-themselves (parameterize queries, hash passwords, encode output, verify
-ownership, set headers, restrict CORS, exclude sensitive fields) are listed
-in the rule.
-
-### 1. Injection (SQL, NoSQL, OS Command)
-
-See [security-baseline § Output & Rendering](../../../rules/security-baseline.md#output--rendering).
-
-```typescript
-// BAD: SQL injection via string concatenation
-const query = `SELECT * FROM users WHERE id = '${userId}'`;
-
-// GOOD: Parameterized query
-const user = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
-
-// GOOD: ORM with parameterized input
-const user = await prisma.user.findUnique({ where: { id: userId } });
-```
-
-### 2. Broken Authentication
-
-See [security-baseline § Authentication](../../../rules/security-baseline.md#authentication).
-
-```typescript
-import { hash, compare } from 'bcrypt';
-
-const SALT_ROUNDS = 12;
-const hashedPassword = await hash(plaintext, SALT_ROUNDS);
-const isValid = await compare(plaintext, hashedPassword);
-
-// Session management
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET, // From environment, not code
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000,
-    },
-  }),
-);
-```
-
-### 3. Cross-Site Scripting (XSS)
-
-See [security-baseline § Output & Rendering](../../../rules/security-baseline.md#output--rendering).
-
-```typescript
-// BAD: Rendering user input as HTML
-element.innerHTML = userInput;
-
-// GOOD: Use framework auto-escaping (React does this by default)
-return <div>{userInput}</div>;
-
-// If you MUST render HTML, sanitize first
-import DOMPurify from 'dompurify';
-const clean = DOMPurify.sanitize(userInput);
-```
-
-### 4. Broken Access Control
-
-See [security-baseline § Authorization](../../../rules/security-baseline.md#authorization).
-
-```typescript
-app.patch('/api/tasks/:id', authenticate, async (req, res) => {
-  const task = await taskService.findById(req.params.id);
-
-  if (task.ownerId !== req.user.id) {
-    return res.status(403).json({
-      error: {
-        code: 'FORBIDDEN',
-        message: 'Not authorized to modify this task',
-      },
-    });
-  }
-
-  const updated = await taskService.update(req.params.id, req.body);
-  return res.json(updated);
-});
-```
-
-### 5. Security Misconfiguration
-
-See [security-baseline § Transport & Headers](../../../rules/security-baseline.md#transport--headers).
-
-```typescript
-import helmet from 'helmet';
-app.use(helmet());
-
-app.use(
-  helmet.contentSecurityPolicy({
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-      connectSrc: ["'self'"],
-    },
-  }),
-);
-
-app.use(
-  cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
-    credentials: true,
-  }),
-);
-```
-
-### 6. Sensitive Data Exposure
-
-See [security-baseline § Output & Rendering](../../../rules/security-baseline.md#output--rendering)
-and [§ Secrets Management](../../../rules/security-baseline.md#secrets-management).
-
-```typescript
-function sanitizeUser(user: UserRecord): PublicUser {
-  const { passwordHash, resetToken, ...publicFields } = user;
-  return publicFields;
-}
-
-const API_KEY = process.env.STRIPE_API_KEY;
-if (!API_KEY) throw new Error('STRIPE_API_KEY not configured');
-```
-
-## Input Validation Patterns
-
-See [security-baseline § Input Validation](../../../rules/security-baseline.md#input-validation).
-
-### Schema Validation at Boundaries
-
-```typescript
-import { z } from 'zod';
-
-const CreateTaskSchema = z.object({
-  title: z.string().min(1).max(200).trim(),
-  description: z.string().max(2000).optional(),
-  priority: z.enum(['low', 'medium', 'high']).default('medium'),
-  dueDate: z.string().datetime().optional(),
-});
-
-app.post('/api/tasks', async (req, res) => {
-  const result = CreateTaskSchema.safeParse(req.body);
-  if (!result.success) {
-    return res.status(422).json({
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: 'Invalid input',
-        details: result.error.flatten(),
-      },
-    });
-  }
-  const task = await taskService.create(result.data);
-  return res.status(201).json(task);
-});
-```
-
-### File Upload Safety
-
-```typescript
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-
-function validateUpload(file: UploadedFile) {
-  if (!ALLOWED_TYPES.includes(file.mimetype)) {
-    throw new ValidationError('File type not allowed');
-  }
-  if (file.size > MAX_SIZE) {
-    throw new ValidationError('File too large (max 5MB)');
-  }
-  // Don't trust the file extension — check magic bytes if critical
-}
-```
+The status code and response envelope for a failed input validation are owned
+by the wire-format SSOT, not by this skill: validation failures MUST return
+**400 Bad Request** with `error.code = "VALIDATION_ERROR"` in the canonical
+envelope. See
+[`api-conventions.md` § Validation Status](../../../rules/api-conventions.md#validation-status)
+and [§ Response Envelope](../../../rules/api-conventions.md#response-envelope).
+Do not hand-roll a divergent status (e.g. 422) or envelope shape in
+security-relevant handlers — cite the rule and reuse its shape, keeping the
+security skill and the api skill in agreement.
 
 ## Triaging npm audit Results
 
@@ -249,57 +75,6 @@ npm audit reports a vulnerability
   server-side vulnerability in a client-only app)?
 
 When you defer a fix, document the reason and set a review date.
-
-## Rate Limiting
-
-```typescript
-import rateLimit from 'express-rate-limit';
-
-// General API rate limit
-app.use(
-  '/api/',
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
-  }),
-);
-
-// Stricter limit for auth endpoints (the rule MUSTs rate-limiting on auth)
-app.use(
-  '/api/auth/',
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-  }),
-);
-```
-
-## Secrets Management Layout
-
-See [security-baseline § Secrets Management](../../../rules/security-baseline.md#secrets-management).
-
-```text
-.env files:
-  ├── .env.example  → Committed (template with placeholder values)
-  ├── .env          → NOT committed (contains real secrets)
-  └── .env.local    → NOT committed (local overrides)
-
-.gitignore must include:
-  .env
-  .env.local
-  .env.*.local
-  *.pem
-  *.key
-```
-
-**Always check before committing:**
-
-```bash
-# Check for accidentally staged secrets
-git diff --cached | grep -i "password\|secret\|api_key\|token"
-```
 
 ## Security Review Checklist
 
@@ -340,36 +115,3 @@ item maps to a section in
 - [ ] Dependencies audited for vulnerabilities
 - [ ] Error messages don't expose internals
 ```
-
-## Common Rationalizations
-
-| Rationalization                                     | Reality                                                                         |
-| --------------------------------------------------- | ------------------------------------------------------------------------------- |
-| "This is an internal tool, security doesn't matter" | Internal tools get compromised. Attackers target the weakest link.              |
-| "We'll add security later"                          | Security retrofitting is 10x harder than building it in. Add it now.            |
-| "No one would try to exploit this"                  | Automated scanners will find it. Security by obscurity is not security.         |
-| "The framework handles security"                    | Frameworks provide tools, not guarantees. You still need to use them correctly. |
-| "It's just a prototype"                             | Prototypes become production. Security habits from day one.                     |
-
-## Red Flags
-
-- User input passed directly to database queries, shell commands, or HTML
-  rendering
-- Secrets in source code or commit history
-- API endpoints without authentication or authorization checks
-- Missing CORS configuration or wildcard (`*`) origins
-- No rate limiting on authentication endpoints
-- Stack traces or internal errors exposed to users
-- Dependencies with known critical vulnerabilities
-
-## Verification
-
-After implementing security-relevant code, confirm against the rule:
-
-- [ ] `npm audit` shows no critical or high vulnerabilities
-- [ ] No secrets in source code or git history
-- [ ] All user input validated at system boundaries
-- [ ] Authentication and authorization checked on every protected endpoint
-- [ ] Security headers present in response (check with browser DevTools)
-- [ ] Error responses don't expose internal details
-- [ ] Rate limiting active on auth endpoints
