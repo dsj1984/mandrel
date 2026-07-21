@@ -26,6 +26,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   emitBlockRecoveredFriction,
   emitCloseRecoveredFriction,
+  emitRecoveredFrictionMarker,
   emitRuntimeFriction,
   emitTerminalFriction,
   isRecoveredSignal,
@@ -86,7 +87,11 @@ describe('terminal-envelope friction policy', () => {
     assert.match(row.details.reason, /lint gate exploded/);
   });
 
-  it('flags a pending terminal whose wait budget was exhausted (the parked worker)', async () => {
+  it('flags a pending terminal whose CUMULATIVE budget is exhausted (the parked worker)', async () => {
+    // AC-4 — genuine exhaustion (cumulativeSeconds >= maxBudgetSeconds) still
+    // routes, so the residual case the source-side guard cannot suppress (a
+    // merge that spends its whole budget and lands on a later resume) stays
+    // observable.
     const row = await emitAndRead({
       storyId: 8,
       status: 'pending',
@@ -95,7 +100,7 @@ describe('terminal-envelope friction policy', () => {
       waitBudget: {
         maxWaitSeconds: 600,
         waitedSeconds: 600,
-        cumulativeSeconds: 1800,
+        cumulativeSeconds: 3600,
         maxBudgetSeconds: 3600,
       },
     });
@@ -104,7 +109,57 @@ describe('terminal-envelope friction policy', () => {
       RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED,
     );
     assert.equal(row.details.prNumber, 21);
-    assert.equal(row.details.cumulativeSeconds, 1800);
+    assert.equal(row.details.cumulativeSeconds, 3600);
+  });
+
+  it('does NOT flag a pending window rollover still under cumulative budget', async () => {
+    // AC-3 — the routine long-CI rollover the category name wrongly claimed.
+    // The `pending` return is reached at the per-invocation `maxWaitSeconds`
+    // bound with `cumulativeSeconds` still under `maxBudgetSeconds`, so it is
+    // NOT exhaustion and must emit nothing.
+    assert.equal(
+      await emitAndRead({
+        storyId: 12,
+        status: 'pending',
+        phase: 'confirm-merge',
+        pr: { number: 21, checksStatus: 'PENDING' },
+        waitBudget: {
+          maxWaitSeconds: 600,
+          waitedSeconds: 600,
+          cumulativeSeconds: 1800,
+          maxBudgetSeconds: 3600,
+        },
+      }),
+      null,
+    );
+  });
+
+  it('does NOT flag a pending whose budget fields cannot prove exhaustion', async () => {
+    // A missing/non-numeric cumulativeSeconds or maxBudgetSeconds means
+    // exhaustion is unproven → emit nothing (never a speculative record).
+    assert.equal(
+      await emitAndRead({
+        storyId: 13,
+        status: 'pending',
+        phase: 'confirm-merge',
+        pr: { number: 21, checksStatus: 'PENDING' },
+        waitBudget: { maxWaitSeconds: 600, waitedSeconds: 600 },
+      }),
+      null,
+    );
+    assert.equal(
+      await emitAndRead({
+        storyId: 14,
+        status: 'pending',
+        phase: 'confirm-merge',
+        pr: { number: 21, checksStatus: 'PENDING' },
+        waitBudget: {
+          cumulativeSeconds: 'nonsense',
+          maxBudgetSeconds: 3600,
+        },
+      }),
+      null,
+    );
   });
 
   it('does NOT flag a --no-wait-merge pending (operator owns the land; nothing is broken)', async () => {
@@ -384,6 +439,84 @@ describe('close-recovery friction (Story #4649)', () => {
     assert.equal(filed.length, 1, 'no land, no netting — it still routes');
     assert.equal(filed[0].category, 'close-failed');
     assert.equal(filed[0].occurrences, 2);
+  });
+});
+
+describe('emitRecoveredFrictionMarker (generalized, Story #4654)', () => {
+  const MWE = RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED;
+  const BLOCKED = RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED;
+
+  /** Put one un-recovered record in `category` on the Story's stream. */
+  const seed = (storyId, category) =>
+    emitRuntimeFriction({
+      storyId,
+      category,
+      tool: 'test',
+      details: { reason: 'boom' },
+      config,
+    });
+
+  it('marks any category conditionally — a seeded merge-wait-exhausted nets out', async () => {
+    await seed(5401, MWE);
+    const ok = await emitRecoveredFrictionMarker({
+      storyId: 5401,
+      category: MWE,
+      config,
+    });
+    assert.equal(ok, true);
+    const rows = await readStorySignals(5401);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].category, MWE);
+    assert.equal(rows[1].details.recovered, true);
+  });
+
+  it('writes nothing when the category never fired (keeps the bucket routable)', async () => {
+    // The conditional probe is what prevents a spurious marker from
+    // suppressing a category for a Story that never hit the incident.
+    const ok = await emitRecoveredFrictionMarker({
+      storyId: 5402,
+      category: BLOCKED,
+      config,
+    });
+    assert.equal(ok, false);
+    assert.deepEqual(await readStorySignals(5402), []);
+  });
+
+  it('does not write a second marker when one is already present (idempotent)', async () => {
+    await seed(5403, BLOCKED);
+    assert.equal(
+      await emitRecoveredFrictionMarker({
+        storyId: 5403,
+        category: BLOCKED,
+        config,
+      }),
+      true,
+    );
+    assert.equal(
+      await emitRecoveredFrictionMarker({
+        storyId: 5403,
+        category: BLOCKED,
+        config,
+      }),
+      false,
+    );
+    assert.equal((await readStorySignals(5403)).length, 2);
+  });
+
+  it('refuses an unusable story id or category rather than throwing', async () => {
+    assert.equal(
+      await emitRecoveredFrictionMarker({ storyId: 0, category: MWE, config }),
+      false,
+    );
+    assert.equal(
+      await emitRecoveredFrictionMarker({
+        storyId: 5404,
+        category: '  ',
+        config,
+      }),
+      false,
+    );
+    assert.equal(await emitRecoveredFrictionMarker(), false);
   });
 });
 

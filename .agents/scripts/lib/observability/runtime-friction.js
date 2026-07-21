@@ -202,16 +202,20 @@ export async function emitBlockRecoveredFriction({
 }
 
 /**
- * Emit the recovery counterpart of a `close-failed` record when a Story's
- * close ultimately lands (Story #4649).
+ * Emit the recovery counterpart of an earlier friction record in `category`
+ * when a Story ultimately lands, netting a transient incident out of the
+ * retro (generalized from the `close-failed`-only emitter of Story #4649 by
+ * Story #4654).
  *
- * A close that fails once — CI/lease contention, a transient GitHub fault —
- * and succeeds on a later attempt still fired a `close-failed` record at the
- * failed terminal, which the composer counts exactly like a close that never
- * recovered. This is the `close-failed` analogue of
- * {@link emitBlockRecoveredFriction}: same `recovered: true` discriminator,
- * same category (a distinct bucket would itself aggregate into a routable
- * proposal, re-introducing the noise).
+ * An incident that fires once — a transient block, a CI/lease/GitHub fault at
+ * close, a merge wait that outran one window — but is provably resolved by the
+ * time the Story lands still left an un-netted record on the stream, which the
+ * composer counts exactly like an incident that never recovered. This appends
+ * the companion record carrying the `recovered: true` discriminator in the
+ * **same** `category` (a distinct bucket would itself aggregate into a routable
+ * proposal, re-introducing the noise), so `netOutRecoveredIncidents` /
+ * `deriveUnresolvedBlockedEvents` in `retro-proposals.js` can cancel the whole
+ * `(category, storyId)` incident out.
  *
  * **Why this is not emitted from `frictionForTerminal`.** A `landed` terminal
  * envelope is emitted at the very END of close — *after* the post-land tail
@@ -220,39 +224,54 @@ export async function emitBlockRecoveredFriction({
  * produced it. So the emit hangs off `runPostLandTail`, which is the single
  * shared land point (reached from both the in-close land and the standalone
  * `single-story-confirm-merge.js` resume) and runs BEFORE follow-up capture.
+ * The tail runs *because* the PR merged, so every incident on the stream is
+ * provably resolved at that point.
  *
- * **Conditional on an actual failure.** The marker is appended only when the
- * Story's stream already carries an un-recovered `close-failed`. Emitting
- * unconditionally on every land would write a `close-failed` row for Stories
- * whose close never failed — a category-mislabelled record — and, because the
- * netting is per `(category, storyId)` over the cumulative stream, that
- * spurious marker would suppress the Story's `close-failed` bucket outright,
- * making the category un-routable at story scope for a Story that never had
- * a close failure at all.
+ * **Conditional on an actual incident.** The marker is appended only when the
+ * Story's stream already carries an un-recovered record in `category`. Emitting
+ * unconditionally on every land would write a category-mislabelled row for
+ * Stories that never had the incident — and, because the netting is per
+ * `(category, storyId)` over the cumulative stream, that spurious marker would
+ * suppress the Story's whole bucket for `category`, making it un-routable at
+ * story scope for a Story that never hit the incident at all.
  *
  * What this guard does NOT do is bound the netting once a *legitimate* marker
  * exists. The netting inherits the Story #4622 coarsening — per
  * `(category, storyId)` across the whole stream, not 1:1 pairing — so a
- * later, genuinely un-landed `close-failed` for a Story that already
+ * later, genuinely un-landed record in `category` for a Story that already
  * recovered once is still netted away, and does not even reach `discarded`.
  * Reaching that needs a re-close after a land (a confirm-merge resume, or a
  * close after a revert). Deliberate, inherited, and called out here rather
  * than papered over: an aggregate is a routing heuristic, not an incident
  * ledger.
  *
- * Best-effort; never throws. A read failure yields no marker (the failure
+ * Best-effort; never throws. A read failure yields no marker (the incident
  * stays counted) rather than a speculative write.
  *
  * @param {object} args
  * @param {number} args.storyId
+ * @param {string} args.category One of {@link RUNTIME_FRICTION_CATEGORIES}.
+ * @param {string} [args.tool]   Emitting surface (default `runPostLandTail`).
  * @param {object} [args.config]
  * @returns {Promise<boolean>} true when a record was appended.
  */
-export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
+export async function emitRecoveredFrictionMarker({
+  storyId,
+  category,
+  tool,
+  config,
+} = {}) {
   const sid = positiveIntOrNull(storyId);
   if (sid === null) return false;
+  if (typeof category !== 'string' || category.trim() === '') {
+    Logger.warn(
+      '[runtime-friction] refusing to emit a category-less recovery marker',
+    );
+    return false;
+  }
+  const cat = category.trim();
 
-  let failed = false;
+  let incident = false;
   let recovered = false;
   try {
     await forEachLine(
@@ -260,30 +279,48 @@ export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
       sid,
       (parsed) => {
         if (!parsed || typeof parsed !== 'object') return;
-        if (parsed.category !== RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED) {
-          return;
-        }
+        if (parsed.category !== cat) return;
         if (isRecoveredSignal(parsed)) recovered = true;
-        else failed = true;
+        else incident = true;
       },
       config,
     );
   } catch (err) {
     Logger.warn(
-      `[runtime-friction] close-recovery probe failed for Story #${sid}: ${
+      `[runtime-friction] ${cat} recovery probe failed for Story #${sid}: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );
     return false;
   }
   // Nothing to cancel, or already cancelled — a second marker would be noise.
-  if (!failed || recovered) return false;
+  if (!incident || recovered) return false;
 
   return emitRuntimeFriction({
     storyId: sid,
-    category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
-    tool: 'runPostLandTail',
+    category: cat,
+    tool: tool || 'runPostLandTail',
     details: { recovered: true },
+    config,
+  });
+}
+
+/**
+ * Emit the recovery counterpart of a `close-failed` record when a Story's
+ * close ultimately lands (Story #4649). Thin wrapper over
+ * {@link emitRecoveredFrictionMarker} bound to the `close-failed` category —
+ * retained as its own export so the post-land seam that injects it stays
+ * stable.
+ *
+ * @param {object} args
+ * @param {number} args.storyId
+ * @param {object} [args.config]
+ * @returns {Promise<boolean>} true when a record was appended.
+ */
+export async function emitCloseRecoveredFriction({ storyId, config } = {}) {
+  return emitRecoveredFrictionMarker({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.CLOSE_FAILED,
     config,
   });
 }
@@ -368,12 +405,21 @@ export function isRecoveredSignal(signal) {
  *     would count the same block twice.
  *   - `landed`   → null. Nothing happened worth a retro.
  *   - `failed`   → friction. A close that ended non-zero.
- *   - `pending`  → friction **only when a `waitBudget` was exhausted**. That
- *     is the parked worker from the report: a bounded wait expired with the
- *     PR in flight and a human must resume it. A `pending` with **no**
- *     `waitBudget` is the `--no-wait-merge` / operator-merge path, where the
- *     human deliberately owns the land and nothing is broken — flagging it
- *     would train operators to ignore the channel.
+ *   - `pending`  → friction **only when the cumulative wait budget is provably
+ *     exhausted** (`waitBudget.cumulativeSeconds >= waitBudget.maxBudgetSeconds`).
+ *     A `pending` return is reached at the per-invocation `maxWaitSeconds`
+ *     bound (`phases/confirm-merge.js`); genuine cumulative exhaustion returns
+ *     earlier as a **blocked** terminal via `blockOnUnlanded` (Story #4654).
+ *     So a routine long-CI window rollover under budget is NOT exhaustion and
+ *     emits nothing — its category name would otherwise assert an exhaustion
+ *     that did not occur. Only the residual case the merge-wait guard cannot
+ *     suppress — a merge that genuinely spends its whole budget and lands on a
+ *     later resume — reaches here. A missing or non-numeric `cumulativeSeconds`
+ *     / `maxBudgetSeconds` means exhaustion cannot be proven → emit nothing. A
+ *     `pending` with **no** `waitBudget` is the `--no-wait-merge` /
+ *     operator-merge path, where the human deliberately owns the land and
+ *     nothing is broken — flagging it would train operators to ignore the
+ *     channel.
  *
  * Deliberately **not exported**: it is this module's internal policy, and
  * `emitTerminalFriction` is the contract callers (and tests) exercise. An
@@ -398,6 +444,21 @@ function frictionForTerminal(envelope) {
   }
 
   if (status === 'pending' && waitBudget) {
+    // Only a PROVEN cumulative-budget exhaustion is friction. The `pending`
+    // return is reached at the per-invocation `maxWaitSeconds` bound, not at
+    // the cumulative `maxBudgetSeconds` (that returns a blocked terminal
+    // earlier), so a routine window rollover carries `cumulativeSeconds`
+    // still under budget — emit nothing. A missing/non-numeric field means
+    // exhaustion cannot be proven, which is likewise not a record.
+    const cumulativeSeconds = Number(waitBudget.cumulativeSeconds);
+    const maxBudgetSeconds = Number(waitBudget.maxBudgetSeconds);
+    if (
+      !Number.isFinite(cumulativeSeconds) ||
+      !Number.isFinite(maxBudgetSeconds) ||
+      cumulativeSeconds < maxBudgetSeconds
+    ) {
+      return null;
+    }
     return {
       category: RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED,
       details: {
