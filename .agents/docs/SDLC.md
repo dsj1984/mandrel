@@ -26,91 +26,38 @@ ADR 20260512-coupling-stance in [`../docs/decisions.md`](../../docs/decisions.md
 
 From zero to shipped:
 
-1. **Plan the work.** Run [`/plan`](../workflows/plan.md) in your agentic
-   IDE. The framework authors **one Story by default** (folded Tech Spec
-   in `## Spec`), with N>1 only under the default-single split policy.
-
-   Three operator modes (the **only** accepted entries):
-   - `/plan --seed "<text>"` — ideate from chat text.
-   - `/plan --seed-file <path>` — author from on-disk notes / a plan seed
-     (this is the [`/audit-to-stories`](../workflows/audit-to-stories.md)
-     handoff seam via `--emit-plan-seed`).
-   - `/plan --tickets 123[,456…]` — analyze existing issue(s) into proper
-     Stories (prefer an N=1 rewrite).
-
-   `/plan` is a **single path** — there is no Epic/Story router, no
-   scope-triage `epic|story` verdict, and no `deliveryShape`. All GitHub
-   reads happen in `plan-context.js`, the issue-creating writes in
-   `plan-persist.js`, and two HITL gates bracket the authoring middle.
-   Duplicate search targets
-   open **Stories** (`type::story`), never Epics.
-
-   1. **Interrogate** — `plan-context.js` emits the single authoring
-      envelope (open-Story duplicate candidates, codebase snapshot, BDD
-      probe, risk heuristics, `systemPrompts.story`). Duplicate review
-      folds into **gate #1**.
-   2. **Author** — write `stories.json` (**one Story by default**) with a
-      folded Tech Spec in `## Spec` / `## Slicing`. There is no risk artifact
-      to author (Story #4542).
-      Binding criteria live in top-level `acceptance[]` / `verify[]`;
-      changes/references are `{ path, assumption }` objects. Split into
-      N>1 only under the default-single split policy.
-   2.5. **Critics** — `plan-critics.js` evaluates the consolidation +
-      pre-mortem dispatch conditions against the authored draft and ledgers
-      every skip. This is the **only** critic gate (#4592 moved it out of
-      `plan-persist.js` into workflow prose), so skipping it silently skips
-      both critics: run it before Persist, per
-      [`/plan`](../workflows/plan.md) step 2.5.
-   3. **Persist** — **gate #2** (raised only by an explicit `--force-review`)
-      then `plan-persist.js` runs every deterministic gate and
-      creates Story issue(s) with `type::story` + `agent::ready`, writing
-      each authored `depends_on` edge into the sibling body as a
-      `blocked by #<id>` footer when N>1.
+1. **Plan the work.** Run [`/plan`](../workflows/plan.md) in your agentic IDE.
+   The framework authors **one Story by default** (folded Tech Spec in
+   `## Spec`), splitting into N>1 only under the default-single split policy.
+   Three operator modes are the **only** accepted entries — `/plan --seed
+   "<text>"` (ideate from chat text), `/plan --seed-file <path>` (author from
+   on-disk notes / a plan seed — the [`/audit-to-stories`](../workflows/audit-to-stories.md)
+   handoff via `--emit-plan-seed`), and `/plan --tickets 123[,456…]` (analyze
+   existing issue(s), preferring an N=1 rewrite). `/plan` is a **single path**
+   — interrogate → author → persist, bracketed by two HITL gates and a single
+   critic gate — with no Epic/Story router, scope-triage verdict, or
+   `deliveryShape`. Duplicate search targets open **Stories**, never Epics. The
+   step-by-step lives in [`plan.md`](../workflows/plan.md).
 
 2. **Deliver the Story.** Run [`/deliver <storyId>`](../workflows/deliver.md)
-   (or `/deliver <a> <b> …` for several) in your IDE. `/deliver` takes
-   only Story ids and resolves their dependency graph from live state —
-   body edges union native GitHub `blocked_by` edges, with every blocker
-   checked against its real issue state, so a Story whose blocker landed in
-   an earlier plan run is simply ready. `/deliver` owns input resolution and
-   `depends_on` sequencing only — every Story runs through
-   [`helpers/deliver-story`](../workflows/helpers/deliver-story.md), the
-   single v2 delivery engine. Per-Story it:
-
-   1. **Init** (`single-story-init.js`) — acquires the Story lease, cuts
-      `story-<id>` from `main`, materializes a worktree, flips to
-      `agent::executing`.
-   2. **Implement** — the agent delivers the Story in one guarded session
-      against its inline `acceptance[]` / `verify[]` contract (optional
-      `## Slicing` intra-session checkpoints).
-   3. **Acceptance self-eval** — a bounded critic loop scores the
-      caller-injected change set against each acceptance item before close (see
-      [`helpers/acceptance-self-eval`](../workflows/helpers/acceptance-self-eval.md)).
-   4. **Ceremony** — acceptance critic mode and review depth, both routed off
-      the change level derived from the Story's own diff
-      (`review-depth.js#deriveChangeLevel` → `ceremony-routing.js`).
-   5. **Close** (`single-story-close.js`) — runs close-validation gates,
-      the maker-blind Story-scope code review, pushes `story-<id>`, opens
-      a PR to `main`, and (under the default `delivery.ci.autoMerge:
-      "trust-ci"`) arms GitHub native auto-merge. The Story flips to
-      `agent::closing` (issue stays OPEN).
-   6. **CI watch + fix** — watches required checks to green, fixing and
-      re-pushing on red.
-   7. **Confirm merge** (`single-story-confirm-merge.js`) — on a confirmed
-      `MERGED` PR the Story flips to `agent::done`; local branch cleanup
-      and Projects-v2 Status re-assert run out-of-band.
-
-   For a multi-Story run, `/deliver` sequences ready Stories by
-   `depends_on` and runs the per-run epilogue (audit roster · follow-up
-   roll-up · sibling coherence) once after the last Story lands.
+   (or `/deliver <a> <b> …` for several). `/deliver` takes only Story ids and
+   resolves their dependency graph from live state — body edges union native
+   GitHub `blocked_by` edges, every blocker checked against its real issue
+   state, so a Story whose blocker landed in an earlier plan run is simply
+   ready. `/deliver` owns input resolution and `depends_on` sequencing only;
+   every Story runs through the single v2 delivery engine
+   [`helpers/deliver-story`](../workflows/helpers/deliver-story.md) —
+   init → implement → acceptance self-eval → ceremony → close → CI watch →
+   confirm-merge — which owns its own per-step detail. For a multi-Story run,
+   `/deliver` sequences ready Stories by `depends_on` and runs the per-run
+   epilogue (audit roster · follow-up roll-up · sibling coherence) once after
+   the last Story lands.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit lenses — that you only need when the
 default flow requires adjustment. It intentionally **links** to
 [`plan.md`](../workflows/plan.md) and [`deliver.md`](../workflows/deliver.md)
 rather than re-documenting the ceremony they own.
-
----
 
 ## Core Principles
 
@@ -217,52 +164,26 @@ graph LR
 
 ## Phase 0: Bootstrap (one-time setup)
 
-Before any workflow, bootstrap your project to seed `.agentrc.json`, wire
-the framework system prompt, and create the GitHub labels, Projects V2
-fields, and (when enabled) main-branch protection the orchestration engine
-depends on.
-
-The canonical cold-start path is a single command:
+Before any workflow, bootstrap your project to seed `.agentrc.json`, wire the
+framework system prompt, and create the GitHub labels, Projects V2 fields, and
+(when enabled) main-branch protection the orchestration engine depends on. The
+canonical cold-start path is a single command:
 
 ```bash
 npx mandrel init
 ```
 
-`mandrel init` installs `mandrel` (when `./.agents/` is absent),
-materializes `./.agents/` via `mandrel sync`, then presents a two-option
-prompt: **configure now** (option 1 → runs `node
-.agents/scripts/bootstrap.js`, forwarding any flags you pass) or **just
-the files** (option 2 → re-run `mandrel init` any time to configure
-later). `--assume-yes` skips the prompt and proceeds straight to configure;
-a non-TTY run without it defaults to files-only so GitHub provisioning
-never runs unattended. `bootstrap.js`:
-
-1. **Provisions a cold start.** Initializes the local git repo (with a
-   first commit) when absent, creates the GitHub repo (`gh repo create
-   --source=. --push`; choose visibility with `--visibility
-   private|public|internal`, default `private`), and creates the Projects
-   V2 board (`gh project create`) when it doesn't exist. No pre-created
-   repo or remote is required.
-2. **Seeds `.agentrc.json`** from `.agents/starter-agentrc.json` (the
-   `github` section carries owner, repo, base branch, operator handle, and
-   project number — inferred from your local `git` config where possible).
-   See `.agents/docs/agentrc-reference.json` for the exhaustive key
-   reference.
-3. **Creates the label taxonomy and Projects V2 fields**, and — when
-   `github.branchProtection.enforce` is `true` (default) — creates or
-   merges branch protection on `main` with the project's
-   `github.branchProtection.requiredChecks` as required status checks.
-   This step is load-bearing because PR merges to `main` are the sole
-   promotion gate.
-
-When `.agents/` is already materialized you can run the bootstrap directly
-(`node .agents/scripts/bootstrap.js`). The guided first-run steps (stack
-detection, docs scaffolding, `mandrel doctor` readiness gate, and `/plan`
-handoff) are part of `mandrel init`'s configure path.
-
-> [!NOTE] Bootstrap runs once per repository. It is safe to re-run —
-> existing labels, fields, and branch-protection entries are preserved;
-> missing ones are added.
+`mandrel init` installs `mandrel` (when `./.agents/` is absent), materializes
+`./.agents/` via `mandrel sync`, then presents a two-option prompt: **configure
+now** (runs `node .agents/scripts/bootstrap.js`) or **just the files** (re-run
+`mandrel init` later). `--assume-yes` skips the prompt; a non-TTY run without
+it defaults to files-only so GitHub provisioning never runs unattended. The
+`bootstrap.js` pipeline (cold-start repo/board provisioning, the `.agentrc.json`
+seed, the label taxonomy + Projects V2 fields + branch protection) and the
+onboarding tail are documented in
+[`README.md` § Activation](../README.md#activation). Bootstrap runs once per
+repository and is safe to re-run — existing labels, fields, and
+branch-protection entries are preserved; missing ones are added.
 
 ---
 
@@ -457,26 +378,18 @@ files.
 ### QA workflows: explore, assist, and run-harness
 
 Three complementary QA workflows sit alongside the automated pyramid, all
-reading the consumer's `qa.*` contract from `.agentrc.json` through
-[`scripts/lib/qa/resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js)
-(which fails loudly when no `qa` block is bound):
+reading the consumer's `qa.*` contract through
+[`resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js) (which
+fails loudly when no `qa` block is bound):
 
-- **[`/qa-explore`](../workflows/qa-explore.md)** — an **agent-led**,
-  open-ended **Plan → Capture → Triage** exploratory sweep. The operator
-  names a surface; the agent drives it (browser MCP by default), recording
-  each observation as a `QaLedgerItem`
-  ([`schemas/qa-ledger.schema.json`](../schemas/qa-ledger.schema.json)) in a
-  session ledger under `temp/qa/`. Capture is strictly **read-only**; every
-  state-changing action lands in Triage after explicit operator
-  confirmation.
-- **[`/qa-assist`](../workflows/qa-assist.md)** — the **human-led** sibling:
-  a single-observation **Intake → Enrich → Record** loop. The operator
-  reports one observation; the agent enriches it into a triage-ready
-  `QaLedgerItem`. Same ledger contract and decision seams as `/qa-explore`.
-- **[`/qa-run`](../workflows/qa-run.md)** — the **automated complement**:
-  steps a *known* set of Gherkin `.feature` scenarios through a real
-  browser, asserting `Then` outcomes against the accessibility snapshot and
-  bundling console/network problems into structured `F#` findings.
+- **[`/qa-explore`](../workflows/qa-explore.md)** — **agent-led** open-ended
+  Plan → Capture → Triage sweep of a named surface (read-only capture; every
+  state-changing action lands in Triage after operator confirmation).
+- **[`/qa-assist`](../workflows/qa-assist.md)** — the **human-led** sibling: a
+  single-observation Intake → Enrich → Record loop, same ledger contract.
+- **[`/qa-run`](../workflows/qa-run.md)** — the **automated complement**: steps
+  a *known* set of Gherkin `.feature` scenarios through a real browser into
+  structured `F#` findings.
 
 Consumer adoption steps are in
 [`README.md` § Adopting the QA harness](../README.md#adopting-the-qa-harness).
@@ -514,36 +427,30 @@ expensive — does not re-verify a concern already covered shift-left.
 
 ### Code review
 
-The Story-scope code review runs **outside the maker's context**, inside
-the `single-story-close.js` close subprocess, over `main...story-<id>`
-(see [`helpers/code-review.md`](../workflows/helpers/code-review.md)). It
-walks the Story diff once, executing the change-set-matched local lens roster
-as review dimensions alongside the review pillars, and posts the unified
-`verification-results` comment. Remediation is tier-aware and split by
-finding class off `delivery.codeReview.autoFixSeverity` (default `medium`);
-surviving 🔴 Critical findings halt the run. The legacy `scope: epic`
-Epic-branch review path was removed with the v2 cutover.
+The Story-scope code review runs **outside the maker's context**, inside the
+`single-story-close.js` close subprocess, over `main...story-<id>`: it walks
+the Story diff once (change-set-matched local lenses as review dimensions
+alongside the review pillars) and posts the unified `verification-results`
+comment, halting on surviving 🔴 Critical findings. The provider chain and
+remediation knobs are owned by
+[`README.md` § Code review providers](../README.md#code-review-providers-pluggable-chain);
+the walk-through is in [`helpers/code-review.md`](../workflows/helpers/code-review.md).
 
 ### Quality ratchets
 
-- **Maintainability ratchet** (`check-baselines.js` via
-  `lib/baselines/kinds/maintainability.js`) — fails if the
-  composite score drops below the established baseline.
-- **CRAP gate** (`check-baselines.js` via `lib/baselines/kinds/crap.js`) —
-  per-method complexity × coverage risk
-  against `baselines/crap.json`, wired into close-validation, `ci.yml`, and
-  `.husky/pre-push`. The `baseline-refresh: true` commit-trailer convention
-  is the project standard for baseline edits (see
-  [`core/gates-and-baselines`](../skills/core/gates-and-baselines/SKILL.md)).
+The maintainability and CRAP ratchets — and the other baseline gates — run
+through `check-baselines.js` at close-validation, `ci.yml`, and
+`.husky/pre-push`; the `baseline-refresh:` commit-trailer convention governs
+baseline edits. The runbooks (bootstrap, refresh, floor policy) are owned by
+[`quality-gates.md`](quality-gates.md).
 
 ### Audits → Stories
 
-The standalone `/audit-<dimension>` workflows are read-only emitters that
-write `audit-<dimension>-results.md` under `temp/audits/`.
-[`/audit-to-stories`](../workflows/audit-to-stories.md) parses those
-reports, groups and deduplicates findings, and hands off to
-`/plan --seed-file` (or opens standalone Stories) — closing the loop back
-into planning.
+The standalone `/audit-<dimension>` workflows write
+`audit-<dimension>-results.md` under `temp/audits/`;
+[`/audit-to-stories`](../workflows/audit-to-stories.md) groups and deduplicates
+those findings and hands off to `/plan --seed-file` (or opens standalone
+Stories), closing the loop back into planning.
 
 ---
 
