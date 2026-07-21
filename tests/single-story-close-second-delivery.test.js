@@ -33,7 +33,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   enableAutoMergeWith,
-  isAutoMergeUnavailable,
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
 import { runConfirmMergePhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
@@ -57,48 +56,11 @@ function scriptedRunner(responses) {
   return runner;
 }
 
-describe('isAutoMergeUnavailable — the fallback classifier', () => {
-  it('matches a repo without native auto-merge', () => {
-    assert.equal(
-      isAutoMergeUnavailable(
-        'failed to run git: Auto-merge is not allowed for this repository',
-      ),
-      true,
-    );
-    assert.equal(
-      isAutoMergeUnavailable('GraphQL: Auto merge is not allowed for ...'),
-      true,
-    );
-  });
-
-  it('matches the already-clean-PR refusal (the second-delivery wedge)', () => {
-    assert.equal(
-      isAutoMergeUnavailable('GraphQL: Pull request is in clean status'),
-      true,
-    );
-    assert.equal(
-      isAutoMergeUnavailable(
-        'Something something enablePullRequestAutoMerge failed',
-      ),
-      true,
-    );
-  });
-
-  it('does NOT match a genuine arm failure (conflict / red required check)', () => {
-    assert.equal(
-      isAutoMergeUnavailable('Pull request is not mergeable'),
-      false,
-    );
-    assert.equal(
-      isAutoMergeUnavailable('merge conflict between base and head'),
-      false,
-    );
-    assert.equal(isAutoMergeUnavailable(''), false);
-    assert.equal(isAutoMergeUnavailable(null), false);
-  });
-});
-
 describe('enableAutoMergeWith — direct-merge fallback (Story #4682)', () => {
+  // The `isAutoMergeUnavailable` classifier is module-private (mirroring
+  // `isLocalCleanupOnlyFailure`), so its marker set is asserted behaviourally
+  // through the fallback path below rather than through a test-only export the
+  // production dead-export ratchet would flag.
   it('leaves the exit-0 happy path untouched (single --auto call)', async () => {
     const runner = scriptedRunner([{ status: 0, stdout: 'ok', stderr: '' }]);
     const result = await enableAutoMergeWith({
@@ -152,6 +114,40 @@ describe('enableAutoMergeWith — direct-merge fallback (Story #4682)', () => {
     });
     assert.equal(result.enabled, true);
     assert.equal(result.directMerged, true);
+  });
+
+  it('falls back on the enablePullRequestAutoMerge GraphQL refusal', async () => {
+    const runner = scriptedRunner([
+      {
+        status: 1,
+        stderr: 'GraphQL: enablePullRequestAutoMerge is not available',
+      },
+      { status: 0, stdout: 'Merged', stderr: '' },
+    ]);
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 14,
+      runner,
+      resolveArmCwd: (c) => c,
+    });
+    assert.equal(result.enabled, true);
+    assert.equal(result.directMerged, true);
+  });
+
+  it('does NOT fall back on an empty / unclassified stderr', async () => {
+    const runner = scriptedRunner([{ status: 1, stderr: '' }]);
+    const result = await enableAutoMergeWith({
+      cwd: '/repo',
+      prNumber: 15,
+      runner,
+      resolveArmCwd: (c) => c,
+    });
+    assert.equal(result.enabled, false);
+    assert.equal(
+      runner.calls.length,
+      1,
+      'no fallback without a known signature',
+    );
   });
 
   it('reports directMerged even when only the LOCAL branch cleanup grumbles', async () => {

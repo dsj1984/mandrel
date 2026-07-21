@@ -146,13 +146,17 @@ function isLocalCleanupOnlyFailure(stderr) {
  *
  * Only these classes fall through to the direct-merge fallback; everything
  * else (an unmatched non-zero exit) keeps the `enabled: false` → blocked path.
- * Matched case-insensitively. Exported so the marker set is reviewable and
- * unit-testable in isolation.
+ * Matched case-insensitively.
+ *
+ * Module-private on purpose (mirroring {@link isLocalCleanupOnlyFailure}):
+ * `enableAutoMergeWith` is the only caller, so the marker set is asserted
+ * through it rather than through a test-only export the production dead-export
+ * ratchet would then flag.
  *
  * @param {string|undefined|null} stderr
  * @returns {boolean}
  */
-export function isAutoMergeUnavailable(stderr) {
+function isAutoMergeUnavailable(stderr) {
   const text = String(stderr ?? '').toLowerCase();
   return (
     text.includes('auto merge is not allowed') ||
