@@ -312,6 +312,7 @@ function closeResult({
   worktreeReaped,
   leaseReleased,
   localCleanupDeferred = false,
+  directMerged = false,
   waitedForMerge = false,
   merged = false,
 }) {
@@ -331,6 +332,11 @@ function closeResult({
     // merge/arm stood. Surfaced so the land is auditable as
     // merged-with-deferred-cleanup rather than silently degraded.
     localCleanupDeferred,
+    // Story #4682 — native auto-merge was unavailable (no branch protection /
+    // an already-clean PR), so the PR was landed by a direct squash-merge.
+    // Surfaced so a checks-less land is auditable rather than looking like a
+    // queued auto-merge that never fired.
+    directMerged,
     waitedForMerge,
     merged,
     note: waitedForMerge
@@ -510,16 +516,20 @@ async function runClosePipeline({
     WorktreeManager,
   });
   setPhase('auto-merge');
-  const { autoMergeEnabled, autoMergeReason, localCleanupDeferred } =
-    await runAutoMergePhase({
-      cwd: options.cwd,
-      prNumber,
-      prUrl,
-      noAutoMerge: options.noAutoMerge,
-      autoMergePolicy: getCiDelivery(config).autoMerge,
-      gh: injectedGh,
-      progress,
-    });
+  const {
+    autoMergeEnabled,
+    autoMergeReason,
+    localCleanupDeferred,
+    directMerged,
+  } = await runAutoMergePhase({
+    cwd: options.cwd,
+    prNumber,
+    prUrl,
+    noAutoMerge: options.noAutoMerge,
+    autoMergePolicy: getCiDelivery(config).autoMerge,
+    gh: injectedGh,
+    progress,
+  });
   await flipLabelAndNotify({
     provider,
     notifyFn: injectedNotify,
@@ -606,6 +616,7 @@ async function runClosePipeline({
       worktreeReaped,
       leaseReleased,
       localCleanupDeferred,
+      directMerged,
       waitedForMerge: true,
       merged: waitOutcome.confirmed === true,
     });
@@ -643,6 +654,7 @@ async function runClosePipeline({
     worktreeReaped,
     leaseReleased,
     localCleanupDeferred,
+    directMerged,
   });
   // `--no-wait-merge` / operator-merge: the PR is open and the human owns
   // the land. That is a `pending` terminal by definition — the work is not
