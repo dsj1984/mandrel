@@ -25,7 +25,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  isLocalCleanupOnlyFailure,
+  enableAutoMergeWith,
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
@@ -986,22 +986,36 @@ describe('Story #4681 — local branch-delete failure never blocks a landed merg
     assert.equal(provider._comments().length, 1);
   });
 
-  it('classifies only the branch-DELETE signature — the #4282 checkout collision still fails the arm', () => {
-    assert.equal(isLocalCleanupOnlyFailure(WORKTREE_HELD_STDERR), true);
-    assert.equal(
-      isLocalCleanupOnlyFailure('failed to delete local branch story-4681'),
-      true,
-    );
-    assert.equal(
-      isLocalCleanupOnlyFailure(
-        "failed to run git: fatal: 'main' is already used by worktree at '/repo'",
-      ),
-      false,
-    );
-    assert.equal(
-      isLocalCleanupOnlyFailure('Pull request is not mergeable'),
-      false,
-    );
-    assert.equal(isLocalCleanupOnlyFailure(undefined), false);
+  it('classifies only the branch-DELETE signature — the #4282 checkout collision still fails the arm', async () => {
+    // Asserted through the public arm surface: the classifier itself is
+    // module-private, so its contract is the arm outcome it produces.
+    const armWith = (stderr) =>
+      enableAutoMergeWith({
+        cwd: '/repo',
+        prNumber: 99,
+        runner: () => ({ status: 1, stdout: '', stderr }),
+        resolveArmCwd: (cwd) => cwd,
+      });
+
+    for (const stderr of [
+      WORKTREE_HELD_STDERR,
+      'failed to delete local branch story-4681',
+    ]) {
+      const result = await armWith(stderr);
+      assert.equal(result.enabled, true, stderr);
+      assert.equal(result.localCleanupDeferred, true, stderr);
+    }
+
+    for (const stderr of [
+      // Story #4282: `gh` aborted BEFORE the branch delete, so there is no
+      // evidence the merge stands — this must keep failing the arm.
+      "failed to run git: fatal: 'main' is already used by worktree at '/repo'",
+      'Pull request is not mergeable',
+      '',
+    ]) {
+      const result = await armWith(stderr);
+      assert.equal(result.enabled, false, stderr);
+      assert.equal(result.localCleanupDeferred, undefined, stderr);
+    }
   });
 });

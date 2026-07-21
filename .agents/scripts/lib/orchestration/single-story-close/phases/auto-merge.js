@@ -92,12 +92,14 @@ const LOCAL_CLEANUP_FAILURE =
  * Whether a non-zero `gh pr merge` exit is attributable solely to local
  * branch cleanup, leaving the remote merge/arm itself intact.
  *
- * Pure — exported for tests.
+ * Module-private on purpose: `enableAutoMergeWith` is the only caller and the
+ * only surface worth pinning, so the classification is asserted through it
+ * rather than through a test-only export.
  *
  * @param {string|undefined|null} stderr
  * @returns {boolean}
  */
-export function isLocalCleanupOnlyFailure(stderr) {
+function isLocalCleanupOnlyFailure(stderr) {
   return LOCAL_CLEANUP_FAILURE.test(String(stderr ?? ''));
 }
 
