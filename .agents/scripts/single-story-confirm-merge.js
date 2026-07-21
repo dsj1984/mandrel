@@ -44,6 +44,7 @@ import { gh as defaultGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
+import { emitTerseResult } from './lib/observability/terse-result.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
@@ -142,11 +143,19 @@ async function resolvePrNumber({ cwd, storyBranch, gh }) {
  * exits via `process.exit` the moment `main` resolves.
  */
 async function logConfirmResult(result, terminal, config) {
-  // Human-facing dump stays level-gated; the envelope is the machine
-  // contract and must survive AGENT_LOG_LEVEL=silent.
-  Logger.info(
-    `\n--- CONFIRM MERGE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
+  // Story #4685 — full detail to a temp log; the agent acts on the terminal
+  // envelope emitted below. The summary line keeps the at-a-glance fields.
+  emitTerseResult({
+    label: 'CONFIRM MERGE RESULT',
+    result,
+    scope: result?.storyId,
+    summary: {
+      storyId: result?.storyId,
+      action: result?.action,
+      reason: result?.reason,
+      status: terminal?.status,
+    },
+  });
   emitTerminalEnvelope(terminal);
   await emitTerminalFriction({ envelope: terminal, config });
   return { success: terminal.status !== 'failed', result, terminal };

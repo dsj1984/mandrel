@@ -7,6 +7,7 @@ import { resolveConfig } from '../../config-resolver.js';
 import { getStoryBranch, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import { emitTerminalFriction } from '../../observability/runtime-friction.js';
+import { emitTerseResult } from '../../observability/terse-result.js';
 import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
@@ -53,12 +54,22 @@ const progress = Logger.createProgress('single-story-close', { stderr: true });
  * The emit is best-effort internally and cannot throw.
  */
 async function emitTerminal({ terminal, result, config }) {
-  // The human-facing result dump stays level-gated; the terminal envelope is
-  // the machine contract and must survive AGENT_LOG_LEVEL=silent.
+  // Story #4685 — the human-facing result dump goes to a temp log; the agent
+  // acts on the (separate, unsuppressible) terminal envelope emitted below.
+  // The single summary line keeps the fields worth an at-a-glance read.
   if (result) {
-    Logger.info(
-      `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-    );
+    emitTerseResult({
+      label: 'STORY CLOSE RESULT',
+      result,
+      scope: result.storyId,
+      summary: {
+        storyId: result.storyId,
+        action: result.action,
+        reason: result.reason,
+        prNumber: result.prNumber,
+        status: terminal?.status,
+      },
+    });
   }
   emitTerminalEnvelope(terminal);
   await emitTerminalFriction({ envelope: terminal, config });

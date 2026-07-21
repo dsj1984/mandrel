@@ -353,6 +353,9 @@ describe('emitTerminalEnvelope — the contract payload is not level-gated', () 
       .split(TERMINAL_BEGIN_MARKER)[1]
       .split(TERMINAL_END_MARKER)[0];
     assert.deepEqual(JSON.parse(body), envelope);
+    // Story #4685 — the contract payload is compact (single-line), not the
+    // former 2-space pretty JSON, so it stops paying per-turn cache rent.
+    assert.equal(body.trim().split('\n').length, 1, 'envelope JSON is compact');
   });
 
   it('still emits under AGENT_LOG_LEVEL=silent', () => {

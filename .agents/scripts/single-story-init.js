@@ -55,6 +55,7 @@ import { getStoryBranch, gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
+import { emitTerseResult } from './lib/observability/terse-result.js';
 import {
   executeFastForward,
   planFastForward,
@@ -769,9 +770,24 @@ export async function runSingleStoryInit({
     }
   }
 
-  Logger.info('\n--- STORY INIT RESULT ---');
-  Logger.info(JSON.stringify(result, null, 2));
-  Logger.info('--- END RESULT ---\n');
+  // Story #4685 — route the full result to a temp log and emit a single-line
+  // summary carrying the fields the orchestrating agent acts on (workCwd,
+  // remoteVerified). The `## Spec` names this the hot-path stdout to quiet.
+  emitTerseResult({
+    label: 'STORY INIT RESULT',
+    result,
+    scope: storyId,
+    logDir: path.join(cwd, 'temp', 'orchestration'),
+    summary: {
+      storyId,
+      storyBranch,
+      workCwd,
+      worktreeCreated,
+      dependenciesInstalled,
+      remoteVerified: result.remoteVerified,
+      dryRun,
+    },
+  });
   progress(
     'DONE',
     dryRun
