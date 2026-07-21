@@ -263,8 +263,11 @@ export function emitTerminalEnvelope(
   envelope,
   { write = (s) => process.stdout.write(s) } = {},
 ) {
+  // Story #4685 — compact (not 2-space pretty) JSON. The envelope is a
+  // machine contract callers recover with `JSON.parse`, so pretty-printing
+  // only adds turn-resident bytes without helping any consumer.
   write(
-    `\n${TERMINAL_BEGIN_MARKER}\n${JSON.stringify(envelope, null, 2)}\n${TERMINAL_END_MARKER}\n`,
+    `\n${TERMINAL_BEGIN_MARKER}\n${JSON.stringify(envelope)}\n${TERMINAL_END_MARKER}\n`,
   );
 }
 

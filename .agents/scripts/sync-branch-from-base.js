@@ -34,6 +34,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { syncBranchFromBase } from './lib/git/sync-from-base.js';
 import { gitSpawn, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { emitTerseResult } from './lib/observability/terse-result.js';
 import { PROJECT_ROOT } from './lib/project-root.js';
 
 const progress = Logger.createProgress('sync-branch-from-base', {
@@ -93,9 +94,14 @@ export async function runSyncBranchFromBase(opts = {}) {
     gitSpawn,
   });
 
-  Logger.info(
-    `\n--- SYNC RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
+  // Story #4685 — full detail to a temp log; emit a single summary line.
+  emitTerseResult({
+    label: 'SYNC RESULT',
+    result,
+    scope: branch,
+    logDir: path.join(cwd, 'temp', 'orchestration'),
+    summary: { branch, base, synced: result.synced, kind: result.kind },
+  });
 
   if (!result.synced) {
     const detail =

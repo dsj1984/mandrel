@@ -5,6 +5,7 @@
  */
 
 import { Logger } from '../../Logger.js';
+import { emitTerseResult } from '../../observability/terse-result.js';
 
 /**
  * Best-effort `story.blocked` lifecycle emit. The bus is optional and emit
@@ -41,9 +42,14 @@ export async function emitBlockedCloseResult({
 }) {
   const result = { success: false, status: 'blocked', phase, reason, ...extra };
   await emitStoryBlockedSafe({ bus, storyId, reason, logger });
-  logger.info?.(
-    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
-  );
+  // Story #4685 — full detail to a temp log; single summary line in its place.
+  emitTerseResult({
+    label: 'STORY CLOSE RESULT',
+    result,
+    scope: storyId,
+    summary: { storyId, status: 'blocked', phase, reason },
+    log: logger,
+  });
   progress('BLOCKED', blockedMessage);
   return result;
 }
