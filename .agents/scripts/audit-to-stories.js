@@ -31,6 +31,7 @@ import fs from 'node:fs';
 import { glob } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
@@ -85,12 +86,30 @@ function tallyBySeverity(findings) {
   return t;
 }
 
+/**
+ * Test-only seam: when `AUDIT_TO_STORIES_PROVIDER_FIXTURE` names a module, load
+ * its default export as the dedup provider (ports) instead of the live GitHub
+ * provider. This lets the soft-fail contract be exercised end-to-end through
+ * the real `--scan` CLI with a search port that fails for a subset of groups
+ * (Story #4678, AC-8), with no network. Returns null when the env var is unset.
+ *
+ * @returns {Promise<object|null>}
+ */
+async function loadFixtureProvider() {
+  const fixturePath = process.env.AUDIT_TO_STORIES_PROVIDER_FIXTURE;
+  if (!fixturePath) return null;
+  const mod = await import(pathToFileURL(fixturePath).href);
+  return mod.default ?? null;
+}
+
 async function loadProvider({ createProviderImpl, resolveConfigImpl } = {}) {
   // The provider is optional — when missing, the dedupe step emits a
   // create-only classification and the workflow operator is informed. The
   // `createProviderImpl` / `resolveConfigImpl` seams let a contract test drive
   // this exact adapter (fingerprint + semantic-candidate ports) with an
   // in-memory issue store instead of the live GitHub provider.
+  const fixture = await loadFixtureProvider();
+  if (fixture) return fixture;
   try {
     const resolveConfig =
       resolveConfigImpl ??
@@ -180,6 +199,31 @@ function dedupSkippedWarning(reason) {
   );
 }
 
+/**
+ * Render the loud, operator-visible warning emitted when Phase 6 dedup ran but
+ * one or more groups' lookups could not complete (an HTTP 422, or a rate limit
+ * still exhausted after the endpoint budget's cooldown). Those groups degrade
+ * to `create` rather than aborting the whole scan (Story #4678); this warning
+ * names each affected group so the operator knows exactly which to check by
+ * hand. Mirrors the `dedupSkippedWarning` shape so a partially-checked plan
+ * reads as clearly as a wholly-unchecked one.
+ *
+ * Pure: returns the message string so `buildPlan` owns the single `Logger.warn`
+ * write site (stderr) and the text stays unit-testable.
+ *
+ * @param {Array<{ group: string, reason: string }>} entries
+ * @returns {string}
+ */
+function dedupDegradedWarning(entries) {
+  const lines = (entries ?? []).map((e) => `  - ${e.group}: ${e.reason}`);
+  return (
+    `dedup degraded for ${lines.length} group(s): their GitHub lookup could ` +
+    'not complete, so they are classified "create" WITHOUT a dedup check. A ' +
+    'run that creates Stories from this plan may open duplicates of these ' +
+    `groups — verify each by hand before opening:\n${lines.join('\n')}`
+  );
+}
+
 async function buildPlan({ glob: pattern, severity, useProvider, ledger }) {
   const reportPaths = await collectReportPaths(pattern ?? DEFAULT_GLOB);
   if (reportPaths.length === 0) {
@@ -227,6 +271,12 @@ async function buildPlan({ glob: pattern, severity, useProvider, ledger }) {
       classifications = result.classifications;
       summary = result.summary;
       dedupApplied = true;
+      // A partially-checked plan is a useful result — warn loudly (stderr, so
+      // the --scan JSON on stdout stays clean) naming the groups that degraded
+      // to create because their lookup could not complete (Story #4678).
+      if (summary.dedupDegraded?.count > 0) {
+        Logger.warn(dedupDegradedWarning(summary.dedupDegraded.groups));
+      }
     } else {
       // The provider could not resolve a searchIssues port — the dedup gate
       // is silently a no-op without this. Surface it loudly (stderr, so the
@@ -488,6 +538,7 @@ export const __testing = {
   buildPlan,
   loadProvider,
   dedupSkippedWarning,
+  dedupDegradedWarning,
   buildAndGateStories,
   runAuto,
   resolveSeverityFloor,

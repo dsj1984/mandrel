@@ -37,6 +37,92 @@ import { toCanonicalFinding } from './finding-adapter.js';
  */
 
 /**
+ * Render a short, operator-legible reason from a dedup-lookup failure. Pure —
+ * no imports, no I/O — so the module stays pure orchestration (Story #4678).
+ * @param {unknown} err
+ * @returns {string}
+ */
+function describeDegradeReason(err) {
+  const status = err?.status;
+  const message = err?.message ?? String(err);
+  if (status === 422 || /\b422\b/.test(message)) {
+    return 'search query rejected (HTTP 422)';
+  }
+  if (/rate limit/i.test(message)) {
+    return 'rate limit still exhausted after cooldown';
+  }
+  return `dedup lookup failed: ${message}`;
+}
+
+/**
+ * Stable operator-facing label for a group in a degrade report.
+ * @param {object} group
+ * @returns {string}
+ */
+function groupLabel(group) {
+  return group?.groupKey ?? group?.title ?? '(unlabelled group)';
+}
+
+/**
+ * Route every finding in one group and fold the per-finding decisions up to a
+ * group action. Extracted so the top-level loop can wrap it in one try/catch:
+ * a search failure that survives the endpoint budget (an HTTP 422, or a rate
+ * limit still exhausted after the cooldown) throws out of here and is caught
+ * once per group rather than aborting the whole scan (Story #4678).
+ *
+ * @param {object} group
+ * @param {object} routing — `{ searchIssues, semanticPort, routeOptions }`.
+ * @returns {Promise<{ action: string, matchedIssues: Array, matchedFingerprints: string[] }>}
+ */
+async function classifyOneGroup(
+  group,
+  { searchIssues, semanticPort, routeOptions },
+) {
+  const findings = group.findings ?? [];
+  const matchedIssues = [];
+  const matchedFingerprints = [];
+  let sawOpen = false;
+  let sawClosed = false;
+
+  for (const finding of findings) {
+    const sha = finding?.fingerprint?.full;
+    if (typeof sha !== 'string' || sha.length !== 40) continue;
+
+    const canonical = toCanonicalFinding(finding);
+    const { decision, matchedIssue, fingerprint } = await routeFinding(
+      canonical,
+      semanticPort
+        ? { searchIssues, searchCandidates: () => semanticPort(canonical) }
+        : { searchIssues },
+      routeOptions,
+    );
+
+    if (decision === 'new') continue;
+
+    if (matchedIssue) {
+      matchedIssues.push({
+        number: matchedIssue.number,
+        state: matchedIssue.state,
+      });
+    }
+    if (!matchedFingerprints.includes(fingerprint)) {
+      matchedFingerprints.push(fingerprint);
+    }
+    if (decision === 'update-existing' || decision === 'duplicate') {
+      sawOpen = true;
+    } else if (decision === 'regression-of-closed') {
+      sawClosed = true;
+    }
+  }
+
+  let action = 'create';
+  if (sawOpen) action = 'skip-open';
+  else if (sawClosed) action = 'skip-reoccurring';
+
+  return { action, matchedIssues, matchedFingerprints };
+}
+
+/**
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
  * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
@@ -44,12 +130,18 @@ import { toCanonicalFinding } from './finding-adapter.js';
  *   Optional meaning-first candidate search (production: `semantic-issue-search.js`).
  *   When supplied, routing runs the Stage-1 semantic pass and opts into
  *   location-based semantic-key confirmation.
- * @returns {Promise<{ classifications: GroupClassification[], summary: { create: number, skipOpen: number, skipReoccurring: number } }>}
+ * @param {(entry: { group: object, reason: string }) => void} [params.onDegraded]
+ *   Optional sink notified once per group whose dedup lookup could not complete
+ *   (Story #4678). The group is then classified `create` — a soft-fail, never
+ *   fatal. Pure orchestration: this module performs no network I/O and swallows
+ *   no failure silently.
+ * @returns {Promise<{ classifications: GroupClassification[], summary: { create: number, skipOpen: number, skipReoccurring: number, dedupDegraded: { count: number, groups: Array<{ group: string, reason: string }> } } }>}
  */
 export async function classifyGroupsAgainstGitHub({
   groups,
   provider,
   searchCandidates,
+  onDegraded,
 }) {
   if (!Array.isArray(groups)) {
     throw new Error('classifyGroupsAgainstGitHub: groups must be an array');
@@ -67,67 +159,40 @@ export async function classifyGroupsAgainstGitHub({
   const searchIssues = (sha) => provider.findIssuesByFingerprint(sha);
   const semanticPort =
     typeof searchCandidates === 'function' ? searchCandidates : undefined;
-  const routeOptions = { semanticKeyConfirm: Boolean(semanticPort) };
+  const routing = {
+    searchIssues,
+    semanticPort,
+    routeOptions: { semanticKeyConfirm: Boolean(semanticPort) },
+  };
 
   const classifications = [];
-  const summary = { create: 0, skipOpen: 0, skipReoccurring: 0 };
+  const summary = {
+    create: 0,
+    skipOpen: 0,
+    skipReoccurring: 0,
+    dedupDegraded: { count: 0, groups: [] },
+  };
 
   for (const group of groups) {
-    const findings = group.findings ?? [];
-
-    const matchedIssues = [];
-    const matchedFingerprints = [];
-    let sawOpen = false;
-    let sawClosed = false;
-
-    for (const finding of findings) {
-      const sha = finding?.fingerprint?.full;
-      if (typeof sha !== 'string' || sha.length !== 40) continue;
-
-      const canonical = toCanonicalFinding(finding);
-      const { decision, matchedIssue, fingerprint } = await routeFinding(
-        canonical,
-        semanticPort
-          ? { searchIssues, searchCandidates: () => semanticPort(canonical) }
-          : { searchIssues },
-        routeOptions,
-      );
-
-      if (decision === 'new') continue;
-
-      if (matchedIssue) {
-        matchedIssues.push({
-          number: matchedIssue.number,
-          state: matchedIssue.state,
-        });
-      }
-      if (!matchedFingerprints.includes(fingerprint)) {
-        matchedFingerprints.push(fingerprint);
-      }
-      if (decision === 'update-existing' || decision === 'duplicate') {
-        sawOpen = true;
-      } else if (decision === 'regression-of-closed') {
-        sawClosed = true;
-      }
+    let result;
+    try {
+      result = await classifyOneGroup(group, routing);
+    } catch (err) {
+      // A dedup lookup that cannot complete degrades this group to `create`
+      // with a recorded reason — never aborts the whole scan.
+      const reason = describeDegradeReason(err);
+      const entry = { group: groupLabel(group), reason };
+      summary.dedupDegraded.count += 1;
+      summary.dedupDegraded.groups.push(entry);
+      if (typeof onDegraded === 'function') onDegraded({ group, reason });
+      result = { action: 'create', matchedIssues: [], matchedFingerprints: [] };
     }
 
-    let action = 'create';
-    if (sawOpen) {
-      action = 'skip-open';
-      summary.skipOpen += 1;
-    } else if (sawClosed) {
-      action = 'skip-reoccurring';
-      summary.skipReoccurring += 1;
-    } else {
-      summary.create += 1;
-    }
+    if (result.action === 'skip-open') summary.skipOpen += 1;
+    else if (result.action === 'skip-reoccurring') summary.skipReoccurring += 1;
+    else summary.create += 1;
 
-    classifications.push({
-      group,
-      action,
-      matchedIssues,
-      matchedFingerprints,
-    });
+    classifications.push({ group, ...result });
   }
 
   return { classifications, summary };
