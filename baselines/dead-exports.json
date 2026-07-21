@@ -658,6 +658,10 @@
     {
       "file": ".agents/scripts/providers/github/request-helpers.js",
       "symbol": "DEFAULT_PER_PAGE"
+    },
+    {
+      "file": ".agents/scripts/providers/github/search-budget.js",
+      "symbol": "createSearchBudget"
     }
   ]
 }

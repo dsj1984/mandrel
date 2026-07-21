@@ -24,6 +24,13 @@
 const DEFAULT_LIMIT = 25;
 
 /**
+ * Character budget for the query {@link buildQuery} emits. Default 200 leaves
+ * headroom under GitHub Search's 256-char limit for the `repo:` / `type:`
+ * qualifiers `searchIssues` appends (Story #4678).
+ */
+const DEFAULT_QUERY_BUDGET = 200;
+
+/**
  * Normalise a free-text string for token comparison: lowercased, trimmed,
  * punctuation collapsed to spaces.
  * @param {unknown} value
@@ -69,17 +76,48 @@ function jaccard(a, b) {
 }
 
 /**
- * Build the search query text for a finding. The title carries the strongest
- * signal; area and primaryFile sharpen it. This is the text both the
- * (production) full-text search port and the local relevance scorer key on.
- * @param {object} finding
+ * The trailing path segment of a slash-or-backslash-delimited path. A deep
+ * `primaryFile` like `src/very/deep/module.js` contributes only `module.js`
+ * to the query — the basename carries the discriminating signal while the
+ * mangled path spends the character budget for nothing (Story #4678).
+ * @param {unknown} value
  * @returns {string}
  */
-export function buildQuery(finding) {
-  return [finding?.title, finding?.area, finding?.primaryFile]
+function basename(value) {
+  const str = String(value ?? '');
+  const cut = str.split(/[\\/]/).filter(Boolean);
+  return cut.length > 0 ? cut[cut.length - 1] : '';
+}
+
+/**
+ * Build the search query text for a finding. The title carries the strongest
+ * signal; area and the primaryFile **basename** sharpen it. This is the text
+ * both the (production) full-text search port and the local relevance scorer
+ * key on. The result is filled highest-signal-first (title, then area, then
+ * basename) up to `budget` characters on a whole-token boundary so a long title
+ * over a deep path never blows GitHub Search's length limit (Story #4678).
+ * @param {object} finding
+ * @param {object} [options]
+ * @param {number} [options.budget] — max query length in characters.
+ * @returns {string}
+ */
+export function buildQuery(finding, { budget = DEFAULT_QUERY_BUDGET } = {}) {
+  const tokens = [finding?.title, finding?.area, basename(finding?.primaryFile)]
     .map((v) => normaliseText(v))
     .filter((v) => v.length > 0)
-    .join(' ');
+    .join(' ')
+    .split(' ')
+    .filter(Boolean);
+
+  const kept = [];
+  let length = 0;
+  for (const token of tokens) {
+    const cost = kept.length === 0 ? token.length : token.length + 1;
+    if (length + cost > budget) break;
+    kept.push(token);
+    length += cost;
+  }
+  return kept.join(' ');
 }
 
 /**

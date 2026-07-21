@@ -15,16 +15,38 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { GhRateLimitError } from '../../lib/gh-exec.js';
 import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { isNotFoundError } from './branch-protection.js';
-import { withTransientRetry } from './errors.js';
+import { classifyGithubError, withTransientRetry } from './errors.js';
 import { issueToEpic } from './mappers.js';
 import {
   defaultRetryWarn,
   paginateRest,
   parseApiJson,
 } from './request-helpers.js';
+import {
+  searchBudget as defaultSearchBudget,
+  parseRateLimitResetMs,
+} from './search-budget.js';
+import { composeBoundedQuery } from './search-query.js';
+
+/**
+ * Retry classifier for the `searchIssues` call site. A rate-limit error is
+ * non-transient **here** — the shared search budget (not `withTransientRetry`)
+ * owns the wait, so the call must fail fast rather than burn its retry budget
+ * re-issuing into an empty window. Every other error keeps the global
+ * classification, so a 5xx/network blip still retries. `classifyGithubError`
+ * itself is unchanged: other endpoints legitimately retry on rate-limit.
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+function classifySearchRetry(err) {
+  if (err instanceof GhRateLimitError) return 'rate-limited';
+  return classifyGithubError(err);
+}
 
 /**
  * Concurrency budget for the `getSubTickets` fan-out — preserved from
@@ -51,11 +73,15 @@ export class IssuesGateway {
    *   },
    * }} deps
    */
-  constructor({ gh, owner, repo, hooks = {} } = {}) {
+  constructor({ gh, owner, repo, hooks = {}, searchBudget } = {}) {
     this._gh = gh;
     this.owner = owner;
     this.repo = repo;
     this._hooks = hooks;
+    // The `/search/issues` fan-out budget. Defaults to the process-wide
+    // singleton so every gateway instance shares one 30/min window; injectable
+    // so unit tests drive it deterministically (Story #4678).
+    this._searchBudget = searchBudget ?? defaultSearchBudget;
   }
 
   /**
@@ -132,14 +158,35 @@ export class IssuesGateway {
     // Constrain the search to this repo and to issues (not PRs). The
     // fingerprint sha is the free-text term; GitHub matches it against the
     // issue body where the `<!-- audit-fingerprints: ... -->` footer lives.
+    // The composed `q` is bounded to GitHub Search's 256-char limit here — the
+    // only place that knows both the free text and the qualifiers it appends —
+    // truncating the free-text portion on a whole-token boundary (Story #4678).
     const qualifiers = [`repo:${scopeOwner}/${scopeRepo}`, 'type:issue'];
-    const q = `${query.trim()} ${qualifiers.join(' ')}`;
+    const q = composeBoundedQuery(query, qualifiers);
     const params = new URLSearchParams({ q, per_page: '100' });
     const endpoint = `/search/issues?${params}`;
-    const result = await withTransientRetry(
-      () => this._gh.api({ method: 'GET', endpoint }),
-      { label: `searchIssues ${query}`, onRetry: defaultRetryWarn },
-    );
+    // Await the shared 30/min budget before every call so the whole scan's
+    // fan-out is throttled at the endpoint, not per caller (Story #4678).
+    await this._searchBudget.take();
+    let result;
+    try {
+      result = await withTransientRetry(
+        () => this._gh.api({ method: 'GET', endpoint }),
+        {
+          label: `searchIssues ${query}`,
+          onRetry: defaultRetryWarn,
+          classify: classifySearchRetry,
+        },
+      );
+    } catch (err) {
+      // A rate limit means the window is empty: drain the budget until the
+      // reported reset so the *next* call pauses once, rather than every call
+      // retrying independently into the exhausted window.
+      if (err instanceof GhRateLimitError) {
+        this._searchBudget.noteRateLimited(parseRateLimitResetMs(err));
+      }
+      throw err;
+    }
     const json = parseApiJson(result);
     const items = Array.isArray(json?.items) ? json.items : [];
     return items.map((item) => ({
