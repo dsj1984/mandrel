@@ -29,10 +29,8 @@ scenarios. Use the canonical set below; do not invent ad-hoc tags.
   the tag (the "de-skip" edit). Unlike `@flaky`, `@skip` marks planned
   not-yet-implemented behavior, never a stability problem.
 
-Retired: the `@epic-<id>-ac-N` namespaced AC tag. Its consumer
-(`acceptance-spec-reconciler.js`) was deleted in the v2 Epic removal, so
-the tag is inert — do not apply it to new scenarios. The `mandrel update`
-migration strips surviving instances from consumer feature files.
+Retired: the `@epic-<id>-ac-N` AC tag is inert — do not apply it to new
+scenarios; `mandrel update` strips surviving instances from consumer files.
 
 Rules:
 
@@ -127,30 +125,11 @@ implementation detail.
 
 ## Step Reuse — Grep Before You Write
 
-Before authoring a new step, search the existing step-definition library for
-an equivalent phrase. New steps are a cost: they fragment the vocabulary and
-multiply step-definition maintenance.
-
-Workflow:
-
-1. Identify the verb phrase you want to write (e.g. "the user signs in as").
-2. Grep the step-definition directory for the verb stem:
-
-   ```bash
-   rg -n "signs? in" tests/steps
-   ```
-
-3. If a matching step exists, reuse it verbatim — adjust your scenario
-   phrasing to fit the existing step, not the reverse.
-4. If a near-match exists, extend the existing step (add a parameter, widen
-   the regex) rather than forking a new one. Update every call site in the
-   same PR.
-5. Only when no reasonable match exists, add a new step definition.
-   Co-locate it with related steps and follow the library's naming
-   convention.
-6. Never copy-paste a step implementation to support a paraphrased scenario.
-   Rephrase the scenario instead.
-
-Deprecations: when a step is superseded, mark the old definition deprecated
-in code and migrate all call sites in the same PR. Do not leave two
-near-identical steps live.
+Before authoring a new step, grep the step-definition library for the verb
+stem and **reuse an existing step verbatim** (adjust your scenario to fit it),
+or **extend a near-match** (add a parameter, widen the regex, updating every
+call site in the same PR) — new steps fragment the vocabulary and multiply
+maintenance. Add a new definition only when no reasonable match exists, and
+never copy-paste a step implementation to support a paraphrased scenario.
+When a step is superseded, mark it deprecated and migrate every call site in
+the same PR; do not leave two near-identical steps live.

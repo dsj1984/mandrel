@@ -4,9 +4,8 @@
 > protocols are defined in [`.agents/instructions.md`](.agents/instructions.md).
 > You **MUST** load and follow that file as your primary system prompt. This
 > file provides repository-level orientation only — it does not redefine any
-> rules. When two governance documents conflict, resolve by the total ordering
-> declared in
-> [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md).
+> rules, and conflicts resolve by the ordering in
+> [`.agents/instructions.md` § 1.K](.agents/instructions.md).
 
 ---
 
@@ -28,11 +27,6 @@ materialized into consumer projects' `.agents/` directories by
 
 > **Key distinction:** Only `.agents/` is distributed to consumers. Everything
 > else in this repository is internal development tooling.
->
-> **Ticket hierarchy** is Story-only (`type::story`). The contract is stated
-> once in [`.agents/instructions.md` § 5.D](.agents/instructions.md) — that
-> section is the source of truth and this file does not restate it. The
-> end-to-end narrative lives in [`.agents/docs/SDLC.md`](.agents/docs/SDLC.md).
 
 ---
 
@@ -42,10 +36,8 @@ materialized into consumer projects' `.agents/` directories by
 reference this file used to inline: the repository layout, the getting-started
 sequence, the development-standards and key-commands tables, slow-test
 profiling, the contribution workflow, release operations, and the
-reference-document index. Read it when you need one of those. It is linked
-rather than `@`-imported precisely because it is not needed on every task —
-the always-loaded closure is re-paid by every session and every subagent
-spawn, at every nesting level.
+reference-document index. Read it when you need one of those — it is linked,
+not `@`-imported, so it is not re-paid on every session and subagent spawn.
 
 Two orientation pointers are load-bearing often enough to keep here:
 

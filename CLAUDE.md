@@ -19,16 +19,3 @@
 
 @.agents/rules/security-baseline.md
 @.agents/rules/git-conventions.md
-
-> **Import order is not precedence.** The order these files are imported above
-> is for loading convenience only; when two governance documents conflict, the
-> authoritative resolution order is declared once in
-> [`.agents/instructions.md` § 1.K — Precedence & Conflict Resolution](.agents/instructions.md)
-> (local overrides → `instructions.md` → `rules/` → `skills/`, with
-> security-baseline inviolable).
->
-> **Ticket hierarchy** is Story-only (`type::story`). The contract is stated
-> once in [`.agents/instructions.md` § 5.D](.agents/instructions.md) — that
-> section is the source of truth and this file does not restate it. The
-> narrative lives in
-> [`.agents/docs/SDLC.md` § Ticket hierarchy](.agents/docs/SDLC.md).
