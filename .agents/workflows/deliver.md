@@ -34,11 +34,9 @@ Any named ticket that is not `type::story`, or that still carries an
 re-plan as a v2 Story). Resolution refuses the whole set rather than
 silently dropping the offending id and under-delivering.
 
-> **Retired (Story #4540).** `--run <planRunId>` and the `plan-run::<id>`
-> label are gone, along with `--dep`. Batch identity was the wrong axis:
-> it could not express an edge to a Story planned in another run, while
-> ordering already lives in the dependency edges themselves. Deliver the
-> ids; the graph resolves itself.
+> **No batch identity (Story #4540).** There is no `--run`, `plan-run::<id>`,
+> or `--dep` axis: ordering lives in the dependency edges, so delivering the
+> ids resolves the graph itself.
 
 ## Flags
 
@@ -162,11 +160,58 @@ to respect.
      A blocked Story outranks a wedge (its blockers are moot while a human
      owes a decision) but not a cycle (exit 2 — fix the graph first).
 
-   For each `ready` Story id, read
+   **Dispatch each `ready` Story (role-scoped by default).** When
+   `delivery.routing.roleScopedAgents` is enabled (the **default**) and the
+   host exposes agent dispatch, spawn each ready Story as its own
+   `subagent_type: story-worker` sub-agent — it boots on the role-scoped
+   [`story-worker`](../agents/story-worker.md) context (its own system prompt,
+   no `CLAUDE.md` @-closure) carrying the load-bearing delivery MUSTs
+   standalone. The sub-agent executes
+   [`helpers/deliver-story.md`](helpers/deliver-story.md) end to end
+   (init → implement → acceptance self-eval → close-and-land). Thread into its
+   prompt:
+   - `storyId` — the id to deliver.
+   - `docsDigestPath` — the per-run docs digest (digest-first reading,
+     [`instructions.md` § 3](../instructions.md)); null when
+     `project.docsContextFiles` is unset.
+   - `checklistPath` — the footprint-matched write-time audit checklist,
+     produced at dispatch (below).
+   - the **change-set discipline** — the worker computes the change set once
+     with `computeChangeSet` and hands that one list to every acceptance critic
+     (Story #4593); it never lets a critic re-derive the diff.
+
+   **Produce `checklistPath` before the spawn (Story #4627).** Compute the
+   payload from the Story's predicted footprint (its `changes[]` /
+   `references[]` path entries) with `buildDispatchChecklist` and write it to
+   the run temp dir, then thread the resulting path (empty when nothing
+   matched):
+
+   ```bash
+   node --input-type=module -e '
+     import { buildDispatchChecklist } from "<main-repo>/.agents/scripts/lib/audit-suite/index.js";
+     import { parse } from "<main-repo>/.agents/scripts/lib/story-body/story-body.js";
+     // storyBody is the fetched Story issue body.
+     const { changes, references } = parse(process.env.STORY_BODY);
+     const { checklistPath } = buildDispatchChecklist({
+       storyId: <storyId>, changes, references, runTempDir: "temp/run-<id>",
+     });
+     console.log(checklistPath ?? "");
+   '
+   ```
+
+   `buildDispatchChecklist` (`lib/audit-suite/dispatch-checklist.js`) is a pure
+   function of the footprint and the on-disk checklists; an empty match prints
+   nothing and the worker runs with no write-time checklist — the maker-blind
+   close-scope pass still covers it.
+
+   **Inline fallback (`roleScopedAgents: false` / no-nesting harness).** When
+   the kill-switch is off, or the host cannot spawn a sub-agent at this nesting
+   depth, do **not** stall: read
    [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and
-   execute it (init → implement → ceremony → close-and-land). Under
-   `--yes` / injected helper content, execute directly without a re-read
-   turn.
+   execute it directly, in this turn, threading the same `docsDigestPath` /
+   `checklistPath` / change-set discipline. Under `--yes` / injected helper
+   content, execute directly without a re-read turn. The engine, gates, and
+   terminal envelope are identical either way — only the isolation differs.
 
 4. **Per-run epilogue (N>1).** Once step 3 reports `epilogueDue: true`
    (every Story done), keyed on the delivered id set:

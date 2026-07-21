@@ -131,32 +131,9 @@ Operator/agent responsibilities while in the worktree:
    `checklistPath` (footprint-matched **local**-lens authoring checklists),
    read it before you write and self-check as you author. When absent,
    lens-aware coverage still runs maker-blind at Story-scope review inside
-   the close subprocess.
-
-   **Producing `checklistPath` at dispatch (Story #4627).** The dispatch that
-   spawns this worker threads `checklistPath` the same way it threads
-   `docsDigestPath`. Before the spawn, compute the payload from the Story's
-   predicted footprint (its `changes[]` / `references[]` path entries) with
-   `buildDispatchChecklist` and write it to the run temp dir:
-
-   ```bash
-   node --input-type=module -e '
-     import { buildDispatchChecklist } from "<main-repo>/.agents/scripts/lib/audit-suite/index.js";
-     import { parse } from "<main-repo>/.agents/scripts/lib/story-body/story-body.js";
-     // storyBody is the fetched Story issue body.
-     const { changes, references } = parse(process.env.STORY_BODY);
-     const { checklistPath } = buildDispatchChecklist({
-       storyId: <storyId>, changes, references, runTempDir: "temp/run-<id>",
-     });
-     console.log(checklistPath ?? "");
-   '
-   ```
-
-   A non-empty `checklistPath` is threaded into this worker's prompt; an empty
-   footprint match prints nothing and the worker runs with no write-time
-   checklist (the maker-blind close-scope pass still covers it). The builder is
-   a pure function of the footprint and the on-disk checklists —
-   `buildDispatchChecklist` (`lib/audit-suite/dispatch-checklist.js`).
+   the close subprocess. The dispatch step produces `checklistPath` from the
+   Story's predicted footprint before it spawns this worker (Story #4627) — see
+   [`/deliver`](../deliver.md).
 2. Implement the changes. When the body has a `## Slicing` / Delivery
    Slicing table, walk rows as **intra-session checkpoints** (commit +
    flip each row when done) — never as sibling tickets.
@@ -364,173 +341,36 @@ Flags:
 
 ---
 
-## Step 4 — CI fix loop (**recovery-only**)
+## Steps 4–6 — Recovery router (**recovery-only**)
 
 > **Steps 4, 5, 5.5, and 6 are recovery paths, not routine choreography
 > (Story #4543).** On the default path Step 3 already polled the PR to a
 > confirmed merge, flipped `agent::done`, and ran the whole post-land tail —
 > follow-up capture, status resync, ref cleanup, base fast-forward — in one
 > process. A `landed` envelope means all of it ran; go straight to Step 7.
->
-> Enter this step **only** when Step 3 returned `blocked` with
-> `blockClass: "checks-failed"` (a required check went red), or when a
-> `--no-wait-merge` run left the PR for you to shepherd.
 
-When a required check is red, the agent owns the green-CI outcome, not just
-the push. Local close-validation gates pass on the dev host's environment;
-CI runs on a different OS and concurrency, and coverage rounding,
-platform-conditional branches, and timing-sensitive tests routinely drift
-between the two.
+Enter a recovery path **only** when Step 3's terminal envelope tells you to.
+The full procedures — commands, exit-code branches, and the
+internally-blocking-watch contract — live in
+[`deliver-story-reference.md`](deliver-story-reference.md); route by the
+envelope:
 
-Fix the failure and push a new commit on `story-<storyId>` — auto-merge stays
-armed across retries, so you do not re-arm — then resume the land with the
-envelope's `nextCommand`.
-
-> **A watch is an internally-blocking step, not a reason to end your turn.**
-> `pr-watch-with-update.js` blocks the current turn until CI resolves — that
-> IS how you wait. Ending the turn with prose and an unconfirmed merge is a
-> contract violation (the Story #1553 / PR #1554 failure mode). See
-> [`deliver-story-reference.md` § The auto-merge wait is an internally-blocking step](deliver-story-reference.md#the-auto-merge-wait-is-an-internally-blocking-step).
-
-To watch the checks on the red path, drive
-`pr-watch-with-update.js` — the **single CI-watch mechanism**
-(Story #4358). It polls the required checks to a
-terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do
-**not** fall back to a bare `gh pr checks` watch invocation:
-
-```bash
-node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --story <storyId>
-```
-
-`--story` is what keys the red-path CI digest
-(`temp/story-<id>-ci-digest.{json,md}` — failing check name, run id, and a
-`gh run view --log-failed` tail). Omit it and a red check writes no digest.
-
-Poll cadence and caps come from `delivery.ci.watch.*`
-(`pollIntervalMs`, `maxPolls`, `maxResumes`); pass `--poll-interval-ms`,
-`--max-polls`, or `--max-resumes` to override for one run.
-
-When the watch exits, branch on the exit code:
-
-- **Exit 0 (all checks ✓)** — auto-merge will fire (or has already). The
-  Story is still at `agent::closing` with its issue OPEN. **Proceed to
-  Step 5 within the same turn** — green CI is the *start* of the
-  merge-confirm sequence, not a terminal state.
-- **Exit 1 (a check genuinely failed)** — diagnose, fix, and push a new
-  commit on `story-<storyId>`, then re-watch. Auto-merge stays enabled
-  across retries; no need to re-arm it. The Story stays at
-  `agent::closing` throughout, so a failed/abandoned PR never strands a
-  CLOSED issue. If the same failure class recurs, hand convergence off to a
-  self-paced host loop (`/loop`) that re-runs the failing check and applies
-  the smallest fix until it exits green.
-- **Exit 2 (still-running — slow CI, not red)** — the poll cap fired with
-  checks still pending and the watcher exhausted its resume budget with
-  nothing red. This is **never** a failure. Hand the wait off to the
-  host's interval loop rather than ending your turn: `/loop 5m` polling
-  `gh pr checks` until the checks settle.
-
-> **Triage authority.** How to classify and remediate a red (or repeatedly
-> slow) check — the root-cause-only decision tree for infra/transient and
-> flaky failures (reproduce → check `main` → bisect env vs code → fix in-scope
-> or file a `meta::framework-gap` issue), the never-rerun / never-quarantine
-> prohibitions, and the escalation criteria (three-strikes, the 30-minute
-> wall-clock timebox, and the clearly-environmental fast path) — is defined
-> once in [`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md).
-> Read it before remediating a red check above.
->
-> **CI recovery procedures.** For resurrecting the worktree after
-> `reapOnSuccess`, pulling the failing job log, fixing coverage/CRAP
-> baselines without re-running close-validation, and the when-to-stop
-> Anti-Thrashing rules, see
-> [`deliver-story-reference.md` § Step 4 — CI watch + fix recovery](deliver-story-reference.md#step-4--ci-watch--fix-recovery).
-
----
-
-## Step 5 — Merge confirmation + land tail (**recovery-only**)
-
-> On the default path Step 3 already did this. Run it only to resume a
-> `pending` envelope, to finish a `--no-wait-merge` run, or to rescue a
-> merged-but-mislabelled Story.
-
-```bash
-node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main-repo>
-```
-
-This is the **same** shared land path Step 3 reaches: it flips
-`agent::closing → agent::done` on a confirmed merge (closing the issue) and
-runs the **same** post-land tail — so the two surfaces cannot diverge. It is
-idempotent, emits the same terminal envelope, and is safe to re-run while
-the PR is still open (returns `pending`).
-
-> **Confirmation outcomes.** `single-story-confirm-merge.js` re-reads the
-> live PR state and flips to `agent::done` only on a confirmed `MERGED` PR;
-> it is idempotent and safe to re-run while the PR is still open (returns
-> `pending`). See
-> [`deliver-story-reference.md` § Step 5 — Merge confirmation detail](deliver-story-reference.md#step-5--merge-confirmation-detail).
-
----
-
-## Step 5.5 — Re-assert Status column (**recovery-only**)
-
-> **The land tail already ran this** (Story #4543) — it is `tail.statusResync`
-> in the terminal envelope. Run it by hand only when that step reported
-> `false`, or after a manual merge on a `--no-wait-merge` run.
-
-GitHub Projects v2 built-in workflows fire minutes *after* auto-merge lands
-and clobber the `Done` Status the confirm step set, stranding closed
-Stories at `In Progress` on the board (reproduced on Story #2813).
-Re-assert authority:
-
-```bash
-node .agents/scripts/resync-status-column.js --story <storyId>
-```
-
-The helper re-fires the `ColumnSync` mutation and **polls for ~15 s** to win
-the race against the bot's late write (Story #2876). It is idempotent and
-no-op-safe (`no-project` / `not-on-project` exit 0).
-
-> **Status-column detail + tuning flags + operator fix.** For the poll-loop
-> flags (`--poll-attempts`, `--poll-delay-ms`), the `attempts` / `drifted`
-> envelope semantics, and the canonical
-> `--reap-conflicting-workflows` operator fix, see
-> [`deliver-story-reference.md` § Step 5.5 — Re-assert Status column detail](deliver-story-reference.md#step-55--re-assert-status-column-detail).
-
----
-
-## Step 6 — Local branch cleanup (**recovery-only**)
-
-> **The land tail already ran this** (Story #4543) — it is `tail.refCleanup`
-> and `tail.baseFastForward` in the terminal envelope, done in-process
-> against the same planners this command drives. Run it by hand only when
-> either step reported `false` (a dirty shared checkout is the common,
-> benign cause), or after a manual merge on a `--no-wait-merge` run.
-
-GitHub deletes the **remote** branch on auto-merge, but the **local**
-`story-<storyId>` ref lingers in the main checkout until something prunes
-it. To prune the story ref **and** fast-forward local `main` (or
-`project.baseBranch`):
-
-```bash
-node .agents/scripts/git-cleanup.js \
-  --execute \
-  --remote \
-  --yes \
-  --fast-forward-main \
-  --branches \
-  --include "story-<storyId>"
-```
-
-`--fast-forward-main` brings local `main` current (the next init seeds from
-it), `--branches` + `--include` reap only this Story's ref, and
-`--execute --remote --yes` run the deletes non-interactively. The sweep is
-idempotent and safe to run before `MERGED` confirms. Skip Step 6 only when
-the operator opted out via `--no-auto-merge` AND has not yet merged the PR —
-run the cleanup after the manual merge lands.
-
-> **Why local `main` goes stale + per-flag behaviour.** For the stale-`main`
-> mechanism and the full `--fast-forward-main` / `--branches` / `--include`
-> flag semantics, see
-> [`deliver-story-reference.md` § Step 6 — Local branch cleanup detail](deliver-story-reference.md#step-6--local-branch-cleanup-detail).
+- **`blocked` / `blockClass: "checks-failed"`** (a required check went red) →
+  fix and push a new commit on `story-<storyId>` (auto-merge stays armed), then
+  resume with the envelope's `nextCommand`. The watch is an internally-blocking
+  step — never end your turn with prose and an unconfirmed merge (Story #1553).
+  Procedure:
+  [reference § Step 4 — CI watch + fix recovery](deliver-story-reference.md#step-4--ci-watch--fix-recovery)
+  (triage per [`rules/ci-remediation.md`](../../rules/ci-remediation.md)).
+- **`pending`** (bounded merge wait expired, PR healthy; or a `--no-wait-merge`
+  run to shepherd) → run the envelope's `nextCommand`
+  (`single-story-confirm-merge.js`) until it resolves —
+  [reference § Step 5 — Merge confirmation detail](deliver-story-reference.md#step-5--merge-confirmation-detail).
+- **`tail.statusResync: false`** → re-assert the Status column by hand —
+  [reference § Step 5.5](deliver-story-reference.md#step-55--re-assert-status-column-detail).
+- **`tail.refCleanup: false` / `tail.baseFastForward: false`** → prune the local
+  ref and fast-forward `main` by hand —
+  [reference § Step 6](deliver-story-reference.md#step-6--local-branch-cleanup-detail).
 
 ---
 
