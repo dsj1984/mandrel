@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.9.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.8.0...mandrel-v2.9.0) (2026-07-21)
+
+
+### Added
+
+* ceremony-lite path: complexity-gate the full plan/deliver pipeline for trivial scopes ([#4683](https://github.com/dsj1984/mandrel/issues/4683)) ([#4688](https://github.com/dsj1984/mandrel/issues/4688)) ([1002776](https://github.com/dsj1984/mandrel/commit/10027761c7bf375aa32b4ffe8b526015433311ca))
+* harden /audit-to-stories dedup search: budget the fan-out, bound the query, soft-fail instead of aborting ([#4678](https://github.com/dsj1984/mandrel/issues/4678)) ([#4679](https://github.com/dsj1984/mandrel/issues/4679)) ([c043b70](https://github.com/dsj1984/mandrel/commit/c043b708dca9daf10525fe0e810da9b13998454b))
+* **plan:** pre-empt deterministic body-format lints in the story-author prompt and auto-fix mechanical ones (refs [#4684](https://github.com/dsj1984/mandrel/issues/4684)) ([#4689](https://github.com/dsj1984/mandrel/issues/4689)) ([8dea7ad](https://github.com/dsj1984/mandrel/commit/8dea7adc71e9adcb746022747f3d436ccb520758))
+
+
+### Fixed
+
+* land tail: tolerate/pre-empt a worktree-held story branch so a merged PR is never stranded at agent::blocked ([#4681](https://github.com/dsj1984/mandrel/issues/4681)) ([#4686](https://github.com/dsj1984/mandrel/issues/4686)) ([0436af0](https://github.com/dsj1984/mandrel/commit/0436af0ab183c6e423cf2b56e749d63fa0c6b150))
+* root-cause and fix: second-touch change-request deliveries complete but their PR never lands ([#4682](https://github.com/dsj1984/mandrel/issues/4682)) ([#4687](https://github.com/dsj1984/mandrel/issues/4687)) ([2010739](https://github.com/dsj1984/mandrel/commit/20107399a9a1645c0d8b259245b275a965ffdcbc))
+
+
+### Performance
+
+* **orchestration:** quiet hot-path script stdout to terse summaries (refs [#4685](https://github.com/dsj1984/mandrel/issues/4685)) ([#4690](https://github.com/dsj1984/mandrel/issues/4690)) ([310ee4a](https://github.com/dsj1984/mandrel/commit/310ee4a70726dee0ace6da8bb866cb01e57f7c2b))
+
 ## [2.8.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.7.0...mandrel-v2.8.0) (2026-07-21)
 
 
