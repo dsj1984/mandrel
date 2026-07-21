@@ -62,6 +62,12 @@ may **relabel** the two normalized axes — `Severity` ↔ `Impact`, `Dimension`
 drops or renames a shared field.
 
 ```markdown
+## Executive Summary
+
+[The lens's headline read plus the self-cross-check `kept <k> / dropped <d>`
+line. A lens may mandate additional report sections between here and the
+findings — its own body names them.]
+
 ## Detailed Findings
 
 [For every finding, use the following strict structure. Lead each title with

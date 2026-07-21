@@ -131,3 +131,24 @@ Analyze the repository with a focus on:
    that have survived multiple commits? Quantify the LOC impact.
 6. **Documentation:** Does the code explain "why" through its structure, or does
    it require extensive comments?
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title, a Dead Code Inventory table,
+and a Technical Debt Backlog:
+
+```markdown
+# Clean Code Audit Report
+
+## Dead Code Inventory
+
+| File   | Symbol / Block        | Type                                                               | Estimated LOC |
+| ------ | --------------------- | ------------------------------------------------------------------ | ------------- |
+| [path] | [name or description] | [Unused export · Orphaned file · Commented-out block · Stale flag] | [LOC]         |
+
+## Technical Debt Backlog
+
+[List specific files or modules that require significant rework to meet quality
+standards.]
+```

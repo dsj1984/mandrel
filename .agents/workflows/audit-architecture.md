@@ -223,14 +223,28 @@ evidence supports.
 
 ## Report additions
 
-Beyond the shared skeleton, emit these lens-specific report sections:
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and two lens-specific sections:
 
-- **Triage Summary** — a `Quick Wins (Low Effort, High Impact)` list (2–3
-  immediate, safe refactors) and a `Structural Changes (Medium/High Effort,
-  Architectural Impact)` list (2–3 larger refactors).
-- **Architecture Guardrail Coverage** — in codebase-wide mode complete it using
-  the Maturity Rubric (Current Maturity, Documented Boundaries, Automated Checks
-  Found, CI Enforcement, Axes Covered, Recommended Next Step — a single lightest
-  project-local improvement, advisory only, no Mandrel-owned harness changes);
-  in a Story-scoped run set `Current Maturity` to `Not Assessed — scoped run`
-  and mark the remaining fields `n/a`.
+```markdown
+# Architecture & Clean Code Review
+
+## Triage Summary
+
+### Quick Wins (Low Effort, High Impact)
+
+- [List 2–3 immediate, safe refactors.]
+
+### Structural Changes (Medium/High Effort, Architectural Impact)
+
+- [List 2–3 larger refactors.]
+
+## Architecture Guardrail Coverage
+
+- **Current Maturity:** [Strong | Partial | Missing | Not Applicable | Not Assessed — scoped run]
+- **Documented Boundaries / Automated Checks Found / CI Enforcement / Axes Covered / Recommended Next Step:** [per the Maturity Rubric — a single lightest project-local improvement, advisory only, no Mandrel-owned harness changes]
+```
+
+In a Story-scoped run set `Current Maturity` to `Not Assessed — scoped run` and
+mark the remaining fields `n/a`; the full maturity assessment runs only in
+codebase-wide mode.

@@ -159,14 +159,19 @@ describe('Workflows — each file must contain ## Constraint', () => {
     );
 
     for (const workflow of workflows) {
-      it(`${workflow} contains ## Constraint`, () => {
+      it(`${workflow} documents its read-only/constraint boundary`, () => {
         const content = fs.readFileSync(
           agentsPath('workflows', workflow),
           'utf8',
         );
+        // An audit lens single-sources the shared read-only constraint into
+        // helpers/audit-lens-core.md (Story #4665); referencing the core
+        // satisfies the requirement without restating the block. A lens that
+        // adds a stricter carve-out still keeps its own ## Constraint section.
         assert.ok(
-          content.includes('## Constraint'),
-          `${workflow} is missing the required ## Constraint section`,
+          content.includes('## Constraint') ||
+            content.includes('](helpers/audit-lens-core.md)'),
+          `${workflow} is missing the required ## Constraint section (or, for an audit lens, a reference to helpers/audit-lens-core.md)`,
         );
       });
     }

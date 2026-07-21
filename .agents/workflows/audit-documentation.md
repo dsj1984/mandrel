@@ -211,3 +211,18 @@ findings land as actionable, tracked work rather than a report nobody reads.
 
 Run the deterministic checkers in `--check` mode only; the single write is the
 report artifact. Do not edit any documentation or code.
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Target Set Coverage table:
+
+```markdown
+# Documentation Audit Report
+
+## Target Set Coverage
+
+| Doc    | Source                                                | Verdict                                    |
+| ------ | ----------------------------------------------------- | ------------------------------------------ |
+| [path] | [docsContextFiles · docsFreshness · anchor · --paths] | [Current · Drifted · Excluded (generated)] |
+```

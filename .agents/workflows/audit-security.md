@@ -104,3 +104,18 @@ CWE where one applies):
    messages in production, or insecure headers? — _Transport & Headers_.
 5. **Vulnerable Components:** Are outdated libraries introducing risks? —
    _Dependency Hygiene_.
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Defensive Recommendations
+section, and each finding adds the CWE ID / Baseline MUST fields:
+
+```markdown
+# Security Audit Report
+
+## Defensive Recommendations
+
+- [List 3-5 security headers, configurations, or libraries to implement to
+  harden the app.]
+```

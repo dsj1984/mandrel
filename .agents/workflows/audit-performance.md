@@ -183,3 +183,16 @@ and `perf-baseline.json`.
 The **interleaving** dimension leans on the self-cross-check hardest: drop every
 claimed race that lacks a concrete losing interleaving over a repo-observable
 shared-state path.
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Low-Hanging Fruit section:
+
+```markdown
+# Performance Audit Report
+
+## Low-Hanging Fruit
+
+- [List 3 quick changes that provide immediate performance gains.]
+```

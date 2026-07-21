@@ -42,6 +42,17 @@ const LENS = readFileSync(
   'utf8',
 );
 
+const CORE = readFileSync(
+  path.join(REPO_ROOT, '.agents', 'workflows', 'helpers', 'audit-lens-core.md'),
+  'utf8',
+);
+// The shared finding-block skeleton, severity scale, and the two normalized
+// axes now live in the core helper (Story #4665); the lens composes its own
+// title + lens-specific sections/fields onto it. The contract is satisfied by
+// the composed source.
+const SOURCE = `${LENS}
+${CORE}`;
+
 // --- the lens markdown declares the contract the sequential path emits -----
 
 test('lens markdown writes the canonical artifact basename', () => {
@@ -52,13 +63,13 @@ test('lens markdown writes the canonical artifact basename', () => {
 });
 
 test('lens markdown contains the H1 report title', () => {
-  assert.ok(new RegExp(`^#\\s+${REPORT_TITLE}\\s*$`, 'm').test(LENS));
+  assert.ok(new RegExp(`^#\\s+${REPORT_TITLE}\\s*$`, 'm').test(SOURCE));
 });
 
 test('lens markdown declares every required ## section', () => {
   for (const heading of REQUIRED_SECTIONS) {
     assert.ok(
-      new RegExp(`^##\\s+${heading}\\s*$`, 'm').test(LENS),
+      new RegExp(`^##\\s+${heading}\\s*$`, 'm').test(SOURCE),
       `lens missing required section: ${heading}`,
     );
   }
@@ -66,7 +77,7 @@ test('lens markdown declares every required ## section', () => {
 
 test('lens markdown declares every per-finding field label', () => {
   for (const field of FINDING_FIELDS) {
-    assert.ok(LENS.includes(field), `lens missing finding field: ${field}`);
+    assert.ok(SOURCE.includes(field), `lens missing finding field: ${field}`);
   }
 });
 

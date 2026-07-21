@@ -115,3 +115,22 @@ mutation run — those mutate state and cost minutes). Reading the **committed**
 coverage / CRAP / mutation artifacts under `baselines/` is explicitly permitted
 and required (Step 0): citing an already-computed metric is read-only analysis,
 not a suite run.
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Test Strategy Assessment
+table:
+
+```markdown
+# Testing & Quality Assurance Audit
+
+## Test Strategy Assessment
+
+| Layer               | Status                           | Notes          |
+| ------------------- | -------------------------------- | -------------- |
+| Unit Testing        | [Healthy / Needs Work / Missing] | [Brief reason] |
+| Integration Testing | [Healthy / Needs Work / Missing] | [Brief reason] |
+| E2E Testing         | [Healthy / Needs Work / Missing] | [Brief reason] |
+| Test Plans          | [Healthy / Needs Work / Missing] | [Brief reason] |
+```
