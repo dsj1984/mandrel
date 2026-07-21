@@ -54,7 +54,9 @@ export const isAutoFileEnabled = makeIsAutoFileEnabled('retroProposals');
  * are path-less and the rendered title embeds a mutable recurrence count)
  * so the marker is stable across sibling insert/remove/reorder churn AND
  * across re-runs that change the count. An HTML comment so it survives
- * markdown rendering but stays indexable via `gh search`.
+ * markdown rendering without leaking into the visible body; the idempotency
+ * probe strips the comment delimiters before querying `gh search` (the raw
+ * `<!-- … -->` form never matches the index — Story #4657).
  *
  * @param {number} epicId
  * @param {{ category?: string, title?: string }} finding
@@ -223,6 +225,13 @@ export async function graduateRetroProposals({
     { source: 'consumer', items: consumer },
   ];
 
+  // One memo of content markers filed so far, SHARED across both buckets: the
+  // two scopes mint an identical marker for the same category by construction
+  // (Story #4657), so without it the framework and consumer buckets could each
+  // file the same category. The shared set makes the second bucket short-
+  // circuit the repeat with no spawn.
+  const filedMarkers = new Set();
+
   let remaining = maxFilingsPerRun;
   for (const { source, items } of buckets) {
     if (items.length === 0) continue;
@@ -242,6 +251,7 @@ export async function graduateRetroProposals({
       timeoutMs,
       maxFilingsPerRun: Math.max(0, remaining),
       findings,
+      filedMarkers,
       logger,
       spec: makeSpec(source),
     });

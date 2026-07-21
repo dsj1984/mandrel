@@ -97,7 +97,9 @@ function metaSourceLabel(source) {
  * ({@link buildContentMarker}) at the Story #4415 cutover, but still
  * probed for so follow-ups filed before the cutover are recognized and
  * not re-filed. An HTML comment so it survives markdown rendering without
- * leaking into the visible body, but stays indexable via `gh search`.
+ * leaking into the visible body; the idempotency probe strips the comment
+ * delimiters before querying `gh search` (the raw `<!-- … -->` form never
+ * matches the index — Story #4657).
  *
  * @param {number} epicId
  * @param {number} index — zero-based finding ordinal within the Epic.
@@ -112,7 +114,10 @@ export function buildIdempotencyMarker(epicId, index) {
  * follow-up bodies. Derived from the finding's `lens|path|summary` triple
  * so the marker is stable across sibling insert/remove/reorder churn in
  * the source `audit-results` comment (Story #4415). An HTML comment so it
- * survives markdown rendering but stays indexable via `gh search`.
+ * survives markdown rendering without leaking into the visible body; the
+ * idempotency probe strips the comment delimiters before querying
+ * `gh search` (the raw `<!-- … -->` form never matches the index —
+ * Story #4657).
  *
  * @param {number} epicId
  * @param {{ lens?: string, path?: string, summary?: string }} finding

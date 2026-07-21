@@ -17,9 +17,11 @@ import { EventEmitter } from 'node:events';
 import { describe, it } from 'node:test';
 
 import {
+  confirmMarkerFiled,
   createFollowUpIssue,
   graduate,
   makeIsAutoFileEnabled,
+  normalizeMarkerQuery,
   probeMarkerExists,
   probePathStatus,
   runChild,
@@ -45,6 +47,10 @@ function makeSpawnStub(routes) {
     } else if (args[0] === 'search') {
       result = routes.ghSearch
         ? routes.ghSearch(args)
+        : { stdout: '[]', stderr: '', code: 0 };
+    } else if (args[0] === 'issue' && args[1] === 'list') {
+      result = routes.ghList
+        ? routes.ghList(args)
         : { stdout: '[]', stderr: '', code: 0 };
     } else if (args[0] === 'issue' && args[1] === 'create') {
       result = routes.ghCreate
@@ -327,5 +333,253 @@ describe('graduate (parametrized walk)', () => {
     });
     assert.equal(env.filed.length, 0);
     assert.match(env.errors[0], /provider down/);
+  });
+});
+
+/**
+ * Story #4657 — the idempotency probe repair. The wrapped `<!-- … -->`
+ * marker form never matched the search index; these pin the delimiter
+ * normalization, the strong-read confirmation on the would-file path, and
+ * the preserved degrade-toward-filing posture.
+ */
+describe('normalizeMarkerQuery (Story #4657)', () => {
+  it('strips the HTML-comment delimiters and trims', () => {
+    assert.equal(
+      normalizeMarkerQuery('<!-- retro-proposal-followup: epic-1-abc -->'),
+      'retro-proposal-followup: epic-1-abc',
+    );
+  });
+
+  it('is a no-op string for a non-string input', () => {
+    assert.equal(normalizeMarkerQuery(undefined), '');
+    assert.equal(normalizeMarkerQuery(null), '');
+  });
+});
+
+describe('probeMarkerExists — query normalization (AC-1)', () => {
+  it('never sends comment delimiters to the search index', async () => {
+    const spawnImpl = makeSpawnStub({
+      ghSearch: () => ({ stdout: '[]', code: 0 }),
+    });
+    await probeMarkerExists({
+      marker: '<!-- retro-proposal-followup: epic-1-abc -->',
+      owner: 'o',
+      repo: 'r',
+      ghPath: 'gh',
+      spawnImpl,
+    });
+    const searchCall = spawnImpl.calls.find((c) => c.args[0] === 'search');
+    assert.ok(searchCall, 'a gh search issues call was made');
+    for (const arg of searchCall.args) {
+      assert.ok(
+        !arg.includes('<!--') && !arg.includes('-->'),
+        `no search arg carries comment delimiters: ${arg}`,
+      );
+    }
+    // And the query is the bare marker text the index actually matches.
+    assert.ok(
+      searchCall.args.includes('retro-proposal-followup: epic-1-abc'),
+      'the undelimited marker text is the query',
+    );
+  });
+});
+
+describe('confirmMarkerFiled — strong read (Story #4657)', () => {
+  it('matches the marker as a substring of a returned body and scopes by label', async () => {
+    const marker = '<!-- audit-results-followup: epic-1-abc -->';
+    const spawnImpl = makeSpawnStub({
+      ghList: () => ({
+        stdout: JSON.stringify([{ number: 9, body: `head\n${marker}\ntail` }]),
+        code: 0,
+      }),
+    });
+    const found = await confirmMarkerFiled({
+      marker,
+      owner: 'o',
+      repo: 'r',
+      labels: ['meta::audit-finding', 'audit-results::low'],
+      ghPath: 'gh',
+      spawnImpl,
+    });
+    assert.equal(found, true);
+    const listCall = spawnImpl.calls.find(
+      (c) => c.args[0] === 'issue' && c.args[1] === 'list',
+    );
+    // The list is strongly consistent (--state all) and label-scoped.
+    assert.ok(listCall.args.includes('--state'));
+    assert.ok(listCall.args.includes('all'));
+    assert.ok(listCall.args.includes('--label'));
+    assert.ok(listCall.args.includes('meta::audit-finding'));
+  });
+
+  it('degrades to false (proceed to file) on a spawn error', async () => {
+    const spawnImpl = () => {
+      throw new Error('gh missing');
+    };
+    assert.equal(
+      await confirmMarkerFiled({
+        marker: 'm',
+        owner: 'o',
+        repo: 'r',
+        labels: [],
+        ghPath: 'gh',
+        spawnImpl,
+      }),
+      false,
+    );
+  });
+});
+
+describe('graduate — dedup dispatch (Story #4657)', () => {
+  const currentRepo = { owner: 'o', repo: 'r' };
+
+  // The content marker the minimal spec embeds, in wrapped form.
+  const wrappedMarker = (epicId, index) => `<!-- f-${epicId}-${index} -->`;
+
+  it('AC-2: identifies the marker via the undelimited search query', async () => {
+    const provider = {
+      getTicketComments: async () => [{ body: '<!-- test-marker --> FIND' }],
+    };
+    // Match ONLY on the undelimited marker text — a wrapped query never hits.
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghSearch: (args) => ({
+        stdout: args[2] === 'f-42-0' ? '[{"number":3}]' : '[]',
+        code: 0,
+      }),
+    });
+    const env = await graduate({
+      epicId: 42,
+      provider,
+      currentRepo,
+      classifier: () => 'consumer',
+      spawnImpl,
+      spec: makeSpec(),
+    });
+    assert.equal(env.filed.length, 0, 'no filing when already present');
+    assert.equal(env.skipped[0]?.reason, 'already-filed');
+    // The search query carried no delimiters.
+    const searchCall = spawnImpl.calls.find((c) => c.args[0] === 'search');
+    assert.equal(searchCall.args[2], 'f-42-0');
+    // No create was attempted.
+    assert.ok(!spawnImpl.calls.some((c) => c.args[1] === 'create'));
+  });
+
+  it('AC-3: legacy ordinal markers get the same normalization', async () => {
+    const provider = {
+      getTicketComments: async () => [{ body: '<!-- test-marker --> FIND' }],
+    };
+    // Content marker absent; the legacy marker is present — matched only in
+    // its undelimited form.
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghSearch: (args) => ({
+        stdout: args[2] === 'legacy-f-1-0' ? '[{"number":4}]' : '[]',
+        code: 0,
+      }),
+    });
+    const env = await graduate({
+      epicId: 1,
+      provider,
+      currentRepo,
+      classifier: () => 'consumer',
+      spawnImpl,
+      spec: makeSpec(),
+    });
+    assert.equal(env.filed.length, 0);
+    assert.equal(env.skipped[0]?.reason, 'already-filed');
+    const legacySearch = spawnImpl.calls.find(
+      (c) => c.args[0] === 'search' && c.args[2] === 'legacy-f-1-0',
+    );
+    assert.ok(legacySearch, 'the legacy marker was probed undelimited');
+    assert.ok(
+      !legacySearch.args.some((a) => a.includes('<!--') || a.includes('-->')),
+      'the legacy query carried no delimiters',
+    );
+  });
+
+  it('AC-4: a duplicate inside the search-index window is caught by the strong read', async () => {
+    const provider = {
+      getTicketComments: async () => [{ body: '<!-- test-marker --> FIND' }],
+    };
+    // Search index misses it (empty), but the strongly-consistent issue list
+    // returns a body carrying the marker.
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghSearch: () => ({ stdout: '[]', code: 0 }),
+      ghList: () => ({
+        stdout: JSON.stringify([
+          { number: 7, body: `x ${wrappedMarker(42, 0)} y` },
+        ]),
+        code: 0,
+      }),
+    });
+    const env = await graduate({
+      epicId: 42,
+      provider,
+      currentRepo,
+      classifier: () => 'consumer',
+      spawnImpl,
+      spec: makeSpec(),
+    });
+    assert.equal(env.filed.length, 0, 'the window duplicate is not re-filed');
+    assert.equal(env.skipped[0]?.reason, 'already-filed');
+    assert.ok(
+      !spawnImpl.calls.some((c) => c.args[1] === 'create'),
+      'createFollowUpIssue was never spawned',
+    );
+  });
+
+  it('AC-5: the strong read runs only on the would-file path', async () => {
+    const provider = {
+      getTicketComments: async () => [{ body: '<!-- test-marker --> FIND' }],
+    };
+    // Search already reports a match → no gh issue list spawn.
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghSearch: () => ({ stdout: '[{"number":1}]', code: 0 }),
+    });
+    const env = await graduate({
+      epicId: 42,
+      provider,
+      currentRepo,
+      classifier: () => 'consumer',
+      spawnImpl,
+      spec: makeSpec(),
+    });
+    assert.equal(env.skipped[0]?.reason, 'already-filed');
+    assert.ok(
+      !spawnImpl.calls.some(
+        (c) => c.args[0] === 'issue' && c.args[1] === 'list',
+      ),
+      'no gh issue list spawn when the search probe already matched',
+    );
+  });
+
+  it('AC-7: an undecidable probe still files rather than swallowing', async () => {
+    const provider = {
+      getTicketComments: async () => [{ body: '<!-- test-marker --> FIND' }],
+    };
+    // Both read probes error; only the create succeeds.
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghSearch: () => {
+        throw new Error('search down');
+      },
+      ghList: () => {
+        throw new Error('list down');
+      },
+      ghCreate: () => ({ stdout: 'https://x/issues/11', code: 0 }),
+    });
+    const env = await graduate({
+      epicId: 42,
+      provider,
+      currentRepo,
+      classifier: () => 'consumer',
+      spawnImpl,
+      spec: makeSpec(),
+    });
+    assert.equal(env.filed.length, 1, 'degrade-toward-filing preserved');
+    assert.equal(env.filed[0].url, 'https://x/issues/11');
   });
 });
