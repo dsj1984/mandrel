@@ -1,13 +1,10 @@
 # Application Security Baseline
 
-Non-negotiable security MUSTs that apply to every piece of code generated. This
-rule is the SSOT for security taxonomy and constraints; the companion skill
+Non-negotiable security MUSTs (the SSOT for security taxonomy and constraints)
+that apply to every piece of code generated; the companion skill
 [`core/security-and-hardening`](../skills/core/security-and-hardening/SKILL.md)
-shows **how** to apply these MUSTs with code patterns, examples, and process
-guidance. Conflicts resolve per the central ordering in
-[`.agents/instructions.md` § 1.K](../instructions.md) — this rule sits above
-the skill, and its security MUSTs are **inviolable**: no persona, skill, or
-local override may relax them. The skill is updated to match.
+shows **how** to apply them. These MUSTs are inviolable per
+[`.agents/instructions.md` § 1.K](../instructions.md).
 
 ## Input Validation
 
@@ -87,11 +84,8 @@ local override may relax them. The skill is updated to match.
 
 ## Forbidden Practices
 
+The MUSTs above are the contract; two rationalizations recur often enough to
+name explicitly (both violate a MUST above):
+
 - Committing secrets to version control.
-- Logging passwords, tokens, or full credit-card numbers.
-- Trusting client-side validation as a security boundary.
 - Disabling security headers for convenience.
-- Using `eval()` or `innerHTML` with user-provided data.
-- Storing auth tokens in client-accessible storage.
-- Exposing stack traces or internal error details to users.
-- Hardcoding fallback secrets ("default" API keys, debug bypasses) in source.

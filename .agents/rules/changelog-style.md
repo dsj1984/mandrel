@@ -5,8 +5,8 @@ This rule governs the shape of per-release entries in the project CHANGELOG
 release entry is authored or edited — most commonly inside Story #N's
 docs sweep before `/deliver` opens the release PR.
 
-The contract is **guidance-tier** in v1: no automated gate fails a close when
-an entry drifts off-template. It still binds every author.
+The contract is **guidance-tier**: no automated gate fails a close when an
+entry drifts off-template. It still binds every author.
 
 ## Goal
 
@@ -129,71 +129,13 @@ release into grouped sub-sections over padding the bullet list. Before
 accepting a long entry, ask: which bullets are user-visible, and which
 are internal detail that migrated in from the Epic body?
 
-## Worked Example — Before/After
+## Worked Example — On-Contract
 
-The "before" reflects the style that drove the Epic #553 retro action item:
-multi-section entries where each bullet leaked internal function names,
-file paths, and implementation mechanics. The "after" applies the contract
-above.
-
-### Before (off-contract, ~48 lines)
-
-```markdown
-## [5.8.7] - 2026-04-15
-
-### Robust story→epic merge at story close
-
-Parallel wave execution kept producing conflicts — Stories branched
-early in a wave landed after peers had merged. `finalizeMerge` now:
-
-1. **Pre-merge rebase in the story worktree** onto
-   `origin/<epicBranch>`, shrinking the conflict surface to the
-   Story's real delta. Failed rebase is aborted and merge still
-   proceeds.
-2. **Conflict triage via `mergeFeatureBranch`** — same threshold-based
-   triage used at integration time (major ≥3 files or ≥20 markers =
-   abort; minor = auto-resolve by accepting Story's version with audit
-   log).
-
-### Per-worktree node_modules collapsed into shared store
-
-Per-worktree `npm install` duplicated dependencies across every story
-tree and blew out disk on parallel waves. `ensure()` now links each
-worktree's `node_modules` to a primed donor tree (junction on Windows)
-and `reap()` removes the link before `git worktree remove`.
-Auto-detected: if the configured strategy is `symlink`, the link
-applies.
-
-### Deliver tail auto-invokes pre-merge gates
-
-`/deliver` auto-invokes the code-review module (Phase 4) and
-the retro runner (Phase 5) inline instead of halting to ask the
-operator to run them separately. `--skip-code-review` available as
-an override.
-
-### Epic Health ticket closed alongside PRD/Tech Spec
-
-Step 8's closure sweep now matches any ticket carrying `type::health`
-or a title starting with `📉 Epic Health:`, in addition to
-`context::prd` / `context::tech-spec`.
-
-### Stale-lock sweep for shared `.git/` dir
-
-`WorktreeManager.sweepStaleLocks({ maxAgeMs = 30_000 })` removes
-well-known lock files (`index.lock`, `HEAD.lock`, `packed-refs.lock`,
-`config.lock`, `shallow.lock`) whose mtime exceeds the threshold.
-Fresh locks belonging to in-flight ops are skipped. Runs at
-`/deliver` start, before worktree GC.
-```
-
-Contract violations: five separate `###` sub-sections where one theme
-would do; internal function names (`finalizeMerge`, `mergeFeatureBranch`,
-`ensure()`, `reap()`, `WorktreeManager.sweepStaleLocks`); implementation
-mechanics (`BFS walker` equivalent, exact argument shapes, internal step
-numbering like "Step 1.4", "Step 8"); lock-file name list leaks
-implementation detail that operators cannot act on.
-
-### After (on-contract, ~18 lines)
+Off-contract entries — the style that drove the Epic #553 retro action item —
+pack several `###` sub-sections into one release and leak internal function
+names (`finalizeMerge`, `mergeFeatureBranch`, `ensure()`, `reap()`),
+implementation mechanics, internal step numbering, and lock-file name lists
+operators cannot act on. The on-contract version collapses all of that:
 
 ```markdown
 ## [5.8.7] - 2026-04-15

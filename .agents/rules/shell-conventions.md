@@ -45,19 +45,10 @@ Other PowerShell-isms agents must respect:
 
 ## Searching the Workspace
 
-When searching for strings, patterns, or files, prioritize speed and avoid
-pipeline bottlenecks or full-file reads. Use this decision tree:
-
-1. **Host grep tool first.** If the harness exposes a dedicated grep tool
-   (e.g. Claude Code's `Grep` tool, ripgrep wrappers), use it. These
-   normalize quoting, respect `.gitignore`, and stream results.
-2. **`git grep`** when the workspace is a git repo and no host tool is
-   available. Pass `-l` to list only filenames when paths are sufficient.
-3. **`rg` (ripgrep)** when installed and outside a git repo, or when you
-   need features `git grep` lacks (multiline, type filters).
-4. **Avoid full-file reads** for searches. Reading whole files into memory
-   to scan for a pattern wastes context and is slower than a streaming
-   grep.
+Prefer, in order: the host's dedicated grep tool (ripgrep-backed — normalizes
+quoting, respects `.gitignore`, streams results), then `git grep` in a git
+repo (`-l` for filenames only), then `rg` outside a git repo or when you need
+multiline / type filters. Do not read whole files to scan for a pattern.
 
 ### PowerShell-specific anti-patterns
 
