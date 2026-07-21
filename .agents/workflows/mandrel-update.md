@@ -113,19 +113,13 @@ single source of truth, kept in lockstep with this table by
 | **migrate**       | `npx mandrel migrate --from <cur> --to <target>`        |
 | **doctor**        | `npx mandrel doctor` (then apply the per-check remedies) |
 
-The exact stderr the CLI prints per failed phase:
-
-- **sync** — the .agents/ materialization may be incomplete. Run `mandrel
-  sync` manually to restore.
-- **sync-commands** — the .claude/commands/ tree may be out of sync. Run `npm
-  run sync:commands` manually to restore.
-- **migrate** — some migrations for v\<cur\> → v\<target\> may not have
-  applied. Run `mandrel migrate --from <cur> --to <target>` manually to retry.
-- **doctor** — upgraded to v\<target\> but doctor reported failures. → Run
-  `mandrel doctor` for remedies.
-
-(`<cur>` / `<target>` are the installed and resolved-newest version strings
-the failing run reported.)
+The CLI prints the matching remedy command to stderr per failed phase; the
+workflow quotes those commands verbatim so an operator sees the same thing the
+CLI told them, and the drift gate above keys on them: Run `mandrel sync`
+manually to restore. · Run `npm run sync:commands` manually to restore. · Run
+`mandrel migrate --from <cur> --to <target>` manually to retry. · Run
+`mandrel doctor` for remedies. (`<cur>` / `<target>` are the installed and
+resolved-newest version strings the failing run reported.)
 
 Recovery sequence: run the matching remedy, then **re-run
 `npx mandrel update`** — it is idempotent (the install already landed, so a
