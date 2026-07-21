@@ -151,31 +151,17 @@ finding, it **MUST** pass
 Redaction is not optional — findings are posted to GitHub at the orchestrator's
 approval time, so unredacted secrets must never reach the `findings` output.
 
-## Deferred: batched sub-agent dispatch mode (spec-only)
+## Sequential-only driving (a live browser is a shared resource)
 
-> **Not yet enabled.** This section specifies a future execution mode; the
-> current `/qa-run` sweep calls this helper **inline**, one scenario at a time,
-> in the orchestrator's own turn. The batched mode below is documented so the
-> contract is stable when it is turned on — do not implement it as live
-> behavior from this spec alone.
-
-In the deferred mode, the orchestrator MAY dispatch scenarios to fresh-context
-sub-agents to keep its own context window focused, under these hard rules:
-
-- **Sequential, never parallel.** Sub-agents run **one at a time**, never
-  concurrently. A live browser surface is a single shared resource; parallel
-  drivers would race on navigation and cross-contaminate evidence.
-- **One sub-agent per persona group.** Scenarios are grouped by persona and a
-  single sub-agent drives all of one persona's scenarios, so the persona is
-  signed in once per group rather than per scenario.
-- **Re-verify auth on entry.** Each sub-agent MUST re-verify the
-  authenticated-session precondition (a `take_snapshot` confirming the persona
-  badge) when it starts, because it does not share the orchestrator's live
-  session state.
-- **Same input/output contract.** Each sub-agent consumes the input contract
-  above and returns the per-scenario result shape above for every scenario it
-  drove — the orchestrator aggregates identically whether the helper ran inline
-  or via a batched sub-agent.
+Scenarios are driven **one at a time, never concurrently**. A live browser
+surface is a single shared resource; parallel drivers would race on navigation
+and cross-contaminate evidence, so parallel driving is ruled out. Today the
+`/qa-run` sweep calls this helper **inline**, one scenario per turn. A future,
+**not-yet-enabled** batched sub-agent dispatch mode — which would still run
+sub-agents sequentially, one per persona group, re-verifying auth on entry and
+honoring the same input/output contract — is specified in
+[`qa-run-scenario-reference.md`](qa-run-scenario-reference.md). Do not implement
+that mode as live behavior from the spec alone.
 
 ## Constraints
 

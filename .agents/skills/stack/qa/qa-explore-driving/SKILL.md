@@ -41,29 +41,24 @@ the read-only and no-PII boundaries are inviolable per
 [`security-baseline.md`](../../../../rules/security-baseline.md). Read this
 skill before driving a live surface; read the workflow for the phase order.
 
-## 1. Navigation-First Driving (the default)
+## 1. Navigation-First Driving (the default) — one prose home
 
-The agent reaches every surface the way a real user would. This is the
-load-bearing convention — it is what makes findings reflect a user-reachable
-state rather than an artifact of a deep link.
+Navigation-first driving is the default and load-bearing convention: reach every
+surface the way a real user would so findings reflect a user-reachable state,
+not an artifact of a deep link. Its full prose statement lives once in
+[`qa-run-scenario.md`](../../../../workflows/helpers/qa-run-scenario.md) (shared
+with the known-scenario sweep) — apply it from there rather than restating it.
+In capsule:
 
-- **Drive the running app by default.** When a live runtime is reachable, drive
-  it through the browser MCP (the chrome-devtools MCP surface). This is the
-  primary method; static driving is the interim alternative (§ 2), not the
-  norm.
-- **Start at a root.** Begin each surface at the app's home or dashboard and
-  reach the surface under test by clicking nav links, menu items, and buttons —
-  the same affordances a user has.
-- **Never URL-jump.** Do not navigate directly to a deep link to establish a
-  starting state. URL-jumping bypasses the app's real authorization and routing
-  flows, which both masks access-control gaps and produces findings that no
-  user could actually trigger.
-- **Broken navigation is a finding, not a workaround.** When an affordance is
-  missing, a nav link 404s, or a guard redirect loops, that is the finding. Do
-  not route around it with a direct URL — record it and move on.
-- **Observe, do not fabricate.** Use app-provided UI affordances to reach and
-  observe a surface. Never script the runtime to manufacture an outcome the
-  exploration is meant to discover.
+- **Drive the running app by default** through the browser MCP; static (§ 2) is
+  the interim alternative, not the norm.
+- **Start at a root and never URL-jump** — reach the surface under test by
+  clicking the affordances a real user has, never by deep-linking a starting
+  state.
+- **Broken navigation is a finding, not a workaround** — a missing affordance, a
+  nav 404, or a guard redirect loop is recorded; do not route around it.
+- **Observe, do not fabricate** — never script the runtime to manufacture an
+  outcome the exploration is meant to discover.
 
 ## 2. Static Driving — the Documented Interim
 
@@ -150,6 +145,7 @@ deployed surfaces are **driven**, not statically deferred.
 ## 5. Cross-References
 
 - Run procedure (SSOT): [`qa-explore.md`](../../../../workflows/qa-explore.md).
+- Driving rules (one prose home): [`qa-run-scenario.md`](../../../../workflows/helpers/qa-run-scenario.md).
 - Known-scenario sibling sweep: [`qa-harness`](../qa-harness/SKILL.md).
 - Browser instrumentation: [`browser-testing-with-devtools`](../../../core/browser-testing-with-devtools/SKILL.md).
 - Read-only / no-PII boundary: [`security-baseline.md`](../../../../rules/security-baseline.md).

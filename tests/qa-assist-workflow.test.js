@@ -46,8 +46,21 @@ const WORKFLOWS_DOC_PATH = path.join(
   'docs',
   'workflows.md',
 );
+// The shared contract/session/redaction/QaLedgerItem/triage/HITL machinery is
+// single-homed in helpers/qa-core.md (Story #4666); the workflow references it
+// by pointer. Assert wired-helper paths against the union of the two so the
+// guard stays meaningful without forcing the workflow to restate the core.
+const QA_CORE_PATH = path.join(
+  REPO_ROOT,
+  '.agents',
+  'workflows',
+  'helpers',
+  'qa-core.md',
+);
 
 const source = readFileSync(WORKFLOW_PATH, 'utf8');
+const coreSource = readFileSync(QA_CORE_PATH, 'utf8');
+const combinedSource = `${source}\n${coreSource}`;
 
 describe('qa-assist workflow contract', () => {
   it('opens with a YAML frontmatter description block so sync-commands projects it', () => {
@@ -159,11 +172,12 @@ describe('qa-assist workflow contract', () => {
     ];
     for (const ref of referencedPaths) {
       // The workflow links to siblings with `../`-relative paths; assert on the
-      // distinctive tail so the test is robust to the relative prefix.
+      // distinctive tail so the test is robust to the relative prefix. Shared-
+      // core helpers now live in helpers/qa-core.md, so check the union.
       const tail = ref.replace(/^\.agents\//, '');
       assert.ok(
-        source.includes(tail),
-        `qa-assist.md must reference ${ref} (looked for "${tail}")`,
+        combinedSource.includes(tail),
+        `qa-assist.md (or helpers/qa-core.md) must reference ${ref} (looked for "${tail}")`,
       );
     }
   });
