@@ -19,12 +19,6 @@ report under `temp/audits/`. Every `### Finding` block in those reports
 already carries the fields a Story body needs (Severity / Impact,
 Dimension / Category, Current State, Recommendation, Agent Prompt).
 
-`/audit-to-stories` closes the loop: it parses those reports, groups
-related findings (including across audit dimensions), classifies each
-group as eligible-to-create or already-tracked, and — at the operator's
-choice — either chains into `/plan --seed-file` for a planned Story
-(or N>1 under the split policy) or opens standalone Stories directly.
-
 The audit producers themselves are **not modified** by this workflow.
 They remain read-only emitters of audit reports.
 
@@ -295,8 +289,7 @@ and prints a run-summary JSON (create / skip-open / skip-reoccurring /
 suppressed-by-ledger tallies, plus the re-detected open Issue numbers an
 operator may want a "re-detected" comment on). `--dry-run` performs zero GitHub
 writes and skips the ledger write, emitting only the summary. The host
-scheduler owns the cadence; this workflow owns the routing. (This paragraph
-folds in the `loops/nightly-audit.md` starter unit retired in issue 4482.)
+scheduler owns the cadence; this workflow owns the routing.
 
 ## See also
 

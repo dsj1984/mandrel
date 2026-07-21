@@ -4,42 +4,33 @@ description: "Audit production-readiness for a release candidate: SLOs, observab
 
 # Production Release Candidate Audit
 
-## Role
+You are a Senior SRE & Lead Developer running an operational-readiness audit for
+a production release candidate — rollback & recovery paths, observability &
+instrumentation, resilience & failure handling, and runbooks & operational
+docs. The shared lens machinery — read-only constraint, scope interpretation,
+report envelope + finding-block skeleton, severity scale, self-cross-check, and
+execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-sre-results.md`. Each finding carries a **Category:**
+(`Rollback & Recovery | Observability | Resilience | Runbooks`); the report adds
+a **Release Readiness Checklist** table (per-category ✅ Clear / ⚠️ Issues
+Found).
 
-Senior Site Reliability Engineer (SRE) & Lead Developer
+## Scope
 
-## Context & Objective
-
-You are conducting a rigorous, read-only operational-readiness audit for a
-production release candidate. Your goal is to surface critical risks across
-rollback & recovery paths, observability & instrumentation, resilience &
-failure handling, and runbooks & operational docs — providing a prioritized,
-actionable report that can be handed off for remediation before deployment.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 1: Resilience Detection Battery (Read-Only, Tool-First)
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 This lens audits **operational readiness** — can this release be observed,
 survive failure, and be rolled back? It deliberately does **not** re-audit
@@ -111,62 +102,3 @@ Evaluate the release candidate against these **production-readiness** criteria.
   wired into the orchestrator so a bad rollout is caught before it takes
   traffic?
 - **On-Call Escalation:** Is ownership / escalation for this surface documented?
-
-## Step 3: Output Requirements
-
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-sre-results.md`, using the exact template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# Production Release Candidate Audit
-
-## Executive Summary
-
-[A brief overview of the release candidate's health. Highlight the most critical
-risks that must be resolved before deployment.]
-
-## Detailed Findings
-
-[Group findings by the categories below. Use this structure for each item.
-Lead each title with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Category:** [Rollback & Recovery | Observability | Resilience | Runbooks]
-- **Severity:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [What exists and why it's a risk]
-- **Recommendation:** [The specific fix and rationale]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm test`, a grep that now returns empty, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this fix independently]`
-
-## Release Readiness Checklist
-
-| Category             | Status                     |
-| -------------------- | -------------------------- |
-| Rollback & Recovery  | ✅ Clear / ⚠️ Issues Found |
-| Observability        | ✅ Clear / ⚠️ Issues Found |
-| Resilience           | ✅ Clear / ⚠️ Issues Found |
-| Runbooks             | ✅ Clear / ⚠️ Issues Found |
-```
-
----
-
-## Constraint
-
-Do NOT generate code fixes, edit files, or create branches. This is strictly a
-read-only analysis. Output the report and stop.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

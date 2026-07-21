@@ -4,47 +4,31 @@ description: Audit architectural boundaries, module coupling, and layering viola
 
 # Architecture & Clean Code Audit
 
-## Role
+You are a Staff Software Engineer & Architecture Reviewer performing a read-only
+review that prioritizes maintainability and readability without altering
+external APIs or business logic. The shared lens machinery — read-only
+constraint, scope interpretation, report envelope + finding-block skeleton,
+severity scale, self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-architecture-results.md`. Each finding carries an
+**Impact:** and a **Category:** (`Quick Win | Structural Change`); the report
+adds a **Triage Summary** (Quick Wins / Structural Changes) and an
+**Architecture Guardrail Coverage** section.
 
-Staff Software Engineer & Architecture Reviewer
+## Scope
 
-## Context & Objective
-
-You are performing a comprehensive, read-only architectural and clean-code
-review of this codebase. Your goal is to identify areas of unnecessary
-abstraction, premature optimization, high cognitive load, and over-engineering.
-You must prioritize maintainability and readability without altering any
-existing external APIs or business logic.
-
-## Execution strategy (dual-path)
-
-This lens runs along one of two execution paths (orchestrated dynamic-workflow
-or sequential single-pass). Both emit the **identical** Step 3 report contract;
-downstream consumers (`audit-to-stories`) are agnostic to which path produced
-it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
-selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
-there as this lens's name.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+This is a **heavyweight lens**: dispatch it as a single `subagent_type: auditor`
+call, or fan its dimensions out per-dimension across parallel `auditor`
+subagents (parallel-tooling Rule 3) and merge under the self-cross-check.
+Sequential inline execution is the fallback (see the core's Execution strategy).
 
 ## Step 0: Tool-first detection (mandatory — run before any LLM dimension)
 
@@ -98,8 +82,6 @@ broken) rather than skipping the step silently.
 
 ## Step 1: Context Gathering (Read-Only Scan)
 
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
-
 Before generating the report, silently scan the core application logic. Pay
 special attention to:
 
@@ -142,15 +124,13 @@ Structural Change can be Medium. As a loose default, Quick Wins typically land
 High (cheap to fix, real payoff) and Structural Changes Medium/High, but grade
 Impact on the risk itself rather than deriving it mechanically from Category.
 
-> **Ceded to audit-clean-code.** The five clean-code-overlapping dimensions
-> this lens historically enumerated — Over-Engineering & Abstractions,
-> Cognitive Load & Nesting, Dead Code & Redundancy, Naming &
-> Self-Documentation, and Coupling & Cohesion — are now owned by
-> [`audit-clean-code`](audit-clean-code.md). Do **not** duplicate them here: a
-> smell in one of those five belongs in the clean-code report, and the
-> dead-export candidates from Step 0 flow into audit-clean-code's Dead Code
-> dimension. This lens keeps only the two structural dimensions no other lens
-> owns — the testable-surface boundary and the automated-guardrail maturity.
+> **Boundary with `audit-clean-code`.** The clean-code-overlapping smells
+> (over-engineering & abstractions, cognitive load & nesting, dead code &
+> redundancy, naming & self-documentation, coupling & cohesion) are owned by
+> [`audit-clean-code`](audit-clean-code.md); the Step 0 dead-export candidates
+> flow into its Dead Code dimension. Do **not** duplicate them here. This lens
+> keeps only the two structural dimensions no other lens owns — the
+> testable-surface boundary and the automated-guardrail maturity.
 
 Evaluate the gathered context against the following architecture dimensions:
 
@@ -220,7 +200,7 @@ Evaluate the gathered context against the following architecture dimensions:
    harness subsystems under this dimension.
 
    **Scope-mode behavior.** When this lens is invoked in Story scope (the
-   `{{changedFiles}}` block above is populated with a file list), the
+   `{{changedFiles}}` fence is populated with a file list), the
    maturity assessment for this dimension is a repo-wide property that
    cannot be represented by a small changeset. In that case, render the
    `Architecture Guardrail Coverage` report section with maturity
@@ -241,98 +221,30 @@ evidence supports.
 | **Missing**        | Neither documented boundaries nor automated checks exist for a codebase whose shape (layered, multi-package, server/client split, feature-sliced) would benefit from them. |
 | **Not Applicable** | The codebase has no meaningful architectural layering to guard (e.g., a single-package utility repo, a one-file script, a flat content repo).                          |
 
-## Step 3: Output Requirements
+## Report additions
 
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-architecture-results.md`, using the exact template
-below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and two lens-specific sections:
 
 ```markdown
 # Architecture & Clean Code Review
-
-## Executive Summary
-
-[Provide a brief overview of the codebase's health, highlighting the primary
-architectural pain points and areas for simplification.]
 
 ## Triage Summary
 
 ### Quick Wins (Low Effort, High Impact)
 
-- [List 2–3 immediate, safe refactors — e.g., deleting dead code, renaming
-  variables, extracting simple utilities.]
+- [List 2–3 immediate, safe refactors.]
 
 ### Structural Changes (Medium/High Effort, Architectural Impact)
 
-- [List 2–3 larger refactors — e.g., decoupling services, flattening complex
-  module hierarchies, removing unnecessary design patterns.]
+- [List 2–3 larger refactors.]
 
 ## Architecture Guardrail Coverage
 
-[Codebase-wide mode: complete this section using the maturity rubric in
-Step 2. Story-scoped run: set `Current Maturity` to
-`Not Assessed — scoped run` and leave the remaining fields empty or
-marked `n/a`.]
-
 - **Current Maturity:** [Strong | Partial | Missing | Not Applicable | Not Assessed — scoped run]
-- **Documented Boundaries:** [Files / sections that name the architecture
-  boundaries — e.g., `docs/architecture.md § Layering`, ADR-0007. State
-  `none found` if absent.]
-- **Automated Checks Found:** [Tooling and config paths — e.g.,
-  `dependency-cruiser` at `.dependency-cruiser.cjs`,
-  `eslint-plugin-boundaries` rules in `eslint.config.js`,
-  `tsconfig.json` `references`. State `none found` if absent.]
-- **CI Enforcement:** [Whether a CI job runs the checks and fails the
-  build on violation — name the workflow file and job. State `not
-  enforced in CI` if the check runs only locally, or `n/a` if no check
-  exists.]
-- **Axes Covered:** [Tick the axes from Step 2 that have at least one
-  automated check — layer direction, feature/module boundaries,
-  server/client separation, workspace package boundaries, public
-  entrypoints, circular dependencies, forbidden deep imports. Mark
-  axes that don't apply to this codebase's shape as `n/a`.]
-- **Recommended Next Step:** [The single lightest fitting project-local
-  improvement — e.g., "add `dependency-cruiser` with a
-  `no-circular` rule and wire `npm run check:arch` into the existing
-  CI lint job". Advisory only; the consumer project owns adoption. Do
-  not propose Mandrel-owned harness changes.]
-
-## Detailed Findings
-
-[For every gap identified, use the following strict structure. Lead each title
-with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Impact:** [Critical | High | Medium | Low]
-- **Category:** [Quick Win | Structural Change]
-- **Dimension:** [e.g., Cognitive Load & Nesting | Testable Surface (Humble-Object Boundary) | Automated Architecture Guardrails]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [The specific file/function and why it is problematic]
-- **Recommendation & Rationale:** [The specific refactor strategy and how it
-  improves readability or maintainability]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a maintainability-index re-check, `npm test`, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this refactor independently. Must explicitly state NOT to change external APIs.]`
+- **Documented Boundaries / Automated Checks Found / CI Enforcement / Axes Covered / Recommended Next Step:** [per the Maturity Rubric — a single lightest project-local improvement, advisory only, no Mandrel-owned harness changes]
 ```
 
----
-
-## Constraint
-
-Do NOT execute any code modifications, edit files, create branches, or implement
-changes. This is strictly a read-only analysis. Ensure all recommendations
-preserve existing functionality and external APIs. Output the report and stop.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.
+In a Story-scoped run set `Current Maturity` to `Not Assessed — scoped run` and
+mark the remaining fields `n/a`; the full maturity assessment runs only in
+codebase-wide mode.

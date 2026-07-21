@@ -8,6 +8,22 @@ description: >-
 
 # Navigability Audit
 
+You are an Information-Architecture Reviewer & Frontend Navigation Auditor
+evaluating **navigability**: every route a persona is entitled to reach has a
+real navigation door, and every nav door points at a route that exists. The two
+symmetric failure modes are the **orphaned route** (registered but no
+nav-registry entry surfaces it for any persona — only a hardcoded deep-link
+reaches it) and the **dead nav href** (a nav entry points at a route that does
+not exist). This is **mechanism, not content**: the lens reads the consumer's
+configured route tree and nav-registry SSOT and is a **silent no-op when neither
+is configured**. The shared lens machinery — read-only constraint, scope
+interpretation, report envelope + finding-block skeleton, severity scale,
+self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-navigability-results.md`. Dimension values:
+`Orphaned Route | Dead Nav Href`; extra finding fields **Route / Door:** and
+**Persona(s):** (identifiers only — never full route bodies or persona PII).
+
 ## Applicability
 
 **Web targets only.** Registered with `target: "web"` in
@@ -17,29 +33,6 @@ web-surface probe's first signal _is_ configured `routeGlobs`, so a consumer
 that has configured this lens's route-tree SSOT always clears the gate. The
 gate only bites where the lens had no route data to read anyway — it converts a
 silent no-op run into no run at all.
-
-## Role
-
-Information-Architecture Reviewer & Frontend Navigation Auditor
-
-## Context & Objective
-
-Evaluate the application's **navigability**: the property that every route a
-persona is entitled to reach has a real navigation door (a menu item, link, or
-button rendered in that persona's authenticated shell), and that every nav door
-points at a route that actually exists. The two failure modes this lens names
-are symmetric:
-
-- **Orphaned route** — a route is registered in the route tree but no
-  nav-registry entry surfaces it for any persona. The feature ships but is
-  unreachable through the product; only a hardcoded deep-link reaches it.
-- **Dead nav href** — a nav-registry entry points at a route (or path) that
-  does not exist in the route tree. The door is rendered but leads nowhere.
-
-This is **mechanism, not content**: the lens reads the consumer's
-configured route tree and nav-registry SSOT (see _Configuration_) and is a
-**silent no-op when neither is configured**. Mandrel ships the slot and the
-wiring; it never ships a specific consumer's route data or nav registry.
 
 ## Whole-route-tree scope (global lens — leak-guard-exempt)
 
@@ -52,10 +45,10 @@ a nav href that the change set never touched.
 Because of this, the navigability lens is registered in the **global-lens
 allowlist** (`GLOBAL_LENS_ALLOWLIST` in
 [`lib/audit-suite/selector.js`](../scripts/lib/audit-suite/selector.js)) and is
-**exempt from the cross-epic-leak guard** (`#3362`) that narrows every other
-lens's evidence to the Epic's `changedFiles`. The exemption is scoped to this
-lens only — the guard is **not** weakened for any other lens, and the
-exemption never lets a foreign Epic's change set leak into a scoped lens.
+**exempt from the cross-epic-leak guard** that narrows every other lens's
+evidence to the change set's `changedFiles`. The exemption is scoped to this
+lens only — the guard is **not** weakened for any other lens, and it never lets
+a foreign change set leak into a scoped lens.
 
 ```text
 {{changedFiles}}
@@ -64,6 +57,12 @@ exemption never lets a foreign Epic's change set leak into a scoped lens.
 - For this lens, **ignore** the `{{changedFiles}}` block above even when it is
   populated: navigability is evaluated codebase-wide regardless. The block is
   rendered only for envelope-shape parity with the scoped lenses.
+
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Configuration
 
@@ -141,56 +140,3 @@ hand):
   the tool via `--refs`.
 
 Only a route that clears **all** of these is a genuine orphan worth a finding.
-
-## Step 4: Output Requirements
-
-Generate and save a structured Markdown audit report to
-`{{auditOutputDir}}/audit-navigability-results.md`, using the template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# Navigability Audit report
-
-## Executive Summary
-
-[Reachability health (Score 1-10): count of orphaned routes and dead hrefs.]
-
-## Detailed Findings
-
-[For every orphaned route or dead nav href, use the following strict structure.
-Lead each title with the primary file (route module or nav registry) the
-finding lives in:]
-
-### `path/to/nav-registry-or-route.ext` — [Short title of the issue]
-
-- **Dimension:** [Orphaned Route | Dead Nav Href]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/nav-registry-or-route.ext:line`
-- **Route / Door:** [the route path or nav-door identifier — identifier only]
-- **Persona(s):** [the persona(s) affected]
-- **Current State:** [why the route is unreachable or the href is dead]
-- **Recommendation & Rationale:** [the nav-registry change that restores
-  reachability — add a door for the orphaned route, or fix/remove the dead
-  href]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a re-run of this lens reporting the route reachable]
-- **Agent Prompt:**
-  `[A copy-pasteable, specific prompt to execute the nav-registry fix.]`
-```
-
-## Constraint
-
-This is a **read-only** audit. Provide the critique and the nav-registry fixes,
-but do not modify the route tree or the nav registry. Log route and door
-identifiers only — never full route bodies, source contents, or persona data.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

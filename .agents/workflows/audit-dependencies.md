@@ -4,40 +4,39 @@ description: Audit `package.json` for unused, outdated, and major-version-stale 
 
 # Dependency Update Audit
 
-## Role
+You are a DevOps Engineer & Security Researcher managing the dependency
+lifecycle — outdated, vulnerable, or bloated packages and a safe upgrade path.
+The shared lens machinery — read-only constraint, scope interpretation, report
+envelope + finding-block skeleton, severity scale, self-cross-check, and
+execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-dependencies-results.md`. Dimension values:
+`Security Fix | Removal | Engine Drift | Major Upgrade | Supply-chain`. The
+report adds a **Health Summary**, an **Upgrade Batches** section, and a
+**Recommended Removals/Replacements** list.
 
-DevOps Engineer & Security Researcher
+> **Version-free titles (mandatory).** A finding title MUST NOT embed a concrete
+> version number — write ``### `package.json` — lodash unused``, not ``… —
+> lodash@4.17.20 unused``. Periodic re-runs re-detect the same issue at a
+> drifted version; a version-free title keeps the finding's fingerprint stable
+> so `audit-to-stories` dedupes it against the existing Story instead of filing
+> a fresh duplicate on every bump.
 
-## Context & Objective
+## Scope
 
-Manage the lifecycle of project dependencies. Your goal is to identify outdated,
-vulnerable, or bloated packages and suggest a safe upgrade path that maintains
-system stability.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 1: Inventory, Staleness & Unused Detection
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scans below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Run each probe as a concrete, machine-readable command so the Health Summary
 counts are **exact** rather than eyeballed:
@@ -81,9 +80,8 @@ production code" standard.
    `npm audit --json --omit=dev` (production-reachable only). An advisory
    present in the full run but absent from the `--omit=dev` run is
    **dev-only**; one present in both is **production-reachable**.
-2. **Severity rubric.** Grade each advisory on the shared
-   [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md)
-   as a function of the advisory's own CVSS band, its reachability
+2. **Severity rubric.** Grade each advisory on the shared severity scale as a
+   function of the advisory's own CVSS band, its reachability
    (production-reachable escalates; dev-only caps at Medium), and its
    dependency position (a direct dependency whose version you control is more
    actionable than a deep transitive one).
@@ -96,12 +94,12 @@ production code" standard.
 
 ## Step 3: Supply-chain scoped mode (lockfile-delta)
 
-When the `## Scope` block above resolved to a change-set file list **and that
-list contains a lockfile** (`package-lock.json`, `pnpm-lock.yaml`, or
-`yarn.lock`), run this lens as a **supply-chain delta pass** instead of a
-whole-manifest re-scan. The close-time question is not "what is stale across
-the whole repo" — it is "what just entered the dependency tree, and is it
-safe". Diff the lockfile against the base branch and analyse only the delta:
+When the change-set fence resolved to a file list **and that list contains a
+lockfile** (`package-lock.json`, `pnpm-lock.yaml`, or `yarn.lock`), run this
+lens as a **supply-chain delta pass** instead of a whole-manifest re-scan. The
+close-time question is not "what is stale across the whole repo" — it is "what
+just entered the dependency tree, and is it safe". Diff the lockfile against the
+base branch and analyse only the delta:
 
 1. **Enumerate the delta.** Run `git diff <base>...HEAD -- <lockfile>` and
    list every **added** package and every **version-bumped** package the
@@ -118,89 +116,27 @@ safe". Diff the lockfile against the base branch and analyse only the delta:
    (single-character edits, dropped scopes, hyphen/underscore swaps) that
    suggests a typosquat, and flag it.
 
-## Step 4: Output Requirements
+## Report additions
 
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-dependencies-results.md`, using the exact template
-below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
->
-> **Version-free titles (mandatory).** A finding title MUST NOT embed a
-> concrete version number — write ``### `package.json` — lodash unused``, not
-> ``… — lodash@4.17.20 unused``. Periodic re-runs of this lens re-detect the
-> same issue at a drifted version; a version-free title keeps the finding's
-> fingerprint stable so `audit-to-stories` dedupes it against the existing
-> Story instead of filing a fresh duplicate on every bump.
+Beyond the shared skeleton, emit these lens-specific report sections:
 
 ```markdown
-# Dependency Audit Report
-
 ## Health Summary
 
 - **Outdated Packages:** [exact count from `npm outdated --json`]
 - **Unused Dependencies:** [exact count from `npx knip --production` / `depcheck`]
 - **Vulnerabilities:** [Critical: #, High: #, Mod: #] (production-reachable / dev-only split)
 - **Node-engine drift:** [None | describe the mismatch across engines / .nvmrc / CI matrix]
-
-## Detailed Findings
-
-[For every production-reachable Critical/High advisory, unused dependency, or
-Node-engine drift, use the strict structure below. Lead each title with the
-manifest the dependency lives in, and keep the title version-free:]
-
-### `path/to/package.json` — [Package name — issue, no version]
-
-- **Dimension:** [Security Fix | Removal | Engine Drift | Major Upgrade | Supply-chain]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/package.json:line`
-- **Current State:** [Current vs target, the reachability verdict (production-reachable | dev-only), and the reason for the change]
-- **Recommendation & Rationale:** [How to remediate and the breaking changes to watch for]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm audit --omit=dev` reporting zero for this advisory, or `npx knip --production` no longer listing the package]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this update independently (e.g., npm install package@latest)]`
-
-### Dev-only advisories (aggregate)
-
-- **Dimension:** Security Fix
-- **Impact:** [Low | Medium]
-- **Location:** `package-lock.json`
-- **Current State:** [N dev-only advisories with no production reachability; not release-gating]
-- **Recommendation & Rationale:** [Batch-remediate on the next dependency-maintenance pass — do not block the release on these]
-- **Acceptance signal:** `npm audit --json` dev-only advisory count returns to zero.
-
-## Upgrade Batches
-
-Group the safe upgrade path into batches so a maintainer can act on them as
-discrete units. Each batch carries its own acceptance signal:
-
-- **Batch: patch + minor bumps** — every non-breaking `npm outdated` entry
-  whose `wanted` satisfies the declared range, grouped into ONE batch.
-  - **Acceptance signal:** `npm outdated` reports no remaining patch/minor
-    drift and the test suite passes after the bump.
-- **Batch: `<package>` major upgrade** — one batch **per** major bump (each
-  crosses a breaking boundary and lands independently).
-  - **Acceptance signal:** `<package>` at the new major with its migration
-    notes applied and the test suite green.
-
-## Recommended Removals/Replacements
-
-- Remove `[unused-package]` — no production import per `npx knip --production`.
-- Replace `[heavy-library]` with `[light-library]` or native `[browser-api]`.
 ```
 
-## Constraint
-
-This is a **read-only** evaluation. Do not run `npm install` or `npm update`
-unless explicitly requested by the user after reviewing this report.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.
+- **Dev-only advisories (aggregate)** — one Detailed Findings entry collapsing
+  all dev-only advisories: Dimension `Security Fix`, Impact `Low | Medium`,
+  Location `package-lock.json`, Acceptance signal
+  ``npm audit --json`` dev-only advisory count returns to zero.
+- **Upgrade Batches** — group the safe upgrade path into discrete batches, each
+  with its own acceptance signal: one batch of all non-breaking patch/minor
+  bumps (`wanted` within range), and one batch **per** major bump (each crosses
+  a breaking boundary and lands independently).
+- **Recommended Removals/Replacements** — remove unused packages (per
+  `npx knip --production`); replace heavy libraries with lighter or native
+  alternatives.
