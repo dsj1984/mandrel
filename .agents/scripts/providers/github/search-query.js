@@ -11,8 +11,12 @@
  * Pure and unit-testable — no I/O.
  */
 
-/** GitHub Search's documented maximum query length, in characters. */
-export const GITHUB_SEARCH_MAX_QUERY = 256;
+/**
+ * GitHub Search's documented maximum query length, in characters. Module-private
+ * — `composeBoundedQuery` is the only supported way to apply it, so the bound
+ * cannot drift between call sites.
+ */
+const GITHUB_SEARCH_MAX_QUERY = 256;
 
 /**
  * Compose a `/search/issues` query from free text plus fixed qualifiers,
@@ -47,13 +51,14 @@ export function composeBoundedQuery(
 /**
  * Join as many leading `tokens` as fit within `budget` characters, on a
  * whole-token boundary (space-separated). Returns '' when the budget cannot fit
- * even the first token.
+ * even the first token. Module-private — exercised through
+ * {@link composeBoundedQuery}, the only caller.
  *
  * @param {string[]} tokens
  * @param {number} budget
  * @returns {string}
  */
-export function fitTokens(tokens, budget) {
+function fitTokens(tokens, budget) {
   const kept = [];
   let length = 0;
   for (const token of tokens) {

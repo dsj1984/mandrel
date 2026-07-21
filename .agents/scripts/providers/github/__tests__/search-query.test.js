@@ -9,13 +9,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  composeBoundedQuery,
-  fitTokens,
-  GITHUB_SEARCH_MAX_QUERY,
-} from '../search-query.js';
+import { composeBoundedQuery } from '../search-query.js';
 
 const QUALIFIERS = ['repo:dsj1984/mandrel', 'type:issue'];
+/** GitHub Search's documented maximum query length, in characters. */
+const GITHUB_SEARCH_MAX_QUERY = 256;
 
 describe('composeBoundedQuery', () => {
   it('leaves a short query untouched', () => {
@@ -46,14 +44,11 @@ describe('composeBoundedQuery', () => {
     const q = composeBoundedQuery(hugeToken, QUALIFIERS);
     assert.equal(q, 'repo:dsj1984/mandrel type:issue');
   });
-});
 
-describe('fitTokens', () => {
-  it('keeps as many leading tokens as fit on a whole-token boundary', () => {
-    assert.equal(fitTokens(['aa', 'bb', 'cc'], 5), 'aa bb');
-  });
-
-  it('returns empty when the first token overflows the budget', () => {
-    assert.equal(fitTokens(['toolong'], 3), '');
+  it('keeps as many leading whole tokens as the remaining budget allows', () => {
+    // Budget is tight enough that only the first token survives alongside the
+    // qualifiers — proving truncation counts the qualifier reservation.
+    const q = composeBoundedQuery('alpha beta gamma', QUALIFIERS, 38);
+    assert.equal(q, 'alpha repo:dsj1984/mandrel type:issue');
   });
 });

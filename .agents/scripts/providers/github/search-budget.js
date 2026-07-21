@@ -21,7 +21,7 @@
  * Search API cap. When a rate limit is reported with no readable reset, the
  * bucket pauses for one full window before the next `take()` resolves.
  */
-export const SEARCH_BUDGET_DEFAULTS = Object.freeze({
+const SEARCH_BUDGET_DEFAULTS = Object.freeze({
   capacity: 30,
   windowMs: 60_000,
   cooldownMs: 60_000,
