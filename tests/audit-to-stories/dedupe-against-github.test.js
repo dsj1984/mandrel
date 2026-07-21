@@ -122,7 +122,14 @@ test('classifyGroupsAgainstGitHub summary tallies multiple groups', async () => 
     { number: 2, state: 'CLOSED', body: footerFor(FINDING_B) },
   ]);
   const { summary } = await classifyGroupsAgainstGitHub({ groups, provider });
-  assert.deepEqual(summary, { create: 1, skipOpen: 1, skipReoccurring: 1 });
+  // `dedupDegraded` is always reported alongside the counters (Story #4678):
+  // zero degradations when every lookup completes.
+  assert.deepEqual(summary, {
+    create: 1,
+    skipOpen: 1,
+    skipReoccurring: 1,
+    dedupDegraded: { count: 0, groups: [] },
+  });
 });
 
 test('classifyGroupsAgainstGitHub throws on missing provider', async () => {
