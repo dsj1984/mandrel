@@ -5,6 +5,7 @@ import {
   DELIVERABLE_GRANULARITY_GUIDANCE,
   resolveCapacityCeilings,
 } from '../orchestration/ticket-validator-sizing.js';
+import { BODY_FORMAT_LINTS } from '../story-body/body-format-lints.js';
 
 /**
  * Sole source of truth for the prompt's `maxTickets` cap is the resolved
@@ -63,6 +64,15 @@ function render2TierPrompt({ maxTickets }) {
     advisoryCaveat,
     newFileContract,
   } = AUTHORING_ALTITUDE_GUIDANCE;
+  // The deterministic body-format lints (structured `## Changes` bullet shape,
+  // verify-tier suffixes, …) rendered example-first from their single source
+  // (`lib/story-body/body-format-lints.js`) so an authored draft is lint-clean
+  // by construction rather than discovered as a persist dry-run failure and
+  // re-authored at resident-context prices (Story #4684).
+  const bodyFormatLintChecklist = BODY_FORMAT_LINTS.map(
+    (lint) =>
+      `- **${lint.id}** — ${lint.summary} Example: \`${lint.goodExample}\``,
+  ).join('\n');
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to turn a plan seed / Tech Spec into a Story ticket array for an AI Agent to execute.
 
@@ -151,6 +161,12 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **Slicing checkpoints are one line each.** Each \`## Slicing\` checkpoint is a single line naming the checkpoint; implementation detail lives in \`## Spec\`, never duplicated into Slicing. A Slicing section outweighing its Spec is a defect the text-hygiene lint flags.
 - **Bodies record decisions, never questions to the operator.** Never persist an open question ("Flag if…", "TBD", "confirm with the operator") into a Story body — the executing sub-agent is non-interactive and cannot answer it. Resolve the unknown before authoring, or restate it as a declarative Key Assumption the agent can act on.
 - **non_goals** (OPTIONAL, in body string as the \`## Non-Goals\` section): A short list of capabilities or changes this Story explicitly does NOT deliver — an advisory negative-scope bound that fences the executing agent away from adjacent work. It is **advisory and NON-GATING**: the validator does not require, count, or reject on it, and an absent or empty section renders nothing. Use the EXACT single-word hyphenated heading spelling \`## Non-Goals\` (a space-separated heading like \`## Out of Scope\` is NOT recognized by the parser and will be dropped). Reach for it when a Story's negative boundary is non-obvious from its \`acceptance[]\` alone; omit it otherwise.
+
+#### DETERMINISTIC BODY-FORMAT LINTS — author lint-clean by construction:
+
+Persist enforces the deterministic body-format rules below and **rejects** an authored body that violates any of them. Author every Story to satisfy all of them on the FIRST draft — each rule is stated example-first so there is nothing to discover by trial-and-error. The two auto-fixable rules (\`changes-path-entry-shape\`, \`verify-tier-suffix\`) also emit the corrected form in the dry-run failure output, but authoring them right up front avoids the round-trip entirely.
+
+${bodyFormatLintChecklist}
 
 #### AUTHORING ALTITUDE — BINDING ACCEPTANCE vs ADVISORY CHANGES:
 

@@ -48,6 +48,7 @@ import {
   authoredMarkerLine,
 } from '../framework-version.js';
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
+import { suggestPathEntryFix } from './body-format-lints.js';
 
 // ---------------------------------------------------------------------------
 // Public types (JSDoc only — no runtime schema file)
@@ -229,7 +230,7 @@ function parsePathEntry(raw, warnings) {
     }
     // Recognized the humanized shape but the fields are invalid: fail closed.
     throw new StoryBodyParseError(
-      `changes/references entry is a humanized bullet but not a valid PathEntry: ${str.slice(0, 120)}`,
+      `changes/references entry is a humanized bullet but not a valid PathEntry: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
       { field: 'changes', raw: str },
     );
   }
@@ -261,9 +262,24 @@ function parsePathEntry(raw, warnings) {
   }
 
   throw new StoryBodyParseError(
-    `changes/references entry must be a { path, assumption } object; plain string bullets are no longer accepted: ${str.slice(0, 120)}`,
+    `changes/references entry must be a { path, assumption } object; plain string bullets are no longer accepted: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
     { field: 'changes', raw: str },
   );
+}
+
+/**
+ * Build the ` Suggested fix: …` suffix for a rejected changes/references
+ * bullet, when a `{ path, assumption }` object can be salvaged from it. Returns
+ * an empty string when nothing is inferable, so callers can append it
+ * unconditionally (Story #4684 — mechanical auto-fix in the failure output).
+ *
+ * @param {string} raw The rejected bullet text.
+ * @returns {string}
+ */
+function pathEntryFixIt(raw) {
+  const suggestion = suggestPathEntryFix(raw);
+  if (suggestion === null) return '';
+  return ` — Suggested fix: ${suggestion} (adjust the assumption to creates|deletes if this is a new file or a removal).`;
 }
 
 /**
