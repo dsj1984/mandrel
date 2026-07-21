@@ -9,8 +9,16 @@
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
-
+import {
+  AGENT_LABELS,
+  TYPE_LABELS,
+} from '../../../.agents/scripts/lib/label-constants.js';
 import { buildComplexityRouteSignal } from '../../../.agents/scripts/lib/orchestration/complexity-gate.js';
+import {
+  assemblePlanStories,
+  createStoryIssues,
+} from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
+import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 describe('buildComplexityRouteSignal — deterministic routing (AC-1)', () => {
   test('a trivial single-artifact seed routes lite', () => {
@@ -150,5 +158,83 @@ describe('buildComplexityRouteSignal — lite-path non-negotiables (AC-2)', () =
   test('the preserves contract is immutable (frozen)', () => {
     const signal = buildComplexityRouteSignal({ seedText: 'trivial' });
     assert.ok(Object.isFrozen(signal.preserves));
+  });
+});
+
+// AC-2 asks for the lite-path guarantee to be "contract-asserted on a fixture
+// repo or injected provider" — not merely a self-attesting boolean. The check
+// below drives a lite-routed seed through the SAME persist engine a
+// full-ceremony Story uses, backed by an injected `createIssue` provider, and
+// asserts a real `type::story` ticket is produced. Because the lite route forks
+// no delivery code — the produced ticket is an ordinary Story that `/deliver`
+// picks up and `single-story-close.js` PRs to `main` and gates unchanged — a
+// Story ticket carrying `type::story` (and no gate-bypass marker) is the honest
+// evidence that the lite path still lands through the gated PR-to-main pipeline.
+describe('ceremony-lite path produces a real Story ticket via an injected provider (AC-2)', () => {
+  test('a lite-routed trivial seed yields a type::story ticket through the unchanged persist engine', async () => {
+    const seedText = 'Add a hello-world script that prints "hello".';
+    const route = buildComplexityRouteSignal({ seedText });
+    assert.equal(route.route, 'lite');
+
+    // The lite path authors one minimal Story and hands it to the standard
+    // persist + close engine (no forked delivery path).
+    const ticket = {
+      slug: 'hello-world',
+      type: 'story',
+      title: 'Add hello-world script',
+      body: serializeStoryBody({
+        goal: 'Print hello and exit 0.',
+        changes: [{ path: 'bin/hello.js', assumption: 'creates' }],
+        acceptance: ['prints hello'],
+        verify: ['node bin/hello.js (validate)'],
+        reason_to_exist: 'Deliver a hello-world script.',
+      }),
+    };
+    const { stories } = assemblePlanStories([ticket]);
+
+    const calls = [];
+    const provider = {
+      createIssue: async (payload) => {
+        calls.push(payload);
+        return {
+          id: 4200 + calls.length,
+          url: `https://example/${calls.length}`,
+        };
+      },
+    };
+    const { created } = await createStoryIssues({ provider, stories });
+
+    // A Story ticket was actually produced through the injected provider.
+    assert.equal(created.length, 1);
+    assert.equal(calls.length, 1);
+
+    // storyTicket invariant: it is a `type::story` issue, which is exactly what
+    // `/deliver` consumes to open a PR to `main` and run the repo gates.
+    assert.ok(calls[0].labels.includes(TYPE_LABELS.STORY));
+
+    // The lite route introduces NO gate bypass: no lite-specific / skip label on
+    // the created Story, and it is not born `agent::ready` (the standard
+    // terminal-flip contract), so the collapsed path cannot shortcut delivery.
+    assert.deepEqual(
+      calls[0].labels.filter((l) => /lite|skip|no-?gate/i.test(l)),
+      [],
+    );
+    assert.ok(!calls[0].labels.includes(AGENT_LABELS.READY));
+
+    // And the route signal itself is advisory-only, carrying no executable
+    // gate-skip field — its whole surface is {route, reasons, threshold,
+    // preserves, advisory}. The preserves contract binds the non-negotiables the
+    // unchanged close still runs.
+    assert.equal(route.advisory, true);
+    assert.deepEqual(Object.keys(route).sort(), [
+      'advisory',
+      'preserves',
+      'reasons',
+      'route',
+      'threshold',
+    ]);
+    assert.equal(route.preserves.prToMain, true);
+    assert.equal(route.preserves.repoGates, true);
+    assert.equal(route.preserves.securityBaseline, true);
   });
 });
