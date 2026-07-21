@@ -30,8 +30,8 @@ export function ensureSomething(ctx, { fsImpl = fs, spawnImpl = defaultSpawnSync
 
 ### Canonical In-Repo Reference
 
-`baseline-snapshot.js` (`forkMainToEpic` at line 135 / `commitSnapshotsToEpicBranch`
-at line 259) is the established baseline for this pattern in this codebase.
+`.agents/scripts/lib/bootstrap/project-bootstrap.js` (its exported step
+functions) is the established in-repo baseline for this pattern.
 
 ## Rules
 
