@@ -28,7 +28,7 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -747,6 +747,74 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.prNumber, 55);
     assert.equal(result.autoMergeEnabled, false);
     assert.match(result.autoMergeReason ?? '', /gh-exit-22/);
+  });
+
+  it("Story #4681 — reaps the per-Story worktree BEFORE arming auto-merge, so gh's local branch delete is never blocked by a live worktree", async (t) => {
+    // `gh pr merge --auto --squash --delete-branch` shells out to local
+    // `git branch -D story-<id>` after merging. A worktree still holding the
+    // ref makes that delete fail, gh exit non-zero, and the arm read as
+    // failed — which used to block a merged Story. Pre-empting the hold is
+    // the ordering half of the fix, so the order is the contract.
+    const order = [];
+    const worktreeRoot = '.worktrees';
+    mkdirSync(path.join(tempRoot, worktreeRoot, 'story-4681'), {
+      recursive: true,
+    });
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/77\n';
+      }
+      if (args[1] === 'merge') {
+        order.push('arm');
+        return 'ok';
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, {
+      namedExports: {
+        WorktreeManager: class {
+          async reap() {
+            order.push('reap');
+            return { removed: true };
+          }
+        },
+        parseWorktreePorcelain: (..._args) => [],
+      },
+    });
+
+    const { runSingleStoryClose } = await import(
+      `${SUT_URL}?t=reap-before-arm`
+    );
+    const { result } = await runSingleStoryClose({
+      storyId: 4681,
+      cwd: tempRoot,
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 4681,
+          state: 'open',
+          title: 'Reap before arm',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig({ reapOnSuccess: true, worktreeRoot }),
+      injectedRunCodeReview: noopReview(),
+      injectedGh: gh,
+    });
+
+    assert.deepEqual(
+      order,
+      ['reap', 'arm'],
+      'the worktree reap must precede the auto-merge arm',
+    );
+    assert.equal(result.worktreeReaped, true);
+    assert.equal(result.autoMergeEnabled, true);
+    assert.equal(result.localCleanupDeferred, false);
   });
 
   it('runs the validation gate when skipValidation is false (happy path)', async (t) => {

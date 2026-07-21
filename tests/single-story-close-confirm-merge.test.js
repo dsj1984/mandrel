@@ -25,6 +25,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  enableAutoMergeWith,
+  runAutoMergePhase,
+} from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
+import {
   DEFAULT_MAX_WAIT_SECONDS,
   DEFAULT_UPDATE_ATTEMPTS,
   MIN_POLLS_BEFORE_BUDGET_BLOCK,
@@ -840,5 +844,178 @@ describe('parseCloseOptions / resolveWaitForMerge — flag compatibility', () =>
       waitForMerge: true,
       reason: 'config-close-and-land',
     });
+  });
+});
+
+/**
+ * Story #4681 — a merged PR must never be stranded at `agent::blocked`
+ * because `gh`'s LOCAL head-branch delete lost a race with the per-Story
+ * worktree that still holds `story-<id>`.
+ *
+ * The observed cohort failure: `gh pr merge --auto --squash --delete-branch`
+ * merged the PR, then failed its local `git branch -D story-1` with
+ * "Cannot delete branch 'story-1' used by worktree at …" and exited 1. The
+ * arm read as failed, so the confirm phase took the never-armed branch and
+ * blocked a Story whose code was already on `main`.
+ */
+describe('Story #4681 — local branch-delete failure never blocks a landed merge', () => {
+  const WORKTREE_HELD_STDERR =
+    "error: Cannot delete branch 'story-4681' used by worktree at " +
+    "'/repo/.worktrees/story-4681'";
+
+  /** A `gh` facade whose `pr.merge` fails with `stderr` at exit code 1. */
+  function ghFailingMergeWith(stderr) {
+    return {
+      pr: {
+        merge: async () => {
+          const err = new Error('gh pr merge failed');
+          err.code = 1;
+          err.stderr = stderr;
+          throw err;
+        },
+      },
+    };
+  }
+
+  it('AC-1: reports the arm as armed-with-deferred-cleanup, and the wait lands the Story instead of blocking', async () => {
+    const armed = await runAutoMergePhase({
+      cwd: '/repo',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      noAutoMerge: false,
+      gh: ghFailingMergeWith(WORKTREE_HELD_STDERR),
+      progress: NOOP_PROGRESS,
+    });
+    assert.equal(armed.autoMergeEnabled, true);
+    assert.equal(armed.autoMergeReason, null);
+    assert.equal(
+      armed.localCleanupDeferred,
+      true,
+      'the deferred local ref cleanup must be reported, not swallowed',
+    );
+
+    // Feed the arm outcome into the wait exactly as the runner does. The PR
+    // is MERGED, so the terminal is `landed` and the tail owns the ref reap.
+    const provider = makeFakeProvider();
+    const tailCalls = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        autoMergeEnabled: armed.autoMergeEnabled,
+        autoMergeReason: armed.autoMergeReason,
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: '2026-07-21T00:00:00Z',
+          createdAt: null,
+          checksStatus: 'success',
+        }),
+        // The real `confirmStoryMerged` drives the label flip; only its PR
+        // read is stubbed so the suite never touches GitHub.
+        readPrMergeStateFn: async () => ({
+          state: 'MERGED',
+          mergedAt: '2026-07-21T00:00:00Z',
+        }),
+        injectedNotify: async () => {},
+        runPostLandTailFn: async (args) => {
+          tailCalls.push(args);
+          return {
+            followUps: true,
+            statusResync: true,
+            refCleanup: true,
+            baseFastForward: true,
+            details: {},
+          };
+        },
+      }),
+    );
+
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(outcome.confirmed, true);
+    assert.ok(
+      provider._story().labels.includes('agent::done'),
+      'the merged Story must reach agent::done, not agent::blocked',
+    );
+    assert.deepEqual(
+      provider
+        ._comments()
+        .map((c) => c.payload?.kind ?? c.payload?.type ?? null)
+        .filter(Boolean),
+      [],
+      'no friction comment: nothing about this run is blocked',
+    );
+    assert.equal(
+      tailCalls.length,
+      1,
+      'the post-land tail runs and performs the deferred local ref cleanup',
+    );
+    assert.equal(tailCalls[0].storyBranch, 'story-4428');
+  });
+
+  it('AC-3: a genuinely refused REMOTE merge still fails the arm and blocks', async () => {
+    const armed = await runAutoMergePhase({
+      cwd: '/repo',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      noAutoMerge: false,
+      gh: ghFailingMergeWith(
+        'Pull request is not mergeable: the base branch policy prohibits the merge.',
+      ),
+      progress: NOOP_PROGRESS,
+    });
+    assert.equal(armed.autoMergeEnabled, false);
+    assert.match(armed.autoMergeReason, /gh-exit-1/);
+    assert.equal(armed.localCleanupDeferred, false);
+
+    const provider = makeFakeProvider();
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        autoMergeEnabled: armed.autoMergeEnabled,
+        autoMergeReason: armed.autoMergeReason,
+        readPrWaitProbeFn: async () => {
+          throw new Error('an un-armed PR must never be polled');
+        },
+      }),
+    );
+
+    assert.equal(outcome.terminal, 'blocked');
+    assert.ok(
+      provider._story().labels.includes('agent::blocked'),
+      'the existing blocked behaviour for a real merge failure is preserved',
+    );
+    assert.equal(provider._comments().length, 1);
+  });
+
+  it('classifies only the branch-DELETE signature — the #4282 checkout collision still fails the arm', async () => {
+    // Asserted through the public arm surface: the classifier itself is
+    // module-private, so its contract is the arm outcome it produces.
+    const armWith = (stderr) =>
+      enableAutoMergeWith({
+        cwd: '/repo',
+        prNumber: 99,
+        runner: () => ({ status: 1, stdout: '', stderr }),
+        resolveArmCwd: (cwd) => cwd,
+      });
+
+    for (const stderr of [
+      WORKTREE_HELD_STDERR,
+      'failed to delete local branch story-4681',
+    ]) {
+      const result = await armWith(stderr);
+      assert.equal(result.enabled, true, stderr);
+      assert.equal(result.localCleanupDeferred, true, stderr);
+    }
+
+    for (const stderr of [
+      // Story #4282: `gh` aborted BEFORE the branch delete, so there is no
+      // evidence the merge stands — this must keep failing the arm.
+      "failed to run git: fatal: 'main' is already used by worktree at '/repo'",
+      'Pull request is not mergeable',
+      '',
+    ]) {
+      const result = await armWith(stderr);
+      assert.equal(result.enabled, false, stderr);
+      assert.equal(result.localCleanupDeferred, undefined, stderr);
+    }
   });
 });
