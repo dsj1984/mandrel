@@ -16,64 +16,44 @@ follow-up dispositions.
 This is the **agent-led** front-end of exploratory QA: **the agent drives, the
 operator watches and gates.** Its human-led sibling is
 [`/qa-assist`](qa-assist.md) — there the *human* drives a single observation and
-the agent scribes/enriches. No human-driven flow lives in `/qa-explore`; if you
-want to capture something *you* observed, use `/qa-assist` instead.
+the agent scribes/enriches. No human-driven flow lives in `/qa-explore`.
 
-Unlike [`/qa-run`](qa-run.md) (which steps a known set of
-Gherkin `.feature` scenarios through a browser), `/qa-explore` is **open-ended
-exploration**: the agent probes the surface for product bugs, environment-setup
-friction, tooling/DX gaps, missing tests, and enhancement ideas — each captured
-as a `QaLedgerItem` against the
-[`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json) contract.
+Unlike [`/qa-run`](qa-run.md) (which steps a known set of Gherkin `.feature`
+scenarios through a browser), `/qa-explore` is **open-ended exploration**: the
+agent probes the surface for product bugs, environment-setup friction,
+tooling/DX gaps, missing tests, and enhancement ideas — each captured as a
+`QaLedgerItem`.
 
-This is a **prose workflow**, not a Node orchestrator: the host LLM executes
-the procedure; deterministic Node helpers under `.agents/scripts/lib/qa/` and
-`.agents/scripts/lib/findings/` do the contract resolution, session/ledger
-resolution, redaction, coverage verdict, missing-test proposal, classification,
-and dedup/route decisions. The agent never invents those decisions in prose.
+The shared machinery — contract resolution + loud failure, the session & ledger
+contract, redact-first, the `QaLedgerItem` shape, the triage procedure, and the
+HITL write gate — lives once in [`helpers/qa-core.md`](helpers/qa-core.md); this
+workflow states only the `/qa-explore`-specific phases (Plan / Capture) plus a
+Constraints delta.
 
 > **When to run**: ad-hoc agent-driven exploration of a freshly delivered Story
-> or Feature, a regression sweep over a risky surface before `/deliver`, or
-> a structured agent-driven bug-hunt the operator wants captured into a
-> triageable ledger.
+> or Feature, a regression sweep over a risky surface before `/deliver`, or a
+> structured agent-driven bug-hunt captured into a triageable ledger.
 >
 > **Skills**: `core/qa-coverage-mapping`, `stack/qa/qa-explore-driving`
 
 ## Role framing
 
 You are the quality gatekeeper for this run: value coverage, hermetic
-environments, and deterministic results. Do **not** invent signal — capture
-what the surface shows. Apply the QA skills below; there is no separate
-persona pack.
+environments, and deterministic results. Do **not** invent signal — capture what
+the surface shows. Apply the QA skills below; there is no separate persona pack.
 
-## Driving conventions skill
+## Driving conventions
 
 Before you drive a surface, read the
 [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)
-skill. It is the conventions reference this procedure depends on for the
-**how** of agent-driven exploration:
-
-- **Navigation-first driving (the default).** Drive the running app through the
-  browser MCP, starting at a root and reaching each surface only via UI
-  affordances — never URL-jump to a deep link. Browser instrumentation lives in
-  [`core/browser-testing-with-devtools`](../skills/core/browser-testing-with-devtools/SKILL.md).
-- **Static driving (the documented interim).** When **no seam resolves** for the
-  target environment, walk the surface from source, route definitions, and
-  rendered markup — chosen explicitly at Plan time, never as a silent fallback.
-- **Authenticated driving follows the per-environment seam.** When the resolved
-  target environment carries a `signInSeam` — a dev `url` seam or a `skill` seam
-  with `credentialRef`-indirected sign-in — drive the authenticated surface via
-  that seam, including authenticated deployed hosts. Real credentials are never
-  typed inline: the seam consumes a persona **name** (`url`) or a stored
-  `credentialRef` (`skill`), and every evidence string passes through mandatory
-  redaction. Static is the interim **only** where the target environment
-  resolves no seam.
-- **Broken navigation is a finding, not a workaround.** A missing affordance, a
-  nav 404, or a guard redirect loop is recorded and you move on — you do not
-  route around it with a direct URL.
-
-The driving method (drive vs. static) is a **Plan-phase decision recorded in the
-ledger**; do not switch methods mid-surface without a new Plan note.
+skill — the **one** conventions reference for the *how* of agent-driven
+exploration (navigation-first driving as the default; static driving as the
+documented interim chosen at Plan time only where no seam resolves;
+authenticated driving through the resolved environment's `signInSeam`; broken
+navigation is a finding, not a workaround). The driving method (drive vs.
+static) is a **Plan-phase decision recorded in the ledger**; do not switch
+methods mid-surface without a new Plan note. Do not restate these conventions
+inline — the skill owns them.
 
 ## Slash Command
 
@@ -87,45 +67,17 @@ ledger**; do not switch methods mid-surface without a new Plan note.
 | --------- | -------- | ---------------------------------- | -------------------------------------------------------------------------------------- |
 | `surface` | yes      | `feature:login`, `area:onboarding` | A human label for the single surface to explore. Recorded as each ledger item's `coverage`. |
 
-If no `surface` is supplied, **stop and ask** the operator to name one — do
-not invent scope. `/qa-explore` is **bounded to one surface per session**:
-explore exactly the named surface, do not wander into adjacent surfaces, and
-start a fresh session for a different surface.
+If no `surface` is supplied, **stop and ask** the operator to name one — do not
+invent scope. `/qa-explore` is **bounded to one surface per session**: explore
+exactly the named surface, do not wander into adjacent surfaces, and start a
+fresh session for a different surface.
 
-## Project contract
+## Contract & session
 
-Resolve the consumer's `qa` contract before exploring, via
-[`resolve-qa-contract.js`](../scripts/lib/qa/resolve-qa-contract.js):
-
-```js
-import { resolveQaContract } from '../scripts/lib/qa/resolve-qa-contract.js';
-const contract = resolveQaContract(config); // throws loudly if unbound
-```
-
-The resolver fails **loudly** when the project has not bound the QA harness
-(no `qa` block in `.agentrc.json`) — there is no silent fallback. If it throws
-the "this project has not bound the QA harness" message, surface that verbatim
-to the operator and stop; do not pretend a contract exists.
-
-## Session & ledger (temp/qa/)
-
-Resolve the session and its ledger path **once**, up front, via
-[`qa-session.js`](../scripts/lib/qa/qa-session.js):
-
-```js
-import { resolveQaSession } from '../scripts/lib/qa/qa-session.js';
-const { sessionId, ledgerPath, reused, untriaged } = resolveQaSession({ config });
-```
-
-- The ledger is always written under **`temp/qa/<sessionId>.ndjson`**
-  (`<tempRoot>/qa/`, resolved from `project.paths.tempRoot`). It is one
-  `QaLedgerItem` per line (ndjson). **Never** write the ledger anywhere else,
-  and never commit it — `temp/` is gitignored per
-  [`.agents/instructions.md` § 6](../instructions.md).
-- When `reused` is `true`, a prior session of the same id exists: **append**,
-  never overwrite, and carry the `untriaged` items forward as the rolling
-  backlog (resume safety). Pass `--session-id <id>` (or `QA_SESSION_ID`) to
-  resume a named session.
+Resolve the `qa` contract and the session (under `temp/qa/`) per
+[`helpers/qa-core.md`](helpers/qa-core.md) before exploring — the resolver fails
+**loudly** when the project has not bound the harness; surface that verbatim and
+stop. A reused session appends and carries its `untriaged` backlog forward.
 
 ## Bounded per-surface session
 
@@ -133,9 +85,9 @@ A `/qa-explore` run is a **single bounded session over one named surface**, not
 an open-ended sweep:
 
 - **One surface.** The session explores exactly the `surface` argument. Driving
-  the named surface may legitimately touch sub-surfaces reachable from it
-  navigation-first, but the session does not pivot to a different top-level
-  surface — that is a new session.
+  it may legitimately touch sub-surfaces reachable navigation-first, but the
+  session does not pivot to a different top-level surface — that is a new
+  session.
 - **Bounded by the operator's gate.** Capture continues until the operator says
   exploration is complete (the Capture → Triage gate), not until the agent has
   exhausted the app. The agent proposes when it believes the surface is
@@ -145,12 +97,11 @@ an open-ended sweep:
 
 ## Phase gates (HITL)
 
-Every phase transition is gated on **explicit operator confirmation**. Do not
-advance Plan → Capture, or Capture → Triage, until the operator says so. State
-each gate as a question, present the artifact (the plan with its chosen driving
-method, then the captured ledger), and wait. This is a HITL workflow — the
-agent drives and captures, but it never files tickets, promotes findings, or
-advances phases autonomously. If the operator does not confirm, stop and hold.
+Every phase transition is gated on **explicit operator confirmation** (the HITL
+write gate in [`helpers/qa-core.md`](helpers/qa-core.md)). Do not advance
+Plan → Capture, or Capture → Triage, until the operator says so. State each gate
+as a question, present the artifact (the plan with its chosen driving method,
+then the captured ledger), and wait. If the operator does not confirm, hold.
 
 ---
 
@@ -159,57 +110,36 @@ advances phases autonomously. If the operator does not confirm, stop and hold.
 Goal: agree on **what** will be explored and **how the agent will drive it**
 before touching the surface.
 
-1. Re-read the
-   [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)
-   skill, and resolve the `qa` contract and session (above).
+1. Re-read the `stack/qa/qa-explore-driving` skill and resolve the contract and
+   session (above).
 2. **Resolve the target environment** via
-   [`resolveQaEnvironment`](../scripts/lib/qa/resolve-qa-contract.js). The
-   contract's `environments` map keys each deployment target (`local`, a
-   staging host, an authenticated deployed host) to its `baseUrl`, `signInSeam`,
-   and resolved `allowWrites`:
-
-   ```js
-   import { resolveQaEnvironment } from '../scripts/lib/qa/resolve-qa-contract.js';
-   // `target` is an environment name or a raw URL; omit for the default.
-   const environment = resolveQaEnvironment(contract, target);
-   // → { name, baseUrl, signInSeam, allowWrites }
-   ```
-
-   When the operator's `surface` does not pin an unambiguous target and the
-   contract declares more than one environment, **prompt** the operator to name
-   the environment (or accept the `defaultEnvironment`) — never silently pick
-   one. The resolver throws loudly (naming the known environments) on an unknown
-   name or an unmatched URL; surface that verbatim and stop. Record the resolved
-   **environment name** on the ledger alongside the driving method.
+   [`resolveQaEnvironment`](../scripts/lib/qa/resolve-qa-contract.js) — it keys
+   each deployment target to `{ name, baseUrl, signInSeam, allowWrites }`. When
+   the operator's `surface` does not pin an unambiguous target and the contract
+   declares more than one environment, **prompt** the operator (or accept
+   `defaultEnvironment`) — never silently pick one. The resolver throws loudly
+   (naming the known environments) on an unknown name or unmatched URL; surface
+   that verbatim and stop.
 3. **Choose the driving method explicitly** for the named `surface` on the
    resolved environment:
-   - **Drive (default):** a seam resolves for the target environment, so the
-     agent will drive it through the browser MCP, navigation-first (start at a
-     root, reach the surface via UI affordances, never URL-jump). Drive is
-     available for **any** environment whose `signInSeam` resolves — including
-     authenticated deployed hosts reached via a `skill` seam.
-   - **Static (documented interim):** **no seam resolves** for the target
-     environment, so the agent will walk the surface from source, routes, and
-     rendered markup. This is a deliberate Plan-time decision with a recorded
-     reason, never a silent fallback when the browser MCP hiccups.
-
-   Record the resolved environment name, the chosen method, and the reason on
-   the ledger (e.g.
-   `environment: staging, method: drive, seam: skill` or
+   - **Drive (default):** a seam resolves, so drive through the browser MCP
+     navigation-first — including authenticated deployed hosts reached via a
+     `skill` seam (a stored `credentialRef` read by the named sign-in skill,
+     never a hand-typed secret) or a dev `url` seam (persona name substituted).
+   - **Static (documented interim):** **no seam resolves**, so walk the surface
+     from source, routes, and rendered markup — a deliberate Plan-time decision
+     with a recorded reason, never a silent fallback.
+4. Draft an **exploration plan**: the resolved target environment (name +
+   `baseUrl`), the sub-surfaces / flows / states to drive, the classes of signal
+   being hunted (the [ledger `class` enum](../schemas/qa-ledger.schema.json)),
+   the chosen method and its rationale, and any rolling backlog carried forward.
+   Record the resolved **environment name**, the chosen method, and the reason on
+   the ledger (e.g. `environment: staging, method: drive, seam: skill` or
    `environment: preview, method: static, reason: no seam resolves`).
-4. Draft an **exploration plan** for the named `surface`:
-   - the resolved target environment (name + `baseUrl`),
-   - the sub-surfaces / flows / states the agent intends to drive,
-   - the classes of signal it is hunting (product bug, environment-setup,
-     tooling-dx, test-gap, enhancement — the
-     [ledger `class` enum](../schemas/qa-ledger.schema.json)),
-   - the chosen driving method and its rationale,
-   - any rolling backlog (`untriaged`) carried forward from a resumed session.
-5. Present the plan, the resolved target environment, the chosen driving
-   method, and the resolved `ledgerPath` (under `temp/qa/`) to the operator.
-6. **Gate:** ask the operator to confirm the plan, the target environment, and
-   the driving method (or amend the surface/scope/environment/method). Do
-   **not** proceed to Capture until they confirm.
+5. Present the plan, the resolved environment, the chosen method, and the
+   resolved `ledgerPath` to the operator.
+6. **Gate:** ask the operator to confirm the plan, the environment, and the
+   method (or amend). Do **not** proceed to Capture until they confirm.
 
 ---
 
@@ -220,73 +150,42 @@ observations. **This phase is strictly read-only.**
 
 > **Read-only invariant.** The agent observes; it never mutates. Per
 > [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)
-> § 3 (inviolable per
-> [`security-baseline.md`](../rules/security-baseline.md)), do **not** edit
-> source, run write commands, file or label GitHub issues, change tickets,
-> submit destructive forms, or alter the product under test. The only write
-> Capture performs is **appending ledger lines to
-> `temp/qa/<sessionId>.ndjson`** — session scratch, not a repository or product
-> mutation. Any action that would change state belongs in Triage (and only
-> after the operator confirms). When a surface's only path forward is a
+> § 3 (inviolable per [`security-baseline.md`](../rules/security-baseline.md)),
+> do **not** edit source, run write commands, file or label GitHub issues,
+> change tickets, submit destructive forms, or alter the product under test. The
+> only write Capture performs is **appending ledger lines to
+> `temp/qa/<sessionId>.ndjson`**. When a surface's only path forward is a
 > mutating action, record the boundary as the finding and stop — do not cross
 > it.
 
-**Drive the surface using the method chosen in Plan:**
-
-- **Drive (default):** reach the surface navigation-first through the browser
-  MCP — start at a root, click the affordances a real user would, and observe
-  the rendered state, console, and network signal. Never URL-jump to establish
-  a starting state; a broken affordance, nav 404, or guard redirect loop is
-  itself a **finding**, not a workaround. To reach an authenticated surface,
-  sign in through the resolved environment's `signInSeam` — a dev `url` seam
-  (substitute the persona name into the template) or a `skill` seam (invoke the
-  named sign-in skill, which reads a stored `credentialRef`). Never type real
-  credentials inline and never fabricate a session; the seam is the only path
-  to a logged-in surface, and all captured evidence is redacted (§ 1 below).
-- **Static (documented interim):** walk the surface from source, route
-  definitions, and rendered markup. Treat its coverage as partial and say so in
-  the ledger — a static pass does not close the same coverage a driven pass
-  would.
+Drive the surface using the method chosen in Plan (per the driving-conventions
+skill): navigation-first through the browser MCP for **drive**, signing in
+through the resolved environment's `signInSeam`; or walking source, routes, and
+rendered markup for **static** (treat its coverage as partial and say so in the
+ledger). Never URL-jump to establish a starting state, and reach an
+authenticated surface only through the resolved environment's `signInSeam`:
+**Never type real credentials inline** and never fabricate a session.
 
 For each observation the agent makes while driving:
 
-1. **Redact first.** Before any evidence string touches disk, scrub it through
-   [`redact-evidence.js`](../scripts/lib/qa/redact-evidence.js):
-
-   ```js
-   import { redactEvidence } from '../scripts/lib/qa/redact-evidence.js';
-   const evidence = redactEvidence(rawObservation);
-   ```
-
-   This is mandatory per [`security-baseline.md`](../rules/security-baseline.md)
-   (§ Data Leakage & Logging, § Secrets Management) — bearer tokens, session
-   cookies, Authorization headers, and emails are masked. The pass is
-   idempotent, so redact eagerly; captured console and network evidence is
-   untrusted until scrubbed.
-
+1. **Redact first** (per [`helpers/qa-core.md`](helpers/qa-core.md)) — scrub the
+   evidence string through `redactEvidence` before it touches disk.
 2. **Compute the coverage verdict** for the surface the observation points at,
    via [`coverage-verdict.js`](../scripts/lib/qa/coverage-verdict.js) — the
    deterministic seam behind the
    [`core/qa-coverage-mapping`](../skills/core/qa-coverage-mapping/SKILL.md)
-   skill. Read that skill for how to assemble the `surface` input (symbol +
-   the unit/contract/acceptance tests around it) and how to read the per-tier
-   `{present|absent}` verdict.
-
+   skill. Read that skill for how to assemble the `surface` input and read the
+   per-tier `{present|absent}` verdict.
 3. **Propose the missing test** (if any) from that verdict, via
-   [`propose-missing-test.js`](../scripts/lib/qa/propose-missing-test.js). It
-   names the lowest absent tier (the cheapest gap the signal leaked through),
-   or returns `null` when every tier is covered. Record the proposal's
-   `description` as the ledger item's `missingTest` (or `null`).
-
-4. **Append a `QaLedgerItem`** to `temp/qa/<sessionId>.ndjson`, conforming to
-   [`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json): a stable
-   `id` (`L1`, `L2`, … in capture order), the redacted `evidence`, the
-   `coverage` label (the `surface`, or `unknown`), a tentative `class` and
-   `severity`, the `missingTest`, and `disposition` left untriaged for now.
-
+   [`propose-missing-test.js`](../scripts/lib/qa/propose-missing-test.js) — it
+   names the lowest absent tier, or returns `null` when every tier is covered.
+   Record its `description` as the ledger item's `missingTest` (or `null`).
+4. **Append a `QaLedgerItem`** to the ledger (shape per
+   [`helpers/qa-core.md`](helpers/qa-core.md)): a stable `id`, the redacted
+   `evidence`, the `coverage` label (the `surface`, or `unknown`), a tentative
+   `class` and `severity`, the `missingTest`, and `disposition` left untriaged.
 5. Continue driving until the agent believes the surface is covered, then
    propose that exploration is complete.
-
 6. **Gate:** present the captured ledger (item count, classes, the driving
    method used, the rolling backlog) and ask the operator to confirm moving to
    Triage. Do **not** triage until they confirm.
@@ -295,144 +194,54 @@ For each observation the agent makes while driving:
 
 ## Phase 3 — Triage
 
-Goal: turn the captured ledger into routed, classified, dedup'd dispositions —
-with the operator deciding each `file` / `defer` / `dismiss`.
-
-For each untriaged ledger item:
-
-1. **Classify** it via
-   [`classify-finding.js`](../scripts/lib/findings/classify-finding.js). The
-   item's `class` resolves to the focus/meta label set Triage applies when
-   promoting it (`tooling-dx` carries `meta::framework-gap`; `enhancement`
-   carries `meta::consumer-improvement`). The helper **throws** on an
-   absent/unknown class — fix the ledger item's class rather than defaulting.
-
-2. **Dedup / route** it against existing GitHub Issues via
-   [`route-finding.js`](../scripts/lib/findings/route-finding.js):
-
-   ```js
-   import { routeFinding, fingerprintFooter } from '../scripts/lib/findings/route-finding.js';
-   const { decision, matchedIssue, fingerprint } =
-     await routeFinding(finding, { searchIssues });
-   ```
-
-   `decision` is one of `new` / `update-existing` / `duplicate` /
-   `regression-of-closed`. This is the **single** dedup implementation shared
-   with `/qa-assist` and `audit-to-stories`; stamp the `fingerprintFooter(sha)`
-   marker into any Issue body so future runs dedup against it. Wire the
-   `searchIssues` port to the GitHub provider (querying both open and closed
-   Issues).
-
-3. **Decide the disposition** with the operator: `file` (promote through
-   `/plan` — never a raw GitHub Issue), `defer` (carry forward to a later
-   session as backlog), or `dismiss` (non-actionable). Record the chosen
-   `disposition` back onto the ledger item.
-
-4. **Promote the `file`-dispositioned findings through `/plan`** via
-   [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) — the
-   same cluster/size/route/file path `/qa-assist` and `/audit-to-stories`
-   consume. Never hand-roll the clustering, sizing, or promotion in prose:
-
-   ```js
-   import { promoteFindings } from '../scripts/lib/findings/promote-finding.js';
-   const { promotions } = await promoteFindings(ledgerItems, {
-     searchIssues, // GitHub provider, open + closed
-     createStory, // tight cluster (≤2 surfaces): seed → /plan --seed-file
-     createPlanSeed, // broad cluster (>2 surfaces): same /plan --seed-file path (may N>1)
-   });
-   ```
-
-   - **Sizing is delegated, not decided in prose.** `promoteFindings` runs
-     `clusterLedgerItems` + `targetForCluster`: a cluster spanning **≤2**
-     distinct coverage surfaces routes to `createStory`; **>2** routes to
-     `createPlanSeed`. Neither port opens an Epic ticket — both chain
-     `/plan --seed-file`. The workflow introduces no new sizing, clustering,
-     or dedup logic — `route-finding.js` / `promote-finding.js` remain the
-     single implementation.
-   - **`createStory` / `createPlanSeed` (`/plan --seed-file`)** — render a
-     **redacted** plan seed from the cluster (reuse the `/audit-to-stories`
-     Phase 5a seed shape; redaction already ran in Capture), **stamp the
-     cluster's `fingerprintFooter(sha)` verbatim into the seed body**, then
-     chain `/plan --seed-file <seed>`. Prefer one Story; split only under
-     the default-single policy. The footer must survive into the issue body
-     so a later `routeFinding` dedups the same finding instead of re-filing
-     it.
-   - **A `file` disposition never opens a raw GitHub Issue.** Every `file`
-     finding flows through `promoteFindings` → `/plan`; only `defer` and
-     `dismiss` skip the `/plan` handoff.
-
-5. **Gate:** any ticket-filing, seed write, `/plan` invocation, or label
-   mutation is a write — confirm each one with the operator before it happens.
-   Capture stayed read-only precisely so that every state change lands here,
-   deliberately and confirmed. The plan→deliver hard stop is preserved: each
-   `/plan` chain pauses at its own HITL gates and never auto-delivers.
+Route the captured ledger through the shared classify → route → disposition →
+promote procedure in [`helpers/qa-core.md`](helpers/qa-core.md), with the
+operator deciding each `file` / `defer` / `dismiss` and every write
+operator-gated. `file` findings are promoted through `/plan` (never a raw
+Issue); `defer` carries an item forward as backlog; `dismiss` marks it
+non-actionable.
 
 After triage, write the updated dispositions back to the ledger (still under
 `temp/qa/`), and summarize: items captured, the driving method used, classes,
 routes (`new`/`update-existing`/`duplicate`/`regression-of-closed`), the
-Stories (`/plan --seed-file`) promoted, and the deferred rolling backlog
-that a resumed session will pick up.
+Stories (`/plan --seed-file`) promoted, and the deferred rolling backlog a
+resumed session will pick up.
 
 ---
 
 ## Constraints
 
+Beyond the shared core ([`helpers/qa-core.md`](helpers/qa-core.md): contract +
+loud failure, session/ledger, redact-first, QaLedgerItem, triage, HITL gate)
+and the driving conventions
+([`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md)),
+the `/qa-explore`-specific deltas are:
+
 - **Agent-led, bounded per surface.** The agent drives one named surface per
-  session and proposes when it is covered; the operator gates the boundary.
-  Human-driven single-observation capture lives in
-  [`/qa-assist`](qa-assist.md) — no human-driven flow lives here.
-- **Pick the driving method at Plan time.** Drive (browser MCP,
-  navigation-first) is the default; static is the documented interim, chosen
-  explicitly with a recorded reason, never a silent fallback. Do not switch
-  methods mid-surface without a new Plan note. See
-  [`stack/qa/qa-explore-driving`](../skills/stack/qa/qa-explore-driving/SKILL.md).
+  session and proposes when it is covered; the operator gates the boundary. No
+  human-driven flow lives here — that is [`/qa-assist`](qa-assist.md).
+- **Pick the driving method at Plan time** (drive default; static the documented
+  interim, chosen with a recorded reason, never a silent fallback); do not
+  switch mid-surface without a new Plan note.
 - **Capture is read-only.** The only Capture write is appending ledger lines
-  under `temp/qa/`. No source edits, no ticket mutations, no product writes,
-  no destructive form submissions. Never type real credentials inline or
-  fabricate a session; reach an authenticated surface only through the resolved
-  environment's `signInSeam`, and where no seam resolves, record the gap and
-  fall back to static.
-- **Broken navigation is a finding, not a workaround.** Never URL-jump around a
-  missing affordance, a nav 404, or a guard redirect loop — record it and move
-  on.
-- **Every phase transition is operator-gated.** Plan → Capture and
-  Capture → Triage each require explicit confirmation. Never advance, file a
-  ticket, or mutate a label autonomously.
-- **The ledger lives under `temp/qa/` only**, one `QaLedgerItem` per ndjson
-  line, conforming to [`qa-ledger.schema.json`](../schemas/qa-ledger.schema.json).
-  Never commit it.
-- **Redact before persist.** Every evidence string passes through
-  [`redact-evidence.js`](../scripts/lib/qa/redact-evidence.js) before it
-  reaches disk or GitHub, per [`security-baseline.md`](../rules/security-baseline.md).
-- **Delegate decisions to the helpers.** Coverage verdict
-  ([`coverage-verdict.js`](../scripts/lib/qa/coverage-verdict.js)),
-  missing-test ([`propose-missing-test.js`](../scripts/lib/qa/propose-missing-test.js)),
-  classification ([`classify-finding.js`](../scripts/lib/findings/classify-finding.js)),
-  dedup/route ([`route-finding.js`](../scripts/lib/findings/route-finding.js)),
-  and cluster/size/promote
-  ([`promote-finding.js`](../scripts/lib/findings/promote-finding.js)) are
-  deterministic — never re-derive them in prose.
-- **Promote through `/plan`, never a raw Issue.** A `file`-dispositioned
-  finding is promoted via `promoteFindings`, which chains into
-  [`/plan`](plan.md) (`--seed-file` for a tight cluster, `--seed` for a broad
-  one) — mirroring [`/audit-to-stories`](audit-to-stories.md). `/qa-explore`
-  never opens a bare GitHub Issue for a `file` finding. The cluster's
-  `fingerprintFooter(sha)` is stamped verbatim into the seed so a future
-  `routeFinding` dedups it.
-- **Resume safely.** A reused session appends and carries the un-triaged
-  backlog forward via [`qa-session.js`](../scripts/lib/qa/qa-session.js); it
-  never overwrites a prior ledger.
+  under `temp/qa/`. No source edits, ticket mutations, product writes, or
+  destructive form submissions. Reach an authenticated surface only through the
+  resolved environment's `signInSeam`; where no seam resolves, record the gap
+  and fall back to static.
+- **Broken navigation is a finding, not a workaround** — never URL-jump around a
+  missing affordance, a nav 404, or a guard redirect loop.
+- **Delegate coverage decisions to the helpers.** Coverage verdict
+  ([`coverage-verdict.js`](../scripts/lib/qa/coverage-verdict.js)) and
+  missing-test ([`propose-missing-test.js`](../scripts/lib/qa/propose-missing-test.js))
+  are deterministic — never re-derive them in prose.
 
 ## See also
 
-- [`/plan`](plan.md) — the planning pipeline `/qa-explore` Triage chains into
-  for a `file`-dispositioned finding (`--seed-file` / `--seed`). The
-  plan→deliver hard stop is preserved across the handoff.
+- [`/plan`](plan.md) — the planning pipeline Triage chains into for a
+  `file`-dispositioned finding. The plan→deliver hard stop is preserved.
 - [`/qa-assist`](qa-assist.md) — the human-led sibling that enriches a single
   operator observation and triages through the same `/plan` handoff.
 - [`/audit-to-stories`](audit-to-stories.md) — the precedent for the
   findings → `/plan` handoff and the shared fingerprint-footer dedup contract.
-- [`promote-finding.js`](../scripts/lib/findings/promote-finding.js) /
-  [`route-finding.js`](../scripts/lib/findings/route-finding.js) — the shared
-  cluster/size/promote and dedup/route/fingerprint-footer helpers. There is no
-  second clustering, sizing, or dedup implementation.
+- [`helpers/qa-core.md`](helpers/qa-core.md) — the shared contract/session/
+  redaction/QaLedgerItem/triage/HITL core.

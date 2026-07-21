@@ -14,13 +14,12 @@ description:
 
 ## Policy Capsule
 
-- Drive every scenario navigation-first: start at a root and reach the surface under test only via UI affordances — never URL-jump to a deep link to set up a `Given`.
-- Assert `Then` outcomes semantically against the accessibility snapshot (roles, accessible names, visible text); never via DOM/CSS/XPath selectors, HTTP status codes, response bodies, or DB rows.
+- Driving rules (navigation-first, semantic `Then`, mandatory redaction, sequential-only) live in one prose home — [`qa-run-scenario.md`](../../../../workflows/helpers/qa-run-scenario.md); apply them, do not restate them.
 - Capture console and network per surface; turn each non-allowlisted console error and each failed/error-status request into one structured `F#` finding.
 - Filter console through `qa.consoleAllowlist` via `filterConsoleMessages`; treat the allowlist as a benign-noise filter, never as a security control to silence genuine errors.
 - Spot-check surfaces against `qa.designTokens` when set; flag gross token violations (off-palette colors, off-scale spacing/typography) as findings.
 - Scrub captured console and network of tokens, session cookies, and PII before rendering any finding — findings are posted to GitHub at approval time.
-- Bundle findings by likely root cause into a draft for operator sign-off; the harness never files tickets autonomously.
+- Record findings as `QaLedgerItem`s and route them through the shared classify/route/promote core ([`qa-core.md`](../../../../workflows/helpers/qa-core.md)); the harness never files tickets autonomously.
 - Resolve the `qa` contract first and fail loudly when it is absent or malformed; there is no auto-detection fallback and no headless degrade.
 
 Guidance for executing the agent-driven QA harness through a real browser (the
@@ -35,45 +34,21 @@ live in [`testing-standards.md`](../../../../rules/testing-standards.md)
 discipline is shared with [`playwright`](../playwright/SKILL.md). Read this
 skill before instrumenting a live surface; read the workflow for the run order.
 
-## 1. Navigation-First Execution
+## 1. Driving Rules Live in One Prose Home
 
-The harness reaches every surface the way a real user would. This is the
-load-bearing convention — it is what makes findings reflect a user-reachable
-state rather than an artifact of a deep link.
-
-- **Start at a root.** After sign-in, begin each scenario at the app's home or
-  dashboard. Reach the surface under test by clicking nav links, menu items,
-  and buttons — the same affordances a user has.
-- **Never URL-jump.** Do not `navigate_page` directly to a deep link to
-  establish a `Given`. URL-jumping bypasses the app's real authorization and
-  routing flows, which both masks access-control gaps and produces findings
-  that no user could actually trigger.
-- **Broken navigation is a finding, not a workaround.** When an affordance is
-  missing, a nav link 404s, or a guard redirect loops, that is the finding.
-  Do not route around it with a direct URL — record it and move on.
-- **Map Gherkin to browser actions.** `Given` establishes state by navigating
-  from the root (sign in as the persona, walk to the starting surface, seed via
-  UI where the manifest does not pre-seed). `When` performs the single user
-  action (`click`, `fill_form`, then `wait_for` the transition). Use
-  `evaluate_script` only for app-provided hooks — never to fabricate the
-  outcome a `Then` is meant to observe.
-
-### Semantic `Then` assertion
-
-Assert every `Then` against the accessibility snapshot from `take_snapshot`,
-matching on **roles, accessible names, labels, and visible text** that express
-the user-visible outcome — "a banner with text _Invoice sent_ is visible", "a
-row for _ACME Corp_ appears in the invoices table".
-
-- **Never** assert against brittle DOM/CSS/XPath selectors.
-- **Never** assert on HTTP status codes, response bodies, or DB rows inside a
-  scenario — those are contract-tier concerns (see
-  [`testing-standards.md` § Assertion Placement](../../../../rules/testing-standards.md#assertion-placement)).
-- A `Then` that can only be expressed as a wire-shape or DB check is a signal
-  the scenario is **mis-tiered**, not a license to break the semantic rule.
-
-Record each scenario's result (pass / fail / blocked), the surface it ended on,
-and a one-line user-visible symptom for any failure.
+The driving rules the harness depends on — **navigation-first / never URL-jump**,
+**semantic `Then` assertion** against the accessibility snapshot, the Gherkin →
+browser-action mapping, the per-`When` write guard, mandatory evidence
+redaction, and the **sequential-only** browser rule — are stated once in
+[`qa-run-scenario.md`](../../../../workflows/helpers/qa-run-scenario.md), the
+single-scenario driver `/qa-run` delegates to. Apply them from there; this skill
+does not restate them. In short: reach every surface the way a real user would
+(start at a root, click affordances, never deep-link a `Given`), assert `Then`
+semantically (roles, accessible names, visible text — never DOM/CSS/XPath
+selectors, HTTP status, response bodies, or DB rows), and record each scenario's
+result (pass / fail / blocked), the surface it ended on, and a one-line symptom
+for any failure. Assertion-tier rules are in
+[`testing-standards.md` § Assertion Placement](../../../../rules/testing-standards.md#assertion-placement).
 
 ## 2. Per-Surface Console & Network Capture
 
@@ -126,7 +101,9 @@ skip this check entirely — do not invent a token source.
 ## 3. Findings — the `F#` Shape
 
 Every captured problem is normalized into the structured `F#` finding shape so
-the draft bundle stays diffable and the schema validates:
+the sweep can record it onto the shared ledger (each `F#` finding becomes one
+`QaLedgerItem` — see [`qa-core.md`](../../../../workflows/helpers/qa-core.md))
+and the schema validates:
 
 ```jsonc
 {
@@ -137,7 +114,6 @@ the draft bundle stays diffable and the schema validates:
   "likelyRootCause": null,          // heuristic card output (§4); null until enriched
   "disposition": "follow-up",       // blocker | follow-up
   "acceptance": null,               // AC this folds into, when known
-  "foldsInto": "F2",                // optional: another finding this is a duplicate facet of
   "evidence": {
     "console": [{ "level": "error", "text": "..." }],
     "network": []
@@ -172,12 +148,14 @@ and let the operator triage from the symptom.
 | `Failed to fetch` / `NetworkError` / CORS-rejected request | Misconfigured CORS allowlist, wrong origin, or a downed dependency | follow-up |
 | Hydration / mismatch warning escalated to error | Server/client render divergence | follow-up |
 | Off-palette color, off-scale spacing/typography | Design-token drift — hard-coded value bypassing the token | follow-up |
-| Repeated identical console error across many surfaces | A shared component or global bootstrap fault | fold the duplicates into one finding via `foldsInto` |
+| Repeated identical console error across many surfaces | A shared component or global bootstrap fault | record once; the shared route/dedup core collapses duplicates at triage |
 
 Heuristics for working the cards:
 
-- **Fold duplicates.** When the same error fires on many surfaces, emit one
-  finding and point the rest at it with `foldsInto` rather than filing N copies.
+- **Record once, let dedup collapse.** When the same error fires on many
+  surfaces, record it once rather than filing N copies; the shared
+  classify/route/dedup core ([`qa-core.md`](../../../../workflows/helpers/qa-core.md))
+  collapses duplicates at triage against the fingerprint footer.
 - **Blocker vs. follow-up.** A finding is a **blocker** when it breaks the
   scenario's user-visible outcome or exposes an authorization gap. Everything
   else (noise that does not break the journey, cosmetic token drift) is a
@@ -186,13 +164,15 @@ Heuristics for working the cards:
   symptom and leave `likelyRootCause: null`. A wrong guess is worse than an
   honest "unknown" the operator can triage.
 
-## 5. Draft & Sign-Off (Never File Autonomously)
+## 5. Record onto the Ledger & Triage (Never File Autonomously)
 
-Bundle findings **by likely root cause** into proposed follow-up tickets with
-`Depends-on` / `Blocks` relationships, then present the draft for operator
-approval. The harness **MUST NOT** create tickets autonomously — it stops at a
-draft. The operator-approval gate is the safety boundary against spurious
-filing.
+Record each `F#` finding as a `QaLedgerItem` on the shared session ledger under
+`temp/qa/`, then route the ledger through the shared classify → route →
+disposition → promote core — both stated once in
+[`qa-core.md`](../../../../workflows/helpers/qa-core.md). The harness **MUST
+NOT** create tickets autonomously: findings are promoted through `/plan` only
+after the operator confirms each disposition at the HITL write gate. That gate
+is the safety boundary against spurious filing.
 
 ## 6. Sign-In & Contract Discipline
 
@@ -211,6 +191,8 @@ filing.
 ## 7. Cross-References
 
 - Run procedure (SSOT): [`qa-run.md`](../../../../workflows/qa-run.md).
+- Driving rules (one prose home): [`qa-run-scenario.md`](../../../../workflows/helpers/qa-run-scenario.md).
+- Shared QA core (contract/session/redaction/ledger/triage/HITL): [`qa-core.md`](../../../../workflows/helpers/qa-core.md).
 - Console filter module: [`console-allowlist.js`](../../../../scripts/lib/qa/console-allowlist.js).
 - Assertion-tier rules: [`testing-standards.md`](../../../../rules/testing-standards.md).
 - Scenario prose: [`gherkin-authoring`](../gherkin-authoring/SKILL.md).
