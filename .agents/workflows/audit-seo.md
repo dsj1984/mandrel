@@ -4,6 +4,19 @@ description: Audit SEO fundamentals and Generative Engine Optimization signals (
 
 # SEO & Generative Engine Optimization Audit
 
+You are a Senior Technical SEO & Generative Engine Optimization (GEO) Specialist
+(semantic HTML, JSON-LD Schema, Core Web Vitals) surfacing structural, semantic,
+and content-level improvements that increase discoverability in both traditional
+search indexes and AI answer engines. The shared lens machinery — read-only
+constraint, scope interpretation, report envelope + finding-block skeleton,
+severity scale, self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-seo-results.md`. Each finding carries a **Category:**
+(`SEO | GEO | Core Web Vitals | Crawlability`); the report adds a **Detailed
+Audit Table** (an at-a-glance index — not machine-parsed; every row MUST also
+have a full Detailed Findings entry) and a **GEO-Specific Recommendations**
+section.
+
 ## Applicability
 
 **Web targets only.** This lens is registered with `target: "web"` in
@@ -14,40 +27,19 @@ checkout (configured navigability `routeGlobs`, a declared web-framework
 dependency, or a tracked `.html` / `.css` / `.jsx` / `.tsx` source file), not
 from an `.agentrc` key, and the probe fails open when indeterminate.
 
-## Role
+## Scope
 
-Senior Technical SEO and Generative Engine Optimization (GEO) Specialist. You
-are an expert in semantic HTML, JSON-LD Schema markup, Core Web Vitals, and
-optimizing content structure for both traditional search engines (Google, Bing)
-and Large Language Models (ChatGPT, Perplexity, Gemini).
-
-## Context & Objective
-
-You are performing a comprehensive, read-only SEO and GEO audit of this
-codebase. Your goal is to surface structural, semantic, and content-level
-improvements that will increase discoverability in both traditional search
-indexes and AI-powered answer engines — without making any immediate changes.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 0: Indexability gate (run first)
 
@@ -66,8 +58,6 @@ a login-gated dashboard is *supposed* to be invisible to crawlers, so a missing
   in the Executive Summary.
 
 ## Step 1: Framework-aware metadata detection matrix
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Modern web consumers almost never ship literal `<head><meta></head>` HTML — the
 metadata is produced by a framework mechanism. **Identify the mechanism first,
@@ -113,71 +103,3 @@ Evaluate the gathered context against the following dimensions:
 4. **Crawlability:** `robots.txt`, `sitemap.xml` (including generated
    `sitemap.*`/`robots.*` route handlers), and any `noindex` directives that may
    unintentionally block indexable pages.
-
-## Step 3: Output Requirements
-
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-seo-results.md`, using the exact template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# SEO & GEO Audit Report
-
-## Executive Summary
-
-[A high-level view of the site's current optimization health, highlighting the
-primary gaps and the most impactful opportunities.]
-
-## Detailed Audit Table
-
-[A supplementary at-a-glance index only. Every row MUST also have a full
-`## Detailed Findings` entry below — the Detailed Findings blocks are the
-machine-parsed source of record; this table is not parsed.]
-
-| Issue               | Impact                      | Category   | Suggested Fix |
-| ------------------- | --------------------------- | ---------- | ------------- |
-| [Issue description] | Critical / High / Med / Low | SEO or GEO | [Brief fix]   |
-
-## GEO-Specific Recommendations
-
-[Specific advice on how to make this codebase more readable for AI models —
-e.g., adding specific Schema types, flattening nested DOM structures, or
-reformatting key content as FAQ blocks.]
-
-## Detailed Findings
-
-[Mandatory: emit one entry per issue in the Detailed Audit Table above, using
-the following strict structure. Lead each title with the primary file the
-finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Category:** [SEO | GEO | Core Web Vitals | Crawlability]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [What exists in the codebase and why it's suboptimal]
-- **Recommendation & Rationale:** [The specific fix and how it improves
-  discoverability or LLM retrieval]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. the meta tag now present in the rendered head, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this fix independently]`
-```
-
----
-
-## Constraint
-
-Do NOT rewrite or modify any files. Do NOT implement the changes. Focus strictly
-on analyzing the code. Output the report and stop.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

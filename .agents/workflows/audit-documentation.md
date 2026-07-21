@@ -4,21 +4,21 @@ description: Audit the repository's main documentation for staleness, semantic d
 
 # Documentation Staleness & Completeness Audit
 
-## Role
-
-Staff Engineer & Documentation Steward
-
-## Context & Objective
-
-You are auditing the repository's primary prose documentation to verify it
-is **up to date and complete**. Prose docs rot silently: commands get
-renamed, scripts move, described workflows change shape, and
-version/topology claims go stale. The deterministic gates
-(`check-doc-links.js`, `check-lifecycle-doc-drift.js`,
-`validate-docs-freshness.js`) catch broken links, drift against generators,
-and per-delivery freshness — they cannot tell whether the prose still
-describes how the code actually behaves. That semantic verification is this
-lens's job.
+You are a Staff Engineer & Documentation Steward verifying the repository's prose
+documentation is **up to date and complete**. Prose rots silently: commands get
+renamed, scripts move, workflows change shape, version/topology claims go stale.
+The deterministic gates (`check-doc-links.js`, `check-lifecycle-doc-drift.js`,
+`validate-docs-freshness.js`) catch broken links, generator drift, and
+per-delivery freshness — they cannot tell whether the prose still describes how
+the code actually behaves. That semantic verification is this lens's job. The
+shared lens machinery — read-only constraint, scope interpretation, report
+envelope + finding-block skeleton, severity scale, self-cross-check, and
+execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-documentation-results.md`. Each finding carries a
+**Category:** (`Broken Instruction | Stale Description | Missing Coverage |
+Generator Drift | Link Integrity | History Bloat | Contradiction | Authority
+Drift`); the report adds a **Target Set Coverage** table.
 
 ## Target set (config-driven union)
 
@@ -47,39 +47,31 @@ generator", not "edit the doc". Auto-generated changelog files
 (`docs/CHANGELOG.md`, release-please-owned) are likewise excluded from
 semantic review beyond Step 1's deterministic checks.
 
-## Scope (Story / plan-run mode)
+## Scope (deviant — intersect with the target set)
 
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+This lens deviates from the shared change-set fence: it intersects the fence
+with the config-driven target set above.
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to the intersection of the target-set union and
-  those files — plus any target-set doc whose claims describe code in the
-  change set (a renamed script invalidates every doc that references it).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full target-set audit defined in the remaining steps.
+- If the block contains a newline-delimited list of file paths, restrict the
+  audit to the intersection of the target-set union and those files — plus any
+  target-set doc whose claims describe code in the change set (a renamed script
+  invalidates every doc that references it).
+- If the block renders as the literal string `{{changedFiles}}` (no
+  substitution supplied), audit the full target-set union.
 
-## Execution strategy (dual-path)
+## Execution strategy
 
-This lens runs along one of two execution paths (orchestrated dynamic-workflow
-or sequential single-pass). Both emit the **identical** Step 3 report contract;
-downstream consumers (`audit-to-stories`) are agnostic to which path produced
-it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
-selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
-there as this lens's name.
+This is a **heavyweight lens**: dispatch it as a single `subagent_type: auditor`
+call, or fan its per-doc / per-dimension verification out across parallel
+`auditor` subagents (parallel-tooling Rule 3) and merge under the
+self-cross-check. Sequential inline execution is the fallback (see the core's
+Execution strategy).
 
 ## Step 1: Deterministic Signal First
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Run the existing deterministic checkers before any semantic reading — they
 are cheap, exact, and de-duplicate the easy findings:
@@ -195,48 +187,6 @@ escalation **after** assigning the base severity from the Step 2 guidance, and
 name the doc's tier in the finding's Current State so the escalation is
 auditable.
 
-## Step 3: Output Requirements
-
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-documentation-results.md`, using the exact
-template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# Documentation Audit Report
-
-## Executive Summary
-
-[Overview of documentation health (High/Medium/Low confidence that the docs
-match the code), the deterministic-gate verdicts, and primary drift themes.]
-
-## Target Set Coverage
-
-| Doc    | Source                                                                | Verdict                         |
-| ------ | --------------------------------------------------------------------- | ------------------------------- |
-| [path] | [docsContextFiles · docsFreshness · anchor · --paths] | [Current · Drifted · Excluded (generated)] |
-
-## Detailed Findings
-
-[For every gap identified, use the following strict structure. Lead each title
-with the primary doc the finding lives in:]
-
-### `path/to/primary-doc.md` — [Short title of the issue]
-
-- **Category:** [Broken Instruction | Stale Description | Missing Coverage | Generator Drift | Link Integrity | History Bloat | Contradiction | Authority Drift]
-- **Impact:** [Critical | High | Medium | Low] — for a Context Economy finding, this is the base severity **after** any read-tier escalation (Step 2.5); state the doc's tier in Current State.
-- **Location:** `path/to/primary-doc.md:line`
-- **Current State:** [The doc, the exact claim, and what the code actually
-  does — cite file paths and lines on both sides]
-- **Recommendation & Rationale:** [The specific doc edit (or generator
-  rerun) and why it restores accuracy]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. `npm run docs:check` passing, the corrected claim now matching the code, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this doc fix independently]`
-```
-
 ## Periodic full-scope sweep
 
 Context Economy findings accrete slowly — a doc that is lean today grows a
@@ -257,19 +207,22 @@ deduplicates them against existing Issues by fingerprint, and opens
 remediation Stories (or chains into `/plan --seed`) so the Context-Economy
 findings land as actionable, tracked work rather than a report nobody reads.
 
-## Constraint
+## Constraint (lens-specific carve-out)
 
-This workflow is **read-only** with respect to the repository: run the
-deterministic checkers in `--check` mode only, and do not edit any
-documentation or code. The single write is the report artifact. Provide the
-analysis and remediation prompts; do not apply changes.
+Run the deterministic checkers in `--check` mode only; the single write is the
+report artifact. Do not edit any documentation or code.
 
-## Self-cross-check (mandatory — filter false positives before you finalize)
+## Report additions
 
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Target Set Coverage table:
+
+```markdown
+# Documentation Audit Report
+
+## Target Set Coverage
+
+| Doc    | Source                                                | Verdict                                    |
+| ------ | ----------------------------------------------------- | ------------------------------------------ |
+| [path] | [docsContextFiles · docsFreshness · anchor · --paths] | [Current · Drifted · Excluded (generated)] |
+```

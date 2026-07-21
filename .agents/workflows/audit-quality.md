@@ -4,55 +4,31 @@ description: Audit test coverage gaps, flaky tests, missing assertions, and test
 
 # Testing & Quality Assurance Audit
 
-## Role
+You are a Principal SDET & Quality Architect auditing the repository's testing
+infrastructure, coverage, flaky tests, mocking strategy, and test-pyramid
+balance — and, in Story-scoped mode, evaluating the implemented tests against
+the Story under audit. The shared lens machinery — read-only constraint, scope
+interpretation, report envelope + finding-block skeleton, severity scale,
+self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-quality-results.md`. Each finding carries a
+**Category:** (`Flakiness | Coverage | Performance | Mocking | Test Plans`); the
+report adds a **Test Strategy Assessment** table (Unit / Integration / E2E /
+Test Plans: Healthy / Needs Work / Missing).
 
-Principal SDET (Software Development Engineer in Test) & Quality Architect
+## Scope
 
-## Context & Objective
-
-You are performing a comprehensive, read-only audit of this repository's testing
-infrastructure, test coverage, and overall quality assurance practices. Your
-goal is to identify testing gaps, flaky tests, inefficient mocking strategies,
-and opportunities to improve test execution speed and reliability without making
-any immediate changes. Additionally, you must evaluate the implemented tests
-against the Story under audit and the current codebase to ensure all quality
-requirements are met and correctly documented.
-
-**Note on Testing Responsibilities**: When evaluating test maturity, note the
-established standard: Software Engineers (SWEs) must provide comprehensive unit
-and integration test coverage alongside their feature implementations. The QA
-Engineering function focuses on End-to-End (E2E) testing, complex system
-integrations, and test environment stability.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
 
-## Execution strategy (dual-path)
-
-This lens runs along one of two execution paths (orchestrated dynamic-workflow
-or sequential single-pass). Both emit the **identical** Step 3 report contract;
-downstream consumers (`audit-to-stories`) are agnostic to which path produced
-it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
-selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
-there as this lens's name.
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 0 - Mode split + tool-first artifact read (mandatory)
 
@@ -60,13 +36,13 @@ there as this lens's name.
 do not share a Step 0 — a codebase-wide run must not try to read a Story it was
 never given.
 
-- **Story-scoped mode** (the `## Scope` block above is populated with a change
-  set): read the Story under audit — its `## Goal`, inline `acceptance[]` /
+- **Story-scoped mode** (the change-set fence is populated with a change set):
+  read the Story under audit — its `## Goal`, inline `acceptance[]` /
   `verify[]`, and folded `## Spec` — to identify the target features, and scope
   the audit to the change set and its direct dependencies.
-- **Codebase-wide mode** (the `## Scope` block renders the literal
-  `{{changedFiles}}` token): there is **no Story** — do not look for one. Audit
-  the whole test surface, ranked (below).
+- **Codebase-wide mode** (the fence renders the literal `{{changedFiles}}`
+  token): there is **no Story** — do not look for one. Audit the whole test
+  surface, ranked (below).
 
 **Read the committed test-quality artifacts as evidence** (both modes). This
 lens grounds every coverage/quality claim in the metrics the delivery gates
@@ -95,8 +71,6 @@ Reading these committed artifacts is **read-only** and explicitly permitted (see
 the Constraint) — it is not "running the suite".
 
 ## Step 1: Context Gathering (Read-Only Scan)
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Before generating the report, silently scan the workspace for testing-related
 files. Pay special attention to:
@@ -134,21 +108,22 @@ Evaluate the gathered context against the following test quality dimensions:
    Verify that the implementation found in the codebase correctly matches the
    architectural requirements and highlight any inconsistencies or gaps.
 
-## Step 3: Output Requirements
+## Constraint (lens-specific carve-out)
 
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-quality-results.md`, using the exact template below.
+Do NOT **run** the test suite (do not invoke `npm test`, a coverage run, or a
+mutation run — those mutate state and cost minutes). Reading the **committed**
+coverage / CRAP / mutation artifacts under `baselines/` is explicitly permitted
+and required (Step 0): citing an already-computed metric is read-only analysis,
+not a suite run.
 
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Test Strategy Assessment
+table:
 
 ```markdown
 # Testing & Quality Assurance Audit
-
-## Executive Summary
-
-[Provide a brief overview of the current test suite health, highlighting the
-primary vulnerabilities, coverage gaps, and areas causing developer friction.]
 
 ## Test Strategy Assessment
 
@@ -158,43 +133,4 @@ primary vulnerabilities, coverage gaps, and areas causing developer friction.]
 | Integration Testing | [Healthy / Needs Work / Missing] | [Brief reason] |
 | E2E Testing         | [Healthy / Needs Work / Missing] | [Brief reason] |
 | Test Plans          | [Healthy / Needs Work / Missing] | [Brief reason] |
-
-## Detailed Findings
-
-[For every gap identified, use the following strict structure. Lead each title
-with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Category:** [Flakiness | Coverage | Performance | Mocking | Test Plans]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [How the tests are currently written and why it's
-  problematic]
-- **Recommendation & Rationale:** [The specific testing pattern or refactor
-  strategy to fix the issue]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. the new test failing before / passing after the fix, a coverage re-check, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this fix independently]`
 ```
-
----
-
-## Constraint
-
-Do NOT execute any code modifications, edit files, create branches, or **run**
-the test suite (do not invoke `npm test`, a coverage run, or a mutation run —
-those mutate state and cost minutes). Reading the **committed** coverage / CRAP
-/ mutation artifacts under `baselines/` is explicitly permitted and required
-(Step 0): citing an already-computed metric is read-only analysis, not a suite
-run. Output the report and stop.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

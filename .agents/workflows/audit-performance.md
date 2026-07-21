@@ -4,59 +4,35 @@ description: Audit performance by measuring first — profile hot paths, I/O, me
 
 # Performance & Bottleneck Audit
 
-## Role
+You are a Performance Engineer & Systems Architect finding where a system is
+slow, wasteful, or unsafe under concurrency — and proving it with numbers, not
+opinions. Three standing commitments separate this lens from a prose
+read-through: **measure before you judge** (a claim with no profile/timing/byte
+count is a hypothesis, not a finding); **adapt to the repo profile** (activate
+only the dimensions that apply, declaring the rest inapplicable); and
+**interleaving correctness is a performance concern** (races have been the most
+expensive defects this repo shipped). The shared lens machinery — read-only
+constraint, scope interpretation, report envelope + finding-block skeleton,
+severity scale, self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-performance-results.md`. Extra finding field:
+**Evidence:** [a Step 0 repro command (or quoted code path) + a `measured` or
+`estimated` tag]. The report adds a **Low-Hanging Fruit** section.
 
-Performance Engineer & Systems Architect
+## Scope
 
-## Context & Objective
-
-Find where a system is slow, wasteful, or unsafe under concurrency — and prove
-it with numbers, not opinions. This lens has three standing commitments that
-separate it from a prose read-through:
-
-1. **Measure before you judge.** A performance claim that is not backed by a
-   profile, a timing, or a byte count is a hypothesis, not a finding. Step 0
-   times the repo's own suite and entry points and produces the evidence every
-   finding must cite.
-2. **Adapt to the repo profile.** A CLI/tooling repo has no bundle and no Core
-   Web Vitals; a frontend app does. Step 1 detects the target profile and
-   activates only the dimensions that apply, declaring the rest inapplicable
-   rather than fabricating findings for a surface that does not exist.
-3. **Interleaving correctness is a performance concern.** The most expensive
-   defects this repo has shipped were not slow loops — they were races
-   (check-then-act on a lease, non-atomic checkout mutation under concurrent
-   close, shared-cache poisoning). Step 2 treats interleaving & partial-failure
-   correctness as a first-class dimension, statically and repo-observably.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
 
-## Execution strategy (dual-path)
-
-This lens runs along one of two execution paths (orchestrated dynamic-workflow
-or sequential single-pass). Both emit the **identical** Step 4 report contract;
-downstream consumers (`audit-to-stories`) are agnostic to which path produced
-it. See [`helpers/audit-dual-path.md`](helpers/audit-dual-path.md) for strategy
-selection, the forcing flags, and the read-only guarantee — read `audit-<lens>`
-there as this lens's name.
+This is a **heavyweight lens**: dispatch it as a single `subagent_type: auditor`
+call, or fan its resource dimensions out per-dimension across parallel `auditor`
+subagents (parallel-tooling Rule 3) and merge under the self-cross-check.
+Sequential inline execution is the fallback (see the core's Execution strategy).
 
 > **Measurement is non-mutating, not forbidden.** This lens is read-only with
 > respect to source, but it MUST be allowed to *run* measurements. The
@@ -64,11 +40,11 @@ there as this lens's name.
 > **non-mutating command allowlist** (profilers, timers, bundle-stat and
 > file-size probes — never a command that writes source, installs, or mutates
 > git/labels). See the allowlist in
-> [`.claude/workflows/audit-performance.workflow.js`](../../.claude/workflows/audit-performance.workflow.js).
+> [`../../.claude/workflows/audit-performance.workflow.js`](../../.claude/workflows/audit-performance.workflow.js).
 
 ## Step 0: Measure before you judge (mandatory)
 
-Produce evidence first; every finding in Step 4 carries an **Evidence** field
+Produce evidence first; every finding in the report carries an **Evidence** field
 that cites a repro command and tags itself `measured` or `estimated`. Run the
 measurements that apply to the repo (Step 1 tells you which), preferring the
 repo's own scripts over invented ones.
@@ -180,9 +156,8 @@ dimension (per Step 1) against measured evidence from Step 0.
 
 ## Step 3: Severity rubric (performance-anchored)
 
-Grade every finding on the shared
-[`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md),
-anchored to performance/correctness cost rather than gut feel:
+Grade every finding on the shared severity scale, anchored to
+performance/correctness cost rather than gut feel:
 
 - Grade **Critical** for a guaranteed data-loss or corruption path under normal
   concurrency (e.g. a lost-update TOCTOU on persisted state), or a hang/outage
@@ -198,67 +173,26 @@ anchored to performance/correctness cost rather than gut feel:
 Latency thresholds, when a user-facing route is in scope, follow the CWV bands
 in the payload/bundle dimension (LCP ≤2.5s good / ≤4.0s needs-improvement).
 
-## Step 4: Output Requirements
+## Constraint (lens-specific carve-out)
 
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-performance-results.md`, using the exact template
-below.
+This lens is read-only **with respect to source**: it does not edit, create, or
+delete application code, dependencies, or configuration. It **does** run
+non-mutating measurements (Step 0) and writes exactly two artifacts — the report
+and `perf-baseline.json`.
+
+The **interleaving** dimension leans on the self-cross-check hardest: drop every
+claimed race that lacks a concrete losing interleaving over a repo-observable
+shared-state path.
+
+## Report additions
+
+Beyond the shared skeleton (Executive Summary + Detailed Findings from the
+core), this lens's report carries its own title and a Low-Hanging Fruit section:
 
 ```markdown
 # Performance Audit Report
-
-## Executive Summary
-
-[Overview of performance posture vs the Step 0 measurements. State the repo
-profile detected (Step 1) and which dimensions were inapplicable. State the
-baseline trend verdict (first-run / improved / unchanged / regressed) and the
-`perf-baseline.json` path. Close with the self-cross-check `kept k / dropped d`
-line.]
-
-## Detailed Findings
-
-[For every bottleneck or correctness defect identified, use the following
-strict structure. Lead each title with the primary file it lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the finding]
-
-- **Dimension:** [CPU & algorithmic | I/O | Memory & leaks | Payload & bundle | Interleaving & partial-failure]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Evidence:** [A repro command from Step 0 (or a quoted code path) and a
-  `measured` or `estimated` tag — e.g. "`measured`: `hyperfine 'npm test'` →
-  regressed 8.1s → 11.4s (+40%) vs perf-baseline.json"]
-- **Current State:** [Technical explanation of where and why the bottleneck or
-  race occurs]
-- **Recommendation & Rationale:** [Specific optimization/fix tactic and the
-  expected gain or the interleaving it closes]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. a benchmark below the target threshold, a re-run of this lens showing the baseline no longer regressed, or a test exercising the losing interleaving]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this fix independently]`
 
 ## Low-Hanging Fruit
 
 - [List 3 quick changes that provide immediate performance gains.]
 ```
-
-## Constraint
-
-This is a **read-only** audit **with respect to source**: it does not edit,
-create, or delete application code, dependencies, or configuration. It **does**
-run non-mutating measurements (Step 0) and writes exactly two artifacts — the
-report and `perf-baseline.json`. Note: this lens supersedes the retired
-`audit-lighthouse` lens by folding its measured Core-Web-Vitals material (the
-per-route score baseline and median-of-3 protocol) into the web branch of the
-payload/bundle dimension.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does. The **interleaving**
-dimension leans on this pass hardest: drop every claimed race that lacks a
-concrete losing interleaving over a repo-observable shared-state path.

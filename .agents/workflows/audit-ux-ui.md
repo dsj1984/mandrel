@@ -4,6 +4,16 @@ description: Audit UX/UI consistency and design system adherence
 
 # UX/UI & Design System Audit
 
+You are a Lead Product Designer & Frontend Architect evaluating the frontend for
+UI consistency, UX best practices, and adherence to the project's design system,
+ensuring the app feels premium and cohesive. The shared lens machinery —
+read-only constraint, scope interpretation, report envelope + finding-block
+skeleton, severity scale, self-cross-check, and execution strategy — lives in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md). Write the report to
+`{{auditOutputDir}}/audit-ux-ui-results.md`. Dimension values:
+`Visual Consistency | UX Best Practices | Accessibility`; the report adds a
+**Micro-animation Opportunities** section.
+
 ## Applicability
 
 **Web targets only.** Registered with `target: "web"` in
@@ -11,36 +21,19 @@ description: Audit UX/UI consistency and design system adherence
 on a project with no rendered frontend. See the `target` key's schema
 description for how applicability is probed from the consumer's checkout.
 
-## Role
+## Scope
 
-Lead Product Designer & Frontend Architect
-
-## Context & Objective
-
-Evaluate the frontend implementation for UI consistency, UX best practices, and
-adherence to the project's design system. Ensure the application feels premium
-and cohesive.
-
-## Scope (Story / plan-run mode)
-
-When this lens is invoked from `/deliver` close lenses (or a plan-run audit), the
-following block is populated with the Story (or plan-run) change-set file list.
-Otherwise — for any manual `/audit-<dimension>` invocation — the block
-renders the literal substitution token and you MUST treat it as **no
-scope filter — run the lens codebase-wide** exactly as you would have
-before this section existed.
+Interpret this lens's change-set fence per the core's Scope interpretation:
 
 ```text
 {{changedFiles}}
 ```
 
-- If the block above contains a newline-delimited list of file paths,
-  restrict your analysis to those files (and their direct dependencies
-  when the lens explicitly calls for cross-file reasoning).
-- If the block above renders as the literal string `{{changedFiles}}`
-  (i.e. no substitution was supplied), ignore this section entirely and
-  proceed with the full codebase-wide scan defined in the remaining
-  steps.
+## Execution strategy
+
+Run this lens as a single `subagent_type: auditor` dispatch returning the report
+path + Executive Summary; sequential inline execution is the fallback (see the
+core's Execution strategy).
 
 ## Step 0: Discover the design-system SSOT (run first)
 
@@ -65,8 +58,6 @@ ideal. If **no** design-system SSOT exists, say so and downgrade findings to
 "no baseline defined — recommend establishing tokens/components first".
 
 ## Step 1: Mechanical detector battery, then LLM triage
-
-> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Run the **mechanical detectors first** (cheap, deterministic greps that surface
 candidates), then apply **LLM triage** to each candidate against the Step 0
@@ -107,57 +98,3 @@ baseline — a mechanical hit is a *candidate*, not automatically a finding.
    This lens keeps token/component design-system adherence; defer every WCAG
    success-criterion judgement to the accessibility lens so the two never
    double-report.
-
-## Step 3: Output Requirements
-
-Generate and save a highly structured Markdown audit report to
-`{{auditOutputDir}}/audit-ux-ui-results.md`, using the exact template below.
-
-> Grade every finding's severity on the shared
-> [`Critical | High | Medium | Low` scale](helpers/audit-severity-scale.md).
-
-```markdown
-# UX/UI & Design System Audit report
-
-## Executive Summary
-
-[Overview of design system health (Score 1-10) and adherence to
-tokens/components.]
-
-## Detailed Findings
-
-[For every inconsistency or UX improvement identified, use the following strict
-structure. Lead each title with the primary file the finding lives in:]
-
-### `path/to/primary-file.ext` — [Short title of the issue]
-
-- **Dimension:** [e.g., Visual Consistency | UX Best Practices | Accessibility]
-- **Impact:** [Critical | High | Medium | Low]
-- **Location:** `path/to/primary-file.ext:line`
-- **Current State:** [What is currently implemented and why it is sub-optimal]
-- **Recommendation & Rationale:** [The specific UI/UX change and how it improves
-  premium feel or usability]
-- **Acceptance signal:** [the command or observable that proves this finding is remediated — e.g. the token now applied in the rendered component, or a re-run of this lens]
-- **Agent Prompt:**
-  `[A copy-pasteable, highly specific prompt to execute this UI change independently]`
-
-## Micro-animation Opportunities
-
-- [Suggest 2-3 places where subtle transitions could enhance the "premium"
-  feel.]
-```
-
-## Constraint
-
-This is a **read-only** audit. Provide the critique and implementation
-suggestions, but do not modify styles or components.
-
-## Self-cross-check (mandatory — filter false positives before you finalize)
-
-Before you write the report artifact from the previous step, run the shared
-adversarial self-cross-check over your Detailed Findings — see
-[`helpers/audit-self-check.md`](helpers/audit-self-check.md). It defines the
-per-finding evidence bar, the exclusion list, and the final re-open-and-drop
-pass whose `kept <k> / dropped <d>` counts you record in the Executive
-Summary, so the sequential single-pass path filters unverified findings just as
-the orchestrated path's adversarial reviewer does.

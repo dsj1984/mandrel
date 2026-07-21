@@ -20,3 +20,4 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] History Bloat
 - [ ] Contradiction
 - [ ] Authority Drift
+- [ ] Scheduled invocation

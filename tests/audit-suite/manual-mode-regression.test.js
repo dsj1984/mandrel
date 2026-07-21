@@ -46,14 +46,25 @@ async function readLens(name) {
   return fs.readFile(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
 }
 
-test('manual-mode regression: every lens contains exactly one Scope (Story / plan-run mode) block', async () => {
+async function readCore() {
+  return fs.readFile(
+    path.join(WORKFLOWS_DIR, 'helpers', 'audit-lens-core.md'),
+    'utf8',
+  );
+}
+
+test('manual-mode regression: every lens carries exactly one {{changedFiles}} substitution fence', async () => {
+  // Story #4665 single-sourced the scope-interpretation prose into the core;
+  // each lens keeps only its own `{{changedFiles}}` fence (the substitution
+  // anchor consumed by lib/audit-suite/). The invariant is now one fence per
+  // lens, not one shared Scope header block.
   for (const lens of LENSES) {
     const body = await readLens(lens);
-    const matches = body.match(/^## Scope \(Story \/ plan-run mode\)$/gm) || [];
+    const fences = body.match(/```text\n\{\{changedFiles\}\}\n```/g) || [];
     assert.equal(
-      matches.length,
+      fences.length,
       1,
-      `${lens}.md must contain exactly one "## Scope (Story / plan-run mode)" header`,
+      `${lens}.md must contain exactly one {{changedFiles}} fence`,
     );
   }
 });
@@ -89,19 +100,17 @@ test('manual-mode regression: render without changedFiles leaves the literal tok
   }
 });
 
-test('manual-mode regression: every Scope block explicitly documents the literal-token fall-through', async () => {
-  // The lens body must *tell the model* that the literal token means
-  // "no scope filter — run codebase-wide". Without this prose, an LLM
-  // reader could misinterpret the literal as "scope to a file called
-  // {{changedFiles}}", which would silently break manual mode.
-  for (const lens of LENSES) {
-    const body = await readLens(lens);
-    assert.match(
-      body,
-      /no\s+scope\s+filter[\s\S]*?codebase-wide/i,
-      `${lens}.md must explicitly instruct the model to treat the literal {{changedFiles}} token as "no scope filter — run codebase-wide"`,
-    );
-  }
+test('manual-mode regression: the core documents the literal-token fall-through', async () => {
+  // The scope-interpretation prose must *tell the model* that the literal
+  // token means "no scope filter — run codebase-wide". Story #4665 moved that
+  // prose into the shared core (each lens just carries the fence + a pointer),
+  // so the invariant is now asserted against helpers/audit-lens-core.md.
+  const core = await readCore();
+  assert.match(
+    core,
+    /no\s+scope\s+filter[\s\S]*?codebase-wide/i,
+    'audit-lens-core.md must instruct the model to treat the literal {{changedFiles}} token as "no scope filter — run codebase-wide"',
+  );
 });
 
 test('manual-mode regression: rendered output equals on-disk source (no substitution churn) when only built-ins supplied without changedFiles', async () => {
