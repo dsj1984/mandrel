@@ -12,8 +12,10 @@ import {
   composeRoutedProposals,
   deriveUnresolvedBlockedEvents,
 } from '../../../.agents/scripts/lib/orchestration/retro-proposals.js';
+import { runPostLandTail } from '../../../.agents/scripts/lib/orchestration/single-story-close/phases/post-land.js';
 import {
   buildFollowUpsCommentBody,
+  captureStoryFollowUps,
   gatherStoryFrictionSignals,
   resolveFollowUpRepos,
 } from '../../../.agents/scripts/lib/orchestration/story-follow-ups.js';
@@ -148,6 +150,116 @@ describe('gatherStoryFrictionSignals field preservation (Story #4649)', () => {
       { framework: [], consumer: [], discarded: [] },
       'a Story that blocked and self-resolved files nothing',
     );
+  });
+});
+
+describe('post-land recovery marking end-to-end (Story #4654)', () => {
+  let tempRoot;
+  let config;
+
+  beforeEach(async () => {
+    tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'post-land-recover-'));
+    // Disable auto-filing so the graduator is a no-op (no `gh` calls) and the
+    // assertions read the composed proposals, not a live GitHub filing.
+    config = {
+      project: { paths: { tempRoot } },
+      delivery: { feedbackLoop: { retroProposals: false } },
+    };
+  });
+
+  afterEach(async () => {
+    await fs.rm(tempRoot, { recursive: true, force: true });
+  });
+
+  /** A ticketing provider fake sufficient for `upsertStructuredComment`. */
+  function fakeProvider() {
+    let nextId = 1;
+    return {
+      getTicketComments: async () => [],
+      postComment: async () => ({ id: nextId++ }),
+      deleteComment: async () => {},
+    };
+  }
+
+  /**
+   * Run only the recovery-marker emits of the tail against a real temp tree:
+   * every git/GitHub/status/lock step is stubbed so the emits (defaulted to
+   * the real functions, threaded `config`) are the only side effect.
+   */
+  const landTail = (storyId) =>
+    runPostLandTail({
+      storyId,
+      storyBranch: `story-${storyId}`,
+      baseBranch: 'main',
+      cwd: tempRoot,
+      provider: {},
+      config,
+      captureStoryFollowUpsFn: async () => ({ ok: true }),
+      reassertStatusColumnFn: async () => ({ status: 'synced' }),
+      gitSpawnFn: () => ({ status: 1 }),
+      planFastForwardFn: () => ({
+        runnable: false,
+        reason: 'already-up-to-date',
+      }),
+      executeFastForwardFn: () => ({ applied: true, behind: 0 }),
+      acquireLockWithWaitFn: async () => ({
+        acquired: true,
+        release: () => {},
+        ownerId: 't',
+      }),
+    });
+
+  const seed = (storyId, category) =>
+    emitRuntimeFriction({
+      storyId,
+      category,
+      tool: 'test',
+      details: { reason: 'boom' },
+      config,
+    });
+
+  it('AC-1: a Story that blocked then landed files no story-blocked follow-up', async () => {
+    await seed(5501, RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED);
+    await landTail(5501);
+
+    const result = await captureStoryFollowUps({
+      storyId: 5501,
+      provider: fakeProvider(),
+      config,
+    });
+    assert.equal(result.ok, true);
+    const filed = [...result.proposals.framework, ...result.proposals.consumer];
+    assert.ok(
+      !filed.some((i) => i.category === 'story-blocked'),
+      'no story-blocked proposal survives the recovery marker',
+    );
+    assert.equal(result.graduated.filed.length, 0);
+  });
+
+  it('AC-2: the marker is conditional — a Story that never blocked gains no story-blocked row', async () => {
+    await landTail(5502);
+    const rows = await gatherStoryFrictionSignals(5502, config);
+    assert.deepEqual(rows, [], 'no spurious marker suppresses a clean bucket');
+  });
+
+  it('AC-5: three merge-wait-exhausted records that then land file no follow-up', async () => {
+    await seed(5503, RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED);
+    await seed(5503, RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED);
+    await seed(5503, RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED);
+    await landTail(5503);
+
+    const result = await captureStoryFollowUps({
+      storyId: 5503,
+      provider: fakeProvider(),
+      config,
+    });
+    assert.equal(result.ok, true);
+    const filed = [...result.proposals.framework, ...result.proposals.consumer];
+    assert.ok(
+      !filed.some((i) => i.category === 'merge-wait-exhausted'),
+      'genuine exhaustion clears the ≥2 threshold but is netted by the marker',
+    );
+    assert.equal(result.graduated.filed.length, 0);
   });
 });
 

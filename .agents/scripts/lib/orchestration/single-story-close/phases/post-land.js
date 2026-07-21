@@ -33,7 +33,11 @@ import path from 'node:path';
 
 import { gitSpawn as defaultGitSpawn } from '../../../git-utils.js';
 import { Logger } from '../../../Logger.js';
-import { emitCloseRecoveredFriction as defaultEmitCloseRecoveredFriction } from '../../../observability/runtime-friction.js';
+import {
+  emitCloseRecoveredFriction as defaultEmitCloseRecoveredFriction,
+  emitRecoveredFrictionMarker as defaultEmitRecoveredFrictionMarker,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../../observability/runtime-friction.js';
 import { acquireLockWithWait as defaultAcquireLockWithWait } from '../../../single-story-sweep/sweep-lock.js';
 import {
   executeFastForward as defaultExecuteFastForward,
@@ -252,6 +256,7 @@ async function stepBaseFastForward({
  * @param {(tag: string, msg: string) => void} [args.progress]
  * @param {Function} [args.captureStoryFollowUpsFn] Test seam.
  * @param {Function} [args.emitCloseRecoveredFrictionFn] Test seam.
+ * @param {Function} [args.emitRecoveredFrictionMarkerFn] Test seam.
  * @param {Function} [args.reassertStatusColumnFn]  Test seam.
  * @param {Function} [args.gitSpawnFn]              Test seam.
  * @param {Function} [args.planFastForwardFn]       Test seam.
@@ -269,6 +274,7 @@ export async function runPostLandTail({
   progress,
   captureStoryFollowUpsFn = defaultCaptureStoryFollowUps,
   emitCloseRecoveredFrictionFn = defaultEmitCloseRecoveredFriction,
+  emitRecoveredFrictionMarkerFn = defaultEmitRecoveredFrictionMarker,
   reassertStatusColumnFn = defaultReassertStatusColumn,
   gitSpawnFn = defaultGitSpawn,
   planFastForwardFn = defaultPlanFastForward,
@@ -277,13 +283,31 @@ export async function runPostLandTail({
 }) {
   progress?.('POST-LAND', `🧾 Running land tail for Story #${storyId}...`);
 
-  // Story #4649 — the close landed, so any earlier `close-failed` for this
-  // Story was transient. Emit the recovery marker BEFORE follow-up capture
+  // The close landed, so every friction incident on this Story's stream is
+  // provably resolved. Emit the recovery markers BEFORE follow-up capture
   // reads the stream: the `landed` terminal envelope is emitted after this
   // whole tail, so a marker written there would arrive too late to net
-  // anything out of the very run that produced the failure. Best-effort and
-  // never throws, exactly like every other tail step.
+  // anything out of the very run that produced the incident. Each emit is
+  // conditional on an un-recovered record already present, so a Story that
+  // never hit the incident gets no spurious (and bucket-suppressing) row.
+  //   - `close-failed`         — Story #4649.
+  //   - `story-blocked`        — a Story that blocked then reached
+  //     `agent::done` (Story #4654); resolves the occurrence-1 force-file.
+  //   - `merge-wait-exhausted` — a merge that spent its whole budget and
+  //     landed on a later resume (Story #4654); the residual case the
+  //     `frictionForTerminal` budget guard cannot suppress at the source.
+  // Best-effort and never throws, exactly like every other tail step.
   await emitCloseRecoveredFrictionFn({ storyId, config });
+  await emitRecoveredFrictionMarkerFn({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.STORY_BLOCKED,
+    config,
+  });
+  await emitRecoveredFrictionMarkerFn({
+    storyId,
+    category: RUNTIME_FRICTION_CATEGORIES.MERGE_WAIT_EXHAUSTED,
+    config,
+  });
 
   const followUps = await step(
     () =>
