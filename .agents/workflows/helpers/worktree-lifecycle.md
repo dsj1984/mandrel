@@ -242,73 +242,12 @@ Symlink strategy:
   specific failure up to 3 times with 250/500/1000 ms backoff. Unrelated fetch
   failures surface immediately — no retry.
 
-## Harness-worktree ⇄ consumer-lint-ignore interaction (Story #152)
+## Harness-worktree ⇄ consumer-lint-ignore interaction
 
-Mandrel's own worktree isolation (above) always roots story worktrees at
-`delivery.worktreeIsolation.root` (default `.worktrees/` at the repo root).
-That path is separate from **the host IDE/CLI harness's own worktree
-mechanism** — for example Claude Code, when it manages an agent session as a
-git worktree, nests it at `.claude/worktrees/<name>/`. A mandrel delivery
-agent can be invoked from *either* location depending on how the operator's
-harness composes with `/deliver`: mandrel's own `.worktrees/story-<id>/` when
-`worktreeIsolation.enabled` drives the checkout, or a harness-level
-`.claude/worktrees/<name>/` when the harness itself provides the isolated
-working directory mandrel runs inside.
-
-This matters because a consumer's `pre-push` (or `pre-commit`) lint step is
-commonly configured with an ignore glob that excludes noisy agent-tooling
-directories, e.g. a Biome `files.includes` entry like `"!**/.claude"`. When
-the *agent's CWD itself* resolves under `.claude/worktrees/<name>/`, a
-lint invocation scoped to `.` (`biome check .`, or equivalent) resolves
-every candidate path as living under the ignored `.claude` prefix — the glob
-matches zero files, and tools that treat zero-match as failure (Biome's
-default `check` behavior without `--no-errors-on-unmatched`) exit non-zero
-with something like `No files were processed in the specified paths`. This
-is a **false negative**: the changed files were never actually linted
-against, and the hook is not reporting a real defect. It is functionally
-distinct from a `pre-push` rejection caused by a genuine lint violation, and
-must not be treated the same way.
-
-**Do not resolve this by bypassing the push hook.**
-[`rules/git-conventions.md`](../../rules/git-conventions.md) § "Push
-Validation & Reliability" prohibits skipping hooks without explicit operator
-authorization, and that prohibition is not weakened by this interaction —
-the zero-match failure is a **consumer-tooling gap**, not a framework
-authorization the agent gets to grant itself.
-
-**Sanctioned resolution path:**
-
-1. **Recognize the signature.** A `pre-push`/`pre-commit` failure whose
-   message is a zero-match error (`No files were processed`, `0 files
-   matched`, or equivalent for the consumer's linter) — not a reported
-   violation in a specific file — combined with an agent CWD under
-   `.claude/worktrees/` (or any other harness-managed path a consumer's lint
-   config ignores) is this known interaction, not a real lint failure.
-2. **Fix it in the consumer, not the agent invocation.** The remedy lives in
-   the consumer's own lint command, mirroring what its `lint-staged` config
-   (if present) likely already does for the same reason: make the zero-match
-   case a no-op instead of a failure. For Biome:
-   `biome check --no-errors-on-unmatched .`. Other linters have an
-   equivalent flag (e.g. ESLint's `--no-error-on-unmatched-pattern`). This is
-   a one-line consumer-side change, typically to `.husky/pre-push` or the
-   `package.json` script it invokes.
-3. **Escalate through the normal HITL path**, per
-   [`.agents/instructions.md` § 1.J](../../instructions.md), if the agent
-   cannot edit the consumer's hook/lint config directly (e.g. it sits outside
-   the Story's scope). Transition to `agent::blocked`, name the zero-match
-   signature and the one-line remedy in the blocker summary, and let the
-   operator apply the consumer-side fix or explicitly authorize a one-time
-   hook-skip per [`rules/git-conventions.md`](../../rules/git-conventions.md)
-   § "Push Validation & Reliability". Explicit operator authorization is the
-   *only* circumstance under which a hook may be skipped — never as an
-   agent's unilateral default when this signature is recognized.
-4. **Do not relocate mandrel's own worktrees to work around a harness-level
-   path.** `delivery.worktreeIsolation.root` controls where *mandrel*
-   materializes `story-<id>` worktrees (default `.worktrees/`, already
-   outside `.claude/`) and is unrelated to where the host harness places its
-   own session worktree. Changing `worktreeIsolation.root` does not fix this
-   interaction when the false negative originates from the harness's path,
-   not mandrel's.
+When an agent's CWD resolves under a harness-managed worktree path the consumer's
+lint config ignores (e.g. `.claude/worktrees/`), a `.`-scoped lint can zero-match
+and fail falsely. Its signature and the sanctioned consumer-side fix (never a
+hook bypass) live in [`rules/git-conventions-reference.md` § Push Validation](../../rules/git-conventions-reference.md).
 
 ## Fallback: single-tree mode
 

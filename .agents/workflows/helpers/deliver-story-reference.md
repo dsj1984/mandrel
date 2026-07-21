@@ -194,6 +194,61 @@ behaviour and warrants pre-merge review.
 
 ## Step 4 — CI watch + fix recovery
 
+Enter this step **only** when Step 3 returned `blocked` with
+`blockClass: "checks-failed"` (a required check went red), or when a
+`--no-wait-merge` run left the PR for you to shepherd. When a required check is
+red, the agent owns the green-CI outcome, not just the push: local
+close-validation gates pass on the dev host's environment; CI runs on a
+different OS and concurrency, and coverage rounding, platform-conditional
+branches, and timing-sensitive tests routinely drift between the two.
+
+Fix the failure and push a new commit on `story-<storyId>` — auto-merge stays
+armed across retries, so you do not re-arm — then resume the land with the
+envelope's `nextCommand`.
+
+To watch the checks on the red path, drive `pr-watch-with-update.js` — the
+**single CI-watch mechanism** (Story #4358). It polls the required checks to a
+terminal state and auto-recovers from `mergeStateStatus: BEHIND`; do **not**
+fall back to a bare `gh pr checks` watch invocation:
+
+```bash
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber> --story <storyId>
+```
+
+`--story` is what keys the red-path CI digest
+(`temp/story-<id>-ci-digest.{json,md}` — failing check name, run id, and a
+`gh run view --log-failed` tail). Omit it and a red check writes no digest.
+Poll cadence and caps come from `delivery.ci.watch.*` (`pollIntervalMs`,
+`maxPolls`, `maxResumes`); pass `--poll-interval-ms`, `--max-polls`, or
+`--max-resumes` to override for one run.
+
+When the watch exits, branch on the exit code:
+
+- **Exit 0 (all checks ✓)** — auto-merge will fire (or has already). The Story
+  is still at `agent::closing` with its issue OPEN. **Proceed to merge
+  confirmation (§ Step 5) within the same turn** — green CI is the *start* of
+  the merge-confirm sequence, not a terminal state.
+- **Exit 1 (a check genuinely failed)** — diagnose, fix, and push a new commit
+  on `story-<storyId>`, then re-watch. Auto-merge stays enabled across retries;
+  no need to re-arm it. The Story stays at `agent::closing` throughout, so a
+  failed/abandoned PR never strands a CLOSED issue. If the same failure class
+  recurs, hand convergence off to a self-paced host loop (`/loop`) that re-runs
+  the failing check and applies the smallest fix until it exits green.
+- **Exit 2 (still-running — slow CI, not red)** — the poll cap fired with checks
+  still pending and the watcher exhausted its resume budget with nothing red.
+  This is **never** a failure. Hand the wait off to the host's interval loop
+  rather than ending your turn: `/loop 5m` polling `gh pr checks` until the
+  checks settle.
+
+**Triage authority.** How to classify and remediate a red (or repeatedly slow)
+check — the root-cause-only decision tree for infra/transient and flaky failures
+(reproduce → check `main` → bisect env vs code → fix in-scope or file a
+`meta::framework-gap` issue), the never-rerun / never-quarantine prohibitions,
+and the escalation criteria (three-strikes, the 30-minute wall-clock timebox,
+and the clearly-environmental fast path) — is defined once in
+[`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md). Read it
+before remediating a red check.
+
 ### The auto-merge wait is an internally-blocking step
 
 This is the single most important contract of this workflow, and the seam
@@ -281,6 +336,20 @@ the watch exits clean.
 
 ## Step 5 — Merge confirmation detail
 
+> On the default path Step 3 already did this. Run it only to resume a
+> `pending` envelope, to finish a `--no-wait-merge` run, or to rescue a
+> merged-but-mislabelled Story.
+
+```bash
+node .agents/scripts/single-story-confirm-merge.js --story <storyId> --cwd <main-repo>
+```
+
+This is the **same** shared land path Step 3 reaches: it flips
+`agent::closing → agent::done` on a confirmed merge (closing the issue) and runs
+the **same** post-land tail — so the two surfaces cannot diverge. It is
+idempotent, emits the same terminal envelope, and is safe to re-run while the PR
+is still open (returns `pending`).
+
 `single-story-confirm-merge.js` re-reads the live PR state (`gh pr view
 --json state,mergedAt`, probing `gh pr list --head story-<id> --state all`
 when `--pr` is omitted) and:
@@ -301,6 +370,18 @@ The issue closes exactly when the work has merged, never at PR-open
 ---
 
 ## Step 5.5 — Re-assert Status column detail
+
+> **The land tail already ran this** (Story #4543) — it is `tail.statusResync`
+> in the terminal envelope. Run it by hand only when that step reported
+> `false`, or after a manual merge on a `--no-wait-merge` run.
+
+```bash
+node .agents/scripts/resync-status-column.js --story <storyId>
+```
+
+The helper re-fires the `ColumnSync` mutation and **polls for ~15 s** to win the
+race against the bot's late write (Story #2876). It is idempotent and
+no-op-safe (`no-project` / `not-on-project` exit 0).
 
 The GitHub Projects v2 built-in workflows `Pull request merged` and
 `Pull request linked to issue` are enabled by default on most boards
@@ -347,6 +428,30 @@ defense-in-depth against re-enabled or future workflows.
 ---
 
 ## Step 6 — Local branch cleanup detail
+
+> **The land tail already ran this** (Story #4543) — it is `tail.refCleanup` and
+> `tail.baseFastForward` in the terminal envelope, done in-process against the
+> same planners this command drives. Run it by hand only when either step
+> reported `false` (a dirty shared checkout is the common, benign cause), or
+> after a manual merge on a `--no-wait-merge` run. To prune the story ref **and**
+> fast-forward local `main` (or `project.baseBranch`):
+
+```bash
+node .agents/scripts/git-cleanup.js \
+  --execute \
+  --remote \
+  --yes \
+  --fast-forward-main \
+  --branches \
+  --include "story-<storyId>"
+```
+
+`--fast-forward-main` brings local `main` current (the next init seeds from it),
+`--branches` + `--include` reap only this Story's ref, and
+`--execute --remote --yes` run the deletes non-interactively. The sweep is
+idempotent and safe to run before `MERGED` confirms. Skip it only when the
+operator opted out via `--no-auto-merge` AND has not yet merged the PR — run the
+cleanup after the manual merge lands.
 
 GitHub deletes the **remote** branch on auto-merge (via the
 `--delete-branch` flag `single-story-close.js` passes to `gh pr merge`).
@@ -400,16 +505,10 @@ follows is the *judgement* around it, which a schema cannot express.
 
 ### `pending` is a real status — and it is not a park
 
-Earlier revisions asserted "the auto-merge wait does not produce a fourth
-status", on the reasoning that the wait is internally blocking so a run either
-merges or blocks. That was true only while the wait was unbounded — and it was
-never actually unbounded, because the host kills a tool invocation at ~10
-minutes. So a close-and-land whose CI outlived that ceiling took **no**
-terminal path at all: no event, no label, the Story parked at
-`agent::closing`. The status the model refused to name was the one that kept
-happening.
-
-`pending` names it, with its own exit code (3):
+`pending` is a real terminal status with its own exit code (3) — the honest
+name for a close-and-land whose CI outlived the host's ~10-minute
+tool-invocation ceiling, which would otherwise park the Story at
+`agent::closing` with no event and no label:
 
 - It is **resumable**: no label was mutated, no `merge.unlanded` was emitted,
   and `nextCommand` names the one command that continues it. The cumulative
@@ -419,13 +518,11 @@ happening.
   is the Story #1553 / PR #1554 failure mode wearing a schema. Return it only
   when the bound genuinely expired, or a human owns the merge.
 
-The no-park rule is therefore unchanged in substance: a turn that ends with
-prose ("I'll wait for the watch task…", "the next event will be its
-completion notification…") and an unconfirmed merge is a **contract
-violation** — the parent cannot distinguish "still working" from "done but
-silent". What changed is that there is now an honest, machine-readable way to
-say "not finished, here is exactly how to continue" instead of a choice
-between lying and blocking forever.
+The no-park rule holds: a turn that ends with prose ("I'll wait for the watch
+task…", "the next event will be its completion notification…") and an
+unconfirmed merge is a **contract violation** — the parent cannot distinguish
+"still working" from "done but silent". `pending` is the honest,
+machine-readable alternative: "not finished, here is exactly how to continue."
 
 ### Exit-code compatibility note (`--no-wait-merge`)
 
