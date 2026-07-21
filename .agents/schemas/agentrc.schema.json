@@ -327,6 +327,27 @@
         "codebaseSnapshot": {
           "$ref": "#/$defs/codebaseSnapshot"
         },
+        "complexityGate": {
+          "type": "object",
+          "description": "Plan-time ceremony-lite complexity gate. Routes trivial single-artifact seeds onto a collapsed plan/deliver path; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Master switch. When false, every seed takes the full plan/deliver ceremony. Default true."
+            },
+            "maxSeedWords": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 60."
+            },
+            "maxArtifacts": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Enumerated-artifact ceiling for the lite path. A seed enumerating more than this many candidate artifacts is multi-capability and takes the full path. Default 1."
+            }
+          },
+          "additionalProperties": false
+        },
         "failOnSharedEditors": {
           "type": "boolean",
           "description": "When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only)."
