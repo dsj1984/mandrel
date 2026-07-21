@@ -53,6 +53,10 @@
  */
 
 import {
+  suggestPathEntryFix,
+  suggestVerifyFix,
+} from '../story-body/body-format-lints.js';
+import {
   parse as parseStoryBody,
   StoryBodyParseError,
 } from '../story-body/story-body.js';
@@ -72,44 +76,6 @@ export const VERIFY_TIER_VALUES = Object.freeze([
   'e2e',
   'validate',
 ]);
-
-const PATH_LIKE_RE = /[/.][\w@\-./*]+|\*\*?\/?\*?\.\w+|[a-z][\w-]*\/[\w-./*]+/i;
-const VAGUE_VERBS = [
-  'clean up',
-  'refactor',
-  'improve',
-  'polish',
-  'tighten',
-  'tidy',
-  'simplify',
-];
-
-/**
- * @param {string} bullet
- * @returns {boolean}
- */
-function bulletNamesPath(bullet) {
-  const colonIdx = bullet.indexOf(':');
-  if (colonIdx <= 0) return PATH_LIKE_RE.test(bullet);
-  const head = bullet.slice(0, colonIdx);
-  // The conventional shape is "<path>: <verb> <object>" — head is the path.
-  return PATH_LIKE_RE.test(head) || PATH_LIKE_RE.test(bullet);
-}
-
-/**
- * @param {string} bullet
- * @returns {string|null} reason if the bullet uses a vague verb without a named target, else null.
- */
-function vagueVerbWithoutTarget(bullet) {
-  const lower = bullet.toLowerCase();
-  for (const verb of VAGUE_VERBS) {
-    if (!lower.includes(verb)) continue;
-    if (!bulletNamesPath(bullet)) {
-      return verb;
-    }
-  }
-  return null;
-}
 
 /**
  * Predicate: should the validator skip this ticket entirely? Skip when:
@@ -297,8 +263,13 @@ function collectChangesErrors(prefix, rawChanges) {
   }
   for (const entry of changes) {
     if (typeof entry === 'string') {
+      const fix = suggestPathEntryFix(entry);
+      const fixIt =
+        fix === null
+          ? ''
+          : ` Suggested fix: ${fix} (adjust the assumption to creates|deletes if this is a new file or a removal).`;
       errors.push(
-        `${prefix}: body.changes entry must be a { path, assumption } object; plain string bullets are no longer accepted: "${entry}".`,
+        `${prefix}: body.changes entry must be a { path, assumption } object; plain string bullets are no longer accepted: "${entry}".${fixIt}`,
       );
       continue;
     }
@@ -385,8 +356,10 @@ function collectVerifyErrors(prefix, rawVerify) {
       continue;
     }
     if (!VERIFY_TIER_RE.test(v)) {
+      const fix = suggestVerifyFix(v);
+      const fixIt = fix === null ? '' : ` Suggested fix: "${fix}".`;
       errors.push(
-        `${prefix}: body.verify entry must end with a tier in parentheses — one of (${VERIFY_TIER_VALUES.join('|')}). Got: "${v}".`,
+        `${prefix}: body.verify entry must end with a tier in parentheses — one of (${VERIFY_TIER_VALUES.join('|')}). Got: "${v}".${fixIt}`,
       );
     }
   }
