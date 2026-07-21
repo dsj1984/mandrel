@@ -311,6 +311,7 @@ function closeResult({
   autoMergeReason,
   worktreeReaped,
   leaseReleased,
+  localCleanupDeferred = false,
   waitedForMerge = false,
   merged = false,
 }) {
@@ -326,6 +327,10 @@ function closeResult({
     autoMergeReason,
     worktreeReaped,
     leaseReleased,
+    // Story #4681 — `gh`'s local head-branch delete failed while the remote
+    // merge/arm stood. Surfaced so the land is auditable as
+    // merged-with-deferred-cleanup rather than silently degraded.
+    localCleanupDeferred,
     waitedForMerge,
     merged,
     note: waitedForMerge
@@ -486,16 +491,35 @@ async function runClosePipeline({
       }),
     leaseArgs,
   );
-  setPhase('auto-merge');
-  const { autoMergeEnabled, autoMergeReason } = await runAutoMergePhase({
+  // Reap the per-Story worktree BEFORE the arm (Story #4681). Arming runs
+  // `gh pr merge --auto --squash --delete-branch`, which — against an
+  // already-mergeable PR — merges immediately and then shells out to local
+  // `git` to drop `story-<id>`. A live worktree still holding that ref makes
+  // the local delete fail, `gh` exit non-zero, and the arm read as failed,
+  // which used to strand a genuinely merged PR at `agent::blocked`.
+  // Pre-empting the hold is the ordering half of the fix (the tolerate half
+  // lives in `phases/auto-merge.js`); it is safe here because push and PR
+  // creation already made the work durable off-machine, and `isSafeToRemove`
+  // still refuses a dirty tree.
+  const worktreeReaped = await reapWorktreePhase({
     cwd: options.cwd,
-    prNumber,
-    prUrl,
-    noAutoMerge: options.noAutoMerge,
-    autoMergePolicy: getCiDelivery(config).autoMerge,
-    gh: injectedGh,
+    storyId: options.storyId,
+    worktreePath,
+    wtIsolation: config.delivery?.worktreeIsolation,
     progress,
+    WorktreeManager,
   });
+  setPhase('auto-merge');
+  const { autoMergeEnabled, autoMergeReason, localCleanupDeferred } =
+    await runAutoMergePhase({
+      cwd: options.cwd,
+      prNumber,
+      prUrl,
+      noAutoMerge: options.noAutoMerge,
+      autoMergePolicy: getCiDelivery(config).autoMerge,
+      gh: injectedGh,
+      progress,
+    });
   await flipLabelAndNotify({
     provider,
     notifyFn: injectedNotify,
@@ -506,14 +530,6 @@ async function runClosePipeline({
     autoMergeReason,
     config,
     progress,
-  });
-  const worktreeReaped = await reapWorktreePhase({
-    cwd: options.cwd,
-    storyId: options.storyId,
-    worktreePath,
-    wtIsolation: config.delivery?.worktreeIsolation,
-    progress,
-    WorktreeManager,
   });
   const leaseReleased = await releaseLease(leaseArgs);
 
@@ -589,6 +605,7 @@ async function runClosePipeline({
       autoMergeReason,
       worktreeReaped,
       leaseReleased,
+      localCleanupDeferred,
       waitedForMerge: true,
       merged: waitOutcome.confirmed === true,
     });
@@ -625,6 +642,7 @@ async function runClosePipeline({
     autoMergeReason,
     worktreeReaped,
     leaseReleased,
+    localCleanupDeferred,
   });
   // `--no-wait-merge` / operator-merge: the PR is open and the human owns
   // the land. That is a `pending` terminal by definition — the work is not

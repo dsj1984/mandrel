@@ -23,6 +23,21 @@
  * no-op. `--delete-branch` is preserved verbatim, so the PR head branch is
  * still deleted on merge without depending on the repo's auto-delete
  * setting. Resolution is non-fatal — it degrades to the original cwd.
+ *
+ * Story #4681 made the arm survive a LOCAL-ONLY cleanup failure. Against an
+ * already-mergeable PR, `gh pr merge --auto --squash --delete-branch` merges
+ * immediately and then shells out to local `git` to drop the head branch.
+ * When the per-Story worktree still holds `story-<id>`, that local delete
+ * fails (`Cannot delete branch 'story-<id>' used by worktree at …`) and `gh`
+ * exits non-zero — even though the REMOTE merge already landed. Reporting
+ * that as an arm failure sent close's confirm phase straight to
+ * `blockOnUnlanded`, flipping a merged Story to a stale `agent::blocked` that
+ * only a hand-run `single-story-confirm-merge.js` could undo. The failure is
+ * now classified: a local-cleanup-only signature reports the arm as ENABLED
+ * with `localCleanupDeferred: true`, so the confirm phase polls the PR
+ * (observes MERGED) and the post-land tail reaps the local ref. Every other
+ * non-zero exit — a genuinely refused REMOTE merge — keeps the pre-existing
+ * `enabled: false` → blocked behaviour verbatim.
  */
 
 import { gh as defaultGh } from '../../../gh-exec.js';
@@ -53,6 +68,40 @@ export function isOperatorMergeReason(reason) {
 }
 
 /**
+ * Signatures of a `gh pr merge --delete-branch` failure whose ONLY casualty
+ * is the LOCAL head-branch cleanup that runs *after* the remote merge has
+ * already been performed (or auto-merge already armed).
+ *
+ * Each pattern is emitted by local `git` (or `gh`'s wrapper around it) and
+ * names branch DELETION specifically:
+ *   - `Cannot delete branch '<name>' used by worktree at …` — `git branch -D`
+ *     refusing a ref another worktree has checked out (the Story #4681 report).
+ *   - `failed to delete local branch …` — `gh`'s own wrapper wording.
+ *
+ * Deliberately narrow on two fronts. A genuinely refused REMOTE merge ("Pull
+ * request is not mergeable", a required status check, branch protection)
+ * matches neither pattern and keeps the existing blocked path. Nor does the
+ * bare `fatal: '<base>' is already used by worktree` checkout collision Story
+ * #4282 defends against: that one aborts `gh` *before* the branch delete and
+ * carries no evidence the merge stands, so it must keep failing the arm.
+ */
+const LOCAL_CLEANUP_FAILURE =
+  /cannot delete branch[^\n]*used by worktree|failed to delete (?:the )?local branch/i;
+
+/**
+ * Whether a non-zero `gh pr merge` exit is attributable solely to local
+ * branch cleanup, leaving the remote merge/arm itself intact.
+ *
+ * Pure — exported for tests.
+ *
+ * @param {string|undefined|null} stderr
+ * @returns {boolean}
+ */
+export function isLocalCleanupOnlyFailure(stderr) {
+  return LOCAL_CLEANUP_FAILURE.test(String(stderr ?? ''));
+}
+
+/**
  * Enable GitHub native auto-merge on the PR. Non-fatal.
  *
  * @param {{
@@ -62,7 +111,7 @@ export function isOperatorMergeReason(reason) {
  *   runner?: (args: string[], opts: object) => ({ status: number, stdout?: string, stderr?: string } | Promise<{ status: number, stdout?: string, stderr?: string }>),
  *   resolveArmCwd?: (cwd: string) => string,
  * }} opts
- * @returns {Promise<{ enabled: boolean, reason?: string }>}
+ * @returns {Promise<{ enabled: boolean, reason?: string, localCleanupDeferred?: boolean }>}
  */
 export async function enableAutoMergeWith({
   cwd,
@@ -89,10 +138,15 @@ export async function enableAutoMergeWith({
       { cwd: armCwd },
     );
     if (result.status === 0) return { enabled: true };
-    return {
-      enabled: false,
-      reason: `gh-exit-${result.status}: ${(result.stderr ?? '').trim().slice(0, 200)}`,
-    };
+    const detail = `gh-exit-${result.status}: ${(result.stderr ?? '').trim().slice(0, 200)}`;
+    if (isLocalCleanupOnlyFailure(result.stderr)) {
+      // The remote side stands; only the local head-branch cleanup failed.
+      // Report ENABLED so the confirm phase polls the real PR state instead
+      // of blocking a merge that already landed, and flag the deferred
+      // cleanup for the land tail's `git branch -D` to finish.
+      return { enabled: true, localCleanupDeferred: true, reason: detail };
+    }
+    return { enabled: false, reason: detail };
   } catch (err) {
     return { enabled: false, reason: `gh-spawn-error: ${err?.message ?? err}` };
   }
@@ -167,7 +221,9 @@ function makeDefaultGhAutoMergeRunner(gh) {
  *   gh?: ReturnType<typeof import('../../../gh-exec.js').createGh>,
  *   progress: (tag: string, msg: string) => void,
  * }} args
- * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null }>}
+ * @returns {Promise<{ autoMergeEnabled: boolean, autoMergeReason: string|null, localCleanupDeferred?: boolean }>}
+ *   `localCleanupDeferred` is true when the arm stands but `gh`'s local
+ *   head-branch delete failed (Story #4681) — the land tail owns the reap.
  */
 export async function runAutoMergePhase({
   cwd,
@@ -211,15 +267,37 @@ export async function runAutoMergePhase({
   }
   const result = await enableAutoMergeWith({ cwd, prNumber, gh });
   if (result.enabled) {
+    if (result.localCleanupDeferred) {
+      // Warning, never a block (Story #4681): the merge/arm stands and the
+      // land tail reaps the local ref once the worktree releases it.
+      progress(
+        'PR',
+        `⚠️ Auto-merge armed on PR #${prNumber}, but gh's LOCAL branch cleanup failed ` +
+          `(${result.reason}) — deferring the local ref reap to the land tail; the merge stands.`,
+      );
+      return {
+        autoMergeEnabled: true,
+        autoMergeReason: null,
+        localCleanupDeferred: true,
+      };
+    }
     progress(
       'PR',
       `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
     );
-    return { autoMergeEnabled: true, autoMergeReason: null };
+    return {
+      autoMergeEnabled: true,
+      autoMergeReason: null,
+      localCleanupDeferred: false,
+    };
   }
   progress(
     'PR',
     `⚠️ Auto-merge enablement failed (${result.reason}) — operator can merge manually.`,
   );
-  return { autoMergeEnabled: false, autoMergeReason: result.reason };
+  return {
+    autoMergeEnabled: false,
+    autoMergeReason: result.reason,
+    localCleanupDeferred: false,
+  };
 }
