@@ -274,11 +274,33 @@ export async function probePathStatus({
 }
 
 /**
+ * Normalize an idempotency marker into a `gh search issues` query. Markers
+ * are HTML comments (`<!-- … -->`) so they survive markdown rendering
+ * without leaking into the visible body, but the `<` / `>` delimiters are
+ * NOT index-safe as a query: GitHub full-text search DOES index the text
+ * inside an HTML comment, yet a query that carries the `<!--` / `-->`
+ * delimiters never matches that indexed text (measured against this repo,
+ * Story #4657). Stripping the delimiters and trimming yields the bare marker
+ * text — `retro-proposal-followup: epic-1-<fp>` — which the index matches.
+ * The caller-facing marker is left untouched; normalization is the probe's
+ * own concern.
+ *
+ * @param {string} marker
+ * @returns {string}
+ */
+function normalizeMarkerQuery(marker) {
+  if (typeof marker !== 'string') return '';
+  return marker.replaceAll('<!--', '').replaceAll('-->', '').trim();
+}
+
+/**
  * Probe whether a follow-up issue carrying the given idempotency marker
  * already exists in the routed repo. Uses `gh search issues` so we hit
- * the body field directly. Returns `true` when at least one match is
- * present; degrades to `false` on any spawn/parse error (better to risk
- * a duplicate than swallow the finding entirely).
+ * the body field directly, querying the delimiter-stripped marker text
+ * (see {@link normalizeMarkerQuery}) — the raw `<!-- … -->` form never
+ * matches the index. Returns `true` when at least one match is present;
+ * degrades to `false` on any spawn/parse error (better to risk a duplicate
+ * than swallow the finding entirely).
  */
 export async function probeMarkerExists({
   marker,
@@ -292,7 +314,7 @@ export async function probeMarkerExists({
   const args = [
     'search',
     'issues',
-    marker,
+    normalizeMarkerQuery(marker),
     '--repo',
     `${owner}/${repo}`,
     '--json',
@@ -307,6 +329,71 @@ export async function probeMarkerExists({
   try {
     const parsed = JSON.parse(res.stdout || '[]');
     return Array.isArray(parsed) && parsed.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Strongly-consistent confirmation that a follow-up carrying `marker`
+ * already exists, run ONLY on the would-file path as the last gate before
+ * creating. `gh search issues` reads an eventually-consistent index whose
+ * catch-up latency (measured under 20s against this repo, Story #4657) is
+ * exactly wide enough to miss a byte-identical duplicate filed seconds
+ * earlier in the same rollup. A label-scoped `gh issue list … --state all`
+ * is strongly consistent, so it closes that window. The list is narrowed by
+ * the follow-up's own labels (supplied by the same `spec.buildFollowUp` that
+ * writes the marker, so the two agree by construction) to keep the read
+ * bounded, and the marker is matched as a substring of each returned body.
+ *
+ * Degrades to `false` (i.e. proceed to file) on any spawn/parse error — the
+ * deliberate degrade-toward-filing posture: an undecidable probe risks a
+ * duplicate rather than swallowing the finding.
+ *
+ * @param {object} opts
+ * @param {string} opts.marker — the content-hash marker embedded in the body.
+ * @param {string} opts.owner
+ * @param {string} opts.repo
+ * @param {string[]} [opts.labels] — the follow-up's labels; scopes the list.
+ * @param {string} [opts.ghPath]
+ * @param {Function} [opts.spawnImpl]
+ * @param {string} [opts.cwd]
+ * @param {number} [opts.timeoutMs]
+ * @returns {Promise<boolean>}
+ */
+async function confirmMarkerFiled({
+  marker,
+  owner,
+  repo,
+  labels,
+  ghPath,
+  spawnImpl,
+  cwd,
+  timeoutMs,
+}) {
+  const args = [
+    'issue',
+    'list',
+    '--repo',
+    `${owner}/${repo}`,
+    '--state',
+    'all',
+    '--json',
+    'number,body',
+  ];
+  for (const label of Array.isArray(labels) ? labels : []) {
+    args.push('--label', label);
+  }
+  const res = await runChild({ cmd: ghPath, args, spawnImpl, cwd, timeoutMs });
+  if (res.spawnError || (typeof res.code === 'number' && res.code !== 0)) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(res.stdout || '[]');
+    if (!Array.isArray(parsed)) return false;
+    return parsed.some(
+      (issue) => typeof issue?.body === 'string' && issue.body.includes(marker),
+    );
   } catch {
     return false;
   }
@@ -421,21 +508,22 @@ async function loadGraduateFindings({ epicId, provider, spec }) {
 /**
  * Probe whether a finding was already filed, checking both the current
  * content-hash marker AND the legacy `(epicId, parse-index)` marker so
- * findings filed before the fingerprint cutover are not re-filed. Returns
- * the content-hash marker (embedded in a freshly filed body) alongside the
- * `alreadyFiled` decision.
+ * findings filed before the fingerprint cutover are not re-filed. The
+ * content-hash marker is passed in precomputed so a caller can consult an
+ * in-process memo before spending a spawn. Returns the `alreadyFiled`
+ * decision.
  */
 async function resolveAlreadyFiled({
   finding,
   epicId,
   routedRepo,
+  contentMarker,
   ghPath,
   spawnImpl,
   cwd,
   timeoutMs,
   spec,
 }) {
-  const contentMarker = spec.buildContentMarker(epicId, finding);
   const probe = (marker) =>
     probeMarkerExists({
       marker,
@@ -448,17 +536,17 @@ async function resolveAlreadyFiled({
     });
 
   if (await probe(contentMarker)) {
-    return { alreadyFiled: true, contentMarker };
+    return { alreadyFiled: true };
   }
   // Legacy recognition — a pre-cutover follow-up carries the ordinal
   // marker, not the content hash. Skip re-filing when it is present.
   if (typeof spec.buildLegacyMarker === 'function') {
     const legacyMarker = spec.buildLegacyMarker(epicId, finding.index);
     if (legacyMarker && (await probe(legacyMarker))) {
-      return { alreadyFiled: true, contentMarker };
+      return { alreadyFiled: true };
     }
   }
-  return { alreadyFiled: false, contentMarker };
+  return { alreadyFiled: false };
 }
 
 /**
@@ -483,6 +571,7 @@ async function processGraduateFinding({
   timeoutMs,
   maxFilingsPerRun,
   crossRepoDeferred,
+  filedMarkers,
   logger,
   spec,
 }) {
@@ -531,10 +620,20 @@ async function processGraduateFinding({
     return skip('cross-repo-deferred');
   }
 
-  const { alreadyFiled, contentMarker } = await resolveAlreadyFiled({
+  const contentMarker = spec.buildContentMarker(epicId, finding);
+
+  // In-process memo (Story #4657): a marker already filed earlier in THIS
+  // invocation — e.g. the framework bucket of a retro rollup that also has
+  // the same category in the consumer bucket — short-circuits a repeat in a
+  // later bucket without spending a single spawn, and closes the same-rollup
+  // race the eventually-consistent search index cannot.
+  if (filedMarkers?.has(contentMarker)) return skip('already-filed');
+
+  const { alreadyFiled } = await resolveAlreadyFiled({
     finding,
     epicId,
     routedRepo,
+    contentMarker,
     ghPath,
     spawnImpl,
     cwd,
@@ -548,12 +647,37 @@ async function processGraduateFinding({
   // a re-run picks it up next time.
   if (envelope.filed.length >= maxFilingsPerRun) return skip('cap-reached');
 
+  // Resolve the follow-up (title/body/labels) BEFORE the dedup decision so
+  // the strong read can scope its `gh issue list` by the very labels this
+  // filing would carry (they agree with the marker by construction).
   const { title, body, labels } = spec.buildFollowUp({
     finding,
     source,
     epicId,
     idMarker: contentMarker,
   });
+
+  // Strong read (would-file path only, Story #4657): the search probe reads
+  // an eventually-consistent index that can miss a byte-identical duplicate
+  // filed seconds earlier. Confirm against a strongly-consistent,
+  // label-scoped `gh issue list` before creating. Skipped entirely on the
+  // already-filed path above, so it never fires when the search probe
+  // already matched.
+  const confirmed = await confirmMarkerFiled({
+    marker: contentMarker,
+    owner: routedRepo.owner,
+    repo: routedRepo.repo,
+    labels,
+    ghPath,
+    spawnImpl,
+    cwd,
+    timeoutMs,
+  });
+  if (confirmed) {
+    filedMarkers?.add(contentMarker);
+    return skip('already-filed');
+  }
+
   const created = await createFollowUpIssue({
     owner: routedRepo.owner,
     repo: routedRepo.repo,
@@ -571,6 +695,7 @@ async function processGraduateFinding({
     );
     return;
   }
+  filedMarkers?.add(contentMarker);
   envelope.filed.push(
     decorate(
       {
@@ -681,6 +806,11 @@ async function persistCrossRepoDeferred({
  * @param {Array<object>} [opts.findings] — pre-parsed findings; when
  *   provided, the structured-comment read/parse is bypassed (the retro
  *   auto-filer seam).
+ * @param {Set<string>} [opts.filedMarkers] — in-process memo of content
+ *   markers filed so far. Pass a shared Set across multiple `graduate()`
+ *   calls in one logical invocation (e.g. the retro graduator's two source
+ *   buckets) so a marker filed in one call short-circuits a repeat in the
+ *   next without a spawn. Defaults to a fresh per-call Set.
  * @param {{info?: Function, warn?: Function, debug?: Function}} [opts.logger]
  * @param {object} opts.spec — the per-graduator behaviour bundle
  * @returns {Promise<{ filed: object[], skipped: object[], errors: string[] }>}
@@ -699,6 +829,7 @@ export async function graduate({
   timeoutMs = DEFAULT_RUN_CHILD_TIMEOUT_MS,
   maxFilingsPerRun = DEFAULT_MAX_FILINGS_PER_RUN,
   findings: preParsedFindings,
+  filedMarkers = new Set(),
   logger,
   spec,
 }) {
@@ -745,6 +876,7 @@ export async function graduate({
       timeoutMs,
       maxFilingsPerRun,
       crossRepoDeferred,
+      filedMarkers,
       logger,
       spec,
     });

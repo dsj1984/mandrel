@@ -30,14 +30,18 @@ import {
 } from '../../.agents/scripts/lib/feedback-loop/retro-proposals-graduator.js';
 
 /**
- * Route a spawn by command / first args to a responder. `gh search` returns
- * the set of previously-created markers (so idempotency re-probes hit), and
- * `gh issue create` records the marker embedded in the `--body` arg and
- * returns a fresh issue URL. `git` is never expected (path-less findings).
+ * Route a spawn by command / first args to a responder. Faithful to the
+ * corrected search semantics (Story #4657): GitHub full-text search indexes
+ * the text INSIDE an HTML comment, so `gh search` matches any created issue
+ * whose body contains the (delimiter-free) query as a substring; the raw
+ * `<!-- … -->` form the probe used to send never matched. `gh issue list`
+ * models the strongly-consistent read (optionally narrowed by `--label`).
+ * `gh issue create` records the body + labels and returns a fresh URL. `git`
+ * is never expected (path-less findings).
  */
 function makeSpawnStub() {
   const calls = [];
-  const filedMarkers = new Set();
+  const issues = []; // { number, body, labels }
   let nextIssue = 100;
   const fn = function spawnImpl(cmd, args) {
     calls.push({ cmd, args });
@@ -51,22 +55,80 @@ function makeSpawnStub() {
       // trips the assertions below.
       result = { stdout: '', code: 1 };
     } else if (args[0] === 'search') {
-      const marker = args[2];
+      // The query is the delimiter-stripped marker text; a body carrying the
+      // wrapped marker contains that text as a substring.
+      const query = args[2];
+      const hit = issues.find((i) => i.body.includes(query));
       result = {
-        stdout: filedMarkers.has(marker) ? '[{"number":1}]' : '[]',
+        stdout: hit ? `[{"number":${hit.number}}]` : '[]',
+        code: 0,
+      };
+    } else if (args[0] === 'issue' && args[1] === 'list') {
+      const wantLabels = [];
+      for (let i = 0; i < args.length; i += 1) {
+        if (args[i] === '--label') wantLabels.push(args[i + 1]);
+      }
+      const matched = issues.filter((i) =>
+        wantLabels.every((l) => i.labels.includes(l)),
+      );
+      result = {
+        stdout: JSON.stringify(
+          matched.map((i) => ({ number: i.number, body: i.body })),
+        ),
         code: 0,
       };
     } else if (args[0] === 'issue' && args[1] === 'create') {
       const bodyIdx = args.indexOf('--body');
       const body = bodyIdx >= 0 ? args[bodyIdx + 1] : '';
-      const m = body.match(/<!-- retro-proposal-followup:[^>]+-->/);
-      if (m) filedMarkers.add(m[0]);
-      const num = nextIssue++;
-      result = { stdout: `https://github.com/o/r/issues/${num}`, code: 0 };
+      const labels = [];
+      for (let i = 0; i < args.length; i += 1) {
+        if (args[i] === '--label') labels.push(args[i + 1]);
+      }
+      const number = nextIssue++;
+      issues.push({ number, body, labels });
+      result = { stdout: `https://github.com/o/r/issues/${number}`, code: 0 };
     }
     queueMicrotask(() => {
       if (result.stdout) child.stdout.emit('data', Buffer.from(result.stdout));
       if (result.stderr) child.stderr.emit('data', Buffer.from(result.stderr));
+      child.emit('close', result.code ?? 0);
+    });
+    return child;
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+/**
+ * A "blind probes" spawn stub: both read probes (`gh search`, `gh issue
+ * list`) always report empty, so the ONLY dedup mechanism left is the
+ * in-process filed-marker memo. `gh issue create` still records + counts.
+ * Story #4657 AC-6 uses this to prove the shared memo — not the network
+ * probes — catches a cross-bucket same-category duplicate.
+ */
+function makeBlindProbeSpawnStub() {
+  const calls = [];
+  let nextIssue = 200;
+  const fn = function spawnImpl(cmd, args) {
+    calls.push({ cmd, args });
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    let result = { stdout: '', code: 0 };
+    if (cmd !== 'gh') {
+      result = { stdout: '', code: 1 };
+    } else if (args[0] === 'search') {
+      result = { stdout: '[]', code: 0 };
+    } else if (args[0] === 'issue' && args[1] === 'list') {
+      result = { stdout: '[]', code: 0 };
+    } else if (args[0] === 'issue' && args[1] === 'create') {
+      result = {
+        stdout: `https://github.com/o/r/issues/${nextIssue++}`,
+        code: 0,
+      };
+    }
+    queueMicrotask(() => {
+      if (result.stdout) child.stdout.emit('data', Buffer.from(result.stdout));
       child.emit('close', result.code ?? 0);
     });
     return child;
@@ -316,6 +378,46 @@ describe('AC4 — rendered body lists filed issue references and the cap is resp
       res.skipped.filter((s) => s.reason === 'cap-reached').length,
       2,
       'the two over-cap proposals record cap-reached',
+    );
+  });
+});
+
+describe('AC-6 — the shared memo blocks a cross-bucket duplicate (Story #4657)', () => {
+  it('files a category present in BOTH buckets exactly once, via the memo', async () => {
+    const spawnImpl = makeBlindProbeSpawnStub();
+    const provider = makeProvider();
+    // Same category in framework and consumer: by construction the two scopes
+    // mint an identical content marker. With both network probes blind, only
+    // the shared in-process memo can stop the second bucket re-filing.
+    const routedProposals = {
+      framework: [mkItem('dup-cat', 'framework')],
+      consumer: [mkItem('dup-cat', 'consumer')],
+      discarded: [],
+    };
+
+    const res = await graduateRetroProposals({
+      epicId: 4406,
+      provider,
+      config: {},
+      currentRepo: REPO,
+      frameworkRepo: REPO,
+      routedProposals,
+      spawnImpl,
+    });
+
+    const createCalls = spawnImpl.calls.filter(
+      (c) => c.cmd === 'gh' && c.args[0] === 'issue' && c.args[1] === 'create',
+    );
+    assert.equal(
+      createCalls.length,
+      1,
+      'exactly one gh issue create for the shared category',
+    );
+    assert.equal(res.filed.length, 1, 'one filing recorded');
+    assert.equal(
+      res.skipped.filter((s) => s.reason === 'already-filed').length,
+      1,
+      'the second bucket skips as already-filed via the memo',
     );
   });
 });
