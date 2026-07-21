@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.7.0...mandrel-v2.8.0) (2026-07-21)
+
+
+### Changed
+
+* **audit:** extract a shared audit-lens-core and dispatch lenses through a role-scoped auditor ([#4665](https://github.com/dsj1984/mandrel/issues/4665)) ([#4674](https://github.com/dsj1984/mandrel/issues/4674)) ([c7b0e13](https://github.com/dsj1984/mandrel/commit/c7b0e138465bd14eef08470cc756c7ea3c35e78d))
+* **qa:** extract shared qa-core helper and cut the stale draft-bundle path (refs [#4666](https://github.com/dsj1984/mandrel/issues/4666)) ([#4669](https://github.com/dsj1984/mandrel/issues/4669)) ([dca7412](https://github.com/dsj1984/mandrel/commit/dca74128b419cd96deaaa4b214223d82f5a16415))
+* **skills:** enforce capsule-first discipline and fix git-skill rule conflicts (refs [#4667](https://github.com/dsj1984/mandrel/issues/4667)) ([#4673](https://github.com/dsj1984/mandrel/issues/4673)) ([4a3a142](https://github.com/dsj1984/mandrel/commit/4a3a1428873f0d3f0fc084dc77b7d591576f0eee))
+* **workflows:** wire role-scoped story-worker dispatch and slim the delivery workflow cluster (refs [#4663](https://github.com/dsj1984/mandrel/issues/4663)) ([#4670](https://github.com/dsj1984/mandrel/issues/4670)) ([42e65f0](https://github.com/dsj1984/mandrel/commit/42e65f0a2483a924aa0a1268b4ec26ea6f5b53bb))
+
 ## [2.7.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.6.0...mandrel-v2.7.0) (2026-07-21)
 
 
