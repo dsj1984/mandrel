@@ -91,7 +91,7 @@ export const PLAN_METRICS_KIND_CRITIC_SKIP = 'critic-skip';
  * purpose is evidentiary: a lens that stays at zero findings across N
  * closes becomes droppable on measurement instead of assumption.
  */
-export const PLAN_METRICS_KIND_FINDINGS_YIELD = 'findings-yield';
+const PLAN_METRICS_KIND_FINDINGS_YIELD = 'findings-yield';
 
 /**
  * Rotation threshold. At ~200 bytes per record this is ~5000 invocations —

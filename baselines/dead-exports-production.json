@@ -2559,10 +2559,6 @@
     {
       "file": ".agents/scripts/lib/audit-suite/lens-diff-floor.js",
       "symbol": "DEFAULT_LENS_DIFF_FLOOR"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "PLAN_METRICS_KIND_FINDINGS_YIELD"
     }
   ]
 }

@@ -513,7 +513,6 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
   it('appendFindingsYield persists a kinded record that never inflates invocation tallies', async () => {
     const {
       appendFindingsYield,
-      PLAN_METRICS_KIND_FINDINGS_YIELD,
       readPlanMetrics,
       summarizePlanMetrics,
     } = await import(
@@ -543,7 +542,7 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
       const ledger = await readPlanMetrics(null, config);
       assert.equal(ledger.entries.length, 1);
       const [record] = ledger.entries;
-      assert.equal(record.kind, PLAN_METRICS_KIND_FINDINGS_YIELD);
+      assert.equal(record.kind, 'findings-yield');
       assert.equal(record.storyId, 4699);
       assert.deepEqual(record.lenses, [
         { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
