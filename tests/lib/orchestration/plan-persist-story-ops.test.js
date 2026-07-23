@@ -13,6 +13,7 @@ import {
   createStoryIssues,
   derivePlanRunId,
   foldSpecIntoStoryBody,
+  normalizePlanRunId,
   normalizeStoryTicket,
   PLAN_RUN_LABEL_PREFIX,
   planRunLabel,
@@ -281,6 +282,13 @@ describe('createStoryIssues', () => {
       derivePlanRunId(['bbb', 'aaa']),
       derivePlanRunId(['aaa', 'bbb']),
     );
+  });
+
+  it('normalizePlanRunId canonicalizes tokens and rejects empty ids', () => {
+    assert.equal(normalizePlanRunId('  Plan-Run::My Cohort!  '), 'my-cohort-');
+    assert.equal(normalizePlanRunId('plan-run::abc123'), 'abc123');
+    assert.equal(planRunLabel('ABC 123'), `${PLAN_RUN_LABEL_PREFIX}abc-123`);
+    assert.throws(() => normalizePlanRunId('   '), /non-empty planRunId/);
   });
 
   it('ensures the cohort label before the first create and degrades non-fatally on ensure failure', async () => {
