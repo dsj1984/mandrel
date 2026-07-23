@@ -26,6 +26,7 @@ import { getPaths, PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { softFailOrThrow } from '../degraded-mode.js';
 import { gitSpawn } from '../git-utils.js';
 import { withTimeout } from '../util/with-timeout.js';
+import { readAuditRulesSync } from './audit-rules-reader.js';
 
 const DEFAULT_GIT_TIMEOUT_MS = 30000;
 
@@ -101,32 +102,6 @@ export const LENS_TIERS = Object.freeze(['local', 'cumulative', 'global']);
  *   manifest cannot be read, or the registered entry carries a scope outside
  *   {@link LENS_TIERS}.
  */
-/**
- * Read and parse the `audit-rules.json` manifest synchronously from the
- * project's configured `schemasRoot`. Shared by the synchronous, ticket-free
- * readers ({@link resolveLensTier}, {@link selectLocalLenses}) so the path
- * resolution and read-failure handling live in one place rather than being
- * duplicated per reader.
- *
- * @returns {{ audits?: Record<string, object> }} Parsed manifest.
- * @throws {Error} When the manifest cannot be read or parsed.
- */
-function readAuditRulesSync() {
-  const config = resolveConfig();
-  const rulesPath = path.join(
-    PROJECT_ROOT,
-    getPaths(config).schemasRoot,
-    'audit-rules.json',
-  );
-  try {
-    return JSON.parse(readFileSync(rulesPath, 'utf8'));
-  } catch (err) {
-    throw new Error(
-      `audit-suite: failed to read audit-rules from ${rulesPath}: ${err.message}`,
-    );
-  }
-}
-
 export function resolveLensTier(lens) {
   const rulesData = readAuditRulesSync();
 

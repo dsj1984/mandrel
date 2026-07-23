@@ -442,3 +442,87 @@ describe('lite-shaped Stories land through the unchanged persist engine', () => 
     assert.ok(!calls[0].labels.includes(AGENT_LABELS.READY));
   });
 });
+
+// Persist and deliver read the SAME Story through two representations:
+// persist feeds `deriveStoryShape` the assembled objects
+// (`bodyObject.changes` / `acceptance`), deliver feeds
+// `resolveStoryDispatchMode` the serialized body markdown and re-parses it.
+// The docstring's claim that the two read points can never disagree is a
+// contract, not a hope — pin it round-trip: assemble once, derive both ways,
+// assert one route.
+describe('persist ↔ deliver route round-trip — one shape, two read points', () => {
+  const cases = [
+    {
+      name: 'a lite-shaped Story routes lite from both representations',
+      ticket: {
+        slug: 'lite-round-trip',
+        type: 'story',
+        title: 'Add a helper',
+        body: storyBody({
+          changes: [{ path: 'bin/helper.js', assumption: 'creates' }],
+          acceptance: ['helper prints and exits 0'],
+        }),
+      },
+      expectedRoute: 'lite',
+      expectedMode: 'inline',
+    },
+    {
+      name: 'a refactor-mix Story routes full from both representations',
+      ticket: {
+        slug: 'full-round-trip',
+        type: 'story',
+        title: 'Refactor two modules',
+        body: storyBody({
+          changes: [
+            { path: 'src/one.js', assumption: 'refactors-existing' },
+            { path: 'src/two.js', assumption: 'refactors-existing' },
+          ],
+          acceptance: ['both modules keep their contracts'],
+        }),
+      },
+      expectedRoute: 'full',
+      expectedMode: 'subagent',
+    },
+    {
+      name: 'a sensitive-footprint Story routes full from both representations',
+      ticket: {
+        slug: 'sensitive-round-trip',
+        type: 'story',
+        title: 'Add an auth banner',
+        body: storyBody({
+          changes: [{ path: 'src/auth/banner.js', assumption: 'creates' }],
+          acceptance: ['banner shows on the login page'],
+        }),
+      },
+      expectedRoute: 'full',
+      expectedMode: 'subagent',
+    },
+  ];
+
+  for (const { name, ticket, expectedRoute, expectedMode } of cases) {
+    test(name, () => {
+      const { stories } = assemblePlanStories([ticket]);
+
+      // Persist's read point: the assembled objects.
+      const persistSide = deriveStoryShape({
+        changes: stories[0].bodyObject.changes,
+        acceptance: stories[0].acceptance,
+        injectedRules: RULES,
+      });
+      // Deliver's read point: the serialized body markdown, re-parsed.
+      const deliverSide = resolveStoryDispatchMode({
+        body: stories[0].body,
+        labels: [],
+        injectedRules: RULES,
+      });
+
+      assert.equal(persistSide.route, expectedRoute);
+      assert.equal(
+        deliverSide.route.route,
+        persistSide.route,
+        'persist and deliver derived different routes from the same Story',
+      );
+      assert.equal(deliverSide.mode, expectedMode);
+    });
+  }
+});
