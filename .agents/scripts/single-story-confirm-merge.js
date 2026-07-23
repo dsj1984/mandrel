@@ -27,7 +27,8 @@
  * short-circuits to a `noop` envelope.
  *
  * Usage:
- *   node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>]
+ *   node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait]
+ *                                      [--max-wait-seconds <n>]
  *                                      [--cwd <main-repo>]
  *
  * Exit codes: 0 ok (merged, pending, or noop), 1 error.
@@ -40,12 +41,13 @@ import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { formatCliError } from './lib/error-redactor.js';
-import { gh as defaultGh } from './lib/gh-exec.js';
+import { createGh } from './lib/gh-exec.js';
 import { getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { emitTerminalFriction } from './lib/observability/runtime-friction.js';
 import { emitTerseResult } from './lib/observability/terse-result.js';
 import { MERGED_FLIP_FAILED_BLOCK_CLASS } from './lib/orchestration/lifecycle/emit-merge-flip-failed.js';
+import { MERGE_WAIT_GH_TIMEOUT_MS } from './lib/orchestration/merge-poll.js';
 import { parsePrNumber } from './lib/orchestration/single-story-close/phases/code-review.js';
 import { runConfirmMergePhase as defaultRunConfirmMergePhase } from './lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { parseCloseOptions } from './lib/orchestration/single-story-close/phases/options.js';
@@ -63,6 +65,25 @@ import { confirmStoryMerged } from './lib/single-story/confirm-merge.js';
 const progress = Logger.createProgress('single-story-confirm-merge', {
   stderr: true,
 });
+
+/**
+ * Default `gh` facade for this CLI, bound to the merge wait's spawn-level
+ * timeout (Story #4710). This CLI is the resume surface async mode hands the
+ * merge wait to — a background invocation with no host tool ceiling — so an
+ * un-timeboxed `gh pr list` / `gh pr view` here could strand the resume the
+ * same way an un-timeboxed probe stranded the in-close wait.
+ */
+const defaultGh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS });
+
+/** One usage string for the throw path and `--help` (Story #4710). */
+const USAGE =
+  'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait] ' +
+  '[--max-wait-seconds <n>] [--cwd <main-repo>]\n\n' +
+  '  --wait              resume the bounded merge wait instead of probing once\n' +
+  '  --max-wait-seconds  per-invocation wait bound override, threaded to\n' +
+  '                      resolveMergeWaitConfig exactly as the close does (wins\n' +
+  '                      over delivery.mergeWatch.maxWaitSeconds and the async\n' +
+  '                      probe-window cap; only meaningful with --wait)';
 
 /**
  * Read the `--pr <n>` flag from `process.argv` for the direct-CLI path.
@@ -103,6 +124,33 @@ function readWaitFlag() {
     return values.wait === true;
   } catch {
     return false;
+  }
+}
+
+/**
+ * `--max-wait-seconds <n>`: per-invocation wait-bound override for the
+ * `--wait` resume path (Story #4710). The close CLI already accepted this
+ * flag, but the resume CLI — the exact command async mode's `pending`
+ * terminal hands off to — did not, so the documented per-run override was
+ * unreachable where it mattered most and a slow-CI landing depended on an
+ * unbounded chain of short invocations. Threaded to `runConfirmMergePhase`
+ * (and thence `resolveMergeWaitConfig`) exactly as close threads its own
+ * flag. Returns `undefined` when absent or not a positive integer — the
+ * phase's config/default resolution owns that case.
+ *
+ * @returns {number|undefined}
+ */
+function readMaxWaitSecondsFlag() {
+  try {
+    const { values } = parseArgs({
+      args: process.argv.slice(2),
+      options: { 'max-wait-seconds': { type: 'string' } },
+      strict: false,
+    });
+    const parsed = Number.parseInt(String(values['max-wait-seconds']), 10);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -262,6 +310,7 @@ export async function runConfirmMerge({
   cwd: cwdParam,
   pr: prParam,
   wait: waitParam,
+  maxWaitSeconds: maxWaitSecondsParam,
   injectedProvider,
   injectedConfig,
   injectedGh,
@@ -275,11 +324,10 @@ export async function runConfirmMerge({
   });
 
   if (!storyId) {
-    throw new Error(
-      'Usage: node single-story-confirm-merge.js --story <STORY_ID> [--pr <n>] [--wait] [--cwd <main-repo>]',
-    );
+    throw new Error(USAGE);
   }
   const wait = waitParam ?? readWaitFlag();
+  const maxWaitSeconds = maxWaitSecondsParam ?? readMaxWaitSecondsFlag();
 
   const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd });
@@ -346,6 +394,10 @@ export async function runConfirmMerge({
       // The close already armed it; this CLI is resuming that wait, not
       // deciding whether to arm.
       autoMergeEnabled: true,
+      // The per-run override (`--max-wait-seconds`), resolved by
+      // `resolveMergeWaitConfig` exactly as the close resolves its own flag —
+      // it wins over the config value and the async probe-window cap.
+      maxWaitSeconds,
       provider,
       config,
       progress,
@@ -450,6 +502,14 @@ export async function runConfirmMerge({
  * or none at all; "none at all" is what Story #4543 removes.
  */
 async function main() {
+  if (process.argv.includes('--help')) {
+    // Print usage (including --max-wait-seconds) and exit cleanly — the
+    // resume-path override is only discoverable if the CLI can say it exists.
+    // `process.stdout.write` (not console.log) keeps the CLI within the
+    // no-console repo invariant while still writing help to stdout.
+    process.stdout.write(`${USAGE}\n`);
+    return 0;
+  }
   try {
     const outcome = await runConfirmMerge();
     return exitCodeForTerminal(outcome?.terminal ?? { status: 'failed' });

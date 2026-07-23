@@ -1039,6 +1039,70 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
   });
 });
 
+describe('merge wait — bounded gh subprocess calls (Story #4710 AC-1)', () => {
+  it('a never-returning gh probe surfaces a probe error within the bound instead of hanging', async () => {
+    // The hang shape: async mode runs the wait unattended with no host tool
+    // ceiling, so a wedged `gh pr view` used to strand the wait forever — no
+    // terminal envelope, no label flip, no friction record.
+    const probe = await readPrWaitProbe({
+      prNumber: 99,
+      gh: { pr: { view: () => new Promise(() => {}) } },
+      ghTimeoutMs: 25,
+    });
+    // The timeout maps to the EXISTING degraded probe-error path — the same
+    // conservative shape a flaky API read produces.
+    assert.equal(probe.checksStatus, 'pending');
+    assert.equal(probe.state, null);
+    assert.match(probe.error, /timeout/i);
+  });
+
+  it('the wait reaches its resumable pending terminal even when every probe hangs', async () => {
+    // End-to-end through the REAL readPrWaitProbe (no probe seam): a hung gh
+    // degrades each poll to a probe error, and the per-invocation bound still
+    // fires — the wait terminates with the resumable terminal, never hangs.
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        injectedGh: { pr: { view: () => new Promise(() => {}) } },
+        ghTimeoutMs: 25,
+        config: {
+          delivery: { mergeWatch: { maxWaitSeconds: 1, intervalSeconds: 1 } },
+        },
+        nowMsFn: makeClock(1000),
+      }),
+    );
+    assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.terminal, 'pending');
+    assert.match(outcome.prProbe.error, /timeout/i);
+  });
+
+  it('a never-returning gh pr update-branch does not strand the wait', async () => {
+    let updateCalled = false;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        readPrWaitProbeFn: async () =>
+          openProbe({ mergeStateStatus: 'BEHIND' }),
+        injectedGh: {
+          pr: {
+            updateBranch: () => {
+              updateCalled = true;
+              return new Promise(() => {});
+            },
+          },
+        },
+        ghTimeoutMs: 25,
+        config: {
+          delivery: { mergeWatch: { maxWaitSeconds: 1, intervalSeconds: 1 } },
+        },
+        nowMsFn: makeClock(1000),
+      }),
+    );
+    assert.equal(updateCalled, true, 'the BEHIND update must be attempted');
+    // The hung update is best-effort: it times out, logs, and the wait still
+    // reaches its own terminal.
+    assert.equal(outcome.terminal, 'pending');
+  });
+});
+
 describe('parseCloseOptions / resolveWaitForMerge — flag compatibility', () => {
   it('keeps --wait-merge / --no-wait-merge byte-compatible', () => {
     assert.equal(

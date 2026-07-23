@@ -21,7 +21,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { resolveMergeWaitConfig } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
+import { runConfirmMerge } from '../.agents/scripts/single-story-confirm-merge.js';
 
 /**
  * Fake ticketing provider. Records every `updateTicket` patch and applies
@@ -302,5 +304,66 @@ describe('confirmStoryMerged', () => {
         }),
       /resource not found/,
     );
+  });
+});
+
+describe('single-story-confirm-merge --max-wait-seconds (Story #4710 AC-3)', () => {
+  // The resume CLI is the exact command async mode's `pending` terminal hands
+  // the merge wait to. Without this flag the documented per-run wait override
+  // was unreachable on the resume path, so a slow-CI landing depended on an
+  // unbounded chain of short invocations.
+  it('threads the override to the merge-wait phase, where resolveMergeWaitConfig lets it win', async () => {
+    const calls = [];
+    await runConfirmMerge({
+      storyId: 555,
+      cwd: '/repo',
+      pr: 77,
+      wait: true,
+      maxWaitSeconds: 45,
+      injectedProvider: {
+        getTicket: async () => ({
+          id: 555,
+          state: 'open',
+          labels: ['agent::closing'],
+        }),
+        updateTicket: async () => {},
+      },
+      injectedConfig: {
+        project: { baseBranch: 'main', paths: { tempRoot: 'temp' } },
+        github: { owner: 'o', repo: 'r' },
+      },
+      injectedGh: {
+        pr: { list: async () => [{ number: 77, url: 'https://e/pull/77' }] },
+      },
+      injectedNotify: async () => {},
+      runConfirmMergePhaseFn: async (args) => {
+        calls.push(args);
+        return {
+          confirmed: false,
+          terminal: 'pending',
+          waitBudget: {
+            maxWaitSeconds: 45,
+            waitedSeconds: 45,
+            cumulativeSeconds: 45,
+            maxBudgetSeconds: 3600,
+          },
+          prProbe: { state: 'OPEN', checksStatus: 'still-running' },
+        };
+      },
+    });
+
+    assert.equal(calls.length, 1, 'the wait phase must run');
+    assert.equal(
+      calls[0].maxWaitSeconds,
+      45,
+      'the override must reach the phase (and thence resolveMergeWaitConfig)',
+    );
+    // The phase resolves the override through resolveMergeWaitConfig exactly
+    // as close does — the per-run value beats the config and the async cap.
+    const resolved = resolveMergeWaitConfig(
+      { delivery: { mergeWatch: { mode: 'async', maxWaitSeconds: 300 } } },
+      calls[0].maxWaitSeconds,
+    );
+    assert.equal(resolved.maxWaitSeconds, 45);
   });
 });

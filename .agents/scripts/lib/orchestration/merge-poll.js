@@ -28,6 +28,20 @@ export const DEFAULT_INTERVAL_SECONDS = 30;
 export const DEFAULT_MAX_BUDGET_SECONDS = 3600;
 
 /**
+ * Wall-clock bound for every `gh` subprocess the merge wait spawns (Story
+ * #4710). The wait is now routinely unattended (`delivery.mergeWatch.mode:
+ * "async"` runs it in a background invocation with no host tool ceiling), so
+ * a hung `gh pr view` / `gh pr update-branch` used to strand the wait with no
+ * terminal envelope, no label flip, and no friction record. Sixty seconds is
+ * generous for a single API round-trip while staying inside the async probe
+ * window; a timeout maps to the existing probe-error path, so the wait
+ * degrades to conservative-pending / `api-race-other` semantics instead of
+ * hanging. A framework constant by design — not config (Story #4710
+ * Non-Goals).
+ */
+export const MERGE_WAIT_GH_TIMEOUT_MS = 60_000;
+
+/**
  * Pure: derive an aggregate `checksStatus` (`success` | `still-running` |
  * `failure` | `unknown`) from a `statusCheckRollup` array (`gh pr view --json
  * statusCheckRollup` shape: `{ status, conclusion }` per check). Mirrors the
@@ -84,6 +98,17 @@ export function deriveChecksStatus(statusCheckRollup) {
  * Returns `null` when the rollup is absent or empty — the evidence is
  * unavailable and the caller must fall back to the consecutive-probe path
  * (a single evidence-free failing snapshot must never fail-fast).
+ *
+ * **Contract honesty (Story #4710).** The `requiredRun*` field names describe
+ * what the evidence is USED to establish, not what this function reads: the
+ * `gh pr view` rollup projection carries no `isRequired` discriminator, so
+ * this derivation reads EVERY run on the head, required or not. On its own,
+ * `requiredRunFailed: true` therefore means "a head run genuinely concluded
+ * failure", and required-ness attribution is supplied downstream by
+ * {@link requiredCheckFailedBlocksMerge}, which admits the verdict only when
+ * `mergeStateStatus: BLOCKED` says GitHub itself gates the merge AND no
+ * review-required signal offers a competing explanation for that BLOCKED
+ * state. Do not treat this function's output as a required-only reading.
  *
  * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
  * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
@@ -185,12 +210,30 @@ export function failingChecksBlockMerge(prProbe) {
  * — this returns `false`: the caller's consecutive-probe fallback owns that
  * path, because a single evidence-free failing snapshot must never fail-fast.
  *
+ * **Review-required softening (Story #4710).** The rollup evidence cannot
+ * prove the red run is a REQUIRED check (see
+ * {@link deriveRequiredRunEvidence}), so when the probe carries a competing
+ * explanation for the `BLOCKED` merge state — `reviewDecision:
+ * 'REVIEW_REQUIRED'`, i.e. a required approval is missing — this predicate
+ * declines the `checks-failed` verdict. A red *optional* check beside a
+ * missing required review used to fail-fast as `checks-failed` and send the
+ * operator to fix a check that was never gating the merge; with the review
+ * signal present, classification falls through to the
+ * `branch-protection-human-required` branch, which names the gate GitHub
+ * actually attributes. When a genuinely red required check coexists with a
+ * missing review, both are true blocks and the human-required verdict is
+ * still an honest one — the conservative direction (see
+ * {@link failingChecksBlockMerge} on why failing to fail fast is the cheap
+ * error).
+ *
  * @param {{ checksStatus?: string, mergeStateStatus?: string,
+ *   reviewDecision?: string,
  *   requiredRunEvidence?: { requiredRunFailed?: boolean, requiredRunInFlight?: boolean } }} [prProbe]
  * @returns {boolean}
  */
 export function requiredCheckFailedBlocksMerge(prProbe) {
   if (!failingChecksBlockMerge(prProbe)) return false;
+  if (prProbe?.reviewDecision === 'REVIEW_REQUIRED') return false;
   const evidence = prProbe?.requiredRunEvidence;
   if (!evidence || typeof evidence.requiredRunFailed !== 'boolean') {
     return false;
@@ -198,4 +241,77 @@ export function requiredCheckFailedBlocksMerge(prProbe) {
   return (
     evidence.requiredRunFailed === true && evidence.requiredRunInFlight !== true
   );
+}
+
+/**
+ * Pure: the merge wait's single fail-fast decision (Story #4710 — extracted
+ * from the two near-verbatim inline blocks in `runConfirmMergePhase`'s poll
+ * loop, beside its sibling predicates).
+ *
+ * Encapsulates the Story #4695 evidence policy in one place:
+ *
+ *   - **Per-run evidence available** — decide on this single probe via
+ *     {@link requiredCheckFailedBlocksMerge}; a required run still in flight
+ *     (or only superseded / non-required noise red) resets the counter and
+ *     keeps polling.
+ *   - **Evidence unavailable** (older `gh`, API error, empty rollup) — require
+ *     TWO consecutive failing probes at least one poll interval apart, then
+ *     synthesize the evidence shape the classifier's gate reads so both paths
+ *     classify `checks-failed` through the same predicate.
+ *
+ * Returns the next counter value alongside the verdict; the caller owns the
+ * mutable counter and the terminal side effects. When `failFast` is `true`,
+ * `prProbe` is the evidence-stamped probe to hand to the classifier and
+ * `evidencePath` names which path fired (`per-run` | `consecutive-probe`) for
+ * the `merge.unlanded` telemetry.
+ *
+ * @param {object} args
+ * @param {object} args.probe The current poll's {@code readPrWaitProbe} result.
+ * @param {number} args.consecutiveRequiredFailSnapshots Evidence-free failing
+ *   probes observed so far.
+ * @returns {{ failFast: boolean, consecutiveRequiredFailSnapshots: number,
+ *   prProbe?: object, evidencePath?: 'per-run'|'consecutive-probe' }}
+ */
+export function decideMergeWaitFailFast({
+  probe,
+  consecutiveRequiredFailSnapshots,
+}) {
+  if (!failingChecksBlockMerge(probe)) {
+    return { failFast: false, consecutiveRequiredFailSnapshots: 0 };
+  }
+  if (probe?.requiredRunEvidence) {
+    if (requiredCheckFailedBlocksMerge(probe)) {
+      return {
+        failFast: true,
+        consecutiveRequiredFailSnapshots: 0,
+        evidencePath: 'per-run',
+        prProbe: { ...probe, evidencePath: 'per-run' },
+      };
+    }
+    // A required run is still in flight, only non-required / superseded runs
+    // are red, or a missing required review owns the BLOCKED state: the
+    // protected-branch steady state, not a failure. Keep polling.
+    return { failFast: false, consecutiveRequiredFailSnapshots: 0 };
+  }
+  const next = consecutiveRequiredFailSnapshots + 1;
+  // Synthesize the evidence the classifier's gate reads, so the
+  // consecutive-probe path classifies `checks-failed` through the SAME
+  // predicate as the per-run path (including its review-required softening).
+  const synthesized = {
+    ...probe,
+    requiredRunEvidence: {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+    },
+    evidencePath: 'consecutive-probe',
+  };
+  if (next >= 2 && requiredCheckFailedBlocksMerge(synthesized)) {
+    return {
+      failFast: true,
+      consecutiveRequiredFailSnapshots: next,
+      evidencePath: 'consecutive-probe',
+      prProbe: synthesized,
+    };
+  }
+  return { failFast: false, consecutiveRequiredFailSnapshots: next };
 }
