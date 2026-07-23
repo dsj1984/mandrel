@@ -101,7 +101,10 @@ jobs:
         # streams under temp/ before the suite runs, so the post-test assert
         # can fail the build if any test appended fixture records to the real
         # telemetry tree (the writer-isolation regression this guards).
-        run: node .agents/scripts/check-test-temp-hygiene.js --snapshot
+        # Story #4711: the baseline lives OUTSIDE the protected temp/ tree
+        # (runner temp), so a test wiping temp/ cannot destroy the baseline
+        # and fail the guard open.
+        run: node .agents/scripts/check-test-temp-hygiene.js --snapshot --baseline "$RUNNER_TEMP/test-temp-hygiene-snapshot.json"
 
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
@@ -115,8 +118,9 @@ jobs:
         # Story #4696: fail the build if the suite added or grew any stream
         # file under temp/ relative to the pre-test snapshot. A future writer
         # that bypasses the scratch seam reds here instead of silently
-        # polluting friction / rollup / loop-health consumers.
-        run: node .agents/scripts/check-test-temp-hygiene.js --assert
+        # polluting friction / rollup / loop-health consumers. A missing
+        # baseline is a hard failure (Story #4711) — never a re-baseline.
+        run: node .agents/scripts/check-test-temp-hygiene.js --assert --baseline "$RUNNER_TEMP/test-temp-hygiene-snapshot.json"
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4

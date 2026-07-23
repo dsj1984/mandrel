@@ -16,13 +16,19 @@
  * the fix honest, plus a local cleanup mode for the accumulated noise:
  *
  *   --snapshot         Record a fingerprint (size + sha256) of every stream
- *                      file under `temp/` to a snapshot file. Run this before
- *                      the suite.
+ *                      file under `temp/` to the snapshot baseline. Run this
+ *                      before the suite.
  *   --assert           Re-scan and fail if any stream file was added or grew
  *                      relative to the snapshot. Run this after the suite. A
- *                      missing snapshot is recorded as the baseline and the
- *                      run passes (graceful bootstrap), so a bare `--assert`
- *                      after `npm test` still exits 0.
+ *                      missing snapshot is a hard failure ("snapshot missing
+ *                      — guard cannot attest"), never a silent re-baseline:
+ *                      the baseline lives *outside* the protected `temp/`
+ *                      tree (Story #4711), so a test wiping `temp/` can no
+ *                      longer destroy the baseline and fail the guard open.
+ *   --baseline <path>  Explicit snapshot-baseline path (CI sets this to a
+ *                      runner-temp path). Defaults to an OS scratch location
+ *                      keyed by the resolved repo root. Refused when it
+ *                      resolves inside the protected `temp/` tree.
  *   --clean            List stream directories whose Epic/Story id matches a
  *                      known fixture id (report-only; nothing is deleted).
  *   --clean --yes      Delete those directories.
@@ -30,8 +36,8 @@
  *   --root <dir>       Operate against <dir> instead of the repo root
  *                      (its `temp/` subtree). Used by tests.
  *
- * Exit codes: 1 on an --assert failure (a new / grown stream file); 0
- * otherwise.
+ * Exit codes: 1 on an --assert failure (a new / grown stream file, or a
+ * missing snapshot baseline); 0 otherwise.
  */
 
 import { createHash } from 'node:crypto';
@@ -43,6 +49,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAsCli } from './lib/cli-utils.js';
@@ -59,9 +66,6 @@ export const KNOWN_FIXTURE_STORY_IDS = Object.freeze([
   4428, 10, 4242, 5, 42, 100, 555, 2839, 4257, 4258, 4259,
 ]);
 
-/** Snapshot file basename (kept directly under `temp/`, not a stream file). */
-export const SNAPSHOT_BASENAME = '.test-temp-hygiene-snapshot.json';
-
 /**
  * Resolve the `temp/` directory for a given repo root.
  * @param {string} repoRoot
@@ -69,6 +73,50 @@ export const SNAPSHOT_BASENAME = '.test-temp-hygiene-snapshot.json';
  */
 export function tempDirFor(repoRoot) {
   return path.join(repoRoot, 'temp');
+}
+
+/**
+ * Default snapshot-baseline path for a repo root — deliberately *outside*
+ * the protected `temp/` tree (Story #4711). The pre-#4711 baseline lived at
+ * `temp/.test-temp-hygiene-snapshot.json`, inside the very tree the guard
+ * protects: a test (or cleanup) that wiped `temp/` destroyed the baseline
+ * and the post-test `--assert` silently re-baselined the pollution. The
+ * default now lives under the OS scratch dir, keyed by the resolved repo
+ * root so parallel checkouts / worktrees never collide.
+ *
+ * @param {string} repoRoot
+ * @returns {string}
+ */
+export function defaultBaselinePath(repoRoot) {
+  const key = createHash('sha256')
+    .update(path.resolve(repoRoot))
+    .digest('hex')
+    .slice(0, 16);
+  return path.join(
+    os.tmpdir(),
+    'mandrel-test-temp-hygiene',
+    `snapshot-${key}.json`,
+  );
+}
+
+/**
+ * Refuse a baseline path that resolves inside the protected `temp/` tree —
+ * storing the attestation inside the tree it attests recreates the
+ * fail-open gap this Story closes.
+ *
+ * @param {string} repoRoot
+ * @param {string} baselinePath
+ * @returns {string} the resolved baseline path
+ */
+function checkedBaselinePath(repoRoot, baselinePath) {
+  const resolved = path.resolve(baselinePath);
+  const tempDir = path.resolve(tempDirFor(repoRoot));
+  if (resolved === tempDir || resolved.startsWith(tempDir + path.sep)) {
+    throw new Error(
+      `[test-temp-hygiene] baseline path must live outside the protected temp/ tree; got ${resolved}`,
+    );
+  }
+  return resolved;
 }
 
 /**
@@ -141,15 +189,19 @@ export function buildManifest(tempDir) {
 }
 
 /**
- * Persist the current manifest to `<temp>/<SNAPSHOT_BASENAME>`.
+ * Persist the current manifest to the baseline path (default: the external
+ * `defaultBaselinePath` — never inside `temp/`).
  * @param {string} repoRoot
+ * @param {string} [baselinePath]
  * @returns {{ snapshotPath: string, count: number }}
  */
-export function writeSnapshot(repoRoot) {
-  const tempDir = tempDirFor(repoRoot);
-  mkdirSync(tempDir, { recursive: true });
-  const manifest = buildManifest(tempDir);
-  const snapshotPath = path.join(tempDir, SNAPSHOT_BASENAME);
+export function writeSnapshot(repoRoot, baselinePath) {
+  const snapshotPath = checkedBaselinePath(
+    repoRoot,
+    baselinePath ?? defaultBaselinePath(repoRoot),
+  );
+  const manifest = buildManifest(tempDirFor(repoRoot));
+  mkdirSync(path.dirname(snapshotPath), { recursive: true });
   writeFileSync(snapshotPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return { snapshotPath, count: Object.keys(manifest).length };
 }
@@ -157,10 +209,14 @@ export function writeSnapshot(repoRoot) {
 /**
  * Load the persisted manifest, or `null` when no snapshot exists.
  * @param {string} repoRoot
+ * @param {string} [baselinePath]
  * @returns {Record<string, { size: number, sha256: string }> | null}
  */
-export function readSnapshot(repoRoot) {
-  const snapshotPath = path.join(tempDirFor(repoRoot), SNAPSHOT_BASENAME);
+export function readSnapshot(repoRoot, baselinePath) {
+  const snapshotPath = checkedBaselinePath(
+    repoRoot,
+    baselinePath ?? defaultBaselinePath(repoRoot),
+  );
   if (!existsSync(snapshotPath)) return null;
   return JSON.parse(readFileSync(snapshotPath, 'utf8'));
 }
@@ -275,13 +331,14 @@ export function cleanFixtureDirs({
 /**
  * Parse the CLI argv into a normalised options object.
  * @param {string[]} argv
- * @returns {{ mode: 'snapshot'|'assert'|'clean', apply: boolean, ids: number[]|null, repoRoot: string }}
+ * @returns {{ mode: 'snapshot'|'assert'|'clean', apply: boolean, ids: number[]|null, repoRoot: string, baseline: string|null }}
  */
 export function parseArgv(argv) {
   let mode = 'assert';
   let apply = false;
   let ids = null;
   let repoRoot = REPO_ROOT;
+  let baseline = null;
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--snapshot') mode = 'snapshot';
@@ -297,9 +354,12 @@ export function parseArgv(argv) {
     } else if (arg === '--root') {
       i += 1;
       repoRoot = path.resolve(String(argv[i] ?? '.'));
+    } else if (arg === '--baseline') {
+      i += 1;
+      baseline = path.resolve(String(argv[i] ?? '.'));
     }
   }
-  return { mode, apply, ids, repoRoot };
+  return { mode, apply, ids, repoRoot, baseline };
 }
 
 /**
@@ -312,9 +372,9 @@ export function parseArgv(argv) {
  * @returns {number}
  */
 export function runHygiene(opts, log = (l) => process.stdout.write(`${l}\n`)) {
-  const { mode, apply, ids, repoRoot } = opts;
+  const { mode, apply, ids, repoRoot, baseline = null } = opts;
   if (mode === 'snapshot') {
-    const { snapshotPath, count } = writeSnapshot(repoRoot);
+    const { snapshotPath, count } = writeSnapshot(repoRoot, baseline);
     log(
       `[test-temp-hygiene] snapshot recorded (${count} stream file(s)) → ${snapshotPath}`,
     );
@@ -341,13 +401,13 @@ export function runHygiene(opts, log = (l) => process.stdout.write(`${l}\n`)) {
     return 0;
   }
   // mode === 'assert'
-  const snapshot = readSnapshot(repoRoot);
+  const snapshotPath = baseline ?? defaultBaselinePath(repoRoot);
+  const snapshot = readSnapshot(repoRoot, snapshotPath);
   if (snapshot === null) {
-    const { count } = writeSnapshot(repoRoot);
     log(
-      `[test-temp-hygiene] no prior snapshot — baseline recorded (${count} stream file(s)).`,
+      `[test-temp-hygiene] FAIL — snapshot missing (${path.resolve(snapshotPath)}); guard cannot attest. Run --snapshot before the suite (never re-baseline at assert time).`,
     );
-    return 0;
+    return 1;
   }
   const { added, changed } = diffAgainstSnapshot(
     tempDirFor(repoRoot),
