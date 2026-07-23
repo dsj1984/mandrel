@@ -341,7 +341,7 @@ describe('merge wait — pending (the resumable terminal)', () => {
 });
 
 describe('merge wait — blocked terminals', () => {
-  it('a red required check fails fast as checks-failed, without burning the budget', async () => {
+  it('a GENUINELY red required check fails fast as checks-failed on the first evidence-bearing probe (Story #4695 AC-2)', async () => {
     const provider = makeFakeProvider();
     const emitted = [];
     let polls = 0;
@@ -354,6 +354,11 @@ describe('merge wait — blocked terminals', () => {
           return openProbe({
             checksStatus: 'failure',
             mergeStateStatus: 'BLOCKED',
+            // Head-anchored evidence: a run concluded failure, none in flight.
+            requiredRunEvidence: {
+              requiredRunFailed: true,
+              requiredRunInFlight: false,
+            },
           });
         },
         emitMergeUnlandedFn: (rec) => emitted.push(rec),
@@ -363,8 +368,10 @@ describe('merge wait — blocked terminals', () => {
     // Not branch-protection-human-required — the pre-#4543 verdict, which
     // sent the operator to diagnose rules that were working fine.
     assert.equal(outcome.blockClass, 'checks-failed');
-    assert.equal(polls, 1, 'failed fast on the first probe');
+    assert.equal(polls, 1, 'failed fast on the first evidence-bearing probe');
     assert.equal(emitted[0].blockClass, 'checks-failed');
+    // AC-4: the emitted merge.unlanded record names the evidence path.
+    assert.equal(emitted[0].evidencePath, 'per-run');
     assert.deepEqual(provider._updates()[0].patch.labels.add, [
       'agent::blocked',
     ]);
@@ -373,6 +380,114 @@ describe('merge wait — blocked terminals', () => {
       provider._comments()[0].payload.body,
       /required check is \*\*red\*\*/,
     );
+  });
+
+  it('does NOT fail-fast the false-positive shape: a red rollup while a required run is still in flight (Story #4695 AC-1)', async () => {
+    // The measured false positive: rollup `failure` (a cancelled superseded
+    // run) + `BLOCKED` while a required run is queued. The pre-#4695 fail-fast
+    // hard-blocked this; now it keeps polling and the PR lands untouched.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    let polls = 0;
+    const states = [
+      openProbe({
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+        requiredRunEvidence: {
+          requiredRunFailed: false,
+          requiredRunInFlight: true,
+        },
+      }),
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return states.shift();
+        },
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(outcome.confirmed, true);
+    assert.equal(polls, 2, 'kept polling past the pending required run');
+    assert.equal(emitted.length, 0, 'no merge.unlanded against a merged PR');
+    assert.equal(provider._updates().length, 0, 'no agent::blocked flip');
+  });
+
+  it('with per-run evidence unavailable, a single failing rollup probe never fail-fasts — two consecutive probes are required (Story #4695 AC-3)', async () => {
+    // Older gh / API error: the probe carries no requiredRunEvidence. A single
+    // failing snapshot must not hard-block; only a SECOND consecutive failing
+    // probe (one poll interval later) fail-fasts as checks-failed.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    let polls = 0;
+    let sleeps = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: { delivery: { mergeWatch: { maxBudgetSeconds: 3600 } } },
+        // 1s per clock read keeps both the per-invocation and cumulative
+        // bounds comfortably unreached across the two probes.
+        nowMsFn: makeClock(1000),
+        sleepFn: async () => {
+          sleeps += 1;
+        },
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          // No requiredRunEvidence field → evidence unavailable.
+          return {
+            state: 'OPEN',
+            mergedAt: null,
+            createdAt: null,
+            checksStatus: 'failure',
+            mergeStateStatus: 'BLOCKED',
+          };
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.equal(polls, 2, 'the second consecutive failing probe fail-fasts');
+    assert.equal(sleeps, 1, 'slept once between the two failing probes');
+    // AC-4: the fallback path is named on the emitted record.
+    assert.equal(emitted[0].evidencePath, 'consecutive-probe');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('a single failing rollup probe followed by a merge never blocks (evidence unavailable)', async () => {
+    // The complement of AC-3: one failing snapshot, then the PR merges. The
+    // single snapshot must not have hard-blocked in the meantime.
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const states = [
+      {
+        state: 'OPEN',
+        mergedAt: null,
+        createdAt: null,
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+      },
+      { state: 'MERGED', mergedAt: 'x' },
+    ];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        nowMsFn: makeClock(1000),
+        readPrWaitProbeFn: async () => states.shift(),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(emitted.length, 0, 'no block from a single failing snapshot');
+    assert.equal(provider._updates().length, 0);
   });
 
   it('does not block an already-over-budget PR before waiting at all', async () => {
@@ -747,7 +862,10 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
               createdAt: '2026-07-16T00:00:00Z',
               mergeStateStatus: 'BEHIND',
               reviewDecision: 'APPROVED',
-              statusCheckRollup: [{ conclusion: 'SUCCESS' }],
+              statusCheckRollup: [
+                { status: 'COMPLETED', conclusion: 'SUCCESS' },
+                { status: 'IN_PROGRESS' },
+              ],
             };
           },
         },
@@ -765,6 +883,11 @@ describe('readPrWaitProbe — one probe carries every field the loop needs', () 
     }
     assert.equal(probe.mergeStateStatus, 'BEHIND');
     assert.equal(probe.createdAt, '2026-07-16T00:00:00Z');
+    // The probe carries head-anchored per-run evidence (Story #4695).
+    assert.deepEqual(probe.requiredRunEvidence, {
+      requiredRunFailed: false,
+      requiredRunInFlight: true,
+    });
   });
 
   it('degrades to a conservative pending probe when the read itself fails', async () => {

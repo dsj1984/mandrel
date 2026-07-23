@@ -71,7 +71,7 @@
  * (`emit-merge-unlanded.js`).
  */
 
-import { failingChecksBlockMerge } from './merge-poll.js';
+import { requiredCheckFailedBlocksMerge } from './merge-poll.js';
 
 /**
  * Every class `classifyMergeBlock` can return. Order is the evaluation
@@ -169,12 +169,15 @@ function describeApiRaceFallback(prProbe, budget) {
  *      rejection surfaced AT arm time still routes to
  *      `branch-protection-human-required` rather than the generic
  *      `arm-failure`.
- *   1b. A red required check — `checks-failed` (Story #4543). Evaluated
- *      before every budget and probe signal because it is *definitive*:
- *      no amount of remaining budget turns a failed check green, and on a
- *      protected branch it also presents as `mergeStateStatus: 'BLOCKED'`,
- *      so leaving it to step 3 would attribute the operator's red test run
- *      to branch protection.
+ *   1b. A genuinely red required check — `checks-failed` (Story #4543,
+ *      head-anchored by Story #4695). Evaluated before every budget and
+ *      probe signal because it is *definitive*: no amount of remaining
+ *      budget turns a failed check green, and on a protected branch it also
+ *      presents as `mergeStateStatus: 'BLOCKED'`, so leaving it to step 3
+ *      would attribute the operator's red test run to branch protection.
+ *      Gated on `requiredCheckFailedBlocksMerge`: a run must have concluded
+ *      failure with none in flight — a red rollup while a required run is
+ *      merely queued is the protected-branch pending state, not this class.
  *   2. Budget exhaustion while checks were still in flight —
  *      `checks-pending-timeout`. Evaluated BEFORE the human-required
  *      probe signals because on a protected branch GitHub reports
@@ -241,23 +244,35 @@ export function classifyMergeBlock(input) {
   // `undefined` (no probe at all) keeps its budget-timeout mapping in
   // step 2 without suppressing the step-3 human-required verdict.
   const checksStatus = prProbe?.checksStatus;
+  // A required run still queued/in-progress on the head is the
+  // protected-branch pending steady state (Story #4695), so it counts as
+  // in-flight evidence exactly like a `pending`/`still-running` aggregate —
+  // keeping a red-rollup-but-required-run-in-flight probe out of the
+  // human-required verdict below and into the timeout branch on budget expiry.
   const checksPendingEvidence =
-    checksStatus === 'pending' || checksStatus === 'still-running';
+    checksStatus === 'pending' ||
+    checksStatus === 'still-running' ||
+    prProbe?.requiredRunEvidence?.requiredRunInFlight === true;
 
   // 1b. A required check is RED. Definitive — no remaining budget makes a
   // failed check pass — so this precedes both the budget branch and the
   // BLOCKED-merge-state heuristic, which would otherwise attribute the red
   // check to branch protection on any protected base.
   //
-  // Gated on `failingChecksBlockMerge` rather than the raw rollup status:
-  // `checksStatus: 'failure'` covers optional checks too, and naming an
-  // optional red check as THE block sends the operator to fix a check that
-  // was never gating the merge. A red-but-not-gating PR that still failed to
-  // land falls through to the fallback, whose reason says exactly that.
-  if (failingChecksBlockMerge(prProbe)) {
+  // Gated on `requiredCheckFailedBlocksMerge` (Story #4695), not the raw
+  // rollup status: `checksStatus: 'failure'` covers optional checks AND the
+  // protected-branch pending state where a required run is merely queued (the
+  // rollup counts a cancelled superseded run as failure). Naming either as THE
+  // block sends the operator to fix a check that was never gating the merge —
+  // on a PR that merges on its own. Only head-anchored evidence of a genuinely
+  // red required run with none in flight classifies here; anything short of
+  // that falls through, keeps polling, and — on budget expiry with checks in
+  // flight — classifies `checks-pending-timeout` as before.
+  if (requiredCheckFailedBlocksMerge(prProbe)) {
+    const evidencePath = prProbe?.evidencePath;
     return {
       blockClass: 'checks-failed',
-      reason: `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'})`,
+      reason: `a required check failed (mergeStateStatus=${prProbe?.mergeStateStatus ?? 'n/a'}${evidencePath ? `, evidence=${evidencePath}` : ''})`,
     };
   }
 
