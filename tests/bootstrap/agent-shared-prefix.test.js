@@ -59,7 +59,10 @@ describe('role-scoped agent boots share a byte-identical common-core prefix (Sto
         file,
       );
       const first = body.indexOf(ROLE_DELTA_MARKER);
-      assert.ok(first !== -1, `${file} is missing the ${ROLE_DELTA_MARKER} marker`);
+      assert.ok(
+        first !== -1,
+        `${file} is missing the ${ROLE_DELTA_MARKER} marker`,
+      );
       assert.equal(
         body.indexOf(ROLE_DELTA_MARKER, first + 1),
         -1,
