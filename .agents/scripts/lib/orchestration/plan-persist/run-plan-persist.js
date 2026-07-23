@@ -301,6 +301,7 @@ async function renderRunScopedPlanMetricsLine({
  *   stories: ReturnType<typeof assemblePlanStories>['stories'],
  *   routeDowngradeReason?: string|null,
  *   config?: object,
+ *   injectedRules?: object,
  * }} args
  * @returns {{
  *   route: 'lite'|'full',
@@ -313,6 +314,7 @@ function resolveEffectiveRoute({
   stories,
   routeDowngradeReason = null,
   config = {},
+  injectedRules,
 }) {
   const verdict = resolvePlannerRouteVerdict({ reason: routeDowngradeReason });
   if (verdict.route !== 'lite') return null;
@@ -339,6 +341,7 @@ function resolveEffectiveRoute({
     const derived = deriveStoryShape({
       changes: story.bodyObject?.changes,
       acceptance: story.acceptance,
+      injectedRules,
     });
     return {
       slug: story.slug,
@@ -455,6 +458,7 @@ export async function reapStalePlanDirs({
  *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
  *     routeDowngradeReason?: string|null,
+ *     injectedRules?: object,
  *   },
  * }} input
  */
@@ -483,6 +487,7 @@ export async function runPlanPersist({
     sourceTicketOrigin = 'none',
     closeSuperseded = true,
     routeDowngradeReason = null,
+    injectedRules = undefined,
   } = opts;
 
   // Boundary for the plan-metrics summary below: everything this invocation
@@ -566,6 +571,7 @@ export async function runPlanPersist({
     stories,
     routeDowngradeReason,
     config,
+    injectedRules,
   });
   const isLiteRoute = route?.route === 'lite';
   if (isLiteRoute) {

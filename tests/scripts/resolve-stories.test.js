@@ -37,6 +37,17 @@ import { parseDag } from '../../.agents/scripts/stories-wave-tick.js';
 
 const REPO = { owner: 'dsj1984', repo: 'mandrel', issueNumber: 4534 };
 
+/**
+ * Stand-in sensitive-path manifest for the dispatchMode shape derivation —
+ * injected so no test reads the repo's live `audit-rules.json` (whose
+ * operator-editable globs would otherwise decide these assertions).
+ */
+const RULES = {
+  sensitivePaths: {
+    security: { filePatterns: ['**/auth/**'] },
+  },
+};
+
 function storyBody({
   changes = ['.agents/scripts/a.js'],
   blockedBy = null,
@@ -157,6 +168,7 @@ describe('the resolver envelope composes with the scheduler adapter', () => {
   it('parseDag accepts the resolver output verbatim (run-breaker #1)', () => {
     const env = buildStoriesEnvelope({
       stories: [toStoryRecord(issue())],
+      injectedRules: RULES,
     });
     assert.ok(env.dag[0].files.every((f) => typeof f === 'string'));
     const { nodes, error } = parseDag(env.dag);
@@ -286,6 +298,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
     // lite-shaped body. No label anywhere — the shape is the control signal.
     const env = buildStoriesEnvelope({
       stories: [toStoryRecord(issue({ number: 1 }))],
+      injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'inline');
   });
@@ -304,6 +317,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
           }),
         ),
       ],
+      injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'subagent');
   });
@@ -319,6 +333,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
           }),
         ),
       ],
+      injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'subagent');
   });
@@ -327,6 +342,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
     const env = buildStoriesEnvelope({
       stories: [toStoryRecord(issue({ number: 1 }))],
       config: { planning: { complexityGate: { enabled: false } } },
+      injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'subagent');
   });
@@ -339,6 +355,7 @@ describe('buildStoriesEnvelope — done[] is what unlocks cross-run delivery', (
         toStoryRecord(issue({ number: 1, state: 'closed' })),
         toStoryRecord(issue({ number: 2 })),
       ],
+      injectedRules: RULES,
     });
     assert.deepEqual(env.done, [1]);
   });
@@ -352,7 +369,11 @@ describe('buildStoriesEnvelope — done[] is what unlocks cross-run delivery', (
         issue({ number: 4534, body: storyBody({ blockedBy: 4530 }) }),
       ),
     ];
-    const env = buildStoriesEnvelope({ stories, foreignDone: [4530] });
+    const env = buildStoriesEnvelope({
+      stories,
+      foreignDone: [4530],
+      injectedRules: RULES,
+    });
     assert.deepEqual(env.dag[0].dependsOn, [4530]);
     assert.deepEqual(env.done, [4530]);
   });
@@ -363,6 +384,7 @@ describe('buildStoriesEnvelope — done[] is what unlocks cross-run delivery', (
         toStoryRecord(issue({ number: 9, state: 'closed' })),
         toStoryRecord(issue({ number: 3, state: 'closed' })),
       ],
+      injectedRules: RULES,
     });
     assert.deepEqual(
       env.stories.map((s) => s.id),

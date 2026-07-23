@@ -887,6 +887,15 @@ describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
     };
   }
 
+  /**
+   * Stand-in sensitive-path manifest for the shape backstop — injected so
+   * these tests never read the repo's live `audit-rules.json` (whose
+   * operator-editable globs would otherwise decide the routes asserted
+   * below). Empty: no fixture path is sensitive; the wide claim fails on
+   * the shape ceilings alone.
+   */
+  const NO_SENSITIVE_RULES = { sensitivePaths: {} };
+
   it('an upheld lite claim persists the route::lite hint and ledgers the verdict (AC-2, AC-3)', async () => {
     const labelsAtCreate = [];
     const provider = fakeProvider({
@@ -901,6 +910,7 @@ describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
       opts: {
         skipCleanup: true,
         routeDowngradeReason: 'single trivial artifact despite verbose seed',
+        injectedRules: NO_SENSITIVE_RULES,
       },
     });
 
@@ -939,6 +949,7 @@ describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
       opts: {
         skipCleanup: true,
         routeDowngradeReason: 'planner believes this is trivial',
+        injectedRules: NO_SENSITIVE_RULES,
       },
     });
 
@@ -998,7 +1009,11 @@ describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
         provider,
         artifacts: { stories: [ticket('solo')] },
         config: {},
-        opts: { skipCleanup: true, routeDowngradeReason },
+        opts: {
+          skipCleanup: true,
+          routeDowngradeReason,
+          injectedRules: NO_SENSITIVE_RULES,
+        },
       });
       assert.equal(result.route, null);
       assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));

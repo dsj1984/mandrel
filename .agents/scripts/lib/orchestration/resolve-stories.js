@@ -300,6 +300,9 @@ export async function readNativeBlockedBy({
  * @param {Map<number, number[]>} nativeEdges
  * @param {number[]} foreignDone Ids outside the set already satisfied.
  * @param {(msg: string) => void} [warn]
+ * @param {object} [injectedRules] Test seam forwarded to the shape
+ *   derivation — skips the `audit-rules.json` disk read. Production callers
+ *   omit it (the real manifest, memoized per process, is the default).
  * @returns {{ kind: string, stories: object[], dag: object[], done: number[] }}
  */
 export function buildStoriesEnvelope({
@@ -308,6 +311,7 @@ export function buildStoriesEnvelope({
   foreignDone = [],
   warn,
   config,
+  injectedRules,
 }) {
   const sorted = [...stories].sort((a, b) => a.id - b.id);
   const inSetDone = sorted.filter(isSatisfiedBlocker).map((s) => s.id);
@@ -327,7 +331,12 @@ export function buildStoriesEnvelope({
       url,
       labels,
       state,
-      dispatchMode: resolveStoryDispatchMode({ body, labels, config }).mode,
+      dispatchMode: resolveStoryDispatchMode({
+        body,
+        labels,
+        config,
+        injectedRules,
+      }).mode,
     })),
     dag: storiesToDag(sorted, nativeEdges, warn),
     done: [...new Set([...inSetDone, ...foreignDone])].sort((a, b) => a - b),
