@@ -102,10 +102,9 @@ top-level keys are validation errors.
 | `codebaseSnapshot.include` | No | `array<string>` | — | — |
 | `codebaseSnapshot.exclude` | No | `array<string>` | — | — |
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
-| `complexityGate` | No | `object` | — | Plan-time ceremony-lite complexity gate. Routes trivial single-artifact seeds onto a collapsed plan/deliver path; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables. |
-| `complexityGate.enabled` | No | `boolean` | — | Master switch. When false, every seed takes the full plan/deliver ceremony. Default true. |
-| `complexityGate.maxSeedWords` | No | `integer` | — | Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 150. |
-| `complexityGate.maxArtifacts` | No | `integer` | — | Enumerated-artifact ceiling for the lite path. A seed enumerating more than this many candidate artifacts is multi-capability and takes the full path. Default 1. |
+| `complexityGate` | No | `object` | — | Shape-derived ceremony-lite complexity routing. A lite claim is validated against the authored Story shape at persist and re-derived from the Story body at dispatch; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables. |
+| `complexityGate.enabled` | No | `boolean` | — | Master switch. When false, lite routing is disabled everywhere: persist refuses lite claims and dispatch always takes the sub-agent path. Default true. |
+| `complexityGate.maxArtifacts` | No | `integer` | — | Enumerated-artifact threshold reported by the plan-context complexity signals. An input signal for the planner verdict — carries no routing authority. Default 1. |
 | `failOnSharedEditors` | No | `boolean` | — | When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only). |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | When true, upgrade implicit cross-Story dependency findings to hard errors (default false — advisory soft findings only). |
 | `failOnRegistryConflicts` | No | `boolean` | — | When true, upgrade cross-cutting registry conflict findings to hard errors (default false). |
@@ -351,36 +350,38 @@ scans `.agents/scripts/**`, `src/**`, `lib/**`, `app/**`, `packages/**` and
 `exclude` drops `node_modules`, build dirs, and test files. Override `include`
 only when the project's source layout differs.
 
-- **`complexityGate`.** Plan-time ceremony-lite routing (Story #4683). The full
-  two-session plan/deliver ceremony buys measurable quality on capability-sized
-  work but imposes a large fixed cost premium on genuinely trivial
-  single-artifact scopes with no measured quality gain. The gate reads the
-  planning seed and emits a `complexityRoute` signal on the `/plan` context
-  envelope: `lite` collapses the plan/deliver session split and skips the
-  fresh-critic / Tech-Spec ceremony a one-artifact scope does not earn; `full`
-  keeps the whole ceremony. It is **deterministic and conservative** — `lite`
-  only when every trivial-scope signal agrees (seed ≤ `maxSeedWords` words **and**
-  ≤ `maxArtifacts` enumerated items), and `full` on any doubt (empty seed, over
-  the ceiling, multi-capability enumeration, or the gate disabled). The lite path
-  **never** relaxes a non-negotiable: it still produces a Story ticket, still
-  lands via a PR to `main`, still runs every repo quality gate, and still honours
-  `rules/security-baseline.md` — those gates run in `single-story-close.js`
-  regardless of route. **Threshold + override:** `enabled` (default `true`;
-  `false` forces every seed to `full`), `maxSeedWords` (default `150` —
-  raised from 60 by Story #4707: seed word count is a poor complexity proxy,
-  and the old ceiling punished a well-written 70-word trivial seed with the
-  full two-session ceremony), and
-  `maxArtifacts` (default `1`). The defaults are the single source of truth on
-  `DEFAULT_COMPLEXITY_GATE` in
+- **`complexityGate`.** Shape-derived ceremony-lite routing (Story #4722,
+  superseding the word-count gate of Stories #4683/#4707). The full ceremony
+  buys measurable quality on capability-sized work but imposes a large fixed
+  cost premium on genuinely trivial scopes — and seed word count is the wrong
+  proxy in both directions (a detailed prompt can describe trivial work, a
+  terse one complex work), so `maxSeedWords` was **removed** in the hard
+  cutover (a config still setting it is rejected as an additional property).
+  Routing is now staged on the objective shape of the work: `/plan`'s context
+  envelope emits advisory `complexitySignals` (enumerated-artifact count,
+  risk-heuristic hits, repo state of predicted paths, sensitive-path classes)
+  with **no routing authority**; the planner authors the trivial-vs-standard
+  verdict via `plan-persist.js --route-downgrade-reason "<why>"` (recorded on
+  every created Story's `story-plan-state` checkpoint); persist validates a
+  lite claim against each authored Story's own shape (`changes[]` count,
+  acceptance count, creates-vs-refactors mix, sensitive-path classes — the
+  framework constants `STORY_SHAPE_CEILINGS`) and **fails closed to `full`**
+  when the shape exceeds the ceilings; and `/deliver` re-derives the route
+  from the fetched Story body via the same shape function at dispatch. The
+  `route::lite` label is a human-visible hint only — a lost label cannot
+  misroute delivery. A lite-shaped Story executes inline (no story-worker or
+  acceptance-critic sub-agent fan-out); sensitivity always wins — a footprint
+  intersecting a sensitive-path class routes `full` and keeps its fresh
+  critic. The lite path **never** relaxes a non-negotiable: it still produces
+  a Story ticket, still lands via a PR to `main`, still runs every repo
+  quality gate, and still honours `rules/security-baseline.md` — those gates
+  run in `single-story-close.js` regardless of route. **Knobs:** `enabled`
+  (default `true`; `false` disables lite routing everywhere) and
+  `maxArtifacts` (default `1` — a signal threshold, not a router). Defaults
+  live on `DEFAULT_COMPLEXITY_GATE` in
   [`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js);
-  a malformed or negative ceiling falls back to the default rather than widening
-  the lite path. **Planner downgrade + route marker (Story #4707):** the
-  planner may downgrade a `full` verdict to `lite` only via
-  `plan-persist.js --route-downgrade-reason "<why>"` — the reason is recorded
-  on every created Story's `story-plan-state` checkpoint, so the judgment is
-  auditable and never a silent gate change. A lite-routed plan's Stories carry
-  the runtime-derived `route::lite` label, which `/deliver` reads to execute
-  the Story inline (no sub-agent fan-out) with every close gate unchanged.
+  a malformed or negative value falls back to the default rather than
+  widening the lite path.
 
 ### `delivery`
 

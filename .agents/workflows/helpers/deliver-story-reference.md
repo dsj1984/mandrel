@@ -125,8 +125,7 @@ The v2 engine's trait table:
 | Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session |
 | Ceremony | Per-Story, routed off the derived change level via `ceremony-routing.js` |
 
-**Ceremony-lite Stories still land through this engine unchanged (Story #4683).** A Story that `/plan` routed onto the ceremony-lite path (its
-`complexityRoute.route === "lite"`) collapses only the *advisory* plan/deliver
+**Ceremony-lite Stories still land through this engine unchanged (Story #4683).** A lite-routed Story collapses only the *advisory* plan/deliver
 ceremony — the fresh-critic / Tech-Spec authoring a one-artifact scope does
 not earn. It does **not** get a cheaper landing: the close-validation gates
 (lint / test / format / coverage / CRAP / maintainability), the PR to `main`,
@@ -134,15 +133,22 @@ and the `rules/security-baseline.md` MUSTs all run exactly as for a
 full-ceremony Story. The lite route's `preserves` field is the machine-readable
 record of those non-negotiables; there is no lite-specific gate bypass.
 
-**The lite route persists to delivery as the `route::lite` label (Story #4707).** Persist stamps every Story of a lite-routed plan with that marker
-(and ledgers the route — including any audited planner-downgrade reason — on
-its `story-plan-state` checkpoint); a full-routed Story carries no marker.
-`/deliver` reads the label via `resolveStoryDispatchMode`
-(`lib/orchestration/complexity-gate.js`) and executes a lite Story
-**inline in the deliver session** — no `story-worker` sub-agent boot, and
-the Step 1a acceptance self-eval runs its critics **inline** (no
+**Deliver derives the route from the Story body's shape (Story #4722).**
+Persist stamps a lite cohort's Stories with the `route::lite` label as a
+*human-visible hint only* (and ledgers the authored verdict — recorded
+reason plus per-Story shape evidence — on the `story-plan-state`
+checkpoint); the label is never the control signal. `/deliver` computes the
+route from the fetched Story body via `resolveStoryDispatchMode`
+(`lib/orchestration/complexity-gate.js`) — the same shape taxonomy
+`deriveChangeLevel` applies to the landed diff at close: `changes[]` count,
+acceptance count, creates-vs-refactors mix, sensitive-path classes. A
+lite-shaped Story executes **inline in the deliver session** — even when the
+label is absent or its write failed — with no `story-worker` sub-agent boot,
+and the Step 1a acceptance self-eval runs its critics **inline** (no
 fresh-context acceptance-critic sub-agent dispatch; sub-agent boots are the
-dominant deliver-phase token cost at trivial scope). Inline execution
+dominant deliver-phase token cost at trivial scope). A footprint
+intersecting a sensitive-path class derives `full` — sensitivity wins, and
+the Story keeps its fresh acceptance critic. Inline execution
 changes the isolation only: the engine, every script gate, and the
 terminal envelope are byte-identical either way.
 
@@ -227,8 +233,8 @@ Resolve fresh-vs-inline acceptance critics per AC-cluster with
 floor forces `fresh`). Review depth reads the same derived level via
 `review-depth.js` inside close, so the two decisions cannot disagree.
 
-**Lite-route override (Story #4707).** When the Story carries the
-`route::lite` marker (`resolveStoryDispatchMode` → `inline`), run every
+**Lite-route override (Story #4722).** When the Story's body derives the
+lite shape (`resolveStoryDispatchMode` → `inline`), run every
 acceptance critic **inline** — do not spawn fresh-context critic sub-agents
 regardless of what the profile would otherwise resolve. The self-eval rigor
 (scoring each `acceptance[]` item against the one computed change set, with

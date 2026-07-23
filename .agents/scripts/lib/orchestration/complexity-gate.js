@@ -1,99 +1,138 @@
 /**
- * lib/orchestration/complexity-gate.js — plan-time ceremony-lite routing gate.
+ * lib/orchestration/complexity-gate.js — shape-derived complexity routing
+ * (Story #4722, superseding the word-count gate of Stories #4683/#4707).
  *
- * A **deterministic, conservative** complexity gate that routes a planning seed
- * onto either the full two-session plan/deliver ceremony (`full`) or a collapsed
- * ceremony-lite path (`lite`). It exists because the full ceremony imposes a
- * large fixed cost premium on genuinely trivial single-artifact scopes with no
- * measured quality gain (Story #4683): the bench cohort spent ~52 turns on a
- * hello-world scope a bare control delivered in ~6, and no path existed to opt
- * trivial scopes out.
+ * ## Route on the work, not the words
+ *
+ * The original gate routed a planning seed on its **word count**
+ * (`maxSeedWords`), which is the wrong proxy in both directions: a detailed
+ * prompt can describe trivial work, a terse one complex work. The bench
+ * cohort (mandrel-bench 2.10.0) observed both failure modes — a lite verdict
+ * fired at plan time and was then lost (a swallowed label write) or ignored
+ * (deliver spawned a full story-worker anyway). This module now routes on the
+ * **objective shape of the authored work**, staged across the pipeline:
+ *
+ *   1. **Plan time — signals, not routing.** {@link buildComplexitySignals}
+ *      emits advisory complexity *signals* (enumerated-artifact count,
+ *      risk-heuristic hits, repo state of predicted paths, sensitive-path
+ *      classes) carrying **no routing authority**. There is no word ceiling.
+ *   2. **Planner judgment, ledgered.** The planner owns the
+ *      trivial-vs-standard verdict ({@link resolvePlannerRouteVerdict}) —
+ *      `lite` only with a recorded reason, persisted on plan state. This
+ *      generalizes the former one-way `applyPlannerDowngrade` seam into the
+ *      authored verdict itself; the conservative default without a recorded
+ *      reason is `full`.
+ *   3. **Deterministic backstop at persist.** After authoring, the work has
+ *      measurable shape: {@link deriveStoryShape} reads the Story's own
+ *      `changes[]` count, acceptance-criteria count, creates-vs-refactors
+ *      mix, and sensitive-path classes against {@link STORY_SHAPE_CEILINGS}.
+ *      A `lite` claim whose shape exceeds the ceilings **fails closed to
+ *      `full`** (`run-plan-persist.js`).
+ *   4. **Deliver re-derives.** `/deliver` computes the route from the fetched
+ *      Story body via the **same** shape function at dispatch
+ *      ({@link resolveStoryDispatchMode}) and honors it: a lite-shaped Story
+ *      executes inline — no story-worker sub-agent boot, no fresh
+ *      acceptance-critic dispatch — while every `single-story-close.js` gate
+ *      runs unchanged. The `route::lite` label is a **human-visible hint
+ *      only**, never the control signal: a lost label or an unread marker can
+ *      no longer misroute delivery.
+ *
+ * The shape taxonomy is deliberately the one `review-depth.js` already
+ * applies to the landed diff at close (`deriveChangeLevel` over the
+ * `audit-rules.json` sensitive-path classes): **predicted shape at dispatch,
+ * actual diff at close** — one taxonomy, two read points. And sensitivity
+ * always wins: a small change whose footprint intersects a sensitive-path
+ * class routes `full`, which keeps its fresh acceptance critic
+ * (`ceremony-routing.js` routes a high derived level to a fresh spawn).
  *
  * ## What "lite" changes and — critically — what it never changes
  *
- * The lite route collapses the **advisory ceremony** only: the plan/deliver
- * session split, the fresh-context critic ceremony, and the Tech-Spec authoring
- * that a one-artifact scope does not earn. It **never** relaxes a non-negotiable.
- * {@link LITE_PATH_INVARIANTS} is the machine-readable contract that the lite
- * path still produces a Story ticket, still lands via a PR to `main`, still runs
- * every repo quality gate, and still honours `rules/security-baseline.md`. Those
- * gates run in `single-story-close.js` regardless of route; the gate cannot and
- * does not switch them off. Every `lite` decision carries this frozen object on
- * its `preserves` field so a downstream reader can assert the invariants held.
+ * The lite route collapses the **advisory ceremony** only: the story-worker
+ * sub-agent boot and the fresh acceptance-critic spawn. It **never** relaxes
+ * a non-negotiable. {@link LITE_PATH_INVARIANTS} is the machine-readable
+ * contract that the lite path still produces a Story ticket, still lands via
+ * a PR to `main`, still runs every repo quality gate, and still honours
+ * `rules/security-baseline.md`. Those gates run in `single-story-close.js`
+ * regardless of route; the router cannot and does not switch them off.
  *
- * ## Conservative by construction — full on any doubt
+ * ## Configuration
  *
- * The gate is total and pure: seed text + resolved config in, decision out. It
- * routes `lite` **only** when every trivial-scope signal agrees; every other
- * case — an empty/unreadable seed, a seed above the word ceiling, a seed
- * enumerating more than one candidate artifact, or the gate disabled by config —
- * falls to `full`. Being wrong toward `full` costs a session; being wrong toward
- * `lite` would skip ceremony a real capability slice needs, so the tie always
- * breaks to `full`.
+ * Operators tune the surface via `planning.complexityGate` in `.agentrc.json`:
  *
- * ## Threshold + operator override
+ *   - `enabled`      (default `true`) — `false` disables lite routing
+ *     everywhere: persist refuses lite claims and dispatch always takes the
+ *     sub-agent path.
+ *   - `maxArtifacts` (default `1`)    — enumerated-artifact signal threshold;
+ *     an **input signal** for the planner, no longer a deterministic router.
  *
- * {@link DEFAULT_COMPLEXITY_GATE} is the single source of truth for the
- * threshold. Operators tune it (or disable the gate entirely) via
- * `planning.complexityGate` in `.agentrc.json`:
- *
- *   - `enabled`      (default `true`)  — `false` forces every seed to `full`.
- *   - `maxSeedWords` (default `150`)   — seed prose word ceiling for `lite`.
- *   - `maxArtifacts` (default `1`)     — enumerated-artifact ceiling for `lite`.
- *
- * Resolution clamps every field toward the conservative default: a malformed or
- * negative ceiling falls back to the framework default rather than widening the
- * lite path.
- *
- * ## Planner downgrade + the persisted route marker (Story #4707)
- *
- * Seed word count is a poor complexity proxy: a well-written 70-word trivial
- * seed is no less trivial than a terse 40-word one, which is why the ceiling
- * sits at 150 rather than 60. Two adjacent surfaces live here with the gate so
- * the whole lite-routing contract has one home:
- *
- *   - {@link applyPlannerDowngrade} — the planner may downgrade a `full`
- *     verdict to `lite` **only** with a recorded reason. The deterministic
- *     gate itself is unchanged (it still fails toward `full`); the downgrade
- *     is an auditable model judgment layered on top, never a silent gate
- *     change. Absent a non-empty reason the deterministic verdict stands.
- *   - {@link resolveStoryDispatchMode} — the deliver-side reader of the
- *     persisted {@link LITE_ROUTE_LABEL} marker. A lite-routed Story executes
- *     inline in the deliver session (no story-worker or acceptance-critic
- *     sub-agent boots); everything else dispatches as before. Model-side
- *     fan-out only — never a deterministic close gate.
+ * `maxSeedWords` is **removed** (hard cutover): word count routes nothing.
  *
  * @typedef {'lite'|'full'} ComplexityRoute
  */
 
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import {
+  extractChangePaths,
+  parse as parseStoryBody,
+} from '../story-body/story-body.js';
+import { deriveChangeLevel } from './review-depth.js';
+
 /**
- * Framework defaults for the plan-time complexity gate. The threshold SSOT —
- * the config schema mirror and the configuration reference both cite these
- * numbers rather than restating divergent ones.
+ * Framework defaults for the complexity-routing surface. The SSOT the config
+ * schema mirror and the configuration reference both cite. `maxSeedWords` is
+ * gone: seed word count carries no routing authority (Story #4722).
  */
 const DEFAULT_COMPLEXITY_GATE = Object.freeze({
   enabled: true,
-  maxSeedWords: 150,
   maxArtifacts: 1,
 });
 
 /**
- * The persisted route marker for a lite-routed Story (Story #4707).
+ * The persisted route marker for a lite-routed Story.
  *
- * Applied by plan-persist at create time and read by `/deliver` (via the
- * resolver envelope's `stories[].labels`) through
- * {@link resolveStoryDispatchMode}. A full-routed Story carries no marker —
- * absence is the conservative default, so an unlabelled Story always takes
- * the sub-agent dispatch path.
+ * **A human-visible hint only (Story #4722)** — never the control signal.
+ * Persist still applies it so a lite cohort is filterable in the GitHub UI,
+ * but `/deliver` derives the route from the Story body's own shape
+ * ({@link resolveStoryDispatchMode}); a Story with the label whose shape
+ * derives `full` dispatches as a sub-agent, and a lite-shaped Story with the
+ * label absent (or its write failed) still executes inline.
  */
 export const LITE_ROUTE_LABEL = 'route::lite';
 
 /**
- * The non-negotiables the ceremony-lite path preserves. This is the
- * contract behind Story #4683 AC-2: collapsing ceremony never means dropping
- * the Story ticket, the PR-to-`main` landing, the repo quality gates, or the
- * security baseline. Attached verbatim to every `lite` decision's `preserves`
- * field; a downstream consumer (or contract test) asserts against it.
+ * Shape ceilings a Story must fit for the `lite` route
+ * ({@link deriveStoryShape}). Framework constants, not operator knobs — a
+ * ceiling an operator can widen past what the inline path can safely absorb
+ * is a ceiling that fails silently. Conservative by construction: `lite` is
+ * for genuinely trivial, mostly-additive, non-sensitive scopes.
+ *
+ *   - `maxChanges`          — total `changes[]` entries (e.g. one artifact
+ *                             plus its test).
+ *   - `maxAcceptance`       — acceptance-criteria count; more criteria means
+ *                             more contract than a trivial scope carries.
+ *   - `maxNonCreateChanges` — entries whose assumption is not `creates`
+ *                             (refactors-existing / deletes / exists). A lite
+ *                             change is mostly additive; touching existing
+ *                             surfaces is where trivial-looking work stops
+ *                             being trivial.
+ *
+ * Module-private, exposed as the `ceilings` field on every
+ * {@link deriveStoryShape} decision — so there is no test-only export to
+ * leave production-dead.
+ */
+const STORY_SHAPE_CEILINGS = Object.freeze({
+  maxChanges: 2,
+  maxAcceptance: 3,
+  maxNonCreateChanges: 1,
+});
+
+/**
+ * The non-negotiables the ceremony-lite path preserves (Story #4683 AC-2):
+ * collapsing ceremony never means dropping the Story ticket, the PR-to-`main`
+ * landing, the repo quality gates, or the security baseline. Attached
+ * verbatim to every route decision's `preserves` field so a downstream reader
+ * (or contract test) can assert the invariants held on either route.
  */
 const LITE_PATH_INVARIANTS = Object.freeze({
   storyTicket: true,
@@ -104,9 +143,8 @@ const LITE_PATH_INVARIANTS = Object.freeze({
 
 /**
  * Coerce a candidate ceiling into a non-negative integer, falling back to the
- * framework default for anything malformed. Non-numbers, non-finite values, and
- * negatives all fall back — a stray `-1` or `NaN` must never widen the lite path
- * (the gate fails conservative, toward `full`).
+ * framework default for anything malformed — a stray `-1` or `NaN` must never
+ * widen the lite path (fail conservative).
  *
  * @param {unknown} value
  * @param {number} fallback
@@ -120,16 +158,14 @@ function normalizeCeiling(value, fallback) {
 }
 
 /**
- * Resolve the effective complexity-gate config, shallow-overlaying an operator
- * `planning.complexityGate` block onto {@link DEFAULT_COMPLEXITY_GATE}. Accepts
- * the full resolved config, the bare `planning` bag, or the bare
- * `complexityGate` bag, mirroring the tolerant unwrap the other routing
- * accessors use. Module-private: exposed only through the resolved `threshold`
- * on {@link buildComplexityRouteSignal}'s output, so there is no test-only
- * export to leave production-dead.
+ * Resolve the effective complexity-gate config, shallow-overlaying an
+ * operator `planning.complexityGate` block onto
+ * {@link DEFAULT_COMPLEXITY_GATE}. Accepts the full resolved config, the bare
+ * `planning` bag, or the bare `complexityGate` bag, mirroring the tolerant
+ * unwrap the other routing accessors use.
  *
  * @param {object | null | undefined} config
- * @returns {{ enabled: boolean, maxSeedWords: number, maxArtifacts: number }}
+ * @returns {{ enabled: boolean, maxArtifacts: number }}
  */
 function resolveComplexityGate(config) {
   const raw =
@@ -140,10 +176,6 @@ function resolveComplexityGate(config) {
       typeof bag.enabled === 'boolean'
         ? bag.enabled
         : DEFAULT_COMPLEXITY_GATE.enabled,
-    maxSeedWords: normalizeCeiling(
-      bag.maxSeedWords,
-      DEFAULT_COMPLEXITY_GATE.maxSeedWords,
-    ),
     maxArtifacts: normalizeCeiling(
       bag.maxArtifacts,
       DEFAULT_COMPLEXITY_GATE.maxArtifacts,
@@ -153,9 +185,7 @@ function resolveComplexityGate(config) {
 
 /**
  * Count top-level enumerated items (`- `, `* `, `1. `) in a free-form seed —
- * the same shape the scope-triage and delivery-shape signals read as candidate
- * capabilities. Each enumerated line is one predicted artifact; a seed with two
- * or more is a multi-capability scope that must take the full path.
+ * each enumerated line is one predicted artifact.
  *
  * @param {string} text
  * @returns {number}
@@ -167,152 +197,445 @@ function countSeedArtifacts(text) {
     .filter((line) => /^\s*(?:[-*]|\d+\.)\s+\S/.test(line)).length;
 }
 
+/** Cap on predicted-path extraction, to bound pathological seeds. */
+const MAX_PREDICTED_PATHS = 50;
+
 /**
- * Build the advisory complexity-route signal for a planning seed. Deterministic,
- * total, and conservative (see the module header): every trivial-scope signal
- * must agree for a `lite` decision; everything else routes `full`.
+ * Extract path-like tokens (at least one `/` plus a dotted extension) from a
+ * free-form seed — the predicted footprint the sensitive-path and repo-state
+ * signals classify.
  *
- * The result is folded into the `/plan` context envelope as `complexityRoute`,
- * so the workflow reads one field instead of re-deriving the decision. Every
- * `lite` decision carries {@link LITE_PATH_INVARIANTS} on `preserves`.
+ * @param {string} text
+ * @returns {string[]} Deduplicated, in order of first appearance.
+ */
+function extractPredictedPaths(text) {
+  if (typeof text !== 'string' || text.length === 0) return [];
+  const re = /(?:^|[\s`'"([])((?:[\w@.-]+\/)+[\w@.-]+\.[A-Za-z0-9]{1,8})/gm;
+  const seen = new Set();
+  let match = re.exec(text);
+  while (match !== null && seen.size < MAX_PREDICTED_PATHS) {
+    seen.add(match[1]);
+    match = re.exec(text);
+  }
+  return [...seen];
+}
+
+/**
+ * Build the advisory complexity **signals** for a planning seed
+ * (Story #4722 AC-2). Signals, not routing: the result carries
+ * `routingAuthority: false` and no `route` field — the planner reads these
+ * alongside its own judgment ({@link resolvePlannerRouteVerdict}) and the
+ * deterministic shape backstop validates the authored Story at persist.
  *
- * @param {{ seedText?: string, config?: object }} [args]
+ *   - `artifactCount`         — enumerated items in the seed, with the
+ *                               configured `maxArtifacts` threshold beside it
+ *                               as one input signal.
+ *   - `riskHeuristicHits`     — `planning.riskHeuristics` phrases present in
+ *                               the seed (same substring matcher the
+ *                               pre-mortem critic uses).
+ *   - `predictedPaths` / `repoState` — path-like tokens in the seed and
+ *                               which of them exist in the repo (existing
+ *                               paths predict refactors; missing predict
+ *                               creates).
+ *   - `sensitivePathClasses`  — `audit-rules.json` sensitive-path classes the
+ *                               predicted footprint intersects (the same
+ *                               taxonomy close applies to the landed diff).
+ *
+ * Total: never throws; a failed classification degrades to an empty class
+ * list (the honest "no signal", never a verdict).
+ *
+ * @param {{
+ *   seedText?: string,
+ *   config?: object,
+ *   riskHeuristics?: string[],
+ *   cwd?: string,
+ *   pathExistsFn?: (absPath: string) => boolean,
+ *   injectedRules?: object,
+ *   selectSensitivePathClassesFn?: Function,
+ * }} [args]
+ * @returns {{
+ *   artifactCount: number,
+ *   maxArtifacts: number,
+ *   riskHeuristicHits: string[],
+ *   predictedPaths: string[],
+ *   repoState: { existingPaths: string[], missingPaths: string[] },
+ *   sensitivePathClasses: string[],
+ *   gate: { enabled: boolean },
+ *   advisory: true,
+ *   routingAuthority: false,
+ * }}
+ */
+export function buildComplexitySignals({
+  seedText = '',
+  config,
+  riskHeuristics = [],
+  cwd,
+  pathExistsFn = existsSync,
+  injectedRules,
+  selectSensitivePathClassesFn,
+} = {}) {
+  const gate = resolveComplexityGate(config);
+  const text = typeof seedText === 'string' ? seedText : '';
+  const haystack = text.toLowerCase();
+
+  const riskHeuristicHits = (
+    Array.isArray(riskHeuristics) ? riskHeuristics : []
+  ).filter(
+    (phrase) =>
+      typeof phrase === 'string' &&
+      phrase.trim().length > 0 &&
+      haystack.includes(phrase.trim().toLowerCase()),
+  );
+
+  const predictedPaths = extractPredictedPaths(text);
+  const root = typeof cwd === 'string' && cwd !== '' ? cwd : process.cwd();
+  const existingPaths = [];
+  const missingPaths = [];
+  for (const p of predictedPaths) {
+    let exists = false;
+    try {
+      exists = pathExistsFn(path.resolve(root, p)) === true;
+    } catch {
+      exists = false;
+    }
+    (exists ? existingPaths : missingPaths).push(p);
+  }
+
+  const { classes } = deriveChangeLevel({
+    changedFiles: predictedPaths,
+    injectedRules,
+    selectSensitivePathClassesFn,
+  });
+
+  return {
+    artifactCount: countSeedArtifacts(text),
+    maxArtifacts: gate.maxArtifacts,
+    riskHeuristicHits,
+    predictedPaths,
+    repoState: { existingPaths, missingPaths },
+    sensitivePathClasses: classes,
+    gate: { enabled: gate.enabled },
+    advisory: /** @type {const} */ (true),
+    routingAuthority: /** @type {const} */ (false),
+  };
+}
+
+/**
+ * Resolve the planner's authored trivial-vs-standard verdict
+ * (Story #4722 AC-2, generalizing the former one-way `applyPlannerDowngrade`
+ * seam into the verdict itself).
+ *
+ * The planner — not a word count — owns the judgment, and the contract keeps
+ * it auditable: `lite` **only** with a non-empty recorded reason (carried on
+ * `authored` and ledgered on every created Story's `story-plan-state`
+ * checkpoint by persist). Absent a recorded reason the conservative default
+ * stands: `full`, with `authored: null`. Pure and total.
+ *
+ * The verdict is a **claim**, not the decision — persist validates it against
+ * the authored Story's shape ({@link deriveStoryShape}) and fails closed to
+ * `full` when the shape exceeds the ceilings.
+ *
+ * @param {{ reason?: unknown }} [args]
  * @returns {{
  *   route: ComplexityRoute,
  *   reasons: string[],
- *   threshold: { enabled: boolean, maxSeedWords: number, maxArtifacts: number },
+ *   authored: Readonly<{ route: 'lite', reason: string }>|null,
  *   preserves: typeof LITE_PATH_INVARIANTS,
- *   advisory: true,
  * }}
  */
-export function buildComplexityRouteSignal({ seedText = '', config } = {}) {
-  const threshold = resolveComplexityGate(config);
-  const advisory = /** @type {const} */ (true);
+export function resolvePlannerRouteVerdict({ reason } = {}) {
+  const recorded = typeof reason === 'string' ? reason.trim() : '';
+  if (recorded === '') {
+    return {
+      route: 'full',
+      reasons: [
+        'no authored lite verdict (no recorded reason) — standard full route',
+      ],
+      authored: null,
+      preserves: LITE_PATH_INVARIANTS,
+    };
+  }
+  return {
+    route: 'lite',
+    reasons: [`planner verdict: lite (recorded reason): ${recorded}`],
+    authored: Object.freeze({ route: 'lite', reason: recorded }),
+    preserves: LITE_PATH_INVARIANTS,
+  };
+}
+
+/**
+ * Derive the complexity route from an authored Story's **objective shape**
+ * (Story #4722 AC-3/AC-4) — the single shape function persist's backstop and
+ * `/deliver`'s dispatch derivation both read, so the two can never disagree
+ * about the same body.
+ *
+ * `lite` requires **every** signal to agree, against
+ * {@link STORY_SHAPE_CEILINGS}:
+ *
+ *   - a declared, parseable, glob-free `changes[]` footprint of at most
+ *     `maxChanges` entries, at most `maxNonCreateChanges` of which touch
+ *     existing surfaces (creates-vs-refactors mix);
+ *   - at most `maxAcceptance` acceptance criteria (and at least one — a Story
+ *     with no contract cannot be judged trivial);
+ *   - a footprint intersecting **no** sensitive-path class
+ *     (`deriveChangeLevel`, the taxonomy close applies to the landed diff).
+ *     Sensitivity always wins (AC-6): a sensitive footprint routes `full`,
+ *     which keeps the fresh acceptance critic via `ceremony-routing.js`.
+ *
+ * Everything else — including an unknown/undeclared footprint or an
+ * unreadable sensitive-path manifest — fails toward `full`. Total: never
+ * throws.
+ *
+ * @param {{
+ *   changes?: unknown,
+ *   acceptance?: unknown,
+ *   injectedRules?: object,
+ *   selectSensitivePathClassesFn?: Function,
+ * }} [args]
+ * @returns {{
+ *   route: ComplexityRoute,
+ *   reasons: string[],
+ *   shape: {
+ *     changeCount: number,
+ *     acceptanceCount: number,
+ *     createCount: number,
+ *     nonCreateCount: number,
+ *     sensitiveClasses: string[],
+ *   }|null,
+ *   ceilings: typeof STORY_SHAPE_CEILINGS,
+ *   preserves: typeof LITE_PATH_INVARIANTS,
+ * }}
+ */
+export function deriveStoryShape({
+  changes,
+  acceptance,
+  injectedRules,
+  selectSensitivePathClassesFn,
+} = {}) {
+  const ceilings = STORY_SHAPE_CEILINGS;
   const preserves = LITE_PATH_INVARIANTS;
-  const decide = (route, reason) => ({
+  const decide = (route, reason, shape = null) => ({
     route,
     reasons: [reason],
-    threshold,
+    shape,
+    ceilings,
     preserves,
-    advisory,
   });
 
-  if (!threshold.enabled) {
+  if (!Array.isArray(changes) || changes.length === 0) {
     return decide(
       'full',
-      'complexity gate disabled (planning.complexityGate.enabled=false) — full plan/deliver ceremony',
+      'no changes[] declared — the footprint is unknown, so the shape cannot be judged trivial; conservative full route',
     );
   }
 
-  const text = typeof seedText === 'string' ? seedText : '';
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
+  let entries;
+  try {
+    entries = extractChangePaths(changes);
+  } catch (err) {
     return decide(
       'full',
-      'empty seed — triviality cannot be judged; conservative full path',
+      `changes[] could not be read (${err?.message ?? err}) — unknown footprint; conservative full route`,
     );
   }
 
-  const artifactCount = countSeedArtifacts(text);
-  if (artifactCount > threshold.maxArtifacts) {
+  const acceptanceList = Array.isArray(acceptance) ? acceptance : [];
+  const nonCreateCount = changes.filter(
+    (entry) =>
+      !(entry && typeof entry === 'object' && entry.assumption === 'creates'),
+  ).length;
+  const { level, classes } = deriveChangeLevel({
+    changedFiles: entries.map((e) => e.path),
+    injectedRules,
+    selectSensitivePathClassesFn,
+  });
+  const shape = {
+    changeCount: changes.length,
+    acceptanceCount: acceptanceList.length,
+    createCount: changes.length - nonCreateCount,
+    nonCreateCount,
+    sensitiveClasses: classes,
+  };
+
+  if (entries.some((e) => e.isGlob)) {
     return decide(
       'full',
-      `seed enumerates ${artifactCount} candidate artifacts (> maxArtifacts ${threshold.maxArtifacts}) — multi-capability scope takes the full path`,
+      'changes[] contains a glob path — unknown footprint width; conservative full route',
+      shape,
     );
   }
-
-  const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
-  if (wordCount > threshold.maxSeedWords) {
+  if (shape.changeCount > ceilings.maxChanges) {
     return decide(
       'full',
-      `seed is ${wordCount} words (> maxSeedWords ${threshold.maxSeedWords}) — not a trivial scope; full path`,
+      `changes[] declares ${shape.changeCount} entries (> maxChanges ${ceilings.maxChanges}) — not a trivial footprint; full route`,
+      shape,
+    );
+  }
+  if (shape.acceptanceCount === 0) {
+    return decide(
+      'full',
+      'no acceptance criteria — the contract cannot be judged trivial; conservative full route',
+      shape,
+    );
+  }
+  if (shape.acceptanceCount > ceilings.maxAcceptance) {
+    return decide(
+      'full',
+      `${shape.acceptanceCount} acceptance criteria (> maxAcceptance ${ceilings.maxAcceptance}) — more contract than a trivial scope carries; full route`,
+      shape,
+    );
+  }
+  if (shape.nonCreateCount > ceilings.maxNonCreateChanges) {
+    return decide(
+      'full',
+      `${shape.nonCreateCount} non-create change(s) (> maxNonCreateChanges ${ceilings.maxNonCreateChanges}) — a mostly-refactoring mix is not a trivial additive scope; full route`,
+      shape,
+    );
+  }
+  if (shape.sensitiveClasses.length > 0) {
+    return decide(
+      'full',
+      `footprint intersects sensitive-path class(es) ${shape.sensitiveClasses.join(', ')} — sensitivity wins over a small shape; full route (fresh acceptance critic retained)`,
+      shape,
+    );
+  }
+  if (level !== 'low') {
+    // `deriveChangeLevel` degraded to its null fail-safe (unreadable
+    // manifest / failed selector): there is no evidence the footprint is
+    // non-sensitive, and a classification failure must never buy lite.
+    return decide(
+      'full',
+      'sensitive-path classification unavailable — cannot verify the footprint is non-sensitive; conservative full route',
+      shape,
     );
   }
 
   return decide(
     'lite',
-    `trivial single-artifact scope (${wordCount} words ≤ ${threshold.maxSeedWords}, ${artifactCount} enumerated artifact(s) ≤ ${threshold.maxArtifacts}) — collapsed ceremony-lite path; non-negotiables preserved`,
+    `trivial shape: ${shape.changeCount} change(s) ≤ ${ceilings.maxChanges}, ${shape.acceptanceCount} acceptance criteria ≤ ${ceilings.maxAcceptance}, ${shape.nonCreateCount} non-create ≤ ${ceilings.maxNonCreateChanges}, no sensitive-path class — inline-eligible; non-negotiables preserved`,
+    shape,
   );
 }
 
 /**
- * Apply an auditable planner downgrade to a `full` complexity verdict
- * (Story #4707).
+ * Derive the complexity route from a Story's **serialized body markdown** —
+ * the deliver-side entry to {@link deriveStoryShape} (`/deliver` already
+ * fetches the body; the route is computed from it, never from a label). An
+ * unparseable body degrades to `full`: unknown shape is not trivial shape.
  *
- * The deterministic gate is conservative by construction, and seed word count
- * is a poor complexity proxy — so the planner is allowed to judge a `full`
- * verdict down to `lite`, but **only** with a recorded reason. The contract:
+ * Module-private, reachable end to end through
+ * {@link resolveStoryDispatchMode} (which returns the derived route) — so
+ * there is no test-only export to leave production-dead.
  *
- *   - No non-empty reason → the deterministic verdict stands, unchanged. A
- *     downgrade without a reason is indistinguishable from a silent gate
- *     change, which is exactly what this path must never be.
- *   - A signal that is not a `full` verdict (already `lite`, or absent) is
- *     returned unchanged — there is nothing to downgrade.
- *   - Otherwise the returned signal routes `lite`, appends the reason to
- *     `reasons`, and carries a frozen `downgraded: { from: 'full', reason }`
- *     record so the judgment is ledgerable on plan state (plan-persist writes
- *     it into every created Story's `story-plan-state` checkpoint).
- *
- * Pure and total: never mutates `signal`, never throws on malformed input.
- * The gate itself ({@link buildComplexityRouteSignal}) is untouched — it
- * still fails toward `full` on any doubt.
- *
- * @param {ReturnType<typeof buildComplexityRouteSignal>|null|undefined} signal
- * @param {{ reason?: unknown }} [args]
- * @returns {object|null|undefined} The (possibly downgraded) signal.
+ * @param {string} body Serialized Story-body markdown.
+ * @param {{ injectedRules?: object, selectSensitivePathClassesFn?: Function }} [opts]
+ * @returns {ReturnType<typeof deriveStoryShape>}
  */
-export function applyPlannerDowngrade(signal, { reason } = {}) {
-  if (!signal || typeof signal !== 'object' || signal.route !== 'full') {
-    return signal;
+function deriveStoryRouteFromBody(body, opts = {}) {
+  let parsed;
+  try {
+    parsed = parseStoryBody(String(body ?? '')).body;
+  } catch (err) {
+    return {
+      route: 'full',
+      reasons: [
+        `Story body is unparseable (${err?.message ?? err}) — shape unknown; conservative full route`,
+      ],
+      shape: null,
+      ceilings: STORY_SHAPE_CEILINGS,
+      preserves: LITE_PATH_INVARIANTS,
+    };
   }
-  const recorded = typeof reason === 'string' ? reason.trim() : '';
-  if (recorded === '') return signal;
-  return {
-    ...signal,
-    route: 'lite',
-    reasons: [
-      ...(Array.isArray(signal.reasons) ? signal.reasons : []),
-      `planner downgrade full → lite (recorded reason): ${recorded}`,
-    ],
-    downgraded: Object.freeze({ from: 'full', reason: recorded }),
-  };
+  return deriveStoryShape({
+    changes: parsed?.changes,
+    acceptance: parsed?.acceptance,
+    injectedRules: opts.injectedRules,
+    selectSensitivePathClassesFn: opts.selectSensitivePathClassesFn,
+  });
 }
 
 /**
- * Decide how `/deliver` executes a Story from its persisted route marker
- * (Story #4707).
+ * Decide how `/deliver` executes a Story — **from the Story body's own
+ * shape**, never from the `route::lite` label (Story #4722 AC-4/AC-5).
  *
- * Reads the labels the resolver envelope already carries. A Story labelled
- * {@link LITE_ROUTE_LABEL} executes **inline** in the deliver session — no
- * story-worker sub-agent boot and no fresh acceptance-critic sub-agent
- * dispatch (sub-agent boots are the dominant deliver-phase token cost at
- * trivial scope). Every other Story — including one with missing or
- * malformed labels — dispatches as a sub-agent: absence of the marker is the
- * conservative default, mirroring the gate's fail-toward-`full` posture.
+ * A lite-shaped Story executes **inline** in the deliver session — no
+ * story-worker sub-agent boot and no fresh acceptance-critic dispatch
+ * (sub-agent boots are the dominant deliver-phase token cost at trivial
+ * scope). Everything else — a full-shaped body, a missing/unparseable body,
+ * or the gate disabled via `planning.complexityGate.enabled=false` —
+ * dispatches as a sub-agent: the conservative default.
+ *
+ * The label is read only to report hint consistency in `reasons`: with the
+ * label absent (or its write failed) a lite-shaped Story still runs inline,
+ * and with the label present on a full-shaped Story the shape wins.
  *
  * Inline execution removes model-side fan-out only. Every deterministic
- * `single-story-close.js` gate (validation, security baseline, PR-to-`main`)
- * runs unchanged regardless of mode — see {@link LITE_PATH_INVARIANTS}.
+ * `single-story-close.js` gate runs unchanged regardless of mode — see the
+ * module header's non-negotiables.
  *
- * @param {{ labels?: unknown }} [args]
- * @returns {{ mode: 'inline'|'subagent', reasons: string[] }}
+ * @param {{
+ *   body?: unknown,
+ *   labels?: unknown,
+ *   config?: object,
+ *   injectedRules?: object,
+ *   selectSensitivePathClassesFn?: Function,
+ * }} [args]
+ * @returns {{ mode: 'inline'|'subagent', reasons: string[], route: ReturnType<typeof deriveStoryShape>|null }}
  */
-export function resolveStoryDispatchMode({ labels } = {}) {
-  const list = Array.isArray(labels)
+export function resolveStoryDispatchMode({
+  body,
+  labels,
+  config,
+  injectedRules,
+  selectSensitivePathClassesFn,
+} = {}) {
+  const labelList = Array.isArray(labels)
     ? labels.filter((l) => typeof l === 'string')
     : [];
-  if (list.includes(LITE_ROUTE_LABEL)) {
+  const hasHint = labelList.includes(LITE_ROUTE_LABEL);
+  const hintNote = hasHint
+    ? `the ${LITE_ROUTE_LABEL} label is present (hint only — the derived shape is the control signal)`
+    : `the ${LITE_ROUTE_LABEL} label is absent (hint only — the derived shape is the control signal)`;
+
+  const gate = resolveComplexityGate(config);
+  if (!gate.enabled) {
+    return {
+      mode: 'subagent',
+      reasons: [
+        'complexity routing disabled (planning.complexityGate.enabled=false) — standard sub-agent dispatch',
+      ],
+      route: null,
+    };
+  }
+
+  if (typeof body !== 'string' || body.trim() === '') {
+    return {
+      mode: 'subagent',
+      reasons: [
+        'no Story body to derive shape from — conservative sub-agent dispatch',
+        hintNote,
+      ],
+      route: null,
+    };
+  }
+
+  const route = deriveStoryRouteFromBody(body, {
+    injectedRules,
+    selectSensitivePathClassesFn,
+  });
+  if (route.route === 'lite') {
     return {
       mode: 'inline',
       reasons: [
-        `Story carries the ${LITE_ROUTE_LABEL} route marker — execute deliver-story inline; no story-worker or acceptance-critic sub-agent dispatch (close gates unchanged)`,
+        `lite-shaped Story — execute deliver-story inline; no story-worker or acceptance-critic sub-agent dispatch (close gates unchanged): ${route.reasons[0]}`,
+        hintNote,
       ],
+      route,
     };
   }
   return {
     mode: 'subagent',
-    reasons: [
-      `no ${LITE_ROUTE_LABEL} route marker — standard sub-agent dispatch`,
-    ],
+    reasons: [`full-shaped Story — ${route.reasons[0]}`, hintNote],
+    route,
   };
 }

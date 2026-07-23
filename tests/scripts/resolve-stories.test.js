@@ -280,21 +280,55 @@ describe('storiesToDag — body and native edges union into one graph', () => {
   });
 });
 
-describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4707)', () => {
-  it('derives inline for a route::lite Story and subagent otherwise', () => {
+describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => {
+  it('AC-5: derives inline from the BODY shape with the route::lite label absent', () => {
+    // One refactor + one acceptance criterion, no sensitive path: a
+    // lite-shaped body. No label anywhere — the shape is the control signal.
+    const env = buildStoriesEnvelope({
+      stories: [toStoryRecord(issue({ number: 1 }))],
+    });
+    assert.equal(env.stories[0].dispatchMode, 'inline');
+  });
+
+  it('AC-4/AC-5: the route::lite label never routes — a full-shaped body dispatches subagent', () => {
+    const wide = storyBody({
+      changes: ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'],
+    });
     const env = buildStoriesEnvelope({
       stories: [
         toStoryRecord(
           issue({
             number: 1,
+            body: wide,
             labels: [{ name: 'type::story' }, { name: 'route::lite' }],
           }),
         ),
-        toStoryRecord(issue({ number: 2 })),
       ],
     });
-    assert.equal(env.stories[0].dispatchMode, 'inline');
-    assert.equal(env.stories[1].dispatchMode, 'subagent');
+    assert.equal(env.stories[0].dispatchMode, 'subagent');
+  });
+
+  it('AC-6: a sensitive-path footprint dispatches subagent even at lite width', () => {
+    const env = buildStoriesEnvelope({
+      stories: [
+        toStoryRecord(
+          issue({
+            number: 1,
+            body: storyBody({ changes: ['src/auth/session.js'] }),
+            labels: [{ name: 'type::story' }, { name: 'route::lite' }],
+          }),
+        ),
+      ],
+    });
+    assert.equal(env.stories[0].dispatchMode, 'subagent');
+  });
+
+  it('planning.complexityGate.enabled=false forces subagent dispatch', () => {
+    const env = buildStoriesEnvelope({
+      stories: [toStoryRecord(issue({ number: 1 }))],
+      config: { planning: { complexityGate: { enabled: false } } },
+    });
+    assert.equal(env.stories[0].dispatchMode, 'subagent');
   });
 });
 

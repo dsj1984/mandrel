@@ -51,19 +51,23 @@ probe logs a warning and leans on init's lease refusal alone.
 
 ## Dispatch mechanics (role-scoped by default)
 
-**Lite-routed Stories execute inline (Story #4707).** Before spawning anything,
+**Lite-shaped Stories execute inline (Story #4722).** Before spawning anything,
 read the Story's `dispatchMode` from the resolver envelope
 (`stories[].dispatchMode`, derived by `resolveStoryDispatchMode` in
-`lib/orchestration/complexity-gate.js` from the persisted `route::lite`
-marker): a Story with `dispatchMode: "inline"` executes
+`lib/orchestration/complexity-gate.js` **from the fetched Story body's own
+shape** — `changes[]` count, acceptance count, creates-vs-refactors mix, and
+sensitive-path classes; the `route::lite` label is a human-visible hint only,
+never the control signal, so a lost or never-written label cannot misroute
+delivery): a Story with `dispatchMode: "inline"` executes
 [`deliver-story.md`](deliver-story.md) **inline in this session** — no
 `story-worker` sub-agent boot and no fresh acceptance-critic sub-agents
 (sub-agent boots are the dominant deliver-phase token cost at trivial scope) —
 threading the same `docsDigestPath` / `checklistPath` / change-set discipline
 as a spawned worker. Inline removes model-side fan-out only: every
 `single-story-close.js` gate, the PR to `main`, and the terminal envelope are
-identical. A Story without the marker (or with unreadable labels) takes the
-standard sub-agent path.
+identical. Everything else — a full-shaped body, a missing/unparseable body,
+or a footprint intersecting a sensitive-path class (sensitivity wins and
+keeps the fresh acceptance critic) — takes the standard sub-agent path.
 
 **Dispatch each `ready` Story (role-scoped by default).** When
 `delivery.routing.roleScopedAgents` is enabled (the **default**) and the host
