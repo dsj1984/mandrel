@@ -7,19 +7,36 @@
 
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import {
   _clearMainCheckoutRootCache,
+  anchorTempRoot,
   mainCheckoutRoot,
   runArtifactPath,
   runTempDir,
   signalsFile,
   storyManifestPath,
   storyTempDir,
+  TEST_TEMP_ROOT_ENV,
   tempRootFrom,
 } from '../../../.agents/scripts/lib/config/temp-paths.js';
 
 const SEP = path.sep;
+
+// The shared test bootstrap sets MANDREL_TEST_TEMP_ROOT so stray writers land
+// in scratch (Story #4696). This suite verifies the *production* main-checkout
+// anchoring, so it must run with the override cleared — otherwise every
+// relative-root assertion would resolve under scratch. Node runs each test
+// file in its own process, so mutating the env here does not leak to siblings.
+let savedScratchEnv;
+before(() => {
+  savedScratchEnv = process.env[TEST_TEMP_ROOT_ENV];
+  delete process.env[TEST_TEMP_ROOT_ENV];
+});
+after(() => {
+  if (savedScratchEnv === undefined) delete process.env[TEST_TEMP_ROOT_ENV];
+  else process.env[TEST_TEMP_ROOT_ENV] = savedScratchEnv;
+});
 
 /**
  * The directory helpers anchor a *relative* tempRoot to the main checkout
@@ -304,5 +321,47 @@ describe('lib/config/temp-paths.js — main-checkout anchoring (Story #3900)', (
     };
     const root = mainCheckoutRoot('/tmp/not-a-repo', { exec: throwingExec });
     assert.equal(root, null);
+  });
+});
+
+describe('lib/config/temp-paths.js — scratch tempRoot seam (Story #4696)', () => {
+  const SCRATCH = path.resolve(SEP, 'tmp', 'mandrel-scratch-abc');
+
+  it('anchorTempRoot redirects a relative root under scratch when the override is set', () => {
+    const env = { [TEST_TEMP_ROOT_ENV]: SCRATCH };
+    assert.equal(anchorTempRoot('temp', env), path.join(SCRATCH, 'temp'));
+    assert.equal(
+      anchorTempRoot(path.join('a', 'b'), env),
+      path.join(SCRATCH, 'a', 'b'),
+    );
+  });
+
+  it('anchorTempRoot ignores an empty / relative override (would re-anchor to the repo)', () => {
+    // An empty or relative override is treated as unset, so a relative root
+    // falls through to main-checkout anchoring rather than the scratch join.
+    const root = mainCheckoutRoot();
+    const expected = root ? path.join(root, 'temp') : 'temp';
+    assert.equal(
+      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: '' }),
+      expected,
+    );
+    assert.equal(
+      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: 'temp' }),
+      expected,
+    );
+  });
+
+  it('anchorTempRoot returns an absolute root verbatim even under scratch', () => {
+    const env = { [TEST_TEMP_ROOT_ENV]: SCRATCH };
+    const abs = path.resolve(SEP, 'var', 'injected');
+    assert.equal(anchorTempRoot(abs, env), abs);
+  });
+
+  it('anchorTempRoot falls back to main-checkout anchoring when no override is set', () => {
+    // With the override cleared (this suite deletes it in `before`), a
+    // relative root anchors to the real main checkout, not scratch.
+    const resolved = anchorTempRoot('temp', {});
+    const root = mainCheckoutRoot();
+    assert.equal(resolved, root ? path.join(root, 'temp') : 'temp');
   });
 });
