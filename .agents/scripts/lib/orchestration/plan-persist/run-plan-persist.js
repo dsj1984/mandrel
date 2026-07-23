@@ -47,6 +47,7 @@ import { Logger } from '../../Logger.js';
 import {
   deriveStoryShape,
   LITE_ROUTE_LABEL,
+  resolveComplexityGate,
   resolvePlannerRouteVerdict,
 } from '../complexity-gate.js';
 import {
@@ -299,6 +300,7 @@ async function renderRunScopedPlanMetricsLine({
  * @param {{
  *   stories: ReturnType<typeof assemblePlanStories>['stories'],
  *   routeDowngradeReason?: string|null,
+ *   config?: object,
  * }} args
  * @returns {{
  *   route: 'lite'|'full',
@@ -307,9 +309,31 @@ async function renderRunScopedPlanMetricsLine({
  *   shape: Array<{ slug: string, route: string, reasons: string[], shape: object|null }>,
  * }|null} `null` when the planner authored no verdict (nothing to persist).
  */
-function resolveEffectiveRoute({ stories, routeDowngradeReason = null }) {
+function resolveEffectiveRoute({
+  stories,
+  routeDowngradeReason = null,
+  config = {},
+}) {
   const verdict = resolvePlannerRouteVerdict({ reason: routeDowngradeReason });
   if (verdict.route !== 'lite') return null;
+
+  // The schema's documented contract: with the gate disabled
+  // (`planning.complexityGate.enabled=false`), persist refuses lite claims —
+  // the same switch dispatch reads (`resolveStoryDispatchMode` falls back to
+  // sub-agent), so neither read point can honor a lite claim the operator
+  // has switched off. The refusal is ledgered like any other, keeping the
+  // judgment auditable.
+  if (!resolveComplexityGate(config).enabled) {
+    return {
+      route: 'full',
+      reasons: [
+        'planner lite verdict refused: complexity routing is disabled ' +
+          '(planning.complexityGate.enabled=false)',
+      ],
+      authored: verdict.authored,
+      shape: [],
+    };
+  }
 
   const perStory = (Array.isArray(stories) ? stories : []).map((story) => {
     const derived = deriveStoryShape({
@@ -538,7 +562,11 @@ export async function runPlanPersist({
   // shape — a claim exceeding the shape ceilings fails closed to full. Lite
   // persists the `route::lite` HINT label + a checkpoint route block; a
   // refused claim ledgers the refusal (no label); no claim persists nothing.
-  const route = resolveEffectiveRoute({ stories, routeDowngradeReason });
+  const route = resolveEffectiveRoute({
+    stories,
+    routeDowngradeReason,
+    config,
+  });
   const isLiteRoute = route?.route === 'lite';
   if (isLiteRoute) {
     Logger.info(

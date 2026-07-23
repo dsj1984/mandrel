@@ -208,6 +208,24 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('rejects the retired planning.complexityGate.maxSeedWords knob on both sides (Story #4722)', () => {
+    // Word-count complexity routing was hard-cutover-removed; both schemas
+    // carry `additionalProperties: false` on the complexityGate block, so
+    // the retired knob is rejected identically on both sides while the
+    // surviving keys stay accepted.
+    assertAgree(
+      { ...REQ, planning: { complexityGate: { maxSeedWords: 200 } } },
+      'retired planning.complexityGate.maxSeedWords knob',
+    );
+    assertAgree(
+      {
+        ...REQ,
+        planning: { complexityGate: { enabled: true, maxArtifacts: 2 } },
+      },
+      'surviving complexityGate keys',
+    );
+  });
+
   it('rejects the removed planning.maxTickets knob on both sides (Story #4163)', () => {
     // `maxTickets` collapsed to a framework constant; both the runtime AJV
     // schema and the static mirror dropped it, so `additionalProperties:
