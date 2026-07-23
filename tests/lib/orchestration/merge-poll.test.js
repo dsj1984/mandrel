@@ -17,7 +17,9 @@ import { describe, it } from 'node:test';
 
 import {
   deriveChecksStatus,
+  deriveRequiredRunEvidence,
   failingChecksBlockMerge,
+  requiredCheckFailedBlocksMerge,
 } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
 
 describe('deriveChecksStatus', () => {
@@ -134,5 +136,165 @@ describe('failingChecksBlockMerge', () => {
       }),
       true,
     );
+  });
+});
+
+describe('deriveRequiredRunEvidence (Story #4695)', () => {
+  it('reports requiredRunFailed only for a genuine FAILURE/ERROR, not superseded noise', () => {
+    // A cancelled superseded run and a timed-out run are the rollup noise the
+    // aggregate `deriveChecksStatus` miscounts as failure — they are NOT a red
+    // required check.
+    assert.deepEqual(
+      deriveRequiredRunEvidence([
+        { status: 'COMPLETED', conclusion: 'CANCELLED' },
+        { status: 'COMPLETED', conclusion: 'TIMED_OUT' },
+        { status: 'COMPLETED', conclusion: 'SKIPPED' },
+        { status: 'COMPLETED', conclusion: 'SUCCESS' },
+      ]),
+      { requiredRunFailed: false, requiredRunInFlight: false },
+    );
+    assert.deepEqual(
+      deriveRequiredRunEvidence([
+        { status: 'COMPLETED', conclusion: 'FAILURE' },
+      ]),
+      { requiredRunFailed: true, requiredRunInFlight: false },
+    );
+    assert.deepEqual(
+      deriveRequiredRunEvidence([{ status: 'COMPLETED', conclusion: 'ERROR' }]),
+      { requiredRunFailed: true, requiredRunInFlight: false },
+    );
+  });
+
+  it('reports requiredRunInFlight for a QUEUED / IN_PROGRESS CheckRun', () => {
+    assert.deepEqual(
+      deriveRequiredRunEvidence([
+        { status: 'COMPLETED', conclusion: 'SUCCESS' },
+        { status: 'QUEUED' },
+      ]),
+      { requiredRunFailed: false, requiredRunInFlight: true },
+    );
+    assert.deepEqual(deriveRequiredRunEvidence([{ status: 'IN_PROGRESS' }]), {
+      requiredRunFailed: false,
+      requiredRunInFlight: true,
+    });
+  });
+
+  it('pins the false-positive shape: a cancelled run beside a still-queued required run', () => {
+    // Exactly the measured false positive — the aggregate reads `failure`, but
+    // the head still has a run in flight and nothing genuinely failed.
+    assert.deepEqual(
+      deriveRequiredRunEvidence([
+        { status: 'COMPLETED', conclusion: 'CANCELLED' },
+        { status: 'QUEUED' },
+      ]),
+      { requiredRunFailed: false, requiredRunInFlight: true },
+    );
+  });
+
+  it('handles legacy StatusContext entries via their state field', () => {
+    assert.deepEqual(deriveRequiredRunEvidence([{ state: 'PENDING' }]), {
+      requiredRunFailed: false,
+      requiredRunInFlight: true,
+    });
+    assert.deepEqual(deriveRequiredRunEvidence([{ state: 'FAILURE' }]), {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+    });
+    assert.deepEqual(deriveRequiredRunEvidence([{ state: 'EXPECTED' }]), {
+      requiredRunFailed: false,
+      requiredRunInFlight: true,
+    });
+  });
+
+  it('returns null for an empty or non-array rollup (evidence unavailable)', () => {
+    assert.equal(deriveRequiredRunEvidence([]), null);
+    assert.equal(deriveRequiredRunEvidence(undefined), null);
+    assert.equal(deriveRequiredRunEvidence(null), null);
+  });
+});
+
+describe('requiredCheckFailedBlocksMerge (Story #4695)', () => {
+  const genuinelyRed = {
+    checksStatus: 'failure',
+    mergeStateStatus: 'BLOCKED',
+    requiredRunEvidence: {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+    },
+  };
+
+  it('is true only when a required run failed with none in flight', () => {
+    assert.equal(requiredCheckFailedBlocksMerge(genuinelyRed), true);
+  });
+
+  it('is false when a required run is still in flight (the false positive)', () => {
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        ...genuinelyRed,
+        requiredRunEvidence: {
+          requiredRunFailed: false,
+          requiredRunInFlight: true,
+        },
+      }),
+      false,
+    );
+    // Even a genuine failure alongside an in-flight run keeps polling — the
+    // change never converts a real failure into a wait beyond one poll.
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        ...genuinelyRed,
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: true,
+        },
+      }),
+      false,
+    );
+  });
+
+  it('is false when the evidence is unavailable (older gh / API error)', () => {
+    // The consecutive-probe fallback owns this path — a single evidence-free
+    // failing snapshot must never fail-fast through this predicate.
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+      }),
+      false,
+    );
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+        requiredRunEvidence: null,
+      }),
+      false,
+    );
+  });
+
+  it('is false when the raw rollup gate does not hold (UNSTABLE / not red)', () => {
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        ...genuinelyRed,
+        mergeStateStatus: 'UNSTABLE',
+      }),
+      false,
+    );
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        checksStatus: 'success',
+        mergeStateStatus: 'BLOCKED',
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: false,
+        },
+      }),
+      false,
+    );
+  });
+
+  it('is false for a missing probe', () => {
+    assert.equal(requiredCheckFailedBlocksMerge(undefined), false);
+    assert.equal(requiredCheckFailedBlocksMerge(null), false);
   });
 });

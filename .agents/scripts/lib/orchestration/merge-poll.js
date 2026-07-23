@@ -58,6 +58,69 @@ export function deriveChecksStatus(statusCheckRollup) {
 }
 
 /**
+ * Pure: derive HEAD-ANCHORED per-run evidence from a `statusCheckRollup`
+ * array, distinguishing a genuinely red required run from the pending /
+ * superseded noise the aggregate {@link deriveChecksStatus} folds together.
+ *
+ * {@link deriveChecksStatus} returns `failure` the instant it sees ANY
+ * non-passing conclusion — including a `CANCELLED` superseded-push run or a
+ * sibling-invalidated run — even while the real required check is still
+ * queued. Paired with `mergeStateStatus: BLOCKED` (the protected-branch steady
+ * state while required checks run), that matched a merely *pending* PR and
+ * hard-blocked Stories whose PRs merged untouched. This derivation reads the
+ * two signals the fail-fast decision actually needs:
+ *
+ *   - `requiredRunFailed`   — a run on the head concluded `FAILURE` (or a
+ *                             legacy status context is `FAILURE`/`ERROR`).
+ *                             Deliberately NOT `CANCELLED`/`TIMED_OUT`/
+ *                             `SKIPPED`: those are the superseded-push and
+ *                             sibling-invalidated runs, not a red required
+ *                             check.
+ *   - `requiredRunInFlight` — any run on the head is still QUEUED /
+ *                             IN_PROGRESS (a CheckRun whose status is not
+ *                             `COMPLETED`, or a legacy status context still
+ *                             `PENDING`/`EXPECTED`).
+ *
+ * Returns `null` when the rollup is absent or empty — the evidence is
+ * unavailable and the caller must fall back to the consecutive-probe path
+ * (a single evidence-free failing snapshot must never fail-fast).
+ *
+ * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
+ * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
+ */
+export function deriveRequiredRunEvidence(statusCheckRollup) {
+  if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
+    return null;
+  }
+  let requiredRunFailed = false;
+  let requiredRunInFlight = false;
+  for (const check of statusCheckRollup) {
+    const conclusion = String(check?.conclusion ?? '').toUpperCase();
+    const status = String(check?.status ?? '').toUpperCase();
+    const state = String(check?.state ?? '').toUpperCase();
+    // In flight: a CheckRun not yet COMPLETED, or a legacy StatusContext still
+    // PENDING/EXPECTED. `status` is empty on a StatusContext, so it degrades to
+    // the `state` branch rather than counting as in-flight.
+    if (status && status !== 'COMPLETED') {
+      requiredRunInFlight = true;
+    } else if (state === 'PENDING' || state === 'EXPECTED') {
+      requiredRunInFlight = true;
+    }
+    // Genuinely red: FAILURE / ERROR only. CANCELLED / TIMED_OUT / SKIPPED are
+    // the superseded / sibling-invalidated noise a bare rollup miscounts.
+    if (
+      conclusion === 'FAILURE' ||
+      conclusion === 'ERROR' ||
+      state === 'FAILURE' ||
+      state === 'ERROR'
+    ) {
+      requiredRunFailed = true;
+    }
+  }
+  return { requiredRunFailed, requiredRunInFlight };
+}
+
+/**
  * The one `mergeStateStatus` value that means GitHub itself is gating the
  * merge. See {@link failingChecksBlockMerge}.
  */
@@ -100,5 +163,39 @@ export function failingChecksBlockMerge(prProbe) {
   if (prProbe?.checksStatus !== 'failure') return false;
   return (
     String(prProbe?.mergeStateStatus ?? '').toUpperCase() === MERGE_GATED_STATE
+  );
+}
+
+/**
+ * Pure: does HEAD-ANCHORED evidence establish that a REQUIRED check is
+ * genuinely red — enough to fail-fast the merge wait as `checks-failed`?
+ *
+ * This is the single gated decision Story #4695 adds, and the named predicate
+ * a downstream async-confirm Story imports rather than reopening the poll
+ * loop's classification internals. It layers on {@link failingChecksBlockMerge}
+ * (the rollup-`failure` + `mergeStateStatus: BLOCKED` gate) the head-anchored
+ * refinement the raw gate lacked: classify `checks-failed` ONLY when a run
+ * genuinely concluded failure AND none is still in flight. A red rollup while
+ * a required run is queued/in-progress is the protected-branch pending steady
+ * state, not a failure.
+ *
+ * The evidence is read from `prProbe.requiredRunEvidence` (the
+ * {@link deriveRequiredRunEvidence} output threaded through the probe). When it
+ * is absent — older `gh`, an API error, or a probe that never carried a rollup
+ * — this returns `false`: the caller's consecutive-probe fallback owns that
+ * path, because a single evidence-free failing snapshot must never fail-fast.
+ *
+ * @param {{ checksStatus?: string, mergeStateStatus?: string,
+ *   requiredRunEvidence?: { requiredRunFailed?: boolean, requiredRunInFlight?: boolean } }} [prProbe]
+ * @returns {boolean}
+ */
+export function requiredCheckFailedBlocksMerge(prProbe) {
+  if (!failingChecksBlockMerge(prProbe)) return false;
+  const evidence = prProbe?.requiredRunEvidence;
+  if (!evidence || typeof evidence.requiredRunFailed !== 'boolean') {
+    return false;
+  }
+  return (
+    evidence.requiredRunFailed === true && evidence.requiredRunInFlight !== true
   );
 }
