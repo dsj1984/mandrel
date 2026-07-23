@@ -164,10 +164,16 @@ function normalizeCeiling(value, fallback) {
  * `planning` bag, or the bare `complexityGate` bag, mirroring the tolerant
  * unwrap the other routing accessors use.
  *
+ * Exported for persist (`run-plan-persist.js#resolveEffectiveRoute`), which
+ * consults `enabled` to refuse a planner lite claim when the gate is off —
+ * the schema's documented contract, and the same switch dispatch reads in
+ * {@link resolveStoryDispatchMode}, so the two read points cannot disagree
+ * about whether lite routing is live.
+ *
  * @param {object | null | undefined} config
  * @returns {{ enabled: boolean, maxArtifacts: number }}
  */
-function resolveComplexityGate(config) {
+export function resolveComplexityGate(config) {
   const raw =
     config?.planning?.complexityGate ?? config?.complexityGate ?? config ?? {};
   const bag = raw && typeof raw === 'object' ? raw : {};
