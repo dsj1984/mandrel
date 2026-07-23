@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.10.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.9.0...mandrel-v2.10.0) (2026-07-23)
+
+
+### Added
+
+* ceremony-proportional lite route: end-to-end lite delivery, one-shot authoring, contract-level Story prose ([#4707](https://github.com/dsj1984/mandrel/issues/4707)) ([#4709](https://github.com/dsj1984/mandrel/issues/4709)) ([d9d543a](https://github.com/dsj1984/mandrel/commit/d9d543a40ec55c063e8b3bff143782b053f8ef52))
+* **ceremony:** findings-yield instrumentation + pre-eval full-suite discipline + lens diff-floor ([#4699](https://github.com/dsj1984/mandrel/issues/4699)) ([#4706](https://github.com/dsj1984/mandrel/issues/4706)) ([f7a6582](https://github.com/dsj1984/mandrel/commit/f7a658218f8a42997cb5bdbfe018c8b27e211b94))
+* **close:** async merge-confirm mode — probe once, return pending, land via background confirm ([#4698](https://github.com/dsj1984/mandrel/issues/4698)) ([#4705](https://github.com/dsj1984/mandrel/issues/4705)) ([79360ce](https://github.com/dsj1984/mandrel/commit/79360ce224d48896050494e15b227c68d430e003))
+* **plan:** external-dependency pre-mortem trigger so N=1 plans get a viability check ([#4700](https://github.com/dsj1984/mandrel/issues/4700)) ([#4702](https://github.com/dsj1984/mandrel/issues/4702)) ([4874890](https://github.com/dsj1984/mandrel/commit/4874890fab5ae346c2daf43b873ac374dc4a8df8))
+* **plan:** reintroduce a per-plan-run grouping label on persisted Stories (metadata-only) ([#4692](https://github.com/dsj1984/mandrel/issues/4692)) ([#4693](https://github.com/dsj1984/mandrel/issues/4693)) ([1ca7d75](https://github.com/dsj1984/mandrel/commit/1ca7d7582972585a414268b242fb88cfcc94953e))
+* residency & cache topology: always-on diet, shared-prefix subagent boots, lean-spine workflows ([#4708](https://github.com/dsj1984/mandrel/issues/4708)) ([#4718](https://github.com/dsj1984/mandrel/issues/4718)) ([8ba40d8](https://github.com/dsj1984/mandrel/commit/8ba40d84982a046a2f11e4be5e2a562b74c8f67e))
+
+
+### Fixed
+
+* **close:** harden the merge wait — gh subprocess timeouts, extracted fail-fast tree, resume-CLI wait override, honest required-run evidence ([#4710](https://github.com/dsj1984/mandrel/issues/4710)) ([#4717](https://github.com/dsj1984/mandrel/issues/4717)) ([3edc9b5](https://github.com/dsj1984/mandrel/commit/3edc9b53b8176aa2386e0d12023bf69ab28bd87f))
+* **close:** require head-anchored required-check evidence before the checks-failed fail-fast (refs [#4695](https://github.com/dsj1984/mandrel/issues/4695)) ([#4703](https://github.com/dsj1984/mandrel/issues/4703)) ([6b0b4db](https://github.com/dsj1984/mandrel/commit/6b0b4db021eb11ef46aa65fe6ed906f567ffef05))
+* **evidence:** extend gateName enum to the real close-gate set (refs [#4697](https://github.com/dsj1984/mandrel/issues/4697)) ([#4701](https://github.com/dsj1984/mandrel/issues/4701)) ([49be21b](https://github.com/dsj1984/mandrel/commit/49be21bc9556de5db60871e5140e674e02bb9667))
+* **observability:** isolate test-suite emissions from real telemetry streams and guard CI against fixture pollution ([#4696](https://github.com/dsj1984/mandrel/issues/4696)) ([#4704](https://github.com/dsj1984/mandrel/issues/4704)) ([992a5a2](https://github.com/dsj1984/mandrel/commit/992a5a2fa31091e9ae021c50c5ae8a7ec323ccd7))
+* **observability:** make the test-temp hygiene guard airtight (refs [#4711](https://github.com/dsj1984/mandrel/issues/4711)) ([#4716](https://github.com/dsj1984/mandrel/issues/4716)) ([7520cfb](https://github.com/dsj1984/mandrel/commit/7520cfb66fae3aa5c6802af109becbc2b2795b56))
+* **recover:** stability re-probe before trusting a mid-flight strand verdict ([#4719](https://github.com/dsj1984/mandrel/issues/4719)) ([a2edc9f](https://github.com/dsj1984/mandrel/commit/a2edc9f4465ca130b025deaaf12fb87174b242a4))
+
+
+### Changed
+
+* **metrics:** single ledger-append implementation and clean close boundary (refs [#4712](https://github.com/dsj1984/mandrel/issues/4712)) ([#4715](https://github.com/dsj1984/mandrel/issues/4715)) ([a9b019b](https://github.com/dsj1984/mandrel/commit/a9b019b6c68e3874950728578e535e4614751553))
+
 ## [2.9.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.8.0...mandrel-v2.9.0) (2026-07-21)
 
 
