@@ -930,7 +930,15 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
+      "symbol": "TEST_ALLOW_REAL_TEMP_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "_clearMainCheckoutRootCache"
+    },
+    {
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "symbol": "_clearTestContextScratchCache"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
@@ -2279,6 +2287,14 @@
     {
       "file": ".agents/scripts/lib/story-plan.js",
       "symbol": "REQUIRED_SECTIONS"
+    },
+    {
+      "file": ".agents/scripts/lib/test-env.js",
+      "symbol": "_clearTestScratchTempRootCache"
+    },
+    {
+      "file": ".agents/scripts/lib/test-env.js",
+      "symbol": "ensureTestScratchTempRoot"
     },
     {
       "file": ".agents/scripts/lib/test-isolate/list-files.js",
