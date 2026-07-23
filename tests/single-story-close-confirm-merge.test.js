@@ -29,6 +29,7 @@ import {
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
 import {
+  ASYNC_PROBE_WINDOW_SECONDS,
   DEFAULT_MAX_WAIT_SECONDS,
   DEFAULT_UPDATE_ATTEMPTS,
   MIN_POLLS_BEFORE_BUDGET_BLOCK,
@@ -41,6 +42,7 @@ import {
   parseCloseOptions,
   resolveWaitForMerge,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/options.js';
+import { terminalFromWaitOutcome } from '../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 
 /**
@@ -662,6 +664,111 @@ describe('merge wait — blocked terminals', () => {
   });
 });
 
+describe('merge wait — async mode (Story #4698)', () => {
+  it('AC-1: an unmerged healthy PR returns pending after a single bounded probe, with a resumable nextCommand', async () => {
+    const provider = makeFakeProvider();
+    const emitted = [];
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        // 40s per clock read: the first iteration's waited (40s) + interval
+        // (30s) already exceeds the async-clamped 60s bound, so the probe
+        // window returns pending after ONE bounded probe — no 300s burn.
+        nowMsFn: makeClock(40_000),
+        readPrWaitProbeFn: async () => openProbe(),
+        emitMergeUnlandedFn: () => emitted.push('unlanded'),
+      }),
+    );
+    assert.equal(outcome.confirmed, false);
+    assert.equal(outcome.terminal, 'pending');
+    // The async window returns the SAME resumable pending contract as a sync
+    // per-invocation expiry: no label flip, no merge.unlanded, no friction.
+    assert.equal(emitted.length, 0, 'no merge.unlanded from the async window');
+    assert.equal(provider._updates().length, 0, 'no label mutation');
+    assert.equal(provider._comments().length, 0, 'no friction comment');
+    // The clamped per-invocation bound is the async probe window, not 300s.
+    assert.equal(outcome.waitBudget.maxWaitSeconds, ASYNC_PROBE_WINDOW_SECONDS);
+
+    // The pending outcome threaded through the terminal builder carries a
+    // non-null nextCommand the worker launches in the background.
+    const terminal = terminalFromWaitOutcome({
+      waitOutcome: outcome,
+      storyId: 4428,
+      storyBranch: 'story-4428',
+      baseBranch: 'main',
+      prNumber: 99,
+      prUrl: 'https://github.com/o/r/pull/99',
+      autoMergeEnabled: true,
+      gates: { validation: 'passed', baseSync: 'passed', codeReview: 'passed' },
+      elapsedSeconds: 1,
+    });
+    assert.equal(terminal.status, 'pending');
+    assert.ok(terminal.nextCommand, 'pending terminal carries a nextCommand');
+    assert.match(terminal.nextCommand, /single-story-confirm-merge\.js/);
+  });
+
+  it('AC-2: an instantly-red required check still fails fast within the async probe window', async () => {
+    const provider = makeFakeProvider();
+    const emitted = [];
+    let polls = 0;
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        provider,
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () => {
+          polls += 1;
+          return openProbe({
+            checksStatus: 'failure',
+            mergeStateStatus: 'BLOCKED',
+            // Head-anchored evidence (Story #4695): a required run concluded
+            // failure and none is in flight — the imported
+            // requiredCheckFailedBlocksMerge predicate the async window reuses.
+            requiredRunEvidence: {
+              requiredRunFailed: true,
+              requiredRunInFlight: false,
+            },
+          });
+        },
+        emitMergeUnlandedFn: (rec) => emitted.push(rec),
+      }),
+    );
+    assert.equal(outcome.terminal, 'blocked');
+    assert.equal(outcome.blockClass, 'checks-failed');
+    assert.equal(polls, 1, 'failed fast on the first evidence-bearing probe');
+    assert.equal(emitted[0].evidencePath, 'per-run');
+    assert.deepEqual(provider._updates()[0].patch.labels.add, [
+      'agent::blocked',
+    ]);
+  });
+
+  it('AC-2: an instant merge inside the async window still lands, not pends', async () => {
+    const outcome = await runConfirmMergePhase(
+      phaseArgs({
+        config: { delivery: { mergeWatch: { mode: 'async' } } },
+        readPrWaitProbeFn: async () => ({
+          state: 'MERGED',
+          mergedAt: '2026-07-23T00:00:00Z',
+        }),
+        confirmStoryMergedFn: async () => ({ action: 'done', merged: true }),
+      }),
+    );
+    assert.equal(outcome.terminal, 'landed');
+    assert.equal(outcome.confirmed, true);
+  });
+
+  it('an explicit --max-wait-seconds override wins over the async cap (headless single-block)', () => {
+    const config = { delivery: { mergeWatch: { mode: 'async' } } };
+    // No override → clamped to the async probe window.
+    assert.equal(
+      resolveMergeWaitConfig(config).maxWaitSeconds,
+      ASYNC_PROBE_WINDOW_SECONDS,
+    );
+    // Explicit override → single-block waiting, async cap does not apply.
+    assert.equal(resolveMergeWaitConfig(config, 3600).maxWaitSeconds, 3600);
+  });
+});
+
 describe('merge wait — a PR that falls behind its base', () => {
   it('updates a BEHIND PR within a bounded number of attempts', async () => {
     let updates = 0;
@@ -757,6 +864,28 @@ describe('resolveMergeWaitConfig / resolveBudgetAnchorMs', () => {
     // The two budgets are separate axes: the per-invocation bound must be
     // well inside the cumulative one, or resuming would be pointless.
     assert.ok(resolved.maxWaitSeconds < resolved.maxBudgetSeconds);
+  });
+
+  it('defaults mode to sync and leaves the per-invocation bound unclamped (Story #4698 AC-3)', () => {
+    // Byte-compatible: with mode absent or "sync", the resolved config is the
+    // pre-#4698 shape and the 300s per-invocation bound is untouched.
+    assert.equal(resolveMergeWaitConfig({}).mode, 'sync');
+    assert.equal(
+      resolveMergeWaitConfig({}).maxWaitSeconds,
+      DEFAULT_MAX_WAIT_SECONDS,
+    );
+    const syncConfig = { delivery: { mergeWatch: { mode: 'sync' } } };
+    assert.equal(resolveMergeWaitConfig(syncConfig).mode, 'sync');
+    assert.equal(
+      resolveMergeWaitConfig(syncConfig).maxWaitSeconds,
+      DEFAULT_MAX_WAIT_SECONDS,
+    );
+    // An unknown mode value degrades to sync rather than clamping.
+    assert.equal(
+      resolveMergeWaitConfig({ delivery: { mergeWatch: { mode: 'weird' } } })
+        .mode,
+      'sync',
+    );
   });
 
   it('reads the operator config and lets an explicit override win', () => {

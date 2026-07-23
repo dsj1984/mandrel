@@ -280,6 +280,17 @@ healthy and in flight (or a human owns the merge), nothing was mutated, and
 the envelope's `nextCommand` names what resumes it. Run that command rather
 than re-dispatching the Story.
 
+> **Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`, Story
+> #4698).** A slow-CI consumer can opt the close into `"async"` mode so the
+> merge wait probes once for ~60s (catching an instant merge or an instantly-red
+> required check) and then returns `pending` instead of burning ~5 minutes of
+> the host tool slot polling a merge that lands after the wait would have
+> expired anyway. When a worker returns that `pending` envelope, launch its
+> `nextCommand` as a **background** invocation (host background Bash — its
+> completion re-invokes the agent) and move on to the next Story;
+> `single-story-confirm-merge.js` is idempotent and owns the whole tail. Do not
+> foreground-poll the merge. The default `"sync"` behaviour is unchanged.
+
 For a Story in an unclear state — including the merged-but-label-stale one a
 `/deliver` re-run refuses outright — probe it read-only:
 

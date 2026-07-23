@@ -313,6 +313,26 @@ The wait probes the checks every poll: a red required check fails fast as
 `checks-failed` instead of burning the budget, and a PR that falls behind its
 base is brought up to date within `updateAttempts` tries.
 
+> **Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`, Story
+> #4698).** Under the default `"sync"` the merge wait runs in the foreground as
+> described above. When a consumer's CI routinely takes longer than the host
+> tool ceiling (~10 min) can hold a single close invocation, the foreground
+> wait almost always expires `pending` after burning ~5 minutes of the slot —
+> so `"async"` makes that async confirm a designed mode instead of an expiry
+> accident. In async mode the close arms auto-merge, runs one short **~60s
+> probe window** (long enough to catch an instant merge and, via the
+> head-anchored required-check predicate, an instantly-red required check),
+> then returns the standard `pending` terminal with a `nextCommand`. When you
+> receive that `pending` envelope, launch its `nextCommand`
+> (`single-story-confirm-merge.js … --wait`) as a **background** invocation —
+> host **background Bash** (`run_in_background`), whose completion re-invokes
+> the agent — and continue; do **not** sit in a foreground poll the tool
+> ceiling will kill. `single-story-confirm-merge.js` is already idempotent and
+> owns the whole tail, so no new state holder is needed, and
+> `deliver-recover.js` remains the recovery path for an orphaned confirm. The
+> cumulative `maxBudgetSeconds` give-up is unchanged; `"sync"` behaviour is
+> byte-compatible.
+>
 > **`delivery.ci.autoMerge` policy.** Under the default `"trust-ci"`, GitHub
 > native auto-merge is armed and the PR squash-merges once its **required**
 > checks pass. Under `"strict"`, the close **does not arm auto-merge** — the

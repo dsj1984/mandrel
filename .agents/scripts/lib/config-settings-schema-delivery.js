@@ -160,10 +160,19 @@ const SIGNALS_SCHEMA = {
  * behind-the-base PR up to date before giving the branch up as unwinnable,
  * rather than waiting out the budget behind a base it could have merged.
  * All keys default in the consumer when omitted (30s / 300s / 3600s / 3).
+ *
+ * `mode` selects the close-time merge posture (Story #4698). Default `sync`
+ * keeps the in-close foreground wait unchanged. `async` caps the per-invocation
+ * wait to a short probe window (~60s: catches instant merges and instantly-red
+ * required checks) and then returns the resumable `pending` terminal, so a
+ * slow-CI consumer no longer burns ~5 minutes of the host tool slot on a merge
+ * that lands after the wait would have expired anyway — the worker launches the
+ * `pending` envelope's `nextCommand` in the background instead.
  */
 const MERGE_WATCH_SCHEMA = {
   type: 'object',
   properties: {
+    mode: { type: 'string', enum: ['sync', 'async'] },
     intervalSeconds: { type: 'integer', minimum: 1 },
     maxWaitSeconds: { type: 'integer', minimum: 1 },
     maxBudgetSeconds: { type: 'integer', minimum: 1 },
