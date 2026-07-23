@@ -956,6 +956,38 @@ describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
     assert.match(checkpoint, /planner believes this is trivial/);
   });
 
+  it('a lite claim is refused when the gate is disabled — persist matches dispatch (Story #4722)', async () => {
+    // The schema documents that `planning.complexityGate.enabled=false`
+    // makes persist refuse lite claims (dispatch already falls back to
+    // sub-agent when disabled). Pin the persist side of that contract: the
+    // claim fails closed to full with the disabled gate as the ledgered
+    // reason, and no route hint is persisted.
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('solo')] },
+      config: { planning: { complexityGate: { enabled: false } } },
+      opts: {
+        skipCleanup: true,
+        routeDowngradeReason: 'planner believes this is trivial',
+      },
+    });
+
+    assert.equal(result.route.route, 'full');
+    assert.match(result.route.reasons[0], /disabled/);
+    assert.deepEqual(result.route.authored, {
+      route: 'lite',
+      reason: 'planner believes this is trivial',
+    });
+    assert.ok(
+      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
+      'a refused claim persists no route hint',
+    );
+  });
+
   it('absent a recorded reason there is no claim — standard full, nothing ledgered (AC-2)', async () => {
     for (const routeDowngradeReason of [undefined, null, '', '   ']) {
       const labelsAtCreate = [];

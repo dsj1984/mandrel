@@ -244,6 +244,20 @@ describe('planning.* shape', () => {
     );
   });
 
+  it('rejects the retired planning.complexityGate.maxSeedWords knob (Story #4722)', () => {
+    // Word-count routing was hard-cutover-removed: the route derives from
+    // the authored Story's shape. `additionalProperties: false` on the
+    // complexityGate block rejects the retired key (the
+    // 2.11.0-retire-max-seed-words migration strips it on consumer upgrade).
+    expectErrors(
+      {
+        ...REQ,
+        planning: { complexityGate: { maxSeedWords: 200 } },
+      },
+      /additional propert/i,
+    );
+  });
+
   it('rejects the retired planning.taskSizing key (v2 Stage 2)', () => {
     // File/AC ceilings were replaced by DEFAULT_MODEL_CAPACITY; additionalProperties
     // false on the planning block rejects the retired key.
