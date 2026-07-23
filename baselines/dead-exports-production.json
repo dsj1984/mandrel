@@ -1874,6 +1874,10 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "ASYNC_PROBE_WINDOW_SECONDS"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "DEFAULT_MAX_WAIT_SECONDS"
     },
     {

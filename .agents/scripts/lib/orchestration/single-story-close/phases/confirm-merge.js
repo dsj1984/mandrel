@@ -36,6 +36,24 @@
  * Backgrounding is not a workaround here and does not need to be: an
  * interrupted poll is stateless and re-entrant by construction.
  *
+ * ## Async mode (Story #4698 — a designed short probe window, not an accident)
+ *
+ * `maxWaitSeconds` (default 300s) still routinely EXPIRES on a slow-CI
+ * consumer: the median PR-create→merge time can be minutes, so nearly every
+ * close burns its whole foreground slot polling and then returns `pending`
+ * anyway. `delivery.mergeWatch.mode: "async"` makes that async confirm a
+ * designed mode rather than an expiry accident. It caps the per-invocation
+ * wait to a short probe window (`ASYNC_PROBE_WINDOW_SECONDS`, ~60s) — long
+ * enough for the loop's existing checks to catch an instant merge and, via the
+ * imported {@link requiredCheckFailedBlocksMerge} predicate (Story #4695), an
+ * instantly-red required check — then returns the SAME resumable `pending`
+ * terminal, whose `nextCommand` the worker launches in the background. Nothing
+ * else changes: the cumulative `maxBudgetSeconds` anchor is untouched, and
+ * `sync` mode (the default) is byte-compatible. An explicit `--max-wait-seconds`
+ * override wins over the async cap so a headless caller can still land in one
+ * block. The clamp lives entirely in `resolveMergeWaitConfig`; the poll loop is
+ * mode-agnostic.
+ *
  * ## The wait is not weaker than the watch it displaced
  *
  * The pre-#4543 poll read only `state` / `mergedAt`. A check that went red
@@ -106,6 +124,17 @@ import { runPostLandTail as defaultRunPostLandTail } from './post-land.js';
  * `delivery.mergeWatch.maxWaitSeconds` to keep single-block semantics.
  */
 export const DEFAULT_MAX_WAIT_SECONDS = 300;
+
+/**
+ * Async-mode per-invocation probe window (Story #4698). When
+ * `delivery.mergeWatch.mode` is `"async"`, `resolveMergeWaitConfig` caps the
+ * per-invocation wait to this many seconds so close returns the resumable
+ * `pending` terminal fast instead of burning the foreground host slot. Sized
+ * to catch an instant merge and — via the head-anchored required-check
+ * predicate — an instantly-red required check, while staying far inside the
+ * cumulative `maxBudgetSeconds` give-up bound.
+ */
+export const ASYNC_PROBE_WINDOW_SECONDS = 60;
 
 /** Bounded `gh pr update-branch` attempts for a BEHIND PR. */
 export const DEFAULT_UPDATE_ATTEMPTS = 3;
@@ -192,18 +221,36 @@ export async function readPrWaitProbe({ prNumber, gh = defaultGh }) {
  * raises the per-invocation bound to keep single-block semantics without
  * editing the consumer's config.
  *
+ * `mode` (Story #4698) selects the close-time merge posture. `async` caps the
+ * per-invocation wait to `ASYNC_PROBE_WINDOW_SECONDS` so close returns the
+ * resumable `pending` terminal fast; `sync` (the default) is unchanged. An
+ * explicit `maxWaitSecondsOverride` still wins over the async cap — a headless
+ * caller with no host ceiling opts back into single-block waiting.
+ *
  * @param {object} [config]
  * @param {number} [maxWaitSecondsOverride]
- * @returns {{ intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number, updateAttempts: number }}
+ * @returns {{ mode: 'sync'|'async', intervalSeconds: number, maxWaitSeconds: number, maxBudgetSeconds: number, updateAttempts: number }}
  */
 export function resolveMergeWaitConfig(config, maxWaitSecondsOverride) {
   const mergeWatch = config?.delivery?.mergeWatch ?? {};
   const int = (value, fallback, min = 1) =>
     Number.isInteger(value) && value >= min ? value : fallback;
-  const maxWaitSeconds = int(
+  const mode = mergeWatch.mode === 'async' ? 'async' : 'sync';
+  const configuredMaxWait = int(
     maxWaitSecondsOverride,
     int(mergeWatch.maxWaitSeconds, DEFAULT_MAX_WAIT_SECONDS),
   );
+  // Async mode caps the per-invocation wait to a short probe window so close
+  // returns `pending` fast instead of burning the foreground host slot on a
+  // merge that lands after the wait would have expired anyway. The window is
+  // long enough for the loop's existing checks to catch an instant merge and —
+  // via the imported `requiredCheckFailedBlocksMerge` predicate — an instantly
+  // red required check. An explicit `--max-wait-seconds` override still wins so
+  // a headless caller with no host ceiling opts back into single-block waiting.
+  const maxWaitSeconds =
+    mode === 'async' && maxWaitSecondsOverride == null
+      ? Math.min(configuredMaxWait, ASYNC_PROBE_WINDOW_SECONDS)
+      : configuredMaxWait;
   // A poll interval longer than the wait bound is incoherent, and silently
   // harmful: the pending check would fire on poll 1 every time, so the wait
   // could never sleep, `polls` could never reach
@@ -217,6 +264,7 @@ export function resolveMergeWaitConfig(config, maxWaitSecondsOverride) {
     maxWaitSeconds,
   );
   return {
+    mode,
     intervalSeconds,
     maxWaitSeconds,
     maxBudgetSeconds: int(
@@ -713,8 +761,13 @@ export async function runConfirmMergePhase({
     });
   }
 
-  const { intervalSeconds, maxWaitSeconds, maxBudgetSeconds, updateAttempts } =
-    resolveMergeWaitConfig(config, maxWaitSecondsOverride);
+  const {
+    mode,
+    intervalSeconds,
+    maxWaitSeconds,
+    maxBudgetSeconds,
+    updateAttempts,
+  } = resolveMergeWaitConfig(config, maxWaitSecondsOverride);
   const intervalMs = intervalSeconds * 1000;
   const startedAtMs = nowMsFn();
   let anchorMs = startedAtMs;
@@ -730,7 +783,8 @@ export async function runConfirmMergePhase({
   progress?.(
     'CONFIRM',
     `⏳ Close-and-land: polling PR #${prNumber} for merge confirmation ` +
-      `(wait=${maxWaitSeconds}s this invocation, cumulative budget=${maxBudgetSeconds}s)...`,
+      `(mode=${mode}, wait=${maxWaitSeconds}s this invocation, ` +
+      `cumulative budget=${maxBudgetSeconds}s)...`,
   );
 
   while (true) {
