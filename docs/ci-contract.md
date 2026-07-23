@@ -51,6 +51,7 @@ authoritative verdict is the CI run on the pull request.
 | Action pinning                           | `node .agents/scripts/check-action-pinning.js` (`.github/workflows/ci.yml`)           | Guards that every third-party `uses:` ref stays pinned to a full 40-char commit SHA. It gates the workflow-file supply chain — a concern that only exists in the CI/CD surface itself, and there is no `verify` step for it.  |
 | TruffleHog secret scan                   | `trufflesecurity/trufflehog@…` action with `--only-verified` (`.github/workflows/ci.yml`) | A pinned third-party GitHub Action that scans the *full fetched git history* for verified secrets. It needs the Actions runner and the action's own container — there is no local `verify` equivalent.                        |
 | Push-scoped maintainability (`BASELINE_SCOPE=full`) | `npm run maintainability:check` with `BASELINE_SCOPE=full` on push-to-`main` (`.github/workflows/ci.yml`) | On PR runs maintainability is diff-scoped to `main`; **push-to-`main`** runs export `BASELINE_SCOPE=full` so *untouched* files still surface regressions. `npm run verify` runs the diff/local scope, not the full push-scoped sweep, so a whole-repo MI regression can only be caught by the remote push run. |
+| Test-temp hygiene (`--snapshot` / `--assert`) | `node .agents/scripts/check-test-temp-hygiene.js --snapshot` before the test run, `--assert` after (`.github/workflows/ci.yml`) | Brackets the CI test run (Story #4696): fingerprints the friction / lifecycle / trace NDJSON streams under `temp/` pre-test and fails the build if any stream file was added or grew — catching a test writer that bypasses the scratch seam and pollutes real telemetry. `npm run verify` does not bracket its test run with this snapshot/assert pair. |
 
 ## `trust-ci` auto-merge prerequisite: configure required checks
 
@@ -75,6 +76,6 @@ arming gate regardless of the required-check configuration.
 ## Practical implication
 
 Run `npm run verify` before opening a PR for fast, local confidence across
-audit + lint + test + baselines + ratchets. Treat the three gates above as the residual
+audit + lint + test + baselines + ratchets. Treat the four gates above as the residual
 risk that only the CI run on the pull request can close — do not read a local
 green as a guaranteed remote green.

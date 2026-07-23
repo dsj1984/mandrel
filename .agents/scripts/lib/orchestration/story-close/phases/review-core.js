@@ -11,9 +11,9 @@
 
 import { countChangedLines } from '../../../audit-suite/index.js';
 import { gitSpawn } from '../../../git-utils.js';
+import { appendFindingsYield } from '../../../observability/metrics-ledger.js';
 import { computeChangeSet } from '../../change-set.js';
 import { runCodeReview } from '../../code-review.js';
-import { appendFindingsYield } from '../../plan-metrics.js';
 import { runLocalLensReview } from './local-lens-review.js';
 
 /**

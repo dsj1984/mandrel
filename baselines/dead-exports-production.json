@@ -1325,6 +1325,14 @@
       "symbol": "renderActiveStoryEnvFile"
     },
     {
+      "file": ".agents/scripts/lib/observability/metrics-ledger.js",
+      "symbol": "MAX_LEDGER_BYTES"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/metrics-ledger.js",
+      "symbol": "PLAN_METRICS_BASENAME"
+    },
+    {
       "file": ".agents/scripts/lib/observability/signal-validator.js",
       "symbol": "readSignalRejectCount"
     },
@@ -1522,27 +1530,11 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "MAX_LEDGER_BYTES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "PLAN_METRICS_BASENAME"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "symbol": "PLAN_METRICS_KIND_CRITIC_SKIP"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "PLAN_METRICS_SCHEMA_VERSION"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "symbol": "appendPlanMetric"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "planMetricsPath"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
