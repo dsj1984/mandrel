@@ -44,7 +44,11 @@ import { anchorTempRoot, tempRootFrom } from '../../config/temp-paths.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
-import { applyPlannerDowngrade, LITE_ROUTE_LABEL } from '../complexity-gate.js';
+import {
+  deriveStoryShape,
+  LITE_ROUTE_LABEL,
+  resolvePlannerRouteVerdict,
+} from '../complexity-gate.js';
 import {
   appendCriticSkip,
   readPlanMetrics,
@@ -264,65 +268,82 @@ async function renderRunScopedPlanMetricsLine({
 
 /**
  * Resolve the plan's **effective** complexity route for persist
- * (Story #4707).
+ * (Story #4722, superseding the envelope-verdict model of Story #4707).
  *
- * The deterministic verdict rides in on the captured plan-context envelope's
- * `complexityRoute`. Layered on top is the audited planner downgrade: a
- * `full` verdict downgrades to `lite` **only** when the operator/planner
- * passed `--route-downgrade-reason` with a non-empty reason
- * (`applyPlannerDowngrade` — absent a recorded reason the deterministic
- * verdict stands, and the gate itself still fails toward `full`).
+ * Two staged inputs, no word count anywhere:
+ *
+ *   1. **The planner's authored verdict** — `--route-downgrade-reason` is the
+ *      lite claim's recorded reason (`resolvePlannerRouteVerdict`). No
+ *      recorded reason means no claim: the plan persists as standard `full`
+ *      and nothing is ledgered (`null`).
+ *   2. **The deterministic shape backstop** — a lite claim is validated
+ *      against every assembled Story's own shape (`deriveStoryShape` over its
+ *      `changes[]`, acceptance count, creates-vs-refactors mix, and
+ *      sensitive-path classes). Any Story exceeding the ceilings **fails the
+ *      claim closed to `full`** — the honest gate: after authoring, the work
+ *      has measurable shape, so complexity is read from the work, not guessed
+ *      from the seed.
  *
  * The resolved route decides whether the created Stories carry the
- * {@link LITE_ROUTE_LABEL} marker and a `route` block on their
- * `story-plan-state` checkpoint — the persisted, ledgered record `/deliver`
- * reads. A full route persists **no** marker and no checkpoint block:
- * absence is the conservative default.
+ * {@link LITE_ROUTE_LABEL} **hint** (never the control signal — `/deliver`
+ * re-derives the route from the Story body's shape) and the `route` block
+ * ledgered on their `story-plan-state` checkpoint, including the authored
+ * verdict, its recorded reason, and the per-Story shape evidence. A refused
+ * claim is ledgered too (route `full` with the refusal reasons), so the
+ * judgment stays auditable either way.
  *
  * Module-private: reachable end to end through {@link runPlanPersist}
  * (whose result reports the resolved route), so there is no test-only
  * export to leave production-dead.
  *
- * @param {{ planContextEnvelope?: object|null, routeDowngradeReason?: string|null }} args
- * @returns {{ route: 'lite'|'full', reasons: string[], downgraded: { from: 'full', reason: string }|null }|null}
- *   `null` when no envelope carried a verdict (nothing to persist).
+ * @param {{
+ *   stories: ReturnType<typeof assemblePlanStories>['stories'],
+ *   routeDowngradeReason?: string|null,
+ * }} args
+ * @returns {{
+ *   route: 'lite'|'full',
+ *   reasons: string[],
+ *   authored: { route: 'lite', reason: string },
+ *   shape: Array<{ slug: string, route: string, reasons: string[], shape: object|null }>,
+ * }|null} `null` when the planner authored no verdict (nothing to persist).
  */
-function resolveEffectiveRoute({
-  planContextEnvelope = null,
-  routeDowngradeReason = null,
-} = {}) {
-  const verdict = planContextEnvelope?.complexityRoute ?? null;
-  if (!verdict || typeof verdict !== 'object') {
-    if (
-      typeof routeDowngradeReason === 'string' &&
-      routeDowngradeReason.trim() !== ''
-    ) {
-      Logger.warn(
-        '[plan-persist] --route-downgrade-reason was passed but no captured ' +
-          'plan-context envelope carries a complexityRoute verdict — there ' +
-          'is no full verdict to downgrade, so the plan persists as full ' +
-          '(no route marker).',
-      );
-    }
-    return null;
-  }
-  const effective = applyPlannerDowngrade(verdict, {
-    reason: routeDowngradeReason,
+function resolveEffectiveRoute({ stories, routeDowngradeReason = null }) {
+  const verdict = resolvePlannerRouteVerdict({ reason: routeDowngradeReason });
+  if (verdict.route !== 'lite') return null;
+
+  const perStory = (Array.isArray(stories) ? stories : []).map((story) => {
+    const derived = deriveStoryShape({
+      changes: story.bodyObject?.changes,
+      acceptance: story.acceptance,
+    });
+    return {
+      slug: story.slug,
+      route: derived.route,
+      reasons: derived.reasons,
+      shape: derived.shape,
+    };
   });
-  if (
-    typeof routeDowngradeReason === 'string' &&
-    routeDowngradeReason.trim() !== '' &&
-    effective.downgraded == null
-  ) {
-    Logger.warn(
-      '[plan-persist] --route-downgrade-reason had no effect: the envelope ' +
-        `verdict is already "${verdict.route}" — nothing to downgrade.`,
-    );
+  const offenders = perStory.filter((entry) => entry.route !== 'lite');
+  if (offenders.length > 0) {
+    return {
+      route: 'full',
+      reasons: [
+        `planner lite verdict refused: ${offenders.length} of ${perStory.length} ` +
+          'Story(ies) exceed the lite shape ceilings — failing closed to full',
+        ...offenders.map((entry) => `${entry.slug}: ${entry.reasons[0]}`),
+      ],
+      authored: verdict.authored,
+      shape: perStory,
+    };
   }
   return {
-    route: effective.route === 'lite' ? 'lite' : 'full',
-    reasons: Array.isArray(effective.reasons) ? effective.reasons : [],
-    downgraded: effective.downgraded ?? null,
+    route: 'lite',
+    reasons: [
+      ...verdict.reasons,
+      'shape backstop: every authored Story fits the lite shape ceilings',
+    ],
+    authored: verdict.authored,
+    shape: perStory,
   };
 }
 
@@ -424,7 +445,6 @@ export async function runPlanPersist({
     stories: rawStories = null,
     techSpecContent = null,
     planAcceptance = null,
-    planContextEnvelope = null,
   } = artifacts ?? {};
   const {
     forceReview = false,
@@ -513,22 +533,24 @@ export async function runPlanPersist({
     sourceTicketIds,
   });
 
-  // Effective complexity route (Story #4707): envelope verdict, plus the
-  // audited planner downgrade when --route-downgrade-reason was recorded.
-  // Lite persists the `route::lite` marker + a checkpoint block; full
-  // persists nothing.
-  const route = resolveEffectiveRoute({
-    planContextEnvelope,
-    routeDowngradeReason,
-  });
+  // Effective complexity route (Story #4722): the planner's authored lite
+  // verdict (recorded reason), validated against every assembled Story's own
+  // shape — a claim exceeding the shape ceilings fails closed to full. Lite
+  // persists the `route::lite` HINT label + a checkpoint route block; a
+  // refused claim ledgers the refusal (no label); no claim persists nothing.
+  const route = resolveEffectiveRoute({ stories, routeDowngradeReason });
   const isLiteRoute = route?.route === 'lite';
   if (isLiteRoute) {
     Logger.info(
-      `[plan-persist] ceremony-lite route: created Stories carry the ` +
-        `${LITE_ROUTE_LABEL} marker` +
-        (route.downgraded
-          ? ` (planner downgrade, recorded reason: ${route.downgraded.reason})`
-          : ' (deterministic gate verdict)'),
+      `[plan-persist] ceremony-lite route upheld by the shape backstop: ` +
+        `created Stories carry the ${LITE_ROUTE_LABEL} hint ` +
+        `(recorded reason: ${route.authored.reason}). /deliver re-derives ` +
+        'the route from each Story body — the label is never the control signal.',
+    );
+  } else if (route) {
+    Logger.warn(
+      `[plan-persist] ${route.reasons.join('; ')} — persisting as full ` +
+        '(no route hint label).',
     );
   }
 
@@ -586,10 +608,11 @@ export async function runPlanPersist({
             id: createdStory.id,
           })),
         },
-        // Ledger the lite route — including any planner downgrade and its
-        // recorded reason — on plan state (Story #4707). A full route writes
-        // no block: absence of the marker is the full path.
-        ...(isLiteRoute ? { route } : {}),
+        // Ledger the authored route verdict — the recorded reason and the
+        // per-Story shape evidence, including a shape-refused claim — on plan
+        // state (Story #4722). No authored verdict writes no block: absence
+        // is the standard full path.
+        ...(route ? { route } : {}),
       });
     }
     await upsertStructuredComment(

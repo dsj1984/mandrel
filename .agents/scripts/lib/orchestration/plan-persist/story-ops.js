@@ -46,7 +46,11 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 /** Stable color for the cohort grouping label (`ensureLabels`). */
 const PLAN_RUN_LABEL_COLOR = '#C5DEF5';
 
-/** Stable color for the `route::lite` ceremony-route marker (Story #4707). */
+/**
+ * Stable color for the `route::lite` ceremony-route hint (Story #4707;
+ * hint-only since Story #4722 — `/deliver` re-derives the route from the
+ * Story body's shape).
+ */
 const LITE_ROUTE_LABEL_COLOR = '#D4C5F9';
 
 /** Length of the derived plan-run id (hex chars). */
@@ -694,9 +698,10 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
  * route, and an opaque derived label never exists yet.
  *
  * **Non-fatal by design**, matching the native-blocked_by mirroring posture:
- * neither label is load-bearing for correctness (grouping is cosmetic; a
- * missing route marker degrades a lite Story to the standard — safer —
- * sub-agent dispatch), so it is never a reason to fail persist. On an ensure
+ * neither label is load-bearing for correctness (grouping is cosmetic, and
+ * the route label is a human-visible hint only — `/deliver` re-derives the
+ * route from the Story body's shape, Story #4722), so it is never a reason
+ * to fail persist. On an ensure
  * failure (throw, or the label reported `missing` by the post-loop
  * reconcile) the create loop proceeds **without** the label — applying an
  * unensured label could fail the issue create itself, and the Stories matter
@@ -782,15 +787,16 @@ async function ensurePersistLabel({
  * every id is known (Story #4544), so plan-created order stops depending on
  * prose. That pass is non-fatal — see `mirrorNativeDependencyEdges`.
  *
- * **A lite-routed cohort carries the `route::lite` marker** (Story #4707).
- * When the caller resolves the plan's effective complexity route to `lite`
- * (envelope verdict, or an audited planner downgrade), it passes the marker
- * via `opts.routeLabel` and every created Story carries it — the persisted,
- * `/deliver`-readable form of the route (`resolveStoryDispatchMode`). A
- * full-routed plan passes nothing and its Stories carry **no** route marker.
- * Like the cohort label, the ensure is non-fatal: a Story created without
- * the marker degrades to the standard sub-agent dispatch, never to a skipped
- * gate.
+ * **A lite-routed cohort carries the `route::lite` hint** (Story #4707,
+ * hint-only since Story #4722). When the caller resolves the plan's
+ * effective complexity route to `lite` (the planner's recorded verdict,
+ * upheld by the shape backstop), it passes the label via `opts.routeLabel`
+ * and every created Story carries it — a **human-visible hint only**, never
+ * the control signal: `/deliver` re-derives the route from each Story body's
+ * own shape (`resolveStoryDispatchMode`), so a lost or failed label write
+ * cannot misroute delivery. A full-routed plan passes nothing and its
+ * Stories carry **no** route label. Like the cohort label, the ensure is
+ * non-fatal — the label is cosmetic either way.
  *
  * @param {object} args
  * @param {object} args.provider
@@ -857,8 +863,8 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       label: routeLabel,
       color: LITE_ROUTE_LABEL_COLOR,
       description:
-        'Ceremony-lite route marker: /deliver executes this Story inline ' +
-        '(no sub-agent fan-out); every close gate runs unchanged.',
+        'Ceremony-lite hint (human-visible only): /deliver re-derives the ' +
+        'route from the Story body shape; every close gate runs unchanged.',
       role: 'route-marker',
     }));
 

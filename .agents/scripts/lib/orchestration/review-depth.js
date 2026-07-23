@@ -74,10 +74,15 @@ export const DEFAULT_DIFF_WIDTH = Object.freeze({
  * changed-file set intersect any sensitive-path class registered in
  * `audit-rules.json`?
  *
- * This is the **single source** of the derived level — both the review depth
- * ({@link resolveDepth}) and the acceptance-critic fresh-vs-inline routing
- * (`ceremony-routing.js#resolveCeremonyForRisk`) consume what this returns, so
- * the two ceremony decisions can never disagree about how risky a change is.
+ * This is the **single source** of the derived level — the review depth
+ * ({@link resolveDepth}), the acceptance-critic fresh-vs-inline routing
+ * (`ceremony-routing.js#resolveCeremonyForRisk`), and the dispatch-side
+ * complexity routing (`complexity-gate.js#deriveStoryShape`, Story #4722)
+ * all consume what this returns, so no ceremony decision can disagree about
+ * how risky a change is. Dispatch reads the **predicted** shape (the Story's
+ * declared `changes[]` footprint) and close reads the **actual** diff — one
+ * taxonomy, two read points, which is what keeps a lite-shaped Story whose
+ * footprint touches a sensitive path on the full route with its fresh critic.
  *
  * Returns `null` — the fail-safe "no derivable signal" level — when the change
  * set is empty/unknown or the manifest cannot be read. Both downstream

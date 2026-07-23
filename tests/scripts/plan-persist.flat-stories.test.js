@@ -856,95 +856,47 @@ describe('runPlanPersist — flat Story ops', () => {
   });
 });
 
-describe('runPlanPersist — ceremony-lite route marker (Story #4707)', () => {
-  const liteEnvelope = {
-    complexityRoute: {
-      route: 'lite',
-      reasons: ['trivial single-artifact scope'],
-      threshold: { enabled: true, maxSeedWords: 150, maxArtifacts: 1 },
-      preserves: {
-        storyTicket: true,
-        prToMain: true,
-        repoGates: true,
-        securityBaseline: true,
-      },
-      advisory: true,
-    },
-  };
-  const fullEnvelope = {
-    complexityRoute: {
-      ...liteEnvelope.complexityRoute,
-      route: 'full',
-      reasons: ['not a trivial scope'],
-    },
-  };
+describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
+  /**
+   * A ticket whose shape exceeds the lite ceilings: four refactors-existing
+   * changes (paths that exist at main, so the file-assumption gate passes)
+   * against a single acceptance criterion.
+   */
+  function wideTicket(slug) {
+    const acceptance = [`${slug} done`];
+    const verify = ['npm test (validate)'];
+    const changes = [
+      'tests/scripts/plan-persist.flat-stories.test.js',
+      '.agents/scripts/lib/orchestration/complexity-gate.js',
+      'README.md',
+      'package.json',
+    ].map((path) => ({ path, assumption: 'refactors-existing' }));
+    return {
+      slug,
+      type: 'story',
+      title: `Story ${slug}`,
+      acceptance,
+      verify,
+      body: serialize({
+        goal: `Goal of ${slug}.`,
+        changes,
+        acceptance,
+        verify,
+        reason_to_exist: `Ship ${slug}`,
+      }),
+    };
+  }
 
-  it('a lite verdict persists the route::lite marker and ledgers the route on the checkpoint (AC-3)', async () => {
+  it('an upheld lite claim persists the route::lite hint and ledgers the verdict (AC-2, AC-3)', async () => {
     const labelsAtCreate = [];
     const provider = fakeProvider({
       createHook: ({ labels }) => labelsAtCreate.push([...labels]),
     });
     const result = await runPlanPersist({
       provider,
-      artifacts: {
-        stories: [ticket('solo')],
-        planContextEnvelope: liteEnvelope,
-      },
-      config: {},
-      opts: { skipCleanup: true },
-    });
-
-    assert.equal(result.route.route, 'lite');
-    assert.equal(result.route.downgraded, null);
-    assert.ok(
-      labelsAtCreate[0].includes('route::lite'),
-      'the creating POST carries the route marker',
-    );
-    // Ledgered on plan state: the story-plan-state checkpoint carries the
-    // route block, readable by /deliver alongside the label.
-    const checkpoint = provider.comments
-      .map((c) => c.body)
-      .find((b) => b.includes('story-plan-state'));
-    assert.match(checkpoint, /"route": "lite"/);
-  });
-
-  it('a full verdict persists NO route marker and no checkpoint route block (AC-3)', async () => {
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      artifacts: {
-        stories: [ticket('solo')],
-        planContextEnvelope: fullEnvelope,
-      },
-      config: {},
-      opts: { skipCleanup: true },
-    });
-
-    assert.equal(result.route.route, 'full');
-    assert.ok(
-      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
-      'a full-routed Story carries no route marker',
-    );
-    const checkpoint = provider.comments
-      .map((c) => c.body)
-      .find((b) => b.includes('story-plan-state'));
-    assert.doesNotMatch(checkpoint, /"route"/);
-  });
-
-  it('a planner downgrade needs a recorded reason, which is persisted on the checkpoint (AC-2)', async () => {
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      artifacts: {
-        stories: [ticket('solo')],
-        planContextEnvelope: fullEnvelope,
-      },
+      // ticket() is lite-shaped: one refactors-existing change, one
+      // acceptance criterion, no sensitive path.
+      artifacts: { stories: [ticket('solo')] },
       config: {},
       opts: {
         skipCleanup: true,
@@ -953,11 +905,16 @@ describe('runPlanPersist — ceremony-lite route marker (Story #4707)', () => {
     });
 
     assert.equal(result.route.route, 'lite');
-    assert.deepEqual(result.route.downgraded, {
-      from: 'full',
+    assert.deepEqual(result.route.authored, {
+      route: 'lite',
       reason: 'single trivial artifact despite verbose seed',
     });
-    assert.ok(labelsAtCreate[0].includes('route::lite'));
+    assert.ok(
+      labelsAtCreate[0].includes('route::lite'),
+      'the creating POST carries the route hint',
+    );
+    // Ledgered on plan state: the checkpoint carries the authored verdict,
+    // its recorded reason, and the per-Story shape evidence.
     const checkpoint = provider.comments
       .map((c) => c.body)
       .find((b) => b.includes('story-plan-state'));
@@ -965,11 +922,41 @@ describe('runPlanPersist — ceremony-lite route marker (Story #4707)', () => {
     assert.match(
       checkpoint,
       /single trivial artifact despite verbose seed/,
-      'the recorded downgrade reason is ledgered on plan state',
+      'the recorded reason is ledgered on plan state',
     );
+    assert.match(checkpoint, /"shape"/);
   });
 
-  it('absent a recorded reason the deterministic verdict stands (AC-2)', async () => {
+  it('AC-3: a lite claim over a shape exceeding the ceilings fails closed to full', async () => {
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [wideTicket('wide')] },
+      config: {},
+      opts: {
+        skipCleanup: true,
+        routeDowngradeReason: 'planner believes this is trivial',
+      },
+    });
+
+    assert.equal(result.route.route, 'full');
+    assert.match(result.route.reasons[0], /refused|fail(ing)? closed/i);
+    assert.ok(
+      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
+      'a refused claim persists no route hint',
+    );
+    // The refusal itself is ledgered — the judgment stays auditable.
+    const checkpoint = provider.comments
+      .map((c) => c.body)
+      .find((b) => b.includes('story-plan-state'));
+    assert.match(checkpoint, /"route": "full"/);
+    assert.match(checkpoint, /planner believes this is trivial/);
+  });
+
+  it('absent a recorded reason there is no claim — standard full, nothing ledgered (AC-2)', async () => {
     for (const routeDowngradeReason of [undefined, null, '', '   ']) {
       const labelsAtCreate = [];
       const provider = fakeProvider({
@@ -977,31 +964,17 @@ describe('runPlanPersist — ceremony-lite route marker (Story #4707)', () => {
       });
       const result = await runPlanPersist({
         provider,
-        artifacts: {
-          stories: [ticket('solo')],
-          planContextEnvelope: fullEnvelope,
-        },
+        artifacts: { stories: [ticket('solo')] },
         config: {},
         opts: { skipCleanup: true, routeDowngradeReason },
       });
-      assert.equal(result.route.route, 'full');
+      assert.equal(result.route, null);
       assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));
+      const checkpoint = provider.comments
+        .map((c) => c.body)
+        .find((b) => b.includes('story-plan-state'));
+      assert.doesNotMatch(checkpoint, /"route"/);
     }
-  });
-
-  it('no captured envelope means no verdict to downgrade — the plan persists as full', async () => {
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      artifacts: { stories: [ticket('solo')] },
-      config: {},
-      opts: { skipCleanup: true, routeDowngradeReason: 'orphan reason' },
-    });
-    assert.equal(result.route, null);
-    assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));
   });
 });
 

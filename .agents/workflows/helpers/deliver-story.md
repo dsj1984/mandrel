@@ -14,8 +14,9 @@ description:
 
 ## Overview
 
-The **one** delivery engine in v2 — every Story (`route::lite` runs
-inline with inline critics; engine, gates, envelope byte-identical):
+The **one** delivery engine in v2 — every Story (a lite-**shaped** Story
+runs inline with inline critics, #4722; engine, gates, envelope
+byte-identical):
 
 ```text
 single-story-init.js → implement + commits → derived-level ceremony

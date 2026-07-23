@@ -307,23 +307,27 @@ export function buildStoriesEnvelope({
   nativeEdges = new Map(),
   foreignDone = [],
   warn,
+  config,
 }) {
   const sorted = [...stories].sort((a, b) => a.id - b.id);
   const inSetDone = sorted.filter(isSatisfiedBlocker).map((s) => s.id);
   return {
     kind: 'stories',
-    // `dispatchMode` (Story #4707): the resolver derives the per-Story
-    // execution mode from the persisted `route::lite` marker so `/deliver`
-    // reads one field — `inline` (lite: no story-worker / acceptance-critic
-    // sub-agent boots) or `subagent` (everything else, the conservative
-    // default). Model-side fan-out only; close gates are untouched.
-    stories: sorted.map(({ id, title, url, labels, state }) => ({
+    // `dispatchMode` (Story #4722): the resolver derives the per-Story
+    // execution mode from the fetched Story BODY's own shape (the shared
+    // shape function in `complexity-gate.js`) so `/deliver` reads one field —
+    // `inline` (lite-shaped: no story-worker / acceptance-critic sub-agent
+    // boots) or `subagent` (everything else, the conservative default). The
+    // `route::lite` label is a human-visible hint only, never the control
+    // signal: a lost label cannot misroute delivery. Model-side fan-out
+    // only; close gates are untouched.
+    stories: sorted.map(({ id, title, body, url, labels, state }) => ({
       id,
       title,
       url,
       labels,
       state,
-      dispatchMode: resolveStoryDispatchMode({ labels }).mode,
+      dispatchMode: resolveStoryDispatchMode({ body, labels, config }).mode,
     })),
     dag: storiesToDag(sorted, nativeEdges, warn),
     done: [...new Set([...inSetDone, ...foreignDone])].sort((a, b) => a - b),
