@@ -365,6 +365,29 @@ describe('head-anchored required-check gating (Story #4695)', () => {
     assert.notEqual(verdict.blockClass, 'checks-failed');
   });
 
+  // Story #4710 AC-4: the rollup evidence cannot prove required-ness (`gh`'s
+  // projection has no `isRequired`), so when the probe carries a competing
+  // explanation for the BLOCKED merge state — a missing required review —
+  // the human-required verdict wins over checks-failed. Before this gate, a
+  // red *optional* check beside `reviewDecision: 'REVIEW_REQUIRED'` fail-
+  // fasted as checks-failed and sent the operator to fix a check that was
+  // never gating the merge.
+  it('AC-4 (Story #4710): a red check beside a missing required review classifies human-required, not checks-failed', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: {
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+        reviewDecision: 'REVIEW_REQUIRED',
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: false,
+        },
+      },
+    });
+    assert.equal(verdict.blockClass, 'branch-protection-human-required');
+    assert.match(verdict.reason, /REVIEW_REQUIRED/);
+  });
+
   it('names the evidence path that produced a checks-failed verdict in the reason', () => {
     for (const evidencePath of ['per-run', 'consecutive-probe']) {
       const verdict = classifyMergeBlock({

@@ -16,6 +16,7 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  decideMergeWaitFailFast,
   deriveChecksStatus,
   deriveRequiredRunEvidence,
   failingChecksBlockMerge,
@@ -296,5 +297,125 @@ describe('requiredCheckFailedBlocksMerge (Story #4695)', () => {
   it('is false for a missing probe', () => {
     assert.equal(requiredCheckFailedBlocksMerge(undefined), false);
     assert.equal(requiredCheckFailedBlocksMerge(null), false);
+  });
+
+  it('declines the verdict when a required review is missing (Story #4710)', () => {
+    // The rollup cannot prove the red run is REQUIRED, and REVIEW_REQUIRED
+    // already explains the BLOCKED merge state — classification must fall
+    // through to the human-required branch, not claim checks-failed.
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        ...genuinelyRed,
+        reviewDecision: 'REVIEW_REQUIRED',
+      }),
+      false,
+    );
+    // Any other review decision leaves the verdict intact.
+    assert.equal(
+      requiredCheckFailedBlocksMerge({
+        ...genuinelyRed,
+        reviewDecision: 'APPROVED',
+      }),
+      true,
+    );
+  });
+});
+
+describe('decideMergeWaitFailFast (Story #4710)', () => {
+  const redBlockedProbe = {
+    state: 'OPEN',
+    checksStatus: 'failure',
+    mergeStateStatus: 'BLOCKED',
+  };
+
+  it('fails fast on per-run evidence of a genuinely red run with none in flight', () => {
+    const decision = decideMergeWaitFailFast({
+      probe: {
+        ...redBlockedProbe,
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: false,
+        },
+      },
+      consecutiveRequiredFailSnapshots: 0,
+    });
+    assert.equal(decision.failFast, true);
+    assert.equal(decision.evidencePath, 'per-run');
+    assert.equal(decision.prProbe.evidencePath, 'per-run');
+    assert.equal(decision.consecutiveRequiredFailSnapshots, 0);
+  });
+
+  it('keeps polling while a required run is still in flight (evidence-bearing)', () => {
+    const decision = decideMergeWaitFailFast({
+      probe: {
+        ...redBlockedProbe,
+        requiredRunEvidence: {
+          requiredRunFailed: false,
+          requiredRunInFlight: true,
+        },
+      },
+      consecutiveRequiredFailSnapshots: 1,
+    });
+    assert.equal(decision.failFast, false);
+    assert.equal(
+      decision.consecutiveRequiredFailSnapshots,
+      0,
+      'an evidence-bearing probe resets the evidence-free counter',
+    );
+  });
+
+  it('without evidence, requires two consecutive failing probes before fail-fast', () => {
+    const first = decideMergeWaitFailFast({
+      probe: redBlockedProbe,
+      consecutiveRequiredFailSnapshots: 0,
+    });
+    assert.equal(first.failFast, false);
+    assert.equal(first.consecutiveRequiredFailSnapshots, 1);
+
+    const second = decideMergeWaitFailFast({
+      probe: redBlockedProbe,
+      consecutiveRequiredFailSnapshots: first.consecutiveRequiredFailSnapshots,
+    });
+    assert.equal(second.failFast, true);
+    assert.equal(second.evidencePath, 'consecutive-probe');
+    // The synthesized evidence routes both paths through the SAME classifier
+    // gate downstream.
+    assert.deepEqual(second.prProbe.requiredRunEvidence, {
+      requiredRunFailed: true,
+      requiredRunInFlight: false,
+    });
+    assert.equal(second.prProbe.evidencePath, 'consecutive-probe');
+  });
+
+  it('resets the counter on any non-failing probe', () => {
+    const decision = decideMergeWaitFailFast({
+      probe: { state: 'OPEN', checksStatus: 'still-running' },
+      consecutiveRequiredFailSnapshots: 1,
+    });
+    assert.equal(decision.failFast, false);
+    assert.equal(decision.consecutiveRequiredFailSnapshots, 0);
+  });
+
+  it('never fail-fasts while a required review is missing — either path', () => {
+    // Per-run path.
+    const perRun = decideMergeWaitFailFast({
+      probe: {
+        ...redBlockedProbe,
+        reviewDecision: 'REVIEW_REQUIRED',
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: false,
+        },
+      },
+      consecutiveRequiredFailSnapshots: 0,
+    });
+    assert.equal(perRun.failFast, false);
+    // Consecutive-probe path: even the second evidence-free failing probe
+    // must not claim checks-failed while REVIEW_REQUIRED explains the block.
+    const consecutive = decideMergeWaitFailFast({
+      probe: { ...redBlockedProbe, reviewDecision: 'REVIEW_REQUIRED' },
+      consecutiveRequiredFailSnapshots: 1,
+    });
+    assert.equal(consecutive.failFast, false);
   });
 });
