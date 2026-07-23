@@ -511,18 +511,15 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
   });
 
   it('appendFindingsYield persists a kinded record that never inflates invocation tallies', async () => {
-    const {
-      appendFindingsYield,
-      readPlanMetrics,
-      summarizePlanMetrics,
-    } = await import(
-      pathToFileURL(
-        path.resolve(
-          REPO_ROOT,
-          '.agents/scripts/lib/orchestration/plan-metrics.js',
-        ),
-      ).href
-    );
+    const { appendFindingsYield, readPlanMetrics, summarizePlanMetrics } =
+      await import(
+        pathToFileURL(
+          path.resolve(
+            REPO_ROOT,
+            '.agents/scripts/lib/orchestration/plan-metrics.js',
+          ),
+        ).href
+      );
     const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'findings-yield-'));
     const config = { project: { paths: { tempRoot } } };
     try {
