@@ -862,7 +862,7 @@ async function main(argv) {
           inFlight: values['in-flight'],
         });
 
-  process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(envelope)}\n`);
 
   if (exitCode !== 0) {
     Logger.error(

@@ -34,6 +34,19 @@ validated.
 
 ---
 
+## Durable local slash commands
+
+Reference mechanics behind the local-override pointer in
+[`instructions.md` § 1.E](../instructions.md). Any `.md` at
+`.agents/local/workflows/<name>.md` is projected into
+`.claude/commands/<name>.md` by `sync-claude-commands.js` as `/<name>`. The
+`.agents/local/` subtree is exempt from `mandrel sync`'s prune pass, so these
+commands survive `npm install`, `mandrel sync`, and `mandrel update`. A core
+payload command of the same basename wins — the local copy is ignored with a
+`shadowed` warning.
+
+---
+
 ## Log-level control
 
 The orchestrator logger (`lib/Logger.js`) emits progress/trace output based on

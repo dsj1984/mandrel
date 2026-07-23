@@ -702,7 +702,7 @@ const SOURCE_CODE_EXTENSIONS = Object.freeze([
 const TEST_FILE_RE = new RegExp(String.raw`\.(test|spec)\.[cm]?[jt]sx?$`);
 // biome-ignore lint/complexity/useRegexLiterals: constructor form keeps the MI walker able to score this module.
 const TEST_DIR_RE = new RegExp(
-  String.raw`(^|/)(tests?|__tests__|spec|e2e|__mocks__)(/|$)`,
+  '(^|/)(tests?|__tests__|spec|e2e|__mocks__)(/|$)',
 );
 // biome-ignore lint/complexity/useRegexLiterals: constructor form keeps the MI walker able to score this module.
 const CODE_EXT_RE = new RegExp(String.raw`\.[cm]?[jt]sx?$`);

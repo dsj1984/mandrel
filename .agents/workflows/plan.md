@@ -1,65 +1,52 @@
 ---
 description:
   Unified planning entry point. Interrogate → author → persist. Emits one
-  Story by default (folded Tech Spec in the Story body); splits into N>1
-  only under the default-single split policy.
+  Story by default; splits into N>1 only under the default-single split
+  policy.
 ---
 
 # /plan --seed "<text>" | --seed-file <path> | --tickets <ids>
 
-## Role
-
-Single planning path. `/plan` owns the full ceremony — there is no
-Epic/Story router, no scope-triage `epic|story` verdict, and no
-`deliveryShape`. Two operator modes only:
-
-1. **Text** — seed from chat or a file.
-2. **Tickets** — analyze existing issue(s) into proper Stories.
-
-Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
-(separate workflow), which hands off with `--emit-plan-seed` →
-`/plan --seed-file <path>`.
+> **Lean spine.** Happy path + gate list; edge-case and reference detail
+> lives in the on-demand
+> [`helpers/plan-reference.md`](helpers/plan-reference.md).
 
 ## Inputs
 
+Single planning path — there is no
+Epic/Story router, no scope-triage `epic|story` verdict:
+
 | Invocation | Behavior |
 | --- | --- |
-| `/plan --seed "<text>"` | Ideation from chat text: interrogate → author **one Story by default** → persist. |
-| `/plan --seed-file <path>` | Author from on-disk notes / plan seed (e.g. audit-to-stories handoff). |
+| `/plan --seed "<text>"` / `--seed-file <path>` | Ideation from chat text or on-disk notes: interrogate → author **one Story by default** → persist. |
 | `/plan --tickets 123[,456…]` | Fetch issue(s), analyze into proper Stories (prefer N=1 rewrite). |
 
-`--body` is **not** a `/plan` entry. Persist always goes through
-`plan-persist.js --stories …`.
+`--body` is **not** a `/plan` entry; persist always goes through
+`plan-persist.js`.
 
 ## Flags
 
 | Flag | Meaning |
 | --- | --- |
-| `--seed "<text>"` | Seed text for ideation. |
-| `--seed-file <path>` | Pre-authored notes / plan-seed path. |
-| `--tickets <ids>` | Comma-separated issue ids to analyze. Closed as superseded at persist (see below). |
-| `--no-close-superseded` | Keep the `--tickets` source issues open — no supersede comment, no close. |
-| `--force-review` | STOP at gate #2 for operator review of the assembled plan. The only thing that gates review — there is no risk-derived routing (Story #4542). |
-| `--route-downgrade-reason "<text>"` | Persist-time audited planner downgrade (Story #4707): treat the envelope's `full` complexity verdict as `lite`, recording the reason on every Story's `story-plan-state` checkpoint. Absent this flag the deterministic verdict stands. |
-| `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
+| `--seed "<text>"` / `--seed-file <path>` | Seed text / pre-authored notes path. |
+| `--tickets <ids>` | Issue ids to analyze; closed as superseded at persist. |
+| `--no-close-superseded` | Keep the source issues open — no supersede comment, no close. |
+| `--force-review` | STOP at gate #2 for operator review — the only review gate (Story #4542). |
+| `--route-downgrade-reason "<text>"` | Audited `full`→`lite` downgrade (Story #4707), ledgered per Story. |
+| `--allow-over-budget` | Permit a plan exceeding `maxTickets`. |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
-| `--dry-run` | Author + validate without GitHub writes. Run it as a pre-pass before every real persist (see below). |
+| `--dry-run` | Author + validate without GitHub writes; run as a pre-pass. |
 
 ## Default-single split policy
 
-Author **one Story** unless:
-
-1. the pieces have **near-zero overlap** (genuinely independent capabilities), or
-2. there is an **architectural seam** (different deployables, migration vs consumer).
-
-Coupled work stays one Story — decompose it inside `## Slicing` as
-intra-session checkpoints, not sibling tickets. When N>1, every acceptance
-criterion must belong to exactly one Story; `plan-persist` runs
-`assertAcceptancePartition` and refuses coupled splits.
-
-**N=1 is the lean path:** one authoring prompt, folded `## Spec` in the
-Story body, light risk/critic profile. Do not run Epic-scale decompose,
-clarity, or reconciler ceremony for a single Story.
+Author **one Story** unless (1) the pieces have **near-zero overlap**
+(genuinely independent capabilities), or (2) there is an **architectural
+seam** (different deployables, migration vs consumer). Coupled work stays
+one Story — decompose it inside `## Slicing` as intra-session checkpoints,
+not sibling tickets. When N>1, every acceptance criterion belongs to exactly
+one Story (`assertAcceptancePartition` refuses coupled splits). **N=1 is the
+lean path:** one authoring prompt, folded `## Spec`, light risk/critic
+profile — no Epic-scale ceremony.
 
 ## Procedure
 
@@ -72,80 +59,34 @@ node .agents/scripts/plan-context.js --seed "<seed>" \
 # or: --tickets 123,456
 ```
 
-**Always pass `--out temp/plan-<slug>/plan-context.json`.** The CLI writes the
-envelope there (creating parent dirs); persist auto-discovers that file from
-`--plan-dir` and derives the `--tickets` source ids from its `sourceTickets[]`.
-That is what makes superseding work without anyone re-typing ids
-(Story #4554). The envelope still goes to stdout too, so piping is unaffected.
-Alongside the envelope the CLI also writes **`stories.template.json`** — the
-ready-to-fill authoring skeleton step 2 starts from (Story #4707).
+**Always pass `--out`.** Persist auto-discovers that envelope from
+`--plan-dir` and derives source-ticket ids from its `sourceTickets[]`
+(Story #4554); the CLI also writes **`stories.template.json`** — the
+authoring skeleton step 2 starts from.
 
-The envelope carries docs context, codebase snapshot, BDD probe, risk
-heuristics, the story-author system prompt, `sourceTickets[]` (`--tickets`
-mode), `duplicates[]` (open **Stories** whose title/body overlap the
-seed — never Epics), and the `complexityRoute` ceremony-lite signal (below).
+The envelope carries docs context, codebase snapshot, the story-author
+prompt, `sourceTickets[]`, `duplicates[]` (open **Stories** overlapping the
+seed — never Epics), and the `complexityRoute` signal:
+`"lite"` (trivial single-artifact scope — author one minimal Story, skip
+fresh-critic / Tech-Spec ceremony; every close gate still runs) or `"full"`
+(everything else; fails toward `full` on any doubt). Detail:
+[`helpers/plan-reference.md` § Ceremony-lite gate](helpers/plan-reference.md).
 Under `--yes`, do not ask free-form operator questions — unresolved
 unknowns land in Key Assumptions.
-
-#### Ceremony-lite complexity gate (`complexityRoute`)
-
-The envelope's `complexityRoute` field is a **deterministic, conservative**
-plan-time gate (Story #4683) that routes a genuinely trivial single-artifact
-seed onto a collapsed path so it stops paying the full two-session
-plan/deliver ceremony that measurably buys no quality at that size:
-
-- **`route: "lite"`** — a trivial scope (seed ≤ `maxSeedWords` words **and** ≤
-  `maxArtifacts` enumerated items). Collapse the ceremony: author **one minimal
-  Story** and skip the fresh-critic / Tech-Spec ceremony a one-artifact scope
-  does not earn. The lite route is **not** licence to drop a non-negotiable —
-  its `preserves` field enumerates exactly what still holds: the Story ticket,
-  the PR-to-`main` landing, every repo quality gate, and the security baseline.
-  Those gates still run in `single-story-close.js` regardless of route.
-- **`route: "full"`** — everything else. The gate fails toward `full` on any
-  doubt (empty seed, over the word ceiling, a multi-capability enumeration, or
-  the gate disabled via `planning.complexityGate.enabled=false`), so a real
-  capability slice never loses ceremony. Author normally under the split policy.
-
-**Planner downgrade (audited, Story #4707).** Seed word count is a poor
-complexity proxy, so a `full` verdict you judge genuinely trivial (one
-artifact, one obvious change) may be downgraded to `lite` — but **only** by
-passing `--route-downgrade-reason "<why>"` to persist. The reason is recorded
-on every created Story's `story-plan-state` checkpoint, making the judgment
-auditable; without a recorded reason the deterministic verdict stands, and the
-gate itself is unchanged (it still fails toward `full`).
-
-**The route persists with the Story (Story #4707).** Persist labels every
-Story of a lite-routed plan with the **`route::lite`** marker and ledgers the
-route (including any downgrade reason) on its `story-plan-state` checkpoint;
-a full-routed Story carries no marker. `/deliver` reads the marker to execute
-a lite Story **inline** — no story-worker or acceptance-critic sub-agent
-boots — while every `single-story-close.js` gate runs unchanged. The
-`route::*` axis is runtime-derived: hand-authored `route::*` entries in
-`labels[]` are dropped by persist.
-
-The threshold and its override knob (`planning.complexityGate.{enabled,
-maxSeedWords, maxArtifacts}`) are documented in
-[`.agents/docs/configuration.md`](../docs/configuration.md) under `### planning`;
-the defaults live on `DEFAULT_COMPLEXITY_GATE` in
-[`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js).
 
 **Gate #1** — STOP to confirm the sharpened plan intent and any
 duplicate-candidate review. Under `--yes`, auto-proceed.
 
 ### 2. Author
 
-**One-shot authoring (Story #4707).** Start from the `stories.template.json`
-step 1 wrote next to the envelope, or from the canonical skeleton below —
-either way, author `stories.json` in one pass. No step of this path requires
-reading `story-body.js` source or re-poking the envelope for format
-discovery. The serializer contract is: `body` is **either** a serialized
-markdown string **or** a structured object with the fields below — persist
-parses either shape and serializes the canonical markdown itself, and it
-syncs the top-level `acceptance[]` / `verify[]` (the machine contract) into
-the body sections, so never dual-author those lists.
+**One-shot authoring (Story #4707).** Start from `stories.template.json`
+(or the skeleton below); author `stories.json` in one pass. `body` is a
+markdown string **or** a structured object; persist parses either,
+serializes the canonical markdown, and syncs the top-level `acceptance[]` /
+`verify[]` into the body — never dual-author those lists.
 
 ```jsonc
-// temp/plan-<slug>/stories.json — canonical skeleton (length 1 by default)
+// temp/plan-<slug>/stories.json
 [
   {
     "slug": "hyphen-case-slug", // ^[a-z0-9][a-z0-9-]*$
@@ -153,73 +94,31 @@ the body sections, so never dual-author those lists.
     "title": "Short descriptive title",
     "body": {
       "goal": "One sentence: why this Story exists.",
-      "spec": "Optional — contract and invariants only (see the prose contract in the story prompt).",
+      "spec": "Optional — contract and invariants.",
       "changes": [{ "path": "path/to/file.ext", "assumption": "refactors-existing" }], // creates | refactors-existing | deletes
       "non_goals": [],
-      "reason_to_exist": "One sentence: the single coherent reason this Story exists."
+      "reason_to_exist": "One coherent reason this Story exists."
     },
     "acceptance": ["A testable, observable criterion"],
-    "verify": ["exact command or test path (unit|contract|e2e|validate)"],
+    "verify": ["exact command (unit|contract|e2e|validate)"],
     "depends_on": [] // sibling Story slugs, N>1 only
   }
 ]
 ```
 
-Write artifacts under `temp/plan-<slug>/`:
+Artifacts under `temp/plan-<slug>/`: `stories.json`
+(**length 1 by default**; over-budget Specs fail closed — split or tighten,
+never write Specs under `docs/`); optional `techspec.md` (**N===1 only** —
+folded into `## Spec`); optional `acceptance-manifest.json` (N>1 partition
+list — pass as `--plan-acceptance` or it is not read). For N=1,
+use the envelope `systemPrompts.story` and emit one cohesive Story.
+Split only under the policy above.
 
-- `stories.json` — array of Story tickets (**length 1 by default**). The
-  Story is the single executable document: put contract-level approach
-  prose in `spec`, binding criteria in top-level
-  `acceptance[]` / `verify[]` (persist syncs them into the body). Do not
-  restate Goal/Acceptance inside Spec. Over-budget Specs fail closed —
-  split the Story or tighten Spec; never write Specs under `docs/`.
-- optional `techspec.md` — **N===1 only** convenience when Spec was authored
-  outside the Story JSON; persist folds it into that Story's `## Spec`.
-  Forbidden for N>1 (each Story must carry its own Spec).
-- optional `acceptance-manifest.json` — plan-level AC list (a JSON
-  `string[]`) for partition coverage when N>1. Pass it to persist as
-  `--plan-acceptance` or it is not read.
-
-For N=1, use the envelope `systemPrompts.story` and emit one cohesive
-Story. Split only under the policy above.
-
-**Tickets mode — author `supersedes[]` on every Story.** In `--tickets`
-mode each Story carries a top-level `supersedes` array claiming the source
-issues it replaces. It is bookkeeping, not part of the Story body, so it is
-never serialized into the markdown:
-
-```jsonc
-{
-  "slug": "close-superseded",
-  "supersedes": [
-    4525,
-    { "id": 4529, "note": "The filed `--changed-only` fix is provably inert; the correction is recorded here." }
-  ]
-}
-```
-
-Entries are bare issue numbers, or `{ id, note }` when the plan has
-something to say about *that* source issue — a correction to its analysis,
-or why it was folded in with others. The optional `note` is rendered into
-that issue's supersede comment, so planning that materially corrects a
-source issue records the correction on the ticket rather than emitting
-template-only prose.
-
-### Supersede-map partition
-
-`plan-persist` refuses a partial supersede map **before** it creates any
-Story (mirroring `assertAcceptancePartition`): every id passed to
-`--tickets` must be claimed by **exactly one** Story, and no Story may
-claim an id that was not a source ticket. With N>1 the mapping is not
-total by default — an authored map is the only thing that can say
-`#4525-#4528 → #4530` while `#4529 → #4531`, which a blanket "superseded by
-this plan-run" reference could not.
+**Tickets mode:** every Story authors a top-level `supersedes[]` claiming
+the source issues it replaces; persist refuses a partial map (shape:
+[`helpers/plan-reference.md` § Tickets mode](helpers/plan-reference.md)).
 
 ### 2.5 Critics
-
-Evaluate the critic-dispatch conditions against the authored draft — here,
-**before** persist, because this is the last point where a finding can still
-be folded into a re-author round rather than into live issues:
 
 ```bash
 node .agents/scripts/plan-critics.js \
@@ -227,224 +126,63 @@ node .agents/scripts/plan-critics.js \
   [--tech-spec temp/plan-<slug>/techspec.md]
 ```
 
-It prints a verdict on stdout and exits 0 on **any** verdict — the verdict
-routes work, it does not gate the run. It exits **1** only on a usage/IO
-error (an unreadable or malformed `--stories` / `--tech-spec` path). That is
-not an advisory "proceed": no critic ran and no skip was ledgered, so **do
-not proceed to Persist** — fix the path and re-run:
+Run **before** persist — the last point a finding folds into a re-author
+round. It exits 0 on **any** verdict (verdicts route work, they do not
+gate) and exits **1** only on a usage/IO error — no critic ran, no skip
+ledgered: **do not proceed to Persist**; fix and re-run.
 
-The **pre-mortem** critic fires on any of three deterministic triggers: the
-draft ticket count reaching half the reviewability budget, a
-`planning.riskHeuristics` phrase matching the plan text, or the
-**external-dependency** probe (Story #4700) finding an out-of-repo marker — a
-scoped package the plan names that no repo manifest declares, a cross-repo
-`github.com/<owner>/<repo>` reference, or an endpoint named as a service
-prerequisite. That third trigger is what gives the default N=1 plan a cheap
-viability check, since the size trigger is unreachable at one ticket and this
-repo's resolved `riskHeuristics` is empty. The probe is conservative — explicit
-markers only, so a plan naming no such artifact dispatches exactly as before.
-
-```jsonc
-{
-  "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": ["…"] },
-  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] },
-  "textHygiene": { "critic": "text-hygiene", "findings": [] }
-}
-```
-
-The verdict's third entry, `textHygiene`, is advisory-only (Story #4599): it
-carries deterministic body lints (`dangling-citation` / `open-question` /
-`slicing-mass`) with no dispatch semantics — it spawns nothing and never
-gates the run. Fold `textHygiene.findings[]` into the re-author round the
-same way critic findings fold in: fix each named defect in `stories.json`
-(anchor or inline the citation, resolve the question into a declarative
-assumption, thin the Slicing checkpoint) and re-run this step. Empty
-`findings` add nothing to the round.
-
-- **Both `dispatch: false`** — proceed straight to Persist. The conditions
-  provably have nothing for a critic to find, and each skip is recorded on the
-  plan-metrics ledger so under-firing stays auditable.
-- **Either `dispatch: true`** — dispatch **one fresh-context sub-agent per
-  firing critic**, then fold its findings into the Gate #2 view or a re-author
-  round before persist. When `delivery.routing.roleScopedAgents` is enabled
-  (the **default**), dispatch each firing critic with `subagent_type:
-  plan-critic` — it boots on the role-scoped
-  [`plan-critic`](../agents/plan-critic.md) context (its own system prompt, no
-  `CLAUDE.md` @-closure) that carries the maker-blind invariant, the
-  `consolidation` and `pre-mortem` charters, and the output shape standalone.
-  When the kill-switch is off (`roleScopedAgents: false`) or the host cannot
-  spawn at this depth, fall back to a generic sub-agent and hand it the same
-  charter (the `consolidation` / `pre-mortem` definitions in
-  [`plan-critic.md`](../agents/plan-critic.md)). Either way the critic is
-  **maker-blind**: hand it the draft artifacts (`stories.json`, and
-  `techspec.md` when present) — never the authoring transcript or the reasons
-  the planner believed its own draft is sound. A critic that reads the maker's
-  case grades the case, not the draft.
-
-Fold what survives back into `stories.json` and re-run this step. Findings are
-advisory input to the operator's Gate #2 decision, not an automatic re-author
-mandate.
+- **Both `dispatch: false`** — proceed to Persist (each skip is ledgered).
+- **Either `dispatch: true`** — dispatch **one fresh-context, maker-blind
+  sub-agent per firing critic** (hand it only the draft artifacts,
+  never the authoring transcript), fold findings into Gate #2 or a
+  re-author round, re-run this step. Pre-mortem triggers (incl. the
+  external-dependency probe, #4700), folding the advisory-only
+  `textHygiene.findings[]` lints, and the role-scoped dispatch shape:
+  [`helpers/plan-reference.md` § Critic dispatch detail](helpers/plan-reference.md).
 
 ### 3. Persist
 
-**Gate #2** — when the operator passed `--force-review`, STOP for approval of
-the assembled plan before persist. Under `--yes`, auto-proceed.
+**Gate #2** — with `--force-review`, STOP for approval before persist (the
+**only** trigger). Under `--yes`, auto-proceed.
 
-`--force-review` is the **only** thing that raises this gate — there is no
-risk-derived routing (Story #4542): a gate a plan can lower for itself is not a
-gate.
-
-#### Dry-run pre-pass (always)
-
-Run persist with `--dry-run` **before** the real one. It is the same command
-with the same flags — only the GitHub writes are suppressed:
+Run persist with `--dry-run` **first** — same command, GitHub writes
+suppressed; every gate (ticket validator, body parse, DAG, capacity,
+budget, reachability, split-policy and supersede partitions, Spec fold)
+runs before the first `createIssue`. Then:
 
 ```bash
 node .agents/scripts/plan-persist.js \
   --stories temp/plan-<slug>/stories.json \
-  [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
-  [--tech-spec temp/plan-<slug>/techspec.md] \
   --plan-dir temp/plan-<slug> \
-  --dry-run
-```
-
-Every gate — ticket validator, body parse, subject-prefix, DAG, capacity,
-budget, reachability, split-policy and supersede partitions, Spec fold —
-runs **before** the first `createIssue`, so a dry-run exercises all of them
-write-free. An authoring mistake surfaces here, where the fix costs one
-re-author, instead of after `k` of `N` Stories are already live.
-
-#### The real persist
-
-```bash
-node .agents/scripts/plan-persist.js \
-  --stories temp/plan-<slug>/stories.json \
   [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
   [--tech-spec temp/plan-<slug>/techspec.md] \
-  [--plan-dir temp/plan-<slug>] \
-  [--plan-context temp/plan-<slug>/plan-context.json] \
-  [--source-tickets 123,456] \
-  [--no-close-superseded] \
-  [--route-downgrade-reason "<why this full verdict is genuinely trivial>"] \
-  [--force-review] \
-  [--allow-over-budget]
+  [--source-tickets 123,456] [...flags from the table above]
 ```
 
-Pass `--plan-acceptance` whenever step 2 wrote an `acceptance-manifest.json`
-— it is what `assertAcceptancePartition` checks the N>1 split against.
+Persist creates Story issue(s) with `type::story` plus a `plan-run::<id>`
+grouping label (**metadata only** — never a delivery-resolution input, Story #4692); N>1 `depends_on` edges become `blocked by #<id>` body footers.
+`agent::ready` is the **terminal** flip, after all receipts are upserted — a
+ready Story is always fully persisted (Story #4541). stdout is pure JSON
+(logs on stderr).
 
-Persist creates Story issue(s) with `type::story` (plus any sanitized
-authored `labels[]`) and a shared `plan-run::<id>` grouping label on every
-Story the run creates (N=1 and N>1) — **metadata only**, for filtering and
-traceability (Story #4692); the id is deterministic over the authored
-artifacts, so a resumed persist reuses the same label. `/deliver` still
-takes only ids and resolves the graph from live state — the label is never
-a delivery-resolution input. When N>1, each authored `depends_on` edge is
-written into the sibling's body as a `blocked by #<id>` footer — the
-ordering `/deliver` resolves from. Ends by naming the exact command:
-`/deliver <storyId> [<storyId> ...]`.
-
-stdout is a pure JSON result; all log lines go to stderr, so a headless
-driver can `JSON.parse` the stdout stream directly.
-
-#### Ready means fully persisted
-
-`agent::ready` is the **terminal** step, not part of the creating POST
-(Story #4541). The order is: create unlabelled → upsert `story-plan-state` on
-every Story → upsert `plan-summary` on the primary → flip every Story to
-`agent::ready`.
-
-This is what lets `/deliver` trust the label: a Story carrying
-`agent::ready` always has its persist receipt on the ticket, so nothing can
-pick it up mid-write and read a half-persisted plan.
-
-#### Resuming a failed persist
-
-Persist is **idempotent over the same authored artifacts**. Each created body
-carries an invisible plan fingerprint (derived from the Story's slug +
-title), and persist indexes the open `type::story` backlog by it before
-creating anything.
-
-So if a transient GitHub failure strands the run at Story `k` of `N`:
-
-| | Behaviour |
-| --- | --- |
-| The `1..k-1` Stories | Live, but **not** `agent::ready` — invisible to `/deliver`, not half-delivered. |
-| Re-running persist | Adopts them by fingerprint, creates only the missing ones, then flips the whole cohort ready. |
-| Editing `stories.json` first | Changing a slug or title changes the fingerprint — the old issue is orphaned rather than adopted. Close it by hand. |
-
-Just re-run the same command. Do not hand-delete the stranded issues first.
-
-#### Temp hygiene
-
-A terminal-success run deletes its own `--plan-dir`. Every persist also reaps
-abandoned `temp/plan-*` directories older than 7 days, so dry-runs, failed
-gates, and abandoned authoring sessions do not accumulate under `temp/`.
-
-### How the source ids reach persist
-
-In `--tickets` mode persist needs to know which ids were fetched. It resolves
-them **envelope-first** (Story #4554):
-
-| Channel | When it wins |
-| --- | --- |
-| Envelope `sourceTickets[]` | **The normal path.** Written by step 1's `--out`, then read from `--plan-context <file>` or auto-discovered at `<plan-dir>/plan-context.json`. No ids to re-type. |
-| `--source-tickets <ids>` | Explicit **override** for hand-driven runs (no captured envelope, or deliberately narrowing the set). Wins over the envelope; a disagreement is warned about, not silently reconciled. |
-
-The result envelope's `supersede.sourceTicketOrigin` reports which channel was
-used (`envelope` \| `flag` \| `none`).
-
-Every path with no envelope is **audible** — persist cannot tell a legitimate
-`--seed` run from a `--tickets` run whose envelope was never captured, so it
-says so rather than deciding silently:
-
-| Situation | Behaviour |
-| --- | --- |
-| Neither `--plan-dir` nor `--plan-context` | **Warn** — nothing was read; only `--source-tickets` can supply ids. |
-| Auto-discovered `<plan-dir>/plan-context.json` absent | **Warn** — degrade to `--source-tickets`; a `--seed` run legitimately has none. |
-| Explicit `--plan-context` missing | **Fatal** — the operator named a file and meant it. |
-| Envelope present but unparseable | **Fatal** — a corrupt envelope is not "no source tickets"; treating it as such is how a `--tickets` run used to report success having superseded nothing. |
-
-Whichever channel supplies them, the supersede-map partition above still
-fail-closes: a `--tickets` run whose Stories forgot `supersedes[]` is now
-**caught** (`source ticket #N is not claimed by any Story`) instead of
-partitioning an empty set and passing vacuously.
-
-### Closing superseded source tickets
-
-**Default on.** After the Stories exist, persist comments on each source
-issue naming the specific Story that claims it — plus that Story's optional
-per-supersede `note` — and closes it with reason **`not_planned`**
-(`state_reason`). Nothing has shipped at persist time and the issue will not
-be actioned in its own right, so `not_planned` is the honest reason;
-`completed` would be a lie. This is what keeps the tracker from asserting
-that already-planned work is still unowned, and it writes down the supersede
-link that makes the history readable.
-
-| Behaviour | Contract |
-| --- | --- |
-| Default | Comment + close every source ticket as `not_planned`. |
-| `--no-close-superseded` | Skips all commenting and closing. Story creation is unchanged. Use it for a genuinely partial supersede — when the plan folded in only *part* of an issue and the remainder must stay open. |
-| `--dry-run` | Posts no comment and closes nothing; reports what it would have done. |
-| Re-run | Idempotent — the comment is keyed off a `superseded-by` structured-comment marker, and an already-closed source is skipped. |
-| Already closed / deleted / inaccessible | Skipped and reported. Never throws. |
-| Close-phase failure | **Never fails the run.** Stories stay created; the result envelope's `supersede` report names which tickets were and were not closed so the operator can finish by hand. |
-
-`--seed` / `--seed-file` modes have no source tickets, so no close phase
-runs at all.
+In `--tickets` mode persist resolves source ids **envelope-first** and
+closes each superseded source as `not_planned` with a comment (default on).
+Detail (channels, close contract, resume, temp hygiene):
+[`helpers/plan-reference.md`](helpers/plan-reference.md) — on a stranded
+persist, re-run the same command; never hand-delete issues.
 
 ## Constraints
 
-- `/plan` never starts delivery.
-- No Epic ticket is opened. No reconciler. No `delivery::single` marker.
+- `/plan` never starts delivery. No Epic ticket, no reconciler, no
+  `delivery::single` marker.
 - Duplicate search targets open Stories (`type::story`), not Epics.
-- Deterministic gates (ticket validator, split policy, reachability, budget)
-  still fail closed under `--yes`.
+- Deterministic gates still fail closed under `--yes`.
 
 ## See also
 
-- [`/deliver`](deliver.md) — delivery entry point (`/deliver <storyId>`).
-- [`/audit-to-stories`](audit-to-stories.md) — audit findings → plan seed →
-  `/plan --seed-file`.
+- [`/deliver`](deliver.md) — delivery entry point.
+- [`/audit-to-stories`](audit-to-stories.md) — audit findings → plan seed.
+- [`helpers/plan-reference.md`](helpers/plan-reference.md) — ceremony-lite,
+  supersede, critic, and persist-resume detail.
 - [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) — optional
   split-advisory notes only (no routing verdict).

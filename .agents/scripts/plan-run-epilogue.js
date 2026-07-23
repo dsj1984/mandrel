@@ -67,7 +67,7 @@ export async function main(argv = process.argv.slice(2)) {
   });
   warnOnUnresolvedBase(result);
   warnOnEmptyRollup(result);
-  Logger.info(JSON.stringify(result, null, 2));
+  Logger.info(JSON.stringify(result));
   if (result.errors?.length) {
     process.exitCode = 1;
   }

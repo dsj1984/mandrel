@@ -112,6 +112,209 @@ not a substitute for prefixing paths correctly.
 
 ---
 
+## Engine invariants and the lite route
+
+The v2 engine's trait table:
+
+| Trait | v2 `/deliver-story` |
+| --- | --- |
+| Ticket type | `type::story` only |
+| Branch | `story-<id>` seeded from `project.baseBranch` (`main`) |
+| Merge target | `main` via PR (squash + required checks) |
+| Epic integration branch | **None** — no `epic/<id>`, no `--no-ff` wave merge |
+| Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session |
+| Ceremony | Per-Story, routed off the derived change level via `ceremony-routing.js` |
+
+**Ceremony-lite Stories still land through this engine unchanged (Story #4683).** A Story that `/plan` routed onto the ceremony-lite path (its
+`complexityRoute.route === "lite"`) collapses only the *advisory* plan/deliver
+ceremony — the fresh-critic / Tech-Spec authoring a one-artifact scope does
+not earn. It does **not** get a cheaper landing: the close-validation gates
+(lint / test / format / coverage / CRAP / maintainability), the PR to `main`,
+and the `rules/security-baseline.md` MUSTs all run exactly as for a
+full-ceremony Story. The lite route's `preserves` field is the machine-readable
+record of those non-negotiables; there is no lite-specific gate bypass.
+
+**The lite route persists to delivery as the `route::lite` label (Story #4707).** Persist stamps every Story of a lite-routed plan with that marker
+(and ledgers the route — including any audited planner-downgrade reason — on
+its `story-plan-state` checkpoint); a full-routed Story carries no marker.
+`/deliver` reads the label via `resolveStoryDispatchMode`
+(`lib/orchestration/complexity-gate.js`) and executes a lite Story
+**inline in the deliver session** — no `story-worker` sub-agent boot, and
+the Step 1a acceptance self-eval runs its critics **inline** (no
+fresh-context acceptance-critic sub-agent dispatch; sub-agent boots are the
+dominant deliver-phase token cost at trivial scope). Inline execution
+changes the isolation only: the engine, every script gate, and the
+terminal envelope are byte-identical either way.
+
+---
+
+## Step 1 — Implementation detail
+
+**Docs context — digest-first.** Read a full doc only when the Story's own
+context points you at one — do not ingest the whole
+`project.docsContextFiles` set up front. If the caller provides a
+`docsDigestPath`, prefer that compact outline and pull individual files on
+demand. See [`.agents/instructions.md` § 3](../../instructions.md).
+
+**Write-time audit checklists.** When the caller provides a `checklistPath`
+(footprint-matched **local**-lens authoring checklists), read it before you
+write and self-check as you author. When absent, lens-aware coverage still
+runs maker-blind at Story-scope review inside the close subprocess. The
+dispatch step produces `checklistPath` from the Story's predicted footprint
+before it spawns the worker (Story #4627) — see [`/deliver`](../deliver.md).
+
+**Pre-eval full-suite discipline (spine step 5).** Repo-invariant guards —
+drift-guard and schema tests living outside the Story's scoped greps — are
+the failure class that actually bounces deliveries: close-validation
+discovers them only after the whole close pipeline has run, at several times
+the cost of one pre-eval full-suite run.
+
+**Conflict with `main` mid-implementation** → resolve as you would any branch
+rebase. There is no `epic/<id>` intermediate, so the rebase base is `main`
+directly.
+
+### Step 1a — self-eval mechanics
+
+**Critic evidence-share (Story #4250).** When the critic runs a `verify[]`
+command that is byte-identical to a close gate (`lint` / `typecheck`), it
+records the pass into the Story evidence keyspace via `--standalone` so
+close short-circuits the gate at unchanged HEAD. Run it in the **Story
+worktree** (`workCwd` from Step 0):
+
+```bash
+node <main-repo>/.agents/scripts/evidence-gate.js \
+  --standalone --scope-id <storyId> --gate lint \
+  --worktree <workCwd> -- npm run lint
+```
+
+**On `decision: "block"`** — post a `friction` comment naming the unmet
+criteria, then transition the Story to `agent::blocked`:
+
+```bash
+node .agents/scripts/diagnose-friction.js --story <storyId> \
+  --cmd node .agents/scripts/acceptance-eval.js --story <storyId> --verdict <verdict-path>
+node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::blocked
+```
+
+---
+
+## Step 2 — Ceremony detail
+
+**Compute the change set once** (Story #4593) with the shared enumerator —
+the same module close uses — and reuse that one list downstream:
+
+```bash
+node --input-type=module -e '
+  import { computeChangeSet } from "<main-repo>/.agents/scripts/lib/orchestration/change-set.js";
+  const { files } = computeChangeSet({ baseRef: "main", headRef: "story-<storyId>" });
+  console.log(JSON.stringify(files));
+'
+```
+
+Derive the level with
+[`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js) over
+the one computed change-set list: a diff touching a sensitive path registered
+in `.agents/schemas/audit-rules.json` derives `high`, one touching none
+derives `low`, and an unenumerable diff (`files === null`) derives `null`.
+Hand the **same** list to every acceptance critic you spawn (Step 1a) — a
+critic that re-ran its own `git diff` could score against a different set
+than the one that routed it.
+
+Resolve fresh-vs-inline acceptance critics per AC-cluster with
+[`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
+(`minimal` → always inline; `strict` → always fresh; `standard` →
+`high`/`null` → `fresh`, `low` → `inline` unless the `freshCriticSampleRate`
+floor forces `fresh`). Review depth reads the same derived level via
+`review-depth.js` inside close, so the two decisions cannot disagree.
+
+**Lite-route override (Story #4707).** When the Story carries the
+`route::lite` marker (`resolveStoryDispatchMode` → `inline`), run every
+acceptance critic **inline** — do not spawn fresh-context critic sub-agents
+regardless of what the profile would otherwise resolve. The self-eval rigor
+(scoring each `acceptance[]` item against the one computed change set, with
+`verify[]` output as evidence) is unchanged; only the sub-agent boot is
+removed. Hard gates are untouched.
+
+---
+
+## Step 3 — Merge wait, async mode, and flags
+
+**What close does internally.** The script runs the close-validation gates
+against `baseBranch`, syncs the Story branch from `origin/<baseBranch>`
+(Story #2580 — the parallel-race defence), pushes `story-<id>`, opens (or
+reuses) a PR against `baseBranch` with a `Closes #<storyId>` footer, enables
+GitHub native auto-merge (`--auto --squash --delete-branch`) **when
+`delivery.ci.autoMerge` is `"trust-ci"` (the default)**, flips the Story to
+`agent::closing`, reaps the worktree, releases the lease, then **waits for
+the merge** and — on a confirmed merge — flips `agent::done` and runs the
+post-land tail.
+
+**The merge wait is bounded and resumable.** Two budgets, deliberately
+separate (`delivery.mergeWatch.*`):
+
+- **`maxWaitSeconds`** (default 300) bounds **one invocation**, sized to fit
+  inside a single host tool invocation (~10 min ceiling) alongside the gates
+  that precede it. Expiry → `pending`. Pass `--max-wait-seconds <n>` to raise
+  it when your host has no such ceiling and you want to land in one block.
+- **`maxBudgetSeconds`** (default 3600) bounds the **cumulative** wait across
+  resumes, anchored at the PR's `createdAt` so resuming does not restart the
+  clock. Exhausting *this* is the genuine give-up → `blocked`.
+
+The wait probes the checks every poll: a red required check fails fast as
+`checks-failed` instead of burning the budget, and a PR that falls behind its
+base is brought up to date within `updateAttempts` tries.
+
+**Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`, Story #4698).** Under the default `"sync"` the merge wait runs in the foreground as
+described above. When a consumer's CI routinely takes longer than the host
+tool ceiling (~10 min) can hold a single close invocation, the foreground
+wait almost always expires `pending` after burning ~5 minutes of the slot —
+so `"async"` makes that async confirm a designed mode instead of an expiry
+accident. In async mode the close arms auto-merge, runs one short **~60s
+probe window** (long enough to catch an instant merge and, via the
+head-anchored required-check predicate, an instantly-red required check),
+then returns the standard `pending` terminal with a `nextCommand`. When you
+receive that `pending` envelope, launch its `nextCommand`
+(`single-story-confirm-merge.js … --wait`) as a **background** invocation —
+host **background Bash** (`run_in_background`), whose completion re-invokes
+the agent — and continue; do **not** sit in a foreground poll the tool
+ceiling will kill. `single-story-confirm-merge.js` is already idempotent and
+owns the whole tail, so no new state holder is needed, and
+`deliver-recover.js` remains the recovery path for an orphaned confirm. The
+cumulative `maxBudgetSeconds` give-up is unchanged; `"sync"` behaviour is
+byte-compatible.
+
+**`delivery.ci.autoMerge` policy.** Under the default `"trust-ci"`, GitHub
+native auto-merge is armed and the PR squash-merges once its **required**
+checks pass. Under `"strict"`, the close **does not arm auto-merge** — the
+PR opens and waits for an **operator merge**, exactly as `--no-auto-merge`
+does per-run.
+
+**Close flags:**
+
+- `--skip-validation` — bypass the gates. Use only when re-running close
+  after a fixed gate failure that's already known to pass.
+- `--skip-sync` — bypass the base-sync (Story #2580). Use only after a
+  hand-resolved sync, or in tests.
+- `--no-auto-merge` — disable auto-merge. Use when the PR materially changes
+  behaviour and warrants a pre-merge eyeball; the operator then merges via
+  the GitHub UI.
+- `--wait-merge` — **close-and-land** (Story #4428). Forces close to poll
+  the armed PR to merge confirmation and flip `agent::done` itself. When
+  neither land flag is passed, close defaults from
+  `delivery.routing.closeAndLand` (**true**): attended and headless delivers
+  share the land-in-one-close happy path.
+- `--no-wait-merge` — explicit opt-out that always wins. Use when the
+  operator wants the PR left at `agent::closing` for a human land (or a
+  wrapper that will invoke `single-story-confirm-merge.js` itself). Reports
+  `pending` — the work is not done, nothing is broken, and one named command
+  finishes it.
+- `--max-wait-seconds <n>` — raise the merge wait's per-invocation bound for
+  this run (Story #4543). Use from a headless caller with no host
+  tool-invocation ceiling to keep single-block semantics without editing the
+  consumer's config.
+
+---
+
 ## Step 3 — Close pipeline detail
 
 The `single-story-close.js` script, in order:
