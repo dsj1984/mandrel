@@ -401,12 +401,34 @@ describe('gh-auth check', () => {
 // ---------------------------------------------------------------------------
 
 describe('commands-in-sync check', () => {
+  const ROOT = '/fake/root';
+  const PAYLOAD_DIR = path.join(ROOT, '.agents', 'workflows');
+  const LOCAL_DIR = path.join(ROOT, '.agents', 'local', 'workflows');
+  const DEST_DIR = path.join(ROOT, '.claude', 'commands');
+
+  /**
+   * Dir-keyed readDir fake (#4721) — the check reads three dirs (payload,
+   * local, dest); keying by path keeps the read order non-load-bearing.
+   * An unlisted dir returns [] (mirrors the real seam's catch on an absent
+   * `.agents/local/workflows/`).
+   *
+   * @param {{ payload?: string[], local?: string[], dest?: string[] }} dirs
+   */
+  function makeReadDir({ payload = [], local = [], dest = [] } = {}) {
+    return (dir) => {
+      if (dir === PAYLOAD_DIR) return [...payload];
+      if (dir === LOCAL_DIR) return [...local];
+      if (dir === DEST_DIR) return [...dest];
+      return [];
+    };
+  }
+
   it('returns ok=true when sources and destinations match', () => {
     const check = findCheck('commands-in-sync');
     const files = ['epic-deliver.md', 'story-deliver.md', 'git-deliver.md'];
     const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => [...files],
+      projectRoot: ROOT,
+      readDir: makeReadDir({ payload: files, dest: files }),
     });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /3 commands up to date/);
@@ -414,15 +436,12 @@ describe('commands-in-sync check', () => {
 
   it('returns ok=false when a source file is not in the destination', () => {
     const check = findCheck('commands-in-sync');
-    let callCount = 0;
     const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => {
-        callCount++;
-        // First call = srcDir (2 files), second call = destDir (1 file).
-        if (callCount === 1) return ['epic-deliver.md', 'story-deliver.md'];
-        return ['epic-deliver.md'];
-      },
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        payload: ['epic-deliver.md', 'story-deliver.md'],
+        dest: ['epic-deliver.md'],
+      }),
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.remedy, /sync:commands/);
@@ -431,14 +450,12 @@ describe('commands-in-sync check', () => {
 
   it('returns ok=false when the destination has a stale file not in source', () => {
     const check = findCheck('commands-in-sync');
-    let callCount = 0;
     const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => {
-        callCount++;
-        if (callCount === 1) return ['epic-deliver.md'];
-        return ['epic-deliver.md', 'old-command.md'];
-      },
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        payload: ['epic-deliver.md'],
+        dest: ['epic-deliver.md', 'old-command.md'],
+      }),
     });
     assertResultShape(result, { expectOk: false });
     assert.match(result.detail, /1 stale/);
@@ -456,15 +473,17 @@ describe('commands-in-sync check', () => {
       cwd: () => consumerRoot,
       readDir: (dir) => {
         dirsRead.push(dir);
-        // Both src and dest in sync so the assertion is purely about roots.
+        // Every dir returns the same set so src and dest are in sync and the
+        // assertion is purely about roots.
         return ['epic-deliver.md', 'story-deliver.md'];
       },
     });
     assertResultShape(result, { expectOk: true });
-    // The check must read the src/dest dirs anchored on the cwd() consumer
-    // root — not a package-relative path under node_modules.
+    // The check must read both source dirs and the dest dir anchored on the
+    // cwd() consumer root — not a package-relative path under node_modules.
     assert.deepEqual(dirsRead, [
       path.join(consumerRoot, '.agents', 'workflows'),
+      path.join(consumerRoot, '.agents', 'local', 'workflows'),
       path.join(consumerRoot, '.claude', 'commands'),
     ]);
   });
@@ -474,15 +493,13 @@ describe('commands-in-sync check', () => {
   // from projection and MUST NOT count as "not synced".
   it('excludes frontmatter `command: false` workflows from the expected set', () => {
     const check = findCheck('commands-in-sync');
-    let callCount = 0;
     const result = check.run({
-      projectRoot: '/fake/root',
-      readDir: () => {
-        callCount++;
-        // src has the lens + a normal workflow; dest only has the normal one.
-        if (callCount === 1) return ['audit-security.md', 'epic-deliver.md'];
-        return ['epic-deliver.md'];
-      },
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        // payload has the lens + a normal workflow; dest only the normal one.
+        payload: ['audit-security.md', 'epic-deliver.md'],
+        dest: ['epic-deliver.md'],
+      }),
       readFile: (file) =>
         file.endsWith('audit-security.md')
           ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
@@ -490,6 +507,80 @@ describe('commands-in-sync check', () => {
     });
     assertResultShape(result, { expectOk: true });
     assert.match(result.detail, /1 commands up to date/);
+  });
+
+  // #4721 — the sync script has projected `.agents/local/workflows/` as a
+  // second, prune-exempt source since 1.75.0 (#4244); a dest command backed
+  // only by a local workflow MUST NOT count as stale. This was the permanent
+  // "1 stale" doctor false positive in consumers with a local command.
+  it('counts a dest command backed only by a local workflow as in sync (#4721)', () => {
+    const check = findCheck('commands-in-sync');
+    const result = check.run({
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        payload: ['epic-deliver.md'],
+        local: ['benchmark.md'],
+        dest: ['epic-deliver.md', 'benchmark.md'],
+      }),
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /2 commands up to date/);
+  });
+
+  it('reports a local workflow with no dest counterpart as not synced', () => {
+    const check = findCheck('commands-in-sync');
+    const result = check.run({
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        payload: ['epic-deliver.md'],
+        local: ['benchmark.md'],
+        dest: ['epic-deliver.md'],
+      }),
+    });
+    assertResultShape(result, { expectOk: false });
+    assert.match(result.detail, /1 not synced/);
+  });
+
+  it('applies the `command: false` exclusion to local sources too', () => {
+    const check = findCheck('commands-in-sync');
+    const result = check.run({
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        payload: ['epic-deliver.md'],
+        local: ['local-lens.md'],
+        dest: ['epic-deliver.md'],
+      }),
+      readFile: (file) =>
+        file.endsWith('local-lens.md')
+          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
+          : '---\ndescription: normal\n---\n\n# Normal\n',
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /1 commands up to date/);
+  });
+
+  // Union semantics on basename collision: the sync script's payload-wins
+  // shadowing means a basename projects iff at least one source copy is
+  // non-excluded — including the payload-excluded/local-projected case
+  // (an excluded payload entry never enters `byRel`, so it does not shadow
+  // the local copy).
+  it('counts a basename supplied by both sources once, and a payload-excluded/local-projected basename as expected', () => {
+    const check = findCheck('commands-in-sync');
+    const result = check.run({
+      projectRoot: ROOT,
+      readDir: makeReadDir({
+        // shared.md in both dirs; lens.md excluded in payload, plain local.
+        payload: ['shared.md', 'lens.md'],
+        local: ['shared.md', 'lens.md'],
+        dest: ['shared.md', 'lens.md'],
+      }),
+      readFile: (file) =>
+        file === path.join(PAYLOAD_DIR, 'lens.md')
+          ? '---\ndescription: lens\ncommand: false\n---\n\n# Lens\n'
+          : '---\ndescription: normal\n---\n\n# Normal\n',
+    });
+    assertResultShape(result, { expectOk: true });
+    assert.match(result.detail, /2 commands up to date/);
   });
 });
 
