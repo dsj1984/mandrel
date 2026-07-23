@@ -162,6 +162,20 @@ to respect.
      A blocked Story outranks a wedge (its blockers are moot while a human
      owes a decision) but not a cycle (exit 2 — fix the graph first).
 
+   **Lite-routed Stories execute inline (Story #4707).** Before spawning
+   anything, check the Story's labels (already on the resolver envelope's
+   `stories[].labels`) with `resolveStoryDispatchMode`
+   (`lib/orchestration/complexity-gate.js`): a Story carrying the persisted
+   `route::lite` marker executes
+   [`helpers/deliver-story.md`](helpers/deliver-story.md) **inline in this
+   session** — no `story-worker` sub-agent boot and no fresh acceptance-critic
+   sub-agents (sub-agent boots are the dominant deliver-phase token cost at
+   trivial scope) — threading the same `docsDigestPath` / `checklistPath` /
+   change-set discipline as a spawned worker. Inline removes model-side
+   fan-out only: every `single-story-close.js` gate, the PR to `main`, and the
+   terminal envelope are identical. A Story without the marker (or with
+   unreadable labels) takes the standard sub-agent path below.
+
    **Dispatch each `ready` Story (role-scoped by default).** When
    `delivery.routing.roleScopedAgents` is enabled (the **default**) and the
    host exposes agent dispatch, spawn each ready Story as its own

@@ -38,12 +38,30 @@
  * `planning.complexityGate` in `.agentrc.json`:
  *
  *   - `enabled`      (default `true`)  — `false` forces every seed to `full`.
- *   - `maxSeedWords` (default `60`)    — seed prose word ceiling for `lite`.
+ *   - `maxSeedWords` (default `150`)   — seed prose word ceiling for `lite`.
  *   - `maxArtifacts` (default `1`)     — enumerated-artifact ceiling for `lite`.
  *
  * Resolution clamps every field toward the conservative default: a malformed or
  * negative ceiling falls back to the framework default rather than widening the
  * lite path.
+ *
+ * ## Planner downgrade + the persisted route marker (Story #4707)
+ *
+ * Seed word count is a poor complexity proxy: a well-written 70-word trivial
+ * seed is no less trivial than a terse 40-word one, which is why the ceiling
+ * sits at 150 rather than 60. Two adjacent surfaces live here with the gate so
+ * the whole lite-routing contract has one home:
+ *
+ *   - {@link applyPlannerDowngrade} — the planner may downgrade a `full`
+ *     verdict to `lite` **only** with a recorded reason. The deterministic
+ *     gate itself is unchanged (it still fails toward `full`); the downgrade
+ *     is an auditable model judgment layered on top, never a silent gate
+ *     change. Absent a non-empty reason the deterministic verdict stands.
+ *   - {@link resolveStoryDispatchMode} — the deliver-side reader of the
+ *     persisted {@link LITE_ROUTE_LABEL} marker. A lite-routed Story executes
+ *     inline in the deliver session (no story-worker or acceptance-critic
+ *     sub-agent boots); everything else dispatches as before. Model-side
+ *     fan-out only — never a deterministic close gate.
  *
  * @typedef {'lite'|'full'} ComplexityRoute
  */
@@ -55,9 +73,20 @@
  */
 const DEFAULT_COMPLEXITY_GATE = Object.freeze({
   enabled: true,
-  maxSeedWords: 60,
+  maxSeedWords: 150,
   maxArtifacts: 1,
 });
+
+/**
+ * The persisted route marker for a lite-routed Story (Story #4707).
+ *
+ * Applied by plan-persist at create time and read by `/deliver` (via the
+ * resolver envelope's `stories[].labels`) through
+ * {@link resolveStoryDispatchMode}. A full-routed Story carries no marker —
+ * absence is the conservative default, so an unlabelled Story always takes
+ * the sub-agent dispatch path.
+ */
+export const LITE_ROUTE_LABEL = 'route::lite';
 
 /**
  * The non-negotiables the ceremony-lite path preserves. This is the
@@ -204,4 +233,86 @@ export function buildComplexityRouteSignal({ seedText = '', config } = {}) {
     'lite',
     `trivial single-artifact scope (${wordCount} words ≤ ${threshold.maxSeedWords}, ${artifactCount} enumerated artifact(s) ≤ ${threshold.maxArtifacts}) — collapsed ceremony-lite path; non-negotiables preserved`,
   );
+}
+
+/**
+ * Apply an auditable planner downgrade to a `full` complexity verdict
+ * (Story #4707).
+ *
+ * The deterministic gate is conservative by construction, and seed word count
+ * is a poor complexity proxy — so the planner is allowed to judge a `full`
+ * verdict down to `lite`, but **only** with a recorded reason. The contract:
+ *
+ *   - No non-empty reason → the deterministic verdict stands, unchanged. A
+ *     downgrade without a reason is indistinguishable from a silent gate
+ *     change, which is exactly what this path must never be.
+ *   - A signal that is not a `full` verdict (already `lite`, or absent) is
+ *     returned unchanged — there is nothing to downgrade.
+ *   - Otherwise the returned signal routes `lite`, appends the reason to
+ *     `reasons`, and carries a frozen `downgraded: { from: 'full', reason }`
+ *     record so the judgment is ledgerable on plan state (plan-persist writes
+ *     it into every created Story's `story-plan-state` checkpoint).
+ *
+ * Pure and total: never mutates `signal`, never throws on malformed input.
+ * The gate itself ({@link buildComplexityRouteSignal}) is untouched — it
+ * still fails toward `full` on any doubt.
+ *
+ * @param {ReturnType<typeof buildComplexityRouteSignal>|null|undefined} signal
+ * @param {{ reason?: unknown }} [args]
+ * @returns {object|null|undefined} The (possibly downgraded) signal.
+ */
+export function applyPlannerDowngrade(signal, { reason } = {}) {
+  if (!signal || typeof signal !== 'object' || signal.route !== 'full') {
+    return signal;
+  }
+  const recorded = typeof reason === 'string' ? reason.trim() : '';
+  if (recorded === '') return signal;
+  return {
+    ...signal,
+    route: 'lite',
+    reasons: [
+      ...(Array.isArray(signal.reasons) ? signal.reasons : []),
+      `planner downgrade full → lite (recorded reason): ${recorded}`,
+    ],
+    downgraded: Object.freeze({ from: 'full', reason: recorded }),
+  };
+}
+
+/**
+ * Decide how `/deliver` executes a Story from its persisted route marker
+ * (Story #4707).
+ *
+ * Reads the labels the resolver envelope already carries. A Story labelled
+ * {@link LITE_ROUTE_LABEL} executes **inline** in the deliver session — no
+ * story-worker sub-agent boot and no fresh acceptance-critic sub-agent
+ * dispatch (sub-agent boots are the dominant deliver-phase token cost at
+ * trivial scope). Every other Story — including one with missing or
+ * malformed labels — dispatches as a sub-agent: absence of the marker is the
+ * conservative default, mirroring the gate's fail-toward-`full` posture.
+ *
+ * Inline execution removes model-side fan-out only. Every deterministic
+ * `single-story-close.js` gate (validation, security baseline, PR-to-`main`)
+ * runs unchanged regardless of mode — see {@link LITE_PATH_INVARIANTS}.
+ *
+ * @param {{ labels?: unknown }} [args]
+ * @returns {{ mode: 'inline'|'subagent', reasons: string[] }}
+ */
+export function resolveStoryDispatchMode({ labels } = {}) {
+  const list = Array.isArray(labels)
+    ? labels.filter((l) => typeof l === 'string')
+    : [];
+  if (list.includes(LITE_ROUTE_LABEL)) {
+    return {
+      mode: 'inline',
+      reasons: [
+        `Story carries the ${LITE_ROUTE_LABEL} route marker — execute deliver-story inline; no story-worker or acceptance-critic sub-agent dispatch (close gates unchanged)`,
+      ],
+    };
+  }
+  return {
+    mode: 'subagent',
+    reasons: [
+      `no ${LITE_ROUTE_LABEL} route marker — standard sub-agent dispatch`,
+    ],
+  };
 }

@@ -299,7 +299,7 @@ const PLANNING_SCHEMA = {
           type: 'integer',
           minimum: 0,
           description:
-            'Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 60.',
+            'Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 150.',
         },
         maxArtifacts: {
           type: 'integer',

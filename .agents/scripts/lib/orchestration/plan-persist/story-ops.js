@@ -46,6 +46,9 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 /** Stable color for the cohort grouping label (`ensureLabels`). */
 const PLAN_RUN_LABEL_COLOR = '#C5DEF5';
 
+/** Stable color for the `route::lite` ceremony-route marker (Story #4707). */
+const LITE_ROUTE_LABEL_COLOR = '#D4C5F9';
+
 /** Length of the derived plan-run id (hex chars). */
 const PLAN_RUN_ID_LENGTH = 8;
 
@@ -185,15 +188,18 @@ function planFingerprintMarker(fingerprint) {
  * Labels the authoring pass is never allowed to set. The `agent::*` axis is
  * the runtime's lifecycle state (persist owns the terminal `agent::ready`
  * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy,
- * `persona::*` is a retired axis, and `plan-run::*` is the runtime-derived
- * cohort grouping axis (Story #4692) — a hand-authored entry would compete
- * with the deterministic label persist applies itself.
+ * `persona::*` is a retired axis, `plan-run::*` is the runtime-derived
+ * cohort grouping axis (Story #4692), and `route::*` is the runtime-derived
+ * ceremony-route axis (Story #4707) — a hand-authored entry on either
+ * derived axis would compete with the deterministic label persist applies
+ * itself.
  */
 const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
   'agent::',
   'type::',
   'persona::',
   PLAN_RUN_LABEL_PREFIX,
+  'route::',
 ]);
 
 /** GitHub's own label-name ceiling. */
@@ -682,54 +688,57 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
 }
 
 /**
- * Ensure the cohort's `plan-run::<id>` grouping label exists before it is
- * applied — GitHub's create-issue path does not auto-create unknown labels
- * on every provider route, and an opaque per-run label never exists yet.
+ * Ensure a runtime-derived persist label (`plan-run::<id>` cohort grouping,
+ * `route::lite` route marker) exists before it is applied — GitHub's
+ * create-issue path does not auto-create unknown labels on every provider
+ * route, and an opaque derived label never exists yet.
  *
  * **Non-fatal by design**, matching the native-blocked_by mirroring posture:
- * grouping is cosmetic, never a reason to fail persist. On an ensure failure
- * (throw, or the label reported `missing` by the post-loop reconcile) the
- * create loop proceeds **without** the label — applying an unensured label
- * could fail the issue create itself, and the Stories matter more than
- * their grouping. A provider that exposes no `ensureLabels` (test fakes,
- * minimal providers) is assumed to accept arbitrary labels on create.
+ * neither label is load-bearing for correctness (grouping is cosmetic; a
+ * missing route marker degrades a lite Story to the standard — safer —
+ * sub-agent dispatch), so it is never a reason to fail persist. On an ensure
+ * failure (throw, or the label reported `missing` by the post-loop
+ * reconcile) the create loop proceeds **without** the label — applying an
+ * unensured label could fail the issue create itself, and the Stories matter
+ * more than their metadata. A provider that exposes no `ensureLabels` (test
+ * fakes, minimal providers) is assumed to accept arbitrary labels on create.
  *
  * @param {object} args
  * @param {object} args.provider
- * @param {string} args.cohortLabel
+ * @param {string} args.label
+ * @param {string} args.color
+ * @param {string} args.description
+ * @param {string} args.role Human-readable role for the degrade warning.
  * @returns {Promise<boolean>} Whether the create loop should apply the label.
  */
-async function ensureCohortLabel({ provider, cohortLabel }) {
+async function ensurePersistLabel({
+  provider,
+  label,
+  color,
+  description,
+  role,
+}) {
   if (typeof provider?.ensureLabels !== 'function') {
     return true;
   }
   try {
     const result = await provider.ensureLabels([
-      {
-        name: cohortLabel,
-        color: PLAN_RUN_LABEL_COLOR,
-        description:
-          'Groups the Stories one /plan persist run authored (metadata ' +
-          'only — /deliver stays ids-only).',
-      },
+      { name: label, color, description },
     ]);
-    if (
-      Array.isArray(result?.missing) &&
-      result.missing.includes(cohortLabel)
-    ) {
+    if (Array.isArray(result?.missing) && result.missing.includes(label)) {
       Logger.warn(
-        `[plan-persist] cohort label "${cohortLabel}" could not be verified ` +
-          'on the remote — creating the Stories without it. Grouping is ' +
-          'cosmetic; add the label by hand if you want the cohort filter.',
+        `[plan-persist] ${role} label "${label}" could not be verified ` +
+          'on the remote — creating the Stories without it. Add the label ' +
+          'by hand if you want it.',
       );
       return false;
     }
     return true;
   } catch (err) {
     Logger.warn(
-      `[plan-persist] cohort label ensure failed (${err.message}) — ` +
-        'creating the Stories without the grouping label. Grouping is ' +
-        'cosmetic; add the label by hand if you want the cohort filter.',
+      `[plan-persist] ${role} label ensure failed (${err.message}) — ` +
+        'creating the Stories without it. Add the label by hand if you ' +
+        'want it.',
     );
     return false;
   }
@@ -773,15 +782,28 @@ async function ensureCohortLabel({ provider, cohortLabel }) {
  * every id is known (Story #4544), so plan-created order stops depending on
  * prose. That pass is non-fatal — see `mirrorNativeDependencyEdges`.
  *
+ * **A lite-routed cohort carries the `route::lite` marker** (Story #4707).
+ * When the caller resolves the plan's effective complexity route to `lite`
+ * (envelope verdict, or an audited planner downgrade), it passes the marker
+ * via `opts.routeLabel` and every created Story carries it — the persisted,
+ * `/deliver`-readable form of the route (`resolveStoryDispatchMode`). A
+ * full-routed plan passes nothing and its Stories carry **no** route marker.
+ * Like the cohort label, the ensure is non-fatal: a Story created without
+ * the marker degrades to the standard sub-agent dispatch, never to a skipped
+ * gate.
+ *
  * @param {object} args
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
+ * @param {string|null} [args.opts.routeLabel=null] Route marker label to
+ *   apply to every created Story (`route::lite`), or null for none.
  * @returns {Promise<{
  *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }>,
  *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,
  *   planRunLabel: string,
+ *   routeLabel: string|null,
  * }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
@@ -792,6 +814,10 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const list = Array.isArray(stories) ? stories : [];
+  const routeLabel =
+    typeof opts.routeLabel === 'string' && opts.routeLabel.trim() !== ''
+      ? opts.routeLabel.trim()
+      : null;
 
   // Derived once for the whole cohort, before any write — a pure function of
   // the authored artifacts, so dry-run can report it write-free and a resume
@@ -811,10 +837,30 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       })),
       dependencyEdges: null,
       planRunLabel: cohortLabel,
+      routeLabel,
     };
   }
 
-  const applyCohortLabel = await ensureCohortLabel({ provider, cohortLabel });
+  const applyCohortLabel = await ensurePersistLabel({
+    provider,
+    label: cohortLabel,
+    color: PLAN_RUN_LABEL_COLOR,
+    description:
+      'Groups the Stories one /plan persist run authored (metadata ' +
+      'only — /deliver stays ids-only).',
+    role: 'cohort',
+  });
+  const applyRouteLabel =
+    routeLabel !== null &&
+    (await ensurePersistLabel({
+      provider,
+      label: routeLabel,
+      color: LITE_ROUTE_LABEL_COLOR,
+      description:
+        'Ceremony-lite route marker: /deliver executes this Story inline ' +
+        '(no sub-agent fan-out); every close gate runs unchanged.',
+      role: 'route-marker',
+    }));
 
   const { byFingerprint, idsByTitle } = await indexExistingStories(provider);
   const created = [];
@@ -846,9 +892,11 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     const result = await provider.createIssue({
       title: story.title,
       body: renderStoryBodyForCreate(story, idBySlug),
-      labels: applyCohortLabel
-        ? [...story.labels, cohortLabel]
-        : [...story.labels],
+      labels: [
+        ...story.labels,
+        ...(applyCohortLabel ? [cohortLabel] : []),
+        ...(applyRouteLabel ? [routeLabel] : []),
+      ],
     });
     const id = result?.id ?? result?.number;
     if (!Number.isInteger(id)) {
@@ -875,7 +923,12 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     idBySlug,
   });
 
-  return { created, dependencyEdges, planRunLabel: cohortLabel };
+  return {
+    created,
+    dependencyEdges,
+    planRunLabel: cohortLabel,
+    routeLabel: applyRouteLabel ? routeLabel : null,
+  };
 }
 
 /**

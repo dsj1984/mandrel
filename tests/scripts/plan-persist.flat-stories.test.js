@@ -856,6 +856,155 @@ describe('runPlanPersist — flat Story ops', () => {
   });
 });
 
+describe('runPlanPersist — ceremony-lite route marker (Story #4707)', () => {
+  const liteEnvelope = {
+    complexityRoute: {
+      route: 'lite',
+      reasons: ['trivial single-artifact scope'],
+      threshold: { enabled: true, maxSeedWords: 150, maxArtifacts: 1 },
+      preserves: {
+        storyTicket: true,
+        prToMain: true,
+        repoGates: true,
+        securityBaseline: true,
+      },
+      advisory: true,
+    },
+  };
+  const fullEnvelope = {
+    complexityRoute: {
+      ...liteEnvelope.complexityRoute,
+      route: 'full',
+      reasons: ['not a trivial scope'],
+    },
+  };
+
+  it('a lite verdict persists the route::lite marker and ledgers the route on the checkpoint (AC-3)', async () => {
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [ticket('solo')],
+        planContextEnvelope: liteEnvelope,
+      },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(result.route.route, 'lite');
+    assert.equal(result.route.downgraded, null);
+    assert.ok(
+      labelsAtCreate[0].includes('route::lite'),
+      'the creating POST carries the route marker',
+    );
+    // Ledgered on plan state: the story-plan-state checkpoint carries the
+    // route block, readable by /deliver alongside the label.
+    const checkpoint = provider.comments
+      .map((c) => c.body)
+      .find((b) => b.includes('story-plan-state'));
+    assert.match(checkpoint, /"route": "lite"/);
+  });
+
+  it('a full verdict persists NO route marker and no checkpoint route block (AC-3)', async () => {
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [ticket('solo')],
+        planContextEnvelope: fullEnvelope,
+      },
+      config: {},
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(result.route.route, 'full');
+    assert.ok(
+      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
+      'a full-routed Story carries no route marker',
+    );
+    const checkpoint = provider.comments
+      .map((c) => c.body)
+      .find((b) => b.includes('story-plan-state'));
+    assert.doesNotMatch(checkpoint, /"route"/);
+  });
+
+  it('a planner downgrade needs a recorded reason, which is persisted on the checkpoint (AC-2)', async () => {
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [ticket('solo')],
+        planContextEnvelope: fullEnvelope,
+      },
+      config: {},
+      opts: {
+        skipCleanup: true,
+        routeDowngradeReason: 'single trivial artifact despite verbose seed',
+      },
+    });
+
+    assert.equal(result.route.route, 'lite');
+    assert.deepEqual(result.route.downgraded, {
+      from: 'full',
+      reason: 'single trivial artifact despite verbose seed',
+    });
+    assert.ok(labelsAtCreate[0].includes('route::lite'));
+    const checkpoint = provider.comments
+      .map((c) => c.body)
+      .find((b) => b.includes('story-plan-state'));
+    assert.match(checkpoint, /"route": "lite"/);
+    assert.match(
+      checkpoint,
+      /single trivial artifact despite verbose seed/,
+      'the recorded downgrade reason is ledgered on plan state',
+    );
+  });
+
+  it('absent a recorded reason the deterministic verdict stands (AC-2)', async () => {
+    for (const routeDowngradeReason of [undefined, null, '', '   ']) {
+      const labelsAtCreate = [];
+      const provider = fakeProvider({
+        createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+      });
+      const result = await runPlanPersist({
+        provider,
+        artifacts: {
+          stories: [ticket('solo')],
+          planContextEnvelope: fullEnvelope,
+        },
+        config: {},
+        opts: { skipCleanup: true, routeDowngradeReason },
+      });
+      assert.equal(result.route.route, 'full');
+      assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));
+    }
+  });
+
+  it('no captured envelope means no verdict to downgrade — the plan persists as full', async () => {
+    const labelsAtCreate = [];
+    const provider = fakeProvider({
+      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
+    });
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('solo')] },
+      config: {},
+      opts: { skipCleanup: true, routeDowngradeReason: 'orphan reason' },
+    });
+    assert.equal(result.route, null);
+    assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));
+  });
+});
+
 describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
   function supersedingTicket(slug, supersedes) {
     return { ...ticket(slug), supersedes };
@@ -1169,6 +1318,13 @@ describe('sanitizeAuthoredLabels (Story #4541)', () => {
         's',
       ),
       [TYPE_LABELS.STORY, 'area::planning'],
+    );
+  });
+
+  it('drops hand-authored route::* entries — the route axis is runtime-derived (Story #4707)', () => {
+    assert.deepEqual(
+      sanitizeAuthoredLabels(['route::lite', 'route::full', 'area::x'], 's'),
+      [TYPE_LABELS.STORY, 'area::x'],
     );
   });
 
