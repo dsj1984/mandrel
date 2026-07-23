@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   buildManifest,
   cleanFixtureDirs,
+  defaultBaselinePath,
   diffAgainstSnapshot,
   findFixtureDirs,
   isStreamFile,
@@ -24,7 +25,6 @@ import {
   parseArgv,
   readSnapshot,
   runHygiene,
-  SNAPSHOT_BASENAME,
   tempDirFor,
   writeSnapshot,
 } from '../.agents/scripts/check-test-temp-hygiene.js';
@@ -35,6 +35,8 @@ beforeEach(() => {
   repoRoot = mkdtempSync(path.join(tmpdir(), 'temp-hygiene-'));
 });
 afterEach(() => {
+  // The default baseline lives OUTSIDE repoRoot (Story #4711) — sweep it too.
+  rmSync(defaultBaselinePath(repoRoot), { force: true });
   rmSync(repoRoot, { recursive: true, force: true });
 });
 
@@ -64,7 +66,7 @@ describe('check-test-temp-hygiene — isStreamFile', () => {
     assert.equal(isStreamFile('run-7/manifest.md'), false);
     assert.equal(isStreamFile('epic-runner-logs/x.ndjson'), false);
     assert.equal(isStreamFile('loose.ndjson'), false);
-    assert.equal(isStreamFile(SNAPSHOT_BASENAME), false);
+    assert.equal(isStreamFile('.test-temp-hygiene-snapshot.json'), false);
   });
 });
 
@@ -135,6 +137,69 @@ describe('check-test-temp-hygiene — snapshot + diff', () => {
   });
 });
 
+describe('check-test-temp-hygiene — external baseline (Story #4711, AC-2)', () => {
+  it('defaultBaselinePath lives outside the repo root and its temp/ tree', () => {
+    const baseline = defaultBaselinePath(repoRoot);
+    assert.ok(path.isAbsolute(baseline));
+    assert.ok(
+      !baseline.startsWith(repoRoot + path.sep),
+      `baseline ${baseline} must not live under the repo root`,
+    );
+    assert.ok(
+      !baseline.startsWith(tempDirFor(repoRoot) + path.sep),
+      `baseline ${baseline} must not live under the protected temp/ tree`,
+    );
+  });
+
+  it('defaultBaselinePath is keyed by repo root (no cross-checkout collision)', () => {
+    const other = mkdtempSync(path.join(tmpdir(), 'temp-hygiene-other-'));
+    try {
+      assert.notEqual(
+        defaultBaselinePath(repoRoot),
+        defaultBaselinePath(other),
+      );
+      assert.equal(
+        defaultBaselinePath(repoRoot),
+        defaultBaselinePath(repoRoot),
+      );
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
+  });
+
+  it('writeSnapshot persists to the external default and leaves temp/ clean', async () => {
+    writeStream('run-1/lifecycle.ndjson', 'a\n');
+    const { snapshotPath } = writeSnapshot(repoRoot);
+    assert.equal(snapshotPath, defaultBaselinePath(repoRoot));
+    await fs.stat(snapshotPath);
+    // Nothing snapshot-shaped was written under the protected tree.
+    const tempEntries = await fs.readdir(tempDirFor(repoRoot));
+    assert.deepEqual(tempEntries.sort(), ['run-1']);
+  });
+
+  it('writeSnapshot / readSnapshot honour an explicit external baseline path', () => {
+    writeStream('run-1/lifecycle.ndjson', 'a\n');
+    const custom = path.join(repoRoot, 'ci-scratch', 'hygiene.json');
+    const { snapshotPath } = writeSnapshot(repoRoot, custom);
+    assert.equal(snapshotPath, custom);
+    const snapshot = readSnapshot(repoRoot, custom);
+    assert.ok(snapshot !== null);
+    assert.ok(snapshot['run-1/lifecycle.ndjson']);
+  });
+
+  it('refuses a baseline path inside the protected temp/ tree', () => {
+    const inTemp = path.join(tempDirFor(repoRoot), 'snapshot.json');
+    assert.throws(
+      () => writeSnapshot(repoRoot, inTemp),
+      /must live outside the protected temp\/ tree/,
+    );
+    assert.throws(
+      () => readSnapshot(repoRoot, inTemp),
+      /must live outside the protected temp\/ tree/,
+    );
+  });
+});
+
 describe('check-test-temp-hygiene — findFixtureDirs / cleanFixtureDirs (AC-4)', () => {
   it('finds run-<id> and standalone story dirs matching fixture ids', () => {
     writeStream('run-4428/lifecycle.ndjson', 'x\n');
@@ -194,7 +259,7 @@ describe('check-test-temp-hygiene — parseArgv', () => {
     assert.equal(opts.ids, null);
   });
 
-  it('parses each mode, --yes, --ids, and --root', () => {
+  it('parses each mode, --yes, --ids, --root, and --baseline', () => {
     assert.equal(parseArgv(['--snapshot']).mode, 'snapshot');
     assert.equal(parseArgv(['--clean']).mode, 'clean');
     assert.equal(parseArgv(['--clean', '--yes']).apply, true);
@@ -202,6 +267,11 @@ describe('check-test-temp-hygiene — parseArgv', () => {
     assert.equal(
       parseArgv(['--root', '/tmp/x']).repoRoot,
       path.resolve('/tmp/x'),
+    );
+    assert.equal(parseArgv([]).baseline, null);
+    assert.equal(
+      parseArgv(['--baseline', '/tmp/x/base.json']).baseline,
+      path.resolve('/tmp/x/base.json'),
     );
   });
 });
@@ -224,15 +294,49 @@ describe('check-test-temp-hygiene — runHygiene', () => {
     assert.ok(lines.join('\n').includes('snapshot recorded'));
   });
 
-  it('assert with no prior snapshot baselines and returns 0', () => {
+  it('assert with no prior snapshot fails closed naming the missing baseline (AC-1)', () => {
     writeStream('run-1/lifecycle.ndjson', 'a\n');
     const { lines, log } = collect();
     const code = runHygiene(
       { mode: 'assert', apply: false, ids: null, repoRoot },
       log,
     );
-    assert.equal(code, 0);
-    assert.ok(lines.join('\n').includes('baseline recorded'));
+    assert.equal(code, 1);
+    const out = lines.join('\n');
+    assert.ok(out.includes('snapshot missing'));
+    assert.ok(out.includes(defaultBaselinePath(repoRoot)));
+    assert.ok(!out.includes('baseline recorded'), 'must never re-baseline');
+  });
+
+  it('assert fails closed after the baseline is deleted (wiped-temp scenario, AC-1)', () => {
+    writeStream('run-1/lifecycle.ndjson', 'a\n');
+    const { snapshotPath } = writeSnapshot(repoRoot);
+    rmSync(snapshotPath, { force: true });
+    const { lines, log } = collect();
+    const code = runHygiene(
+      { mode: 'assert', apply: false, ids: null, repoRoot },
+      log,
+    );
+    assert.equal(code, 1);
+    const out = lines.join('\n');
+    assert.ok(out.includes('snapshot missing'));
+    assert.ok(out.includes(snapshotPath));
+    // Still no re-baseline on the failing path.
+    assert.equal(readSnapshot(repoRoot), null);
+  });
+
+  it('assert honours an explicit --baseline path end-to-end', () => {
+    writeStream('run-1/lifecycle.ndjson', 'a\n');
+    const custom = path.join(repoRoot, 'ci-scratch', 'hygiene.json');
+    writeSnapshot(repoRoot, custom);
+    writeStream('run-2/stories/story-9/signals.ndjson', 'polluted\n');
+    const { lines, log } = collect();
+    const code = runHygiene(
+      { mode: 'assert', apply: false, ids: null, repoRoot, baseline: custom },
+      log,
+    );
+    assert.equal(code, 1);
+    assert.ok(lines.join('\n').includes('polluted the real temp/ tree'));
   });
 
   it('assert returns 0 when the tree is unchanged since snapshot', () => {
