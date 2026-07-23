@@ -16,11 +16,14 @@ import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
  * under this dir instead of the repo's real `temp/` telemetry tree — the
  * regression that let 99% of friction records be test-fixture pollution.
  *
+ * Module-internal — the observable behaviour is asserted through
+ * `buildWebhookSafeTestEnv`, so it is deliberately not exported.
+ *
  * @param {NodeJS.ProcessEnv} [baseEnv=process.env]
  * @param {{ mkdtemp?: typeof mkdtempSync }} [deps] Injectable for tests.
  * @returns {string} absolute scratch tempRoot
  */
-export function ensureTestScratchTempRoot(
+function ensureTestScratchTempRoot(
   baseEnv = process.env,
   { mkdtemp = mkdtempSync } = {},
 ) {

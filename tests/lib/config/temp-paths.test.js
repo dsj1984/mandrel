@@ -19,7 +19,6 @@ import {
   storyTempDir,
   TEST_TEMP_ROOT_ENV,
   tempRootFrom,
-  testScratchTempRoot,
 } from '../../../.agents/scripts/lib/config/temp-paths.js';
 
 const SEP = path.sep;
@@ -328,29 +327,27 @@ describe('lib/config/temp-paths.js — main-checkout anchoring (Story #3900)', (
 describe('lib/config/temp-paths.js — scratch tempRoot seam (Story #4696)', () => {
   const SCRATCH = path.resolve(SEP, 'tmp', 'mandrel-scratch-abc');
 
-  it('testScratchTempRoot honours an absolute override', () => {
-    assert.equal(
-      testScratchTempRoot({ [TEST_TEMP_ROOT_ENV]: SCRATCH }),
-      SCRATCH,
-    );
-  });
-
-  it('testScratchTempRoot ignores an unset / empty / relative override', () => {
-    assert.equal(testScratchTempRoot({}), null);
-    assert.equal(testScratchTempRoot({ [TEST_TEMP_ROOT_ENV]: '' }), null);
-    assert.equal(
-      testScratchTempRoot({ [TEST_TEMP_ROOT_ENV]: 'temp' }),
-      null,
-      'a relative override must be rejected — it would re-anchor to the repo',
-    );
-  });
-
   it('anchorTempRoot redirects a relative root under scratch when the override is set', () => {
     const env = { [TEST_TEMP_ROOT_ENV]: SCRATCH };
     assert.equal(anchorTempRoot('temp', env), path.join(SCRATCH, 'temp'));
     assert.equal(
       anchorTempRoot(path.join('a', 'b'), env),
       path.join(SCRATCH, 'a', 'b'),
+    );
+  });
+
+  it('anchorTempRoot ignores an empty / relative override (would re-anchor to the repo)', () => {
+    // An empty or relative override is treated as unset, so a relative root
+    // falls through to main-checkout anchoring rather than the scratch join.
+    const root = mainCheckoutRoot();
+    const expected = root ? path.join(root, 'temp') : 'temp';
+    assert.equal(
+      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: '' }),
+      expected,
+    );
+    assert.equal(
+      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: 'temp' }),
+      expected,
     );
   });
 

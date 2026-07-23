@@ -133,12 +133,14 @@ export const TEST_TEMP_ROOT_ENV = 'MANDREL_TEST_TEMP_ROOT';
  * Resolve the absolute scratch tempRoot override, or `null` when none is
  * configured. Only an **absolute** value is honoured — a relative override
  * would re-anchor against the repo tree and defeat the isolation, so it is
- * ignored (treated as unset).
+ * ignored (treated as unset). Module-internal: the behaviour is exercised
+ * through `anchorTempRoot`, so it is deliberately not exported (keeps the
+ * public seam to `anchorTempRoot` + `TEST_TEMP_ROOT_ENV`).
  *
  * @param {NodeJS.ProcessEnv} [env=process.env]
  * @returns {string|null}
  */
-export function testScratchTempRoot(env = process.env) {
+function testScratchTempRoot(env = process.env) {
   const override = env?.[TEST_TEMP_ROOT_ENV];
   return typeof override === 'string' &&
     override.length > 0 &&
