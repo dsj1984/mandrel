@@ -2042,6 +2042,10 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "symbol": "SPEC_SOFT_WORD_BUDGET"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "symbol": "_internal"
     },
     {

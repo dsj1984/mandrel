@@ -22,17 +22,26 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
+import { buildComplexitySignals } from '../.agents/scripts/lib/orchestration/complexity-gate.js';
 import {
   buildDeliveryShapeSignal,
   buildPlanContext,
   buildScopeTriageSignal,
   buildSystemPrompts,
   PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
+  renderStoriesTemplate,
   TICKET_SCHEMA_DESCRIPTOR,
 } from '../.agents/scripts/lib/orchestration/plan-context.js';
 import {
@@ -42,6 +51,11 @@ import {
 } from '../.agents/scripts/lib/orchestration/plan-persist/plan-context-source.js';
 import { resolveSourceTicketIds } from '../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
+import {
+  VERIFY_TIER_VALUES,
+  validateTaskBodies,
+} from '../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
@@ -857,6 +871,119 @@ describe('plan-context --out envelope capture (Story #4554)', () => {
       stdout: sink,
     });
     assert.deepEqual(await readdir(dir), []);
+    await rm(dir, { recursive: true, force: true });
+  });
+});
+
+// Story #4723 AC-2 — the authoring skeleton is correct-by-construction:
+// verify[] placeholders carry a valid (tier) tag, changes[] paths arrive
+// pre-resolved to creates-vs-refactors against the repo snapshot, and a
+// faithfully-filled skeleton passes the persist ticket validators with no
+// round-trip.
+describe('renderStoriesTemplate — correct-by-construction skeleton (Story #4723)', () => {
+  const sink = { write: () => true };
+  const VERIFY_TIER_RE = new RegExp(
+    `\\((?:${VERIFY_TIER_VALUES.join('|')})\\)\\s*$`,
+  );
+
+  /** Fixture repo state: exactly these paths exist. */
+  const FIXTURE_FILES = new Set(['lib/existing/module.js']);
+  const FIXTURE_ROOT = path.join(tmpdir(), 'plan-ctx-fixture-root');
+  const fixtureSignals = () =>
+    buildComplexitySignals({
+      seedText:
+        'Refactor lib/existing/module.js, add lib/new/feature.js, and pin it in tests/new/feature.test.js.',
+      cwd: FIXTURE_ROOT,
+      pathExistsFn: (abs) =>
+        [...FIXTURE_FILES].some((f) => abs === path.resolve(FIXTURE_ROOT, f)),
+    });
+
+  it('emits verify[] placeholders that already carry a valid (tier) tag', () => {
+    const template = JSON.parse(renderStoriesTemplate());
+    for (const entry of template[0].verify) {
+      assert.match(entry, VERIFY_TIER_RE);
+    }
+  });
+
+  it('pre-resolves predicted changes[] paths against the repo snapshot', () => {
+    const template = JSON.parse(
+      renderStoriesTemplate({ complexitySignals: fixtureSignals() }),
+    );
+    assert.deepEqual(template[0].body.changes, [
+      { path: 'lib/existing/module.js', assumption: 'refactors-existing' },
+      { path: 'lib/new/feature.js', assumption: 'creates' },
+      { path: 'tests/new/feature.test.js', assumption: 'creates' },
+    ]);
+  });
+
+  it('falls back to the instructive placeholder entry without predicted paths', () => {
+    const template = JSON.parse(renderStoriesTemplate());
+    assert.deepEqual(template[0].body.changes, [
+      { path: 'path/to/file.ext', assumption: 'refactors-existing' },
+    ]);
+  });
+
+  it('a faithfully-filled skeleton passes the persist ticket validators with no round-trip', () => {
+    const template = JSON.parse(
+      renderStoriesTemplate({ complexitySignals: fixtureSignals() }),
+    );
+    const story = template[0];
+    // A faithful fill replaces every "Fill:" placeholder and keeps the
+    // pre-resolved changes[] and the valid trailing tier tag.
+    story.slug = 'harden-widget-pipeline';
+    story.title = 'Harden the widget pipeline';
+    story.body.goal = 'Harden the widget pipeline against stale snapshots.';
+    story.body.spec =
+      'Contract: lib/existing/module.js keeps its exported signature.';
+    story.body.reason_to_exist =
+      'The widget pipeline mis-resolves stale snapshots.';
+    story.acceptance = [
+      'The hardened pipeline resolves the snapshot and the pinned test passes',
+    ];
+    story.verify = ['npm test (unit)'];
+
+    // Persist-shaped gates: the shared validator with a git probe that
+    // mirrors the fixture repo state, then the body-shape validator.
+    const gitRunner = ({ path: p }) => FIXTURE_FILES.has(p);
+    let validated;
+    assert.doesNotThrow(() => {
+      validated = validateAndNormalizeTickets([story], {
+        baseBranchRef: 'main',
+        gitRunner,
+      });
+      validateTaskBodies(validated);
+    });
+    assert.deepEqual(validated.errors, []);
+  });
+
+  it('emitPlanContext threads the envelope signals into the written template', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-resolved-'));
+    const repo = path.join(dir, 'repo');
+    await mkdir(path.join(repo, 'src'), { recursive: true });
+    await writeFile(path.join(repo, 'src', 'real.js'), '// fixture\n', 'utf8');
+    const outPath = path.join(dir, PLAN_CONTEXT_FILENAME);
+
+    await emitPlanContext({
+      mode: 'seed-file',
+      seedFileContent: 'Update src/real.js and add src/missing.js.',
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      outPath,
+      cwd: repo,
+      stdout: sink,
+    });
+
+    const template = JSON.parse(
+      await readFile(path.join(dir, 'stories.template.json'), 'utf8'),
+    );
+    assert.deepEqual(template[0].body.changes, [
+      { path: 'src/real.js', assumption: 'refactors-existing' },
+      { path: 'src/missing.js', assumption: 'creates' },
+    ]);
+    for (const entry of template[0].verify) {
+      assert.match(entry, VERIFY_TIER_RE);
+    }
     await rm(dir, { recursive: true, force: true });
   });
 });

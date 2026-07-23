@@ -181,6 +181,20 @@ directly.
 
 ### Step 1a — self-eval mechanics
 
+**One verdict-owner per cluster (Story #4723).** The ceremony routing's
+resolved decision names each cluster's single verdict owner
+(`verdictOwner: 'fresh-critic' | 'inline-self-eval'` from
+`resolveCeremonyForRisk`): the fresh maker-blind critic when sensitivity
+routes the cluster `fresh`, the contract-identical inline self-eval when it
+routes `inline`. Exactly one pass authors the verdict — never both, and
+never a preliminary self-assessment pass before dispatching the fresh
+critic (the redundant pre-pass buys no measurable quality and roughly
+triples the acceptance-block cost). `acceptance-eval.js` is the
+deterministic **scorer** of that one authored verdict — schema validation,
+round cap, proceed / redraft / block — not an independent additional pass
+over the criteria. The M4-B floor holds: one verdict per cluster, the
+cluster count owned by `acceptance-clusters.js` alone.
+
 **Critic evidence-share (Story #4250).** When the critic runs a `verify[]`
 command that is byte-identical to a close gate (`lint` / `typecheck`), it
 records the pass into the Story evidence keyspace via `--standalone` so

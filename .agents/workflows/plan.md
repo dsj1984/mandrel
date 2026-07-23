@@ -79,8 +79,9 @@ duplicate-candidate review. Under `--yes`, auto-proceed.
 
 ### 2. Author
 
-**One-shot authoring (Story #4707).** Start from `stories.template.json`
-(or the skeleton below); author `stories.json` in one pass. `body` is a
+**One-shot authoring (Story #4707).** Start from `stories.template.json`;
+author `stories.json` in one pass. Entries are pre-resolved (#4723); keep
+tiers/assumptions valid. `body` is a
 markdown string **or** a structured object; persist parses either,
 serializes the canonical markdown, and syncs the top-level `acceptance[]` /
 `verify[]` into the body — never dual-author those lists.
@@ -182,7 +183,7 @@ persist, re-run the same command; never hand-delete issues.
 
 - [`/deliver`](deliver.md) — delivery entry point.
 - [`/audit-to-stories`](audit-to-stories.md) — audit findings → plan seed.
-- [`helpers/plan-reference.md`](helpers/plan-reference.md) — routing,
-  supersede, critic, and persist-resume detail.
+- [`helpers/plan-reference.md`](helpers/plan-reference.md) — on-demand
+  detail.
 - [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) — optional
   split-advisory notes only (no routing verdict).

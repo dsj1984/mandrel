@@ -53,6 +53,35 @@ in [`.agents/docs/configuration.md`](../../docs/configuration.md) under
 ceilings on `STORY_SHAPE_CEILINGS` in
 [`lib/orchestration/complexity-gate.js`](../../scripts/lib/orchestration/complexity-gate.js).
 
+## Correct-by-construction authoring template (Story #4723)
+
+`plan-context.js --out` writes `stories.template.json` as a
+**correct-by-construction** skeleton, built from the same repo snapshot the
+`complexitySignals` probed:
+
+- **`verify[]` placeholders already end with a valid `(tier)` tag.** Keep
+  every filled entry's trailing tag one of `(unit)` / `(contract)` /
+  `(e2e)` / `(validate)` (or use the `manual:<reason>` escape) — a tierless
+  entry is exactly the mechanical persist round-trip the template exists to
+  prevent.
+- **`changes[]` arrive pre-resolved to creates-vs-refactors.** Every path
+  the seed predicted is probed against the repo: an existing path is
+  emitted with `assumption: "refactors-existing"`, a missing one with
+  `assumption: "creates"`. Trust the pre-resolved assumption — verify
+  against the repo before overriding one (authoring `creates` for a file
+  that exists at base is a validator rejection). The persist gates stay
+  authoritative: they probe the base branch ref, not the working tree.
+- **Keep `## Spec` near contract-level prose.** Persist emits an
+  **advisory** warning past ~250 words (`SPEC_SOFT_WORD_BUDGET`) — it never
+  fails the persist, but it is the nudge toward the #4707 contract-level
+  Spec (interfaces, invariants, load-bearing constraints; no per-file
+  behavior narration). The hard fail-closed ceiling (~1500 tokens,
+  `spec-spill.js`) is unchanged.
+
+A faithfully-filled skeleton — placeholders replaced, pre-resolved entries
+kept, tags valid — passes the persist ticket validators with no
+round-trip.
+
 ## Tickets mode — authoring `supersedes[]`
 
 In `--tickets` mode each Story carries a top-level `supersedes` array claiming

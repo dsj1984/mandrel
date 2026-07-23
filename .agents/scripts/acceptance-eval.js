@@ -3,12 +3,16 @@
 /**
  * acceptance-eval.js — bounded per-Story acceptance self-eval gate (Story #3819).
  *
- * The Story-implementation phase runs an independent (fresh-context)
- * critic pass that scores the caller-injected change set against each
- * inline `acceptance[]` item, emitting one verdict file per round
+ * The Story-implementation phase runs ONE verdict-owner per acceptance
+ * cluster (Story #4723) — the fresh-context critic when
+ * `ceremony-routing.js` sensitivity-routes the cluster fresh, the
+ * contract-identical inline self-eval otherwise — which scores the
+ * caller-injected change set against each inline `acceptance[]` item and
+ * emits one verdict file per round
  * (`.agents/schemas/acceptance-eval-verdict.schema.json`). This CLI is the
- * deterministic substrate that turns that verdict into the loop's next
- * action:
+ * deterministic SCORER of that single authored verdict — it validates and
+ * decides, it never re-scores the criteria as an independent additional
+ * pass — turning the verdict into the loop's next action:
  *
  *   1. Validate the verdict file against the verdict JSON Schema (a
  *      malformed verdict is a hard error — the loop refuses to guess).

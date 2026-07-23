@@ -30,10 +30,19 @@ mid-delivery, and evaluates the actual work product.
 
 ## Per round
 
-1. **Eval pass (fresh context, independent of the author).** Run a **separate
-   critic pass** — a fresh-context sub-agent (`Agent` tool), *not* a
-   continuation of your implementing turn — so the evaluator does not grade its
-   own homework.
+1. **Eval pass — one verdict-owner per cluster (Story #4723).** Exactly
+   **one** pass authors each cluster's verdict: the **fresh-context critic**
+   when the ceremony routing below resolves `fresh` (a sub-agent via the
+   `Agent` tool, *not* a continuation of your implementing turn — the
+   evaluator does not grade its own homework), or the **inline self-eval**
+   when it resolves `inline`. The resolved decision names the owner
+   explicitly (`verdictOwner: 'fresh-critic' | 'inline-self-eval'` from
+   `resolveCeremonyForRisk`). **Never run both**, and never run a
+   preliminary self-assessment pass before dispatching the fresh critic —
+   the redundant pre-pass buys no measurable quality and roughly triples
+   the acceptance-block cost. Step 2's gate is the deterministic **scorer**
+   of the one authored verdict, not a second (or third) pass over the
+   criteria.
 
    > **Sub-agent type + derived-level ceremony (Epic #4478, M7-B).** When
    > `delivery.routing.roleScopedAgents` is enabled (the **default**), dispatch
@@ -129,7 +138,9 @@ mid-delivery, and evaluates the actual work product.
      one `{ index, criterion, verdict: met|partial|unmet, evidence,
      verifyEvidence[] }` record per acceptance item.
 2. **Decide.** Run the gate against the verdict (the caller's Step 1a names the
-   exact invocation — omit `--epic`):
+   exact invocation — omit `--epic`). The gate **scores the single verdict
+   the round's owner authored** — schema validation, round cap, decision —
+   and never re-scores the criteria itself (Story #4723):
 
    ```bash
    node <main-repo>/.agents/scripts/acceptance-eval.js \

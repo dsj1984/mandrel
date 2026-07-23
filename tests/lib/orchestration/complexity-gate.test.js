@@ -100,7 +100,10 @@ describe('buildComplexitySignals — signals, not routing (AC-1, AC-2)', () => {
       seedText:
         'Tweak src/auth/session.js and add the new src/widgets/list.js helper.',
       injectedRules: RULES,
-      pathExistsFn: (abs) => abs.endsWith('src/auth/session.js'),
+      // path.resolve produces platform separators — normalize before the
+      // suffix match so the probe also fires on Windows (backslash paths).
+      pathExistsFn: (abs) =>
+        abs.replaceAll('\\', '/').endsWith('src/auth/session.js'),
     });
     assert.deepEqual(signals.predictedPaths, [
       'src/auth/session.js',

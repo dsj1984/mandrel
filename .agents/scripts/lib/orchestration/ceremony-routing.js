@@ -35,6 +35,19 @@
  * sub-agent. This module takes the cluster index as an INPUT and returns a
  * decision for that one cluster; it has no way to add or remove clusters.
  *
+ * ## One verdict-owner per cluster (Story #4723)
+ *
+ * The resolved decision names the cluster's **single verdict owner** via
+ * `verdictOwner`: `'fresh-critic'` when the mode is `fresh`,
+ * `'inline-self-eval'` when the mode is `inline`. Exactly one pass authors
+ * the cluster's verdict — the fresh maker-blind critic OR the
+ * contract-identical inline self-eval, never both, and never an additional
+ * pre-pass self-assessment before the owner runs. `acceptance-eval.js` is
+ * the deterministic SCORER of that one authored verdict (schema validation,
+ * round cap, proceed/redraft/block) — it is not a third pass over the
+ * criteria. This removes a redundant pass only; it never removes a
+ * cluster's verdict (the M4-B floor above holds).
+ *
  * ## Tier rules (per cluster, `standard` profile)
  *
  *   - `high` level       → `fresh`   (a sensitive path was touched — a
@@ -63,9 +76,22 @@
  * `undefined` / malformed inputs degrade to `fresh` + `full` ceremony.
  *
  * @typedef {'fresh'|'inline'} CeremonyMode
+ * @typedef {'fresh-critic'|'inline-self-eval'} VerdictOwner
  * @typedef {import('./review-depth.js').ChangeLevel} ChangeLevel
  * @typedef {'minimal'|'standard'|'strict'} CeremonyProfile
  */
+
+/**
+ * Map a resolved ceremony mode to the cluster's single verdict owner
+ * (Story #4723). Total: any non-`fresh` value maps to the inline
+ * self-eval owner, mirroring how the mode itself degrades.
+ *
+ * @param {CeremonyMode} mode
+ * @returns {VerdictOwner}
+ */
+export function verdictOwnerForMode(mode) {
+  return mode === 'fresh' ? 'fresh-critic' : 'inline-self-eval';
+}
 
 /** @type {readonly CeremonyProfile[]} */
 export const CEREMONY_PROFILES = Object.freeze([
@@ -133,9 +159,28 @@ export function sampledFresh(clusterIndex, rate) {
  *   reason: string,
  *   sampled: boolean,
  *   profile: CeremonyProfile,
+ *   verdictOwner: VerdictOwner,
  * }}
  */
 export function resolveCeremonyForRisk(input = {}) {
+  const decision = resolveCeremonyDecision(input);
+  return { ...decision, verdictOwner: verdictOwnerForMode(decision.mode) };
+}
+
+/**
+ * Internal mode/reason resolution — the tier rules and sampling floor.
+ * `resolveCeremonyForRisk` decorates the result with the single
+ * `verdictOwner` derived from the mode (Story #4723).
+ *
+ * @param {Parameters<typeof resolveCeremonyForRisk>[0]} [input]
+ * @returns {{
+ *   mode: CeremonyMode,
+ *   reason: string,
+ *   sampled: boolean,
+ *   profile: CeremonyProfile,
+ * }}
+ */
+function resolveCeremonyDecision(input = {}) {
   const derivedLevel =
     input && typeof input === 'object' ? input.derivedLevel : undefined;
   const clusterIndex =
