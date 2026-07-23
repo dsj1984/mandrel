@@ -11,8 +11,12 @@ import {
 import {
   assemblePlanStories,
   createStoryIssues,
+  derivePlanRunId,
   foldSpecIntoStoryBody,
+  normalizePlanRunId,
   normalizeStoryTicket,
+  PLAN_RUN_LABEL_PREFIX,
+  planRunLabel,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { DEFAULT_SPEC_BODY_TOKEN_BUDGET } from '../../../.agents/scripts/lib/orchestration/spec-spill.js';
 import {
@@ -37,10 +41,12 @@ function storyTicket(slug, overrides = {}) {
   };
 }
 
-// Story #4540 removed planRunLabel / PLAN_RUN_LABEL_PREFIX / normalizePlanRunId
-// from this module along with the label itself. Their tests went with them;
-// the createStoryIssues test below now asserts the label's ABSENCE, which is
-// the contract that replaced them.
+// Story #4692 reintroduced planRunLabel / PLAN_RUN_LABEL_PREFIX /
+// normalizePlanRunId (retired by Story #4540) as a metadata-only grouping
+// axis, with the id now DETERMINISTIC over the authored artifacts
+// (derivePlanRunId hashes the sorted per-Story plan fingerprints) instead of
+// random, so a resumed persist reuses the identical label. The
+// createStoryIssues tests below assert the label's presence and stability.
 
 describe('normalizeStoryTicket — supersedes (Story #4535)', () => {
   it('normalizes a top-level supersedes[] onto the Story', () => {
@@ -189,15 +195,16 @@ describe('assemblePlanStories', () => {
 });
 
 describe('createStoryIssues', () => {
-  it('creates issues with type::story and NO agent::ready or plan-run label, even when N>1', async () => {
-    // Story #4540: N>1 used to mint an opaque `plan-run::<hex>` label that
-    // nothing ever deleted, to express a grouping that ordering already
-    // encodes via the blocked-by footers asserted in the next test.
+  it('creates issues with type::story plus exactly one plan-run cohort label and NO agent::ready, even when N>1', async () => {
+    // Story #4692: every Story a persist run creates carries the cohort's
+    // `plan-run::<id>` grouping label — metadata only, never a delivery
+    // input. Ordering still lives in the blocked-by footers asserted in the
+    // next test.
     //
-    // Story #4541: agent::ready is no longer part of the creating POST
-    // either. `markStoriesReady` applies it as the terminal step of persist,
-    // once every checkpoint is on the ticket — so a Story labelled ready
-    // always has its risk envelope.
+    // Story #4541: agent::ready is no longer part of the creating POST.
+    // `markStoriesReady` applies it as the terminal step of persist, once
+    // every checkpoint is on the ticket — so a Story labelled ready always
+    // has its risk envelope.
     const calls = [];
     const provider = {
       createIssue: async (payload) => {
@@ -214,7 +221,10 @@ describe('createStoryIssues', () => {
     ]);
     const result = await createStoryIssues({ provider, stories });
     assert.equal(result.created.length, 2);
-    assert.equal(result.planRunLabel, undefined);
+    const expectedLabel = planRunLabel(
+      derivePlanRunId(stories.map((s) => s.fingerprint)),
+    );
+    assert.equal(result.planRunLabel, expectedLabel);
     for (const call of calls) {
       assert.ok(call.labels.includes(TYPE_LABELS.STORY));
       assert.ok(
@@ -222,11 +232,137 @@ describe('createStoryIssues', () => {
         'ready is the terminal flip, not part of the creating POST',
       );
       assert.deepEqual(
-        call.labels.filter((l) => l.startsWith('plan-run::')),
-        [],
-        'no batch label is applied',
+        call.labels.filter((l) => l.startsWith(PLAN_RUN_LABEL_PREFIX)),
+        [expectedLabel],
+        'exactly one cohort grouping label is applied',
       );
     }
+  });
+
+  it('derives the same plan-run label across a re-run and different labels for different plans', async () => {
+    // The id is a pure function of the authored artifacts (sorted per-Story
+    // fingerprints), so a persist re-run of the same stories.json derives
+    // the identical cohort label — the resumable-create contract — while a
+    // different plan derives a different one.
+    const makeProvider = () => ({
+      createIssue: async () => ({ id: Math.floor(Math.random() * 1e6) }),
+    });
+    const { stories: first } = assemblePlanStories([
+      storyTicket('a'),
+      storyTicket('b'),
+    ]);
+    const { stories: second } = assemblePlanStories([
+      storyTicket('a'),
+      storyTicket('b'),
+    ]);
+    const runA = await createStoryIssues({
+      provider: makeProvider(),
+      stories: first,
+    });
+    const runB = await createStoryIssues({
+      provider: makeProvider(),
+      stories: second,
+    });
+    assert.equal(runA.planRunLabel, runB.planRunLabel);
+    assert.match(
+      runA.planRunLabel,
+      new RegExp(`^${PLAN_RUN_LABEL_PREFIX}[0-9a-f]{8}$`),
+    );
+
+    const { stories: other } = assemblePlanStories([storyTicket('c')]);
+    const runC = await createStoryIssues({
+      provider: makeProvider(),
+      stories: other,
+    });
+    assert.notEqual(runC.planRunLabel, runA.planRunLabel);
+  });
+
+  it('is independent of fingerprint order', () => {
+    assert.equal(
+      derivePlanRunId(['bbb', 'aaa']),
+      derivePlanRunId(['aaa', 'bbb']),
+    );
+  });
+
+  it('normalizePlanRunId canonicalizes tokens and rejects empty ids', () => {
+    assert.equal(normalizePlanRunId('  Plan-Run::My Cohort!  '), 'my-cohort-');
+    assert.equal(normalizePlanRunId('plan-run::abc123'), 'abc123');
+    assert.equal(planRunLabel('ABC 123'), `${PLAN_RUN_LABEL_PREFIX}abc-123`);
+    assert.throws(() => normalizePlanRunId('   '), /non-empty planRunId/);
+  });
+
+  it('ensures the cohort label before the first create and degrades non-fatally on ensure failure', async () => {
+    // AC-4: the label must exist before it is applied, and a label-ensure
+    // failure degrades to a warning — the Stories are still created, just
+    // without the cosmetic grouping label.
+    const events = [];
+    const okProvider = {
+      ensureLabels: async (defs) => {
+        events.push(`ensure:${defs[0].name}`);
+        return { created: [defs[0].name], skipped: [], missing: [] };
+      },
+      createIssue: async (payload) => {
+        events.push('create');
+        events.push(payload.labels.filter((l) => l.startsWith('plan-run::')));
+        return { id: 300 + events.length };
+      },
+    };
+    const { stories } = assemblePlanStories([storyTicket('a')]);
+    const ok = await createStoryIssues({ provider: okProvider, stories });
+    assert.equal(events[0], `ensure:${ok.planRunLabel}`);
+    assert.deepEqual(events[2], [ok.planRunLabel]);
+
+    const failCalls = [];
+    const failProvider = {
+      ensureLabels: async () => {
+        throw new Error('boom');
+      },
+      createIssue: async (payload) => {
+        failCalls.push(payload);
+        return { id: 400 + failCalls.length };
+      },
+    };
+    const { stories: stories2 } = assemblePlanStories([storyTicket('a')]);
+    const degraded = await createStoryIssues({
+      provider: failProvider,
+      stories: stories2,
+    });
+    assert.equal(degraded.created.length, 1, 'Stories are still created');
+    assert.deepEqual(
+      failCalls[0].labels.filter((l) => l.startsWith('plan-run::')),
+      [],
+      'the unensured label is not applied',
+    );
+    assert.equal(
+      degraded.planRunLabel,
+      ok.planRunLabel,
+      'the derived label is still reported',
+    );
+  });
+
+  it('reports the derived plan-run label under dryRun without any write', async () => {
+    let writes = 0;
+    const provider = {
+      ensureLabels: async () => {
+        writes += 1;
+        return { created: [], skipped: [], missing: [] };
+      },
+      createIssue: async () => {
+        writes += 1;
+        return { id: 1 };
+      },
+    };
+    const { stories } = assemblePlanStories([storyTicket('a')]);
+    const result = await createStoryIssues({
+      provider,
+      stories,
+      opts: { dryRun: true },
+    });
+    assert.equal(writes, 0);
+    assert.match(
+      result.planRunLabel,
+      new RegExp(`^${PLAN_RUN_LABEL_PREFIX}[0-9a-f]{8}$`),
+    );
   });
 
   it('creates dependencies first and persists numeric blocked-by edges', async () => {

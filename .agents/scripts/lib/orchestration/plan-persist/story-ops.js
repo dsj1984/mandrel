@@ -30,11 +30,82 @@ import {
   normalizeSupersedes,
 } from './supersede-ops.js';
 
-// Story #4540 removed PLAN_RUN_LABEL_PREFIX / normalizePlanRunId /
-// planRunLabel from here. They minted an opaque random-hex label per N>1
-// plan that nothing ever deleted, and their only external consumer was the
-// (now deleted) `--run` resolver. Sibling order survives in the
-// `blocked by #N` body footers this module already writes.
+/**
+ * Label prefix grouping the Stories one plan-persist run authored.
+ *
+ * Reintroduced (Story #4692) after Story #4540 retired it: #4540 was right
+ * that batch identity is the wrong axis for *ordering delivery across runs*
+ * (`/deliver` takes ids and resolves the graph from live state — that stays),
+ * but it is the correct axis for *grouping the Stories one plan run created*
+ * so a cohort is filterable and traceable in the GitHub UI. The label is
+ * metadata only; nothing in persist or delivery reads it as a
+ * delivery-resolution input.
+ */
+export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
+
+/** Stable color for the cohort grouping label (`ensureLabels`). */
+const PLAN_RUN_LABEL_COLOR = '#C5DEF5';
+
+/** Length of the derived plan-run id (hex chars). */
+const PLAN_RUN_ID_LENGTH = 8;
+
+/**
+ * Normalize a caller-supplied plan-run token. Kept shared so human-readable
+ * ids map to one canonical label shape.
+ *
+ * @param {string} id
+ * @returns {string}
+ */
+export function normalizePlanRunId(id) {
+  const token = String(id ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/^plan-run::/, '')
+    .replace(/[^a-z0-9._-]+/g, '-');
+  if (!token) {
+    throw new Error('plan-run id requires a non-empty planRunId');
+  }
+  return token;
+}
+
+/**
+ * Build a `plan-run::<id>` label from an explicit id.
+ *
+ * Unlike the pre-#4540 shape, this never mints a random token — a random id
+ * would split a resumed persist's cohort across two labels. Derive the id
+ * from the authored artifacts via {@link derivePlanRunId} instead.
+ *
+ * @param {string} id
+ * @returns {string}
+ */
+export function planRunLabel(id) {
+  return `${PLAN_RUN_LABEL_PREFIX}${normalizePlanRunId(id)}`;
+}
+
+/**
+ * Derive the deterministic plan-run id for a cohort of assembled Stories.
+ *
+ * Hashes the **sorted** set of per-Story plan fingerprints (the same
+ * content identities the resumable-create contract adopts on), so the id is
+ * a pure function of the authored artifacts: the same `stories.json` yields
+ * the same `plan-run::<id>` on every run — a persist resumed after a
+ * mid-run failure applies the identical label to the newly-created
+ * remainder that the already-created (adopted) Stories carry — while a
+ * different plan derives a different label. Sorting makes the id
+ * independent of creation order.
+ *
+ * @param {string[]} fingerprints Per-Story plan fingerprints.
+ * @returns {string} Hex id, {@link PLAN_RUN_ID_LENGTH} chars.
+ */
+export function derivePlanRunId(fingerprints) {
+  const sorted = (Array.isArray(fingerprints) ? fingerprints : [])
+    .map(String)
+    .sort();
+  return createHash('sha256')
+    .update(sorted.join(' '))
+    .digest('hex')
+    .slice(0, PLAN_RUN_ID_LENGTH);
+}
 
 /**
  * Marker prefix for the per-Story plan fingerprint appended to every
@@ -113,13 +184,16 @@ function planFingerprintMarker(fingerprint) {
 /**
  * Labels the authoring pass is never allowed to set. The `agent::*` axis is
  * the runtime's lifecycle state (persist owns the terminal `agent::ready`
- * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy, and
- * `persona::*` is a retired axis.
+ * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy,
+ * `persona::*` is a retired axis, and `plan-run::*` is the runtime-derived
+ * cohort grouping axis (Story #4692) — a hand-authored entry would compete
+ * with the deterministic label persist applies itself.
  */
 const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
   'agent::',
   'type::',
   'persona::',
+  PLAN_RUN_LABEL_PREFIX,
 ]);
 
 /** GitHub's own label-name ceiling. */
@@ -608,6 +682,60 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
 }
 
 /**
+ * Ensure the cohort's `plan-run::<id>` grouping label exists before it is
+ * applied — GitHub's create-issue path does not auto-create unknown labels
+ * on every provider route, and an opaque per-run label never exists yet.
+ *
+ * **Non-fatal by design**, matching the native-blocked_by mirroring posture:
+ * grouping is cosmetic, never a reason to fail persist. On an ensure failure
+ * (throw, or the label reported `missing` by the post-loop reconcile) the
+ * create loop proceeds **without** the label — applying an unensured label
+ * could fail the issue create itself, and the Stories matter more than
+ * their grouping. A provider that exposes no `ensureLabels` (test fakes,
+ * minimal providers) is assumed to accept arbitrary labels on create.
+ *
+ * @param {object} args
+ * @param {object} args.provider
+ * @param {string} args.cohortLabel
+ * @returns {Promise<boolean>} Whether the create loop should apply the label.
+ */
+async function ensureCohortLabel({ provider, cohortLabel }) {
+  if (typeof provider?.ensureLabels !== 'function') {
+    return true;
+  }
+  try {
+    const result = await provider.ensureLabels([
+      {
+        name: cohortLabel,
+        color: PLAN_RUN_LABEL_COLOR,
+        description:
+          'Groups the Stories one /plan persist run authored (metadata ' +
+          'only — /deliver stays ids-only).',
+      },
+    ]);
+    if (
+      Array.isArray(result?.missing) &&
+      result.missing.includes(cohortLabel)
+    ) {
+      Logger.warn(
+        `[plan-persist] cohort label "${cohortLabel}" could not be verified ` +
+          'on the remote — creating the Stories without it. Grouping is ' +
+          'cosmetic; add the label by hand if you want the cohort filter.',
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] cohort label ensure failed (${err.message}) — ` +
+        'creating the Stories without the grouping label. Grouping is ' +
+        'cosmetic; add the label by hand if you want the cohort filter.',
+    );
+    return false;
+  }
+}
+
+/**
  * Create Story issues via `provider.createIssue`, resumably.
  *
  * **Stories are born without `agent::ready`** (Story #4541). They used to
@@ -631,11 +759,15 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
  * is named in a warning. Adoption never rewrites a body, so keying it on
  * anything weaker than content would silently ship a stale one.
  *
- * Story #4540 retired the `plan-run::<id>` label this used to apply when
- * N>1. Batch identity was the wrong axis to encode: it could not express an
- * edge to a Story planned in a different run, and ordering already lives in
- * the `blocked by #N` footers written below — which `/deliver`'s resolver
- * reads directly, alongside native GitHub edges, from live state.
+ * **Every created Story carries the cohort's `plan-run::<id>` grouping
+ * label** (Story #4692, metadata only). The id is deterministic over the
+ * authored artifacts ({@link derivePlanRunId}), so a resumed persist derives
+ * the identical label its adopted Stories already carry from their original
+ * create — no relabel call is needed on the resume path, and the cohort is
+ * never split across two labels. The label is ensured to exist before the
+ * first POST, **non-fatally**: grouping is cosmetic and never fails the run
+ * (see `ensureCohortLabel`). `/deliver` never reads it — delivery stays
+ * ids-only over live state (Story #4540's actual point).
  *
  * **Sibling order is mirrored into native GitHub `blocked_by` edges** once
  * every id is known (Story #4544), so plan-created order stops depending on
@@ -649,6 +781,7 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
  * @returns {Promise<{
  *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }>,
  *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,
+ *   planRunLabel: string,
  * }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
@@ -660,6 +793,13 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
 
   const list = Array.isArray(stories) ? stories : [];
 
+  // Derived once for the whole cohort, before any write — a pure function of
+  // the authored artifacts, so dry-run can report it write-free and a resume
+  // re-derives the identical label.
+  const cohortLabel = planRunLabel(
+    derivePlanRunId(list.map((story) => story.fingerprint)),
+  );
+
   if (opts.dryRun) {
     return {
       created: list.map((s, i) => ({
@@ -670,8 +810,11 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
         adopted: false,
       })),
       dependencyEdges: null,
+      planRunLabel: cohortLabel,
     };
   }
+
+  const applyCohortLabel = await ensureCohortLabel({ provider, cohortLabel });
 
   const { byFingerprint, idsByTitle } = await indexExistingStories(provider);
   const created = [];
@@ -681,6 +824,9 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     const already = byFingerprint.get(story.fingerprint);
     if (!already) warnOnDivergentSameTitleStory(story, idsByTitle);
     if (already) {
+      // Adopted Stories already carry the cohort label from their original
+      // create — the deterministic derivation guarantees it is the same
+      // label this run derived, so no relabel call is needed here.
       Logger.info(
         `[plan-persist] resuming: Story "${story.slug}" already exists as ` +
           `#${already.id} with byte-identical authored content ` +
@@ -700,7 +846,9 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     const result = await provider.createIssue({
       title: story.title,
       body: renderStoryBodyForCreate(story, idBySlug),
-      labels: [...story.labels],
+      labels: applyCohortLabel
+        ? [...story.labels, cohortLabel]
+        : [...story.labels],
     });
     const id = result?.id ?? result?.number;
     if (!Number.isInteger(id)) {
@@ -727,7 +875,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     idBySlug,
   });
 
-  return { created, dependencyEdges };
+  return { created, dependencyEdges, planRunLabel: cohortLabel };
 }
 
 /**

@@ -273,10 +273,14 @@ Pass `--plan-acceptance` whenever step 2 wrote an `acceptance-manifest.json`
 — it is what `assertAcceptancePartition` checks the N>1 split against.
 
 Persist creates Story issue(s) with `type::story` (plus any sanitized
-authored `labels[]`) and, when N>1, writes each authored `depends_on` edge
-into the sibling's body as a `blocked by #<id>` footer — the ordering
-`/deliver` resolves from. No batch label is applied (Story #4540 retired
-`plan-run::<id>`). Ends by naming the exact command:
+authored `labels[]`) and a shared `plan-run::<id>` grouping label on every
+Story the run creates (N=1 and N>1) — **metadata only**, for filtering and
+traceability (Story #4692); the id is deterministic over the authored
+artifacts, so a resumed persist reuses the same label. `/deliver` still
+takes only ids and resolves the graph from live state — the label is never
+a delivery-resolution input. When N>1, each authored `depends_on` edge is
+written into the sibling's body as a `blocked by #<id>` footer — the
+ordering `/deliver` resolves from. Ends by naming the exact command:
 `/deliver <storyId> [<storyId> ...]`.
 
 stdout is a pure JSON result; all log lines go to stderr, so a headless

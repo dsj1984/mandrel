@@ -1546,6 +1546,22 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "symbol": "PLAN_RUN_LABEL_PREFIX"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "symbol": "derivePlanRunId"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "symbol": "normalizePlanRunId"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
+      "symbol": "planRunLabel"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "symbol": "foldSpecIntoStoryBody"
     },
     {
