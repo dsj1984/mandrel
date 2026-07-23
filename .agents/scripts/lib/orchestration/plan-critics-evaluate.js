@@ -43,6 +43,20 @@ function resolveRiskHeuristics(config = {}) {
 }
 
 /**
+ * Resolve the `{ owner, repo }` the external-dependency probe's cross-repo arm
+ * (Story #4700) measures references against, from the canonical `github` block.
+ *
+ * @param {object} config
+ * @returns {{ owner: string|null, repo: string|null }}
+ */
+function resolveOwnerRepo(config = {}) {
+  return {
+    owner: config.github?.owner ?? null,
+    repo: config.github?.repo ?? null,
+  };
+}
+
+/**
  * Evaluate the consolidation + pre-mortem critic dispatch conditions over
  * the authored planning artifacts (#4474 PR6 conditions, unchanged):
  *
@@ -50,8 +64,12 @@ function resolveRiskHeuristics(config = {}) {
  *     single-delivery shape authors no draft tickets); otherwise the
  *     deterministic precondition + size/divergence conditions.
  *   - Pre-mortem: ticket count at least half `maxTickets`, OR any
- *     `planning.riskHeuristics` phrase matching the plan text. Story #4542
- *     retired its authored-risk-level condition with the verdict itself.
+ *     `planning.riskHeuristics` phrase matching the plan text, OR the
+ *     external-dependency probe (Story #4700) matching an out-of-repo marker
+ *     — a scoped package absent from `knownPackages`, a cross-repo
+ *     `github.com/<owner>/<repo>` reference, or a named external service
+ *     prerequisite. Story #4542 retired its authored-risk-level condition with
+ *     the verdict itself.
  *   - Text hygiene (Story #4599, advisory-only): deterministic body lints
  *     (dangling-citation / open-question / slicing-mass) over the draft
  *     stories. It has no `dispatch` semantics and spawns nothing — its
@@ -62,7 +80,13 @@ function resolveRiskHeuristics(config = {}) {
  *   techSpecContent: string,
  *   tickets?: Array<object>|null,
  *   config?: object,
+ *   knownPackages?: string[],
  * }} args
+ * @param {string[]} [args.knownPackages] - Package specifiers the repo's own
+ *   manifests declare, forwarded to the pre-mortem external-dependency probe
+ *   (Story #4700). The caller (the `plan-critics.js` CLI) owns the file I/O
+ *   that gathers them; this module stays pure. Empty when unresolved, which
+ *   only widens what the probe treats as external.
  * @returns {{
  *   consolidation: { critic: string, dispatch: boolean, reasons: string[] },
  *   premortem: { critic: string, dispatch: boolean, reasons: string[] },
@@ -73,6 +97,7 @@ export function evaluatePlanCritics({
   techSpecContent,
   tickets = null,
   config = {},
+  knownPackages = [],
 }) {
   const ticketList = Array.isArray(tickets) ? tickets : null;
   const consolidation =
@@ -97,6 +122,8 @@ export function evaluatePlanCritics({
       techSpecContent ?? '',
       ticketList ? JSON.stringify(ticketList) : '',
     ].join('\n'),
+    knownPackages,
+    ownerRepo: resolveOwnerRepo(config),
   });
 
   const textHygiene = {

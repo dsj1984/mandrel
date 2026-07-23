@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 
 import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import {
+  collectRepoPackages,
   evaluateCriticArtifacts,
   loadCriticArtifacts,
   PLAN_CRITICS_CLI,
@@ -129,6 +130,12 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     assert.match(critics, /usage\/IO\s+error/i);
     assert.doesNotMatch(critics, /always\s+exits\s+0/i);
     assert.match(critics, /\*\*do\s+not\s+proceed\s+to\s+Persist\*\*/i);
+  });
+
+  it('names the external-dependency pre-mortem trigger (#4700)', () => {
+    const critics = section('### 2\\.5 Critics');
+    assert.match(critics, /external-dependency/);
+    assert.match(critics, /pre-mortem/i);
   });
 
   it('names textHygiene findings as re-author input in the critic step (#4599)', () => {
@@ -296,6 +303,109 @@ describe('plan-critics.js CLI — verdict contract', () => {
     const res = runCli([]);
     assert.notEqual(res.status, 0);
     assert.match(res.stderr, /--stories/);
+  });
+
+  // AC-3 (Story #4700): the external-dependency trigger surfaces end-to-end.
+  // The CLI reads the repo's own manifests (mandrel's, at cwd=REPO_ROOT) to
+  // tell a local scoped package from an external one, so a single-story draft
+  // that names @beestera/assets — a scope no mandrel manifest declares — fires
+  // the pre-mortem even though the size and heuristic conditions do not.
+  it('fires the pre-mortem on an external scoped-package reference', () => {
+    const storiesPath = writeFixture('stories-extdep.json', [
+      {
+        slug: 'ext-dep',
+        depends_on: [],
+        body: '## Goal\nBuild the UI once @beestera/assets is published upstream.\n',
+      },
+    ]);
+
+    const res = runCli(['--stories', storiesPath]);
+    const verdict = JSON.parse(res.stdout);
+
+    assert.equal(res.status, 0, `stderr=${res.stderr}`);
+    assert.equal(verdict.premortem.dispatch, true);
+    assert.match(verdict.premortem.reasons.join(' '), /@beestera\/assets/);
+  });
+});
+
+describe('plan-critics.js — repo manifest package collection (#4700)', () => {
+  it('returns [] when the root has no package.json', async () => {
+    const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-critics-nopkg-'));
+    try {
+      assert.deepEqual(await collectRepoPackages({ rootDir: empty }), []);
+    } finally {
+      fs.rmSync(empty, { recursive: true, force: true });
+    }
+  });
+
+  it('collects the own name and every dependency map', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-critics-deps-'));
+    try {
+      fs.writeFileSync(
+        path.join(root, 'package.json'),
+        JSON.stringify({
+          name: '@acme/root',
+          dependencies: { '@acme/a': '1.0.0' },
+          devDependencies: { '@acme/b': '1.0.0' },
+          optionalDependencies: { '@acme/c': '1.0.0' },
+          peerDependencies: { '@acme/d': '1.0.0' },
+        }),
+      );
+      const names = await collectRepoPackages({ rootDir: root });
+      for (const expected of [
+        '@acme/root',
+        '@acme/a',
+        '@acme/b',
+        '@acme/c',
+        '@acme/d',
+      ]) {
+        assert.ok(names.includes(expected), `expected ${expected} in ${names}`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves a `dir/*` workspace glob one level down', async () => {
+    // Fresh root so the glob resolution is the only source of names.
+    const glob = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-critics-ws-'));
+    try {
+      fs.writeFileSync(
+        path.join(glob, 'package.json'),
+        JSON.stringify({ name: 'root', workspaces: ['packages/*'] }),
+      );
+      fs.mkdirSync(path.join(glob, 'packages', 'ui'), { recursive: true });
+      fs.writeFileSync(
+        path.join(glob, 'packages', 'ui', 'package.json'),
+        JSON.stringify({ name: '@acme/ui' }),
+      );
+      const names = await collectRepoPackages({ rootDir: glob });
+      assert.ok(names.includes('@acme/ui'));
+    } finally {
+      fs.rmSync(glob, { recursive: true, force: true });
+    }
+  });
+
+  it('resolves a literal workspace path and its `{ packages: [] }` shape', async () => {
+    const lit = fs.mkdtempSync(path.join(os.tmpdir(), 'plan-critics-lit-'));
+    try {
+      fs.writeFileSync(
+        path.join(lit, 'package.json'),
+        JSON.stringify({
+          name: 'root',
+          workspaces: { packages: ['tools/cli'] },
+        }),
+      );
+      fs.mkdirSync(path.join(lit, 'tools', 'cli'), { recursive: true });
+      fs.writeFileSync(
+        path.join(lit, 'tools', 'cli', 'package.json'),
+        JSON.stringify({ name: '@acme/cli' }),
+      );
+      const names = await collectRepoPackages({ rootDir: lit });
+      assert.ok(names.includes('@acme/cli'));
+    } finally {
+      fs.rmSync(lit, { recursive: true, force: true });
+    }
   });
 });
 

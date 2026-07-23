@@ -20,6 +20,7 @@ import { evaluateConsolidationPrecondition } from '../.agents/scripts/lib/orches
 import {
   CONSOLIDATION_STORY_THRESHOLD,
   evaluateConsolidationDispatch,
+  evaluateExternalDependencyProbe,
   evaluatePremortemDispatch,
 } from '../.agents/scripts/lib/orchestration/plan-critic-conditions.js';
 
@@ -280,5 +281,144 @@ describe('pre-mortem dispatch — condition matrix (PR6)', () => {
         }),
       TypeError,
     );
+  });
+});
+
+describe('pre-mortem external-dependency probe (Story #4700)', () => {
+  const ownerRepo = { owner: 'dsj1984', repo: 'mandrel' };
+
+  describe('evaluateExternalDependencyProbe — the marker matchers', () => {
+    it('flags a scoped package absent from the repo manifests', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'Depends on @beestera/assets and @beestera/icons upstream.',
+        knownPackages: ['mandrel', 'ajv'],
+      });
+      assert.equal(probe.matched, true);
+      assert.match(probe.reasons.join(' '), /@beestera\/assets/);
+      assert.match(probe.reasons.join(' '), /@beestera\/icons/);
+    });
+
+    it('does not flag a scoped package the repo manifests declare', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'Uses @scope/local-pkg from this workspace.',
+        knownPackages: ['@scope/local-pkg'],
+      });
+      assert.equal(probe.matched, false);
+    });
+
+    it('ignores bare handles and the operator-handle placeholder', () => {
+      // No interior slash → not an npm scoped-package spec.
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'Ping @dsj1984 and set operatorHandle to @[USERNAME].',
+        knownPackages: [],
+      });
+      assert.equal(probe.matched, false);
+    });
+
+    it('flags a cross-repo github.com reference outside the configured repo', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText:
+          'Pulls fixtures from https://github.com/beestera/swarm-os here.',
+        ownerRepo,
+      });
+      assert.equal(probe.matched, true);
+      assert.match(probe.reasons.join(' '), /beestera\/swarm-os/);
+    });
+
+    it('does not flag the configured repo itself', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'See github.com/dsj1984/mandrel for the source.',
+        ownerRepo,
+      });
+      assert.equal(probe.matched, false);
+    });
+
+    it('stays silent on cross-repo when the owner is unknown', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'See github.com/anyone/anything for the source.',
+        ownerRepo: { owner: null, repo: null },
+      });
+      assert.equal(probe.matched, false);
+    });
+
+    it('flags an endpoint named as a service prerequisite', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText: 'This step requires https://api.stripe.com to be reachable.',
+      });
+      assert.equal(probe.matched, true);
+      assert.match(probe.reasons.join(' '), /api\.stripe\.com/);
+    });
+
+    it('does not flag a casual documentation URL with no prerequisite keyword', () => {
+      const probe = evaluateExternalDependencyProbe({
+        planText:
+          'Background reading: https://nodejs.org/api/test.html is handy.',
+      });
+      assert.equal(probe.matched, false);
+    });
+
+    it('returns matched=false with no reasons on empty plan text', () => {
+      const probe = evaluateExternalDependencyProbe({ planText: '' });
+      assert.equal(probe.matched, false);
+      assert.equal(probe.reasons.length, 0);
+    });
+  });
+
+  // AC-1: a scoped package absent from the repo's own manifests dispatches the
+  // pre-mortem with the match surfaced in reasons[].
+  it('AC-1: dispatches the pre-mortem on an external scoped package, match in reasons[]', () => {
+    const decision = evaluatePremortemDispatch({
+      ticketCount: 1,
+      maxTickets: 80,
+      planText: 'The plan installs @beestera/assets before it can build.',
+      knownPackages: ['mandrel', 'ajv', 'minimatch'],
+      ownerRepo,
+    });
+    assert.equal(decision.critic, 'pre-mortem');
+    assert.equal(decision.dispatch, true);
+    assert.match(decision.reasons.join(' '), /@beestera\/assets/);
+    assert.match(decision.reasons.join(' '), /external-dependency probe/i);
+  });
+
+  // AC-2: no external-dependency markers and no size/heuristic trigger still
+  // skips, and the skip carries the non-empty audit trail the plan-metrics
+  // ledger records (the module's documented skip-is-ledgered contract).
+  it('AC-2: skips (ledgerable) when no marker and no size/heuristic trigger fires', () => {
+    const decision = evaluatePremortemDispatch({
+      ticketCount: 1,
+      maxTickets: 80,
+      planText:
+        'A local-only change to lib/orchestration with no outside deps.',
+      knownPackages: ['mandrel'],
+      ownerRepo,
+    });
+    assert.equal(decision.dispatch, false);
+    assert.ok(
+      decision.reasons.length > 0,
+      'a skip carries the audit trail the ledger records',
+    );
+    assert.match(decision.reasons.join(' '), /external-dependency probe/i);
+  });
+
+  it('an external marker fires even when size and heuristics do not', () => {
+    const decision = evaluatePremortemDispatch({
+      ticketCount: 2,
+      maxTickets: 80,
+      riskHeuristics: ['billing'],
+      planText: 'Requires https://api.example.com provisioned first.',
+      ownerRepo,
+    });
+    assert.equal(decision.dispatch, true);
+    assert.match(decision.reasons.join(' '), /prerequisite endpoint/i);
+  });
+
+  it('a no-marker plan behaves exactly as before the probe existed', () => {
+    // Same shape as the legacy "no condition fires → skip" row: absent
+    // knownPackages/ownerRepo, no markers → identical skip decision.
+    const decision = evaluatePremortemDispatch({
+      ticketCount: 3,
+      maxTickets: 80,
+    });
+    assert.equal(decision.dispatch, false);
   });
 });

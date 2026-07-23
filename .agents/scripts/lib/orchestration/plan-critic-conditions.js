@@ -20,10 +20,23 @@
  *     to catch a distorted shape without a dedicated sub-agent.
  *   - **Pre-mortem**: dispatch when the ticket count is at least half
  *     of `maxTickets`, OR any configured `planning.riskHeuristics` phrase
- *     matches the plan text (case-insensitive substring). Story #4542 removed
- *     its third condition — the authored risk verdict's overall level — along
- *     with the verdict itself; both surviving conditions read the plan's own
- *     observable text and shape rather than a self-assessment.
+ *     matches the plan text (case-insensitive substring), OR the
+ *     **external-dependency probe** (Story #4700) finds an out-of-repo marker
+ *     in the plan text. Story #4542 removed the authored-risk-verdict condition
+ *     along with the verdict itself; every surviving condition reads the plan's
+ *     own observable text and shape rather than a self-assessment.
+ *
+ * The external-dependency probe (Story #4700) is what gives the default N=1
+ * path a cheap viability check: on that path the size condition is unreachable
+ * (`count*2 >= maxTickets` never holds at one ticket) and a repo whose resolved
+ * `planning.riskHeuristics` is empty has no phrase to match, so a plan-time
+ * discoverable blocker — a scoped package the plan names that no manifest
+ * declares, a cross-repo reference, an external service prerequisite — reached
+ * delivery unquestioned (the swarm-os #757 shape). The probe is deliberately
+ * **conservative**: it matches only explicit markers (npm scoped-package specs,
+ * `github.com/<owner>/<repo>` URLs, prerequisite-keyword-anchored endpoints),
+ * never NLP guesswork, so a plan with no such marker dispatches exactly as it
+ * did before.
  *
  * Under-firing risk (design PR6 note): the persist validators are
  * unchanged hard gates and G2's cohort re-measures plan quality; every
@@ -107,8 +120,150 @@ export function evaluateConsolidationDispatch({ draftStories, specText }) {
 }
 
 /**
- * Decide the pre-mortem dispatch: size ≥ ½ budget, or a risk-heuristic
- * phrase match.
+ * Explicit npm scoped-package marker: `@scope/name`. Requires the leading `@`
+ * and an interior `/`, so bare GitHub handles (`@dsj1984`) and the
+ * `@[USERNAME]` operator-handle placeholder never match.
+ */
+const SCOPED_PACKAGE_MARKER = /@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*/gi;
+
+/** Explicit cross-repo marker: a `github.com/<owner>/<repo>` URL. */
+const GITHUB_REPO_MARKER =
+  /github\.com\/([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)/gi;
+
+/**
+ * Explicit external-service prerequisite marker: a prerequisite keyword
+ * followed, within the same clause, by an http(s) endpoint. The keyword gate
+ * is what keeps casual documentation links from matching — only an endpoint
+ * named as a precondition counts.
+ */
+const SERVICE_PREREQ_MARKER =
+  /\b(?:requires?|required|prerequisite|provision(?:ed|ing)?|depends?\s+on|credentials?\s+for)\b[^.\n]*?\bhttps?:\/\/([a-z0-9][a-z0-9.-]*)/gi;
+
+/** Order-preserving de-duplication. */
+function uniquePreserveOrder(values) {
+  return [...new Set(values)];
+}
+
+/** Quote each item for an evidence reason string. */
+function quoteList(values) {
+  return values.map((v) => `"${v}"`).join(', ');
+}
+
+/**
+ * Scoped packages named in the plan that no repo manifest declares.
+ *
+ * @param {string} planText
+ * @param {string[]} knownPackages - Package specifiers the repo's own
+ *   manifests declare (own name + dependency maps + workspace package names).
+ * @returns {string[]}
+ */
+function matchExternalScopedPackages(planText, knownPackages) {
+  const known = new Set(
+    knownPackages
+      .filter((n) => typeof n === 'string')
+      .map((n) => n.trim().toLowerCase()),
+  );
+  const matches = [];
+  for (const m of planText.matchAll(SCOPED_PACKAGE_MARKER)) {
+    if (!known.has(m[0].toLowerCase())) matches.push(m[0]);
+  }
+  return uniquePreserveOrder(matches);
+}
+
+/**
+ * `github.com/<owner>/<repo>` references outside the configured repo. When the
+ * owner is unknown (no `github.owner` configured) the arm stays silent rather
+ * than flag every URL as foreign.
+ *
+ * @param {string} planText
+ * @param {{ owner?: string|null, repo?: string|null }|null} ownerRepo
+ * @returns {string[]}
+ */
+function matchCrossRepoRefs(planText, ownerRepo) {
+  const owner =
+    typeof ownerRepo?.owner === 'string'
+      ? ownerRepo.owner.trim().toLowerCase()
+      : '';
+  if (!owner) return [];
+  const repo =
+    typeof ownerRepo?.repo === 'string'
+      ? ownerRepo.repo.trim().toLowerCase()
+      : '';
+  const matches = [];
+  for (const m of planText.matchAll(GITHUB_REPO_MARKER)) {
+    const internal =
+      m[1].toLowerCase() === owner && (!repo || m[2].toLowerCase() === repo);
+    if (!internal) matches.push(`${m[1]}/${m[2]}`);
+  }
+  return uniquePreserveOrder(matches);
+}
+
+/**
+ * Endpoints named as prerequisites in the plan text.
+ *
+ * @param {string} planText
+ * @returns {string[]}
+ */
+function matchExternalServicePrereqs(planText) {
+  const matches = [];
+  for (const m of planText.matchAll(SERVICE_PREREQ_MARKER)) {
+    matches.push(m[1]);
+  }
+  return uniquePreserveOrder(matches);
+}
+
+/**
+ * The external-dependency probe (Story #4700): a conservative, marker-only
+ * scan of the draft plan text for artifacts outside the current repo that the
+ * plan depends on. A match is the pre-mortem's third dispatch condition; a
+ * no-match plan behaves exactly as it did before this probe existed.
+ *
+ * @param {object} input
+ * @param {string} [input.planText] - Concatenated plan text (tech spec +
+ *   serialized tickets).
+ * @param {string[]} [input.knownPackages] - Package specifiers the repo's own
+ *   manifests declare, used to tell an external scoped package from a local one.
+ * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo] -
+ *   The configured `github.owner`/`github.repo` a cross-repo reference is
+ *   measured against.
+ * @returns {{ matched: boolean, reasons: string[] }}
+ */
+export function evaluateExternalDependencyProbe({
+  planText = '',
+  knownPackages = [],
+  ownerRepo = null,
+}) {
+  const text = String(planText);
+  const packages = matchExternalScopedPackages(text, knownPackages);
+  const crossRepo = matchCrossRepoRefs(text, ownerRepo);
+  const services = matchExternalServicePrereqs(text);
+
+  const reasons = [];
+  if (packages.length > 0) {
+    reasons.push(
+      `External-dependency probe: scoped package(s) named in the plan but absent from the repo's own manifests: ${quoteList(packages)}.`,
+    );
+  }
+  if (crossRepo.length > 0) {
+    const scope = ownerRepo.repo
+      ? `${ownerRepo.owner}/${ownerRepo.repo}`
+      : ownerRepo.owner;
+    reasons.push(
+      `External-dependency probe: cross-repo reference(s) outside ${scope}: ${quoteList(crossRepo)}.`,
+    );
+  }
+  if (services.length > 0) {
+    reasons.push(
+      `External-dependency probe: external service prerequisite endpoint(s): ${quoteList(services)}.`,
+    );
+  }
+
+  return { matched: reasons.length > 0, reasons };
+}
+
+/**
+ * Decide the pre-mortem dispatch: size ≥ ½ budget, a risk-heuristic phrase
+ * match, or an external-dependency probe match (Story #4700).
  *
  * @param {object} input
  * @param {number} input.ticketCount - Draft ticket count (0 in the
@@ -117,8 +272,15 @@ export function evaluateConsolidationDispatch({ draftStories, specText }) {
  *   (`getLimits(config).maxTickets`).
  * @param {string[]} [input.riskHeuristics] - `planning.riskHeuristics`
  *   phrases from the resolved config.
- * @param {string} [input.planText] - Concatenated plan text the heuristics
- *   match against (tech spec + serialized tickets).
+ * @param {string} [input.planText] - Concatenated plan text the heuristics and
+ *   the external-dependency probe match against (tech spec + serialized
+ *   tickets).
+ * @param {string[]} [input.knownPackages] - Package specifiers the repo's own
+ *   manifests declare (own name + dependency maps + workspace package names),
+ *   passed to the external-dependency probe.
+ * @param {{ owner?: string|null, repo?: string|null }|null} [input.ownerRepo] -
+ *   The configured `github.owner`/`github.repo`, passed to the
+ *   external-dependency probe's cross-repo arm.
  * @returns {CriticDispatchDecision}
  */
 export function evaluatePremortemDispatch({
@@ -126,6 +288,8 @@ export function evaluatePremortemDispatch({
   maxTickets,
   riskHeuristics = [],
   planText = '',
+  knownPackages = [],
+  ownerRepo = null,
 }) {
   if (!Number.isInteger(maxTickets) || maxTickets <= 0) {
     throw new TypeError(
@@ -154,6 +318,15 @@ export function evaluatePremortemDispatch({
     );
   }
 
+  const externalDeps = evaluateExternalDependencyProbe({
+    planText,
+    knownPackages,
+    ownerRepo,
+  });
+  if (externalDeps.matched) {
+    reasons.push(...externalDeps.reasons);
+  }
+
   if (reasons.length > 0) {
     return { critic: 'pre-mortem', dispatch: true, reasons };
   }
@@ -162,7 +335,7 @@ export function evaluatePremortemDispatch({
     critic: 'pre-mortem',
     dispatch: false,
     reasons: [
-      `Ticket count ${count} is under half the budget (maxTickets ${maxTickets}) and no planning.riskHeuristics phrase matches the plan text.`,
+      `Ticket count ${count} is under half the budget (maxTickets ${maxTickets}), no planning.riskHeuristics phrase matches the plan text, and the external-dependency probe found no out-of-repo markers.`,
     ],
   };
 }
