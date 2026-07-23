@@ -806,6 +806,46 @@ describe('plan-context --out envelope capture (Story #4554)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  // Story #4708 AC-5: with --out the envelope is on disk, so stdout carries
+  // a compact digest naming the artifact instead of the ~40KB payload.
+  it('emits a compact digest on stdout when --out captures the envelope', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-digest-'));
+    const outPath = path.join(dir, PLAN_CONTEXT_FILENAME);
+    let captured = '';
+    const capture = {
+      write(chunk) {
+        captured += chunk;
+        return true;
+      },
+    };
+
+    await emitPlanContext({
+      mode: 'tickets',
+      ticketIds: [4525],
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      outPath,
+      stdout: capture,
+    });
+
+    const lines = captured.split('\n').filter((l) => l.length > 0);
+    assert.equal(lines.length, 1, 'exactly one stdout line');
+    const digest = JSON.parse(lines[0]);
+    assert.equal(digest.digest, 'plan-context');
+    assert.equal(digest.out, path.resolve(outPath));
+    assert.deepEqual(digest.sourceTickets, [4525]);
+    assert.ok(
+      lines[0].length < 2048,
+      `digest line is ${lines[0].length} bytes — must stay under the ~2KB output contract`,
+    );
+    assert.ok(
+      digest.bytes > lines[0].length,
+      'full envelope is larger than the digest',
+    );
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it('writes nothing when --out is omitted (stdout-only remains the default)', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-noout-'));
     await emitPlanContext({

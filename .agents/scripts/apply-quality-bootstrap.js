@@ -69,7 +69,7 @@ async function main() {
   // Mirror the retired heredoc's output: pretty-printed `{ quality, baselines }`
   // to stdout. Use process.stdout.write (not console.log) per the no-console
   // enforcement boundary.
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
   return 0;
 }
 

@@ -283,7 +283,7 @@ export async function main(argv = process.argv.slice(2)) {
     emitSignal,
   });
 
-  Logger.info(JSON.stringify(envelope, null, 2));
+  Logger.info(JSON.stringify(envelope));
 
   if (exitCode !== 0) {
     const names = envelope.unmetCriteria

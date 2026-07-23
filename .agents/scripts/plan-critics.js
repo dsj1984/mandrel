@@ -305,7 +305,7 @@ async function main() {
     knownPackages: await collectRepoPackages(),
   });
 
-  process.stdout.write(`${JSON.stringify(verdict, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(verdict)}\n`);
   return 0;
 }
 

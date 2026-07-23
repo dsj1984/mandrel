@@ -338,7 +338,7 @@ async function main() {
 
   await attachPlanMetrics(result, config, metricsSince);
 
-  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
 runAsCli(import.meta.url, main, { source: 'plan-persist' });

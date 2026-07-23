@@ -18,18 +18,21 @@
  *                             Stories. Envelope carries `sourceTickets[]`.
  *
  * Flags:
- *   --out <path>     Also write the envelope to <path> (parent dirs created).
+ *   --out <path>     Write the envelope to <path> (parent dirs created).
  *                    `/plan` points this at `<plan-dir>/plan-context.json`,
  *                    which is where `plan-persist.js` auto-discovers the
  *                    `--tickets` source ids from (Story #4554). Without a
  *                    captured envelope persist cannot know a `--tickets` run
  *                    happened, and superseding degrades to the
- *                    `--source-tickets` flag.
- *   --pretty         Pretty-print the JSON envelope.
+ *                    `--source-tickets` flag. With --out, stdout carries a
+ *                    compact digest naming the artifact instead of the full
+ *                    envelope (Story #4708 script-output contract).
+ *   --pretty         Pretty-print the JSON envelope (no-op with --out).
  *
- * stdout is reserved for the JSON envelope (Story #2278 discipline):
- * `routeAllOutputToStderr()` runs before any pipeline code so a captured
- * file is unconditionally parseable by `JSON.parse`.
+ * stdout is reserved for a single JSON payload (Story #2278 discipline) —
+ * the envelope, or the digest when --out captures it:
+ * `routeAllOutputToStderr()` runs before any pipeline code so the stream
+ * is unconditionally parseable by `JSON.parse`.
  *
  * Exit codes:
  *   0 — envelope emitted.
@@ -115,10 +118,30 @@ export async function emitPlanContext({
   const json = pretty
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify(envelope);
-  stdout.write(`${json}\n`);
   if (outPath) {
+    // Script-output contract (Story #4708, AC-5): the full envelope is a
+    // ~40KB artifact that would ride resident in the transcript for every
+    // later turn. When it is captured to disk anyway, stdout carries a
+    // compact digest naming the artifact instead of the payload itself.
     await writeEnvelopeFile(outPath, json);
     await writeStoriesTemplateFile(outPath);
+    const resolved = path.resolve(outPath);
+    const digest = {
+      digest: 'plan-context',
+      mode: envelope.mode,
+      out: resolved,
+      storiesTemplate: path.join(
+        path.dirname(resolved),
+        'stories.template.json',
+      ),
+      bytes: Buffer.byteLength(json, 'utf8'),
+      sourceTickets: (envelope.sourceTickets ?? []).map((t) => t.id),
+      duplicates: (envelope.duplicates ?? []).length,
+      complexityRoute: envelope.complexityRoute?.route ?? null,
+    };
+    stdout.write(`${JSON.stringify(digest)}\n`);
+  } else {
+    stdout.write(`${json}\n`);
   }
   return envelope;
 }
