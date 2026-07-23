@@ -1206,6 +1206,19 @@
       },
       "additionalProperties": false
     },
+    "review": {
+      "type": "object",
+      "description": "Close-scope review tuning (Story #4699). Governs the Story-scope local-lens pass that runs inside the close subprocess; the maker-blind code-review pass and all hard gates are unaffected.",
+      "properties": {
+        "lensDiffFloor": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 40,
+          "description": "Changed-line floor for the close-scope lens walk (Story #4699). A diff strictly below this many changed lines (additions + deletions) with zero sensitive-path hits skips lens materialization and records the skip in the findings-yield ledger. Default 40; 0 disables the skip."
+        }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -1317,6 +1330,9 @@
         },
         "codeReview": {
           "$ref": "#/$defs/codeReview"
+        },
+        "review": {
+          "$ref": "#/$defs/review"
         },
         "refactorStage": {
           "$ref": "#/$defs/refactorStage"

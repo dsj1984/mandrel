@@ -164,7 +164,14 @@ Operator/agent responsibilities while in the worktree:
    but not enforced — the PR title carries the canonical summary.
 4. Iterate (read tests, run targeted gates, edit, commit) until the
    acceptance criteria are met.
-5. Run the **bounded acceptance self-eval loop** (Step 1a below) before
+5. Run the **full test command** once in the worktree (`npm test`, or the
+   project's configured test command) **before entering Step 1a**.
+   Repo-invariant guards — drift-guard and schema tests living outside the
+   Story's scoped greps — are the failure class that actually bounces
+   deliveries: close-validation discovers them only after the whole close
+   pipeline has run, at several times the cost of one pre-eval full-suite
+   run. Fix any failure it surfaces (and commit) before self-eval.
+6. Run the **bounded acceptance self-eval loop** (Step 1a below) before
    ceremony / close.
 
 Recommended quick gates while iterating (each is fast enough to run on

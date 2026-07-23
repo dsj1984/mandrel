@@ -73,6 +73,27 @@ export const PLAN_METRICS_SCHEMA_VERSION = 1;
 export const PLAN_METRICS_KIND_CRITIC_SKIP = 'critic-skip';
 
 /**
+ * Record kind for a per-close, per-lens findings-yield entry (Story #4699).
+ * One record per Story close whose review ran (or floor-skipped) at least
+ * one local lens:
+ *
+ * ```json
+ * { "v": 1, "kind": "findings-yield", "cli": "story-close-review",
+ *   "storyId": 4699, "epicId": null,
+ *   "lenses": [{ "lens": "audit-clean-code", "findings": 0,
+ *                "skippedByFloor": false }],
+ *   "diffFloor": { "skip": false, "reason": "at-or-above-floor",
+ *                  "floor": 40, "changedLineCount": 120 },
+ *   "at": "..." }
+ * ```
+ *
+ * The ledger only records — no roster behavior changes ride on it. Its
+ * purpose is evidentiary: a lens that stays at zero findings across N
+ * closes becomes droppable on measurement instead of assumption.
+ */
+const PLAN_METRICS_KIND_FINDINGS_YIELD = 'findings-yield';
+
+/**
  * Rotation threshold. At ~200 bytes per record this is ~5000 invocations —
  * far beyond any real plan run, so rotation only fires on pathological
  * accumulation.
@@ -238,6 +259,78 @@ export async function appendCriticSkip(entry, config) {
 }
 
 /**
+ * Append one findings-yield record (Story #4699). Called once per Story
+ * close by the review spine when the local-lens pass matched (or
+ * floor-skipped) at least one lens. Best-effort with the same contract as
+ * {@link appendPlanMetric}: a failed append can never fail the close.
+ *
+ * @param {{
+ *   storyId: number,
+ *   lenses: Array<{ lens: string, findings?: number, skippedByFloor?: boolean }>,
+ *   cli?: string,
+ *   epicId?: number|null,
+ *   diffFloor?: object|null,
+ * }} entry
+ * @param {object} [config]
+ * @returns {Promise<boolean>} true when the line was written.
+ */
+export async function appendFindingsYield(entry, config) {
+  try {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError('appendFindingsYield requires an entry object');
+    }
+    const storyId = Number(entry.storyId);
+    if (!Number.isInteger(storyId) || storyId <= 0) {
+      throw new TypeError(
+        'appendFindingsYield requires a positive integer entry.storyId',
+      );
+    }
+    if (!Array.isArray(entry.lenses) || entry.lenses.length === 0) {
+      throw new TypeError(
+        'appendFindingsYield requires a non-empty entry.lenses array',
+      );
+    }
+    const epicId = entry.epicId ?? null;
+    const record = {
+      v: PLAN_METRICS_SCHEMA_VERSION,
+      kind: PLAN_METRICS_KIND_FINDINGS_YIELD,
+      cli:
+        typeof entry.cli === 'string' && entry.cli.length > 0
+          ? entry.cli
+          : 'story-close-review',
+      storyId,
+      epicId,
+      lenses: entry.lenses
+        .filter((l) => l && typeof l.lens === 'string' && l.lens.length > 0)
+        .map((l) => ({
+          lens: l.lens,
+          findings:
+            typeof l.findings === 'number' && Number.isFinite(l.findings)
+              ? l.findings
+              : 0,
+          skippedByFloor: l.skippedByFloor === true,
+        })),
+      diffFloor:
+        entry.diffFloor && typeof entry.diffFloor === 'object'
+          ? entry.diffFloor
+          : null,
+      at: new Date().toISOString(),
+    };
+    const filePath = planMetricsPath(epicId, config);
+    const line = `${JSON.stringify(record)}\n`;
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await rotateIfNeeded(filePath, Buffer.byteLength(line), MAX_LEDGER_BYTES);
+    await fs.appendFile(filePath, line, 'utf8');
+    return true;
+  } catch (err) {
+    Logger.warn(
+      `[plan-metrics] findings-yield append failed (non-fatal): ${err?.message ?? err}`,
+    );
+    return false;
+  }
+}
+
+/**
  * Wrap one plan CLI invocation: stamp `startedAt`, run `fn`, stamp
  * `endedAt` + `ok`, append the record, and re-throw the original error on
  * failure. The metric write itself is best-effort and can never mask or
@@ -348,14 +441,13 @@ export async function readPlanMetrics(epicId, config) {
  */
 /**
  * Timestamp a ledger record is ordered by: `startedAt` for invocation
- * records, `at` for critic-skip records.
+ * records, `at` for kinded records (critic-skip, findings-yield).
  *
  * @param {object} entry
  * @returns {string|null}
  */
 function recordTimestamp(entry) {
-  const stamp =
-    entry?.kind === PLAN_METRICS_KIND_CRITIC_SKIP ? entry.at : entry.startedAt;
+  const stamp = typeof entry?.kind === 'string' ? entry.at : entry?.startedAt;
   return typeof stamp === 'string' ? stamp : null;
 }
 
@@ -388,6 +480,12 @@ export function summarizePlanMetrics(ledger, opts = {}) {
         criticSkipsByCritic[e.critic] =
           (criticSkipsByCritic[e.critic] ?? 0) + 1;
       }
+      continue;
+    }
+    if (typeof e.kind === 'string') {
+      // Any other kinded record (e.g. `findings-yield`, Story #4699) is not
+      // an invocation — readers key on `kind`, never on absent fields, so it
+      // must not inflate the invocation/failure tallies.
       continue;
     }
     invocationEntries.push(e);

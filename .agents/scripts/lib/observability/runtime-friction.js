@@ -68,6 +68,13 @@ export const RUNTIME_FRICTION_CATEGORIES = Object.freeze({
   CLOSE_FAILED: 'close-failed',
   /** A bounded merge wait expired with the PR still in flight. */
   MERGE_WAIT_EXHAUSTED: 'merge-wait-exhausted',
+  /**
+   * A review/lens tool failed to *execute* (binary missing, unparseable
+   * output, materialization crash) — an operational degradation, not a code
+   * finding. Story #4699 routes these here so findings severity tiers
+   * reflect code findings only.
+   */
+  TOOL_DEGRADED: 'tool-degraded',
 });
 
 /** Cap on free-form reason text copied into a signal's `details`. */
