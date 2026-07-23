@@ -14,19 +14,19 @@ description:
 
 ## Overview
 
-The **one** delivery engine in v2 — every Story (a `route::lite` Story runs
-inline with critics inline; engine, gates, and envelope are byte-identical):
+The **one** delivery engine in v2 — every Story (`route::lite` runs
+inline with inline critics; engine, gates, envelope byte-identical):
 
 ```text
 single-story-init.js → implement + commits → derived-level ceremony
   → single-story-close.js (gates, push, PR → main, agent::closing)
-  → CI watch + merge → single-story-confirm-merge.js (agent::done + tail)
+  → CI watch + merge → single-story-confirm-merge.js (agent::done)
 ```
 
-An `Epic: #N` reference marks a v1 ticket — **stop** and re-plan (trait
-table and lite-route contract: reference § Engine invariants).
-Prerequisites: a `type::story` issue, clean `gh auth status`, and
-`project.baseBranch` (default `main`) on local and `origin`.
+An `Epic: #N` reference marks a v1 ticket — **stop** and re-plan.
+There is no `epic/<id>` branch, no `--no-ff` wave merge (trait table:
+reference § Engine invariants). Prerequisites: a `type::story` issue,
+clean `gh auth status`, and `project.baseBranch` on local and `origin`.
 
 ## Step 0 — Initialize (`single-story-init.js`)
 
@@ -96,7 +96,7 @@ level** — never a planner-authored verdict (Story #4542).
 [`computeChangeSet`](../../scripts/lib/orchestration/change-set.js) — the
 same module close uses — and hand that one list to every critic. Derive the
 level with `deriveChangeLevel`, resolve fresh-vs-inline critics with
-`resolveCeremonyForRisk`; a `route::lite` Story runs every critic inline
+`resolveCeremonyForRisk` (`ceremony-routing.js`); a lite Story runs inline
 regardless (exact incantation and routing rules: reference § Step 2).
 Hard gates (lint / test / format / coverage / CRAP / maintainability)
 always run in Step 3 — the derived level never disables them; do **not**

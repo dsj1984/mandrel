@@ -7,20 +7,24 @@ description:
 
 # /deliver <storyId...>
 
+> **Lean spine.** Happy path + gate list. Sequencing edge cases, dispatch
+> mechanics, lite-route inline execution, checklist threading, ceremony, and
+> the per-run epilogue live in the on-demand
+> [`helpers/deliver-reference.md`](helpers/deliver-reference.md).
+
 ## Role
 
-Single delivery path with a single input shape: **a list of Story ids**.
-`/deliver` owns input resolution and sequencing only — every Story runs
-through [`helpers/deliver-story.md`](helpers/deliver-story.md). There is no
-Epic wave loop, no `epic/<id>` integration branch, and no `--no-ff` wave
-merges.
+Single delivery path, single input shape: **a list of Story ids**. `/deliver`
+owns input resolution and sequencing only — every Story runs through
+[`helpers/deliver-story.md`](helpers/deliver-story.md). No Epic wave loop, no
+`epic/<id>` integration branch, no `--no-ff` wave merges.
 
 The dependency graph is **discovered, not declared**: `resolve-stories.js`
-reads it from live state (body edges ∪ native GitHub `blocked_by` edges,
-with every blocker resolved against its real issue state). You never hand it
-a graph, and there is no batch label — which is what lets you deliver
-Stories **across plan runs and over time**: a Story whose blocker landed
-weeks ago in a different run is simply ready.
+reads it from live state (body edges ∪ native GitHub `blocked_by` edges, every
+blocker resolved against its real issue state). You never hand it a graph, and
+there is no batch label — which is what lets you deliver Stories **across plan
+runs and over time**. The `plan-run::<id>` grouping label is filter metadata
+only — never a resolution input (there is no `--run` or `--dep` axis).
 
 ## Inputs
 
@@ -29,57 +33,39 @@ weeks ago in a different run is simply ready.
 | `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`. |
 | `/deliver <storyId> <storyId> ...` | Resolve the set with `resolve-stories.js`, then sequence by the discovered graph via `stories-wave-tick.js`. Default concurrency is **3**. |
 
-Any named ticket that is not `type::story`, or that still carries an
-`Epic: #N` footer, is a hard error naming the id and the fix (close or
-re-plan as a v2 Story). Resolution refuses the whole set rather than
-silently dropping the offending id and under-delivering.
-
-> **Ids-only resolution (Story #4540).** There is no `--run` or `--dep`
-> axis: ordering lives in the dependency edges, so delivering the ids
-> resolves the graph itself. The `plan-run::<id>` grouping label plan-persist
-> applies (Story #4692) is metadata for filtering/traceability only —
-> delivery never reads it as a resolution input.
+Any named ticket that is not `type::story`, or still carrying an `Epic: #N`
+footer, is a **hard error** naming the id and the fix (close or re-plan as a v2
+Story). Resolution refuses the whole set rather than silently under-delivering.
 
 ## Flags
 
 | Flag | Meaning |
 | --- | --- |
-| `--concurrency <n>` | **Optional** per-run override of the ready-set fan-out cap. Omit it to honor `delivery.deliverRunner.concurrencyCap` (config default **3**, including any `.agentrc.local.json` override); pass it **only** when the operator explicitly wants a one-run cap. Set `1` for sequential. |
+| `--concurrency <n>` | **Optional** per-run override of the fan-out cap. Omit it to honor `delivery.deliverRunner.concurrencyCap` (config default **3**, including any `.agentrc.local.json` override); pass it **only** for a one-run cap. `1` = sequential. |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
-| `--wait-merge` | Force close-and-land (the default; `delivery.routing.closeAndLand`, default `true`). |
-| `--no-wait-merge` | Opt out of close-and-land; stop at `agent::closing` for a human land. |
+| `--wait-merge` | Force close-and-land (the default; `delivery.routing.closeAndLand`). |
+| `--no-wait-merge` | Opt out; stop at `agent::closing` for a human land. |
 
 **Operator-merge implies no-wait.** `--no-auto-merge` and
-`delivery.ci.autoMerge: "strict"` deliberately leave the PR un-armed, so
-there is nothing for close to land: the Story rests at `agent::closing` for
-the human merge, and is **not** flipped to `agent::blocked`. An explicit
-`--wait-merge` does not override this — close cannot land a PR that was
-never armed. A genuine *arm failure* is different: it still waits and still
-blocks, because that is a fault to report rather than an operator decision
-to respect.
+`delivery.ci.autoMerge: "strict"` leave the PR un-armed: the Story rests at
+`agent::closing` for the human merge and is **not** flipped to `agent::blocked`
+(`--wait-merge` does not override this). A genuine *arm failure* differs — it
+still waits and still blocks, because that is a fault to report, not an operator
+decision to respect.
 
 ## Procedure
 
 1. **Resolve the set.** One command, for one Story or many:
+   `node .agents/scripts/resolve-stories.js --ids <id,id,...>`. It validates
+   the set and shows what will run: read `stories[]`, `dag[]`, and `done[]` to
+   present the order in step 2. You do **not** thread them into step 3 — the
+   tick re-resolves the graph itself every beat. Resolution hard-errors
+   (exit 1) on a named id that is not a Story, carries an `Epic: #N` footer, or
+   whose native edges cannot be read — a missing gate would co-dispatch a Story
+   against an unlanded blocker.
 
-   ```bash
-   node .agents/scripts/resolve-stories.js --ids <id,id,...>
-   ```
-
-   This validates the set and shows the operator what will run: read
-   `stories[]`, `dag[]`, and `done[]` to present the order in step 2. You do
-   **not** thread them into step 3 — the tick re-resolves the graph itself
-   from the same machinery, every beat. Do **not** rebuild the graph by hand;
-   it is discovered from live state, including edges a body does not spell
-   out and blockers outside the delivered set.
-
-   Resolution hard-errors (exit 1) on a named id that is not a Story, still
-   carries an `Epic: #N` footer, or whose native dependency edges cannot be
-   read. A failed edge read is fatal by design: a missing gate would
-   co-dispatch a Story against an unlanded blocker.
-
-2. **Confirm (N>1).** Present the order and wait unless `--yes`.
+2. **Confirm (N>1).** Present the order; wait unless `--yes`.
 
 3. **Sequence.** Loop until the tick reports `epilogueDue: true`:
 
@@ -90,243 +76,86 @@ to respect.
    ```
 
    **Do not add `--concurrency` unless the operator explicitly asked for a
-   per-run cap.** Omitting it is what lets the tick resolve the cap from
+   per-run cap.** Omitting it lets the tick resolve the cap from
    `delivery.deliverRunner.concurrencyCap` — including a `.agentrc.local.json`
-   override. An explicit `--concurrency <n>` wins over config for that run
-   (`resolveConcurrencyCap` returns the flag before it ever reads config), so
-   filling in a literal — e.g. the documented default `3` — silently defeats
-   the operator's configured override. Thread `--concurrency` through here
-   only when it was passed to `/deliver`.
+   override. An explicit `--concurrency <n>` wins over config for that run, so a
+   filled-in literal (e.g. `3`) silently defeats the operator's override.
 
-   Each beat re-probes live state: it re-resolves the graph, classifies done
-   (`agent::done` or a closed issue — including foreign blockers that landed
-   in another run), and derives in-flight from live `agent::executing` /
-   `agent::closing` labels. You never compute `done` or `in-flight` — that
-   accounting is read from reality every beat (Story #4594).
-
-   **`--dispatched` is the one thing you must tell it (Story #4601).** List
-   every Story id you have spawned this run. Live state cannot instantly report
-   a Story you dispatched moments ago: `single-story-init.js` publishes
-   `agent::executing` before the worktree install (Story #4620 moved it ahead
-   of the multi-minute install, so the window is now short rather than
-   minutes-long), but it is not zero — until the label lands the Story still
-   reads `agent::ready` and, without `--dispatched`, the next beat would hand
-   it back and a second sub-agent would join the first on the same branch and
-   worktree, interleaving commits. `--dispatched` closes that residual
-   same-run window.
-
-   **Cross-run de-confliction is automatic (Story #4620).** A Story another
-   operator is delivering is withheld without any bookkeeping from you: the
-   probe reads the Story's assignee lease and, when it belongs to a different
-   operator, withholds the Story and reports it in the envelope's
-   `foreignHeld: [{ id, holder }]` (with `foreignHeldReason`). That is not a
-   failure or a wedge — the holder's run owns the branch, and this run picks
-   the Story up automatically once their lease clears. Init is the backstop:
-   it refuses a Story already labelled `agent::executing`, or one whose lease a
-   different operator holds, unless you pass `--steal`. Assignee-based
-   withholding needs `github.operatorHandle` set (in `.agentrc.local.json`);
-   without it the probe logs a warning and leans on init's lease refusal alone.
-
-   The rule is **append-only: add each id as you dispatch it and never remove
-   one.** The flag is additive, not authoritative — the probe unions it into
-   the label-derived set and then filters it against live state, so an id that
-   has since gone `agent::done` is dropped for you. Re-listing an id costs
-   nothing and cannot double-count a slot; *omitting* one is the only way to
-   get this wrong. This is why `--dispatched` is not the `--done` bookkeeping
-   #4594 retired, and why `--in-flight` remains rejected under `--probe-live`.
+   Each beat re-probes live state to derive done / in-flight itself; you never
+   compute them (Story #4594). `--dispatched` is the one thing you must supply —
+   the append-only list of every id you spawned this run — and cross-run
+   de-confliction via the assignee lease is automatic
+   ([`helpers/deliver-reference.md` § Sequencing edge cases](helpers/deliver-reference.md);
+   [§ Dispatch mechanics](helpers/deliver-reference.md) covers role-scoped
+   spawn, lite-route execution, and `checklistPath`).
 
    Branch on the exit code:
-   - **0** — dispatch each `ready` id (the set is already capped and
-     overlap-free). An empty `ready` with work in flight means "waiting";
-     keep looping. `epilogueDue: true` means every Story is done — leave the
-     loop and go to step 4.
-   - **2** — `cycleError`: the graph is self-referential. Fix the
-     `depends_on` declarations; do not retry.
-   - **3** — `wedged`: nothing is dispatchable, nothing is in flight, and
-     undone Stories are waiting on blockers that are not done. The envelope
-     names the stuck ids and their unmet blockers. Either land the blocker
-     first or include it in `--ids`. Do not retry unchanged — the state
-     cannot improve on its own.
-   - **4** — `blocked`: one or more Stories carry `agent::blocked`, named in
-     `blocked[]` with `blockedReason`. This is the protocol's HITL pause
-     ([`instructions.md` § 1.J](../instructions.md)) — **stop the loop and
-     surface it to the operator; do not poll.** No beat can clear it, because
-     a human owes a decision. Read the Story's friction comment, and resume
-     only once the operator has unblocked it:
+   - **0** — dispatch each `ready` id (already capped and overlap-free). Empty
+     `ready` with work in flight means "waiting"; keep looping.
+     `epilogueDue: true` means every Story is done — go to step 4.
+   - **2** — `cycleError`: the graph is self-referential. Fix the `depends_on`
+     declarations; do not retry.
+   - **3** — `wedged`: nothing dispatchable, nothing in flight, undone Stories
+     waiting on blockers that are not done. The envelope names the stuck ids and
+     unmet blockers. Land the blocker or include it in `--ids`; do not retry
+     unchanged.
+   - **4** — `blocked`: a Story carries `agent::blocked`, named in `blocked[]`
+     with `blockedReason` — the protocol's HITL pause
+     ([`instructions.md` § 1.J](../instructions.md)). **Stop the loop and
+     surface it; do not poll.** Read the friction comment
+     (`gh issue view <id> --comments`) and resume only once the operator
+     unblocks it (`update-ticket-state.js --ticket <id> --state agent::ready`).
+     A blocked Story outranks a wedge but not a cycle (fix the graph first).
 
-     ```bash
-     gh issue view <id> --comments
-     node .agents/scripts/update-ticket-state.js --ticket <id> --state agent::ready
-     ```
-
-     A blocked Story outranks a wedge (its blockers are moot while a human
-     owes a decision) but not a cycle (exit 2 — fix the graph first).
-
-   **Lite-routed Stories execute inline (Story #4707).** Before spawning
-   anything, read the Story's `dispatchMode` from the resolver envelope
-   (`stories[].dispatchMode`, derived by `resolveStoryDispatchMode` in
-   `lib/orchestration/complexity-gate.js` from the persisted `route::lite`
-   marker): a Story with `dispatchMode: "inline"` executes
-   [`helpers/deliver-story.md`](helpers/deliver-story.md) **inline in this
-   session** — no `story-worker` sub-agent boot and no fresh acceptance-critic
-   sub-agents (sub-agent boots are the dominant deliver-phase token cost at
-   trivial scope) — threading the same `docsDigestPath` / `checklistPath` /
-   change-set discipline as a spawned worker. Inline removes model-side
-   fan-out only: every `single-story-close.js` gate, the PR to `main`, and the
-   terminal envelope are identical. A Story without the marker (or with
-   unreadable labels) takes the standard sub-agent path below.
-
-   **Dispatch each `ready` Story (role-scoped by default).** When
-   `delivery.routing.roleScopedAgents` is enabled (the **default**) and the
-   host exposes agent dispatch, spawn each ready Story as its own
-   `subagent_type: story-worker` sub-agent — it boots on the role-scoped
-   [`story-worker`](../agents/story-worker.md) context (its own system prompt,
-   no `CLAUDE.md` @-closure) carrying the load-bearing delivery MUSTs
-   standalone. The sub-agent executes
-   [`helpers/deliver-story.md`](helpers/deliver-story.md) end to end
-   (init → implement → acceptance self-eval → close-and-land). Thread into its
-   prompt:
-   - `storyId` — the id to deliver.
-   - `docsDigestPath` — the per-run docs digest (digest-first reading,
-     [`instructions.md` § 3](../instructions.md)); null when
-     `project.docsContextFiles` is unset.
-   - `checklistPath` — the footprint-matched write-time audit checklist,
-     produced at dispatch (below).
-   - the **change-set discipline** — the worker computes the change set once
-     with `computeChangeSet` and hands that one list to every acceptance critic
-     (Story #4593); it never lets a critic re-derive the diff.
-
-   **Produce `checklistPath` before the spawn (Story #4627).** Compute the
-   payload from the Story's predicted footprint (its `changes[]` /
-   `references[]` path entries) with `buildDispatchChecklist` and write it to
-   the run temp dir, then thread the resulting path (empty when nothing
-   matched):
-
-   ```bash
-   node --input-type=module -e '
-     import { buildDispatchChecklist } from "<main-repo>/.agents/scripts/lib/audit-suite/index.js";
-     import { parse } from "<main-repo>/.agents/scripts/lib/story-body/story-body.js";
-     // storyBody is the fetched Story issue body.
-     const { changes, references } = parse(process.env.STORY_BODY);
-     const { checklistPath } = buildDispatchChecklist({
-       storyId: <storyId>, changes, references, runTempDir: "temp/run-<id>",
-     });
-     console.log(checklistPath ?? "");
-   '
-   ```
-
-   `buildDispatchChecklist` (`lib/audit-suite/dispatch-checklist.js`) is a pure
-   function of the footprint and the on-disk checklists; an empty match prints
-   nothing and the worker runs with no write-time checklist — the maker-blind
-   close-scope pass still covers it.
-
-   **Inline fallback (`roleScopedAgents: false` / no-nesting harness).** When
-   the kill-switch is off, or the host cannot spawn a sub-agent at this nesting
-   depth, do **not** stall: read
-   [`helpers/deliver-story.md`](helpers/deliver-story.md) **in full** and
-   execute it directly, in this turn, threading the same `docsDigestPath` /
-   `checklistPath` / change-set discipline. Under `--yes` / injected helper
-   content, execute directly without a re-read turn. The engine, gates, and
-   terminal envelope are identical either way — only the isolation differs.
-
-4. **Per-run epilogue (N>1).** Once step 3 reports `epilogueDue: true`
-   (every Story done), keyed on the delivered id set:
-
-   ```bash
-   node .agents/scripts/plan-run-epilogue.js --stories 101,102
-   ```
-
-   This executes, in order:
-   - `audit-roster` — selects cross-Story audit lenses over the combined
-     landed tip and posts `plan-run-audit-roster` on the primary Story;
-     the host MUST walk each listed lens against the combined diff
-   - `follow-up-rollup` — friction follow-ups across every Story in the
-     run (files issues when auto-file is on; posts `follow-ups`)
-   - `sibling-coherence` — Spec/Acceptance coherence check across sibling
-     bodies (`plan-run-sibling-coherence`)
-
-   A single-Story run skips the epilogue — follow-ups are captured on
-   merge confirm instead (`captureStoryFollowUps`).
+4. **Per-run epilogue (N>1).** Once step 3 reports `epilogueDue: true`, run
+   `node .agents/scripts/plan-run-epilogue.js --stories 101,102` — audit
+   roster, follow-up roll-up, sibling coherence. A single-Story run skips it.
+   Detail:
+   [`helpers/deliver-reference.md` § Per-run epilogue](helpers/deliver-reference.md).
 
 ## Branch model (authoritative)
-
-Every Story:
 
 ```text
 story-<id>  →  PR  →  main (squash + required checks)
 ```
 
-There is no `epic/<id>` integration branch and no `--no-ff` wave merge.
-Dependent Stories land sequentially so each builds on the previous merge
-to `main`.
-
-## Ceremony (profiles + two scopes)
-
-Ceremony depth is selected by `delivery.routing.ceremonyProfile`
-(`minimal` | `standard` | `strict`, default `standard`) and the **change
-level derived from the Story's own diff** — the changed files' intersection
-with the sensitive-path classes in `audit-rules.json`
-(`review-depth.js#deriveChangeLevel`), not a planner-authored verdict
-(Story #4542):
-
-| Profile | Acceptance critic | When to use |
-| --- | --- | --- |
-| `minimal` | Always inline | Tiny trusted N=1 Stories |
-| `standard` | Derived-level routed (+ sampling floor) | Default |
-| `strict` | Always fresh-context | High-assurance / regulated surfaces |
-
-| Scope | What runs | Mechanism |
-| --- | --- | --- |
-| **Per-Story (always)** | Gates, branch discipline, close-and-land | `deliver-story` / `single-story-close` |
-| **Per-Story (profile + derived level)** | Acceptance critic mode; review depth | `ceremony-routing.js` + `review-depth.js` + `code-review.js` |
-| **Per-run (N>1)** | Audit roster · follow-up roll-up · sibling coherence | `plan-run-epilogue.js` once at run end |
-| **Per-Story land tail** | Follow-up capture · status resync · ref cleanup · base fast-forward | `single-story-close/phases/post-land.js` (in-process, per-step reported) |
+No `epic/<id>` integration branch and no `--no-ff` wave merge. Dependent
+Stories land sequentially so each builds on the previous merge to `main`.
+Ceremony depth (profiles + derived level via `ceremony-routing.js`,
+review depth reading the same level) and the mechanism table:
+[`helpers/deliver-reference.md` § Ceremony](helpers/deliver-reference.md).
 
 ## Reading a Story's outcome
 
 Each Story's delivery ends in exactly one schema-validated terminal envelope
 ([`story-deliver-terminal.schema.json`](../schemas/story-deliver-terminal.schema.json),
-Story #4543) — `landed` | `pending` | `blocked` | `failed`. That schema is the
-SSOT for the shape; this workflow does not restate its fields.
+Story #4543) — `landed` | `pending` | `blocked` | `failed`, the SSOT for the
+shape; this workflow does not restate its fields.
 
 `pending` is **not** a failure: the bounded merge wait expired with the PR
-healthy and in flight (or a human owns the merge), nothing was mutated, and
-the envelope's `nextCommand` names what resumes it. Run that command rather
-than re-dispatching the Story.
-
-> **Async merge-confirm mode (`delivery.mergeWatch.mode: "async"`, Story
-> #4698).** A slow-CI consumer can opt the close into `"async"` mode so the
-> merge wait probes once for ~60s (catching an instant merge or an instantly-red
-> required check) and then returns `pending` instead of burning ~5 minutes of
-> the host tool slot polling a merge that lands after the wait would have
-> expired anyway. When a worker returns that `pending` envelope, launch its
-> `nextCommand` as a **background** invocation (host background Bash — its
-> completion re-invokes the agent) and move on to the next Story;
-> `single-story-confirm-merge.js` is idempotent and owns the whole tail. Do not
-> foreground-poll the merge. The default `"sync"` behaviour is unchanged.
+healthy (or a human owns the merge), nothing was mutated, and the
+`nextCommand` resumes it — run that rather than re-dispatching. The slow-CI
+`async` mode (Story #4698) returns `pending` by design — launch its
+`nextCommand` as a background invocation (reference appendix).
 
 For a Story in an unclear state — including the merged-but-label-stale one a
-`/deliver` re-run refuses outright — probe it read-only:
-
-```bash
-node .agents/scripts/deliver-recover.js --story <storyId>
-```
+`/deliver` re-run refuses outright — probe it read-only with
+`node .agents/scripts/deliver-recover.js --story <storyId>`.
 
 ## Constraints
 
 - **Land or block — never a silent local build.** Worktrees, `story-<id>`
-  branches, close-validation, and PR-to-`main` are the only sanctioned
-  delivery mechanism. Attended delivers default to close-and-land
-  (`delivery.routing.closeAndLand: true`); use `--no-wait-merge` only when
-  a human will land the PR.
-- `/deliver` never plans — tickets come from [`/plan`](plan.md).
-- The router performs no git/label mutations; `deliver-story` owns every
-  script invocation per Story.
+  branches, close-validation, and PR-to-`main` are the only sanctioned delivery
+  mechanism. Attended delivers default to close-and-land
+  (`delivery.routing.closeAndLand: true`); use `--no-wait-merge` only when a
+  human lands the PR.
+- `/deliver` never plans — tickets come from [`/plan`](plan.md). The router
+  performs no git/label mutations; `deliver-story` owns every script.
 
 ## See also
 
 - [`/plan`](plan.md) — unified planning entry point.
 - [`helpers/deliver-story.md`](helpers/deliver-story.md) — the one Story
   delivery engine.
-- Placeholder design Story for a fully deterministic deliver-run
-  orchestrator: [#4521](https://github.com/dsj1984/mandrel/issues/4521).
+- [`helpers/deliver-reference.md`](helpers/deliver-reference.md) — sequencing,
+  dispatch, ceremony, and epilogue detail.

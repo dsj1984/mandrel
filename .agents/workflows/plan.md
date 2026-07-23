@@ -1,8 +1,8 @@
 ---
 description:
   Unified planning entry point. Interrogate → author → persist. Emits one
-  Story by default (folded Tech Spec in the Story body); splits into N>1
-  only under the default-single split policy.
+  Story by default; splits into N>1 only under the default-single split
+  policy.
 ---
 
 # /plan --seed "<text>" | --seed-file <path> | --tickets <ids>
@@ -13,7 +13,8 @@ description:
 
 ## Inputs
 
-Single planning path — no Epic/Story router, no scope-triage verdict:
+Single planning path — there is no
+Epic/Story router, no scope-triage `epic|story` verdict:
 
 | Invocation | Behavior |
 | --- | --- |
@@ -32,8 +33,8 @@ Single planning path — no Epic/Story router, no scope-triage verdict:
 | `--no-close-superseded` | Keep the source issues open — no supersede comment, no close. |
 | `--force-review` | STOP at gate #2 for operator review — the only review gate (Story #4542). |
 | `--route-downgrade-reason "<text>"` | Audited `full`→`lite` downgrade (Story #4707), ledgered per Story. |
-| `--allow-over-budget` | Permit a plan exceeding `maxTickets` (rare N>1). |
-| `--yes` | Non-interactive: auto-proceed both HITL gates. |
+| `--allow-over-budget` | Permit a plan exceeding `maxTickets`. |
+| `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
 | `--dry-run` | Author + validate without GitHub writes; run as a pre-pass. |
 
 ## Default-single split policy
@@ -60,18 +61,18 @@ node .agents/scripts/plan-context.js --seed "<seed>" \
 
 **Always pass `--out`.** Persist auto-discovers that envelope from
 `--plan-dir` and derives source-ticket ids from its `sourceTickets[]`
-(Story #4554). The CLI also writes **`stories.template.json`** — the
-authoring skeleton step 2 starts from (Story #4707).
+(Story #4554); the CLI also writes **`stories.template.json`** — the
+authoring skeleton step 2 starts from.
 
 The envelope carries docs context, codebase snapshot, the story-author
-system prompt, `sourceTickets[]`, `duplicates[]` (open **Stories**
-overlapping the seed — never Epics), and the `complexityRoute` signal:
+prompt, `sourceTickets[]`, `duplicates[]` (open **Stories** overlapping the
+seed — never Epics), and the `complexityRoute` signal:
 `"lite"` (trivial single-artifact scope — author one minimal Story, skip
 fresh-critic / Tech-Spec ceremony; every close gate still runs) or `"full"`
 (everything else; fails toward `full` on any doubt). Detail:
-[`helpers/plan-reference.md` § Ceremony-lite complexity gate](helpers/plan-reference.md).
-Under `--yes`, unresolved unknowns land in Key Assumptions — no free-form
-operator questions.
+[`helpers/plan-reference.md` § Ceremony-lite gate](helpers/plan-reference.md).
+Under `--yes`, do not ask free-form operator questions — unresolved
+unknowns land in Key Assumptions.
 
 **Gate #1** — STOP to confirm the sharpened plan intent and any
 duplicate-candidate review. Under `--yes`, auto-proceed.
@@ -79,13 +80,13 @@ duplicate-candidate review. Under `--yes`, auto-proceed.
 ### 2. Author
 
 **One-shot authoring (Story #4707).** Start from `stories.template.json`
-(or the skeleton below) and author `stories.json` in one pass. `body` is a
-serialized markdown string **or** a structured object; persist parses
-either, serializes the canonical markdown, and syncs the top-level
-`acceptance[]` / `verify[]` into the body — never dual-author those lists.
+(or the skeleton below); author `stories.json` in one pass. `body` is a
+markdown string **or** a structured object; persist parses either,
+serializes the canonical markdown, and syncs the top-level `acceptance[]` /
+`verify[]` into the body — never dual-author those lists.
 
 ```jsonc
-// temp/plan-<slug>/stories.json — canonical skeleton
+// temp/plan-<slug>/stories.json
 [
   {
     "slug": "hyphen-case-slug", // ^[a-z0-9][a-z0-9-]*$
@@ -93,10 +94,10 @@ either, serializes the canonical markdown, and syncs the top-level
     "title": "Short descriptive title",
     "body": {
       "goal": "One sentence: why this Story exists.",
-      "spec": "Optional — contract and invariants only.",
+      "spec": "Optional — contract and invariants.",
       "changes": [{ "path": "path/to/file.ext", "assumption": "refactors-existing" }], // creates | refactors-existing | deletes
       "non_goals": [],
-      "reason_to_exist": "The single coherent reason this Story exists."
+      "reason_to_exist": "One coherent reason this Story exists."
     },
     "acceptance": ["A testable, observable criterion"],
     "verify": ["exact command (unit|contract|e2e|validate)"],
@@ -105,16 +106,17 @@ either, serializes the canonical markdown, and syncs the top-level
 ]
 ```
 
-Artifacts under `temp/plan-<slug>/`: `stories.json` (**length 1 by
-default**; over-budget Specs fail closed — split or tighten, never write
-Specs under `docs/`); optional `techspec.md` (**N===1 only** — folded into
-`## Spec`); optional `acceptance-manifest.json` (N>1 partition list — pass
-as `--plan-acceptance` or it is not read).
+Artifacts under `temp/plan-<slug>/`: `stories.json`
+(**length 1 by default**; over-budget Specs fail closed — split or tighten,
+never write Specs under `docs/`); optional `techspec.md` (**N===1 only** —
+folded into `## Spec`); optional `acceptance-manifest.json` (N>1 partition
+list — pass as `--plan-acceptance` or it is not read). For N=1,
+use the envelope `systemPrompts.story` and emit one cohesive Story.
+Split only under the policy above.
 
 **Tickets mode:** every Story authors a top-level `supersedes[]` claiming
-the source issues it replaces; persist refuses a partial map. Shape and
-partition contract:
-[`helpers/plan-reference.md` § Tickets mode](helpers/plan-reference.md).
+the source issues it replaces; persist refuses a partial map (shape:
+[`helpers/plan-reference.md` § Tickets mode](helpers/plan-reference.md)).
 
 ### 2.5 Critics
 
@@ -125,16 +127,17 @@ node .agents/scripts/plan-critics.js \
 ```
 
 Run **before** persist — the last point a finding folds into a re-author
-round rather than live issues. Exits 0 on **any** verdict (verdicts route
-work, they do not gate). Exit **1** = usage/IO error — no critic ran, no
-skip ledgered: **do not proceed to Persist**; fix the path and re-run.
+round. It exits 0 on **any** verdict (verdicts route work, they do not
+gate) and exits **1** only on a usage/IO error — no critic ran, no skip
+ledgered: **do not proceed to Persist**; fix and re-run.
 
 - **Both `dispatch: false`** — proceed to Persist (each skip is ledgered).
 - **Either `dispatch: true`** — dispatch **one fresh-context, maker-blind
-  sub-agent per firing critic** (hand it only the draft artifacts, never the
-  authoring transcript), fold findings into Gate #2 or a re-author round,
-  re-run this step. Triggers, the `textHygiene` advisory lints, and the
-  role-scoped dispatch shape:
+  sub-agent per firing critic** (hand it only the draft artifacts,
+  never the authoring transcript), fold findings into Gate #2 or a
+  re-author round, re-run this step. Pre-mortem triggers (incl. the
+  external-dependency probe, #4700), folding the advisory-only
+  `textHygiene.findings[]` lints, and the role-scoped dispatch shape:
   [`helpers/plan-reference.md` § Critic dispatch detail](helpers/plan-reference.md).
 
 ### 3. Persist
@@ -160,14 +163,13 @@ Persist creates Story issue(s) with `type::story` plus a `plan-run::<id>`
 grouping label (**metadata only** — never a delivery-resolution input, Story #4692); N>1 `depends_on` edges become `blocked by #<id>` body footers.
 `agent::ready` is the **terminal** flip, after all receipts are upserted — a
 ready Story is always fully persisted (Story #4541). stdout is pure JSON
-(logs on stderr). Ends by naming `/deliver <storyId> [...]`.
+(logs on stderr).
 
 In `--tickets` mode persist resolves source ids **envelope-first** and
 closes each superseded source as `not_planned` with a comment (default on).
-Channel table, close-phase contract, resume-after-failure, and temp hygiene:
+Detail (channels, close contract, resume, temp hygiene):
 [`helpers/plan-reference.md`](helpers/plan-reference.md) — on a stranded
-persist, re-run the same command (fingerprint adoption); never hand-delete
-issues.
+persist, re-run the same command; never hand-delete issues.
 
 ## Constraints
 
@@ -183,4 +185,4 @@ issues.
 - [`helpers/plan-reference.md`](helpers/plan-reference.md) — ceremony-lite,
   supersede, critic, and persist-resume detail.
 - [`core/scope-triage`](../skills/core/scope-triage/SKILL.md) — optional
-  split-advisory notes only.
+  split-advisory notes only (no routing verdict).
