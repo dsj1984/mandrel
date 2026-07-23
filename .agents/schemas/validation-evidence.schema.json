@@ -36,10 +36,12 @@
               "lint",
               "test",
               "format",
+              "coverage-capture",
+              "check-baselines",
               "check-maintainability",
               "check-crap"
             ],
-            "description": "Stable gate identifier. Closed enum — additions require a schema bump."
+            "description": "Stable gate identifier. Closed enum — additions require a schema bump. Must be a superset of every gate name buildDefaultGates() can emit (lib/close-validation/gates.js); tests/close-validation-gates-enum.test.js pins that gate-list ⊆ enum invariant. `coverage-capture` and `check-baselines` are the real close-validation gates (Story #4697); `check-maintainability` / `check-crap` are the retired per-kind gates (Story #2210) kept so historical evidence records still validate."
           },
           "commitSha": {
             "type": "string",
