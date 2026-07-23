@@ -6,7 +6,8 @@
  *   - Severity ∈ {critical, high, medium, suggestion} only.
  *   - Empty diff → empty findings.
  *   - Lint errors produce a high-risk finding, warnings a suggestion,
- *     and executionFailed a suggestion (never a false-positive high).
+ *     and executionFailed ZERO findings — the degradation is routed to
+ *     friction telemetry instead (Story #4699).
  *   - Maintainability critical/warning tiers map to critical/medium
  *     findings, healthy tier is filtered out.
  *   - No GitHub provider methods are called from the adapter.
@@ -307,7 +308,7 @@ test('buildLintFindings: warnings-only collapses to a suggestion', () => {
   assert.equal(findings[0].severity, 'suggestion');
 });
 
-test('buildLintFindings: executionFailed degrades to a suggestion (no false high-risk)', () => {
+test('buildLintFindings: executionFailed emits zero findings (routed to friction telemetry, Story #4699)', () => {
   const findings = buildLintFindings({
     errors: 0,
     warnings: 0,
@@ -315,9 +316,11 @@ test('buildLintFindings: executionFailed degrades to a suggestion (no false high
     skipped: false,
     mode: 'changed-only',
   });
-  assert.equal(findings.length, 1);
-  assert.equal(findings[0].severity, 'suggestion');
-  assert.match(findings[0].title, /could not execute/);
+  assert.deepEqual(
+    findings,
+    [],
+    'a tool-execution degradation is not a code finding',
+  );
 });
 
 test('buildLintFindings: scope-off / skipped / evidence-skipped emit no findings', () => {
@@ -611,4 +614,47 @@ test('runReview: MI-improving change emits no size/volume warning (head MI healt
     0,
     'an MI-improving change must not emit a size/volume warning for a healthy head file',
   );
+});
+
+test('runReview: a lint runner that cannot execute records friction telemetry and zero lint findings (Story #4699)', async () => {
+  const frictionCalls = [];
+  const provider = createNativeProvider({
+    gitSpawnFn: fakeDiff('README.md\n'),
+    runScopedLintFn: () => ({
+      errors: 0,
+      warnings: 0,
+      parsed: false,
+      executionFailed: true,
+      skipped: false,
+      mode: 'changed-only',
+    }),
+    analyzeChangedFilesFn: async () => ({
+      totalFiles: 1,
+      jsFiles: 0,
+      maintainability: [],
+      criticalFindings: [],
+      mediumFindings: [],
+    }),
+    emitToolDegradationFn: async (args) => {
+      frictionCalls.push(args);
+      return true;
+    },
+  });
+
+  const findings = await provider.runReview({
+    scope: 'story',
+    ticketId: 4699,
+    baseRef: 'main',
+    headRef: 'story-4699',
+  });
+
+  assert.deepEqual(
+    findings,
+    [],
+    'a tool-execution degradation must not appear in the findings tiers',
+  );
+  assert.equal(frictionCalls.length, 1, 'friction telemetry is recorded');
+  assert.equal(frictionCalls[0].storyId, 4699);
+  assert.equal(frictionCalls[0].category, 'tool-degraded');
+  assert.equal(frictionCalls[0].tool, 'native-review-lint');
 });

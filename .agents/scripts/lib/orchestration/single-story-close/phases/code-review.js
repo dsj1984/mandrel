@@ -80,6 +80,7 @@ async function invokeStoryReviewCore({
   provider,
   runCodeReviewFn,
   runLocalLensReviewFn,
+  appendFindingsYieldFn,
   progress,
 }) {
   return runStoryReviewCore({
@@ -91,10 +92,11 @@ async function invokeStoryReviewCore({
     progress,
     progressTag: 'REVIEW',
     runCodeReviewFn,
-    // Forward the seam only when the caller injects it; otherwise
-    // `runStoryReviewCore` uses its default local-lens pass. `undefined`
-    // deep-merges to the default via the destructuring default there.
+    // Forward the seams only when the caller injects them; otherwise
+    // `runStoryReviewCore` uses its defaults. `undefined` deep-merges to
+    // the default via the destructuring default there.
     ...(runLocalLensReviewFn ? { runLocalLensReviewFn } : {}),
+    ...(appendFindingsYieldFn ? { appendFindingsYieldFn } : {}),
   });
 }
 
@@ -163,6 +165,7 @@ async function postStoryReviewCrossRef({
  *   provider: object,
  *   runCodeReviewFn: Function,
  *   runLocalLensReviewFn?: Function,
+ *   appendFindingsYieldFn?: Function,
  *   progress: (tag: string, msg: string) => void,
  * }} args
  * @returns {Promise<{
@@ -185,6 +188,7 @@ export async function runStoryScopeReview({
   provider,
   runCodeReviewFn,
   runLocalLensReviewFn,
+  appendFindingsYieldFn,
   progress,
 }) {
   if (prNumber == null) {
@@ -208,6 +212,7 @@ export async function runStoryScopeReview({
     provider,
     runCodeReviewFn,
     runLocalLensReviewFn,
+    appendFindingsYieldFn,
     progress,
   });
 

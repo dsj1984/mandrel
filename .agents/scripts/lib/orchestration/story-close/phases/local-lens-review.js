@@ -13,10 +13,17 @@
  */
 
 import {
+  evaluateLensDiffFloor,
+  resolveLensDiffFloor,
   runAuditSuite,
   selectLocalLenses,
 } from '../../../audit-suite/index.js';
+import { resolveConfig } from '../../../config-resolver.js';
 import { gitSpawn } from '../../../git-utils.js';
+import {
+  emitRuntimeFriction,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../../observability/runtime-friction.js';
 import { computeChangeSet } from '../../change-set.js';
 
 /**
@@ -180,10 +187,21 @@ function resolveLensChangeSet({
  * this the default review provider dropped the materialized envelope, so the
  * pass was a progress log line with no reader.
  *
+ * Story #4699 — the **lens diff-floor**. When the caller supplies a known
+ * `changedLineCount` and the diff sits strictly below the configured floor
+ * (`delivery.review.lensDiffFloor`, default 40) with zero sensitive-path
+ * hits, the pass records the matched roster but skips materialization
+ * entirely (`skipped: true` with the lenses retained and a `floorSkip`
+ * verdict) — the maker-blind code-review pillar and every hard gate are
+ * untouched. An unknown line count, a disabled floor, or a sensitive-path
+ * hit all fail open to the full materialization.
+ *
  * @param {{
  *   baseRef: string,
  *   headRef: string,
  *   changedFiles?: string[]|null,
+ *   changedLineCount?: number|null,
+ *   lensDiffFloor?: number,
  *   storyId?: number|string|null,
  *   artifactPrefix?: string,
  *   progress: (tag: string, msg: string) => void,
@@ -191,11 +209,15 @@ function resolveLensChangeSet({
  *   gitSpawnFn?: import('../../change-set.js').GitSpawnFn,
  *   selectLocalLensesFn?: typeof selectLocalLenses,
  *   runAuditSuiteFn?: typeof runAuditSuite,
+ *   resolveConfigFn?: typeof resolveConfig,
+ *   evaluateLensDiffFloorFn?: typeof evaluateLensDiffFloor,
+ *   emitToolDegradationFn?: typeof emitRuntimeFriction,
  * }} args
  * @returns {Promise<{
  *   depth: 'light',
  *   lenses: string[],
  *   skipped: boolean,
+ *   floorSkip: object|null,
  *   materialized: object|null,
  *   artifactPaths: string[],
  * }>}
@@ -204,6 +226,8 @@ export async function runLocalLensReview({
   baseRef,
   headRef,
   changedFiles: injectedChangedFiles,
+  changedLineCount = null,
+  lensDiffFloor,
   storyId,
   artifactPrefix,
   progress,
@@ -211,11 +235,15 @@ export async function runLocalLensReview({
   gitSpawnFn = gitSpawn,
   selectLocalLensesFn = selectLocalLenses,
   runAuditSuiteFn = runAuditSuite,
+  resolveConfigFn = resolveConfig,
+  evaluateLensDiffFloorFn = evaluateLensDiffFloor,
+  emitToolDegradationFn = emitRuntimeFriction,
 }) {
   const empty = {
     depth: STORY_SCOPE_LENS_DEPTH,
     lenses: [],
     skipped: true,
+    floorSkip: null,
     materialized: null,
     artifactPaths: [],
   };
@@ -233,6 +261,34 @@ export async function runLocalLensReview({
         'No local lens matched the Story diff — skipping the lens pass.',
       );
       return empty;
+    }
+
+    // Lens diff-floor (Story #4699). Deliberately evaluated AFTER lens
+    // selection so a floor-skip still records WHICH lenses it skipped —
+    // the findings-yield ledger needs the roster either way.
+    const floorVerdict = evaluateLensDiffFloorFn({
+      changedFiles,
+      changedLineCount,
+      floor:
+        typeof lensDiffFloor === 'number'
+          ? lensDiffFloor
+          : resolveLensDiffFloor(safeResolveConfig(resolveConfigFn)),
+    });
+    if (floorVerdict.skip) {
+      progress(
+        progressTag,
+        `Lens diff-floor: ${floorVerdict.changedLineCount} changed line(s) < ` +
+          `floor ${floorVerdict.floor} with zero sensitive-path hits — ` +
+          `skipping materialization of ${lenses.join(', ')}.`,
+      );
+      return {
+        depth: STORY_SCOPE_LENS_DEPTH,
+        lenses,
+        skipped: true,
+        floorSkip: floorVerdict,
+        materialized: null,
+        artifactPaths: [],
+      };
     }
     // Scope the artifact filenames to this Story so concurrent closes on a
     // shared audit output dir cannot clobber each other's prompts.
@@ -256,16 +312,48 @@ export async function runLocalLensReview({
       depth: STORY_SCOPE_LENS_DEPTH,
       lenses,
       skipped: false,
+      floorSkip: floorVerdict,
       materialized,
       artifactPaths,
     };
   } catch (err) {
     // The lens pass is advisory: a git or materialization failure must not
-    // fail the close. Log and degrade to a skipped envelope.
+    // fail the close. Log, route the tool-execution degradation to friction
+    // telemetry (Story #4699 — degradations are operational signals, not
+    // findings), and degrade to a skipped envelope.
     progress(
       progressTag,
       `⚠️ local lens pass failed (continuing without it): ${err?.message ?? err}`,
     );
+    try {
+      await emitToolDegradationFn({
+        storyId,
+        category: RUNTIME_FRICTION_CATEGORIES.TOOL_DEGRADED,
+        tool: 'local-lens-review',
+        details: {
+          surface: 'lens-materialization',
+          reason: String(err?.message ?? err).slice(0, 500),
+        },
+      });
+    } catch {
+      // Observability must never fail the close (best-effort contract).
+    }
     return empty;
+  }
+}
+
+/**
+ * Resolve config for the floor read without letting a resolver failure
+ * fail the (advisory) lens pass. Module-local: a degraded config simply
+ * yields the framework-default floor.
+ *
+ * @param {typeof resolveConfig} resolveConfigFn
+ * @returns {object|undefined}
+ */
+function safeResolveConfig(resolveConfigFn) {
+  try {
+    return resolveConfigFn();
+  } catch {
+    return undefined;
   }
 }

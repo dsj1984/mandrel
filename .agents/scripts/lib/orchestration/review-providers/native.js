@@ -48,6 +48,10 @@ import {
   calculateReport,
   classifyReport,
 } from '../../maintainability-engine.js';
+import {
+  emitRuntimeFriction,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../observability/runtime-friction.js';
 import { PROJECT_ROOT } from '../../project-root.js';
 import { transpileIfNeeded } from '../../transpile.js';
 
@@ -456,8 +460,10 @@ export async function analyzeChangedFiles(
  * Pure: turn a lint summary into Finding(s). Lint errors collapse into a
  * single high-risk finding (the structured comment shows the count); lint
  * warnings collapse into a single suggestion. An `executionFailed` summary
- * produces one suggestion finding describing the runner failure rather than
- * a high-risk false positive.
+ * produces **zero** findings (Story #4699): a runner that could not execute
+ * is an operational degradation, not a code finding — the provider routes it
+ * to friction telemetry instead so severity counts reflect code findings
+ * only.
  *
  * @param {{ errors: number, warnings: number, parsed?: boolean, skipped?: boolean, mode?: string, executionFailed?: boolean, evidenceSkipped?: boolean }} lintSummary
  * @returns {Finding[]}
@@ -466,20 +472,7 @@ export function buildLintFindings(lintSummary) {
   if (lintSummary.mode === 'off') return [];
   if (lintSummary.evidenceSkipped) return [];
   if (lintSummary.skipped) return [];
-  if (lintSummary.executionFailed) {
-    return [
-      {
-        severity: 'suggestion',
-        title: 'Lint runner could not execute',
-        body:
-          'The scoped lint runner produced no parseable output (binary missing, ' +
-          'parse failure, or environment issue). Verify with the canonical ' +
-          '`npm run lint` before merging — treating as a suggestion to avoid a ' +
-          'false high-risk signal.',
-        category: 'lint',
-      },
-    ];
-  }
+  if (lintSummary.executionFailed) return [];
   const findings = [];
   if (lintSummary.errors > 0) {
     findings.push({
@@ -550,6 +543,7 @@ async function runLintPhase({
  *   runScopedLintFn?: typeof runScopedLint,
  *   analyzeChangedFilesFn?: typeof analyzeChangedFiles,
  *   buildLintFindingsFn?: typeof buildLintFindings,
+ *   emitToolDegradationFn?: typeof emitRuntimeFriction,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  *   scopeLint?: 'changed-only'|'off',
  * }} [deps]
@@ -561,6 +555,7 @@ export function createNativeProvider(deps = {}) {
     runScopedLintFn = runScopedLint,
     analyzeChangedFilesFn = analyzeChangedFiles,
     buildLintFindingsFn = buildLintFindings,
+    emitToolDegradationFn = emitRuntimeFriction,
     logger,
     scopeLint = 'changed-only',
   } = deps;
@@ -623,6 +618,29 @@ export function createNativeProvider(deps = {}) {
         runScopedLintFn,
         logger,
       });
+
+      if (lintSummary.executionFailed) {
+        // Story #4699 — a tool that could not execute is an operational
+        // degradation, not a code finding. Route it to friction telemetry
+        // (best-effort) so severity counts reflect code findings only.
+        logger?.warn?.(
+          '[native-review] Lint runner could not execute — recorded as friction telemetry, no finding emitted. Verify with the canonical `npm run lint` before merging.',
+        );
+        try {
+          await emitToolDegradationFn({
+            storyId: ticketId,
+            category: RUNTIME_FRICTION_CATEGORIES.TOOL_DEGRADED,
+            tool: 'native-review-lint',
+            details: {
+              surface: 'scoped-lint',
+              reason:
+                'lint runner produced no parseable output (binary missing, parse failure, or environment issue)',
+            },
+          });
+        } catch {
+          // Observability must never fail the review (best-effort contract).
+        }
+      }
 
       const lintFindings = buildLintFindingsFn(lintSummary);
 
