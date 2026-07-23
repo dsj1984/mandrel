@@ -2041,7 +2041,7 @@
       "symbol": "estimateStorySessionMass"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "file": ".agents/scripts/lib/orchestration/spec-budget.js",
       "symbol": "SPEC_SOFT_WORD_BUDGET"
     },
     {

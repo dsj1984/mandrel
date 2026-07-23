@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { SPEC_SOFT_WORD_BUDGET } from '../../../.agents/scripts/lib/orchestration/spec-budget.js';
 import {
   _internal,
-  SPEC_SOFT_WORD_BUDGET,
   validateAndNormalizeTickets,
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
 import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
