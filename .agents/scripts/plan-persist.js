@@ -34,6 +34,13 @@
  *                             ids, for hand-driven runs. Each id must be
  *                             claimed by exactly one Story's `supersedes[]`;
  *                             they are commented on and closed as superseded
+ *   --route-downgrade-reason <text>
+ *                             Audited planner downgrade (Story #4707): treat
+ *                             the envelope's `full` complexity verdict as
+ *                             `lite`, recording <text> on every Story's
+ *                             story-plan-state checkpoint. Absent this flag
+ *                             the deterministic verdict stands; the gate
+ *                             itself still fails toward `full`
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
@@ -100,6 +107,7 @@ const CLI_OPTIONS = {
   'plan-context': { type: 'string' },
   'plan-acceptance': { type: 'string' },
   'source-tickets': { type: 'string' },
+  'route-downgrade-reason': { type: 'string' },
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
@@ -113,6 +121,7 @@ const USAGE =
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
   '[--plan-acceptance <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
+  '[--route-downgrade-reason <text>] ' +
   '[--dry-run] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
@@ -204,6 +213,7 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
     skipCleanup: values['dry-run'],
     sourceTicketIds: source.ids,
     sourceTicketOrigin: source.origin,
+    routeDowngradeReason: values['route-downgrade-reason'] ?? null,
     // Default-on: `--no-close-superseded` is the explicit escape and always
     // wins over the (default `true`) `--close-superseded`.
     closeSuperseded:

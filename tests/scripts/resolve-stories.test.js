@@ -280,6 +280,24 @@ describe('storiesToDag — body and native edges union into one graph', () => {
   });
 });
 
+describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4707)', () => {
+  it('derives inline for a route::lite Story and subagent otherwise', () => {
+    const env = buildStoriesEnvelope({
+      stories: [
+        toStoryRecord(
+          issue({
+            number: 1,
+            labels: [{ name: 'type::story' }, { name: 'route::lite' }],
+          }),
+        ),
+        toStoryRecord(issue({ number: 2 })),
+      ],
+    });
+    assert.equal(env.stories[0].dispatchMode, 'inline');
+    assert.equal(env.stories[1].dispatchMode, 'subagent');
+  });
+});
+
 describe('buildStoriesEnvelope — done[] is what unlocks cross-run delivery', () => {
   it('reports an in-set landed Story as done', () => {
     const env = buildStoriesEnvelope({

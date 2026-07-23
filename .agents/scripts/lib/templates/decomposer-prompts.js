@@ -109,7 +109,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
 **Slug format**: \`^[a-z0-9][a-z0-9-]*$\` — hyphen-case only. Underscores are rejected by the validator.
 
 ### STORY BODY SCHEMA (REQUIRED FOR EVERY STORY):
-\`body\` MUST be a **string** — the serialized markdown produced by \`serialize()\` from \`lib/story-body/story-body.js\`. Do NOT emit \`body\` as a JSON object: an object body throws \`StoryBodyParseError\` in the reconciler (Story #3302) and is discarded by the GitHub provider, producing an empty issue body. Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
+\`body\` is either the serialized markdown **string** (the section format below) or a **structured object** carrying the same fields (\`goal\`, optional \`slicing\` / \`spec\`, \`changes\`, optional \`non_goals\` / \`wide\` / \`reason_to_exist\` / \`estimated_test_files\`) — persist parses either shape and serializes the canonical markdown itself, so you never need to read \`story-body.js\` or hand-assemble the markdown (the \`stories.template.json\` file emitted next to the plan-context envelope is a ready-to-fill structured-object skeleton). Stories are consumed by non-interactive sub-agents that must self-verify from the Story ticket alone — so the ticket must carry everything an agent needs to execute and self-verify.
 
 The \`acceptance[]\` and \`verify[]\` arrays live at the **top level** of the Story ticket object — that is the machine contract the validator reads. Author each list **once, at top level**, and **omit** the \`## Acceptance\` / \`## Verify\` sections from the authored \`body\` string: persist syncs the top-level arrays into those sections so the GitHub issue stays a complete executable document. The validator resolves both fields from the top level, so an omitted section is the expected shape, not a violation.
 
@@ -138,10 +138,6 @@ The serialized \`body\` string renders these markdown sections (in order):
     - <exact command or test path> (<tier>)
     - ...
 
-    ## References
-    - {"path": "<read-only dependency path>", "assumption": "exists"}
-    - ...
-
     ## Non-Goals
     - <a capability or change this Story explicitly does NOT deliver>
     - ...
@@ -149,7 +145,7 @@ The serialized \`body\` string renders these markdown sections (in order):
 #### STORY BODY RULES:
 
 - **goal** (in body string): One sentence stating WHY this Story exists.
-- **spec** (optional, in body string as \`## Spec\`): Lean technical approach only. If the Spec is large enough to feel like its own document, the Story is probably too big — split it. Persist keeps Specs inline and rejects over-budget Specs (never writes them under \`docs/\`).
+- **spec** (optional, in body string as \`## Spec\`): Lean technical approach only, at the altitude the SPEC PROSE CONTRACT below fixes — contract and invariants, never implementation narration. If the Spec is large enough to feel like its own document, the Story is probably too big — split it. Persist keeps Specs inline and rejects over-budget Specs (never writes them under \`docs/\`).
 - **slicing** (optional): Ordered intra-session checkpoints for one Story. Not a fan-out table and not a duplicate of Acceptance.
 - **changes** (in body string): Each entry is an object \`{ path, assumption }\` where \`assumption\` is one of \`creates | refactors-existing | deletes\`. Acceptable path shapes include explicit files (\`src/components/Foo.tsx\`), glob patterns (\`tests/e2e/*.spec.ts\`, \`**/*.astro\`), and module identifiers that resolve to files. Use \`refactors-existing\` for in-place edits to a file already on \`main\`; \`creates\` for net-new files; \`deletes\` for removals.
 - **acceptance** (top-level array on the ticket object): Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
@@ -161,6 +157,17 @@ The serialized \`body\` string renders these markdown sections (in order):
 - **Slicing checkpoints are one line each.** Each \`## Slicing\` checkpoint is a single line naming the checkpoint; implementation detail lives in \`## Spec\`, never duplicated into Slicing. A Slicing section outweighing its Spec is a defect the text-hygiene lint flags.
 - **Bodies record decisions, never questions to the operator.** Never persist an open question ("Flag if…", "TBD", "confirm with the operator") into a Story body — the executing sub-agent is non-interactive and cannot answer it. Resolve the unknown before authoring, or restate it as a declarative Key Assumption the agent can act on.
 - **non_goals** (OPTIONAL, in body string as the \`## Non-Goals\` section): A short list of capabilities or changes this Story explicitly does NOT deliver — an advisory negative-scope bound that fences the executing agent away from adjacent work. It is **advisory and NON-GATING**: the validator does not require, count, or reject on it, and an absent or empty section renders nothing. Use the EXACT single-word hyphenated heading spelling \`## Non-Goals\` (a space-separated heading like \`## Out of Scope\` is NOT recognized by the parser and will be dropped). Reach for it when a Story's negative boundary is non-obvious from its \`acceptance[]\` alone; omit it otherwise.
+
+#### SPEC PROSE CONTRACT — state the contract, not the implementation:
+
+The Story is executed by a frontier-model deliverer that reads the codebase itself. Author \`## Spec\` (and Goal prose) at contract level:
+
+- **Spec states the contract and invariants**: interfaces, status codes, security invariants, and load-bearing constraints — each with its why. That is the whole job of the Spec.
+- **Implementation choices belong to the deliverer** unless a choice is load-bearing; a load-bearing choice is stated as a constraint (with why it binds), never as a walkthrough of how to code it.
+- **No per-file behavior paragraphs.** The \`## Changes\` list already names the footprint; do not narrate what each file will do.
+- **No current-state narration.** Do not describe how the codebase works today as scene-setting; the deliverer reads the code. The only current-state prose allowed is a claim a decision depends on, opening with \`Current state (verified <date>)\` per the observed-behavior rule above.
+- **Do not author a \`## References\` section.** Read-only context the deliverer needs is discoverable from the contract and the footprint.
+- **Acceptance criteria remain the binding contract** — the Spec constrains and explains; \`acceptance[]\` binds.
 
 #### DETERMINISTIC BODY-FORMAT LINTS — author lint-clean by construction:
 

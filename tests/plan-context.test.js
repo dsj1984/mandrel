@@ -778,6 +778,34 @@ describe('plan-context --out envelope capture (Story #4554)', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
+  // Story #4707 AC-5: one-shot authoring — a captured envelope is always
+  // accompanied by the ready-to-fill stories template, so the authoring
+  // middle starts from a fillable skeleton instead of discovering the
+  // serializer contract by reading story-body.js source.
+  it('emits the ready-to-fill stories template next to the envelope', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-template-'));
+    const outPath = path.join(dir, PLAN_CONTEXT_FILENAME);
+
+    await emitPlanContext({
+      mode: 'seed-file',
+      seedFileContent: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+      outPath,
+      stdout: sink,
+    });
+
+    const template = JSON.parse(
+      await readFile(path.join(dir, 'stories.template.json'), 'utf8'),
+    );
+    assert.ok(Array.isArray(template) && template.length === 1);
+    assert.equal(template[0].type, 'story');
+    assert.ok(Array.isArray(template[0].acceptance));
+    assert.ok(Array.isArray(template[0].verify));
+    await rm(dir, { recursive: true, force: true });
+  });
+
   it('writes nothing when --out is omitted (stdout-only remains the default)', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'plan-ctx-noout-'));
     await emitPlanContext({

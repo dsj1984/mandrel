@@ -49,7 +49,11 @@ import {
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
-import { buildPlanContext } from './lib/orchestration/plan-context.js';
+import {
+  buildPlanContext,
+  renderStoriesTemplate,
+  STORIES_TEMPLATE_FILENAME,
+} from './lib/orchestration/plan-context.js';
 import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -112,7 +116,10 @@ export async function emitPlanContext({
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify(envelope);
   stdout.write(`${json}\n`);
-  if (outPath) await writeEnvelopeFile(outPath, json);
+  if (outPath) {
+    await writeEnvelopeFile(outPath, json);
+    await writeStoriesTemplateFile(outPath);
+  }
   return envelope;
 }
 
@@ -138,6 +145,33 @@ async function writeEnvelopeFile(outPath, json) {
     );
   }
   Logger.info(`[plan-context] wrote envelope to ${resolved}`);
+}
+
+/**
+ * Emit the ready-to-fill Story authoring template next to the captured
+ * envelope (Story #4707 — one-shot authoring). The planner copies it to
+ * `stories.json` and fills the placeholders; no step of the authoring path
+ * requires reading `story-body.js` source. Written whenever `--out` is
+ * passed, and throwing on failure for the same reason the envelope write
+ * does: a silently missing template re-opens the format-discovery loop it
+ * exists to close.
+ *
+ * @param {string} outPath The envelope `--out` path; the template lands in
+ *   the same directory as {@link STORIES_TEMPLATE_FILENAME}.
+ */
+async function writeStoriesTemplateFile(outPath) {
+  const resolved = path.resolve(
+    path.dirname(path.resolve(outPath)),
+    STORIES_TEMPLATE_FILENAME,
+  );
+  try {
+    await writeFile(resolved, renderStoriesTemplate(), 'utf8');
+  } catch (err) {
+    throw new Error(
+      `[plan-context] cannot write stories template to ${resolved}: ${err.message}`,
+    );
+  }
+  Logger.info(`[plan-context] wrote ready-to-fill template to ${resolved}`);
 }
 
 async function main() {

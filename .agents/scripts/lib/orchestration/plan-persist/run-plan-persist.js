@@ -44,6 +44,7 @@ import { anchorTempRoot, tempRootFrom } from '../../config/temp-paths.js';
 import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
+import { applyPlannerDowngrade, LITE_ROUTE_LABEL } from '../complexity-gate.js';
 import {
   appendCriticSkip,
   readPlanMetrics,
@@ -262,6 +263,70 @@ async function renderRunScopedPlanMetricsLine({
 }
 
 /**
+ * Resolve the plan's **effective** complexity route for persist
+ * (Story #4707).
+ *
+ * The deterministic verdict rides in on the captured plan-context envelope's
+ * `complexityRoute`. Layered on top is the audited planner downgrade: a
+ * `full` verdict downgrades to `lite` **only** when the operator/planner
+ * passed `--route-downgrade-reason` with a non-empty reason
+ * (`applyPlannerDowngrade` — absent a recorded reason the deterministic
+ * verdict stands, and the gate itself still fails toward `full`).
+ *
+ * The resolved route decides whether the created Stories carry the
+ * {@link LITE_ROUTE_LABEL} marker and a `route` block on their
+ * `story-plan-state` checkpoint — the persisted, ledgered record `/deliver`
+ * reads. A full route persists **no** marker and no checkpoint block:
+ * absence is the conservative default.
+ *
+ * Module-private: reachable end to end through {@link runPlanPersist}
+ * (whose result reports the resolved route), so there is no test-only
+ * export to leave production-dead.
+ *
+ * @param {{ planContextEnvelope?: object|null, routeDowngradeReason?: string|null }} args
+ * @returns {{ route: 'lite'|'full', reasons: string[], downgraded: { from: 'full', reason: string }|null }|null}
+ *   `null` when no envelope carried a verdict (nothing to persist).
+ */
+function resolveEffectiveRoute({
+  planContextEnvelope = null,
+  routeDowngradeReason = null,
+} = {}) {
+  const verdict = planContextEnvelope?.complexityRoute ?? null;
+  if (!verdict || typeof verdict !== 'object') {
+    if (
+      typeof routeDowngradeReason === 'string' &&
+      routeDowngradeReason.trim() !== ''
+    ) {
+      Logger.warn(
+        '[plan-persist] --route-downgrade-reason was passed but no captured ' +
+          'plan-context envelope carries a complexityRoute verdict — there ' +
+          'is no full verdict to downgrade, so the plan persists as full ' +
+          '(no route marker).',
+      );
+    }
+    return null;
+  }
+  const effective = applyPlannerDowngrade(verdict, {
+    reason: routeDowngradeReason,
+  });
+  if (
+    typeof routeDowngradeReason === 'string' &&
+    routeDowngradeReason.trim() !== '' &&
+    effective.downgraded == null
+  ) {
+    Logger.warn(
+      '[plan-persist] --route-downgrade-reason had no effect: the envelope ' +
+        `verdict is already "${verdict.route}" — nothing to downgrade.`,
+    );
+  }
+  return {
+    route: effective.route === 'lite' ? 'lite' : 'full',
+    reasons: Array.isArray(effective.reasons) ? effective.reasons : [],
+    downgraded: effective.downgraded ?? null,
+  };
+}
+
+/**
  * Age after which an abandoned `temp/plan-*` directory is reaped. A plan run
  * that is still being authored is minutes-to-hours old; a week is far past
  * any live run and comfortably past an operator returning to a paused one.
@@ -328,6 +393,7 @@ export async function reapStalePlanDirs({
  *     stories: Array<object>,
  *     techSpecContent?: string|null,
  *     planAcceptance?: string[]|null,
+ *     planContextEnvelope?: object|null,
  *   },
  *   config?: object,
  *   settings?: object,
@@ -343,6 +409,7 @@ export async function reapStalePlanDirs({
  *     sourceTicketIds?: number[],
  *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
+ *     routeDowngradeReason?: string|null,
  *   },
  * }} input
  */
@@ -357,6 +424,7 @@ export async function runPlanPersist({
     stories: rawStories = null,
     techSpecContent = null,
     planAcceptance = null,
+    planContextEnvelope = null,
   } = artifacts ?? {};
   const {
     forceReview = false,
@@ -370,6 +438,7 @@ export async function runPlanPersist({
     sourceTicketIds = [],
     sourceTicketOrigin = 'none',
     closeSuperseded = true,
+    routeDowngradeReason = null,
   } = opts;
 
   // Boundary for the plan-metrics summary below: everything this invocation
@@ -444,10 +513,29 @@ export async function runPlanPersist({
     sourceTicketIds,
   });
 
+  // Effective complexity route (Story #4707): envelope verdict, plus the
+  // audited planner downgrade when --route-downgrade-reason was recorded.
+  // Lite persists the `route::lite` marker + a checkpoint block; full
+  // persists nothing.
+  const route = resolveEffectiveRoute({
+    planContextEnvelope,
+    routeDowngradeReason,
+  });
+  const isLiteRoute = route?.route === 'lite';
+  if (isLiteRoute) {
+    Logger.info(
+      `[plan-persist] ceremony-lite route: created Stories carry the ` +
+        `${LITE_ROUTE_LABEL} marker` +
+        (route.downgraded
+          ? ` (planner downgrade, recorded reason: ${route.downgraded.reason})`
+          : ' (deterministic gate verdict)'),
+    );
+  }
+
   const { created, planRunLabel } = await createStoryIssues({
     provider,
     stories,
-    opts: { dryRun },
+    opts: { dryRun, routeLabel: isLiteRoute ? LITE_ROUTE_LABEL : null },
   });
 
   const primary = created[0];
@@ -498,6 +586,10 @@ export async function runPlanPersist({
             id: createdStory.id,
           })),
         },
+        // Ledger the lite route — including any planner downgrade and its
+        // recorded reason — on plan state (Story #4707). A full route writes
+        // no block: absence of the marker is the full path.
+        ...(isLiteRoute ? { route } : {}),
       });
     }
     await upsertStructuredComment(
@@ -562,6 +654,7 @@ export async function runPlanPersist({
     stories: created,
     primaryStoryId: primary.id,
     planRunLabel,
+    route,
     forceReview,
     reachability,
     freshness,

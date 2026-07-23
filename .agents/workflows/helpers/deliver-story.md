@@ -48,6 +48,19 @@ Epic-attached ticket; re-plan as a v2 Story or finish it on a pre-v2 checkout.
 > and the `rules/security-baseline.md` MUSTs all run here exactly as for a
 > full-ceremony Story. The lite route's `preserves` field is the machine-readable
 > record of those non-negotiables; there is no lite-specific gate bypass.
+>
+> **The lite route persists to delivery as the `route::lite` label (Story
+> #4707).** Persist stamps every Story of a lite-routed plan with that marker
+> (and ledgers the route — including any audited planner-downgrade reason — on
+> its `story-plan-state` checkpoint); a full-routed Story carries no marker.
+> `/deliver` reads the label via `resolveStoryDispatchMode`
+> (`lib/orchestration/complexity-gate.js`) and executes a lite Story
+> **inline in the deliver session** — no `story-worker` sub-agent boot, and
+> the Step 1a acceptance self-eval runs its critics **inline** (no
+> fresh-context acceptance-critic sub-agent dispatch; sub-agent boots are the
+> dominant deliver-phase token cost at trivial scope). Inline execution
+> changes the isolation only: the engine below, every script gate, and the
+> terminal envelope are byte-identical either way.
 
 ## Prerequisites
 
@@ -253,6 +266,14 @@ Resolve fresh-vs-inline acceptance critics per AC-cluster with
 `high`/`null` → `fresh`, `low` → `inline` unless the `freshCriticSampleRate`
 floor forces `fresh`). Review depth reads the same derived level via
 `review-depth.js` inside close, so the two decisions cannot disagree.
+
+**Lite-route override (Story #4707).** When the Story carries the
+`route::lite` marker (`resolveStoryDispatchMode` → `inline`), run every
+acceptance critic **inline** — do not spawn fresh-context critic sub-agents
+regardless of what the profile would otherwise resolve. The self-eval rigor
+(scoring each `acceptance[]` item against the one computed change set, with
+`verify[]` output as evidence) is unchanged; only the sub-agent boot is
+removed. Hard gates below are untouched.
 
 Hard gates (lint / test / format / coverage / CRAP / maintainability) always
 run in Step 3 — the derived level never disables them. Do **not** pre-run the

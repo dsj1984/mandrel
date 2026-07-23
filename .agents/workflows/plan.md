@@ -40,6 +40,7 @@ Audit findings become Stories via [`/audit-to-stories`](audit-to-stories.md)
 | `--tickets <ids>` | Comma-separated issue ids to analyze. Closed as superseded at persist (see below). |
 | `--no-close-superseded` | Keep the `--tickets` source issues open — no supersede comment, no close. |
 | `--force-review` | STOP at gate #2 for operator review of the assembled plan. The only thing that gates review — there is no risk-derived routing (Story #4542). |
+| `--route-downgrade-reason "<text>"` | Persist-time audited planner downgrade (Story #4707): treat the envelope's `full` complexity verdict as `lite`, recording the reason on every Story's `story-plan-state` checkpoint. Absent this flag the deterministic verdict stands. |
 | `--allow-over-budget` | Permit a plan that exceeds `maxTickets` (rare N>1). |
 | `--yes` | Non-interactive: auto-proceed gate #1 and gate #2 HITL waits. |
 | `--dry-run` | Author + validate without GitHub writes. Run it as a pre-pass before every real persist (see below). |
@@ -76,6 +77,8 @@ envelope there (creating parent dirs); persist auto-discovers that file from
 `--plan-dir` and derives the `--tickets` source ids from its `sourceTickets[]`.
 That is what makes superseding work without anyone re-typing ids
 (Story #4554). The envelope still goes to stdout too, so piping is unaffected.
+Alongside the envelope the CLI also writes **`stories.template.json`** — the
+ready-to-fill authoring skeleton step 2 starts from (Story #4707).
 
 The envelope carries docs context, codebase snapshot, BDD probe, risk
 heuristics, the story-author system prompt, `sourceTickets[]` (`--tickets`
@@ -103,6 +106,23 @@ plan/deliver ceremony that measurably buys no quality at that size:
   the gate disabled via `planning.complexityGate.enabled=false`), so a real
   capability slice never loses ceremony. Author normally under the split policy.
 
+**Planner downgrade (audited, Story #4707).** Seed word count is a poor
+complexity proxy, so a `full` verdict you judge genuinely trivial (one
+artifact, one obvious change) may be downgraded to `lite` — but **only** by
+passing `--route-downgrade-reason "<why>"` to persist. The reason is recorded
+on every created Story's `story-plan-state` checkpoint, making the judgment
+auditable; without a recorded reason the deterministic verdict stands, and the
+gate itself is unchanged (it still fails toward `full`).
+
+**The route persists with the Story (Story #4707).** Persist labels every
+Story of a lite-routed plan with the **`route::lite`** marker and ledgers the
+route (including any downgrade reason) on its `story-plan-state` checkpoint;
+a full-routed Story carries no marker. `/deliver` reads the marker to execute
+a lite Story **inline** — no story-worker or acceptance-critic sub-agent
+boots — while every `single-story-close.js` gate runs unchanged. The
+`route::*` axis is runtime-derived: hand-authored `route::*` entries in
+`labels[]` are dropped by persist.
+
 The threshold and its override knob (`planning.complexityGate.{enabled,
 maxSeedWords, maxArtifacts}`) are documented in
 [`.agents/docs/configuration.md`](../docs/configuration.md) under `### planning`;
@@ -114,13 +134,42 @@ duplicate-candidate review. Under `--yes`, auto-proceed.
 
 ### 2. Author
 
+**One-shot authoring (Story #4707).** Start from the `stories.template.json`
+step 1 wrote next to the envelope, or from the canonical skeleton below —
+either way, author `stories.json` in one pass. No step of this path requires
+reading `story-body.js` source or re-poking the envelope for format
+discovery. The serializer contract is: `body` is **either** a serialized
+markdown string **or** a structured object with the fields below — persist
+parses either shape and serializes the canonical markdown itself, and it
+syncs the top-level `acceptance[]` / `verify[]` (the machine contract) into
+the body sections, so never dual-author those lists.
+
+```jsonc
+// temp/plan-<slug>/stories.json — canonical skeleton (length 1 by default)
+[
+  {
+    "slug": "hyphen-case-slug", // ^[a-z0-9][a-z0-9-]*$
+    "type": "story",
+    "title": "Short descriptive title",
+    "body": {
+      "goal": "One sentence: why this Story exists.",
+      "spec": "Optional — contract and invariants only (see the prose contract in the story prompt).",
+      "changes": [{ "path": "path/to/file.ext", "assumption": "refactors-existing" }], // creates | refactors-existing | deletes
+      "non_goals": [],
+      "reason_to_exist": "One sentence: the single coherent reason this Story exists."
+    },
+    "acceptance": ["A testable, observable criterion"],
+    "verify": ["exact command or test path (unit|contract|e2e|validate)"],
+    "depends_on": [] // sibling Story slugs, N>1 only
+  }
+]
+```
+
 Write artifacts under `temp/plan-<slug>/`:
 
-- `stories.json` — array of Story tickets (**length 1 by default**). Each
-  body uses the canonical `story-body` shape (`## Goal`, optional
-  `## Slicing`, optional `## Spec`, `## Changes`, `## Acceptance`,
-  `## Verify`, …). The Story is the single executable document: put lean
-  approach prose in `## Spec`, binding criteria in top-level
+- `stories.json` — array of Story tickets (**length 1 by default**). The
+  Story is the single executable document: put contract-level approach
+  prose in `spec`, binding criteria in top-level
   `acceptance[]` / `verify[]` (persist syncs them into the body). Do not
   restate Goal/Acceptance inside Spec. Over-budget Specs fail closed —
   split the Story or tighten Spec; never write Specs under `docs/`.
@@ -276,6 +325,7 @@ node .agents/scripts/plan-persist.js \
   [--plan-context temp/plan-<slug>/plan-context.json] \
   [--source-tickets 123,456] \
   [--no-close-superseded] \
+  [--route-downgrade-reason "<why this full verdict is genuinely trivial>"] \
   [--force-review] \
   [--allow-over-budget]
 ```

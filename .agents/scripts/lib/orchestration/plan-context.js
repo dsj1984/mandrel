@@ -139,6 +139,63 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
 });
 
 /**
+ * Filename of the ready-to-fill Story authoring template `plan-context.js`
+ * writes next to the captured envelope (Story #4707).
+ */
+export const STORIES_TEMPLATE_FILENAME = 'stories.template.json';
+
+/**
+ * Render the ready-to-fill `stories.json` authoring template (Story #4707).
+ *
+ * One-shot authoring: the planner copies this file to `stories.json`, fills
+ * the placeholder values, and runs persist — no step requires reading
+ * `story-body.js` source or re-poking the envelope for format discovery
+ * (bench: ~7 of 17 plan turns were format discovery). The template uses the
+ * **structured-object body** shape, which persist parses and serializes to
+ * the canonical markdown itself (`parse` accepts an object;
+ * `assembleOnePlanStory` re-serializes canonically), so the serializer
+ * contract never has to be reverse-engineered by the author. `acceptance[]`
+ * / `verify[]` live at the ticket's top level — the machine contract persist
+ * syncs into the body.
+ *
+ * Pure and deterministic; the output is valid JSON (parseable as-is), with
+ * instructive placeholder values rather than comments.
+ *
+ * @returns {string} Pretty-printed JSON template content.
+ */
+export function renderStoriesTemplate() {
+  const template = [
+    {
+      slug: 'fill-hyphen-case-slug',
+      type: 'story',
+      title: 'Fill: short descriptive title',
+      body: {
+        goal: 'Fill: one sentence stating why this Story exists.',
+        spec:
+          'Optional — contract and invariants only: interfaces, status ' +
+          'codes, security invariants, and load-bearing constraints with ' +
+          'their why. Implementation choices belong to the deliverer unless ' +
+          'load-bearing. No per-file behavior paragraphs, no current-state ' +
+          'narration. Delete this field when acceptance[] carries the whole ' +
+          'contract.',
+        changes: [
+          { path: 'path/to/file.ext', assumption: 'refactors-existing' },
+        ],
+        non_goals: [],
+        reason_to_exist:
+          'Fill: the single coherent reason this Story exists (one sentence).',
+      },
+      acceptance: [
+        'Fill: a testable, observable criterion (a command exits 0, a file exists, a test matches)',
+      ],
+      verify: ['Fill: exact command or test path (unit|contract|e2e|validate)'],
+      depends_on: [],
+    },
+  ];
+  return `${JSON.stringify(template, null, 2)}\n`;
+}
+
+/**
  * Count top-level enumerated items (`- `, `* `, `1. `) anywhere in a
  * free-form seed text. Unlike {@link countScopeItems} this does not require
  * a scope-shaped heading — a raw `--seed` text rarely has one.

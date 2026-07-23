@@ -104,7 +104,7 @@ top-level keys are validation errors.
 | `codebaseSnapshot.recentCommitWindow` | No | `integer` | — | — |
 | `complexityGate` | No | `object` | — | Plan-time ceremony-lite complexity gate. Routes trivial single-artifact seeds onto a collapsed plan/deliver path; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables. |
 | `complexityGate.enabled` | No | `boolean` | — | Master switch. When false, every seed takes the full plan/deliver ceremony. Default true. |
-| `complexityGate.maxSeedWords` | No | `integer` | — | Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 60. |
+| `complexityGate.maxSeedWords` | No | `integer` | — | Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 150. |
 | `complexityGate.maxArtifacts` | No | `integer` | — | Enumerated-artifact ceiling for the lite path. A seed enumerating more than this many candidate artifacts is multi-capability and takes the full path. Default 1. |
 | `failOnSharedEditors` | No | `boolean` | — | When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only). |
 | `requireExplicitCrossStoryDeps` | No | `boolean` | — | When true, upgrade implicit cross-Story dependency findings to hard errors (default false — advisory soft findings only). |
@@ -366,12 +366,21 @@ only when the project's source layout differs.
   lands via a PR to `main`, still runs every repo quality gate, and still honours
   `rules/security-baseline.md` — those gates run in `single-story-close.js`
   regardless of route. **Threshold + override:** `enabled` (default `true`;
-  `false` forces every seed to `full`), `maxSeedWords` (default `60`), and
+  `false` forces every seed to `full`), `maxSeedWords` (default `150` —
+  raised from 60 by Story #4707: seed word count is a poor complexity proxy,
+  and the old ceiling punished a well-written 70-word trivial seed with the
+  full two-session ceremony), and
   `maxArtifacts` (default `1`). The defaults are the single source of truth on
   `DEFAULT_COMPLEXITY_GATE` in
   [`lib/orchestration/complexity-gate.js`](../scripts/lib/orchestration/complexity-gate.js);
   a malformed or negative ceiling falls back to the default rather than widening
-  the lite path.
+  the lite path. **Planner downgrade + route marker (Story #4707):** the
+  planner may downgrade a `full` verdict to `lite` only via
+  `plan-persist.js --route-downgrade-reason "<why>"` — the reason is recorded
+  on every created Story's `story-plan-state` checkpoint, so the judgment is
+  auditable and never a silent gate change. A lite-routed plan's Stories carry
+  the runtime-derived `route::lite` label, which `/deliver` reads to execute
+  the Story inline (no sub-agent fan-out) with every close gate unchanged.
 
 ### `delivery`
 
