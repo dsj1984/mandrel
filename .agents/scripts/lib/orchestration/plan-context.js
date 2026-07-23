@@ -26,7 +26,7 @@ import {
   renderTechSpecSystemPrompt,
 } from '../templates/spec-author-prompts.js';
 import { concurrentMap } from '../util/concurrent-map.js';
-import { buildComplexityRouteSignal } from './complexity-gate.js';
+import { buildComplexitySignals } from './complexity-gate.js';
 import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { buildDocsDigest } from './docs-digest.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
@@ -540,7 +540,15 @@ async function buildSeedFileModeEnvelope({
   return {
     mode: modeLabel,
     seed: { path: seedFilePath ?? null, content },
-    complexityRoute: buildComplexityRouteSignal({ seedText: content, config }),
+    // Advisory complexity signals only (Story #4722): no route, no routing
+    // authority. The planner authors the trivial-vs-standard verdict; persist
+    // validates a lite claim against the authored Story's shape.
+    complexitySignals: buildComplexitySignals({
+      seedText: content,
+      config,
+      riskHeuristics: heuristics,
+      cwd,
+    }),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
@@ -694,7 +702,12 @@ async function buildTicketsModeEnvelope({
     mode: 'tickets',
     sourceTickets,
     seed: { text: seed, path: null },
-    complexityRoute: buildComplexityRouteSignal({ seedText: seed, config }),
+    complexitySignals: buildComplexitySignals({
+      seedText: seed,
+      config,
+      riskHeuristics: heuristics,
+      cwd,
+    }),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,

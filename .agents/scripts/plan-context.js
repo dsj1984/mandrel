@@ -137,7 +137,16 @@ export async function emitPlanContext({
       bytes: Buffer.byteLength(json, 'utf8'),
       sourceTickets: (envelope.sourceTickets ?? []).map((t) => t.id),
       duplicates: (envelope.duplicates ?? []).length,
-      complexityRoute: envelope.complexityRoute?.route ?? null,
+      // Advisory only (Story #4722): signals, no route — the planner owns
+      // the trivial-vs-standard verdict and persist validates it by shape.
+      complexitySignals: envelope.complexitySignals
+        ? {
+            artifactCount: envelope.complexitySignals.artifactCount,
+            riskHeuristicHits: envelope.complexitySignals.riskHeuristicHits,
+            sensitivePathClasses:
+              envelope.complexitySignals.sensitivePathClasses,
+          }
+        : null,
     };
     stdout.write(`${JSON.stringify(digest)}\n`);
   } else {

@@ -278,34 +278,30 @@ const PLANNING_SCHEMA = {
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
-    // Story #4683 — plan-time ceremony-lite complexity gate. Routes a trivial
-    // single-artifact seed onto a collapsed plan/deliver path while a
-    // multi-capability seed keeps the full ceremony. Deterministic and
-    // conservative (full on any doubt); the lite path never relaxes a
-    // non-negotiable (Story ticket, PR-to-main, repo gates, security baseline).
-    // Defaults live on DEFAULT_COMPLEXITY_GATE in
-    // `lib/orchestration/complexity-gate.js`.
+    // Story #4722 (superseding #4683's word-count gate) — shape-derived
+    // ceremony-lite routing. Complexity routes on the objective shape of the
+    // authored work (changes[] count, acceptance count, creates-vs-refactors
+    // mix, sensitive-path classes), never on seed word count: `maxSeedWords`
+    // was removed in the hard cutover and is rejected as an additional
+    // property. The lite path never relaxes a non-negotiable (Story ticket,
+    // PR-to-main, repo gates, security baseline). Defaults live on
+    // DEFAULT_COMPLEXITY_GATE in `lib/orchestration/complexity-gate.js`;
+    // shape ceilings are the framework constants STORY_SHAPE_CEILINGS.
     complexityGate: {
       type: 'object',
       description:
-        'Plan-time ceremony-lite complexity gate. Routes trivial single-artifact seeds onto a collapsed plan/deliver path; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables.',
+        'Shape-derived ceremony-lite complexity routing. A lite claim is validated against the authored Story shape at persist and re-derived from the Story body at dispatch; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables.',
       properties: {
         enabled: {
           type: 'boolean',
           description:
-            'Master switch. When false, every seed takes the full plan/deliver ceremony. Default true.',
-        },
-        maxSeedWords: {
-          type: 'integer',
-          minimum: 0,
-          description:
-            'Seed prose word ceiling for the lite path. A seed above this many words is not trivial and takes the full path. Default 150.',
+            'Master switch. When false, lite routing is disabled everywhere: persist refuses lite claims and dispatch always takes the sub-agent path. Default true.',
         },
         maxArtifacts: {
           type: 'integer',
           minimum: 0,
           description:
-            'Enumerated-artifact ceiling for the lite path. A seed enumerating more than this many candidate artifacts is multi-capability and takes the full path. Default 1.',
+            'Enumerated-artifact threshold reported by the plan-context complexity signals. An input signal for the planner verdict — carries no routing authority. Default 1.',
         },
       },
       additionalProperties: false,

@@ -25,6 +25,8 @@ blocker resolved against its real issue state). You never hand it a graph, and
 there is no batch label — which is what lets you deliver Stories **across plan
 runs and over time**. The `plan-run::<id>` grouping label is filter metadata
 only — never a resolution input (there is no `--run` or `--dep` axis).
+Per-Story routes are **body-derived** too (#4722); `route::lite` is a hint
+only.
 
 ## Inputs
 

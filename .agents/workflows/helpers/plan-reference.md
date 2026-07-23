@@ -1,50 +1,56 @@
 # /plan — on-demand reference appendix
 
 > **Applies when:** you are executing [`/plan`](../plan.md) and hit one of the
-> situations below — the ceremony-lite route, `--tickets` supersede authoring,
-> critic dispatch detail, a failed persist, or source-id resolution. The spine
-> stays resident; this file is read on demand.
+> situations below — shape-derived complexity routing, `--tickets` supersede
+> authoring, critic dispatch detail, a failed persist, or source-id
+> resolution. The spine stays resident; this file is read on demand.
 
-## Ceremony-lite complexity gate (`complexityRoute`)
+## Shape-derived complexity routing (`complexitySignals`)
 
-The envelope's `complexityRoute` field is a **deterministic, conservative**
-plan-time gate (Story #4683) that routes a genuinely trivial single-artifact
-seed onto a collapsed path so it stops paying the full two-session
-plan/deliver ceremony that measurably buys no quality at that size:
+Complexity routes on the **objective shape of the authored work**, never on
+seed word count (Story #4722 — a detailed prompt can describe trivial work, a
+terse one complex work; `maxSeedWords` is removed). The pipeline stages the
+decision:
 
-- **`route: "lite"`** — a trivial scope (seed ≤ `maxSeedWords` words **and** ≤
-  `maxArtifacts` enumerated items). Collapse the ceremony: author **one minimal
-  Story** and skip the fresh-critic / Tech-Spec ceremony a one-artifact scope
-  does not earn. The lite route is **not** licence to drop a non-negotiable —
-  its `preserves` field enumerates exactly what still holds: the Story ticket,
-  the PR-to-`main` landing, every repo quality gate, and the security baseline.
-  Those gates still run in `single-story-close.js` regardless of route.
-- **`route: "full"`** — everything else. The gate fails toward `full` on any
-  doubt (empty seed, over the word ceiling, a multi-capability enumeration, or
-  the gate disabled via `planning.complexityGate.enabled=false`), so a real
-  capability slice never loses ceremony. Author normally under the split policy.
+- **Signals, not routing.** The envelope's `complexitySignals` field is
+  advisory only (`routingAuthority: false`): enumerated-artifact count (with
+  the configured `maxArtifacts` threshold beside it as one input),
+  `planning.riskHeuristics` phrases present in the seed, the repo state of
+  predicted paths (existing paths predict refactors; missing predict
+  creates), and the `audit-rules.json` sensitive-path classes the predicted
+  footprint intersects.
+- **You author the verdict.** Judge the signals: a genuinely trivial scope
+  (small additive footprint, no risk hits, no sensitive class) earns a `lite`
+  claim via `plan-persist.js --route-downgrade-reason "<why>"`. The reason is
+  recorded on every created Story's `story-plan-state` checkpoint, making the
+  judgment auditable; without a recorded reason the conservative default
+  (`full`) stands.
+- **Persist backstops the claim deterministically.** After authoring, the
+  work has measurable shape, so persist validates the `lite` claim against
+  each Story's own shape — `changes[]` count, acceptance-criteria count,
+  creates-vs-refactors mix, glob-free footprint, and sensitive-path classes,
+  against the framework `STORY_SHAPE_CEILINGS` — and **fails closed to
+  `full`** when any Story exceeds them (the refusal is ledgered on the
+  checkpoint too). The lite route is **not** licence to drop a
+  non-negotiable — every decision's `preserves` field enumerates what still
+  holds: the Story ticket, the PR-to-`main` landing, every repo quality gate,
+  and the security baseline. Those gates run in `single-story-close.js`
+  regardless of route.
 
-**Planner downgrade (audited, Story #4707).** Seed word count is a poor
-complexity proxy, so a `full` verdict you judge genuinely trivial (one
-artifact, one obvious change) may be downgraded to `lite` — but **only** by
-passing `--route-downgrade-reason "<why>"` to persist. The reason is recorded
-on every created Story's `story-plan-state` checkpoint, making the judgment
-auditable; without a recorded reason the deterministic verdict stands, and the
-gate itself is unchanged (it still fails toward `full`).
+**The label is a hint; deliver re-derives (Story #4722).** Persist labels a
+lite cohort's Stories with **`route::lite`** as a *human-visible hint only* —
+`/deliver` computes the route from each fetched Story body via the same shape
+function at dispatch, so neither a lost label nor an unread marker can
+misroute delivery: a lite-shaped Story executes **inline** (no story-worker
+or acceptance-critic sub-agent boots) even with the label absent, and a
+sensitive-footprint Story routes `full` and keeps its fresh critic even with
+the label present. The `route::*` axis stays runtime-derived: hand-authored
+`route::*` entries in `labels[]` are dropped by persist.
 
-**The route persists with the Story (Story #4707).** Persist labels every
-Story of a lite-routed plan with the **`route::lite`** marker and ledgers the
-route (including any downgrade reason) on its `story-plan-state` checkpoint;
-a full-routed Story carries no marker. `/deliver` reads the marker to execute
-a lite Story **inline** — no story-worker or acceptance-critic sub-agent
-boots — while every `single-story-close.js` gate runs unchanged. The
-`route::*` axis is runtime-derived: hand-authored `route::*` entries in
-`labels[]` are dropped by persist.
-
-The threshold and its override knob (`planning.complexityGate.{enabled,
-maxSeedWords, maxArtifacts}`) are documented in
-[`.agents/docs/configuration.md`](../../docs/configuration.md) under
-`### planning`; the defaults live on `DEFAULT_COMPLEXITY_GATE` in
+The knobs (`planning.complexityGate.{enabled, maxArtifacts}`) are documented
+in [`.agents/docs/configuration.md`](../../docs/configuration.md) under
+`### planning`; the defaults live on `DEFAULT_COMPLEXITY_GATE` and the shape
+ceilings on `STORY_SHAPE_CEILINGS` in
 [`lib/orchestration/complexity-gate.js`](../../scripts/lib/orchestration/complexity-gate.js).
 
 ## Tickets mode — authoring `supersedes[]`
