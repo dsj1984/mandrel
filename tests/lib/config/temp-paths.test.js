@@ -6,10 +6,20 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import {
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { after, before, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import {
   _clearMainCheckoutRootCache,
+  _clearTestContextScratchCache,
   anchorTempRoot,
   mainCheckoutRoot,
   runArtifactPath,
@@ -17,6 +27,7 @@ import {
   signalsFile,
   storyManifestPath,
   storyTempDir,
+  TEST_ALLOW_REAL_TEMP_ENV,
   TEST_TEMP_ROOT_ENV,
   tempRootFrom,
 } from '../../../.agents/scripts/lib/config/temp-paths.js';
@@ -26,16 +37,27 @@ const SEP = path.sep;
 // The shared test bootstrap sets MANDREL_TEST_TEMP_ROOT so stray writers land
 // in scratch (Story #4696). This suite verifies the *production* main-checkout
 // anchoring, so it must run with the override cleared — otherwise every
-// relative-root assertion would resolve under scratch. Node runs each test
-// file in its own process, so mutating the env here does not leak to siblings.
+// relative-root assertion would resolve under scratch. Since Story #4711 the
+// test-context fallback would then re-arm scratch lazily, so the suite also
+// sets the explicit real-tree opt-out (it only computes paths, never writes).
+// Node runs each test file in its own process, so mutating the env here does
+// not leak to siblings.
 let savedScratchEnv;
+let savedAllowRealEnv;
 before(() => {
   savedScratchEnv = process.env[TEST_TEMP_ROOT_ENV];
   delete process.env[TEST_TEMP_ROOT_ENV];
+  savedAllowRealEnv = process.env[TEST_ALLOW_REAL_TEMP_ENV];
+  process.env[TEST_ALLOW_REAL_TEMP_ENV] = '1';
 });
 after(() => {
   if (savedScratchEnv === undefined) delete process.env[TEST_TEMP_ROOT_ENV];
   else process.env[TEST_TEMP_ROOT_ENV] = savedScratchEnv;
+  if (savedAllowRealEnv === undefined) {
+    delete process.env[TEST_ALLOW_REAL_TEMP_ENV];
+  } else {
+    process.env[TEST_ALLOW_REAL_TEMP_ENV] = savedAllowRealEnv;
+  }
 });
 
 /**
@@ -339,14 +361,22 @@ describe('lib/config/temp-paths.js — scratch tempRoot seam (Story #4696)', () 
   it('anchorTempRoot ignores an empty / relative override (would re-anchor to the repo)', () => {
     // An empty or relative override is treated as unset, so a relative root
     // falls through to main-checkout anchoring rather than the scratch join.
+    // (Real-tree opt-out set: without it the Story #4711 test-context
+    // fallback would divert to lazy scratch instead of the main checkout.)
     const root = mainCheckoutRoot();
     const expected = root ? path.join(root, 'temp') : 'temp';
     assert.equal(
-      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: '' }),
+      anchorTempRoot('temp', {
+        [TEST_TEMP_ROOT_ENV]: '',
+        [TEST_ALLOW_REAL_TEMP_ENV]: '1',
+      }),
       expected,
     );
     assert.equal(
-      anchorTempRoot('temp', { [TEST_TEMP_ROOT_ENV]: 'temp' }),
+      anchorTempRoot('temp', {
+        [TEST_TEMP_ROOT_ENV]: 'temp',
+        [TEST_ALLOW_REAL_TEMP_ENV]: '1',
+      }),
       expected,
     );
   });
@@ -357,11 +387,215 @@ describe('lib/config/temp-paths.js — scratch tempRoot seam (Story #4696)', () 
     assert.equal(anchorTempRoot(abs, env), abs);
   });
 
-  it('anchorTempRoot falls back to main-checkout anchoring when no override is set', () => {
-    // With the override cleared (this suite deletes it in `before`), a
-    // relative root anchors to the real main checkout, not scratch.
-    const resolved = anchorTempRoot('temp', {});
+  it('anchorTempRoot falls back to main-checkout anchoring when no override is set (opt-out)', () => {
+    // With the override cleared and the real-tree opt-out set, a relative
+    // root anchors to the real main checkout, not scratch. (Without the
+    // opt-out a node:test context now lazily arms scratch — Story #4711.)
+    const resolved = anchorTempRoot('temp', {
+      [TEST_ALLOW_REAL_TEMP_ENV]: '1',
+    });
     const root = mainCheckoutRoot();
     assert.equal(resolved, root ? path.join(root, 'temp') : 'temp');
+  });
+});
+
+describe('lib/config/temp-paths.js — test-context arming fallback (Story #4711)', () => {
+  const FAKE_SCRATCH = path.join(os.tmpdir(), 'mandrel-test-temp-FAKE');
+
+  afterEach(() => {
+    _clearTestContextScratchCache();
+  });
+
+  it('a NODE_TEST_CONTEXT process with no override lazily arms scratch', () => {
+    _clearTestContextScratchCache();
+    const prefixes = [];
+    const mkdtemp = (prefix) => {
+      prefixes.push(prefix);
+      return FAKE_SCRATCH;
+    };
+    const resolved = anchorTempRoot(
+      'temp',
+      { NODE_TEST_CONTEXT: 'child' },
+      { mkdtemp, execArgv: [] },
+    );
+    assert.equal(resolved, path.join(FAKE_SCRATCH, 'temp'));
+    assert.deepEqual(prefixes, [path.join(os.tmpdir(), 'mandrel-test-temp-')]);
+  });
+
+  it('the lazily-armed scratch dir is created once per process (idempotent)', () => {
+    _clearTestContextScratchCache();
+    let calls = 0;
+    const mkdtemp = () => {
+      calls += 1;
+      return FAKE_SCRATCH;
+    };
+    const first = anchorTempRoot(
+      'temp',
+      { NODE_TEST_CONTEXT: 'child' },
+      { mkdtemp, execArgv: [] },
+    );
+    const second = anchorTempRoot(
+      path.join('a', 'b'),
+      { NODE_TEST_CONTEXT: 'child' },
+      { mkdtemp, execArgv: [] },
+    );
+    assert.equal(calls, 1);
+    assert.equal(first, path.join(FAKE_SCRATCH, 'temp'));
+    assert.equal(second, path.join(FAKE_SCRATCH, 'a', 'b'));
+  });
+
+  it('detects a direct `node --test` runner process via execArgv', () => {
+    _clearTestContextScratchCache();
+    const resolved = anchorTempRoot(
+      'temp',
+      {},
+      { mkdtemp: () => FAKE_SCRATCH, execArgv: ['--test'] },
+    );
+    assert.equal(resolved, path.join(FAKE_SCRATCH, 'temp'));
+  });
+
+  it('the explicit opt-out restores main-checkout anchoring (escape hatch)', () => {
+    _clearTestContextScratchCache();
+    const root = mainCheckoutRoot();
+    const resolved = anchorTempRoot(
+      'temp',
+      { NODE_TEST_CONTEXT: 'child', [TEST_ALLOW_REAL_TEMP_ENV]: '1' },
+      {
+        mkdtemp: () => {
+          throw new Error('must not create scratch under the opt-out');
+        },
+        execArgv: [],
+      },
+    );
+    assert.equal(resolved, root ? path.join(root, 'temp') : 'temp');
+  });
+
+  it('an armed absolute override still wins over the fallback', () => {
+    _clearTestContextScratchCache();
+    const armed = path.resolve(SEP, 'tmp', 'already-armed');
+    const resolved = anchorTempRoot(
+      'temp',
+      { NODE_TEST_CONTEXT: 'child', [TEST_TEMP_ROOT_ENV]: armed },
+      {
+        mkdtemp: () => {
+          throw new Error('must reuse the armed override, not re-create');
+        },
+        execArgv: [],
+      },
+    );
+    assert.equal(resolved, path.join(armed, 'temp'));
+  });
+
+  it('a non-test context is untouched (main-checkout anchoring)', () => {
+    _clearTestContextScratchCache();
+    const root = mainCheckoutRoot();
+    const resolved = anchorTempRoot(
+      'temp',
+      {},
+      {
+        mkdtemp: () => {
+          throw new Error('must not create scratch outside a test context');
+        },
+        execArgv: [],
+      },
+    );
+    assert.equal(resolved, root ? path.join(root, 'temp') : 'temp');
+  });
+});
+
+describe('lib/config/temp-paths.js — direct `node --test` appends zero bytes to the real tree (Story #4711, AC-3)', () => {
+  it('a signals-writing fixture run via direct `node --test` lands in scratch, not temp/standalone', () => {
+    const repoRoot = mainCheckoutRoot();
+    assert.ok(repoRoot, 'suite must run inside a git checkout');
+    const protectedDir = path.join(repoRoot, 'temp', 'standalone', 'stories');
+
+    /** Byte sizes of every stream file under the protected subtree. */
+    const streamSizes = () => {
+      const sizes = new Map();
+      const walk = (dir) => {
+        let entries;
+        try {
+          entries = readdirSync(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const ent of entries) {
+          const abs = path.join(dir, ent.name);
+          if (ent.isDirectory()) walk(abs);
+          else if (ent.isFile() && ent.name.endsWith('.ndjson')) {
+            sizes.set(abs, statSync(abs).size);
+          }
+        }
+      };
+      walk(protectedDir);
+      return sizes;
+    };
+
+    const sizesBefore = streamSizes();
+
+    // Fixture: resolves the standalone story-4428 signals path through the
+    // production helper and appends one line to it — exactly the measured
+    // #4711 bypass shape — printing the resolved path for the outer assert.
+    const tempPathsUrl = new URL(
+      '../../../.agents/scripts/lib/config/temp-paths.js',
+      import.meta.url,
+    ).href;
+    const fixtureDir = mkdtempSync(path.join(os.tmpdir(), 'arming-fixture-'));
+    // `.mjs` so the fixture parses as ESM outside any package.json scope.
+    const fixturePath = path.join(fixtureDir, 'arming-fixture.test.mjs');
+    writeFileSync(
+      fixturePath,
+      [
+        `import { test } from 'node:test';`,
+        `import { appendFileSync, mkdirSync } from 'node:fs';`,
+        `import path from 'node:path';`,
+        `import { signalsFile } from ${JSON.stringify(tempPathsUrl)};`,
+        `test('fixture appends a signal record', () => {`,
+        `  const target = signalsFile(null, 4428);`,
+        `  mkdirSync(path.dirname(target), { recursive: true });`,
+        `  appendFileSync(target, JSON.stringify({ kind: 'friction', fixture: true }) + '\\n');`,
+        `  console.log('RESOLVED:' + target);`,
+        `});`,
+        '',
+      ].join('\n'),
+    );
+
+    try {
+      // Strip every arming/opt-out variable: this is the raw direct-run shape
+      // that measurably appended 12 fixture records pre-#4711.
+      const env = { ...process.env };
+      delete env[TEST_TEMP_ROOT_ENV];
+      delete env[TEST_ALLOW_REAL_TEMP_ENV];
+      delete env.NODE_TEST_CONTEXT;
+      const res = spawnSync(process.execPath, ['--test', fixturePath], {
+        cwd: repoRoot,
+        env,
+        encoding: 'utf8',
+      });
+      assert.equal(
+        res.status,
+        0,
+        `fixture run failed:\n${res.stdout}\n${res.stderr}`,
+      );
+      const m = /RESOLVED:(.+)/.exec(res.stdout);
+      assert.ok(m, `fixture did not print its resolved path:\n${res.stdout}`);
+      const resolved = m[1].trim();
+      assert.ok(path.isAbsolute(resolved));
+      assert.ok(
+        !resolved.startsWith(path.join(repoRoot, 'temp') + path.sep),
+        `fixture write landed in the real tree: ${resolved}`,
+      );
+
+      const sizesAfter = streamSizes();
+      for (const [abs, size] of sizesAfter) {
+        assert.equal(
+          sizesBefore.get(abs),
+          size,
+          `real stream file grew or appeared: ${abs}`,
+        );
+      }
+    } finally {
+      rmSync(fixtureDir, { recursive: true, force: true });
+    }
   });
 });
