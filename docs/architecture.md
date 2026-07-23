@@ -785,11 +785,19 @@ changing its shape (full per-field reference:
   conditions; unset/empty defaults to `[{ name: "native" }]`.
   `providerConfig` is an open-shape escape hatch for adapter-specific
   options.
-- **`delivery.mergeWatch.{intervalSeconds,maxBudgetSeconds}`** — poll
+- **`delivery.mergeWatch.{mode,intervalSeconds,maxBudgetSeconds}`** — poll
   cadence and total wall-clock budget for merge confirmation after
-  auto-merge is armed (defaults 30s / 3600s); exceeding the budget
-  surfaces `agent::blocked` with reason `budget-exceeded`. Tune on repos
-  with slow required checks.
+  auto-merge is armed (defaults 30s / 3600s); exhausting the budget
+  surfaces `agent::blocked` attributed with a block class from
+  `BLOCK_CLASSES`
+  (`.agents/scripts/lib/orchestration/merge-block-class.js`:
+  `checks-failed`, `checks-pending-timeout`,
+  `branch-protection-human-required`, `arm-failure`, `api-race-other`).
+  On repos with slow required checks, tune `mode` (Story #4698): the
+  default `sync` keeps the in-close foreground wait; `async` caps the
+  per-invocation wait to a short probe window and returns the resumable
+  `pending` terminal so the merge lands via the envelope's
+  `nextCommand` instead of a long foreground wait.
 - **`delivery.refactorStage.enabled`** — opt-in (default off) advisory
   post-green refactor checkpoint in Story delivery (the
   `core/code-review-and-quality` skill's Post-Green Refactor Pass); never
