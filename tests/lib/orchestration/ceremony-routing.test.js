@@ -20,6 +20,7 @@ import { expectedClusterCount } from '../../../.agents/scripts/lib/orchestration
 import {
   resolveCeremonyForRisk,
   sampledFresh,
+  verdictOwnerForMode,
 } from '../../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 
 describe('resolveCeremonyForRisk — ceremony profiles', () => {
@@ -101,6 +102,58 @@ describe('resolveCeremonyForRisk — per-cluster tier rules', () => {
         d.mode,
         'fresh',
         `expected fresh for ${JSON.stringify(bad)}`,
+      );
+    }
+  });
+});
+
+describe('single verdict-owner per cluster (Story #4723)', () => {
+  // AC-1: acceptance verification runs ONE verdict-owner per cluster — the
+  // fresh critic when sensitivity routes it, the inline self-eval otherwise.
+  // The resolved decision names that owner explicitly, and it is always
+  // exactly one of the two authoring passes; `acceptance-eval.js` is the
+  // deterministic scorer of that verdict, never a third owner.
+  test('verdictOwnerForMode maps each mode to its single owner', () => {
+    assert.equal(verdictOwnerForMode('fresh'), 'fresh-critic');
+    assert.equal(verdictOwnerForMode('inline'), 'inline-self-eval');
+  });
+
+  test('every resolution names exactly one owner, aligned with its mode', () => {
+    const inputs = [
+      { derivedLevel: 'high', clusterIndex: 0 },
+      { derivedLevel: 'low', clusterIndex: 1, freshCriticSampleRate: 0.2 },
+      { derivedLevel: 'low', clusterIndex: 0, freshCriticSampleRate: 0.2 },
+      { derivedLevel: null, clusterIndex: 2 },
+      { derivedLevel: 'low', clusterIndex: 3, ceremonyProfile: 'minimal' },
+      { derivedLevel: 'low', clusterIndex: 4, ceremonyProfile: 'strict' },
+    ];
+    for (const input of inputs) {
+      const d = resolveCeremonyForRisk(input);
+      assert.ok(
+        d.verdictOwner === 'fresh-critic' ||
+          d.verdictOwner === 'inline-self-eval',
+        `owner must be one of the two authoring passes, got ${d.verdictOwner}`,
+      );
+      assert.equal(d.verdictOwner, verdictOwnerForMode(d.mode));
+    }
+  });
+
+  test('M4-B floor preserved: one owner per cluster at every level, count untouched', () => {
+    const count = expectedClusterCount(14, 4); // 4 clusters
+    for (const derivedLevel of ['low', 'high', undefined]) {
+      const owners = Array.from(
+        { length: count },
+        (_v, clusterIndex) =>
+          resolveCeremonyForRisk({
+            derivedLevel,
+            clusterIndex,
+            freshCriticSampleRate: 0.2,
+          }).verdictOwner,
+      );
+      // Exactly one owner per cluster — never zero, never a second pass.
+      assert.equal(owners.length, count);
+      assert.ok(
+        owners.every((o) => o === 'fresh-critic' || o === 'inline-self-eval'),
       );
     }
   });

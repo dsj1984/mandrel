@@ -829,6 +829,12 @@ export function renderHardConflictError(finding) {
   if (finding.kind === 'missing-bdd-scaffold') {
     return `Missing BDD scaffold: Story "${finding.consumer.storySlug}" verifies against "${finding.path}" (created by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but "${finding.consumer.storySlug}" has no depends_on path to "${finding.producer.storySlug}" — the .feature file is scaffolded in the same wave (or later), so verification runs before the file exists. Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story so the scaffold lands in an earlier wave.`;
   }
+  // Findings from other passes (sizing, spec-word-budget) carry their own
+  // message — render it rather than a shape-blind generic line, so the soft
+  // surface (`surfaceSoftConflictFindings`) stays legible for every kind.
+  if (typeof finding.message === 'string' && finding.message.length > 0) {
+    return finding.message;
+  }
   return `Conflict finding ${finding.kind} on path "${finding.path ?? '<unknown>'}".`;
 }
 

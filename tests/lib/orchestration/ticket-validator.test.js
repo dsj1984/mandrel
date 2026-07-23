@@ -2,8 +2,10 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   _internal,
+  SPEC_SOFT_WORD_BUDGET,
   validateAndNormalizeTickets,
 } from '../../../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 /**
  * Stories-only backlog invariant (Story #4041).
@@ -114,5 +116,62 @@ describe('assertAllTicketsAreStories unit (Story #4041)', () => {
     assert.doesNotThrow(() =>
       assertAllTicketsAreStories({ tickets, stories: tickets }),
     );
+  });
+});
+
+/**
+ * Soft `## Spec` word-budget pass (Story #4723, AC-3): an over-budget Spec
+ * produces an advisory `'soft'` finding and NEVER an error — the persist
+ * proceeds. An under-budget Spec produces no finding at all.
+ */
+describe('ticket-validator: soft ## Spec word budget (Story #4723)', () => {
+  const overBudgetSpec = Array.from(
+    { length: SPEC_SOFT_WORD_BUDGET + 50 },
+    (_v, i) => `word${i}`,
+  ).join(' ');
+
+  function specFindings(validated) {
+    return validated.findings.filter((f) => f.kind === 'spec-word-budget');
+  }
+
+  it('emits one soft finding for an over-budget object-body Spec, never an error', () => {
+    const s = story('over-budget');
+    s.body.spec = overBudgetSpec;
+    const validated = validateAndNormalizeTickets([s, story('sibling')]);
+    const findings = specFindings(validated);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].severity, 'soft');
+    assert.equal(findings[0].ticketSlug, 'over-budget');
+    assert.equal(findings[0].budget, SPEC_SOFT_WORD_BUDGET);
+    assert.ok(findings[0].words > SPEC_SOFT_WORD_BUDGET);
+    assert.match(findings[0].message, /advisory only/);
+    // Advisory only — the soft finding never reaches the errors channel.
+    assert.deepEqual(validated.errors, []);
+  });
+
+  it('fires on the canonical serialized string-body shape too', () => {
+    const s = story('string-body');
+    s.body = serialize({
+      goal: 'Goal for string-body.',
+      spec: overBudgetSpec,
+      changes: [
+        { path: 'src/string-body.js', assumption: 'refactors-existing' },
+      ],
+      acceptance: ['String-body Story is implemented'],
+      verify: ['npm test (unit)'],
+    });
+    const validated = validateAndNormalizeTickets([s]);
+    const findings = specFindings(validated);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].severity, 'soft');
+    assert.deepEqual(validated.errors, []);
+  });
+
+  it('emits no finding for an under-budget Spec or an absent one', () => {
+    const withSpec = story('under-budget');
+    withSpec.body.spec = 'A short contract-level spec.';
+    const withoutSpec = story('no-spec');
+    const validated = validateAndNormalizeTickets([withSpec, withoutSpec]);
+    assert.deepEqual(specFindings(validated), []);
   });
 });

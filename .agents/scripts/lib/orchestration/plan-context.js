@@ -145,6 +145,41 @@ export const TICKET_SCHEMA_DESCRIPTOR = Object.freeze({
 export const STORIES_TEMPLATE_FILENAME = 'stories.template.json';
 
 /**
+ * Build the template's `changes[]` entries from the envelope's advisory
+ * complexity signals (Story #4723). Each seed-predicted path is
+ * pre-resolved to its creates-vs-refactors assumption against the repo
+ * snapshot the signals already probed: a path present in the repo is a
+ * `refactors-existing`, a missing one is a `creates`. Order follows
+ * `predictedPaths` (first appearance in the seed). Falls back to the
+ * single instructive placeholder entry when the seed predicted no paths.
+ *
+ * @param {{
+ *   predictedPaths?: string[],
+ *   repoState?: { existingPaths?: string[], missingPaths?: string[] },
+ * }|null|undefined} complexitySignals
+ * @returns {Array<{ path: string, assumption: string }>}
+ */
+function buildTemplateChanges(complexitySignals) {
+  const predicted = Array.isArray(complexitySignals?.predictedPaths)
+    ? complexitySignals.predictedPaths.filter(
+        (p) => typeof p === 'string' && p.length > 0,
+      )
+    : [];
+  if (predicted.length === 0) {
+    return [{ path: 'path/to/file.ext', assumption: 'refactors-existing' }];
+  }
+  const existing = new Set(
+    Array.isArray(complexitySignals?.repoState?.existingPaths)
+      ? complexitySignals.repoState.existingPaths
+      : [],
+  );
+  return predicted.map((path) => ({
+    path,
+    assumption: existing.has(path) ? 'refactors-existing' : 'creates',
+  }));
+}
+
+/**
  * Render the ready-to-fill `stories.json` authoring template (Story #4707).
  *
  * One-shot authoring: the planner copies this file to `stories.json`, fills
@@ -158,12 +193,23 @@ export const STORIES_TEMPLATE_FILENAME = 'stories.template.json';
  * / `verify[]` live at the ticket's top level — the machine contract persist
  * syncs into the body.
  *
+ * Correct-by-construction skeleton (Story #4723): the emitted `verify[]`
+ * placeholder already ends with a valid `(tier)` tag (swap `(unit)` for
+ * `(contract)` / `(e2e)` / `(validate)` where appropriate), and when the
+ * envelope's `complexitySignals` predicted a footprint the `changes[]`
+ * entries arrive pre-resolved to creates-vs-refactors against the repo
+ * snapshot — a faithfully-filled skeleton passes the persist ticket
+ * validators without a mechanical round-trip. The persist gates stay
+ * authoritative (they probe the base branch ref, not the working tree).
+ *
  * Pure and deterministic; the output is valid JSON (parseable as-is), with
  * instructive placeholder values rather than comments.
  *
+ * @param {{ complexitySignals?: object|null }} [opts] Envelope signals to
+ *   pre-resolve the skeleton against; omit for the bare placeholder shape.
  * @returns {string} Pretty-printed JSON template content.
  */
-export function renderStoriesTemplate() {
+export function renderStoriesTemplate({ complexitySignals = null } = {}) {
   const template = [
     {
       slug: 'fill-hyphen-case-slug',
@@ -176,11 +222,9 @@ export function renderStoriesTemplate() {
           'codes, security invariants, and load-bearing constraints with ' +
           'their why. Implementation choices belong to the deliverer unless ' +
           'load-bearing. No per-file behavior paragraphs, no current-state ' +
-          'narration. Delete this field when acceptance[] carries the whole ' +
-          'contract.',
-        changes: [
-          { path: 'path/to/file.ext', assumption: 'refactors-existing' },
-        ],
+          'narration. Keep it under ~250 words (soft advisory budget). ' +
+          'Delete this field when acceptance[] carries the whole contract.',
+        changes: buildTemplateChanges(complexitySignals),
         non_goals: [],
         reason_to_exist:
           'Fill: the single coherent reason this Story exists (one sentence).',
@@ -188,7 +232,9 @@ export function renderStoriesTemplate() {
       acceptance: [
         'Fill: a testable, observable criterion (a command exits 0, a file exists, a test matches)',
       ],
-      verify: ['Fill: exact command or test path (unit|contract|e2e|validate)'],
+      verify: [
+        'Fill: exact command or test path — keep the trailing tier tag valid: unit, contract, e2e, or validate (unit)',
+      ],
       depends_on: [],
     },
   ];

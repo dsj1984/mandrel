@@ -124,7 +124,7 @@ export async function emitPlanContext({
     // later turn. When it is captured to disk anyway, stdout carries a
     // compact digest naming the artifact instead of the payload itself.
     await writeEnvelopeFile(outPath, json);
-    await writeStoriesTemplateFile(outPath);
+    await writeStoriesTemplateFile(outPath, envelope);
     const resolved = path.resolve(outPath);
     const digest = {
       digest: 'plan-context',
@@ -186,18 +186,27 @@ async function writeEnvelopeFile(outPath, json) {
  * requires reading `story-body.js` source. Written whenever `--out` is
  * passed, and throwing on failure for the same reason the envelope write
  * does: a silently missing template re-opens the format-discovery loop it
- * exists to close.
+ * exists to close. The envelope's advisory `complexitySignals` are threaded
+ * through so the skeleton's `changes[]` arrive pre-resolved to
+ * creates-vs-refactors against the repo snapshot (Story #4723).
  *
  * @param {string} outPath The envelope `--out` path; the template lands in
  *   the same directory as {@link STORIES_TEMPLATE_FILENAME}.
+ * @param {object} [envelope] The emitted plan-context envelope.
  */
-async function writeStoriesTemplateFile(outPath) {
+async function writeStoriesTemplateFile(outPath, envelope = {}) {
   const resolved = path.resolve(
     path.dirname(path.resolve(outPath)),
     STORIES_TEMPLATE_FILENAME,
   );
   try {
-    await writeFile(resolved, renderStoriesTemplate(), 'utf8');
+    await writeFile(
+      resolved,
+      renderStoriesTemplate({
+        complexitySignals: envelope?.complexitySignals ?? null,
+      }),
+      'utf8',
+    );
   } catch (err) {
     throw new Error(
       `[plan-context] cannot write stories template to ${resolved}: ${err.message}`,
