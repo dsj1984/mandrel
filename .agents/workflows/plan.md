@@ -184,6 +184,17 @@ error (an unreadable or malformed `--stories` / `--tech-spec` path). That is
 not an advisory "proceed": no critic ran and no skip was ledgered, so **do
 not proceed to Persist** — fix the path and re-run:
 
+The **pre-mortem** critic fires on any of three deterministic triggers: the
+draft ticket count reaching half the reviewability budget, a
+`planning.riskHeuristics` phrase matching the plan text, or the
+**external-dependency** probe (Story #4700) finding an out-of-repo marker — a
+scoped package the plan names that no repo manifest declares, a cross-repo
+`github.com/<owner>/<repo>` reference, or an endpoint named as a service
+prerequisite. That third trigger is what gives the default N=1 plan a cheap
+viability check, since the size trigger is unreachable at one ticket and this
+repo's resolved `riskHeuristics` is empty. The probe is conservative — explicit
+markers only, so a plan naming no such artifact dispatches exactly as before.
+
 ```jsonc
 {
   "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": ["…"] },
