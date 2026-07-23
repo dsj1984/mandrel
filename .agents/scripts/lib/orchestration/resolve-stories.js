@@ -34,6 +34,7 @@ import {
   extractChangePaths,
   parse as parseStoryBody,
 } from '../story-body/story-body.js';
+import { resolveStoryDispatchMode } from './complexity-gate.js';
 
 /** Labels/state that mean a blocker no longer gates its dependents. */
 const DONE_LABEL = 'agent::done';
@@ -311,12 +312,18 @@ export function buildStoriesEnvelope({
   const inSetDone = sorted.filter(isSatisfiedBlocker).map((s) => s.id);
   return {
     kind: 'stories',
+    // `dispatchMode` (Story #4707): the resolver derives the per-Story
+    // execution mode from the persisted `route::lite` marker so `/deliver`
+    // reads one field — `inline` (lite: no story-worker / acceptance-critic
+    // sub-agent boots) or `subagent` (everything else, the conservative
+    // default). Model-side fan-out only; close gates are untouched.
     stories: sorted.map(({ id, title, url, labels, state }) => ({
       id,
       title,
       url,
       labels,
       state,
+      dispatchMode: resolveStoryDispatchMode({ labels }).mode,
     })),
     dag: storiesToDag(sorted, nativeEdges, warn),
     done: [...new Set([...inSetDone, ...foreignDone])].sort((a, b) => a - b),

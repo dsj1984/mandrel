@@ -163,10 +163,10 @@ to respect.
      owes a decision) but not a cycle (exit 2 — fix the graph first).
 
    **Lite-routed Stories execute inline (Story #4707).** Before spawning
-   anything, check the Story's labels (already on the resolver envelope's
-   `stories[].labels`) with `resolveStoryDispatchMode`
-   (`lib/orchestration/complexity-gate.js`): a Story carrying the persisted
-   `route::lite` marker executes
+   anything, read the Story's `dispatchMode` from the resolver envelope
+   (`stories[].dispatchMode`, derived by `resolveStoryDispatchMode` in
+   `lib/orchestration/complexity-gate.js` from the persisted `route::lite`
+   marker): a Story with `dispatchMode: "inline"` executes
    [`helpers/deliver-story.md`](helpers/deliver-story.md) **inline in this
    session** — no `story-worker` sub-agent boot and no fresh acceptance-critic
    sub-agents (sub-agent boots are the dominant deliver-phase token cost at
