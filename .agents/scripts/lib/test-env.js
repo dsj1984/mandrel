@@ -1,3 +1,43 @@
+import { mkdtempSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
+
+/**
+ * Ensure an absolute per-process scratch tempRoot is available for the test
+ * run and return it (Story #4696).
+ *
+ * If `baseEnv` already carries an absolute `MANDREL_TEST_TEMP_ROOT` (the
+ * common case for a child process that inherits the parent runner's env),
+ * that value is reused verbatim so every chunk / worker of a single suite
+ * run shares one scratch dir. Otherwise a fresh `os.tmpdir()` directory is
+ * created. Every stream writer that resolves a relative tempRoot then lands
+ * under this dir instead of the repo's real `temp/` telemetry tree — the
+ * regression that let 99% of friction records be test-fixture pollution.
+ *
+ * Module-internal — the observable behaviour is asserted through
+ * `buildWebhookSafeTestEnv`, so it is deliberately not exported.
+ *
+ * @param {NodeJS.ProcessEnv} [baseEnv=process.env]
+ * @param {{ mkdtemp?: typeof mkdtempSync }} [deps] Injectable for tests.
+ * @returns {string} absolute scratch tempRoot
+ */
+function ensureTestScratchTempRoot(
+  baseEnv = process.env,
+  { mkdtemp = mkdtempSync } = {},
+) {
+  const existing = baseEnv?.[TEST_TEMP_ROOT_ENV];
+  if (
+    typeof existing === 'string' &&
+    existing.length > 0 &&
+    path.isAbsolute(existing)
+  ) {
+    return existing;
+  }
+  return mkdtemp(path.join(os.tmpdir(), 'mandrel-test-temp-'));
+}
+
 /**
  * Build a webhook-safe child-process environment for test runners.
  *
@@ -27,6 +67,11 @@
  *     covered by `cleanGitEnv` in `git-utils.js`; this is the same scrub
  *     for test child processes, which may spawn git directly. Tests that
  *     need a `GIT_*` variable set it explicitly on their own spawn.
+ *   - `MANDREL_TEST_TEMP_ROOT` is set to an absolute per-process scratch
+ *     dir (Story #4696). Any test that reaches a stream writer without
+ *     injecting its own absolute tempRoot lands under scratch instead of
+ *     the repo's real `temp/` telemetry tree, so the suite can no longer
+ *     append fixture records to friction / lifecycle / trace streams.
  *
  * @param {NodeJS.ProcessEnv} baseEnv
  * @returns {NodeJS.ProcessEnv}
@@ -39,5 +84,6 @@ export function buildWebhookSafeTestEnv(baseEnv = process.env) {
   if (env.MANDREL_ALLOW_TEST_WEBHOOKS !== '1') {
     delete env.NOTIFICATION_WEBHOOK_URL;
   }
+  env[TEST_TEMP_ROOT_ENV] = ensureTestScratchTempRoot(baseEnv);
   return env;
 }

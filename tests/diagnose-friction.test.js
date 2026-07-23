@@ -53,6 +53,12 @@ function runScript(extraArgs, extraEnv = {}) {
       ...process.env,
       GITHUB_TOKEN: 'fake-token-for-test',
       NO_NETWORK: '1',
+      // Story #4696: pin the writer's scratch tempRoot at this test's own
+      // tmpRoot so the spawned CLI lands its signal at
+      // `<tmpRoot>/temp/run-<eid>/…` (where the assertions read), instead of
+      // the shared per-process scratch dir the test bootstrap otherwise
+      // injects into the inherited env.
+      MANDREL_TEST_TEMP_ROOT: tmpRoot,
       ...extraEnv,
     },
   });

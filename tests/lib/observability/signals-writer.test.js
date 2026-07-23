@@ -15,7 +15,11 @@ import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import {
+  mainCheckoutRoot,
+  signalsFile,
+  TEST_TEMP_ROOT_ENV,
+} from '../../../.agents/scripts/lib/config/temp-paths.js';
 import {
   appendSignal,
   appendTrace,
@@ -578,5 +582,70 @@ describe('signals-writer — forEachLine reader', () => {
       seen.map((s) => s.source),
       [undefined, 'framework', 'consumer', undefined],
     );
+  });
+});
+
+// Story #4696 (AC-2): a writer invoked under the test bootstrap *without* an
+// explicit tempRoot must land in the per-process scratch root, never the
+// repo's real `temp/` telemetry tree. This is the regression guard for the
+// pollution that put 99% fixture records into friction streams.
+describe('signals-writer — scratch-root isolation under the test bootstrap (Story #4696)', () => {
+  let scratchRoot;
+  let savedScratchEnv;
+
+  beforeEach(() => {
+    scratchRoot = mkdtempSync(path.join(tmpdir(), 'signals-scratch-'));
+    savedScratchEnv = process.env[TEST_TEMP_ROOT_ENV];
+    process.env[TEST_TEMP_ROOT_ENV] = scratchRoot;
+  });
+
+  afterEach(() => {
+    if (savedScratchEnv === undefined) delete process.env[TEST_TEMP_ROOT_ENV];
+    else process.env[TEST_TEMP_ROOT_ENV] = savedScratchEnv;
+    rmSync(scratchRoot, { recursive: true, force: true });
+  });
+
+  it('appendSignal with no config writes under scratch, not the repo temp tree', async () => {
+    // No `config` argument — the writer resolves the default relative
+    // tempRoot, which the scratch seam redirects under `scratchRoot`.
+    const ok = await appendSignal({
+      epicId: 4696,
+      storyId: 4697,
+      signal: mkSignal({ epicId: 4696, storyId: 4697 }),
+    });
+    assert.equal(ok, true);
+
+    // The resolved path must sit under scratch …
+    const resolved = signalsFile(4696, 4697);
+    assert.ok(
+      resolved.startsWith(scratchRoot + path.sep),
+      `expected ${resolved} to be under scratch ${scratchRoot}`,
+    );
+    const raw = await fs.readFile(resolved, 'utf8');
+    assert.ok(raw.endsWith('\n'));
+    assert.equal(JSON.parse(raw.trim()).kind, 'friction');
+
+    // … and NOT under the repo's real temp/ tree.
+    const root = mainCheckoutRoot();
+    if (root) {
+      const repoTemp = path.join(root, 'temp');
+      assert.ok(
+        !resolved.startsWith(repoTemp + path.sep),
+        `writer must not resolve into the repo temp tree ${repoTemp}`,
+      );
+      await assert.rejects(
+        () =>
+          fs.stat(
+            path.join(
+              repoTemp,
+              'run-4696',
+              'stories',
+              'story-4697',
+              'signals.ndjson',
+            ),
+          ),
+        'no fixture stream file may appear under the repo temp tree',
+      );
+    }
   });
 });

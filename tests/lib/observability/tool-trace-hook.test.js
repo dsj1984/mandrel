@@ -63,14 +63,15 @@ beforeEach(() => {
   _resetInflightForTests();
   process.env.CC_EPIC_ID = '1030';
   process.env.CC_STORY_ID = '1043';
-  // The signals-writer reads tempRoot from `resolveConfig` when no
-  // `config` arg is threaded. We point AGENTRC_PATHS_TEMPROOT at the
-  // tmpdir via the lower-level fallback: tempRootFrom() honors
-  // `config.paths.tempRoot`, but since we're calling appendTrace
-  // through the hook (no config arg), we set the env-resolved path by
-  // pointing PROJECT_ROOT-equivalent at workRoot via cwd when needed.
-  // The simplest cross-platform handle: spawn the hook into a tree
-  // where `temp/` resolves to workRoot. We do that by chdir-ing.
+  // The hook calls appendTrace/appendSignal with no `config` arg, so the
+  // writer resolves the default relative tempRoot (`'temp'`). Story #4696
+  // routes any relative root under the absolute scratch tempRoot named by
+  // MANDREL_TEST_TEMP_ROOT, so we point that at this test's workRoot: the
+  // writer then lands at `<workRoot>/temp/run-<eid>/…`, exactly where the
+  // `tracesPath` / `signalsPath` helpers read. (The chdir is retained for
+  // any cwd-sensitive hook behaviour, but it is no longer what isolates
+  // the on-disk writes.)
+  process.env.MANDREL_TEST_TEMP_ROOT = workRoot;
   process.chdir(workRoot);
 });
 

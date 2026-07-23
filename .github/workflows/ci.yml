@@ -96,6 +96,13 @@ jobs:
         run: |
           ( cd node_modules/node-pty && npx --yes node-gyp rebuild ) || echo "::warning::node-pty source build failed; PTY init guard will skip on this run"
 
+      - name: Snapshot temp/ stream hygiene (pre-test)
+        # Story #4696: fingerprint the friction / lifecycle / trace NDJSON
+        # streams under temp/ before the suite runs, so the post-test assert
+        # can fail the build if any test appended fixture records to the real
+        # telemetry tree (the writer-isolation regression this guards).
+        run: node .agents/scripts/check-test-temp-hygiene.js --snapshot
+
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
         # gate both emit failures on stderr, and a stdout-only redirect
@@ -103,6 +110,13 @@ jobs:
         run: |
           set -o pipefail
           npm run test:coverage 2>&1 | tee test-output.txt
+
+      - name: Assert temp/ stream hygiene (post-test)
+        # Story #4696: fail the build if the suite added or grew any stream
+        # file under temp/ relative to the pre-test snapshot. A future writer
+        # that bypasses the scratch seam reds here instead of silently
+        # polluting friction / rollup / loop-health consumers.
+        run: node .agents/scripts/check-test-temp-hygiene.js --assert
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
