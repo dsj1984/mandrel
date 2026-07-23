@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.11.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.10.0...mandrel-v2.11.0) (2026-07-23)
+
+
+### Added
+
+* **migration:** strip retired planning.complexityGate.maxSeedWords on consumer upgrade ([#4729](https://github.com/dsj1984/mandrel/issues/4729)) ([fd75b54](https://github.com/dsj1984/mandrel/commit/fd75b54b0f7390a3d562a25e90cbe6c5911b4f66))
+* route on the work, not the words — shape-derived complexity routing honored end-to-end (refs [#4722](https://github.com/dsj1984/mandrel/issues/4722)) ([#4725](https://github.com/dsj1984/mandrel/issues/4725)) ([f166ca1](https://github.com/dsj1984/mandrel/commit/f166ca14785bad97657fdda0f41e282e47db2ea3))
+* single-owner acceptance verification + plan-template hardening ([#4723](https://github.com/dsj1984/mandrel/issues/4723)) ([#4728](https://github.com/dsj1984/mandrel/issues/4728)) ([954f55a](https://github.com/dsj1984/mandrel/commit/954f55aedda3199d1fdd48b11884a9513012e2c4))
+
+
+### Fixed
+
+* **doctor:** include .agents/local/workflows/ in the commands-in-sync expected set (refs [#4724](https://github.com/dsj1984/mandrel/issues/4724)) ([#4726](https://github.com/dsj1984/mandrel/issues/4726)) ([b96dcd4](https://github.com/dsj1984/mandrel/commit/b96dcd446879a9da28e8d86c1a493c2bae62d2c8))
+
+
+### Changed
+
+* **orchestration:** extract spec-budget and story-body parse gate from ticket-validator ([#4730](https://github.com/dsj1984/mandrel/issues/4730)) ([fb0c3c3](https://github.com/dsj1984/mandrel/commit/fb0c3c31795f6178b2ba740b2fb00760921e1178))
+
 ## [2.10.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.9.0...mandrel-v2.10.0) (2026-07-23)
 
 
