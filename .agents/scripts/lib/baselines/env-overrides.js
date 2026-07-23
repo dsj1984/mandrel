@@ -118,6 +118,39 @@ export function resolveBundleSizeEnvOverrides(env) {
 }
 
 /**
+ * Pure helper: resolve the one-shot maintainability refresh/acknowledge flag
+ * (Story #4731). This is the env-parity sibling of
+ * `resolveBundleSizeEnvOverrides`: `MAINTAINABILITY_REFRESH=1` (or `true`,
+ * case-insensitive) tells `check-baselines --gate maintainability` to demote
+ * this run's head-vs-base maintainability regressions to `unchanged` for this
+ * invocation only. Floors still apply — an acknowledged run can still fail on
+ * an absolute floor breach (e.g. a row below `min` 70); only the
+ * ratchet-vs-base regression comparison is suspended.
+ *
+ * Unlike bundle-size, maintainability also has a **commit-tagged** trigger
+ * (a `baseline-refresh:`-tagged commit in the compared range that touches the
+ * maintainability baseline file) resolved in the evaluate phase — this env
+ * flag is the manual override the two share by shape. Neither is persisted:
+ * the next run without the flag / tag re-enforces the ratchet at full
+ * strength automatically.
+ *
+ * Accepted truthy values: `1`, `true` (case-insensitive). Anything else
+ * (including unset/empty) resolves to `acknowledged: false`.
+ *
+ * @param {NodeJS.ProcessEnv} env
+ * @returns {{ acknowledged: boolean, overrides: string[] }}
+ */
+export function resolveMaintainabilityRefreshOverrides(env) {
+  const raw = env?.MAINTAINABILITY_REFRESH;
+  const acknowledged =
+    typeof raw === 'string' && /^(1|true)$/i.test(raw.trim());
+  const overrides = acknowledged
+    ? [`acknowledged=true (MAINTAINABILITY_REFRESH=${raw})`]
+    : [];
+  return { acknowledged, overrides };
+}
+
+/**
  * Pure helper: resolve the effective MI tolerance by layering precedence:
  *   1. `CRAP_TOLERANCE` env-var (CI override — the baseline-refresh-
  *      guardrail uses this to force base-branch values on both gates).

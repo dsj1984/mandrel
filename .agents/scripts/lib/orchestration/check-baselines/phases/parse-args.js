@@ -49,6 +49,13 @@ Env vars:
                          "unchanged" for this run only (floors still
                          enforced). Never persisted — the next run without
                          this flag re-enforces the ratchet.
+  MAINTAINABILITY_REFRESH=1
+                         One-shot acknowledge for a deliberate maintainability
+                         baseline refresh: demotes maintainability head-vs-base
+                         regressions to "unchanged" for this run only (floors
+                         still enforced). Env-parity override for the
+                         'baseline-refresh:'-tagged range commit that touches
+                         baselines/maintainability.json. Never persisted.
 
 Exit codes:
   0  every enabled gate passes

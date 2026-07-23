@@ -188,6 +188,7 @@ top-level keys are validation errors.
 | `quality.gates.maintainability.floors` | No | `object<map>` | — | — |
 | `quality.gates.maintainability.components` | No | `object<map>` | — | — |
 | `quality.gates.maintainability.targetDirs` | No | `string[]` or `{ append?, prepend? }` | — | Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal. |
+| `quality.gates.maintainability.refreshTag` | No | `string` | — | — |
 | `quality.gates.maintainability.refreshTimeoutMs` | No | `integer` | — | Bounded timeout (ms) for `npm run maintainability:update` spawned by the baseline-attribution refresh path. Mirrors `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked`. Default 60000 (Story #2165). |
 | `quality.gates.maintainability.ignoreGlobs` | No | `array<string>` | — | Minimatch glob patterns matched against the canonicalised repo-relative path of each discovered file. Files matching any pattern are excluded from MI discovery before scoring. Orthogonal to `components` (grouping) — a file excluded here never appears in any component bucket. Absent or empty preserves the existing IGNORED_DIRS-only behaviour (Story #3217). |
 | `quality.gates.mutation` | No | `object` | — | Nested configuration block. |

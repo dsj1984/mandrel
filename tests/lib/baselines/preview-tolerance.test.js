@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { compareCrap } from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
 import {
   MI_PREVIEW_DEFAULT_TOLERANCE,
   resolvePreviewTolerance,
@@ -38,4 +39,75 @@ test('resolvePreviewTolerance: ignores non-finite or negative-sentinel inputs', 
   );
   // A configured 0 is a valid, intentional zero-tolerance setting.
   assert.equal(resolvePreviewTolerance({ configured: 0 }), 0);
+});
+
+// Story #4731 (AC-3) — the quality-preview CRAP regression compare
+// (`compareCrap`, fed the configured crap tolerance by `runCrapPreview`)
+// must honor that tolerance rather than failing on any positive delta: a
+// positive delta at or under tolerance yields no violation, an over-tolerance
+// delta still fails.
+function crapRow(overrides = {}) {
+  return {
+    file: 'lib/a.js',
+    method: 'doWork',
+    startLine: 10,
+    // cyclomatic > 1 so the c=1 flap-exemption does not swallow the row.
+    cyclomatic: 5,
+    coverage: 0.5,
+    crap: 10,
+    ...overrides,
+  };
+}
+
+test('compareCrap: a positive delta at or under the configured tolerance is not a regression', () => {
+  const tolerance = 0.5;
+  // Delta = +0.5, exactly at tolerance → demoted (crap <= baseline + tolerance).
+  const atTolerance = compareCrap({
+    currentRows: [crapRow({ crap: 10.5 })],
+    baselineRows: [
+      { file: 'lib/a.js', method: 'doWork', startLine: 10, crap: 10 },
+    ],
+    newMethodCeiling: 30,
+    tolerance,
+  });
+  assert.equal(
+    atTolerance.regressions,
+    0,
+    'at-tolerance delta yields no violation',
+  );
+  assert.equal(atTolerance.violations.length, 0);
+
+  // Delta = +0.3, under tolerance → also demoted.
+  const underTolerance = compareCrap({
+    currentRows: [crapRow({ crap: 10.3 })],
+    baselineRows: [
+      { file: 'lib/a.js', method: 'doWork', startLine: 10, crap: 10 },
+    ],
+    newMethodCeiling: 30,
+    tolerance,
+  });
+  assert.equal(
+    underTolerance.regressions,
+    0,
+    'under-tolerance delta yields no violation',
+  );
+});
+
+test('compareCrap: a positive delta over the configured tolerance still fails', () => {
+  const tolerance = 0.5;
+  // Delta = +0.6, over tolerance → regression preserved.
+  const overTolerance = compareCrap({
+    currentRows: [crapRow({ crap: 10.6 })],
+    baselineRows: [
+      { file: 'lib/a.js', method: 'doWork', startLine: 10, crap: 10 },
+    ],
+    newMethodCeiling: 30,
+    tolerance,
+  });
+  assert.equal(
+    overTolerance.regressions,
+    1,
+    'over-tolerance delta still fails',
+  );
+  assert.equal(overTolerance.violations[0].kind, 'regression');
 });

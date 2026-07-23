@@ -7,7 +7,11 @@
  * @module lib/orchestration/check-baselines/phases/evaluate
  */
 
-import { resolveBundleSizeEnvOverrides } from '../../../baselines/env-overrides.js';
+import {
+  resolveBundleSizeEnvOverrides,
+  resolveMaintainabilityRefreshOverrides,
+} from '../../../baselines/env-overrides.js';
+import { readRangeSubjectsTouchingFile } from '../../../baselines/git-base.js';
 import {
   checkKernelVersion,
   getKindModule,
@@ -17,6 +21,10 @@ import { Logger } from '../../../Logger.js';
 import { isIgnoredByGlobs } from '../../../maintainability-utils.js';
 import { applyTolerance, evaluateCompare, runCompareStage } from './compare.js';
 import { applyFloors, flattenBreaches } from './floors.js';
+import { DEFAULT_BASELINE_PATHS } from './parse-args.js';
+
+/** Default refresh-tag substring when the gate omits `refreshTag`. */
+const DEFAULT_REFRESH_TAG = 'baseline-refresh:';
 
 /**
  * Defense-in-depth against an `ignoreGlobs`-poisoned baseline (Epic #4326
@@ -113,6 +121,88 @@ function applyBundleSizeAcknowledgment(kind, compareOutput, env) {
   };
 }
 
+/**
+ * Resolve the maintainability refresh trigger (Story #4731). Two paths, either
+ * of which acknowledges — mirroring the bundle-size acknowledge but adding the
+ * commit-tagged trigger the breach message already documents:
+ *
+ *   1. Env parity: `MAINTAINABILITY_REFRESH=1` (the manual override).
+ *   2. Commit tag: a commit in the compared range `<baseRef>..HEAD` whose
+ *      subject contains the configured `refreshTag` AND whose diff touches the
+ *      maintainability baseline file. One-shot by construction — once merged,
+ *      the refreshed baseline becomes the base and the tag leaves the range.
+ *
+ * The tag is matched as a plain substring of a conventional commit subject, so
+ * commitlint stays satisfied (e.g. `chore(baselines): baseline-refresh: …`).
+ *
+ * @returns {{ triggered: boolean, reasons: string[] }}
+ */
+function resolveMaintainabilityRefreshTrigger({ gateBlock, cmp, cwd, env }) {
+  const reasons = [];
+  const { acknowledged: envAck, overrides } =
+    resolveMaintainabilityRefreshOverrides(env);
+  if (envAck) reasons.push(...overrides);
+
+  const baseRef = cmp?.baseRef ?? null;
+  if (baseRef) {
+    const refreshTag =
+      typeof gateBlock?.refreshTag === 'string' && gateBlock.refreshTag.length
+        ? gateBlock.refreshTag
+        : DEFAULT_REFRESH_TAG;
+    const baselinePath =
+      typeof gateBlock?.baselinePath === 'string' &&
+      gateBlock.baselinePath.length
+        ? gateBlock.baselinePath
+        : DEFAULT_BASELINE_PATHS.maintainability;
+    const subjects = readRangeSubjectsTouchingFile(baseRef, baselinePath, {
+      cwd,
+    });
+    const match = subjects.find((s) => s.includes(refreshTag));
+    if (match) {
+      reasons.push(
+        `refresh commit "${match}" (subject contains ${JSON.stringify(refreshTag)}, touches ${baselinePath})`,
+      );
+    }
+  }
+
+  return { triggered: reasons.length > 0, reasons };
+}
+
+/**
+ * One-shot maintainability refresh/acknowledge (Story #4731). When triggered
+ * (env flag OR a `baseline-refresh:`-tagged range commit touching the baseline),
+ * demote every maintainability head-vs-base regression to `unchanged` for this
+ * run only — floors still apply, so a row below its `min` floor still breaches.
+ * The trigger is read fresh every run and never persisted: post-merge the
+ * refreshed baseline is the new base and the tag leaves the range, so the
+ * ratchet returns to full strength automatically.
+ *
+ * No-op for every other kind.
+ */
+function applyMaintainabilityAcknowledgment(kind, compareOutput, ctx) {
+  if (kind !== 'maintainability') {
+    return { compareOutput, acknowledged: false };
+  }
+  const { triggered, reasons } = resolveMaintainabilityRefreshTrigger(ctx);
+  if (!triggered || compareOutput.regressions.length === 0) {
+    return { compareOutput, acknowledged: false };
+  }
+  Logger.warn(
+    `[maintainability] ⚠ ${reasons.join('; ')} — ` +
+      `${compareOutput.regressions.length} regression(s) acknowledged for this run only; ` +
+      'floors still enforced. This does not persist: once the refresh is the ' +
+      'new base the ratchet re-enforces at full strength.',
+  );
+  return {
+    acknowledged: true,
+    compareOutput: {
+      ...compareOutput,
+      regressions: [],
+      unchanged: [...compareOutput.unchanged, ...compareOutput.regressions],
+    },
+  };
+}
+
 function buildGateReport({
   kind,
   gateBlock,
@@ -171,11 +261,14 @@ export async function evaluateKind({
     rawCompare,
     gateBlock.tolerance ?? null,
   );
-  const { compareOutput, acknowledged } = applyBundleSizeAcknowledgment(
+  const bundleAck = applyBundleSizeAcknowledgment(kind, toleratedCompare, env);
+  const miAck = applyMaintainabilityAcknowledgment(
     kind,
-    toleratedCompare,
-    env,
+    bundleAck.compareOutput,
+    { gateBlock, cmp, cwd, env },
   );
+  const compareOutput = miAck.compareOutput;
+  const acknowledged = bundleAck.acknowledged || miAck.acknowledged;
   return buildGateReport({
     kind,
     gateBlock,
