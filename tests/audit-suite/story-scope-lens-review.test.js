@@ -279,9 +279,12 @@ function cleanReviewStub() {
 test('runStoryReviewCore enumerates the diff exactly once and injects it into both consumers', async () => {
   // One gitSpawn spy threaded into every seam that could enumerate: the spine's
   // own computeChangeSet, the lens pass, and runCodeReview. If either consumer
-  // ever re-derived the diff for itself, this count would climb.
+  // ever re-derived the diff for itself, this count would climb. The spine's
+  // own changed-LINE probe (`--numstat`, Story #4699 — the lens diff-floor's
+  // size signal) is a second, deliberate spine-owned enumeration and is
+  // counted separately below.
   const diffCalls = [];
-  const gitSpawnFn = (cwd, ...args) => {
+  const gitSpawnFn = (_cwd, ...args) => {
     if (args[0] === 'diff') diffCalls.push(args);
     return { status: 0, stdout: 'b.js\n.agents/scripts/a.js\n', stderr: '' };
   };
@@ -312,12 +315,29 @@ test('runStoryReviewCore enumerates the diff exactly once and injects it into bo
     },
   });
 
+  const nameOnlyCalls = diffCalls.filter((c) => c[1] === '--name-only');
+  const numstatCalls = diffCalls.filter((c) => c[1] === '--numstat');
+  assert.equal(
+    nameOnlyCalls.length,
+    1,
+    `the file list must be enumerated exactly once per close run, got ${nameOnlyCalls.length}`,
+  );
+  assert.deepEqual(nameOnlyCalls[0], [
+    'diff',
+    '--name-only',
+    'main...story-4593',
+  ]);
+  // The spine's changed-line probe (Story #4699) runs at most once, from the
+  // spine itself — never from a downstream consumer.
+  assert.ok(
+    numstatCalls.length <= 1,
+    `the changed-line count must be probed at most once, got ${numstatCalls.length}`,
+  );
   assert.equal(
     diffCalls.length,
-    1,
-    `the diff must be enumerated exactly once per close run, got ${diffCalls.length}`,
+    nameOnlyCalls.length + numstatCalls.length,
+    'no consumer may run any other diff enumeration',
   );
-  assert.deepEqual(diffCalls[0], ['diff', '--name-only', 'main...story-4593']);
 
   // Both consumers received the SAME (sorted, de-duplicated) list.
   const expected = ['.agents/scripts/a.js', 'b.js'];

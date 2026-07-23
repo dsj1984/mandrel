@@ -9,9 +9,11 @@
  * file (Story #3653 established the shared-spine contract).
  */
 
+import { countChangedLines } from '../../../audit-suite/index.js';
 import { gitSpawn } from '../../../git-utils.js';
 import { computeChangeSet } from '../../change-set.js';
 import { runCodeReview } from '../../code-review.js';
+import { appendFindingsYield } from '../../plan-metrics.js';
 import { runLocalLensReview } from './local-lens-review.js';
 
 /**
@@ -57,6 +59,8 @@ import { runLocalLensReview } from './local-lens-review.js';
  *   computeChangeSetFn?: typeof computeChangeSet,
  *   runCodeReviewFn?: typeof runCodeReview,
  *   runLocalLensReviewFn?: typeof runLocalLensReview,
+ *   countChangedLinesFn?: typeof countChangedLines,
+ *   appendFindingsYieldFn?: typeof appendFindingsYield,
  * }} args
  * @returns {Promise<object>} Raw result envelope from `runCodeReview`, augmented
  *   with a `localLensReview` field carrying the Story-scope local-lens pass
@@ -75,6 +79,8 @@ export async function runStoryReviewCore({
   computeChangeSetFn = computeChangeSet,
   runCodeReviewFn = runCodeReview,
   runLocalLensReviewFn = runLocalLensReview,
+  countChangedLinesFn = countChangedLines,
+  appendFindingsYieldFn = appendFindingsYield,
 }) {
   const storyIdNum = Number(storyId);
 
@@ -83,6 +89,16 @@ export async function runStoryReviewCore({
   // diff is unenumerable — an explicit "already tried" signal both consumers
   // honour without retrying (Story #4603).
   const changeSet = computeChangeSetFn({ baseRef, headRef, gitSpawnFn });
+
+  // The one changed-LINE enumeration (Story #4699 — the lens diff-floor's
+  // size signal). Probed only when the file enumeration succeeded with a
+  // non-empty set: a null/empty set already yields an empty lens roster, so
+  // a second git spawn would buy nothing. `null` = count unknown → the
+  // floor fails open (no skip).
+  const changedLineCount =
+    Array.isArray(changeSet.files) && changeSet.files.length > 0
+      ? countChangedLinesFn({ baseRef, headRef, gitSpawnFn })
+      : null;
 
   const opts = {
     scope: 'story',
@@ -110,6 +126,7 @@ export async function runStoryReviewCore({
     baseRef,
     headRef,
     changedFiles: changeSet.files,
+    changedLineCount,
     storyId: storyIdNum,
     progress,
     progressTag,
@@ -117,5 +134,61 @@ export async function runStoryReviewCore({
   });
 
   const result = await runCodeReviewFn(opts);
+
+  // Findings-yield ledger (Story #4699) — record what this close's lens
+  // pass produced (or floor-skipped) so the roster can later be tuned on
+  // measurement. Best-effort: a ledger failure never fails the review.
+  try {
+    const yieldEntries = buildLensYieldEntries(localLensReview);
+    if (yieldEntries !== null) {
+      await appendFindingsYieldFn({
+        storyId: storyIdNum,
+        cli: 'story-close-review',
+        lenses: yieldEntries,
+        diffFloor: localLensReview?.floorSkip ?? null,
+      });
+    }
+  } catch (err) {
+    progress(
+      progressTag,
+      `⚠️ findings-yield ledger append failed (continuing): ${err?.message ?? err}`,
+    );
+  }
+
   return { ...result, localLensReview, changeSet };
+}
+
+/**
+ * Fold the lens-pass envelope into per-lens findings-yield entries
+ * (Story #4699). One entry per lens in the matched roster: the lens name,
+ * the count of materialization findings attributed to it, and whether the
+ * diff-floor skipped its materialization. Returns `null` when the roster is
+ * empty (nothing ran, nothing skipped — no record to write).
+ *
+ * Module-local: an implementation detail of {@link runStoryReviewCore},
+ * asserted through the appended record's shape rather than imported
+ * directly.
+ *
+ * @param {object|null|undefined} localLensReview
+ * @returns {Array<{ lens: string, findings: number, skippedByFloor: boolean }>|null}
+ */
+function buildLensYieldEntries(localLensReview) {
+  const lenses = Array.isArray(localLensReview?.lenses)
+    ? localLensReview.lenses.filter((l) => typeof l === 'string' && l.length)
+    : [];
+  if (lenses.length === 0) return null;
+  const skippedByFloor = localLensReview?.floorSkip?.skip === true;
+  const findingsByLens = new Map();
+  for (const finding of localLensReview?.materialized?.findings ?? []) {
+    if (typeof finding?.audit !== 'string') continue;
+    findingsByLens.set(
+      finding.audit,
+      (findingsByLens.get(finding.audit) ?? 0) + 1,
+    );
+  }
+  return lenses.map((lens) => ({
+    lens,
+    findings: skippedByFloor ? 0 : (findingsByLens.get(lens) ?? 0),
+    skippedByFloor,
+  }));
 }

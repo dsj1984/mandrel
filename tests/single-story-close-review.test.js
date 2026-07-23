@@ -17,6 +17,8 @@
  */
 
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -374,8 +376,275 @@ describe('runStoryScopeReview (direct)', () => {
   });
 });
 
+describe('findings-yield ledger (Story #4699, AC-3)', () => {
+  const cleanReview = async () => ({
+    status: 'ok',
+    severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+    posted: true,
+    postedCommentId: 9001,
+    commentTargetId: 123,
+    halted: false,
+    blockerReason: null,
+  });
+
+  it('records per-lens findings counts into the metrics ledger on close review', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    const appended = [];
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      runCodeReviewFn: cleanReview,
+      runLocalLensReviewFn: async () => ({
+        depth: 'light',
+        lenses: ['audit-clean-code', 'audit-performance'],
+        skipped: false,
+        floorSkip: {
+          skip: false,
+          reason: 'at-or-above-floor',
+          floor: 40,
+          changedLineCount: 120,
+          sensitiveClasses: [],
+        },
+        materialized: {
+          metadata: {},
+          findings: [
+            { audit: 'audit-clean-code', severity: 'low', message: 'x' },
+          ],
+          workflows: [],
+        },
+        artifactPaths: [],
+      }),
+      appendFindingsYieldFn: async (entry) => {
+        appended.push(entry);
+        return true;
+      },
+      progress: () => {},
+    });
+
+    assert.equal(appended.length, 1, 'one findings-yield record per close');
+    const [entry] = appended;
+    assert.equal(entry.storyId, 2839);
+    assert.deepEqual(entry.lenses, [
+      { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
+      { lens: 'audit-performance', findings: 0, skippedByFloor: false },
+    ]);
+    assert.equal(entry.diffFloor.skip, false);
+    assert.equal(entry.diffFloor.reason, 'at-or-above-floor');
+  });
+
+  it('records diff-floor skips with the skipped-by-floor flag set', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    const appended = [];
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      runCodeReviewFn: cleanReview,
+      runLocalLensReviewFn: async () => ({
+        depth: 'light',
+        lenses: ['audit-clean-code'],
+        skipped: true,
+        floorSkip: {
+          skip: true,
+          reason: 'below-floor',
+          floor: 40,
+          changedLineCount: 9,
+          sensitiveClasses: [],
+        },
+        materialized: null,
+        artifactPaths: [],
+      }),
+      appendFindingsYieldFn: async (entry) => {
+        appended.push(entry);
+        return true;
+      },
+      progress: () => {},
+    });
+
+    assert.equal(appended.length, 1);
+    assert.deepEqual(appended[0].lenses, [
+      { lens: 'audit-clean-code', findings: 0, skippedByFloor: true },
+    ]);
+    assert.equal(appended[0].diffFloor.skip, true);
+    assert.equal(appended[0].diffFloor.reason, 'below-floor');
+  });
+
+  it('writes no record when the lens roster is empty', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    const appended = [];
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      runCodeReviewFn: cleanReview,
+      runLocalLensReviewFn: async () => ({
+        depth: 'light',
+        lenses: [],
+        skipped: true,
+        floorSkip: null,
+        materialized: null,
+        artifactPaths: [],
+      }),
+      appendFindingsYieldFn: async (entry) => {
+        appended.push(entry);
+        return true;
+      },
+      progress: () => {},
+    });
+    assert.equal(appended.length, 0, 'an empty roster records nothing');
+  });
+
+  it('appendFindingsYield persists a kinded record that never inflates invocation tallies', async () => {
+    const {
+      appendFindingsYield,
+      PLAN_METRICS_KIND_FINDINGS_YIELD,
+      readPlanMetrics,
+      summarizePlanMetrics,
+    } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/orchestration/plan-metrics.js',
+        ),
+      ).href
+    );
+    const tempRoot = mkdtempSync(path.join(os.tmpdir(), 'findings-yield-'));
+    const config = { project: { paths: { tempRoot } } };
+    try {
+      const ok = await appendFindingsYield(
+        {
+          storyId: 4699,
+          cli: 'story-close-review',
+          lenses: [
+            { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
+          ],
+          diffFloor: { skip: false, reason: 'at-or-above-floor', floor: 40 },
+        },
+        config,
+      );
+      assert.equal(ok, true);
+
+      const ledger = await readPlanMetrics(null, config);
+      assert.equal(ledger.entries.length, 1);
+      const [record] = ledger.entries;
+      assert.equal(record.kind, PLAN_METRICS_KIND_FINDINGS_YIELD);
+      assert.equal(record.storyId, 4699);
+      assert.deepEqual(record.lenses, [
+        { lens: 'audit-clean-code', findings: 1, skippedByFloor: false },
+      ]);
+      assert.equal(typeof record.at, 'string');
+
+      // The kinded record must not count as a (failed) plan invocation.
+      const summary = summarizePlanMetrics(ledger);
+      assert.equal(summary.invocations, 0);
+      assert.equal(summary.failures, 0);
+    } finally {
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('tool-execution degradations route to friction telemetry (Story #4699, AC-4)', () => {
+  it('buildLintFindings emits zero findings for an executionFailed summary', async () => {
+    const { buildLintFindings } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/orchestration/review-providers/native.js',
+        ),
+      ).href
+    );
+    assert.deepEqual(
+      buildLintFindings({
+        errors: 0,
+        warnings: 0,
+        executionFailed: true,
+        skipped: false,
+        mode: 'changed-only',
+      }),
+      [],
+    );
+  });
+
+  it('a review run whose lint tool cannot execute records friction and zero findings', async () => {
+    const { createNativeProvider } = await import(
+      pathToFileURL(
+        path.resolve(
+          REPO_ROOT,
+          '.agents/scripts/lib/orchestration/review-providers/native.js',
+        ),
+      ).href
+    );
+    const frictionCalls = [];
+    const provider = createNativeProvider({
+      gitSpawnFn: (_cwd, sub) =>
+        sub === 'diff'
+          ? { status: 0, stdout: 'README.md\n', stderr: '' }
+          : { status: 0, stdout: '', stderr: '' },
+      runScopedLintFn: () => ({
+        errors: 0,
+        warnings: 0,
+        parsed: false,
+        executionFailed: true,
+        skipped: false,
+        mode: 'changed-only',
+      }),
+      analyzeChangedFilesFn: async () => ({
+        totalFiles: 1,
+        jsFiles: 0,
+        maintainability: [],
+        criticalFindings: [],
+        mediumFindings: [],
+      }),
+      emitToolDegradationFn: async (args) => {
+        frictionCalls.push(args);
+        return true;
+      },
+    });
+
+    const findings = await provider.runReview({
+      scope: 'story',
+      ticketId: 4699,
+      baseRef: 'main',
+      headRef: 'story-4699',
+    });
+
+    assert.deepEqual(findings, [], 'zero findings in the severity tiers');
+    assert.equal(frictionCalls.length, 1, 'friction telemetry recorded');
+    assert.equal(frictionCalls[0].category, 'tool-degraded');
+    assert.equal(frictionCalls[0].storyId, 4699);
+  });
+});
+
 describe('runSingleStoryClose review-halt orchestration', () => {
   it('throws non-zero when the Story-scope review reports critical findings and skips auto-merge', async (t) => {
+    if (typeof t.mock?.module !== 'function') {
+      // Module mocking needs `--experimental-test-module-mocks`, which the
+      // canonical `npm test` runner (run-tests.js) supplies. A bare
+      // `node --test` invocation of this file (the Story verify[] shape)
+      // cannot exercise this case — skip instead of failing on a harness
+      // flag; the case still runs in the full suite and CI.
+      t.skip(
+        'module mocking unavailable without --experimental-test-module-mocks',
+      );
+      return;
+    }
     const ghCalls = [];
     const gh = makeFakeGh((args) => {
       ghCalls.push(args.slice());

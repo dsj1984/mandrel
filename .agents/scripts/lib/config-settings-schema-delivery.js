@@ -290,6 +290,26 @@ const ACCEPTANCE_EVAL_SCHEMA = {
 };
 
 /**
+ * `delivery.review` — close-scope review tuning (Story #4699). `lensDiffFloor`
+ * is the changed-line floor below which the Story-scope local-lens pass skips
+ * lens materialization for a diff with zero sensitive-path hits (default 40
+ * via `lib/audit-suite/lens-diff-floor.js`; `0` disables the skip). The
+ * maker-blind code-review pass and all hard gates are untouched by the floor.
+ */
+const REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    lensDiffFloor: {
+      type: 'integer',
+      minimum: 0,
+      description:
+        'Changed-line floor for the close-scope lens walk (Story #4699). A diff strictly below this many changed lines (additions + deletions) with zero sensitive-path hits skips lens materialization and records the skip in the findings-yield ledger. Default 40; 0 disables the skip. Hard gates and the maker-blind code-review pass are unaffected.',
+    },
+  },
+  additionalProperties: false,
+};
+
+/**
  * `delivery.feedbackLoop` — opt-out toggles consumed by the Epic finalize
  * listener's auto-file graduators (`lib/feedback-loop/*-graduator.js`, read
  * via `graduator-core.js#makeIsAutoFileEnabled`). All default to `true`
@@ -344,6 +364,7 @@ export const DELIVERY_SCHEMA = {
     quality: QUALITY_SCHEMA,
     mergeWatch: MERGE_WATCH_SCHEMA,
     codeReview: CODE_REVIEW_SCHEMA,
+    review: REVIEW_SCHEMA,
     refactorStage: REFACTOR_STAGE_SCHEMA,
     acceptanceEval: ACCEPTANCE_EVAL_SCHEMA,
     feedbackLoop: FEEDBACK_LOOP_SCHEMA,
