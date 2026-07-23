@@ -2,22 +2,32 @@
  * plan-metrics.test.js — unit coverage for the #4474 PR1 plan-invocation
  * ledger: path routing, append + rotation, malformed-line tolerance on
  * read, the roll-up summary, and a snapshot of the rendered summary line.
+ *
+ * Story #4712: the append tail (path resolution, rotation, the append
+ * itself) lives in the shared `lib/observability/metrics-ledger.js`
+ * module; the plan-domain appenders here route through it. The rotation
+ * behavior is tested once and exercised via every entry point, and a
+ * structural assertion pins the tail to exactly one implementation.
  */
 
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
+  appendFindingsYield,
+  MAX_LEDGER_BYTES,
+  PLAN_METRICS_BASENAME,
+  PLAN_METRICS_SCHEMA_VERSION,
+  planMetricsPath,
+} from '../.agents/scripts/lib/observability/metrics-ledger.js';
 import {
   appendCriticSkip,
   appendPlanMetric,
-  MAX_LEDGER_BYTES,
-  PLAN_METRICS_BASENAME,
   PLAN_METRICS_KIND_CRITIC_SKIP,
-  PLAN_METRICS_SCHEMA_VERSION,
-  planMetricsPath,
   readPlanMetrics,
   recordPlanInvocation,
   renderPlanMetricsSummaryLine,
@@ -156,6 +166,79 @@ describe('appendPlanMetric', () => {
     const activeLines = active.trim().split('\n');
     assert.equal(activeLines.length, 1);
     assert.equal(JSON.parse(activeLines[0]).mode, 'persist');
+  });
+});
+
+describe('single ledger-append implementation (Story #4712)', () => {
+  const moduleSource = (relPath) =>
+    readFileSync(fileURLToPath(new URL(relPath, import.meta.url)), 'utf8');
+
+  it('the open→append→rotate tail exists only in metrics-ledger.js', () => {
+    const ledger = moduleSource(
+      '../.agents/scripts/lib/observability/metrics-ledger.js',
+    );
+    const planMetrics = moduleSource(
+      '../.agents/scripts/lib/orchestration/plan-metrics.js',
+    );
+    // Exactly one append and one rotation rename, both in the shared module.
+    assert.equal(ledger.split('fs.appendFile(').length - 1, 1);
+    assert.equal(ledger.split('fs.rename(').length - 1, 1);
+    // The plan-domain module owns no append tail of its own.
+    assert.equal(planMetrics.includes('fs.appendFile('), false);
+    assert.equal(planMetrics.includes('fs.rename('), false);
+    assert.equal(planMetrics.includes('fs.mkdir('), false);
+  });
+
+  it('rotation fires identically through every appender entry point', async () => {
+    const seedAndAssertRotation = async (append) => {
+      const filePath = planMetricsPath(4712, config);
+      // Seed the active generation past the tiny cap, then append.
+      assert.equal(
+        await appendPlanMetric(
+          {
+            cli: 'epic-plan-spec',
+            mode: 'emit-context',
+            epicId: 4712,
+            startedAt: '2026-07-23T10:00:00.000Z',
+            endedAt: '2026-07-23T10:00:01.000Z',
+            ok: true,
+          },
+          config,
+          { maxBytes: 64 },
+        ),
+        true,
+      );
+      assert.equal(await append(), true);
+      const rotated = await fs.readFile(`${filePath}.1`, 'utf8');
+      assert.equal(JSON.parse(rotated.trim()).cli, 'epic-plan-spec');
+      const active = await fs.readFile(filePath, 'utf8');
+      assert.equal(active.trim().split('\n').length, 1);
+      await fs.rm(path.dirname(filePath), { recursive: true, force: true });
+    };
+
+    await seedAndAssertRotation(() =>
+      appendCriticSkip(
+        {
+          critic: 'pre-mortem',
+          reasons: ['x'],
+          cli: 'plan-critics',
+          epicId: 4712,
+        },
+        config,
+        { maxBytes: 64 },
+      ),
+    );
+    await seedAndAssertRotation(() =>
+      appendFindingsYield(
+        {
+          storyId: 4712,
+          epicId: 4712,
+          lenses: [{ lens: 'audit-clean-code', findings: 0 }],
+        },
+        config,
+        { maxBytes: 64 },
+      ),
+    );
   });
 });
 
