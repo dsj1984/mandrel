@@ -811,10 +811,11 @@ changing its shape (full per-field reference:
 
 The framework uses a **Story-only** GitHub Issue model with
 label-based typing. Optional `depends_on` / `blocked by #NNN` edges order
-rare multi-Story plans; there is no batch label (Story #4540 retired
-`plan-run::<id>`), because `/deliver` takes ids and resolves the graph from
-live state — which is what lets an edge point at a Story planned in an
-earlier run. The folded
+rare multi-Story plans. Each plan-persist run also applies a shared
+`plan-run::<id>` grouping label to the Stories it creates (Story #4692) —
+**metadata only**, for filtering and traceability; `/deliver` takes ids and
+resolves the graph from live state, never the label — which is what lets an
+edge point at a Story planned in an earlier run. The folded
 Tech Spec lives inline on the Story body (`## Spec` only — over-budget
 Specs fail closed as a sizing smell, never spill to `docs/`):
 

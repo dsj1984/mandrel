@@ -390,12 +390,14 @@ describe('runPlanPersist — flat Story ops', () => {
 
     assert.equal(result.stories.length, 1);
     assert.equal(result.primaryStoryId, result.stories[0].id);
-    // Story #4540 removed the field entirely, rather than leaving it null.
-    assert.ok(!('planRunLabel' in result));
+    // Story #4692: the cohort grouping label is applied for N=1 too, and the
+    // envelope carries it.
+    assert.match(result.planRunLabel, /^plan-run::[0-9a-f]{8}$/);
 
     const issue = provider.issues.get(result.primaryStoryId);
     assert.ok(issue.labels.includes(TYPE_LABELS.STORY));
     assert.ok(issue.labels.includes(AGENT_LABELS.READY));
+    assert.ok(issue.labels.includes(result.planRunLabel));
     assert.match(issue.body, /## Spec/);
 
     const bodies = provider.comments.map((c) => c.body).join('\n');
@@ -439,10 +441,19 @@ describe('runPlanPersist — flat Story ops', () => {
       opts: { skipCleanup: true },
     });
 
-    assert.deepEqual(
-      labelsAtCreate,
-      [[TYPE_LABELS.STORY]],
+    assert.equal(labelsAtCreate.length, 1);
+    assert.ok(
+      labelsAtCreate[0].includes(TYPE_LABELS.STORY),
+      'the creating POST carries type::story',
+    );
+    assert.ok(
+      !labelsAtCreate[0].includes(AGENT_LABELS.READY),
       'the creating POST must not carry agent::ready',
+    );
+    assert.deepEqual(
+      labelsAtCreate[0].filter((l) => l.startsWith('plan-run::')),
+      [result.planRunLabel],
+      'the creating POST carries the cohort grouping label (Story #4692)',
     );
     assert.equal(order.at(-1), 'ready', 'the ready flip must be terminal');
     assert.ok(order.includes('checkpoint'));
@@ -791,11 +802,11 @@ describe('runPlanPersist — flat Story ops', () => {
     assert.equal(provider.issues.size, 0);
   });
 
-  it('applies NO plan-run label to N>1 Stories (Story #4540)', async () => {
-    // The label grouped siblings by planning batch — an axis that could not
-    // express an edge to a Story planned in another run, while ordering
-    // already lives in the blocked-by footers. /deliver now takes ids and
-    // resolves the graph from live state.
+  it('applies exactly one shared plan-run cohort label to N>1 Stories (Story #4692)', async () => {
+    // The label groups the Stories one persist run authored — metadata only,
+    // for filtering/traceability. It is NOT a delivery input: /deliver takes
+    // ids and resolves the graph from live state, and ordering lives in the
+    // blocked-by footers.
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
@@ -805,12 +816,13 @@ describe('runPlanPersist — flat Story ops', () => {
       opts: { skipCleanup: true },
     });
     assert.equal(result.stories.length, 2);
-    assert.equal(result.planRunLabel, undefined);
+    assert.match(result.planRunLabel, /^plan-run::[0-9a-f]{8}$/);
     for (const s of result.stories) {
       const issue = provider.issues.get(s.id);
       assert.deepEqual(
         issue.labels.filter((l) => l.startsWith('plan-run::')),
-        [],
+        [result.planRunLabel],
+        'every Story carries the one shared cohort label',
       );
       const storyComments = provider.comments
         .filter((comment) => comment.issueNumber === s.id)
@@ -819,6 +831,28 @@ describe('runPlanPersist — flat Story ops', () => {
       assert.doesNotMatch(storyComments, /risk-verdict/);
       assert.match(storyComments, /story-plan-state/);
     }
+  });
+
+  it('drops an author-supplied plan-run:: label — the runtime owns that axis (Story #4692)', async () => {
+    const provider = fakeProvider();
+    const authored = ticket('owned');
+    authored.labels = ['type::story', 'plan-run::hand-authored', 'area::x'];
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [authored] },
+      opts: { skipCleanup: true },
+    });
+    const { labels } = provider.issues.get(result.primaryStoryId);
+    assert.ok(labels.includes('area::x'), 'benign authored label survives');
+    assert.ok(
+      !labels.includes('plan-run::hand-authored'),
+      'the hand-authored plan-run label is dropped',
+    );
+    assert.deepEqual(
+      labels.filter((l) => l.startsWith('plan-run::')),
+      [result.planRunLabel],
+      'only the runtime-derived cohort label is present',
+    );
   });
 });
 

@@ -444,7 +444,7 @@ export async function runPlanPersist({
     sourceTicketIds,
   });
 
-  const { created } = await createStoryIssues({
+  const { created, planRunLabel } = await createStoryIssues({
     provider,
     stories,
     opts: { dryRun },
@@ -551,10 +551,17 @@ export async function runPlanPersist({
   Logger.info(
     `[plan-persist] Deliver with: /deliver ${created.map((s2) => s2.id).join(' ')}`,
   );
+  // Metadata only — a GitHub filter for the cohort this run authored, never
+  // a delivery-resolution input (/deliver stays ids-only, Story #4540).
+  Logger.info(
+    `[plan-persist] Cohort grouping label: ${planRunLabel} — filter with ` +
+      `label:${planRunLabel}`,
+  );
 
   return {
     stories: created,
     primaryStoryId: primary.id,
+    planRunLabel,
     forceReview,
     reachability,
     freshness,

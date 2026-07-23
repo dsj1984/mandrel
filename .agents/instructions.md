@@ -306,8 +306,9 @@ steps live inline (`acceptance[]` / `verify[]`) and the folded Tech Spec in
 `docs/`). Optional `depends_on` edges order rare multi-Story runs, resolved by
 `/deliver` from live state across plan runs and over time.
 
-- `/plan` emits one or more `type::story` issues (default N=1); there is no
-  batch label — `/deliver` takes ids and discovers the graph.
+- `/plan` emits one or more `type::story` issues (default N=1), each carrying
+  a shared `plan-run::<id>` grouping label — metadata for filtering only;
+  `/deliver` takes ids and discovers the graph, never reading the label.
 - Each Story is executed by `helpers/deliver-story` (from
   [`/deliver`](workflows/deliver.md)); the agent authors commit subjects
   directly per [`rules/git-conventions.md`](rules/git-conventions.md),

@@ -34,9 +34,11 @@ Any named ticket that is not `type::story`, or that still carries an
 re-plan as a v2 Story). Resolution refuses the whole set rather than
 silently dropping the offending id and under-delivering.
 
-> **No batch identity (Story #4540).** There is no `--run`, `plan-run::<id>`,
-> or `--dep` axis: ordering lives in the dependency edges, so delivering the
-> ids resolves the graph itself.
+> **Ids-only resolution (Story #4540).** There is no `--run` or `--dep`
+> axis: ordering lives in the dependency edges, so delivering the ids
+> resolves the graph itself. The `plan-run::<id>` grouping label plan-persist
+> applies (Story #4692) is metadata for filtering/traceability only —
+> delivery never reads it as a resolution input.
 
 ## Flags
 
