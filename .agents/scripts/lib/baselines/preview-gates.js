@@ -263,6 +263,11 @@ export async function runCrapPreview({
   const requireCoverage = crap.requireCoverage !== false;
   const coveragePath = crap.coveragePath ?? 'coverage/coverage-final.json';
   const coverage = loadCoverage(path.resolve(cwd, coveragePath));
+  // Story #4731 (AC-3) — feed the CRAP regression compare the *configured*
+  // crap tolerance (env override → `gates.crap.tolerance` → framework default)
+  // so `compareCrap` demotes positive deltas at or under tolerance rather than
+  // failing on any positive delta; over-tolerance deltas still fail. This keeps
+  // the pre-commit/pre-push preview aligned with the authoritative gate.
   const { newMethodCeiling, tolerance } = resolveCrapEnvOverrides(
     crap,
     process.env,

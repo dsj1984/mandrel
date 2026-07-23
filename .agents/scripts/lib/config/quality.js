@@ -110,6 +110,13 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   tolerance: DEFAULT_MI_TOLERANCE,
   floors: DEFAULT_MI_FLOORS,
   targetDirs: Object.freeze([]),
+  // Story #4731 — the commit-subject substring that acknowledges a deliberate
+  // maintainability baseline refresh in the compared range. Mirrors the CRAP
+  // gate's `refreshTag`; the evaluate phase demotes head-vs-base regressions
+  // (floors still enforced) when a range commit carrying this tag touches the
+  // baseline file. Kept identical to the CRAP default so one refresh commit
+  // can acknowledge both gates.
+  refreshTag: 'baseline-refresh:',
   // Story #2165 — bounded timeout (ms) for `npm run maintainability:update`
   // spawned by the baseline-attribution refresh path. Defaults to 60 s.
   refreshTimeoutMs: 60_000,
@@ -154,6 +161,7 @@ const MI_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'targetDirs',
+  'refreshTag',
   'refreshTimeoutMs',
   'ignoreGlobs',
 ]);
@@ -268,6 +276,7 @@ function resolveMaintainabilityQuality(userBlock, gateScoping) {
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       targetDirs: [...defaults.targetDirs],
+      refreshTag: defaults.refreshTag,
       refreshTimeoutMs: defaults.refreshTimeoutMs,
       ignoreGlobs: [...defaults.ignoreGlobs],
       defaultScope: scoping.defaultScope,
@@ -277,6 +286,10 @@ function resolveMaintainabilityQuality(userBlock, gateScoping) {
   warnUnknownKeys(userBlock, MI_GATE_KEYS, 'quality.gates.maintainability');
   const out = {
     targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
+    refreshTag:
+      typeof userBlock.refreshTag === 'string' && userBlock.refreshTag.length
+        ? userBlock.refreshTag
+        : defaults.refreshTag,
     refreshTimeoutMs: resolvePositiveIntegerMs(
       userBlock.refreshTimeoutMs,
       defaults.refreshTimeoutMs,
