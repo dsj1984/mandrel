@@ -115,6 +115,39 @@ export function _clearMainCheckoutRootCache() {
 }
 
 /**
+ * Environment variable naming an absolute per-process scratch tempRoot that
+ * every stream writer must land in during a test run (Story #4696).
+ *
+ * The shared test bootstrap (`lib/test-env.js`) sets this to a fresh
+ * `os.tmpdir()` directory before spawning the test runner, so any test that
+ * reaches a writer (`signals-writer`, the lifecycle `LedgerWriter`, etc.)
+ * *without* explicitly injecting an absolute tempRoot still resolves under
+ * scratch instead of the repo's real `temp/` tree. This is the single
+ * injection seam: because every path helper funnels a relative root through
+ * `anchorTempRoot`, one redirect here covers all writers regardless of how
+ * each one resolved its root.
+ */
+export const TEST_TEMP_ROOT_ENV = 'MANDREL_TEST_TEMP_ROOT';
+
+/**
+ * Resolve the absolute scratch tempRoot override, or `null` when none is
+ * configured. Only an **absolute** value is honoured — a relative override
+ * would re-anchor against the repo tree and defeat the isolation, so it is
+ * ignored (treated as unset).
+ *
+ * @param {NodeJS.ProcessEnv} [env=process.env]
+ * @returns {string|null}
+ */
+export function testScratchTempRoot(env = process.env) {
+  const override = env?.[TEST_TEMP_ROOT_ENV];
+  return typeof override === 'string' &&
+    override.length > 0 &&
+    path.isAbsolute(override)
+    ? override
+    : null;
+}
+
+/**
  * Anchor a resolved `tempRoot` to the main checkout root when it is a
  * relative path (Story #3900). Absolute roots are returned verbatim; a
  * relative root is joined onto the main checkout root so every caller
@@ -123,11 +156,22 @@ export function _clearMainCheckoutRootCache() {
  * root is returned unchanged so behaviour degrades to the prior
  * cwd-relative semantics rather than throwing.
  *
+ * Test isolation (Story #4696): when the scratch override
+ * (`MANDREL_TEST_TEMP_ROOT`) is set, a relative root is joined onto the
+ * scratch dir instead of the main checkout root, so a writer that reaches
+ * the default (or any relative) root under the test bootstrap lands in
+ * scratch and never pollutes the repo's real `temp/` telemetry tree. An
+ * absolute root injected by a well-behaved test still bypasses the redirect
+ * verbatim.
+ *
  * @param {string} tempRoot
+ * @param {NodeJS.ProcessEnv} [env=process.env]
  * @returns {string}
  */
-export function anchorTempRoot(tempRoot) {
+export function anchorTempRoot(tempRoot, env = process.env) {
   if (path.isAbsolute(tempRoot)) return tempRoot;
+  const scratch = testScratchTempRoot(env);
+  if (scratch) return path.join(scratch, tempRoot);
   const root = mainCheckoutRoot();
   return root ? path.join(root, tempRoot) : tempRoot;
 }
