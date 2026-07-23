@@ -181,6 +181,13 @@ const defaultGh = createGh(undefined, { timeoutMs: MERGE_WAIT_GH_TIMEOUT_MS });
  *
  * A late settlement of the losing promise is explicitly absorbed so a
  * post-timeout rejection cannot surface as an unhandled rejection.
+ *
+ * The timeout timer is deliberately NOT `unref`'d: when the awaited call is a
+ * promise that never settles (a hung stub, or a real gh child whose I/O has
+ * gone quiet), the timer is the ONLY handle keeping the event loop alive, so
+ * unref'ing it would let the process/test exit before the timeout ever fires —
+ * exactly the hang this guard exists to prevent. It is short-lived and always
+ * cleared in `finally`, so keeping it referenced costs nothing.
  */
 function withGhTimeout(promise, timeoutMs, label) {
   let timer;
@@ -190,7 +197,6 @@ function withGhTimeout(promise, timeoutMs, label) {
         new Error(`${label} did not return within ${timeoutMs}ms (timeout)`),
       );
     }, timeoutMs);
-    timer.unref?.();
     promise.then(resolve, reject);
   }).finally(() => clearTimeout(timer));
   promise.catch(() => {});

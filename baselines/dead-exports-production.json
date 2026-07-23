@@ -1493,6 +1493,10 @@
       "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
+      "symbol": "failingChecksBlockMerge"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "PLAN_CONTEXT_ENVELOPE_BYTE_CEILING"
     },
