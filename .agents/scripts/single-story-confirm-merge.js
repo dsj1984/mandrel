@@ -505,7 +505,9 @@ async function main() {
   if (process.argv.includes('--help')) {
     // Print usage (including --max-wait-seconds) and exit cleanly — the
     // resume-path override is only discoverable if the CLI can say it exists.
-    console.log(USAGE);
+    // `process.stdout.write` (not console.log) keeps the CLI within the
+    // no-console repo invariant while still writing help to stdout.
+    process.stdout.write(`${USAGE}\n`);
     return 0;
   }
   try {
