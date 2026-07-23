@@ -264,26 +264,73 @@ export function decideRecovery({ storyId, ticket, branch, pr }) {
 }
 
 /**
- * Probe live state and resolve the single next command. Read-only.
- *
- * @param {object} args
- * @param {number} args.storyId
- * @param {string} args.cwd
- * @param {object} args.provider
- * @param {object} [args.config]
- * @param {object} [args.gh]
- * @param {Function} [args.gitSpawnFn]
- * @returns {Promise<object>}
+ * The shapes a LIVE delivery process actively mutates while it runs. A probe
+ * that lands mid-close can read `executing` + `pr=none` seconds before the
+ * push and PR-open land, and confidently misdirect the operator to re-init a
+ * Story whose close is about to open a PR (observed live on Story #4712: two
+ * probes seconds apart flipped `executing-no-pr` → `executing-with-pr`).
+ * These shapes therefore earn a stability re-probe before the verdict is
+ * trusted; the remaining shapes (`merged-label-stale`, `blocked`,
+ * `done-board-drift`, `ready`) describe settled states no live process is
+ * racing to change.
  */
-export async function recoverStory({
+const TRANSIENT_SHAPES = new Set([
+  'executing-no-pr',
+  'executing-with-pr',
+  'closing-no-pr',
+  'closing-pr-pending',
+  'closing-pr-red',
+]);
+
+/**
+ * Default settle window between the two probes of the stability pass. Long
+ * enough for an in-flight push / `gh pr create` / label flip to land (each is
+ * a single network call), short enough that the read-only CLI stays
+ * interactive.
+ */
+const STABILITY_DELAY_MS = 5000;
+
+/**
+ * Build the verdict for a state observed mid-mutation: the two probe rounds
+ * derived DIFFERENT shapes, so neither is safe to act on — acting on the
+ * first misdirects (the #4712 shape), acting on the second may race the same
+ * live process again. The one next command is the probe itself, re-run once
+ * the live process settles.
+ *
+ * @param {{ storyId: number, first: object, second: object, delayMs: number }} args
+ * @returns {{ shape: string, nextCommand: string, detail: string, evidence: string[] }}
+ */
+function buildInTransitionVerdict({ storyId, first, second, delayMs }) {
+  return {
+    shape: 'in-transition',
+    nextCommand: NEXT_COMMANDS.recover(storyId),
+    detail:
+      `Two probes ${Math.round(delayMs / 1000)}s apart derived different shapes ` +
+      `(\`${first.shape}\` → \`${second.shape}\`): a delivery process is actively ` +
+      `mutating this Story's state right now (a push, PR open, or label flip landed ` +
+      `between the probes). Acting on either verdict risks duplicating or misdirecting ` +
+      `the live run. Wait for it to finish, then re-run this probe for a settled verdict.`,
+    evidence: [
+      `probe1.shape=${first.shape}`,
+      `probe2.shape=${second.shape}`,
+      ...second.evidence,
+    ],
+  };
+}
+
+/**
+ * One full probe round: ticket + branch + PR → decision. Throws only when
+ * the ticket itself is unreadable (the probe cannot run without it).
+ */
+async function probeAndDecide({
   storyId,
+  storyBranch,
   cwd,
   provider,
   config,
-  gh = defaultGh,
+  gh,
   gitSpawnFn,
 }) {
-  const storyBranch = getStoryBranch(storyId);
   const ticket = await probeTicket({ provider, storyId });
   if (!ticket.ok) {
     throw new Error(
@@ -293,11 +340,91 @@ export async function recoverStory({
   const branch = probeBranch({ cwd, storyBranch, config, gitSpawnFn });
   const pr = await probePr({ storyBranch, gh });
   const decision = decideRecovery({ storyId, ticket, branch, pr });
+  return { probes: { ticket, branch, pr }, decision };
+}
+
+/**
+ * Probe live state and resolve the single next command. Read-only.
+ *
+ * Transient shapes (`executing-*` / `closing-*`) get a **stability re-probe**
+ * (same consecutive-evidence pattern the merge wait's fail-fast uses, Story
+ * #4695): a second probe after a short settle window. Matching shapes return
+ * the fresher verdict; diverging shapes return `in-transition` instead of a
+ * confidently wrong command. Settled shapes skip the second round — their
+ * state has no live process racing to change it.
+ *
+ * @param {object} args
+ * @param {number} args.storyId
+ * @param {string} args.cwd
+ * @param {object} args.provider
+ * @param {object} [args.config]
+ * @param {object} [args.gh]
+ * @param {Function} [args.gitSpawnFn]
+ * @param {boolean} [args.reprobe=true] Disable to skip the stability pass
+ *   (single-probe legacy behavior — for scripted callers that own their own
+ *   settling).
+ * @param {number} [args.stabilityDelayMs] Settle window between the probes.
+ * @param {Function} [args.sleepFn] Test seam for the settle wait.
+ * @returns {Promise<object>}
+ */
+export async function recoverStory({
+  storyId,
+  cwd,
+  provider,
+  config,
+  gh = defaultGh,
+  gitSpawnFn,
+  reprobe = true,
+  stabilityDelayMs = STABILITY_DELAY_MS,
+  sleepFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+}) {
+  const storyBranch = getStoryBranch(storyId);
+  const probeArgs = {
+    storyId,
+    storyBranch,
+    cwd,
+    provider,
+    config,
+    gh,
+    gitSpawnFn,
+  };
+
+  const first = await probeAndDecide(probeArgs);
+  if (!reprobe || !TRANSIENT_SHAPES.has(first.decision.shape)) {
+    return {
+      storyId,
+      storyBranch,
+      probes: first.probes,
+      stability: { reprobed: false },
+      ...first.decision,
+    };
+  }
+
+  await sleepFn(stabilityDelayMs);
+  const second = await probeAndDecide(probeArgs);
+
+  if (second.decision.shape === first.decision.shape) {
+    // Stable across the settle window — trust the fresher evidence.
+    return {
+      storyId,
+      storyBranch,
+      probes: second.probes,
+      stability: { reprobed: true, stable: true, delayMs: stabilityDelayMs },
+      ...second.decision,
+    };
+  }
+
   return {
     storyId,
     storyBranch,
-    probes: { ticket, branch, pr },
-    ...decision,
+    probes: second.probes,
+    stability: { reprobed: true, stable: false, delayMs: stabilityDelayMs },
+    ...buildInTransitionVerdict({
+      storyId,
+      first: first.decision,
+      second: second.decision,
+      delayMs: stabilityDelayMs,
+    }),
   };
 }
 

@@ -40,17 +40,23 @@ import {
 import { PROJECT_ROOT } from './lib/project-root.js';
 import { createProvider } from './lib/provider-factory.js';
 
-const HELP = `Usage: node .agents/scripts/deliver-recover.js --story <id> [--cwd <main-repo>] [--json]
+const HELP = `Usage: node .agents/scripts/deliver-recover.js --story <id> [--cwd <main-repo>] [--json] [--no-reprobe]
 
 Probes a Story's live delivery state — labels, lease, branch, worktree, PR
 state and checks — and prints the single next command that resumes it, with
 the evidence it was derived from. Read-only: mutates nothing.
 
+Mid-flight shapes (executing-*/closing-*) get a stability re-probe after a
+short settle window: matching shapes return the fresher verdict; diverging
+shapes report \`in-transition\` (a live delivery process is mutating the
+state) instead of a confidently wrong command.
+
 Flags:
-  --story   GitHub issue number of the Story (required).
-  --cwd     Main-repo checkout to probe (default: project root).
-  --json    Emit the full recovery envelope as JSON instead of prose.
-  --help    Show this message.
+  --story       GitHub issue number of the Story (required).
+  --cwd         Main-repo checkout to probe (default: project root).
+  --json        Emit the full recovery envelope as JSON instead of prose.
+  --no-reprobe  Skip the stability re-probe (single-probe verdict).
+  --help        Show this message.
 `;
 
 export function parseArgv(argv) {
@@ -60,6 +66,7 @@ export function parseArgv(argv) {
       story: { type: 'string' },
       cwd: { type: 'string' },
       json: { type: 'boolean', default: false },
+      'no-reprobe': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
     strict: false,
@@ -68,6 +75,7 @@ export function parseArgv(argv) {
     storyId: Number.parseInt(String(values.story ?? ''), 10),
     cwd: values.cwd ?? null,
     json: Boolean(values.json),
+    reprobe: !values['no-reprobe'],
     help: Boolean(values.help),
   };
 }
@@ -79,15 +87,22 @@ export async function runDeliverRecover({
   storyId: storyIdParam,
   cwd: cwdParam,
   json: jsonParam,
+  reprobe: reprobeParam,
   argv,
   injectedProvider,
   injectedConfig,
   injectedGh,
   injectedGitSpawn,
+  injectedSleepFn,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
-      ? { storyId: storyIdParam, cwd: cwdParam ?? null, json: !!jsonParam }
+      ? {
+          storyId: storyIdParam,
+          cwd: cwdParam ?? null,
+          json: !!jsonParam,
+          reprobe: reprobeParam ?? true,
+        }
       : parseArgv(argv ?? process.argv.slice(2));
 
   if (parsed.help) {
@@ -111,6 +126,8 @@ export async function runDeliverRecover({
     config,
     gh: injectedGh,
     gitSpawnFn: injectedGitSpawn,
+    reprobe: parsed.reprobe,
+    ...(injectedSleepFn ? { sleepFn: injectedSleepFn } : {}),
   });
 
   Logger.info(
