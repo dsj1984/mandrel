@@ -5,6 +5,21 @@ import path from 'node:path';
 import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
 
 /**
+ * Per-process memo for the created scratch dir, so repeated calls in one
+ * runner process (e.g. building env bags for several chunks) share a single
+ * scratch tree instead of minting one dir per call.
+ */
+let _createdScratchDir = null;
+
+/**
+ * Test-only: clear the per-process scratch memo so a suite can exercise the
+ * creation branch repeatedly in one process.
+ */
+export function _clearTestScratchTempRootCache() {
+  _createdScratchDir = null;
+}
+
+/**
  * Ensure an absolute per-process scratch tempRoot is available for the test
  * run and return it (Story #4696).
  *
@@ -12,18 +27,19 @@ import { TEST_TEMP_ROOT_ENV } from './config/temp-paths.js';
  * common case for a child process that inherits the parent runner's env),
  * that value is reused verbatim so every chunk / worker of a single suite
  * run shares one scratch dir. Otherwise a fresh `os.tmpdir()` directory is
- * created. Every stream writer that resolves a relative tempRoot then lands
- * under this dir instead of the repo's real `temp/` telemetry tree — the
- * regression that let 99% of friction records be test-fixture pollution.
+ * created once per process (memoized). Every stream writer that resolves a
+ * relative tempRoot then lands under this dir instead of the repo's real
+ * `temp/` telemetry tree — the regression that let 99% of friction records
+ * be test-fixture pollution.
  *
- * Module-internal — the observable behaviour is asserted through
- * `buildWebhookSafeTestEnv`, so it is deliberately not exported.
+ * Directly unit-tested via the injectable `mkdtemp` seam in
+ * `tests/lib/test-env.test.js` (Story #4711).
  *
  * @param {NodeJS.ProcessEnv} [baseEnv=process.env]
  * @param {{ mkdtemp?: typeof mkdtempSync }} [deps] Injectable for tests.
  * @returns {string} absolute scratch tempRoot
  */
-function ensureTestScratchTempRoot(
+export function ensureTestScratchTempRoot(
   baseEnv = process.env,
   { mkdtemp = mkdtempSync } = {},
 ) {
@@ -35,7 +51,10 @@ function ensureTestScratchTempRoot(
   ) {
     return existing;
   }
-  return mkdtemp(path.join(os.tmpdir(), 'mandrel-test-temp-'));
+  if (_createdScratchDir === null) {
+    _createdScratchDir = mkdtemp(path.join(os.tmpdir(), 'mandrel-test-temp-'));
+  }
+  return _createdScratchDir;
 }
 
 /**

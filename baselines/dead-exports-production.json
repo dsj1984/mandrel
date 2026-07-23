@@ -930,7 +930,15 @@
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
+      "symbol": "TEST_ALLOW_REAL_TEMP_ENV"
+    },
+    {
+      "file": ".agents/scripts/lib/config/temp-paths.js",
       "symbol": "_clearMainCheckoutRootCache"
+    },
+    {
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "symbol": "_clearTestContextScratchCache"
     },
     {
       "file": ".agents/scripts/lib/config/temp-paths.js",
@@ -1317,6 +1325,14 @@
       "symbol": "renderActiveStoryEnvFile"
     },
     {
+      "file": ".agents/scripts/lib/observability/metrics-ledger.js",
+      "symbol": "MAX_LEDGER_BYTES"
+    },
+    {
+      "file": ".agents/scripts/lib/observability/metrics-ledger.js",
+      "symbol": "PLAN_METRICS_BASENAME"
+    },
+    {
       "file": ".agents/scripts/lib/observability/signal-validator.js",
       "symbol": "readSignalRejectCount"
     },
@@ -1485,6 +1501,10 @@
       "symbol": "MERGE_UNLANDED_BLOCK_CLASSES"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/merge-poll.js",
+      "symbol": "failingChecksBlockMerge"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "PLAN_CONTEXT_ENVELOPE_BYTE_CEILING"
     },
@@ -1514,27 +1534,11 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "MAX_LEDGER_BYTES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "PLAN_METRICS_BASENAME"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "symbol": "PLAN_METRICS_KIND_CRITIC_SKIP"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "PLAN_METRICS_SCHEMA_VERSION"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "symbol": "appendPlanMetric"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
-      "symbol": "planMetricsPath"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
@@ -2283,6 +2287,14 @@
     {
       "file": ".agents/scripts/lib/story-plan.js",
       "symbol": "REQUIRED_SECTIONS"
+    },
+    {
+      "file": ".agents/scripts/lib/test-env.js",
+      "symbol": "_clearTestScratchTempRootCache"
+    },
+    {
+      "file": ".agents/scripts/lib/test-env.js",
+      "symbol": "ensureTestScratchTempRoot"
     },
     {
       "file": ".agents/scripts/lib/test-isolate/list-files.js",

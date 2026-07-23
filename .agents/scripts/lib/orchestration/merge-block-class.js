@@ -178,6 +178,12 @@ function describeApiRaceFallback(prProbe, budget) {
  *      Gated on `requiredCheckFailedBlocksMerge`: a run must have concluded
  *      failure with none in flight — a red rollup while a required run is
  *      merely queued is the protected-branch pending state, not this class.
+ *      The predicate also declines the verdict when the probe reports
+ *      `reviewDecision: 'REVIEW_REQUIRED'` (Story #4710): the rollup cannot
+ *      prove the red run is required, and a missing required review already
+ *      explains the BLOCKED merge state, so classification falls through to
+ *      the step-3 human-required verdict instead of misdirecting the
+ *      operator at a possibly-optional red check.
  *   2. Budget exhaustion while checks were still in flight —
  *      `checks-pending-timeout`. Evaluated BEFORE the human-required
  *      probe signals because on a protected branch GitHub reports
