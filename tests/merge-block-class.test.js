@@ -164,10 +164,57 @@ describe('merge-block-class (Story #4426)', () => {
       // `mergeStateStatus: BLOCKED` is what makes the red check REQUIRED:
       // GitHub gates the merge on it. Without that, a red check is not
       // evidence the merge is blocked at all (see the UNSTABLE cases below).
-      name: 'budget exhausted with a red required check → checks-failed',
+      // Story #4695 additionally requires HEAD-ANCHORED evidence of a
+      // genuinely failed run with none in flight — the raw rollup `failure`
+      // alone (which counts cancelled superseded runs) no longer suffices.
+      name: 'budget exhausted with a genuinely red required check (evidence) → checks-failed',
       input: {
-        prProbe: { checksStatus: 'failure', mergeStateStatus: 'BLOCKED' },
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+          },
+        },
         budget: { exhausted: true, elapsedSeconds: 120 },
+      },
+      expected: 'checks-failed',
+    },
+    {
+      // Story #4695 AC-1 — the false-positive shape. Rollup reads `failure`
+      // (a cancelled superseded run) and `mergeStateStatus: BLOCKED`, but a
+      // required run is still queued/in_progress on the head. This is the
+      // protected-branch PENDING steady state — NOT a red required check — so
+      // it must NOT classify `checks-failed`. Without the head-anchored gate
+      // this hard-blocked Stories whose PRs merged untouched.
+      name: 'red rollup + BLOCKED but a required run still in flight → NOT checks-failed',
+      input: {
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: false,
+            requiredRunInFlight: true,
+          },
+        },
+      },
+      expected: 'api-race-other',
+    },
+    {
+      // Story #4695 AC-2 — a genuine red required check (a run concluded
+      // failure, none in flight) still classifies `checks-failed`, even with
+      // no budget signal at all (the first evidence-bearing probe).
+      name: 'genuinely red required check, none in flight, no budget → checks-failed',
+      input: {
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+          },
+        },
       },
       expected: 'checks-failed',
     },
@@ -201,10 +248,18 @@ describe('merge-block-class (Story #4426)', () => {
       // The same red check on a protected base, where GitHub also reports
       // BLOCKED. Without the dedicated class this classified as
       // branch-protection-human-required and sent the operator to inspect
-      // rules that were working correctly.
-      name: 'red required check on a protected base → checks-failed, not branch-protection',
+      // rules that were working correctly. Story #4695 carries the
+      // head-anchored evidence that makes it genuinely red.
+      name: 'genuinely red required check on a protected base → checks-failed, not branch-protection',
       input: {
-        prProbe: { checksStatus: 'failure', mergeStateStatus: 'BLOCKED' },
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+          },
+        },
       },
       expected: 'checks-failed',
     },
@@ -257,5 +312,74 @@ describe('merge-block-class (Story #4426)', () => {
       prProbe: { reviewDecision: 'REVIEW_REQUIRED' },
     });
     assert.equal(verdict.blockClass, 'arm-failure');
+  });
+});
+
+describe('head-anchored required-check gating (Story #4695)', () => {
+  // AC-1: the false-positive shape — a red rollup + BLOCKED while a required
+  // run is still in flight — must NOT classify checks-failed. Pinned here as a
+  // standalone assertion in addition to the table case above.
+  it('AC-1: a red rollup with a required run still in flight is NOT checks-failed', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: {
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+        requiredRunEvidence: {
+          requiredRunFailed: false,
+          requiredRunInFlight: true,
+        },
+      },
+    });
+    assert.notEqual(
+      verdict.blockClass,
+      'checks-failed',
+      'a merely-pending required run must never hard-block as checks-failed',
+    );
+  });
+
+  // AC-2: a genuine red required check (a run concluded failure, none in
+  // flight) still classifies checks-failed on the first evidence-bearing
+  // probe — no budget signal required.
+  it('AC-2: a genuinely red required check with none in flight is checks-failed', () => {
+    const verdict = classifyMergeBlock({
+      prProbe: {
+        checksStatus: 'failure',
+        mergeStateStatus: 'BLOCKED',
+        requiredRunEvidence: {
+          requiredRunFailed: true,
+          requiredRunInFlight: false,
+        },
+      },
+    });
+    assert.equal(verdict.blockClass, 'checks-failed');
+    assert.equal(isValidBlockClass(verdict.blockClass), true);
+  });
+
+  it('an evidence-free failing rollup does not classify checks-failed at the classifier', () => {
+    // The classifier is single-probe: without per-run evidence it must not
+    // assert a red required check. The poll loop's consecutive-probe fallback
+    // synthesizes the evidence before handing a probe here.
+    const verdict = classifyMergeBlock({
+      prProbe: { checksStatus: 'failure', mergeStateStatus: 'BLOCKED' },
+    });
+    assert.notEqual(verdict.blockClass, 'checks-failed');
+  });
+
+  it('names the evidence path that produced a checks-failed verdict in the reason', () => {
+    for (const evidencePath of ['per-run', 'consecutive-probe']) {
+      const verdict = classifyMergeBlock({
+        prProbe: {
+          checksStatus: 'failure',
+          mergeStateStatus: 'BLOCKED',
+          requiredRunEvidence: {
+            requiredRunFailed: true,
+            requiredRunInFlight: false,
+          },
+          evidencePath,
+        },
+      });
+      assert.equal(verdict.blockClass, 'checks-failed');
+      assert.match(verdict.reason, new RegExp(`evidence=${evidencePath}`));
+    }
   });
 });

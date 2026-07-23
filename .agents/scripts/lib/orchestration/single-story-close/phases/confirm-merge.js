@@ -87,7 +87,9 @@ import {
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   deriveChecksStatus,
+  deriveRequiredRunEvidence,
   failingChecksBlockMerge,
+  requiredCheckFailedBlocksMerge,
 } from '../../merge-poll.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
@@ -164,6 +166,11 @@ export async function readPrWaitProbe({ prNumber, gh = defaultGh }) {
           ? view.reviewDecision
           : undefined,
       checksStatus: deriveChecksStatus(view?.statusCheckRollup),
+      // Head-anchored per-run evidence (Story #4695): distinguishes a
+      // genuinely red required run from the superseded / still-pending noise
+      // the aggregate `checksStatus` folds together. `null` when the rollup is
+      // absent/empty — the loop's consecutive-probe fallback owns that path.
+      requiredRunEvidence: deriveRequiredRunEvidence(view?.statusCheckRollup),
     };
   } catch (err) {
     return {
@@ -429,6 +436,12 @@ async function blockOnUnlanded({
     budget,
   });
   const elapsedSeconds = budget?.elapsedSeconds ?? 0;
+  // Which evidence path produced a `checks-failed` verdict (Story #4695):
+  // `per-run` (head-anchored required-run evidence) or `consecutive-probe`
+  // (the evidence-unavailable fallback). Named on the emitted record so the
+  // `merge.unlanded` telemetry attributes the fail-fast to the path that
+  // fired it. Absent for every other block class.
+  const evidencePath = prProbe?.evidencePath;
 
   if (Number.isInteger(prNumber) && prNumber > 0) {
     try {
@@ -439,6 +452,7 @@ async function blockOnUnlanded({
         blockClass,
         reason,
         elapsedSeconds,
+        ...(evidencePath ? { evidencePath } : {}),
       });
     } catch (err) {
       progress?.(
@@ -706,6 +720,12 @@ export async function runConfirmMergePhase({
   let anchorMs = startedAtMs;
   let updatesUsed = 0;
   let polls = 0;
+  // Consecutive failing check probes observed WITHOUT per-run evidence
+  // (Story #4695). The evidence-unavailable fallback: a single failing rollup
+  // snapshot never fail-fasts — two consecutive failing probes at least one
+  // poll interval apart are required. Reset on any non-failing (or genuinely
+  // evidenced) probe.
+  let consecutiveRequiredFailSnapshots = 0;
 
   progress?.(
     'CONFIRM',
@@ -782,32 +802,81 @@ export async function runConfirmMergePhase({
       });
     }
 
-    // Fail fast on a red REQUIRED check. No remaining budget turns a failed
-    // check green, and waiting it out is what made the pre-#4543 wait report
-    // the operator's red test run as a branch-protection block.
-    //
-    // Gated on `failingChecksBlockMerge`, not on the raw rollup: a red
-    // OPTIONAL check does not stop native auto-merge, so failing fast on it
-    // would block the Story while the PR lands anyway.
+    // Fail fast on a GENUINELY red REQUIRED check — head-anchored (Story
+    // #4695). No remaining budget turns a failed check green, and waiting it
+    // out is what made the pre-#4543 wait report the operator's red test run
+    // as a branch-protection block. But the raw `failingChecksBlockMerge` gate
+    // (rollup `failure` + `mergeStateStatus: BLOCKED`) also matched a merely
+    // *pending* PR: the aggregate rollup reads `failure` for a cancelled
+    // superseded run, and `BLOCKED` is the steady state while required checks
+    // are queued — so this fail-fast hard-blocked Stories whose PRs merged
+    // untouched. The decision is now gated on head-anchored evidence.
     if (failingChecksBlockMerge(probe)) {
-      progress?.(
-        'CONFIRM',
-        `🛑 PR #${prNumber}: a required check went red — failing fast rather than burning the budget.`,
-      );
-      return blockOnUnlanded({
-        storyId,
-        prNumber,
-        prUrl,
-        prProbe: probe,
-        budget: {
-          exhausted: false,
-          elapsedSeconds: Math.round(waitedMs / 1000),
-        },
-        provider,
-        progress,
-        classifyMergeBlockFn,
-        emitMergeUnlandedFn,
-      });
+      const evidence = probe.requiredRunEvidence;
+      if (evidence) {
+        // Per-run evidence available — decide on this single probe.
+        if (requiredCheckFailedBlocksMerge(probe)) {
+          progress?.(
+            'CONFIRM',
+            `🛑 PR #${prNumber}: a required check concluded failure with none in flight — failing fast (evidence=per-run).`,
+          );
+          return blockOnUnlanded({
+            storyId,
+            prNumber,
+            prUrl,
+            prProbe: { ...probe, evidencePath: 'per-run' },
+            budget: {
+              exhausted: false,
+              elapsedSeconds: Math.round(waitedMs / 1000),
+            },
+            provider,
+            progress,
+            classifyMergeBlockFn,
+            emitMergeUnlandedFn,
+          });
+        }
+        // A required run is still in flight (or only non-required / superseded
+        // runs are red): the protected-branch pending steady state, not a
+        // failure. Keep polling — never hard-block.
+        consecutiveRequiredFailSnapshots = 0;
+      } else {
+        // Per-run evidence unavailable (older gh / API error): require TWO
+        // consecutive failing probes at least one poll interval apart before
+        // fail-fast — a single failing rollup snapshot is never sufficient.
+        consecutiveRequiredFailSnapshots += 1;
+        if (consecutiveRequiredFailSnapshots >= 2) {
+          progress?.(
+            'CONFIRM',
+            `🛑 PR #${prNumber}: two consecutive failing check probes without per-run evidence — failing fast (evidence=consecutive-probe).`,
+          );
+          return blockOnUnlanded({
+            storyId,
+            prNumber,
+            prUrl,
+            // Synthesize the evidence the classifier's gate reads, so both
+            // paths classify `checks-failed` through the same predicate.
+            prProbe: {
+              ...probe,
+              requiredRunEvidence: {
+                requiredRunFailed: true,
+                requiredRunInFlight: false,
+              },
+              evidencePath: 'consecutive-probe',
+            },
+            budget: {
+              exhausted: false,
+              elapsedSeconds: Math.round(waitedMs / 1000),
+            },
+            provider,
+            progress,
+            classifyMergeBlockFn,
+            emitMergeUnlandedFn,
+          });
+        }
+        // First failing snapshot without evidence — keep polling.
+      }
+    } else {
+      consecutiveRequiredFailSnapshots = 0;
     }
 
     if (
