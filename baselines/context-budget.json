@@ -1,10 +1,10 @@
 {
   "$schema": "https://mandrel.dev/baselines/context-budget.schema.json",
-  "generatedAt": "2026-07-21T13:34:32.679Z",
+  "generatedAt": "2026-07-23T14:47:38.792Z",
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
-      "totalBytes": 30736,
+      "totalBytes": 21314,
       "files": [
         {
           "path": ".agentrc.json",
@@ -12,11 +12,11 @@
         },
         {
           "path": ".agents/instructions.md",
-          "bytes": 16719
+          "bytes": 9154
         },
         {
           "path": ".agents/rules/git-conventions.md",
-          "bytes": 4979
+          "bytes": 3122
         },
         {
           "path": ".agents/rules/security-baseline.md",
@@ -33,11 +33,11 @@
       ]
     },
     "mandatoryRead": {
-      "totalBytes": 360282,
+      "totalBytes": 360398,
       "files": [
         {
           "path": "docs/architecture.md",
-          "bytes": 85694
+          "bytes": 85810
         },
         {
           "path": "docs/data-dictionary.md",
@@ -59,11 +59,19 @@
     "files": [
       {
         "path": ".agents/agents/acceptance-critic.md",
-        "bytes": 6269
+        "bytes": 7854
+      },
+      {
+        "path": ".agents/agents/auditor.md",
+        "bytes": 7945
+      },
+      {
+        "path": ".agents/agents/plan-critic.md",
+        "bytes": 5158
       },
       {
         "path": ".agents/agents/story-worker.md",
-        "bytes": 7994
+        "bytes": 7317
       }
     ]
   }
