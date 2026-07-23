@@ -1509,6 +1509,10 @@
       "symbol": "CONSOLIDATION_STORY_THRESHOLD"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
+      "symbol": "evaluateExternalDependencyProbe"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "symbol": "MAX_LEDGER_BYTES"
     },
