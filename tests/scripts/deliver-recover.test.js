@@ -356,11 +356,18 @@ describe('deliver-recover — recoverStory', () => {
         },
       },
       gitSpawnFn: gitStub,
+      sleepFn: async () => {},
     });
     assert.equal(recovery.storyBranch, 'story-4543');
     assert.equal(recovery.shape, 'closing-pr-pending');
     assert.equal(recovery.probes.ticket.lease, 'dsj1984');
     assert.equal(recovery.nextCommand, NEXT_COMMANDS.resumeLand(STORY_ID));
+    // Transient shape, unchanged across the settle window → stable verdict.
+    assert.deepEqual(recovery.stability, {
+      reprobed: true,
+      stable: true,
+      delayMs: 5000,
+    });
   });
 
   it('throws a named error when the ticket itself is unreadable', async () => {
@@ -395,5 +402,155 @@ describe('deliver-recover — recoverStory', () => {
     assert.match(rendered, /Evidence:/);
     assert.match(rendered, /Next command:/);
     assert.match(rendered, /single-story-confirm-merge\.js --story 4543/);
+  });
+});
+
+describe('deliver-recover — stability re-probe (mid-flight strands)', () => {
+  const gitStub = (_cwd, ...args) =>
+    args[0] === 'worktree'
+      ? { status: 0, stdout: 'worktree /repo/.worktrees/story-4543\n' }
+      : { status: 0, stdout: '' };
+
+  const executingProvider = () => ({
+    calls: 0,
+    getTicket: async function () {
+      this.calls += 1;
+      return {
+        id: STORY_ID,
+        state: 'open',
+        title: 'x',
+        labels: ['agent::executing'],
+        assignees: ['dsj1984'],
+      };
+    },
+  });
+
+  it('a shape that flips between probes reports in-transition, not the first guess (the #4712 strand)', async () => {
+    // Probe 1 lands before the close's push/PR-open; probe 2 lands after.
+    let prCalls = 0;
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider: executingProvider(),
+      gh: {
+        pr: {
+          list: async () => {
+            prCalls += 1;
+            return prCalls === 1
+              ? []
+              : [{ number: 4715, url: 'https://x/4715', state: 'OPEN' }];
+          },
+        },
+      },
+      gitSpawnFn: gitStub,
+      sleepFn: async () => {},
+    });
+    assert.equal(recovery.shape, 'in-transition');
+    assert.equal(recovery.nextCommand, NEXT_COMMANDS.recover(STORY_ID));
+    assert.deepEqual(recovery.stability, {
+      reprobed: true,
+      stable: false,
+      delayMs: 5000,
+    });
+    assert.ok(recovery.evidence.includes('probe1.shape=executing-no-pr'));
+    assert.ok(recovery.evidence.includes('probe2.shape=executing-with-pr'));
+    assert.match(recovery.detail, /actively\s+mutating/);
+  });
+
+  it('a transient shape stable across the settle window returns the fresher verdict', async () => {
+    const provider = executingProvider();
+    let prCalls = 0;
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider,
+      gh: {
+        pr: {
+          list: async () => {
+            prCalls += 1;
+            return [];
+          },
+        },
+      },
+      gitSpawnFn: gitStub,
+      sleepFn: async () => {},
+    });
+    assert.equal(recovery.shape, 'executing-no-pr');
+    assert.equal(provider.calls, 2);
+    assert.equal(prCalls, 2);
+    assert.deepEqual(recovery.stability, {
+      reprobed: true,
+      stable: true,
+      delayMs: 5000,
+    });
+  });
+
+  it('a settled shape (blocked) never pays the second probe', async () => {
+    const provider = {
+      calls: 0,
+      getTicket: async function () {
+        this.calls += 1;
+        return {
+          id: STORY_ID,
+          state: 'open',
+          title: 'x',
+          labels: ['agent::blocked'],
+          assignees: ['dsj1984'],
+        };
+      },
+    };
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider,
+      gh: { pr: { list: async () => [] } },
+      gitSpawnFn: gitStub,
+      sleepFn: async () => {
+        throw new Error('settled shapes must not sleep');
+      },
+    });
+    assert.equal(recovery.shape, 'blocked');
+    assert.equal(provider.calls, 1);
+    assert.deepEqual(recovery.stability, { reprobed: false });
+  });
+
+  it('reprobe: false restores the single-probe verdict even for transient shapes', async () => {
+    const provider = executingProvider();
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider,
+      gh: { pr: { list: async () => [] } },
+      gitSpawnFn: gitStub,
+      reprobe: false,
+      sleepFn: async () => {
+        throw new Error('reprobe:false must not sleep');
+      },
+    });
+    assert.equal(recovery.shape, 'executing-no-pr');
+    assert.equal(provider.calls, 1);
+    assert.deepEqual(recovery.stability, { reprobed: false });
+  });
+
+  it('the settle window is configurable and reaches the sleep seam', async () => {
+    const delays = [];
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider: executingProvider(),
+      gh: { pr: { list: async () => [] } },
+      gitSpawnFn: gitStub,
+      stabilityDelayMs: 1234,
+      sleepFn: async (ms) => {
+        delays.push(ms);
+      },
+    });
+    assert.deepEqual(delays, [1234]);
+    assert.equal(recovery.stability.delayMs, 1234);
   });
 });
