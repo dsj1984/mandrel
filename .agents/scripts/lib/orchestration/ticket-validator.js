@@ -3,11 +3,12 @@ import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
-import {
-  parse as parseStoryBody,
-  StoryBodyParseError,
-} from '../story-body/story-body.js';
 import { validateStoryFileAssumptions } from './file-assumptions.js';
+import { computeSpecBudgetFindings } from './spec-budget.js';
+import {
+  assertStoryBodiesParse,
+  parseStoryBodyOrThrow,
+} from './story-body-gate.js';
 import {
   computeConflictFindings,
   renderHardConflictError,
@@ -47,63 +48,6 @@ function collectPathsFromText(text, paths) {
 }
 
 /**
- * Parse a Story's serialized markdown body, translating a
- * `StoryBodyParseError` into a `ValidationError` that names the offending
- * **section** and **entry** (Story #4541).
- *
- * `StoryBodyParseError` already carries `field` (the section the parser was
- * reading) and `raw` (the entry text that failed); this lifts both into an
- * operator-legible message and a structured `violation` payload so an
- * authoring loop can point at the exact bullet instead of re-deriving it
- * from a downstream freshness miss.
- *
- * @param {object} story Story whose `body` is a non-empty markdown string.
- * @returns {object} The structured body.
- * @throws {ValidationError} `code: 'story-body-unparseable'`.
- */
-function parseStoryBodyOrThrow(story) {
-  try {
-    return parseStoryBody(story.body).body;
-  } catch (err) {
-    if (!(err instanceof StoryBodyParseError)) throw err;
-    const slug = story.slug ?? '<unknown>';
-    const section = err.field ?? 'body';
-    const entry = err.raw ?? null;
-    const entryLine = entry === null ? '' : `\n      entry: ${entry}`;
-    const violation = { slug, section, entry, reason: err.message };
-    const error = new ValidationError(
-      `Cross-Validation Failed: Story "${slug}" has an unparseable body — ` +
-        `the ## ${section} section could not be read: ${err.message}` +
-        `${entryLine}\n\nFix the offending entry; this is a malformed body, ` +
-        'not a stale path reference.',
-      { violations: [violation] },
-    );
-    error.code = 'story-body-unparseable';
-    error.violations = [violation];
-    throw error;
-  }
-}
-
-/**
- * Refuse the plan when any Story's serialized body cannot be parsed, before
- * either git-probe gate runs (Story #4541). Ordering matters: the freshness
- * gate consults `body.changes` for its net-new whitelist, so an unparseable
- * body used to reach the operator as a freshness miss naming declared paths.
- *
- * @param {{ tickets: object[] }} opts
- * @throws {ValidationError} `code: 'story-body-unparseable'` on the first
- *   offending Story.
- */
-function assertStoryBodiesParse({ tickets }) {
-  for (const story of (tickets ?? []).filter((t) => t.type === 'story')) {
-    if (typeof story.body !== 'string' || story.body.trim().length === 0) {
-      continue;
-    }
-    parseStoryBodyOrThrow(story);
-  }
-}
-
-/**
  * Resolve every acceptance line a Story declares, across both authoring
  * shapes (Story #4541).
  *
@@ -133,69 +77,6 @@ function resolveAcceptanceLines(story) {
     for (const item of bodyAcceptance) lines.add(String(item ?? ''));
   }
   return [...lines];
-}
-
-/**
- * Soft advisory word budget for a Story's inline `## Spec` (Story #4723).
- * ~250 words is the #4707 contract-level-prose target: interfaces,
- * invariants, and load-bearing constraints — not route-by-route behavior
- * narration. Distinct from the hard ~1500-token fail-closed ceiling in
- * `spec-spill.js`: this budget only warns; it never fails the persist.
- */
-export const SPEC_SOFT_WORD_BUDGET = 250;
-
-/**
- * Resolve a Story's Spec prose across both authoring shapes: the canonical
- * serialized string body (parsed; `## Spec` text block) and the
- * pre-serialize structured object body (`body.spec`). Returns `''` when
- * absent. Callers run after `assertStoryBodiesParse`, so a string body
- * parses here.
- *
- * @param {object} story
- * @returns {string}
- */
-function resolveSpecText(story) {
-  const body = story?.body;
-  if (typeof body === 'string' && body.trim().length > 0) {
-    const spec = parseStoryBodyOrThrow(story).spec;
-    return typeof spec === 'string' ? spec : '';
-  }
-  if (body !== null && typeof body === 'object') {
-    return typeof body.spec === 'string' ? body.spec : '';
-  }
-  return '';
-}
-
-/**
- * Advisory `## Spec` length pass (Story #4723). Emits one `'soft'` finding
- * per Story whose Spec prose exceeds {@link SPEC_SOFT_WORD_BUDGET} words,
- * nudging the author toward contract-level prose (#4707). Soft only — the
- * findings never reach the validator's `errors[]` channel, so an
- * over-budget Spec never fails the persist.
- *
- * @param {{ stories: object[] }} opts
- * @returns {object[]} Zero or more `spec-word-budget` findings.
- */
-function computeSpecBudgetFindings({ stories }) {
-  const findings = [];
-  for (const story of stories ?? []) {
-    const words = resolveSpecText(story).split(/\s+/).filter(Boolean).length;
-    if (words <= SPEC_SOFT_WORD_BUDGET) continue;
-    findings.push({
-      kind: 'spec-word-budget',
-      severity: 'soft',
-      ticketSlug: story.slug ?? '<unknown>',
-      words,
-      budget: SPEC_SOFT_WORD_BUDGET,
-      message:
-        `Story "${story.slug ?? '<unknown>'}" ## Spec is ~${words} words ` +
-        `(soft budget ${SPEC_SOFT_WORD_BUDGET}). Prefer contract-level prose ` +
-        '(interfaces, invariants, load-bearing constraints with their why) ' +
-        'over per-file behavior narration — advisory only; the persist ' +
-        'proceeds.',
-    });
-  }
-  return findings;
 }
 
 function collectTaskPathReferences(task) {
