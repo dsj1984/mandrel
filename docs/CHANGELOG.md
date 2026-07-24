@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.12.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.11.0...mandrel-v2.12.0) (2026-07-24)
+
+
+### Performance
+
+* **orchestration:** cut deliver-path cost — inline single-Story dispatch, bounded close output, bundled reads (refs [#4736](https://github.com/dsj1984/mandrel/issues/4736)) ([#4737](https://github.com/dsj1984/mandrel/issues/4737)) ([81e62a8](https://github.com/dsj1984/mandrel/commit/81e62a87ca49add2aeb5b5a6b9ac11014edc3374))
+
+
+### Changed
+
+* **orchestration:** thread injectedRules seam through route composition layers ([#4734](https://github.com/dsj1984/mandrel/issues/4734)) ([6e1daad](https://github.com/dsj1984/mandrel/commit/6e1daadbc24210fdb34e4892c0077256f2ccd051))
+
 ## [2.11.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.10.0...mandrel-v2.11.0) (2026-07-23)
 
 
