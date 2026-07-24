@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.13.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.12.0...mandrel-v2.13.0) (2026-07-24)
+
+
+### Added
+
+* **orchestration:** add /deliver-light — validated single-session delivery with full gates (refs [#4740](https://github.com/dsj1984/mandrel/issues/4740)) ([#4742](https://github.com/dsj1984/mandrel/issues/4742)) ([605c20b](https://github.com/dsj1984/mandrel/commit/605c20b5ce9c17c6dc7c40356a2e496bb2f25a44))
+* plan-phase turn diet: same artifacts, fewer round-trips, amendment-aware envelope ([#4741](https://github.com/dsj1984/mandrel/issues/4741)) ([#4744](https://github.com/dsj1984/mandrel/issues/4744)) ([65b6790](https://github.com/dsj1984/mandrel/commit/65b67900ae58aea8a15e8a96e28895b1283df079))
+
 ## [2.12.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.11.0...mandrel-v2.12.0) (2026-07-24)
 
 
