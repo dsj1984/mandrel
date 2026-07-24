@@ -120,11 +120,14 @@ export const LITE_ROUTE_LABEL = 'route::lite';
  *                             surfaces is where trivial-looking work stops
  *                             being trivial.
  *
- * Module-private, exposed as the `ceilings` field on every
- * {@link deriveStoryShape} decision — so there is no test-only export to
- * leave production-dead.
+ * Exposed as the `ceilings` field on every {@link deriveStoryShape} decision
+ * and exported directly (Story #4740) so the `/deliver-light` suitability gate
+ * ({@link module:lib/orchestration/light-suitability}) judges a prompt's
+ * predicted footprint against the **same** ceilings the plan-time shape
+ * backstop applies — one source, so the light entry point and the plan path can
+ * never disagree about what shape is trivial.
  */
-const STORY_SHAPE_CEILINGS = Object.freeze({
+export const STORY_SHAPE_CEILINGS = Object.freeze({
   maxChanges: 2,
   maxAcceptance: 3,
   maxNonCreateChanges: 1,
