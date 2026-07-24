@@ -21,6 +21,7 @@ import { readFile } from 'node:fs/promises';
 import { getLimits } from '../config-resolver.js';
 import { findSimilarOpenStories } from '../duplicate-search.js';
 import { Logger } from '../Logger.js';
+import { parse as parseStoryBody } from '../story-body/story-body.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
@@ -354,6 +355,111 @@ function resolveRiskHeuristics(config = {}) {
 }
 
 /**
+ * Ceilings a seed's advisory complexity signals must fit for the plan
+ * workflow to **suggest** `/deliver-light` at Gate #1 (Story #4741 R3 plan-side
+ * handshake). Framework constants, not operator knobs — mirroring the
+ * conservative intent of `complexity-gate.js`'s `STORY_SHAPE_CEILINGS`
+ * (small, mostly-additive, non-sensitive) but read against the *seed-time*
+ * signals rather than an authored Story shape.
+ *
+ * The suggestion is **advisory only and never an automatic reroute**: it
+ * surfaces at Gate #1 for the operator to decide, and under `--yes` it is
+ * recorded on the envelope while planning proceeds unchanged. `/deliver-light`
+ * is a sibling Story; these ceilings define the plan side of the routing
+ * handshake independently of it.
+ *
+ *   - `maxArtifacts`           — enumerated seed items (one artifact each).
+ *   - `maxRiskHeuristicHits`   — any risk-heuristic hit disqualifies: risk
+ *                                is exactly what a light path should not carry.
+ *   - `maxSensitivePathClasses`— any sensitive-path class disqualifies, the
+ *                                same taxonomy close applies to a landed diff.
+ */
+const DELIVER_LIGHT_SUGGESTION_CEILINGS = Object.freeze({
+  maxArtifacts: 2,
+  maxRiskHeuristicHits: 0,
+  maxSensitivePathClasses: 0,
+});
+
+/**
+ * Derive the advisory `/deliver-light` suggestion from a seed's complexity
+ * signals (Story #4741 AC-6). Pure and total: a malformed / missing signal
+ * bag fails conservative (not suggested), never throws.
+ *
+ * `automatic: false` is part of the contract — the suggestion is surfaced for
+ * the operator, never a silent reroute of a non-interactive run.
+ *
+ * @param {object|null|undefined} complexitySignals
+ * @returns {{
+ *   suggested: boolean,
+ *   automatic: false,
+ *   advisory: true,
+ *   ceilings: typeof DELIVER_LIGHT_SUGGESTION_CEILINGS,
+ *   reasons: string[],
+ * }}
+ */
+export function buildDeliverLightSuggestion(complexitySignals) {
+  const ceilings = DELIVER_LIGHT_SUGGESTION_CEILINGS;
+  const advisory = /** @type {const} */ (true);
+  const automatic = /** @type {const} */ (false);
+  const s = complexitySignals ?? {};
+  const artifactCount = Number.isInteger(s.artifactCount)
+    ? s.artifactCount
+    : Number.POSITIVE_INFINITY;
+  const riskHits = Array.isArray(s.riskHeuristicHits)
+    ? s.riskHeuristicHits.length
+    : Number.POSITIVE_INFINITY;
+  const sensitive = Array.isArray(s.sensitivePathClasses)
+    ? s.sensitivePathClasses.length
+    : Number.POSITIVE_INFINITY;
+
+  const reasons = [];
+  if (artifactCount > ceilings.maxArtifacts) {
+    reasons.push(
+      `seed enumerates ${artifactCount} artifacts (> ${ceilings.maxArtifacts})`,
+    );
+  }
+  if (riskHits > ceilings.maxRiskHeuristicHits) {
+    reasons.push(`seed hits ${riskHits} risk-heuristic phrase(s)`);
+  }
+  if (sensitive > ceilings.maxSensitivePathClasses) {
+    reasons.push(
+      `predicted footprint touches ${sensitive} sensitive-path class(es)`,
+    );
+  }
+
+  const suggested = reasons.length === 0;
+  return {
+    suggested,
+    automatic,
+    advisory,
+    ceilings,
+    reasons: suggested
+      ? [
+          `seed fits the /deliver-light ceilings (≤${ceilings.maxArtifacts} artifacts, ` +
+            'no risk-heuristic hits, no sensitive-path classes) — the operator ' +
+            'may prefer /deliver-light for this scope',
+        ]
+      : reasons,
+  };
+}
+
+/**
+ * Attach the advisory `/deliver-light` suggestion to a complexity-signals bag
+ * as a **nested** field (Story #4741). Nesting — rather than a new top-level
+ * envelope key — keeps every existing per-mode envelope key set byte-stable
+ * (AC-5): the suggestion is derived from the signals it rides on.
+ *
+ * @param {object} complexitySignals
+ * @returns {object} the same signals plus `deliverLightSuggestion`.
+ */
+function withDeliverLightSuggestion(complexitySignals) {
+  return {
+    ...complexitySignals,
+    deliverLightSuggestion: buildDeliverLightSuggestion(complexitySignals),
+  };
+}
+
+/**
  * Count top-level enumerated items (`- `, `* `, `1. `) under the first
  * scope-shaped `## ` heading (Scope / MVP Scope / Proposed Scope / Work
  * Breakdown / Capabilities), up to the next `## ` heading. Returns `null`
@@ -588,13 +694,17 @@ async function buildSeedFileModeEnvelope({
     seed: { path: seedFilePath ?? null, content },
     // Advisory complexity signals only (Story #4722): no route, no routing
     // authority. The planner authors the trivial-vs-standard verdict; persist
-    // validates a lite claim against the authored Story's shape.
-    complexitySignals: buildComplexitySignals({
-      seedText: content,
-      config,
-      riskHeuristics: heuristics,
-      cwd,
-    }),
+    // validates a lite claim against the authored Story's shape. The nested
+    // `deliverLightSuggestion` is the advisory plan-side routing handshake
+    // (Story #4741 AC-6) — never an automatic reroute.
+    complexitySignals: withDeliverLightSuggestion(
+      buildComplexitySignals({
+        seedText: content,
+        config,
+        riskHeuristics: heuristics,
+        cwd,
+      }),
+    ),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
@@ -748,12 +858,14 @@ async function buildTicketsModeEnvelope({
     mode: 'tickets',
     sourceTickets,
     seed: { text: seed, path: null },
-    complexitySignals: buildComplexitySignals({
-      seedText: seed,
-      config,
-      riskHeuristics: heuristics,
-      cwd,
-    }),
+    complexitySignals: withDeliverLightSuggestion(
+      buildComplexitySignals({
+        seedText: seed,
+        config,
+        riskHeuristics: heuristics,
+        cwd,
+      }),
+    ),
     duplicates,
     docsContext,
     codebaseSnapshot: authoring.codebaseSnapshot,
@@ -780,6 +892,122 @@ async function buildTicketsModeEnvelope({
 }
 
 /**
+ * Parse a prior Story body into its acceptance criteria and delivered file
+ * map. Total: an unparseable body degrades to empty lists (a delta envelope
+ * grounded on whatever survived), never a throw.
+ *
+ * @param {string} priorBody
+ * @returns {{ priorAcceptance: string[], deliveredFiles: string[] }}
+ */
+function extractPriorArtifacts(priorBody) {
+  let parsed;
+  try {
+    parsed = parseStoryBody(priorBody).body;
+  } catch {
+    return { priorAcceptance: [], deliveredFiles: [] };
+  }
+  const priorAcceptance = Array.isArray(parsed.acceptance)
+    ? parsed.acceptance.filter((a) => typeof a === 'string' && a.length > 0)
+    : [];
+  const deliveredFiles = Array.isArray(parsed.changes)
+    ? parsed.changes
+        .map((c) => (c && typeof c === 'object' ? c.path : c))
+        .filter((p) => typeof p === 'string' && p.length > 0)
+    : [];
+  return { priorAcceptance, deliveredFiles };
+}
+
+/**
+ * Build the amendment (delta) envelope — `plan-context --amends #<id>`
+ * (Story #4741 AC-4, R3-A). The heavy-amendment counterpart to routing a
+ * light amendment through `/deliver-light`: instead of re-interrogating the
+ * repo from scratch (`buildAuthoringContext`'s codebase snapshot and the BDD /
+ * memory / feedback probes), the envelope composes a DELTA from what already
+ * exists — the prior Story's body, its acceptance criteria (the real
+ * contract), and its delivered file map — so a follow-up change plans from the
+ * shape already shipped.
+ *
+ * The semantic steps that reach the ticket are preserved: the open-Story
+ * duplicate search (excluding the amended Story itself), the risk heuristics,
+ * and the authoring system prompts all still ride the envelope. What is
+ * dropped is only the from-scratch repo interrogation the prior artifacts
+ * already stand in for — that is the round-trip diet, not an amputation.
+ *
+ * @param {{
+ *   amendsId: number,
+ *   provider: object,
+ *   config: object,
+ *   settings: object,
+ *   cwd?: string,
+ * }} args
+ * @returns {Promise<object>}
+ */
+async function buildAmendmentModeEnvelope({
+  amendsId,
+  provider,
+  config,
+  settings: _settings,
+  cwd,
+}) {
+  if (!provider || typeof provider.getTicket !== 'function') {
+    throw new Error(
+      '[plan-context] --amends requires provider.getTicket() to load the prior Story.',
+    );
+  }
+  const prior = await provider.getTicket(amendsId);
+  if (!prior) {
+    throw new Error(
+      `[plan-context] --amends #${amendsId}: prior Story not found — nothing to amend.`,
+    );
+  }
+  const priorBody = typeof prior.body === 'string' ? prior.body : '';
+  const { priorAcceptance, deliveredFiles } = extractPriorArtifacts(priorBody);
+
+  const heuristics = resolveRiskHeuristics(config);
+  const limits = getLimits(config);
+  const duplicates = await searchStoryDuplicates({
+    seed: priorBody,
+    provider,
+    config,
+    excludeIds: [amendsId],
+  });
+
+  return {
+    mode: 'amends',
+    amends: {
+      id: Number(prior.id ?? prior.number ?? amendsId),
+      title: prior.title ?? '',
+      priorBody,
+      priorAcceptance,
+      deliveredFiles,
+    },
+    // The prior body is the seed the delta is authored against.
+    seed: { text: priorBody, path: null },
+    complexitySignals: withDeliverLightSuggestion(
+      buildComplexitySignals({
+        seedText: priorBody,
+        config,
+        riskHeuristics: heuristics,
+        cwd,
+      }),
+    ),
+    duplicates,
+    // No plan temp dir and no from-scratch repo interrogation — the prior
+    // artifacts are the grounding, so there is no docs digest to anchor.
+    docsContext: null,
+    ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
+    maxTickets: limits.maxTickets,
+    riskHeuristics: heuristics,
+    systemPrompts: buildSystemPrompts({
+      heuristics,
+      maxTickets: limits.maxTickets,
+    }),
+    planState: null,
+    planProfile: 'story-amendment',
+  };
+}
+
+/**
  * Build the single planner-context envelope.
  *
  * Every mode returns through here, which makes this the one place the
@@ -787,11 +1015,12 @@ async function buildTicketsModeEnvelope({
  * bound it (see {@link assertPlanContextWithinCeiling}).
  *
  * @param {{
- *   mode: 'seed-file'|'seed'|'tickets',
+ *   mode: 'seed-file'|'seed'|'tickets'|'amends',
  *   seedFilePath?: string,
  *   seedFileContent?: string,
  *   seedText?: string,
  *   ticketIds?: number[],
+ *   amendsId?: number,
  *   provider: object,
  *   config: object,
  *   settings: object,
@@ -805,6 +1034,7 @@ export async function buildPlanContext({
   seedFileContent,
   seedText,
   ticketIds,
+  amendsId,
   provider,
   config = {},
   settings = {},
@@ -817,6 +1047,7 @@ export async function buildPlanContext({
       seedFileContent,
       seedText,
       ticketIds,
+      amendsId,
       provider,
       config,
       settings,
@@ -835,11 +1066,21 @@ async function buildPlanContextEnvelope({
   seedFileContent,
   seedText,
   ticketIds,
+  amendsId,
   provider,
   config,
   settings,
   cwd,
 }) {
+  if (mode === 'amends') {
+    return buildAmendmentModeEnvelope({
+      amendsId,
+      provider,
+      config,
+      settings,
+      cwd,
+    });
+  }
   if (mode === 'seed-file') {
     if (!seedFilePath && typeof seedFileContent !== 'string') {
       throw new Error(
@@ -875,6 +1116,6 @@ async function buildPlanContextEnvelope({
     });
   }
   throw new Error(
-    `[plan-context] unknown mode "${mode}" — expected "seed", "seed-file", or "tickets".`,
+    `[plan-context] unknown mode "${mode}" — expected "seed", "seed-file", "tickets", or "amends".`,
   );
 }

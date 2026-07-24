@@ -36,6 +36,7 @@ import { describe, it } from 'node:test';
 import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
 import { buildComplexitySignals } from '../.agents/scripts/lib/orchestration/complexity-gate.js';
 import {
+  buildDeliverLightSuggestion,
   buildDeliveryShapeSignal,
   buildPlanContext,
   buildScopeTriageSignal,
@@ -56,11 +57,15 @@ import {
   validateTaskBodies,
 } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
 import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
+import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
 } from '../.agents/scripts/lib/templates/spec-author-prompts.js';
-import { emitPlanContext } from '../.agents/scripts/plan-context.js';
+import {
+  emitPlanContext,
+  parseAmendsId,
+} from '../.agents/scripts/plan-context.js';
 
 const CLEAR_EPIC_BODY = `# Widget Epic
 
@@ -985,5 +990,217 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
       assert.match(entry, VERIFY_TIER_RE);
     }
     await rm(dir, { recursive: true, force: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #4741 — plan-phase turn diet.
+// ---------------------------------------------------------------------------
+
+/** A shipped Story body the amendment envelope composes its delta from. */
+const PRIOR_STORY_BODY = serialize({
+  goal: 'Ship the widget exporter.',
+  changes: [
+    { path: 'lib/export/widget.js', assumption: 'creates' },
+    { path: 'lib/export/index.js', assumption: 'refactors-existing' },
+  ],
+  acceptance: [
+    'The exporter writes a valid CSV.',
+    'Empty input yields an empty file.',
+  ],
+  verify: ['npm test (unit)'],
+  reason_to_exist: 'Users need a widget export.',
+});
+
+describe('plan-context deliverLightSuggestion (Story #4741 AC-6)', () => {
+  it('suggests /deliver-light for a scope inside the ceilings — advisory, never automatic', () => {
+    const s = buildDeliverLightSuggestion({
+      artifactCount: 1,
+      riskHeuristicHits: [],
+      sensitivePathClasses: [],
+    });
+    assert.equal(s.suggested, true);
+    // The two contract flags: advisory, and NEVER an automatic reroute.
+    assert.equal(s.advisory, true);
+    assert.equal(s.automatic, false);
+    assert.match(s.reasons[0], /deliver-light ceilings/);
+  });
+
+  it('does not suggest when the seed exceeds the artifact ceiling', () => {
+    const s = buildDeliverLightSuggestion({
+      artifactCount: 5,
+      riskHeuristicHits: [],
+      sensitivePathClasses: [],
+    });
+    assert.equal(s.suggested, false);
+    assert.match(s.reasons[0], /5 artifacts/);
+  });
+
+  it('does not suggest when a risk heuristic hits — risk is what a light path must not carry', () => {
+    const s = buildDeliverLightSuggestion({
+      artifactCount: 1,
+      riskHeuristicHits: ['touches auth'],
+      sensitivePathClasses: [],
+    });
+    assert.equal(s.suggested, false);
+    assert.match(s.reasons.join(' '), /risk-heuristic/);
+  });
+
+  it('does not suggest when the predicted footprint touches a sensitive-path class', () => {
+    const s = buildDeliverLightSuggestion({
+      artifactCount: 1,
+      riskHeuristicHits: [],
+      sensitivePathClasses: ['auth'],
+    });
+    assert.equal(s.suggested, false);
+    assert.match(s.reasons.join(' '), /sensitive-path/);
+  });
+
+  it('fails conservative (not suggested) on a missing / malformed signal bag', () => {
+    assert.equal(buildDeliverLightSuggestion(null).suggested, false);
+    assert.equal(buildDeliverLightSuggestion({}).suggested, false);
+    assert.equal(buildDeliverLightSuggestion(undefined).suggested, false);
+  });
+
+  it('rides the seed envelope nested under complexitySignals — no new top-level key (AC-5)', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      // ONE_PAGER enumerates 2 scope items and no risk/sensitive signal — it
+      // fits the ceilings, so the nested suggestion fires.
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    // AC-5: the top-level key set is byte-stable — the suggestion is nested.
+    assert.deepEqual(Object.keys(env).sort(), SEED_MODE_KEYS);
+    assert.equal(env.complexitySignals.deliverLightSuggestion.suggested, true);
+    assert.equal(env.complexitySignals.deliverLightSuggestion.automatic, false);
+  });
+});
+
+describe('plan-context parseAmendsId (Story #4741 AC-4)', () => {
+  it('accepts a bare id and a #-prefixed id', () => {
+    assert.equal(parseAmendsId('4700'), 4700);
+    assert.equal(parseAmendsId('#4700'), 4700);
+    assert.equal(parseAmendsId('  #12 '), 12);
+  });
+
+  it('rejects a non-positive or non-integer id', () => {
+    assert.throws(() => parseAmendsId(''), /requires a single prior Story id/);
+    assert.throws(() => parseAmendsId('0'), /positive integer/);
+    assert.throws(() => parseAmendsId('nope'), /positive integer/);
+  });
+});
+
+describe('plan-context amends mode — delta envelope (Story #4741 AC-4)', () => {
+  function amendsProvider(body = PRIOR_STORY_BODY) {
+    const provider = buildProvider();
+    provider.getTicket = async (id) => ({
+      id,
+      number: id,
+      title: 'Widget exporter',
+      body,
+      labels: ['type::story'],
+    });
+    return provider;
+  }
+
+  it('composes the delta from the prior body, acceptance, and delivered file map', async () => {
+    const env = await buildPlanContext({
+      mode: 'amends',
+      amendsId: 4700,
+      provider: amendsProvider(),
+      config: { github: { owner: 'o', repo: 'r' } },
+      settings: {},
+    });
+    assert.equal(env.mode, 'amends');
+    assert.equal(env.planProfile, 'story-amendment');
+    assert.equal(env.amends.id, 4700);
+    assert.equal(env.amends.priorBody, PRIOR_STORY_BODY);
+    assert.deepEqual(env.amends.priorAcceptance, [
+      'The exporter writes a valid CSV.',
+      'Empty input yields an empty file.',
+    ]);
+    assert.deepEqual(env.amends.deliveredFiles, [
+      'lib/export/widget.js',
+      'lib/export/index.js',
+    ]);
+  });
+
+  it('carries a delta, NOT a from-scratch repo interrogation', async () => {
+    const env = await buildPlanContext({
+      mode: 'amends',
+      amendsId: 4700,
+      provider: amendsProvider(),
+      config: {},
+      settings: {},
+    });
+    // The whole point of R3-A: none of the heavy authoring-context repo probes
+    // ride the amendment envelope — the prior artifacts stand in for them.
+    for (const heavy of [
+      'codebaseSnapshot',
+      'bddRunner',
+      'bddScenarios',
+      'memoryFreshness',
+      'priorFeedback',
+      'sourceTickets',
+    ]) {
+      assert.ok(!(heavy in env), `${heavy} must not ride the amends envelope`);
+    }
+    // But the semantic steps that reach the ticket are preserved (AC-2):
+    // duplicate detection, risk heuristics, and the authoring prompts.
+    assert.ok(Array.isArray(env.duplicates));
+    assert.ok(Array.isArray(env.riskHeuristics));
+    assert.equal(typeof env.systemPrompts.story, 'string');
+    assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
+  });
+
+  it('runs duplicate detection over the prior body, excluding the amended Story itself', async () => {
+    const provider = amendsProvider();
+    const env = await buildPlanContext({
+      mode: 'amends',
+      amendsId: 9,
+      provider,
+      config: { github: { owner: 'o', repo: 'r' } },
+      settings: {},
+    });
+    const direct = await findSimilarOpenStories({
+      seed: PRIOR_STORY_BODY,
+      provider,
+      owner: 'o',
+      repo: 'r',
+      excludeIds: [9],
+    });
+    assert.deepEqual(env.duplicates, direct);
+  });
+
+  it('throws when the prior Story is not found', async () => {
+    const provider = buildProvider();
+    provider.getTicket = async () => null;
+    await assert.rejects(
+      () =>
+        buildPlanContext({
+          mode: 'amends',
+          amendsId: 999,
+          provider,
+          config: {},
+          settings: {},
+        }),
+      /prior Story not found/,
+    );
+  });
+
+  it('degrades to empty prior-artifact lists on an unparseable prior body', async () => {
+    const env = await buildPlanContext({
+      mode: 'amends',
+      amendsId: 4700,
+      // An unstructured body has no ## Acceptance / ## Changes sections.
+      provider: amendsProvider('just some freeform prose, no sections'),
+      config: {},
+      settings: {},
+    });
+    assert.deepEqual(env.amends.priorAcceptance, []);
+    assert.deepEqual(env.amends.deliveredFiles, []);
   });
 });

@@ -44,6 +44,15 @@
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
+ *   --chain-on-clean          Plan-diet fast path (Story #4741): run the
+ *                             write-free dry-run first, and — only when it
+ *                             passes clean AND the plan resolves to the `lite`
+ *                             route — chain straight into the real persist in
+ *                             the SAME invocation, collapsing the two operator
+ *                             round-trips into one. A dry-run failure stops
+ *                             before any createIssue; a full-route plan keeps
+ *                             its review round-trip (the chain declines, no
+ *                             writes). Ignored when `--dry-run` is also set
  *   --force-review            Operator-forced review stop before persist lands
  *   --allow-over-budget / --allow-large-fan-out
  *
@@ -111,6 +120,7 @@ const CLI_OPTIONS = {
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
+  'chain-on-clean': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
   'allow-over-budget': { type: 'boolean', default: false },
   'allow-large-fan-out': { type: 'boolean', default: false },
@@ -122,7 +132,7 @@ const USAGE =
   '[--plan-acceptance <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
   '[--route-downgrade-reason <text>] ' +
-  '[--dry-run] [--force-review] ' +
+  '[--dry-run] [--chain-on-clean] [--force-review] ' +
   '[--allow-over-budget] [--allow-large-fan-out]';
 
 async function readOptional(filePath, { required }) {
@@ -229,8 +239,11 @@ async function runPersistInvocation({
   provider,
   artifacts,
   metricsSince,
+  dryRun,
 }) {
   const paths = resolveInputPaths(values);
+  const effectiveDryRun =
+    typeof dryRun === 'boolean' ? dryRun : values['dry-run'] === true;
   const settings = {
     baseBranch: config.project?.baseBranch,
     paths: config.project?.paths,
@@ -241,7 +254,7 @@ async function runPersistInvocation({
   return recordPlanInvocation(
     {
       cli: 'plan-persist',
-      mode: values['dry-run'] ? 'dry-run' : 'persist',
+      mode: effectiveDryRun ? 'dry-run' : 'persist',
       config,
     },
     () =>
@@ -252,10 +265,81 @@ async function runPersistInvocation({
         settings,
         opts: {
           ...buildPersistOptions(values, paths, artifacts.planContextEnvelope),
+          dryRun: effectiveDryRun,
+          skipCleanup: effectiveDryRun,
           metricsSince,
         },
       }),
   );
+}
+
+/**
+ * Plan-diet fast path (Story #4741 AC-1/AC-3): chain the lite dry-run into the
+ * real persist in ONE operator invocation.
+ *
+ * Two passes over the **same** loaded artifacts:
+ *
+ *   1. A write-free dry-run. Every gate runs before any `createIssue` can
+ *      happen, so a validation failure — which throws or returns reachability
+ *      orphans — stops here, before a single issue exists (AC-3).
+ *   2. The real write, run **only** when the dry-run passed clean AND resolved
+ *      to the `lite` route. Because it replays the identical artifacts, the
+ *      persisted output is byte-identical to what the dry-run validated
+ *      (AC-1). A full-route plan keeps its review round-trip: the chain
+ *      declines and returns the dry-run result, mutating nothing.
+ *
+ * Exported for tests — this is where the round-trip collapse and its
+ * fail-closed guard live, so a regression here silently re-opens the second
+ * operator round-trip (or worse, persists a plan the dry-run never gated).
+ *
+ * @param {{ values: object, config: object, provider: object,
+ *   artifacts: object, metricsSince: string }} args
+ * @returns {Promise<object>} the persist result, plus a `chain` receipt.
+ */
+export async function runPersistChain({
+  values,
+  config,
+  provider,
+  artifacts,
+  metricsSince,
+}) {
+  const dryResult = await runPersistInvocation({
+    values,
+    config,
+    provider,
+    artifacts,
+    metricsSince,
+    dryRun: true,
+  });
+
+  if (dryResult.route?.route !== 'lite') {
+    dryResult.chain = {
+      attempted: true,
+      persisted: false,
+      reason: 'route-not-lite',
+    };
+    Logger.info(
+      '[plan-persist] --chain-on-clean: dry-run clean but the plan did not ' +
+        'resolve to the lite route — declining the auto-persist; run persist ' +
+        'explicitly after review.',
+    );
+    return dryResult;
+  }
+
+  const persistResult = await runPersistInvocation({
+    values,
+    config,
+    provider,
+    artifacts,
+    metricsSince,
+    dryRun: false,
+  });
+  persistResult.chain = {
+    attempted: true,
+    persisted: true,
+    reason: 'lite-dry-run-clean',
+  };
+  return persistResult;
 }
 
 /**
@@ -318,15 +402,28 @@ async function main() {
   const paths = resolveInputPaths(values);
   const artifacts = await loadArtifacts(paths);
 
+  // `--chain-on-clean` collapses the dry-run + persist operator round-trips
+  // (Story #4741). `--dry-run` always wins — an explicit dry-run never writes.
+  const useChain =
+    values['chain-on-clean'] === true && values['dry-run'] !== true;
+
   let result;
   try {
-    result = await runPersistInvocation({
-      values,
-      config,
-      provider,
-      artifacts,
-      metricsSince,
-    });
+    result = useChain
+      ? await runPersistChain({
+          values,
+          config,
+          provider,
+          artifacts,
+          metricsSince,
+        })
+      : await runPersistInvocation({
+          values,
+          config,
+          provider,
+          artifacts,
+          metricsSince,
+        });
   } catch (err) {
     if (err?.code === 'PLAN_REACHABILITY_ORPHANS') {
       process.stdout.write(`${err.message}\n`);
