@@ -32,7 +32,7 @@ by `node .agents/scripts/generate-workflows-doc.js`; `npm run docs:check`
 fails when it drifts from the on-disk workflow set. To change a command’s
 description, edit the workflow file’s front-matter and regenerate.
 
-## Commands (24)
+## Commands (25)
 
 | Command | Description |
 | --- | --- |
@@ -53,6 +53,7 @@ description, edit the workflow file’s front-matter and regenerate.
 | `/audit-to-stories` | Convert findings produced by the audit-\* workflows into actionable GitHub Stories. Reads temp/audits/audit-\*-results.md, groups findings cross-audit, deduplicates against existing Issues by fingerprint, and either chains into /plan --seed-file or opens standalone Stories. |
 | `/audit-ux-ui` | Audit UX/UI consistency and design system adherence |
 | `/deliver` | Unified delivery entry point. Takes a list of Story ids, resolves their dependency graph from live state, and delivers each via the single deliver-story engine — story-<id> → PR → main. |
+| `/deliver-light` | Single-session delivery for genuinely small work. Judges a prompt's predicted footprint, authors a receipt Story, then lands it through the same single-story-init / single-story-close engine — every close gate unchanged. |
 | `/git-cleanup` | Tidy the local checkout in four phases: fast-forward `main`, prune stale remote-tracking refs, sweep merged branches (squash-aware), and triage `git stash` entries — each step gated by operator confirmation. |
 | `/git-deliver` | Single ad-hoc delivery command for working-tree changes. Detects the git setup and escalates to the right terminal step — commit only, commit + push, or commit + push + open a PR with native auto-merge — picking the default from observable state and letting flags pin any level explicitly. Replaces the retired git-commit-all, git-push, and git-pr-all trio. |
 | `/mandrel-update` | npm-era upgrade wraparound for a Mandrel consumer. Runs `npx mandrel update` (resolve newest published version → install → re-materialize `.agents/` → migrate → doctor → surface changelog) as the single mechanical step, then walks the operator through the judgment wraparound the CLI deliberately leaves unowned: reconcile `.agentrc.json`, install the Epic #1386 quality-gate surface, refresh the harness permission allowlist, reconcile the consumer's `AGENTS.md` / runbooks against the surfaced changelog, and stage + commit the staged lockfile bump. |

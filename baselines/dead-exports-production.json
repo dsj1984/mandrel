@@ -1493,6 +1493,14 @@
       "symbol": "reduceOutcomes"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/light-suitability.js",
+      "symbol": "LIGHT_DIFF_CEILINGS"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/light-suitability.js",
+      "symbol": "resolveLedgeredVerdict"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
       "symbol": "BLOCK_CLASSES"
     },
