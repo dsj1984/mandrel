@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,17 +50,17 @@ describe('/plan --yes headless flag — single plan.md path', () => {
   });
 
   it('states that /plan is a single path and no longer routes by scope verdict', () => {
-    assert.match(
+    assertDocMentions(
       planSource,
       /Single planning path/i,
       'plan.md must declare a single planning path',
     );
-    assert.match(
+    assertDocMentions(
       planSource,
-      /there is no\s*\n?Epic\/Story router/i,
+      /there is no Epic\/Story router/i,
       'plan.md must reject the retired Epic/Story router',
     );
-    assert.match(
+    assertDocMentions(
       planSource,
       /no scope-triage `epic\|story` verdict/i,
       'plan.md must reject scope-triage routing verdicts',
@@ -67,9 +68,9 @@ describe('/plan --yes headless flag — single plan.md path', () => {
   });
 
   it('defines the three-step Interrogate -> Author -> Persist ceremony', () => {
-    assert.match(planSource, /### 1\. Interrogate/);
-    assert.match(planSource, /### 2\. Author/);
-    assert.match(planSource, /### 3\. Persist/);
+    assertDocMentions(planSource, /### 1\. Interrogate/);
+    assertDocMentions(planSource, /### 2\. Author/);
+    assertDocMentions(planSource, /### 3\. Persist/);
   });
 });
 
@@ -121,26 +122,26 @@ describe('/plan --yes headless flag — gate #2', () => {
     // Story #4542: gate #2 is raised solely by --force-review — the
     // risk-derived routing that used to raise it is gone.
     assert.ok(persist, 'plan.md must carry the persist step');
-    assert.match(
+    assertDocMentions(
       persist,
       /\*\*Gate #2\*\*/,
       'gate #2 must anchor the persist step',
     );
-    assert.doesNotMatch(persist, /risk routing/i, 'gate #2 is not risk-routed');
-    assert.match(
+    assertDocOmits(persist, /risk routing/i, 'gate #2 is not risk-routed');
+    assertDocMentions(
       persist,
       /`--force-review`/,
       'gate #2 must be raised by --force-review',
     );
-    assert.match(
+    assertDocMentions(
       persist,
-      /before\s*\n?persist/i,
+      /before persist/i,
       'gate #2 must happen before persist',
     );
   });
 
   it('auto-proceeds gate #2 under --yes', () => {
-    assert.match(
+    assertDocMentions(
       persist,
       /Under `--yes`, auto-proceed/i,
       'gate #2 must auto-proceed under --yes',
@@ -150,7 +151,7 @@ describe('/plan --yes headless flag — gate #2', () => {
 
 describe('/plan --yes headless flag — v2 Stage 3 cutover guards', () => {
   it('keeps --yes scoped to HITL waits; deterministic gates still fail closed', () => {
-    assert.match(
+    assertDocMentions(
       planSource,
       /Deterministic gates[\s\S]*still fail closed under `--yes`/i,
       'plan.md must state --yes is not a validation override',
@@ -160,19 +161,19 @@ describe('/plan --yes headless flag — v2 Stage 3 cutover guards', () => {
   it('uses the story author prompt and default-single policy instead of deliveryShape routing', () => {
     const author = section('### 2\\. Author');
     assert.ok(author, 'plan.md must carry the author step');
-    assert.match(
+    assertDocMentions(
       author,
       /`stories\.json`[\s\S]*\*\*length 1 by default\*\*/i,
       'authoring must default to one Story',
     );
-    assert.match(
+    assertDocMentions(
       author,
       /Use the envelope `systemPrompts\.story`/i,
       'authoring must consume the story prompt from the envelope',
     );
-    assert.match(
+    assertDocMentions(
       author,
-      /Split only under the\s*\n?policy above/i,
+      /Split only under the policy above/i,
       'splitting must be controlled by the default-single policy',
     );
   });
@@ -181,8 +182,8 @@ describe('/plan --yes headless flag — v2 Stage 3 cutover guards', () => {
     // The authored risk verdict — and the deliveryShape field it once carried
     // — are retired. The author step must name neither artifact.
     const author = section('### 2\\. Author');
-    assert.doesNotMatch(author, /risk-verdict/i);
-    assert.doesNotMatch(author, /deliveryShape/i);
+    assertDocOmits(author, /risk-verdict/i);
+    assertDocOmits(author, /deliveryShape/i);
   });
 
   it('does not link to the deleted planning helpers', () => {
@@ -192,14 +193,14 @@ describe('/plan --yes headless flag — v2 Stage 3 cutover guards', () => {
       'helpers/scope-triage-gate.md',
       'helpers/plan-epic-reference.md',
     ]) {
-      assert.doesNotMatch(planSource, new RegExp(deleted.replace('.', '\\.')));
+      assertDocOmits(planSource, new RegExp(deleted.replace('.', '\\.')));
     }
   });
 
   it('keeps scope-triage as optional split-advisory notes only', () => {
-    assert.match(
+    assertDocMentions(
       planSource,
-      /optional\s*\n?\s*split-advisory notes only \(no routing verdict\)/i,
+      /optional split-advisory notes only \(no routing verdict\)/i,
       'scope-triage skill link must be advisory-only',
     );
   });

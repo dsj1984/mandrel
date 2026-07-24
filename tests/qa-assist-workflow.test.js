@@ -29,6 +29,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,18 +75,30 @@ describe('qa-assist workflow contract', () => {
   });
 
   it('defines Intake, Enrich, and Record phases', () => {
-    assert.match(source, /##\s+Phase 1 — Intake/, 'missing Intake section');
-    assert.match(source, /##\s+Phase 2 — Enrich/, 'missing Enrich section');
-    assert.match(source, /##\s+Phase 3 — Record/, 'missing Record section');
+    assertDocMentions(
+      source,
+      /##\s+Phase 1 — Intake/,
+      'missing Intake section',
+    );
+    assertDocMentions(
+      source,
+      /##\s+Phase 2 — Enrich/,
+      'missing Enrich section',
+    );
+    assertDocMentions(
+      source,
+      /##\s+Phase 3 — Record/,
+      'missing Record section',
+    );
   });
 
   it('frames the agent as a quality gatekeeper without a persona pack', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /quality gatekeeper/i,
       'workflow must frame QA role in prose',
     );
-    assert.doesNotMatch(
+    assertDocOmits(
       source,
       /personas\/qa-engineer\.md/,
       'workflow must not reference deleted persona files',
@@ -93,17 +106,17 @@ describe('qa-assist workflow contract', () => {
   });
 
   it('is human-led: ingests a human observation and asks clarifying questions when ambiguous', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /human-led/i,
       'workflow must declare itself human-led',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /observation/i,
       'workflow must ingest a human observation',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /clarifying questions[\s\S]*?ambiguous/i,
       'workflow must ask clarifying questions when the observation is ambiguous',
@@ -111,14 +124,14 @@ describe('qa-assist workflow contract', () => {
   });
 
   it('enriches with repro, root-cause file:line, and a coverage verdict', () => {
-    assert.match(source, /repro/i, 'must establish a repro');
-    assert.match(source, /root[\s-]cause/i, 'must locate a root cause');
-    assert.match(
+    assertDocMentions(source, /repro/i, 'must establish a repro');
+    assertDocMentions(source, /root[\s-]cause/i, 'must locate a root cause');
+    assertDocMentions(
       source,
       /file:line/i,
       'must name the root cause as a file:line locus',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /coverage verdict/i,
       'must compute a coverage verdict',
@@ -126,32 +139,40 @@ describe('qa-assist workflow contract', () => {
   });
 
   it('defaults to a persistent, resumable rolling session', () => {
-    assert.match(source, /persistent/i, 'must default to a persistent session');
-    assert.match(source, /resumable|resume/i, 'must be resumable');
-    assert.match(source, /rolling/i, 'must be a rolling session');
+    assertDocMentions(
+      source,
+      /persistent/i,
+      'must default to a persistent session',
+    );
+    assertDocMentions(source, /resumable|resume/i, 'must be resumable');
+    assertDocMentions(source, /rolling/i, 'must be a rolling session');
   });
 
   it('gates every phase transition and every write on explicit operator confirmation (HITL)', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /Intake\s*→\s*Enrich/,
       'must name the Intake → Enrich gate',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /Enrich\s*→\s*Record/,
       'must name the Enrich → Record gate',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /explicit operator confirmation/i,
       'transitions must require explicit operator confirmation',
     );
-    assert.match(source, /every write/i, 'every write must be operator-gated');
+    assertDocMentions(
+      source,
+      /every write/i,
+      'every write must be operator-gated',
+    );
   });
 
   it('redacts before any evidence reaches disk or GitHub', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /[Rr]edact[\s\S]*?(disk|GitHub|persist)/,
       'must redact before evidence reaches disk or GitHub',
@@ -183,7 +204,7 @@ describe('qa-assist workflow contract', () => {
   });
 
   it('writes its ledger under temp/qa/', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /temp\/qa\//,
       'workflow must write its ledger under temp/qa/',

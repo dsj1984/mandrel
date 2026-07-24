@@ -39,6 +39,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -88,18 +89,26 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('defines Plan, Capture, and Triage sections', () => {
-    assert.match(source, /##\s+Phase 1 — Plan/, 'missing Plan section');
-    assert.match(source, /##\s+Phase 2 — Capture/, 'missing Capture section');
-    assert.match(source, /##\s+Phase 3 — Triage/, 'missing Triage section');
+    assertDocMentions(source, /##\s+Phase 1 — Plan/, 'missing Plan section');
+    assertDocMentions(
+      source,
+      /##\s+Phase 2 — Capture/,
+      'missing Capture section',
+    );
+    assertDocMentions(
+      source,
+      /##\s+Phase 3 — Triage/,
+      'missing Triage section',
+    );
   });
 
   it('frames the agent as a quality gatekeeper without a persona pack', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /quality gatekeeper/i,
       'workflow must frame QA role in prose',
     );
-    assert.doesNotMatch(
+    assertDocOmits(
       source,
       /personas\/qa-engineer\.md/,
       'workflow must not reference deleted persona files',
@@ -107,18 +116,18 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('is agent-led: the agent drives the surface itself', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /agent-led/i,
       'workflow must declare itself agent-led',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /agent drives/i,
       'workflow must state that the agent drives the surface (not the human)',
     );
     // The Capture phase header must signal that the agent drives there.
-    assert.match(
+    assertDocMentions(
       source,
       /##\s+Phase 2 — Capture \(agent drives, READ-ONLY\)/,
       'Capture phase header must declare the agent drives, read-only',
@@ -129,17 +138,17 @@ describe('qa-explore workflow contract', () => {
     // The Plan phase must offer both driving methods as an explicit choice.
     const planSection =
       source.match(/##\s+Phase 1 — Plan([\s\S]*?)(?:\r?\n---\r?\n)/)?.[1] ?? '';
-    assert.match(
+    assertDocMentions(
       planSection,
       /Choose the driving method explicitly/i,
       'Plan phase must make the driving method an explicit choice',
     );
-    assert.match(
+    assertDocMentions(
       planSection,
       /Drive \(default\)/,
       'Plan phase must offer driving the running app as the default method',
     );
-    assert.match(
+    assertDocMentions(
       planSection,
       /Static \(documented interim\)/,
       'Plan phase must offer static driving as the documented interim method',
@@ -147,17 +156,17 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('drives via the browser MCP by default and static as the documented interim', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /browser MCP/i,
       'workflow must name the browser MCP as the default driving channel',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /navigation-first/i,
       'driving must be navigation-first',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /static driving|Static \(documented interim\)/i,
       'workflow must document static driving as the interim method',
@@ -165,12 +174,12 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('runs as a bounded per-surface session', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /bounded[\s\S]*?per-surface|per-surface[\s\S]*?bounded/i,
       'workflow must describe a bounded per-surface session',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /one surface per session|single bounded session over one named surface/i,
       'workflow must bound the session to a single named surface',
@@ -178,12 +187,12 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('removes the human-driven flow and points to /qa-assist for it', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /qa-assist/,
       'workflow must reference /qa-assist as the human-led sibling',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /No human-driven flow lives in `\/qa-explore`|no human-driven flow lives here/i,
       'workflow must declare that no human-driven flow remains in qa-explore',
@@ -191,7 +200,7 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('declares the Capture phase read-only', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /Capture[\s\S]*?read-only/i,
       'Capture phase must be declared read-only',
@@ -199,17 +208,17 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('holds the read-only capture invariant while the agent drives', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /Read-only invariant/i,
       'workflow must state the read-only capture invariant',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /Never type real credentials inline/i,
       'driving must never type real credentials inline for an authenticated surface',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /finding, not a workaround/i,
       'broken navigation must be recorded as a finding, not routed around',
@@ -219,17 +228,17 @@ describe('qa-explore workflow contract', () => {
   it('resolves the target environment via resolveQaEnvironment at Plan time', () => {
     const planSection =
       source.match(/##\s+Phase 1 — Plan([\s\S]*?)(?:\r?\n---\r?\n)/)?.[1] ?? '';
-    assert.match(
+    assertDocMentions(
       planSection,
       /resolveQaEnvironment/,
       'Plan phase must resolve the target environment via resolveQaEnvironment',
     );
-    assert.match(
+    assertDocMentions(
       planSection,
       /prompt/i,
       'Plan phase must prompt the operator when the target environment is ambiguous',
     );
-    assert.match(
+    assertDocMentions(
       planSection,
       /record the resolved\s+\*\*environment name\*\*/i,
       'Plan phase must record the resolved environment name on the ledger alongside the driving method',
@@ -239,24 +248,24 @@ describe('qa-explore workflow contract', () => {
   it('re-scopes static as the interim only where no seam resolves, not a forced authenticated fallback', () => {
     // The retired forced-fallback wording must be gone: exploratory QA can now
     // drive authenticated deployed surfaces through the per-environment seam.
-    assert.doesNotMatch(
+    assertDocOmits(
       source,
       /does not deliver/i,
       'the forced authenticated-driving fallback wording must be retired',
     );
     // Authenticated driving is now seam-based, including deployed hosts.
-    assert.match(
+    assertDocMentions(
       source,
       /signInSeam/,
       'authenticated driving must reference the per-environment signInSeam',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /credentialRef/,
       'the skill seam must reference credentialRef-indirected sign-in',
     );
     // Static is now scoped to the no-seam case, not the authenticated case.
-    assert.match(
+    assertDocMentions(
       source,
       /no seam resolves/i,
       'static must be documented as the interim only where no seam resolves',
@@ -271,17 +280,17 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('gates every phase transition on explicit operator confirmation (HITL)', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /Plan\s*→\s*Capture/,
       'must name the Plan → Capture gate',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /Capture\s*→\s*Triage/,
       'must name the Capture → Triage gate',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /explicit operator confirmation/i,
       'transitions must require explicit operator confirmation',
@@ -314,7 +323,7 @@ describe('qa-explore workflow contract', () => {
   });
 
   it('writes its ledger under temp/qa/', () => {
-    assert.match(
+    assertDocMentions(
       source,
       /temp\/qa\//,
       'workflow must write its ledger under temp/qa/',

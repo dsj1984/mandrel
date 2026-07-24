@@ -16,6 +16,8 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const DELIVER_MD = path.join(REPO_ROOT, '.agents', 'workflows', 'deliver.md');
@@ -40,16 +42,20 @@ describe('unified /deliver router', () => {
 
   it('hard-errors on Epic-attached or non-Story tickets', () => {
     const md = readFileSync(DELIVER_MD, 'utf8');
-    assert.match(md, /not `type::story`/);
-    assert.match(md, /Epic: #N/);
-    assert.match(md, /hard error/);
+    assertDocMentions(md, /not `type::story`/, 'must name the refused type');
+    assertDocMentions(md, /Epic: #N/, 'must name the v1 footer it refuses');
+    assertDocMentions(md, /hard error/, 'refusal must be a hard error');
   });
 
   it('the Story helper documents the direct PR-to-main branch model', () => {
     const md = readFileSync(DELIVER_STORY_MD, 'utf8');
     assert.match(md, /type::story/);
-    assert.match(md, /PR against main|PR to `main`|Merge target \| `main`/);
-    assert.match(md, /no `epic\/<id>`/i);
+    assertDocMentions(
+      md,
+      /PR against main|PR to `main`|Merge target \| `main`/,
+      'the helper must document the direct PR-to-main merge target',
+    );
+    assertDocMentions(md, /no `epic\/<id>`/i, 'no Epic integration branch');
   });
 
   it('deliver-story stays on the single-story init/close path (no epic/ wave merge)', () => {
@@ -61,8 +67,12 @@ describe('unified /deliver router', () => {
     // `single-story-close.js` (the live v2 path until Stage 5 merges pairs).
     assert.doesNotMatch(md, /(?<!single-)story-init\.js/);
     assert.doesNotMatch(md, /(?<!single-)story-close\.js/);
-    assert.match(md, /no `--no-ff` wave merge/);
-    assert.doesNotMatch(md, /helpers\/deliver-epic|git merge --no-ff/);
+    assertDocMentions(md, /no `--no-ff` wave merge/, 'no wave merge in v2');
+    assertDocOmits(
+      md,
+      /helpers\/deliver-epic|git merge --no-ff/,
+      'the Epic-era helper and wave merge must not reappear',
+    );
   });
 
   it('sequences N>1 via resolve-stories + stories-wave-tick + the epilogue', () => {
@@ -70,9 +80,10 @@ describe('unified /deliver router', () => {
     assert.match(md, /resolve-stories\.js/);
     assert.match(md, /stories-wave-tick\.js/);
     assert.match(md, /plan-run-epilogue\.js/);
-    assert.doesNotMatch(
+    assertDocOmits(
       md,
       /resolveEpicDeliveryRoute|wave-tick\.js --check-idle/,
+      'the Epic-era route resolver and idle check are retired',
     );
   });
 
@@ -98,9 +109,10 @@ describe('unified /deliver router', () => {
     );
     // The opt-in contract must be spelled out so the flag is threaded through
     // only when the operator explicitly passed one.
-    assert.match(
+    assertDocMentions(
       md,
       /Do not add `--concurrency` unless the operator explicitly asked/,
+      'the opt-in contract for --concurrency must be spelled out',
     );
     assert.match(md, /\.agentrc\.local\.json/);
   });
@@ -114,7 +126,7 @@ describe('/deliver takes only Story ids (Story #4540)', () => {
       /> \*\*Retired \(Story #4540\)\.\*\*[\s\S]*?\n\n/,
       '',
     );
-    assert.doesNotMatch(
+    assertDocOmits(
       withoutTombstone,
       /`--run <planRunId>`|\| `--run`|--dep <from>/,
       'the ids-only entry point must not advertise --run or --dep',
@@ -128,12 +140,16 @@ describe('/deliver takes only Story ids (Story #4540)', () => {
 
   it('never instructs the host to read depends_on from bodies by hand', () => {
     const md = readFileSync(DELIVER_MD, 'utf8');
-    assert.doesNotMatch(
+    assertDocOmits(
       md,
       /read `depends_on` \/ `blocked by` from each body/,
       'the graph is resolved from live state, not transcribed by the host',
     );
-    assert.match(md, /discovered, not declared|resolved.*from live state/i);
+    assertDocMentions(
+      md,
+      /discovered, not declared|resolved.*from live state/i,
+      'the doc must say the graph is discovered from live state',
+    );
   });
 
   it('drives the beat from live state rather than hand-maintained flags (Story #4594)', () => {
@@ -149,12 +165,12 @@ describe('/deliver takes only Story ids (Story #4540)', () => {
     // tests/wave-runner/live-probe.test.js) instead of by operator prose.
     const md = readFileSync(DELIVER_MD, 'utf8');
     assert.match(md, /--stories <id,id,\.\.\.> --probe-live/);
-    assert.doesNotMatch(
+    assertDocOmits(
       md,
       /Seed the first beat/,
       'the seed footgun is structurally impossible — it must not be re-documented',
     );
-    assert.doesNotMatch(
+    assertDocOmits(
       md,
       /--done <csv> --in-flight <n>/,
       'the loop must not ask the host to maintain done / in-flight by hand',

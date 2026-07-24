@@ -13,11 +13,12 @@
  * track the mechanism that actually runs.
  */
 
-import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,12 +42,12 @@ const configDoc = readFileSync(CONFIG_DOC_PATH, 'utf8');
 
 describe('/deliver navigability journey-suite contract (Epic #4131 F1/F4)', () => {
   it('keeps navigability journey-suite config tied to the per-Story ceremony', () => {
-    assert.match(
+    assertDocMentions(
       configDoc,
-      /quality\.navigability[\s\S]*per-Story ceremony/,
+      /quality\.navigability.*per-Story ceremony/,
       'configuration docs must tie navigability to the per-Story ceremony',
     );
-    assert.match(
+    assertDocMentions(
       configDoc,
       /journey suite|journeySuite/,
       'configuration docs must still name the journey suite',
@@ -54,12 +55,12 @@ describe('/deliver navigability journey-suite contract (Epic #4131 F1/F4)', () =
   });
 
   it('documents the per-Story derived-level ceremony in /deliver', () => {
-    assert.match(
+    assertDocMentions(
       source,
-      /derived level[\s\S]*review depth/i,
+      /derived level.*review depth/i,
       '/deliver must name the derived-level ceremony it actually runs',
     );
-    assert.match(
+    assertDocMentions(
       source,
       /ceremony-routing\.js/,
       '/deliver must name the routing mechanism for the ceremony',
@@ -70,7 +71,15 @@ describe('/deliver navigability journey-suite contract (Epic #4131 F1/F4)', () =
     // Story #4542: three shipped docs claimed `resolveAuditLenses` ran inside
     // close while it had zero callers. Deleting the module without this guard
     // would let the claim creep back.
-    assert.doesNotMatch(source, /resolveAuditLenses|audit-lens-routing/);
-    assert.doesNotMatch(source, /risk-routed/i);
+    assertDocOmits(
+      source,
+      /resolveAuditLenses|audit-lens-routing/,
+      '/deliver must not advertise the deleted risk-routed audit-lens router',
+    );
+    assertDocOmits(
+      source,
+      /risk-routed/i,
+      'ceremony is routed off the derived change level, never a risk verdict',
+    );
   });
 });
