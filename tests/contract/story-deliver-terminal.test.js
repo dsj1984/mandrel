@@ -9,8 +9,12 @@
  * agree" with an enforced shape.
  *
  * It pins:
- *   - the status enum is exactly landed | pending | blocked | failed (no
- *     fifth status can be smuggled in);
+ *   - the status enum is exactly landed | pending | blocked | failed |
+ *     escalated, and the builder rejects anything else — no status can be
+ *     smuggled in without landing here first (Story #4746 added `escalated`
+ *     deliberately, and this suite is where that had to be argued);
+ *   - `escalated` is the pre-Story terminal: storyId null, an escalation block
+ *     whose `created` flags are structurally false, and its own exit code;
  *   - the builder VALIDATES and throws rather than emitting a malformed
  *     terminal — a silently-wrong terminal is the failure mode the envelope
  *     exists to eliminate;
@@ -29,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { setLevel } from '../../.agents/scripts/lib/Logger.js';
 import { MERGE_UNLANDED_BLOCK_CLASSES } from '../../.agents/scripts/lib/orchestration/merge-block-class.js';
 import {
+  buildEscalationTerminal,
   buildTerminalEnvelope,
   emitTerminalEnvelope,
   exitCodeForTerminal,
@@ -64,12 +69,17 @@ const CLEAN_TAIL = {
 };
 
 describe('story-deliver-terminal — the status contract', () => {
-  it('the schema admits exactly four statuses, and no more', () => {
+  it('the schema admits exactly these five statuses, and no more', () => {
+    // A closed list, not a growing one. Story #4746 added `escalated` because
+    // /deliver-light needed an outcome that ends a session before a Story
+    // exists; the point of pinning the list is that the next addition has to
+    // be argued here rather than appearing in a diff nobody reads.
     assert.deepEqual(SCHEMA.properties.status.enum, [
       'landed',
       'pending',
       'blocked',
       'failed',
+      'escalated',
     ]);
     assert.deepEqual([...TERMINAL_STATUSES], SCHEMA.properties.status.enum);
   });
@@ -113,6 +123,124 @@ describe('story-deliver-terminal — the status contract', () => {
     // from "hard block, come look" without parsing stdout.
     assert.notEqual(TERMINAL_EXIT_CODES.pending, TERMINAL_EXIT_CODES.landed);
     assert.notEqual(TERMINAL_EXIT_CODES.pending, TERMINAL_EXIT_CODES.blocked);
+    // Story #4746 — escalation delivered nothing, so it must not read as a
+    // land; it is also not a block, so it must not be diagnosed as one.
+    assert.equal(TERMINAL_EXIT_CODES.escalated, 2);
+    assert.notEqual(TERMINAL_EXIT_CODES.escalated, TERMINAL_EXIT_CODES.landed);
+    assert.notEqual(TERMINAL_EXIT_CODES.escalated, TERMINAL_EXIT_CODES.blocked);
+  });
+});
+
+describe('story-deliver-terminal — escalated (Story #4746)', () => {
+  const ESCALATION_REASONS = [
+    'shape: changes[] declares 7 entries (> maxChanges 2)',
+    '--yes on over-scope fails closed to /plan (never silently proceeds light)',
+  ];
+
+  it('is the pre-Story terminal: null storyId, /plan next command, exit 2', () => {
+    const env = buildEscalationTerminal({
+      prompt: 'rework the whole billing pipeline',
+      reasons: ESCALATION_REASONS,
+      elapsedSeconds: 0.4,
+    });
+    assert.equal(env.status, 'escalated');
+    assert.equal(env.phase, 'suitability-gate');
+    assert.equal(env.storyId, null);
+    assert.equal(exitCodeForTerminal(env), 2);
+    assert.match(env.nextCommand, /^\/plan "/);
+    assert.match(env.nextCommand, /billing pipeline/);
+    assert.deepEqual(env.escalation.reasons, ESCALATION_REASONS);
+  });
+
+  it('records per artifact that nothing was started, and cannot claim otherwise', () => {
+    const env = buildEscalationTerminal({
+      prompt: 'overhaul auth',
+      reasons: ESCALATION_REASONS,
+    });
+    assert.deepEqual(env.escalation.created, {
+      receiptStory: false,
+      storyBranch: false,
+      worktree: false,
+    });
+    // The flags are pinned by the schema, not merely produced by the builder:
+    // an envelope asserting it authored a receipt Story is unbuildable.
+    const { valid } = validateTerminalEnvelope({
+      ...env,
+      escalation: {
+        ...env.escalation,
+        created: { ...env.escalation.created, receiptStory: true },
+      },
+    });
+    assert.equal(
+      valid,
+      false,
+      'an escalated run must not be able to claim it created a Story',
+    );
+  });
+
+  it('refuses to name a Story it did not create', () => {
+    const { valid } = validateTerminalEnvelope({
+      kind: TERMINAL_ENVELOPE_KIND,
+      storyId: 4746,
+      status: 'escalated',
+      phase: 'suitability-gate',
+      escalation: {
+        reasons: ESCALATION_REASONS,
+        created: { receiptStory: false, storyBranch: false, worktree: false },
+      },
+      nextCommand: '/plan "x"',
+      elapsedSeconds: 0,
+    });
+    assert.equal(valid, false);
+  });
+
+  it('keeps the escalation block out of every other status', () => {
+    const { valid } = validateTerminalEnvelope({
+      kind: TERMINAL_ENVELOPE_KIND,
+      storyId: 4746,
+      status: 'landed',
+      phase: 'post-land',
+      escalation: {
+        reasons: ['sneaking in'],
+        created: { receiptStory: false, storyBranch: false, worktree: false },
+      },
+      nextCommand: null,
+      elapsedSeconds: 1,
+    });
+    assert.equal(valid, false);
+  });
+
+  it('still requires an integer storyId for the four Story-bearing statuses', () => {
+    for (const status of ['landed', 'pending', 'blocked', 'failed']) {
+      const { valid } = validateTerminalEnvelope({
+        kind: TERMINAL_ENVELOPE_KIND,
+        storyId: null,
+        status,
+        phase: 'confirm-merge',
+        nextCommand: null,
+        elapsedSeconds: 0,
+      });
+      assert.equal(valid, false, `${status} must still name its Story`);
+    }
+  });
+
+  it('refuses an escalation with no prompt to hand /plan', () => {
+    // `/plan ""` is the walk-past-able non-outcome in envelope clothing.
+    assert.throws(
+      () =>
+        buildEscalationTerminal({ prompt: '   ', reasons: ESCALATION_REASONS }),
+      /non-empty prompt is required/,
+    );
+  });
+
+  it('quotes the prompt so it cannot break out of the next command', () => {
+    const env = buildEscalationTerminal({
+      prompt: 'add "smart" quotes\nand a \\ backslash',
+      reasons: ESCALATION_REASONS,
+    });
+    assert.equal(env.nextCommand.split('\n').length, 1);
+    assert.match(env.nextCommand, /\\"smart\\"/);
+    assert.match(env.nextCommand, /\\\\ backslash/);
   });
 });
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/story-deliver-terminal.schema.json",
   "title": "story-deliver-terminal",
-  "description": "The single terminal envelope every Story close-and-land invocation emits (Story #4543). Before this schema, the delivery tail had two divergent prose return contracts — one in .agents/workflows/helpers/deliver-story.md, a different one in .agents/agents/story-worker.md — and neither was validated by anything, so a caller could not tell a landed Story from a parked one without re-probing GitHub. This is the SSOT both now reference rather than restate. status is exactly one of landed | pending | blocked | failed; phase names where the run ended; tail carries per-step booleans so a partial-tail degradation is visible without failing an otherwise-landed merge; nextCommand names the single command that resumes or remediates the run, drawn from the same vocabulary deliver-recover.js prints.",
+  "description": "The single terminal envelope a Story delivery invocation emits (Story #4543). Before this schema, the delivery tail had two divergent prose return contracts — one in .agents/workflows/helpers/deliver-story.md, a different one in .agents/agents/story-worker.md — and neither was validated by anything, so a caller could not tell a landed Story from a parked one without re-probing GitHub. This is the SSOT both now reference rather than restate. status is exactly one of landed | pending | blocked | failed | escalated; phase names where the run ended; tail carries per-step booleans so a partial-tail degradation is visible without failing an otherwise-landed merge; nextCommand names the single command that resumes or remediates the run, drawn from the same vocabulary deliver-recover.js prints. escalated (Story #4746) is the one status emitted BEFORE a Story exists — /deliver-light's suitability gate refusing an over-scope prompt — which is why storyId is null exactly there and non-null everywhere else.",
   "type": "object",
   "required": [
     "kind",
@@ -14,16 +14,21 @@
   ],
   "properties": {
     "kind": { "type": "string", "const": "story-deliver-terminal" },
-    "storyId": { "type": "integer", "minimum": 1 },
+    "storyId": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "The Story this envelope reports on. null ONLY for status escalated, where the run refused before authoring a receipt Story — the allOf below pins that correspondence in both directions, so an escalated envelope cannot name a Story it did not create and a landed one cannot omit the Story it landed."
+    },
     "status": {
       "type": "string",
-      "description": "landed — the PR merged, the Story is agent::done, and the post-land tail was attempted. pending — a bounded wait expired with the PR still in flight; NO label was mutated and no merge.unlanded event was emitted, so the run is resumable via nextCommand. blocked — a classified hard block; the Story carries agent::blocked and blocked.blockClass names the class. failed — a phase crashed; phase names which one.",
-      "enum": ["landed", "pending", "blocked", "failed"]
+      "description": "landed — the PR merged, the Story is agent::done, and the post-land tail was attempted. pending — a bounded wait expired with the PR still in flight; NO label was mutated and no merge.unlanded event was emitted, so the run is resumable via nextCommand. blocked — a classified hard block; the Story carries agent::blocked and blocked.blockClass names the class. failed — a phase crashed; phase names which one. escalated — the /deliver-light suitability gate refused an over-scope prompt under --yes; nothing was created and the session ENDS here, nextCommand naming the /plan invocation that owns the work instead.",
+      "enum": ["landed", "pending", "blocked", "failed", "escalated"]
     },
     "phase": {
       "type": "string",
-      "description": "The pipeline phase the run ended in. Mirrors the close pipeline's phase names so a terminal envelope is attributable to one step.",
+      "description": "The pipeline phase the run ended in. Mirrors the close pipeline's phase names so a terminal envelope is attributable to one step. suitability-gate precedes them all — it is the /deliver-light gate, the only phase that runs before a Story exists.",
       "enum": [
+        "suitability-gate",
         "init",
         "wrong-tree-guard",
         "close-validation",
@@ -130,9 +135,35 @@
       },
       "additionalProperties": false
     },
+    "escalation": {
+      "type": ["object", "null"],
+      "description": "Present iff status === \"escalated\" (Story #4746). The suitability gate's decision was already correct before this block existed — what was missing was an outcome a session could not walk past. reasons carries the gate's own words; created records, per artifact, that the run started nothing.",
+      "required": ["reasons", "created"],
+      "properties": {
+        "reasons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "The gate's reasons verbatim — the same strings the ask-operator path prints, so attended and unattended over-scope explain themselves identically."
+        },
+        "created": {
+          "type": "object",
+          "description": "Per-artifact proof that an escalated run left nothing half-started for a later run to trip over. Deliberately three const-false booleans rather than one aggregate flag or a bare omission: an omitted field reads as \"not checked\", and an aggregate is exactly the shape that let the post-land tail once report an outcome it never verified. Every value is pinned false by the schema, so an escalated envelope claiming it authored a receipt Story, cut a branch, or materialized a worktree cannot be built at all.",
+          "required": ["receiptStory", "storyBranch", "worktree"],
+          "properties": {
+            "receiptStory": { "const": false },
+            "storyBranch": { "const": false },
+            "worktree": { "const": false }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "nextCommand": {
       "type": ["string", "null"],
-      "description": "The single command that advances this Story from where it stopped, or null when status === \"landed\" and nothing remains. Shares its vocabulary with deliver-recover.js so recovery and normal resumption speak one language."
+      "description": "The single command that advances this work from where it stopped, or null when status === \"landed\" and nothing remains. Shares its vocabulary with deliver-recover.js so recovery and normal resumption speak one language. For status escalated it is the /plan invocation the operator runs in a FRESH session — the one case where the command is a slash command rather than a script, because the work needs planning, not resumption.",
+      "minLength": 1
     },
     "elapsedSeconds": { "type": "number", "minimum": 0 },
     "waitBudget": {
@@ -148,5 +179,28 @@
     },
     "timestamp": { "type": "string", "format": "date-time" }
   },
+  "allOf": [
+    {
+      "description": "escalated is the pre-Story terminal, and the correspondence is pinned in BOTH directions. An escalated envelope MUST carry the escalation block, MUST have a null storyId (it created none), and MUST name the next command that owns the work — so a run cannot report escalation while pointing at a Story it started. Every other status MUST carry an integer storyId and MUST NOT carry an escalation block, so the new status cannot leak into the close path.",
+      "if": {
+        "properties": { "status": { "const": "escalated" } },
+        "required": ["status"]
+      },
+      "then": {
+        "required": ["escalation"],
+        "properties": {
+          "storyId": { "type": "null" },
+          "escalation": { "type": "object" },
+          "nextCommand": { "type": "string", "minLength": 1 }
+        }
+      },
+      "else": {
+        "properties": {
+          "storyId": { "type": "integer", "minimum": 1 },
+          "escalation": { "type": "null" }
+        }
+      }
+    }
+  ],
   "additionalProperties": false
 }

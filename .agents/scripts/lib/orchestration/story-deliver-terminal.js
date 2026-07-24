@@ -61,6 +61,15 @@ export const TERMINAL_EXIT_CODES = Object.freeze({
   pending: 3,
   blocked: 1,
   failed: 1,
+  /**
+   * `escalated` reuses **2**, the code `/deliver-light` already documents for
+   * "the gate did not proceed light" — the escalation is that outcome made
+   * terminal, not a new one, so giving it a fresh code would fork a vocabulary
+   * callers already branch on. It stays distinct from `landed` (nothing was
+   * delivered) and from `blocked`/`failed` (nothing is wrong — the work simply
+   * belongs to `/plan`).
+   */
+  escalated: 2,
 });
 
 export const TERMINAL_STATUSES = Object.freeze([
@@ -68,13 +77,38 @@ export const TERMINAL_STATUSES = Object.freeze([
   'pending',
   'blocked',
   'failed',
+  'escalated',
 ]);
+
+/** Cap on the prompt echoed into an escalation's `/plan` next command. */
+const PLAN_PROMPT_MAX = 200;
+
+/**
+ * Render an operator prompt safe to sit inside the double quotes of the
+ * `/plan "<prompt>"` next command: collapse newlines (a next command is one
+ * line by contract), escape backslashes and double quotes so the quoting
+ * cannot be broken out of, and cap the length so a long prompt does not turn
+ * the envelope into a transcript. Total — a non-string yields the empty
+ * string, which the escalation builder rejects rather than emitting.
+ *
+ * @param {unknown} prompt
+ * @returns {string}
+ */
+function quoteForPlan(prompt) {
+  const text =
+    typeof prompt === 'string' ? prompt.replace(/\s+/g, ' ').trim() : '';
+  const capped =
+    text.length > PLAN_PROMPT_MAX
+      ? `${text.slice(0, PLAN_PROMPT_MAX - 1).trimEnd()}…`
+      : text;
+  return capped.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
 
 /**
  * The shared next-command vocabulary. Every producer of a "what now?"
- * answer — the `pending` terminal envelope and `deliver-recover.js` —
- * builds its command from here, so the two surfaces never drift into
- * naming different commands for the same observed state.
+ * answer — the `pending` terminal envelope, an `escalated` one, and
+ * `deliver-recover.js` — builds its command from here, so the surfaces never
+ * drift into naming different commands for the same observed state.
  */
 export const NEXT_COMMANDS = Object.freeze({
   /**
@@ -104,6 +138,18 @@ export const NEXT_COMMANDS = Object.freeze({
   /** Probe a stranded Story and print its single next command. */
   recover: (storyId) =>
     `node .agents/scripts/deliver-recover.js --story ${storyId}`,
+  /**
+   * Hand over-scope work to `/plan` — the next command of an `escalated`
+   * terminal (Story #4746).
+   *
+   * The only entry here that is a slash command rather than a script, and
+   * deliberately so: the other entries resume a Story that exists, while this
+   * one names work that has no Story yet and needs planning before it can have
+   * one. It is quoted for a shell but addressed to a **fresh session** — see
+   * the workflow's escalation section for why running it in the escalating
+   * session is forbidden.
+   */
+  escalateToPlan: (prompt) => `/plan "${quoteForPlan(prompt)}"`,
 });
 
 /** @type {Function|null} */
@@ -165,8 +211,9 @@ function compact(obj) {
  * this replaces.
  *
  * @param {object} args
- * @param {number} args.storyId
- * @param {'landed'|'pending'|'blocked'|'failed'} args.status
+ * @param {number|null} args.storyId `null` only for an `escalated` terminal,
+ *   which by construction never authored a Story.
+ * @param {'landed'|'pending'|'blocked'|'failed'|'escalated'} args.status
  * @param {string} args.phase
  * @param {string} [args.storyBranch]
  * @param {string} [args.baseBranch]
@@ -175,6 +222,7 @@ function compact(obj) {
  * @param {object|null} [args.tail]
  * @param {object|null} [args.blocked]
  * @param {object|null} [args.failure]
+ * @param {object|null} [args.escalation]
  * @param {string|null} [args.nextCommand]
  * @param {number} args.elapsedSeconds
  * @param {object|null} [args.waitBudget]
@@ -192,6 +240,7 @@ export function buildTerminalEnvelope({
   tail,
   blocked,
   failure,
+  escalation,
   nextCommand,
   elapsedSeconds = 0,
   waitBudget,
@@ -199,7 +248,10 @@ export function buildTerminalEnvelope({
 }) {
   const envelope = compact({
     kind: TERMINAL_ENVELOPE_KIND,
-    storyId: Number(storyId),
+    // `Number(null)` is 0, which would quietly satisfy nothing and confuse
+    // everything — a nullish storyId stays null and lets the schema decide
+    // whether this status is allowed to omit one.
+    storyId: storyId === null || storyId === undefined ? null : Number(storyId),
     status,
     phase,
     storyBranch: storyBranch ?? null,
@@ -209,6 +261,7 @@ export function buildTerminalEnvelope({
     tail: tail ?? null,
     blocked: blocked ?? null,
     failure: failure ?? null,
+    escalation: escalation ?? null,
     nextCommand: nextCommand ?? null,
     elapsedSeconds: Math.max(0, Number(elapsedSeconds) || 0),
     waitBudget: waitBudget ?? null,
@@ -223,6 +276,69 @@ export function buildTerminalEnvelope({
     );
   }
   return envelope;
+}
+
+/**
+ * Build the `escalated` terminal — the one envelope emitted before a Story
+ * exists (Story #4746).
+ *
+ * `/deliver-light`'s suitability gate already decided correctly when it
+ * overrode a `lite` self-verdict on shape; what it lacked was an outcome a
+ * session could not walk past. A mandrel-bench 2.13.0 light-arm run did
+ * exactly that — it read the gate's `escalate-plan`, then invoked `/plan`
+ * in the same session and delivered. The continuation was not harmless:
+ * planning inside a session already framed as small work authored ONE Story
+ * against the scenario's 3-5 contract, where a fresh `/plan` session on the
+ * identical seed authored four. Escalation silently produced the very
+ * under-decomposition the guard exists to prevent.
+ *
+ * So the outcome is a validated envelope with its own exit code, naming the
+ * `/plan` command that owns the work, and asserting per artifact that nothing
+ * was started. Every guarantee here is enforced by the schema rather than by
+ * prose: `storyId` must be null, `escalation.created.*` are pinned `false`.
+ *
+ * @param {{
+ *   prompt: string,
+ *   reasons?: string[],
+ *   elapsedSeconds?: number,
+ *   timestamp?: string,
+ * }} args
+ * @returns {object} The validated `escalated` envelope.
+ */
+export function buildEscalationTerminal({
+  prompt,
+  reasons,
+  elapsedSeconds = 0,
+  timestamp,
+}) {
+  const quoted = quoteForPlan(prompt);
+  if (quoted === '') {
+    // An escalation whose next command is `/plan ""` hands the operator
+    // nothing — the same walk-past-able non-outcome in envelope clothing.
+    throw new TypeError(
+      'buildEscalationTerminal: a non-empty prompt is required — the escalated terminal exists to name the /plan invocation that owns the work',
+    );
+  }
+  const recorded = (Array.isArray(reasons) ? reasons : []).filter(
+    (r) => typeof r === 'string' && r.trim() !== '',
+  );
+  return buildTerminalEnvelope({
+    storyId: null,
+    status: 'escalated',
+    phase: 'suitability-gate',
+    escalation: {
+      reasons:
+        recorded.length > 0
+          ? recorded
+          : ['predicted scope exceeds the light ceilings — escalate to /plan'],
+      // Not computed from anything: the escalation path returns before the
+      // receipt/init call sites, so these are the assertion that it did.
+      created: { receiptStory: false, storyBranch: false, worktree: false },
+    },
+    nextCommand: NEXT_COMMANDS.escalateToPlan(prompt),
+    elapsedSeconds,
+    ...(timestamp === undefined ? {} : { timestamp }),
+  });
 }
 
 /**
