@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.14.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.13.0...mandrel-v2.14.0) (2026-07-24)
+
+
+### Added
+
+* **deliver-light:** make escalate-plan a terminal outcome (refs [#4746](https://github.com/dsj1984/mandrel/issues/4746)) ([#4747](https://github.com/dsj1984/mandrel/issues/4747)) ([53f3151](https://github.com/dsj1984/mandrel/commit/53f3151cff5a22e8ce938ec286cc2898985eb892))
+
 ## [2.13.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.12.0...mandrel-v2.13.0) (2026-07-24)
 
 
