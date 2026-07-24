@@ -20,6 +20,12 @@
 //   - AC-6: --amends is shape-checked identically (small → light, heavy → plan);
 //   - AC-7: /deliver-light projects into the generated command tree;
 //   - AC-8: the light entry contains no parallel init/close implementation.
+//
+// Story #4746 makes the escalate-plan OUTCOME terminal rather than advisory.
+// The gate's decision is untouched (the describes above still pass verbatim);
+// what is new is that over-scope under --yes emits a schema-validated
+// `escalated` terminal envelope, starts nothing, and ends the session — see
+// the final three describes.
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -28,13 +34,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
 import {
   buildNextCommands,
   buildPredictedChanges,
   createLightReceipt,
   parseCsvPaths,
   runDiffBackstop,
+  runGateMode,
   runLightGate,
   synthesizeAcceptance,
 } from '../../../.agents/scripts/deliver-light.js';
@@ -46,6 +52,12 @@ import {
   resolveLedgeredVerdict,
   resolveLightGateOutcome,
 } from '../../../.agents/scripts/lib/orchestration/light-suitability.js';
+import {
+  TERMINAL_BEGIN_MARKER,
+  TERMINAL_END_MARKER,
+  validateTerminalEnvelope,
+} from '../../../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
+import { assertDocMentions, readDoc } from '../../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -478,6 +490,240 @@ describe('deliver-light.js is a thin entry point, not a second engine (AC-8)', (
         `deliver-light.js must not reimplement engine mechanics (${pat})`,
       );
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #4746 — escalation is TERMINAL, not advisory
+// ---------------------------------------------------------------------------
+
+/** Over-scope gate inputs: 7 predicted changes against a maxChanges of 2. */
+const OVER_SCOPE = {
+  prompt: 'rework the whole reporting pipeline end to end',
+  refactors: Array.from({ length: 7 }, (_v, i) => `src/report/mod${i}.js`).join(
+    ',',
+  ),
+  acceptance: '5',
+  route: 'lite',
+  reason: 'claims small but is not',
+};
+
+/**
+ * Drive `runGateMode` with every side-effecting seam replaced by a spy, so a
+ * test can assert not merely that the envelope SAYS nothing was created but
+ * that the code never reached the call sites that would create anything.
+ *
+ * @param {object} values
+ * @returns {Promise<{ code: number, terminals: object[], gateEnvelopes: object[], created: number, providers: number }>}
+ */
+async function driveGate(values) {
+  const terminals = [];
+  const gateEnvelopes = [];
+  let created = 0;
+  let providers = 0;
+  const code = await runGateMode(values, {
+    createProviderFn: () => {
+      providers += 1;
+      return {};
+    },
+    resolveConfigFn: () => ({}),
+    createReceiptFn: async () => {
+      created += 1;
+      return { storyId: 1, url: 'https://example/1', title: 't' };
+    },
+    emitFn: (envelope) => gateEnvelopes.push(envelope),
+    emitTerminalFn: (envelope) => terminals.push(envelope),
+  });
+  return { code, terminals, gateEnvelopes, created, providers };
+}
+
+describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', () => {
+  test('the envelope is schema-valid, escalated, and names the /plan next command', async () => {
+    const { code, terminals, gateEnvelopes } = await driveGate({
+      ...OVER_SCOPE,
+      yes: true,
+    });
+
+    assert.equal(terminals.length, 1, 'exactly one terminal envelope');
+    const env = terminals[0];
+    assert.equal(validateTerminalEnvelope(env).valid, true);
+    assert.equal(env.kind, 'story-deliver-terminal');
+    assert.equal(env.status, 'escalated');
+    assert.equal(env.phase, 'suitability-gate');
+    assert.match(env.nextCommand, /^\/plan "/);
+    assert.match(env.nextCommand, /reporting pipeline/);
+
+    // Non-zero: a caller must not be able to read escalation as success.
+    assert.notEqual(code, 0);
+    assert.equal(code, 2);
+
+    // The terminal replaces the walk-past-able gate envelope; it does not
+    // accompany it. One session, one terminal output.
+    assert.equal(gateEnvelopes.length, 0);
+  });
+
+  test('the gate reasons survive verbatim into the envelope', async () => {
+    const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
+    const reasons = terminals[0].escalation.reasons.join(' ');
+    assert.match(reasons, /maxChanges/);
+    assert.match(reasons, /--yes on over-scope fails closed to \/plan/);
+  });
+});
+
+describe('an escalated run starts nothing (AC-2)', () => {
+  test('never reaches the receipt-Story call site', async () => {
+    const { created, providers } = await driveGate({
+      ...OVER_SCOPE,
+      yes: true,
+    });
+    assert.equal(created, 0, 'no receipt Story may be authored');
+    assert.equal(
+      providers,
+      0,
+      'the escalate path must not even build a provider',
+    );
+  });
+
+  test('the envelope records no Story, no branch, and no worktree', async () => {
+    const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
+    const env = terminals[0];
+    assert.equal(env.storyId, null, 'an escalated run names no Story');
+    assert.deepEqual(env.escalation.created, {
+      receiptStory: false,
+      storyBranch: false,
+      worktree: false,
+    });
+  });
+
+  test('end to end from a NON-repo cwd: no git, no GitHub, still terminal', () => {
+    // The strongest available pin on "nothing was started": run the real CLI
+    // somewhere with no git repository at all. Anything that cut a branch,
+    // materialized a worktree, or resolved repo config would fail here; a
+    // clean exit 2 with a valid envelope proves the path did none of it.
+    const cwd = mkdtempSync(path.join(tmpdir(), 'light-escalate-'));
+    const result = spawnSync(
+      process.execPath,
+      [
+        DELIVER_LIGHT_SRC,
+        '--prompt',
+        OVER_SCOPE.prompt,
+        '--refactors',
+        OVER_SCOPE.refactors,
+        '--acceptance',
+        OVER_SCOPE.acceptance,
+        '--route',
+        'lite',
+        '--reason',
+        OVER_SCOPE.reason,
+        '--yes',
+      ],
+      { cwd, encoding: 'utf8' },
+    );
+
+    assert.equal(result.status, 2, result.stderr);
+    assert.ok(!existsSync(path.join(cwd, '.worktrees')), 'no worktree');
+    assert.ok(!existsSync(path.join(cwd, '.git')), 'no repo touched');
+
+    const body = result.stdout
+      .split(TERMINAL_BEGIN_MARKER)[1]
+      ?.split(TERMINAL_END_MARKER)[0];
+    assert.ok(body, 'the terminal envelope must be recoverable from stdout');
+    const env = JSON.parse(body);
+    assert.equal(env.status, 'escalated');
+    assert.equal(env.storyId, null);
+    assert.equal(validateTerminalEnvelope(env).valid, true);
+  });
+});
+
+describe('the attended over-scope path is UNCHANGED (AC-4)', () => {
+  test('still asks the operator to choose, with no terminal envelope', async () => {
+    const { code, terminals, gateEnvelopes, created } = await driveGate({
+      ...OVER_SCOPE,
+      yes: false,
+    });
+
+    // A question, not a terminal — emitting one would end a session that is
+    // supposed to be waiting for the operator's answer.
+    assert.equal(terminals.length, 0);
+    assert.equal(gateEnvelopes.length, 1);
+    assert.equal(gateEnvelopes[0].action, 'ask-operator');
+    assert.deepEqual(gateEnvelopes[0].outcome.options, [
+      'escalate-plan',
+      'proceed-light',
+    ]);
+    assert.equal(code, 2);
+    assert.equal(created, 0);
+  });
+
+  test('proceed-light is likewise untouched — receipt authored, no terminal', async () => {
+    const { code, terminals, gateEnvelopes, created } = await driveGate({
+      prompt: 'add a bin/hello.js greeter',
+      creates: 'bin/hello.js',
+      acceptance: '1',
+      route: 'lite',
+      reason: 'single additive file',
+      yes: true,
+    });
+    assert.equal(code, 0);
+    assert.equal(created, 1);
+    assert.equal(terminals.length, 0);
+    assert.equal(gateEnvelopes[0].action, 'proceed-light');
+  });
+});
+
+describe('the workflow states escalation is terminal (AC-3)', () => {
+  // Prose assertions go through doc-assert: these claims are about what the
+  // document SAYS, and a plain `assert.match` would silently also be pinning
+  // where the 80-column wrap happens to fall.
+  const doc = readDoc(
+    path.join(REPO_ROOT, '.agents', 'workflows', 'deliver-light.md'),
+  );
+
+  test('names the envelope as the session terminal output', () => {
+    assertDocMentions(
+      doc,
+      /envelope IS this session's terminal output/i,
+      'the workflow must state the escalated envelope IS the terminal output',
+    );
+    assertDocMentions(doc, /status.{0,4}:.{0,4}"?escalated/i);
+  });
+
+  test('forbids invoking /plan in the same session', () => {
+    // `?` around the code span: this pins what the doc SAYS, not whether
+    // /plan happens to be code-formatted at that call site.
+    assertDocMentions(
+      doc,
+      /Invoking `?\/plan`? in this same session is forbidden/i,
+      'in-session /plan must be forbidden in so many words',
+    );
+    assertDocMentions(doc, /`?\/plan`? runs in a \*\*fresh\*\* session/i);
+  });
+
+  test('records the empirical reason so the rule reads as load-bearing', () => {
+    // Without the measurement this is style; with it, it is a finding. Pin
+    // the numbers themselves — a doc that kept the word "empirically" but
+    // dropped the 1-vs-4 comparison would have lost exactly what makes the
+    // rule persuasive to the next session reading it.
+    assertDocMentions(doc, /mandrel-bench/i);
+    assertDocMentions(
+      doc,
+      /authored \*\*one\*\* Story against the scenario's 3[–-]5 contract/i,
+      'the under-decomposition finding must name what in-session planning produced',
+    );
+    assertDocMentions(
+      doc,
+      /fresh `?\/plan`? session on the identical seed authored \*\*four\*\*/i,
+      'the finding is only load-bearing next to the fresh-session comparison',
+    );
+    assertDocMentions(doc, /under-decompos/i);
+  });
+
+  test('states that an escalated run leaves no Story, branch, or worktree', () => {
+    assertDocMentions(
+      doc,
+      /no receipt Story, no `story-<id>` branch, and no worktree/i,
+      'the workflow must name all three artifacts an escalated run does not create',
+    );
   });
 });
 

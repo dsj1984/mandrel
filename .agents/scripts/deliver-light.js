@@ -23,11 +23,24 @@
  *   - **gate** (default) — judge a prompt's predicted footprint. On
  *     `proceed-light` it authors the receipt Story (via the plan-persist
  *     `createStoryIssues` surface) and prints the init/close hand-off. On
- *     over-scope it prints `ask-operator` (attended) or `escalate-plan`
- *     (`--yes`), never landing silently.
+ *     over-scope it prints `ask-operator` (attended) or emits an `escalated`
+ *     terminal envelope (`--yes`), never landing silently.
  *   - **backstop** (`--backstop --story <id>`) — re-check the ACTUAL diff of
  *     the Story branch after implementation; exit non-zero when it exceeds the
  *     light ceilings, so an over-scope diff is blocked rather than landed.
+ *
+ * ## Escalation is terminal, not advisory (Story #4746)
+ *
+ * Over-scope under `--yes` emits a schema-validated `story-deliver-terminal`
+ * envelope with status `escalated` and **ends the session**. Before that it was
+ * an ordinary gate envelope plus exit 2 — a warning a caller could walk past,
+ * and one mandrel-bench 2.13.0 light-arm run did exactly that: it read the
+ * escalation, invoked `/plan` in the same session, and delivered. In-session
+ * planning under-decomposed (ONE Story against the scenario's 3-5 contract,
+ * where a fresh `/plan` session on the identical seed authored four), so
+ * escalation silently produced the outcome the guard exists to prevent.
+ * {@link module:lib/orchestration/story-deliver-terminal.buildEscalationTerminal}
+ * carries the guarantees the schema then enforces.
  *
  * Usage:
  *   node .agents/scripts/deliver-light.js --prompt "<text>" \
@@ -36,7 +49,8 @@
  *   node .agents/scripts/deliver-light.js --backstop --story 4741
  *
  * Exit codes: 0 ok (proceed / clean backstop), 1 usage error, 2 the gate did
- * not proceed light (ask-operator / escalate-plan), 3 the diff backstop blocked.
+ * not proceed light (ask-operator, or an `escalated` terminal), 3 the diff
+ * backstop blocked.
  */
 
 import { parseArgs } from 'node:util';
@@ -55,6 +69,11 @@ import {
   assemblePlanStories,
   createStoryIssues,
 } from './lib/orchestration/plan-persist/story-ops.js';
+import {
+  buildEscalationTerminal,
+  emitTerminalEnvelope,
+  exitCodeForTerminal,
+} from './lib/orchestration/story-deliver-terminal.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `\
@@ -75,7 +94,8 @@ Gate options:
   --route <r>        Ledgered model verdict route: lite | full.
   --reason <text>    Recorded reason for a lite verdict (required for lite).
   --amends <#id>     Mark this as an amendment of an existing issue.
-  --yes              Unattended: over-scope fails closed to /plan (no prompt).
+  --yes              Unattended: over-scope emits an escalated terminal
+                     envelope and ENDS the session (no prompt, no fallback).
 
 Backstop options:
   --backstop         Re-check the ACTUAL diff after implementation.
@@ -291,10 +311,39 @@ async function runBackstopMode(values) {
 /**
  * Gate mode — judge the prompt and, on proceed, author the receipt Story.
  *
+ * The three outcomes are deliberately asymmetric in what they emit:
+ *
+ *   - **`escalate-plan`** returns a schema-validated `escalated` **terminal
+ *     envelope** and stops (Story #4746). It is placed **first**, above every
+ *     creation call site, so "nothing was started" is a property of the
+ *     control flow rather than a claim the envelope makes about itself.
+ *   - **`ask-operator`** is unchanged: the plain gate envelope and exit 2. It
+ *     is not terminal — the operator has a choice to make, and manufacturing a
+ *     terminal for it would end a session that is supposed to be waiting.
+ *   - **`proceed-light`** authors the receipt Story and prints the hand-off.
+ *
+ * The injectable seams exist so the no-side-effect guarantee is testable
+ * without a network: a test asserts the escalate path never reaches them.
+ *
  * @param {object} values Parsed CLI values.
+ * @param {{
+ *   createProviderFn?: typeof createProvider,
+ *   resolveConfigFn?: typeof resolveConfig,
+ *   createReceiptFn?: typeof createLightReceipt,
+ *   emitFn?: typeof emit,
+ *   emitTerminalFn?: typeof emitTerminalEnvelope,
+ * }} [deps]
  * @returns {Promise<number>}
  */
-async function runGateMode(values) {
+export async function runGateMode(values, deps = {}) {
+  const {
+    createProviderFn = createProvider,
+    resolveConfigFn = resolveConfig,
+    createReceiptFn = createLightReceipt,
+    emitFn = emit,
+    emitTerminalFn = emitTerminalEnvelope,
+  } = deps;
+
   if (!values.prompt || String(values.prompt).trim() === '') {
     process.stderr.write(HELP);
     throw new Error('[deliver-light] --prompt <text> is required for the gate');
@@ -311,8 +360,20 @@ async function runGateMode(values) {
     yes: values.yes === true,
   });
 
+  if (gate.action === 'escalate-plan') {
+    const envelope = buildEscalationTerminal({
+      prompt: String(values.prompt),
+      reasons: gate.outcome.reasons,
+    });
+    emitTerminalFn(envelope);
+    Logger.warn(
+      `[deliver-light] ESCALATED to /plan — this session ENDS here; run ${envelope.nextCommand} in a FRESH session: ${gate.outcome.reasons.join('; ')}`,
+    );
+    return exitCodeForTerminal(envelope);
+  }
+
   if (gate.action !== 'proceed-light') {
-    emit(
+    emitFn(
       { mode: 'gate', action: gate.action, outcome: gate.outcome },
       values.pretty,
     );
@@ -322,8 +383,8 @@ async function runGateMode(values) {
     return EXIT_NOT_PROCEED;
   }
 
-  const provider = createProvider(resolveConfig());
-  const receipt = await createLightReceipt({
+  const provider = createProviderFn(resolveConfigFn());
+  const receipt = await createReceiptFn({
     provider,
     prompt: String(values.prompt),
     changedFiles: [
@@ -332,7 +393,7 @@ async function runGateMode(values) {
     ],
     amends: values.amends ?? null,
   });
-  emit(
+  emitFn(
     {
       mode: 'gate',
       action: 'proceed-light',
