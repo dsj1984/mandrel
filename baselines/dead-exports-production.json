@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-07-16T22:33:08.005Z",
+  "generatedAt": "2026-07-24T11:45:00.000Z",
   "mode": "production",
   "rows": [
     {
@@ -1531,6 +1531,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "buildSystemPrompts"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/plan-context.js",
+      "symbol": "buildDeliverLightSuggestion"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
