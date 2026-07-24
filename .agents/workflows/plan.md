@@ -20,6 +20,7 @@ Epic/Story router, no scope-triage `epic|story` verdict:
 | --- | --- |
 | `/plan --seed "<text>"` / `--seed-file <path>` | Ideation from chat text or on-disk notes: interrogate → author **one Story by default** → persist. |
 | `/plan --tickets 123[,456…]` | Fetch issue(s), analyze into proper Stories (prefer N=1 rewrite). |
+| `/plan --amends #<id>` | Amend a shipped Story: interrogate composes a **delta envelope** from the prior body, its acceptance criteria, and its delivered file map — no from-scratch repo re-interrogation (Story #4741). |
 
 `--body` is **not** a `/plan` entry; persist always goes through
 `plan-persist.js`.
@@ -30,6 +31,8 @@ Epic/Story router, no scope-triage `epic|story` verdict:
 | --- | --- |
 | `--seed "<text>"` / `--seed-file <path>` | Seed text / pre-authored notes path. |
 | `--tickets <ids>` | Issue ids to analyze; closed as superseded at persist. |
+| `--amends #<id>` | Prior Story to amend; interrogate emits a delta envelope, not a full re-interrogation (Story #4741). |
+| `--chain-on-clean` (persist) | Plan-diet fast path: chain the lite dry-run straight into the real persist in one operator round-trip when it passes clean; a full-route plan keeps its review round-trip (Story #4741). |
 | `--no-close-superseded` | Keep the source issues open — no supersede comment, no close. |
 | `--force-review` | STOP at gate #2 for operator review — the only review gate (Story #4542). |
 | `--route-downgrade-reason "<text>"` | Authored `lite` verdict + reason (Story #4722), ledgered per Story; shape-validated, fails closed to `full`. |
@@ -57,7 +60,15 @@ node .agents/scripts/plan-context.js --seed "<seed>" \
   --out temp/plan-<slug>/plan-context.json
 # or: --seed-file <path>
 # or: --tickets 123,456
+# or: --amends #<id>   (delta envelope from a shipped Story — Story #4741)
 ```
+
+**Amendment planning (`--amends #<id>`, Story #4741 R3-A).** The heavy-amendment
+counterpart to routing a light change through `/deliver-light`: the envelope is
+a **delta** — the prior Story's body, its acceptance criteria, and its delivered
+file map — instead of a from-scratch repo interrogation, so a follow-up plans
+from what already shipped. The pipeline shape is unchanged; only its inputs
+shrink.
 
 **Always pass `--out`.** Persist auto-discovers that envelope from
 `--plan-dir` and derives source-ticket ids from its `sourceTickets[]`
@@ -75,7 +86,13 @@ Under `--yes`, do not ask free-form operator questions — unresolved
 unknowns land in Key Assumptions.
 
 **Gate #1** — STOP to confirm the sharpened plan intent and any
-duplicate-candidate review. Under `--yes`, auto-proceed.
+duplicate-candidate review. When the envelope's
+`complexitySignals.deliverLightSuggestion.suggested` is `true` (the seed fits
+the `/deliver-light` ceilings — ≤2 artifacts, no risk-heuristic hit, no
+sensitive-path class), surface an **advisory** suggestion to use
+`/deliver-light` instead; the operator always decides. Under `--yes`, do not
+reroute — record the suggestion (it rides the envelope) and proceed with
+planning. **Never an automatic reroute** (Story #4741 AC-6).
 
 ### 2. Author
 
@@ -159,6 +176,15 @@ node .agents/scripts/plan-persist.js \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--source-tickets 123,456] [...flags from the table above]
 ```
+
+**Plan-diet fast path (`--chain-on-clean`, Story #4741 AC-3).** At lite shape,
+pass `--chain-on-clean` alongside `--route-downgrade-reason "<why>"`: persist
+runs the write-free dry-run first and, **only** when it passes clean and
+resolves to the `lite` route, chains straight into the real persist in the same
+invocation — one operator round-trip instead of two. A dry-run validation
+failure stops before any `createIssue`; a full-route plan keeps its review
+round-trip (the chain declines, writes nothing). Every semantic gate still runs
+on the dry-run pass.
 
 Persist creates Story issue(s) with `type::story` plus a `plan-run::<id>`
 grouping label (**metadata only** — never a delivery-resolution input, Story #4692); N>1 `depends_on` edges become `blocked by #<id>` body footers.

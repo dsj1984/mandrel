@@ -17,6 +17,12 @@
  *   --tickets 123[,456…]      Analyze existing issue(s) into proper
  *                             Stories. Envelope carries `sourceTickets[]`.
  *
+ *   --amends 123 | #123       Amendment (delta) planning. Composes a DELTA
+ *                             envelope from the prior Story's body, its
+ *                             acceptance criteria, and its delivered file map
+ *                             instead of re-interrogating the repo from
+ *                             scratch (Story #4741). Envelope carries `amends`.
+ *
  * Flags:
  *   --out <path>     Write the envelope to <path> (parent dirs created).
  *                    `/plan` points this at `<plan-dir>/plan-context.json`,
@@ -84,6 +90,25 @@ export function parseTicketIds(raw) {
 }
 
 /**
+ * Parse a single `--amends` id, tolerating a leading `#` (`#123` or `123`).
+ *
+ * @param {string} raw
+ * @returns {number}
+ */
+export function parseAmendsId(raw) {
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    throw new Error('--amends requires a single prior Story id.');
+  }
+  const id = Number(raw.trim().replace(/^#/, ''));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(
+      `--amends expects a positive integer Story id; got ${JSON.stringify(raw)}`,
+    );
+  }
+  return id;
+}
+
+/**
  * Build the envelope and write it to `stdout` as a single JSON line
  * (or pretty-printed with --pretty). Exported for tests.
  *
@@ -96,6 +121,7 @@ export async function emitPlanContext({
   seedFileContent,
   seedText,
   ticketIds,
+  amendsId,
   provider,
   config,
   settings,
@@ -110,6 +136,7 @@ export async function emitPlanContext({
     seedFileContent,
     seedText,
     ticketIds,
+    amendsId,
     provider,
     config,
     settings,
@@ -139,14 +166,19 @@ export async function emitPlanContext({
       duplicates: (envelope.duplicates ?? []).length,
       // Advisory only (Story #4722): signals, no route — the planner owns
       // the trivial-vs-standard verdict and persist validates it by shape.
+      // The nested `deliverLightSuggestion` is the recorded plan-side routing
+      // handshake (Story #4741 AC-6) — advisory, never an automatic reroute.
       complexitySignals: envelope.complexitySignals
         ? {
             artifactCount: envelope.complexitySignals.artifactCount,
             riskHeuristicHits: envelope.complexitySignals.riskHeuristicHits,
             sensitivePathClasses:
               envelope.complexitySignals.sensitivePathClasses,
+            deliverLightSuggestion:
+              envelope.complexitySignals.deliverLightSuggestion ?? null,
           }
         : null,
+      amends: envelope.amends ? { id: envelope.amends.id } : null,
     };
     stdout.write(`${JSON.stringify(digest)}\n`);
   } else {
@@ -221,6 +253,7 @@ async function main() {
       seed: { type: 'string' },
       'seed-file': { type: 'string' },
       tickets: { type: 'string' },
+      amends: { type: 'string' },
       out: { type: 'string' },
       pretty: { type: 'boolean', default: false },
     },
@@ -234,16 +267,24 @@ async function main() {
     typeof seedFilePath === 'string' && seedFilePath.length > 0;
   const hasTickets =
     typeof values.tickets === 'string' && values.tickets.trim().length > 0;
-  const entryForms = [hasSeed, hasSeedFile, hasTickets].filter(Boolean).length;
+  const hasAmends =
+    typeof values.amends === 'string' && values.amends.trim().length > 0;
+  const entryForms = [hasSeed, hasSeedFile, hasTickets, hasAmends].filter(
+    Boolean,
+  ).length;
   if (entryForms !== 1) {
     throw new Error(
-      'Pass exactly one of --seed "<text>", --seed-file <path>, or --tickets <ids>.',
+      'Pass exactly one of --seed "<text>", --seed-file <path>, --tickets <ids>, or --amends <id>.',
     );
   }
 
   let mode;
   let ticketIds;
-  if (hasTickets) {
+  let amendsId;
+  if (hasAmends) {
+    mode = 'amends';
+    amendsId = parseAmendsId(values.amends);
+  } else if (hasTickets) {
     mode = 'tickets';
     ticketIds = parseTicketIds(values.tickets);
   } else if (hasSeedFile) {
@@ -288,6 +329,7 @@ async function main() {
         seedFilePath: hasSeedFile ? seedFilePath : undefined,
         seedText: hasSeed ? seedText : undefined,
         ticketIds,
+        amendsId,
         provider,
         config,
         settings,
