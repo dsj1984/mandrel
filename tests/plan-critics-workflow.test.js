@@ -27,6 +27,7 @@ import {
   loadCriticArtifacts,
   PLAN_CRITICS_CLI,
 } from '../.agents/scripts/plan-critics.js';
+import { assertDocMentions, assertDocOmits } from './helpers/doc-assert.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,8 +69,16 @@ function slicingTableFor(stories) {
 
 describe('/plan critic workflow — retired helper surface stays gone', () => {
   it('uses plan.md as the sole planning workflow source', () => {
-    assert.match(planSource, /Single planning path/i);
-    assert.match(planSource, /no\s*\n?Epic\/Story router/i);
+    assertDocMentions(
+      planSource,
+      /Single planning path/i,
+      'plan.md is the sole planning workflow',
+    );
+    assertDocMentions(
+      planSource,
+      /no Epic\/Story router/i,
+      'the Epic/Story planning fork is retired',
+    );
   });
 
   it('does not reference deleted planning-fork helper files', () => {
@@ -113,9 +122,17 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     const critics = section('### 2\\.5 Critics');
     assert.match(critics, /dispatch/);
     assert.match(critics, /maker-blind/i);
-    assert.match(critics, /never the authoring\s*\n?\s*transcript/i);
+    assertDocMentions(
+      critics,
+      /never the authoring transcript/i,
+      'the critic is maker-blind — it never sees the authoring transcript',
+    );
     // Advisory, not a mechanical gate: the CLI exits 0 on any verdict.
-    assert.match(critics, /exits 0 on \*\*any\*\* verdict/i);
+    assertDocMentions(
+      critics,
+      /exits 0 on \*\*any\*\* verdict/i,
+      'the critic CLI exits 0 on any verdict',
+    );
   });
 
   it('names the exit-1 usage/IO case and forbids proceeding to Persist on it', () => {
@@ -124,12 +141,26 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     // exits 0" (Story #4602) read as "advisory, proceed", so a mistyped
     // --stories path silently persisted with both critics skipped.
     const critics = section('### 2\\.5 Critics');
-    // Whitespace-tolerant: prose reflows across line breaks, and an assertion
-    // that a newline can defeat is a false green.
-    assert.match(critics, /exits\s+\*\*1\*\*/i);
-    assert.match(critics, /usage\/IO\s+error/i);
-    assert.doesNotMatch(critics, /always\s+exits\s+0/i);
-    assert.match(critics, /\*\*do\s+not\s+proceed\s+to\s+Persist\*\*/i);
+    assertDocMentions(
+      critics,
+      /exits \*\*1\*\*/i,
+      'a usage/IO error must exit 1',
+    );
+    assertDocMentions(
+      critics,
+      /usage\/IO error/i,
+      'the exit-1 case must be named as a usage/IO error',
+    );
+    assertDocOmits(
+      critics,
+      /always exits 0/i,
+      'the CLI does not ALWAYS exit 0 — a usage/IO error exits 1',
+    );
+    assertDocMentions(
+      critics,
+      /\*\*do not proceed to Persist\*\*/i,
+      'a blocking verdict must stop the run before Persist',
+    );
   });
 
   it('names the external-dependency pre-mortem trigger (#4700)', () => {
@@ -144,7 +175,11 @@ describe('/plan critic workflow — the live pre-persist critic step (#4592)', (
     const critics = section('### 2\\.5 Critics');
     assert.match(critics, /textHygiene/);
     assert.match(critics, /textHygiene\.findings\[\]/);
-    assert.match(critics, /re-author round/i);
+    assertDocMentions(
+      critics,
+      /re-author round/i,
+      'textHygiene findings drive a re-author round',
+    );
     assert.match(critics, /advisory-only/i);
   });
 });
@@ -153,21 +188,45 @@ describe('story-author prompt — codified text-hygiene conventions (#4599)', ()
   const prompt = renderDecomposerSystemPrompt();
 
   it('mandates the "Current state (verified <date>)" preamble for observed-behavior claims', () => {
-    assert.match(prompt, /Current state \(verified <date>\)/);
+    assertDocMentions(
+      prompt,
+      /Current state \(verified <date>\)/,
+      'the prompt must carry the verified-state template',
+    );
   });
 
   it('mandates the intent-then-proxy acceptance shape', () => {
-    assert.match(prompt, /state the intent clause before the proxy check/i);
+    assertDocMentions(
+      prompt,
+      /state the intent clause before the proxy check/i,
+      'acceptance criteria lead with intent, not the proxy',
+    );
   });
 
   it('mandates one-line Slicing checkpoints with detail in Spec', () => {
-    assert.match(prompt, /Slicing checkpoints are one line each/i);
-    assert.match(prompt, /detail lives in `## Spec`/i);
+    assertDocMentions(
+      prompt,
+      /Slicing checkpoints are one line each/i,
+      'Slicing rows stay one line each',
+    );
+    assertDocMentions(
+      prompt,
+      /detail lives in `## Spec`/i,
+      'detail belongs in the folded Spec, not the Slicing rows',
+    );
   });
 
   it('mandates decisions-not-questions bodies with declarative Key Assumptions', () => {
-    assert.match(prompt, /record decisions, never questions to the operator/i);
-    assert.match(prompt, /declarative Key Assumption/i);
+    assertDocMentions(
+      prompt,
+      /record decisions, never questions to the operator/i,
+      'assumptions record decisions, not open questions',
+    );
+    assertDocMentions(
+      prompt,
+      /declarative Key Assumption/i,
+      'Key Assumptions are declarative',
+    );
   });
 });
 
@@ -193,7 +252,11 @@ describe('/plan critic workflow — persist no longer evaluates critics', () => 
     const persist = section('### 3\\. Persist');
     assert.match(persist, /\*\*Gate #2\*\*/);
     assert.match(persist, /`--force-review`/);
-    assert.match(persist, /before persist/i);
+    assertDocMentions(
+      persist,
+      /before persist/i,
+      'Gate #2 runs before persist',
+    );
     assert.match(persist, /node \.agents\/scripts\/plan-persist\.js/);
   });
 });
