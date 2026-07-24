@@ -51,6 +51,16 @@ probe logs a warning and leans on init's lease refusal alone.
 
 ## Dispatch mechanics (role-scoped by default)
 
+**A single-Story run executes inline (Story #4736).** Sub-agent isolation is
+load-bearing only for **concurrent** dispatch — two workers sharing a checkout
+would race on worktrees and branch refs — so a run resolving exactly one Story
+has no sibling to isolate from and pays the spawn premium for nothing (a boot is
+a cache write at full rate; an inline continuation is a cache read at ~10%).
+`resolve-stories.js` already reports it: a one-id run comes back with
+`dispatchMode: "inline"` whatever the Story's shape. Role-scoped spawning is
+retained in full for multi-Story waves, and the rule changes **where** the
+engine runs, never what runs — gates, PR, and terminal envelope are identical.
+
 **Lite-shaped Stories execute inline (Story #4722).** Before spawning anything,
 read the Story's `dispatchMode` from the resolver envelope
 (`stories[].dispatchMode`, derived by `resolveStoryDispatchMode` in
@@ -113,6 +123,17 @@ execute it directly, in this turn, threading the same `docsDigestPath` /
 `checklistPath` / change-set discipline. Under `--yes` / injected helper
 content, execute directly without a re-read turn. The engine, gates, and
 terminal envelope are identical either way — only the isolation differs.
+
+## Operator-merge implies no-wait
+
+`--no-auto-merge` and `delivery.ci.autoMerge: "strict"` leave the PR
+deliberately un-armed: there is nothing for close to land, so the Story rests
+at `agent::closing` for the human merge and is **not** flipped to
+`agent::blocked` — `--wait-merge` does not override this, because the operator
+owning the merge is a decision to respect, not a fault to report. A genuine
+*arm failure* is the opposite case: nobody chose it, so close still waits and
+still blocks. That asymmetry is what keeps the must-land contract intact
+without misfiling deliberate human merges as blocks.
 
 ## Per-run epilogue (N>1)
 

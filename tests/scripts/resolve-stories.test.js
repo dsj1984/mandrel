@@ -293,11 +293,20 @@ describe('storiesToDag — body and native edges union into one graph', () => {
 });
 
 describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => {
+  // Story #4736 put a run-topology rule ahead of the shape read: a run
+  // resolving ONE Story is inline whatever its shape. Every assertion about
+  // the shape axis therefore needs a multi-Story set to reach that axis at
+  // all — this filler Story is the second element, never the subject.
+  const filler = () =>
+    toStoryRecord(
+      issue({ number: 99, body: storyBody({ changes: ['src/filler.js'] }) }),
+    );
+
   it('AC-5: derives inline from the BODY shape with the route::lite label absent', () => {
     // One refactor + one acceptance criterion, no sensitive path: a
     // lite-shaped body. No label anywhere — the shape is the control signal.
     const env = buildStoriesEnvelope({
-      stories: [toStoryRecord(issue({ number: 1 }))],
+      stories: [toStoryRecord(issue({ number: 1 })), filler()],
       injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'inline');
@@ -316,6 +325,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
             labels: [{ name: 'type::story' }, { name: 'route::lite' }],
           }),
         ),
+        filler(),
       ],
       injectedRules: RULES,
     });
@@ -332,6 +342,7 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
             labels: [{ name: 'type::story' }, { name: 'route::lite' }],
           }),
         ),
+        filler(),
       ],
       injectedRules: RULES,
     });
@@ -340,8 +351,64 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
 
   it('planning.complexityGate.enabled=false forces subagent dispatch', () => {
     const env = buildStoriesEnvelope({
-      stories: [toStoryRecord(issue({ number: 1 }))],
+      stories: [toStoryRecord(issue({ number: 1 })), filler()],
       config: { planning: { complexityGate: { enabled: false } } },
+      injectedRules: RULES,
+    });
+    assert.equal(env.stories[0].dispatchMode, 'subagent');
+  });
+});
+
+/**
+ * Story #4736 — the resolver is where `/deliver` reads the dispatch decision,
+ * so this is where the run-topology rule has to be true end to end: a
+ * one-Story `--ids` list yields `inline`, and adding a sibling puts the shape
+ * axis back in charge.
+ */
+describe('buildStoriesEnvelope — single-Story runs dispatch inline (Story #4736)', () => {
+  const wideBody = storyBody({
+    changes: ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js'],
+  });
+
+  it('AC-1: a one-Story run is inline even for a full-shaped Story', () => {
+    const env = buildStoriesEnvelope({
+      stories: [toStoryRecord(issue({ number: 1, body: wideBody }))],
+      injectedRules: RULES,
+    });
+    assert.equal(env.stories.length, 1);
+    assert.equal(env.stories[0].dispatchMode, 'inline');
+  });
+
+  it('AC-1: the same Story in a two-Story run goes back to sub-agent dispatch', () => {
+    const env = buildStoriesEnvelope({
+      stories: [
+        toStoryRecord(issue({ number: 1, body: wideBody })),
+        toStoryRecord(issue({ number: 2, body: wideBody })),
+      ],
+      injectedRules: RULES,
+    });
+    assert.deepEqual(
+      env.stories.map((s) => s.dispatchMode),
+      ['subagent', 'subagent'],
+      'concurrent siblings share a checkout — that is what the sub-agent isolates',
+    );
+  });
+
+  it('counts the resolved set, not the undelivered remainder', () => {
+    // A sibling that already landed still counts: the mode a caller reads for
+    // a given `--ids` list must not flip mid-run as siblings finish.
+    const env = buildStoriesEnvelope({
+      stories: [
+        toStoryRecord(issue({ number: 1, body: wideBody })),
+        toStoryRecord(
+          issue({
+            number: 2,
+            body: wideBody,
+            state: 'closed',
+            labels: [{ name: 'type::story' }, { name: 'agent::done' }],
+          }),
+        ),
+      ],
       injectedRules: RULES,
     });
     assert.equal(env.stories[0].dispatchMode, 'subagent');

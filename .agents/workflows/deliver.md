@@ -10,7 +10,9 @@ description:
 > **Lean spine.** Happy path + gate list. Sequencing edge cases, dispatch
 > mechanics, lite-route inline execution, checklist threading, ceremony, and
 > the per-run epilogue live in the on-demand
-> [`helpers/deliver-reference.md`](helpers/deliver-reference.md).
+> [`helpers/deliver-reference.md`](helpers/deliver-reference.md). What every
+> delivery always needs is bundled into one read:
+> [`helpers/deliver-digest.md`](helpers/deliver-digest.md) (Story #4736).
 
 ## Role
 
@@ -20,20 +22,22 @@ owns input resolution and sequencing only — every Story runs through
 `epic/<id>` integration branch, no `--no-ff` wave merges.
 
 The dependency graph is **discovered, not declared**: `resolve-stories.js`
-reads it from live state (body edges ∪ native GitHub `blocked_by` edges, every
-blocker resolved against its real issue state). You never hand it a graph, and
+reads it from live state (body edges ∪ native GitHub `blocked_by` edges, each
+blocker resolved against its real issue state). You never hand it a graph and
 there is no batch label — which is what lets you deliver Stories **across plan
-runs and over time**. The `plan-run::<id>` grouping label is filter metadata
-only — never a resolution input (there is no `--run` or `--dep` axis).
+runs and over time**. `plan-run::<id>` is filter metadata, never a resolution
+input.
 Per-Story routes are **body-derived** too (#4722); `route::lite` is a hint
-only.
+only. Ahead of that: a **single-Story run runs the engine inline** whatever the
+shape (#4736) — sub-agent isolation only earns its cost against a concurrent
+sibling.
 
 ## Inputs
 
 | Invocation | Behavior |
 | --- | --- |
-| `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`. |
-| `/deliver <storyId> <storyId> ...` | Resolve the set with `resolve-stories.js`, then sequence by the discovered graph via `stories-wave-tick.js`. Default concurrency is **3**. |
+| `/deliver <storyId>` | Deliver one Story via `helpers/deliver-story.md`, executed **inline in this session** — no `story-worker` spawn. |
+| `/deliver <storyId> <storyId> ...` | Resolve the set with `resolve-stories.js`, then sequence by the discovered graph via `stories-wave-tick.js`, dispatching role-scoped sub-agents. Default concurrency is **3**. |
 
 Any named ticket that is not `type::story`, or still carrying an `Epic: #N`
 footer, is a **hard error** naming the id and the fix (close or re-plan as a v2
@@ -43,18 +47,16 @@ Story). Resolution refuses the whole set rather than silently under-delivering.
 
 | Flag | Meaning |
 | --- | --- |
-| `--concurrency <n>` | **Optional** per-run override of the fan-out cap. Omit it to honor `delivery.deliverRunner.concurrencyCap` (config default **3**, including any `.agentrc.local.json` override); pass it **only** for a one-run cap. `1` = sequential. |
+| `--concurrency <n>` | **Optional** per-run override of the fan-out cap. Omit it to honor `delivery.deliverRunner.concurrencyCap` (config default **3**, incl. any `.agentrc.local.json` override); pass **only** for a one-run cap. `1` = sequential. |
 | `--yes` | Suppress the multi-Story confirmation gate. |
 | `--steal` | Forwarded to `single-story-init.js` / lease steal. |
 | `--wait-merge` | Force close-and-land (the default; `delivery.routing.closeAndLand`). |
 | `--no-wait-merge` | Opt out; stop at `agent::closing` for a human land. |
 
 **Operator-merge implies no-wait.** `--no-auto-merge` and
-`delivery.ci.autoMerge: "strict"` leave the PR un-armed: the Story rests at
-`agent::closing` for the human merge and is **not** flipped to `agent::blocked`
-(`--wait-merge` does not override this). A genuine *arm failure* differs — it
-still waits and still blocks, because that is a fault to report, not an operator
-decision to respect.
+`delivery.ci.autoMerge: "strict"` rest the Story at `agent::closing`, not
+`agent::blocked` — a genuine *arm failure* still waits and still blocks
+([`helpers/deliver-reference.md` § Operator-merge](helpers/deliver-reference.md)).
 
 ## Procedure
 
@@ -64,8 +66,8 @@ decision to respect.
    present the order in step 2. You do **not** thread them into step 3 — the
    tick re-resolves the graph itself every beat. Resolution hard-errors
    (exit 1) on a named id that is not a Story, carries an `Epic: #N` footer, or
-   whose native edges cannot be read — a missing gate would co-dispatch a Story
-   against an unlanded blocker.
+   whose native edges cannot be read — a missing gate would co-dispatch against
+   an unlanded blocker.
 
 2. **Confirm (N>1).** Present the order; wait unless `--yes`.
 
@@ -78,10 +80,8 @@ decision to respect.
    ```
 
    **Do not add `--concurrency` unless the operator explicitly asked for a
-   per-run cap.** Omitting it lets the tick resolve the cap from
-   `delivery.deliverRunner.concurrencyCap` — including a `.agentrc.local.json`
-   override. An explicit `--concurrency <n>` wins over config for that run, so a
-   filled-in literal (e.g. `3`) silently defeats the operator's override.
+   per-run cap** — an explicit value wins over config, so a filled-in literal
+   silently defeats a `.agentrc.local.json` override (see Flags).
 
    Each beat re-probes live state to derive done / in-flight itself; you never
    compute them (Story #4594). `--dispatched` is the one thing you must supply —
@@ -129,10 +129,10 @@ review depth reading the same level) and the mechanism table:
 
 ## Reading a Story's outcome
 
-Each Story's delivery ends in exactly one schema-validated terminal envelope
-([`story-deliver-terminal.schema.json`](../schemas/story-deliver-terminal.schema.json),
-Story #4543) — `landed` | `pending` | `blocked` | `failed`, the SSOT for the
-shape; this workflow does not restate its fields.
+Each Story's delivery ends in exactly one schema-validated terminal envelope —
+`landed` | `pending` | `blocked` | `failed`. Statuses, exits, and fields:
+[`helpers/deliver-digest.md`](helpers/deliver-digest.md) § 5, over the shipped
+[schema](../schemas/story-deliver-terminal.schema.json) (Story #4543).
 
 `pending` is **not** a failure: the bounded merge wait expired with the PR
 healthy (or a human owns the merge), nothing was mutated, and the
@@ -146,11 +146,9 @@ For a Story in an unclear state — including the merged-but-label-stale one a
 
 ## Constraints
 
-- **Land or block — never a silent local build.** Worktrees, `story-<id>`
-  branches, close-validation, and PR-to-`main` are the only sanctioned delivery
-  mechanism. Attended delivers default to close-and-land
-  (`delivery.routing.closeAndLand: true`); use `--no-wait-merge` only when a
-  human lands the PR.
+- **Land or block — never a silent local build** (digest § 2). Attended
+  delivers default to close-and-land (`delivery.routing.closeAndLand: true`);
+  use `--no-wait-merge` only when a human lands the PR.
 - `/deliver` never plans — tickets come from [`/plan`](plan.md). The router
   performs no git/label mutations; `deliver-story` owns every script.
 
