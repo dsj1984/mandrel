@@ -11,6 +11,13 @@ description:
 > reference detail lives in
 > [`deliver-story-reference.md`](deliver-story-reference.md) ("reference"
 > below); consult on demand. Invoked by [`/deliver`](../deliver.md).
+>
+> **Read [`deliver-digest.md`](deliver-digest.md) once, first.** It is the
+> one bundled read of what every delivery needs — dispatch decision, engine
+> invariants, the change-set/ceremony incantation, the acceptance-eval gate,
+> and the terminal-envelope contract — replacing the per-session re-reads of
+> the helper set and `story-deliver-terminal.schema.json` (Story #4736). The
+> steps below cite it as "digest § N" rather than restating it.
 
 ## Overview
 
@@ -74,15 +81,10 @@ One branch, one PR to `main`, commits against the inline `acceptance[]` /
 
 ### Step 1a — Bounded acceptance self-eval loop (**required**)
 
-Follow the single-homed include
-[`acceptance-self-eval.md`](acceptance-self-eval.md) (single verdict-owner,
-`verify[]`-as-evidence, proceed / redraft / block). Gate invocation (omit
-`--epic`):
-
-```bash
-node <main-repo>/.agents/scripts/acceptance-eval.js \
-  --story <storyId> --verdict <verdict-path>
-```
+Run the loop and score it with `acceptance-eval.js` — **digest § 4** carries
+the invocation and the proceed / redraft / block contract; per-round critic
+mechanics live in the single-homed include
+[`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 **`proceed`** → Step 2 then Step 3. **`block`** → **do not close**: post a
 `friction` comment and flip `agent::blocked` — commands and the
@@ -92,16 +94,12 @@ node <main-repo>/.agents/scripts/acceptance-eval.js \
 ## Step 2 — Ceremony (profile + derived level)
 
 Ceremony is `delivery.routing.ceremonyProfile` × the **derived change
-level** — never a planner-authored verdict (Story #4542).
-**Compute the change set once** (Story #4593) with the shared enumerator
-[`computeChangeSet`](../../scripts/lib/orchestration/change-set.js) — the
-same module close uses — and hand that one list to every critic. Derive the
-level with `deriveChangeLevel`, resolve fresh-vs-inline critics with
-`resolveCeremonyForRisk` (`ceremony-routing.js`); a lite Story runs inline
-regardless (exact incantation and routing rules: reference § Step 2).
-Hard gates (lint / test / format / coverage / CRAP / maintainability)
-always run in Step 3 — the derived level never disables them; do **not**
-pre-run the full close chain here.
+level** — never a planner-authored verdict (Story #4542). **Digest § 3** is
+the incantation: compute the change set once (Story #4593), derive the level,
+resolve fresh-vs-inline critics with `ceremony-routing.js`; a lite Story runs
+inline regardless (routing edge cases: reference § Step 2). Hard gates always
+run in Step 3 — the derived level never disables them; do **not** pre-run the
+close chain here.
 
 ## Step 3 — Close and land (`single-story-close.js`)
 
@@ -110,15 +108,12 @@ node <main-repo>/.agents/scripts/single-story-close.js --story <storyId> --cwd <
 ```
 
 **The whole delivery tail** — gates, PR, merge wait, `agent::done` flip,
-post-land tail in one process. Run it and **branch on the terminal
-envelope's `status`** (Story #4543):
-
-| `status` | Exit | Meaning | You do |
-| --- | --- | --- | --- |
-| `landed` | 0 | PR merged, `agent::done`, tail ran (`tail.*: false` degrades the report, not the land). | Relay the envelope (Step 7). |
-| `pending` | 3 | **Resumable, not a failure** — wait expired healthy, or a human owns the merge. | Run `nextCommand` until resolved. |
-| `blocked` | 1 | Hard block; `blocked.blockClass` names it. | `checks-failed` → Step 4; else relay. |
-| `failed` | 1 | A phase crashed; `phase` names which. | Diagnose, fix, re-run close. |
+post-land tail in one process. Run it and **branch on the terminal envelope's
+`status`** per the table in **digest § 5** (`landed` → Step 7; `pending` → run
+`nextCommand`; `blocked`/`checks-failed` → Step 4; `failed` → diagnose and
+re-run). Gate output is captured to
+`temp/orchestration/close-gates-<storyId>.log` — a clean run prints a digest
+line, a red gate replays its tail inline (Story #4736).
 
 Internals (gate order, base-sync, auto-merge arming), the merge-wait
 budgets, the slow-CI **async** confirm mode (Story #4698 — launch the
@@ -143,13 +138,13 @@ recovery path **only** when the envelope routes you there:
 
 ## Step 7 — Return contract (**required as a sub-agent**) {#return-contract}
 
-The contract is the shipped schema
-[`story-deliver-terminal.schema.json`](../../schemas/story-deliver-terminal.schema.json)
-— the SSOT for every field (Story #4543). End your turn by relaying the
-validated envelope close emits between its `--- STORY DELIVER TERMINAL ---`
-markers — never free-form prose, never a hand-composed object. `pending` is
-the only sanctioned no-merge ending, returned only when your own budget is
-exhausted (Story #1553). Reference § Step 7.
+End your turn by relaying the validated envelope close emits between its
+`--- STORY DELIVER TERMINAL ---` markers — never free-form prose, never a
+hand-composed object. Statuses, exits, and required fields: **digest § 5**
+(whose SSOT is the shipped
+[schema](../../schemas/story-deliver-terminal.schema.json), Story #4543).
+`pending` is the only sanctioned no-merge ending, returned only when your own
+budget is exhausted (Story #1553). Reference § Step 7.
 
 ## Recovering a stranded Story {#recover}
 
@@ -175,6 +170,7 @@ reuses an open PR).
 
 ## See also
 
+- [`deliver-digest.md`](deliver-digest.md) — the one bundled framework read.
 - [`/deliver`](../deliver.md) — unified entry point.
 - [`deliver-story-reference.md`](deliver-story-reference.md) — all on-demand
   detail.

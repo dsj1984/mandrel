@@ -325,6 +325,13 @@ export function buildStoriesEnvelope({
     // `route::lite` label is a human-visible hint only, never the control
     // signal: a lost label cannot misroute delivery. Model-side fan-out
     // only; close gates are untouched.
+    //
+    // `storyCount` (Story #4736) carries the run's topology into that same
+    // decision: a run resolving exactly ONE Story is inline whatever its
+    // shape, because the isolation a sub-agent buys only matters against a
+    // concurrently-dispatched sibling. It is the resolved set size — not the
+    // undelivered remainder — so the mode a caller reads for a given `--ids`
+    // list never changes as siblings land mid-run.
     stories: sorted.map(({ id, title, body, url, labels, state }) => ({
       id,
       title,
@@ -335,6 +342,7 @@ export function buildStoriesEnvelope({
         body,
         labels,
         config,
+        storyCount: sorted.length,
         injectedRules,
       }).mode,
     })),

@@ -24,6 +24,15 @@
  * the same, with `baseBranch` as the diff anchor and the Story worktree as
  * the commit target.
  *
+ * Bounded gate output (Story #4736). Every gate line goes to the run's
+ * `gate-log.js` sink — an artifact under the gitignored temp tree — instead
+ * of straight to the agent's stdout, where a passing `npm test` alone once
+ * pushed a successful close past the host's inline tool-result ceiling. A
+ * clean run reports one digest line naming the artifact; a failing gate
+ * replays its captured tail inline, because that is exactly when the caller
+ * needs the evidence in front of them. `AGENT_LOG_LEVEL=verbose` restores
+ * live streaming.
+ *
  * `runCloseValidation`, `buildDefaultGates`, and `runScopedFormatAutofix`
  * are accepted as injected dependencies so the parent CLI's cache-busted
  * bindings win in tests that mock the upstream module URLs.
@@ -33,6 +42,7 @@ import { buildDefaultGates as defaultBuildDefaultGates } from '../../../close-va
 import { runCloseValidation as defaultRunCloseValidation } from '../../../close-validation/runner.js';
 import { Logger } from '../../../Logger.js';
 import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../story-close/format-autofix.js';
+import { createGateLogSink as defaultCreateGateLogSink } from '../gate-log.js';
 
 /**
  * Run the close-validation gate chain. Throws on first gate failure.
@@ -60,6 +70,7 @@ import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../s
  *   runCloseValidation?: typeof defaultRunCloseValidation,
  *   buildDefaultGates?: typeof defaultBuildDefaultGates,
  *   runScopedFormatAutofix?: typeof defaultRunScopedFormatAutofix,
+ *   createGateLogSink?: typeof defaultCreateGateLogSink,
  * }} args
  */
 export async function runCloseValidationPhase({
@@ -73,6 +84,7 @@ export async function runCloseValidationPhase({
   runCloseValidation = defaultRunCloseValidation,
   buildDefaultGates = defaultBuildDefaultGates,
   runScopedFormatAutofix = defaultRunScopedFormatAutofix,
+  createGateLogSink = defaultCreateGateLogSink,
 }) {
   // Story #4250 — format-autofix self-heal before the check-only gates.
   // Mirrors the Epic path (story-close/phases/gates.js): the formatter is
@@ -122,6 +134,9 @@ export async function runCloseValidationPhase({
     'VALIDATE',
     `Running close-validation gates against baseline ${baseBranch}${worktreePath ? ` in ${worktreePath}` : ''}...`,
   );
+  // Story #4736 — one sink for both `log` seams (gate construction and gate
+  // execution), so nothing in the chain can route around the artifact.
+  const gateLog = createGateLogSink({ storyId, cwd });
   const validation = await runCloseValidation({
     cwd,
     worktreePath,
@@ -129,9 +144,9 @@ export async function runCloseValidationPhase({
       config,
       baseBranch,
       cwd: worktreePath || cwd,
-      log: (m) => Logger.info(m),
+      log: gateLog.log,
     }),
-    log: (m) => Logger.info(m),
+    log: gateLog.log,
     storyId,
     // Story #4250 — standalone storyId-anchored evidence keyspace. No
     // epicId; the standalone flag routes the cache to
@@ -141,10 +156,13 @@ export async function runCloseValidationPhase({
   if (!validation.ok) {
     const [first] = validation.failed;
     const { gate, status, cwd: gateCwd } = first;
+    // The evidence is the point on this path: replay the captured tail inline
+    // rather than making the caller open a file to learn why close stopped.
+    gateLog.replay();
     throw new Error(
       `[single-story-close] Gate failed: ${gate.name} (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
         (gate.hint ? ` ${gate.hint}` : ''),
     );
   }
-  progress('VALIDATE', '✅ All gates passed.');
+  progress('VALIDATE', `✅ All gates passed. ${gateLog.digest()}`);
 }

@@ -341,6 +341,12 @@ The `single-story-close.js` script, in order:
 
 1. Runs the close-validation gates against `baseBranch` as the baseline.
    On any gate failure it throws — the operator fixes and re-runs close.
+   **Gate output is captured, not streamed (Story #4736).** Every gate line
+   goes to `temp/orchestration/close-gates-<storyId>.log`; a clean run reports
+   one digest line naming that artifact, and a **failed** gate replays its
+   captured tail inline so the evidence is in front of you without opening a
+   file. Read the artifact when you need the full text — or re-run under
+   `AGENT_LOG_LEVEL=verbose` for live streaming.
 1a. **Syncs the Story branch from `origin/<baseBranch>`** before push
    (Story #2580). Runs `git fetch origin <baseBranch>` followed by
    `git merge --no-edit origin/<baseBranch>` inside the worktree. This

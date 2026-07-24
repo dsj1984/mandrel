@@ -381,6 +381,125 @@ describe('resolveStoryDispatchMode — body-derived dispatch (AC-4, AC-5)', () =
   });
 });
 
+/**
+ * Story #4736 — run topology decides ahead of shape.
+ *
+ * The premise under test: sub-agent isolation is load-bearing only against a
+ * CONCURRENTLY-dispatched sibling (two workers sharing a checkout race on
+ * worktrees and branch refs). A one-Story run has no sibling, so the spawn
+ * premium buys nothing — and that is a fact about the run, not the work, which
+ * is why it sits ahead of every shape read including the gate kill-switch.
+ */
+describe('resolveStoryDispatchMode — run topology (Story #4736)', () => {
+  const fullBody = storyBody({
+    changes: ['a', 'b', 'c', 'd'].map((p) => ({
+      path: `src/${p}.js`,
+      assumption: 'refactors-existing',
+    })),
+    acceptance: ['a works', 'b works', 'c works', 'd works'],
+  });
+  const sensitiveBody = storyBody({
+    changes: [{ path: 'src/billing/banner.js', assumption: 'creates' }],
+    acceptance: ['shows the banner'],
+  });
+
+  test('AC-1: a single-Story run is inline even for a full-shaped Story', () => {
+    const decision = resolveStoryDispatchMode({
+      body: fullBody,
+      labels: ['type::story'],
+      storyCount: 1,
+      injectedRules: RULES,
+    });
+    assert.equal(decision.mode, 'inline');
+    assert.match(decision.reasons[0], /single-Story run/i);
+    assert.match(
+      decision.reasons[0],
+      /concurrent/i,
+      'the reason must name the premise — isolation only matters against a concurrent sibling',
+    );
+  });
+
+  test('AC-1: a multi-Story run still dispatches sub-agents for full-shaped Stories', () => {
+    for (const storyCount of [2, 3, 12]) {
+      const decision = resolveStoryDispatchMode({
+        body: fullBody,
+        labels: ['type::story'],
+        storyCount,
+        injectedRules: RULES,
+      });
+      assert.equal(
+        decision.mode,
+        'subagent',
+        `a ${storyCount}-Story run must retain role-scoped sub-agent dispatch`,
+      );
+    }
+  });
+
+  test('AC-2: the derived route is still reported inline, so ceremony reads the same shape', () => {
+    const decision = resolveStoryDispatchMode({
+      body: fullBody,
+      storyCount: 1,
+      injectedRules: RULES,
+    });
+    assert.equal(
+      decision.route.route,
+      'full',
+      'inline changes WHERE the engine runs, never what the shape says about it',
+    );
+
+    const sensitive = resolveStoryDispatchMode({
+      body: sensitiveBody,
+      storyCount: 1,
+      injectedRules: RULES,
+    });
+    assert.equal(sensitive.mode, 'inline');
+    assert.equal(
+      sensitive.route.route,
+      'full',
+      'a sensitive footprint still derives full — inline dispatch does not launder it to lite',
+    );
+  });
+
+  test('a single-Story run is inline with an unparseable body (route reports null)', () => {
+    const decision = resolveStoryDispatchMode({
+      body: '   ',
+      storyCount: 1,
+      injectedRules: RULES,
+    });
+    assert.equal(decision.mode, 'inline');
+    assert.equal(decision.route, null);
+  });
+
+  test('the shape kill-switch does not reach the topology rule', () => {
+    const decision = resolveStoryDispatchMode({
+      body: fullBody,
+      storyCount: 1,
+      config: { planning: { complexityGate: { enabled: false } } },
+      injectedRules: RULES,
+    });
+    assert.equal(
+      decision.mode,
+      'inline',
+      'planning.complexityGate governs shape derivation, not run topology',
+    );
+  });
+
+  test('an unknown or non-single run size falls through to the shape decision', () => {
+    for (const storyCount of [undefined, null, 0, '1', 1.5, -1]) {
+      const decision = resolveStoryDispatchMode({
+        body: fullBody,
+        storyCount,
+        injectedRules: RULES,
+      });
+      assert.equal(
+        decision.mode,
+        'subagent',
+        `storyCount=${String(storyCount)} must never be read as a single-Story run`,
+      );
+    }
+  });
+});
+
 // The lite path forks no delivery code: a lite-shaped Story is an ordinary
 // `type::story` ticket that `/deliver` picks up and `single-story-close.js`
 // PRs to `main` and gates unchanged. Driving a lite-shaped Story through the

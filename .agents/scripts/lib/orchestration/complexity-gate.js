@@ -35,7 +35,10 @@
  *      acceptance-critic dispatch — while every `single-story-close.js` gate
  *      runs unchanged. The `route::lite` label is a **human-visible hint
  *      only**, never the control signal: a lost label or an unread marker can
- *      no longer misroute delivery.
+ *      no longer misroute delivery. Ahead of the shape read sits one
+ *      shape-independent rule (Story #4736): a **single-Story run** is inline
+ *      whatever its shape, because sub-agent isolation buys nothing when
+ *      there is no concurrent sibling to isolate from.
  *
  * The shape taxonomy is deliberately the one `review-depth.js` already
  * applies to the landed diff at close (`deriveChangeLevel` over the
@@ -561,37 +564,68 @@ function deriveStoryRouteFromBody(body, opts = {}) {
 }
 
 /**
- * Decide how `/deliver` executes a Story — **from the Story body's own
- * shape**, never from the `route::lite` label (Story #4722 AC-4/AC-5).
+ * Best-effort route derivation for reporting, when the *mode* is already
+ * pinned by run topology and only `route` remains to be filled in. A body
+ * that will not parse yields `null` rather than throwing — the caller is not
+ * asking the shape to decide anything.
  *
- * A lite-shaped Story executes **inline** in the deliver session — no
- * story-worker sub-agent boot and no fresh acceptance-critic dispatch
- * (sub-agent boots are the dominant deliver-phase token cost at trivial
- * scope). Everything else — a full-shaped body, a missing/unparseable body,
- * or the gate disabled via `planning.complexityGate.enabled=false` —
- * dispatches as a sub-agent: the conservative default.
+ * @param {unknown} body
+ * @param {{ injectedRules?: object, selectSensitivePathClassesFn?: Function }} opts
+ * @returns {ReturnType<typeof deriveStoryShape>|null}
+ */
+function routeForReporting(body, opts) {
+  if (typeof body !== 'string' || body.trim() === '') return null;
+  return deriveStoryRouteFromBody(body, opts);
+}
+
+/**
+ * Decide how `/deliver` executes a Story.
+ *
+ * Two independent premises, checked in this order:
+ *
+ * 1. **Run topology (Story #4736).** A run delivering a *single* Story
+ *    executes **inline**, whatever its shape. Sub-agent isolation is
+ *    load-bearing only for CONCURRENT dispatch — two workers sharing a
+ *    checkout would race on worktrees and branch refs — and a one-Story run
+ *    has no sibling to race. It therefore pays the spawn premium (a boot is
+ *    a cache WRITE at full rate, where an inline continuation is a cache read
+ *    at ~10%; ~$1.43/M vs ~$1.07/M on comparable bench work) for nothing.
+ *    This is a fact about the run, not about the work, so the shape gate's
+ *    `enabled` switch — which governs *shape derivation* — does not reach it.
+ * 2. **Shape (Story #4722 AC-4/AC-5).** For a multi-Story run, the decision
+ *    comes **from the Story body's own shape**, never from the `route::lite`
+ *    label: a lite-shaped Story executes inline; everything else — a
+ *    full-shaped body, a missing/unparseable body, or the gate disabled via
+ *    `planning.complexityGate.enabled=false` — dispatches as a sub-agent,
+ *    the conservative default.
  *
  * The label is read only to report hint consistency in `reasons`: with the
  * label absent (or its write failed) a lite-shaped Story still runs inline,
  * and with the label present on a full-shaped Story the shape wins.
  *
- * Inline execution removes model-side fan-out only. Every deterministic
- * `single-story-close.js` gate runs unchanged regardless of mode — see the
+ * Inline execution removes model-side fan-out only — it changes **where** the
+ * engine runs, never **what** runs. Every deterministic
+ * `single-story-close.js` gate, the PR to `main`, and the
+ * `story-deliver-terminal` envelope are identical in both modes; see the
  * module header's non-negotiables.
  *
  * @param {{
  *   body?: unknown,
  *   labels?: unknown,
  *   config?: object,
+ *   storyCount?: unknown,
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
- * }} [args]
+ * }} [args] `storyCount` is the number of Stories the invoking `/deliver` run
+ *   resolved. Omitted (or not a positive integer) means "unknown run size",
+ *   which falls through to the shape decision — never to an assumed 1.
  * @returns {{ mode: 'inline'|'subagent', reasons: string[], route: ReturnType<typeof deriveStoryShape>|null }}
  */
 export function resolveStoryDispatchMode({
   body,
   labels,
   config,
+  storyCount,
   injectedRules,
   selectSensitivePathClassesFn,
 } = {}) {
@@ -602,6 +636,20 @@ export function resolveStoryDispatchMode({
   const hintNote = hasHint
     ? `the ${LITE_ROUTE_LABEL} label is present (hint only — the derived shape is the control signal)`
     : `the ${LITE_ROUTE_LABEL} label is absent (hint only — the derived shape is the control signal)`;
+
+  if (storyCount === 1) {
+    return {
+      mode: 'inline',
+      reasons: [
+        'single-Story run — execute deliver-story inline; sub-agent isolation is load-bearing only for concurrent dispatch, and a one-Story run has no sibling to race (close gates, PR, and terminal envelope unchanged)',
+        hintNote,
+      ],
+      route: routeForReporting(body, {
+        injectedRules,
+        selectSensitivePathClassesFn,
+      }),
+    };
+  }
 
   const gate = resolveComplexityGate(config);
   if (!gate.enabled) {

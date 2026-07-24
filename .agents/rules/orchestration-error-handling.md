@@ -46,8 +46,16 @@ success output is a per-turn tax on the whole session — not a one-time cost.
   their drivers — emit them single-line (`JSON.stringify(x)`), never
   pretty-printed (`null, 2` only adds resident bytes). Pretty output is
   reserved for explicit opt-in flags (`--pretty`).
+- **Streamed child output counts too (Story #4736).** A script that pipes a
+  child process's stdout/stderr through to the caller is emitting that output
+  as its own. `single-story-close.js` streamed every close-validation gate —
+  the whole of `npm test` included — and blew the budget by ~25× on a *passing*
+  close. Capture it to an artifact instead
+  ([`single-story-close/gate-log.js`](../scripts/lib/orchestration/single-story-close/gate-log.js)),
+  emit the digest, and **replay the tail inline on failure** — the bound is a
+  success-path bound, and a red gate's evidence belongs in front of the caller.
 - **Escape hatch.** `MANDREL_RESULT_DETAIL=inline` restores inline full
   detail for interactive debugging; scripts using `emitTerseResult` honor it
-  automatically.
+  automatically. `AGENT_LOG_LEVEL=verbose` restores live gate streaming.
 - **stdout purity is unchanged.** Scripts whose stdout is a machine contract
   (Story #2278) keep logs on stderr; the digest is the *only* stdout line.
