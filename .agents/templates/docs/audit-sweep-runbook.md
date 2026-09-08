@@ -145,9 +145,17 @@ Audit-sourced Stories carry a closed label set, so they can be filtered out of
 | Label | Meaning |
 | --- | --- |
 | `type::story` | Every emitted Story — the sweep never opens Epics or tasks. |
-| `agent::ready` | Filed and available for pickup. |
 | `audit::<lens>` | One per lens represented in the group; a cross-audit merge carries several. |
 | `risk::high` | Added when any finding in the group is Critical. |
+
+**There is no `agent::` state label in that set, and that is the point.** The
+sweep files a Story it has deliberately not made deliverable — Step 5 above is
+the reason. `agent::ready` is what `/mandrel-deliver` reads as "available for
+pickup", so a sweep that applied it would route unenriched audit prose straight
+into delivery, which is the outcome Step 5 tells you to avoid. The label is
+applied by `/mandrel-plan`, at the end of planning, once the finding is a
+scoped slice. If you file these Issues by hand, apply the emitted `labels[]`
+verbatim and do not top it up with a state.
 
 The lens labels are a **closed taxonomy**: only the canonical `audit::<lens>`
 names are valid, and the filer refuses to emit a label the repository has never

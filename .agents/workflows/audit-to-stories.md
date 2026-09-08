@@ -211,10 +211,16 @@ shared helper's `fingerprintFooter(sha)`
 Labels applied:
 
 - `type::story`
-- `agent::ready`
 - `audit::<dimension>` — one per dimension represented in the merge
   (cross-audit groups carry multiple).
 - `risk::high` — added when any finding in the group is Critical.
+
+**No `agent::` state label, deliberately.** The filer used to emit
+`agent::ready`, which is exactly what `/mandrel-deliver` reads as "available
+for pickup" — and these bodies are audit prose, not a delivery-ready Spec. A
+Story with no `agent::` label is a legal initial state; `/mandrel-plan` stamps
+`agent::ready` as its terminal flip once the finding has become a scoped
+capability slice. Do not re-add it here or apply it by hand at create time.
 
 ### Phase 5c — Wire the cohort's declared ordering (**required**)
 

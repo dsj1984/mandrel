@@ -47,7 +47,13 @@ test('buildStoryBody emits all canonical sections', () => {
 test('buildStoryBody applies one canonical audit::<lens> label per distinct source report (Story #4195)', () => {
   const { labels } = buildStoryBody({ group: loginGroup() });
   assert.ok(labels.includes('type::story'));
-  assert.ok(labels.includes('agent::ready'));
+  // No `agent::` state, deliberately: `agent::ready` is what
+  // `/mandrel-deliver` reads as "available for pickup", and these bodies are
+  // audit prose awaiting the enrichment `/mandrel-plan` owns (Story #5229).
+  assert.deepEqual(
+    labels.filter((l) => l.startsWith('agent::')),
+    [],
+  );
   // The login group merges findings from audit-security-results.md and
   // audit-clean-code-results.md, so the canonical lens labels are
   // audit::security + audit::clean-code — derived from the sourceReport
