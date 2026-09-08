@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.51.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.50.0...mandrel-v2.51.0) (2026-09-08)
+
+
+### Added
+
+* **audit:** add the /audit-mobile lens for mobile and tablet UX (refs [#5233](https://github.com/dsj1984/mandrel/issues/5233)) ([#5234](https://github.com/dsj1984/mandrel/issues/5234)) ([eccd505](https://github.com/dsj1984/mandrel/commit/eccd50527f04a25e02d50f57e1c6d760345bc9e8))
+
 ## [2.50.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.49.0...mandrel-v2.50.0) (2026-09-08)
 
 
