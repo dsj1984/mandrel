@@ -21,5 +21,4 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Information Hierarchy
 - [ ] Error States
 - [ ] Loading States
-- [ ] Responsiveness
 - [ ] Accessibility (UX-focused)

@@ -299,6 +299,36 @@
       "scope": "local",
       "substitutionKeys": []
     },
+    "audit-mobile": {
+      "triggers": {
+        "gates": ["gate2", "gate3"],
+        "keywords": [
+          "mobile",
+          "tablet",
+          "responsive",
+          "breakpoint",
+          "viewport",
+          "touch"
+        ],
+        "filePatterns": [
+          "**/*.html",
+          "**/*.astro",
+          "**/*.css",
+          "**/*.{scss,sass,less}",
+          "**/styles/**",
+          "**/components/**/*.{js,jsx,ts,tsx,vue,svelte}",
+          "**/app/**/{page,layout,route,head,default,template,loading,error,not-found}.{js,jsx,ts,tsx}",
+          "**/pages/**/*.{js,jsx,ts,tsx,vue}",
+          "**/routes/**/*.{jsx,tsx,vue,svelte}",
+          "**/tailwind.config.{js,ts,cjs,mjs}",
+          "**/playwright.config.{js,ts,cjs,mjs}",
+          "**/cypress.config.{js,ts,cjs,mjs}"
+        ]
+      },
+      "target": "web",
+      "scope": "local",
+      "substitutionKeys": []
+    },
     "audit-navigability": {
       "triggers": {
         "gates": ["gate2", "gate3"],

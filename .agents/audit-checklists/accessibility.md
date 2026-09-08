@@ -12,6 +12,7 @@ Self-check your change against this lens's concerns before you ship:
 
 - [ ] `audit-accessibility` (this lens)
 - [ ] `audit-ux-ui`
+- [ ] `audit-mobile`
 - [ ] Renderable surface
 - [ ] Static a11y tooling already in the repo
 - [ ] Design tokens

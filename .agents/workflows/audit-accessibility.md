@@ -31,9 +31,9 @@ on a project with no rendered frontend, since there are no components, templates
 or routes to hold to WCAG. See the `target` key's schema description for how
 applicability is probed from the consumer's checkout.
 
-## Boundary with `audit-ux-ui`
+## Boundaries with the neighbouring web lenses
 
-These two web lenses share a border and must not double-report:
+These lenses share a border with this one and must not double-report:
 
 - **`audit-accessibility` (this lens)** owns **WCAG conformance** — the
   standards question: does an assistive-technology user perceive, operate, and
@@ -41,11 +41,17 @@ These two web lenses share a border and must not double-report:
   controls, text alternatives, and contrast against the WCAG ratio thresholds.
 - **`audit-ux-ui`** owns **design-system adherence** — the consistency
   question: do components and tokens match the project's own design system?
+- **`audit-mobile`** owns **small-screen and touch behaviour** — layout at a
+  phone or tablet viewport, touch ergonomics, responsive assets, and mobile
+  test coverage. It may measure a control's rendered size as ergonomic
+  evidence, but the `2.5.8 Target Size (Minimum)` verdict on an undersized
+  target is reported here.
 
-Contrast is the one axis both can touch: **accessibility owns the WCAG ratio
-verdict** (4.5:1 body / 3:1 large text / 3:1 non-text), while ux-ui owns whether
-the colour came from a sanctioned token. When a contrast defect is in scope for
-both, report the WCAG failure here and leave the token-adherence note to ux-ui.
+Contrast is the one axis accessibility and ux-ui both touch: **accessibility
+owns the WCAG ratio verdict** (4.5:1 body / 3:1 large text / 3:1 non-text),
+while ux-ui owns whether the colour came from a sanctioned token. When a
+contrast defect is in scope for both, report the WCAG failure here and leave
+the token-adherence note to ux-ui.
 
 ## Scope
 
