@@ -18,6 +18,8 @@ import { EventEmitter } from 'node:events';
 import test from 'node:test';
 
 import { graduateRetroProposals } from '../../../.agents/scripts/lib/feedback-loop/retro-proposals-graduator.js';
+import { handleBlockedBackstop } from '../../../.agents/scripts/lib/orchestration/light-escalation.js';
+import { checkLightDiffBackstop } from '../../../.agents/scripts/lib/orchestration/light-suitability.js';
 import { composeRoutedProposals } from '../../../.agents/scripts/lib/orchestration/retro-proposals.js';
 
 const FRAMEWORK_REPO = 'dsj1984/mandrel';
@@ -1293,4 +1295,126 @@ test('#5238 AC-4: N refusals of the SAME class still coalesce into one proposal'
     out.framework[0].body,
     /Contributing Stories \(2\): #4856, #4857/,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Story #5238 — the emitter↔composer CONTRACT, driven by real verdicts
+//
+// This is the test the defect needed. Both halves of issue #5237 were
+// single-module-correct: the emitter wrote `details.reasons[]` and the composer
+// read `details.reason`, and each had passing tests over its own hand-written
+// fixture. Only a test that carries the ACTUAL emitted signal into the ACTUAL
+// composer can see the seam between them, so this one asserts on what
+// `handleBlockedBackstop` really emits for a real `checkLightDiffBackstop`
+// verdict — no fixture in the middle to be wrong in the same way twice.
+// ---------------------------------------------------------------------------
+
+/**
+ * Capture the friction signal the light path emits for one real backstop
+ * verdict, and shape it the way the signals stream hands it to the composer.
+ *
+ * `source` is added here because source classification happens downstream in
+ * `signals-writer`/`source-classifier`, not at the emit call — it is the one
+ * field this join legitimately supplies.
+ */
+async function captureRefusalSignal({
+  storyId,
+  changedFiles,
+  magnitude,
+  rules,
+}) {
+  const result = checkLightDiffBackstop({
+    changedFiles,
+    magnitude,
+    injectedRules: rules,
+    storyBranch: `story-${storyId}`,
+  });
+  const captured = [];
+  await handleBlockedBackstop({
+    storyId,
+    result,
+    preservation: { preserved: true },
+    emitFn: async (args) => {
+      captured.push(args);
+      return true;
+    },
+  });
+  assert.equal(captured.length, 1, 'one refusal emits one signal');
+  return { result, signal: { ...captured[0], source: 'framework' } };
+}
+
+const PUBLIC_API_RULES = {
+  sensitivePaths: { 'public-api': { filePatterns: ['**/api/**'] } },
+};
+
+test('#5238 AC-2: the reason text the EMITTER wrote reaches the composed body', async () => {
+  // A real over-ceiling refusal on two Stories — the recurring shape that
+  // actually files an issue.
+  const first = await captureRefusalSignal({
+    storyId: 4856,
+    changedFiles: ['src/wide.js'],
+    magnitude: { implFiles: 1, implLines: 99999 },
+    rules: PUBLIC_API_RULES,
+  });
+  const second = await captureRefusalSignal({
+    storyId: 4857,
+    changedFiles: ['src/wide.js'],
+    magnitude: { implFiles: 1, implLines: 99999 },
+    rules: PUBLIC_API_RULES,
+  });
+
+  // The emitter's own wire shape: plural, and no singular key at all.
+  assert.ok(Array.isArray(first.signal.details.reasons));
+  assert.equal(Object.hasOwn(first.signal.details, 'reason'), false);
+
+  const out = composeRoutedProposals(
+    baseInput({ anchorId: 4870, signals: [first.signal, second.signal] }),
+  );
+
+  const item = out.framework[0];
+  assert.equal(item.occurrences, 2);
+  // The verdict's OWN reason text, not a fixture's paraphrase of it.
+  const [emittedReason] = first.result.reasons;
+  assert.match(item.body, /^Reason: /m);
+  assert.ok(
+    item.body.includes(emittedReason),
+    `the filed body must carry the emitter's reason text: ${emittedReason}`,
+  );
+});
+
+test('#5238 AC-4: real refusals of different causes file separately, not as one recurrence', async () => {
+  // The two occurrences behind the misleading consumer follow-up: a backstop
+  // run before the commit (empty diff) and a genuine public-api hit.
+  const emptyDiff = await captureRefusalSignal({
+    storyId: 4856,
+    changedFiles: [],
+    magnitude: { implFiles: 1, implLines: 10 },
+    rules: PUBLIC_API_RULES,
+  });
+  const sensitive = await captureRefusalSignal({
+    storyId: 4857,
+    changedFiles: ['src/api/routes.js'],
+    magnitude: { implFiles: 1, implLines: 10 },
+    rules: PUBLIC_API_RULES,
+  });
+
+  // Distinct categories, both under the shared stem so a `friction::` filter
+  // still finds every light-path refusal.
+  assert.notEqual(emptyDiff.signal.category, sensitive.signal.category);
+  for (const signal of [emptyDiff.signal, sensitive.signal]) {
+    assert.match(signal.category, /^light-scope-rejected/);
+  }
+  assert.match(sensitive.signal.category, /sensitive-path$/);
+
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [emptyDiff.signal, sensitive.signal],
+    }),
+  );
+
+  // Neither reaches the recurrence threshold on its own, so the "recurred 2
+  // times across 2 Stories" issue with nothing in common is never filed.
+  assert.deepEqual(out.framework, []);
+  assert.equal(out.discarded.length, 2);
 });
