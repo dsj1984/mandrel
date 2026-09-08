@@ -113,6 +113,7 @@ test('selector: no web lens survives the gate on a no-web-surface repo', async (
     'audit-seo',
     'audit-ux-ui',
     'audit-accessibility',
+    'audit-mobile',
     'audit-navigability',
   ]) {
     assert.ok(
@@ -318,6 +319,7 @@ test('audit-rules.json declares target: "web" on exactly the web lenses', () => 
 
   assert.deepEqual(webLenses, [
     'audit-accessibility',
+    'audit-mobile',
     'audit-navigability',
     'audit-seo',
     'audit-ux-ui',

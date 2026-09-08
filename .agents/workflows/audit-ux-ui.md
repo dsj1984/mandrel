@@ -89,12 +89,17 @@ baseline — a mechanical hit is a *candidate*, not automatically a finding.
 2. **Error States:** Are form errors clear and helpful, or generic and
    frustrating?
 3. **Loading States:** Are there skeletons or spinners for async operations?
-4. **Responsiveness:** Check layouts at mobile, tablet, and desktop breakpoints.
-5. **Accessibility (UX-focused):** Focus on tab order, touch-target sizes, and
-   whether interaction colours come from a sanctioned token. **WCAG conformance
-   is out of scope here** — semantic structure, ARIA correctness,
-   keyboard/focus operability, form labelling, media alternatives, and the WCAG
-   contrast-ratio verdict are owned by [`/audit-accessibility`](audit-accessibility.md).
+4. **Accessibility (UX-focused):** Focus on tab order and whether interaction
+   colours come from a sanctioned token. **WCAG conformance is out of scope
+   here** — semantic structure, ARIA correctness, keyboard/focus operability,
+   form labelling, media alternatives, and the WCAG contrast-ratio verdict are
+   owned by [`/audit-accessibility`](audit-accessibility.md).
    This lens keeps token/component design-system adherence; defer every WCAG
    success-criterion judgement to the accessibility lens so the two never
    double-report.
+
+> **Small-screen behaviour is out of scope here too.** Layout at a phone or
+> tablet viewport, touch-target ergonomics, responsive assets, and whether any
+> suite exercises a non-desktop viewport belong to [`/audit-mobile`](audit-mobile.md).
+> This lens keeps the token/component question at whatever viewport the surface
+> renders.

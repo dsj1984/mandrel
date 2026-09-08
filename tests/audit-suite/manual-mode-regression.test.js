@@ -31,6 +31,7 @@ const LENSES = [
   'audit-dependencies',
   'audit-devops',
   'audit-documentation',
+  'audit-mobile',
   'audit-performance',
   'audit-privacy',
   'audit-quality',
