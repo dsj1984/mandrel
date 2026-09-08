@@ -153,13 +153,19 @@ answer).
    number that then rejects the change. They are **not** exempt from
    sensitive-path matching, which runs over the full change set.
 
-   Exit `3` (`blocked: true`) means the diff exceeds a light ceiling or touches a
-   sensitive-path class. STOP, flip `agent::blocked`, and **recycle the receipt**
-   through the envelope's `nextCommand` (`/mandrel-plan <storyId>`) — tickets mode
-   rewrites it into properly-planned Stories and closes it as superseded. Do not
-   land, and do not leave the receipt open with no successor: it already carries
-   the branch, the worktree, and the implementation, all of which are evidence
-   the plan should read.
+   **Commit before you run it.** The backstop measures **committed** state, so
+   a run that implemented but has not committed measures an empty diff and is
+   refused for a scope it never had. That refusal names the real fix — commit
+   on `story-<id>`, then re-run the backstop — and its `nextCommand` is that
+   re-run, not an escalation.
+
+   Exit `3` (`blocked: true`) otherwise means the diff exceeds a light ceiling or
+   touches a sensitive-path class. STOP, flip `agent::blocked`, and **recycle the
+   receipt** through the envelope's `nextCommand` (`/mandrel-plan <storyId>`) —
+   tickets mode rewrites it into properly-planned Stories and closes it as
+   superseded. Do not land, and do not leave the receipt open with no successor:
+   it already carries the branch, the worktree, and the implementation, all of
+   which are evidence the plan should read.
 
 5. **Close and land (same engine).** Exactly [`/mandrel-deliver`](../mandrel-deliver.md)'s close:
 

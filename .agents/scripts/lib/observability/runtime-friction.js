@@ -95,6 +95,40 @@ export const RUNTIME_FRICTION_CATEGORIES = Object.freeze({
   REVIEW_BLOCK_OVERRIDDEN: 'review-block-overridden',
 });
 
+/**
+ * The friction category one light-path refusal files under.
+ *
+ * `LIGHT_SCOPE_REJECTED` alone used to be the category for every refusal, and
+ * the retro composer aggregates, de-duplicates and labels on the category
+ * string ALONE — so an empty-diff refusal and a `public-api` sensitive-path
+ * refusal landed in one bucket and filed one "recurred 2 times across 2
+ * Stories" follow-up whose two occurrences had nothing in common but the
+ * category (issue #5237; consumer Beestera/swarm-os#2408). The roll-up's shape
+ * fingerprint could not separate them either: it hashes detail KEYS, and every
+ * refusal carries an identical key set.
+ *
+ * Encoding the refusal class in the category is what splits them, and it
+ * splits them in every consumer at once — bucket aggregation, the graduator's
+ * idempotency marker and the `friction::<category>` label all read this one
+ * string. N refusals of the SAME class still coalesce, which is the recurrence
+ * evidence the light ceilings are recalibrated from. New categories need no
+ * seeding: the graduator mints missing `friction::*` labels before filing.
+ *
+ * A class-less refusal keeps the bare category unchanged — that is the
+ * suitability gate, which refuses a prompt before any diff exists and so has
+ * no diff-derived class to carry.
+ *
+ * @param {string|null} [refusalClass] A
+ *   {@link module:lib/orchestration/light-suitability.LIGHT_REFUSAL_CLASSES}
+ *   value, or nullish for the unclassified refusal.
+ * @returns {string}
+ */
+export function lightScopeRejectedCategory(refusalClass) {
+  const suffix = typeof refusalClass === 'string' ? refusalClass.trim() : '';
+  const base = RUNTIME_FRICTION_CATEGORIES.LIGHT_SCOPE_REJECTED;
+  return suffix === '' ? base : `${base}-${suffix}`;
+}
+
 /** Cap on free-form reason text copied into a signal's `details`. */
 const REASON_PREVIEW_LIMIT = 500;
 

@@ -1040,7 +1040,14 @@ const rejected = (storyId) => ({
   source: 'framework',
   storyId,
   tool: 'deliver-light',
-  details: { surface: 'diff-backstop', reason: 'actual change set is unknown' },
+  // The PLURAL key, because that is what `recordScopeFriction` actually
+  // writes. The singular `reason` this fixture used to carry is a shape no
+  // light-path emitter has ever produced, which is how the dropped-reasons
+  // defect (issue #5237) stayed invisible to this suite.
+  details: {
+    surface: 'diff-backstop',
+    reasons: ['actual change set is unknown'],
+  },
 });
 
 test('#4892 AC-3: an unresolvable contributing id is withheld from the filed body', () => {
@@ -1122,4 +1129,168 @@ test('#4892 AC-5: the cross-run window survives — a real Story outside the run
   assert.match(item.body, /Contributing Stories \(2\): #4801, #4856$/m);
   assert.match(item.title, /across 2 Stories/);
   assert.ok(!item.title.includes('in plan-run'), 'the corpus is not confined');
+});
+
+// ---------------------------------------------------------------------------
+// Story #5238 — the light path's refusal reasons reach the filed body, and
+// unrelated refusal classes stop aggregating into one follow-up (issue #5237)
+// ---------------------------------------------------------------------------
+
+const EMPTY_DIFF_REASON =
+  'actual change set is unknown or empty — cannot verify the diff is light; escalate to /mandrel-plan';
+const SENSITIVE_REASON =
+  'diff intersects sensitive-path class(es) public-api — escalate to /mandrel-plan (do not land light)';
+
+/** A diff-backstop refusal in the shape the light path emits it. */
+const backstopRefusal = ({ storyId, category, reasons }) => ({
+  category,
+  source: 'framework',
+  storyId,
+  tool: 'deliver-light',
+  details: { surface: 'diff-backstop', reasons },
+});
+
+test('#5238 AC-1: a plural details.reasons[] reaches the rendered Reason line', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [
+        backstopRefusal({
+          storyId: 4856,
+          category: 'light-scope-rejected-sensitive-path',
+          reasons: [SENSITIVE_REASON],
+        }),
+        backstopRefusal({
+          storyId: 4857,
+          category: 'light-scope-rejected-sensitive-path',
+          reasons: [SENSITIVE_REASON],
+        }),
+      ],
+    }),
+  );
+
+  const item = out.framework[0];
+  // The whole point of the ticket: this line used to be absent entirely, so
+  // the filed issue named a count and a category and nothing else.
+  assert.match(item.body, /^Reason: /m);
+  assert.match(
+    item.body,
+    /diff intersects sensitive-path class\(es\) public-api/,
+  );
+  // And it rides into the pre-drafted command an operator pastes.
+  assert.match(item.command, /diff intersects sensitive-path/);
+});
+
+test('#5238 AC-1: the singular details.reason emitters still render, and both shapes can share a bucket', () => {
+  const degraded = (storyId, details) => ({
+    category: 'tool-degraded',
+    source: 'framework',
+    storyId,
+    tool: 'native-review-lint',
+    details: { surface: 'scoped-lint', ...details },
+  });
+
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [
+        degraded(4801, { reason: 'no parseable output' }),
+        degraded(4802, { reasons: ['binary missing', 'parse failure'] }),
+      ],
+    }),
+  );
+
+  const { body } = out.framework[0];
+  assert.match(body, /no parseable output/);
+  assert.match(body, /binary missing/);
+  assert.match(body, /parse failure/);
+});
+
+test('#5238 AC-1: a non-string reasons member is skipped, never coerced into the body', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [
+        backstopRefusal({
+          storyId: 4856,
+          category: 'light-scope-rejected-over-ceiling',
+          reasons: [{ nested: 'object' }, 'diff changes 4000 line(s)'],
+        }),
+        backstopRefusal({
+          storyId: 4857,
+          category: 'light-scope-rejected-over-ceiling',
+          reasons: ['diff changes 4000 line(s)'],
+        }),
+      ],
+    }),
+  );
+
+  const { body } = out.framework[0];
+  assert.match(body, /diff changes 4000 line\(s\)/);
+  assert.ok(
+    !body.includes('[object Object]'),
+    'a non-string reason must never be stringified into a live issue body',
+  );
+});
+
+test('#5238 AC-4: two refusal CLASSES do not aggregate into one follow-up', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [
+        backstopRefusal({
+          storyId: 4856,
+          category: 'light-scope-rejected-change-set-unknown',
+          reasons: [EMPTY_DIFF_REASON],
+        }),
+        backstopRefusal({
+          storyId: 4857,
+          category: 'light-scope-rejected-sensitive-path',
+          reasons: [SENSITIVE_REASON],
+        }),
+      ],
+    }),
+  );
+
+  // The measured shape behind the misleading follow-up: an uncommitted-diff
+  // refusal and a public-api refusal are one occurrence each, so NEITHER
+  // reaches the recurrence threshold and no "recurred 2 times" issue is filed.
+  assert.deepEqual(out.framework, []);
+  assert.equal(out.discarded.length, 2);
+  assert.deepEqual(
+    out.discarded.map((d) => d.occurrences),
+    [1, 1],
+  );
+});
+
+test('#5238 AC-4: N refusals of the SAME class still coalesce into one proposal', () => {
+  const out = composeRoutedProposals(
+    baseInput({
+      anchorId: 4870,
+      signals: [
+        backstopRefusal({
+          storyId: 4856,
+          category: 'light-scope-rejected-sensitive-path',
+          reasons: [SENSITIVE_REASON],
+        }),
+        backstopRefusal({
+          storyId: 4857,
+          category: 'light-scope-rejected-sensitive-path',
+          reasons: [SENSITIVE_REASON],
+        }),
+      ],
+    }),
+  );
+
+  assert.equal(out.framework.length, 1);
+  assert.equal(
+    out.framework[0].category,
+    'light-scope-rejected-sensitive-path',
+  );
+  assert.equal(out.framework[0].occurrences, 2);
+  // The recurrence claim the ceilings are recalibrated from is intact.
+  assert.match(
+    out.framework[0].body,
+    /Contributing Stories \(2\): #4856, #4857/,
+  );
 });
