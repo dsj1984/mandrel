@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.52.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.51.0...mandrel-v2.52.0) (2026-09-08)
+
+
+### Fixed
+
+* render deliver-light refusal reasons in retro follow-ups and file each backstop refusal class as its own friction category ([#5238](https://github.com/dsj1984/mandrel/issues/5238)) ([#5239](https://github.com/dsj1984/mandrel/issues/5239)) ([65ff0ff](https://github.com/dsj1984/mandrel/commit/65ff0ff4252ddc4fe34d4d8453159a80afae6223))
+
 ## [2.51.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.50.0...mandrel-v2.51.0) (2026-09-08)
 
 
