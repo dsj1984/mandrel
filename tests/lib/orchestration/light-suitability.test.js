@@ -2099,6 +2099,22 @@ describe('checkLightDiffBackstop — refusalClass is the machine-readable half',
     assert.equal(distinct.size, 4, 'unrelated causes must not share a class');
   });
 
+  test('an unreadable sensitive-path manifest is its own class, not a magnitude verdict', () => {
+    // `deriveChangeLevel` answers `{ level: null, classes: [] }` when the rules
+    // manifest cannot be read — non-sensitivity is then unproven, which is a
+    // different refusal from "too big" and must not aggregate with it.
+    const r = checkLightDiffBackstop({
+      changedFiles: ['bin/hello.js'],
+      magnitude: magnitudeOf(1, 10),
+      selectSensitivePathClassesFn: () => {
+        throw new Error('audit-rules.json is unreadable');
+      },
+    });
+    assert.equal(r.blocked, true);
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.SENSITIVITY_UNKNOWN);
+    assert.match(r.reasons.join(' '), /classification unavailable/);
+  });
+
   test('sensitivity wins the class when a diff is BOTH sensitive and over-ceiling', () => {
     const r = checkLightDiffBackstop({
       changedFiles: ['src/auth/a.js'],

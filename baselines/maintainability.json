@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-08T10:55:34.920Z",
+  "generatedAt": "2026-09-08T18:48:27.592Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.874,
+      "p50": 98.886,
       "p95": 122.902
     }
   },
@@ -1036,7 +1036,7 @@
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
-      "mi": 91.952
+      "mi": 92.613
     },
     {
       "path": ".agents/scripts/lib/observability/signal-validator.js",
@@ -1264,7 +1264,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-backstop.js",
-      "mi": 94.89
+      "mi": 97.869
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-escalation.js",
@@ -1657,6 +1657,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
       "mi": 100.405
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
+      "mi": 113.18
     },
     {
       "path": ".agents/scripts/lib/path-security.js",
