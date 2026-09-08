@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.50.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.49.0...mandrel-v2.50.0) (2026-09-08)
+
+
+### Fixed
+
+* stop /audit-to-stories emitting agent::ready on generated audit Stories… ([#5229](https://github.com/dsj1984/mandrel/issues/5229)) ([#5230](https://github.com/dsj1984/mandrel/issues/5230)) ([d095608](https://github.com/dsj1984/mandrel/commit/d09560866c42084aed3fb92fb91d8c9a49fe66e3))
+
 ## [2.49.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.48.0...mandrel-v2.49.0) (2026-09-08)
 
 
