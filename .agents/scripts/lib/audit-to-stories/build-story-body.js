@@ -10,9 +10,9 @@
  * Pure: returns { title, body, labels }. Labels carry one canonical
  * `audit::<lens>` per distinct source report represented in the merge
  * (derived from each finding's `sourceReport` basename, NEVER from the
- * fine-grained `dimension` text — see Story #4195), plus the standard
- * `type::story`, `agent::ready`, and (when any finding is Critical)
- * `risk::high`.
+ * fine-grained `dimension` text — see Story #4195), plus `type::story` and
+ * (when any finding is Critical) `risk::high`. Deliberately **no `agent::`
+ * state label** — see {@link STATIC_LABELS}.
  *
  * The body is serialized via the canonical story-body serializer
  * (`.agents/scripts/lib/story-body/story-body.js`) so the output round-trips
@@ -23,7 +23,7 @@
  */
 
 import path from 'node:path';
-import { AGENT_LABELS, RISK_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { RISK_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { serialize } from '../story-body/story-body.js';
 import { definesAuditLabel } from './audit-label-taxonomy.js';
 import { auditLabelsForFindings } from './audit-lenses.js';
@@ -32,7 +32,26 @@ import {
   renderSemanticKeyFooter,
 } from './finding-adapter.js';
 
-const STATIC_LABELS = Object.freeze([TYPE_LABELS.STORY, AGENT_LABELS.READY]);
+// The story-axis labels every generated audit Story carries, and the one it
+// deliberately does NOT: an `agent::` state.
+//
+// This used to be `[TYPE_LABELS.STORY, AGENT_LABELS.READY]`, which put every
+// Story the sweep filed one step from execution. `agent::ready` is precisely
+// what `/mandrel-deliver` reads as "available for pickup", and the bodies
+// reaching this function are audit prose — a synthesized acceptance line per
+// finding and an Agent Prompts section that is empty whenever the lens
+// captured no `agentPrompt`. Filing them ready contradicted the sweep's own
+// shipped runbook, whose enrich-before-you-deliver step says not to point
+// `/mandrel-deliver` at a freshly-filed audit Story; the label said the
+// opposite of the prose, and the label is the half a machine reads.
+//
+// The state axis therefore belongs to whoever enriches the finding:
+// `/mandrel-plan` stamps `agent::ready` as its terminal flip once the Story
+// has a `## Spec`, real acceptance criteria and runnable verify lines. An
+// absent `agent::` label is a legal initial state — `isValidTransition`
+// treats a null from-state as the initial-entry edge and permits any target —
+// so nothing downstream has to special-case the gap (Story #5229).
+const STATIC_LABELS = Object.freeze([TYPE_LABELS.STORY]);
 
 // The verify[] contract every generated audit Story carries. These commands
 // exist in this repo's harness (package.json scripts) so the Story satisfies

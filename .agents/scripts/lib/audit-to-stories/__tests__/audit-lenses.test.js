@@ -172,9 +172,20 @@ describe('buildStoryBody label derivation (acceptance: multi-dimension group)', 
     }
   });
 
-  it('still carries the static type::story / agent::ready labels', () => {
+  it('carries type::story and NO agent:: state label', () => {
+    // A generated audit Story is audit prose, not a delivery-ready Spec: an
+    // empty Agent Prompt section and one synthesized acceptance line per
+    // finding. `agent::ready` is what `/mandrel-deliver` reads as "pick this
+    // up", so emitting it here routed an unenriched body straight into
+    // delivery. The sweep files the Story with no agent axis at all;
+    // `/mandrel-plan` stamps `agent::ready` as its terminal flip once the
+    // finding has become a scoped capability slice (Story #5229).
     const { labels } = buildStoryBody({ group: multiDimensionGroup });
     assert.ok(labels.includes('type::story'));
-    assert.ok(labels.includes('agent::ready'));
+    assert.deepEqual(
+      labels.filter((l) => l.startsWith('agent::')),
+      [],
+      'a generated audit Story must carry no agent:: state label',
+    );
   });
 });
