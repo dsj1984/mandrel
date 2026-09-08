@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-06T12:41:21.302Z",
+  "generatedAt": "2026-09-08T18:48:30.464Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -163,7 +163,7 @@
     {
       "file": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
+      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/orchestration/review-depth.js",

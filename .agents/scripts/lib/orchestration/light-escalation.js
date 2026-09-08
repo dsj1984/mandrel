@@ -41,8 +41,10 @@
 import { getStoryBranch, gitSpawn } from '../git-utils.js';
 import {
   emitRuntimeFriction,
+  lightScopeRejectedCategory,
   RUNTIME_FRICTION_CATEGORIES,
 } from '../observability/runtime-friction.js';
+import { LIGHT_REFUSAL_CLASSES } from './light-suitability.js';
 
 /**
  * The `/mandrel-plan` invocation that owns a Story the light path could not land.
@@ -52,6 +54,21 @@ import {
  */
 function buildRecycleCommand(storyId) {
   return `/mandrel-plan ${storyId}`;
+}
+
+/**
+ * The command that re-runs the backstop once the work is committed.
+ *
+ * The one refusal that is NOT about scope gets its own next step: an empty diff
+ * over a dirty worktree means the backstop ran before the commit, and handing
+ * that run to `/mandrel-plan` recycles a receipt whose implementation is fine
+ * — the wrong door, dressed as an escalation (issue #5237).
+ *
+ * @param {number} storyId
+ * @returns {string}
+ */
+function buildRerunBackstopCommand(storyId) {
+  return `node .agents/scripts/deliver-light.js --backstop --story ${storyId}`;
 }
 
 /**
@@ -127,10 +144,12 @@ export async function handleBlockedBackstop({
   emitFn,
   recordFrictionFn = recordScopeFriction,
 } = {}) {
+  const refusalClass = result?.refusalClass ?? null;
   await recordFrictionFn({
     emitFn,
     storyId,
     surface: 'diff-backstop',
+    category: lightScopeRejectedCategory(refusalClass),
     reasons: result?.reasons ?? [],
     details: {
       fileCount: result?.fileCount ?? null,
@@ -142,9 +161,12 @@ export async function handleBlockedBackstop({
       // than one whose branch reached origin — the roll-up must be able to
       // tell them apart.
       preserved: preservation?.preserved ?? null,
+      refusalClass,
     },
   });
-  return buildRecycleCommand(storyId);
+  return refusalClass === LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK
+    ? buildRerunBackstopCommand(storyId)
+    : buildRecycleCommand(storyId);
 }
 
 /**
@@ -221,15 +243,19 @@ export function preserveRefusedWork({
  * @param {{
  *   storyId?: number|null,
  *   surface: string,
+ *   category?: string,
  *   reasons?: string[],
  *   details?: object,
  *   emitFn?: typeof emitRuntimeFriction,
- * }} args
+ * }} args `category` defaults to the unclassified light-refusal bucket, which
+ *   is what the suitability gate emits: it refuses a prompt before any diff
+ *   exists, so it carries no refusal class to encode.
  * @returns {Promise<boolean>}
  */
 async function recordScopeFriction({
   storyId,
   surface,
+  category = RUNTIME_FRICTION_CATEGORIES.LIGHT_SCOPE_REJECTED,
   reasons = [],
   details = {},
   emitFn,
@@ -238,7 +264,7 @@ async function recordScopeFriction({
   try {
     return await emit({
       storyId,
-      category: RUNTIME_FRICTION_CATEGORIES.LIGHT_SCOPE_REJECTED,
+      category,
       tool: 'deliver-light',
       details: { surface, reasons, ...details },
     });

@@ -18,16 +18,26 @@
  *     other consumer are looking at the same change set.
  *   - `--numstat` gives per-file line counts, the only surface carrying them.
  *
+ * Both read committed state, which is why a third read exists
+ * ({@link module:lib/orchestration/worktree-dirty.hasUncommittedWork}): an
+ * empty diff is ambiguous between "no work" and "work not committed yet", and
+ * only one of those is about scope.
+ *
  * @module lib/orchestration/light-backstop
  */
 
+import { gitSpawn } from '../git-utils.js';
 import { computeChangeSet } from './change-set.js';
 import { readNumstatRows, summarizeDiffMagnitude } from './diff-magnitude.js';
 import {
   handleBlockedBackstop,
   preserveRefusedWork,
 } from './light-escalation.js';
-import { checkLightDiffBackstop } from './light-suitability.js';
+import {
+  checkLightDiffBackstop,
+  LIGHT_REFUSAL_CLASSES,
+} from './light-suitability.js';
+import { hasUncommittedWork } from './worktree-dirty.js';
 
 /** Exit code when the diff backstop blocked the land. */
 const EXIT_BACKSTOP_BLOCKED = 3;
@@ -41,6 +51,8 @@ const EXIT_BACKSTOP_BLOCKED = 3;
  *   cwd?: string,
  *   computeFn?: typeof computeChangeSet,
  *   readRowsFn?: typeof readNumstatRows,
+ *   dirtyProbeFn?: typeof hasUncommittedWork,
+ *   gitFn?: typeof gitSpawn,
  *   injectedRules?: object,
  * }} args
  * @returns {ReturnType<typeof checkLightDiffBackstop>}
@@ -51,6 +63,8 @@ function runDiffBackstop({
   cwd = process.cwd(),
   computeFn = computeChangeSet,
   readRowsFn = readNumstatRows,
+  dirtyProbeFn = hasUncommittedWork,
+  gitFn = gitSpawn,
   injectedRules,
 } = {}) {
   const headRef = `story-${storyId}`;
@@ -61,7 +75,47 @@ function runDiffBackstop({
     changedFiles: files,
     magnitude,
     injectedRules,
+    storyBranch: headRef,
+    // Only an ENUMERATED-empty diff can be explained by uncommitted work, so
+    // the probe's two git calls are spent only where they can change what the
+    // refusal tells the agent to do.
+    uncommittedWork:
+      Array.isArray(files) && files.length === 0
+        ? dirtyProbeFn({ branch: headRef, cwd, gitFn })
+        : false,
   });
+}
+
+/**
+ * Is this refusal the one that is NOT about scope?
+ *
+ * @param {{ refusalClass?: string|null }} result
+ * @returns {boolean}
+ */
+function isUncommittedRefusal(result) {
+  return result.refusalClass === LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK;
+}
+
+/**
+ * Close the refusal log line: what became of the work, and what to run next.
+ *
+ * A `null` preservation is the uncommitted-work refusal by construction — that
+ * is the one path that does not push, because there is nothing a push could
+ * preserve: it would publish a branch at its base and then report uncommitted
+ * work as safe on `origin`, which is the opposite of true.
+ *
+ * @param {{
+ *   storyId: number,
+ *   preservation: { detail: string }|null,
+ *   nextCommand: string,
+ * }} args
+ * @returns {string}
+ */
+function describeBlockedTail({ storyId, preservation, nextCommand }) {
+  return preservation === null
+    ? `nothing is committed yet, so there is no work to preserve; ` +
+        `commit on story-${storyId}, then re-run: "${nextCommand}"`
+    : `${preservation.detail}; recycle the receipt with "${nextCommand}"`;
 }
 
 /**
@@ -82,8 +136,8 @@ function runDiffBackstop({
  *   handleBlockedFn?: typeof handleBlockedBackstop,
  *   preserveFn?: typeof preserveRefusedWork,
  * }} args Any further keys (`baseRef`, `cwd`, `computeFn`, `readRowsFn`,
- *   `injectedRules`) forward to the backstop run, so the git-surface join is
- *   drivable through this one entry point.
+ *   `dirtyProbeFn`, `gitFn`, `injectedRules`) forward to the backstop run, so
+ *   the git-surface join is drivable through this one entry point.
  * @returns {Promise<{
  *   result: ReturnType<typeof checkLightDiffBackstop>,
  *   nextCommand: string|null,
@@ -109,7 +163,9 @@ export async function resolveBackstopOutcome({
       message: `[deliver-light] diff backstop clean for Story #${storyId}.`,
     };
   }
-  const preservation = preserveFn({ storyId, cwd: seams.cwd });
+  const preservation = isUncommittedRefusal(result)
+    ? null
+    : preserveFn({ storyId, cwd: seams.cwd });
   const nextCommand = await handleBlockedFn({ storyId, result, preservation });
   return {
     result,
@@ -118,7 +174,7 @@ export async function resolveBackstopOutcome({
     exitCode: EXIT_BACKSTOP_BLOCKED,
     message:
       `[deliver-light] diff backstop BLOCKED Story #${storyId}: ` +
-      `${result.reasons.join('; ')} — ${preservation.detail}; ` +
-      `recycle the receipt with "${nextCommand}"`,
+      `${result.reasons.join('; ')} — ` +
+      describeBlockedTail({ storyId, preservation, nextCommand }),
   };
 }

@@ -306,6 +306,39 @@ function fingerprintBucket(category, tools, detailKeys) {
 }
 
 /**
+ * Every reason text one signal's `details` carries, read from BOTH shapes the
+ * emitters actually write.
+ *
+ * Two keys because two emitter conventions, and the divergence was silent: the
+ * degradation emitters write a singular `details.reason` string, while the
+ * light path's refusal emitter (`light-escalation.recordScopeFriction`) writes
+ * `details.reasons` — an **array**, because one backstop verdict can object on
+ * sensitivity and magnitude in the same pass. Reading only the singular key is
+ * why every `light-scope-rejected` follow-up rendered with no `Reason:` line
+ * at all (issue #5237), which defeated Story #4837's whole intent for that
+ * emitter: the filed issue named a count and a category, and the refusal text
+ * that would have told a reader which ceiling fired stayed in the ledger.
+ *
+ * Non-string members are skipped rather than coerced — `String(value)` would
+ * put `[object Object]` in a live issue body.
+ *
+ * @param {object} details
+ * @returns {string[]}
+ */
+function collectReasons(details) {
+  const out = [];
+  const single = asString(details.reason);
+  if (single.length > 0) out.push(single);
+  if (Array.isArray(details.reasons)) {
+    for (const raw of details.reasons) {
+      const text = asString(raw);
+      if (text.length > 0) out.push(text);
+    }
+  }
+  return out;
+}
+
+/**
  * Widen a bucket's first-to-last window to include one instant. A row with no
  * usable `ts` widens nothing — it is counted in `total` but cannot date the
  * corpus, so it must not be able to shrink the range either.
@@ -391,8 +424,9 @@ function aggregateByCategory(signals) {
       // over keys, deliberately) is untouched by them.
       const surface = asString(sig.details.surface);
       if (surface.length > 0) entry.surfaces.add(surface);
-      const reason = asString(sig.details.reason);
-      if (reason.length > 0) entry.reasons.add(reason);
+      for (const reason of collectReasons(sig.details)) {
+        entry.reasons.add(reason);
+      }
     }
     // An id that cannot be resolved to a real issue is tracked separately
     // rather than dropped: it must never be counted or printed as recurrence

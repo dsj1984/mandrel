@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-08T10:55:35.776Z",
+  "generatedAt": "2026-09-08T18:51:24.950Z",
   "rollup": {
     "*": {
       "lines": 96.09,
-      "branches": 87.01,
-      "functions": 88.39
+      "branches": 87.03,
+      "functions": 88.41
     }
   },
   "rows": [
@@ -1590,8 +1590,8 @@
     },
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
-      "lines": 97.05,
-      "branches": 82.11,
+      "lines": 97.22,
+      "branches": 83.17,
       "functions": 100
     },
     {
@@ -1939,13 +1939,13 @@
     {
       "path": ".agents/scripts/lib/orchestration/light-escalation.js",
       "lines": 100,
-      "branches": 85.29,
+      "branches": 87.18,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "lines": 99.29,
-      "branches": 91.3,
+      "lines": 99.79,
+      "branches": 92.72,
       "functions": 100
     },
     {
@@ -2143,7 +2143,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "lines": 100,
-      "branches": 96.08,
+      "branches": 96.21,
       "functions": 100
     },
     {
@@ -2522,6 +2522,12 @@
       "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
       "lines": 96.26,
       "branches": 87.1,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
+      "lines": 100,
+      "branches": 93.33,
       "functions": 100
     },
     {

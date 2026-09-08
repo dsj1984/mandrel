@@ -525,6 +525,52 @@ export function resolveLightGateOutcome({
 }
 
 /**
+ * The refusal classes a blocked diff backstop can carry — the machine-readable
+ * half of a verdict whose `reasons[]` are prose (Story #5238).
+ *
+ * One value per blocked verdict, and the reason it exists is downstream: the
+ * refusal's friction category is derived from it
+ * ({@link module:lib/observability/runtime-friction.lightScopeRejectedCategory}),
+ * and the category is the ONLY key the retro composer separates buckets on.
+ * Under one bare category an empty-diff refusal and a `public-api` refusal
+ * aggregated into a single "recurred 2 times" follow-up with nothing in common
+ * (issue #5237) — the roll-up's shape fingerprint could not tell them apart
+ * either, because it hashes detail keys and every refusal carries the same set.
+ *
+ * Kept coarse on purpose: a class must be stable enough that N refusals of one
+ * cause still coalesce into the recurrence evidence the ceilings are
+ * recalibrated from.
+ *
+ * @typedef {{ reason: string, refusalClass: string }} Objection
+ */
+export const LIGHT_REFUSAL_CLASSES = Object.freeze({
+  /** The diff could not be enumerated, or enumerated to nothing. */
+  CHANGE_SET_UNKNOWN: 'change-set-unknown',
+  /** Enumerated-empty, but the worktree carries uncommitted changes. */
+  UNCOMMITTED_WORK: 'uncommitted-work',
+  /** The change set intersects a registered sensitive-path class. */
+  SENSITIVE_PATH: 'sensitive-path',
+  /** Sensitivity could not be classified, so non-sensitivity is unproven. */
+  SENSITIVITY_UNKNOWN: 'sensitivity-unknown',
+  /** The implementation magnitude could not be measured. */
+  MAGNITUDE_UNKNOWN: 'magnitude-unknown',
+  /** Measured magnitude exceeded a light ceiling. */
+  OVER_CEILING: 'over-ceiling',
+});
+
+/**
+ * Name the branch a commit-first refusal tells the agent to commit on, with a
+ * generic stand-in when the caller supplied none. Pure.
+ *
+ * @param {unknown} storyBranch
+ * @returns {string}
+ */
+function describeStoryBranch(storyBranch) {
+  const name = typeof storyBranch === 'string' ? storyBranch.trim() : '';
+  return name === '' ? 'the Story branch' : name;
+}
+
+/**
  * Diff-derived backstop (Story #4740 AC-4, re-based on magnitude by Story
  * #4856): re-check the **actual** change set after implementation, because the
  * diff — not the prompt — is the real scope signal. Blocks (rather than landing)
@@ -555,7 +601,14 @@ export function resolveLightGateOutcome({
  *   ceilings?: { maxImplLines?: number, maxImplFiles?: number },
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
- * }} [args]
+ *   storyBranch?: string,
+ *   uncommittedWork?: boolean,
+ * }} [args] `uncommittedWork` is the caller's dirty-worktree probe result: the
+ *   backstop reads COMMITTED state, so an implemented-but-uncommitted run
+ *   measures an empty diff, and the door for that is `git commit` — not an
+ *   escalation. It only ever refines an enumerated-empty verdict's guidance;
+ *   the verdict itself still blocks. `storyBranch` names the branch that
+ *   guidance points at.
  * @returns {{
  *   blocked: boolean,
  *   level: 'low'|'high'|null,
@@ -563,8 +616,10 @@ export function resolveLightGateOutcome({
  *   fileCount: number|null,
  *   magnitude: { implFiles: number, implLines: number }|null,
  *   ceilings: { maxImplLines: number, maxImplFiles: number },
+ *   refusalClass: string|null,
  *   reasons: string[],
- * }}
+ * }} `refusalClass` is `null` on a clean verdict and exactly one
+ *   {@link LIGHT_REFUSAL_CLASSES} value on every blocked one.
  */
 export function checkLightDiffBackstop({
   changedFiles,
@@ -572,6 +627,8 @@ export function checkLightDiffBackstop({
   ceilings,
   injectedRules,
   selectSensitivePathClassesFn,
+  storyBranch,
+  uncommittedWork = false,
 } = {}) {
   const resolved = resolveDiffCeilings(ceilings);
   const files = Array.isArray(changedFiles)
@@ -579,6 +636,12 @@ export function checkLightDiffBackstop({
     : null;
 
   if (files === null || files.length === 0) {
+    // An ENUMERATED-empty diff over a dirty worktree is a different event from
+    // an unverifiable one, and blocking is right for both — but only one of
+    // them is about scope. The caller's probe distinguishes them; `files ===
+    // null` never can, because a `git diff` that failed outright is exactly
+    // the case where nothing about the change is known.
+    const uncommitted = files !== null && uncommittedWork === true;
     return {
       blocked: true,
       level: null,
@@ -586,8 +649,13 @@ export function checkLightDiffBackstop({
       fileCount: files === null ? null : 0,
       magnitude: null,
       ceilings: resolved,
+      refusalClass: uncommitted
+        ? LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK
+        : LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN,
       reasons: [
-        'actual change set is unknown or empty — cannot verify the diff is light; escalate to /mandrel-plan',
+        uncommitted
+          ? `the change set is empty but the worktree has uncommitted changes — commit them on ${describeStoryBranch(storyBranch)}, then re-run the backstop; nothing here is over-scope, so do NOT escalate to /mandrel-plan`
+          : 'actual change set is unknown or empty — cannot verify the diff is light; escalate to /mandrel-plan',
       ],
     };
   }
@@ -599,12 +667,12 @@ export function checkLightDiffBackstop({
   });
   const measured = normalizeMagnitude(magnitude);
 
-  const reasons = [
+  const objections = [
     ...describeSensitivity({ level, classes }),
     ...describeMagnitude(measured, resolved),
   ];
 
-  const blocked = reasons.length > 0;
+  const blocked = objections.length > 0;
   return {
     blocked,
     level,
@@ -612,8 +680,13 @@ export function checkLightDiffBackstop({
     fileCount: files.length,
     magnitude: measured,
     ceilings: resolved,
+    // Objection ORDER is the class precedence: sensitivity is derived before
+    // magnitude, so a diff that is both sensitive and over-ceiling files as a
+    // sensitive-path refusal. That is the right way round — the ceiling is
+    // recalibratable, the sensitive path is not.
+    refusalClass: blocked ? objections[0].refusalClass : null,
     reasons: blocked
-      ? reasons
+      ? objections.map((objection) => objection.reason)
       : [
           `diff is light: ${measured.implLines} implementation line(s) ≤ ${resolved.maxImplLines} ` +
             `across ${measured.implFiles} implementation file(s) ≤ ${resolved.maxImplFiles} ` +
@@ -641,17 +714,24 @@ function normalizeMagnitude(magnitude) {
  * Sensitivity objections, over the **full** change set. Pure.
  *
  * @param {{ level: 'low'|'high'|null, classes: string[] }} derived
- * @returns {string[]}
+ * @returns {Objection[]}
  */
 function describeSensitivity({ level, classes }) {
   if (classes.length > 0) {
     return [
-      `diff intersects sensitive-path class(es) ${classes.join(', ')} — escalate to /mandrel-plan (do not land light)`,
+      {
+        refusalClass: LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH,
+        reason: `diff intersects sensitive-path class(es) ${classes.join(', ')} — escalate to /mandrel-plan (do not land light)`,
+      },
     ];
   }
   if (level !== 'low') {
     return [
-      'sensitive-path classification unavailable — cannot verify the diff is non-sensitive; escalate to /mandrel-plan',
+      {
+        refusalClass: LIGHT_REFUSAL_CLASSES.SENSITIVITY_UNKNOWN,
+        reason:
+          'sensitive-path classification unavailable — cannot verify the diff is non-sensitive; escalate to /mandrel-plan',
+      },
     ];
   }
   return [];
@@ -662,26 +742,32 @@ function describeSensitivity({ level, classes }) {
  *
  * @param {{ implFiles: number, implLines: number }|null} measured
  * @param {{ maxImplLines: number, maxImplFiles: number }} ceilings
- * @returns {string[]}
+ * @returns {Objection[]}
  */
 function describeMagnitude(measured, ceilings) {
   if (measured === null) {
     return [
-      'change magnitude could not be measured (unreadable or unparseable numstat) — cannot verify the diff is light; escalate to /mandrel-plan',
+      {
+        refusalClass: LIGHT_REFUSAL_CLASSES.MAGNITUDE_UNKNOWN,
+        reason:
+          'change magnitude could not be measured (unreadable or unparseable numstat) — cannot verify the diff is light; escalate to /mandrel-plan',
+      },
     ];
   }
-  const reasons = [];
+  const objections = [];
   if (measured.implLines > ceilings.maxImplLines) {
-    reasons.push(
-      `diff changes ${measured.implLines} implementation line(s) (> maxImplLines ${ceilings.maxImplLines}) — escalate to /mandrel-plan (do not land light)`,
-    );
+    objections.push({
+      refusalClass: LIGHT_REFUSAL_CLASSES.OVER_CEILING,
+      reason: `diff changes ${measured.implLines} implementation line(s) (> maxImplLines ${ceilings.maxImplLines}) — escalate to /mandrel-plan (do not land light)`,
+    });
   }
   if (measured.implFiles > ceilings.maxImplFiles) {
-    reasons.push(
-      `diff spans ${measured.implFiles} implementation file(s) (> maxImplFiles ${ceilings.maxImplFiles}) — escalate to /mandrel-plan (do not land light)`,
-    );
+    objections.push({
+      refusalClass: LIGHT_REFUSAL_CLASSES.OVER_CEILING,
+      reason: `diff spans ${measured.implFiles} implementation file(s) (> maxImplFiles ${ceilings.maxImplFiles}) — escalate to /mandrel-plan (do not land light)`,
+    });
   }
-  return reasons;
+  return objections;
 }
 
 /** Cap on a receipt slug's length — keep the branch/id readable. */

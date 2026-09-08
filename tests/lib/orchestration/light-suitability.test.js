@@ -55,6 +55,10 @@ import {
   synthesizeAcceptance,
 } from '../../../.agents/scripts/deliver-light.js';
 import { TEST_TEMP_ROOT_ENV } from '../../../.agents/scripts/lib/config/temp-paths.js';
+import {
+  lightScopeRejectedCategory,
+  RUNTIME_FRICTION_CATEGORIES,
+} from '../../../.agents/scripts/lib/observability/runtime-friction.js';
 import { resolveBackstopOutcome } from '../../../.agents/scripts/lib/orchestration/light-backstop.js';
 import {
   handleBlockedBackstop,
@@ -66,6 +70,7 @@ import {
   checkLightDiffBackstop,
   deriveLightSuitability,
   LIGHT_DIFF_CEILINGS,
+  LIGHT_REFUSAL_CLASSES,
   OVERRIDABLE_SHAPE_CODES,
   resolveLedgeredVerdict,
   resolveLightGateOutcome,
@@ -2030,5 +2035,411 @@ describe('a refused light run leaves its work recoverable (AC-3)', () => {
       },
     });
     assert.equal(seen[0].details.preserved, false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5238 — a refusal carries a machine-readable CLASS, and an empty diff
+// over uncommitted work names the commit door (issue #5237)
+// ---------------------------------------------------------------------------
+
+describe('checkLightDiffBackstop — refusalClass is the machine-readable half', () => {
+  test('a clean verdict carries no class', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['bin/hello.js'],
+      magnitude: magnitudeOf(1, 40),
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, false);
+    assert.equal(r.refusalClass, null);
+  });
+
+  test('each blocked cause carries its own distinct class', () => {
+    const classOf = (args) =>
+      checkLightDiffBackstop({ injectedRules: RULES, ...args }).refusalClass;
+
+    const seen = {
+      emptyChangeSet: classOf({
+        changedFiles: [],
+        magnitude: magnitudeOf(1, 10),
+      }),
+      unenumerable: classOf({
+        changedFiles: null,
+        magnitude: magnitudeOf(1, 10),
+      }),
+      sensitive: classOf({
+        changedFiles: ['src/auth/a.js'],
+        magnitude: magnitudeOf(1, 10),
+      }),
+      unmeasurable: classOf({
+        changedFiles: ['bin/hello.js'],
+        magnitude: null,
+      }),
+      overCeiling: classOf({
+        changedFiles: ['bin/hello.js'],
+        magnitude: magnitudeOf(1, 99999),
+      }),
+    };
+
+    // Every cause resolves to a non-empty class...
+    for (const [cause, value] of Object.entries(seen)) {
+      assert.equal(typeof value, 'string', `${cause} carries a class`);
+      assert.ok(value.length > 0, `${cause} class is non-empty`);
+    }
+    // ...and the four DISTINCT causes are four distinct classes. An empty and
+    // an unenumerable change set deliberately share one: neither can be
+    // verified, and both refuse for that same reason.
+    assert.equal(seen.emptyChangeSet, seen.unenumerable);
+    const distinct = new Set([
+      seen.emptyChangeSet,
+      seen.sensitive,
+      seen.unmeasurable,
+      seen.overCeiling,
+    ]);
+    assert.equal(distinct.size, 4, 'unrelated causes must not share a class');
+  });
+
+  test('an unreadable sensitive-path manifest is its own class, not a magnitude verdict', () => {
+    // `deriveChangeLevel` answers `{ level: null, classes: [] }` when the rules
+    // manifest cannot be read — non-sensitivity is then unproven, which is a
+    // different refusal from "too big" and must not aggregate with it.
+    const r = checkLightDiffBackstop({
+      changedFiles: ['bin/hello.js'],
+      magnitude: magnitudeOf(1, 10),
+      selectSensitivePathClassesFn: () => {
+        throw new Error('audit-rules.json is unreadable');
+      },
+    });
+    assert.equal(r.blocked, true);
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.SENSITIVITY_UNKNOWN);
+    assert.match(r.reasons.join(' '), /classification unavailable/);
+  });
+
+  test('sensitivity wins the class when a diff is BOTH sensitive and over-ceiling', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: ['src/auth/a.js'],
+      magnitude: magnitudeOf(9, 99999),
+      injectedRules: RULES,
+    });
+    assert.equal(r.blocked, true);
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH);
+    // Both objections are still reported — only the CLASS is singular.
+    assert.match(r.reasons.join(' '), /sensitive-path class/);
+    assert.match(r.reasons.join(' '), /maxImplLines/);
+  });
+
+  test('an enumerated-empty diff over uncommitted work names the commit door, not an escalation', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: [],
+      magnitude: magnitudeOf(1, 10),
+      uncommittedWork: true,
+      storyBranch: 'story-4741',
+    });
+    assert.equal(r.blocked, true, 'blocking is still right');
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK);
+    const reason = r.reasons.join(' ');
+    assert.match(reason, /commit them on story-4741/);
+    assert.match(reason, /re-run the backstop/);
+    assert.match(reason, /do NOT escalate/);
+  });
+
+  test('an UNENUMERABLE diff stays unverifiable however dirty the tree', () => {
+    // `files === null` is a git read that failed outright — the one case where
+    // nothing about the change is known, so a friendlier story is not available.
+    const r = checkLightDiffBackstop({
+      changedFiles: null,
+      magnitude: magnitudeOf(1, 10),
+      uncommittedWork: true,
+      storyBranch: 'story-4741',
+    });
+    assert.equal(r.refusalClass, LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN);
+    assert.match(r.reasons.join(' '), /escalate to \/mandrel-plan/);
+  });
+
+  test('a commit-first refusal with no branch name still reads as an instruction', () => {
+    const r = checkLightDiffBackstop({
+      changedFiles: [],
+      magnitude: magnitudeOf(1, 10),
+      uncommittedWork: true,
+    });
+    assert.match(r.reasons.join(' '), /commit them on the Story branch/);
+  });
+});
+
+describe('the light-refusal friction category encodes the refusal class', () => {
+  test('a class-less refusal keeps the bare category', () => {
+    assert.equal(
+      RUNTIME_FRICTION_CATEGORIES.LIGHT_SCOPE_REJECTED,
+      'light-scope-rejected',
+    );
+    assert.equal(
+      lightScopeRejectedCategory(null),
+      'light-scope-rejected',
+      'the suitability gate refuses before any diff exists',
+    );
+    for (const blank of [undefined, '', '   ', 42]) {
+      assert.equal(lightScopeRejectedCategory(blank), 'light-scope-rejected');
+    }
+  });
+
+  test('a classed refusal files under its own category', () => {
+    assert.equal(
+      lightScopeRejectedCategory(LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH),
+      'light-scope-rejected-sensitive-path',
+    );
+    assert.notEqual(
+      lightScopeRejectedCategory(LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH),
+      lightScopeRejectedCategory(LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN),
+    );
+  });
+
+  test('the suitability GATE refusal is unchanged — it still emits the bare category', async () => {
+    const seen = [];
+    await recordGateRefusal({
+      gate: { action: 'ask-operator', outcome: { reasons: ['too broad'] } },
+      amends: '#4741',
+      emitFn: async (args) => {
+        seen.push(args);
+        return true;
+      },
+    });
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].category, 'light-scope-rejected');
+    assert.equal(seen[0].details.surface, 'suitability-gate');
+  });
+
+  test('the diff-backstop refusal emits the CLASSED category and records the class', async () => {
+    const seen = [];
+    const emitFor = async (refusalClass) => {
+      await handleBlockedBackstop({
+        storyId: 4741,
+        result: { reasons: ['blocked'], refusalClass },
+        preservation: { preserved: true },
+        emitFn: async (args) => {
+          seen.push(args);
+          return true;
+        },
+      });
+    };
+    await emitFor(LIGHT_REFUSAL_CLASSES.SENSITIVE_PATH);
+    await emitFor(LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN);
+
+    assert.equal(seen[0].category, 'light-scope-rejected-sensitive-path');
+    assert.equal(seen[1].category, 'light-scope-rejected-change-set-unknown');
+    // The class rides in `details` too, so a filed body can name it.
+    assert.equal(seen[0].details.refusalClass, 'sensitive-path');
+    // Both still start with the shared stem, so a `friction::light-scope-*`
+    // filter still finds every light-path refusal.
+    for (const signal of seen) {
+      assert.match(signal.category, /^light-scope-rejected-/);
+    }
+  });
+
+  test('an uncommitted-work refusal hands back the backstop RE-RUN, not the recycle command', async () => {
+    const next = await handleBlockedBackstop({
+      storyId: 4741,
+      result: {
+        reasons: ['empty but dirty'],
+        refusalClass: LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK,
+      },
+      emitFn: async () => true,
+    });
+    assert.match(next, /--backstop --story 4741/);
+    assert.ok(
+      !next.includes('/mandrel-plan'),
+      'committing is not an escalation',
+    );
+  });
+});
+
+describe('resolveBackstopOutcome — the commit-first refusal end to end', () => {
+  /** A `git worktree list --porcelain` block for one branch checkout. */
+  const porcelain = (branch, wtPath) =>
+    `worktree ${wtPath}\nHEAD abc123\nbranch refs/heads/${branch}\n`;
+
+  test('an empty diff over a dirty Story worktree blocks with commit-first guidance', async () => {
+    const outcome = await resolveBackstopOutcome({
+      storyId: 4741,
+      injectedRules: RULES,
+      computeFn: () => ({ files: [] }),
+      readRowsFn: () => rowsOf([1, 0, 'bin/hello.js']),
+      dirtyProbeFn: () => true,
+      preserveFn: () => {
+        throw new Error('must not push a branch with nothing committed');
+      },
+    });
+
+    assert.equal(outcome.result.blocked, true);
+    assert.equal(outcome.exitCode, 3);
+    assert.equal(
+      outcome.result.refusalClass,
+      LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK,
+    );
+    assert.equal(outcome.preservation, null);
+    assert.match(outcome.message, /commit on story-4741/);
+    assert.match(outcome.message, /commit them on story-4741/);
+    assert.match(outcome.message, /--backstop --story 4741/);
+    assert.ok(
+      !outcome.nextCommand.includes('/mandrel-plan'),
+      'the receipt is not recycled for work that was merely not committed',
+    );
+  });
+
+  test('an empty diff over a CLEAN worktree is unchanged — escalate and recycle', async () => {
+    const outcome = await resolveBackstopOutcome({
+      storyId: 4741,
+      injectedRules: RULES,
+      computeFn: () => ({ files: [] }),
+      readRowsFn: () => rowsOf([1, 0, 'bin/hello.js']),
+      dirtyProbeFn: () => false,
+      handleBlockedFn: async () => '/mandrel-plan 4741',
+      preserveFn: () => ({
+        preserved: true,
+        branch: 'story-4741',
+        remoteRef: 'origin/story-4741',
+        detail: 'stub',
+      }),
+    });
+
+    assert.equal(outcome.exitCode, 3);
+    assert.equal(
+      outcome.result.refusalClass,
+      LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN,
+    );
+    assert.equal(outcome.nextCommand, '/mandrel-plan 4741');
+    assert.match(outcome.message, /recycle the receipt/);
+    assert.equal(outcome.preservation.preserved, true);
+  });
+
+  test('the dirty probe reads the STORY branch worktree, and only when the diff is empty', async () => {
+    const calls = [];
+    const gitFn = (cwd, ...args) => {
+      calls.push({ cwd, args });
+      if (args[0] === 'worktree') {
+        return {
+          status: 0,
+          stdout: `${porcelain('main', '/repo')}\n${porcelain('story-4741', '/repo/.worktrees/story-4741')}`,
+        };
+      }
+      return { status: 0, stdout: ' M bin/hello.js\n' };
+    };
+
+    const dirty = await resolveBackstopOutcome({
+      storyId: 4741,
+      cwd: '/repo',
+      injectedRules: RULES,
+      computeFn: () => ({ files: [] }),
+      readRowsFn: () => rowsOf([1, 0, 'bin/hello.js']),
+      gitFn,
+      preserveFn: () => {
+        throw new Error('unreachable');
+      },
+    });
+    assert.equal(
+      dirty.result.refusalClass,
+      LIGHT_REFUSAL_CLASSES.UNCOMMITTED_WORK,
+    );
+    // The status read is scoped to the Story branch's own checkout — the main
+    // checkout's dirt is not the Story's evidence.
+    const status = calls.find((c) => c.args[0] === 'status');
+    assert.equal(status.cwd, '/repo/.worktrees/story-4741');
+
+    // A NON-empty diff spends no git calls on the probe at all.
+    calls.length = 0;
+    await resolveBackstopOutcome({
+      storyId: 4741,
+      cwd: '/repo',
+      injectedRules: RULES,
+      computeFn: () => ({ files: ['bin/hello.js'] }),
+      readRowsFn: () => rowsOf([1, 0, 'bin/hello.js']),
+      gitFn,
+    });
+    assert.deepEqual(calls, [], 'the probe is skipped when it cannot matter');
+  });
+
+  test('an unreadable probe surface answers "clean" — it cannot invent friendlier guidance', async () => {
+    const surfaces = [
+      // `git worktree list` failed.
+      () => ({ status: 1, stdout: '' }),
+      // The branch has no checkout at all.
+      (_cwd, ...args) =>
+        args[0] === 'worktree'
+          ? { status: 0, stdout: porcelain('main', '/repo') }
+          : { status: 0, stdout: ' M x\n' },
+      // `git status` failed in the resolved worktree.
+      (_cwd, ...args) =>
+        args[0] === 'worktree'
+          ? { status: 0, stdout: porcelain('story-4741', '/wt') }
+          : { status: 128, stdout: '' },
+      // git threw outright.
+      () => {
+        throw new Error('git exploded');
+      },
+    ];
+
+    for (const gitFn of surfaces) {
+      const outcome = await resolveBackstopOutcome({
+        storyId: 4741,
+        cwd: '/repo',
+        injectedRules: RULES,
+        computeFn: () => ({ files: [] }),
+        readRowsFn: () => rowsOf([1, 0, 'bin/hello.js']),
+        gitFn,
+        handleBlockedFn: async () => '/mandrel-plan 4741',
+        preserveFn: () => ({
+          preserved: true,
+          branch: 'story-4741',
+          remoteRef: 'origin/story-4741',
+          detail: 'stub',
+        }),
+      });
+      assert.equal(
+        outcome.result.refusalClass,
+        LIGHT_REFUSAL_CLASSES.CHANGE_SET_UNKNOWN,
+      );
+    }
+  });
+});
+
+describe('the backstop verdict stays pure (Story #5238)', () => {
+  test('light-suitability.js invokes no git and no child process', () => {
+    const src = readFileSync(
+      path.join(
+        REPO_ROOT,
+        '.agents',
+        'scripts',
+        'lib',
+        'orchestration',
+        'light-suitability.js',
+      ),
+      'utf8',
+    );
+    // The dirty-tree probe is I/O and belongs to the wrapper; the verdict must
+    // remain a pure function of what it is handed.
+    for (const forbidden of [/gitSpawn/, /child_process/, /execFileSync/]) {
+      assert.doesNotMatch(src, forbidden);
+    }
+  });
+
+  test('the workflow tells the agent the backstop reads COMMITTED state', () => {
+    const doc = readDoc(
+      path.join(
+        REPO_ROOT,
+        '.agents',
+        'workflows',
+        'helpers',
+        'deliver-light.md',
+      ),
+    );
+    assertDocMentions(
+      doc,
+      /measures \*\*committed\*\* state/i,
+      'deliver-light.md must say the backstop reads committed state',
+    );
+    assertDocMentions(
+      doc,
+      /commit on `story-<id>`, then re-run the backstop/i,
+      'deliver-light.md must name the commit-first fix',
+    );
   });
 });
