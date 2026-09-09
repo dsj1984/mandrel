@@ -49,7 +49,35 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Dependency Vulnerability Audit (SCA)
+        id: sca
+        # Left as the bare invocation on purpose: dependency-audit-cron.yml
+        # copies this exact command so the nightly sweep and this required
+        # check can never disagree about what counts as red. Attribution is a
+        # SEPARATE step below rather than a wrapper, so that stays true.
         run: npm audit --audit-level=high
+
+      - name: Attribute the advisory failure
+        # Runs only once the required step above has already failed, and only
+        # for a pull request — a push build has no merge base to attribute
+        # against and keeps the bare behaviour.
+        #
+        # This does NOT rescue the build. The job is already failing, and the
+        # script exits 1 on both real verdicts: a pre-existing advisory is
+        # still a real advisory, and letting it pass here would let advisories
+        # accumulate on `main` unnoticed, which is what the nightly sweep
+        # exists to prevent. What it buys is the sentence the log was missing
+        # — whether this diff caused the failure — so an author who did not
+        # cause it stops debugging a supply-chain advisory that is not theirs.
+        if: |
+          always() && steps.sca.outcome == 'failure' &&
+          github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        # `continue-on-error` keeps a degraded probe from masking or
+        # compounding the SCA failure; the job's verdict is the audit's.
+        continue-on-error: true
+        run: node .agents/scripts/check-audit-attribution.js --base "$BASE_SHA"
 
       - name: Action Pinning Guard
         # Story #4079: fail the build if any third-party `uses:` ref drifts off
