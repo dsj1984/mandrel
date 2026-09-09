@@ -430,38 +430,34 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
  * @returns {string|null} A `STATE_LABELS.*` value, or `null` for no-op.
  */
 /**
- * A child's labels, tolerant of the shapes the cascade and the rollup hand in.
- *
- * @param {{ labels?: string[] }} sibling
- * @returns {string[]}
- */
-function childLabels(sibling) {
-  return Array.isArray(sibling?.labels) ? sibling.labels : [];
-}
-
-/**
  * The labels that still describe **live** work on this child.
  *
  * Empty for a closed child: its `agent::*` label records the state it stopped
- * in, which the two live-state rules in {@link deriveParentState} must not
- * read. The all-done rule reads {@link childLabels} instead, so a closed child
- * keeps counting as done.
+ * in, not outstanding work, and the two live-state rules in
+ * {@link deriveParentState} must not read it. The all-done rule reads the
+ * child's labels directly, so a closed child keeps counting as done.
+ *
+ * Module-level rather than another local arrow inside `deriveParentState`:
+ * the CRAP baseline keys anonymous functions positionally within their
+ * enclosing scope, so adding or removing one there renumbers every later
+ * arrow and reports the shift as drift on code that did not change.
  *
  * @param {{ labels?: string[], state?: string }} sibling
  * @returns {string[]}
  */
 function liveChildLabels(sibling) {
   if (sibling?.state === 'closed') return [];
-  return childLabels(sibling);
+  return Array.isArray(sibling?.labels) ? sibling.labels : [];
 }
 
 export function deriveParentState(siblings) {
   if (!Array.isArray(siblings) || siblings.length === 0) return null;
+  const labelsOf = (s) => (Array.isArray(s?.labels) ? s.labels : []);
   if (siblings.some((s) => liveChildLabels(s).includes(STATE_LABELS.BLOCKED))) {
     return STATE_LABELS.BLOCKED;
   }
   const allDone = siblings.every(
-    (s) => childLabels(s).includes(STATE_LABELS.DONE) || s?.state === 'closed',
+    (s) => labelsOf(s).includes(STATE_LABELS.DONE) || s?.state === 'closed',
   );
   if (allDone) return STATE_LABELS.DONE;
   const anyActive = siblings.some(
