@@ -401,14 +401,27 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
  * Derive the parent `agent::*` state from the composition of its children.
  *
  * Rules (Story #2676):
- * - Any child carrying `agent::blocked` → parent should be `agent::blocked`.
+ * - Any **open** child carrying `agent::blocked` → parent should be
+ *   `agent::blocked`.
  * - Otherwise, every child is `agent::done` (or closed) → parent should be
  *   `agent::done`.
- * - Otherwise, any child carrying `agent::executing` or `agent::closing` →
- *   parent should be `agent::executing`.
+ * - Otherwise, any **open** child carrying `agent::executing` or
+ *   `agent::closing` → parent should be `agent::executing`.
  * - Otherwise (e.g. all children still `agent::ready`) → return `null` to
  *   signal "leave the parent unchanged". A parent already partway through
  *   the lifecycle MUST NOT be downgraded just because one child reverted.
+ *
+ * **A closed child contributes no `agent::*` state** (Story #5255). Its label
+ * records the state it was in when it stopped, not outstanding work, and
+ * nothing clears it on the way out: a Story re-planned out of `agent::blocked`
+ * is closed as superseded still wearing that label, and the blocked rule then
+ * pinned its container Epic open forever — `epic-rollup.js` bails before its
+ * close path on any derived state other than `agent::done`, so the Epic
+ * reported `pending` every run with every child long since closed. Filtering
+ * here rather than at that one call site is what also covers a child closed by
+ * hand with a stale state label attached. The all-done branch already counted
+ * `state === 'closed'` as done, so a closed child keeps exactly that meaning
+ * and loses only its vote on the other two.
  *
  * The function is pure and exported so the rule can be exercised in
  * isolation by unit tests without dragging the cascade I/O surface in.
@@ -418,8 +431,11 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
  */
 export function deriveParentState(siblings) {
   if (!Array.isArray(siblings) || siblings.length === 0) return null;
+  // Closed children keep their vote in `allDone` below and lose it everywhere
+  // else, so the two live-state rules read this narrowed accessor.
   const labelsOf = (s) => (Array.isArray(s?.labels) ? s.labels : []);
-  if (siblings.some((s) => labelsOf(s).includes(STATE_LABELS.BLOCKED))) {
+  const openLabelsOf = (s) => (s?.state === 'closed' ? [] : labelsOf(s));
+  if (siblings.some((s) => openLabelsOf(s).includes(STATE_LABELS.BLOCKED))) {
     return STATE_LABELS.BLOCKED;
   }
   const allDone = siblings.every(
@@ -428,8 +444,8 @@ export function deriveParentState(siblings) {
   if (allDone) return STATE_LABELS.DONE;
   const anyActive = siblings.some(
     (s) =>
-      labelsOf(s).includes(STATE_LABELS.EXECUTING) ||
-      labelsOf(s).includes(STATE_LABELS.CLOSING),
+      openLabelsOf(s).includes(STATE_LABELS.EXECUTING) ||
+      openLabelsOf(s).includes(STATE_LABELS.CLOSING),
   );
   if (anyActive) return STATE_LABELS.EXECUTING;
   return null;

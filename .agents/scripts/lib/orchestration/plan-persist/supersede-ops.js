@@ -28,6 +28,15 @@
  *      partial failure reports which tickets were and were not closed so the
  *      operator can finish by hand.
  *
+ * The close also strips the source ticket's `agent::*` label (Story #5255).
+ * A retired ticket has no agent state, and the one it kept was read as live
+ * work: `agent::blocked` is the state a Story must be in to be re-planned, so
+ * this path closes exactly the tickets carrying it, and a closed-but-blocked
+ * child pinned its container Epic open on every rollup thereafter. The
+ * derivation in `ticketing/bulk.js` now ignores closed children's labels too —
+ * that half covers the tickets already closed and the ones closed by hand;
+ * this one stops new ones being written.
+ *
  * Idempotency is keyed off the `superseded-by` structured-comment marker
  * (`upsertStructuredComment`), not a bare `postComment`, so a re-run cannot
  * double-comment.
@@ -36,6 +45,7 @@
  */
 
 import { Logger } from '../../Logger.js';
+import { AGENT_LABELS } from '../../label-constants.js';
 import {
   concurrentMap,
   FANOUT_CONCURRENCY,
@@ -54,6 +64,32 @@ const SUPERSEDED_BY_COMMENT_TYPE = 'superseded-by';
  * `not_planned`); this constant settles it.
  */
 export const SUPERSEDE_CLOSE_REASON = 'not_planned';
+
+/**
+ * Every `agent::*` label, as the set the supersede close strips.
+ *
+ * A retired ticket has no agent state. `agent::done` would be the wrong
+ * substitute — the work was re-planned, never delivered — so the label is
+ * removed rather than rewritten, and the ticket ends carrying only its
+ * `type::`/domain labels and the supersede comment that explains it.
+ */
+const AGENT_STATE_LABELS = Object.freeze(Object.values(AGENT_LABELS));
+
+/**
+ * The `agent::*` labels a source ticket is actually wearing.
+ *
+ * Returns `[]` for the common case of a ticket with no agent state, which the
+ * caller uses to skip the label mutation entirely: `updateTicket` merges a
+ * `labels` mutation by reading the issue back, so an unconditional empty
+ * `remove` would buy a wasted round-trip per superseded ticket.
+ *
+ * @param {{ labels?: unknown }} ticket
+ * @returns {string[]}
+ */
+function agentStateLabelsOn(ticket) {
+  const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
+  return AGENT_STATE_LABELS.filter((label) => labels.includes(label));
+}
 
 /**
  * Coerce one `supersedes[]` entry into `{ id, note }`.
@@ -329,13 +365,22 @@ export function buildSupersedeCommentBody({
 /**
  * Resolve the live state of a source ticket.
  *
- * @returns {Promise<{ ok: true, state: string } | { ok: false, reason: string }>}
+ * The ticket itself rides along so the close can strip the `agent::*` label
+ * without a second read: `updateTicket`'s label merge takes a
+ * `_ticketSnapshot` for exactly this, and this probe has already paid for the
+ * fresh copy.
+ *
+ * @returns {Promise<{ ok: true, state: string, ticket: object } | { ok: false, reason: string }>}
  */
 async function probeSourceTicket(provider, id) {
   try {
     const ticket = await provider.getTicket(id, { fresh: true });
     if (!ticket) return { ok: false, reason: 'not-found' };
-    return { ok: true, state: String(ticket.state ?? 'open').toLowerCase() };
+    return {
+      ok: true,
+      state: String(ticket.state ?? 'open').toLowerCase(),
+      ticket,
+    };
   } catch (err) {
     return { ok: false, reason: `inaccessible: ${err.message}` };
   }
@@ -370,9 +415,18 @@ async function closeOneSupersededTicket({
         sourceTicketIds,
       }),
     );
+    // The `agent::*` strip rides the closing PATCH rather than a call of its
+    // own (Story #5255): one write cannot leave the ticket closed but still
+    // wearing the state, which is the shape that pinned a container Epic open
+    // forever. `_ticketSnapshot` feeds the label merge the copy the probe
+    // already fetched.
+    const staleStates = agentStateLabelsOn(probe.ticket);
     await provider.updateTicket(id, {
       state: 'closed',
       state_reason: SUPERSEDE_CLOSE_REASON,
+      ...(staleStates.length > 0
+        ? { labels: { remove: staleStates }, _ticketSnapshot: probe.ticket }
+        : {}),
     });
     return { outcome: 'closed' };
   } catch (err) {

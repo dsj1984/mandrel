@@ -40,6 +40,7 @@
  * @module lib/orchestration/epic-rollup
  * @see Story #5205
  * @see Story #5210 — fail closed on a degraded child read.
+ * @see Story #5255 — a closed child contributes no `agent::*` state.
  */
 
 import { Logger } from '../Logger.js';
@@ -58,6 +59,13 @@ import { deriveParentState } from './ticketing/bulk.js';
  * Epic carries an owner. `agent::blocked` counts: a blocked child is still
  * this operator's problem, and dropping the assignee at the moment someone
  * needs to be found would invert the signal.
+ *
+ * "Blocked" here means an **open** blocked child. `deriveParentState` stopped
+ * reading closed children's `agent::*` labels in Story #5255 — a superseded
+ * Story closed while still wearing `agent::blocked` is not someone's problem
+ * to pick up, and the stale label used to derive `agent::blocked` forever,
+ * which both held an owner on the container and pinned it open past the
+ * `derived !== DONE` bail below.
  */
 const IN_FLIGHT_STATES = new Set([
   AGENT_LABELS.EXECUTING,
