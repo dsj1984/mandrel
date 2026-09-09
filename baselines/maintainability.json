@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-08T18:48:27.592Z",
+  "generatedAt": "2026-09-09T01:08:28.201Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -600,7 +600,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/commands.js",
-      "mi": 106.603
+      "mi": 107.673
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
@@ -664,7 +664,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/commands.js",
-      "mi": 113.626
+      "mi": 121.608
     },
     {
       "path": ".agents/scripts/lib/config/defaults.js",
@@ -752,7 +752,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 95.177
+      "mi": 96.565
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
