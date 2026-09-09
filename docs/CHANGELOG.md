@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.53.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.52.0...mandrel-v2.53.0) (2026-09-09)
+
+
+### Added
+
+* a red SCA check says whose defect it is, and the js-yaml override's load-bearing note can no longer drift from the pin it describes ([#5248](https://github.com/dsj1984/mandrel/issues/5248)) ([#5250](https://github.com/dsj1984/mandrel/issues/5250)) ([38f4c3a](https://github.com/dsj1984/mandrel/commit/38f4c3a6acbf6e5a0bb6f9586c5a04c1f3abed02))
+* close stops paying for whole-repo work already done: the lint gate resolves project.commands.lint, and coverage-capture announces (or refuses) an uncredited full-suite run before it spawns one ([#5244](https://github.com/dsj1984/mandrel/issues/5244)) ([#5245](https://github.com/dsj1984/mandrel/issues/5245)) ([bb4216c](https://github.com/dsj1984/mandrel/commit/bb4216cf1f443ebeb3bac6a22171fffa107d028d))
+
+
+### Fixed
+
+* epic rollup's native sub-issue read passes an undefined node id, degrading every Epic's child list ([#5251](https://github.com/dsj1984/mandrel/issues/5251)) ([#5252](https://github.com/dsj1984/mandrel/issues/5252)) ([5da2df5](https://github.com/dsj1984/mandrel/commit/5da2df5322a8527c33cd4ebafa4584bdfedf867d))
+
 ## [2.52.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.51.0...mandrel-v2.52.0) (2026-09-08)
 
 
