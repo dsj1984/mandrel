@@ -39,6 +39,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
+import { resolveEpicNodeId } from './lib/orchestration/epic-container.js';
 import { expandEpicIds } from './lib/orchestration/epic-expansion.js';
 import {
   buildStoriesEnvelope,
@@ -98,15 +99,20 @@ export function resolveStoriesProvider({
  * Injected into `expandEpicIds` so the lib layer stays provider-agnostic,
  * exactly as `paginate` is injected into `readNativeBlockedBy`. A provider
  * without the GraphQL surface yields `[]`, and the Epic body's checklist
- * carries the children on its own.
+ * carries the children on its own — as does an Epic carrying no resolvable
+ * node id, which `resolveEpicNodeId` reports rather than letting an
+ * `undefined` reach the API as a rejected `ID!` variable.
  *
  * @param {object} provider
  * @returns {(epic: object) => Promise<number[]>}
  */
 export function nativeChildReader(provider) {
   return async (epic) => {
-    if (typeof provider?._getNativeSubIssues !== 'function') return [];
-    return provider._getNativeSubIssues(epic?.nodeId, epic?.number ?? epic?.id);
+    const nodeId = resolveEpicNodeId(epic);
+    if (nodeId === null) return [];
+    return (
+      provider?._getNativeSubIssues?.(nodeId, epic?.number ?? epic?.id) ?? []
+    );
   };
 }
 

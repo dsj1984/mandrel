@@ -18,7 +18,44 @@ import {
   normalizeChildIds,
   readEpicChildIds,
   readEpicChildIdsFrom,
+  resolveEpicNodeId,
 } from '../epic-container.js';
+
+describe('resolveEpicNodeId', () => {
+  it('reads the camelCase id a mapped ticket carries', () => {
+    assert.equal(resolveEpicNodeId({ nodeId: 'I_mapped' }), 'I_mapped');
+  });
+
+  it('reads the snake_case id a raw REST issue carries', () => {
+    // `listIssuesByLabel` returns the REST payload verbatim, so this is the
+    // shape the Epic-rollup path actually holds (Story #5251).
+    assert.equal(resolveEpicNodeId({ node_id: 'I_raw' }), 'I_raw');
+  });
+
+  it('prefers the mapped name when an object somehow carries both', () => {
+    assert.equal(
+      resolveEpicNodeId({ nodeId: 'I_mapped', node_id: 'I_raw' }),
+      'I_mapped',
+    );
+  });
+
+  it('reports null rather than handing an unusable value to $id: ID!', () => {
+    // Every one of these reached GraphQL as an invalid `ID!` variable, whose
+    // rejection classifies as `permanent` — a hard API error manufactured
+    // from a missing field. A null lets the caller skip the read instead.
+    for (const epic of [
+      {},
+      { nodeId: undefined },
+      { node_id: null },
+      { nodeId: '' },
+      { node_id: 12345 },
+      undefined,
+      null,
+    ]) {
+      assert.equal(resolveEpicNodeId(epic), null, JSON.stringify(epic ?? null));
+    }
+  });
+});
 
 describe('isEpicTicket', () => {
   it('reads the type::epic label in both label shapes', () => {

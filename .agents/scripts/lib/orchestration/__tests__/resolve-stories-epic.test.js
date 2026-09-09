@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { nativeChildReader } from '../../../resolve-stories.js';
 import { expandEpicIds } from '../epic-expansion.js';
 import { toStoryRecord } from '../resolve-stories.js';
 
@@ -189,5 +190,43 @@ describe('the Epic: #N refusal survives container Epics', () => {
       /is not a Story/,
       'a named Epic reaching toStoryRecord is a bug — expansion runs first',
     );
+  });
+});
+
+describe("nativeChildReader — the expansion path's native reader", () => {
+  /** A provider double that records the node id it was called with. */
+  const recordingProvider = (childIds = [11, 12]) => {
+    const calls = [];
+    return {
+      calls,
+      _getNativeSubIssues: async (parentNodeId, parentId) => {
+        calls.push({ parentNodeId, parentId });
+        if (typeof parentNodeId !== 'string' || parentNodeId === '') {
+          throw new Error(
+            'gh: Variable $id of type ID! was provided invalid value',
+          );
+        }
+        return childIds;
+      },
+    };
+  };
+
+  it('resolves the node id under either casing', async () => {
+    for (const source of [{ nodeId: 'I_x' }, { node_id: 'I_x' }]) {
+      const provider = recordingProvider();
+      const ids = await nativeChildReader(provider)({ ...source, number: 90 });
+      assert.deepEqual(ids, [11, 12]);
+      assert.deepEqual(provider.calls, [{ parentNodeId: 'I_x', parentId: 90 }]);
+    }
+  });
+
+  it('no-ops without calling the API when no node id resolves', async () => {
+    const provider = recordingProvider();
+    assert.deepEqual(await nativeChildReader(provider)({ number: 90 }), []);
+    assert.deepEqual(provider.calls, []);
+  });
+
+  it('yields [] for a provider without the GraphQL surface', async () => {
+    assert.deepEqual(await nativeChildReader({})({ node_id: 'I_x' }), []);
   });
 });
