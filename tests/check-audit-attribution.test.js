@@ -9,7 +9,10 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   parseArgs,
@@ -23,6 +26,11 @@ import {
   renderAttribution,
   UNKNOWN,
 } from '../.agents/scripts/lib/audit-attribution.js';
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 const argv = (...flags) => ['node', 'check-audit-attribution.js', ...flags];
 
@@ -220,5 +228,49 @@ describe('parseArgs', () => {
     assert.equal(p.base, 'deadbee');
     assert.equal(p.cwd, '/repo');
     assert.equal(p.trackingIssue, false);
+  });
+});
+
+/**
+ * The wiring is as load-bearing as the script. Three properties are asserted
+ * against the committed workflow rather than eyeballed, because each one
+ * silently degrades the gate if it drifts.
+ */
+describe('ci.yml wiring', () => {
+  const ci = readFileSync(
+    path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml'),
+    'utf8',
+  );
+  const scaStep = ci.slice(
+    ci.indexOf('- name: Dependency Vulnerability Audit (SCA)'),
+    ci.indexOf('- name: Attribute the advisory failure'),
+  );
+
+  // The nightly sweep copies this command verbatim so it and the required
+  // check can never disagree about what counts as red. Wrapping it would
+  // break that; attribution is a separate step for exactly this reason.
+  it('leaves the required audit as the bare npm invocation', () => {
+    assert.match(scaStep, /run: npm audit --audit-level=high\s*$/m);
+  });
+
+  // A pre-existing advisory must keep blocking, or advisories accumulate on
+  // main — the failure the nightly sweep exists to prevent.
+  it('does not let the required audit step continue on error', () => {
+    assert.doesNotMatch(scaStep, /continue-on-error/);
+  });
+
+  it('runs attribution only after that step failed, and only for a PR', () => {
+    const attrib = ci.slice(
+      ci.indexOf('- name: Attribute the advisory failure'),
+    );
+    assert.match(attrib, /steps\.sca\.outcome == 'failure'/);
+    assert.match(attrib, /github\.event_name == 'pull_request'/);
+    assert.match(attrib, /check-audit-attribution\.js --base "\$BASE_SHA"/);
+    // The probe reports; it must never be able to mask or compound the
+    // audit's own verdict.
+    assert.match(
+      attrib.slice(0, attrib.indexOf('run:')),
+      /continue-on-error: true/,
+    );
   });
 });
