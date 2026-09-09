@@ -455,6 +455,26 @@ describe('closeSupersededTickets', () => {
     assert.deepEqual(report.closed, []);
   });
 
+  it('skips an already-closed source with no writes at all (re-run idempotence)', async () => {
+    // The label strip must not give a second run a reason to write: the
+    // already-closed probe still short-circuits ahead of the comment and the
+    // PATCH both.
+    const p = provider({
+      states: { 1: 'closed' },
+      labels: { 1: ['agent::blocked'] },
+    });
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    assert.deepEqual(report.skipped, [{ ticket: 1, reason: 'already-closed' }]);
+    assert.deepEqual(report.closed, []);
+    assert.deepEqual(p.calls.updates, []);
+    assert.deepEqual(p.calls.comments, []);
+  });
+
   it('short-circuits with no-source-tickets when none were passed', async () => {
     const p = provider();
     const report = await closeSupersededTickets({
