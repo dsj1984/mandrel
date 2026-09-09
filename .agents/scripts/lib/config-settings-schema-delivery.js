@@ -45,6 +45,12 @@ const EXECUTION_SCHEMA = {
         'Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.',
       default: true,
     },
+    requireCreditedCapture: {
+      type: 'boolean',
+      description:
+        'Refuse a full-suite coverage capture that no committed stamp covers, instead of paying for it. Default false — the run is announced (a warning naming the crediting invocation, emitted before the spawn) and then executed, which is the pre-existing behaviour. Set true when the whole-suite cost is large enough that a close should stop at zero seconds rather than absorb it silently.',
+      default: false,
+    },
   },
   additionalProperties: false,
 };

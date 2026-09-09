@@ -16,6 +16,7 @@
     "commands": {
       "test": "npm test",
       "typecheck": null,
+      "lint": null,
       "formatCheck": "npx biome format .",
       "formatWrite": "npx biome format --write ."
     }
@@ -94,7 +95,8 @@
   "delivery": {
     "execution": {
       "timeoutMs": 600000,
-      "fullSuiteLock": true
+      "fullSuiteLock": true,
+      "requireCreditedCapture": false
     },
     "docsFreshness": {
       "paths": ["README.md"]

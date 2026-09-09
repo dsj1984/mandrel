@@ -101,17 +101,16 @@ node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
   --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
 ```
 
-Dispatch it in the **background**: it routinely outruns the host's
-synchronous Bash ceiling, and its completion re-invokes you — that
-notification is the signal. Never spawn a task to poll or `sleep`-loop
+Dispatch it in the **background**: it routinely outruns the host's sync
+Bash ceiling, and its completion re-invokes you — that is the signal. Never spawn a task to poll or `sleep`-loop
 against it; a waiter whose condition is wrong outlives the agent. Share
 `lint` / `typecheck` evidence with close via `evidence-gate.js`; never
 stamp coverage / CRAP fresh any other way.
 
 **It can legitimately run nothing.** With nothing changed under the CRAP
 `targetDirs` it skips capture and exits 0. An exit code is never evidence a
-gate did work — its **output** is: no credit was deposited, so run the full
-suite yourself before handing off.
+gate did work — its **output** is: no credit deposited. Run the scoped
+projects for the roots you changed plus `verify[]`, not the whole suite.
 
 Gate output that lies: [`known-tooling-behavior.md`](../rules/known-tooling-behavior.md).
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.

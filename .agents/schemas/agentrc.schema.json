@@ -94,6 +94,16 @@
               "description": "Static type-check command. `null` disables the gate for projects with no type layer; the empty string is rejected so a typo cannot silently disable it.",
               "default": null
             },
+            "lint": {
+              "type": ["string", "null"],
+              "minLength": 1,
+              "not": {
+                "type": "string",
+                "pattern": "([;&|`]|\\$\\()"
+              },
+              "description": "Lint command run as a close-validation gate. `null` (the default) uses `npm run lint`; the gate is mandatory, so unlike `typecheck` this key cannot disable it. Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-linter pair in one npm script and name that.",
+              "default": null
+            },
             "formatCheck": {
               "type": "string",
               "not": {
@@ -475,6 +485,11 @@
               "type": "boolean",
               "description": "Serialize full-suite spawns (`npm test` / `npm run test:coverage`) behind a host-level advisory lock, so two concurrent deliveries on one checkout do not run two suites against the same cores. Best-effort: a wait that expires spawns anyway, so the lock can never fail a delivery. Set false — or export `MANDREL_FULL_SUITE_LOCK=0` for one invocation — to disable.",
               "default": true
+            },
+            "requireCreditedCapture": {
+              "type": "boolean",
+              "description": "Refuse a full-suite coverage capture that no committed stamp covers, instead of paying for it. Default false — the run is announced (a warning naming the crediting invocation, emitted before the spawn) and then executed, which is the pre-existing behaviour. Set true when the whole-suite cost is large enough that a close should stop at zero seconds rather than absorb it silently.",
+              "default": false
             }
           },
           "additionalProperties": false

@@ -2,8 +2,7 @@
 description: >-
   The deliver path's one bundled framework read: dispatch decision, engine
   invariants, the change-set/ceremony incantation, the acceptance-eval gate,
-  the credited full-suite run, and the terminal envelope contract — the
-  engine reads one file, not the helper/schema set, each session.
+  the credited full-suite run, and the terminal envelope contract.
 ---
 
 # Deliver digest (read once per session)
@@ -123,14 +122,13 @@ node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
   --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
 ```
 
-Dispatch it in the **background**: it outruns the host's synchronous Bash
-ceiling, and its completion re-invokes you. Never spawn a task to poll or
+Dispatch it in the **background**: it outruns the host's sync Bash ceiling, and its completion re-invokes you. Never spawn a task to poll or
 `sleep`-loop against it ([`parallel-tooling.md`](parallel-tooling.md)
 Rule 2).
 
 Read the **output**, not the exit code: capture skips — no test run, no
-credit — when nothing changed under the CRAP `targetDirs`, so run the suite
-yourself before handing off.
+credit — when nothing changed under the CRAP `targetDirs`. Run the scoped
+projects for the roots you changed plus `verify[]`, not the whole suite.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
 full-suite command is reported credited against the same stamp, never
