@@ -17,6 +17,7 @@ import {
   FORMAT_CHECK_FALLBACK,
   resolveFormatCheckCommand,
   resolveFormatWriteCommand,
+  resolveLintCommand,
   resolveTypecheckCommand,
 } from './commands.js';
 
@@ -336,6 +337,20 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
 }
 
 /**
+ * Split a resolved command string into the `{ cmd, args }` pair a gate entry
+ * carries. Whitespace-separated, so `npm run lint` yields the argv the gate
+ * spawned before any of these commands were configurable — which is what
+ * keeps an unconfigured consumer's `commandConfigHash` unchanged.
+ *
+ * @param {string} commandString
+ * @returns {{ cmd: string, args: string[] }}
+ */
+function splitCommand(commandString) {
+  const [cmd, ...args] = commandString.split(/\s+/).filter(Boolean);
+  return { cmd, args };
+}
+
+/**
  * Build the canonical close-validation gate list.
  *
  * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
@@ -347,8 +362,12 @@ function buildBaselinesGateEntries({ decision, kinds, env }) {
  * absent, coverage-capture is dropped and the `test` gate is restored so
  * there is always a working test gate.
  *
- * `typecheck` is mandatory; consumers may customise the command via
- * `project.commands.typecheck` (default `npm run typecheck`).
+ * `typecheck` and `lint` are mandatory; consumers may customise either
+ * command via `project.commands.typecheck` / `project.commands.lint`
+ * (defaults `npm run typecheck` / `npm run lint`). Customising `lint` is how
+ * a consumer whose hooks and CI already lint the diff stops paying for a
+ * third whole-repo pass at close: `lint` runs in the parallel partition, so
+ * a slow whole-repo lint sets the floor for that whole phase.
  *
  * Story #2210 retired the legacy per-kind in-process regression gates
  * (`check-maintainability`, `check-crap`, `check-mutation`) and their
@@ -409,14 +428,10 @@ export function buildDefaultGates({
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive =
     isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
-  const typecheckCmdString = resolveTypecheckCommand(config);
-  const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
-    .split(/\s+/)
-    .filter(Boolean);
+  const typecheck = splitCommand(resolveTypecheckCommand(config));
+  const lint = splitCommand(resolveLintCommand(config));
   const formatCheckString = resolveFormatCheckCommand(config);
-  const [formatCmd, ...formatArgs] = formatCheckString
-    .split(/\s+/)
-    .filter(Boolean);
+  const format = splitCommand(formatCheckString);
   const formatWriteString = resolveFormatWriteCommand(config);
   const formatChangedFileScope =
     formatCheckString === FORMAT_CHECK_FALLBACK
@@ -436,11 +451,15 @@ export function buildDefaultGates({
   return [
     {
       name: 'typecheck',
-      cmd: typecheckCmd,
-      args: typecheckArgs,
+      cmd: typecheck.cmd,
+      args: typecheck.args,
       hint: TYPECHECK_HINT,
     },
-    { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
+    // Gate name kept generic ("lint") for the same reason the format gate's
+    // is: the command resolves from config, so a consumer pointing it at a
+    // scoped pair does not shift the close-orchestrator log line, the
+    // evidence keyspace, or the parallel-partition membership below.
+    { name: 'lint', cmd: lint.cmd, args: lint.args },
     ...buildTestGateEntry(coverageCaptureActive),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
@@ -448,8 +467,8 @@ export function buildDefaultGates({
       // `project.commands.formatCheck`. The
       // actual command and the remediation hint resolve from config.
       name: 'format',
-      cmd: formatCmd,
-      args: formatArgs,
+      cmd: format.cmd,
+      args: format.args,
       hint: buildFormatHint(formatWriteString),
       ...(formatChangedFileScope
         ? { changedFileScope: formatChangedFileScope }

@@ -12,10 +12,13 @@
  *   3. Test freshness: content digest of `crap.targetDirs` vs. the persisted
  *      capture stamp (`coverage/.capture-stamp.json`), falling back to the
  *      artifact-mtime heuristic when no stamp exists. Exit 0 when fresh.
- *   4. Otherwise spawn `npm run test:coverage` — serialized behind the
- *      host-level full-suite lock (Story #5173) so two concurrent runs on one
- *      checkout do not race — write a fresh capture stamp on success, and
- *      propagate the exit code.
+ *   4. Otherwise announce the uncredited full-suite run — naming the
+ *      invocation that would have deposited credit — and then spawn
+ *      `npm run test:coverage`, serialized behind the host-level full-suite
+ *      lock (Story #5173) so two concurrent runs on one checkout do not race;
+ *      write a fresh capture stamp on success and propagate the exit code.
+ *      With `delivery.execution.requireCreditedCapture` set, step 4 refuses
+ *      instead of spawning, so the cost is never paid unannounced.
  *
  * Step 3 is preceded by the changed-file skip when
  * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is on
@@ -24,15 +27,18 @@
  *
  * Exit codes:
  *   0 — coverage is fresh (or capture skipped/succeeded).
- *   1 — capture run failed (broken tests or coverage-threshold breach). The
- *       caller MUST surface this — silently passing here would defeat the
- *       CRAP gate's `requireCoverage: true` policy.
+ *   1 — capture run failed (broken tests or coverage-threshold breach), or
+ *       the run was refused because it carried no credit and
+ *       `delivery.execution.requireCreditedCapture` is set. The caller MUST
+ *       surface this — silently passing here would defeat the CRAP gate's
+ *       `requireCoverage: true` policy.
  */
 import { getChangedFiles } from './lib/changed-files.js';
 import { isDirectInvocation } from './lib/cli-utils.js';
 import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
   computeContentDigest,
+  creditedCapture,
   filterFilesUnderTargets,
   isCoverageFresh,
   runCapture,
@@ -110,6 +116,11 @@ export function runCoverageCapture(argv = process.argv, deps = {}) {
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
   const { crap, coverage } = getQualityImpl(config);
+  // Read once here, where the config is already in scope, and thread it into
+  // whichever capture path reaches a spawn. Default false — an unconfigured
+  // consumer gets the announcement and the run, exactly as before.
+  const requireCreditedCapture =
+    config?.delivery?.execution?.requireCreditedCapture === true;
 
   if (crap.enabled === false) {
     logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
@@ -138,38 +149,42 @@ export function runCoverageCapture(argv = process.argv, deps = {}) {
   // knowing about it. `delivery.execution.fullSuiteLock: false` and
   // `MANDREL_FULL_SUITE_LOCK=0` each disable it; both hatches live in
   // `isFullSuiteLockEnabled`.
-  const capture = lockedCapture(runCaptureImpl, config);
+  // Two wrappers, composed outermost-first: the credit probe announces (or
+  // refuses) the run, and only a run that survives it reaches the host lock.
+  // Whichever capture path gets here spawns through both without knowing
+  // about either.
+  const capture = creditedCapture(lockedCapture(runCaptureImpl, config), {
+    requireCredited: requireCreditedCapture,
+    logger,
+  });
 
   // Story #4981/#5173 — the capture skip, gated by
   // `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` (on
   // by default). `null` means "not applicable" (switched off, or a
   // ref-resolution error) — fall through to the full-scope path below rather
   // than silently skipping capture.
-  const incrementalResult = tryIncrementalCapture({
+  // The two capture paths take the same collaborators bar one; naming that
+  // set once keeps a new seam from being threaded into one and forgotten on
+  // the other.
+  const shared = {
     crap,
     coverage,
     args,
     getChangedFilesImpl,
-    filterFilesUnderTargetsImpl,
     isCoverageFreshImpl,
     runCaptureImpl: capture,
     computeContentDigestImpl,
     writeCaptureStampImpl,
     logger,
+  };
+
+  const incrementalResult = tryIncrementalCapture({
+    ...shared,
+    filterFilesUnderTargetsImpl,
   });
   if (incrementalResult !== null) return incrementalResult;
 
-  return runFullScopeCapture({
-    crap,
-    coverage,
-    args,
-    getChangedFilesImpl,
-    isCoverageFreshImpl,
-    runCaptureImpl: capture,
-    computeContentDigestImpl,
-    writeCaptureStampImpl,
-    logger,
-  });
+  return runFullScopeCapture(shared);
 }
 
 // cli-opt-out: synchronous main returns an exit code that is forwarded via process.exit(code); runAsCli's async-main signature does not preserve the result code.

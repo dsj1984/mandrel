@@ -128,9 +128,10 @@ const PATHS_SCHEMA = {
 };
 
 /**
- * `project.commands` — names of the test/typecheck/format commands the
+ * `project.commands` — names of the test/typecheck/lint/format commands the
  * close-validation chain spawns. `typecheck` accepts `null` to mean
- * "disabled". `validate` and `build` were dropped (no production consumers).
+ * "disabled"; `lint` accepts `null` to mean "use the framework default",
+ * because that gate is mandatory and cannot be switched off. `validate` and `build` were dropped (no production consumers).
  */
 const COMMANDS_SCHEMA = {
   type: 'object',
@@ -148,6 +149,12 @@ const COMMANDS_SCHEMA = {
       description:
         'Static type-check command. `null` disables the gate for projects with no type layer; the empty string is rejected so a typo cannot silently disable it.',
       default: COMMANDS_DEFAULTS.typecheck,
+    },
+    lint: {
+      ...NULLABLE_NONEMPTY_SAFE_STRING,
+      description:
+        'Lint command run as a close-validation gate. `null` (the default) uses `npm run lint`; the gate is mandatory, so unlike `typecheck` this key cannot disable it. Point it at the scoped command your hooks already run to stop paying for a third whole-repo lint at close — the gate still lints the diff, and CI still owns whole-repo drift. Like every command here it must be a single argv (no `;`, `&&`, pipes or substitution), so wrap a multi-linter pair in one npm script and name that.',
+      default: COMMANDS_DEFAULTS.lint,
     },
     formatCheck: {
       ...SAFE_STRING,

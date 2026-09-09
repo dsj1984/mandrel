@@ -376,6 +376,76 @@ export function describeFreshness(freshness, targetDirs) {
 }
 
 /**
+ * The invocation that deposits capture credit for a Story branch. Named in
+ * the uncredited-capture announcement so a reader of a close log sees the
+ * command that would have avoided the cost, not just the cost.
+ */
+const CREDITING_INVOCATION =
+  'node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>';
+
+/**
+ * Announce — and, when the consumer requires credit, refuse — a full-suite
+ * capture that no committed stamp covers.
+ *
+ * Every caller invokes this immediately before it would spawn the suite, and
+ * the ordering is the whole point. The capture itself is the most expensive
+ * thing a close does; discovering that it ran uncredited is only actionable
+ * while it is still ahead of you, not once it is visible as a `durationMs`
+ * in `validation-evidence.json` twelve minutes later.
+ *
+ * The probe is read-only by construction: every caller has already decided
+ * to capture by the time it runs, and it writes nothing — so it never takes
+ * the full-suite host lock and can never itself be the reason a close waits.
+ *
+ * @param {{
+ *   requireCredited?: boolean,
+ *   logger: { info: Function, warn: Function, error: Function },
+ * }} opts `requireCredited` mirrors `delivery.execution.requireCreditedCapture`
+ *   (default false → announce and run).
+ * @returns {number | null} A non-zero exit code the caller MUST return
+ *   without spawning the suite, or `null` to proceed with the capture.
+ */
+function announceUncreditedCapture({ requireCredited = false, logger }) {
+  const preamble =
+    'no credited capture stamp covers this change set — ' +
+    `the full suite is about to run. Deposit credit before the push with: ${CREDITING_INVOCATION}`;
+  if (requireCredited) {
+    logger.error(
+      `[coverage-capture] ✖ ${preamble} (delivery.execution.requireCreditedCapture is set, so this run is refused instead of paid for).`,
+    );
+    return 1;
+  }
+  logger.warn(`[coverage-capture] ⚠ ${preamble}`);
+  return null;
+}
+
+/**
+ * Compose the uncredited-capture probe over a capture runner, so the
+ * announcement is structurally inseparable from the spawn it describes.
+ *
+ * This mirrors `lockedCapture`, and for the same reason: there are two
+ * capture paths (full-scope and incremental) and neither should have to
+ * remember the policy. Wrapping the runner they share means a third path
+ * added later inherits the probe for free, and that the warning can never be
+ * emitted for a capture that does not happen — or omitted for one that does.
+ *
+ * It composes OUTSIDE `lockedCapture`, so a refusal costs nothing: the host
+ * lock is never acquired for a run that is about to be declined.
+ *
+ * @param {(opts: object) => number} runCaptureFn The (possibly already
+ *   lock-wrapped) capture runner.
+ * @param {{ requireCredited?: boolean, logger: object }} policy
+ * @returns {(opts?: object) => number} A runner returning the capture's exit
+ *   code, or a non-zero refusal code without having spawned anything.
+ */
+export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
+  return (captureOpts = {}) => {
+    const refusal = announceUncreditedCapture({ requireCredited, logger });
+    return refusal === null ? runCaptureFn(captureOpts) : refusal;
+  };
+}
+
+/**
  * Narrow `changedFiles` to the subset that lives under one of `targetDirs`.
  *
  * Both inputs are forward-slash-normalised; `targetDirs` are matched as path

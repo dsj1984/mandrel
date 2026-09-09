@@ -1161,3 +1161,84 @@ describe('notification event vocabularies', () => {
     }
   });
 });
+
+// A key that exists only in the published mirror is DOA: `config-resolver.js`
+// validates `.agentrc.json` against this runtime AJV schema, and every block
+// is `additionalProperties: false` — so a consumer who actually sets the key
+// gets their whole config rejected. The mirror-drift guard checks key
+// presence; these check that a POPULATED block is accepted, which is what a
+// consumer experiences.
+describe('close-validation gate economy — populated blocks are accepted', () => {
+  it('accepts project.commands.lint as a scoped command string', () => {
+    assert.equal(
+      validate({
+        project: {
+          ...REQ.project,
+          commands: { lint: 'npx biome ci --changed' },
+        },
+      }),
+      true,
+    );
+  });
+
+  // The injection guard means a multi-linter "scoped pair" cannot be spelled
+  // inline — the consumer wraps it in one npm script and names that. Pinned
+  // so the schema description and the accepted shape cannot drift apart.
+  it('a multi-linter pair must be wrapped in one npm script, not chained', () => {
+    expectErrors(
+      {
+        project: {
+          ...REQ.project,
+          commands: { lint: 'biome ci --changed && turbo run lint --affected' },
+        },
+      },
+      /must NOT be valid|must be null/,
+    );
+    assert.equal(
+      validate({
+        project: { ...REQ.project, commands: { lint: 'npm run lint:scoped' } },
+      }),
+      true,
+    );
+  });
+
+  it('accepts project.commands.lint as null (use the framework default)', () => {
+    assert.equal(
+      validate({ project: { ...REQ.project, commands: { lint: null } } }),
+      true,
+    );
+  });
+
+  it('rejects an empty lint command, so a typo cannot blank the gate', () => {
+    expectErrors(
+      { project: { ...REQ.project, commands: { lint: '' } } },
+      /must NOT have fewer than 1 characters|must be null/,
+    );
+  });
+
+  it('rejects a shell-injecting lint command', () => {
+    expectErrors(
+      { project: { ...REQ.project, commands: { lint: 'lint; rm -rf /' } } },
+      /must NOT be valid|must be null/,
+    );
+  });
+
+  it('accepts delivery.execution.requireCreditedCapture', () => {
+    for (const requireCreditedCapture of [true, false]) {
+      assert.equal(
+        validate({
+          ...REQ,
+          delivery: { execution: { requireCreditedCapture } },
+        }),
+        true,
+      );
+    }
+  });
+
+  it('rejects a non-boolean requireCreditedCapture', () => {
+    expectErrors(
+      { ...REQ, delivery: { execution: { requireCreditedCapture: 'yes' } } },
+      /must be boolean/,
+    );
+  });
+});

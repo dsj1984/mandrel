@@ -2,7 +2,7 @@
  * close-validation/commands.js — Command resolution + formatter file policy.
  *
  * Owns the `project.commands.*` resolution helpers used by the close-
- * validation gates (typecheck / formatCheck / formatWrite), the Story-diff
+ * validation gates (typecheck / lint / formatCheck / formatWrite), the Story-diff
  * changed-file listing for the format gate, and the formatter
  * file-eligibility policy (Story #3410).
  */
@@ -16,6 +16,15 @@ import { getCommands } from '../config/commands.js';
  * type regressions surface in the next Story's pre-push otherwise).
  */
 const TYPECHECK_FALLBACK = 'npm run typecheck';
+
+/**
+ * Fallback lint command. The gate is mandatory, and this string is the exact
+ * command the gate spawned before `project.commands.lint` existed — an
+ * unconfigured consumer must keep getting byte-identical argv, because the
+ * gate's `commandConfigHash` is computed over it and any drift would silently
+ * invalidate every previously recorded lint evidence record.
+ */
+const LINT_FALLBACK = 'npm run lint';
 
 /** Default formatter command when `project.commands.formatCheck` is unset. */
 export const FORMAT_CHECK_FALLBACK = 'npx biome format .';
@@ -70,6 +79,23 @@ function resolveCommandWithFallback(config, key, fallback) {
  */
 export function resolveTypecheckCommand(config) {
   return resolveCommandWithFallback(config, 'typecheck', TYPECHECK_FALLBACK);
+}
+
+/**
+ * Resolve the lint command. Reads `project.commands.lint`; falls back to
+ * `npm run lint`. The framework-wide `COMMANDS_DEFAULTS.lint` is `null` — as
+ * for typecheck — because the fallback belongs to this mandatory gate rather
+ * than to the shared accessor.
+ *
+ * A consumer sets this to point the gate at the scoped pair its hooks already
+ * run: the close-time gate stays real (the diff is still linted) while CI
+ * keeps owning whole-repo drift. Exported for testing.
+ *
+ * @param {{ project?: { commands?: object } } | null | undefined} config
+ * @returns {string}
+ */
+export function resolveLintCommand(config) {
+  return resolveCommandWithFallback(config, 'lint', LINT_FALLBACK);
 }
 
 /**

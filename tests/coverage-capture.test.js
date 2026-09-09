@@ -33,9 +33,13 @@ function harness({
   digest = 'deadbeef',
   stampWritten = true,
   lockEnabled = false,
+  requireCredited = undefined,
 } = {}) {
   const log = { info: [], warn: [], error: [] };
-  const calls = { capture: [], stamp: [], changed: [], fresh: [] };
+  // `order` interleaves the announcement with the spawn so a test can assert
+  // the warning is emitted BEFORE the suite starts — the whole point of the
+  // credit probe is that the cost is announced while it is still ahead of you.
+  const calls = { capture: [], stamp: [], changed: [], fresh: [], order: [] };
   return {
     log,
     calls,
@@ -47,7 +51,14 @@ function harness({
       // tests/lib/full-suite-lock.test.js.
       resolveConfigImpl: (args) => ({
         cwdSeen: args.cwd,
-        delivery: { execution: { fullSuiteLock: lockEnabled } },
+        delivery: {
+          execution: {
+            fullSuiteLock: lockEnabled,
+            ...(requireCredited === undefined
+              ? {}
+              : { requireCreditedCapture: requireCredited }),
+          },
+        },
       }),
       getQualityImpl: () => ({ crap, coverage: { timeoutMs: 1234 } }),
       readPackageScriptsImpl: () => ({ 'test:coverage': 'node --test' }),
@@ -62,6 +73,7 @@ function harness({
         return fresh;
       },
       runCaptureImpl: (args) => {
+        calls.order.push('capture');
         calls.capture.push(args);
         args.log('capture says hello');
         return captureCode;
@@ -73,7 +85,10 @@ function harness({
       },
       logger: {
         info: (m) => log.info.push(m),
-        warn: (m) => log.warn.push(m),
+        warn: (m) => {
+          calls.order.push('warn');
+          log.warn.push(m);
+        },
         error: (m) => log.error.push(m),
       },
     },
@@ -371,6 +386,98 @@ describe('runCoverageCapture', () => {
 
   // Story #5173 — the CLI composes the host lock over the capture runner, so
   // whichever capture path reaches the spawn is serialized without knowing it.
+  // ───────────────────────────────────────────────────────────────────────
+  // The uncredited-capture probe.
+  //
+  // A full-suite capture is the most expensive thing a close does. Before
+  // this, the only way to learn that a close had paid for one was to read
+  // `durationMs` out of `validation-evidence.json` afterwards — by which
+  // point the twelve minutes are spent. The probe moves that signal ahead of
+  // the spawn, and `delivery.execution.requireCreditedCapture` turns it from
+  // an announcement into a refusal.
+  describe('uncredited full-suite capture is announced before it is paid for', () => {
+    const SKIP_ON = {
+      ...CRAP,
+      incrementalCoverage: { skipWhenUnchanged: true, baseRef: 'origin/main' },
+    };
+    const STALE = { fresh: false, reason: 'missing' };
+
+    it('the warning naming the crediting invocation precedes the spawn', () => {
+      const h = harness({ fresh: STALE });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+      assert.deepEqual(
+        h.calls.order,
+        ['warn', 'capture'],
+        'the cost must be announced while it is still ahead of the reader',
+      );
+      const warned = h.log.warn.join('\n');
+      assert.match(warned, /no credited capture stamp covers this change set/);
+      assert.match(
+        warned,
+        /node <main-repo>\/\.agents\/scripts\/coverage-capture\.js --cwd <workCwd>/,
+        'the announcement must name the invocation that deposits credit',
+      );
+    });
+
+    it('the incremental path inherits the probe without knowing about it', () => {
+      const h = harness({ crap: SKIP_ON, fresh: STALE });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+      assert.deepEqual(h.calls.order, ['warn', 'capture']);
+    });
+
+    it('a credited (fresh) stamp is silent — nothing to announce, nothing spawned', () => {
+      const h = harness({ fresh: { fresh: true, reason: 'fresh' } });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+      assert.deepEqual(h.calls.order, []);
+      assert.equal(h.log.warn.length, 0);
+    });
+
+    it('requireCreditedCapture: true blocks before the spawn, naming the invocation', () => {
+      const h = harness({ fresh: STALE, requireCredited: true });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+      assert.equal(
+        h.calls.capture.length,
+        0,
+        'the suite must not run: the refusal is the whole saving',
+      );
+      assert.equal(h.calls.stamp.length, 0);
+      assert.match(
+        h.log.error.join('\n'),
+        /node <main-repo>\/\.agents\/scripts\/coverage-capture\.js --cwd <workCwd>/,
+      );
+    });
+
+    it('requireCreditedCapture: true also blocks the incremental path', () => {
+      const h = harness({ crap: SKIP_ON, fresh: STALE, requireCredited: true });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+      assert.equal(h.calls.capture.length, 0);
+    });
+
+    it('default (key unset) is byte-identical to the pre-key behaviour: it runs', () => {
+      for (const requireCredited of [undefined, false]) {
+        const h = harness({ fresh: STALE, requireCredited });
+        assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+        assert.equal(h.calls.capture.length, 1);
+        assert.equal(h.calls.stamp.length, 1);
+      }
+    });
+
+    it('requireCreditedCapture never blocks a run that was going to be skipped', () => {
+      const h = harness({
+        crap: SKIP_ON,
+        changed: ['README.md'],
+        fresh: STALE,
+        requireCredited: true,
+      });
+      assert.equal(
+        runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+        0,
+        'nothing under targetDirs changed — there is no capture to refuse',
+      );
+      assert.equal(h.calls.capture.length, 0);
+    });
+  });
+
   describe('full-suite lock wiring (Story #5173)', () => {
     // AC-9 — the lock covers the spawn, never the freshness check. A capture
     // that is already credited returns before the runner is reached at all,
