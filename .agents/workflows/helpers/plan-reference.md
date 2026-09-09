@@ -598,7 +598,7 @@ link that makes the history readable.
 
 | Behaviour | Contract |
 | --- | --- |
-| Default | Comment + close every source ticket as `not_planned`. |
+| Default | Comment + close every source ticket as `not_planned`, **clearing its `agent::*` label** in the same write — a retired ticket has no agent state, and `agent::done` would claim a delivery that never happened. |
 | `--no-close-superseded` | Skips all commenting and closing. Story creation is unchanged. Use it for a genuinely partial supersede — when the plan folded in only *part* of an issue and the remainder must stay open. |
 | `--dry-run` | Posts no comment and closes nothing; reports what it would have done. |
 | Re-run | Idempotent — the comment is keyed off a `superseded-by` structured-comment marker, and an already-closed source is skipped. |

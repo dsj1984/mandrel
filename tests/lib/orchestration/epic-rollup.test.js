@@ -212,6 +212,65 @@ describe('rollUpEpicForStory — status derived from the children', () => {
   });
 });
 
+describe('rollUpEpicForStory — a closed child carries no agent state (Story #5255)', () => {
+  it('closes a container whose only blocked child was closed as superseded', async () => {
+    // The reported shape: a Story hit `agent::blocked`, was re-planned, and
+    // `plan-persist` closed it as superseded with the label still attached.
+    // Every child then landed, the body checklist ticked through — and the
+    // epilogue reported `{ closed: [], pending: [epicId] }` on every run,
+    // indistinguishable from a child still in flight.
+    const provider = fakeProvider({
+      epics: [container(90, [1, 2, 3])],
+      children: [
+        child(1, 'agent::done'),
+        child(2, 'agent::blocked', 'closed'),
+        child(3, 'agent::done'),
+      ],
+    });
+    const columnSync = fakeColumnSync();
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync,
+    });
+
+    assert.deepEqual(result.closed, [90]);
+    assert.deepEqual(result.pending, []);
+    assert.deepEqual(columnSync.calls, [{ issueId: 90, column: 'Done' }]);
+    assert.deepEqual(provider.updates, [
+      { id: 90, mutations: { state: 'closed', state_reason: 'completed' } },
+    ]);
+  });
+
+  it('still holds the container open — and owned — for an OPEN blocked child', async () => {
+    const provider = fakeProvider({
+      epics: [container(90, [1, 2])],
+      children: [child(1, 'agent::done'), child(2, 'agent::blocked')],
+    });
+    const columnSync = fakeColumnSync();
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: { github: { operatorHandle: '@dsj1984' } },
+      columnSync,
+    });
+
+    assert.deepEqual(result.closed, []);
+    assert.deepEqual(result.pending, [90]);
+    // The HITL signal is intact: an open blocked child keeps the Epic in
+    // `IN_FLIGHT_STATES`, so someone stays named on it.
+    assert.deepEqual(provider.updates, [
+      { id: 90, mutations: { addAssignees: ['dsj1984'] } },
+    ]);
+    assert.deepEqual(columnSync.calls, [
+      { issueId: 90, column: 'In Progress' },
+    ]);
+  });
+});
+
 describe('rollUpEpicForStory — the container invariants', () => {
   it('never writes an agent:: label on the Epic across a full child lifecycle', async () => {
     for (const label of [

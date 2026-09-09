@@ -28,6 +28,15 @@
  *      partial failure reports which tickets were and were not closed so the
  *      operator can finish by hand.
  *
+ * The close also strips the source ticket's `agent::*` label (Story #5255).
+ * A retired ticket has no agent state, and the one it kept was read as live
+ * work: `agent::blocked` is the state a Story must be in to be re-planned, so
+ * this path closes exactly the tickets carrying it, and a closed-but-blocked
+ * child pinned its container Epic open on every rollup thereafter. The
+ * derivation in `ticketing/bulk.js` now ignores closed children's labels too —
+ * that half covers the tickets already closed and the ones closed by hand;
+ * this one stops new ones being written.
+ *
  * Idempotency is keyed off the `superseded-by` structured-comment marker
  * (`upsertStructuredComment`), not a bare `postComment`, so a re-run cannot
  * double-comment.
@@ -36,6 +45,7 @@
  */
 
 import { Logger } from '../../Logger.js';
+import { AGENT_LABELS } from '../../label-constants.js';
 import {
   concurrentMap,
   FANOUT_CONCURRENCY,
@@ -54,6 +64,40 @@ const SUPERSEDED_BY_COMMENT_TYPE = 'superseded-by';
  * `not_planned`); this constant settles it.
  */
 export const SUPERSEDE_CLOSE_REASON = 'not_planned';
+
+/**
+ * Every `agent::*` label, as the set the supersede close strips.
+ *
+ * A retired ticket has no agent state. `agent::done` would be the wrong
+ * substitute — the work was re-planned, never delivered — so the label is
+ * removed rather than rewritten, and the ticket ends carrying only its
+ * `type::`/domain labels and the supersede comment that explains it.
+ */
+const AGENT_STATE_LABELS = Object.freeze(Object.values(AGENT_LABELS));
+
+/**
+ * The single `updateTicket` mutation that retires a source ticket.
+ *
+ * Closing and clearing the state ride one write: two calls could leave the
+ * ticket closed but still wearing `agent::blocked`, which is the shape that
+ * pinned a container Epic open forever (Story #5255).
+ *
+ * A ticket with no `agent::*` label gets the bare close, unchanged from before
+ * that Story — `updateTicket` merges a `labels` mutation by reading the issue
+ * back, so an unconditional empty `remove` would buy a wasted round-trip per
+ * superseded ticket. `_ticketSnapshot` feeds that merge the copy
+ * `probeSourceTicket` already fetched.
+ *
+ * @param {{ labels?: unknown }} ticket The probe's fresh copy.
+ * @returns {object} Mutations for `provider.updateTicket`.
+ */
+function supersedeCloseMutations(ticket) {
+  const close = { state: 'closed', state_reason: SUPERSEDE_CLOSE_REASON };
+  const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
+  const remove = AGENT_STATE_LABELS.filter((label) => labels.includes(label));
+  if (remove.length === 0) return close;
+  return { ...close, labels: { remove }, _ticketSnapshot: ticket };
+}
 
 /**
  * Coerce one `supersedes[]` entry into `{ id, note }`.
@@ -329,13 +373,22 @@ export function buildSupersedeCommentBody({
 /**
  * Resolve the live state of a source ticket.
  *
- * @returns {Promise<{ ok: true, state: string } | { ok: false, reason: string }>}
+ * The ticket itself rides along so the close can strip the `agent::*` label
+ * without a second read: `updateTicket`'s label merge takes a
+ * `_ticketSnapshot` for exactly this, and this probe has already paid for the
+ * fresh copy.
+ *
+ * @returns {Promise<{ ok: true, state: string, ticket: object } | { ok: false, reason: string }>}
  */
 async function probeSourceTicket(provider, id) {
   try {
     const ticket = await provider.getTicket(id, { fresh: true });
     if (!ticket) return { ok: false, reason: 'not-found' };
-    return { ok: true, state: String(ticket.state ?? 'open').toLowerCase() };
+    return {
+      ok: true,
+      state: String(ticket.state ?? 'open').toLowerCase(),
+      ticket,
+    };
   } catch (err) {
     return { ok: false, reason: `inaccessible: ${err.message}` };
   }
@@ -370,10 +423,7 @@ async function closeOneSupersededTicket({
         sourceTicketIds,
       }),
     );
-    await provider.updateTicket(id, {
-      state: 'closed',
-      state_reason: SUPERSEDE_CLOSE_REASON,
-    });
+    await provider.updateTicket(id, supersedeCloseMutations(probe.ticket));
     return { outcome: 'closed' };
   } catch (err) {
     return { outcome: 'failed', reason: err.message };

@@ -185,6 +185,53 @@ describe('ticketing/bulk — deriveParentState (Story #2676)', () => {
     ];
     assert.equal(deriveParentState(siblings), null);
   });
+
+  // Story #5255 — a closed child's `agent::*` label records the state it
+  // stopped in, not outstanding work, and nothing clears it on the way out.
+  it("ignores a closed child's stale agent::blocked (Story #5255)", () => {
+    const siblings = [
+      { labels: ['type::story', 'agent::blocked'], state: 'closed' },
+      { labels: ['agent::done'], state: 'closed' },
+    ];
+    assert.equal(deriveParentState(siblings), STATE_LABELS.DONE);
+  });
+
+  it('still returns blocked for an OPEN blocked child beside a closed one', () => {
+    const siblings = [
+      { labels: ['agent::blocked'], state: 'closed' },
+      { labels: ['agent::blocked'], state: 'open' },
+    ];
+    assert.equal(deriveParentState(siblings), STATE_LABELS.BLOCKED);
+  });
+
+  it('ignores a closed child carrying agent::executing or agent::closing', () => {
+    assert.equal(
+      deriveParentState([
+        { labels: ['agent::executing'], state: 'closed' },
+        { labels: ['agent::ready'], state: 'open' },
+      ]),
+      null,
+    );
+    assert.equal(
+      deriveParentState([
+        { labels: ['agent::closing'], state: 'closed' },
+        { labels: ['agent::ready'], state: 'open' },
+      ]),
+      null,
+    );
+  });
+
+  it('keeps counting a closed child as done, whatever label it wears', () => {
+    // The all-done branch already read `state === 'closed'`; the carve-out
+    // must not cost a closed child that vote.
+    assert.equal(
+      deriveParentState([
+        { labels: ['agent::blocked'], state: 'closed' },
+        { labels: [], state: 'closed' },
+      ]),
+      STATE_LABELS.DONE,
+    );
+  });
 });
 
 class ThreeLevelMock extends ITicketingProvider {

@@ -309,8 +309,11 @@ children at both per-Story lifecycle edges — the `agent::executing` flip in
 `epicRollup` step) — which is why it holds at **N=1**, where no epilogue runs.
 
 - **Status** follows the children's composition (`deriveParentState` mapped
-  onto the board's three options): any child executing or blocked → `In
-  Progress`, every child `agent::done` or closed → `Done`. It is written
+  onto the board's three options): any **open** child executing or blocked →
+  `In Progress`, every child `agent::done` or closed → `Done`. A **closed**
+  child contributes no `agent::*` state at all — its label records where it
+  stopped, and a superseded Story closed still wearing `agent::blocked` used
+  to pin its container open forever. It is written
   **directly**, never via a label: the container carries no `agent::*` label
   by construction, which is what keeps it out of the bare `/mandrel-deliver`
   ready list.

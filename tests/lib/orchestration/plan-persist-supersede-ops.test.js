@@ -299,14 +299,19 @@ describe('buildSupersedeCommentBody', () => {
 });
 
 describe('closeSupersededTickets', () => {
-  function provider({ states = {}, onUpdate } = {}) {
+  function provider({ states = {}, labels = {}, onUpdate } = {}) {
     const calls = { comments: [], updates: [] };
     return {
       calls,
       async getTicket(id) {
         const state = states[id];
         if (state === undefined) throw new Error(`not found: #${id}`);
-        return { id, state };
+        // `labels` is opt-in: the tickets that do not set it stay on the
+        // no-agent-state path, which is the case that must issue no label
+        // mutation at all.
+        return labels[id] === undefined
+          ? { id, state }
+          : { id, state, labels: labels[id] };
       },
       async getTicketComments() {
         return [];
@@ -341,6 +346,133 @@ describe('closeSupersededTickets', () => {
       },
     ]);
     assert.equal(SUPERSEDE_CLOSE_REASON, 'not_planned');
+  });
+
+  it('strips a stale agent::* label in the same call that closes (Story #5255)', async () => {
+    // The defect: a Story re-planned out of `agent::blocked` was closed still
+    // wearing the label, and `deriveParentState` read it as live work — which
+    // pinned the ticket's container Epic open on every rollup thereafter.
+    const p = provider({
+      states: { 1: 'open' },
+      labels: { 1: ['type::story', 'agent::blocked', 'audit::mobile'] },
+    });
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+
+    assert.deepEqual(report.closed, [1]);
+    assert.equal(
+      p.calls.updates.length,
+      1,
+      'one write, not a close then a fix',
+    );
+    const [{ id, mutations }] = p.calls.updates;
+    assert.equal(id, 1);
+    assert.equal(mutations.state, 'closed');
+    assert.equal(mutations.state_reason, SUPERSEDE_CLOSE_REASON);
+    assert.deepEqual(mutations.labels, { remove: ['agent::blocked'] });
+    // The probe already paid for a fresh read; the label merge must reuse it
+    // rather than making `updateTicket` fetch the issue a second time.
+    assert.equal(mutations._ticketSnapshot.id, 1);
+  });
+
+  it('never rewrites the state to agent::done — a retired ticket was not delivered', async () => {
+    const p = provider({
+      states: { 1: 'open' },
+      labels: { 1: ['agent::blocked'] },
+    });
+    await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    const { mutations } = p.calls.updates[0];
+    assert.deepEqual(mutations.labels.add ?? [], []);
+    assert.ok(!JSON.stringify(mutations.labels).includes('agent::done'));
+  });
+
+  it('strips every agent::* label a source ticket carries, and nothing else', async () => {
+    const p = provider({
+      states: { 1: 'open' },
+      labels: {
+        1: ['type::story', 'agent::executing', 'agent::blocked', 'bug'],
+      },
+    });
+    await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    const { mutations } = p.calls.updates[0];
+    assert.deepEqual([...mutations.labels.remove].sort(), [
+      'agent::blocked',
+      'agent::executing',
+    ]);
+  });
+
+  it('attempts no label mutation when the source carries no agent state', async () => {
+    const p = provider({
+      states: { 1: 'open' },
+      labels: { 1: ['type::story', 'bug'] },
+    });
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    assert.deepEqual(report.closed, [1]);
+    assert.deepEqual(p.calls.updates, [
+      {
+        id: 1,
+        mutations: { state: 'closed', state_reason: SUPERSEDE_CLOSE_REASON },
+      },
+    ]);
+  });
+
+  it('reports a failed label strip on failed[] rather than throwing', async () => {
+    const p = provider({
+      states: { 1: 'open' },
+      labels: { 1: ['agent::blocked'] },
+      onUpdate: () => {
+        throw new Error('label write rejected');
+      },
+    });
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    assert.deepEqual(report.failed, [
+      { ticket: 1, reason: 'label write rejected' },
+    ]);
+    assert.deepEqual(report.closed, []);
+  });
+
+  it('skips an already-closed source with no writes at all (re-run idempotence)', async () => {
+    // The label strip must not give a second run a reason to write: the
+    // already-closed probe still short-circuits ahead of the comment and the
+    // PATCH both.
+    const p = provider({
+      states: { 1: 'closed' },
+      labels: { 1: ['agent::blocked'] },
+    });
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories,
+      created,
+      sourceTicketIds: [1],
+    });
+    assert.deepEqual(report.skipped, [{ ticket: 1, reason: 'already-closed' }]);
+    assert.deepEqual(report.closed, []);
+    assert.deepEqual(p.calls.updates, []);
+    assert.deepEqual(p.calls.comments, []);
   });
 
   it('short-circuits with no-source-tickets when none were passed', async () => {
