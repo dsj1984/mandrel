@@ -21,11 +21,15 @@ import {
 import {
   attributionExitCode,
   deriveVerdict,
-  INTRODUCED,
-  PRE_EXISTING,
   renderAttribution,
   UNKNOWN,
 } from '../.agents/scripts/lib/audit-attribution.js';
+
+// The verdict strings are asserted as literals on purpose: they are printed
+// verbatim into the CI log an operator reads, so a rename must break these
+// tests rather than silently change what that log says.
+const INTRODUCED = 'introduced-by-this-diff';
+const PRE_EXISTING = 'pre-existing';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

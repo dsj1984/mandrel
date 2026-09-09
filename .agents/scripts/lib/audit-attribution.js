@@ -18,10 +18,16 @@
  * It buys legibility, never permission — see `attributionExitCode`.
  */
 
+// The verdict vocabulary. Only `UNKNOWN` is exported: the CLI branches on it
+// to decide whether to audit the base at all, while the other two are read by
+// callers out of the rendered report rather than compared as symbols. Their
+// STRING values are the contract — they appear verbatim in the CI log — so
+// the tests assert those literals rather than re-importing the constants,
+// which would let a rename silently change what an operator reads.
 /** The pull request's own diff introduced the advisory. */
-export const INTRODUCED = 'introduced-by-this-diff';
+const INTRODUCED = 'introduced-by-this-diff';
 /** The merge base carries it too; the diff is innocent. */
-export const PRE_EXISTING = 'pre-existing';
+const PRE_EXISTING = 'pre-existing';
 /** The probe could not reach a verdict. Never an accusation. */
 export const UNKNOWN = 'unknown';
 

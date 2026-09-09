@@ -15,10 +15,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { runCheck } from '../.agents/scripts/check-pinned-override-notes.js';
-import {
-  auditPinnedOverrideNotes,
-  quotedRanges,
-} from '../.agents/scripts/lib/pinned-override-notes.js';
+import { auditPinnedOverrideNotes } from '../.agents/scripts/lib/pinned-override-notes.js';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -34,17 +31,35 @@ const pkgWith = ({ note, override, direct }) => ({
   ...(direct === undefined ? {} : { dependencies: { demo: direct } }),
 });
 
-describe('quotedRanges', () => {
-  it('extracts prefixed semver ranges and ignores bare versions', () => {
+// Range extraction is an implementation detail, exercised through the audit
+// it serves. The behaviour that matters: only PREFIXED ranges are read as the
+// note's claim, so the bare versions a note cites as history ("pulls js-yaml
+// 4.1.1", "declares an exact 5.2.1") never masquerade as the pin.
+describe('range extraction, through the audit', () => {
+  it('ignores bare versions cited as history', () => {
     assert.deepEqual(
-      quotedRanges('pins ^4.3.2 because 4.1.1 and 5.2.1 are bad; also ~2.0.0'),
-      ['^4.3.2', '~2.0.0'],
+      kinds(
+        pkgWith({
+          note: 'pins ^4.3.2 because 4.1.1 and 5.2.1 are bad',
+          override: '^4.3.2',
+        }),
+      ),
+      [],
     );
   });
 
-  it('is empty for prose naming no range, and for a non-string', () => {
-    assert.deepEqual(quotedRanges('no versions here at all'), []);
-    assert.deepEqual(quotedRanges(undefined), []);
+  it('reads a tilde range as a claim just as it reads a caret', () => {
+    assert.deepEqual(
+      kinds(pkgWith({ note: 'pins ~2.0.0', override: '^4.3.2' })),
+      ['stale-note'],
+    );
+  });
+
+  it('treats a non-string note as quoting nothing', () => {
+    assert.deepEqual(
+      kinds(pkgWith({ note: undefined, override: '^1.0.0' })),
+      [],
+    );
   });
 });
 

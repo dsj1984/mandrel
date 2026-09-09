@@ -27,10 +27,14 @@ const OVERRIDE_NOTE_KEY = /^overrides\.(.+)$/;
  * pinning its phrasing would make it unwritable. What matters is only that
  * the range it quotes is the range in force.
  *
+ * Not exported: it is an implementation detail of the audit below, and its
+ * behaviour is observable through that — a note quoting only bare versions
+ * yields no `stale-note`, a note quoting a mismatched range yields one.
+ *
  * @param {string} text
  * @returns {string[]}
  */
-export function quotedRanges(text) {
+function quotedRanges(text) {
   if (typeof text !== 'string') return [];
   return [...text.matchAll(/[\^~]\d+\.\d+\.\d+/g)].map((m) => m[0]);
 }
