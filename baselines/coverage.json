@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-08T18:51:24.950Z",
+  "generatedAt": "2026-09-09T01:57:41.953Z",
   "rollup": {
     "*": {
-      "lines": 96.09,
+      "lines": 96.08,
       "branches": 87.03,
-      "functions": 88.41
+      "functions": 88.31
     }
   },
   "rows": [
@@ -63,6 +63,12 @@
       "lines": 99.07,
       "branches": 90.91,
       "functions": 83.33
+    },
+    {
+      "path": ".agents/scripts/check-audit-attribution.js",
+      "lines": 80.82,
+      "branches": 82.76,
+      "functions": 45.45
     },
     {
       "path": ".agents/scripts/check-baseline-drift.js",
@@ -129,6 +135,12 @@
       "lines": 100,
       "branches": 93.1,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/check-pinned-override-notes.js",
+      "lines": 97.06,
+      "branches": 75,
+      "functions": 50
     },
     {
       "path": ".agents/scripts/check-schema-references.js",
@@ -237,6 +249,12 @@
       "lines": 96.45,
       "branches": 90,
       "functions": 75
+    },
+    {
+      "path": ".agents/scripts/lib/audit-attribution.js",
+      "lines": 100,
+      "branches": 95.24,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/engine.js",
@@ -2532,6 +2550,12 @@
     },
     {
       "path": ".agents/scripts/lib/path-security.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/pinned-override-notes.js",
       "lines": 100,
       "branches": 100,
       "functions": 100
