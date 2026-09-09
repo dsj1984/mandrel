@@ -109,7 +109,7 @@ stamp coverage / CRAP fresh any other way.
 
 **It can legitimately run nothing.** With nothing changed under the CRAP
 `targetDirs` it skips capture and exits 0. An exit code is never evidence a
-gate did work — its **output** is: no credit deposited. Run the scoped
+gate did work — its **output** is: no credit was deposited. Run the scoped
 projects for the roots you changed plus `verify[]`, not the whole suite.
 
 Gate output that lies: [`known-tooling-behavior.md`](../rules/known-tooling-behavior.md).

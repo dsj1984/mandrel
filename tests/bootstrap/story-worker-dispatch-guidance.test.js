@@ -24,7 +24,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import initCheck from '../../.agents/scripts/lib/checks/story-init-not-backgrounded.js';
-import { assertDocMentions } from '../helpers/doc-assert.js';
+import { assertDocMentions, assertDocOmits } from '../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -136,8 +136,13 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     );
     assertDocMentions(
       section,
-      /run the full suite yourself before handing off/i,
-      'a skip must end in the worker running the suite itself — a hand-off is a claim the branch was verified',
+      /Run the scoped projects for the roots you changed plus `verify\[\]`/i,
+      'a skip must still end in a verified claim — for the files that changed. The whole suite is what the skip already established was unnecessary',
+    );
+    assertDocOmits(
+      section,
+      /run the full suite yourself/i,
+      'the retired instruction: a docs/CI-only Story paid minutes of whole-suite time that a scoped run covers in seconds',
     );
   });
 
@@ -216,8 +221,13 @@ describe('the bundled delivery read pins the same dispatch shape', () => {
     );
     assertDocMentions(
       section,
-      /run the suite yourself before handing off/i,
-      'digest § 5 must send an uncredited run back through the suite before the hand-off',
+      /Run the scoped projects for the roots you changed plus `verify\[\]`/i,
+      'digest § 5 must send a skipped run back through the scoped projects plus verify[], not the whole suite',
+    );
+    assertDocOmits(
+      section,
+      /run the suite yourself/i,
+      'the retired instruction — see the worker-side pin above',
     );
   });
 });
