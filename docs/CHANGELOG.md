@@ -15,6 +15,13 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.54.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.53.0...mandrel-v2.54.0) (2026-09-09)
+
+
+### Fixed
+
+* a closed child pins its container Epic open forever: the rollup reads its stale agent::* label, and the supersede close is what writes one ([#5255](https://github.com/dsj1984/mandrel/issues/5255)) ([#5256](https://github.com/dsj1984/mandrel/issues/5256)) ([672428f](https://github.com/dsj1984/mandrel/commit/672428f1e0fba1388a1a001d2840e7eb827b9373))
+
 ## [2.53.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.52.0...mandrel-v2.53.0) (2026-09-09)
 
 
