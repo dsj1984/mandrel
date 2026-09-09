@@ -76,19 +76,27 @@ export const SUPERSEDE_CLOSE_REASON = 'not_planned';
 const AGENT_STATE_LABELS = Object.freeze(Object.values(AGENT_LABELS));
 
 /**
- * The `agent::*` labels a source ticket is actually wearing.
+ * The single `updateTicket` mutation that retires a source ticket.
  *
- * Returns `[]` for the common case of a ticket with no agent state, which the
- * caller uses to skip the label mutation entirely: `updateTicket` merges a
- * `labels` mutation by reading the issue back, so an unconditional empty
- * `remove` would buy a wasted round-trip per superseded ticket.
+ * Closing and clearing the state ride one write: two calls could leave the
+ * ticket closed but still wearing `agent::blocked`, which is the shape that
+ * pinned a container Epic open forever (Story #5255).
  *
- * @param {{ labels?: unknown }} ticket
- * @returns {string[]}
+ * A ticket with no `agent::*` label gets the bare close, unchanged from before
+ * that Story — `updateTicket` merges a `labels` mutation by reading the issue
+ * back, so an unconditional empty `remove` would buy a wasted round-trip per
+ * superseded ticket. `_ticketSnapshot` feeds that merge the copy
+ * `probeSourceTicket` already fetched.
+ *
+ * @param {{ labels?: unknown }} ticket The probe's fresh copy.
+ * @returns {object} Mutations for `provider.updateTicket`.
  */
-function agentStateLabelsOn(ticket) {
+function supersedeCloseMutations(ticket) {
+  const close = { state: 'closed', state_reason: SUPERSEDE_CLOSE_REASON };
   const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
-  return AGENT_STATE_LABELS.filter((label) => labels.includes(label));
+  const remove = AGENT_STATE_LABELS.filter((label) => labels.includes(label));
+  if (remove.length === 0) return close;
+  return { ...close, labels: { remove }, _ticketSnapshot: ticket };
 }
 
 /**
@@ -415,19 +423,7 @@ async function closeOneSupersededTicket({
         sourceTicketIds,
       }),
     );
-    // The `agent::*` strip rides the closing PATCH rather than a call of its
-    // own (Story #5255): one write cannot leave the ticket closed but still
-    // wearing the state, which is the shape that pinned a container Epic open
-    // forever. `_ticketSnapshot` feeds the label merge the copy the probe
-    // already fetched.
-    const staleStates = agentStateLabelsOn(probe.ticket);
-    await provider.updateTicket(id, {
-      state: 'closed',
-      state_reason: SUPERSEDE_CLOSE_REASON,
-      ...(staleStates.length > 0
-        ? { labels: { remove: staleStates }, _ticketSnapshot: probe.ticket }
-        : {}),
-    });
+    await provider.updateTicket(id, supersedeCloseMutations(probe.ticket));
     return { outcome: 'closed' };
   } catch (err) {
     return { outcome: 'failed', reason: err.message };

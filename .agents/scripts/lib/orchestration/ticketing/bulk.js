@@ -429,23 +429,45 @@ async function cascadeCompletion(provider, ticketId, opts = {}) {
  * @param {Array<{ labels?: string[], state?: string }>} siblings
  * @returns {string|null} A `STATE_LABELS.*` value, or `null` for no-op.
  */
+/**
+ * A child's labels, tolerant of the shapes the cascade and the rollup hand in.
+ *
+ * @param {{ labels?: string[] }} sibling
+ * @returns {string[]}
+ */
+function childLabels(sibling) {
+  return Array.isArray(sibling?.labels) ? sibling.labels : [];
+}
+
+/**
+ * The labels that still describe **live** work on this child.
+ *
+ * Empty for a closed child: its `agent::*` label records the state it stopped
+ * in, which the two live-state rules in {@link deriveParentState} must not
+ * read. The all-done rule reads {@link childLabels} instead, so a closed child
+ * keeps counting as done.
+ *
+ * @param {{ labels?: string[], state?: string }} sibling
+ * @returns {string[]}
+ */
+function liveChildLabels(sibling) {
+  if (sibling?.state === 'closed') return [];
+  return childLabels(sibling);
+}
+
 export function deriveParentState(siblings) {
   if (!Array.isArray(siblings) || siblings.length === 0) return null;
-  // Closed children keep their vote in `allDone` below and lose it everywhere
-  // else, so the two live-state rules read this narrowed accessor.
-  const labelsOf = (s) => (Array.isArray(s?.labels) ? s.labels : []);
-  const openLabelsOf = (s) => (s?.state === 'closed' ? [] : labelsOf(s));
-  if (siblings.some((s) => openLabelsOf(s).includes(STATE_LABELS.BLOCKED))) {
+  if (siblings.some((s) => liveChildLabels(s).includes(STATE_LABELS.BLOCKED))) {
     return STATE_LABELS.BLOCKED;
   }
   const allDone = siblings.every(
-    (s) => labelsOf(s).includes(STATE_LABELS.DONE) || s?.state === 'closed',
+    (s) => childLabels(s).includes(STATE_LABELS.DONE) || s?.state === 'closed',
   );
   if (allDone) return STATE_LABELS.DONE;
   const anyActive = siblings.some(
     (s) =>
-      openLabelsOf(s).includes(STATE_LABELS.EXECUTING) ||
-      openLabelsOf(s).includes(STATE_LABELS.CLOSING),
+      liveChildLabels(s).includes(STATE_LABELS.EXECUTING) ||
+      liveChildLabels(s).includes(STATE_LABELS.CLOSING),
   );
   if (anyActive) return STATE_LABELS.EXECUTING;
   return null;
