@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-09T01:08:28.201Z",
+  "generatedAt": "2026-09-09T01:57:42.602Z",
   "rollup": {
     "*": {
       "min": 76.381,
       "p50": 98.886,
-      "p95": 122.902
+      "p95": 122.565
     }
   },
   "rows": [
@@ -51,6 +51,10 @@
       "mi": 95.163
     },
     {
+      "path": ".agents/scripts/check-audit-attribution.js",
+      "mi": 94.177
+    },
+    {
       "path": ".agents/scripts/check-baseline-drift.js",
       "mi": 96.931
     },
@@ -93,6 +97,10 @@
     {
       "path": ".agents/scripts/check-lifecycle-lint.js",
       "mi": 97.514
+    },
+    {
+      "path": ".agents/scripts/check-pinned-override-notes.js",
+      "mi": 98.349
     },
     {
       "path": ".agents/scripts/check-schema-references.js",
@@ -173,6 +181,10 @@
     {
       "path": ".agents/scripts/install-matrix-assert.js",
       "mi": 89.263
+    },
+    {
+      "path": ".agents/scripts/lib/audit-attribution.js",
+      "mi": 114.93
     },
     {
       "path": ".agents/scripts/lib/audit-baselines/engine.js",
@@ -1665,6 +1677,10 @@
     {
       "path": ".agents/scripts/lib/path-security.js",
       "mi": 117.206
+    },
+    {
+      "path": ".agents/scripts/lib/pinned-override-notes.js",
+      "mi": 102.153
     },
     {
       "path": ".agents/scripts/lib/plan-phase-cleanup.js",

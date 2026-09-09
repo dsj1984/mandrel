@@ -1,0 +1,277 @@
+/**
+ * tests/check-audit-attribution.test.js — Story #5248.
+ *
+ * The probe exists so an author whose diff did not cause a supply-chain
+ * failure can see that in one line instead of debugging it. Two properties
+ * carry that, and both are pinned here: the verdict is right, and the probe
+ * can never become a failure mode of its own — every way it can break must
+ * degrade to `unknown` rather than accuse the author or mask the audit.
+ */
+
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import {
+  parseArgs,
+  runAttribution,
+} from '../.agents/scripts/check-audit-attribution.js';
+import {
+  attributionExitCode,
+  deriveVerdict,
+  renderAttribution,
+  UNKNOWN,
+} from '../.agents/scripts/lib/audit-attribution.js';
+
+// The verdict strings are asserted as literals on purpose: they are printed
+// verbatim into the CI log an operator reads, so a rename must break these
+// tests rather than silently change what that log says.
+const INTRODUCED = 'introduced-by-this-diff';
+const PRE_EXISTING = 'pre-existing';
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+
+const argv = (...flags) => ['node', 'check-audit-attribution.js', ...flags];
+
+function harness({
+  headFailed = true,
+  baseFailed = false,
+  materializeThrows = null,
+  auditBaseThrows = null,
+  headThrows = null,
+  trackingIssue = 7777,
+  lookupThrows = false,
+} = {}) {
+  const log = { info: [], warn: [], error: [] };
+  const calls = { cleanup: [], materialize: [] };
+  return {
+    log,
+    calls,
+    deps: {
+      git: () => '{}',
+      auditHead: () => {
+        if (headThrows) throw new Error(headThrows);
+        return { failed: headFailed };
+      },
+      auditBase: () => {
+        if (auditBaseThrows) throw new Error(auditBaseThrows);
+        return { failed: baseFailed };
+      },
+      materialize: (opts) => {
+        calls.materialize.push(opts);
+        if (materializeThrows) throw new Error(materializeThrows);
+        return '/tmp/fake-base';
+      },
+      lookupTrackingIssue: () => {
+        if (lookupThrows) throw new Error('gh not authenticated');
+        return trackingIssue;
+      },
+      cleanup: (dir) => calls.cleanup.push(dir),
+      logger: {
+        info: (m) => log.info.push(m),
+        warn: (m) => log.warn.push(m),
+        error: (m) => log.error.push(m),
+      },
+    },
+  };
+}
+
+describe('deriveVerdict — the attribution table', () => {
+  it('base red + head red → pre-existing: the diff is innocent', () => {
+    assert.equal(
+      deriveVerdict({ headFailed: true, baseAudit: { failed: true } }),
+      PRE_EXISTING,
+    );
+  });
+
+  it('base clean + head red → introduced by this diff', () => {
+    assert.equal(
+      deriveVerdict({ headFailed: true, baseAudit: { failed: false } }),
+      INTRODUCED,
+    );
+  });
+
+  // The guess it would otherwise make is an accusation against the person
+  // reading the log, so an unreachable base must never resolve to INTRODUCED.
+  it('an unreadable base is unknown, never an accusation', () => {
+    assert.equal(deriveVerdict({ headFailed: true, baseAudit: null }), UNKNOWN);
+    assert.equal(
+      deriveVerdict({ headFailed: true, baseAudit: { failed: 'maybe' } }),
+      UNKNOWN,
+    );
+  });
+
+  it('a clean head has nothing to attribute', () => {
+    assert.equal(
+      deriveVerdict({ headFailed: false, baseAudit: { failed: true } }),
+      UNKNOWN,
+    );
+  });
+});
+
+describe('attributionExitCode — legibility, never permission', () => {
+  it('both real verdicts still fail, so a pre-existing advisory keeps blocking', () => {
+    assert.equal(attributionExitCode(PRE_EXISTING), 1);
+    assert.equal(attributionExitCode(INTRODUCED), 1);
+  });
+
+  it('a degraded probe adds no failure of its own', () => {
+    assert.equal(attributionExitCode(UNKNOWN), 0);
+  });
+});
+
+describe('renderAttribution', () => {
+  it('names the tracking issue when the nightly sweep already filed one', () => {
+    const text = renderAttribution({
+      verdict: PRE_EXISTING,
+      baseRef: 'abc1234',
+      trackingIssue: 4242,
+    }).join('\n');
+    assert.match(text, /PRE-EXISTING/);
+    assert.match(text, /#4242/);
+    assert.match(text, /still fails/i);
+  });
+
+  it('omits the reference cleanly when no issue is open', () => {
+    const text = renderAttribution({
+      verdict: PRE_EXISTING,
+      trackingIssue: null,
+    }).join('\n');
+    assert.match(text, /PRE-EXISTING/);
+    assert.doesNotMatch(text, /#\d+/);
+  });
+
+  it('an introduced verdict points at the version-range trap, not a force fix', () => {
+    const text = renderAttribution({ verdict: INTRODUCED }).join('\n');
+    assert.match(text, /INTRODUCED BY THIS DIFF/);
+    assert.match(text, /version range/i);
+  });
+});
+
+describe('runAttribution — every break degrades to unknown', () => {
+  it('reports pre-existing and exits 1', () => {
+    const h = harness({ baseFailed: true });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.equal(out.verdict, PRE_EXISTING);
+    assert.equal(out.exitCode, 1);
+    assert.match(h.log.info.join('\n'), /#7777/);
+  });
+
+  it('reports introduced-by-this-diff and exits 1', () => {
+    const h = harness({ baseFailed: false });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.equal(out.verdict, INTRODUCED);
+    assert.equal(out.exitCode, 1);
+  });
+
+  for (const [label, opts] of [
+    ['an unresolvable merge base', { materializeThrows: 'bad object' }],
+    ['a base lockfile that cannot be audited', { auditBaseThrows: 'ENOENT' }],
+    ['a head audit that errors', { headThrows: 'npm exploded' }],
+  ]) {
+    it(`${label} degrades to unknown at exit 0`, () => {
+      const h = harness(opts);
+      const out = runAttribution(argv('--base', 'abc123'), h.deps);
+      assert.equal(out.verdict, UNKNOWN);
+      assert.equal(out.exitCode, 0);
+      assert.match(out.lines.join('\n'), /UNKNOWN/);
+    });
+  }
+
+  it('a missing --base is unknown, not a crash', () => {
+    const h = harness();
+    const out = runAttribution(argv(), h.deps);
+    assert.equal(out.verdict, UNKNOWN);
+    assert.equal(out.exitCode, 0);
+    assert.equal(h.calls.materialize.length, 0);
+  });
+
+  it('a clean head reports unknown and never audits the base', () => {
+    const h = harness({ headFailed: false });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.equal(out.verdict, UNKNOWN);
+    assert.equal(h.calls.materialize.length, 0);
+  });
+
+  // The scratch tree is materialized under the OS temp root, never in the
+  // job's working tree — but it must still be removed on the failure path.
+  it('removes the scratch tree even when the base audit throws', () => {
+    const h = harness({ auditBaseThrows: 'ENOENT' });
+    runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.deepEqual(h.calls.cleanup, ['/tmp/fake-base']);
+  });
+
+  it('a failed tracking-issue lookup does not lose the verdict', () => {
+    const h = harness({ baseFailed: true, lookupThrows: true });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.equal(out.verdict, PRE_EXISTING);
+    assert.equal(out.exitCode, 1);
+    assert.doesNotMatch(out.lines.join('\n'), /#\d+/);
+  });
+
+  it('--no-tracking-issue skips the lookup entirely', () => {
+    const h = harness({ baseFailed: true, lookupThrows: true });
+    const out = runAttribution(
+      argv('--base', 'abc123', '--no-tracking-issue'),
+      h.deps,
+    );
+    assert.equal(out.verdict, PRE_EXISTING);
+  });
+});
+
+describe('parseArgs', () => {
+  it('reads --base and --cwd', () => {
+    const p = parseArgs(argv('--base', 'deadbee', '--cwd', '/repo'));
+    assert.equal(p.base, 'deadbee');
+    assert.equal(p.cwd, '/repo');
+  });
+});
+
+/**
+ * The wiring is as load-bearing as the script. Three properties are asserted
+ * against the committed workflow rather than eyeballed, because each one
+ * silently degrades the gate if it drifts.
+ */
+describe('ci.yml wiring', () => {
+  const ci = readFileSync(
+    path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml'),
+    'utf8',
+  );
+  const scaStep = ci.slice(
+    ci.indexOf('- name: Dependency Vulnerability Audit (SCA)'),
+    ci.indexOf('- name: Attribute the advisory failure'),
+  );
+
+  // The nightly sweep copies this command verbatim so it and the required
+  // check can never disagree about what counts as red. Wrapping it would
+  // break that; attribution is a separate step for exactly this reason.
+  it('leaves the required audit as the bare npm invocation', () => {
+    assert.match(scaStep, /run: npm audit --audit-level=high\s*$/m);
+  });
+
+  // A pre-existing advisory must keep blocking, or advisories accumulate on
+  // main — the failure the nightly sweep exists to prevent.
+  it('does not let the required audit step continue on error', () => {
+    assert.doesNotMatch(scaStep, /continue-on-error/);
+  });
+
+  it('runs attribution only after that step failed, and only for a PR', () => {
+    const attrib = ci.slice(
+      ci.indexOf('- name: Attribute the advisory failure'),
+    );
+    assert.match(attrib, /steps\.sca\.outcome == 'failure'/);
+    assert.match(attrib, /github\.event_name == 'pull_request'/);
+    assert.match(attrib, /check-audit-attribution\.js --base "\$BASE_SHA"/);
+    // The probe reports; it must never be able to mask or compound the
+    // audit's own verdict.
+    assert.match(
+      attrib.slice(0, attrib.indexOf('run:')),
+      /continue-on-error: true/,
+    );
+  });
+});
