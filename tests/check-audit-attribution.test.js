@@ -221,13 +221,10 @@ describe('runAttribution — every break degrades to unknown', () => {
 });
 
 describe('parseArgs', () => {
-  it('reads --base, --cwd and --no-tracking-issue', () => {
-    const p = parseArgs(
-      argv('--base', 'deadbee', '--cwd', '/repo', '--no-tracking-issue'),
-    );
+  it('reads --base and --cwd', () => {
+    const p = parseArgs(argv('--base', 'deadbee', '--cwd', '/repo'));
     assert.equal(p.base, 'deadbee');
     assert.equal(p.cwd, '/repo');
-    assert.equal(p.trackingIssue, false);
   });
 });
 

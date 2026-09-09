@@ -17,7 +17,6 @@
  *   1 — a verdict was reached: `pre-existing` or `introduced-by-this-diff`.
  *       Both fail, because the advisory is real either way.
  */
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -29,6 +28,7 @@ import {
   renderAttribution,
   UNKNOWN,
 } from './lib/audit-attribution.js';
+import { execFileCapture, spawnCapture } from './lib/child-exec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 
@@ -37,16 +37,12 @@ const TRACKING_LABEL = 'meta::dependency-advisory';
 
 const HELP = {
   invocation:
-    'node .agents/scripts/check-audit-attribution.js --base <ref> [--cwd <dir>] [--no-tracking-issue]',
+    'node .agents/scripts/check-audit-attribution.js --base <ref> [--cwd <dir>]',
   summary:
     'Say whether a red high-severity npm advisory came from this pull request or was already on its merge base.',
   flags: [
     ['--base <ref>', 'Base commit or ref to attribute against. Required.'],
     ['--cwd <dir>', 'Repository root. Default: process.cwd().'],
-    [
-      '--no-tracking-issue',
-      `Skip the ${TRACKING_LABEL} issue lookup (offline / no GH_TOKEN).`,
-    ],
   ],
   notes: [
     'Run it only after the required SCA step has already failed — it re-audits\nthe base to attribute that failure, and reports `unknown` when the head\naudits clean.',
@@ -56,12 +52,11 @@ const HELP = {
 };
 
 export function parseArgs(argv) {
-  const out = { base: null, cwd: process.cwd(), trackingIssue: true };
+  const out = { base: null, cwd: process.cwd() };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--base') out.base = argv[++i] ?? null;
     else if (a === '--cwd') out.cwd = argv[++i] ?? out.cwd;
-    else if (a === '--no-tracking-issue') out.trackingIssue = false;
   }
   return out;
 }
@@ -78,23 +73,20 @@ export function parseArgs(argv) {
  * @returns {{ failed: boolean }}
  */
 function auditDir(dir) {
-  try {
-    execFileSync(
-      'npm',
-      ['audit', '--audit-level=high', '--package-lock-only'],
-      { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
-    );
-    return { failed: false };
-  } catch (err) {
-    // npm exits non-zero for "advisories found" and for "could not audit"
-    // alike. Only a real audit verdict carries a report on stdout; anything
-    // else is a probe failure the caller must read as `unknown`.
-    const stdout = String(err?.stdout ?? '');
-    if (/vulnerabilit/i.test(stdout)) return { failed: true };
-    throw new Error(
-      `npm audit could not evaluate the base tree: ${String(err?.stderr ?? err?.message ?? err).slice(0, 200)}`,
-    );
-  }
+  const result = spawnCapture(
+    'npm',
+    ['audit', '--audit-level=high', '--package-lock-only'],
+    { cwd: dir },
+  );
+  if (result.status === 0) return { failed: false };
+  // npm exits non-zero for "advisories found" and for "could not audit"
+  // alike. Only a real audit verdict carries a report on stdout; anything
+  // else is a probe failure the caller must read as `unknown`.
+  if (/vulnerabilit/i.test(String(result.stdout ?? '')))
+    return { failed: true };
+  throw new Error(
+    `npm audit could not evaluate the base tree: ${String(result.stderr ?? '').slice(0, 200)}`,
+  );
 }
 
 /**
@@ -114,12 +106,10 @@ function materializeBase({ cwd, base, git }) {
   return dir;
 }
 
-const defaultGit = (cwd, ...args) =>
-  execFileSync('git', args, {
-    cwd,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
+// `execFileCapture` owns the stdout ceiling, `shell: false` and error
+// normalisation for the whole tree — a lockfile is large enough that a
+// re-forked local ceiling would be a real defect, not a style point.
+const defaultGit = (cwd, ...args) => execFileCapture('git', args, { cwd });
 
 /**
  * The decision core, with every I/O collaborator injectable
@@ -185,9 +175,7 @@ export function runAttribution(argv = process.argv, deps = {}) {
 
   const verdict = deriveVerdict({ headFailed, baseAudit });
   const trackingIssue =
-    args.trackingIssue && verdict !== UNKNOWN
-      ? safeLookup(lookupTrackingIssue, args.cwd)
-      : null;
+    verdict === UNKNOWN ? null : safeLookup(lookupTrackingIssue, args.cwd);
   return report({ verdict, args, logger, reason, trackingIssue });
 }
 
@@ -218,7 +206,7 @@ function report({
  * way for the same reason.
  */
 function defaultLookupTrackingIssue(cwd) {
-  const out = execFileSync(
+  const out = execFileCapture(
     'gh',
     [
       'issue',
@@ -234,7 +222,7 @@ function defaultLookupTrackingIssue(cwd) {
       '--jq',
       '.[0].number // empty',
     ],
-    { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    { cwd },
   ).trim();
   return out ? Number(out) : null;
 }
