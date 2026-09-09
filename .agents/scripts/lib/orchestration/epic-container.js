@@ -111,6 +111,33 @@ export function isEpicTicket(issue) {
 }
 
 /**
+ * Resolve the GraphQL node id an Epic's native sub-issue read addresses it by.
+ *
+ * Both casings are accepted because the field name depends on which provider
+ * method produced the object, and neither caller can tell from the value it
+ * holds: `getTicket` (and every other single-issue read) runs through
+ * `issueToTicket`, which renames `node_id` to `nodeId`, while
+ * `listIssuesByLabel` returns the REST payload **verbatim** — six consumers
+ * read its raw shape, so mapping it there would be a far wider change than
+ * the two reads that actually need the id.
+ *
+ * Returns `null` when neither name carries one. That is the load-bearing
+ * half: an absent id reaches GraphQL as `$id: ID!` = `undefined`, which the
+ * API rejects and `classifyGithubError` calls `permanent` — so the gateway
+ * rethrows with no retry and no feature-disabled fallback, and the caller
+ * degrades to the body checklist while reporting a hard API failure it never
+ * really had. Callers skip the read on a `null` instead, the same clean
+ * no-op `providers/github/board-add.js` makes with `reason: 'no-node-id'`.
+ *
+ * @param {{ nodeId?: unknown, node_id?: unknown }} epic
+ * @returns {string|null}
+ */
+export function resolveEpicNodeId(epic) {
+  const nodeId = epic?.nodeId ?? epic?.node_id;
+  return typeof nodeId === 'string' && nodeId !== '' ? nodeId : null;
+}
+
+/**
  * Render a container Epic's body.
  *
  * The output is intentionally minimal — a goal paragraph and a checklist.

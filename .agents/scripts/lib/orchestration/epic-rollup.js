@@ -45,7 +45,11 @@
 import { Logger } from '../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { ColumnSync, LABEL_TO_COLUMN } from './column-sync.js';
-import { isEpicTicket, readEpicChildIdsFrom } from './epic-container.js';
+import {
+  isEpicTicket,
+  readEpicChildIdsFrom,
+  resolveEpicNodeId,
+} from './epic-container.js';
 import { resolveOperatorFromCandidates } from './lease-guard-shared.js';
 import { deriveParentState } from './ticketing/bulk.js';
 
@@ -68,15 +72,22 @@ const IN_FLIGHT_STATES = new Set([
  * borrow four lines would invert the dependency direction for no gain. What
  * matters is that the *reader* handed to `readEpicChildIdsFrom` behaves the
  * same on both paths, which is what keeps an Epic from being expandable but
- * unclosable.
+ * unclosable. The shared `resolveEpicNodeId` is what makes "the same" true of
+ * the id itself: the Epics reaching this reader come from
+ * `listIssuesByLabel`, whose raw REST payload carries `node_id`, while the
+ * expansion path's come from `getTicket`, whose mapped ticket carries
+ * `nodeId`.
  *
  * @param {object} provider
  * @returns {(epic: object) => Promise<number[]>}
  */
 function nativeChildReader(provider) {
   return async (epic) => {
-    if (typeof provider?._getNativeSubIssues !== 'function') return [];
-    return provider._getNativeSubIssues(epic?.nodeId, epic?.number ?? epic?.id);
+    const nodeId = resolveEpicNodeId(epic);
+    if (nodeId === null) return [];
+    return (
+      provider?._getNativeSubIssues?.(nodeId, epic?.number ?? epic?.id) ?? []
+    );
   };
 }
 

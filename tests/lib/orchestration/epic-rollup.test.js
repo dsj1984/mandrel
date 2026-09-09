@@ -28,13 +28,20 @@ function fakeColumnSync(status = 'synced') {
 /**
  * A container Epic whose children live in the body checklist.
  *
+ * The node id is **snake_case on purpose**: the rollup reaches these objects
+ * through `listIssuesByLabel`, which returns the REST payload verbatim, so
+ * `node_id` — not the mapped `nodeId` — is the shape production actually
+ * hands the native reader (Story #5251). Pass `{ node_id: null }` for an Epic
+ * with no resolvable id.
+ *
  * @param {number} number
  * @param {number[]} childIds
- * @param {{ state?: string, assignees?: unknown[] }} [extra]
+ * @param {{ state?: string, assignees?: unknown[], node_id?: string|null }} [extra]
  */
 function container(number, childIds, extra = {}) {
   return {
     number,
+    node_id: `I_epic_${number}`,
     labels: ['type::epic'],
     state: 'open',
     body: `## Goal\n\nGroup them.\n\n## Stories\n\n${childIds
@@ -74,8 +81,10 @@ function fakeProvider({
 } = {}) {
   const byId = new Map(children.map((c) => [Number(c.number), c]));
   const updates = [];
+  const nativeCalls = [];
   const provider = {
     updates,
+    nativeCalls,
     listIssuesByLabel: async ({ labels }) =>
       labels === 'type::epic' ? epics : [],
     getTicket: async (id) => byId.get(Number(id)) ?? null,
@@ -83,12 +92,29 @@ function fakeProvider({
       updates.push({ id, mutations });
     },
   };
+  // The double reads its arguments. An earlier version answered
+  // `async () => nativeChildren`, which is precisely why a reader passing
+  // `undefined` as the node id for every Epic went unnoticed until a consumer
+  // hit it in production (Story #5251). Reject a missing id the way the live
+  // GraphQL surface does — `$id: ID!` will not take one.
+  const recordCall = (parentNodeId, parentId) => {
+    nativeCalls.push({ parentNodeId, parentId });
+    if (typeof parentNodeId !== 'string' || parentNodeId === '') {
+      throw new Error(
+        `gh: Variable $id of type ID! was provided invalid value ${String(parentNodeId)}`,
+      );
+    }
+  };
   if (nativeChildrenError) {
-    provider._getNativeSubIssues = async () => {
+    provider._getNativeSubIssues = async (parentNodeId, parentId) => {
+      recordCall(parentNodeId, parentId);
       throw nativeChildrenError;
     };
   } else if (nativeChildren) {
-    provider._getNativeSubIssues = async () => nativeChildren;
+    provider._getNativeSubIssues = async (parentNodeId, parentId) => {
+      recordCall(parentNodeId, parentId);
+      return nativeChildren;
+    };
   }
   return provider;
 }
@@ -295,6 +321,84 @@ describe('rollUpEpicForStory — child discovery', () => {
     assert.deepEqual(provider.updates, [
       { id: 90, mutations: { state: 'closed', state_reason: 'completed' } },
     ]);
+  });
+
+  it('reaches the native read with the raw REST `node_id` listIssuesByLabel returns', async () => {
+    // The regression this file exists to pin (Story #5251): the rollup's
+    // Epics come straight from `listIssuesByLabel`, which does NOT run
+    // through `issueToTicket`, so they carry `node_id` and never `nodeId`.
+    // Reading the camelCase name alone sent `undefined` to `$id: ID!`, which
+    // GitHub rejects as a `permanent` error — so every Epic silently fell
+    // back to its body checklist while reporting an API failure.
+    const provider = fakeProvider({
+      epics: [container(90, [])],
+      children: [child(1, 'agent::done'), child(2, 'agent::done')],
+      nativeChildren: [1, 2],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(provider.nativeCalls, [
+      { parentNodeId: 'I_epic_90', parentId: 90 },
+    ]);
+    assert.deepEqual(result.closed, [90], 'the native children were read');
+    assert.equal(result.epics[0].detail, null, 'the read did not degrade');
+  });
+
+  it("reaches the native read with a mapped ticket's camelCase `nodeId`", async () => {
+    // The other half of the contract: `resolve-stories.js` feeds its reader
+    // `getTicket` output, which IS mapped. Both casings must resolve, or
+    // fixing one path breaks the other.
+    const epic = container(90, [], { node_id: undefined });
+    epic.nodeId = 'I_epic_mapped_90';
+    const provider = fakeProvider({
+      epics: [epic],
+      children: [child(1, 'agent::done'), child(2, 'agent::done')],
+      nativeChildren: [1, 2],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(provider.nativeCalls, [
+      { parentNodeId: 'I_epic_mapped_90', parentId: 90 },
+    ]);
+    assert.deepEqual(result.closed, [90]);
+  });
+
+  it('skips the native read entirely when no node id resolves', async () => {
+    // A missing id is a clean no-op, not a manufactured API error: the
+    // checklist still carries the children, and nothing is reported as
+    // degraded because no read was attempted.
+    const provider = fakeProvider({
+      epics: [container(90, [1, 2], { node_id: null })],
+      children: [child(1, 'agent::done'), child(2, 'agent::done')],
+      nativeChildren: [1, 2],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(provider.nativeCalls, [], 'the API was never called');
+    assert.deepEqual(result.closed, [90], 'the checklist carried the children');
+    assert.equal(
+      result.epics[0].detail,
+      null,
+      'a skipped read is not a degraded read',
+    );
   });
 
   it('ignores an Epic that does not list this Story', async () => {

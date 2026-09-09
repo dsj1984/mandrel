@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-09T01:57:42.602Z",
+  "generatedAt": "2026-09-09T02:17:25.075Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1180,7 +1180,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
-      "mi": 104.654
+      "mi": 105.604
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-expansion.js",
