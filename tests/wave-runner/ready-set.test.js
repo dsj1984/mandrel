@@ -1056,6 +1056,13 @@ describe('footprint collisions carry their colliding paths and source', () => {
           scope: 'beat',
           source: 'declared-overlap',
           paths: ['baselines/maintainability.json'],
+          attribution: [
+            {
+              path: 'baselines/maintainability.json',
+              declared: true,
+              fields: [],
+            },
+          ],
         },
       ].map((w) => ({ ...w, enforced: true })),
     );
@@ -1091,6 +1098,7 @@ describe('footprint collisions carry their colliding paths and source', () => {
         scope: 'beat',
         source: 'declared-overlap',
         paths: ['lib/a.js'],
+        attribution: [{ path: 'lib/a.js', declared: true, fields: [] }],
         enforced: true,
       },
     ]);
@@ -1132,6 +1140,7 @@ describe('footprintGuard: advisory admits, enforce withholds (AC-5)', () => {
         scope: 'beat',
         source: 'scraped-overlap',
         paths: ['lib/a.js'],
+        attribution: [{ path: 'lib/a.js', declared: false, fields: ['body'] }],
         enforced: false,
       },
     ]);
@@ -1159,5 +1168,174 @@ describe('footprintGuard: advisory admits, enforce withholds (AC-5)', () => {
     });
     assert.equal(guardMode, 'enforce');
     assert.deepEqual(ids(selected), [1]);
+  });
+});
+
+describe('per-path scrape attribution (Story #5265)', () => {
+  // The measured failure: `#5266 ← #5265` withheld on
+  // `.agents/scripts/check-baselines.js` as `scraped-overlap`, where the
+  // shared path is a gate script every Story RUNS in `## Verify` and none of
+  // them edits. `scraped-overlap` alone cannot say that; the field can.
+  const verifyOnly = (id, gate) =>
+    story(id, {
+      files: [`lib/${id}.js`],
+      body: [
+        '## Changes',
+        `- \`lib/${id}.js\``,
+        '',
+        '## Verify',
+        `- node ${gate} (validate)`,
+      ].join('\n'),
+    });
+
+  const withhold = (stories) =>
+    planReadySet({ stories, globalCap: 5 }).footprintWithholds[0];
+
+  it('AC-6: a beat withhold names the body section the path came from', () => {
+    const hit = withhold([
+      verifyOnly(1, '.agents/scripts/check-baselines.js'),
+      verifyOnly(2, '.agents/scripts/check-baselines.js'),
+    ]);
+    assert.equal(hit.source, 'scraped-overlap');
+    assert.deepEqual(hit.attribution, [
+      {
+        path: '.agents/scripts/check-baselines.js',
+        declared: false,
+        fields: ['body:Verify'],
+      },
+    ]);
+  });
+
+  it('attributes a title-sourced path to the title', () => {
+    const hit = withhold([
+      story(1, { files: ['lib/x.js'] }),
+      { ...story(2, { files: ['lib/y.js'] }), title: 'rework lib/x.js' },
+    ]);
+    assert.deepEqual(hit.attribution, [
+      { path: 'lib/x.js', declared: false, fields: ['title'] },
+    ]);
+  });
+
+  it('attributes a spec-sourced path to the spec', () => {
+    const hit = withhold([
+      story(1, { files: ['lib/x.js'] }),
+      { ...story(2, { files: ['lib/y.js'] }), spec: 'extend lib/x.js too' },
+    ]);
+    assert.deepEqual(hit.attribution, [
+      { path: 'lib/x.js', declared: false, fields: ['spec'] },
+    ]);
+  });
+
+  it('a path one side declared reports only the scraping side field', () => {
+    // `declared` is false — only ONE side declared it — but the provenance
+    // that explains the withhold is the other side's prose, and reporting
+    // the declaring side's restatement would read as if the scrape caused it.
+    const hit = withhold([
+      story(1, { files: ['lib/shared.js'] }),
+      story(2, {
+        files: ['lib/other.js'],
+        body: '## Spec\nalso rewrites lib/shared.js',
+      }),
+    ]);
+    assert.deepEqual(hit.attribution, [
+      { path: 'lib/shared.js', declared: false, fields: ['body:Spec'] },
+    ]);
+  });
+
+  it('text before the first heading keeps the bare `body` label', () => {
+    const hit = withhold([
+      story(1, { files: ['lib/x.js'] }),
+      story(2, { files: ['lib/y.js'], body: 'preamble naming lib/x.js' }),
+    ]);
+    assert.deepEqual(hit.attribution[0].fields, ['body']);
+  });
+
+  it('unions the fields when one side names the path in two sections', () => {
+    const hit = withhold([
+      story(1, { files: ['lib/x.js'] }),
+      story(2, {
+        files: ['lib/y.js'],
+        body: '## Spec\ntouch lib/x.js\n\n## Verify\n- node lib/x.js (unit)',
+      }),
+    ]);
+    assert.deepEqual(hit.attribution[0].fields, ['body:Spec', 'body:Verify']);
+  });
+
+  it('a cross-beat reservation carries the same attribution', () => {
+    const { footprintWithholds } = planReadySet({
+      stories: [
+        story(2, {
+          files: ['lib/b.js'],
+          body: '## Verify\n- node lib/held.js (unit)',
+        }),
+      ],
+      inFlightRecords: [story(1, { files: ['lib/held.js'] })],
+      globalCap: 5,
+    });
+    assert.equal(footprintWithholds[0].scope, 'in-flight');
+    assert.deepEqual(footprintWithholds[0].attribution, [
+      { path: 'lib/held.js', declared: false, fields: ['body:Verify'] },
+    ]);
+  });
+});
+
+describe('AC-8: attribution never narrows the guard (Story #5265)', () => {
+  // The Non-Goal made executable: every pair the guard withheld before the
+  // change is still withheld. Segmenting the body for attribution must not
+  // drop a token — including one written on the heading line itself, which a
+  // naive split would consume as a delimiter.
+  const stillWithheld = (a, b) =>
+    assert.equal(
+      storiesOverlap(a, b),
+      true,
+      `expected ${JSON.stringify(a)} × ${JSON.stringify(b)} to still collide`,
+    );
+
+  it('a path named ON a heading line still widens the footprint', () => {
+    stillWithheld(
+      { id: 1, files: ['lib/a.js'] },
+      { id: 2, files: ['lib/b.js'], body: '## Rewrite lib/a.js\n\nprose' },
+    );
+  });
+
+  it('a path in the last section still widens the footprint', () => {
+    stillWithheld(
+      { id: 1, files: ['lib/a.js'] },
+      { id: 2, files: ['lib/b.js'], body: '## One\nx\n\n## Two\nlib/a.js' },
+    );
+  });
+
+  it('every scrape exclusion still excludes', () => {
+    // Provenance footers, markdown-link URLs and temp-root paths are the
+    // three token sources the scrape drops; segmentation runs after the
+    // strip, so none of them may come back.
+    for (const body of [
+      `<!-- audit-semantic-keys: quality␟lib/a.js -->`,
+      '## Spec\nsee [the report](lib/a.js)',
+      '## Verify\n- temp/audits/lib/a.js',
+    ]) {
+      assert.equal(
+        storiesOverlap(
+          { id: 1, files: ['lib/a.js'] },
+          { id: 2, files: ['lib/b.js'], body },
+        ),
+        false,
+        `expected no collision for:\n${body}`,
+      );
+    }
+  });
+
+  it('a glob still overlaps everything and reports no scrape provenance', () => {
+    const { footprintWithholds } = planReadySet({
+      stories: [
+        story(1, { files: ['.agents/scripts/lib/**'] }),
+        story(2, { files: ['.agents/scripts/lib/ready-set.js'] }),
+      ],
+      globalCap: 5,
+    });
+    assert.equal(footprintWithholds.length, 1);
+    assert.deepEqual(footprintWithholds[0].attribution, [
+      { path: '.agents/scripts/lib/**', declared: true, fields: [] },
+    ]);
   });
 });

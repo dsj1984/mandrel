@@ -301,7 +301,7 @@ function reservesConcretePath(held, candidate, options = {}) {
  * @returns {{
  *   selected: StoryRecord[],
  *   withheldByInFlight: Array<{id: number, blockedBy: number}>,
- *   footprintWithholds: Array<{id: number, blockedBy: number, scope: string, source: string, paths: string[], enforced: boolean}>,
+ *   footprintWithholds: Array<{id: number, blockedBy: number, scope: string, source: string, paths: string[], attribution: object[], enforced: boolean}>,
  *   guardMode: 'enforce'|'advisory'
  * }}
  *   `selected` is the dispatch set: a subset of `stories`, ascending by id,

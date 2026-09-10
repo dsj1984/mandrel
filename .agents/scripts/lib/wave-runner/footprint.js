@@ -174,21 +174,102 @@ function isUnderTempRoot(path, tempRoot) {
  * narrowing the scrape can never co-dispatch a pair the declared comparison
  * would have caught.
  *
+ * Each path is returned **with the field it was scraped from** (Story #5265).
+ * "This pair collided on a path neither declared" is only half an
+ * explanation: the operator's next question is always *where did that path
+ * come from*, and until they can answer it they cannot tell an unpredicted
+ * edit target from a citation the guard read as one. The measured case is a
+ * gate script every Story merely **runs** in `verify[]` — attribution turns
+ * that from an unexplained serialisation into a one-glance verdict.
+ *
  * @param {object} story
  * @param {object} [options]
  * @param {string} [options.tempRoot='temp'] Resolved `project.paths.tempRoot`.
- * @returns {Set<string>}
+ * @returns {Map<string, Set<string>>} Path → the field label(s) that named it.
  */
 function storyEvidencePaths(story, { tempRoot = DEFAULT_TEMP_ROOT } = {}) {
-  const out = new Set();
-  for (const field of [story?.title, story?.body, story?.spec]) {
-    if (typeof field !== 'string') continue;
-    const scannable = field
-      .replace(PROVENANCE_FOOTER_RE, ' ')
-      .replace(MARKDOWN_LINK_URL_RE, ']()');
-    for (const [token] of scannable.matchAll(PROSE_PATH_RE)) {
-      if (!isUnderTempRoot(token, tempRoot)) out.add(token);
+  const out = new Map();
+  for (const [field, text] of attributedSegments(story)) {
+    for (const [token] of text.matchAll(PROSE_PATH_RE)) {
+      if (isUnderTempRoot(token, tempRoot)) continue;
+      const fields = out.get(token);
+      if (fields) fields.add(field);
+      else out.set(token, new Set([field]));
     }
+  }
+  return out;
+}
+
+/**
+ * A markdown section heading in a serialized Story body — the attribution
+ * grain (Story #5265).
+ *
+ * `body` alone would be a true but useless label: a Story body is the whole
+ * document, so every scraped path would report the same field. The section is
+ * where the distinction actually lives — a path under `## Changes` is a
+ * declaration restated, one under `## Verify` is a command line, one under
+ * `## Non-Goals` is explicitly *not* an edit target.
+ */
+const BODY_SECTION_RE = /^#{2,6}[ \t]+(\S.*?)[ \t]*$/gm;
+
+/**
+ * Strip the two token sources that are structurally incapable of naming an
+ * edit target. Applied to the whole field **before** segmentation, so the
+ * scanned text is byte-identical to what the pre-attribution scrape read and
+ * a stripped footer can never be mistaken for a section boundary.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+function stripNonIntentTokens(text) {
+  return text
+    .replace(PROVENANCE_FOOTER_RE, ' ')
+    .replace(MARKDOWN_LINK_URL_RE, ']()');
+}
+
+/**
+ * Split a Story body into `[label, text]` segments at its `##` headings.
+ *
+ * The heading line stays with the section it opens rather than being consumed
+ * as a delimiter: a heading can itself name a path, and dropping that text
+ * would *narrow* the footprint — the one direction this layer must never move
+ * (Story #4875 / #5265 AC-8). Text before the first heading keeps the bare
+ * `body` label.
+ *
+ * @param {string} body
+ * @returns {Array<[string, string]>}
+ */
+function bodySegments(body) {
+  const out = [];
+  let cursor = 0;
+  let label = 'body';
+  for (const match of body.matchAll(BODY_SECTION_RE)) {
+    if (match.index > cursor)
+      out.push([label, body.slice(cursor, match.index)]);
+    label = `body:${match[1].trim()}`;
+    cursor = match.index;
+  }
+  out.push([label, body.slice(cursor)]);
+  return out;
+}
+
+/**
+ * Every scannable `[fieldLabel, text]` pair on a Story record: `title` and
+ * `spec` whole, `body` split by section.
+ *
+ * @param {object} story
+ * @returns {Array<[string, string]>}
+ */
+function attributedSegments(story) {
+  const out = [];
+  if (typeof story?.title === 'string') {
+    out.push(['title', stripNonIntentTokens(story.title)]);
+  }
+  if (typeof story?.body === 'string') {
+    out.push(...bodySegments(stripNonIntentTokens(story.body)));
+  }
+  if (typeof story?.spec === 'string') {
+    out.push(['spec', stripNonIntentTokens(story.spec)]);
   }
   return out;
 }
@@ -203,15 +284,54 @@ function storyEvidencePaths(story, { tempRoot = DEFAULT_TEMP_ROOT } = {}) {
  * the scrape produced may be an artifact of how a body was worded. An operator
  * reading an unfilled slot needs to tell those apart.
  *
+ * `evidence` carries the third answer (Story #5265): *which field* produced
+ * each scraped path, so a collision can say where the token was written
+ * rather than only that nobody declared it.
+ *
  * @param {object} story
  * @param {object} [options]
- * @returns {{ declared: Set<string>, widened: Set<string> }}
+ * @returns {{ declared: Set<string>, widened: Set<string>, evidence: Map<string, Set<string>> }}
  */
 function storyFootprints(story, options) {
   const declared = storyFootprint(story);
+  const evidence = storyEvidencePaths(story, options);
   const widened = new Set(declared);
-  for (const path of storyEvidencePaths(story, options)) widened.add(path);
-  return { declared, widened };
+  for (const path of evidence.keys()) widened.add(path);
+  return { declared, widened, evidence };
+}
+
+/**
+ * The field labels that scraped `path` on one side — empty when that side
+ * **declared** it, because a declaration is not evidence and reporting the
+ * prose restatement of a declared path would read as if the scrape had caused
+ * the collision.
+ *
+ * @param {{ declared: Set<string>, evidence: Map<string, Set<string>> }} side
+ * @param {string} path
+ * @returns {string[]}
+ */
+function scrapedFields(side, path) {
+  if (side.declared.has(path)) return [];
+  return [...(side.evidence.get(path) ?? [])];
+}
+
+/**
+ * Per-path provenance for one colliding path (Story #5265): whether both
+ * sides declared it, and — when at least one side did not — the field labels
+ * the scrape found it in, unioned across the two sides and sorted.
+ *
+ * @param {object} fa
+ * @param {object} fb
+ * @param {string} path
+ * @param {boolean} declared
+ * @returns {{ path: string, declared: boolean, fields: string[] }}
+ */
+function attributePath(fa, fb, path, declared) {
+  const fields = new Set([
+    ...scrapedFields(fa, path),
+    ...scrapedFields(fb, path),
+  ]);
+  return { path, declared, fields: [...fields].sort() };
 }
 
 /**
@@ -269,12 +389,19 @@ function recordGlobs(hits, side) {
  * run for hours — and `resolve-stories.js` substitutes an UNKNOWN sentinel for
  * any body it cannot parse, so one malformed Story would make a run serial.
  *
+ * `attribution` (Story #5265) reports the same `paths`, one entry each, with
+ * the provenance a consumer needs to explain the withhold: `declared` says
+ * whether both sides named the path in `changes[]`, and `fields` names the
+ * field label(s) the scrape read it from otherwise (`title`, `spec`, or
+ * `body:<section>`). It is strictly additive — `paths` and `source` are
+ * unchanged, so no pair that collided before collides differently now.
+ *
  * @param {object} a
  * @param {object} b
  * @param {object} [options]
  * @param {boolean} [options.concreteOnly=false] Skip glob paths on both sides.
  * @param {string} [options.tempRoot]
- * @returns {{ paths: string[], source: string }|null}
+ * @returns {{ paths: string[], source: string, attribution: Array<{ path: string, declared: boolean, fields: string[] }> }|null}
  */
 export function detectCollision(
   a,
@@ -297,10 +424,36 @@ export function detectCollision(
     recordGlobs(hits, fb);
   }
   if (hits.size === 0) return null;
+  const paths = [...hits.keys()].sort();
   return {
-    paths: [...hits.keys()].sort(),
+    paths,
     source: [...hits.values()].some(Boolean)
       ? OVERLAP_SOURCES.DECLARED
       : OVERLAP_SOURCES.SCRAPED,
+    attribution: paths.map((path) =>
+      attributePath(fa, fb, path, hits.get(path)),
+    ),
   };
+}
+
+/**
+ * Render one collision's scraped-path provenance as a single operator-facing
+ * clause, or `''` when every colliding path was declared by both sides.
+ *
+ * Shared by every report that names a withhold so the tick's envelope note
+ * and plan-persist's predicted-serialisation table read identically — the two
+ * surfaces describe the same computation and an operator comparing them
+ * should not have to translate (Story #5265).
+ *
+ * @param {Array<{ path: string, declared: boolean, fields: string[] }>} attribution
+ * @returns {string}
+ */
+export function renderScrapeAttribution(attribution) {
+  const scraped = (Array.isArray(attribution) ? attribution : []).filter(
+    (entry) => Array.isArray(entry?.fields) && entry.fields.length > 0,
+  );
+  if (scraped.length === 0) return '';
+  return scraped
+    .map((entry) => `${entry.path} ← ${entry.fields.join(', ')}`)
+    .join('; ');
 }

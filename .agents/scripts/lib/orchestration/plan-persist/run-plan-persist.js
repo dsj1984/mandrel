@@ -38,7 +38,7 @@
  */
 
 import { rm } from 'node:fs/promises';
-import { getLimits, PROJECT_ROOT } from '../../config-resolver.js';
+import { getLimits, getPaths, PROJECT_ROOT } from '../../config-resolver.js';
 import { gitSpawn } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import { sweepTempRetention } from '../../temp-retention.js';
@@ -88,6 +88,7 @@ import {
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './summary.js';
 import { closeSupersededTickets } from './supersede-ops.js';
+import { predictWaveSerialisation } from './wave-serialisation.js';
 
 /** Checkpoint schema version written on each Story's story-plan-state. */
 const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
@@ -831,6 +832,17 @@ export async function runPlanPersist({
     })),
   );
 
+  // Story #5265: the table says which Stories share an order; the dispatcher
+  // decides which of those actually run together, and it decides on the
+  // evidence-widened footprint. Run its own predicate over the assembled
+  // bodies — the exact artifact the tick will read back off GitHub — so the
+  // comment names the serialisation instead of promising parallelism the
+  // next tick refuses. `tempRoot` is threaded for the same reason the tick
+  // threads it: the scrape must ignore this project's scratch root.
+  const waveCollisions = predictWaveSerialisation(waveTable, stories, {
+    tempRoot: getPaths(config).tempRoot,
+  });
+
   // Story #4541: `readPlanMetrics` is declared `(epicId, config)` but was
   // called with `config` first, so the ledger path resolver received the
   // config object as an `epicId` and threw its guard on every single run —
@@ -860,6 +872,7 @@ export async function runPlanPersist({
     // collisions the conflict passes found belong on the same surface, or the
     // promise is the only half anyone reads.
     conflictFindings: assembledConflicts,
+    waveCollisions,
   });
 
   if (!dryRun) {
@@ -915,6 +928,11 @@ export async function runPlanPersist({
     reachability,
     freshness,
     waveTable,
+    // Story #5265 AC-2/AC-4: both halves of what persist concluded but used
+    // to keep to itself — the `refactors-existing` declarations it rewrote,
+    // and the same-order pairs the dispatcher will serialize.
+    assumptionNormalizations: validated.normalizations ?? [],
+    waveCollisions,
     supersede,
     epic: containerEpic,
   };

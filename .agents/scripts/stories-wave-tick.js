@@ -55,8 +55,8 @@
  *     inFlight: number,
  *     cycleError: string | null,
  *     wedged: { reason, stories: [{ id, unmetBlockers }] } | null,
- *     inFlightReservation: { available, withheld: [{ id, blockedBy, reason, source, paths }], note },
- *     footprintGuard: { mode, withheld: [{ id, blockedBy, scope, source, paths }], advisory, note }
+ *     inFlightReservation: { available, withheld: [{ id, blockedBy, reason, source, paths, attribution }], note },
+ *     footprintGuard: { mode, withheld: [{ id, blockedBy, scope, source, paths, attribution }], advisory, note }
  *   }
  *
  * `inFlightReservation` reports the cross-beat half of the co-dispatch guard
@@ -130,7 +130,10 @@ import { AGENT_LABELS } from './lib/label-constants.js';
 import { parseIds } from './lib/orchestration/resolve-stories.js';
 import { buildStoryAdjacency } from './lib/story-adjacency.js';
 import { expandIdList } from './lib/util/parse-id-list.js';
-import { OVERLAP_SOURCES } from './lib/wave-runner/footprint.js';
+import {
+  OVERLAP_SOURCES,
+  renderScrapeAttribution,
+} from './lib/wave-runner/footprint.js';
 import {
   createProbeContext,
   probeLiveState,
@@ -237,7 +240,10 @@ Output envelope:
           "blockedBy": 4949,
           "reason": "in-flight-earlier-beat",
           "source": "declared-overlap",
-          "paths": ["lib/shared.js"]
+          "paths": ["lib/shared.js"],
+          "attribution": [
+            { "path": "lib/shared.js", "declared": true, "fields": [] }
+          ]
         }
       ],
       "note": "..."
@@ -250,7 +256,14 @@ Output envelope:
           "blockedBy": 4951,
           "scope": "beat",
           "source": "scraped-overlap",
-          "paths": ["lib/other.js"]
+          "paths": ["lib/other.js"],
+          "attribution": [
+            {
+              "path": "lib/other.js",
+              "declared": false,
+              "fields": ["body:Verify"]
+            }
+          ]
         }
       ],
       "advisory": [],
@@ -268,7 +281,10 @@ footprintGuard names each Story withheld from THIS beat by a peer already
 admitted on it — the half that used to be an unreported skip — and every
 entry in either report carries the colliding paths plus a source tag
 (declared-overlap when both changes[] declarations named the path, else
-scraped-overlap from the text evidence). Its "mode" echoes
+scraped-overlap from the text evidence) and an "attribution" list naming, per
+path, the field the scrape read it from ("title", "spec", or "body:<section>"
+— so a path that reached the comparison only because every Story RUNS it in
+"## Verify" says so). Its "mode" echoes
 delivery.deliverRunner.footprintGuard: under "advisory" the collisions are
 detected and listed in "advisory" but never withhold, and dispatch follows the
 declared depends_on edges alone.
@@ -359,7 +375,7 @@ const RESERVATION_REASONS = Object.freeze({
  * @param {object[]|null|undefined} inFlightRecords
  * @param {Array<{id: number, blockedBy: number, source?: string, paths?: string[]}>} withheld
  * @param {Iterable<number>} [foreignHeldIds] Ids held by a foreign lease.
- * @returns {{ available: boolean, withheld: Array<{id: number, blockedBy: number, reason: string, source: string, paths: string[]}>, note: string|null }}
+ * @returns {{ available: boolean, withheld: Array<{id: number, blockedBy: number, reason: string, source: string, paths: string[], attribution: object[]}>, note: string|null }}
  */
 export function buildReservationReport(
   inFlightRecords,
@@ -390,6 +406,7 @@ export function buildReservationReport(
       : RESERVATION_REASONS.EARLIER_BEAT,
     source: w.source ?? OVERLAP_SOURCES.DECLARED,
     paths: w.paths ?? [],
+    attribution: w.attribution ?? [],
   }));
   return {
     available: true,
@@ -421,12 +438,16 @@ export function buildReservationReport(
  */
 export function buildFootprintGuardReport(footprintWithholds, mode) {
   const ledger = Array.isArray(footprintWithholds) ? footprintWithholds : [];
-  const project = ({ id, blockedBy, scope, source, paths }) => ({
+  const project = ({ id, blockedBy, scope, source, paths, attribution }) => ({
     id,
     blockedBy,
     scope,
     source,
     paths,
+    // Story #5265: the per-path field attribution rides the entry itself, so
+    // a consumer reading the envelope never has to re-derive where a scraped
+    // path came from (and cannot get a different answer than the note did).
+    attribution: attribution ?? [],
   });
   const beat = ledger
     .filter((w) => w.scope === WITHHOLD_SCOPES.BEAT && w.enforced)
@@ -453,10 +474,11 @@ export function buildFootprintGuardReport(footprintWithholds, mode) {
 function footprintGuardNote(beat, advisory, mode) {
   const detail = (entries) =>
     entries
-      .map(
-        (w) =>
-          `#${w.id} ← #${w.blockedBy} on ${w.paths.join(', ')} (${w.source})`,
-      )
+      .map((w) => {
+        const scraped = renderScrapeAttribution(w.attribution);
+        const provenance = scraped ? `, scraped from ${scraped}` : '';
+        return `#${w.id} ← #${w.blockedBy} on ${w.paths.join(', ')} (${w.source}${provenance})`;
+      })
       .join('; ');
   if (beat.length > 0) {
     return (
@@ -465,7 +487,9 @@ function footprintGuardNote(beat, advisory, mode) {
       `Each is still eligible and re-admits on a later beat once its peer ` +
       `lands. A ${OVERLAP_SOURCES.SCRAPED} source means the collision came ` +
       `from path evidence in the Story text rather than from either ` +
-      `changes[] declaration.`
+      `changes[] declaration — the 'scraped from' clause names the field ` +
+      `each such path was read out of, so a path only cited in '## Verify' ` +
+      `is distinguishable from an unpredicted edit target.`
     );
   }
   if (advisory.length > 0) {

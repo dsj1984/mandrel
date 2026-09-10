@@ -601,19 +601,28 @@ function assertAcyclic(slugAdjacency) {
   }
 }
 
-function attachFindingsAndErrors(tickets, findings, errors) {
-  Object.defineProperty(tickets, 'findings', {
-    value: findings,
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
-  Object.defineProperty(tickets, 'errors', {
-    value: errors,
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
+function attachFindingsAndErrors(
+  tickets,
+  findings,
+  errors,
+  normalizations = [],
+) {
+  for (const [key, value] of [
+    ['findings', findings],
+    ['errors', errors],
+    // Story #5265: the auto-normalizations the assumption gate applied. They
+    // used to end at a `Logger.warn` and die with the process, so persist's
+    // emitted result reported a plan whose declarations it had silently
+    // rewritten as if nothing had been rewritten.
+    ['normalizations', normalizations],
+  ]) {
+    Object.defineProperty(tickets, key, {
+      value,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  }
 }
 
 export function validateAndNormalizeTickets(tickets, opts = {}) {
@@ -671,6 +680,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   // unit tests keep their semantics; production call-sites always pass
   // it.
   let assumptionErrors = [];
+  let assumptionNormalizations = [];
   if (opts.baseBranchRef) {
     const assumptionReport = validateStoryFileAssumptions({
       tickets,
@@ -699,6 +709,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       );
     }
     assumptionErrors = assumptionReport.errors;
+    assumptionNormalizations = assumptionReport.normalizations ?? [];
   }
 
   const sizingFindings = computeSizingFindings({
@@ -741,7 +752,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     errors.push(`File assumption mismatch: ${e}`);
   }
 
-  attachFindingsAndErrors(tickets, findings, errors);
+  attachFindingsAndErrors(tickets, findings, errors, assumptionNormalizations);
   return tickets;
 }
 

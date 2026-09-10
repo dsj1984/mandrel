@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -12,6 +15,7 @@ import {
   isObjectPathEntry,
   validateTaskBodyShape,
 } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { makeGitRepo } from './fixtures/git-fixture.js';
 
 /**
  * Story #2636 — Phase 8 path-assumption gate.
@@ -798,5 +802,220 @@ describe('refactors-existing auto-normalization on base-untracked paths (#4496 f
     assert.deepEqual(report.normalizations, []);
     assert.equal(report.errors.length, 1);
     assert.match(report.errors[0], /"late-refactorer"/);
+  });
+});
+
+describe('validateStoryFileAssumptions — removed-path discrimination (Story #5265)', () => {
+  // The `refactors-existing` → `creates` auto-normalization (#4496 fix 5) is
+  // correct for a path that never existed and wrong for one the base branch
+  // used to track. Both look identical to the existence probe; only history
+  // separates them, so the discriminator is `historyRunner` — injectable
+  // exactly like `gitRunner`.
+  const refactorStory = (path = 'src/gone.ts') =>
+    makeStory({
+      slug: 'stale-plan',
+      body: {
+        goal: 'g',
+        changes: [{ path, assumption: 'refactors-existing' }],
+        acceptance: ['ac'],
+        verify: ['node --test tests/x.test.js (unit)'],
+      },
+    });
+
+  const runGate = (historyRunner) =>
+    validateStoryFileAssumptions({
+      tickets: [refactorStory()],
+      baseBranchRef: 'main',
+      gitRunner: () => false, // absent at the tip
+      historyRunner,
+    });
+
+  it('AC-1: history ending in a delete is a hard error naming path + commit', () => {
+    const report = runGate(() => ({
+      hadHistory: true,
+      commit: 'deadbeefcafe',
+      renamedTo: null,
+    }));
+
+    assert.deepEqual(report.normalizations, []);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /src\/gone\.ts/);
+    assert.match(report.errors[0], /deadbeefcafe/);
+    assert.match(report.errors[0], /stale documentation/);
+    assert.equal(report.mismatches.length, 1);
+    assert.equal(report.mismatches[0].expected, 'present-was-removed');
+    assert.equal(report.mismatches[0].removedInCommit, 'deadbeefcafe');
+  });
+
+  it('AC-3: a renamed-away path names the rename target', () => {
+    const report = runGate(() => ({
+      hadHistory: true,
+      commit: 'abc1234',
+      renamedTo: 'src/renamed.ts',
+    }));
+
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /renamed to src\/renamed\.ts/);
+    assert.equal(report.mismatches[0].renamedTo, 'src/renamed.ts');
+  });
+
+  it('AC-2: no history keeps normalizing, and the report carries it', () => {
+    const report = runGate(() => ({
+      hadHistory: false,
+      commit: null,
+      renamedTo: null,
+    }));
+
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.normalizations.length, 1);
+    assert.equal(report.normalizations[0].path, 'src/gone.ts');
+    assert.equal(report.normalizations[0].normalizedTo, 'creates');
+    assert.match(report.warnings[0], /auto-normalized to "creates"/);
+  });
+
+  it('a throwing history probe fails OPEN — a probe failure is not a refusal', () => {
+    const report = runGate(() => {
+      throw new Error('git exploded');
+    });
+
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.normalizations.length, 1);
+  });
+
+  it('probes each path once however many Stories declare it', () => {
+    const calls = [];
+    const report = validateStoryFileAssumptions({
+      tickets: [
+        refactorStory(),
+        { ...refactorStory(), slug: 'second-stale-plan' },
+      ],
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+      historyRunner: ({ path }) => {
+        calls.push(path);
+        return { hadHistory: false, commit: null, renamedTo: null };
+      },
+    });
+
+    assert.deepEqual(calls, ['src/gone.ts']);
+    assert.equal(report.normalizations.length, 2);
+  });
+
+  it('never probes history for an assumption the rescue does not cover', () => {
+    // A `references`-sourced refactor on an absent path is already a hard
+    // error, so the discrimination must not fire (and must not spend a git
+    // process) on it.
+    let probed = false;
+    const report = validateStoryFileAssumptions({
+      tickets: [
+        makeStory({
+          slug: 'reader',
+          body: {
+            goal: 'g',
+            changes: [{ path: 'src/mine.ts', assumption: 'creates' }],
+            references: [
+              { path: 'src/dep.ts', assumption: 'refactors-existing' },
+            ],
+            acceptance: ['ac'],
+            verify: ['node --test tests/x.test.js (unit)'],
+          },
+        }),
+      ],
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+      historyRunner: () => {
+        probed = true;
+        return { hadHistory: true, commit: 'x', renamedTo: null };
+      },
+    });
+
+    assert.equal(probed, false);
+    assert.equal(report.errors.length, 1);
+    assert.equal(report.mismatches[0].expected, 'present');
+  });
+});
+
+describe('default history probe against a real repository (Story #5265)', () => {
+  const git = (cwd, ...args) =>
+    execFileSync('git', args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      encoding: 'utf-8',
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+      ),
+    });
+  const commit = (cwd, message) =>
+    git(
+      cwd,
+      '-c',
+      'user.email=test@example.com',
+      '-c',
+      'user.name=Test',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-m',
+      message,
+    );
+
+  const gateOn = (repo, path) =>
+    validateStoryFileAssumptions({
+      tickets: [
+        makeStory({
+          slug: 'real-probe',
+          body: {
+            goal: 'g',
+            changes: [{ path, assumption: 'refactors-existing' }],
+            acceptance: ['ac'],
+            verify: ['node --test tests/x.test.js (unit)'],
+          },
+        }),
+      ],
+      baseBranchRef: 'main',
+      cwd: repo,
+    });
+
+  it('reads a real delete out of history and refuses the declaration', () => {
+    const repo = makeGitRepo({ prefix: 'fa-history-delete-' });
+    writeFileSync(join(repo, 'doomed.js'), 'export const a = 1;\n');
+    git(repo, 'add', 'doomed.js');
+    commit(repo, 'add doomed');
+    git(repo, 'rm', '-q', 'doomed.js');
+    const removedIn =
+      commit(repo, 'remove doomed') && git(repo, 'rev-parse', 'HEAD').trim();
+
+    const report = gateOn(repo, 'doomed.js');
+
+    assert.deepEqual(report.normalizations, []);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], new RegExp(removedIn));
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  it('reads a real rename out of history and names the target', () => {
+    const repo = makeGitRepo({ prefix: 'fa-history-rename-' });
+    const body = `${'export const wide = 1;\n'.repeat(40)}`;
+    writeFileSync(join(repo, 'before.js'), body);
+    git(repo, 'add', 'before.js');
+    commit(repo, 'add before');
+    git(repo, 'mv', 'before.js', 'after.js');
+    commit(repo, 'rename before');
+
+    const report = gateOn(repo, 'before.js');
+
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /renamed to after\.js/);
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  it('a path the repo never tracked still auto-normalizes', () => {
+    const repo = makeGitRepo({ prefix: 'fa-history-none-' });
+
+    const report = gateOn(repo, 'src/never-existed.js');
+
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.normalizations.length, 1);
+    rmSync(repo, { recursive: true, force: true });
   });
 });

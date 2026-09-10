@@ -15,13 +15,19 @@
  *
  * Rules (one error per mismatched path):
  *   - `creates`            + path **exists**  → error (Story would clobber).
- *   - `refactors-existing` (via `changes`) + path **absent** →
- *     auto-normalized to `creates` with a logged warning (#4496 fix 5):
- *     a refactor declaration against a base-untracked path is
- *     deterministically a create, so rejecting it only forces a
- *     reject→amend→re-persist cycle for a mechanical rewrite. Genuine
- *     mismatches keep failing — a `references`-sourced `refactors-existing`
- *     on an absent path is a missing read dependency and stays an error.
+ *   - `refactors-existing` (via `changes`) + path **absent and never
+ *     tracked** at `baseBranchRef` → auto-normalized to `creates` with a
+ *     logged warning (#4496 fix 5): a refactor declaration against a
+ *     path with no history is deterministically a create, so rejecting it
+ *     only forces a reject→amend→re-persist cycle for a mechanical rewrite.
+ *   - `refactors-existing` (via `changes`) + path **absent but present in
+ *     that ref's history** → hard error naming the removing commit and, when
+ *     git detects one, the rename target (Story #5265). The normalization
+ *     rescues a mislabel; it must not rescue a plan authored against a file
+ *     the tree deleted, which propagates into acceptance criteria nothing
+ *     can satisfy. Genuine mismatches keep failing — a `references`-sourced
+ *     `refactors-existing` on an absent path is a missing read dependency
+ *     and stays an error.
  *   - `exists`             + path **absent** → error (read dependency missing).
  *   - `deletes`            + path **absent** → error (nothing to delete).
  *
@@ -76,6 +82,73 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
     `${baseBranchRef}:${path}`,
   );
   return result.status === 0;
+}
+
+/**
+ * Parse the `--name-status` line for the commit that last touched `path`
+ * into the history verdict (Story #5265).
+ *
+ * `-M` reports a rename as `R<score>\t<old>\t<new>`. The scan is run over the
+ * commit's **whole** rename diff rather than a pathspec-limited one on
+ * purpose: rename detection pairs a delete with an add, and restricting the
+ * pathspec to the source path filters the add out, so git falls back to
+ * reporting a plain `D` and the target is lost. No matching `R` line means
+ * the path was deleted outright — still a removal, just without a successor
+ * to name.
+ *
+ * @param {string} stdout
+ * @param {string} path
+ * @returns {string|null} The rename target, or `null`.
+ */
+function parseRenameTarget(stdout, path) {
+  for (const line of String(stdout ?? '').split('\n')) {
+    const fields = line.split('\t');
+    if (fields.length < 3) continue;
+    if (!fields[0].startsWith('R')) continue;
+    if (fields[1].trim() !== path) continue;
+    const target = fields[2].trim();
+    if (target) return target;
+  }
+  return null;
+}
+
+/**
+ * Default git **history** probe: did `baseBranchRef` ever track `path`, and
+ * if so, which commit stopped tracking it (Story #5265)?
+ *
+ * The existence probe above cannot tell a mechanical mislabel ("extend a file
+ * I am actually creating") from a plan authored against stale documentation
+ * ("extend a file deleted three weeks ago"). Both look identical at the tip —
+ * the path is absent — and only history separates them. Injectable exactly
+ * like {@link defaultGitRunner} so the discrimination is unit-testable with
+ * no repository fixture.
+ *
+ * Fails **open**: an unreadable ref, a git that errors, or an empty history
+ * all report `hadHistory: false`, which preserves the pre-#5265
+ * auto-normalisation rather than manufacturing a hard error out of a probe
+ * failure.
+ *
+ * @param {{ baseBranchRef: string, path: string, cwd?: string }} opts
+ * @returns {{ hadHistory: boolean, commit: string|null, renamedTo: string|null }}
+ */
+function defaultHistoryRunner({ baseBranchRef, path, cwd }) {
+  const absent = { hadHistory: false, commit: null, renamedTo: null };
+  const root = cwd ?? process.cwd();
+  const last = gitSpawn(root, 'rev-list', '-1', baseBranchRef, '--', path);
+  const commit = last.status === 0 ? String(last.stdout ?? '').trim() : '';
+  if (!commit) return absent;
+  const status = gitSpawn(
+    root,
+    'show',
+    '--name-status',
+    '-M',
+    '--diff-filter=R',
+    '--format=',
+    commit,
+  );
+  const renamedTo =
+    status.status === 0 ? parseRenameTarget(status.stdout, path) : null;
+  return { hadHistory: true, commit, renamedTo };
 }
 
 /**
@@ -168,8 +241,11 @@ export function hasLegacyChangeBullets(story) {
  *   - `'predecessor-conflict'` — wave-aware: a concurrent Story (no
  *     `depends_on` ordering) also creates this path. Cross-references the
  *     shared-editor conflict finding rather than re-deriving its prose.
+ *   - `'present-was-removed'` — the base branch **once tracked** this path
+ *     and no longer does (Story #5265). Names the removing commit, and the
+ *     rename target when git detected one.
  *
- * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string }} mismatch
+ * @param {{ slug: string, source: string, path: string, assumption: string, expected: string, producerSlug?: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
  * @returns {string}
  */
 function renderMismatch({
@@ -179,6 +255,8 @@ function renderMismatch({
   assumption,
   expected,
   producerSlug,
+  removedInCommit,
+  renamedTo,
 }) {
   if (expected === 'refactors-existing') {
     return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but predecessor Story "${producerSlug}" already creates that path — declare assumption="refactors-existing" instead (the file exists in the simulated post-predecessor tree).`;
@@ -189,7 +267,46 @@ function renderMismatch({
   if (expected === 'present') {
     return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but the path is absent at the base branch.`;
   }
+  if (expected === 'present-was-removed') {
+    return renderRemovedPathMismatch({
+      slug,
+      source,
+      path,
+      assumption,
+      removedInCommit,
+      renamedTo,
+    });
+  }
   return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but the path already exists at the base branch.`;
+}
+
+/**
+ * Render the stale-documentation refusal (Story #5265).
+ *
+ * The auto-normalisation this replaces is right for a path that never
+ * existed and wrong for one the base branch used to track: "extend
+ * `<deleted file>`" is not a mechanical mislabel a rewrite can fix — it is a
+ * plan authored against documentation the tree has outgrown, and rewriting it
+ * to `creates` would resurrect a file somebody deliberately removed and
+ * propagate the stale premise into acceptance criteria nothing can satisfy.
+ * The removing commit is named because it is the shortest route to *what
+ * replaced it*.
+ *
+ * @param {{ slug: string, source: string, path: string, assumption: string, removedInCommit?: string, renamedTo?: string|null }} mismatch
+ * @returns {string}
+ */
+function renderRemovedPathMismatch({
+  slug,
+  source,
+  path,
+  assumption,
+  removedInCommit,
+  renamedTo,
+}) {
+  const successor = renamedTo
+    ? ` git detects it was renamed to ${renamedTo} — retarget the declaration there.`
+    : ' Retarget the declaration at the path that replaced it, or declare assumption="creates" if this Story genuinely reintroduces the file.';
+  return `"${slug}" → body.${source} declares assumption="${assumption}" for ${path} but the base branch removed that path in commit ${removedInCommit}. The plan is authored against stale documentation, not a mislabelled create, so it is refused rather than normalized.${successor}`;
 }
 
 /**
@@ -290,12 +407,21 @@ function predecessorMutator(index, path, predecessors) {
  * @param {object}   opts
  * @param {object[]} opts.tickets
  * @param {string}   opts.baseBranchRef
- * @param {Function} [opts.gitRunner]
+ * @param {Function} [opts.gitRunner]      Existence probe at `baseBranchRef`.
+ * @param {Function} [opts.historyRunner]  History probe (Story #5265),
+ *   injectable exactly like `gitRunner`; returns
+ *   `{ hadHistory, commit, renamedTo }`.
  * @param {string}   [opts.cwd]
- * @returns {{ errors: string[], warnings: string[], mismatches: Array }}
+ * @returns {{ errors: string[], warnings: string[], mismatches: Array, normalizations: Array }}
  */
 export function validateStoryFileAssumptions(opts) {
-  const { tickets, baseBranchRef, gitRunner = defaultGitRunner, cwd } = opts;
+  const {
+    tickets,
+    baseBranchRef,
+    gitRunner = defaultGitRunner,
+    historyRunner = defaultHistoryRunner,
+    cwd,
+  } = opts;
   if (!baseBranchRef || typeof baseBranchRef !== 'string') {
     throw new Error(
       'validateStoryFileAssumptions: baseBranchRef is required and must be a string.',
@@ -307,6 +433,15 @@ export function validateStoryFileAssumptions(opts) {
   const mismatches = [];
   const normalizations = [];
   const probeCache = new Map();
+  const historyCache = new Map();
+  const probeHistory = (path) =>
+    probeRemoval({
+      historyRunner,
+      baseBranchRef,
+      path,
+      cwd,
+      cache: historyCache,
+    });
 
   // Wave-aware setup (Story #3960): transitive predecessor sets over the
   // story-level `depends_on` graph, plus per-path create/delete indices so
@@ -371,13 +506,14 @@ export function validateStoryFileAssumptions(opts) {
         // Auto-normalization (#4496 fix 5): a deterministic
         // `refactors-existing`→`creates` rewrite is a warning, never a
         // rejection — genuine mismatches keep flowing to `errors`.
-        if (mismatch.normalizedTo === 'creates') {
-          normalizations.push(mismatch);
-          warnings.push(renderNormalization(mismatch));
+        const { kind, finding } = classifyMismatch(mismatch, probeHistory);
+        if (kind === 'normalization') {
+          normalizations.push(finding);
+          warnings.push(renderNormalization(finding));
           continue;
         }
-        mismatches.push(mismatch);
-        errors.push(renderMismatch(mismatch));
+        mismatches.push(finding);
+        errors.push(renderMismatch(finding));
         continue;
       }
       // Wave-aware concurrent-create check (Story #3960): two Stories with
@@ -411,6 +547,72 @@ export function validateStoryFileAssumptions(opts) {
     }
   }
   return { errors, warnings, mismatches, normalizations };
+}
+
+/**
+ * Route one mismatch to the errors channel or the normalization channel
+ * (Story #5265).
+ *
+ * `checkAssumption` marks a `changes`-sourced `refactors-existing` on an
+ * absent path with `normalizedTo: 'creates'` — the #4496 rescue. Whether that
+ * rescue actually applies is a *history* question the pure rules table cannot
+ * answer, so it is resolved here: no history keeps the rescue, history ending
+ * in a removal converts it into a refusal that names the commit.
+ *
+ * @param {object} mismatch
+ * @param {(path: string) => ({ commit: string|null, renamedTo: string|null }|null)} probeHistory
+ * @returns {{ kind: 'error'|'normalization', finding: object }}
+ */
+function classifyMismatch(mismatch, probeHistory) {
+  if (mismatch.normalizedTo !== 'creates') {
+    return { kind: 'error', finding: mismatch };
+  }
+  const removal = probeHistory(mismatch.path);
+  if (removal === null) return { kind: 'normalization', finding: mismatch };
+  return {
+    kind: 'error',
+    finding: {
+      slug: mismatch.slug,
+      source: mismatch.source,
+      path: mismatch.path,
+      assumption: mismatch.assumption,
+      expected: 'present-was-removed',
+      actual: 'removed',
+      removedInCommit: removal.commit,
+      renamedTo: removal.renamedTo,
+    },
+  };
+}
+
+/**
+ * Memoized history probe: `{ commit, renamedTo }` when `baseBranchRef` once
+ * tracked `path` and no longer does, `null` when it never did (Story #5265).
+ *
+ * One cache per validation run, keyed on the path, because a plan commonly
+ * declares the same path across several Stories and the probe costs two git
+ * processes. A runner that throws is absorbed as "no history": the whole
+ * point of the discrimination is to *add* a refusal for a provable stale
+ * declaration, never to convert a probe failure into one.
+ *
+ * @param {{ historyRunner: Function, baseBranchRef: string, path: string, cwd?: string, cache: Map<string, object|null> }} args
+ * @returns {{ commit: string|null, renamedTo: string|null }|null}
+ */
+function probeRemoval({ historyRunner, baseBranchRef, path, cwd, cache }) {
+  if (cache.has(path)) return cache.get(path);
+  let verdict = null;
+  try {
+    const report = historyRunner({ baseBranchRef, path, cwd });
+    if (report?.hadHistory) {
+      verdict = {
+        commit: report.commit ?? null,
+        renamedTo: report.renamedTo ?? null,
+      };
+    }
+  } catch {
+    verdict = null;
+  }
+  cache.set(path, verdict);
+  return verdict;
 }
 
 /**

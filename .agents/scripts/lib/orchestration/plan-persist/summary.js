@@ -14,6 +14,7 @@
  */
 
 import { computeStoryWaves } from '../dependency-analyzer.js';
+import { renderPredictedSerialisationLines } from './wave-serialisation.js';
 
 /**
  * Structured-comment type for the persist summary.
@@ -129,6 +130,7 @@ export function buildPlanSummaryCommentBody({
   planMetricsLine = null,
   stories = null,
   conflictFindings = null,
+  waveCollisions = null,
   // legacy unused knobs kept so older test call sites don't crash mid-migration
   single = null,
   amend = null,
@@ -180,6 +182,7 @@ export function buildPlanSummaryCommentBody({
     '#### Delivery order (`depends_on`)',
     '',
     ...renderWaveTableLines(waveTable),
+    ...renderPredictedSerialisationLines(waveCollisions),
     ...renderSharedEditorLines(conflictFindings),
     '',
     `_Deliver with \`${deliverCommand}\` — \`/mandrel-deliver\` resolves the dependency graph from live state, so edges may point at Stories from earlier plan runs._`,
