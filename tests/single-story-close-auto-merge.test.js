@@ -455,6 +455,17 @@ describe('disarmAutoMerge', () => {
     assert.match(lines.join('\n'), /DISARMED/);
   });
 
+  it('does not require a progress channel', async () => {
+    // The merge wait passes one; `deliver-recover` and the resume CLI may not.
+    assert.equal(
+      await disarmAutoMerge({
+        prNumber: 1850,
+        gh: { pr: { merge: async () => {} } },
+      }),
+      true,
+    );
+  });
+
   it('is best-effort: a failed disarm reports false and warns that GitHub may still land it', async () => {
     // The one thing it cannot do is stop GitHub, so the caller blocks either
     // way — a throw here would turn a degraded report into a lost block.
@@ -472,5 +483,22 @@ describe('disarmAutoMerge', () => {
     });
     assert.equal(disarmed, false);
     assert.match(lines.join('\n'), /Disarm by hand/);
+  });
+
+  it('names a non-Error rejection in the warning rather than printing undefined', async () => {
+    const lines = [];
+    const disarmed = await disarmAutoMerge({
+      prNumber: 1850,
+      gh: {
+        pr: {
+          merge: async () => {
+            throw 'gh: rate limited';
+          },
+        },
+      },
+      progress: (tag, msg) => lines.push(`${tag} ${msg}`),
+    });
+    assert.equal(disarmed, false);
+    assert.match(lines.join('\n'), /gh: rate limited/);
   });
 });
