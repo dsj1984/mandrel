@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T18:40:05.427Z",
+  "generatedAt": "2026-09-10T19:58:18.485Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.969,
+      "p50": 98.97,
       "p95": 122.902
     }
   },
@@ -1460,7 +1460,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
-      "mi": 90.382
+      "mi": 99.154
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",
