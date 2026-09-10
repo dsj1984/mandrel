@@ -208,6 +208,51 @@ extracted and names any disagreement as a **report failure**
 report whose line is missing or wrong. A parse that silently drops findings is
 otherwise indistinguishable from a clean audit.
 
+## Runtime pass scaffold {#runtime-pass}
+
+Some lenses corroborate their static findings against a live target. Static
+detection is the default and always runs; the runtime pass is **conditional** —
+it runs only when a live target and the browser tooling are both available, and
+its absence never blocks the static report. The steps below are shared by every
+lens that has one, so a lens documents only its own probe.
+
+1. **Resolve the target from config — never a hardcoded URL.** Resolve through
+   the consumer's `qa.environments.<env>.baseUrl` (via
+   [`resolveQaEnvironment`](../../scripts/lib/qa/resolve-qa-contract.js), the
+   same resolver `/qa-run` uses): an `<env>` argument resolves by exact name or
+   origin match; with no argument, enumerate `name → baseUrl` and let the
+   operator pick.
+2. **Sample routes from the navigability SSOT.** Draw the routes to exercise
+   from the consumer's route/nav registry (`planning.navigation.navRegistry` /
+   `routeGlobs` — the same SSOT
+   [`/audit-navigability`](../audit-navigability.md) reads), sampling a
+   representative set (key personas' landing routes plus any route in the
+   change-set scope) rather than a single hardcoded page.
+3. **Run the lens's own probe** against each sampled route. That step, and only
+   that step, is the lens's to document.
+4. **Median-of-3 or provisional.** Any runtime measurement is subject to
+   run-to-run variance: capture a **median-of-3** (three runs per route, report
+   the median) before treating a number as authoritative. A single-run value is
+   reported **provisional** and never drives a Critical/High verdict on its own.
+5. **Leave the environment as you found it.** Reset any emulation — viewport,
+   device profile, colour scheme — before finishing, so a following lens or QA
+   run does not inherit it.
+
+**Skip reasons, and how to report them.** The pass is skipped, never faked, for
+either of two reasons, and the Executive Summary says which:
+
+| Condition | Reported as |
+| --- | --- |
+| No `qa.environments` target is configured | `skipped — no target configured` |
+| The browser tooling is unavailable in this runtime | `skipped — browser tooling unavailable` |
+
+The second is the one an unattended sweep meets: a scheduled run has no browser
+MCP server attached, so a lens that treated "cannot drive" as "nothing found"
+would report a clean runtime section it never ran. Do not invent a URL, do not
+start an arbitrary dev server, and do not fall back to a static-only claim
+dressed as a runtime one — name the skip and let the static findings stand on
+their own.
+
 ## Execution strategy {#execution-strategy}
 
 A lens is a self-contained, read-only unit of work — exactly the shape a
