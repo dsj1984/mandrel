@@ -22,6 +22,8 @@
  *                current workflow set.
  *   --check    — exits 0 when the on-disk file matches the freshly generated
  *                content, throws (→ exit 1) with a regeneration hint otherwise.
+ *   --root     — read and write under another checkout's `.agents/` tree.
+ *                See {@link resolveTargets} for why this seam exists.
  *
  * Per `.agents/rules/orchestration-error-handling.md`, unrecoverable failures
  * surface via `throw new Error(...)` so `runAsCli` maps the throw to
@@ -39,8 +41,43 @@ import { buildCatalog, buildLoopCatalog } from './lib/mandrel-catalog.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..', '..');
-const WORKFLOWS_DIR = path.join(PROJECT_ROOT, '.agents', 'workflows');
-const DOC_PATH = path.join(PROJECT_ROOT, '.agents', 'docs', 'workflows.md');
+
+/**
+ * Resolve the workflow source directory and the generated doc for one
+ * repository root.
+ *
+ * The `--root` seam this backs exists for the drift gate's own test. That
+ * test used to prove the gate by editing the *real*
+ * `.agents/workflows/mandrel-deliver.md`, running `--check`, and restoring
+ * the file in `afterEach`. The proof was sound; the blast radius was not.
+ * `node --test` runs test files in parallel against one shared checkout, so
+ * for the ~1s the real file sat mutated, every other test file observed a
+ * dirty tree — and `tests/enforcement/workflow-script-help.test.js`, whose
+ * final assertion is a repo-wide `git status --porcelain`, reported it as
+ * "`--help` mutated the working tree" on the Windows Smoke job, where the
+ * wider process-spawn cost stretches that window far enough to collide.
+ *
+ * A generator that can only ever be pointed at its own checkout forces that
+ * choice. Pointing it at a fixture root removes it.
+ *
+ * The `--root` default is applied here rather than at the call site so the
+ * one branch it costs lives with the resolution it belongs to.
+ *
+ * @param {string} [root] Repository root to render against; defaults to this
+ *   checkout. A relative path is resolved against the process cwd.
+ * @returns {{ root: string, workflowsDir: string, docPath: string }}
+ */
+export function resolveTargets(root) {
+  const resolved = root ? path.resolve(root) : PROJECT_ROOT;
+  return {
+    root: resolved,
+    workflowsDir: path.join(resolved, '.agents', 'workflows'),
+    docPath: path.join(resolved, '.agents', 'docs', 'workflows.md'),
+  };
+}
+
+/** This checkout's own targets — the default when `--root` is absent. */
+const { workflowsDir: WORKFLOWS_DIR, docPath: DOC_PATH } = resolveTargets();
 
 /**
  * Collapse a catalog description to a single Markdown table-cell-safe line.
@@ -149,16 +186,24 @@ export function renderWorkflowsDoc(catalog, loopCatalog = []) {
 /**
  * Build the canonical generated content and read the on-disk file (if any).
  *
- * @returns {{ generated: string, original: string | null }}
+ * @param {string} [root] Repository root to render against; see
+ *   {@link resolveTargets}.
+ * @returns {{
+ *   generated: string,
+ *   original: string | null,
+ *   root: string,
+ *   docPath: string,
+ * }}
  */
-export function buildExpected() {
-  const catalog = buildCatalog(WORKFLOWS_DIR);
-  const loopCatalog = buildLoopCatalog(WORKFLOWS_DIR);
+export function buildExpected(root) {
+  const { root: resolvedRoot, workflowsDir, docPath } = resolveTargets(root);
+  const catalog = buildCatalog(workflowsDir);
+  const loopCatalog = buildLoopCatalog(workflowsDir);
   const generated = renderWorkflowsDoc(catalog, loopCatalog);
-  const original = fs.existsSync(DOC_PATH)
-    ? fs.readFileSync(DOC_PATH, 'utf8')
+  const original = fs.existsSync(docPath)
+    ? fs.readFileSync(docPath, 'utf8')
     : null;
-  return { generated, original };
+  return { generated, original, root: resolvedRoot, docPath };
 }
 
 /**
@@ -169,12 +214,13 @@ async function main(argv = process.argv.slice(2)) {
     args: argv,
     options: {
       check: { type: 'boolean', default: false },
+      root: { type: 'string' },
     },
     allowPositionals: false,
   });
 
-  const { generated, original } = buildExpected();
-  const rel = path.relative(PROJECT_ROOT, DOC_PATH).split(path.sep).join('/');
+  const { generated, original, root, docPath } = buildExpected(values.root);
+  const rel = path.relative(root, docPath).split(path.sep).join('/');
 
   if (values.check) {
     if (original === generated) {
@@ -191,8 +237,8 @@ async function main(argv = process.argv.slice(2)) {
     Logger.info(`generate-workflows-doc: ${rel} already current — no write.`);
     return;
   }
-  fs.mkdirSync(path.dirname(DOC_PATH), { recursive: true });
-  fs.writeFileSync(DOC_PATH, generated, 'utf8');
+  fs.mkdirSync(path.dirname(docPath), { recursive: true });
+  fs.writeFileSync(docPath, generated, 'utf8');
   Logger.info(`generate-workflows-doc: wrote ${rel}.`);
 }
 
@@ -201,13 +247,18 @@ export { DOC_PATH, WORKFLOWS_DIR };
 runAsCli(import.meta.url, main, {
   source: 'generate-workflows-doc',
   usage: {
-    invocation: 'node .agents/scripts/generate-workflows-doc.js [--check]',
+    invocation:
+      'node .agents/scripts/generate-workflows-doc.js [--check] [--root <dir>]',
     summary:
       'Regenerate the workflow catalog from .agents/workflows/. Writes only when the generated content differs.',
     flags: [
       [
         '--check',
         'Verify the doc is current and fail if stale; write nothing.',
+      ],
+      [
+        '--root <dir>',
+        "Render against another checkout's .agents/ tree instead of this one (test seam).",
       ],
     ],
   },
