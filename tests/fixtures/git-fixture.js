@@ -151,6 +151,12 @@ export function makeGitRepo({
  * naming both paths and which of them survive. The happy path is
  * unchanged and still spawns nothing.
  *
+ * The retry is for a *destination* that vanished, which is the failure the
+ * re-mint can actually repair. A missing **source** is not: copying it again
+ * produces the same `ENOENT` from the same cause, and the second attempt only
+ * mints a second orphan destination and doubles the latency of a failure
+ * already certain. So a source that is gone short-circuits to the report.
+ *
  * @param {string} srcDir - a repo built by `makeGitRepo` or a local `git init`.
  * @param {object} [opts]
  * @param {string} [opts.prefix] - Temp-dir name prefix for the copy.
@@ -167,7 +173,9 @@ export function copyGitRepo(
 ) {
   let dst = null;
   let cause = null;
+  let attempts = 0;
   for (let attempt = 1; attempt <= COPY_ATTEMPTS; attempt += 1) {
+    attempts = attempt;
     try {
       dst = mintDest();
       cpSync(srcDir, dst, { recursive: true });
@@ -176,8 +184,10 @@ export function copyGitRepo(
     } catch (err) {
       cause = err.message;
     }
+    // Only a vanished destination is worth a second pass; see above.
+    if (!existsSync(srcDir)) break;
   }
-  throw new Error(describeCopyFailure(srcDir, dst, cause));
+  throw new Error(describeCopyFailure(srcDir, dst, cause, attempts));
 }
 
 /**
@@ -214,14 +224,20 @@ function describePath(label, target) {
  * vanished. Naming all three paths and which survive makes the next report
  * diagnosable from its first line.
  *
+ * The attempt count is reported rather than assumed: a missing source stops
+ * after one pass, and a message claiming two would send the next reader
+ * looking for a retry that never ran.
+ *
  * @param {string} srcDir
  * @param {string|null} dstDir
  * @param {string|null} cause
+ * @param {number} attempts
  * @returns {string}
  */
-function describeCopyFailure(srcDir, dstDir, cause) {
+function describeCopyFailure(srcDir, dstDir, cause, attempts) {
+  const times = attempts === 1 ? '1 time' : `${attempts} times`;
   return [
-    `[git-fixture] copyGitRepo failed ${COPY_ATTEMPTS} times: ${cause}`,
+    `[git-fixture] copyGitRepo failed ${times}: ${cause}`,
     describePath('source', srcDir),
     describePath('destination', dstDir),
     describePath('suite root', _currentSuiteTempRoot()),
