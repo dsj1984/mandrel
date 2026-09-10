@@ -480,8 +480,12 @@ test('AC-5: a checkout with no origin refuses by name before writing', async () 
 test('AC-6: the tail names the branch and PR on success, and the reason on a skip', async () => {
   const { runAuditToStories } = await import(pathToFileURL(CLI).href);
   const warned = [];
-  const originalWarn = console.warn;
-  console.warn = (...args) => warned.push(args.join(' '));
+  // Capture at the Logger seam, not at `console.warn`: scripts under
+  // `.agents/scripts/` route human-facing output through Logger, and the
+  // enforcement guard reads a raw `console.*` here as a boundary violation.
+  const { Logger } = await import('../../Logger.js');
+  const originalWarn = Logger.warn;
+  Logger.warn = (message) => warned.push(String(message));
   try {
     await runAuditToStories(['--auto', '--ledger-commit'], {
       runAutoImpl: async () => ({ summary: { mode: 'auto' }, stories: [] }),
@@ -505,7 +509,7 @@ test('AC-6: the tail names the branch and PR on success, and the reason on a ski
       stdout: { write: () => {} },
     });
   } finally {
-    console.warn = originalWarn;
+    Logger.warn = originalWarn;
   }
 
   const success = warned.find((line) => line.includes('pushed'));
@@ -531,4 +535,58 @@ test('AC-7: --severity refuses a value the filter would silently ignore', async 
       return true;
     },
   );
+});
+
+test('AC-6: the tail reports a resumed branch and a missing PR URL honestly', async () => {
+  const { runAuditToStories } = await import(pathToFileURL(CLI).href);
+  const { Logger } = await import('../../Logger.js');
+  const warned = [];
+  const originalWarn = Logger.warn;
+  Logger.warn = (message) => warned.push(String(message));
+  try {
+    await runAuditToStories(['--auto', '--ledger-commit'], {
+      runAutoImpl: async () => ({ summary: { mode: 'auto' }, stories: [] }),
+      persistImpl: () => {},
+      runLedgerCommitImpl: async () => ({
+        committed: true,
+        resumed: true,
+        branch: BRANCH,
+        prUrl: null,
+        ledgerPath: LEDGER,
+      }),
+      stdout: { write: () => {} },
+    });
+  } finally {
+    Logger.warn = originalWarn;
+  }
+  const line = warned.find((l) => l.includes('pushed'));
+  assert.match(line, /resumed an unpushed ledger branch/);
+  assert.match(line, /\(no URL reported by gh\)/);
+});
+
+test('AC-7: --severity all is accepted verbatim and a canonical level normalises', async () => {
+  const { runAuditToStories } = await import(pathToFileURL(CLI).href);
+  const seen = [];
+  const scan = async (severity) => {
+    await runAuditToStories(
+      [
+        '--scan',
+        '--no-provider',
+        '--severity',
+        severity,
+        '--glob',
+        'none/*.md',
+      ],
+      {
+        buildPlanImpl: (args) => {
+          seen.push(args.severity);
+          return { groups: [], findings: [], summary: {} };
+        },
+        stdout: { write: () => {} },
+      },
+    );
+  };
+  await scan('all');
+  await scan('High');
+  assert.deepEqual(seen, ['all', 'high']);
 });

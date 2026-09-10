@@ -61,12 +61,14 @@ const HELP = {
 export function parseArgs(argv) {
   const out = { base: null, cwd: process.cwd(), trackingIssue: true };
   for (let i = 2; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--base') out.base = argv[++i] ?? null;
-    else if (a === '--cwd') out.cwd = argv[++i] ?? out.cwd;
+    // Read the option KEY, not the dashed spelling: the key is what the
+    // negation guard and every reader below name.
+    const key = argv[i].replace(/^--/, '');
+    if (key === 'base') out.base = argv[++i] ?? null;
+    else if (key === 'cwd') out.cwd = argv[++i] ?? out.cwd;
     // A runner with no `gh` credentials would spend a subprocess to fail; the
     // verdict never depended on the lookup, so let the caller skip it.
-    else if (a === '--no-tracking-issue') out.trackingIssue = false;
+    else if (key === 'no-tracking-issue') out.trackingIssue = false;
   }
   return out;
 }

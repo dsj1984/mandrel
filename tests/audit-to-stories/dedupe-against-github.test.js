@@ -443,3 +443,58 @@ test('AC-11: a failed or absent list port falls back to the per-finding search',
     assert.equal(fingerprintCalls.length, 1);
   }
 });
+
+test('AC-11: the adapter lists once per label, dedupes by number, and normalises state', async () => {
+  const listed = [];
+  const adapter = await loadProvider({
+    resolveConfigImpl: () => ({ github: { owner: 'o', repo: 'r' } }),
+    createProviderImpl: () => ({
+      async searchIssues() {
+        return [];
+      },
+      async listIssuesByLabel({ state, labels }) {
+        listed.push({ state, labels });
+        // The same issue is returned under both labels — a cross-audit Story.
+        return [
+          { number: 11, state: 'OPEN', body: `by ${labels}`, title: 't' },
+          {
+            number: 12,
+            state: 'CLOSED',
+            state_reason: 'not_planned',
+            body: '',
+          },
+        ];
+      },
+    }),
+  });
+
+  const issues = await adapter.listAuditIssues([
+    'audit::security',
+    'audit::quality',
+  ]);
+  assert.deepEqual(listed, [
+    { state: 'all', labels: 'audit::security' },
+    { state: 'all', labels: 'audit::quality' },
+  ]);
+  assert.deepEqual(
+    issues.map((i) => [i.number, i.state]),
+    [
+      [11, 'open'],
+      [12, 'closed'],
+    ],
+  );
+  // First-seen wins, so the record is the one from the first label queried.
+  assert.equal(issues[0].body, 'by audit::security');
+});
+
+test('AC-11: a provider with no list port yields null rather than a silent skip', async () => {
+  const adapter = await loadProvider({
+    resolveConfigImpl: () => ({ github: { owner: 'o', repo: 'r' } }),
+    createProviderImpl: () => ({
+      async searchIssues() {
+        return [];
+      },
+    }),
+  });
+  assert.equal(await adapter.listAuditIssues(['audit::security']), null);
+});

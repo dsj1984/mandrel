@@ -44,6 +44,19 @@ const LENS_PATH = path.resolve(
   'audit-mobile.md',
 );
 const lens = fs.readFileSync(LENS_PATH, 'utf8');
+// The runtime-pass scaffold — target resolution, route sampling, median-of-3 —
+// is written once in the shared lens core and cited by the lens (Story #5281),
+// so the config-not-hardcoded-URL contract is asserted where it now lives.
+const LENS_CORE_PATH = path.resolve(
+  HERE,
+  '..',
+  '..',
+  '.agents',
+  'workflows',
+  'helpers',
+  'audit-lens-core.md',
+);
+const lensCore = fs.readFileSync(LENS_CORE_PATH, 'utf8');
 
 /** A Story body whose prose engages the lens's own keyword vocabulary. */
 const MOBILE_STORY_BODY = [
@@ -174,12 +187,18 @@ test('lens: discovers a responsive baseline before detecting against it', () => 
 });
 
 test('lens: resolves its runtime target from config, never a hardcoded URL', () => {
-  assert.match(lens, /resolveQaEnvironment/);
-  assert.match(lens, /qa\.environments/);
-  assert.ok(
-    !/localhost:\d/.test(lens),
-    'lens must not carry a hardcoded localhost target',
-  );
+  // The lens cites the scaffold rather than restating it — and must not have
+  // grown a second copy of the resolution it delegates.
+  assert.match(lens, /audit-lens-core\.md#runtime-pass/);
+  assert.doesNotMatch(lens, /resolveQaEnvironment/);
+  assert.match(lensCore, /resolveQaEnvironment/);
+  assert.match(lensCore, /qa\.environments/);
+  for (const text of [lens, lensCore]) {
+    assert.ok(
+      !/localhost:\d/.test(text),
+      'neither the lens nor the scaffold may carry a hardcoded localhost target',
+    );
+  }
   // Emulation is corroboration, not a device certification.
   assert.match(lens, /emulated viewport is not a device/i);
 });
