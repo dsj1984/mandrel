@@ -21,6 +21,8 @@ import {
 import {
   attributionExitCode,
   deriveVerdict,
+  diffAdvisories,
+  extractBlockingAdvisories,
   renderAttribution,
   UNKNOWN,
 } from '../.agents/scripts/lib/audit-attribution.js';
@@ -38,9 +40,19 @@ const REPO_ROOT = path.resolve(
 
 const argv = (...flags) => ['node', 'check-audit-attribution.js', ...flags];
 
+/** Project a list of advisory ids onto the audit shape the probe consumes. */
+function auditResult(ids) {
+  return {
+    failed: ids.length > 0,
+    advisories: ids.map((id) => ({ id, severity: 'high', title: id })),
+  };
+}
+
 function harness({
   headFailed = true,
   baseFailed = false,
+  headAdvisories = null,
+  baseAdvisories = null,
   materializeThrows = null,
   auditBaseThrows = null,
   headThrows = null,
@@ -48,7 +60,11 @@ function harness({
   lookupThrows = false,
 } = {}) {
   const log = { info: [], warn: [], error: [] };
-  const calls = { cleanup: [], materialize: [] };
+  const calls = { cleanup: [], materialize: [], lookup: [] };
+  // The booleans stay as sugar for the degradation cases; the advisory lists
+  // are what the per-advisory diff actually reads.
+  const head = headAdvisories ?? (headFailed ? ['advisory:A'] : []);
+  const base = baseAdvisories ?? (baseFailed ? ['advisory:A'] : []);
   return {
     log,
     calls,
@@ -56,18 +72,19 @@ function harness({
       git: () => '{}',
       auditHead: () => {
         if (headThrows) throw new Error(headThrows);
-        return { failed: headFailed };
+        return auditResult(head);
       },
       auditBase: () => {
         if (auditBaseThrows) throw new Error(auditBaseThrows);
-        return { failed: baseFailed };
+        return auditResult(base);
       },
       materialize: (opts) => {
         calls.materialize.push(opts);
         if (materializeThrows) throw new Error(materializeThrows);
         return '/tmp/fake-base';
       },
-      lookupTrackingIssue: () => {
+      lookupTrackingIssue: (cwd) => {
+        calls.lookup.push(cwd);
         if (lookupThrows) throw new Error('gh not authenticated');
         return trackingIssue;
       },
@@ -214,13 +231,97 @@ describe('runAttribution — every break degrades to unknown', () => {
     assert.doesNotMatch(out.lines.join('\n'), /#\d+/);
   });
 
+  // Story #5281 — this used to pass a flag the CLI did not parse, so it
+  // asserted nothing about the flag: the run took the ordinary path and the
+  // lookup's own failure was what kept the verdict. The flag is real now, and
+  // the assertion is that the lookup does not run at all.
   it('--no-tracking-issue skips the lookup entirely', () => {
-    const h = harness({ baseFailed: true, lookupThrows: true });
+    const h = harness({ baseFailed: true });
     const out = runAttribution(
       argv('--base', 'abc123', '--no-tracking-issue'),
       h.deps,
     );
     assert.equal(out.verdict, PRE_EXISTING);
+    assert.equal(out.exitCode, 1);
+    assert.deepEqual(h.calls.lookup, []);
+    assert.doesNotMatch(out.lines.join('\n'), /#7777/);
+  });
+
+  // AC-8: the shape a busy repository meets — a base already red for A, and a
+  // diff that adds B. "The base failed too" is a true statement about A and a
+  // misleading one about the branch.
+  it('reports an added advisory as introduced while naming the pre-existing one', () => {
+    const h = harness({
+      headAdvisories: ['advisory:A', 'advisory:B'],
+      baseAdvisories: ['advisory:A'],
+    });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+
+    assert.equal(out.verdict, INTRODUCED);
+    assert.equal(out.exitCode, 1);
+    assert.deepEqual(
+      out.introduced.map((a) => a.id),
+      ['advisory:B'],
+    );
+    assert.deepEqual(
+      out.preExisting.map((a) => a.id),
+      ['advisory:A'],
+    );
+    const text = out.lines.join('\n');
+    assert.match(text, /Introduced by this diff \(1\): advisory:B/);
+    assert.match(text, /Already on the merge base \(1\): advisory:A/);
+  });
+
+  it('every head advisory already on the base stays pre-existing', () => {
+    const h = harness({
+      headAdvisories: ['advisory:A'],
+      baseAdvisories: ['advisory:A', 'advisory:C'],
+    });
+    const out = runAttribution(argv('--base', 'abc123'), h.deps);
+    assert.equal(out.verdict, PRE_EXISTING);
+    assert.deepEqual(out.introduced, []);
+  });
+});
+
+describe('extractBlockingAdvisories / diffAdvisories', () => {
+  const report = {
+    vulnerabilities: {
+      'js-yaml': {
+        name: 'js-yaml',
+        severity: 'high',
+        via: [
+          { source: 1234, title: 'Prototype pollution', severity: 'high' },
+          { source: 9, title: 'A moderate one', severity: 'moderate' },
+        ],
+      },
+      lodash: { name: 'lodash', severity: 'moderate', via: ['js-yaml'] },
+      // A transitive package whose `via` names packages, not advisories: it
+      // still blocks, so it must still be counted.
+      'transitive-dep': {
+        name: 'transitive-dep',
+        severity: 'critical',
+        via: ['js-yaml'],
+      },
+    },
+  };
+
+  it('keeps only advisories at or above high, and never loses a blocking one', () => {
+    assert.deepEqual(
+      extractBlockingAdvisories(report).map((a) => a.id),
+      ['advisory:1234', 'package:transitive-dep'],
+    );
+  });
+
+  it('is empty for a clean or unreadable report', () => {
+    assert.deepEqual(extractBlockingAdvisories({ vulnerabilities: {} }), []);
+    assert.deepEqual(extractBlockingAdvisories(null), []);
+  });
+
+  it('a null base attributes nothing rather than accusing the diff', () => {
+    assert.deepEqual(
+      diffAdvisories({ head: [{ id: 'advisory:1' }], base: null }),
+      { introduced: [], preExisting: [] },
+    );
   });
 });
 
@@ -229,6 +330,14 @@ describe('parseArgs', () => {
     const p = parseArgs(argv('--base', 'deadbee', '--cwd', '/repo'));
     assert.equal(p.base, 'deadbee');
     assert.equal(p.cwd, '/repo');
+    assert.equal(p.trackingIssue, true);
+  });
+
+  it('parses --no-tracking-issue', () => {
+    assert.equal(
+      parseArgs(argv('--base', 'deadbee', '--no-tracking-issue')).trackingIssue,
+      false,
+    );
   });
 });
 

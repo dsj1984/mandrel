@@ -32,11 +32,13 @@ const pkgWith = ({ note, override, direct }) => ({
 });
 
 // Range extraction is an implementation detail, exercised through the audit
-// it serves. The behaviour that matters: only PREFIXED ranges are read as the
-// note's claim, so the bare versions a note cites as history ("pulls js-yaml
-// 4.1.1", "declares an exact 5.2.1") never masquerade as the pin.
+// it serves. What matters is that a note quoting the range in force is never
+// scored — whatever OTHER versions it cites as history ("pulls js-yaml 4.1.1",
+// "declares an exact 5.2.1"), and whether or not the range in force carries a
+// prefix. An exact pin used to be invisible to the matcher entirely, which
+// exempted its note from the guarantee (Story #5281).
 describe('range extraction, through the audit', () => {
-  it('ignores bare versions cited as history', () => {
+  it('is satisfied by the range in force among versions cited as history', () => {
     assert.deepEqual(
       kinds(
         pkgWith({
@@ -197,6 +199,97 @@ describe('the committed package.json', () => {
     assert.equal(pkg.overrides['js-yaml'], pkg.dependencies['js-yaml']);
     assert.ok(
       pkg['//']['overrides.js-yaml'].includes(pkg.overrides['js-yaml']),
+    );
+  });
+});
+
+// --- Story #5281: the shapes an npm-native overrides block actually carries ---
+
+describe('npm-native override shapes', () => {
+  it('resolves a "$name" reference to the direct range it points at', () => {
+    const report = auditPinnedOverrideNotes({
+      '//': { 'overrides.demo': 'tree-wide ^4.3.2 is imposed' },
+      overrides: { demo: '$demo' },
+      dependencies: { demo: '^4.3.2' },
+    });
+    // Nothing to flag: npm resolves the override TO the direct range, so the
+    // pair the note warns about cannot split, and the note quotes the range in
+    // force.
+    assert.deepEqual(report.findings, []);
+    assert.deepEqual(report.checked, ['demo']);
+  });
+
+  it('a "$name" reference is never a lockstep split, whatever the raw strings say', () => {
+    assert.deepEqual(
+      kinds({
+        '//': { 'overrides.demo': 'pins ^4.3.2' },
+        overrides: { demo: '$demo' },
+        dependencies: { demo: '^4.3.2' },
+      }),
+      [],
+    );
+  });
+
+  it('still scores a reference whose resolved range the note has outrun', () => {
+    assert.deepEqual(
+      kinds({
+        '//': { 'overrides.demo': 'pins ^4.2.0' },
+        overrides: { demo: '$demo' },
+        dependencies: { demo: '^4.3.2' },
+      }),
+      ['stale-note'],
+    );
+  });
+
+  it('a nested override object is an unsupported shape, not an orphan note', () => {
+    const report = auditPinnedOverrideNotes({
+      '//': { 'overrides.parent': 'pins ^1.0.0' },
+      overrides: { parent: { demo: '^1.0.0' } },
+    });
+    assert.deepEqual(
+      report.findings.map((f) => f.kind),
+      ['unsupported-shape'],
+    );
+    assert.match(report.findings[0].detail, /leaf/);
+  });
+
+  it('reads a note keyed at the leaf of a nested override', () => {
+    assert.deepEqual(
+      kinds({
+        '//': { 'overrides.parent.demo': 'pins ^1.0.0' },
+        overrides: { parent: { demo: '^1.0.0' } },
+      }),
+      [],
+    );
+  });
+
+  it('a dangling "$name" reference names the missing dependency', () => {
+    const report = auditPinnedOverrideNotes({
+      '//': { 'overrides.demo': 'pins ^1.0.0' },
+      overrides: { demo: '$demo' },
+      dependencies: {},
+    });
+    assert.deepEqual(
+      report.findings.map((f) => f.kind),
+      ['unsupported-shape'],
+    );
+    assert.match(
+      report.findings[0].detail,
+      /dependencies\.demo does not exist/,
+    );
+  });
+
+  it('matches a note quoting an exact pin', () => {
+    assert.deepEqual(
+      kinds(pkgWith({ note: 'pinned at exactly 1.2.3', override: '1.2.3' })),
+      [],
+    );
+  });
+
+  it('still flags a note quoting the wrong exact pin', () => {
+    assert.deepEqual(
+      kinds(pkgWith({ note: 'pinned at exactly 1.2.2', override: '1.2.3' })),
+      ['stale-note'],
     );
   });
 });
