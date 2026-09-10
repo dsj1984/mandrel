@@ -44,6 +44,7 @@
  *                              [--no-auto-merge]
  *                              [--wait-merge | --no-wait-merge]
  *                              [--merge-watch-mode <sync|async>]
+ *                              [--rerun-advisory <n>]
  *                              [--override-review-block <reason>]
  *
  * `--override-review-block <reason>` is the one sanctioned way
@@ -225,6 +226,10 @@ runAsCli(import.meta.url, main, {
       ['--wait-merge', 'Force the in-close merge wait.'],
       ['--no-wait-merge', 'Return as soon as the PR is open; do not wait.'],
       ['--max-wait-seconds <n>', 'Per-invocation merge-wait bound.'],
+      [
+        '--rerun-advisory <n>',
+        'How many times this close may re-run a failed ADVISORY (non-required) workflow run before blocking on it. Overrides `delivery.ci.rerunAdvisory` for one invocation; BOTH default to 0, so close spends no CI minutes and issues no GitHub mutation on an advisory red unless you ask. At n > 0 the failed run(s) are re-run within that allowance and the merge wait keeps polling inside its existing budget, landing or blocking on the re-run verdict.',
+      ],
       [
         '--merge-watch-mode <sync|async>',
         'Override delivery.mergeWatch.mode for this invocation only. `async` caps the merge wait to a short probe window and returns the resumable `pending` terminal instead of holding the foreground slot — pass it on every close of a multi-Story run. An invalid value exits non-zero before any phase runs.',

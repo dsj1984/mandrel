@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-08T11:06:06.998Z",
+  "generatedAt": "2026-09-10T15:36:40.701Z",
   "mode": "production",
   "rows": [
     {
@@ -1613,6 +1613,10 @@
       "symbol": "RUN_EPILOGUE_STEP_KINDS"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
+      "symbol": "*"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
       "symbol": "*"
     },
@@ -1647,6 +1651,10 @@
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "symbol": "readPrWaitProbe"
+    },
+    {
+      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
+      "symbol": "resolveAdvisoryRerunAllowance"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",

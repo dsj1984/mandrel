@@ -62,6 +62,22 @@ function parsePositiveInt(value) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+/**
+ * The same contract for a flag whose ZERO is meaningful (Story #5266):
+ * `--rerun-advisory 0` is an explicit "spend nothing", not an absent flag.
+ * A negative or non-numeric value is still treated as absent rather than
+ * coerced, so a typo falls back to the config default instead of inventing an
+ * allowance that spends the consumer's CI minutes.
+ *
+ * @param {unknown} value
+ * @returns {number|undefined}
+ */
+function parseNonNegativeInt(value) {
+  if (value === undefined || value === null) return undefined;
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 /** The only two merge-watch postures `--merge-watch-mode` accepts. */
 const MERGE_WATCH_MODES = ['sync', 'async'];
 
@@ -200,6 +216,10 @@ export function parseSprintArgs(
       // Absent means "use the config"; see `parseMergeWatchMode` for why an
       // unrecognized value fails closed instead of degrading to absent.
       'merge-watch-mode': { type: 'string' },
+      // Story #5266 — per-invocation override of `delivery.ci.rerunAdvisory`.
+      // Absent means "use the config", whose default is 0: close re-runs
+      // nothing and mutates no GitHub state on an advisory red unless asked.
+      'rerun-advisory': { type: 'string' },
       // Sanctioned override of a code-review critical blocker.
       // Absent means "the blocker blocks"; see `parseOverrideReviewBlock` for
       // why a bare or too-short reason fails closed instead of arming a silent
@@ -240,6 +260,12 @@ export function parseSprintArgs(
     mergeWatchMode: tolerant
       ? tolerantMergeWatchMode(values['merge-watch-mode'])
       : parseMergeWatchMode(values['merge-watch-mode']),
+    // Story #5266 — how many times close may re-run a failed ADVISORY run
+    // before blocking on it. `undefined` when absent, which is what lets the
+    // merge wait fall back to `delivery.ci.rerunAdvisory` (default 0).
+    // `parseNonNegativeInt` degrades a junk value to undefined rather than
+    // guessing an allowance that would spend the consumer's CI minutes.
+    rerunAdvisory: parseNonNegativeInt(values['rerun-advisory']),
     // The operator's recorded reason for overriding a review
     // blocker. `undefined` when the flag is absent, which is what keeps the
     // blocker blocking by default.

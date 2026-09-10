@@ -91,6 +91,7 @@ const FLAG_TO_OPTION = Object.freeze({
   '--no-wait-merge': 'noWaitForMerge',
   '--max-wait-seconds': 'maxWaitSeconds',
   '--merge-watch-mode': 'mergeWatchMode',
+  '--rerun-advisory': 'rerunAdvisory',
   '--override-review-block': 'overrideReviewBlock',
 });
 

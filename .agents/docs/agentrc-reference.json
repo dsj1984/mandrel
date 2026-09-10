@@ -353,7 +353,8 @@
       },
       "autoMerge": "trust-ci",
       "blockOnAdvisoryFailure": true,
-      "advisoryAllowlist": []
+      "advisoryAllowlist": [],
+      "rerunAdvisory": 0
     },
     "routing": {
       "roleScopedAgents": true,

@@ -414,6 +414,13 @@ const CI_DELIVERY_SCHEMA = {
         'Story #5096. Check-run names exempt from blockOnAdvisoryFailure — a red run whose name matches exactly never blocks arming. Matching is exact; an unnamed run can never match and always blocks.',
       default: [...CI_DELIVERY_DEFAULTS.advisoryAllowlist],
     },
+    rerunAdvisory: {
+      type: 'integer',
+      minimum: 0,
+      description:
+        'Story #5266. How many times close may re-run a failed advisory workflow run before blocking on it, per close invocation. Default 0: close spends no CI minutes and issues no GitHub mutation on an advisory red unless asked. At n > 0 the failed run(s) are re-run within that allowance and the merge wait re-polls inside its existing budget, landing or blocking on the re-run verdict. Overridden per invocation by --rerun-advisory <n>.',
+      default: CI_DELIVERY_DEFAULTS.rerunAdvisory,
+    },
   },
   additionalProperties: false,
 };

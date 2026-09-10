@@ -615,7 +615,10 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.autoMergeEnabled, true);
     assert.equal(result.autoMergeReason, null);
     assert.equal(result.worktreeReaped, false);
-    assert.match(result.note, /auto-merge enabled/i);
+    // Story #5266 — the note reports the arm, and never a merge that the
+    // same object's `merged: false` denies.
+    assert.match(result.note, /auto-merge is armed/i);
+    assert.match(result.note, /NOT merged/);
 
     const pushCall = gitCalls.find((c) => c[1] === 'push');
     assert.ok(pushCall, 'gitSync push must be called');
@@ -805,7 +808,10 @@ describe('runSingleStoryClose orchestration', () => {
 
     assert.equal(result.autoMergeEnabled, false);
     assert.equal(result.autoMergeReason, 'disabled-by-flag');
-    assert.match(result.note, /Operator merges via GitHub UI/);
+    assert.match(
+      result.note,
+      /operator owns the land: merge via the GitHub UI/,
+    );
     assert.equal(ghCalls.length, 2);
   });
 
@@ -1683,7 +1689,7 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     assert.equal(result.leaseReleased, false);
     assert.match(
       result.note,
-      /assigned to the operator/,
+      /release the lease this close is still holding/,
       'the note tells the operator the claim is deliberately retained',
     );
   });

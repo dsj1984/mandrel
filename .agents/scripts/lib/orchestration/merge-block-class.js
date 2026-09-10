@@ -71,7 +71,11 @@
  * (`emit-merge-unlanded.js`).
  */
 
-import { requiredCheckFailedBlocksMerge } from './merge-poll.js';
+import {
+  ADVISORY_GATE_INCONCLUSIVE_CLASS,
+  ADVISORY_GATE_RED_CLASS,
+  requiredCheckFailedBlocksMerge,
+} from './merge-poll.js';
 
 /**
  * Every class `classifyMergeBlock` can return. Order is the evaluation
@@ -102,7 +106,14 @@ export const BLOCK_CLASSES = Object.freeze([
  * (`mergeStateStatus: UNSTABLE`), which native auto-merge would land straight
  * past. It is emitted directly by the arm and merge-wait phases — the
  * classifier cannot produce it, because by construction GitHub is NOT blocking
- * the merge, which is the entire problem it names. It is deliberately NOT in
+ * the merge, which is the entire problem it names. Story #5266 added
+ * `advisory-gate-inconclusive` beside it, emitted directly by the same two
+ * phases and under the same discipline: the SAME observation (a red advisory
+ * run on an `UNSTABLE` PR) whose run never FINISHED — a scan or navigation
+ * timeout reporting no violation. It blocks exactly as `advisory-gate-red`
+ * does; it exists because the two authorise different remedies, and reporting
+ * a timed-out scan as a found violation pushes the operator toward a permanent
+ * allowlist exemption for a transient failure. It is deliberately NOT in
  * `BLOCK_CLASSES`, whose reachability invariant covers only what
  * `classifyMergeBlock` returns. (The Epic-era listeners that used to
  * emit it, AutomergePredicate and AutomergeArmer, are gone; the value stays
@@ -114,7 +125,11 @@ export const BLOCK_CLASSES = Object.freeze([
 export const MERGE_UNLANDED_BLOCK_CLASSES = Object.freeze([
   ...BLOCK_CLASSES,
   'predicate-refused',
-  'advisory-gate-red',
+  // Sourced from the constants the advisory gate itself decides with
+  // (Story #5266), so the attribution vocabulary cannot drift from the
+  // verdict that emits it.
+  ADVISORY_GATE_RED_CLASS,
+  ADVISORY_GATE_INCONCLUSIVE_CLASS,
 ]);
 
 const BLOCK_CLASS_SET = new Set(MERGE_UNLANDED_BLOCK_CLASSES);

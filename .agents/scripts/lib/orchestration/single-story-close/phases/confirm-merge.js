@@ -113,6 +113,9 @@ import {
   deriveRedHeadRuns,
   deriveRequiredRunEvidence,
   MERGE_WAIT_GH_TIMEOUT_MS,
+  parseWorkflowRunId,
+  readRunSummary,
+  resolveAdvisoryGateVerdict,
 } from '../../merge-poll.js';
 import { NEXT_COMMANDS } from '../../story-deliver-terminal.js';
 import {
@@ -210,6 +213,26 @@ function withGhTimeout(promise, timeoutMs, label) {
 }
 
 /**
+ * One string field off a `gh pr view` payload, or `absent` when the API did
+ * not return one. Deduplicated out of the probe below (Story #5266): six
+ * identical `typeof x === 'string'` ternaries put that one function over the
+ * CRAP ratchet the moment a seventh field was needed.
+ *
+ * An empty string counts as absent — `gh` returns `""` for a field it cannot
+ * read, and every caller treats that exactly as "not there".
+ *
+ * @param {unknown} value
+ * @param {null|undefined} [absent] What to report when the field is missing.
+ *   `null` for the three fields the poll loop compares against null; the
+ *   `undefined` default for the ones whose absence must not shadow a
+ *   downstream default.
+ * @returns {string|null|undefined}
+ */
+function readString(value, absent = undefined) {
+  return typeof value === 'string' && value ? value : absent;
+}
+
+/**
  * One probe per poll iteration, carrying every field the loop and the
  * terminal classifier need: merge state, the checks rollup, the merge-state
  * status (for BEHIND recovery and human-required classification), and
@@ -238,22 +261,19 @@ export async function readPrWaitProbe({
         'mergeStateStatus',
         'reviewDecision',
         'statusCheckRollup',
+        // Story #5266 — the head the red advisory runs belong to, so their
+        // check-run output can be read back and classified.
+        'headRefOid',
       ]),
       ghTimeoutMs,
       `gh pr view ${prNumber}`,
     );
     return {
-      state: typeof view?.state === 'string' ? view.state : null,
-      mergedAt: typeof view?.mergedAt === 'string' ? view.mergedAt : null,
-      createdAt: typeof view?.createdAt === 'string' ? view.createdAt : null,
-      mergeStateStatus:
-        typeof view?.mergeStateStatus === 'string'
-          ? view.mergeStateStatus
-          : undefined,
-      reviewDecision:
-        typeof view?.reviewDecision === 'string'
-          ? view.reviewDecision
-          : undefined,
+      state: readString(view?.state, null),
+      mergedAt: readString(view?.mergedAt, null),
+      createdAt: readString(view?.createdAt, null),
+      mergeStateStatus: readString(view?.mergeStateStatus),
+      reviewDecision: readString(view?.reviewDecision),
       checksStatus: deriveChecksStatus(view?.statusCheckRollup),
       // Head-anchored per-run evidence (Story #4695): distinguishes a
       // genuinely red required run from the superseded / still-pending noise
@@ -264,6 +284,7 @@ export async function readPrWaitProbe({
       // verdict can name the offending job and match the allowlist. Same
       // red-ness test as `requiredRunEvidence`, so the two cannot disagree.
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
+      headSha: readString(view?.headRefOid),
     };
   } catch (err) {
     return {
@@ -545,11 +566,179 @@ async function blockOnFlipFailed({
 }
 
 /**
- * Classify the unlanded merge, emit `merge.unlanded`, post a `friction`
- * comment, and transition the Story to `agent::blocked`. Every side effect
- * is best-effort logged rather than thrown — the caller owns surfacing the
- * non-zero exit once this returns.
+ * Story #5266 — the per-invocation advisory rerun allowance.
+ *
+ * `--rerun-advisory <n>` wins over `delivery.ci.rerunAdvisory` on exactly the
+ * precedence `--max-wait-seconds` already uses. Both default to **0**: a
+ * rerun spends CI minutes and mutates GitHub state, so close does neither
+ * unasked. A non-integer or negative override is not an instruction to guess
+ * — it degrades to the config value.
+ *
+ * @param {object|null} config Resolved config (or any `delivery.ci` bag).
+ * @param {number} [override] The `--rerun-advisory` value, when supplied.
+ * @returns {number} allowance ≥ 0
  */
+export function resolveAdvisoryRerunAllowance(config, override) {
+  if (Number.isInteger(override) && override >= 0) return override;
+  return getCiDelivery(config).rerunAdvisory;
+}
+
+/**
+ * Identify ONE observation of a red run: the job, the workflow run behind it,
+ * and when that run finished. A rerun changes `completedAt` (and eventually
+ * the conclusion), so this is what lets the wait tell a re-run's verdict apart
+ * from the stale pre-rerun snapshot it will keep seeing for a poll or two.
+ *
+ * @param {{name?: string|null, runId?: number, completedAt?: string}} run
+ * @returns {string}
+ */
+function advisoryRunSignature(run) {
+  return `${run?.name ?? '(unnamed)'}@${run?.runId ?? 'no-run'}#${run?.completedAt ?? 'no-stamp'}`;
+}
+
+/**
+ * Story #5266 — read each red advisory run's own account of WHY it failed.
+ *
+ * `gh pr view --json statusCheckRollup` has a fixed projection that carries no
+ * output text for a CheckRun, so on the rollup alone every red advisory run
+ * looks identical — which is the defect. The check-runs API for the head SHA
+ * carries `output.title` / `output.summary`, and ONE call for the whole head
+ * is enough to classify every red run on it.
+ *
+ * Called only on the block path (never per poll), and **fails open**: any
+ * error, timeout, or missing head SHA returns the runs unchanged, which
+ * classifies them as `advisory-gate-red` — the pre-#5266 verdict.
+ *
+ * @returns {Promise<Array<object>>} the runs, enriched where output was found
+ */
+async function enrichRedRunsWithOutput({
+  runs,
+  headSha,
+  gh,
+  ghTimeoutMs,
+  progress,
+}) {
+  if (!Array.isArray(runs) || runs.length === 0 || !headSha) return runs ?? [];
+  try {
+    const raw = await withGhTimeout(
+      (gh ?? defaultGh).api({
+        endpoint: `/repos/{owner}/{repo}/commits/${headSha}/check-runs?per_page=100`,
+      }),
+      ghTimeoutMs,
+      `gh api check-runs ${headSha}`,
+    );
+    const payload = JSON.parse(raw?.stdout ?? '{}');
+    const byName = new Map();
+    for (const checkRun of payload?.check_runs ?? []) {
+      if (typeof checkRun?.name === 'string' && checkRun.name) {
+        byName.set(checkRun.name, checkRun);
+      }
+    }
+    return runs.map((run) => {
+      const summary = readRunSummary(run.name ? byName.get(run.name) : null);
+      return summary ? { ...run, summary } : run;
+    });
+  } catch (err) {
+    progress?.(
+      'CONFIRM',
+      `⚠️ Could not read the advisory check output (${err?.message ?? err}) — ` +
+        'classifying from the rollup alone.',
+    );
+    return runs;
+  }
+}
+
+/**
+ * Story #5266 — re-run the failed advisory workflow run(s), once, within the
+ * caller's remaining allowance.
+ *
+ * Requests `rerun-failed-jobs` per distinct workflow run rather than per job:
+ * one advisory workflow commonly fans out, and re-running the whole failed set
+ * is both cheaper in API calls and what an operator means by "re-run it".
+ *
+ * @returns {Promise<boolean>} whether every rerun request succeeded. `false`
+ *   (including "no run id to re-run") leaves the caller on the block path,
+ *   because an allowance that cannot be spent must not silently suppress the
+ *   gate.
+ */
+async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
+  const runIds = [
+    ...new Set(
+      blockingRuns
+        .map((run) => run?.runId ?? parseWorkflowRunId(run?.detailsUrl))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+  ];
+  if (runIds.length === 0) {
+    progress?.(
+      'CONFIRM',
+      '⚠️ Advisory rerun requested but no workflow run id is readable on the ' +
+        'red run(s) — blocking instead.',
+    );
+    return false;
+  }
+  for (const runId of runIds) {
+    try {
+      await withGhTimeout(
+        (gh ?? defaultGh).api({
+          method: 'POST',
+          endpoint: `/repos/{owner}/{repo}/actions/runs/${runId}/rerun-failed-jobs`,
+        }),
+        ghTimeoutMs,
+        `gh api rerun-failed-jobs ${runId}`,
+      );
+    } catch (err) {
+      progress?.(
+        'CONFIRM',
+        `⚠️ Advisory rerun of workflow run ${runId} failed (${err?.message ?? err}) — blocking instead.`,
+      );
+      return false;
+    }
+  }
+  progress?.(
+    'CONFIRM',
+    `🔁 Re-ran ${runIds.length} failed advisory workflow run(s) [${runIds.join(', ')}] — ` +
+      'the merge wait keeps polling inside its existing budget.',
+  );
+  return true;
+}
+
+/**
+ * Spend one unit of the rerun allowance, if there is one and the rerun takes.
+ * Records the observation signature of every run it re-ran, so the stale
+ * pre-rerun snapshot the next poll reads does not re-block on the same job.
+ *
+ * Deliberately does NOT disarm first, unlike the block path: the whole point
+ * of a rerun is that a green re-run lands the PR on its own. The cost is an
+ * armed window in which GitHub could land the PR over the still-red advisory
+ * if the required contexts go green before the re-run reports — which is
+ * exactly what opting in to `--rerun-advisory` buys and accepts. At the
+ * default 0 there is no such window.
+ *
+ * @returns {Promise<boolean>} `true` when the caller should keep polling.
+ */
+async function maybeRerunAdvisory({
+  rerunState,
+  blockingRuns,
+  gh,
+  ghTimeoutMs,
+  progress,
+}) {
+  if (rerunState.remaining <= 0) return false;
+  const rerun = await rerunAdvisoryRuns({
+    blockingRuns,
+    gh,
+    ghTimeoutMs,
+    progress,
+  });
+  if (!rerun) return false;
+  rerunState.remaining -= 1;
+  for (const run of blockingRuns) {
+    rerunState.issued.add(advisoryRunSignature(run));
+  }
+  return true;
+}
+
 /**
  * Story #5096 — resolve the advisory-gate terminal for one poll.
  *
@@ -561,14 +750,22 @@ async function blockOnFlipFailed({
  *
  * Disarms BEFORE returning the terminal: an armed PR can merge out from under
  * the block the caller is about to record.
+ *
+ * Story #5266 threads three more steps through the same single assignment:
+ * runs this invocation already re-ran (and has no fresh verdict for) are
+ * skipped rather than re-blocked; the survivors are enriched with their own
+ * check-run output so the class can be `advisory-gate-inconclusive`; and a
+ * remaining rerun allowance is spent before any block is recorded.
  */
 async function resolveAdvisoryUnlanded({
   unlanded,
   probe,
   blockOnAdvisoryFailure,
   advisoryAllowlist,
+  rerunState,
   prNumber,
   gh,
+  ghTimeoutMs,
   progress,
   disarmAutoMergeFn,
   elapsedSeconds,
@@ -580,16 +777,51 @@ async function resolveAdvisoryUnlanded({
     advisoryAllowlist,
   });
   if (!advisory) return null;
-  progress?.('CONFIRM', `🛑 PR #${prNumber}: ${advisory.reason}`);
+  // Every blocking run is one this invocation already re-ran and has not seen
+  // a fresh verdict for yet (Story #5266) — keep polling rather than blocking
+  // on the snapshot the rerun was meant to replace.
+  const pending = advisory.blockingRuns.filter(
+    (run) => !rerunState.issued.has(advisoryRunSignature(run)),
+  );
+  if (pending.length === 0) return null;
+  const blockingRuns = await enrichRedRunsWithOutput({
+    runs: pending,
+    headSha: probe?.headSha,
+    gh,
+    ghTimeoutMs,
+    progress,
+  });
+  if (
+    await maybeRerunAdvisory({
+      rerunState,
+      blockingRuns,
+      gh,
+      ghTimeoutMs,
+      progress,
+    })
+  ) {
+    return null;
+  }
+  const verdict = resolveAdvisoryGateVerdict({
+    blockingRuns,
+    rerunAllowance: rerunState.allowance,
+  });
+  progress?.('CONFIRM', `🛑 PR #${prNumber}: ${verdict.reason}`);
   await disarmAutoMergeFn({ prNumber, gh, progress });
   return {
     prProbe: probe,
     budget: { exhausted: false, elapsedSeconds },
-    blockClassOverride: 'advisory-gate-red',
-    reasonOverride: advisory.reason,
+    blockClassOverride: verdict.blockClass,
+    reasonOverride: verdict.reason,
   };
 }
 
+/**
+ * Classify the unlanded merge, emit `merge.unlanded`, post a `friction`
+ * comment, and transition the Story to `agent::blocked`. Every side effect
+ * is best-effort logged rather than thrown — the caller owns surfacing the
+ * non-zero exit once this returns.
+ */
 async function blockOnUnlanded({
   storyId,
   prNumber,
@@ -853,6 +1085,8 @@ async function onMergeObserved({
  *   `--merge-watch-mode` override (Story #4949); wins over
  *   `delivery.mergeWatch.mode`.
  * @param {(tag: string, msg: string) => void} [args.progress]
+ * @param {number} [args.rerunAdvisory] `--rerun-advisory <n>` — the
+ *   per-invocation override of `delivery.ci.rerunAdvisory` (both default 0).
  * @param {object} [args.injectedGh]
  * @param {Function} [args.injectedNotify]
  * @param {Function} [args.confirmStoryMergedFn] Test seam — defaults to the
@@ -886,6 +1120,7 @@ export async function runConfirmMergePhase({
   config,
   maxWaitSeconds: maxWaitSecondsOverride,
   mergeWatchMode: mergeWatchModeOverride,
+  rerunAdvisory: rerunAdvisoryOverride,
   progress,
   injectedGh,
   injectedNotify,
@@ -923,9 +1158,12 @@ export async function runConfirmMergePhase({
       // Story #5096 — the arm phase already refused over a red advisory gate;
       // carry its verdict through instead of letting the classifier read this
       // as a generic `arm-failure`.
+      // Story #5266 — carry the arm phase's CLASS too: a pre-arm refusal over
+      // a scan that never finished is `advisory-gate-inconclusive`, and
+      // hard-coding the red class here would relabel it at the terminal.
       ...(autoMergeReason === 'advisory-gate-red'
         ? {
-            blockClassOverride: 'advisory-gate-red',
+            blockClassOverride: advisoryGate?.blockClass ?? 'advisory-gate-red',
             reasonOverride: advisoryGate?.reason,
           }
         : {}),
@@ -945,6 +1183,18 @@ export async function runConfirmMergePhase({
   );
   // Story #5096 — the advisory-gate knobs, read once for the whole wait.
   const { blockOnAdvisoryFailure, advisoryAllowlist } = getCiDelivery(config);
+  // Story #5266 — the rerun allowance and its ledger, spent across the whole
+  // wait rather than per poll, so `n` bounds the CI minutes this invocation
+  // can cost no matter how many times the gate is observed red.
+  const rerunAllowance = resolveAdvisoryRerunAllowance(
+    config,
+    rerunAdvisoryOverride,
+  );
+  const rerunState = {
+    allowance: rerunAllowance,
+    remaining: rerunAllowance,
+    issued: new Set(),
+  };
   const intervalMs = intervalSeconds * 1000;
   const startedAtMs = nowMsFn();
   let anchorMs = startedAtMs;
@@ -1105,8 +1355,10 @@ export async function runConfirmMergePhase({
         probe,
         blockOnAdvisoryFailure,
         advisoryAllowlist,
+        rerunState,
         prNumber,
         gh: injectedGh,
+        ghTimeoutMs,
         progress,
         disarmAutoMergeFn,
         elapsedSeconds: Math.round(waitedMs / 1000),

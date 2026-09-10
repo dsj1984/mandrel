@@ -12,6 +12,13 @@
  * `blockOnAdvisoryFailure: false` to restore the pre-#5096 behaviour verbatim,
  * or list a job name in `advisoryAllowlist` to exempt just that one.
  *
+ * Story #5266 added `rerunAdvisory`, **default `0`**. It is the number of
+ * times close may re-run a failed advisory workflow run before blocking on it.
+ * Zero is the deliberate default and not a placeholder: a rerun spends the
+ * consumer's CI minutes and mutates GitHub state, and close must never do
+ * either unasked. Raise it (or pass `--rerun-advisory <n>`) on a repository
+ * whose advisory scans time out transiently.
+ *
  * Retired (no production readers on v2 Story-only delivery): `earlyPr`
  * (Epic early-PR warmup) and `requireChecks` (AutomergePredicate escape hatch
  * whose listener was never landed).
@@ -21,6 +28,20 @@ export const CI_DELIVERY_DEFAULTS = Object.freeze({
   autoMerge: 'trust-ci',
   blockOnAdvisoryFailure: true,
   advisoryAllowlist: Object.freeze([]),
+  rerunAdvisory: 0,
+});
+
+/**
+ * Per-knob validators for the scalar `delivery.ci` settings. A value that
+ * fails its own test is not an instruction to guess — it degrades to the
+ * framework default beside it in {@link CI_DELIVERY_DEFAULTS}, which is why
+ * the two objects are keyed alike and read as a pair.
+ */
+const CI_KNOB_VALIDATORS = Object.freeze({
+  autoMerge: (value) => value === 'trust-ci' || value === 'strict',
+  blockOnAdvisoryFailure: (value) => typeof value === 'boolean',
+  // Story #5266 — a negative or non-integer allowance spends nothing.
+  rerunAdvisory: (value) => Number.isInteger(value) && value >= 0,
 });
 
 /**
@@ -31,19 +52,17 @@ export const CI_DELIVERY_DEFAULTS = Object.freeze({
  * defaults; only the scalar knobs carry framework defaults here.
  *
  * @param {object | null | undefined} config
- * @returns {{ autoMerge: 'trust-ci' | 'strict', watch: object | undefined }}
+ * @returns {{ autoMerge: 'trust-ci' | 'strict', blockOnAdvisoryFailure: boolean,
+ *   advisoryAllowlist: string[], rerunAdvisory: number, watch: object | undefined }}
  */
 export function getCiDelivery(config) {
   const ci = config?.delivery?.ci ?? config?.ci ?? config ?? {};
+  const knobs = {};
+  for (const [key, isValid] of Object.entries(CI_KNOB_VALIDATORS)) {
+    knobs[key] = isValid(ci[key]) ? ci[key] : CI_DELIVERY_DEFAULTS[key];
+  }
   return {
-    autoMerge:
-      ci.autoMerge === 'trust-ci' || ci.autoMerge === 'strict'
-        ? ci.autoMerge
-        : CI_DELIVERY_DEFAULTS.autoMerge,
-    blockOnAdvisoryFailure:
-      typeof ci.blockOnAdvisoryFailure === 'boolean'
-        ? ci.blockOnAdvisoryFailure
-        : CI_DELIVERY_DEFAULTS.blockOnAdvisoryFailure,
+    ...knobs,
     advisoryAllowlist: Array.isArray(ci.advisoryAllowlist)
       ? ci.advisoryAllowlist.filter(
           (entry) => typeof entry === 'string' && entry,

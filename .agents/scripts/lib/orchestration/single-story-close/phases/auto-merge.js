@@ -66,7 +66,7 @@ import { resolveAutoMergeArmCwd } from '../../auto-merge-cwd.js';
 import {
   advisoryCheckFailedBlocksArm,
   deriveRedHeadRuns,
-  formatAdvisoryGateReason,
+  resolveAdvisoryGateVerdict,
   selectBlockingRedRuns,
 } from '../../merge-poll.js';
 
@@ -430,10 +430,17 @@ async function evaluateAdvisoryGate({
     probe.redHeadRuns,
     advisoryAllowlist,
   );
+  // Story #5266 — the class travels with the reason. This pre-arm gate
+  // classifies on the text the ROLLUP carried (a legacy StatusContext's
+  // `description`); the merge wait, which owns the common case, additionally
+  // reads the check-run output. Either way a run whose failure cannot be read
+  // as "never finished" keeps the `advisory-gate-red` verdict.
+  const verdict = resolveAdvisoryGateVerdict({ blockingRuns });
   return {
     blocked: true,
     blockingRuns,
-    reason: formatAdvisoryGateReason(blockingRuns),
+    blockClass: verdict.blockClass,
+    reason: verdict.reason,
   };
 }
 
@@ -522,6 +529,7 @@ export async function runAutoMergePhase({
       autoMergeReason: 'advisory-gate-red',
       advisoryGate: {
         blockingRuns: advisory.blockingRuns,
+        blockClass: advisory.blockClass,
         reason: advisory.reason,
       },
     };

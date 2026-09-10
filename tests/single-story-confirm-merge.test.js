@@ -21,7 +21,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { resolveMergeWaitConfig } from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
+import {
+  resolveAdvisoryRerunAllowance,
+  resolveMergeWaitConfig,
+} from '../.agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js';
 import { confirmStoryMerged } from '../.agents/scripts/lib/single-story/confirm-merge.js';
 import {
   resolvePrNumber,
@@ -415,5 +418,45 @@ describe('resolvePrNumber — the gh pr list probe (Story #4842)', () => {
       },
     };
     assert.equal(await resolvePrNumber({ storyBranch: 'story-1', gh }), null);
+  });
+});
+
+describe('resolveAdvisoryRerunAllowance (Story #5266)', () => {
+  it('is 0 with no flag and no configuration — close spends nothing unasked', () => {
+    assert.equal(resolveAdvisoryRerunAllowance(undefined, undefined), 0);
+    assert.equal(resolveAdvisoryRerunAllowance({}, undefined), 0);
+    assert.equal(
+      resolveAdvisoryRerunAllowance({ delivery: { ci: {} } }, undefined),
+      0,
+    );
+  });
+
+  it('reads delivery.ci.rerunAdvisory when no flag is supplied', () => {
+    assert.equal(
+      resolveAdvisoryRerunAllowance(
+        { delivery: { ci: { rerunAdvisory: 2 } } },
+        undefined,
+      ),
+      2,
+    );
+  });
+
+  it('lets the flag win over the config, including an explicit 0', () => {
+    const config = { delivery: { ci: { rerunAdvisory: 3 } } };
+    assert.equal(resolveAdvisoryRerunAllowance(config, 1), 1);
+    assert.equal(resolveAdvisoryRerunAllowance(config, 0), 0);
+  });
+
+  it('degrades a junk or negative value to the config rather than guessing', () => {
+    const config = { delivery: { ci: { rerunAdvisory: 2 } } };
+    assert.equal(resolveAdvisoryRerunAllowance(config, -1), 2);
+    assert.equal(resolveAdvisoryRerunAllowance(config, Number.NaN), 2);
+    assert.equal(
+      resolveAdvisoryRerunAllowance(
+        { delivery: { ci: { rerunAdvisory: -5 } } },
+        undefined,
+      ),
+      0,
+    );
   });
 });

@@ -37,6 +37,23 @@ function resolveFlag(paramValue, parsedValue) {
 }
 
 /**
+ * An integer flag at or above `min`, or `undefined` — the shape BOTH numeric
+ * close flags share (Story #5266 deduplicated them): absence is preserved so
+ * the reader downstream applies its own config default, and a junk value is
+ * treated as absent rather than coerced into a bound nobody asked for.
+ *
+ * `min` is what separates them: `--max-wait-seconds 0` is a typo (a
+ * zero-second wait), while `--rerun-advisory 0` is the meaningful default.
+ *
+ * @param {unknown} value
+ * @param {number} min
+ * @returns {number|undefined}
+ */
+function intAtLeast(value, min) {
+  return Number.isInteger(value) && value >= min ? value : undefined;
+}
+
+/**
  * Resolve whether close lands the PR in-process (`waitForMerge`).
  *
  * Called by `runSingleStoryClose` **after** config resolution and the
@@ -139,8 +156,8 @@ function assertNoRetiredFlags(argv) {
  * (`waitForMergeExplicit` / `noWaitForMerge`) for the runner to resolve once
  * the config and the arm outcome exist.
  *
- * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, overrideReviewBlockParam }} raw
- * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, overrideReviewBlock }}
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, waitForMergeParam, noWaitForMergeParam, maxWaitSecondsParam, mergeWatchModeParam, rerunAdvisoryParam, overrideReviewBlockParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, waitForMergeExplicit, noWaitForMerge, maxWaitSeconds, mergeWatchMode, rerunAdvisory, overrideReviewBlock }}
  */
 export function parseCloseOptions({
   storyIdParam,
@@ -152,6 +169,7 @@ export function parseCloseOptions({
   noWaitForMergeParam,
   maxWaitSecondsParam,
   mergeWatchModeParam,
+  rerunAdvisoryParam,
   overrideReviewBlockParam,
 }) {
   // An injecting caller (`storyIdParam` supplied) is not reading argv at all,
@@ -178,6 +196,7 @@ export function parseCloseOptions({
     maxWaitSecondsParam,
     parsed.maxWaitSeconds,
   );
+  const rerunAdvisory = resolveFlag(rerunAdvisoryParam, parsed.rerunAdvisory);
   return {
     storyId: resolveFlag(storyIdParam, parsed.storyId),
     cwd: path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT),
@@ -185,10 +204,7 @@ export function parseCloseOptions({
     // `delivery.mergeWatch.maxWaitSeconds`. A per-run override exists so a
     // headless caller with no host tool-invocation ceiling can keep
     // single-block semantics without editing the consumer's config.
-    maxWaitSeconds:
-      Number.isInteger(maxWaitSeconds) && maxWaitSeconds > 0
-        ? maxWaitSeconds
-        : undefined,
+    maxWaitSeconds: intAtLeast(maxWaitSeconds, 1),
     // `undefined` when unsupplied — the merge wait then reads
     // `delivery.mergeWatch.mode`. The two merge-watch flags stay composable and
     // mode-agnostic: `--merge-watch-mode async` picks the posture, and an
@@ -196,6 +212,11 @@ export function parseCloseOptions({
     mergeWatchMode: parseMergeWatchMode(
       resolveFlag(mergeWatchModeParam, parsed.mergeWatchMode),
     ),
+    // Story #5266 — `undefined` when unsupplied, so the merge wait reads
+    // `delivery.ci.rerunAdvisory` (default 0). An explicit 0 is preserved as
+    // an explicit 0: it means "spend nothing", which is also the default, but
+    // an operator who typed it must not have it read as absent.
+    rerunAdvisory: intAtLeast(rerunAdvisory, 0),
     skipValidation: !!resolveFlag(skipValidationParam, parsed.skipValidation),
     skipSync: !!resolveFlag(skipSyncParam, parsed.skipSync),
     noAutoMerge: !!resolveFlag(noAutoMergeParam, parsed.noAutoMerge),
