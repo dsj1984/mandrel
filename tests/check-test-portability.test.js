@@ -104,6 +104,29 @@ describe('check-test-portability — a RegExp built from a path', () => {
   });
 });
 
+describe('check-test-portability — a file URL read as a filesystem path', () => {
+  it('reports a file URL whose pathname is read as a path', () => {
+    const { status, findings } = runGuard({
+      'tests/pathname-bad.test.js':
+        'const root = path.dirname(new URL(import.meta.url).pathname);\n', // portability-allow: negative fixture, not live code
+    });
+    assert.equal(status, 1);
+    assert.deepEqual(
+      findings.map((f) => [f.file, f.line, f.shape]),
+      [['tests/pathname-bad.test.js', 1, 'url-pathname-as-path']],
+    );
+  });
+
+  it('accepts fileURLToPath, and ignores a non-file URL', () => {
+    const { status } = runGuard({
+      'tests/pathname-ok.test.js':
+        'const root = path.dirname(fileURLToPath(import.meta.url));\n' +
+        "const route = new URL('https://example.test/a/b').pathname;\n",
+    });
+    assert.equal(status, 0);
+  });
+});
+
 describe('check-test-portability — a dynamic import of a raw path', () => {
   it('reports an import whose argument is a path expression', () => {
     const { status, findings } = runGuard({

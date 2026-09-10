@@ -10,7 +10,7 @@
  * catching the shapes at authoring time is not, and that is what this guard
  * does.
  *
- * Two shapes, both invisible on POSIX and both fatal on Windows:
+ * Three shapes, all invisible on POSIX and all fatal on Windows:
  *
  *   1. **A `RegExp` built from an interpolated path.** `new RegExp(`source:
  *      ${src}`)` is accidentally literal on POSIX — a temp path carries no
@@ -22,6 +22,13 @@
  *      Windows path is not a valid ESM specifier: the drive letter reads as
  *      a URL scheme. The portable form is `pathToFileURL(p).href`, which is
  *      why the suite's own dynamic imports launder through it.
+ *
+ *   3. **A file URL's `.pathname` read as a filesystem path.** `new
+ *      URL(import.meta.url).pathname` yields `/D:/a/repo` on Windows, and the
+ *      leading slash survives `path.resolve` as a second drive letter, so the
+ *      test dies on `D:\D:\a\repo\package.json`. `fileURLToPath` is the one
+ *      spelling that round-trips on both platforms. This shape reached `main`
+ *      the same day this guard did, through a test the guard did not yet read.
  *
  * ## What is deliberately NOT flagged
  *
@@ -103,6 +110,19 @@ const URL_LAUNDERED =
  */
 const REGEX_ESCAPED =
   /\.replace(?:All)?\s*\(|\bescapeReg(?:Exp|ex)\b|\bregexEscape\b/;
+
+/**
+ * A **file** URL's `.pathname` read as though it were a filesystem path.
+ *
+ * Scoped to URLs built from a file source (`import.meta.url`, `pathToFileURL`,
+ * a `file://` literal) because `.pathname` on an http URL is a correct read
+ * with no filesystem meaning. On Windows the property yields `/D:/a/repo`,
+ * whose leading slash survives `path.resolve` as a second drive letter —
+ * `D:\D:\a\repo` — so the failure is an ENOENT naming an impossible path
+ * rather than anything that points at the real defect.
+ */
+const FILE_URL_PATHNAME =
+  /\bnew\s+URL\s*\([^()]*(?:import\.meta\.url|pathToFileURL|file:\/\/)[^()]*\)\s*\.pathname/g;
 
 /**
  * Blank out comments while preserving every byte offset and newline, so a
@@ -328,6 +348,10 @@ function scanSource(rel, source) {
     }
   }
 
+  for (const m of src.matchAll(FILE_URL_PATHNAME)) {
+    add(m.index, 'url-pathname-as-path', m[0].trim().replace(/\s+/g, ' '));
+  }
+
   for (const m of src.matchAll(/(?<![\w$.])import\s*\(/g)) {
     const open = m.index + m[0].length - 1;
     const args = captureArgs(src, open);
@@ -398,6 +422,8 @@ const REMEDIES = Object.freeze({
     'a path interpolated into a RegExp is literal on POSIX and escaped on Windows — assert with `includes()`, or escape the interpolation.',
   'import-raw-path':
     'a filesystem path is not a valid ESM specifier on Windows — import `pathToFileURL(p).href`.',
+  'url-pathname-as-path':
+    "a file URL's `.pathname` is a URL path, not a filesystem path: on Windows it reads `/D:/…`, and resolving it yields `D:\\D:\\…` — use `fileURLToPath(url)`.",
 });
 
 /**

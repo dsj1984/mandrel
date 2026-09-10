@@ -22,6 +22,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { ensureBaselineMergeDriver } from '../../.agents/scripts/lib/bootstrap/baseline-merge-driver.js';
 import {
@@ -485,8 +486,11 @@ describe('baselines merge driver — installed wherever base-sync runs (Story #5
     // command every contributor runs. Asserting the wiring rather than the
     // effect: running `npm install` inside a test would rewrite the config of
     // whatever repository the suite happens to execute in.
+    // `new URL(...).pathname` is a URL path, not a filesystem path: on Windows
+    // it reads `/D:/a/mandrel/...`, and resolving that yields `D:\D:\a\...`.
+    // `fileURLToPath` is the only spelling that round-trips on both platforms.
     const repoRoot = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname),
+      path.dirname(fileURLToPath(import.meta.url)),
       '../..',
     );
     const pkg = readJson(path.join(repoRoot, 'package.json'));
