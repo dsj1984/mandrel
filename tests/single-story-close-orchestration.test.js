@@ -1960,6 +1960,71 @@ describe('runSingleStoryClose — merged is what the run observed (Story #5279)'
     assert.equal(result.leaseReleased, false);
   });
 
+  it('AC-2: a failed gate tags the error with the outcomes the run observed', async (t) => {
+    // The wiring half of AC-2: `gatesForFailedPhase` can only REPORT what the
+    // runner hands it, so the tag itself has to be proven end to end. Without
+    // it the failed terminal falls back to naming no baselines gate at all,
+    // which is correct but vacuous.
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, {
+      namedExports: {
+        buildDefaultGates: () => [
+          {
+            name: REAL_BASELINES_GATE_NAMES.independent,
+            cmd: 'node',
+            args: [],
+          },
+        ],
+        runCloseValidation: async () => ({
+          ok: false,
+          failed: [
+            {
+              gate: { name: REAL_BASELINES_GATE_NAMES.independent },
+              status: 1,
+              cwd: '/repo',
+            },
+          ],
+          skipped: [],
+        }),
+      },
+    });
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=5279-gates`);
+    const err = await runSingleStoryClose({
+      storyId: 5282,
+      cwd: '/repo',
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5282,
+          state: 'open',
+          title: 'a red baselines gate',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: makeFakeGh(() => {
+        throw new Error('gh must not be reached: the gates failed first');
+      }),
+      injectedRunCodeReview: noopReview(),
+    }).then(
+      () => null,
+      (e) => e,
+    );
+
+    assert.ok(err, 'a red gate must throw, never return a failure');
+    assert.equal(err.closePhase, 'close-validation');
+    assert.deepEqual(err.closeGates, {
+      [REAL_BASELINES_GATE_NAMES.independent]: 'failed',
+    });
+    assert.ok(
+      !(REAL_BASELINES_GATE_NAMES.coverage in err.closeGates),
+      'the entry this run never registered must not appear',
+    );
+  });
+
   it('an ordinary wait that expired unmerged is still not merged', async (t) => {
     // The negative control for the derivation above: no confirmation, no
     // flip-failed class, no direct merge — nothing observed a merge.
