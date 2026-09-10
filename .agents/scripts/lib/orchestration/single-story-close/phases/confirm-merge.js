@@ -566,24 +566,6 @@ async function blockOnFlipFailed({
 }
 
 /**
- * Classify the unlanded merge, emit `merge.unlanded`, post a `friction`
- * comment, and transition the Story to `agent::blocked`. Every side effect
- * is best-effort logged rather than thrown — the caller owns surfacing the
- * non-zero exit once this returns.
- */
-/**
- * Story #5096 — resolve the advisory-gate terminal for one poll.
- *
- * Takes the poll's current `unlanded` and returns it unchanged when a terminal
- * is already decided, so the caller is a single assignment with NO added
- * branch. `runMergePoll` is already above `check-cyclomatic`'s ceiling; the
- * three decision points this would otherwise cost inline are a real gate
- * regression, and they belong with the policy either way.
- *
- * Disarms BEFORE returning the terminal: an armed PR can merge out from under
- * the block the caller is about to record.
- */
-/**
  * Story #5266 — the per-invocation advisory rerun allowance.
  *
  * `--rerun-advisory <n>` wins over `delivery.ci.rerunAdvisory` on exactly the
@@ -757,6 +739,24 @@ async function maybeRerunAdvisory({
   return true;
 }
 
+/**
+ * Story #5096 — resolve the advisory-gate terminal for one poll.
+ *
+ * Takes the poll's current `unlanded` and returns it unchanged when a terminal
+ * is already decided, so the caller is a single assignment with NO added
+ * branch. `runMergePoll` is already above `check-cyclomatic`'s ceiling; the
+ * three decision points this would otherwise cost inline are a real gate
+ * regression, and they belong with the policy either way.
+ *
+ * Disarms BEFORE returning the terminal: an armed PR can merge out from under
+ * the block the caller is about to record.
+ *
+ * Story #5266 threads three more steps through the same single assignment:
+ * runs this invocation already re-ran (and has no fresh verdict for) are
+ * skipped rather than re-blocked; the survivors are enriched with their own
+ * check-run output so the class can be `advisory-gate-inconclusive`; and a
+ * remaining rerun allowance is spent before any block is recorded.
+ */
 async function resolveAdvisoryUnlanded({
   unlanded,
   probe,
@@ -816,6 +816,12 @@ async function resolveAdvisoryUnlanded({
   };
 }
 
+/**
+ * Classify the unlanded merge, emit `merge.unlanded`, post a `friction`
+ * comment, and transition the Story to `agent::blocked`. Every side effect
+ * is best-effort logged rather than thrown — the caller owns surfacing the
+ * non-zero exit once this returns.
+ */
 async function blockOnUnlanded({
   storyId,
   prNumber,
