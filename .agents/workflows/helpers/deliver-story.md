@@ -95,21 +95,19 @@ suite run is the sole exception.
 
 ### Step 2.5 — Push, then the creditable full-suite run, then hand off
 
-**Push first**, after the self-eval loop's last fix commit: push
-`story-<storyId>` to `origin` and confirm the remote ref moved. The capture
-below is backgrounded, so *its* completion — not you — ends the turn; capture
-first and the turn reliably ends on an unpushed branch, which recovery reads as
-"implementation never finished". No PR is open yet, so nothing is risked.
+**Push first.** After the self-eval loop's last fix commit, push
+`story-<storyId>` to `origin`, confirming the remote ref moved: the capture
+below is backgrounded, so *its* completion ends the turn.
 
-Then run the full suite **once**, in the shape close credits (**digest § 5**):
-the credit is keyed on the tree, not on push state, so pushing costs nothing
-and any *later* commit invalidates it. A bare `npm test` deposits none.
-Red → fix, commit, push, re-capture.
+Then run the full suite **once**, after the push, in the shape close credits
+(**digest § 5**): the credit is keyed on the tree, not on push state, so only
+a *later* commit invalidates it; a bare `npm test` deposits none. Red →
+fix, commit, push, re-capture.
 
-Finally (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
-branch, pushed head SHA, self-eval verdict, `verify[]` evidence — then stop. Do
-not open the PR; do not compose a terminal envelope. An inline run makes the
-same capture before Step 3.
+Then (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
+branch, pushed head SHA, self-eval verdict, `verify[]` evidence — and stop.
+Do not open the PR or compose a terminal envelope. An inline run captures
+before Step 3.
 
 ## Step 3 — Close and land (`single-story-close.js`)
 
