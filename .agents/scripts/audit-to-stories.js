@@ -50,7 +50,7 @@ import {
 } from './lib/audit-to-stories/ledger-commit.js';
 import {
   parseAuditReports,
-  parseSeverityTally,
+  readSeverityTally,
 } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { wireAuditStoryEdges } from './lib/audit-to-stories/wire-dependencies.js';
@@ -209,6 +209,11 @@ function auditReportFailures({
  *   hand-written report). `allowMissingTally` downgrades ONLY this kind to a
  *   warning, for an interactive `--scan` over legacy reports.
  * - `tally-mismatch` — the report says one thing and the parse says another.
+ * - `duplicate-tally` — the report declares the tally more than once, so there
+ *   is no single number to check against. Adopting whichever line the scan
+ *   reached first would compare the parse against an arbitrary one of two
+ *   declarations, which is a cross-check in name only. `allowMissingTally`
+ *   does NOT downgrade it: the report is contradictory, not merely old.
  * - `unresolved-severity` — a finding parsed with no resolvable severity. It
  *   is a report defect, never an `unknown` group.
  *
@@ -232,7 +237,11 @@ function crossCheckReports({ reports, findings, allowMissingTally }) {
   for (const report of reports) {
     const own = byReport.get(report.sourceReport) ?? [];
     const parsed = comparableTally(own);
-    const reported = parseSeverityTally(report.markdown);
+    const {
+      tally: reported,
+      matches: tallyLines,
+      duplicate,
+    } = readSeverityTally(report.markdown);
     const sourceReport = report.sourceReport;
     const unresolved = own.filter((f) => !f.severity);
     if (unresolved.length > 0) {
@@ -243,6 +252,16 @@ function crossCheckReports({ reports, findings, allowMissingTally }) {
         parsed,
         titles: unresolved.map((f) => f.title),
       });
+    }
+    if (duplicate) {
+      failures.push({
+        sourceReport,
+        kind: 'duplicate-tally',
+        reported: null,
+        parsed,
+        tallyLines,
+      });
+      continue;
     }
     if (!reported) {
       const failure = {
@@ -282,7 +301,7 @@ function missingTallyWarning(failure) {
  *
  * Pure: returns the message string so the caller owns the single `Logger.warn`.
  *
- * @param {Array<{ sourceReport: string, kind: string, reported: object|null, parsed: object, titles?: string[] }>} failures
+ * @param {Array<{ sourceReport: string, kind: string, reported: object|null, parsed: object, titles?: string[], tallyLines?: string[] }>} failures
  * @returns {string}
  */
 function reportFailureWarning(failures) {
@@ -290,7 +309,13 @@ function reportFailureWarning(failures) {
     const titles = f.titles?.length
       ? ` findings=${f.titles.map((t) => `"${t}"`).join(', ')}`
       : '';
-    return `  - ${f.sourceReport} [${f.kind}] reported=${formatTally(f.reported)} parsed=${formatTally(f.parsed)}${titles}`;
+    // A duplicate names the competing lines rather than a tally: there is no
+    // single `reported` number to print, and "which two lines" is the whole
+    // remedy.
+    const declared = f.tallyLines?.length
+      ? ` declared=${f.tallyLines.map((t) => `"${t}"`).join(' | ')}`
+      : '';
+    return `  - ${f.sourceReport} [${f.kind}] reported=${formatTally(f.reported)} parsed=${formatTally(f.parsed)}${titles}${declared}`;
   });
   return [
     `audit report cross-check FAILED for ${failures.length} report(s) — the declared severity tally does not match the parsed findings:`,
