@@ -30,6 +30,30 @@
  * `tests/lib/cli-usage.test.js`; here we assert the observable half plus the
  * one thing a subprocess can see cheaply — that the run left the working tree
  * clean.
+ *
+ * ## Why the dirty-tree probe settles, and asks a subset question
+ *
+ * `git status --porcelain` measures the whole checkout, but the claim being
+ * made is about ~40 child processes that have all exited. `node --test` runs
+ * test files concurrently against that one checkout, so a sibling file that
+ * writes a tracked path — even for a few hundred milliseconds — lands in this
+ * reading and gets reported as a `--help` write. That is not hypothetical:
+ * CI run 34523840460 (Windows Smoke) red-lit here naming
+ * `.agents/workflows/mandrel-deliver.md`, which no script writes at all. The
+ * real author was `tests/generate-workflows-doc.test.js`, which proved the
+ * doc drift gate by editing that file in place and restoring it. That test
+ * now runs against a `--root` fixture, but the hazard is structural, so the
+ * probe no longer takes a single reading on trust:
+ *
+ *   - it **settles** — a difference is re-read until it stops changing (or a
+ *     small budget expires) before it is believed. A transient third-party
+ *     write reverts; a `--help` write cannot, because every child has exited
+ *     by the time this runs, so nothing is left to undo it. Settling
+ *     therefore removes false reports without weakening the real one; and
+ *   - it asks a **subset** question — "is any path dirty now that was not
+ *     dirty before?" A path that was dirty at module load and is clean now
+ *     was never a `--help` write, and demanding set equality made that
+ *     direction fail too.
  */
 
 import assert from 'node:assert/strict';
@@ -99,6 +123,38 @@ function worktreeStatus() {
 // comparison at the end measures what the help runs did, not how dirty the
 // checkout happened to be when the suite started.
 const STATUS_BEFORE = worktreeStatus();
+
+/**
+ * How long a difference is given to clear before it is believed.
+ *
+ * Paid only when something *is* dirty, so a green run never waits. Waiting
+ * for the difference to *clear* is the whole point — a reading that merely
+ * looks stable proves nothing, because a sibling test file holding a file
+ * dirty for a second looks perfectly stable at this sampling rate.
+ */
+const SETTLE_BUDGET_MS = 10_000;
+const SETTLE_STEP_MS = 100;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Entries dirty now that were not dirty at module load, re-read until they
+ * clear or the settle budget expires.
+ *
+ * @param {string[]} before Reading taken before the help runs.
+ * @returns {Promise<string[]>}
+ */
+async function settledNewlyDirty(before) {
+  const baseline = new Set(before);
+  const newlyDirty = () => worktreeStatus().filter((e) => !baseline.has(e));
+  let current = newlyDirty();
+  const deadline = Date.now() + SETTLE_BUDGET_MS;
+  while (current.length > 0 && Date.now() < deadline) {
+    await sleep(SETTLE_STEP_MS);
+    current = newlyDirty();
+  }
+  return current;
+}
 
 describe('workflow-invoked scripts are self-describing', () => {
   it('derives a non-empty adoption set from the workflow corpus', () => {
@@ -186,13 +242,18 @@ describe('workflow-invoked scripts are self-describing', () => {
     );
   });
 
-  it('leaves the working tree exactly as it found it', () => {
+  it('leaves the working tree exactly as it found it', async () => {
     assert.deepEqual(
-      worktreeStatus(),
-      STATUS_BEFORE,
-      '`--help` mutated the working tree. A help branch must short-circuit ' +
-        'before any write — check that the script routes help through ' +
-        "runAsCli's `usage` option rather than a check inside main().",
+      await settledNewlyDirty(STATUS_BEFORE),
+      [],
+      '`--help` mutated the working tree, and the change was still there ' +
+        `after settling for ${SETTLE_BUDGET_MS}ms. A help branch must ` +
+        'short-circuit before any write — check that the script routes help ' +
+        "through runAsCli's `usage` option rather than a check inside " +
+        'main(). If the path named above belongs to no script here, the ' +
+        'other suspect is a concurrently-running test file writing a tracked ' +
+        'path in this shared checkout; such a test belongs on a tmpdir ' +
+        'fixture (see tests/generate-workflows-doc.test.js).',
     );
   });
 });
