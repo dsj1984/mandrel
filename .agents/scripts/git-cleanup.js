@@ -157,6 +157,10 @@ runAsCli(import.meta.url, main, {
         'Never consider branches matching the glob (repeatable).',
       ],
       ['--drop-stashes <ref>', 'Stash ref approved for dropping (repeatable).'],
+      [
+        '--include-content-merged',
+        'Under --yes, also delete remote refs detected only by content-equivalence.',
+      ],
       ['--base <branch>', 'Base branch (default: project.baseBranch).'],
       ['--cwd <path>', 'Repository root (default: process cwd).'],
     ],

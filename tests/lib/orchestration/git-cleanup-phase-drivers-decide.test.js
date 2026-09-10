@@ -177,7 +177,21 @@ describe('decideBranchPhase', () => {
       candidates: plan.candidates,
       cwd,
       remote: true,
+      // Story #5283: nobody saw the weak-signal note, so the unattended
+      // arm arms the guard unless the operator opted in below.
+      skipWeakSignal: true,
     });
+  });
+
+  it('--yes --include-content-merged disarms the weak-signal guard', () => {
+    const plan = { candidates: [{ name: 'c' }] };
+    const action = decideBranchPhase({
+      plan,
+      opts: { yes: true, remote: true, includeContentMerged: true },
+      cwd,
+    });
+    assert.equal(action.kind, 'execute');
+    assert.equal(action.executeArgs.skipWeakSignal, false);
   });
 
   // -------------------------------------------------------------------

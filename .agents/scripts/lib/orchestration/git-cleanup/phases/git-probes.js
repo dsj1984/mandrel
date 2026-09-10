@@ -333,13 +333,28 @@ export function probeLatestPr(branch, cwd, runGh = defaultGhRunner) {
  * fallback for head refs absent from this page (a branch whose PR fell
  * outside the `--limit` window).
  *
- * Returns an empty Map on any failure (non-array, empty, or malformed
+ * Returns an empty index on any failure (non-array, empty, or malformed
  * JSON) so the caller transparently falls back to per-branch probing.
+ *
+ * ## `complete` — when absence from the page is proof (Story #5283)
+ *
+ * The returned `complete` flag says whether the page enumerated **every**
+ * PR in the repository: true when `gh` returned fewer rows than the
+ * `--limit` it was given, which is the only way to know the window did
+ * not truncate. On a complete page a head ref's absence is not "the PR
+ * fell outside the window" — it is proof that no PR covers that ref at
+ * all, so the caller's per-branch fallback can only re-derive the same
+ * `null` at the cost of one `gh` spawn per PR-less branch.
+ *
+ * Every failure mode reports `complete: false`, because an unusable page
+ * proves nothing: empty stdout (a degraded `gh`), unparseable JSON, and a
+ * non-array payload must all leave the fallback armed. A *parsed* empty
+ * array is genuinely complete — a repository with no PRs at all.
  *
  * @param {string} cwd
  * @param {(args: string[], opts: { cwd: string }) => string} runGh
  * @param {number} limit  Max rows to fetch in the single page (default 1000).
- * @returns {Map<string, { number: number, state: string, mergedAt: string|null, closedAt: string|null, headRefOid: string|null }>}
+ * @returns {{ index: Map<string, { number: number, state: string, mergedAt: string|null, closedAt: string|null, headRefOid: string|null }>, complete: boolean }}
  */
 export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
   const out = runGh(
@@ -357,14 +372,15 @@ export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
   );
   const trimmed = (out ?? '').trim();
   const index = new Map();
-  if (!trimmed) return index;
+  const truncated = { index, complete: false };
+  if (!trimmed) return truncated;
   let parsed;
   try {
     parsed = JSON.parse(trimmed);
   } catch {
-    return index;
+    return truncated;
   }
-  if (!Array.isArray(parsed)) return index;
+  if (!Array.isArray(parsed)) return truncated;
   for (const row of parsed) {
     const headRefName =
       typeof row?.headRefName === 'string' ? row.headRefName : null;
@@ -379,7 +395,7 @@ export function probeAllPrs(cwd, runGh = defaultGhRunner, limit = 1000) {
       headRefOid: row.headRefOid ?? null,
     });
   }
-  return index;
+  return { index, complete: parsed.length < limit };
 }
 
 const SHA_RE = /^[0-9a-f]{7,40}$/i;

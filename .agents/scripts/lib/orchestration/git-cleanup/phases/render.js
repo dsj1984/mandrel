@@ -227,18 +227,40 @@ export function renderLatestPrSkipLine(skip) {
   return null;
 }
 
-/** Pure: render a per-branch execution line. */
+/**
+ * Remedy text per withheld-delete reason (Story #5283). A withheld entry
+ * that named no way to proceed would read as an unexplained refusal, so
+ * every reason the executor can record gets its own next step here.
+ */
+const WITHHELD_HINTS = {
+  'weak-signal-needs-confirmation':
+    'detected only by content-equivalence; re-run interactively or pass --include-content-merged',
+};
+
+/**
+ * Pure: render a per-branch execution line.
+ *
+ * An entry marked `skipped` is a delete the executor deliberately
+ * withheld rather than one it attempted — it must not render with the
+ * `✅` of a completed reap, which is exactly the misreport that would let
+ * an operator believe an unattended run had cleaned up a ref it left
+ * standing.
+ */
 export function renderExecutionLine(entry, scope) {
-  const icon = entry.ok ? '✅' : '❌';
   const label = scope.padEnd(8);
-  const tag =
+  const tagName =
     scope === 'local' || scope === 'remote' ? entry.branch : entry.path;
+  if (entry.skipped) {
+    const hint = WITHHELD_HINTS[entry.reason];
+    return `${TAG} ⏭️  ${label} ${tagName} — withheld${hint ? ` (${hint})` : ` (${entry.reason})`}`;
+  }
+  const icon = entry.ok ? '✅' : '❌';
   const note = entry.alreadyGone
     ? ' (already gone)'
     : entry.dirty
       ? ' (forced — was dirty)'
       : '';
-  return `${TAG} ${icon} ${label} ${tag}${note}`;
+  return `${TAG} ${icon} ${label} ${tagName}${note}`;
 }
 
 /** Pure: render the optional prune line. */
@@ -286,7 +308,15 @@ export function renderExecutionSummary(result) {
     deferredCount > 0
       ? ` (${deferredCount} worktree(s) deferred to sweep)`
       : '';
-  return `${TAG} ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s)${pruneNote}.${deferredNote}`;
+  // Story #5283: withheld remote entries are recorded on `remote[]` but
+  // were never deleted — counting them would overstate the reap.
+  const remoteDeleted = result.remote.filter((r) => !r.skipped).length;
+  const withheldCount = result.remote.length - remoteDeleted;
+  const withheldNote =
+    withheldCount > 0
+      ? ` (${withheldCount} remote delete(s) withheld — weaker signal)`
+      : '';
+  return `${TAG} ✅ Reaped ${result.local.length} local + ${remoteDeleted} remote + ${result.worktrees.length} worktree(s)${pruneNote}.${deferredNote}${withheldNote}`;
 }
 
 const EMPTY_RESULT = Object.freeze({
