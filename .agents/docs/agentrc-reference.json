@@ -75,7 +75,8 @@
     ],
     "memoryPool": {
       "staleAfterDays": 30,
-      "growthDelta": 25
+      "growthDelta": 25,
+      "indexByteCeiling": 24576
     },
     "failOnSharedEditors": false,
     "requireExplicitCrossStoryDeps": false,

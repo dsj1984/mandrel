@@ -2719,10 +2719,14 @@ the disambiguation without reopening that failure.
 **Hard cutover, no shim.** No compatibility `plan.md` or `deliver.md` remains
 under `.agents/workflows/`. A shim would re-project `.claude/commands/plan.md`
 and recreate the exact collision the rename removes, so the old names are gone
-rather than deprecated. Consumers need no migration step: the
-`sync-claude-commands.js` orphan reap deletes their stale command files on the
-next sync. The rename is consumer-breaking and ships with a `BREAKING CHANGE:`
-footer.
+rather than deprecated. Consumers need no migration step *beyond the one they
+already run*: the `sync-claude-commands.js` orphan reap deletes their stale
+command files, and it runs under `mandrel update` (as its `sync-commands`
+phase) or under `mandrel sync-commands` invoked directly. **`mandrel sync`
+does not reap** — it materializes `.agents/` and never touches
+`.claude/commands/` — so a consumer who only runs `sync` keeps a stale
+`/plan.md` pointing at a workflow that no longer exists. The rename is
+consumer-breaking and ships with a `BREAKING CHANGE:` footer.
 
 ### Consequences
 

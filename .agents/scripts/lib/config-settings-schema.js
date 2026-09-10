@@ -16,6 +16,7 @@ import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
 // resolved AGENTRC_SCHEMA is unchanged.
 import { DELIVERY_SCHEMA } from './config-settings-schema-delivery.js';
 import compiledAgentrcValidator from './generated/agentrc-validator.js';
+import { SKILL_ID_RE } from './skills/walk-skill-files.js';
 
 /**
  * Annotation contract (Story #5007). These schema literals are the SINGLE
@@ -529,6 +530,13 @@ const PLANNING_SCHEMA = {
             'Recommend a consolidation pass once this many entries have been written since the last one. Measured against the entry count the last pass stamped, so a stamp predating that field leaves growth unmeasured and only the age threshold applies. Default 25.',
           default: 25,
         },
+        indexByteCeiling: {
+          type: 'integer',
+          minimum: 1,
+          description:
+            "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. Independent of the age and growth thresholds: the harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
+          default: 24576,
+        },
       },
       additionalProperties: false,
     },
@@ -681,7 +689,17 @@ const QA_SIGN_IN_SEAM_SCHEMA = {
     {
       type: 'object',
       properties: {
-        skill: { ...SAFE_STRING, minLength: 1 },
+        // The id is joined onto a skills root to reach a `SKILL.md`, so the
+        // shape is validated here rather than at the path join (Story #5285).
+        // `SKILL_ID_RE` is imported, never restated: one regex, two
+        // enforcement points — this schema and `resolveSkillFile`.
+        skill: {
+          ...SAFE_STRING,
+          minLength: 1,
+          pattern: SKILL_ID_RE.source,
+          description:
+            'Tier-relative skill id, e.g. `stack/qa/acme-sso`: lowercase segments of letters, digits, `.`, `_` or `-`, at least two of them, separated by `/`. A traversal (`../..`), an absolute path, a backslash or an uppercase segment is rejected here rather than normalized.',
+        },
       },
       required: ['skill'],
       additionalProperties: false,
