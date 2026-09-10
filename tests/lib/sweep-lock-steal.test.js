@@ -436,3 +436,226 @@ describe('readLockHolderPid (Story #5173)', () => {
     assert.equal(readLockHolderPid(lockPath), null);
   });
 });
+
+/**
+ * Story #5278 — the two liveness signals the mtime heuristic could not give.
+ *
+ * `timeoutMs` answers "how long since the holder last got a turn on the event
+ * loop", which is only a proxy for "is the holder still working". These pin
+ * the two places the proxy was wrong in a way that cost real time: a holder
+ * that is *definitely gone* (its pid no longer exists) had to be waited out
+ * anyway, and a holder killed by Ctrl-C left its lockfile behind for every
+ * sibling to wait out in turn.
+ */
+describe('sweep-lock — a dead holder is reclaimed at once (Story #5278)', () => {
+  /** Plant a held lockfile whose pid line names `pid`, at `mtimeMs`. */
+  function plantHolder(fsImpl, { pid, nowFn }) {
+    const holder = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder',
+      nowFn,
+      fsImpl,
+      heartbeatMs: 0,
+    });
+    assert.equal(holder.acquired, true);
+    // `tryCreateLock` stamps the real `process.pid`; rewrite the third line so
+    // the test controls which process the lockfile claims to belong to.
+    const file = fsImpl.files.get(LOCK);
+    const [owner, ts] = String(file.body).split('\n');
+    file.body = `${owner}\n${ts}\n${pid}\n`;
+    return holder;
+  }
+
+  // AC-3 — no waiting for `staleMs` on a lock nobody is behind.
+  it('AC-3: an ESRCH pid is stale immediately, well inside timeoutMs', () => {
+    let now = 1_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantHolder(fsImpl, { pid: 424_242, nowFn: () => now });
+
+    now += 1_000; // a thousandth of the 60s window: nowhere near stale
+    const taken = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'next',
+      nowFn: () => now,
+      fsImpl,
+      heartbeatMs: 0,
+      killFn: () => {
+        const err = new Error('ESRCH');
+        err.code = 'ESRCH';
+        throw err;
+      },
+    });
+    assert.equal(taken.acquired, true, 'a dead holder must not be waited out');
+  });
+
+  it('AC-3: is one-directional — a live pid still goes stale on mtime', () => {
+    let now = 1_000;
+    const fsImpl = makeFakeFs(() => now);
+    plantHolder(fsImpl, { pid: 4711, nowFn: () => now });
+
+    // Alive and fresh: contended, exactly as before.
+    assert.equal(
+      isHeldWithKill(fsImpl, now + 1_000, () => {}),
+      true,
+    );
+    // Alive but long past the window: the mtime rule still reclaims it. A
+    // live pid must never make a hung holder immortal — that would break the
+    // reclaim contract `withFullSuiteLockSync` depends on.
+    now += 10 * 60_000;
+    const taken = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'next',
+      nowFn: () => now,
+      fsImpl,
+      heartbeatMs: 0,
+      killFn: () => {},
+    });
+    assert.equal(taken.acquired, true);
+  });
+
+  it('AC-3: an unreadable pid falls back to the mtime heuristic unchanged', () => {
+    let now = 1_000;
+    const fsImpl = makeFakeFs(() => now);
+    const holder = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder',
+      nowFn: () => now,
+      fsImpl,
+      heartbeatMs: 0,
+    });
+    assert.equal(holder.acquired, true);
+    fsImpl.files.get(LOCK).body = 'holder\nts\n'; // no pid line at all
+
+    now += 1_000;
+    assert.equal(
+      isHeldWithKill(fsImpl, now, () => {}),
+      true,
+      'fresh → held',
+    );
+    now += 10 * 60_000;
+    assert.equal(
+      isHeldWithKill(fsImpl, now, () => {}),
+      false,
+      'old → stale',
+    );
+  });
+
+  /** {@link isHeld}, with the liveness probe under the test's control. */
+  function isHeldWithKill(fsImpl, nowMs, killFn) {
+    const probe = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'probe',
+      nowFn: () => nowMs,
+      fsImpl,
+      heartbeatMs: 0,
+      killFn,
+    });
+    if (probe.acquired) {
+      probe.release();
+      return false;
+    }
+    return true;
+  }
+});
+
+describe('sweep-lock — a signalled holder releases before it dies (#5278)', () => {
+  /**
+   * A fake `process` standing in for the real one: it records the handlers
+   * registered against it and lets the test deliver a signal, so the contract
+   * ("the lockfile is gone before the re-raise, and the re-raise carries the
+   * same signal") is observable without killing the test runner.
+   */
+  function makeFakeProcess() {
+    const listeners = new Map();
+    return {
+      pid: 4242,
+      raised: [],
+      once(event, fn) {
+        listeners.set(event, [...(listeners.get(event) ?? []), fn]);
+      },
+      off(event, fn) {
+        listeners.set(
+          event,
+          (listeners.get(event) ?? []).filter((f) => f !== fn),
+        );
+      },
+      kill(_pid, signal) {
+        this.raised.push(signal);
+      },
+      count(event) {
+        return (listeners.get(event) ?? []).length;
+      },
+      deliver(event) {
+        for (const fn of [...(listeners.get(event) ?? [])]) fn();
+      },
+    };
+  }
+
+  // AC-4 — the lockfile must be gone by the time the process exits 130.
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    it(`AC-4: ${signal} releases the lock, then re-raises the same signal`, () => {
+      const now = 1_000;
+      const fsImpl = makeFakeFs(() => now);
+      const processImpl = makeFakeProcess();
+      const holder = acquireSweepLock({
+        lockPath: LOCK,
+        ownerId: 'holder',
+        nowFn: () => now,
+        fsImpl,
+        heartbeatMs: 0,
+        processImpl,
+      });
+      assert.equal(holder.acquired, true);
+      assert.equal(fsImpl.files.has(LOCK), true);
+
+      processImpl.deliver(signal);
+      assert.equal(
+        fsImpl.files.has(LOCK),
+        false,
+        'the lockfile must be gone before the process dies',
+      );
+      assert.deepEqual(
+        processImpl.raised,
+        [signal],
+        're-raising the same signal is what preserves exit 128+signum (130 for SIGINT)',
+      );
+    });
+  }
+
+  it('AC-4: the re-raise cannot loop — the handler detaches itself first', () => {
+    const now = 1_000;
+    const fsImpl = makeFakeFs(() => now);
+    const processImpl = makeFakeProcess();
+    acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder',
+      nowFn: () => now,
+      fsImpl,
+      heartbeatMs: 0,
+      processImpl,
+    });
+    processImpl.deliver('SIGINT');
+    assert.equal(processImpl.count('SIGINT'), 0);
+    assert.equal(processImpl.count('SIGTERM'), 0);
+  });
+
+  it('a released holder stops intercepting signals it has nothing to clean up for', () => {
+    const now = 1_000;
+    const fsImpl = makeFakeFs(() => now);
+    const processImpl = makeFakeProcess();
+    const holder = acquireSweepLock({
+      lockPath: LOCK,
+      ownerId: 'holder',
+      nowFn: () => now,
+      fsImpl,
+      heartbeatMs: 0,
+      processImpl,
+    });
+    assert.equal(processImpl.count('SIGINT'), 1);
+    holder.release();
+    assert.equal(processImpl.count('SIGINT'), 0);
+    assert.equal(processImpl.count('SIGTERM'), 0);
+    processImpl.deliver('SIGINT');
+    assert.deepEqual(processImpl.raised, [], 'nothing left to re-raise');
+  });
+});

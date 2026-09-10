@@ -103,6 +103,44 @@ function heartbeatIntervalFor(timeoutMs) {
 }
 
 /**
+ * Signals whose default disposition kills the process. A holder that takes
+ * one MUST drop its lockfile before it dies: the `'exit'` guard in
+ * {@link buildAcquired} never runs for a signal Node has not been asked to
+ * handle, so before Story #5278 a Ctrl-C during a full suite left a lockfile
+ * behind that every sibling then had to wait `timeoutMs` to break.
+ */
+const RELEASE_ON_SIGNALS = Object.freeze(['SIGINT', 'SIGTERM']);
+
+/**
+ * Is `pid` a process this host is still running?
+ *
+ * `kill(pid, 0)` performs the permission and existence checks without
+ * delivering a signal. Three outcomes matter:
+ *
+ *   - it returns → the process exists and is ours: **alive**;
+ *   - `EPERM` → the process exists but belongs to another user: **alive**
+ *     (an existence check that we are not allowed to complete is not
+ *     evidence of death);
+ *   - `ESRCH` → no such process: **dead**.
+ *
+ * A pid that cannot be read at all resolves to `null` — "unknown", which
+ * leaves the mtime heuristic in charge exactly as before.
+ *
+ * @param {number|null} pid
+ * @param {(pid: number, signal: number) => void} [killFn]
+ * @returns {boolean|null} `null` when the pid is unknown.
+ */
+function isHolderAlive(pid, killFn = process.kill.bind(process)) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
+  try {
+    killFn(pid, 0);
+    return true;
+  } catch (err) {
+    return err?.code === 'ESRCH' ? false : true;
+  }
+}
+
+/**
  * Read the lockfile's *identity* — the tuple that distinguishes "the file I
  * observed" from "a different file that now sits at the same path". `dev` +
  * `ino` change when a lockfile is unlinked and re-created, and `mtimeMs`
@@ -265,7 +303,11 @@ function tryCreateLock(lockPath, ownerId, fsImpl = fs) {
  *                                         `timeoutMs`. `0` disables it.
  * @param {Function} [opts.setIntervalFn]  Timer seam for tests.
  * @param {Function} [opts.clearIntervalFn] Timer seam for tests.
- * @returns {{ acquired: true, release: () => void, ownerId: string }
+ * @param {Function} [opts.killFn]        `process.kill` seam for the holder
+ *                                        liveness probe (Story #5278).
+ * @param {object} [opts.processImpl]     `process` seam for the
+ *                                        release-on-signal handlers.
+ * @returns {{ acquired: true, release: () => void, refresh: () => boolean, ownerId: string }
  *          | { acquired: false, reason: 'contended' | 'error', detail?: string }}
  */
 export function acquireSweepLock({
@@ -277,6 +319,8 @@ export function acquireSweepLock({
   heartbeatMs,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  killFn,
+  processImpl = process,
 } = {}) {
   if (typeof lockPath !== 'string' || lockPath.length === 0) {
     return {
@@ -294,6 +338,8 @@ export function acquireSweepLock({
     heartbeatMs: heartbeatMs ?? heartbeatIntervalFor(timeoutMs),
     setIntervalFn,
     clearIntervalFn,
+    killFn,
+    processImpl,
   };
   try {
     if (
@@ -321,14 +367,54 @@ export function acquireSweepLock({
  * @param {number} timeoutMs
  * @returns {boolean}
  */
-function tryStaleTakeover({ lockPath, ownerId, fsImpl, nowFn }, timeoutMs) {
+function tryStaleTakeover(
+  { lockPath, ownerId, fsImpl, nowFn, killFn },
+  timeoutMs,
+) {
   const observed = readLockIdentity(lockPath, fsImpl);
   if (observed === null) return false;
-  if (!isLockStale(observed.mtimeMs, nowFn(), timeoutMs)) return false;
+  if (
+    !isHolderStale({ lockPath, fsImpl, nowFn, killFn, observed, timeoutMs })
+  ) {
+    return false;
+  }
   return (
     breakStaleLock(lockPath, observed, fsImpl) &&
     tryCreateLock(lockPath, ownerId, fsImpl)
   );
+}
+
+/**
+ * Is the observed holder dead enough to take over? Story #5278 adds the
+ * holder's **pid** as a way to answer "yes" *sooner* — never as a way to
+ * answer "no".
+ *
+ *   - pid **dead** (`ESRCH`) → stale immediately, whatever the mtime says. A
+ *     crashed or Ctrl-C'd holder no longer costs every sibling a full
+ *     `timeoutMs` wait for a lockfile nobody is behind.
+ *   - anything else (alive, or an unreadable pid) → the mtime heuristic
+ *     decides, byte-for-byte the pre-#5278 rule.
+ *
+ * Deliberately one-directional. Letting a live pid *veto* the mtime rule
+ * would make a hung holder immortal and would break the reclaim contract the
+ * full-suite lock depends on; keeping the holder's mtime advancing while it
+ * works is the heartbeat's job (`refreshLockSync`), not this predicate's.
+ *
+ * @param {{ lockPath: string, fsImpl: object, nowFn: () => number, killFn?: Function, observed: {mtimeMs: number}, timeoutMs: number }} args
+ * @returns {boolean}
+ */
+function isHolderStale({
+  lockPath,
+  fsImpl,
+  nowFn,
+  killFn,
+  observed,
+  timeoutMs,
+}) {
+  if (isHolderAlive(readLockHolderPid(lockPath, fsImpl), killFn) === false) {
+    return true;
+  }
+  return isLockStale(observed.mtimeMs, nowFn(), timeoutMs);
 }
 
 /**
@@ -362,10 +448,23 @@ function breakStaleLock(lockPath, observed, fsImpl) {
  * line is no longer ours — after a steal the file belongs to someone else and
  * bumping its mtime would keep *their* lock alive on our behalf.
  *
+ * **The synchronous refresh entry point (Story #5278).** The interval-driven
+ * heartbeat below only fires when the holder's event loop gets a turn, which
+ * a `spawnSync` critical section never gives it. A caller on such a stack
+ * calls this directly — immediately before it blocks — so the lock it is
+ * about to sit on carries a current mtime rather than the one it was created
+ * with minutes earlier.
+ *
+ * @param {{ lockPath: string, ownerId: string, fsImpl?: object, nowFn?: () => number }} holder
  * @returns {boolean} `true` when the refresh landed; `false` when the lock is
  *   no longer ours (the caller stops heartbeating).
  */
-function refreshLockMtime({ lockPath, ownerId, fsImpl, nowFn }) {
+export function refreshLockSync({
+  lockPath,
+  ownerId,
+  fsImpl = fs,
+  nowFn = Date.now,
+}) {
   if (readLockOwner(lockPath, fsImpl) !== ownerId) return false;
   try {
     const stamp = new Date(nowFn());
@@ -398,7 +497,7 @@ function startHeartbeat(holder) {
     }
   };
   timer = setIntervalFn(() => {
-    if (!refreshLockMtime(holder)) stop();
+    if (!refreshLockSync(holder)) stop();
   }, heartbeatMs);
   if (timer && typeof timer.unref === 'function') timer.unref();
   return stop;
@@ -424,22 +523,83 @@ function unlinkIfOwned(lockPath, ownerId, fsImpl) {
 }
 
 function buildAcquired(holder) {
-  const { lockPath, ownerId, fsImpl } = holder;
+  const { lockPath, ownerId, fsImpl, processImpl = process } = holder;
   const stopHeartbeat = startHeartbeat(holder);
   let released = false;
+  let detachSignals = () => {};
   const release = () => {
     if (released) return;
     released = true;
     stopHeartbeat();
+    detachSignals();
     unlinkIfOwned(lockPath, ownerId, fsImpl);
   };
   // Belt-and-braces: process exit also clears the lockfile so a
   // crashed run doesn't leave a stale-but-not-yet-old artifact behind.
   const exitCleanup = () => release();
-  if (typeof process.once === 'function') {
-    process.once('exit', exitCleanup);
+  if (typeof processImpl?.once === 'function') {
+    processImpl.once('exit', exitCleanup);
   }
-  return { acquired: true, release, ownerId };
+  detachSignals = attachSignalRelease(processImpl, release);
+  return {
+    acquired: true,
+    release,
+    refresh: () => refreshLockSync(holder),
+    ownerId,
+  };
+}
+
+/**
+ * Drop the lock on SIGINT / SIGTERM, then re-raise so the process still dies
+ * the way its caller asked it to (Story #5278).
+ *
+ * The `'exit'` guard above does not cover this: Node only runs `'exit'`
+ * handlers for a signal it has been asked to handle, so an unhandled Ctrl-C
+ * terminates the process with the lockfile still on disk. Registering here
+ * changes only *cleanup*, never the outcome — the handler removes itself and
+ * re-sends the same signal, so with no other listener the process dies under
+ * the default disposition and exits 128 + signum (130 for SIGINT), exactly as
+ * it did before.
+ *
+ * Returns a detach callback so a released holder stops intercepting signals
+ * it no longer has anything to clean up for.
+ *
+ * @param {object} processImpl
+ * @param {() => void} release
+ * @returns {() => void} detach
+ */
+function attachSignalRelease(processImpl, release) {
+  if (
+    typeof processImpl?.once !== 'function' ||
+    typeof processImpl?.off !== 'function' ||
+    typeof processImpl?.kill !== 'function'
+  ) {
+    return () => {};
+  }
+  const handlers = RELEASE_ON_SIGNALS.map((signal) => {
+    const handler = () => {
+      release();
+      // `release()` has already detached every handler, so this re-raise
+      // reaches the default disposition (or another listener) rather than
+      // looping back into us.
+      try {
+        processImpl.kill(processImpl.pid, signal);
+      } catch {
+        // A process that cannot signal itself is already on its way out.
+      }
+    };
+    processImpl.once(signal, handler);
+    return [signal, handler];
+  });
+  return () => {
+    for (const [signal, handler] of handlers) {
+      try {
+        processImpl.off(signal, handler);
+      } catch {
+        // Best-effort: a seam may not implement removal.
+      }
+    }
+  };
 }
 
 const DEFAULT_WAIT_MS = 8_000;
@@ -501,6 +661,8 @@ export async function acquireLockWithWait({
   heartbeatMs,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
+  killFn,
+  processImpl,
 } = {}) {
   const deadline = nowFn() + Math.max(0, waitMs);
   for (;;) {
@@ -513,6 +675,8 @@ export async function acquireLockWithWait({
       heartbeatMs,
       setIntervalFn,
       clearIntervalFn,
+      killFn,
+      processImpl,
     });
     if (res.acquired) return res;
     // A hard error will not resolve by retrying — surface it immediately.

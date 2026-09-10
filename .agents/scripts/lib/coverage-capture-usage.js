@@ -27,13 +27,17 @@ import { respondToHelp } from './cli-usage.js';
  */
 const COVERAGE_CAPTURE_USAGE = {
   invocation:
-    'node .agents/scripts/coverage-capture.js [--skip-when-no-crap-files] [--ref <git-ref>] [--cwd <path>]',
+    'node .agents/scripts/coverage-capture.js [--skip-when-no-crap-files] [--require-credited] [--ref <git-ref>] [--cwd <path>]',
   summary:
     'Ensure coverage/coverage-final.json is present and fresh before the CRAP gate fires, spawning `npm run test:coverage` only when it is stale. Writes a content-digest capture stamp that close-validation reads to skip a redundant re-run.',
   flags: [
     [
       '--skip-when-no-crap-files',
       'Exit 0 without capturing when no changed file under the CRAP target dirs differs from --ref.',
+    ],
+    [
+      '--require-credited',
+      'Refuse (exit 1) instead of spawning when no credited capture stamp covers this tree. Passed by the close gate when delivery.execution.requireCreditedCapture is set; a bare invocation always runs, so the deposit path stays open.',
     ],
     ['--ref <git-ref>', 'Git ref the changed-file set is computed against.'],
     ['--cwd <path>', 'Repository root the capture runs in.'],

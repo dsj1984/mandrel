@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-10T16:45:44.498Z",
+  "generatedAt": "2026-09-10T21:29:05.055Z",
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 47,
-      "methodsAboveCeiling": 51,
+      "filesAboveCeiling": 46,
+      "methodsAboveCeiling": 50,
       "maxCyclomatic": 20
     }
   },
@@ -22,11 +22,6 @@
     },
     {
       "file": ".agents/scripts/diagnose-friction.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/evidence-gate.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
     },

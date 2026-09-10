@@ -8,9 +8,11 @@
  * surfaces actionable hints on failure.
  */
 
+import { gitSpawn } from '../git-utils.js';
 import {
   recordPass as defaultRecordPass,
   shouldSkip as defaultShouldSkip,
+  treeFingerprint as defaultTreeFingerprint,
   hashCommandConfig,
 } from '../validation-evidence.js';
 import {
@@ -25,6 +27,20 @@ import { defaultGetHeadSha } from './projections/head-sha.js';
 /** @typedef {import('./gates.js').Gate} Gate */
 
 function applyChangedFileScope({ gate, spawnCwd, log }) {
+  // Story #5278 — a skip the gate list already decided (the coverage-capture
+  // gate whose incremental skip is known to fire). Honoured before anything
+  // else so the gate is recorded as `skipped` with its real reason rather
+  // than spawned to discover the same thing minutes later.
+  if (gate.skip) {
+    log(`[close-validation] ⏭ ${gate.name} skipped (${gate.skip.reason})`);
+    return {
+      gate,
+      cmd: gate.cmd,
+      args: gate.args,
+      skip: true,
+      skipReason: gate.skip.reason,
+    };
+  }
   if (!gate.changedFileScope) {
     return { gate, cmd: gate.cmd, args: gate.args, skip: false };
   }
@@ -116,6 +132,7 @@ function applyChangedFileScope({ gate, spawnCwd, log }) {
  *   useEvidence?: boolean,
  *   evidenceClock?: () => number,
  *   getHeadSha?: (cwd: string) => string|null,
+ *   getTreeFingerprint?: (cwd: string) => string|null,
  *   recordPass?: typeof defaultRecordPass,
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts
@@ -137,6 +154,8 @@ export async function runCloseValidation({
   useEvidence = true,
   evidenceClock = () => Date.now(),
   getHeadSha = (resolvedCwd) => defaultGetHeadSha(resolvedCwd),
+  getTreeFingerprint = (resolvedCwd) =>
+    defaultTreeFingerprint(resolvedCwd, gitSpawn),
   recordPass = defaultRecordPass,
   shouldSkip = defaultShouldSkip,
 } = {}) {
@@ -153,6 +172,13 @@ export async function runCloseValidation({
   // Story #1120.
   const spawnCwd = worktreePath ?? cwd;
   const headSha = evidenceActive ? getHeadSha(spawnCwd) : null;
+  // Story #5278 — one tree fingerprint for the whole run, not one per gate.
+  // Every gate here reads the same working tree, so an identical tree means
+  // identical inputs for all of them; a per-gate scope would be narrower but
+  // would have to model each gate's read set, and being wrong about that
+  // grants a skip the gate did not earn. A gate that carries its own
+  // `inputFingerprint` still wins.
+  const treeSha = evidenceActive ? getTreeFingerprint(spawnCwd) : null;
 
   // Helper closures so the parallel and serial passes share evidence
   // bookkeeping bit-for-bit.
@@ -166,7 +192,7 @@ export async function runCloseValidation({
         gateName: gate.name,
         currentSha: headSha,
         configHash,
-        inputFingerprint: gate.inputFingerprint ?? null,
+        inputFingerprint: gate.inputFingerprint ?? treeSha,
       },
       evidenceStoreOpts,
     );
@@ -192,7 +218,7 @@ export async function runCloseValidation({
           configHash,
           exitCode: 0,
           durationMs,
-          inputFingerprint: gate.inputFingerprint ?? null,
+          inputFingerprint: gate.inputFingerprint ?? treeSha,
         },
         evidenceStoreOpts,
       );
@@ -214,7 +240,7 @@ export async function runCloseValidation({
    *
    * @returns {Promise<{ status: number }>}
    */
-  const dispatchGate = async (gate, signal) => {
+  const dispatchGate = async (gate, signal, configHash) => {
     log(
       `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
     );
@@ -226,6 +252,20 @@ export async function runCloseValidation({
       log,
       signal,
       ...(gate.env ? { env: gate.env } : {}),
+      // Story #5278 — only the full-suite gate can end up *waiting* on the
+      // host lock, and only it is expensive enough for the wait to change the
+      // answer: whoever we queued behind may have deposited this gate's
+      // evidence while we sat there. Re-asking the same question the runner
+      // asked before the wait is the whole mechanism; a `{ status: 0 }`
+      // stands in for the spawn.
+      ...(gate.fullSuiteLock && configHash
+        ? {
+            skipIfSatisfied: () =>
+              evidenceVerdict(gate, configHash).skip
+                ? { status: 0 }
+                : undefined,
+          }
+        : {}),
       // Story #5173 — forwarded unconditionally (never a conditional spread
       // like the two below): `defaultGateRunner` already treats a falsy value
       // as "no lock", so a branch here would only add a decision point to the
@@ -263,7 +303,10 @@ export async function runCloseValidation({
       return;
     }
     if (execution.skip) {
-      skipped.push({ gate, reason: 'no-changed-files' });
+      skipped.push({
+        gate,
+        reason: execution.skipReason ?? 'no-changed-files',
+      });
       return;
     }
     const configHash = hashCommandConfig({
@@ -287,6 +330,7 @@ export async function runCloseValidation({
           tolerateNoFilesProcessed: execution.tolerateNoFilesProcessed,
         },
         ac.signal,
+        configHash,
       );
     } catch (err) {
       result = { status: 1, error: err };
@@ -395,7 +439,10 @@ async function runSerialGates(
       return;
     }
     if (execution.skip) {
-      skipped.push({ gate, reason: 'no-changed-files' });
+      skipped.push({
+        gate,
+        reason: execution.skipReason ?? 'no-changed-files',
+      });
       continue;
     }
     const configHash = hashCommandConfig({
@@ -409,12 +456,16 @@ async function runSerialGates(
       continue;
     }
     const startedAt = evidenceActive ? evidenceClock() : 0;
-    const result = await dispatchGate({
-      ...gate,
-      cmd: execution.cmd,
-      args: execution.args,
-      tolerateNoFilesProcessed: execution.tolerateNoFilesProcessed,
-    });
+    const result = await dispatchGate(
+      {
+        ...gate,
+        cmd: execution.cmd,
+        args: execution.args,
+        tolerateNoFilesProcessed: execution.tolerateNoFilesProcessed,
+      },
+      undefined,
+      configHash,
+    );
     if (result.status !== 0) {
       failGate(
         gate,

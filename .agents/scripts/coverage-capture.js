@@ -17,8 +17,17 @@
  *      `npm run test:coverage`, serialized behind the host-level full-suite
  *      lock (Story #5173) so two concurrent runs on one checkout do not race;
  *      write a fresh capture stamp on success and propagate the exit code.
- *      With `delivery.execution.requireCreditedCapture` set, step 4 refuses
- *      instead of spawning, so the cost is never paid unannounced.
+ *      With `--require-credited`, step 4 refuses instead of spawning, so the
+ *      cost is never paid unannounced.
+ *
+ * **`--require-credited` is an argument, not a config read (Story #5278).**
+ * `delivery.execution.requireCreditedCapture` is a policy about *close*: the
+ * close gate must not silently pay for a suite the worker was supposed to
+ * have deposited. Reading it here applied the refusal to every invocation
+ * including the worker's depositing one, so turning the policy on left no
+ * path that could ever deposit and bricked the CRAP gate outright. The policy
+ * now lives where it is enforced — `close-validation/gates.js` passes this
+ * flag when the consumer sets it — and a bare invocation always runs.
  *
  * Step 3 is preceded by the changed-file skip when
  * `delivery.quality.gates.crap.incrementalCoverage.skipWhenUnchanged` is on
@@ -29,7 +38,7 @@
  *   0 — coverage is fresh (or capture skipped/succeeded).
  *   1 — capture run failed (broken tests or coverage-threshold breach), or
  *       the run was refused because it carried no credit and
- *       `delivery.execution.requireCreditedCapture` is set. The caller MUST
+ *       `--require-credited` was passed. The caller MUST
  *       surface this — silently passing here would defeat the CRAP gate's
  *       `requireCoverage: true` policy.
  */
@@ -56,17 +65,20 @@ import { hasNpmScript, readPackageScripts } from './lib/npm-scripts.js';
  * Parse the full `process.argv` (index 2 onward) into the capture options.
  *
  * @param {string[]} argv
- * @returns {{ skipWhenNoCrapFiles: boolean, ref: string, cwd: string }}
+ * @returns {{ skipWhenNoCrapFiles: boolean, requireCredited: boolean, ref: string, cwd: string }}
  */
 export function parseArgs(argv) {
   const out = {
     skipWhenNoCrapFiles: false,
+    // Story #5278 — an ARGUMENT, never a config read. See `runCoverageCapture`.
+    requireCredited: false,
     ref: 'main',
     cwd: process.cwd(),
   };
   for (let i = 2; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--skip-when-no-crap-files') out.skipWhenNoCrapFiles = true;
+    else if (a === '--require-credited') out.requireCredited = true;
     else if (a === '--ref') out.ref = argv[++i] ?? out.ref;
     else if (a === '--cwd') out.cwd = argv[++i] ?? out.cwd;
   }
@@ -116,11 +128,6 @@ export function runCoverageCapture(argv = process.argv, deps = {}) {
   const args = parseArgs(argv);
   const config = resolveConfigImpl({ cwd: args.cwd });
   const { crap, coverage } = getQualityImpl(config);
-  // Read once here, where the config is already in scope, and thread it into
-  // whichever capture path reaches a spawn. Default false — an unconfigured
-  // consumer gets the announcement and the run, exactly as before.
-  const requireCreditedCapture =
-    config?.delivery?.execution?.requireCreditedCapture === true;
 
   if (crap.enabled === false) {
     logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
@@ -154,7 +161,7 @@ export function runCoverageCapture(argv = process.argv, deps = {}) {
   // Whichever capture path gets here spawns through both without knowing
   // about either.
   const capture = creditedCapture(lockedCapture(runCaptureImpl, config), {
-    requireCredited: requireCreditedCapture,
+    requireCredited: args.requireCredited,
     logger,
   });
 

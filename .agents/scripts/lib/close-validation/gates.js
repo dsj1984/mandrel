@@ -9,7 +9,9 @@
 import { existsSync } from 'node:fs';
 
 import { _internals as baselineReaderInternals } from '../baselines/reader.js';
+import { getChangedFiles } from '../changed-files.js';
 import { getQuality } from '../config/quality.js';
+import { filterFilesUnderTargets } from '../coverage-capture.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
 import {
@@ -28,6 +30,11 @@ import {
  * @property {string[]} args  - Arguments passed to `cmd`.
  * @property {string}   [hint] - Remediation hint shown on failure.
  * @property {{ baseRef: string }} [changedFileScope] - Optional Story-diff scope.
+ * @property {{ reason: string }} [skip] - Pre-decided skip (Story #5278). The
+ *   runner records the gate as skipped with this reason and never spawns it.
+ *   Used for the `coverage-capture` gate when the incremental-coverage skip
+ *   is already known to fire, so the gate list can register a real `npm test`
+ *   gate in its place instead of the close silently running no test gate.
  * @property {Record<string, string>} [env] - Optional per-gate environment
  *   overlay. Merged over `process.env` for this gate's spawned child only.
  *   Used to thread the epic baseRef into the `check-baselines` gate via
@@ -112,12 +119,18 @@ function isCrapGateEnabled(config) {
  * has NO working test gate at all. Splitting this out keeps
  * `buildDefaultGates` flat for the CRAP-cyclomatic gate.
  *
- * @param {boolean} coverageCaptureActive - Whether the coverage-capture gate
- *   is registered as the test runner for this build.
+ * Story #5278 adds a third way for coverage-capture to stop being the test
+ * runner: it is registered, but its own incremental-coverage skip is already
+ * known to fire (nothing changed under `crap.targetDirs`), so it will exit 0
+ * without running anything. A tests-only Story hits that on every close, and
+ * before #5278 the close then recorded a suite it never ran as `passed`.
+ *
+ * @param {boolean} coverageCaptureRunsSuite - Whether the coverage-capture
+ *   gate will actually run the suite for this build.
  * @returns {Gate[]}
  */
-function buildTestGateEntry(coverageCaptureActive) {
-  if (coverageCaptureActive) return [];
+function buildTestGateEntry(coverageCaptureRunsSuite) {
+  if (coverageCaptureRunsSuite) return [];
   // Story #5173 — `fullSuiteLock` marks the one gate here that spawns a whole
   // suite, so `defaultGateRunner` serializes it behind the host lock. It is
   // set on this entry alone precisely because the two full-suite gates are
@@ -351,6 +364,78 @@ function splitCommand(commandString) {
 }
 
 /**
+ * Will the `coverage-capture` gate skip its own capture before running
+ * anything? (Story #5278.)
+ *
+ * `coverage-capture-incremental.js` exits 0 without a suite when no changed
+ * file lives under `crap.targetDirs` — the saving that makes incremental mode
+ * worth having. The gate list has to know that in advance, because the
+ * consequence is not "coverage-capture is cheap today" but "there is no test
+ * gate in this close at all": the plain `test` gate is dropped precisely
+ * because coverage-capture was going to carry test-failure signalling. A
+ * tests-only Story therefore closed green over a red suite.
+ *
+ * Predicting the skip is safe in one direction only, so every uncertainty
+ * resolves to `false` (coverage-capture runs, no extra `test` gate — the
+ * pre-#5278 shape): an unresolvable ref, a missing cwd, a git error, or the
+ * mode being off. A wrong `false` costs one redundant capture; a wrong `true`
+ * would register a `test` gate beside a coverage-capture that also runs the
+ * suite, which is the double-spend the credit economy exists to prevent.
+ *
+ * @param {{
+ *   config?: object,
+ *   cwd?: string,
+ *   baseBranch?: string,
+ *   getChangedFilesImpl?: typeof getChangedFiles,
+ * }} opts
+ * @returns {boolean}
+ */
+function predictsIncrementalCaptureSkip({
+  config,
+  cwd,
+  baseBranch,
+  getChangedFilesImpl = getChangedFiles,
+}) {
+  // No cwd is the module-load `DEFAULT_GATES` case: never spawn git at import
+  // time just to answer a question that caller cannot act on.
+  if (typeof cwd !== 'string' || cwd.length === 0) return false;
+  const { crap } = getQuality(config);
+  if (crap?.incrementalCoverage?.skipWhenUnchanged !== true) return false;
+  const ref = crap.incrementalCoverage.baseRef || baseBranch;
+  if (typeof ref !== 'string' || ref.length === 0) return false;
+  try {
+    const changed = getChangedFilesImpl({ ref, cwd });
+    // Not an array is "the change set is unknown", not "the change set is
+    // empty" — and `filterFilesUnderTargets` flattens both to `[]`, so the
+    // shape has to be checked here or an unknown diff reads as a skip.
+    if (!Array.isArray(changed)) return false;
+    return filterFilesUnderTargets(changed, crap.targetDirs).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The `coverage-capture` gate's argv.
+ *
+ * Story #5278 — `--require-credited` is passed here, and only here, when the
+ * consumer has set `delivery.execution.requireCreditedCapture`. The CLI no
+ * longer reads that key, so the worker's pre-push deposit invocation always
+ * runs while the close gate refuses to pay for a suite the worker should
+ * already have banked.
+ *
+ * @param {object} [config]
+ * @returns {string[]}
+ */
+function buildCoverageCaptureArgs(config) {
+  const args = ['.agents/scripts/coverage-capture.js'];
+  if (config?.delivery?.execution?.requireCreditedCapture === true) {
+    args.push('--require-credited');
+  }
+  return args;
+}
+
+/**
  * Build the canonical close-validation gate list.
  *
  * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
@@ -402,7 +487,7 @@ function splitCommand(commandString) {
  * none are required, the gate is skipped with a logged reason (via `log`)
  * instead of a blocking failure.
  *
- * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void }} [opts]
+ * @param {{ config?: object, baseBranch?: string, cwd?: string, packageScripts?: Record<string, string>, presentBaselines?: string[]|Set<string>, log?: (message: string) => void, getChangedFilesImpl?: typeof getChangedFiles }} [opts]
  *   `config` is the canonical resolved config (`{ project, delivery, ... }`);
  *   gate commands resolve from `project.commands` and the CRAP toggle from
  *   `delivery.quality.gates.crap.enabled`. `baseBranch` is the close run's
@@ -424,10 +509,28 @@ export function buildDefaultGates({
   packageScripts,
   presentBaselines,
   log,
+  getChangedFilesImpl,
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive =
     isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
+  // Story #5278 — a registered coverage-capture gate that is going to take
+  // its own incremental skip is not the test runner for this close, so the
+  // plain `test` gate comes back beside it and the capture gate registers as
+  // a pre-decided skip rather than as a suite that silently did not run.
+  const captureSkipPredicted =
+    coverageCaptureActive &&
+    predictsIncrementalCaptureSkip({
+      config,
+      cwd,
+      baseBranch,
+      ...(getChangedFilesImpl ? { getChangedFilesImpl } : {}),
+    });
+  if (captureSkipPredicted) {
+    log?.(
+      '[close-validation] coverage-capture will take the incremental skip (no changed file under the CRAP target dirs) — registering the plain `test` gate so this close still runs the suite.',
+    );
+  }
   const typecheck = splitCommand(resolveTypecheckCommand(config));
   const lint = splitCommand(resolveLintCommand(config));
   const formatCheckString = resolveFormatCheckCommand(config);
@@ -460,7 +563,7 @@ export function buildDefaultGates({
     // scoped pair does not shift the close-orchestrator log line, the
     // evidence keyspace, or the parallel-partition membership below.
     { name: 'lint', cmd: lint.cmd, args: lint.args },
-    ...buildTestGateEntry(coverageCaptureActive),
+    ...buildTestGateEntry(coverageCaptureActive && !captureSkipPredicted),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // doesn't shift when a repo swaps biome for Prettier / dprint via
@@ -479,8 +582,11 @@ export function buildDefaultGates({
           {
             name: 'coverage-capture',
             cmd: 'node',
-            args: ['.agents/scripts/coverage-capture.js'],
+            args: buildCoverageCaptureArgs(config),
             hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
+            ...(captureSkipPredicted
+              ? { skip: { reason: 'incremental-no-crap-changes' } }
+              : {}),
           },
         ]
       : []),

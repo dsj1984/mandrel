@@ -10,6 +10,7 @@ import {
   recordPass,
   SCHEMA_VERSION,
   shouldSkip,
+  treeFingerprint,
 } from '../../.agents/scripts/lib/validation-evidence.js';
 
 /**
@@ -470,4 +471,43 @@ test('shouldSkip() grants skip on inputFingerprint when SHA differs but inputs a
   );
   assert.equal(configMiss.skip, false);
   assert.equal(configMiss.reason, 'config-hash-mismatch');
+});
+
+test('treeFingerprint() keys on committed content, not on the commit', () => {
+  const calls = [];
+  const git = (cwd, ...args) => {
+    calls.push({ cwd, args });
+    return { status: 0, stdout: `${'a'.repeat(40)}\n` };
+  };
+  assert.equal(
+    treeFingerprint('/repo', git),
+    `tree:${'a'.repeat(40)}`,
+    'the tree object id is the content identity a gate can be credited on',
+  );
+  assert.deepEqual(calls[0].args, ['rev-parse', 'HEAD^{tree}']);
+});
+
+test('treeFingerprint() resolves to null rather than a false match', () => {
+  // Every failure mode routes back to the SHA-only behaviour: a `null`
+  // fingerprint never satisfies `shouldSkip`'s fingerprint arm, so an
+  // unreadable tree costs a re-run, never a skip the gate did not earn.
+  assert.equal(treeFingerprint('/repo', undefined), null);
+  assert.equal(
+    treeFingerprint('/repo', () => ({ status: 128 })),
+    null,
+  );
+  assert.equal(
+    treeFingerprint('/repo', () => ({ status: 0, stdout: '' })),
+    null,
+  );
+  assert.equal(
+    treeFingerprint('/repo', () => ({ status: 0, stdout: 'not-an-oid\n' })),
+    null,
+  );
+  assert.equal(
+    treeFingerprint('/repo', () => {
+      throw new Error('git missing');
+    }),
+    null,
+  );
 });

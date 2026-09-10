@@ -9,6 +9,7 @@
  * parameter (`.agents/rules/test-seams.md` rules 1-2, 4).
  */
 import path from 'node:path';
+import { stampCapturedTree } from './coverage-capture.js';
 
 /**
  * Run the skip-aware capture path when
@@ -97,10 +98,19 @@ export function tryIncrementalCapture({
   logger.info(
     `[coverage-capture] Incremental mode: ${scopedFiles.length} changed file(s) under [${crap.targetDirs.join(', ')}] — capturing…`,
   );
+  // Story #5278 — pre-spawn digest; see `stampCapturedTree`.
+  const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = runCaptureImpl({
     cwd: args.cwd,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
+    recheckFresh: () =>
+      isCoverageFreshImpl({
+        coveragePath: crap.coveragePath,
+        targetDirs: crap.targetDirs,
+        cwd: args.cwd,
+        requireScope: 'incremental',
+      }).fresh === true,
   });
   if (code !== 0) {
     logger.error(
@@ -109,21 +119,17 @@ export function tryIncrementalCapture({
     return code;
   }
 
-  const digest = computeContentDigestImpl(args.cwd, crap.targetDirs);
-  if (
-    digest &&
-    writeCaptureStampImpl({
-      cwd: args.cwd,
-      coveragePath: crap.coveragePath,
-      digest,
-      scope: 'incremental',
-      files: scopedFiles,
-      ref,
-    })
-  ) {
-    logger.info(
-      '[coverage-capture] Wrote content-digest capture stamp (incremental scope).',
-    );
-  }
+  stampCapturedTree({
+    preDigest,
+    cwd: args.cwd,
+    targetDirs: crap.targetDirs,
+    coveragePath: crap.coveragePath,
+    scope: 'incremental',
+    files: scopedFiles,
+    ref,
+    computeContentDigestImpl,
+    writeCaptureStampImpl,
+    logger,
+  });
   return code;
 }

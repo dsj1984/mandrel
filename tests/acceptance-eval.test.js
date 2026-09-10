@@ -557,6 +557,36 @@ describe('verify[] credit — the suite is paid for once (#5174)', () => {
     }
   });
 
+  // AC-10 (Story #5278) — a positional path is not the only way to narrow a
+  // run. Node's filter flags select a fraction of the suite while the argv
+  // still reads as a bare `node --test`, so crediting one against the
+  // full-suite stamp reports a filtered run as the whole thing.
+  it('AC-10: a narrowing filter flag makes the command scoped, not full', () => {
+    for (const narrowed of [
+      'node --test --test-name-pattern=close',
+      'node --test --test-name-pattern close',
+      'node --test --test-skip-pattern=slow',
+      'node --test --test-only',
+      'npm test -- --test-name-pattern=close',
+    ]) {
+      assert.equal(
+        isFullSuiteCommand(narrowed),
+        false,
+        `${narrowed} runs a fraction of the suite`,
+      );
+    }
+  });
+
+  it('AC-10: a non-narrowing flag still reads as the whole suite', () => {
+    for (const full of [
+      'node --test --experimental-test-coverage',
+      'node --test --test-reporter=tap',
+      'node --test --experimental-test-module-mocks',
+    ]) {
+      assert.equal(isFullSuiteCommand(full), true, `${full} is the suite`);
+    }
+  });
+
   it('strips the Story body tier tag before classifying', () => {
     // verify[] lines are written `<command> (<tier>)`. Left attached, the tag
     // makes every entry look like it carries an argument — i.e. scoped — and

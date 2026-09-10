@@ -88,3 +88,126 @@ describe('buildDefaultGates — coverage-capture registration (Story #4473)', ()
     assert.ok(!names(gates).includes('coverage-capture'));
   });
 });
+
+describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () => {
+  const CRAP_ON = {
+    delivery: {
+      quality: {
+        gates: {
+          crap: {
+            enabled: true,
+            targetDirs: ['.agents/scripts', 'lib'],
+            incrementalCoverage: { skipWhenUnchanged: true },
+          },
+        },
+      },
+    },
+  };
+  const SCRIPTS = { 'test:coverage': 'c8 node --test' };
+
+  const build = (changed, config = CRAP_ON) =>
+    buildDefaultGates({
+      config,
+      packageScripts: SCRIPTS,
+      cwd: '/repo',
+      baseBranch: 'main',
+      getChangedFilesImpl: () => {
+        if (changed === 'throw') throw new Error('bad ref');
+        return changed;
+      },
+    });
+
+  // AC-2 — the defect. A tests-only branch takes coverage-capture's own
+  // incremental skip, and because CRAP mode had already dropped the plain
+  // `test` gate the close then ran NO test gate and recorded a suite it never
+  // executed as `passed`.
+  it('AC-2: a tests-only diff registers a real `test` gate beside a skipped capture', () => {
+    const gates = build(['tests/a.test.js', 'docs/x.md']);
+    assert.ok(
+      names(gates).includes('test'),
+      'the suite must still run for a tests-only Story',
+    );
+    const capture = gates.find((g) => g.name === 'coverage-capture');
+    assert.ok(capture, 'the capture gate is still reported, not omitted');
+    assert.deepEqual(capture.skip, { reason: 'incremental-no-crap-changes' });
+  });
+
+  it('AC-2: a diff touching the CRAP scan scope keeps the pre-#5278 shape', () => {
+    const gates = build(['.agents/scripts/lib/x.js']);
+    assert.ok(!names(gates).includes('test'), 'no double full-suite spend');
+    assert.equal(
+      gates.find((g) => g.name === 'coverage-capture').skip,
+      undefined,
+    );
+  });
+
+  it('every uncertainty resolves to the pre-#5278 shape, never to a double spend', () => {
+    for (const changed of ['throw', null]) {
+      const gates = build(changed);
+      assert.ok(
+        !names(gates).includes('test'),
+        `an unresolvable change set (${changed}) must not register both`,
+      );
+    }
+    // Incremental mode off: coverage-capture always captures, so it is the
+    // test runner exactly as before.
+    const off = build([], {
+      delivery: {
+        quality: {
+          gates: {
+            crap: {
+              enabled: true,
+              incrementalCoverage: { skipWhenUnchanged: false },
+            },
+          },
+        },
+      },
+    });
+    assert.ok(!names(off).includes('test'));
+  });
+
+  it('never spawns git at module-load time (no cwd → no prediction)', () => {
+    let spawned = false;
+    const gates = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      getChangedFilesImpl: () => {
+        spawned = true;
+        return [];
+      },
+    });
+    assert.equal(spawned, false, 'DEFAULT_GATES must not shell out on import');
+    assert.ok(!names(gates).includes('test'));
+  });
+});
+
+describe('buildDefaultGates — --require-credited is a gate argument (Story #5278)', () => {
+  const captureArgs = (config) =>
+    buildDefaultGates({
+      config,
+      packageScripts: { 'test:coverage': 'c8 node --test' },
+    }).find((g) => g.name === 'coverage-capture').args;
+
+  it('AC-1: passes the flag only when the consumer set the policy', () => {
+    assert.deepEqual(captureArgs({ delivery: { quality: {} } }), [
+      '.agents/scripts/coverage-capture.js',
+    ]);
+    assert.deepEqual(
+      captureArgs({
+        delivery: { execution: { requireCreditedCapture: true }, quality: {} },
+      }),
+      ['.agents/scripts/coverage-capture.js', '--require-credited'],
+    );
+  });
+
+  it('AC-1: a falsy or absent policy never passes it', () => {
+    for (const requireCreditedCapture of [false, undefined, 'true']) {
+      assert.deepEqual(
+        captureArgs({
+          delivery: { execution: { requireCreditedCapture }, quality: {} },
+        }),
+        ['.agents/scripts/coverage-capture.js'],
+      );
+    }
+  });
+});

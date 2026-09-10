@@ -400,8 +400,12 @@ const CREDITING_INVOCATION =
  * @param {{
  *   requireCredited?: boolean,
  *   logger: { info: Function, warn: Function, error: Function },
- * }} opts `requireCredited` mirrors `delivery.execution.requireCreditedCapture`
- *   (default false → announce and run).
+ * }} opts `requireCredited` comes from the CLI's `--require-credited`
+ *   argument, which the close gate passes when
+ *   `delivery.execution.requireCreditedCapture` is set (default false →
+ *   announce and run). Story #5278: it is deliberately NOT read from config
+ *   here — that made the refusal cover the depositing invocation too, leaving
+ *   no way to earn the credit it demanded.
  * @returns {number | null} A non-zero exit code the caller MUST return
  *   without spawning the suite, or `null` to proceed with the capture.
  */
@@ -411,7 +415,7 @@ function announceUncreditedCapture({ requireCredited = false, logger }) {
     `the full suite is about to run. Deposit credit before the push with: ${CREDITING_INVOCATION}`;
   if (requireCredited) {
     logger.error(
-      `[coverage-capture] ✖ ${preamble} (delivery.execution.requireCreditedCapture is set, so this run is refused instead of paid for).`,
+      `[coverage-capture] ✖ ${preamble} (--require-credited was passed, so this run is refused instead of paid for).`,
     );
     return 1;
   }
@@ -443,6 +447,76 @@ export function creditedCapture(runCaptureFn, { requireCredited, logger }) {
     const refusal = announceUncreditedCapture({ requireCredited, logger });
     return refusal === null ? runCaptureFn(captureOpts) : refusal;
   };
+}
+
+/**
+ * Write the capture stamp for a run that has just finished — but only when
+ * the tree it measured is still the tree on disk (Story #5278).
+ *
+ * The stamp is a claim about content: "coverage/coverage-final.json reflects
+ * sources digesting to X". Computing X *after* the suite finishes makes that
+ * claim false whenever anything moved while the suite ran — a sibling
+ * worktree's write, a rebase, an editor save minutes into a ten-minute run.
+ * The digest taken **before** the spawn is the one the run actually measured,
+ * so that is the value written, and a post-run digest that disagrees means
+ * the artifact describes a tree nobody has any more: no stamp is written at
+ * all, and the next reader captures rather than crediting a run against
+ * sources it never saw.
+ *
+ * A `null` on either digest is "unavailable", not "changed" — the same
+ * fail-open the pre-#5278 code had, since without a digest there is nothing
+ * to stamp.
+ *
+ * @param {{
+ *   preDigest: string|null,
+ *   cwd: string,
+ *   targetDirs: string[],
+ *   coveragePath: string,
+ *   scope?: 'full' | 'incremental',
+ *   files?: string[],
+ *   ref?: string,
+ *   computeContentDigestImpl: typeof computeContentDigest,
+ *   writeCaptureStampImpl: typeof writeCaptureStamp,
+ *   logger: { info: Function, warn: Function, error: Function },
+ * }} opts
+ * @returns {boolean} Whether a stamp was written.
+ */
+export function stampCapturedTree({
+  preDigest,
+  cwd,
+  targetDirs,
+  coveragePath,
+  scope,
+  files,
+  ref,
+  computeContentDigestImpl,
+  writeCaptureStampImpl,
+  logger,
+}) {
+  if (!preDigest) return false;
+  const postDigest = computeContentDigestImpl(cwd, targetDirs);
+  if (postDigest && postDigest !== preDigest) {
+    logger.warn(
+      '[coverage-capture] ⚠ the tree moved while the suite ran — the coverage ' +
+        'artifact measures sources that are no longer on disk, so no capture ' +
+        'stamp was written. The next capture will re-run against the current tree.',
+    );
+    return false;
+  }
+  const written = writeCaptureStampImpl({
+    cwd,
+    coveragePath,
+    digest: preDigest,
+    ...(scope === undefined ? {} : { scope }),
+    ...(files === undefined ? {} : { files }),
+    ...(ref === undefined ? {} : { ref }),
+  });
+  if (written) {
+    logger.info(
+      `[coverage-capture] Wrote content-digest capture stamp${scope ? ` (${scope} scope)` : ''}.`,
+    );
+  }
+  return written;
 }
 
 /**

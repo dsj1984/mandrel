@@ -266,6 +266,43 @@ export function recordPass(
 }
 
 /**
+ * The content identity of a working tree, as an evidence `inputFingerprint`
+ * (Story #5278).
+ *
+ * `commitSha` is the wrong key for "have these inputs already been checked".
+ * Close's own base-sync moves HEAD immediately before the gates run, so every
+ * gate the worker paid for is re-run against a commit whose *content* the
+ * evidence already covers whenever the sync brought nothing in — the record
+ * is discarded as `sha-mismatch` and lint, typecheck and the suite are all
+ * paid for twice.
+ *
+ * `git rev-parse HEAD^{tree}` is the exact answer: the tree object id is a
+ * hash of the committed content and nothing else, so it is stable across a
+ * fast-forward, a rebase, an empty merge and a commit-message amend, and it
+ * differs the instant any tracked byte does. It deliberately ignores
+ * uncommitted changes for the same reason `commitSha` did — the gates run on
+ * a committed Story branch.
+ *
+ * Returns `null` when the tree cannot be read, which routes every caller to
+ * the pre-#5278 SHA-only behaviour rather than to a false match.
+ *
+ * @param {string} cwd Absolute worktree root.
+ * @param {Function} [gitSpawnFn] `(cwd, ...args) => { status, stdout }`.
+ * @returns {string|null} `tree:<oid>`, or `null` when unavailable.
+ */
+export function treeFingerprint(cwd, gitSpawnFn) {
+  if (typeof gitSpawnFn !== 'function') return null;
+  try {
+    const res = gitSpawnFn(cwd, 'rev-parse', 'HEAD^{tree}');
+    if (res?.status !== 0) return null;
+    const oid = String(res.stdout ?? '').trim();
+    return /^[0-9a-f]{40,64}$/.test(oid) ? `tree:${oid}` : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Decide whether a gate can be skipped given the current HEAD + command
  * config. Skip is granted only on full triple-match: gateName + commitSha +
  * commandConfigHash. Any mismatch (or missing record) returns `skip: false`
