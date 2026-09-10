@@ -140,14 +140,39 @@ describe('resolveQaContract — present (well-formed, environment-keyed)', () =>
         environments: {
           local: {
             baseUrl: 'http://localhost:3000',
-            signInSeam: { skill: 'consumer-sign-in' },
+            signInSeam: { skill: 'stack/qa/consumer-sign-in' },
           },
         },
       },
     });
     assert.deepEqual(out.environments.local.signInSeam, {
-      skill: 'consumer-sign-in',
+      skill: 'stack/qa/consumer-sign-in',
     });
+  });
+
+  it('rejects a malformed skill id at contract validation (Story #5285)', () => {
+    // The id is joined onto a skills root to reach a SKILL.md, so the schema
+    // carries `SKILL_ID_RE` as a `pattern` and a traversal never reaches the
+    // path join. A single-segment id is rejected for the same reason: it
+    // names no tier, so it can resolve under no root.
+    for (const skill of ['../../secrets', 'Core/Foo', 'consumer-sign-in']) {
+      assert.throws(
+        () =>
+          resolveQaContract({
+            qa: {
+              ...WELL_FORMED,
+              environments: {
+                local: {
+                  baseUrl: 'http://localhost:3000',
+                  signInSeam: { skill },
+                },
+              },
+            },
+          }),
+        /must match pattern/,
+        `signInSeam.skill \`${skill}\` must be rejected by the schema`,
+      );
+    }
   });
 });
 
@@ -511,15 +536,55 @@ describe('resolveQaEnvironment — signInSeam resolution (Story #5135)', () => {
   });
 
   it('rejects a path-traversal skill id rather than resolving outside the roots', () => {
-    const repoRoot = makeTempDir('qa-seam-traversal-');
+    // Since Story #5285 the schema's `pattern` catches this first, so a
+    // traversal never reaches `resolveQaEnvironment` from a validated config
+    // at all. Asserted at the door it is actually stopped at.
     assert.throws(
-      () =>
-        resolveQaEnvironment(
-          contractWithSeam({ skill: '../../etc/passwd' }),
-          'staging',
-          { repoRoot },
-        ),
-      /resolves to no readable SKILL\.md/,
+      () => contractWithSeam({ skill: '../../etc/passwd' }),
+      /must match pattern/,
+    );
+  });
+
+  it('names a malformed id as malformed, not as a skill to author (Story #5285)', () => {
+    // Reached by a contract that skipped schema validation — a hand-assembled
+    // one, or a config loaded past a degraded validator. The remedy differs
+    // from the unresolvable case: "author the skill" is advice nobody can
+    // follow for `../../etc/passwd`, so the two messages must differ.
+    const repoRoot = makeTempDir('qa-seam-invalid-id-');
+    const contract = {
+      environments: {
+        staging: {
+          baseUrl: 'https://staging.example.test',
+          signInSeam: { skill: '../../etc/passwd' },
+        },
+      },
+      defaultEnvironment: 'staging',
+    };
+    assert.throws(
+      () => resolveQaEnvironment(contract, 'staging', { repoRoot }),
+      (err) => {
+        assert.match(err.message, /not a well-formed skill id/);
+        assert.doesNotMatch(err.message, /Author the skill/);
+        return true;
+      },
+    );
+  });
+
+  it('reports a malformed id through resolveSkillFile itself', () => {
+    // The distinguishable return is the seam the resolver branches on, so it
+    // is asserted directly: `null` stays "resolved nowhere", and only a
+    // malformed id carries the marker.
+    const repoRoot = makeTempDir('qa-skill-id-');
+    assert.deepEqual(resolveSkillFile(repoRoot, '../../secrets'), {
+      reason: 'invalid-id',
+    });
+    assert.deepEqual(resolveSkillFile(repoRoot, 'Core/Foo'), {
+      reason: 'invalid-id',
+    });
+    assert.equal(
+      resolveSkillFile(repoRoot, 'stack/qa/well-formed-but-absent'),
+      null,
+      'a well-formed id that resolves nowhere stays null',
     );
   });
 

@@ -377,6 +377,12 @@
               "minimum": 1,
               "description": "Recommend a consolidation pass once this many entries have been written since the last one. Measured against the entry count the last pass stamped, so a stamp predating that field leaves growth unmeasured and only the age threshold applies. Default 25.",
               "default": 25
+            },
+            "indexByteCeiling": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. Independent of the age and growth thresholds: the harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
+              "default": 24576
             }
           },
           "additionalProperties": false
@@ -2090,7 +2096,9 @@
                         "not": {
                           "pattern": "([;&|`]|\\$\\()"
                         },
-                        "minLength": 1
+                        "minLength": 1,
+                        "pattern": "^[a-z0-9][a-z0-9._-]*(?:\\/[a-z0-9][a-z0-9._-]*)+$",
+                        "description": "Tier-relative skill id, e.g. `stack/qa/acme-sso`: lowercase segments of letters, digits, `.`, `_` or `-`, at least two of them, separated by `/`. A traversal (`../..`), an absolute path, a backslash or an uppercase segment is rejected here rather than normalized."
                       }
                     },
                     "required": ["skill"],

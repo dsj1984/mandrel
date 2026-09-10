@@ -262,6 +262,39 @@ describe('planning.* shape', () => {
     );
   });
 
+  it('accepts planning.memoryPool.indexByteCeiling (Story #5285)', () => {
+    // The third arm's knob. The precompiled validator is what every runtime
+    // path actually calls, so accepting it here is the assertion that the
+    // key survived the mirror + `validator:gen` regeneration — a schema edit
+    // that skips either leaves the key rejected at runtime while
+    // `generate-config-docs.js --check` still passes.
+    assert.equal(
+      validate({
+        ...REQ,
+        planning: { memoryPool: { indexByteCeiling: 20000 } },
+      }),
+      true,
+    );
+    assert.equal(
+      validate({
+        ...REQ,
+        planning: {
+          memoryPool: {
+            staleAfterDays: 45,
+            growthDelta: 10,
+            indexByteCeiling: 20000,
+          },
+        },
+      }),
+      true,
+      'all three thresholds are independently settable',
+    );
+    expectErrors(
+      { ...REQ, planning: { memoryPool: { indexByteCeiling: 0 } } },
+      /must be >= 1/,
+    );
+  });
+
   it('rejects an unknown memoryPool key (typo guard)', () => {
     // `additionalProperties: false` on the block, so a near-miss spelling of
     // a threshold fails loudly instead of sitting inert on the default.
@@ -1240,5 +1273,36 @@ describe('close-validation gate economy — populated blocks are accepted', () =
       { ...REQ, delivery: { execution: { requireCreditedCapture: 'yes' } } },
       /must be boolean/,
     );
+  });
+});
+
+describe('qa.environments.*.signInSeam.skill — id pattern (Story #5285)', () => {
+  /** A one-environment `qa` block whose `local` seam names `skill`. */
+  const withSkill = (skill) => ({
+    ...REQ,
+    qa: {
+      featureRoot: 'tests/features',
+      fixturesManifest: 'tests/fixtures/personas.json',
+      environments: {
+        local: { baseUrl: 'http://localhost:3000', signInSeam: { skill } },
+      },
+    },
+  });
+
+  it('accepts a well-formed tier-relative id', () => {
+    assert.equal(validate(withSkill('stack/qa/acme-sso')), true);
+    assert.equal(validate(withSkill('core/scope-triage')), true);
+  });
+
+  it('rejects a traversal and an uppercase segment', () => {
+    // The id is joined onto a skills root to reach a SKILL.md, so a value
+    // that could escape a root is refused at config validation rather than
+    // normalized at the path join.
+    assert.equal(validate(withSkill('../../secrets')), false);
+    assert.equal(validate(withSkill('Core/Foo')), false);
+  });
+
+  it('rejects a single-segment id, which names no tier', () => {
+    assert.equal(validate(withSkill('consumer-sign-in')), false);
   });
 });
