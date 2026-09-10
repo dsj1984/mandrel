@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-10T15:06:49.817Z",
+  "generatedAt": "2026-09-10T15:54:08.529Z",
   "rollup": {
     "*": {
-      "lines": 96.09,
-      "branches": 87.03,
-      "functions": 88.35
+      "lines": 96.1,
+      "branches": 87.06,
+      "functions": 88.37
     }
   },
   "rows": [
@@ -870,8 +870,8 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "lines": 97.82,
-      "branches": 86.54,
+      "lines": 97.92,
+      "branches": 89.57,
       "functions": 100
     },
     {
@@ -1975,7 +1975,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/merge-poll.js",
       "lines": 100,
-      "branches": 98.21,
+      "branches": 98.74,
       "functions": 100
     },
     {
@@ -2261,6 +2261,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
       "lines": 83.61,
       "branches": 100,
@@ -2274,8 +2280,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js",
-      "lines": 99.54,
-      "branches": 77.05,
+      "lines": 99.32,
+      "branches": 76.14,
       "functions": 100
     },
     {
@@ -2298,9 +2304,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
-      "lines": 96.36,
-      "branches": 76.42,
-      "functions": 95.65
+      "lines": 96.72,
+      "branches": 78.86,
+      "functions": 96.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
@@ -2316,8 +2322,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/options.js",
-      "lines": 98.78,
-      "branches": 95.24,
+      "lines": 99.15,
+      "branches": 96.55,
       "functions": 100
     },
     {
@@ -2376,9 +2382,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "lines": 96.88,
-      "branches": 84.34,
-      "functions": 89.47
+      "lines": 96.98,
+      "branches": 83.33,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
