@@ -56,7 +56,11 @@ import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings
 import { wireAuditStoryEdges } from './lib/audit-to-stories/wire-dependencies.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { searchSemanticCandidates } from './lib/findings/semantic-issue-search.js';
-import { SEVERITIES, SEVERITY_RANK } from './lib/findings/severity.js';
+import {
+  normalizeSeverity,
+  SEVERITIES,
+  SEVERITY_RANK,
+} from './lib/findings/severity.js';
 import { Logger } from './lib/Logger.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
@@ -1142,6 +1146,52 @@ export const __testing = {
  * }} [deps]
  * @returns {Promise<void>}
  */
+/**
+ * The one-line `--ledger-commit` outcome, for stderr.
+ *
+ * Names the branch and the PR on success — the two things an operator needs to
+ * go look at it — and the skip reason otherwise, because "nothing happened" and
+ * "the ledger was already clean" are different facts and only one of them is
+ * fine.
+ *
+ * @param {{ committed?: boolean, reason?: string, branch?: string,
+ *   prUrl?: string|null, resumed?: boolean, ledgerPath?: string }} [result]
+ * @returns {string}
+ */
+function describeLedgerCommit(result) {
+  if (!result?.committed) {
+    return `--ledger-commit: skipped (${result?.reason ?? 'no result'}) — ${result?.ledgerPath ?? 'the ledger'} was not committed.`;
+  }
+  const resumed = result.resumed ? ' (resumed an unpushed ledger branch)' : '';
+  const pr = result.prUrl ? result.prUrl : '(no URL reported by gh)';
+  return `--ledger-commit: pushed ${result.branch}${resumed} and opened ${pr}.`;
+}
+
+/**
+ * Validate `--severity` against the canonical scale, failing on a value the
+ * filter would silently ignore.
+ *
+ * `meetsSeverity` reads an unknown threshold as rank `0`, so a typo — the
+ * classic being `--severity Hgh` — quietly widened the run to every finding
+ * instead of narrowing it. On an unattended sweep that is the difference
+ * between filing a batch and filing the backlog, with nothing on stderr to say
+ * so. An absent flag stays absent: the floor then resolves from config.
+ *
+ * @param {string|undefined} raw
+ * @returns {string|undefined} the canonical level.
+ */
+function validateSeverityFlag(raw) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (String(raw).toLowerCase() === 'all') return 'all';
+  const level = normalizeSeverity(String(raw), null);
+  if (!level) {
+    throw new Error(
+      `[audit-to-stories] --severity "${raw}" is not a severity. Accepted: ${SEVERITIES.join(', ')} (or "all").`,
+    );
+  }
+  return level;
+}
+
 export async function runAuditToStories(
   argv = process.argv.slice(2),
   deps = {},
@@ -1181,6 +1231,8 @@ export async function runAuditToStories(
     strict: false,
   });
 
+  values.severity = validateSeverityFlag(values.severity);
+
   const json = (value) => JSON.stringify(value, null, 2);
 
   const runAutoSummary = async () =>
@@ -1200,7 +1252,15 @@ export async function runAuditToStories(
   // findings, so the PR attempt is the last thing the run does (Story #5145).
   const commitLedger = async () => {
     if (!values['ledger-commit'] || values['dry-run']) return;
-    await runLedgerCommitImpl({ ledgerPath: values.ledger });
+    // Say what happened. The tail used to run silently, so an operator could
+    // not tell a ledger PR from a skip without going to look for the branch —
+    // and a skip is the outcome that matters, because it means the sweep's
+    // memory is still only in the working tree.
+    Logger.warn(
+      describeLedgerCommit(
+        await runLedgerCommitImpl({ ledgerPath: values.ledger }),
+      ),
+    );
   };
 
   const scanPlan = () =>

@@ -9,6 +9,12 @@
  *       in the summary plus a stderr line naming the ledger file.
  * AC-3: a failing push or `pr.create` exits non-zero naming the step, and only
  *       after the run summary has already been printed.
+ *
+ * Story #5281 — and it has to survive the retry an unattended sweep will make:
+ * the branch is unique per base commit, cut from `origin/<base>`, the run
+ * refuses (naming its step) off the base branch, restores the branch it started
+ * on, and resumes a committed-but-unpushed ledger branch at push so a failed
+ * push plus its retry open exactly one PR.
  */
 
 import assert from 'node:assert/strict';
@@ -48,12 +54,20 @@ Severity tally: Critical 0 / High 1 / Medium 0 / Low 0
  * invocation to canned stdout; `failOn` names a sub-command that throws, so a
  * step failure can be aimed precisely.
  */
-function fakeGit({ responses = {}, failOn } = {}) {
+function fakeGit({ responses = {}, failOn, refs = [] } = {}) {
   const calls = [];
+  const known = new Set(refs);
   const git = (_cwd, ...args) => {
     calls.push(args);
     if (failOn && args[0] === failOn) {
       throw new Error(`git ${failOn} exploded`);
+    }
+    if (args[0] === 'rev-parse') {
+      // `--verify --quiet <ref>` is the ref-existence probe; `--short <ref>`
+      // is the base-sha read the branch name carries.
+      const ref = args.at(-1);
+      if (args.includes('--verify')) return known.has(ref) ? 'deadbee' : '';
+      if (args.includes('--short')) return responses.short ?? 'abc1234';
     }
     return responses[args[0]] ?? '';
   };
@@ -81,7 +95,11 @@ const CHANGED_ON_BASE = {
   status: ` M ${LEDGER}`,
   remote: 'origin\n',
   'rev-parse': 'main',
+  short: 'abc1234',
 };
+
+/** The branch name those responses produce: dated, and qualified by the base. */
+const BRANCH = 'chore/audit-ledger-2026-09-05-abc1234';
 
 test('AC-1: a changed ledger yields one branch, one ledger-only commit, one push and one PR', async () => {
   const git = fakeGit({ responses: CHANGED_ON_BASE });
@@ -97,17 +115,20 @@ test('AC-1: a changed ledger yields one branch, one ledger-only commit, one push
   });
 
   assert.equal(result.committed, true);
-  assert.equal(result.branch, 'chore/audit-ledger-2026-09-05');
+  assert.equal(result.branch, BRANCH);
+  assert.equal(result.resumed, false);
+  assert.equal(result.prUrl, 'https://github.com/o/r/pull/1');
   assert.equal(
     result.subject,
     'chore(audit): reconcile audit ledger 2026-09-05',
   );
 
   const writes = git.calls.filter(([verb]) =>
-    ['checkout', 'add', 'commit', 'push'].includes(verb),
+    ['fetch', 'checkout', 'add', 'commit', 'push'].includes(verb),
   );
   assert.deepEqual(writes, [
-    ['checkout', '-b', 'chore/audit-ledger-2026-09-05'],
+    ['fetch', 'origin', 'main'],
+    ['checkout', '-b', BRANCH, 'origin/main'],
     ['add', '--', LEDGER],
     [
       'commit',
@@ -116,7 +137,10 @@ test('AC-1: a changed ledger yields one branch, one ledger-only commit, one push
       '--',
       LEDGER,
     ],
-    ['push', '--set-upstream', 'origin', 'chore/audit-ledger-2026-09-05'],
+    ['push', '--set-upstream', 'origin', BRANCH],
+    // The branch the run started on is restored, so the operator's checkout is
+    // where they left it.
+    ['checkout', 'main'],
   ]);
 
   // The commit is scoped by pathspec, so it cannot pick up unrelated dirt.
@@ -125,12 +149,7 @@ test('AC-1: a changed ledger yields one branch, one ledger-only commit, one push
 
   assert.equal(gh.calls.length, 1);
   const flags = gh.calls[0];
-  assert.deepEqual(flags.slice(0, 4), [
-    '--base',
-    'main',
-    '--head',
-    'chore/audit-ledger-2026-09-05',
-  ]);
+  assert.deepEqual(flags.slice(0, 4), ['--base', 'main', '--head', BRANCH]);
   // Auto-merge is never requested — a human lands the ledger PR.
   assert.ok(
     !flags.some((f) => /auto/i.test(f) && f.startsWith('--')),
@@ -140,7 +159,7 @@ test('AC-1: a changed ledger yields one branch, one ledger-only commit, one push
 
 test('AC-1: an unchanged ledger commits nothing and opens no PR', async () => {
   const git = fakeGit({
-    responses: { remote: 'origin\n', 'rev-parse': 'main' },
+    responses: { remote: 'origin\n', 'rev-parse': 'main', short: 'abc1234' },
   });
   const gh = fakeGh();
 
@@ -160,7 +179,7 @@ test('AC-1: an unchanged ledger commits nothing and opens no PR', async () => {
   });
   assert.equal(
     git.calls.some(([verb]) =>
-      ['checkout', 'add', 'commit', 'push'].includes(verb),
+      ['fetch', 'checkout', 'add', 'commit', 'push'].includes(verb),
     ),
     false,
   );
@@ -314,4 +333,202 @@ test('AC-3: the run summary is printed before the ledger-commit failure', async 
     'summary must be persisted before the throw',
   );
   assert.match(persisted[0], /"mode": "auto"/);
+});
+
+// --- Story #5281: the retry an unattended sweep will actually make -----------
+
+test('AC-4: a failed push then a retry opens exactly one PR and restores HEAD', async () => {
+  // Run 1: the ledger is dirty, the branch is fresh, and the push explodes.
+  const firstGit = fakeGit({ responses: CHANGED_ON_BASE, failOn: 'push' });
+  const firstGh = fakeGh();
+  await assert.rejects(
+    runLedgerCommit({
+      ledgerPath: LEDGER,
+      baseBranch: 'main',
+      cwd: '/repo',
+      git: firstGit,
+      gh: firstGh,
+      now: NOW,
+    }),
+    /--ledger-commit failed at step "push-branch"/,
+  );
+  assert.equal(firstGh.calls.length, 0, 'a failed push opens no PR');
+  assert.deepEqual(
+    firstGit.calls.at(-1),
+    ['checkout', 'main'],
+    'HEAD is restored to the branch the run started on',
+  );
+
+  // Run 2, same day, same checkout: the ledger file is now CLEAN (its change is
+  // committed on the branch run 1 left behind) and that branch was never
+  // pushed. Reporting `ledger-unchanged` here is what used to strand the work.
+  const retryGit = fakeGit({
+    responses: { remote: 'origin\n', 'rev-parse': 'main', short: 'abc1234' },
+    refs: [`refs/heads/${BRANCH}`],
+  });
+  const retryGh = fakeGh();
+  const result = await runLedgerCommit({
+    ledgerPath: LEDGER,
+    baseBranch: 'main',
+    cwd: '/repo',
+    git: retryGit,
+    gh: retryGh,
+    now: NOW,
+  });
+
+  assert.equal(result.committed, true);
+  assert.equal(result.resumed, true);
+  assert.equal(result.branch, BRANCH);
+  assert.equal(retryGh.calls.length, 1, 'the retry opens the only PR');
+  // It resumes at push: no second branch, no second commit.
+  assert.equal(
+    retryGit.calls.some(([verb]) => ['commit', 'add'].includes(verb)),
+    false,
+  );
+  assert.deepEqual(
+    retryGit.calls.filter(([verb]) => verb === 'checkout'),
+    [
+      ['checkout', BRANCH],
+      ['checkout', 'main'],
+    ],
+  );
+
+  // One PR across both runs.
+  assert.equal(firstGh.calls.length + retryGh.calls.length, 1);
+});
+
+test('AC-4: a ledger branch already pushed is not resumed', async () => {
+  const git = fakeGit({
+    responses: { remote: 'origin\n', 'rev-parse': 'main', short: 'abc1234' },
+    refs: [`refs/heads/${BRANCH}`, `refs/remotes/origin/${BRANCH}`],
+  });
+  const gh = fakeGh();
+  const result = await runLedgerCommit({
+    ledgerPath: LEDGER,
+    baseBranch: 'main',
+    cwd: '/repo',
+    git,
+    gh,
+    now: NOW,
+  });
+  assert.equal(result.committed, false);
+  assert.equal(result.reason, 'ledger-unchanged');
+  assert.equal(gh.calls.length, 0);
+});
+
+test('AC-5: HEAD off the base branch refuses by name and commits nothing', async () => {
+  const git = fakeGit({
+    responses: {
+      status: ` M ${LEDGER}`,
+      remote: 'origin\n',
+      'rev-parse': 'story-1',
+      short: 'abc1234',
+    },
+  });
+  const gh = fakeGh();
+
+  await assert.rejects(
+    runLedgerCommit({
+      ledgerPath: LEDGER,
+      baseBranch: 'main',
+      cwd: '/repo',
+      git,
+      gh,
+      now: NOW,
+    }),
+    (err) => {
+      assert.match(
+        err.message,
+        /--ledger-commit failed at step "verify-base-branch"/,
+      );
+      assert.match(err.message, /HEAD is on "story-1"/);
+      return true;
+    },
+  );
+
+  assert.equal(
+    git.calls.some(([verb]) =>
+      ['fetch', 'checkout', 'add', 'commit', 'push'].includes(verb),
+    ),
+    false,
+    'the refusal happens before any write',
+  );
+  assert.equal(gh.calls.length, 0);
+});
+
+test('AC-5: a checkout with no origin refuses by name before writing', async () => {
+  const git = fakeGit({
+    responses: { status: ` M ${LEDGER}`, 'rev-parse': 'main', short: 'a1' },
+  });
+  await assert.rejects(
+    runLedgerCommit({
+      ledgerPath: LEDGER,
+      baseBranch: 'main',
+      cwd: '/repo',
+      git,
+      gh: fakeGh(),
+      now: NOW,
+    }),
+    /--ledger-commit failed at step "verify-origin"/,
+  );
+  assert.equal(
+    git.calls.some(([verb]) => ['commit', 'push'].includes(verb)),
+    false,
+  );
+});
+
+test('AC-6: the tail names the branch and PR on success, and the reason on a skip', async () => {
+  const { runAuditToStories } = await import(pathToFileURL(CLI).href);
+  const warned = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warned.push(args.join(' '));
+  try {
+    await runAuditToStories(['--auto', '--ledger-commit'], {
+      runAutoImpl: async () => ({ summary: { mode: 'auto' }, stories: [] }),
+      persistImpl: () => {},
+      runLedgerCommitImpl: async () => ({
+        committed: true,
+        branch: BRANCH,
+        prUrl: 'https://github.com/o/r/pull/7',
+        ledgerPath: LEDGER,
+      }),
+      stdout: { write: () => {} },
+    });
+    await runAuditToStories(['--auto', '--ledger-commit'], {
+      runAutoImpl: async () => ({ summary: { mode: 'auto' }, stories: [] }),
+      persistImpl: () => {},
+      runLedgerCommitImpl: async () => ({
+        committed: false,
+        reason: 'ledger-unchanged',
+        ledgerPath: LEDGER,
+      }),
+      stdout: { write: () => {} },
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+
+  const success = warned.find((line) => line.includes('pushed'));
+  assert.ok(success, `expected a success line in ${JSON.stringify(warned)}`);
+  assert.ok(success.includes(BRANCH));
+  assert.ok(success.includes('https://github.com/o/r/pull/7'));
+
+  const skip = warned.find((line) => line.includes('skipped'));
+  assert.ok(skip, `expected a skip line in ${JSON.stringify(warned)}`);
+  assert.ok(skip.includes('ledger-unchanged'));
+  assert.ok(skip.includes(LEDGER));
+});
+
+test('AC-7: --severity refuses a value the filter would silently ignore', async () => {
+  const { runAuditToStories } = await import(pathToFileURL(CLI).href);
+  await assert.rejects(
+    runAuditToStories(['--scan', '--severity', 'Hgh', '--no-provider'], {
+      stdout: { write: () => {} },
+    }),
+    (err) => {
+      assert.match(err.message, /--severity "Hgh" is not a severity/);
+      assert.match(err.message, /critical, high, medium, low/);
+      return true;
+    },
+  );
 });
