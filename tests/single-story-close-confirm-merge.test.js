@@ -400,9 +400,15 @@ describe('merge wait — blocked terminals', () => {
       'agent::blocked',
     ]);
     // The friction comment names the red check, not branch protection.
+    // Story #5279's negative control too: the advisory paragraph must not
+    // reach a class where the PR is genuinely NOT mergeable.
     assert.match(
       provider._comments()[0].payload.body,
       /required check is \*\*red\*\*/,
+    );
+    assert.doesNotMatch(
+      provider._comments()[0].payload.body,
+      /mergeable regardless/i,
     );
   });
 
@@ -2137,5 +2143,66 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
     await runConfirmMergePhase(ctx.args);
     assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-red');
     assert.match(ctx.emitted[0].reason, /Bundle-size ratchet/);
+  });
+
+  // -------------------------------------------------------------------------
+  // Story #5279 — the friction comment for an advisory block.
+  //
+  // Both advisory classes used to fall through to the generic remedy, whose
+  // opening line sends the operator to "branch protection, required checks,
+  // or a manual merge". An advisory gate blocks precisely BECAUSE none of
+  // those is broken: GitHub reports the PR mergeable over a NON-required red
+  // check, and close refused to let auto-merge land it. Asserted against the
+  // block class the run produced, not against the comment's own wording.
+  // -------------------------------------------------------------------------
+
+  /** The friction body posted for a run driven to the given probe. */
+  async function frictionBodyFor(overrides) {
+    const provider = makeFakeProvider();
+    const ctx = runWith({ provider, ...overrides });
+    await runConfirmMergePhase(ctx.args);
+    const posted = provider._comments();
+    assert.equal(posted.length, 1, 'exactly one friction comment');
+    return {
+      body: posted[0].payload.body,
+      blockClass: ctx.emitted[0]?.blockClass,
+    };
+  }
+
+  it('AC-3: the inconclusive friction names --rerun-advisory and says the PR is mergeable regardless', async () => {
+    const { body, blockClass } = await frictionBodyFor({
+      injectedGh: makeGh({ checkRuns: timedOutCheckRuns }),
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    assert.equal(blockClass, 'advisory-gate-inconclusive');
+    assert.match(body, /--rerun-advisory/);
+    assert.match(body, /mergeable regardless/i);
+    assert.match(body, /advisory/i);
+    // The remedy the class exists to avoid recommending first.
+    assert.match(body, /failed without finishing/i);
+    // …and never the generic branch-protection diagnosis.
+    assert.doesNotMatch(
+      body,
+      /Resolve the underlying condition \(branch protection/,
+    );
+  });
+
+  it('AC-3: the red-advisory friction also says the PR is mergeable regardless, but implicates the change', async () => {
+    const { body, blockClass } = await frictionBodyFor({
+      injectedGh: makeGh({
+        checkRuns: [
+          { name: 'a11y scan', output: { summary: '3 violations found' } },
+        ],
+      }),
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    assert.equal(blockClass, 'advisory-gate-red');
+    assert.match(body, /mergeable regardless/i);
+    assert.match(body, /reported a real violation/i);
+    assert.match(body, /advisoryAllowlist/);
+    assert.doesNotMatch(
+      body,
+      /Resolve the underlying condition \(branch protection/,
+    );
   });
 });

@@ -20268,8 +20268,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "runPrePushPhases",
-      "startLine": 144,
-      "crap": 3
+      "startLine": 194,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
@@ -20297,12 +20297,6 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "method": "runSingleStoryClose",
-      "startLine": 402,
-      "crap": 5.005088540606554
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
       "method": "<anon runSingleStoryClose/(next)#0>",
       "startLine": 447,
       "crap": 1,
@@ -20322,14 +20316,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "method": "finishWithMergeWait",
-      "startLine": 534,
-      "crap": 1
+      "method": "runSingleStoryClose",
+      "startLine": 512,
+      "crap": 7.005900937263027
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
-      "method": "finishWithoutMergeWait",
-      "startLine": 599,
+      "method": "finishWithMergeWait",
+      "startLine": 534,
       "crap": 1
     },
     {
@@ -20349,6 +20343,12 @@
       "method": "runClosePipeline",
       "startLine": 682,
       "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
+      "method": "finishWithoutMergeWait",
+      "startLine": 731,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/runner.js",
