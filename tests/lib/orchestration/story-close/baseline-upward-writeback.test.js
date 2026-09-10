@@ -564,6 +564,12 @@ describe('runBaselineUpwardWriteback — rollback in a real repository (AC-5)', 
       { mode: 0o755 },
     );
     run('config', 'core.hooksPath', '.githooks');
+    // The rollback assertion compares the file byte-for-byte against what the
+    // test wrote. `git restore` re-materializes it through the checkout
+    // filters, so a Windows runner defaulting to `core.autocrlf=true` hands
+    // back CRLF and the comparison fails on line endings alone. Pinning the
+    // fixture keeps the assertion about the rollback rather than the platform.
+    run('config', 'core.autocrlf', 'false');
     return dir;
   }
 
