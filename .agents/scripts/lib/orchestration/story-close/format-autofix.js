@@ -59,11 +59,16 @@ export const FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE = 124;
  * (e.g. ` M file` for unstaged-modified) so we slice a fixed 3 chars off
  * the front rather than trimming.
  *
+ * Exported since Story #5277: `baseline-upward-writeback.js` needs the same
+ * "is this path already dirty?" test before it rewrites a baseline row, and a
+ * second porcelain parser is exactly the near-duplicate the duplication gate
+ * exists to refuse.
+ *
  * @param {string} cwd
  * @param {(args: string[], opts: object) => string} git
  * @returns {string[]}
  */
-function listDirtyPaths(cwd, git) {
+export function listDirtyPaths(cwd, git) {
   const out = git(['status', '--porcelain'], {
     cwd,
     encoding: 'utf8',

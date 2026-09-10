@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T21:24:05.316Z",
+  "generatedAt": "2026-09-10T21:30:22.142Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -448,7 +448,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
-      "mi": 87.376
+      "mi": 93.09
     },
     {
       "path": ".agents/scripts/lib/baselines/orphan-pruner.js",
@@ -504,7 +504,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
-      "mi": 97.415
+      "mi": 96.53
     },
     {
       "path": ".agents/scripts/lib/bootstrap/branch-protection.js",
@@ -1108,7 +1108,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
-      "mi": 100.859
+      "mi": 100.113
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
@@ -2036,7 +2036,7 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "mi": 98.894
+      "mi": 97.758
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",
@@ -2308,7 +2308,7 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "mi": 89.621
+      "mi": 88.898
     },
     {
       "path": "lib/cli/uninstall.js",
