@@ -250,17 +250,43 @@ export function runMergeBaseline(argv) {
 
   const ours = readSide(oursPath);
   const theirs = readSide(theirsPath);
-  const base = readSide(basePath);
-
   const target =
     ours === undefined || theirs === undefined
       ? null
       : resolveMergeTarget(ours, theirs);
-  if (!target) {
-    return delegateToGit(basePath, oursPath, theirsPath);
-  }
-  const { kind, envelopeKind: isEnvelopeKind } = target;
+  if (!target) return delegateToGit(basePath, oursPath, theirsPath);
 
+  return mergeResolved({
+    target,
+    base: readSide(basePath),
+    ours,
+    theirs,
+    basePath,
+    oursPath,
+    theirsPath,
+    label: mergedPath || oursPath,
+  });
+}
+
+/**
+ * Merge a file whose kind the driver DOES understand, and leave the result in
+ * `%A`. A merge that throws is handed back to git rather than half-written:
+ * the driver must never invent a result for a baseline it could not model.
+ *
+ * @param {object} ctx
+ * @returns {number} Process exit code.
+ */
+function mergeResolved({
+  target,
+  base,
+  ours,
+  theirs,
+  basePath,
+  oursPath,
+  theirsPath,
+  label,
+}) {
+  const { kind, envelopeKind: isEnvelopeKind } = target;
   let merged;
   try {
     merged = isEnvelopeKind
@@ -271,11 +297,6 @@ export function runMergeBaseline(argv) {
     return delegateToGit(basePath, oursPath, theirsPath);
   }
 
-  const rowConflicts = merged.conflicts.filter((c) => c.scope === 'row');
-  const envelopeConflicts = merged.conflicts.filter(
-    (c) => c.scope === 'envelope',
-  );
-
   // Write the canonical projection first even when conflicted: the marker
   // rendering operates on exactly the bytes a clean merge would have left,
   // so the merged remainder of a conflicted file is identical to it.
@@ -285,13 +306,26 @@ export function runMergeBaseline(argv) {
     if (isEnvelopeKind) assertEnvelope(merged.envelope);
     return 0;
   }
+  return markConflicts({ kind, merged, oursPath, label });
+}
 
-  reportConflicts({
-    kind,
-    label: mergedPath || oursPath,
-    rowConflicts,
-    envelopeConflicts,
-  });
+/**
+ * Report a conflicted merge and render its markers into `%A`.
+ *
+ * Both scopes get markers. An envelope-level conflict used to be reported on
+ * stderr alone, leaving a file that looked cleanly merged while git held the
+ * path unmerged — the operator had to reconstruct from scrollback which stamp
+ * disagreed.
+ *
+ * @param {{ kind: string, merged: object, oursPath: string, label: string }} ctx
+ * @returns {number} Always 1 — a conflicted merge.
+ */
+function markConflicts({ kind, merged, oursPath, label }) {
+  const rowConflicts = merged.conflicts.filter((c) => c.scope === 'row');
+  const envelopeConflicts = merged.conflicts.filter(
+    (c) => c.scope === 'envelope',
+  );
+  reportConflicts({ kind, label, rowConflicts, envelopeConflicts });
 
   let text = fs.readFileSync(oursPath, 'utf8');
   if (envelopeConflicts.length > 0) {

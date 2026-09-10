@@ -118,7 +118,7 @@ export function parseBaselineMergeDriverCommand(command) {
  * @param {string|null|undefined} gitattributes
  * @returns {boolean}
  */
-export function declaresBaselineMergeDriver(gitattributes) {
+function declaresBaselineMergeDriver(gitattributes) {
   return String(gitattributes ?? '')
     .split('\n')
     .some((line) => {
