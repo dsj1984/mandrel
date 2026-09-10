@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-09T01:57:41.953Z",
+  "generatedAt": "2026-09-10T15:06:49.817Z",
   "rollup": {
     "*": {
-      "lines": 96.08,
+      "lines": 96.09,
       "branches": 87.03,
-      "functions": 88.31
+      "functions": 88.35
     }
   },
   "rows": [
@@ -1830,9 +1830,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "lines": 95.92,
-      "branches": 89.47,
-      "functions": 90
+      "lines": 98.17,
+      "branches": 87.1,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-detect.js",
@@ -2058,8 +2058,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.03,
-      "branches": 80.65,
+      "lines": 94.36,
+      "branches": 80.21,
       "functions": 100
     },
     {
@@ -2078,6 +2078,12 @@
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "lines": 100,
       "branches": 92.25,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
+      "lines": 100,
+      "branches": 90.48,
       "functions": 100
     },
     {
@@ -2496,8 +2502,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "lines": 98.26,
-      "branches": 87.76,
+      "lines": 98.31,
+      "branches": 87.5,
       "functions": 100
     },
     {
@@ -2887,7 +2893,7 @@
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
       "lines": 100,
-      "branches": 98.04,
+      "branches": 97.22,
       "functions": 100
     },
     {
@@ -2899,7 +2905,7 @@
     {
       "path": ".agents/scripts/lib/wave-runner/ready-set.js",
       "lines": 100,
-      "branches": 95.45,
+      "branches": 95.06,
       "functions": 100
     },
     {
@@ -3294,8 +3300,8 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
-      "lines": 98.87,
-      "branches": 93.44,
+      "lines": 98.89,
+      "branches": 91.71,
       "functions": 100
     },
     {
