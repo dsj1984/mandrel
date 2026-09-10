@@ -15,12 +15,16 @@
  * the worktree and re-runs.
  *
  * Story #5267: a sync that lands tracked content also spends the worker's
- * pre-push full-suite capture stamp, because that stamp is keyed on the
- * tree. The phase now says so out loud — see
- * `buildStampInvalidatedWarning` — instead of leaving close's second full
- * suite looking like a bug.
+ * pre-push credit, because that credit is keyed on the tree. The phase says
+ * so out loud — see `buildStampInvalidatedWarning` — instead of leaving
+ * close's second full suite looking like a bug. Story #5278 splits the claim
+ * in two: gate evidence is spent by any tracked path, the capture stamp only
+ * by one under `crap.targetDirs`.
  */
 
+import { getQuality } from '../../../config/quality.js';
+import { resolveConfig } from '../../../config-resolver.js';
+import { filterFilesUnderTargets } from '../../../coverage-capture.js';
 import { syncBranchFromBase } from '../../../git/sync-from-base.js';
 import { Logger } from '../../../Logger.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
@@ -46,6 +50,7 @@ import {
  *   storyId: number,
  *   provider: object,
  *   injectedSync?: typeof syncBranchFromBase,
+ *   resolveConfigImpl?: typeof resolveConfig,
  *   progress: (tag: string, msg: string) => void,
  * }} args
  */
@@ -58,6 +63,7 @@ export async function runBaseSyncPhase({
   storyId,
   provider,
   injectedSync,
+  resolveConfigImpl = resolveConfig,
   progress,
 }) {
   const syncCwd = worktreePath ?? cwd;
@@ -96,8 +102,27 @@ export async function runBaseSyncPhase({
   for (const line of buildStampInvalidatedWarning({
     baseBranch,
     result: syncResult,
+    targetDirs: resolveCrapTargetDirs(resolveConfigImpl, syncCwd),
   })) {
     progress('SYNC', line);
+  }
+}
+
+/**
+ * The CRAP scoring scope, or `[]` when it cannot be resolved. A `[]` makes
+ * the warning below fall back to naming the capture stamp unconditionally —
+ * the pre-#5278 wording — because an unresolvable scope is no evidence that
+ * the stamp survived.
+ *
+ * @param {typeof resolveConfig} resolveConfigImpl
+ * @param {string} cwd
+ * @returns {string[]}
+ */
+function resolveCrapTargetDirs(resolveConfigImpl, cwd) {
+  try {
+    return getQuality(resolveConfigImpl({ cwd }))?.crap?.targetDirs ?? [];
+  } catch {
+    return [];
   }
 }
 
@@ -109,42 +134,57 @@ export async function runBaseSyncPhase({
 const WARNED_PATH_LIMIT = 12;
 
 /**
- * The loud "your capture stamp is spent" warning, or `[]` when the sync
- * changed nothing (Story #5267).
+ * The loud "your credit is spent" warning, or `[]` when the sync changed
+ * nothing (Story #5267, narrowed by #5278).
  *
- * The worker deposits ONE creditable full-suite stamp, keyed on the tree it
- * ran against. This sync runs after that, and when it brings tracked content
- * in it moves the tree out from under the stamp: close's `test` / `coverage`
- * gates find no credit and pay for a second full suite. That is correct
- * behaviour and not something to suppress — the defect was that it happened
- * silently, so the operator read a doubled close as a mystery rather than as
- * the base moving.
+ * The worker banks two kinds of credit before the push: gate evidence keyed
+ * on the tree (lint, typecheck) and one full-suite capture stamp keyed on the
+ * content of `crap.targetDirs`. This sync runs after that, and the two are
+ * spent on different conditions — which is why #5267's single blanket
+ * sentence was wrong half the time:
  *
- * Quiet by construction on the outcomes that cannot have spent it: a
- * `noop-already-current` sync never touched the tree, and a fast-forward or
- * merge that brought no tracked path in left the stamp's tree intact. A
- * content-changing fast-forward DOES warn — it invalidates the stamp exactly
- * as a merge commit does, and staying quiet there would be a lie of omission.
+ *   - **Gate evidence** is spent by any tracked path at all, because the tree
+ *     hash it is keyed on moves with the first byte.
+ *   - **The capture stamp** is spent only when a merged path lands under
+ *     `crap.targetDirs`. A sync that brings in docs, workflows or CI config
+ *     leaves it perfectly valid, and announcing it as spent taught operators
+ *     to expect a second full suite that close was never going to run.
+ *
+ * Quiet by construction on the outcome that cannot spend either: a
+ * `noop-already-current` sync never touched the tree. A content-changing
+ * fast-forward DOES warn — it moves the tree exactly as a merge commit does,
+ * and staying quiet there would be a lie of omission.
  *
  * Pure. Module-private: the phase is the seam tests drive it through
  * (`injectedSync` + a `progress` spy), so it needs no export of its own.
  *
- * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] } }} args
+ * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] }, targetDirs?: string[] }} args
  * @returns {string[]} Progress lines, in order. Empty when nothing changed.
  */
-function buildStampInvalidatedWarning({ baseBranch, result }) {
+function buildStampInvalidatedWarning({ baseBranch, result, targetDirs }) {
   const changed = Array.isArray(result?.changedPaths)
     ? result.changedPaths
     : [];
   if (changed.length === 0) return [];
+  const dirs = Array.isArray(targetDirs) ? targetDirs : [];
+  // An unresolvable scope (`[]`) cannot prove the stamp survived, so it fails
+  // closed to the unconditional wording.
+  const scored =
+    dirs.length === 0 ? changed : filterFilesUnderTargets(changed, dirs);
   const shown = changed.slice(0, WARNED_PATH_LIMIT);
   const overflow = changed.length - shown.length;
   return [
     `⚠️  BASE MOVED: the ${result?.kind ?? 'sync'} from origin/${baseBranch} ` +
       `brought ${changed.length} tracked path(s) into this branch, so the tree ` +
-      `is no longer the one the pre-push full-suite capture was stamped ` +
-      `against. That stamp cannot be credited; the gates below will re-run the ` +
-      `suite against the merged tree. This is expected, not a fault.`,
+      `hash the pre-push lint/typecheck evidence was keyed on has changed. ` +
+      `That evidence cannot be credited; those gates re-run below.`,
+    scored.length > 0
+      ? `⚠️  The full-suite capture stamp is spent too: ${scored.length} of ` +
+        `those path(s) fall under the CRAP target dirs [${dirs.join(', ')}], ` +
+        `so the suite re-runs against the merged tree. This is expected, not a fault.`
+      : `⚠️  The full-suite capture stamp SURVIVES: no merged path falls under ` +
+        `the CRAP target dirs [${dirs.join(', ')}], so the coverage artifact still ` +
+        `describes this tree and the suite is not re-run.`,
     ...shown.map((f) => `⚠️    ${f}`),
     ...(overflow > 0 ? [`⚠️    …and ${overflow} more`] : []),
   ];

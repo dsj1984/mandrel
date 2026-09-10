@@ -41,6 +41,7 @@ import {
   hashCommandConfig,
   recordPass,
   shouldSkip,
+  treeFingerprint,
 } from './lib/validation-evidence.js';
 
 /**
@@ -92,6 +93,28 @@ function resolveHeadShaDefault(cwd, gitSpawnFn) {
   if (res.status !== 0) return null;
   const sha = (res.stdout || '').trim();
   return sha.length > 0 ? sha : null;
+}
+
+/**
+ * The pair of keys an evidence record is written and read under: the commit
+ * this gate ran at, and the content identity of the tree it ran against
+ * (Story #5278).
+ *
+ * Both are read from the **spawn** cwd — the Story worktree when one is
+ * supplied — so the keys describe the tree the gate actually saw. The tree
+ * fingerprint is what keeps this gate credited across close's own base-sync
+ * fast-forward, which moves HEAD between the deposit and the gates that would
+ * spend it; see `validation-evidence.js#treeFingerprint`.
+ *
+ * @param {{ spawnCwd: string, gitSpawnFn: Function, useEvidence: boolean }} args
+ * @returns {{ headSha: string|null, inputFingerprint: string|null }}
+ */
+function resolveEvidenceKeys({ spawnCwd, gitSpawnFn, useEvidence }) {
+  if (!useEvidence) return { headSha: null, inputFingerprint: null };
+  return {
+    headSha: resolveHeadShaDefault(spawnCwd, gitSpawnFn),
+    inputFingerprint: treeFingerprint(spawnCwd, gitSpawnFn),
+  };
 }
 
 /**
@@ -168,9 +191,11 @@ export async function runEvidenceGate(params, deps = {}) {
   const spawnCwd = worktreePath ?? cwd;
   const [cmd, ...cmdArgs] = runnerArgs;
   const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd: spawnCwd });
-  const headSha = useEvidence
-    ? resolveHeadShaDefault(spawnCwd, gitSpawnFn)
-    : null;
+  const { headSha, inputFingerprint } = resolveEvidenceKeys({
+    spawnCwd,
+    gitSpawnFn,
+    useEvidence,
+  });
 
   if (useEvidence && headSha) {
     const verdict = shouldSkipFn(
@@ -179,13 +204,14 @@ export async function runEvidenceGate(params, deps = {}) {
         gateName: gate,
         currentSha: headSha,
         configHash,
+        inputFingerprint,
       },
       evidenceStoreOpts,
     );
     if (verdict.skip) {
       const ts = verdict.record?.timestamp ?? 'n/a';
       logger.info(
-        `[evidence-gate] ⏭ ${gate} skipped (evidence match: SHA=${headSha.slice(0, 7)}, recorded ${ts})`,
+        `[evidence-gate] ⏭ ${gate} skipped (${verdict.reason}: SHA=${headSha.slice(0, 7)}, recorded ${ts})`,
       );
       return { status: 0, skipped: true };
     }
@@ -220,6 +246,7 @@ export async function runEvidenceGate(params, deps = {}) {
           configHash,
           exitCode: 0,
           durationMs: Date.now() - startedAt,
+          inputFingerprint,
         },
         evidenceStoreOpts,
       );

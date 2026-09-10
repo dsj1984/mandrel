@@ -1135,15 +1135,19 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
   });
 });
 
-describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
+describe('runBaseSyncPhase — the spent-credit warning (Story #5267/#5278)', () => {
   /**
    * Drive the phase with a stubbed sync so the only variable is the outcome
    * envelope, and collect every `progress` line the phase emits. The warning
-   * is the phase's whole job here: the worker deposits ONE creditable
-   * full-suite stamp keyed on the tree, and a sync that lands tracked content
-   * spends it — silently, before this.
+   * is the phase's whole job here: the worker banks tree-keyed gate evidence
+   * and ONE full-suite capture stamp before the push, and this sync can spend
+   * either — silently, before Story #5267 said so out loud.
+   *
+   * `targetDirs` is injected through a stub config because the two credits
+   * are spent on different conditions (Story #5278): any tracked path spends
+   * the evidence, only one under the CRAP scan scope spends the stamp.
    */
-  async function runWithSync(result) {
+  async function runWithSync(result, targetDirs = ['lib']) {
     const lines = [];
     await runBaseSyncPhase({
       cwd: '/repo',
@@ -1153,6 +1157,12 @@ describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
       storyId: 5267,
       provider: {},
       injectedSync: async () => result,
+      resolveConfigImpl: () =>
+        targetDirs === null
+          ? (() => {
+              throw new Error('unresolvable config');
+            })()
+          : { delivery: { quality: { gates: { crap: { targetDirs } } } } },
       progress: (_tag, msg) => lines.push(msg),
     });
     return lines;
@@ -1171,9 +1181,69 @@ describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
     assert.match(warned[0], /BASE MOVED/);
     assert.match(warned[0], /merge-commit/);
     assert.match(warned[0], /origin\/main/);
-    assert.match(warned[0], /capture/);
     assert.ok(warned.some((l) => l.includes('baselines/crap.json')));
     assert.ok(warned.some((l) => l.includes('lib/git/x.js')));
+  });
+
+  // AC-9 — the header speaks for the credit that ANY tracked path spends.
+  it('AC-9: names lint/typecheck evidence as spent whenever the tree moved', async () => {
+    const warned = warnings(
+      await runWithSync({
+        synced: true,
+        kind: 'fast-forward',
+        changedPaths: ['docs/CHANGELOG.md'],
+      }),
+    );
+    assert.match(warned[0], /lint\/typecheck evidence/);
+  });
+
+  // AC-9 — and the capture stamp only when a merged path is actually scored.
+  it('AC-9: names the capture stamp spent only when a merged path is under targetDirs', async () => {
+    const spent = warnings(
+      await runWithSync({
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: ['lib/git/x.js', 'README.md'],
+      }),
+    );
+    assert.ok(
+      spent.some((l) => /capture stamp is spent/.test(l)),
+      'a path under the CRAP scan scope spends it',
+    );
+
+    const survives = warnings(
+      await runWithSync({
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: ['docs/CHANGELOG.md', '.github/workflows/ci.yml'],
+      }),
+    );
+    assert.ok(
+      survives.some((l) => /capture stamp SURVIVES/.test(l)),
+      'a docs/CI-only sync leaves the coverage artifact describing this tree',
+    );
+    assert.equal(
+      survives.some((l) => /capture stamp is spent/.test(l)),
+      false,
+      'and must not tell the operator to expect a second full suite',
+    );
+  });
+
+  it('AC-9: an unresolvable scan scope fails closed to "spent"', async () => {
+    const warned = warnings(
+      await runWithSync(
+        {
+          synced: true,
+          kind: 'merge-commit',
+          changedPaths: ['docs/CHANGELOG.md'],
+        },
+        null,
+      ),
+    );
+    assert.ok(
+      warned.some((l) => /capture stamp is spent/.test(l)),
+      'no scope resolved is no evidence the stamp survived',
+    );
   });
 
   it('stays quiet on a noop-already-current sync', async () => {
@@ -1202,7 +1272,7 @@ describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
     assert.deepEqual(warnings(lines), []);
   });
 
-  it('warns on a content-changing fast-forward — it spends the stamp too', async () => {
+  it('warns on a content-changing fast-forward — it spends credit too', async () => {
     const lines = await runWithSync({
       synced: true,
       kind: 'fast-forward',
@@ -1222,7 +1292,7 @@ describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
     );
     assert.match(warned[0], /20 tracked path\(s\)/);
     assert.equal(warned.at(-1), '⚠️    …and 8 more');
-    // Header + 12 listed + the overflow line.
-    assert.equal(warned.length, 14);
+    // Header + the capture-stamp verdict + 12 listed + the overflow line.
+    assert.equal(warned.length, 15);
   });
 });

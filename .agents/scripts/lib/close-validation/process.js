@@ -153,15 +153,19 @@ function isBiomeNoFilesProcessed(output) {
  *
  * @param {string} cmd
  * @param {string[]} args
- * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean }} opts
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void, env?: Record<string, string>, tolerateNoFilesProcessed?: boolean, fullSuiteLock?: boolean, skipIfSatisfied?: () => {status: number}|undefined }} opts
  * @returns {Promise<{ status: number }>}
  */
 export function defaultGateRunner(cmd, args, opts = {}) {
   if (!opts.fullSuiteLock) return spawnGate(cmd, args, opts);
   // `log` is passed through as-is: `withFullSuiteLockAsync` supplies its own
   // no-op default, so a second fallback here would be an untestable branch.
-  return withFullSuiteLockAsync({ cwd: opts.cwd, log: opts.log }, () =>
-    spawnGate(cmd, args, opts),
+  // `skipIfSatisfied` (Story #5278) is the caller's post-wait re-probe: after
+  // queueing behind another full suite, the gate re-asks whether its evidence
+  // has since been deposited and returns that verdict instead of spawning.
+  return withFullSuiteLockAsync(
+    { cwd: opts.cwd, log: opts.log, skipIfSatisfied: opts.skipIfSatisfied },
+    () => spawnGate(cmd, args, opts),
   );
 }
 

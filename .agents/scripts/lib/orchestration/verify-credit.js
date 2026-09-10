@@ -43,6 +43,39 @@ const PACKAGE_MANAGERS = new Set(['npm', 'pnpm', 'yarn', 'bun']);
 const FULL_SUITE_SCRIPTS = new Set(['test', 'test:coverage']);
 
 /**
+ * Flags that narrow a runner's work to a subset of the suite (Story #5278).
+ *
+ * A positional path is not the only way to scope a run: Node's test runner
+ * takes filter flags that select a fraction of the tests while the argv still
+ * reads as a bare `node --test`. Crediting one of those against the full-suite
+ * stamp reports a filtered run as the whole suite — the exact false positive
+ * {@link isFullSuiteCommand} exists to refuse. Matched by prefix so both
+ * spellings (`--test-only`, `--test-name-pattern=x`, `--test-name-pattern x`)
+ * are caught.
+ */
+const NARROWING_FLAGS = Object.freeze([
+  '--test-name-pattern',
+  '--test-skip-pattern',
+  '--test-only',
+]);
+
+/**
+ * Does any token narrow the run to a subset of the suite? Pure helper for
+ * {@link isFullSuiteCommand}, split out so that function's own branching stays
+ * inside its committed cyclomatic budget.
+ *
+ * @param {string[]} tokens
+ * @returns {boolean}
+ */
+function hasNarrowingFlag(tokens) {
+  return tokens.some((token) =>
+    NARROWING_FLAGS.some(
+      (flag) => token === flag || token.startsWith(`${flag}=`),
+    ),
+  );
+}
+
+/**
  * Split a Story `verify[]` line into its command and its tier tag.
  *
  * Story bodies write entries as `` `<command>` (<tier>) `` — the tier is
@@ -76,6 +109,10 @@ export function isFullSuiteCommand(command) {
     .split(/\s+/)
     .filter(Boolean);
   if (tokens.length === 0) return false;
+  // A narrowing flag scopes the run wherever it appears — before the package
+  // manager's `--` as much as after it — so the probe runs over the whole
+  // token list rather than per-branch below.
+  if (hasNarrowingFlag(tokens)) return false;
 
   if (tokens[0] === 'node') {
     // `node --test` with no path argument walks the default test globs.

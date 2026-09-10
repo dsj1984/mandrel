@@ -31,6 +31,7 @@ function harness({
   captureCode = 0,
   hasScript = true,
   digest = 'deadbeef',
+  digests = null,
   stampWritten = true,
   lockEnabled = false,
   requireCredited = undefined,
@@ -39,7 +40,14 @@ function harness({
   // `order` interleaves the announcement with the spawn so a test can assert
   // the warning is emitted BEFORE the suite starts — the whole point of the
   // credit probe is that the cost is announced while it is still ahead of you.
-  const calls = { capture: [], stamp: [], changed: [], fresh: [], order: [] };
+  const calls = {
+    capture: [],
+    stamp: [],
+    changed: [],
+    fresh: [],
+    order: [],
+    digest: [],
+  };
   return {
     log,
     calls,
@@ -78,7 +86,14 @@ function harness({
         args.log('capture says hello');
         return captureCode;
       },
-      computeContentDigestImpl: () => digest,
+      // Story #5278 — the capture paths digest the tree TWICE (before the
+      // spawn and after it), so a test can model a tree that moved mid-run by
+      // handing back a different value on the second call.
+      computeContentDigestImpl: () => {
+        calls.digest.push(true);
+        if (!digests) return digest;
+        return digests[Math.min(calls.digest.length - 1, digests.length - 1)];
+      },
       writeCaptureStampImpl: (args) => {
         calls.stamp.push(args);
         return stampWritten;
@@ -105,15 +120,27 @@ describe('coverage-capture parseArgs', () => {
     assert.equal(parsed.cwd, process.cwd());
   });
 
-  it('reads --skip-when-no-crap-files, --ref and --cwd', () => {
+  it('reads --skip-when-no-crap-files, --require-credited, --ref and --cwd', () => {
     const parsed = parseArgs(
-      argv('--skip-when-no-crap-files', '--ref', 'develop', '--cwd', '/repo'),
+      argv(
+        '--skip-when-no-crap-files',
+        '--require-credited',
+        '--ref',
+        'develop',
+        '--cwd',
+        '/repo',
+      ),
     );
     assert.deepEqual(parsed, {
       skipWhenNoCrapFiles: true,
+      requireCredited: true,
       ref: 'develop',
       cwd: '/repo',
     });
+  });
+
+  it('AC-1: --require-credited defaults off, so a bare invocation can deposit', () => {
+    assert.equal(parseArgs(argv()).requireCredited, false);
   });
 
   it('keeps the defaults when a value-taking flag has no value', () => {
@@ -432,9 +459,15 @@ describe('runCoverageCapture', () => {
       assert.equal(h.log.warn.length, 0);
     });
 
-    it('requireCreditedCapture: true blocks before the spawn, naming the invocation', () => {
-      const h = harness({ fresh: STALE, requireCredited: true });
-      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    it('AC-1: --require-credited blocks before the spawn, naming the invocation', () => {
+      const h = harness({ fresh: STALE });
+      assert.equal(
+        runCoverageCapture(
+          argv('--cwd', '/repo', '--require-credited'),
+          h.deps,
+        ),
+        1,
+      );
       assert.equal(
         h.calls.capture.length,
         0,
@@ -447,30 +480,52 @@ describe('runCoverageCapture', () => {
       );
     });
 
-    it('requireCreditedCapture: true also blocks the incremental path', () => {
-      const h = harness({ crap: SKIP_ON, fresh: STALE, requireCredited: true });
-      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    it('AC-1: --require-credited also blocks the incremental path', () => {
+      const h = harness({ crap: SKIP_ON, fresh: STALE });
+      assert.equal(
+        runCoverageCapture(
+          argv('--cwd', '/repo', '--require-credited'),
+          h.deps,
+        ),
+        1,
+      );
       assert.equal(h.calls.capture.length, 0);
     });
 
-    it('default (key unset) is byte-identical to the pre-key behaviour: it runs', () => {
-      for (const requireCredited of [undefined, false]) {
-        const h = harness({ fresh: STALE, requireCredited });
-        assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
-        assert.equal(h.calls.capture.length, 1);
-        assert.equal(h.calls.stamp.length, 1);
-      }
+    // Story #5278 — the defect the flag replaces. When the CLI read
+    // `delivery.execution.requireCreditedCapture` itself, enabling the policy
+    // refused EVERY invocation, the depositing one included: there was no
+    // path left that could earn the credit the refusal demanded, so the CRAP
+    // gate could never go green again.
+    it('AC-1: the deposit path survives requireCreditedCapture: true in config', () => {
+      const h = harness({ fresh: STALE, requireCredited: true });
+      assert.equal(
+        runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+        0,
+        'a bare invocation must run and deposit whatever the config says',
+      );
+      assert.equal(h.calls.capture.length, 1);
+      assert.equal(h.calls.stamp.length, 1);
     });
 
-    it('requireCreditedCapture never blocks a run that was going to be skipped', () => {
+    it('without the flag the announcement is a warning and the run proceeds', () => {
+      const h = harness({ fresh: STALE });
+      assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+      assert.equal(h.calls.capture.length, 1);
+      assert.equal(h.calls.stamp.length, 1);
+    });
+
+    it('--require-credited never blocks a run that was going to be skipped', () => {
       const h = harness({
         crap: SKIP_ON,
         changed: ['README.md'],
         fresh: STALE,
-        requireCredited: true,
       });
       assert.equal(
-        runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+        runCoverageCapture(
+          argv('--cwd', '/repo', '--require-credited'),
+          h.deps,
+        ),
         0,
         'nothing under targetDirs changed — there is no capture to refuse',
       );
@@ -543,5 +598,98 @@ describe('runCoverageCapture', () => {
       assert.match(logged, /is stale; running/);
       assert.doesNotMatch(logged, /targetDirs/);
     });
+  });
+});
+
+describe('content-keyed capture stamps (Story #5278)', () => {
+  const STALE = { fresh: false, reason: 'stale' };
+  const SKIP_ON = {
+    ...CRAP,
+    incrementalCoverage: { skipWhenUnchanged: true },
+  };
+
+  // AC-6 — the stamp is a claim about content: "the coverage artifact
+  // reflects sources digesting to X". Computing X after the suite finishes
+  // makes that claim false whenever anything moved during the run, and the
+  // next reader then credits a run against sources it never saw.
+  it('AC-6: writes the PRE-spawn digest, not the post-spawn one', () => {
+    const h = harness({ fresh: STALE, digests: ['before', 'before'] });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.equal(h.calls.stamp.length, 1);
+    assert.equal(
+      h.calls.stamp[0].digest,
+      'before',
+      'the stamped value is the tree the suite actually measured',
+    );
+  });
+
+  it('AC-6: a tree that moved mid-run writes NO stamp and says so', () => {
+    const h = harness({ fresh: STALE, digests: ['before', 'after'] });
+    assert.equal(
+      runCoverageCapture(argv('--cwd', '/repo'), h.deps),
+      0,
+      'the suite passed — the run is not a failure, it just earns no credit',
+    );
+    assert.equal(h.calls.stamp.length, 0, 'no stamp for a tree nobody has');
+    assert.match(h.log.warn.join('\n'), /the tree moved while the suite ran/);
+  });
+
+  it('AC-6: the incremental path is keyed the same way', () => {
+    const moved = harness({
+      crap: SKIP_ON,
+      fresh: STALE,
+      digests: ['before', 'after'],
+    });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), moved.deps), 0);
+    assert.equal(moved.calls.stamp.length, 0);
+
+    const still = harness({
+      crap: SKIP_ON,
+      fresh: STALE,
+      digests: ['before', 'before'],
+    });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), still.deps), 0);
+    assert.equal(still.calls.stamp[0].digest, 'before');
+    assert.equal(still.calls.stamp[0].scope, 'incremental');
+  });
+
+  it('an unavailable digest is "nothing to stamp", never "the tree moved"', () => {
+    const h = harness({ fresh: STALE, digests: [null, null] });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 0);
+    assert.equal(h.calls.stamp.length, 0);
+    assert.equal(
+      /the tree moved/.test(h.log.warn.join('\n')),
+      false,
+      'a missing digest is the pre-#5278 fail-open, not a moved tree',
+    );
+  });
+
+  it('a failing capture still writes no stamp and never digests twice', () => {
+    const h = harness({ fresh: STALE, captureCode: 1 });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), h.deps), 1);
+    assert.equal(h.calls.stamp.length, 0);
+  });
+
+  // AC-7 — the capture path supplies the freshness re-probe the host lock
+  // consults after a contended wait. Only the capture path knows which scope
+  // the stamp has to satisfy, so it hands the probe down rather than the lock
+  // guessing.
+  it('AC-7: hands the lock a scope-correct freshness re-probe', () => {
+    const full = harness({ fresh: STALE });
+    assert.equal(runCoverageCapture(argv('--cwd', '/repo'), full.deps), 0);
+    const probe = full.calls.capture[0].recheckFresh;
+    assert.equal(typeof probe, 'function');
+    full.calls.fresh.length = 0;
+    probe();
+    assert.equal(full.calls.fresh[0].requireScope, undefined, 'full scope');
+
+    const incremental = harness({ crap: SKIP_ON, fresh: STALE });
+    assert.equal(
+      runCoverageCapture(argv('--cwd', '/repo'), incremental.deps),
+      0,
+    );
+    incremental.calls.fresh.length = 0;
+    incremental.calls.capture[0].recheckFresh();
+    assert.equal(incremental.calls.fresh[0].requireScope, 'incremental');
   });
 });

@@ -11,6 +11,7 @@ import path from 'node:path';
 import {
   anyChangedUnderTargets,
   describeFreshness,
+  stampCapturedTree,
 } from './coverage-capture.js';
 
 /**
@@ -77,10 +78,23 @@ export function runFullScopeCapture({
   logger.info(
     `[coverage-capture] Coverage at ${crap.coveragePath} is ${describeFreshness(freshness, crap.targetDirs)}; running npm run test:coverage…`,
   );
+  // Story #5278 — the digest of the tree the suite is about to measure, taken
+  // BEFORE the spawn. That is the value the stamp claims; see
+  // `stampCapturedTree`.
+  const preDigest = computeContentDigestImpl(args.cwd, crap.targetDirs);
   const code = runCaptureImpl({
     cwd: args.cwd,
     timeoutMs: coverage?.timeoutMs,
     log: (m) => logger.info(m),
+    // Story #5278 — consulted only if this capture had to queue behind
+    // another full suite on this host. Whoever we waited for may have just
+    // stamped this exact tree.
+    recheckFresh: () =>
+      isCoverageFreshImpl({
+        coveragePath: crap.coveragePath,
+        targetDirs: crap.targetDirs,
+        cwd: args.cwd,
+      }).fresh === true,
   });
   if (code !== 0) {
     logger.error(
@@ -93,16 +107,14 @@ export function runFullScopeCapture({
   // freshness checks are content-aware (mtime churn from branch switches no
   // longer invalidates). Best-effort — a missing stamp just means the next
   // check falls back to the mtime heuristic.
-  const digest = computeContentDigestImpl(args.cwd, crap.targetDirs);
-  if (
-    digest &&
-    writeCaptureStampImpl({
-      cwd: args.cwd,
-      coveragePath: crap.coveragePath,
-      digest,
-    })
-  ) {
-    logger.info('[coverage-capture] Wrote content-digest capture stamp.');
-  }
+  stampCapturedTree({
+    preDigest,
+    cwd: args.cwd,
+    targetDirs: crap.targetDirs,
+    coveragePath: crap.coveragePath,
+    computeContentDigestImpl,
+    writeCaptureStampImpl,
+    logger,
+  });
   return code;
 }
