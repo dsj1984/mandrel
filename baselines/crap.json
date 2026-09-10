@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:43:10.747Z",
+  "generatedAt": "2026-09-10T21:33:49.229Z",
   "scoringSemantics": "method-identity-v3",
   "tsTranspilerVersion": "6.0.3",
   "provenanceStamped": true,
@@ -5829,9 +5829,106 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "mergeRowSets",
+      "startLine": 196,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
       "method": "mergeEnvelopes",
-      "startLine": 203,
-      "crap": 8.02332361516035
+      "startLine": 253,
+      "crap": 4.012021036814425
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "orderKeys",
+      "startLine": 312,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "cyclomaticRollup",
+      "startLine": 337,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (row)#0>",
+      "startLine": 375,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (rows)#0>",
+      "startLine": 376,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (rows)#0/(a,b)#0>",
+      "startLine": 377,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (row)#1>",
+      "startLine": 382,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (rows)#1>",
+      "startLine": 383,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon (rows)#1/(a,b)#0>",
+      "startLine": 385,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "plainKindFromEnvelope",
+      "startLine": 410,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "plainSpec",
+      "startLine": 421,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "mergePlainBaseline",
+      "startLine": 437,
+      "crap": 6.04548595344797
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "baselineRegenerateRemedy",
+      "startLine": 495,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "renderStampConflict",
+      "startLine": 517,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
+      "method": "<anon renderStampConflict/(value)#0>",
+      "startLine": 528,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -6595,34 +6692,72 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "buildBaselineMergeDriverCommand",
+      "startLine": 66,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "parseBaselineMergeDriverCommand",
+      "startLine": 100,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "<anon parseBaselineMergeDriverCommand/(token)#0>",
+      "startLine": 103,
+      "crap": 4,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "<anon parseBaselineMergeDriverCommand/(token)#1>",
+      "startLine": 108,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "method": "declaresBaselineMergeDriver",
-      "startLine": 56,
+      "startLine": 121,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "method": "<anon declaresBaselineMergeDriver/(line)#0>",
-      "startLine": 59,
+      "startLine": 124,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "probeBaselineMergeDriver",
+      "startLine": 157,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "method": "ensureGitattributesLine",
-      "startLine": 73,
+      "startLine": 187,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "method": "ensureDriverGitConfig",
-      "startLine": 101,
-      "crap": 5.007924023290759
+      "startLine": 215,
+      "crap": 5.002347858752818
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
+      "method": "probeGitattributesLine",
+      "startLine": 268,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
       "method": "ensureBaselineMergeDriver",
-      "startLine": 161,
-      "crap": 4
+      "startLine": 318,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/bootstrap/branch-protection.js",
@@ -12181,21 +12316,60 @@
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "refuseWithoutMergeDriver",
+      "startLine": 91,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon refuseWithoutMergeDriver/(args)#0>",
+      "startLine": 94,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "readHead",
+      "startLine": 118,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "diffPaths",
+      "startLine": 140,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon diffPaths/(s)#0>",
+      "startLine": 147,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
+      "method": "<anon diffPaths/(s)#1>",
+      "startLine": 148,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/git/sync-from-base.js",
       "method": "syncBranchFromBase",
-      "startLine": 75,
-      "crap": 11
+      "startLine": 180,
+      "crap": 12
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
       "method": "<anon syncBranchFromBase/(s)#0>",
-      "startLine": 146,
+      "startLine": 263,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
       "method": "<anon syncBranchFromBase/(s)#1>",
-      "startLine": 147,
+      "startLine": 264,
       "crap": 1,
       "anonymous": true
     },
@@ -13234,83 +13408,89 @@
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "baselineRelativePath",
-      "startLine": 18,
+      "startLine": 19,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "resolveDispatchScope",
-      "startLine": 27,
+      "startLine": 28,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "emptyCompareResult",
-      "startLine": 40,
+      "startLine": 39,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
+      "method": "buildBaseReadError",
+      "startLine": 58,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "readBaseBaselinePayload",
-      "startLine": 44,
-      "crap": 2.075851851851852
+      "startLine": 74,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "evaluateCompare",
-      "startLine": 60,
+      "startLine": 98,
       "crap": 5.2
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "baseIsComparable",
-      "startLine": 88,
+      "startLine": 126,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "runCompareStage",
-      "startLine": 94,
+      "startLine": 132,
       "crap": 7.228120743095177
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "tolerantNumericFields",
-      "startLine": 132,
+      "startLine": 170,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "<anon tolerantNumericFields/(key,h)#0>",
-      "startLine": 136,
+      "startLine": 174,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "<anon tolerantNumericFields/(key,h)#1>",
-      "startLine": 138,
+      "startLine": 176,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "regressionExceedsTolerance",
-      "startLine": 141,
+      "startLine": 179,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "<anon regressionExceedsTolerance/(head,base)#0>",
-      "startLine": 144,
+      "startLine": 182,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
       "method": "applyTolerance",
-      "startLine": 151,
-      "crap": 6.0087890625
+      "startLine": 189,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
@@ -13605,72 +13785,85 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
-      "method": "readRowsAtCommit",
-      "startLine": 105,
+      "method": "readRowsAtRef",
+      "startLine": 116,
       "crap": 3.021333333333333
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
+      "method": "keysTouchedByCommit",
+      "startLine": 152,
+      "crap": 1.0029154518950438
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
+      "method": "<anon keysTouchedByCommit/(entry)#0>",
+      "startLine": 160,
+      "crap": 1.0029154518950438,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "classifyAgainstRefresh",
-      "startLine": 145,
+      "startLine": 191,
       "crap": 1.001
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "<anon classifyAgainstRefresh/(r)#0>",
-      "startLine": 158,
+      "startLine": 204,
       "crap": 1.001,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "<anon classifyAgainstRefresh/(r)#1>",
-      "startLine": 159,
+      "startLine": 205,
       "crap": 1.001,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "acknowledgeableKeys",
-      "startLine": 188,
-      "crap": 9.007111111111112
+      "startLine": 239,
+      "crap": 12.008192990441511
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "partitionRegressions",
-      "startLine": 234,
+      "startLine": 292,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "logAcknowledgment",
-      "startLine": 244,
+      "startLine": 302,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "applyRefreshAcknowledgment",
-      "startLine": 280,
+      "startLine": 340,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "<anon applyRefreshAcknowledgment/()#0>",
-      "startLine": 288,
+      "startLine": 348,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "<anon applyRefreshAcknowledgment/(reg)#0>",
-      "startLine": 298,
+      "startLine": 358,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/refresh-ack.js",
       "method": "<anon applyRefreshAcknowledgment/(reg)#1>",
-      "startLine": 313,
+      "startLine": 373,
       "crap": 1,
       "anonymous": true
     },
@@ -20279,198 +20472,222 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "resolveTolerance",
-      "startLine": 108,
+      "startLine": 113,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "resolveGate",
-      "startLine": 133,
+      "startLine": 138,
       "crap": 1.0233236151603498
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "projectRows",
-      "startLine": 150,
+      "startLine": 155,
       "crap": 2.0185185185185186
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "selectImprovedRows",
-      "startLine": 186,
+      "startLine": 191,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon selectImprovedRows/(row)#0>",
-      "startLine": 187,
+      "startLine": 192,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon selectImprovedRows/(row)#1>",
-      "startLine": 188,
+      "startLine": 193,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "buildCommitBody",
-      "startLine": 218,
+      "startLine": 223,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon buildCommitBody/(row)#0>",
-      "startLine": 220,
+      "startLine": 225,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "buildCommitSubject",
-      "startLine": 245,
+      "startLine": 250,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "commitBaseline",
-      "startLine": 262,
+      "startLine": 267,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "precheck",
-      "startLine": 295,
-      "crap": 4
+      "startLine": 317,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
+      "method": "isDirty",
+      "startLine": 336,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
+      "method": "resolveScopeBase",
+      "startLine": 359,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "runBaselineUpwardWriteback",
-      "startLine": 335,
+      "startLine": 407,
       "crap": 11
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon runBaselineUpwardWriteback/(args,opts)#0>",
-      "startLine": 362,
+      "startLine": 434,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon runBaselineUpwardWriteback/(file)#0>",
-      "startLine": 370,
+      "startLine": 442,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "persist",
-      "startLine": 415,
+      "startLine": 498,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon persist/(row)#0>",
-      "startLine": 425,
+      "startLine": 509,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "<anon persist/()#0>",
-      "startLine": 432,
+      "startLine": 515,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
+      "method": "skip",
+      "startLine": 544,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "method": "defaultLoadBaselineRows",
-      "startLine": 472,
+      "startLine": 554,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
+      "method": "defaultResolveWritePath",
+      "startLine": 563,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "listDirtyPaths",
-      "startLine": 66,
+      "startLine": 71,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "<anon listDirtyPaths/(line)#0>",
-      "startLine": 74,
+      "startLine": 79,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "<anon listDirtyPaths/(line)#1>",
-      "startLine": 75,
+      "startLine": 80,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "resolveFormatterCmd",
-      "startLine": 94,
+      "startLine": 99,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "currentBranch",
-      "startLine": 116,
+      "startLine": 121,
       "crap": 3.0262390670553936
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "commitDirtyPaths",
-      "startLine": 143,
+      "startLine": 148,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "resolveFormatTimeoutMs",
-      "startLine": 164,
+      "startLine": 169,
       "crap": 7.124248685199098
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "runFormatAutofix",
-      "startLine": 227,
+      "startLine": 232,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "<anon runFormatAutofix/(args,opts)#0>",
-      "startLine": 238,
+      "startLine": 243,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "listChangedFiles",
-      "startLine": 344,
+      "startLine": 349,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "<anon listChangedFiles/(_cwd,args)#0>",
-      "startLine": 346,
+      "startLine": 351,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "runScopedFormatAutofix",
-      "startLine": 421,
+      "startLine": 426,
       "crap": 9.004884998982291
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "<anon runScopedFormatAutofix/(args,opts)#0>",
-      "startLine": 443,
+      "startLine": 448,
       "crap": 1.000060308629411,
       "anonymous": true
     },
@@ -25874,65 +26091,101 @@
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "rowBlock",
-      "startLine": 59,
+      "startLine": 66,
       "crap": 1
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "<anon rowBlock/(line)#0>",
-      "startLine": 62,
+      "startLine": 69,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "renderConflictMarkers",
-      "startLine": 76,
+      "startLine": 83,
       "crap": 6
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "readSide",
-      "startLine": 109,
+      "startLine": 116,
       "crap": 4.128
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "delegateToGit",
-      "startLine": 128,
+      "startLine": 135,
       "crap": 2.0857338820301785
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
+      "method": "resolveMergeTarget",
+      "startLine": 174,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
+      "method": "writeMerged",
+      "startLine": 193,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
+      "method": "runInstall",
+      "startLine": 214,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
       "method": "runMergeBaseline",
-      "startLine": 151,
-      "crap": 10.549562385507837
+      "startLine": 232,
+      "crap": 9.184520338241725
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "<anon runMergeBaseline/(p)#0>",
-      "startLine": 166,
-      "crap": 1.0054956238550783,
+      "startLine": 248,
+      "crap": 1.0022780288671818,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "method": "<anon runMergeBaseline/(c)#0>",
-      "startLine": 186,
-      "crap": 1.0054956238550783,
+      "method": "mergeResolved",
+      "startLine": 279,
+      "crap": 4.01318359375
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
+      "method": "markConflicts",
+      "startLine": 323,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
+      "method": "<anon markConflicts/(c)#0>",
+      "startLine": 324,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "method": "<anon runMergeBaseline/(c)#1>",
-      "startLine": 188,
-      "crap": 1.0054956238550783,
+      "method": "<anon markConflicts/(c)#1>",
+      "startLine": 326,
+      "crap": 1,
       "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/merge-baseline.js",
+      "method": "reportConflicts",
+      "startLine": 352,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
       "method": "main",
-      "startLine": 220,
+      "startLine": 370,
       "crap": 1
     },
     {
@@ -28514,345 +28767,358 @@
     {
       "path": "lib/cli/registry.js",
       "method": "spawn",
-      "startLine": 62,
+      "startLine": 63,
       "crap": 3
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runNodeVersion",
-      "startLine": 80,
+      "startLine": 81,
       "crap": 2
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runGitAvailable",
-      "startLine": 99,
+      "startLine": 100,
       "crap": 6
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runGhAvailable",
-      "startLine": 120,
+      "startLine": 121,
       "crap": 6
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runGithubToken",
-      "startLine": 155,
+      "startLine": 156,
       "crap": 8
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runGhAuth",
-      "startLine": 196,
+      "startLine": 197,
       "crap": 7.355275083078783
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runCommandsInSync",
-      "startLine": 268,
+      "startLine": 269,
       "crap": 8.0480841472577
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/()#0>",
-      "startLine": 269,
+      "startLine": 270,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/(dir)#0>",
-      "startLine": 273,
+      "startLine": 274,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/(dir)#0/(f)#0>",
-      "startLine": 275,
+      "startLine": 276,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/(file)#0>",
-      "startLine": 282,
+      "startLine": 283,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/(f)#0>",
-      "startLine": 313,
+      "startLine": 314,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runCommandsInSync/(f)#1>",
-      "startLine": 317,
-      "crap": 1.0007513148009015,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runCommandsInSync/(f)#2>",
       "startLine": 318,
       "crap": 1.0007513148009015,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon runCommandsInSync/(f)#2>",
+      "startLine": 319,
+      "crap": 1.0007513148009015,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "readJsonSafe",
-      "startLine": 348,
+      "startLine": 349,
       "crap": 1
     },
     {
       "path": "lib/cli/registry.js",
       "method": "resolveRoleScopedAgentsFlag",
-      "startLine": 376,
+      "startLine": 377,
       "crap": 1
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runAgentsInSync",
-      "startLine": 442,
+      "startLine": 443,
       "crap": 9.048883661021874
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/()#0>",
-      "startLine": 449,
+      "startLine": 450,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/(dir)#0>",
-      "startLine": 453,
+      "startLine": 454,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/(dir)#0/(f)#0>",
-      "startLine": 455,
+      "startLine": 456,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/(f)#0>",
-      "startLine": 465,
+      "startLine": 466,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/(f)#1>",
-      "startLine": 468,
+      "startLine": 469,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsInSync/(f)#2>",
-      "startLine": 496,
-      "crap": 1.0006035019879245,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsInSync/(f)#3>",
       "startLine": 497,
       "crap": 1.0006035019879245,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon runAgentsInSync/(f)#3>",
+      "startLine": 498,
+      "crap": 1.0006035019879245,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "runRuntimeDeps",
-      "startLine": 539,
+      "startLine": 540,
       "crap": 5.9259259259259265
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runAgentsMaterialized",
-      "startLine": 641,
+      "startLine": 642,
       "crap": 3.003525775888336
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsMaterialized/()#0>",
-      "startLine": 642,
-      "crap": 1.0003917528764819,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon runAgentsMaterialized/(p)#0>",
       "startLine": 643,
       "crap": 1.0003917528764819,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon runAgentsMaterialized/(p)#0>",
+      "startLine": 644,
+      "crap": 1.0003917528764819,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon runAgentsMaterialized/(fromDir)#0>",
-      "startLine": 653,
+      "startLine": 654,
       "crap": 1.0003917528764819,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "payloadFileDrifted",
-      "startLine": 714,
+      "startLine": 715,
       "crap": 3
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runAgentsDrift",
-      "startLine": 755,
+      "startLine": 756,
       "crap": 5
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runAgentsDrift/()#0>",
-      "startLine": 756,
+      "startLine": 757,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runPinCurrent",
-      "startLine": 891,
+      "startLine": 892,
       "crap": 5
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runPinCurrent/()#0>",
-      "startLine": 892,
+      "startLine": 893,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "defaultInstalledVersion",
-      "startLine": 982,
+      "startLine": 983,
       "crap": 1
     },
     {
       "path": "lib/cli/registry.js",
       "method": "defaultVersionCachePath",
-      "startLine": 1003,
+      "startLine": 1004,
       "crap": 2
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runVersionCurrent",
-      "startLine": 1042,
+      "startLine": 1043,
       "crap": 4
     },
     {
       "path": "lib/cli/registry.js",
       "method": "runMergeDriver",
-      "startLine": 1102,
-      "crap": 4
+      "startLine": 1103,
+      "crap": 3
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon runMergeDriver/()#0>",
-      "startLine": 1103,
+      "startLine": 1104,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon runMergeDriver/(args)#0>",
+      "startLine": 1111,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "probeConfiguredDriver",
+      "startLine": 1158,
+      "crap": 3
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#0>",
-      "startLine": 1147,
+      "startLine": 1190,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
       "method": "<anon (opts)#1>",
-      "startLine": 1151,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#2>",
-      "startLine": 1155,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#3>",
-      "startLine": 1159,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#4>",
-      "startLine": 1163,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#5>",
-      "startLine": 1167,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#6>",
-      "startLine": 1171,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#7>",
-      "startLine": 1175,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#8>",
-      "startLine": 1179,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#9>",
-      "startLine": 1183,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#10>",
-      "startLine": 1187,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": "lib/cli/registry.js",
-      "method": "<anon (opts)#11>",
       "startLine": 1194,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#2>",
+      "startLine": 1198,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#3>",
+      "startLine": 1202,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#4>",
+      "startLine": 1206,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#5>",
+      "startLine": 1210,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#6>",
+      "startLine": 1214,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#7>",
+      "startLine": 1218,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#8>",
+      "startLine": 1222,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#9>",
+      "startLine": 1226,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#10>",
+      "startLine": 1230,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
+      "method": "<anon (opts)#11>",
+      "startLine": 1237,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": "lib/cli/registry.js",
       "method": "<anon (opts)#12>",
-      "startLine": 1201,
+      "startLine": 1244,
       "crap": 1,
       "anonymous": true
     },
@@ -28897,63 +29163,63 @@
     {
       "path": "lib/cli/sync.js",
       "method": "toManagedZoneRelative",
-      "startLine": 116,
+      "startLine": 127,
       "crap": 4.125
     },
     {
       "path": "lib/cli/sync.js",
       "method": "resolvePackageVersion",
-      "startLine": 177,
+      "startLine": 188,
       "crap": 1
     },
     {
       "path": "lib/cli/sync.js",
       "method": "readVersionMarker",
-      "startLine": 193,
+      "startLine": 204,
       "crap": 2
     },
     {
       "path": "lib/cli/sync.js",
       "method": "defaultResolvePackageRoot",
-      "startLine": 217,
+      "startLine": 228,
       "crap": 1
     },
     {
       "path": "lib/cli/sync.js",
       "method": "listFiles",
-      "startLine": 241,
+      "startLine": 252,
       "crap": 6
     },
     {
       "path": "lib/cli/sync.js",
       "method": "listDestFiles",
-      "startLine": 288,
+      "startLine": 299,
       "crap": 10.062973760932945
     },
     {
       "path": "lib/cli/sync.js",
       "method": "runSync",
-      "startLine": 344,
-      "crap": 4.004356551338718
+      "startLine": 356,
+      "crap": 5
     },
     {
       "path": "lib/cli/sync.js",
       "method": "<anon runSync/(f)#0>",
-      "startLine": 389,
-      "crap": 1.00027228445867,
+      "startLine": 402,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/sync.js",
       "method": "<anon runSync/(f)#1>",
-      "startLine": 419,
-      "crap": 1.00027228445867,
+      "startLine": 432,
+      "crap": 1,
       "anonymous": true
     },
     {
       "path": "lib/cli/sync.js",
       "method": "run",
-      "startLine": 459,
+      "startLine": 484,
       "crap": 1
     },
     {
