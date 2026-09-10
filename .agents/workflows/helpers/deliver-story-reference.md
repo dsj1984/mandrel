@@ -240,9 +240,10 @@ discovers them only after the whole close pipeline has run, at several times
 the cost of one full-suite run in the worktree.
 
 **Run it once, last, so close can credit it.** The run belongs **after** the
-self-eval loop's last fix commit and immediately **before** the hand-off push,
-so its stamp describes the tree that is pushed; redraft rounds run scoped
-tests. Close skips a gate that already passed at the current HEAD, but a bare
+self-eval loop's last fix commit and **after** the hand-off push — the credit
+is keyed on the tree, not on push state, so pushing first keeps the stamp and
+buys the ordering Step 2.5 needs (the capture is backgrounded, and its
+completion ends the turn); redraft rounds run scoped tests. Close skips a gate that already passed at the current HEAD, but a bare
 `npm test` deposits no such record — the suite then runs twice per delivery,
 once here and once in the close gate chain. Pick the invocation by the same
 predicate `close-validation/gates.js` uses to choose its test gate:
@@ -262,7 +263,9 @@ The credit expires the moment it stops describing the tree: evidence is keyed
 on HEAD, the capture stamp on a content digest of `crap.targetDirs`. A
 self-eval fix — or any commit — invalidates it and close re-runs the suite for
 real, so this never trades away the gate. That keying is exactly why the run
-comes last.
+comes last, and why the push before it is free. Close's own base-sync can
+spend the stamp too when it lands base commits; it now says so out loud rather
+than silently re-running the suite.
 
 **`verify[]` reuses the same stamp.** A `verify[]` entry that is itself a
 full-suite command is reported **credited** against that stamp rather than

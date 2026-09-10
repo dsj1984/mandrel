@@ -107,11 +107,13 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one creditable full-suite run
 
-**After the self-eval loop's last fix commit, immediately before the push** —
-the credit is keyed on the tree, so any later commit invalidates it. Redraft
-rounds run scoped tests; only this final run needs credit, and a bare
-`npm test` / `pnpm run test` deposits **none**, so close re-runs it. Shape it
-by what `close-validation/gates.js` runs:
+**After the self-eval loop's last fix commit, and after the push** — the credit
+is keyed on the tree, *not* on push state, so pushing first costs nothing while
+any later commit invalidates it. Push first because the capture is backgrounded
+(below): its completion ends the turn, so capture-then-push strands the branch
+unpushed. Redraft rounds run scoped tests; only this final run needs credit,
+and a bare `npm test` / `pnpm run test` deposits **none**, so close re-runs it.
+Shape it by what `close-validation/gates.js` runs:
 
 ```bash
 # CRAP gate on (default) + a `test:coverage` script — writes close's stamp:
@@ -122,9 +124,9 @@ node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
   --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
 ```
 
-Dispatch it in the **background**: it outruns the host's sync Bash ceiling, and its completion re-invokes you. Never spawn a task to poll or
-`sleep`-loop against it ([`parallel-tooling.md`](parallel-tooling.md)
-Rule 2).
+Dispatch it in the **background**: it outruns the host's sync Bash ceiling, and its completion re-invokes you — which is why the push
+precedes it. Never spawn a task to poll or `sleep`-loop against it
+([`parallel-tooling.md`](parallel-tooling.md) Rule 2).
 
 Read the **output**, not the exit code: capture skips — no test run, no
 credit — when nothing changed under the CRAP `targetDirs`. Run the scoped

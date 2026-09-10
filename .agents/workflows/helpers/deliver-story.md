@@ -93,18 +93,23 @@ are reference § Step 2. Hard gates always run in Step 3 — the derived level
 never disables them; do **not** pre-run the chain here — Step 2.5's credited
 suite run is the sole exception.
 
-### Step 2.5 — The creditable full-suite run, then push and hand off
+### Step 2.5 — Push, then the creditable full-suite run, then hand off
 
-Run the full suite **once**, after the self-eval loop's last fix commit and
-immediately **before** the push, in the shape close credits (**digest § 5**):
-the credit is keyed on the tree, so any later commit invalidates it, and a bare
-`npm test` deposits none. Red → fix, commit, re-run. An inline run makes the
-same run before Step 3.
+**Push first**, after the self-eval loop's last fix commit: push
+`story-<storyId>` to `origin` and confirm the remote ref moved. The capture
+below is backgrounded, so *its* completion — not you — ends the turn; capture
+first and the turn reliably ends on an unpushed branch, which recovery reads as
+"implementation never finished". No PR is open yet, so nothing is risked.
 
-Then (sub-agent dispatch only) push `story-<storyId>` to `origin`, confirm the
-remote ref moved, and return the hand-off — Story id, `workCwd`, branch, pushed
-head SHA, self-eval verdict, `verify[]` evidence — then stop. Do not open the
-PR; do not compose a terminal envelope.
+Then run the full suite **once**, in the shape close credits (**digest § 5**):
+the credit is keyed on the tree, not on push state, so pushing costs nothing
+and any *later* commit invalidates it. A bare `npm test` deposits none.
+Red → fix, commit, push, re-capture.
+
+Finally (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
+branch, pushed head SHA, self-eval verdict, `verify[]` evidence — then stop. Do
+not open the PR; do not compose a terminal envelope. An inline run makes the
+same capture before Step 3.
 
 ## Step 3 — Close and land (`single-story-close.js`)
 

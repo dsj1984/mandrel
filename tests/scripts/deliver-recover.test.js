@@ -7,7 +7,8 @@
  * against already-observed probe shapes rather than through git and GitHub.
  *
  * The rows that matter (from the Story's Spec) each get a case:
- *   - executing with no PR → resume implement
+ *   - executing, branch unpushed, no PR → resume implement
+ *   - executing, branch pushed, no PR → run close (Story #5267)
  *   - closing with a pending PR → resume the land
  *   - closing with a red PR → the fix loop
  *   - closing with a merged PR → confirm (the strand a /mandrel-deliver re-run
@@ -43,6 +44,17 @@ const BRANCH_PRESENT = {
   worktreePath: '.worktrees/story-4543',
 };
 
+/**
+ * The same branch before its push. Story #5267 made this the ONE reading that
+ * means "implementation never finished", so the rows that claim it have to
+ * state it rather than inherit a pushed fixture.
+ */
+const BRANCH_UNPUSHED = {
+  local: true,
+  remote: false,
+  worktreePath: '.worktrees/story-4543',
+};
+
 function ticket(stateLabel, overrides = {}) {
   return {
     ok: true,
@@ -57,14 +69,24 @@ function ticket(stateLabel, overrides = {}) {
 describe('deliver-recover — the decision table', () => {
   const rows = [
     {
-      name: 'executing with no PR → resume implementation',
+      name: 'executing, branch unpushed, no PR → resume implementation',
+      probes: {
+        ticket: ticket('agent::executing'),
+        branch: BRANCH_UNPUSHED,
+        pr: null,
+      },
+      shape: 'executing-no-pr',
+      command: NEXT_COMMANDS.implement(STORY_ID),
+    },
+    {
+      name: 'executing, branch PUSHED, no PR → run close, not re-init',
       probes: {
         ticket: ticket('agent::executing'),
         branch: BRANCH_PRESENT,
         pr: null,
       },
-      shape: 'executing-no-pr',
-      command: NEXT_COMMANDS.implement(STORY_ID),
+      shape: 'executing-pushed-no-pr',
+      command: NEXT_COMMANDS.close(STORY_ID),
     },
     {
       name: 'closing with a healthy open PR → resume the land',
@@ -330,10 +352,18 @@ describe('deliver-recover — probes are read-only', () => {
 });
 
 describe('deliver-recover — recoverStory', () => {
-  const gitStub = (_cwd, ...args) =>
-    args[0] === 'worktree'
-      ? { status: 0, stdout: 'worktree /repo/.worktrees/story-4543\n' }
-      : { status: 0, stdout: '' };
+  // `show-ref` on the remote tracking ref answers "absent", so the threaded
+  // probes read an UNPUSHED branch — the shape these cases are about (Story
+  // #5267 split the pushed reading onto its own row).
+  const gitStub = (_cwd, ...args) => {
+    if (args[0] === 'worktree') {
+      return { status: 0, stdout: 'worktree /repo/.worktrees/story-4543\n' };
+    }
+    if (args[0] === 'show-ref' && args.at(-1).startsWith('refs/remotes/')) {
+      return { status: 1, stdout: '' };
+    }
+    return { status: 0, stdout: '' };
+  };
 
   it('threads the probes into one decision and reports the branch', async () => {
     const recovery = await recoverStory({
@@ -407,10 +437,18 @@ describe('deliver-recover — recoverStory', () => {
 });
 
 describe('deliver-recover — stability re-probe (mid-flight strands)', () => {
-  const gitStub = (_cwd, ...args) =>
-    args[0] === 'worktree'
-      ? { status: 0, stdout: 'worktree /repo/.worktrees/story-4543\n' }
-      : { status: 0, stdout: '' };
+  // `show-ref` on the remote tracking ref answers "absent", so the threaded
+  // probes read an UNPUSHED branch — the shape these cases are about (Story
+  // #5267 split the pushed reading onto its own row).
+  const gitStub = (_cwd, ...args) => {
+    if (args[0] === 'worktree') {
+      return { status: 0, stdout: 'worktree /repo/.worktrees/story-4543\n' };
+    }
+    if (args[0] === 'show-ref' && args.at(-1).startsWith('refs/remotes/')) {
+      return { status: 1, stdout: '' };
+    }
+    return { status: 0, stdout: '' };
+  };
 
   const executingProvider = () => ({
     calls: 0,
@@ -565,7 +603,7 @@ describe('deliver-recover — a live close is not a dead implementation (#4816)'
   const EXECUTING_NO_PR = {
     storyId: STORY_ID,
     ticket: ticket('agent::executing'),
-    branch: BRANCH_PRESENT,
+    branch: BRANCH_UNPUSHED,
     pr: null,
   };
 
@@ -886,5 +924,110 @@ describe('close-in-flight earns the stability re-probe (#4816)', () => {
     assert.equal(recovery.stability.reprobed, true);
     assert.equal(recovery.shape, 'in-transition');
     assert.match(recovery.detail, /close-in-flight/);
+  });
+});
+
+describe('deliver-recover — push state splits the executing strand (#5267)', () => {
+  /**
+   * The reordering this Story landed made the push the LAST thing a worker
+   * does before its creditable capture, so `agent::executing` + no PR now
+   * carries two genuinely different meanings and must not answer with one
+   * command. Getting it wrong is expensive in one direction specifically:
+   * telling an operator to re-init on top of a branch that already carries
+   * finished work.
+   */
+  const EXECUTING = {
+    storyId: STORY_ID,
+    ticket: ticket('agent::executing'),
+    pr: null,
+  };
+
+  it('an unpushed branch and a pushed one disagree on both command and detail', () => {
+    const unpushed = decideRecovery({ ...EXECUTING, branch: BRANCH_UNPUSHED });
+    const pushed = decideRecovery({ ...EXECUTING, branch: BRANCH_PRESENT });
+
+    assert.notEqual(unpushed.shape, pushed.shape);
+    assert.notEqual(unpushed.nextCommand, pushed.nextCommand);
+    assert.notEqual(unpushed.detail, pushed.detail);
+    assert.equal(unpushed.nextCommand, NEXT_COMMANDS.implement(STORY_ID));
+    assert.equal(pushed.nextCommand, NEXT_COMMANDS.close(STORY_ID));
+  });
+
+  it('the unpushed detail says implementation never finished', () => {
+    const { detail } = decideRecovery({
+      ...EXECUTING,
+      branch: BRANCH_UNPUSHED,
+    });
+    assert.match(detail, /UNPUSHED/);
+    assert.match(detail, /implementation never finished/);
+  });
+
+  it('the pushed detail names the hand-off and forbids the re-init', () => {
+    const { detail } = decideRecovery({ ...EXECUTING, branch: BRANCH_PRESENT });
+    assert.match(detail, /PUSHED/);
+    assert.match(detail, /handed off/);
+    assert.match(detail, /Do NOT re-init/);
+  });
+
+  it('the close artifacts still outrank push state', () => {
+    // A pushed branch does NOT mean "run close" while a close is already
+    // running against it — #4816's rows keep the first word.
+    const live = decideRecovery({
+      ...EXECUTING,
+      branch: BRANCH_PRESENT,
+      closeArtifacts: {
+        envelope: null,
+        envelopeMtimeMs: null,
+        gateLogPath: '/tmp/gates.log',
+        gateLogAgeMs: 1000,
+        gateLogMtimeMs: 1,
+        gateLogFresh: true,
+      },
+    });
+    assert.equal(live.shape, 'close-in-flight');
+  });
+
+  it('the pushed shape earns the stability re-probe like its unpushed sibling', async () => {
+    // Membership in TRANSIENT_SHAPES is not directly observable; pin the
+    // behaviour it buys. A pushed branch with no PR is exactly the window in
+    // which a close is about to open one.
+    let round = 0;
+    const recovery = await recoverStory({
+      storyId: STORY_ID,
+      cwd: '/repo',
+      config: {},
+      provider: {
+        getTicket: async () => ({
+          state: 'open',
+          labels: ['agent::executing'],
+          assignees: [],
+        }),
+      },
+      gh: {
+        pr: {
+          list: async () => {
+            round += 1;
+            return round === 1 ? [] : [{ number: 9, state: 'OPEN' }];
+          },
+        },
+      },
+      // Every ref resolves, so the branch reads as pushed.
+      gitSpawnFn: () => ({ status: 0, stdout: '' }),
+      fsImpl: {
+        readFileSync: () => {
+          throw new Error('ENOENT');
+        },
+        statSync: () => {
+          throw new Error('ENOENT');
+        },
+      },
+      stabilityDelayMs: 0,
+      sleepFn: async () => {},
+    });
+    assert.equal(recovery.stability.reprobed, true);
+    assert.equal(recovery.shape, 'in-transition');
+    assert.ok(
+      recovery.evidence.includes('probe1.shape=executing-pushed-no-pr'),
+    );
   });
 });
