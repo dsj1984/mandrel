@@ -9,8 +9,11 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { syncBranchFromBase } from '../../../.agents/scripts/lib/git/sync-from-base.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 function makeFakeRunners({
   fetchStatus = 0,
@@ -321,3 +324,117 @@ test('syncBranchFromBase: a failing range diff degrades to [] rather than guessi
   });
   assert.deepEqual(out.changedPaths, []);
 });
+
+// ---------------------------------------------------------------------------
+// Baseline merge driver preflight (Story #5277)
+//
+// `.gitattributes` is tracked, so `baselines/*.json merge=mandrel-baseline`
+// reaches every clone; `merge.mandrel-baseline.driver` is per-clone config and
+// reaches none. Git reports nothing about the gap — it text-merges generated
+// baselines, which either conflicts on the `generatedAt` stamp or splices rows
+// neither branch scored. Base-sync is where that merge happens unattended.
+// ---------------------------------------------------------------------------
+
+/** A worktree root whose `.gitattributes` holds exactly `content`. */
+function worktreeWith(content) {
+  const dir = makeTempDir('sync-from-base-attrs-');
+  if (content !== null) {
+    fs.writeFileSync(path.join(dir, '.gitattributes'), content);
+  }
+  return dir;
+}
+
+const DRIVER_ATTRIBUTE = 'baselines/*.json merge=mandrel-baseline\n';
+
+/** Fake runners whose `git config --get` answers with `driverCommand`. */
+function runnersWithDriver(driverCommand) {
+  const base = makeFakeRunners({ originAlreadyMergedStatus: 0 });
+  const gitSpawn = (cwd, ...args) => {
+    if (args[0] === 'config' && args[1] === '--get') {
+      base.calls.push({ tool: 'spawn', cwd, args });
+      return driverCommand === null
+        ? { status: 1, stdout: '', stderr: '' }
+        : { status: 0, stdout: `${driverCommand}\n`, stderr: '' };
+    }
+    return base.gitSpawn(cwd, ...args);
+  };
+  return { ...base, gitSpawn };
+}
+
+test('syncBranchFromBase: refuses with merge-driver-missing when the attribute is declared and the key is absent', async () => {
+  const cwd = worktreeWith(DRIVER_ATTRIBUTE);
+  const runners = runnersWithDriver(null);
+  const logged = [];
+  const out = await syncBranchFromBase({
+    cwd,
+    baseBranch: 'main',
+    log: (_tag, msg) => logged.push(msg),
+    ...runners,
+  });
+
+  assert.equal(out.synced, false);
+  assert.equal(out.kind, 'merge-driver-missing');
+  // The remedy is the operator's whole recovery path, so it must reach both
+  // the returned envelope (the friction comment close posts) and the log.
+  assert.match(out.remedy, /git config merge\.mandrel-baseline\.driver/);
+  assert.match(out.stderr, /git config merge\.mandrel-baseline\.driver/);
+  assert.match(logged.join('\n'), /git config merge\.mandrel-baseline\.driver/);
+  // Nothing was mutated: no fetch, no merge.
+  assert.equal(
+    runners.calls.find((c) => c.tool === 'fetch' || c.args?.[0] === 'merge'),
+    undefined,
+  );
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('syncBranchFromBase: proceeds when the driver key is present', async () => {
+  const cwd = worktreeWith(DRIVER_ATTRIBUTE);
+  const runners = runnersWithDriver(
+    'node .agents/scripts/merge-baseline.js %O %A %B %P',
+  );
+  const out = await syncBranchFromBase({
+    cwd,
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.synced, true);
+  assert.equal(out.kind, 'noop-already-current');
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+test('syncBranchFromBase: a set-but-empty driver key is read as absent', async () => {
+  const cwd = worktreeWith(DRIVER_ATTRIBUTE);
+  const runners = runnersWithDriver('   ');
+  const out = await syncBranchFromBase({
+    cwd,
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.kind, 'merge-driver-missing');
+  fs.rmSync(cwd, { recursive: true, force: true });
+});
+
+for (const [label, content] of [
+  ['no .gitattributes at all', null],
+  ['a .gitattributes with unrelated rules', '* text=auto eol=lf\n'],
+  ['a commented-out registration', `# ${DRIVER_ATTRIBUTE}`],
+]) {
+  test(`syncBranchFromBase: syncs normally with ${label}`, async () => {
+    // A repository that never opted into the driver is never told to install
+    // it — the guard fails open in exactly one direction, deliberately.
+    const cwd = worktreeWith(content);
+    const runners = runnersWithDriver(null);
+    const out = await syncBranchFromBase({
+      cwd,
+      baseBranch: 'main',
+      ...runners,
+    });
+    assert.equal(out.synced, true);
+    assert.equal(
+      runners.calls.find((c) => c.args?.[0] === 'config'),
+      undefined,
+      'git config must not be consulted when the repo opted out',
+    );
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+}

@@ -15,13 +15,17 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import doctor, {
   formatClosureReport,
   runDoctor,
   writeDoctorResultCache,
 } from '../../lib/cli/doctor.js';
+import { registry } from '../../lib/cli/registry.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -587,5 +591,81 @@ describe('runDoctor closure report line (#4438)', () => {
     // The report line is not counted: 1/1 checks still pass, exit stays 0.
     assert.match(out, /Ready \(1\/1 checks passed\)/);
     assert.equal(cap.exitCode, null); // exit(0) is never called on all-pass
+  });
+});
+
+// ---------------------------------------------------------------------------
+// merge-driver: a set-but-broken key surfaces through the doctor (Story #5277)
+// ---------------------------------------------------------------------------
+
+describe('runDoctor — merge-driver reports a broken driver, not just a missing key', () => {
+  /** A project root whose `.gitattributes` opts into the driver. */
+  function optedInProject() {
+    const dir = makeTempDir('mandrel-doctor-driver-');
+    fs.writeFileSync(
+      path.join(dir, '.gitattributes'),
+      'baselines/*.json merge=mandrel-baseline\n',
+    );
+    return dir;
+  }
+
+  /** Answer the config read with a command, and the probe with `probeStatus`. */
+  function runner(probeStatus) {
+    return (file) =>
+      file === 'git'
+        ? {
+            status: 0,
+            stdout: 'node .agents/scripts/merge-baseline.js %O %A %B %P\n',
+            stderr: '',
+          }
+        : { status: probeStatus, stdout: '', stderr: '' };
+  }
+
+  it('fails the run when the configured command cannot execute', async () => {
+    // The registry entry itself, driven through the real doctor runner: a key
+    // that is set and unrunnable degrades exactly like an unset one (git text-
+    // merges baselines and says nothing), so the doctor must red on both.
+    const cwd = optedInProject();
+    const entry = registry.find((c) => c.name === 'merge-driver');
+    const cap = makeCapture();
+    await runDoctor({
+      checks: [
+        {
+          name: entry.name,
+          run: () => entry.run({ cwd: () => cwd, runner: runner(127) }),
+        },
+      ],
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
+
+    assert.equal(cap.exitCode, 1);
+    const joined = cap.lines.join('');
+    assert.match(joined, /merge-driver/);
+    assert.match(joined, /running it failed/);
+    assert.match(joined, /→.*git config/s);
+    fs.rmSync(cwd, { recursive: true, force: true });
+  });
+
+  it('passes the run when the configured command answers --help', async () => {
+    const cwd = optedInProject();
+    const entry = registry.find((c) => c.name === 'merge-driver');
+    const cap = makeCapture();
+    await runDoctor({
+      checks: [
+        {
+          name: entry.name,
+          run: () => entry.run({ cwd: () => cwd, runner: runner(0) }),
+        },
+      ],
+      write: cap.write,
+      exit: cap.exit,
+      writeResultCache: () => {},
+    });
+
+    assert.notEqual(cap.exitCode, 1);
+    assert.doesNotMatch(cap.lines.join(''), /running it failed/);
+    fs.rmSync(cwd, { recursive: true, force: true });
   });
 });
