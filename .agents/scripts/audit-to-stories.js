@@ -389,6 +389,34 @@ function normaliseIssueHit(hit) {
 }
 
 /**
+ * Walk the list endpoint once per label and merge the pages into one
+ * deduplicated, normalised issue list.
+ *
+ * `labels` is an OR across the run's lenses, which the REST list endpoint
+ * cannot express in one query (its `labels` parameter is an AND), so one call
+ * per label is the narrowest honest read. Each is a paginated **list**, not a
+ * search — a different, far larger rate-limit budget.
+ *
+ * @param {object} provider
+ * @param {string[]} labels
+ * @returns {Promise<Array<object>>}
+ */
+async function listIssuesForLabels(provider, labels) {
+  const seen = new Map();
+  for (const label of labels) {
+    const issues = await provider.listIssuesByLabel({
+      state: 'all',
+      labels: label,
+    });
+    for (const raw of issues ?? []) {
+      const hit = normaliseIssueHit(raw);
+      if (!seen.has(hit.number)) seen.set(hit.number, hit);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
  * The two read ports the dedupe module consumes, adapted off the provider's
  * one full-text `searchIssues` call: `findIssuesByFingerprint(sha)` for the
  * exact-fingerprint pass and — since Story #4626 — `searchCandidates(finding)`
@@ -397,13 +425,29 @@ function normaliseIssueHit(hit) {
  *
  * @param {object} provider
  * @param {{ owner: string, repo: string }} coords
- * @returns {{ findIssuesByFingerprint: Function, searchCandidates: Function }}
+ * @returns {{ findIssuesByFingerprint: Function, listAuditIssues: Function,
+ *   searchCandidates: Function }}
  */
 function buildDedupPorts(provider, { owner, repo }) {
   return {
     async findIssuesByFingerprint(sha) {
       const hits = await provider.searchIssues({ query: sha, owner, repo });
       return (hits ?? []).map(normaliseIssueHit);
+    },
+    /**
+     * List every Issue carrying one of the run's `audit::*` labels, once, off
+     * the REST list endpoint. The dedup module indexes the result and answers
+     * every exact-fingerprint lookup from it, so the rate-limited search API is
+     * spent only on findings it has never seen. A provider without the list
+     * port yields `null`, which returns dedup to the per-finding search path
+     * rather than silently skipping it.
+     *
+     * @param {string[]} labels
+     * @returns {Promise<Array<object>|null>}
+     */
+    async listAuditIssues(labels) {
+      if (typeof provider.listIssuesByLabel !== 'function') return null;
+      return listIssuesForLabels(provider, labels);
     },
     async searchCandidates(finding) {
       // Wire the shared semantic search onto the provider's full-text
@@ -696,6 +740,7 @@ async function buildPlan(
         groups,
         provider,
         searchCandidates: provider.searchCandidates,
+        listAuditIssues: provider.listAuditIssues,
       });
       classifications = result.classifications;
       summary = result.summary;
@@ -1159,12 +1204,33 @@ export const __testing = {
  * @returns {string}
  */
 function describeLedgerCommit(result) {
-  if (!result?.committed) {
-    return `--ledger-commit: skipped (${result?.reason ?? 'no result'}) — ${result?.ledgerPath ?? 'the ledger'} was not committed.`;
-  }
+  return result?.committed
+    ? ledgerCommittedLine(result)
+    : ledgerSkippedLine(result);
+}
+
+/**
+ * The success half: the branch, whether it resumed a half-finished one, and
+ * the PR to go look at.
+ * @param {object} result
+ * @returns {string}
+ */
+function ledgerCommittedLine(result) {
   const resumed = result.resumed ? ' (resumed an unpushed ledger branch)' : '';
-  const pr = result.prUrl ? result.prUrl : '(no URL reported by gh)';
+  const pr = result.prUrl ?? '(no URL reported by gh)';
   return `--ledger-commit: pushed ${result.branch}${resumed} and opened ${pr}.`;
+}
+
+/**
+ * The skip half. It names the ledger file, because the fact that matters is
+ * which state is still only in the working tree.
+ * @param {object} [result]
+ * @returns {string}
+ */
+function ledgerSkippedLine(result) {
+  const reason = result?.reason ?? 'no result';
+  const ledgerPath = result?.ledgerPath ?? 'the ledger';
+  return `--ledger-commit: skipped (${reason}) — ${ledgerPath} was not committed.`;
 }
 
 /**

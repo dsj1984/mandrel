@@ -22,11 +22,18 @@
  * reworded finding at an unchanged location still dedupes against its Issue
  * (Story #4626).
  *
+ * When the caller injects a `listAuditIssues(labels)` port, the whole dedup
+ * corpus is pre-fetched **once per run** off the list endpoint and indexed by
+ * both provenance footers, so `findIssuesByFingerprint` is answered locally and
+ * the rate-limited search API is spent only on findings with no exact hit.
+ *
  * Pure orchestration: this module performs no network I/O itself.
  */
 
-import { routeFinding } from '../findings/route-finding.js';
+import { routeFinding, semanticKeyFor } from '../findings/route-finding.js';
+import { auditLabelsForFindings } from './audit-lenses.js';
 import { toCanonicalFinding } from './finding-adapter.js';
+import { buildIssueIndex, lookupLocally } from './issue-index.js';
 
 /**
  * @typedef {object} GroupClassification
@@ -76,7 +83,7 @@ function groupLabel(group) {
  */
 async function classifyOneGroup(
   group,
-  { searchIssues, semanticPort, routeOptions },
+  { searchIssues, semanticPort, routeOptions, index },
 ) {
   const findings = group.findings ?? [];
   const matchedIssues = [];
@@ -91,9 +98,7 @@ async function classifyOneGroup(
     const canonical = toCanonicalFinding(finding);
     const { decision, matchedIssue, fingerprint } = await routeFinding(
       canonical,
-      semanticPort
-        ? { searchIssues, searchCandidates: () => semanticPort(canonical) }
-        : { searchIssues },
+      portsFor(canonical, sha, { searchIssues, semanticPort, index }),
       routeOptions,
     );
 
@@ -123,6 +128,58 @@ async function classifyOneGroup(
 }
 
 /**
+ * The read ports one finding is routed through.
+ *
+ * With no local index this is the historical wiring: the provider answers the
+ * exact lookup and the semantic port always runs. With an index, the exact
+ * lookup is answered from memory, and the semantic port — the only remaining
+ * network call — runs **only** when the index holds no exact fingerprint hit.
+ * That is the whole saving: a finding the sweep has already filed costs zero
+ * requests, and only a genuinely-unrecognised one is worth a search.
+ *
+ * @param {object} canonical — the canonical finding projection.
+ * @param {string} sha — its full fingerprint.
+ * @param {{ searchIssues: Function, semanticPort?: Function, index?: object }} routing
+ * @returns {{ searchIssues: Function, searchCandidates?: Function }}
+ */
+function portsFor(canonical, sha, { searchIssues, semanticPort, index }) {
+  const withSemantic = (ports) =>
+    semanticPort
+      ? { ...ports, searchCandidates: () => semanticPort(canonical) }
+      : ports;
+  if (!index) return withSemantic({ searchIssues });
+
+  const { exact, pool } = lookupLocally(index, sha, semanticKeyFor(canonical));
+  const local = { searchIssues: () => pool };
+  return exact.length > 0 ? local : withSemantic(local);
+}
+
+/**
+ * Pre-fetch and index every Issue carrying one of the run's `audit::*` labels.
+ *
+ * Returns `null` — the un-indexed, per-finding-search path — when no list port
+ * is wired, when the run's findings resolve to no canonical lens label, or when
+ * the list itself fails. A degraded pre-fetch must cost the run its saving, not
+ * its dedup.
+ *
+ * @param {{ listAuditIssues?: Function, groups: Array<object>,
+ *   onDegraded?: Function }} params
+ * @returns {Promise<object|null>}
+ */
+async function prefetchIssueIndex({ listAuditIssues, groups }) {
+  if (typeof listAuditIssues !== 'function') return null;
+  const labels = auditLabelsForFindings(
+    groups.flatMap((group) => group?.findings ?? []),
+  );
+  if (labels.length === 0) return null;
+  try {
+    return buildIssueIndex(await listAuditIssues(labels));
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
  * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
@@ -130,6 +187,10 @@ async function classifyOneGroup(
  *   Optional meaning-first candidate search (production: `semantic-issue-search.js`).
  *   When supplied, routing runs the Stage-1 semantic pass and opts into
  *   location-based semantic-key confirmation.
+ * @param {(labels: string[]) => Promise<Array<object>>} [params.listAuditIssues]
+ *   Optional list port over the run's `audit::*` labels. When wired, its result
+ *   is fetched once and indexed, and `provider.findIssuesByFingerprint` is not
+ *   called at all — the exact lookup is answered from that index.
  * @param {(entry: { group: object, reason: string }) => void} [params.onDegraded]
  *   Optional sink notified once per group whose dedup lookup could not complete
  *   (Story #4678). The group is then classified `create` — a soft-fail, never
@@ -142,6 +203,7 @@ export async function classifyGroupsAgainstGitHub({
   provider,
   searchCandidates,
   onDegraded,
+  listAuditIssues,
 }) {
   if (!Array.isArray(groups)) {
     throw new Error('classifyGroupsAgainstGitHub: groups must be an array');
@@ -163,6 +225,7 @@ export async function classifyGroupsAgainstGitHub({
     searchIssues,
     semanticPort,
     routeOptions: { semanticKeyConfirm: Boolean(semanticPort) },
+    index: await prefetchIssueIndex({ listAuditIssues, groups }),
   };
 
   const classifications = [];

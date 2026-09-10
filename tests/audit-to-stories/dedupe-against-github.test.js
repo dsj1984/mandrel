@@ -251,6 +251,7 @@ test('the dedup path consumes only the adapter search ports, widened or not (AC-
       'findIssuesByFingerprint',
       'getDependencyWriteContext',
       'getTicket',
+      'listAuditIssues',
       'searchCandidates',
       'updateTicket',
     ],
@@ -331,4 +332,114 @@ test('loadProvider reports a throwing config resolve as no-config (Story #5143)'
       return true;
     },
   );
+});
+
+// --- Story #5281: the dedup corpus is fetched once, not once per finding -----
+
+const SOURCE_REPORT = 'temp/audits/audit-security-results.md';
+
+/** A finding shaped so `auditLabelsForFindings` resolves it to a real lens. */
+function labelledFinding(index) {
+  return {
+    ...auditFinding('injection', `finding number ${index}`, `src/f${index}.js`),
+    sourceReport: SOURCE_REPORT,
+  };
+}
+
+test('AC-11: one list request per page, and a search only for findings with no exact hit', async () => {
+  const findings = Array.from({ length: 100 }, (_, i) => labelledFinding(i));
+  const groups = findings.map((f) => fakeGroup([f]));
+
+  // 50 open audit Issues, 30 of which already carry a finding's fingerprint.
+  const issues = findings.slice(0, 30).map((finding, i) => ({
+    number: 1000 + i,
+    state: 'open',
+    body: footerFor(finding),
+  }));
+  for (let i = 30; i < 50; i += 1) {
+    issues.push({ number: 1000 + i, state: 'open', body: 'no footer here' });
+  }
+
+  const listCalls = [];
+  const searchCalls = [];
+  const fingerprintCalls = [];
+
+  const { classifications, summary } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider: {
+      async findIssuesByFingerprint(sha) {
+        fingerprintCalls.push(sha);
+        return [];
+      },
+    },
+    searchCandidates: async (finding) => {
+      searchCalls.push(finding);
+      return [];
+    },
+    // One page of 100 covers 50 issues, so the port is called once.
+    listAuditIssues: async (labels) => {
+      listCalls.push(labels);
+      return issues;
+    },
+  });
+
+  assert.equal(listCalls.length, 1, 'the corpus is fetched once per run');
+  assert.deepEqual(listCalls[0], ['audit::security']);
+  assert.deepEqual(
+    fingerprintCalls,
+    [],
+    'the exact lookup is answered locally, never over the network',
+  );
+  assert.equal(
+    searchCalls.length,
+    70,
+    'a search is spent only on the findings with no exact fingerprint hit',
+  );
+
+  // And the classification itself is unchanged: the 30 known findings dedupe.
+  assert.equal(summary.skipOpen, 30);
+  assert.equal(summary.create, 70);
+  assert.equal(classifications[0].action, 'skip-open');
+  assert.equal(classifications[0].matchedIssues[0].number, 1000);
+});
+
+test('AC-11: a closed local fingerprint match still routes as a regression', async () => {
+  const finding = labelledFinding(1);
+  const { classifications } = await classifyGroupsAgainstGitHub({
+    groups: [fakeGroup([finding])],
+    provider: { findIssuesByFingerprint: async () => [] },
+    listAuditIssues: async () => [
+      { number: 7, state: 'closed', body: footerFor(finding) },
+    ],
+  });
+  assert.equal(classifications[0].action, 'skip-reoccurring');
+  assert.equal(classifications[0].matchedIssues[0].number, 7);
+});
+
+test('AC-11: a failed or absent list port falls back to the per-finding search', async () => {
+  const finding = labelledFinding(2);
+  const fingerprintCalls = [];
+  const provider = {
+    async findIssuesByFingerprint(sha) {
+      fingerprintCalls.push(sha);
+      return [{ number: 9, state: 'open', body: footerFor(finding) }];
+    },
+  };
+
+  for (const listAuditIssues of [
+    undefined,
+    async () => {
+      throw new Error('list endpoint exploded');
+    },
+  ]) {
+    fingerprintCalls.length = 0;
+    const { classifications } = await classifyGroupsAgainstGitHub({
+      groups: [fakeGroup([finding])],
+      provider,
+      listAuditIssues,
+    });
+    // Dedup still runs — a degraded pre-fetch costs the saving, not the gate.
+    assert.equal(classifications[0].action, 'skip-open');
+    assert.equal(fingerprintCalls.length, 1);
+  }
 });
