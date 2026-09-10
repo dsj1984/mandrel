@@ -17,6 +17,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BASELINES_GATE_NAMES as REAL_BASELINES_GATE_NAMES } from '../.agents/scripts/lib/close-validation/gates.js';
 import { pinRunScopedConfig } from '../.agents/scripts/lib/orchestration/run-scoped-config.js';
+import { runBaseSyncPhase } from '../.agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js';
 import {
   buildSyncFailureCommentBody,
   handleSyncFailure,
@@ -1131,5 +1132,97 @@ describe('runSingleStoryClose — pre-push phase order (Story #5172)', () => {
     const out = await h.run({ skipSync: true, skipValidation: true });
     assert.equal(out.result.pushed, true);
     assert.deepEqual(h.order, ['push']);
+  });
+});
+
+describe('runBaseSyncPhase — the capture-stamp warning (Story #5267)', () => {
+  /**
+   * Drive the phase with a stubbed sync so the only variable is the outcome
+   * envelope, and collect every `progress` line the phase emits. The warning
+   * is the phase's whole job here: the worker deposits ONE creditable
+   * full-suite stamp keyed on the tree, and a sync that lands tracked content
+   * spends it — silently, before this.
+   */
+  async function runWithSync(result) {
+    const lines = [];
+    await runBaseSyncPhase({
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-5267',
+      baseBranch: 'main',
+      storyBranch: 'story-5267',
+      storyId: 5267,
+      provider: {},
+      injectedSync: async () => result,
+      progress: (_tag, msg) => lines.push(msg),
+    });
+    return lines;
+  }
+
+  const warnings = (lines) => lines.filter((l) => l.startsWith('⚠️'));
+
+  it('warns loudly, naming the paths, when a merge commit changed content', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'merge-commit',
+      changedPaths: ['baselines/crap.json', 'lib/git/x.js'],
+    });
+    const warned = warnings(lines);
+    assert.ok(warned.length > 0, 'the phase must warn');
+    assert.match(warned[0], /BASE MOVED/);
+    assert.match(warned[0], /merge-commit/);
+    assert.match(warned[0], /origin\/main/);
+    assert.match(warned[0], /capture/);
+    assert.ok(warned.some((l) => l.includes('baselines/crap.json')));
+    assert.ok(warned.some((l) => l.includes('lib/git/x.js')));
+  });
+
+  it('stays quiet on a noop-already-current sync', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'noop-already-current',
+      changedPaths: [],
+    });
+    assert.deepEqual(warnings(lines), []);
+    assert.ok(lines.some((l) => l.includes('noop-already-current')));
+  });
+
+  it('stays quiet on a fast-forward that changed no tracked content', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'fast-forward',
+      changedPaths: [],
+    });
+    assert.deepEqual(warnings(lines), []);
+  });
+
+  it('stays quiet when the sync reports no changedPaths at all', async () => {
+    // A caller-supplied envelope from before the field existed must not
+    // manufacture a warning out of `undefined`.
+    const lines = await runWithSync({ synced: true, kind: 'fast-forward' });
+    assert.deepEqual(warnings(lines), []);
+  });
+
+  it('warns on a content-changing fast-forward — it spends the stamp too', async () => {
+    const lines = await runWithSync({
+      synced: true,
+      kind: 'fast-forward',
+      changedPaths: ['docs/CHANGELOG.md'],
+    });
+    assert.match(warnings(lines)[0], /BASE MOVED/);
+  });
+
+  it('truncates a long path list rather than printing a diff', async () => {
+    const paths = Array.from({ length: 20 }, (_, i) => `pkg/file-${i}.js`);
+    const warned = warnings(
+      await runWithSync({
+        synced: true,
+        kind: 'merge-commit',
+        changedPaths: paths,
+      }),
+    );
+    assert.match(warned[0], /20 tracked path\(s\)/);
+    assert.equal(warned.at(-1), '⚠️    …and 8 more');
+    // Header + 12 listed + the overflow line.
+    assert.equal(warned.length, 14);
   });
 });

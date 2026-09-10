@@ -13,8 +13,12 @@
  *
  * The strand shapes the table resolves, and why each is real:
  *
- *   - `executing` with no PR → resume implementation. The work never reached
- *     close.
+ *   - `executing`, branch UNPUSHED, no PR → resume implementation. The work
+ *     never reached close. Since Story #5267 the worker pushes before its
+ *     creditable capture, so an unpushed branch means this and nothing else.
+ *   - `executing`, branch PUSHED, no PR → run close. The worker's hand-off
+ *     landed; only the close-and-land tail is owed, and re-initializing here
+ *     would re-open finished work.
  *   - `closing` with a pending PR → resume the land. The overwhelmingly
  *     common shape now that the merge wait is bounded: the wait returned
  *     `pending` and something has to pick it back up.
@@ -316,6 +320,80 @@ function closeInFlightVerdict({ storyId, artifacts, evidence }) {
 }
 
 /**
+ * The `agent::executing` rows of the table (Story #4543; split on push state
+ * by Story #5267).
+ *
+ * Lifted out of {@link decideRecovery} because this label alone fans out into
+ * five distinct strands, and because the push-state split below only reads
+ * correctly next to the artifact probes it is ordered after.
+ *
+ * @param {{ storyId: number, branch: object, pr: object|null, closeArtifacts?: object, evidence: string[] }} args
+ * @returns {{ shape: string, nextCommand: string|null, detail: string, evidence: string[] }}
+ */
+function decideExecuting({ storyId, branch, pr, closeArtifacts, evidence }) {
+  if (pr?.number) {
+    return {
+      shape: 'executing-with-pr',
+      nextCommand: NEXT_COMMANDS.close(storyId),
+      detail:
+        `PR #${pr.number} exists but the Story is still \`agent::executing\` — the close ` +
+        `opened the PR and then died before the label flip. Re-run close; it reuses the ` +
+        `open PR rather than opening a duplicate.`,
+      evidence,
+    };
+  }
+  // Story #4816 — the close artifacts get the first word here, and ONLY
+  // here. Every other row of this table describes a state whose evidence is
+  // already unambiguous; `executing` + no PR is the one row that reads
+  // identically for a dead implementation and for a close that is halfway
+  // through its gate chain, and answering it from labels alone is what sent
+  // operators to re-init on top of a live close.
+  if (closeLooksLive(closeArtifacts)) {
+    return closeInFlightVerdict({
+      storyId,
+      artifacts: closeArtifacts,
+      evidence,
+    });
+  }
+  if (closeArtifacts?.envelope) {
+    return envelopeOnDiskVerdict({
+      storyId,
+      artifacts: closeArtifacts,
+      evidence,
+    });
+  }
+  // Story #5267 — push state is what separates the two remaining strands, and
+  // it separates them cleanly now that the worker pushes BEFORE its creditable
+  // capture. Before that ordering, a worker whose turn ended on the
+  // backgrounded capture left an unpushed branch that was indistinguishable
+  // from work that never got started; now an unpushed branch means exactly one
+  // thing, and a pushed one means the hand-off happened and only close is
+  // owed.
+  if (branch?.remote) {
+    return {
+      shape: 'executing-pushed-no-pr',
+      nextCommand: NEXT_COMMANDS.close(storyId),
+      detail:
+        `\`story-${storyId}\` is PUSHED to origin but no PR exists and no close left an ` +
+        `artifact behind — the worker finished and handed off, and the close never ran (or ` +
+        `died before its first gate). Nothing needs re-implementing: run close, which is ` +
+        `idempotent. Do NOT re-init — the branch already carries the finished work.`,
+      evidence,
+    };
+  }
+  return {
+    shape: 'executing-no-pr',
+    nextCommand: NEXT_COMMANDS.implement(storyId),
+    detail:
+      `Story is \`agent::executing\`, \`story-${storyId}\` is UNPUSHED, there is no PR, and ` +
+      `no close left an artifact behind (no persisted terminal envelope, no recent gate ` +
+      `log) — implementation never finished. Re-init (idempotent — it reuses the existing ` +
+      `branch and worktree) and resume in the worktree it prints.`,
+    evidence,
+  };
+}
+
+/**
  * The decision table. Pure: every input is an already-observed probe, so the
  * mapping is testable without git, GitHub, or a clock.
  *
@@ -434,47 +512,7 @@ export function decideRecovery({
   }
 
   if (label === STATE_LABELS.EXECUTING) {
-    if (pr?.number) {
-      return {
-        shape: 'executing-with-pr',
-        nextCommand: NEXT_COMMANDS.close(storyId),
-        detail:
-          `PR #${pr.number} exists but the Story is still \`agent::executing\` — the close ` +
-          `opened the PR and then died before the label flip. Re-run close; it reuses the ` +
-          `open PR rather than opening a duplicate.`,
-        evidence,
-      };
-    }
-    // Story #4816 — the close artifacts get the first word here, and ONLY
-    // here. Every other row of this table describes a state whose evidence is
-    // already unambiguous; `executing` + no PR is the one row that reads
-    // identically for a dead implementation and for a close that is halfway
-    // through its gate chain, and answering it from labels alone is what sent
-    // operators to re-init on top of a live close.
-    if (closeLooksLive(closeArtifacts)) {
-      return closeInFlightVerdict({
-        storyId,
-        artifacts: closeArtifacts,
-        evidence,
-      });
-    }
-    if (closeArtifacts?.envelope) {
-      return envelopeOnDiskVerdict({
-        storyId,
-        artifacts: closeArtifacts,
-        evidence,
-      });
-    }
-    return {
-      shape: 'executing-no-pr',
-      nextCommand: NEXT_COMMANDS.implement(storyId),
-      detail:
-        `Story is \`agent::executing\` with no PR, and no close left an artifact behind (no ` +
-        `persisted terminal envelope, no recent gate log) — implementation never finished. ` +
-        `Re-init (idempotent — it reuses the existing branch and worktree) and resume in the ` +
-        `worktree it prints.`,
-      evidence,
-    };
+    return decideExecuting({ storyId, branch, pr, closeArtifacts, evidence });
   }
 
   return {
@@ -500,6 +538,7 @@ export function decideRecovery({
  */
 const TRANSIENT_SHAPES = new Set([
   'executing-no-pr',
+  'executing-pushed-no-pr',
   'executing-with-pr',
   'closing-no-pr',
   'closing-pr-pending',

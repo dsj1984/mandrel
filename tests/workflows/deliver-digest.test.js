@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import { resolveCeremonyForRisk } from '../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 import { deriveChangeLevel } from '../../.agents/scripts/lib/orchestration/review-depth.js';
-import { assertDocMentions } from '../helpers/doc-assert.js';
+import { assertDocMentions, assertDocOmits } from '../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -273,18 +273,32 @@ describe('deliver-digest § 5 — the one creditable full-suite run (#5174)', ()
     );
   });
 
-  it('places the run after the last fix commit and immediately before the push', () => {
-    // The credit is keyed on the tree. Documented anywhere earlier in the
-    // sequence, the stamp describes a tree that is not the one pushed — the
-    // ordering IS the contract, not a stylistic preference.
+  it('places the run after the last fix commit and after the push (#5267)', () => {
+    // The ordering IS the contract, not a stylistic preference — and Story
+    // #5267 reversed it. The credit is keyed on the TREE, not on push state,
+    // so pushing first costs nothing; capturing first costs the push, because
+    // the capture is dispatched in the background and the harness fires its
+    // completion notification when that shell exits, ending the worker's turn
+    // on an unpushed branch. Five of seven deliveries in one measured session
+    // ended exactly there, one of them after being told in-prompt to push.
     for (const [label, doc] of [
       ['the digest', digest()],
       ['the spine', spine()],
     ]) {
       assertDocMentions(
         doc,
-        /last fix commit,? (and )?immediately \*{0,2}before\*{0,2} the push/,
-        `${label} must place the creditable run after the loop's last fix commit and immediately before the push`,
+        /last fix commit/,
+        `${label} must anchor the creditable run to the loop's last fix commit`,
+      );
+      assertDocMentions(
+        doc,
+        /after the push/,
+        `${label} must place the creditable run after the push`,
+      );
+      assertDocOmits(
+        doc,
+        /\*{0,2}before\*{0,2} the push/,
+        `${label} must carry no surviving instruction to capture before pushing`,
       );
     }
   });

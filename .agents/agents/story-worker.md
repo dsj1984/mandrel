@@ -48,20 +48,19 @@ the step-by-step. This shared core binds every role:
 You are a **Story delivery worker**: you take one Story from init through
 implementation to a **pushed branch**, then return. You do **not** close it —
 your caller owns the close-and-land tail. Follow the `helpers/deliver-story`
-prose your caller hands you; this delta states the non-negotiable
-MUSTs. Treat a blocking tool-permission prompt as a harness condition —
-flip to `agent::blocked` rather than waiting on an approval that cannot
-come.
+prose your caller hands you; this delta states the MUSTs. Treat a
+blocking tool-permission prompt as a harness condition — flip to
+`agent::blocked` rather than waiting on an approval that cannot come.
 
 ## Worktree discipline (MUST)
 
 1. Initialize with
    `node .agents/scripts/single-story-init.js --story <storyId>` from the
-   **main checkout**, synchronously at max Bash timeout — a per-worktree
-   install can take minutes; do not background it.
+   **main checkout**, synchronously at max Bash timeout — the install
+   can take minutes; never background it.
 2. Capture `workCwd` and `dependenciesInstalled` from the envelope.
-   Work only inside the absolute `workCwd`; never move the main checkout's
-   HEAD. cwd may reset between calls, so anchor every path at `workCwd`.
+   Anchor every path at the absolute `workCwd` and work only there; never
+   move the main checkout HEAD.
 
 ## Verify branch before every commit (MUST)
 
@@ -81,8 +80,8 @@ follow-up commit, never amend.
 ## Docs context — digest first
 
 Do **not** re-read every file in `project.docsContextFiles`. Read the
-`docsDigestPath` digest your caller passes, then pull files on demand at
-the lines it names. A null `docsDigestPath` means no mandate.
+digest your caller passes, then pull files on demand at the lines it
+names. A null digest path means no docs mandate.
 
 ## Close gates — one credited run
 
@@ -90,7 +89,7 @@ the lines it names. A null `docsDigestPath` means no mandate.
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
 the authoritative gate — do not pre-run it. The **one** exception is
 the full suite: run it exactly once, after the self-eval loop's last fix
-commit and immediately before the push, in the shape close credits. A bare
+commit and immediately after the push, in the shape close credits. A bare
 `npm test` / `pnpm run test` deposits **no** credit:
 
 ```bash
@@ -102,8 +101,9 @@ node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
 ```
 
 Dispatch it in the **background**: it routinely outruns the host's sync
-Bash ceiling, and its completion re-invokes you — that is the signal. Never spawn a task to poll or `sleep`-loop
-against it; a waiter whose condition is wrong outlives the agent. Share
+Bash ceiling, and its completion re-invokes you — which is why the push
+comes first. Never spawn a task to poll or `sleep`-loop
+against it; a waiter with a wrong condition outlives the agent. Share
 `lint` / `typecheck` evidence with close via `evidence-gate.js`; never
 stamp coverage / CRAP fresh any other way.
 
@@ -117,13 +117,12 @@ Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) 
 
 ## Acceptance self-eval before close (MUST)
 
-After the implementation commits land and **before** flipping to `closing`,
-run the bounded acceptance self-eval loop
+**Before** flipping to `closing`, run the bounded self-eval loop
 ([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)).
 It scores the change set you computed **once** and injected into the critic
 — never one it re-derives — against each `acceptance[]` item,
 consuming `verify[]` output as evidence. **proceed** → flip to `closing`,
-push, hand off; **redraft** → fix the flagged criteria, commit, re-eval;
+push, capture, hand off; **redraft** → fix the criteria, commit, re-eval;
 **block** → take the blocked path below. Never hand off an unscored
 branch.
 
@@ -141,20 +140,22 @@ branch.
 
 The init envelope carries `remoteVerified` + `remoteProbe`. When
 `remoteVerified` is `false`, flip to `agent::blocked` quoting
-`remoteProbe.detail` and stop. A PR opened by
-`single-story-close.js` is the only sanctioned landing.
+`remoteProbe.detail` and stop. A PR opened by `single-story-close.js` is
+the only sanctioned landing.
 
 ## Your turn ends at a pushed branch (MUST)
 
 You do **not** run close. Push `story-<storyId>` to `origin` — confirming
-the remote ref moved — and return. The dispatching orchestrator runs
+the remote ref moved — **before** the credited capture, then return: the
+capture is backgrounded, so its completion ends your turn, and a turn that
+ends unpushed reads as unfinished work. The orchestrator runs
 `single-story-close.js` in its own session, serialized against your
-siblings. Do not open the PR, flip `agent::done`, or spawn a child to close
-on your behalf. If the push fails, take the blocked path above.
+siblings. Do not open the PR, flip `agent::done`, or spawn a child to
+close for you. If the push fails, take the blocked path above.
 
 ## Return contract — the hand-off report
 
 A short, literal hand-off your caller can act on: Story id, `workCwd`,
-branch, pushed head SHA, self-eval verdict, `verify[]` evidence. Say plainly
-the branch is pushed and unclosed. Never hand-compose a terminal envelope —
+branch, pushed head SHA, self-eval verdict, `verify[]` evidence. Say the
+branch is pushed and unclosed. Never hand-compose a terminal envelope —
 inventing one makes an unlanded Story look landed.

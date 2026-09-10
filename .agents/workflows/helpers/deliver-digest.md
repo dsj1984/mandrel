@@ -107,11 +107,12 @@ Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
 ## 5. The one creditable full-suite run
 
-**After the self-eval loop's last fix commit, immediately before the push** —
-the credit is keyed on the tree, so any later commit invalidates it. Redraft
-rounds run scoped tests; only this final run needs credit, and a bare
-`npm test` / `pnpm run test` deposits **none**, so close re-runs it. Shape it
-by what `close-validation/gates.js` runs:
+**After the self-eval loop's last fix commit, immediately after the push** —
+the credit is keyed on the tree, not push state: a later commit voids it, a
+push does not, and the backgrounded capture (below) ends the turn. Redraft
+rounds run scoped tests; only this run needs credit, and a bare `npm test` /
+`pnpm run test` deposits **none**, so close re-runs it. Shape it by what
+`close-validation/gates.js` runs:
 
 ```bash
 # CRAP gate on (default) + a `test:coverage` script — writes close's stamp:
@@ -127,7 +128,7 @@ Dispatch it in the **background**: it outruns the host's sync Bash ceiling, and 
 Rule 2).
 
 Read the **output**, not the exit code: capture skips — no test run, no
-credit — when nothing changed under the CRAP `targetDirs`. Run the scoped
+credit — when nothing changed under CRAP `targetDirs`. Run the scoped
 projects for the roots you changed plus `verify[]`, not the whole suite.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a

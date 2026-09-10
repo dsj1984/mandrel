@@ -20,6 +20,10 @@ function makeFakeRunners({
   mergeStatus = 0,
   mergeStderr = '',
   unmergedStdout = '',
+  revParseStatus = 0,
+  revParseStdout = 'pre1234\n',
+  changedStatus = 0,
+  changedStdout = '',
 } = {}) {
   const calls = [];
   const gitFetchWithRetry = async (cwd, ...args) => {
@@ -46,8 +50,16 @@ function makeFakeRunners({
     if (args[0] === 'merge' && args[1] === '--abort') {
       return { status: 0, stdout: '', stderr: '' };
     }
+    if (args[0] === 'rev-parse') {
+      return { status: revParseStatus, stdout: revParseStdout, stderr: '' };
+    }
     if (args[0] === 'diff' && args[1] === '--name-only') {
-      return { status: 0, stdout: unmergedStdout, stderr: '' };
+      // Two distinct probes share this verb: the conflict list
+      // (`--diff-filter=U`) and the Story #5267 "what did the sync bring in"
+      // range diff (`<preMergeHead> HEAD`).
+      return args.includes('--diff-filter=U')
+        ? { status: 0, stdout: unmergedStdout, stderr: '' }
+        : { status: changedStatus, stdout: changedStdout, stderr: '' };
     }
     return { status: 0, stdout: '', stderr: '' };
   };
@@ -186,4 +198,126 @@ test('syncBranchFromBase: log callback is invoked with (tag, message)', async ()
   });
   assert.ok(logs.length >= 1);
   assert.equal(logs[0].tag, 'SYNC');
+});
+
+test('syncBranchFromBase: noop reports an empty changedPaths', async () => {
+  const runners = makeFakeRunners({ originAlreadyMergedStatus: 0 });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.deepEqual(out.changedPaths, []);
+  // A no-op never touched the tree, so it never even asks what changed.
+  assert.equal(
+    runners.calls.find((c) => c.args[0] === 'rev-parse'),
+    undefined,
+  );
+});
+
+test('syncBranchFromBase: a merge-commit reports the tracked paths it brought in', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 0,
+    changedStdout: 'lib/a.js\nbaselines/crap.json\n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.kind, 'merge-commit');
+  assert.deepEqual(out.changedPaths, ['lib/a.js', 'baselines/crap.json']);
+  // The range is pinned to the PRE-merge HEAD, read before `git merge` ran.
+  const rangeDiff = runners.calls.find(
+    (c) => c.args[0] === 'diff' && c.args.includes('pre1234'),
+  );
+  assert.ok(rangeDiff, 'diffs against the pre-merge HEAD');
+  assert.deepEqual(rangeDiff.args, ['diff', '--name-only', 'pre1234', 'HEAD']);
+});
+
+test('syncBranchFromBase: a fast-forward reports its paths too', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 0,
+    mergeStatus: 0,
+    changedStdout: 'docs/CHANGELOG.md\n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.kind, 'fast-forward');
+  assert.deepEqual(out.changedPaths, ['docs/CHANGELOG.md']);
+});
+
+test('syncBranchFromBase: a mutating sync that changed nothing tracked reports []', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 0,
+    changedStdout: '\n  \n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.kind, 'merge-commit');
+  assert.deepEqual(out.changedPaths, []);
+});
+
+test('syncBranchFromBase: an unreadable pre-merge HEAD degrades to [] and never diffs', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 0,
+    revParseStatus: 1,
+    revParseStdout: '',
+    changedStdout: 'lib/a.js\n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.equal(out.synced, true);
+  assert.deepEqual(out.changedPaths, []);
+  assert.equal(
+    runners.calls.find((c) => c.args[0] === 'diff'),
+    undefined,
+  );
+});
+
+test('syncBranchFromBase: an empty rev-parse answer is treated as unreadable', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 0,
+    revParseStdout: '   \n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.deepEqual(out.changedPaths, []);
+});
+
+test('syncBranchFromBase: a failing range diff degrades to [] rather than guessing', async () => {
+  const runners = makeFakeRunners({
+    originAlreadyMergedStatus: 1,
+    headBehindOriginStatus: 1,
+    mergeStatus: 0,
+    changedStatus: 128,
+    changedStdout: 'lib/a.js\n',
+  });
+  const out = await syncBranchFromBase({
+    cwd: '/repo',
+    baseBranch: 'main',
+    ...runners,
+  });
+  assert.deepEqual(out.changedPaths, []);
 });

@@ -189,10 +189,19 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
       /never stamp coverage \/ CRAP fresh any other way/,
       'ad-hoc coverage/CRAP stamping must still be forbidden outside the credited invocation',
     );
+    // Story #5267 flipped this ordering. The stamp is keyed on the tree, not
+    // on push state, so the push does not spend it — while capturing first
+    // does spend the push: the capture is backgrounded, and its completion
+    // notification is what ends the worker's turn.
     assertDocMentions(
       body,
-      /run it exactly once, after the self-eval loop's last fix commit and immediately before the push/,
-      'the boot context must place the credited run where its stamp still describes the pushed tree',
+      /run it exactly once, after the self-eval loop's last fix commit and immediately after the push/,
+      'the boot context must place the credited run after the push, where the turn cannot end before the branch is on origin',
+    );
+    assertDocOmits(
+      body,
+      /immediately before the push/,
+      'no surviving instruction may tell the worker to capture before pushing',
     );
   });
 

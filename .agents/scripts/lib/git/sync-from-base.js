@@ -12,18 +12,38 @@
  * merge and reduces (does not eliminate) the residual race-with-merge
  * window. The merge queue is the proper fix for the residual race.
  *
- * Why merge (not rebase): Story branches are pushed and reviewed across
- * iterations of the watch + fix loop; a rebase would force-push and risk
- * losing in-flight reviewer context. The merge commit is squashed away
- * when the PR lands, so the cosmetic cost is zero.
+ * Why merge, not rebase (Story #5267 — settled, do not re-open):
+ *
+ *   1. Mandrel states no rebase rule anywhere. `git-conventions.md`
+ *      mandates branch shapes and commit subjects and is silent on how a
+ *      branch takes on base commits, so there is no convention to honour
+ *      here — only a trade-off to pick.
+ *   2. Story branches are pushed and reviewed across iterations of the
+ *      watch + fix loop. A rebase force-pushes, discarding in-flight
+ *      reviewer context and any review state pinned to the old SHAs.
+ *   3. A rebase would NOT save the pre-push capture stamp people reach
+ *      for it to save. The stamp is keyed on the tree, and rebasing onto
+ *      a moved base changes the tree exactly as merging it does — both
+ *      invalidate the stamp, so the credit argument is a wash. The real
+ *      remedy is the `changedPaths` reporting below: say out loud when
+ *      the sync spent the stamp, rather than change how it is spent.
+ *
+ * The merge commit is squashed away when the PR lands, so the cosmetic
+ * cost is zero.
  *
  * Outcomes (`{ synced, kind, ... }`):
  *
- *   - `{ synced: true, kind: 'noop-already-current' }` — `origin/<base>`
- *     is already an ancestor of HEAD; nothing to do.
- *   - `{ synced: true, kind: 'fast-forward' }` — merge fast-forwarded.
- *   - `{ synced: true, kind: 'merge-commit' }` — non-trivial merge
- *     succeeded; a merge commit landed on the active branch.
+ *   - `{ synced: true, kind: 'noop-already-current', changedPaths: [] }`
+ *     — `origin/<base>` is already an ancestor of HEAD; nothing to do.
+ *   - `{ synced: true, kind: 'fast-forward', changedPaths }` — merge
+ *     fast-forwarded.
+ *   - `{ synced: true, kind: 'merge-commit', changedPaths }` — non-trivial
+ *     merge succeeded; a merge commit landed on the active branch.
+ *
+ * `changedPaths` is the tracked paths the sync brought into the branch —
+ * `git diff --name-only <pre-merge HEAD> HEAD` — and is what lets a caller
+ * tell a sync that spent a pre-push capture stamp from one that did not.
+ * It is `[]` for every non-mutating and every failing outcome.
  *   - `{ synced: false, kind: 'fetch-failed', stderr }` — `git fetch`
  *     could not retrieve `origin/<base>`. No mutation occurred.
  *   - `{ synced: false, kind: 'conflict', conflictFiles }` — merge
@@ -42,6 +62,46 @@ import {
   gitFetchWithRetry as defaultGitFetchWithRetry,
   gitSpawn as defaultGitSpawn,
 } from '../git-utils.js';
+
+/**
+ * Resolve the current HEAD SHA, or `null` when git cannot answer.
+ *
+ * @param {typeof defaultGitSpawn} gitSpawn
+ * @param {string} cwd
+ * @returns {string|null}
+ */
+function readHead(gitSpawn, cwd) {
+  const head = gitSpawn(cwd, 'rev-parse', 'HEAD');
+  if (head.status !== 0) return null;
+  const sha = (head.stdout ?? '').toString().trim();
+  return sha.length > 0 ? sha : null;
+}
+
+/**
+ * The tracked paths that differ between `fromSha` and the current HEAD.
+ *
+ * Returns `[]` when the pre-merge SHA could not be read or the diff itself
+ * failed. That is deliberately the quiet answer: the only consumer is the
+ * caller's "your capture stamp may be dead" warning, and manufacturing that
+ * warning out of a failed probe would cry wolf on every sync in a repo where
+ * `rev-parse` is broken — a condition the merge one line earlier would
+ * already have failed on.
+ *
+ * @param {typeof defaultGitSpawn} gitSpawn
+ * @param {string} cwd
+ * @param {string|null} fromSha
+ * @returns {string[]}
+ */
+function diffPaths(gitSpawn, cwd, fromSha) {
+  if (!fromSha) return [];
+  const diff = gitSpawn(cwd, 'diff', '--name-only', fromSha, 'HEAD');
+  if (diff.status !== 0) return [];
+  return (diff.stdout ?? '')
+    .toString()
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
 
 /**
  * Sync the active branch in `cwd` against `origin/<baseBranch>`. See
@@ -64,9 +124,9 @@ import {
  *   tests.
  *
  * @returns {Promise<
- *   | { synced: true, kind: 'noop-already-current' }
- *   | { synced: true, kind: 'fast-forward' }
- *   | { synced: true, kind: 'merge-commit' }
+ *   | { synced: true, kind: 'noop-already-current', changedPaths: string[] }
+ *   | { synced: true, kind: 'fast-forward', changedPaths: string[] }
+ *   | { synced: true, kind: 'merge-commit', changedPaths: string[] }
  *   | { synced: false, kind: 'fetch-failed', stderr: string }
  *   | { synced: false, kind: 'conflict', conflictFiles: string[] }
  *   | { synced: false, kind: 'merge-failed', stderr: string }
@@ -111,8 +171,13 @@ export async function syncBranchFromBase({
   );
   if (originAlreadyMerged.status === 0) {
     log('SYNC', `origin/${baseBranch} already merged into HEAD — no-op.`);
-    return { synced: true, kind: 'noop-already-current' };
+    return { synced: true, kind: 'noop-already-current', changedPaths: [] };
   }
+
+  // Pin the pre-merge HEAD so a successful sync can name what it brought
+  // in. Read BEFORE the merge, because afterwards the only handle on the
+  // old tree is this SHA.
+  const preMergeHead = readHead(gitSpawn, cwd);
 
   const headBehindOrigin = gitSpawn(
     cwd,
@@ -134,6 +199,7 @@ export async function syncBranchFromBase({
     return {
       synced: true,
       kind: willFastForward ? 'fast-forward' : 'merge-commit',
+      changedPaths: diffPaths(gitSpawn, cwd, preMergeHead),
     };
   }
 

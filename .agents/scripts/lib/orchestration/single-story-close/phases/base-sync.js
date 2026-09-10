@@ -13,6 +13,12 @@
  * On a merge conflict the Story is transitioned to `agent::blocked` via
  * `handleSyncFailure` and the caller throws — the operator resolves in
  * the worktree and re-runs.
+ *
+ * Story #5267: a sync that lands tracked content also spends the worker's
+ * pre-push full-suite capture stamp, because that stamp is keyed on the
+ * tree. The phase now says so out loud — see
+ * `buildStampInvalidatedWarning` — instead of leaving close's second full
+ * suite looking like a bug.
  */
 
 import { syncBranchFromBase } from '../../../git/sync-from-base.js';
@@ -87,6 +93,61 @@ export async function runBaseSyncPhase({
     );
   }
   progress('SYNC', `✅ Synced from origin/${baseBranch} (${syncResult.kind}).`);
+  for (const line of buildStampInvalidatedWarning({
+    baseBranch,
+    result: syncResult,
+  })) {
+    progress('SYNC', line);
+  }
+}
+
+/**
+ * How many changed paths the warning names before it stops listing.
+ * Enough to recognise the change set; short enough that the warning still
+ * reads as a warning rather than as a diff.
+ */
+const WARNED_PATH_LIMIT = 12;
+
+/**
+ * The loud "your capture stamp is spent" warning, or `[]` when the sync
+ * changed nothing (Story #5267).
+ *
+ * The worker deposits ONE creditable full-suite stamp, keyed on the tree it
+ * ran against. This sync runs after that, and when it brings tracked content
+ * in it moves the tree out from under the stamp: close's `test` / `coverage`
+ * gates find no credit and pay for a second full suite. That is correct
+ * behaviour and not something to suppress — the defect was that it happened
+ * silently, so the operator read a doubled close as a mystery rather than as
+ * the base moving.
+ *
+ * Quiet by construction on the outcomes that cannot have spent it: a
+ * `noop-already-current` sync never touched the tree, and a fast-forward or
+ * merge that brought no tracked path in left the stamp's tree intact. A
+ * content-changing fast-forward DOES warn — it invalidates the stamp exactly
+ * as a merge commit does, and staying quiet there would be a lie of omission.
+ *
+ * Pure. Module-private: the phase is the seam tests drive it through
+ * (`injectedSync` + a `progress` spy), so it needs no export of its own.
+ *
+ * @param {{ baseBranch: string, result: { kind?: string, changedPaths?: string[] } }} args
+ * @returns {string[]} Progress lines, in order. Empty when nothing changed.
+ */
+function buildStampInvalidatedWarning({ baseBranch, result }) {
+  const changed = Array.isArray(result?.changedPaths)
+    ? result.changedPaths
+    : [];
+  if (changed.length === 0) return [];
+  const shown = changed.slice(0, WARNED_PATH_LIMIT);
+  const overflow = changed.length - shown.length;
+  return [
+    `⚠️  BASE MOVED: the ${result?.kind ?? 'sync'} from origin/${baseBranch} ` +
+      `brought ${changed.length} tracked path(s) into this branch, so the tree ` +
+      `is no longer the one the pre-push full-suite capture was stamped ` +
+      `against. That stamp cannot be credited; the gates below will re-run the ` +
+      `suite against the merged tree. This is expected, not a fault.`,
+    ...shown.map((f) => `⚠️    ${f}`),
+    ...(overflow > 0 ? [`⚠️    …and ${overflow} more`] : []),
+  ];
 }
 
 /**
