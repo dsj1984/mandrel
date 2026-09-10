@@ -185,11 +185,10 @@ describe('git-fixture — copyGitRepo reports a twice-failed copy', () => {
     const err = captureThrow(() => copyGitRepo(src));
 
     assert.match(err.message, /copyGitRepo failed 2 times/);
-    assert.match(err.message, new RegExp(`source: ${src} \\(MISSING\\)`));
+    assert.ok(err.message.includes(`source: ${src} (MISSING)`));
     assert.match(err.message, /destination: .+ \(exists\)/);
-    assert.match(
-      err.message,
-      new RegExp(`suite root: ${_currentSuiteTempRoot()} \\(exists\\)`),
+    assert.ok(
+      err.message.includes(`suite root: ${_currentSuiteTempRoot()} (exists)`),
     );
     assert.ok(
       err.message.split('\n').length > 1,
@@ -205,7 +204,7 @@ describe('git-fixture — copyGitRepo reports a twice-failed copy', () => {
 
     assert.match(err.message, /no usable repository/);
     assert.match(err.message, /\.git\/HEAD and \.git\/objects/);
-    assert.match(err.message, new RegExp(`source: ${src} \\(exists\\)`));
+    assert.ok(err.message.includes(`source: ${src} (exists)`));
   });
 
   it('rejects a copy whose object store did not come across', () => {
@@ -229,7 +228,7 @@ describe('git-fixture — copyGitRepo reports a twice-failed copy', () => {
     );
 
     assert.match(err.message, /destination: <never created>/);
-    assert.match(err.message, new RegExp(`source: ${src} \\(exists\\)`));
+    assert.ok(err.message.includes(`source: ${src} (exists)`));
   });
 });
 
