@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:04:21.486Z",
+  "generatedAt": "2026-09-10T20:21:19.135Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.97,
+      "p50": 99.048,
       "p95": 122.902
     }
   },
@@ -1392,7 +1392,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning/memory-pool-advisory.js",
-      "mi": 96.811
+      "mi": 101.487
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
