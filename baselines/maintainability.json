@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:55:11.818Z",
+  "generatedAt": "2026-09-10T21:24:05.316Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1496,11 +1496,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
-      "mi": 130.554
+      "mi": 125.085
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
-      "mi": 91.946
+      "mi": 94.758
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
