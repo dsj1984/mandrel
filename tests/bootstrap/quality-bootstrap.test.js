@@ -35,6 +35,10 @@ import {
   QUALITY_NPM_SCRIPTS,
 } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
 import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+// `mandrel sync` is the consumer-side install site for the driver's per-clone
+// half, so its wiring belongs with the driver's own bootstrap tests rather
+// than with the sync command's copy/prune contract.
+import { runSync } from '../../lib/cli/sync.js';
 
 let tmpRoot;
 let frameworkRoot;
@@ -378,5 +382,154 @@ describe('quality-bootstrap — baselines merge driver (AC-6)', () => {
     });
     assert.ok(result.mergeDriver, 'the merge-driver step reports an outcome');
     assert.equal(result.mergeDriver.attributes, 'created');
+  });
+});
+
+describe('baselines merge driver — installed wherever base-sync runs (Story #5277, AC-1)', () => {
+  const BASELINE_MERGE_ATTRIBUTE = 'baselines/*.json merge=mandrel-baseline';
+
+  /** Record every `git config` write a run performs. */
+  function repoSpawn({ existing = null } = {}) {
+    const writes = [];
+    const spawnImpl = (_cmd, args) => {
+      if (args[0] === 'rev-parse') return { status: 0, stdout: '.git' };
+      if (args.includes('--get')) {
+        return existing === null
+          ? { status: 1, stdout: '' }
+          : { status: 0, stdout: `${existing}\n` };
+      }
+      writes.push(args);
+      return { status: 0, stdout: '' };
+    };
+    spawnImpl.writes = writes;
+    return spawnImpl;
+  }
+
+  /** The value written to `merge.mandrel-baseline.driver`, or undefined. */
+  function driverValue(spawnImpl) {
+    return spawnImpl.writes.find(
+      (args) => args[2] === 'merge.mandrel-baseline.driver',
+    )?.[3];
+  }
+
+  it('installs a command whose first token is an absolute path to node', () => {
+    // Git runs a merge driver through a shell whose PATH is whatever launched
+    // git — a GUI client, a Finder-launched editor, launchd. A bare `node`
+    // there is not found, the driver never starts, and git silently falls back
+    // to the text merge the driver exists to replace.
+    const projectRoot = makeProject();
+    const spawnImpl = repoSpawn();
+    ensureBaselineMergeDriver({ projectRoot, spawnImpl });
+
+    const command = driverValue(spawnImpl);
+    const [firstToken] = command.match(/"[^"]*"|\S+/g);
+    const nodePath = firstToken.replace(/^"|"$/g, '');
+    assert.ok(path.isAbsolute(nodePath), `${nodePath} is not an absolute path`);
+    assert.equal(nodePath, process.execPath);
+    // Quoted, so an installation under a path with a space still starts.
+    assert.equal(firstToken, `"${process.execPath}"`);
+    assert.match(command, /\.agents\/scripts\/merge-baseline\.js %O %A %B %P$/);
+  });
+
+  it('rewrites a stale relative-node command left by an earlier install', () => {
+    const projectRoot = makeProject();
+    const spawnImpl = repoSpawn({
+      existing: 'node .agents/scripts/merge-baseline.js %O %A %B %P',
+    });
+    const result = ensureBaselineMergeDriver({ projectRoot, spawnImpl });
+    assert.equal(result.config, 'set');
+    assert.match(driverValue(spawnImpl), /^"/);
+  });
+
+  describe('configOnly — the half a consumer sync may install', () => {
+    it('writes the config key when .gitattributes already declares the attribute', () => {
+      const projectRoot = makeProject();
+      fs.writeFileSync(
+        path.join(projectRoot, '.gitattributes'),
+        `${BASELINE_MERGE_ATTRIBUTE}\n`,
+      );
+      const spawnImpl = repoSpawn();
+      const result = ensureBaselineMergeDriver({
+        projectRoot,
+        configOnly: true,
+        spawnImpl,
+      });
+      assert.equal(result.action, 'updated');
+      assert.equal(result.config, 'set');
+      assert.ok(driverValue(spawnImpl));
+    });
+
+    it('creates no .gitattributes in a project that never opted in', () => {
+      // `mandrel sync` materializes `.agents/`; it is not an opt-in to the
+      // quality surface, so it must not start routing a consumer's files
+      // through a merge driver they never asked for.
+      const projectRoot = makeProject();
+      const spawnImpl = repoSpawn();
+      const result = ensureBaselineMergeDriver({
+        projectRoot,
+        configOnly: true,
+        spawnImpl,
+      });
+      assert.equal(result.action, 'skipped');
+      assert.equal(result.config, 'skipped');
+      assert.equal(
+        fs.existsSync(path.join(projectRoot, '.gitattributes')),
+        false,
+      );
+      assert.deepEqual(spawnImpl.writes, []);
+    });
+  });
+
+  it('this repo installs it from `prepare`, so `npm install` completes it', () => {
+    // The half that cannot ship with the repository is installed by the one
+    // command every contributor runs. Asserting the wiring rather than the
+    // effect: running `npm install` inside a test would rewrite the config of
+    // whatever repository the suite happens to execute in.
+    const repoRoot = path.resolve(
+      path.dirname(new URL(import.meta.url).pathname),
+      '../..',
+    );
+    const pkg = readJson(path.join(repoRoot, 'package.json'));
+    assert.match(pkg.scripts.prepare, /baselines:merge-driver/);
+    assert.equal(
+      pkg.scripts['baselines:merge-driver'],
+      'node .agents/scripts/merge-baseline.js --install',
+    );
+  });
+
+  it('mandrel sync installs the same key in a consumer checkout', () => {
+    // The config half is per-clone and therefore absent in every fresh clone,
+    // while the attribute half is tracked and always present — so the half
+    // that cannot travel is installed by the one command every consumer runs.
+    // Driven through `runSync` itself rather than its seam's default, so the
+    // wiring is what is proven.
+    const consumerRoot = path.join(tmpRoot, 'consumer');
+    const packageRoot = path.join(tmpRoot, 'pkg');
+    fs.mkdirSync(path.join(packageRoot, '.agents'), { recursive: true });
+    fs.writeFileSync(path.join(packageRoot, '.agents', 'x.md'), 'x\n');
+    writeJson(path.join(packageRoot, 'package.json'), { version: '9.9.9' });
+    fs.mkdirSync(consumerRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(consumerRoot, '.gitattributes'),
+      `${BASELINE_MERGE_ATTRIBUTE}\n`,
+    );
+
+    const seen = [];
+    runSync({
+      argv: [],
+      resolvePackageRoot: () => packageRoot,
+      cwd: () => consumerRoot,
+      write: () => {},
+      writeErr: () => {},
+      exit: () => {},
+      ensureMergeDriver: (ctx) => {
+        seen.push(ctx);
+        return ensureBaselineMergeDriver({ ...ctx, spawnImpl: repoSpawn() });
+      },
+    });
+
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].projectRoot, consumerRoot);
+    assert.equal(seen[0].configOnly, true, 'sync never writes .gitattributes');
   });
 });

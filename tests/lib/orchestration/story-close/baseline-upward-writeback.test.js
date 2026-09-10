@@ -11,12 +11,23 @@
  * spawned, no baseline is scored, and nothing touches the real filesystem. The
  * `git` stub records its argv so the assertions can read what the step
  * actually staged and committed rather than inferring it from a return value.
+ *
+ * One suite is the deliberate exception (Story #5277): the rollback on a
+ * rejected commit is a claim about the FILE, and the pre-fix implementation
+ * issued a plausible-looking `git checkout -- <path>` that restored nothing.
+ * Argv could only ever agree with it, so that suite drives a real repository
+ * and reads the bytes back.
  */
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 
+import { gitSync } from '../../../../.agents/scripts/lib/git-utils.js';
 import { runBaselineUpwardWriteback } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js';
+import { makeTempDir } from '../../../../.agents/scripts/lib/test-temp.js';
 
 function makeLogger() {
   const logs = { info: [], warn: [], error: [] };
@@ -37,6 +48,9 @@ function makeGit({
   changedFiles = ['.agents/scripts/lib/a.js'],
   onBranch = 'story-5224',
   commitFails = false,
+  dirty = [],
+  statusFails = false,
+  hasOriginRef = true,
 } = {}) {
   const calls = [];
   // Matches `git-utils.gitSync`: `(cwd, ...args) => trimmed stdout`, throwing
@@ -45,8 +59,18 @@ function makeGit({
     calls.push(args);
     const [cmd] = args;
     if (cmd === 'diff') return `${changedFiles.join('\n')}\n`;
+    if (cmd === 'status') {
+      if (statusFails) throw new Error('not a git repository');
+      return dirty.map((p) => ` M ${p}`).join('\n');
+    }
     if (cmd === 'rev-parse' && args.includes('--abbrev-ref'))
       return `${onBranch}\n`;
+    if (cmd === 'rev-parse' && args.includes('--verify')) {
+      if (hasOriginRef) return 'cafebabe\n';
+      const err = new Error('needed a single revision');
+      err.status = 1;
+      throw err;
+    }
     if (cmd === 'rev-parse') return 'feedface\n';
     if (cmd === 'commit' && commitFails) {
       const err = new Error('commitlint rejected the subject');
@@ -385,6 +409,10 @@ describe('runBaselineUpwardWriteback — Story #5224', () => {
   });
 
   it('restores the baseline file when the commit is rejected', async () => {
+    // Argv is deliberately NOT the assertion here — see the real-repository
+    // suite below. `git checkout -- <path>` also records as a rollback and
+    // restores nothing, because the index it restores from is the one `git
+    // add` just overwrote.
     const git = makeGit({ commitFails: true });
     await assert.rejects(
       run({
@@ -394,11 +422,80 @@ describe('runBaselineUpwardWriteback — Story #5224', () => {
       }),
       /commitlint rejected/,
     );
-    assert.deepEqual(git.argvFor('checkout')[0], [
-      'checkout',
-      '--',
-      'baselines/maintainability.json',
+    assert.equal(git.argvFor('restore').length, 1);
+  });
+
+  it('AC-6: skips with dirty-tree when the baseline file is already modified', async () => {
+    // An uncommitted edit on the baseline would be swept into a commit
+    // authored by close and tagged `baseline-refresh:` — the marker
+    // `refresh-ack.js` VOUCHES for. An absorbed edit is not merely unrelated;
+    // it arrives pre-acknowledged.
+    const git = makeGit({ dirty: ['baselines/maintainability.json'] });
+    const refresh = makeRefresh();
+    const result = await run({
+      baselineRows: [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+      scored: [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+      git,
+      refresh,
+    });
+    assert.equal(result.reason, 'dirty-tree');
+    assert.equal(result.ran, false, 'a guard stopped it before any work');
+    assert.equal(result.committed, false);
+    assert.deepEqual(refresh.seen, [], 'nothing was scored or written');
+    assert.equal(git.argvFor('add').length, 0);
+  });
+
+  it('AC-6: an unrelated dirty path does not block the write-back', async () => {
+    const git = makeGit({ dirty: ['.agents/scripts/lib/a.js'] });
+    const result = await run({
+      baselineRows: [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+      scored: [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+      git,
+    });
+    assert.equal(result.committed, true);
+  });
+
+  it('AC-6: an unreadable git status fails closed', async () => {
+    const git = makeGit({ statusFails: true });
+    const result = await run({
+      baselineRows: [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+      scored: [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+      git,
+    });
+    assert.equal(result.reason, 'dirty-tree');
+  });
+
+  it('AC-7: scopes the changed set to origin/<baseBranch> when that ref exists', async () => {
+    // A worktree is seeded once and never pulled again, so its local `main`
+    // drifts behind the remote — and a stale base widens the three-dot range
+    // to commits that landed after the branch forked. Every file in that
+    // widening would be scored and written back by this Story's PR.
+    const git = makeGit();
+    await run({
+      baselineRows: [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+      scored: [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+      git,
+    });
+    const verify = git.argvFor('rev-parse').find((c) => c.includes('--verify'));
+    assert.deepEqual(verify, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      'refs/remotes/origin/main',
     ]);
+    const diff = git.argvFor('diff')[0].join(' ');
+    assert.match(diff, /origin\/main\.\.\.story-5224/);
+  });
+
+  it('AC-7: falls back to the local base branch when origin/<baseBranch> is absent', async () => {
+    const git = makeGit({ hasOriginRef: false });
+    await run({
+      baselineRows: [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+      scored: [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+      git,
+    });
+    const diff = git.argvFor('diff')[0].join(' ');
+    assert.match(diff, /(?<!origin\/)main\.\.\.story-5224/);
   });
 
   it('rejects a call missing the branch pair rather than guessing one', async () => {
@@ -411,5 +508,113 @@ describe('runBaselineUpwardWriteback — Story #5224', () => {
       /storyBranch is required/,
     );
     await assert.rejects(runBaselineUpwardWriteback({}), /cwd is required/);
+  });
+});
+
+describe('runBaselineUpwardWriteback — rollback in a real repository (AC-5)', () => {
+  const REL = 'baselines/maintainability.json';
+
+  /** An envelope carrying one row at `mi`. */
+  const envelope = (mi) =>
+    `${JSON.stringify(
+      {
+        $schema: '.agents/schemas/baselines/maintainability.schema.json',
+        kernelVersion: '1.0.0',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+        rollup: { '*': { min: mi } },
+        rows: [{ path: '.agents/scripts/lib/a.js', mi }],
+      },
+      null,
+      2,
+    )}\n`;
+
+  /**
+   * A repo on `story-5224` with the baseline committed at mi 70, and a
+   * `commit-msg` hook that rejects — the shape commitlint produces, and the
+   * one that made the pre-Story-#5277 rollback observable.
+   */
+  function repoWithRejectingCommitHook() {
+    const dir = makeTempDir('writeback-rollback-');
+    const run = (...args) =>
+      execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
+    run('init', '--initial-branch=main');
+    run('config', 'user.email', 'test@example.com');
+    run('config', 'user.name', 'Test');
+    run('config', 'commit.gpgsign', 'false');
+    fs.mkdirSync(path.join(dir, 'baselines'), { recursive: true });
+    fs.writeFileSync(path.join(dir, REL), envelope(70));
+    run('add', '-A');
+    run('commit', '-m', 'chore: seed');
+    run('checkout', '-b', 'story-5224');
+    // One scorable file changed on the branch, so the step's own changed-file
+    // scope is non-empty and it reaches the commit.
+    fs.mkdirSync(path.join(dir, '.agents/scripts/lib'), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, '.agents/scripts/lib/a.js'),
+      'export const a = 1;\n',
+    );
+    run('add', '-A');
+    run('commit', '-m', 'feat: a');
+
+    const hooks = path.join(dir, '.githooks');
+    fs.mkdirSync(hooks, { recursive: true });
+    fs.writeFileSync(
+      path.join(hooks, 'commit-msg'),
+      '#!/bin/sh\necho "commitlint rejected the subject" >&2\nexit 1\n',
+      { mode: 0o755 },
+    );
+    run('config', 'core.hooksPath', '.githooks');
+    return dir;
+  }
+
+  it('leaves the worktree and the index at HEAD when the commit is rejected', async () => {
+    const dir = repoWithRejectingCommitHook();
+    const committed = fs.readFileSync(path.join(dir, REL), 'utf8');
+
+    await assert.rejects(
+      runBaselineUpwardWriteback({
+        cwd: dir,
+        worktreePath: dir,
+        storyId: 5224,
+        baseBranch: 'main',
+        storyBranch: 'story-5224',
+        logger: makeLogger(),
+        gitSync,
+        loadBaselineRows: () => [{ path: '.agents/scripts/lib/a.js', mi: 70 }],
+        scoreFiles: () => [{ path: '.agents/scripts/lib/a.js', mi: 78 }],
+        // The one collaborator that must be real for this assertion: the
+        // rollback is about a file that was genuinely written and staged.
+        refreshBaseline: async ({ writePath }) => {
+          fs.writeFileSync(writePath, envelope(78));
+          return { wrote: true };
+        },
+        resolveWritePath: ({ cwd }) => path.join(cwd, REL),
+      }),
+      /commit/i,
+    );
+
+    // The file itself — not the argv that was supposed to restore it. The
+    // pre-fix rollback (`git checkout -- <path>`) restored the worktree FROM
+    // the index, and the index was exactly what `git add` had just
+    // overwritten, so this read returned the rewritten row at 78.
+    assert.equal(
+      fs.readFileSync(path.join(dir, REL), 'utf8'),
+      committed,
+      'the worktree copy must equal HEAD',
+    );
+    const staged = execFileSync('git', ['diff', '--cached', '--name-only'], {
+      cwd: dir,
+      encoding: 'utf8',
+    }).trim();
+    assert.equal(staged, '', 'nothing may be left staged');
+    const dirty = execFileSync('git', ['status', '--porcelain'], {
+      cwd: dir,
+      encoding: 'utf8',
+    })
+      .split('\n')
+      .filter((l) => l.includes(REL));
+    assert.deepEqual(dirty, [], 'nothing may be left modified');
+
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 });

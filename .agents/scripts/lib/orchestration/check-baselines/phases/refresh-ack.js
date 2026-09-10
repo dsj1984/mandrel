@@ -96,23 +96,69 @@ function resolveRefreshTrigger({ kind, gateBlock, cmp, cwd, env }) {
 }
 
 /**
- * Read the baseline rows as of one refresh commit. Returns `null` — never
- * throws and never a partial row set — when the blob is absent, unreadable or
- * unparseable at that SHA. The caller treats `null` as "this commit
- * acknowledges nothing", which keeps the ratchet at full strength rather than
- * acknowledging on a guess.
+ * Read the baseline rows as of one git ref.
+ *
+ * Returns `null` — never throws and never a partial row set — when the blob is
+ * unreadable or unparseable at that ref. The caller treats `null` as "this
+ * commit acknowledges nothing", which keeps the ratchet at full strength rather
+ * than acknowledging on a guess.
+ *
+ * A blob that is genuinely ABSENT at the ref reads as `{ rows: [] }`, not
+ * `null`. The distinction only matters for the `sha^` read below: the commit
+ * that CREATES a baseline has no blob at its parent, and treating that as
+ * unreadable would make the first refresh of any kind acknowledge nothing.
+ * `readBaseFromGit` already draws exactly this line — `null` for git's exit
+ * 128 "path does not exist in this revision", a throw for everything else — so
+ * the two cases are distinguishable rather than guessed at.
+ *
+ * @returns {{ rows: Array<object> }|null}
  */
-function readRowsAtCommit(sha, baselinePath, cwd) {
+function readRowsAtRef(ref, baselinePath, cwd) {
   let raw;
   try {
-    raw = readBaseFromGit(sha, baselinePath, { cwd });
+    raw = readBaseFromGit(ref, baselinePath, { cwd });
   } catch {
     return null;
   }
-  if (raw === null) return null;
+  if (raw === null) return { rows: [] };
   try {
     const payload = JSON.parse(raw);
-    return Array.isArray(payload?.rows) ? payload.rows : null;
+    return Array.isArray(payload?.rows) ? { rows: payload.rows } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Which row identities did the tagged commit itself REWRITE (Story #5277)?
+ *
+ * This is the half Story #5179 left open. It scoped the acknowledgment to the
+ * rows present in the baseline blob *at* the tagged commit — but a blob is a
+ * whole-file snapshot, so it also contains every row an EARLIER, untagged
+ * commit on the same branch lowered. Such a row is present at the refresh
+ * commit and unchanged at head, so it classified as `ok` and was acknowledged
+ * by a commit that never touched it. The observed shape: a branch lowers a
+ * maintainability row while refactoring, later refreshes an unrelated CRAP row
+ * with a `baseline-refresh:` commit, and the first regression is waved through.
+ *
+ * Diffing `sha^ → sha` is what makes the acknowledgment a statement about the
+ * COMMIT rather than about the branch's accumulated state. No tolerance is
+ * applied: any movement at all means the commit re-scored that identity, which
+ * is the only question being asked here.
+ *
+ * @returns {Set<string>|null} null when the diff is unusable, which
+ *   acknowledges nothing from this commit.
+ */
+function keysTouchedByCommit({ mod, rowsAtSha, rowsAtParent }) {
+  try {
+    const result = mod.compare({ rows: rowsAtSha }, { rows: rowsAtParent });
+    return new Set(
+      [
+        ...(result?.regressions ?? []),
+        ...(result?.improvements ?? []),
+        ...(result?.additions ?? []),
+      ].map((entry) => entry.key),
+    );
   } catch {
     return null;
   }
@@ -179,6 +225,11 @@ function classifyAgainstRefresh({ mod, headRows, refreshRows, tolerance }) {
  *      lands in `drifted`. Drift from commits landing AFTER the refresh is what
  *      "the baseline commit must be the branch's last score-moving commit" asks
  *      for by convention and nothing enforced.
+ *   3. **The commit actually rewrote it** (Story #5277) — `keysTouchedByCommit`
+ *      diffs `sha^ → sha`. Tests 1 and 2 both read the blob AT the commit,
+ *      which is a whole-file snapshot and therefore also carries rows an
+ *      earlier untagged commit lowered; those rows passed both tests without
+ *      the tagged commit having touched them.
  *
  * Fails closed at every step: an unreadable blob, a missing `compare`, or a
  * classifier that throws contributes nothing, so those regressions stand.
@@ -212,17 +263,24 @@ function acknowledgeableKeys({
   // state the branch is asking to be held to.
   const decided = new Set();
   for (const { sha } of refreshCommits) {
-    const refreshRows = readRowsAtCommit(sha, baselinePath, cwd);
-    if (refreshRows === null) continue;
+    const atSha = readRowsAtRef(sha, baselinePath, cwd);
+    const atParent = readRowsAtRef(`${sha}^`, baselinePath, cwd);
+    if (atSha === null || atParent === null) continue;
+    const touched = keysTouchedByCommit({
+      mod,
+      rowsAtSha: atSha.rows,
+      rowsAtParent: atParent.rows,
+    });
+    if (touched === null) continue;
     const verdict = classifyAgainstRefresh({
       mod,
       headRows,
-      refreshRows,
+      refreshRows: atSha.rows,
       tolerance,
     });
     if (verdict === null) continue;
     for (const key of verdict.ok) {
-      if (decided.has(key)) continue;
+      if (decided.has(key) || !touched.has(key)) continue;
       decided.add(key);
       acknowledgeable.add(key);
     }
@@ -264,10 +322,12 @@ function logAcknowledgment({ kind, reasons, acknowledged, kept }) {
  *
  * The two trigger arms are scoped differently, deliberately:
  *
- * - **Commit tag** — scoped to the rows the tagged commits actually refreshed,
+ * - **Commit tag** — scoped to the rows the tagged commits actually rewrote,
  *   per `acknowledgeableKeys`. Before Story #5179 this cleared every regression
  *   in the range, so a branch merged carrying a stale row and the ratchet ran
- *   loose on that file; the failure recurred six times.
+ *   loose on that file; the failure recurred six times. Story #5277 closed the
+ *   remainder: the scoping read the blob at the tagged commit, which still
+ *   carried rows an earlier untagged commit had lowered.
  * - **Env parity** (`<KIND>_REFRESH=1`) — stays whole-run. There is no commit to
  *   anchor row-scoping to, and setting the variable is an explicit, deliberate
  *   operator act rather than a signal inferred from history.

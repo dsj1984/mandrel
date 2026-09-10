@@ -82,8 +82,16 @@ function readBaseBaselinePayload(scope, kind, gateBlock, cwd) {
   if (raw === null) return null;
   try {
     return JSON.parse(raw);
-  } catch {
-    return null;
+  } catch (cause) {
+    // Story #5277 — the same distinction one line above, applied to the
+    // second way a base read fails. `null` here means "no baseline at the base
+    // ref", which empties the head-vs-base arm on purpose; an UNPARSEABLE base
+    // blob is a read that failed, and reporting it as "no base" made a
+    // corrupted or half-merged `baselines/*.json` on the base branch report
+    // zero regressions at exit 0. Text-merged baselines are exactly how such a
+    // blob gets onto the base branch, which is the failure this Story removes
+    // upstream — this arm is what stops it being silent when it happens anyway.
+    throw buildBaseReadError({ kind, ref: scope.ref, file: rel, cause });
   }
 }
 

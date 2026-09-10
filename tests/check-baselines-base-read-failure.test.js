@@ -235,6 +235,51 @@ describe('check-baselines — base-read failure fails closed (#4914)', () => {
     assert.equal(gate.baseRead, false, 'absent base is reported, not hidden');
   });
 
+  // Story #5277 AC-10 — the second way a base read fails.
+  //
+  // #4914 drew the line at the git call: a throw fails closed, exit 128 means
+  // "absent". It left the PARSE on the tolerant side, so a base blob that git
+  // handed over intact but that did not parse as JSON reported zero
+  // regressions at exit 0 — a gate trusted precisely because it looks green.
+  // Text-merged baselines are how such a blob reaches a base branch, which is
+  // the failure the merge driver removes upstream; this is what stops it being
+  // silent when it happens anyway.
+  it('exits non-zero naming the base file when the base baseline will not parse', async () => {
+    __setSpawnRunner({
+      spawn: (_cmd, args) => {
+        if (args?.[0] === 'show') {
+          const spec = args?.[1] ?? '';
+          if (spec.endsWith(`:${MI_BASELINE_REL}`)) {
+            // The shape a text merge leaves behind.
+            return {
+              status: 0,
+              stdout:
+                '<<<<<<< HEAD\n{ "rows": [] }\n=======\n{ "rows": [] }\n>>>>>>> theirs\n',
+              stderr: '',
+            };
+          }
+          return { status: 128, stdout: '', stderr: 'no base' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    });
+
+    let thrown = null;
+    try {
+      await runCheckBaselines({ argv: ['--no-friction'], cwd: root });
+    } catch (err) {
+      thrown = err;
+    }
+    assert.ok(thrown instanceof Error, 'an unparseable base must not resolve');
+    assert.equal(thrown.exitCode, EXIT_CONFIG);
+    assert.match(thrown.message, /could not read the base baseline/);
+    // Naming the file is the whole diagnostic: the operator has to know WHICH
+    // baseline on the base branch is corrupt.
+    assert.match(thrown.message, new RegExp(MI_BASELINE_REL));
+    assert.equal(thrown.baselinePath, MI_BASELINE_REL);
+    assert.equal(thrown.baseRef, 'main');
+  });
+
   // AC-7 — a normal run that DID read its base says so on the gate report.
   it('reports baseRead: true on a gate whose base baseline was read', async () => {
     installHealthyStub([{ path: 'src/a.js', mi: 80 }]);
