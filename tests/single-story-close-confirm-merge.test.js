@@ -1928,6 +1928,203 @@ describe('runConfirmMergePhase — in-poll advisory disarm (Story #5096)', () =>
     assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-red');
   });
 
+  // -------------------------------------------------------------------------
+  // Story #5266 — a scan that never FINISHED is not a scan that found
+  // something. Same block, different class, different remedies.
+  // -------------------------------------------------------------------------
+
+  const NAV_TIMEOUT = 'Navigation timeout of 30000 ms exceeded';
+
+  /** A `gh` double whose `api` records every endpoint it is asked for. */
+  function makeGh({ checkRuns = [], rerunThrows = false } = {}) {
+    const calls = [];
+    return {
+      calls,
+      api: async ({ method = 'GET', endpoint }) => {
+        calls.push(`${method} ${endpoint}`);
+        if (endpoint.includes('/rerun-failed-jobs')) {
+          if (rerunThrows) throw new Error('rerun refused');
+          return { stdout: '{}', stderr: '', code: 0 };
+        }
+        return {
+          stdout: JSON.stringify({ check_runs: checkRuns }),
+          stderr: '',
+          code: 0,
+        };
+      },
+    };
+  }
+
+  /** The observed shape: a red advisory run that timed out reporting nothing. */
+  const timedOutProbe = (overrides = {}) =>
+    advisoryProbe({
+      headSha: 'deadbeef',
+      redHeadRuns: [
+        {
+          name: 'a11y scan',
+          conclusion: 'FAILURE',
+          runId: 1234,
+          completedAt: '2026-09-10T10:00:00Z',
+        },
+      ],
+      ...overrides,
+    });
+
+  const timedOutCheckRuns = [
+    {
+      name: 'a11y scan',
+      output: { title: 'Scan failed', summary: NAV_TIMEOUT },
+    },
+  ];
+
+  it('blocks a timed-out scan as advisory-gate-inconclusive, reading the check-run output', async () => {
+    const gh = makeGh({ checkRuns: timedOutCheckRuns });
+    const ctx = runWith({
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    const outcome = await runConfirmMergePhase(ctx.args);
+
+    assert.equal(outcome.confirmed, false);
+    assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-inconclusive');
+    assert.match(ctx.emitted[0].reason, /FAILED WITHOUT FINISHING/);
+    assert.match(ctx.emitted[0].reason, /a11y scan → FAILURE/);
+    assert.deepEqual(ctx.disarms, [1850], 'the gate still blocks and disarms');
+    assert.ok(
+      gh.calls.some((c) => c.includes('/commits/deadbeef/check-runs')),
+      'the head check-run output is what makes the classification possible',
+    );
+  });
+
+  it('keeps advisory-gate-red when the run reported a real violation', async () => {
+    const gh = makeGh({
+      checkRuns: [
+        { name: 'a11y scan', output: { summary: '3 violations found' } },
+      ],
+    });
+    const ctx = runWith({
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-red');
+    assert.match(ctx.emitted[0].reason, /concluded red on the PR head/);
+  });
+
+  it('falls back to advisory-gate-red when the output cannot be read', async () => {
+    const gh = {
+      calls: [],
+      api: async () => {
+        throw new Error('api down');
+      },
+    };
+    const ctx = runWith({
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-red');
+  });
+
+  it('reruns NOTHING and mutates no GitHub state with no flag and no config (AC-6)', async () => {
+    const gh = makeGh({ checkRuns: timedOutCheckRuns });
+    const ctx = runWith({
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.deepEqual(
+      gh.calls.filter((c) => c.startsWith('POST')),
+      [],
+      'the default allowance is 0 — close spends no CI minutes unasked',
+    );
+    assert.equal(ctx.emitted.length, 1, 'it still blocks');
+  });
+
+  it('at --rerun-advisory 1 it reruns once, re-polls, and lands on the green re-run (AC-7)', async () => {
+    const gh = makeGh({ checkRuns: timedOutCheckRuns });
+    // Poll 1 red → rerun; poll 2 is the STALE pre-rerun snapshot (identical
+    // signature), which must not re-block; poll 3 sees the merge.
+    const probes = [timedOutProbe(), timedOutProbe(), { state: 'MERGED' }];
+    let i = 0;
+    const ctx = runWith({
+      rerunAdvisory: 1,
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => probes[i++] ?? { state: 'MERGED' },
+    });
+    const outcome = await runConfirmMergePhase(ctx.args);
+
+    assert.deepEqual(
+      gh.calls.filter((c) => c.startsWith('POST')),
+      ['POST /repos/{owner}/{repo}/actions/runs/1234/rerun-failed-jobs'],
+      'exactly one rerun, of the workflow run behind the failed job',
+    );
+    assert.equal(outcome.confirmed, true, 'the re-poll landed the PR');
+    assert.deepEqual(ctx.disarms, [], 'nothing was disarmed on the way');
+  });
+
+  it('spends the allowance once: a fresh red observation after it blocks', async () => {
+    const gh = makeGh({ checkRuns: timedOutCheckRuns });
+    // The re-run finished and is red again — a NEW completedAt, so a new
+    // observation, and the (now exhausted) allowance cannot suppress it.
+    const probes = [
+      timedOutProbe(),
+      timedOutProbe({
+        redHeadRuns: [
+          {
+            name: 'a11y scan',
+            conclusion: 'FAILURE',
+            runId: 1234,
+            completedAt: '2026-09-10T11:00:00Z',
+          },
+        ],
+      }),
+    ];
+    let i = 0;
+    const ctx = runWith({
+      rerunAdvisory: 1,
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => probes[i++] ?? probes[1],
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.equal(
+      gh.calls.filter((c) => c.startsWith('POST')).length,
+      1,
+      'the allowance is spent across the wait, not per poll',
+    );
+    assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-inconclusive');
+    assert.match(
+      ctx.emitted[0].reason,
+      /rerun allowance \(1\) is already spent/,
+    );
+  });
+
+  it('blocks rather than silently skipping when the rerun request fails', async () => {
+    const gh = makeGh({ checkRuns: timedOutCheckRuns, rerunThrows: true });
+    const ctx = runWith({
+      rerunAdvisory: 1,
+      injectedGh: gh,
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.equal(ctx.emitted.length, 1);
+    assert.deepEqual(ctx.disarms, [1850]);
+  });
+
+  it('carries the pre-arm INCONCLUSIVE class through instead of relabelling it red', async () => {
+    const ctx = runWith({
+      autoMergeEnabled: false,
+      autoMergeReason: 'advisory-gate-red',
+      advisoryGate: {
+        blockClass: 'advisory-gate-inconclusive',
+        reason: 'Unfinished advisory job(s): a11y scan → FAILURE.',
+      },
+      readPrWaitProbeFn: async () => timedOutProbe(),
+    });
+    await runConfirmMergePhase(ctx.args);
+    assert.equal(ctx.emitted[0].blockClass, 'advisory-gate-inconclusive');
+  });
+
   it('carries the pre-arm refusal through as advisory-gate-red, not arm-failure', async () => {
     const ctx = runWith({
       autoMergeEnabled: false,

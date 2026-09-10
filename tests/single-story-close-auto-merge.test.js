@@ -264,6 +264,46 @@ describe('runAutoMergePhase — advisory gate (Story #5096)', () => {
     assert.match(result.advisoryGate.reason, /Bundle-size ratchet/);
   });
 
+  it('classifies the refusal, so a rollup that says the scan timed out is not reported as a violation (Story #5266)', async () => {
+    const result = await runAutoMergePhase({
+      cwd: '/tmp',
+      prNumber,
+      prUrl: `https://github.com/o/r/pull/${prNumber}`,
+      noAutoMerge: false,
+      progress: () => {},
+      readPrWaitProbeFn: probeReturning({
+        ...redProbe,
+        redHeadRuns: [
+          {
+            name: 'a11y scan',
+            conclusion: 'FAILURE',
+            summary: 'Navigation timeout of 30000 ms exceeded',
+          },
+        ],
+      }),
+      gh: { pr: { merge: armMustNotRun() } },
+    });
+    // The arm phase still reports `advisory-gate-red` as its REASON (the
+    // reason is the arm outcome, not the block class); the class it carries
+    // on `advisoryGate` is what the merge wait records on the terminal.
+    assert.equal(result.autoMergeReason, 'advisory-gate-red');
+    assert.equal(result.advisoryGate.blockClass, 'advisory-gate-inconclusive');
+    assert.match(result.advisoryGate.reason, /FAILED WITHOUT FINISHING/);
+  });
+
+  it('keeps the red class when the rollup text reports a violation (Story #5266)', async () => {
+    const result = await runAutoMergePhase({
+      cwd: '/tmp',
+      prNumber,
+      prUrl: `https://github.com/o/r/pull/${prNumber}`,
+      noAutoMerge: false,
+      progress: () => {},
+      readPrWaitProbeFn: probeReturning(redProbe),
+      gh: { pr: { merge: armMustNotRun() } },
+    });
+    assert.equal(result.advisoryGate.blockClass, 'advisory-gate-red');
+  });
+
   it('does NOT fall through to the direct-merge fallback when it refuses', async () => {
     // The #4682 fallback is the other way a PR lands from this phase. A
     // refusal that still reached it would be a way to land red without the

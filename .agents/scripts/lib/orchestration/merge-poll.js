@@ -257,6 +257,47 @@ export function requiredCheckFailedBlocksMerge(prProbe) {
 const MERGE_ADVISORY_STATE = 'UNSTABLE';
 
 /**
+ * The fields a check projection can use to say, in its own words, WHY it went
+ * red. A legacy StatusContext carries `description`; a GitHub Actions CheckRun
+ * carries none of them in `gh pr view`'s fixed `statusCheckRollup` projection,
+ * so the merge wait enriches the run with the check-run API's
+ * `output.title` / `output.summary` before classifying (Story #5266). Both
+ * shapes are read here so the projection has ONE text extractor.
+ *
+ * @param {object} [check] A rollup entry, or an enriched check-run record.
+ * @returns {string|undefined} The joined text, or `undefined` when the record
+ *   carries none — which is itself the signal that the run cannot be
+ *   classified beyond "red".
+ */
+export function readRunSummary(check) {
+  const parts = [];
+  for (const field of ['description', 'title', 'summary', 'text']) {
+    for (const value of [check?.[field], check?.output?.[field]]) {
+      if (typeof value === 'string' && value.trim()) parts.push(value.trim());
+    }
+  }
+  return parts.length > 0 ? parts.join(' — ') : undefined;
+}
+
+/**
+ * Pure: the workflow run id behind a check run's `detailsUrl`
+ * (`.../actions/runs/<runId>/job/<jobId>`), or `null` when the URL is absent
+ * or shaped otherwise (a legacy StatusContext's `targetUrl`, a third-party
+ * app's own page). A run with no id can never be re-run, which is why the
+ * rerun path treats `null` as "nothing to re-run" rather than an error.
+ *
+ * @param {string} [detailsUrl]
+ * @returns {number|null}
+ */
+export function parseWorkflowRunId(detailsUrl) {
+  if (typeof detailsUrl !== 'string') return null;
+  const match = /\/actions\/runs\/(\d+)/.exec(detailsUrl);
+  if (!match) return null;
+  const id = Number.parseInt(match[1], 10);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/**
  * Pure: project the HEAD-ANCHORED runs that genuinely concluded red, naming
  * each one (Story #5096).
  *
@@ -273,8 +314,17 @@ const MERGE_ADVISORY_STATE = 'UNSTABLE';
  * conservative direction for a gate whose whole purpose is to stop a silent
  * landing.
  *
- * @param {Array<{name?: string, context?: string, status?: string, conclusion?: string, state?: string}>} statusCheckRollup
- * @returns {Array<{ name: string|null, conclusion: string }>}
+ * **Widened by Story #5266** from `{name, conclusion}` to carry what a red run
+ * is classified and acted on by: `summary` (the run's own account of why it
+ * failed — see {@link readRunSummary}), `runId` (the workflow run behind it,
+ * so a rerun can be requested), and `completedAt` (the observation stamp that
+ * tells a re-run's verdict apart from the stale pre-rerun one). Every added
+ * field is OMITTED when the projection carries no value for it, so a run the
+ * rollup describes as thinly as before still projects to exactly the old two
+ * keys — and a thin run classifies as a violation, i.e. the pre-#5266 verdict.
+ *
+ * @param {Array<{name?: string, context?: string, status?: string, conclusion?: string, state?: string, detailsUrl?: string, completedAt?: string, description?: string, output?: object}>} statusCheckRollup
+ * @returns {Array<{ name: string|null, conclusion: string, summary?: string, runId?: number, completedAt?: string }>}
  */
 export function deriveRedHeadRuns(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup)) return [];
@@ -294,7 +344,19 @@ export function deriveRedHeadRuns(statusCheckRollup) {
         : typeof check?.context === 'string' && check.context
           ? check.context
           : null;
-    red.push({ name, conclusion: conclusion || state });
+    const summary = readRunSummary(check);
+    const runId = parseWorkflowRunId(check?.detailsUrl);
+    const completedAt =
+      typeof check?.completedAt === 'string' && check.completedAt
+        ? check.completedAt
+        : undefined;
+    red.push({
+      name,
+      conclusion: conclusion || state,
+      ...(summary ? { summary } : {}),
+      ...(runId ? { runId } : {}),
+      ...(completedAt ? { completedAt } : {}),
+    });
   }
   return red;
 }
@@ -354,6 +416,127 @@ export function advisoryCheckFailedBlocksArm(prProbe, allowlist = []) {
 }
 
 /**
+ * The two advisory-gate block classes (Story #5266). Both BLOCK — the gate's
+ * verdict on whether to land is unchanged — but they authorise different acts,
+ * which is the whole reason they are two:
+ *
+ *   - `advisory-gate-red`          A red advisory run that REPORTED a
+ *                                   violation. The change is implicated;
+ *                                   landing over it is a deliberate override.
+ *   - `advisory-gate-inconclusive` A red advisory run that never finished — a
+ *                                   scan or navigation timeout that reported
+ *                                   no violation at all. Nothing here says the
+ *                                   change is bad, so the proportionate remedy
+ *                                   is to re-run the job, not to grant the
+ *                                   permanent global exemption
+ *                                   `advisoryAllowlist` is.
+ */
+export const ADVISORY_GATE_RED_CLASS = 'advisory-gate-red';
+export const ADVISORY_GATE_INCONCLUSIVE_CLASS = 'advisory-gate-inconclusive';
+
+/**
+ * Text signatures of a run that FAILED WITHOUT FINISHING. Deliberately narrow:
+ * the observed shape (Story #5266) is a `Navigation timeout of NNNN ms
+ * exceeded` line with an empty violation set, and anything this list does not
+ * recognise keeps the pre-#5266 `advisory-gate-red` verdict — the conservative
+ * direction, since misreading a real violation as a timeout would offer the
+ * operator a rerun for a finding that will come back every time.
+ */
+const INCONCLUSIVE_MARKERS = Object.freeze([
+  /navigation timeout/i,
+  /timeout of \d+\s*m?s exceeded/i,
+  /\btimed out\b/i,
+  /\betimedout\b/i,
+  /\bdid not (?:finish|complete)\b/i,
+  /\b(?:scan|crawl|audit) (?:incomplete|aborted|interrupted)\b/i,
+]);
+
+/** A counted finding — `0 violations` is explicitly NOT one. */
+const VIOLATION_COUNT =
+  /\b(\d+)\s+(?:violation|error|issue|failure|problem|finding)s?\b/i;
+/** An uncounted finding — enough on its own, because it names a verdict. */
+const VIOLATION_WORD = /\bviolations?\b|\bfailed assertion/i;
+
+/**
+ * Pure: does this red run's own text report a VIOLATION (as opposed to saying
+ * nothing, or saying it never got that far)?
+ *
+ * A counted phrase wins over the bare word so `0 violations found` — a scan
+ * that completed cleanly and then died — is not read as a finding.
+ *
+ * @param {{ summary?: string }} [run]
+ * @returns {boolean}
+ */
+function runReportsViolations(run) {
+  const text = typeof run?.summary === 'string' ? run.summary : '';
+  if (!text) return false;
+  const counted = VIOLATION_COUNT.exec(text);
+  if (counted) return Number.parseInt(counted[1], 10) > 0;
+  return VIOLATION_WORD.test(text);
+}
+
+/**
+ * Pure: classify ONE red advisory run as a genuine violation or an
+ * unfinished job (Story #5266).
+ *
+ * A run whose projection carries no text at all classifies as `violation`:
+ * absence of evidence is not evidence the job timed out, and `violation` is
+ * the verdict every red advisory run already got before this Story.
+ *
+ * @param {{ summary?: string }} [run]
+ * @returns {'violation'|'inconclusive'}
+ */
+function classifyAdvisoryRedRun(run) {
+  const text = typeof run?.summary === 'string' ? run.summary : '';
+  if (!text || runReportsViolations(run)) return 'violation';
+  return INCONCLUSIVE_MARKERS.some((marker) => marker.test(text))
+    ? 'inconclusive'
+    : 'violation';
+}
+
+/**
+ * Pure: the block class for a whole set of blocking runs.
+ *
+ * `advisory-gate-inconclusive` requires EVERY blocking run to be inconclusive.
+ * One genuine violation beside a timeout is still a genuine violation, and the
+ * operator must not be offered a rerun as the remedy for it.
+ *
+ * Module-private: {@link resolveAdvisoryGateVerdict} is the one door, so a
+ * caller cannot take the class without the reason that matches it.
+ *
+ * @param {Array<{ summary?: string }>} blockingRuns
+ * @returns {string} one of the two advisory classes above
+ */
+function deriveAdvisoryGateClass(blockingRuns) {
+  const runs = Array.isArray(blockingRuns) ? blockingRuns : [];
+  if (runs.length === 0) return ADVISORY_GATE_RED_CLASS;
+  return runs.every((run) => classifyAdvisoryRedRun(run) === 'inconclusive')
+    ? ADVISORY_GATE_INCONCLUSIVE_CLASS
+    : ADVISORY_GATE_RED_CLASS;
+}
+
+/**
+ * Pure: the advisory gate's whole verdict — class AND the reason text that
+ * matches it (Story #5266). One function so a caller can never pair an
+ * inconclusive class with the violation wording.
+ *
+ * @param {{ blockingRuns?: Array<object>, rerunAllowance?: number }} [args]
+ * @returns {{ blockClass: string, blockingRuns: Array<object>, reason: string }}
+ */
+export function resolveAdvisoryGateVerdict({
+  blockingRuns,
+  rerunAllowance = 0,
+} = {}) {
+  const runs = Array.isArray(blockingRuns) ? blockingRuns : [];
+  const blockClass = deriveAdvisoryGateClass(runs);
+  return {
+    blockClass,
+    blockingRuns: runs,
+    reason: formatAdvisoryGateReason(runs, { blockClass, rerunAllowance }),
+  };
+}
+
+/**
  * Pure: the merge wait's advisory-gate decision, the sibling of
  * {@link decideMergeWaitFailFast} (Story #5096).
  *
@@ -366,13 +549,19 @@ export function advisoryCheckFailedBlocksArm(prProbe, allowlist = []) {
  * Returns `null` when the wait should keep polling — the knob is off, the PR
  * is not in the advisory-red state, or every red run is allowlisted.
  *
+ * The verdict it returns is provisional on the text the ROLLUP carried
+ * (Story #5266): the caller may enrich the blocking runs with the check-run
+ * API's output and re-resolve via {@link resolveAdvisoryGateVerdict} before
+ * recording the block.
+ *
  * @param {object} args
- * @returns {{ blockingRuns: Array<object>, reason: string } | null}
+ * @returns {{ blockingRuns: Array<object>, reason: string, blockClass: string } | null}
  */
 export function decideAdvisoryGateBlock({
   probe,
   blockOnAdvisoryFailure,
   advisoryAllowlist,
+  rerunAllowance = 0,
 }) {
   if (!blockOnAdvisoryFailure) return null;
   if (!advisoryCheckFailedBlocksArm(probe, advisoryAllowlist)) return null;
@@ -380,30 +569,58 @@ export function decideAdvisoryGateBlock({
     probe?.redHeadRuns,
     advisoryAllowlist,
   );
-  return { blockingRuns, reason: formatAdvisoryGateReason(blockingRuns) };
+  return resolveAdvisoryGateVerdict({ blockingRuns, rerunAllowance });
 }
 
 /**
  * Format the one-line reason a `merge.unlanded` record and the operator-facing
- * block carry for an `advisory-gate-red` verdict, naming each offending job
- * and its conclusion.
+ * block carry for an advisory-gate verdict, naming each offending job and its
+ * conclusion.
+ *
+ * Story #5266 splits the wording by class: an unfinished job is reported as
+ * one, because telling an operator a timed-out scan "concluded red" invites
+ * them to grant a permanent `advisoryAllowlist` exemption for a transient
+ * failure. Both wordings name the same three remedies — rerun, hand-merge,
+ * allowlist — in the order proportionate to the class.
  *
  * @param {Array<{ name: string|null, conclusion: string }>} blockingRuns
+ * @param {{ blockClass?: string, rerunAllowance?: number }} [options]
  * @returns {string}
  */
-export function formatAdvisoryGateReason(blockingRuns) {
+function formatAdvisoryGateReason(
+  blockingRuns,
+  { blockClass = ADVISORY_GATE_RED_CLASS, rerunAllowance = 0 } = {},
+) {
   const named = (Array.isArray(blockingRuns) ? blockingRuns : [])
     .map(
       (run) =>
         `${run?.name ?? '(unnamed run)'} → ${run?.conclusion ?? 'FAILURE'}`,
     )
     .join(', ');
+  const spent =
+    rerunAllowance > 0
+      ? `The rerun allowance (${rerunAllowance}) is already spent on this head. `
+      : '';
+  if (blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS) {
+    return (
+      'A non-required (advisory) check FAILED WITHOUT FINISHING on the PR ' +
+      'head — it reported no violation, so nothing here says the change is ' +
+      'bad — and GitHub reports the PR mergeable anyway ' +
+      '(mergeStateStatus=UNSTABLE), so native auto-merge would land it over ' +
+      `the failure. Unfinished advisory job(s): ${named || '(none named)'}. ` +
+      `${spent}Re-run the job (--rerun-advisory <n>, or ` +
+      'delivery.ci.rerunAdvisory), merge by hand to land over it ' +
+      'deliberately, or exempt the job via delivery.ci.advisoryAllowlist.'
+    );
+  }
   return (
     'A non-required (advisory) check concluded red on the PR head, and GitHub ' +
     'reports the PR mergeable anyway (mergeStateStatus=UNSTABLE) — native ' +
     'auto-merge would land it over the failure. Red advisory job(s): ' +
-    `${named || '(none named)'}. Merge by hand to land over it deliberately, ` +
-    'or exempt the job via delivery.ci.advisoryAllowlist.'
+    `${named || '(none named)'}. ${spent}Merge by hand to land over it ` +
+    'deliberately, re-run the job (--rerun-advisory <n>, or ' +
+    'delivery.ci.rerunAdvisory), or exempt the job via ' +
+    'delivery.ci.advisoryAllowlist.'
   );
 }
 

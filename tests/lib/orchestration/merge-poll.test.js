@@ -16,14 +16,19 @@ import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
 import {
+  ADVISORY_GATE_INCONCLUSIVE_CLASS,
+  ADVISORY_GATE_RED_CLASS,
   advisoryCheckFailedBlocksArm,
+  decideAdvisoryGateBlock,
   decideMergeWaitFailFast,
   deriveChecksStatus,
   deriveRedHeadRuns,
   deriveRequiredRunEvidence,
   failingChecksBlockMerge,
-  formatAdvisoryGateReason,
+  parseWorkflowRunId,
+  readRunSummary,
   requiredCheckFailedBlocksMerge,
+  resolveAdvisoryGateVerdict,
   selectBlockingRedRuns,
 } from '../../../.agents/scripts/lib/orchestration/merge-poll.js';
 
@@ -589,9 +594,9 @@ describe('advisoryCheckFailedBlocksArm', () => {
   });
 });
 
-describe('formatAdvisoryGateReason', () => {
+describe('the advisory-gate reason text', () => {
   it('names each offending job and its conclusion', () => {
-    const reason = formatAdvisoryGateReason([
+    const reason = reasonOf([
       { name: 'Bundle-size ratchet', conclusion: 'FAILURE' },
     ]);
     assert.match(reason, /Bundle-size ratchet → FAILURE/);
@@ -600,8 +605,233 @@ describe('formatAdvisoryGateReason', () => {
   });
 
   it('degrades without throwing on an empty or malformed list', () => {
-    assert.match(formatAdvisoryGateReason([]), /none named/);
-    assert.match(formatAdvisoryGateReason(undefined), /none named/);
-    assert.match(formatAdvisoryGateReason([{}]), /\(unnamed run\) → FAILURE/);
+    assert.match(reasonOf([]), /none named/);
+    assert.match(reasonOf(undefined), /none named/);
+    assert.match(reasonOf([{}]), /\(unnamed run\) → FAILURE/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story #5266 — a job that TIMED OUT having reported no violation is not a job
+// that found one, and the two authorise different acts. The gate keeps
+// blocking in both cases; only the class, the reason and the remedies change.
+// ---------------------------------------------------------------------------
+
+const NAV_TIMEOUT = 'Navigation timeout of 30000 ms exceeded';
+
+/**
+ * `classifyAdvisoryRedRun`, `deriveAdvisoryGateClass` and the reason formatter
+ * are deliberately module-private: `resolveAdvisoryGateVerdict` is the one
+ * door, so a caller cannot take a class without the reason that matches it.
+ * These shims score them through that door — which is also how production
+ * reaches them.
+ */
+const classOf = (...runs) =>
+  resolveAdvisoryGateVerdict({ blockingRuns: runs }).blockClass;
+const reasonOf = (runs, options) =>
+  resolveAdvisoryGateVerdict({ blockingRuns: runs, ...options }).reason;
+
+describe('deriveRedHeadRuns — the widened projection (Story #5266)', () => {
+  it('carries the summary, workflow run id and completion stamp when present', () => {
+    assert.deepEqual(
+      deriveRedHeadRuns([
+        {
+          name: 'a11y scan',
+          status: 'COMPLETED',
+          conclusion: 'FAILURE',
+          completedAt: '2026-09-10T10:00:00Z',
+          detailsUrl:
+            'https://github.com/o/r/actions/runs/1234567890/job/99887766',
+          description: NAV_TIMEOUT,
+        },
+      ]),
+      [
+        {
+          name: 'a11y scan',
+          conclusion: 'FAILURE',
+          summary: NAV_TIMEOUT,
+          runId: 1234567890,
+          completedAt: '2026-09-10T10:00:00Z',
+        },
+      ],
+    );
+  });
+
+  it('omits every widened field a thin rollup entry cannot supply', () => {
+    // The pre-#5266 shape survives byte for byte, which is what keeps a
+    // text-less run on its old `advisory-gate-red` verdict.
+    assert.deepEqual(
+      deriveRedHeadRuns([{ name: 'lint', conclusion: 'FAILURE' }]),
+      [{ name: 'lint', conclusion: 'FAILURE' }],
+    );
+  });
+});
+
+describe('parseWorkflowRunId', () => {
+  it('reads the run id out of an Actions detailsUrl', () => {
+    assert.equal(
+      parseWorkflowRunId('https://github.com/o/r/actions/runs/42/job/7'),
+      42,
+    );
+  });
+
+  it('returns null for a non-Actions or absent url', () => {
+    assert.equal(parseWorkflowRunId('https://example.com/build/7'), null);
+    assert.equal(parseWorkflowRunId(undefined), null);
+  });
+});
+
+describe('readRunSummary', () => {
+  it('reads a StatusContext description and a CheckRun output alike', () => {
+    assert.equal(readRunSummary({ description: NAV_TIMEOUT }), NAV_TIMEOUT);
+    assert.equal(
+      readRunSummary({
+        output: { title: 'Scan failed', summary: NAV_TIMEOUT },
+      }),
+      `Scan failed — ${NAV_TIMEOUT}`,
+    );
+  });
+
+  it('is undefined — not empty string — when the record says nothing', () => {
+    assert.equal(readRunSummary({ name: 'x' }), undefined);
+    assert.equal(readRunSummary(undefined), undefined);
+  });
+});
+
+describe('classifying one red advisory run', () => {
+  it('reads a navigation timeout with no violations as inconclusive', () => {
+    assert.equal(
+      classOf({ summary: NAV_TIMEOUT }),
+      ADVISORY_GATE_INCONCLUSIVE_CLASS,
+    );
+    assert.equal(
+      classOf({ summary: '0 violations found - then TIMED OUT' }),
+      ADVISORY_GATE_INCONCLUSIVE_CLASS,
+    );
+  });
+
+  it('reads a reported violation as a violation, even beside a timeout word', () => {
+    assert.equal(
+      classOf({ summary: '3 violations found' }),
+      ADVISORY_GATE_RED_CLASS,
+    );
+    assert.equal(
+      classOf({ summary: '2 violations found before the run timed out' }),
+      ADVISORY_GATE_RED_CLASS,
+    );
+  });
+
+  it('a run that says nothing keeps the pre-#5266 verdict', () => {
+    assert.equal(classOf({ name: 'x' }), ADVISORY_GATE_RED_CLASS);
+    assert.equal(classOf(undefined), ADVISORY_GATE_RED_CLASS);
+  });
+});
+
+describe('classifying a SET of red advisory runs', () => {
+  it('is inconclusive only when EVERY blocking run is', () => {
+    assert.equal(
+      classOf({ summary: NAV_TIMEOUT }),
+      ADVISORY_GATE_INCONCLUSIVE_CLASS,
+    );
+    assert.equal(
+      classOf({ summary: NAV_TIMEOUT }, { summary: '1 violation found' }),
+      ADVISORY_GATE_RED_CLASS,
+    );
+  });
+
+  it('falls back to the red class for an empty or malformed set', () => {
+    assert.equal(classOf(), ADVISORY_GATE_RED_CLASS);
+    assert.equal(
+      resolveAdvisoryGateVerdict({}).blockClass,
+      ADVISORY_GATE_RED_CLASS,
+    );
+  });
+});
+
+describe('resolveAdvisoryGateVerdict', () => {
+  it('pairs the inconclusive class with wording that says the job did not finish', () => {
+    const verdict = resolveAdvisoryGateVerdict({
+      blockingRuns: [
+        { name: 'a11y scan', conclusion: 'FAILURE', summary: NAV_TIMEOUT },
+      ],
+    });
+    assert.equal(verdict.blockClass, ADVISORY_GATE_INCONCLUSIVE_CLASS);
+    assert.match(verdict.reason, /FAILED WITHOUT FINISHING/);
+    assert.match(verdict.reason, /reported no violation/);
+    assert.doesNotMatch(verdict.reason, /concluded red/);
+    assert.match(verdict.reason, /a11y scan → FAILURE/);
+  });
+
+  it('leaves a genuine violation on the unchanged red class and wording', () => {
+    const verdict = resolveAdvisoryGateVerdict({
+      blockingRuns: [
+        {
+          name: 'Bundle-size ratchet',
+          conclusion: 'FAILURE',
+          summary: '2 violations found',
+        },
+      ],
+    });
+    assert.equal(verdict.blockClass, ADVISORY_GATE_RED_CLASS);
+    assert.match(verdict.reason, /concluded red on the PR head/);
+    assert.doesNotMatch(verdict.reason, /WITHOUT FINISHING/);
+  });
+
+  it('names rerun, hand-merge and allowlist in BOTH classes (AC-8)', () => {
+    for (const summary of [NAV_TIMEOUT, '2 violations found']) {
+      const reason = reasonOf([
+        { name: 'scan', conclusion: 'FAILURE', summary },
+      ]);
+      assert.match(reason, /--rerun-advisory <n>/);
+      assert.match(reason, /delivery\.ci\.rerunAdvisory/);
+      assert.match(reason, /[Mm]erge by hand|merge by hand/);
+      assert.match(reason, /delivery\.ci\.advisoryAllowlist/);
+    }
+  });
+
+  it('says so when the allowance was already spent on this head', () => {
+    const reason = reasonOf([{ name: 'scan', conclusion: 'FAILURE' }], {
+      rerunAllowance: 2,
+    });
+    assert.match(reason, /rerun allowance \(2\) is already spent/);
+  });
+});
+
+describe('decideAdvisoryGateBlock — the class travels with the decision', () => {
+  const probe = {
+    mergeStateStatus: 'UNSTABLE',
+    checksStatus: 'failure',
+    redHeadRuns: [
+      { name: 'a11y scan', conclusion: 'FAILURE', summary: NAV_TIMEOUT },
+    ],
+  };
+
+  it('returns the inconclusive class for a timed-out advisory run', () => {
+    const decision = decideAdvisoryGateBlock({
+      probe,
+      blockOnAdvisoryFailure: true,
+      advisoryAllowlist: [],
+    });
+    assert.equal(decision.blockClass, ADVISORY_GATE_INCONCLUSIVE_CLASS);
+    assert.equal(decision.blockingRuns.length, 1);
+  });
+
+  it('still returns null when the knob is off or the run is allowlisted', () => {
+    assert.equal(
+      decideAdvisoryGateBlock({
+        probe,
+        blockOnAdvisoryFailure: false,
+        advisoryAllowlist: [],
+      }),
+      null,
+    );
+    assert.equal(
+      decideAdvisoryGateBlock({
+        probe,
+        blockOnAdvisoryFailure: true,
+        advisoryAllowlist: ['a11y scan'],
+      }),
+      null,
+    );
   });
 });

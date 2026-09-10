@@ -30,7 +30,8 @@
         "arm-failure",
         "api-race-other",
         "predicate-refused",
-        "advisory-gate-red"
+        "advisory-gate-red",
+        "advisory-gate-inconclusive"
       ]
     },
     "reason": { "type": "string", "minLength": 1 },

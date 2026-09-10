@@ -23,6 +23,7 @@ import {
   NEXT_COMMANDS,
   terminalFromWaitOutcome,
 } from '../story-deliver-terminal.js';
+import { deriveCloseNote } from './close-note.js';
 import { runAutoMergePhase } from './phases/auto-merge.js';
 import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
@@ -440,11 +441,11 @@ function closeResult({
     directMerged,
     waitedForMerge,
     merged,
-    note: waitedForMerge
-      ? 'Close-and-land: PR merge confirmed. Story flipped agent::closing → agent::done, the issue closed (confirmStoryMerged), and the post-land tail ran.'
-      : autoMergeEnabled
-        ? 'PR open against baseBranch with auto-merge enabled. Story rests at agent::closing (issue stays OPEN and assigned to the operator). GitHub will squash-merge when required checks pass; run single-story-confirm-merge.js after the merge confirms to flip agent::done, release the lease, and close the issue (the Closes #<id> footer also auto-closes it).'
-        : 'PR open against baseBranch. Story rests at agent::closing (issue stays OPEN and assigned to the operator). Operator merges via GitHub UI; run single-story-confirm-merge.js after the merge confirms to flip agent::done and release the lease (the Closes #<id> footer also auto-closes the issue).',
+    // Story #5266 — derived from `merged` / `directMerged` / `autoMergeEnabled`,
+    // never from `waitedForMerge`. A wait that expired unmerged used to write
+    // "PR merge confirmed" beside `merged: false`, and this log is what the
+    // operator reads first. See close-note.js for the invariant.
+    note: deriveCloseNote({ merged, directMerged, autoMergeEnabled }),
   };
 }
 
@@ -458,6 +459,7 @@ export async function runSingleStoryClose({
   noWaitForMerge: noWaitForMergeParam,
   maxWaitSeconds: maxWaitSecondsParam,
   mergeWatchMode: mergeWatchModeParam,
+  rerunAdvisory: rerunAdvisoryParam,
   overrideReviewBlock: overrideReviewBlockParam,
   injectedProvider,
   injectedConfig,
@@ -478,11 +480,12 @@ export async function runSingleStoryClose({
     noWaitForMergeParam,
     maxWaitSecondsParam,
     mergeWatchModeParam,
+    rerunAdvisoryParam,
     overrideReviewBlockParam,
   });
   if (!options.storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--override-review-block <reason>]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--wait-merge|--no-wait-merge] [--max-wait-seconds <n>] [--merge-watch-mode <sync|async>] [--rerun-advisory <n>] [--override-review-block <reason>]',
     );
   }
 
@@ -596,6 +599,7 @@ async function finishWithMergeWait(prCtx, deps) {
     config: prCtx.config,
     maxWaitSeconds: deps.maxWaitSeconds,
     mergeWatchMode: deps.mergeWatchMode,
+    rerunAdvisory: deps.rerunAdvisory,
     progress,
     injectedGh: deps.injectedGh,
     injectedNotify: deps.injectedNotify,
@@ -947,6 +951,7 @@ async function runClosePipeline({
       provider,
       maxWaitSeconds: options.maxWaitSeconds,
       mergeWatchMode: options.mergeWatchMode,
+      rerunAdvisory: options.rerunAdvisory,
       setPhase,
       injectedGh,
       injectedNotify,

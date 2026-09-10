@@ -383,6 +383,25 @@ describe('story-deliver-terminal — blocked / failed', () => {
     );
   });
 
+  it('a blocked envelope carrying advisory-gate-inconclusive validates (Story #5266)', () => {
+    // The class is emitted DIRECTLY by the arm and merge-wait phases — the
+    // classifier cannot produce it — so nothing but this schema enum stands
+    // between a real block and an unvalidatable envelope.
+    const env = buildTerminalEnvelope({
+      storyId: 5266,
+      status: 'blocked',
+      phase: 'confirm-merge',
+      blocked: {
+        blockClass: 'advisory-gate-inconclusive',
+        reason: 'the advisory scan did not finish',
+      },
+      nextCommand: null,
+      elapsedSeconds: 12,
+    });
+    assert.equal(env.blocked.blockClass, 'advisory-gate-inconclusive');
+    assert.equal(exitCodeForTerminal(env), 1);
+  });
+
   it('the schema block-class enum stays a superset of the shared classifier vocabulary', () => {
     // A hand-maintained enum drifts from its classifier the moment someone
     // adds a class on one side only. `checks-failed` (Story #4543) is exactly
