@@ -18,7 +18,7 @@ import { toStoryRecord } from '../resolve-stories.js';
 /** Build a fake ticket. */
 const story = (number, extra = {}) => ({
   number,
-  labels: ['type::story'],
+  labels: ['type::story', 'agent::ready'],
   state: 'open',
   body: '',
   ...extra,

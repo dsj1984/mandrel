@@ -120,12 +120,16 @@ function storyBody({
   return lines.join('\n');
 }
 
+// A deliverable Story carries a lifecycle label: `/mandrel-plan` applies one at the
+// end of planning, and the resolver now refuses a Story that has none (Story
+// #5281). The fixture carries `agent::ready` so every case below tests what it
+// says it tests rather than the guard.
 function issue(over = {}) {
   return {
     number: 101,
     title: 'A Story',
     body: storyBody(),
-    labels: [{ name: 'type::story' }],
+    labels: [{ name: 'type::story' }, { name: 'agent::ready' }],
     state: 'open',
     ...over,
   };
@@ -136,7 +140,7 @@ describe('toStoryRecord — an id-scoped fetch errors rather than filtering', ()
     const rec = toStoryRecord(issue());
     assert.equal(rec.id, 101);
     assert.equal(rec.state, 'open');
-    assert.deepEqual(rec.labels, ['type::story']);
+    assert.deepEqual(rec.labels, ['type::story', 'agent::ready']);
   });
 
   it('hard-errors on a non-Story instead of silently dropping it', () => {
@@ -630,7 +634,11 @@ describe('buildStoriesEnvelope — per-Story dispatchMode (Story #4722)', () => 
           issue({
             number: 1,
             body: wide,
-            labels: [{ name: 'type::story' }, { name: 'route::lite' }],
+            labels: [
+              { name: 'type::story' },
+              { name: 'agent::ready' },
+              { name: 'route::lite' },
+            ],
           }),
         ),
         filler(),
@@ -982,5 +990,69 @@ describe('runResolveStories — the injectable CLI flow core (Story #4842)', () 
     );
     const envelope = JSON.parse(out.text());
     assert.deepEqual(envelope.dag.find((n) => n.id === 101).dependsOn, []);
+  });
+});
+
+// --- Story #5281: an unenriched audit Story is not dispatchable --------------
+
+describe('the agent::* dispatch guard', () => {
+  it('refuses a Story with no agent::* label, naming the enrich step', () => {
+    assert.throws(
+      () => toStoryRecord(issue({ labels: [{ name: 'type::story' }] }), 101),
+      (err) => {
+        assert.match(err.message, /#101 carries no "agent::\*" label/);
+        assert.match(err.message, /Enrich before you deliver/);
+        assert.match(err.message, /\/mandrel-plan/);
+        assert.match(err.message, /--allow-unlabelled/);
+        return true;
+      },
+    );
+  });
+
+  it('proceeds under --allow-unlabelled', () => {
+    const rec = toStoryRecord(
+      issue({ labels: [{ name: 'type::story' }, { name: 'audit::security' }] }),
+      101,
+      { allowUnlabelled: true },
+    );
+    assert.equal(rec.id, 101);
+    assert.deepEqual(rec.labels, ['type::story', 'audit::security']);
+  });
+
+  it('accepts any agent::* state, not only agent::ready', () => {
+    for (const state of ['agent::executing', 'agent::blocked', 'agent::done']) {
+      const rec = toStoryRecord(
+        issue({ labels: [{ name: 'type::story' }, { name: state }] }),
+      );
+      assert.ok(rec.labels.includes(state));
+    }
+  });
+
+  it('the CLI exits non-zero for an unlabelled Story and proceeds with the flag', async () => {
+    const unlabelled = {
+      number: 101,
+      title: 'Audit finding',
+      body: storyBody(),
+      labels: [{ name: 'type::story' }, { name: 'audit::quality' }],
+      state: 'open',
+    };
+    const provider = { getTicket: async () => unlabelled };
+    const config = { github: { owner: 'o', repo: 'r' } };
+    const stdout = { write: () => {} };
+
+    await assert.rejects(
+      runResolveStories(
+        { ids: '101', native: false },
+        { provider, config, stdout },
+      ),
+      /carries no "agent::\*" label/,
+    );
+
+    const written = [];
+    await runResolveStories(
+      { ids: '101', native: false, allowUnlabelled: true },
+      { provider, config, stdout: { write: (s) => written.push(s) } },
+    );
+    assert.equal(JSON.parse(written.join('')).stories[0].id, 101);
   });
 });
