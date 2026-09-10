@@ -1098,6 +1098,11 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       id,
       title: story.title,
       url: result.url,
+      // Kept, not discarded (Story #5280). `createIssue` hands back the
+      // database id, which is the only identifier the native sub-issue write
+      // accepts — and dropping it here is what made the Epic linker re-read
+      // every Story this run had just created to recover it.
+      internalId: result.internalId,
       // True when the provider's retry probe adopted an issue a lost-response
       // first attempt had already filed — pre-existing either way.
       adopted: result.adopted === true,

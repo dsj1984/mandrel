@@ -213,6 +213,7 @@ async function runSupersedePhase(args) {
       reason: `phase-error: ${err.message}`,
       closed: [],
       planned: [],
+      epicRollup: { closed: [], pending: [] },
       skipped: [],
       failed: (args.sourceTicketIds ?? []).map((ticket) => ({
         ticket,
@@ -903,6 +904,10 @@ export async function runPlanPersist({
     stories,
     created,
     sourceTicketIds,
+    // Story #5280 — closing a source ticket is a child state change, so the
+    // phase re-derives the container above it. It needs the config the rollup
+    // reads its board and operator handle from.
+    config,
     dryRun,
     closeSuperseded,
   });

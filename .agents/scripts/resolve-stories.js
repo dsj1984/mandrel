@@ -40,7 +40,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
-import { resolveEpicNodeId } from './lib/orchestration/epic-container.js';
+import { nativeChildReader } from './lib/orchestration/epic-container.js';
 import { expandEpicIds } from './lib/orchestration/epic-expansion.js';
 import {
   buildStoriesEnvelope,
@@ -53,7 +53,18 @@ import { createProvider } from './lib/provider-factory.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
 import { paginateRest } from './providers/github/request-helpers.js';
 
-export { buildStoriesEnvelope, parseIds, readNativeBlockedBy, toStoryRecord };
+export {
+  buildStoriesEnvelope,
+  // Re-exported, not redefined (Story #5280). The reader now lives in
+  // `epic-container.js` beside the shape it reads, so the expansion path and
+  // the rollup share one definition — the pair whose divergence makes an Epic
+  // expandable but unclosable. The name stays exported here because two test
+  // modules import it from this entrypoint.
+  nativeChildReader,
+  parseIds,
+  readNativeBlockedBy,
+  toStoryRecord,
+};
 
 /**
  * Bounded concurrency for the per-issue round-trips. Matches the edge-writer's
@@ -97,29 +108,6 @@ export function resolveStoriesProvider({
 } = {}) {
   const config = resolveConfigFn();
   return { provider: createProviderFn(config), config };
-}
-
-/**
- * Read an Epic's native sub-issue children as issue numbers.
- *
- * Injected into `expandEpicIds` so the lib layer stays provider-agnostic,
- * exactly as `paginate` is injected into `readNativeBlockedBy`. A provider
- * without the GraphQL surface yields `[]`, and the Epic body's checklist
- * carries the children on its own — as does an Epic carrying no resolvable
- * node id, which `resolveEpicNodeId` reports rather than letting an
- * `undefined` reach the API as a rejected `ID!` variable.
- *
- * @param {object} provider
- * @returns {(epic: object) => Promise<number[]>}
- */
-export function nativeChildReader(provider) {
-  return async (epic) => {
-    const nodeId = resolveEpicNodeId(epic);
-    if (nodeId === null) return [];
-    return (
-      provider?._getNativeSubIssues?.(nodeId, epic?.number ?? epic?.id) ?? []
-    );
-  };
 }
 
 /**

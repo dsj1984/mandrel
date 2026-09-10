@@ -92,7 +92,7 @@ export async function findDependencyCandidates({
     (p) => typeof p === 'string' && p.trim() !== '',
   );
   if (wanted.length === 0) return [];
-  if (typeof provider?.listIssuesByLabel !== 'function') return [];
+  if (typeof provider?.listTicketsByLabel !== 'function') return [];
 
   const excluded = new Set(
     [...excludeIds].map((id) => Number(id)).filter((n) => Number.isFinite(n)),
@@ -100,7 +100,7 @@ export async function findDependencyCandidates({
 
   let issues;
   try {
-    issues = await provider.listIssuesByLabel({
+    issues = await provider.listTicketsByLabel({
       state: 'open',
       labels: TYPE_LABELS.STORY,
     });
@@ -113,7 +113,11 @@ export async function findDependencyCandidates({
 
   const out = [];
   for (const issue of Array.isArray(issues) ? issues : []) {
-    const id = Number(issue?.number ?? issue?.id);
+    // The declared ticket shape: `id` is the issue number. Reading it through
+    // the old `number`-then-`id` fallback was the bug in waiting — on this
+    // shape the fallback never fires, and on a raw REST payload it silently
+    // produced database ids for every candidate the planner offered.
+    const id = Number(issue?.id);
     if (!Number.isInteger(id) || id <= 0 || excluded.has(id)) continue;
 
     const footprint = footprintOf(issue);
@@ -125,7 +129,7 @@ export async function findDependencyCandidates({
     out.push({
       id,
       title: typeof issue?.title === 'string' ? issue.title : '',
-      url: issue?.html_url ?? issue?.url ?? buildStoryUrl(id, { owner, repo }),
+      url: issue?.url ?? buildStoryUrl(id, { owner, repo }),
       state: typeof issue?.state === 'string' ? issue.state : 'open',
       overlappingPaths,
     });

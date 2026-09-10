@@ -555,3 +555,156 @@ describe('closeSupersededTickets', () => {
     ]);
   });
 });
+
+describe('closeSupersededTickets — the container above the closed tickets (Story #5280)', () => {
+  /**
+   * A provider whose `getTicket` reflects the closes this phase performs, so
+   * the rollup that runs afterwards reads the tree the writes actually left —
+   * which is the whole reason the rollup is sequenced after them and not
+   * alongside.
+   */
+  function provider({ epic, children }) {
+    const state = new Map(
+      Object.entries(children).map(([id, labels]) => [
+        Number(id),
+        { id: Number(id), labels, state: 'open' },
+      ]),
+    );
+    const updates = [];
+    return {
+      updates,
+      async getTicket(id) {
+        if (Number(id) === epic.id) return epic;
+        const ticket = state.get(Number(id));
+        if (!ticket) throw new Error(`not found: #${id}`);
+        return ticket;
+      },
+      async getParentIssue() {
+        return epic;
+      },
+      async getTicketComments() {
+        return [];
+      },
+      async postComment() {
+        return { id: 1 };
+      },
+      async updateTicket(id, mutations) {
+        updates.push({ id, mutations });
+        if (Number(id) === epic.id) {
+          epic.state = mutations.state ?? epic.state;
+          return;
+        }
+        const ticket = state.get(Number(id));
+        if (ticket && mutations.state) ticket.state = mutations.state;
+      },
+    };
+  }
+
+  const epicFor = (id, childIds) => ({
+    id,
+    nodeId: `I_epic_${id}`,
+    labels: ['type::epic'],
+    state: 'open',
+    body: `## Stories\n\n${childIds.map((c) => `- [ ] #${c}`).join('\n')}\n`,
+  });
+
+  it('closes the container when the supersede takes its last open child', async () => {
+    // The gap this closes: superseding a whole cohort left its Epic open above
+    // work that was finished, because no child would ever be delivered again
+    // and only a delivery edge re-derived the container.
+    const p = provider({
+      epic: epicFor(90, [1, 2]),
+      children: { 1: ['type::story'], 2: ['type::story'] },
+    });
+
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories: [
+        { slug: 'a', supersedes: [{ id: 1, note: null }] },
+        { slug: 'b', supersedes: [{ id: 2, note: null }] },
+      ],
+      created: [
+        { slug: 'a', id: 500, title: 'Story A' },
+        { slug: 'b', id: 501, title: 'Story B' },
+      ],
+      sourceTicketIds: [1, 2],
+      config: {},
+    });
+
+    assert.deepEqual(report.closed, [1, 2]);
+    assert.deepEqual(
+      report.epicRollup,
+      { closed: [90], pending: [] },
+      'the rollup outcome is recorded in the persist summary',
+    );
+    const epicWrites = p.updates.filter((u) => u.id === 90);
+    assert.deepEqual(
+      epicWrites,
+      [{ id: 90, mutations: { state: 'closed', state_reason: 'not_planned' } }],
+      'nothing landed, so the container did not complete — it was not planned',
+    );
+  });
+
+  it('resolves the shared container once, not once per closed ticket', async () => {
+    // Siblings share a container: without the shared `skipEpicIds` set the
+    // second ticket re-derives and re-closes what the first already closed.
+    const p = provider({
+      epic: epicFor(90, [1, 2]),
+      children: { 1: ['type::story'], 2: ['type::story'] },
+    });
+
+    await closeSupersededTickets({
+      provider: p,
+      stories: [
+        { slug: 'a', supersedes: [{ id: 1, note: null }] },
+        { slug: 'b', supersedes: [{ id: 2, note: null }] },
+      ],
+      created: [
+        { slug: 'a', id: 500, title: 'Story A' },
+        { slug: 'b', id: 501, title: 'Story B' },
+      ],
+      sourceTicketIds: [1, 2],
+      config: {},
+    });
+
+    assert.equal(
+      p.updates.filter((u) => u.id === 90).length,
+      1,
+      'exactly one write to the container across the whole phase',
+    );
+  });
+
+  it('leaves the container open when a sibling child is still live', async () => {
+    const p = provider({
+      epic: epicFor(90, [1, 2]),
+      children: { 1: ['type::story'], 2: ['type::story', 'agent::executing'] },
+    });
+
+    const report = await closeSupersededTickets({
+      provider: p,
+      stories: [{ slug: 'a', supersedes: [{ id: 1, note: null }] }],
+      created: [{ slug: 'a', id: 500, title: 'Story A' }],
+      sourceTicketIds: [1],
+      config: {},
+    });
+
+    assert.deepEqual(report.epicRollup, { closed: [], pending: [90] });
+    assert.equal(
+      p.updates.some((u) => u.id === 90 && u.mutations.state),
+      false,
+      'an Epic with live work under it is never closed',
+    );
+  });
+
+  it('reports an empty rollup when the phase closed nothing', async () => {
+    const report = await closeSupersededTickets({
+      provider: provider({ epic: epicFor(90, []), children: {} }),
+      stories: [],
+      created: [],
+      sourceTicketIds: [1],
+      config: {},
+    });
+
+    assert.deepEqual(report.epicRollup, { closed: [], pending: [] });
+  });
+});

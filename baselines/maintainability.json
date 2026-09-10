@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T21:30:22.142Z",
+  "generatedAt": "2026-09-10T21:33:17.741Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.072,
+      "p50": 99.069,
       "p95": 122.902
     }
   },
@@ -1200,7 +1200,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
-      "mi": 93.58
+      "mi": 90.987
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
@@ -1336,7 +1336,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-adoption.js",
-      "mi": 95.527
+      "mi": 94.418
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
@@ -1360,7 +1360,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "mi": 95.159
+      "mi": 94.539
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
@@ -1372,7 +1372,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "mi": 99.598
+      "mi": 98.381
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
@@ -1668,7 +1668,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "mi": 96.434
+      "mi": 97.288
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
@@ -2144,7 +2144,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
-      "mi": 96.185
+      "mi": 94.604
     },
     {
       "path": ".agents/scripts/providers/github/sub-issues.js",
@@ -2180,7 +2180,7 @@
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
-      "mi": 106.791
+      "mi": 105.652
     },
     {
       "path": ".agents/scripts/resync-status-column.js",

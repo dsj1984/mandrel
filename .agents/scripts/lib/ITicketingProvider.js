@@ -99,6 +99,84 @@ export class ITicketingProvider {
   }
 
   /**
+   * List every ticket carrying `labels`, in the **mapped** ticket shape.
+   *
+   * This is the declared read for a label scan, and the only one callers
+   * should reach for. Implementations MUST map every issue the way every
+   * other read on this interface does — in particular `id` is the **issue
+   * number**, not the backend's internal database id.
+   *
+   * That single rule is the whole reason the method exists. The raw REST
+   * payload names the issue number `number` and the database id `id`, so a
+   * consumer handed either shape wrote `number ?? id` and appeared to cope —
+   * while silently addressing issues by database id on the mapped shape,
+   * because there `id` is already the number and the fallback never fires.
+   * A declared shape removes the choice rather than documenting it.
+   *
+   * `state` selects `open` (default), `closed` or `all`. Implementations MUST
+   * honour it: a caller asking for `all` is asking a question — "did this
+   * child reopen?" — that an open-only listing answers wrongly rather than
+   * partially.
+   *
+   * @param {{ state?: 'open'|'closed'|'all', labels?: string }} [_opts]
+   * @returns {Promise<Array<{
+   *   id: number,
+   *   title: string,
+   *   body: string,
+   *   labels: string[],
+   *   assignees: string[],
+   *   state: string,
+   *   url?: string|null,
+   * }>>}
+   */
+  async listTicketsByLabel(_opts = {}) {
+    throw new Error('Not implemented: listTicketsByLabel');
+  }
+
+  /**
+   * Read a parent's native sub-issue children as issue numbers.
+   *
+   * Takes **both** identifiers because they address different things: the
+   * backend's child edge is keyed by the parent's opaque node id, while
+   * `number` exists only so a degraded read can name the parent it failed on.
+   * Passing the number where the node id belongs is not a type error — it is
+   * a successful call about the wrong issue — which is why the parameter
+   * order is fixed here rather than left to each call site.
+   *
+   * Implementations MUST return `[]` rather than throw when the sub-issue
+   * feature is unavailable on the backend: absence of the feature is not a
+   * failed read, and callers union this with a body checklist that still
+   * answers the question.
+   *
+   * @param {string} _nodeId Opaque node id of the parent.
+   * @param {number} _number Parent's issue number, for diagnostics only.
+   * @returns {Promise<number[]>}
+   */
+  async getNativeSubIssues(_nodeId, _number) {
+    throw new Error('Not implemented: getNativeSubIssues');
+  }
+
+  /**
+   * Resolve a ticket's container parent in **one** call.
+   *
+   * Exists so a child→parent lookup is a read, not a search. Without it the
+   * only way to find a container was to list every candidate parent and read
+   * each one's children — O(containers) requests to answer what the backend
+   * knows directly.
+   *
+   * Returns `null` when the ticket has no parent, and `null` rather than
+   * throwing when the backend cannot answer. Callers treat a null as "no
+   * parent resolved *here*" and may fall back to a body-declared link; an
+   * exception would turn a degraded lookup into a failed lifecycle edge.
+   *
+   * @param {number} _number Issue number whose parent to resolve.
+   * @returns {Promise<object|null>} Mapped parent ticket, or null.
+   */
+  async getParentIssue(_number) {
+    throw new Error('Not implemented: getParentIssue');
+  }
+
+  /**
    * Return the dependency graph edges for a ticket.
    * Parses `blocked by #NNN` patterns from the ticket body.
    *

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T21:33:49.229Z",
+  "generatedAt": "2026-09-10T23:25:02.365Z",
   "scoringSemantics": "method-identity-v3",
   "tsTranspilerVersion": "6.0.3",
   "provenanceStamped": true,
@@ -14556,14 +14556,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/dependency-candidates.js",
       "method": "<anon findDependencyCandidates/(p)#1>",
-      "startLine": 122,
+      "startLine": 126,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-candidates.js",
       "method": "<anon findDependencyCandidates/(a,b)#0>",
-      "startLine": 136,
+      "startLine": 140,
       "crap": 2,
       "anonymous": true
     },
@@ -14695,27 +14695,27 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-candidates.js",
       "method": "findOpenEpicCandidates",
-      "startLine": 127,
+      "startLine": 132,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-candidates.js",
       "method": "<anon findOpenEpicCandidates/(epic)#0>",
-      "startLine": 150,
+      "startLine": 155,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-candidates.js",
       "method": "<anon findOpenEpicCandidates/(c)#0>",
-      "startLine": 157,
+      "startLine": 162,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-candidates.js",
       "method": "<anon findOpenEpicCandidates/(a,b)#0>",
-      "startLine": 158,
+      "startLine": 163,
       "crap": 2,
       "anonymous": true
     },
@@ -14768,59 +14768,85 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "normalizeLabels",
-      "startLine": 70,
+      "startLine": 90,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "<anon normalizeLabels/(l)#0>",
-      "startLine": 73,
+      "startLine": 93,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "<anon normalizeLabels/(n)#0>",
-      "startLine": 74,
+      "startLine": 94,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "isEpicTicket",
-      "startLine": 89,
+      "startLine": 109,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
+      "method": "resolveEpicNodeId",
+      "startLine": 140,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-container.js",
+      "method": "nativeChildReader",
+      "startLine": 170,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-container.js",
+      "method": "<anon nativeChildReader/(epic)#0>",
+      "startLine": 171,
+      "crap": 3,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "composeEpicBody",
-      "startLine": 105,
+      "startLine": 202,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "normalizeChildIds",
-      "startLine": 127,
+      "startLine": 224,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "readEpicChildIds",
-      "startLine": 152,
+      "startLine": 249,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "<anon readEpicChildIds/(m)#0>",
-      "startLine": 158,
+      "startLine": 255,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-container.js",
       "method": "readEpicChildIdsFrom",
-      "startLine": 182,
+      "startLine": 300,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-container.js",
+      "method": "<anon readEpicChildIdsFrom/(id)#0>",
+      "startLine": 316,
+      "crap": 1,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-expansion.js",
@@ -14846,6 +14872,140 @@
       "method": "<anon expandEpicIds/(id)#0>",
       "startLine": 77,
       "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "resolveEpicOwner",
+      "startLine": 110,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "normalizeAssignees",
+      "startLine": 123,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon normalizeAssignees/(a)#0>",
+      "startLine": 126,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon normalizeAssignees/(login)#0>",
+      "startLine": 127,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "isClosed",
+      "startLine": 136,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "readOneChild",
+      "startLine": 159,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "readChildren",
+      "startLine": 180,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon readChildren/(childId)#0>",
+      "startLine": 186,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "applyColumn",
+      "startLine": 240,
+      "crap": 4.128
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "applyOwner",
+      "startLine": 263,
+      "crap": 3.0416666666666665
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "applyClosure",
+      "startLine": 288,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "rollUpOneEpic",
+      "startLine": 319,
+      "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "parentEpicFor",
+      "startLine": 427,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "scanContainerEpics",
+      "startLine": 463,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "findEpicsForStory",
+      "startLine": 497,
+      "crap": 7.095703125
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon findEpicsForStory/(message)#0>",
+      "startLine": 518,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "rollUpEpicForStory",
+      "startLine": 557,
+      "crap": 10.05787037037037
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon rollUpEpicForStory/(e)#0/(e)#0>",
+      "startLine": 617,
+      "crap": 1.0005787037037037,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon rollUpEpicForStory/(e)#0>",
+      "startLine": 617,
+      "crap": 1.0005787037037037,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon rollUpEpicForStory/(e)#1/(e)#0>",
+      "startLine": 618,
+      "crap": 1.0005787037037037,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
+      "method": "<anon rollUpEpicForStory/(e)#1>",
+      "startLine": 618,
+      "crap": 1.0005787037037037,
       "anonymous": true
     },
     {
@@ -16393,8 +16553,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-adoption.js",
       "method": "appendChecklist",
-      "startLine": 174,
-      "crap": 3.2834232395392915
+      "startLine": 193,
+      "crap": 3.2430000000000003
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/epic-adoption.js",
+      "method": "readFreshEpicBody",
+      "startLine": 226,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
@@ -16436,41 +16602,47 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
+      "method": "internalIdsFrom",
+      "startLine": 161,
+      "crap": 3.0987654320987654
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "mirrorSubIssueEdges",
-      "startLine": 162,
-      "crap": 4.025155017797175
+      "startLine": 188,
+      "crap": 4.0169997195046285
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "<anon mirrorSubIssueEdges/(issueNumber)#0>",
-      "startLine": 179,
+      "startLine": 211,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "createContainerEpic",
-      "startLine": 233,
+      "startLine": 265,
       "crap": 12
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "<anon createContainerEpic/(s)#0>",
-      "startLine": 251,
+      "startLine": 283,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "<anon createContainerEpic/(id)#0>",
-      "startLine": 252,
+      "startLine": 284,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
       "method": "<anon createContainerEpic/(s)#1>",
-      "startLine": 261,
+      "startLine": 293,
       "crap": 1,
       "anonymous": true
     },
@@ -16643,171 +16815,171 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon runSupersedePhase/(ticket)#0>",
-      "startLine": 217,
-      "crap": 1.4614012021036813,
+      "startLine": 218,
+      "crap": 1.4793293334429194,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "renderRunScopedPlanMetricsLine",
-      "startLine": 252,
+      "startLine": 253,
       "crap": 2.0044282258395176
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "resolveEffectiveRoute",
-      "startLine": 325,
+      "startLine": 326,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon resolveEffectiveRoute/(story)#0>",
-      "startLine": 352,
+      "startLine": 353,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon resolveEffectiveRoute/(entry)#0>",
-      "startLine": 365,
+      "startLine": 366,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon resolveEffectiveRoute/(entry)#1>",
-      "startLine": 372,
+      "startLine": 373,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "analyzeAssembledStories",
-      "startLine": 412,
+      "startLine": 413,
       "crap": 2.0625
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon analyzeAssembledStories/(finding)#0>",
-      "startLine": 414,
+      "startLine": 415,
       "crap": 1.015625,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon analyzeAssembledStories/(f)#0>",
-      "startLine": 418,
+      "startLine": 419,
       "crap": 1.015625,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon analyzeAssembledStories/(finding)#1>",
-      "startLine": 422,
+      "startLine": 423,
       "crap": 1.015625,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon analyzeAssembledStories/(finding)#2>",
-      "startLine": 426,
+      "startLine": 427,
       "crap": 1.015625,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "reapStalePlanDirs",
-      "startLine": 455,
+      "startLine": 456,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon reapStalePlanDirs/(entry)#0>",
-      "startLine": 467,
+      "startLine": 468,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "assertPersistablePlan",
-      "startLine": 480,
+      "startLine": 481,
       "crap": 17.30135588278175
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "enforceReachability",
-      "startLine": 508,
+      "startLine": 509,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "persistStoryArtifacts",
-      "startLine": 546,
+      "startLine": 547,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon persistStoryArtifacts/(createdStory)#0>",
-      "startLine": 553,
+      "startLine": 554,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon persistStoryArtifacts/(story)#0>",
-      "startLine": 559,
+      "startLine": 560,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "cleanupPlanDirs",
-      "startLine": 595,
+      "startLine": 596,
       "crap": 7.4559999999999995
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "logEffectiveRoute",
-      "startLine": 614,
+      "startLine": 615,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "logPersistEpilogue",
-      "startLine": 644,
+      "startLine": 645,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon logPersistEpilogue/(story)#0>",
-      "startLine": 650,
+      "startLine": 651,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon logPersistEpilogue/(s2)#0>",
-      "startLine": 654,
+      "startLine": 655,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon logPersistEpilogue/(s2)#1>",
-      "startLine": 662,
+      "startLine": 663,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "runPlanPersist",
-      "startLine": 707,
+      "startLine": 708,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "method": "<anon runPlanPersist/(s)#0>",
-      "startLine": 828,
+      "startLine": 829,
       "crap": 1,
       "anonymous": true
     },
@@ -17090,48 +17262,48 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "markStoriesReady",
-      "startLine": 1156,
+      "startLine": 1161,
       "crap": 3.013206705484598
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(story)#0>",
-      "startLine": 1165,
+      "startLine": 1170,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(outcome)#0>",
-      "startLine": 1184,
+      "startLine": 1189,
       "crap": 1.001467411720511,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(outcome)#1>",
-      "startLine": 1185,
+      "startLine": 1190,
       "crap": 1.001467411720511,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(outcome)#2>",
-      "startLine": 1187,
+      "startLine": 1192,
       "crap": 1.001467411720511,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(outcome)#3>",
-      "startLine": 1188,
+      "startLine": 1193,
       "crap": 1.001467411720511,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
       "method": "<anon markStoriesReady/(f)#0>",
-      "startLine": 1193,
+      "startLine": 1198,
       "crap": 1.001467411720511,
       "anonymous": true
     },
@@ -17238,195 +17410,221 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "supersedeCloseMutations",
+      "startLine": 95,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "<anon supersedeCloseMutations/(label)#0>",
+      "startLine": 98,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "normalizeSupersedeEntry",
-      "startLine": 70,
+      "startLine": 115,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "normalizeSupersedes",
-      "startLine": 102,
+      "startLine": 147,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon normalizeSupersedes/(entry)#0>",
-      "startLine": 111,
+      "startLine": 156,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "normalizeSourceTicketIds",
-      "startLine": 132,
+      "startLine": 177,
       "crap": 8
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon normalizeSourceTicketIds/(token)#0>",
-      "startLine": 138,
+      "startLine": 183,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon normalizeSourceTicketIds/(token)#1>",
-      "startLine": 139,
+      "startLine": 184,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "extractEnvelopeSourceTicketIds",
-      "startLine": 164,
+      "startLine": 209,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon extractEnvelopeSourceTicketIds/(ticket)#0>",
-      "startLine": 168,
+      "startLine": 213,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "sameIdSet",
-      "startLine": 175,
+      "startLine": 220,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon sameIdSet/(id)#0>",
-      "startLine": 176,
+      "startLine": 221,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "resolveSourceTicketIds",
-      "startLine": 201,
+      "startLine": 246,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon resolveSourceTicketIds/(id)#0>",
-      "startLine": 212,
+      "startLine": 257,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon resolveSourceTicketIds/(id)#1>",
-      "startLine": 214,
+      "startLine": 259,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon resolveSourceTicketIds/(id)#2>",
-      "startLine": 224,
+      "startLine": 269,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "describeStoryIds",
-      "startLine": 232,
+      "startLine": 277,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon describeStoryIds/(e)#0>",
-      "startLine": 233,
+      "startLine": 278,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "assertSupersedePartition",
-      "startLine": 245,
+      "startLine": 290,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon assertSupersedePartition/(e)#0>",
-      "startLine": 289,
+      "startLine": 334,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "buildSupersedeCommentBody",
-      "startLine": 304,
+      "startLine": 349,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "probeSourceTicket",
-      "startLine": 334,
+      "startLine": 384,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "closeOneSupersededTicket",
-      "startLine": 349,
+      "startLine": 403,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "emptyReport",
-      "startLine": 399,
+      "startLine": 453,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "rollUpContainersFor",
+      "startLine": 488,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "closeSupersededTickets",
-      "startLine": 428,
-      "crap": 4
+      "startLine": 526,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon closeSupersededTickets/(story)#0>",
-      "startLine": 445,
+      "startLine": 544,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon closeSupersededTickets/(id,note,createdStory)#0>",
-      "startLine": 457,
+      "startLine": 556,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon closeSupersededTickets/(result,index)#0>",
-      "startLine": 481,
+      "startLine": 580,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "collectSupersedeUnits",
-      "startLine": 497,
+      "startLine": 604,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "recordSupersedeOutcome",
-      "startLine": 516,
+      "startLine": 623,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "logSupersedeReport",
-      "startLine": 541,
-      "crap": 3
+      "startLine": 648,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "method": "<anon logSupersedeReport/(id)#0>",
-      "startLine": 554,
+      "startLine": 661,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
+      "method": "<anon logSupersedeReport/(id)#1>",
+      "startLine": 676,
       "crap": 1,
       "anonymous": true
     },
@@ -19076,230 +19274,209 @@
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "executeEpicClose",
-      "startLine": 66,
-      "crap": 9
+      "startLine": 70,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "method": "<anon executeEpicClose/(id)#0>",
-      "startLine": 75,
-      "crap": 1.0111919558244642,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "method": "<anon executeEpicClose/(c)#0>",
-      "startLine": 98,
-      "crap": 1.0111919558244642,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "method": "isSatisfiedChild",
-      "startLine": 154,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "method": "<anon isSatisfiedChild/(l)#0>",
-      "startLine": 157,
-      "crap": 2,
-      "anonymous": true
+      "method": "readContainerFor",
+      "startLine": 109,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "normalizeStoryId",
-      "startLine": 166,
+      "startLine": 127,
       "crap": 12
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "normalizeStoryIds",
-      "startLine": 182,
+      "startLine": 143,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "planRunEpilogue",
-      "startLine": 203,
+      "startLine": 164,
       "crap": 5
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon planRunEpilogue/(a,b)#0>",
-      "startLine": 228,
+      "startLine": 189,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "readFirstParentHistory",
-      "startLine": 285,
+      "startLine": 246,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon readFirstParentHistory/(line)#0>",
-      "startLine": 312,
+      "startLine": 273,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon readFirstParentHistory/(line)#1>",
-      "startLine": 314,
+      "startLine": 275,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "trailingMarkerIds",
-      "startLine": 358,
+      "startLine": 319,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "resolveRunBaseSha",
-      "startLine": 396,
+      "startLine": 357,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon resolveRunBaseSha/(n)#0>",
-      "startLine": 405,
+      "startLine": 366,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon resolveRunBaseSha/(id)#0>",
-      "startLine": 425,
+      "startLine": 386,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon resolveRunBaseSha/(id)#1>",
-      "startLine": 448,
+      "startLine": 409,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "listChangedFiles",
-      "startLine": 460,
+      "startLine": 421,
       "crap": 3.474609375
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon listChangedFiles/(line)#0>",
-      "startLine": 480,
+      "startLine": 441,
       "crap": 1.052734375,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "resolveCombinedDiff",
-      "startLine": 492,
+      "startLine": 453,
       "crap": 3.129528359623319
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "renderDiffLines",
-      "startLine": 537,
+      "startLine": 498,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "resolveBaseRef",
-      "startLine": 559,
+      "startLine": 520,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "executeAuditRoster",
-      "startLine": 568,
+      "startLine": 529,
       "crap": 14.000122376629061
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeAuditRoster/(lens)#0>",
-      "startLine": 619,
+      "startLine": 580,
       "crap": 1.0000006243705564,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "executeFollowUpRollup",
-      "startLine": 686,
+      "startLine": 647,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeFollowUpRollup/()#0>",
-      "startLine": 725,
+      "startLine": 686,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeFollowUpRollup/(item)#0>",
-      "startLine": 791,
+      "startLine": 752,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "extractSection",
-      "startLine": 806,
+      "startLine": 767,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "executeSiblingCoherence",
-      "startLine": 816,
+      "startLine": 777,
       "crap": 11
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeSiblingCoherence/(b)#0>",
-      "startLine": 830,
+      "startLine": 791,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeSiblingCoherence/(b)#1>",
-      "startLine": 833,
+      "startLine": 794,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeSiblingCoherence/(b)#2>",
-      "startLine": 834,
+      "startLine": 795,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeSiblingCoherence/(id)#0>",
-      "startLine": 850,
+      "startLine": 811,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "<anon executeSiblingCoherence/(f)#0>",
-      "startLine": 862,
+      "startLine": 823,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
       "method": "runPlanRunEpilogue",
-      "startLine": 900,
-      "crap": 8.034114465085977
+      "startLine": 861,
+      "crap": 8.001263498706889
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
@@ -22048,101 +22225,120 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
+      "method": "liveChildLabels",
+      "startLine": 448,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "deriveParentState",
-      "startLine": 419,
+      "startLine": 453,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon deriveParentState/(s)#0>",
-      "startLine": 421,
+      "startLine": 455,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon deriveParentState/(s)#1>",
-      "startLine": 422,
+      "startLine": 456,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon deriveParentState/(s)#2>",
-      "startLine": 426,
+      "startLine": 460,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon deriveParentState/(s)#3>",
-      "startLine": 430,
+      "startLine": 464,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
+      "method": "anyChildLanded",
+      "startLine": 493,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
+      "method": "<anon anyChildLanded/(child)#0>",
+      "startLine": 495,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "cascadeParentState",
-      "startLine": 465,
+      "startLine": 529,
       "crap": 7
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon cascadeParentState/(l)#0>",
-      "startLine": 482,
+      "startLine": 546,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "resolveParentIds",
-      "startLine": 520,
+      "startLine": 584,
       "crap": 2
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processStateCascadeParent",
-      "startLine": 532,
+      "startLine": 596,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon processStateCascadeParent/()#0>",
-      "startLine": 534,
+      "startLine": 598,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processStateCascadeParentLocked",
-      "startLine": 544,
+      "startLine": 608,
       "crap": 7.929185185185186
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon processStateCascadeParentLocked/(s)#0>",
-      "startLine": 577,
+      "startLine": 641,
       "crap": 2.075851851851852,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon processStateCascadeParentLocked/(l)#0>",
-      "startLine": 591,
+      "startLine": 655,
       "crap": 1.018962962962963,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon processStateCascadeParentLocked/()#0>",
-      "startLine": 600,
+      "startLine": 664,
       "crap": 1.018962962962963,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon processStateCascadeParentLocked/(err,attempt,delayMs)#0>",
-      "startLine": 609,
+      "startLine": 673,
       "crap": 1.2962962962962963,
       "anonymous": true
     },
@@ -26741,42 +26937,42 @@
     {
       "path": ".agents/scripts/providers/github.js",
       "method": "<anon (args)#0>",
-      "startLine": 147,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon (t)#0>",
       "startLine": 153,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github.js",
-      "method": "<anon (id)#0>",
-      "startLine": 156,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/providers/github.js",
-      "method": "<anon (r)#0>",
+      "method": "<anon (t)#0>",
       "startLine": 159,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github.js",
-      "method": "<anon (body)#0>",
+      "method": "<anon (id)#0>",
       "startLine": 162,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github.js",
-      "method": "<anon (id,mutations,hasOther)#0>",
+      "method": "<anon (r)#0>",
       "startLine": 165,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github.js",
+      "method": "<anon (body)#0>",
+      "startLine": 168,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/providers/github.js",
+      "method": "<anon (id,mutations,hasOther)#0>",
+      "startLine": 171,
       "crap": 1,
       "anonymous": true
     },
@@ -26966,62 +27162,74 @@
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientNetworkError",
-      "startLine": 72,
+      "startLine": 93,
       "crap": 1
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "matchesAny",
-      "startLine": 85,
+      "startLine": 106,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
+      "method": "stderrText",
+      "startLine": 124,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/providers/github/errors.js",
+      "method": "statusFromStderr",
+      "startLine": 140,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/providers/github/errors.js",
       "method": "extractErrorFields",
-      "startLine": 96,
+      "startLine": 161,
       "crap": 4
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientStatus",
-      "startLine": 106,
+      "startLine": 177,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isTransientByCodeOrMessage",
-      "startLine": 112,
+      "startLine": 183,
       "crap": 2
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "isPermissionSignal",
-      "startLine": 118,
+      "startLine": 189,
       "crap": 3
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "classifyGithubError",
-      "startLine": 123,
+      "startLine": 194,
       "crap": 8
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "withTransientRetry",
-      "startLine": 203,
+      "startLine": 280,
       "crap": 5.000762939453125
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "<anon withTransientRetry/(ms)#0/(r)#0>",
-      "startLine": 212,
+      "startLine": 289,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/providers/github/errors.js",
       "method": "<anon withTransientRetry/(ms)#0>",
-      "startLine": 212,
+      "startLine": 289,
       "crap": 1,
       "anonymous": true
     },
@@ -27029,7 +27237,7 @@
       "path": ".agents/scripts/providers/github/issues.js",
       "method": "classifySearchRetry",
       "startLine": 46,
-      "crap": 6
+      "crap": 2.0625
     },
     {
       "path": ".agents/scripts/providers/github/labels.js",
@@ -27394,8 +27602,8 @@
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
       "method": "linkStoriesToEpic",
-      "startLine": 173,
-      "crap": 4
+      "startLine": 183,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/prune-plan-run-labels.js",
@@ -27581,140 +27789,127 @@
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "resolveStoriesProvider",
-      "startLine": 94,
+      "startLine": 105,
       "crap": 1.6297376093294462
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
-      "method": "nativeChildReader",
-      "startLine": 115,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/resolve-stories.js",
-      "method": "<anon nativeChildReader/(epic)#0>",
-      "startLine": 116,
-      "crap": 2,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/resolve-stories.js",
       "method": "fetchStories",
-      "startLine": 139,
+      "startLine": 127,
       "crap": 1.0004064421074024
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon fetchStories/(id)#0>",
-      "startLine": 142,
+      "startLine": 130,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon fetchStories/(m)#0>",
-      "startLine": 144,
+      "startLine": 132,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon fetchStories/(c)#0>",
-      "startLine": 150,
+      "startLine": 138,
       "crap": 1.0004064421074024,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon fetchStories/(id)#1>",
-      "startLine": 156,
+      "startLine": 144,
       "crap": 2.0932944606413995,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "readNativeEdges",
-      "startLine": 177,
+      "startLine": 165,
       "crap": 1
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon readNativeEdges/(story)#0>",
-      "startLine": 187,
+      "startLine": 175,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "resolveForeignDone",
-      "startLine": 215,
+      "startLine": 203,
       "crap": 2.055296
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon resolveForeignDone/(node)#0/(dep)#0>",
-      "startLine": 218,
+      "startLine": 206,
       "crap": 1.013824,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon resolveForeignDone/(node)#0>",
-      "startLine": 218,
+      "startLine": 206,
       "crap": 1.013824,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon resolveForeignDone/(id)#0>",
-      "startLine": 224,
+      "startLine": 212,
       "crap": 2.5,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon resolveForeignDone/(id)#1>",
-      "startLine": 238,
+      "startLine": 226,
       "crap": 1.013824,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "runResolveStories",
-      "startLine": 252,
+      "startLine": 240,
       "crap": 3
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon runResolveStories/(s)#0>",
-      "startLine": 265,
+      "startLine": 253,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon runResolveStories/(m)#0>",
-      "startLine": 269,
+      "startLine": 257,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "<anon runResolveStories/()#0>",
-      "startLine": 280,
+      "startLine": 268,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "toRunOptions",
-      "startLine": 298,
+      "startLine": 286,
       "crap": 2
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
       "method": "main",
-      "startLine": 307,
+      "startLine": 295,
       "crap": 12
     },
     {

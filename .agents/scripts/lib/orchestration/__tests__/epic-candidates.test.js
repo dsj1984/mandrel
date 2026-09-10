@@ -16,9 +16,12 @@ import { findOpenEpicCandidates } from '../epic-candidates.js';
 const SEED =
   'Add epic adoption so a later plan can join an existing container epic';
 
-/** An open container Epic issue as `listIssuesByLabel` returns one. */
+/**
+ * An open container Epic in the **mapped** ticket shape `listTicketsByLabel`
+ * returns — `id` is the issue number, not a database id.
+ */
 function epicIssue({ number, title, body = '', labels = ['type::epic'] }) {
-  return { number, title, body, labels, state: 'open' };
+  return { id: number, title, body, labels, state: 'open' };
 }
 
 /** A provider double over a fixed open-Epic list. */
@@ -26,7 +29,7 @@ function providerDouble({ epics = [], listThrows = false, titles = {} } = {}) {
   const calls = { list: 0, getTicket: [] };
   return {
     calls,
-    listIssuesByLabel: async (args) => {
+    listTicketsByLabel: async (args) => {
       calls.list++;
       if (listThrows) throw new Error('listing down');
       assert.equal(args.state, 'open');
@@ -36,7 +39,7 @@ function providerDouble({ epics = [], listThrows = false, titles = {} } = {}) {
     getTicket: async (id) => {
       calls.getTicket.push(id);
       if (!(id in titles)) throw new Error(`no such ticket ${id}`);
-      return { number: id, title: titles[id] };
+      return { id, title: titles[id] };
     },
   };
 }

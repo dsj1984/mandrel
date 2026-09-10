@@ -150,11 +150,20 @@ export async function addSubIssueEdges({
 
 /**
  * Link child Stories to a container Epic, resolving each child's **database
- * id** from its issue number via the injected `getTicket` hook.
+ * id** from its issue number.
  *
  * Callers hold issue numbers (that is what `plan-persist` creates and what
  * an operator types); the API wants database ids. Doing the translation here
  * keeps that trap in one place instead of at every call site.
+ *
+ * `knownInternalIds` short-circuits the translation for children whose
+ * database id the caller already has. `createIssue` returns `internalId` in
+ * its response, so a cohort this run just created needs no lookup at all —
+ * the `getTicket` fan-out that used to run over every child was re-reading
+ * issues the same process had created seconds earlier, one round-trip per
+ * Story, to recover a field it had already been handed and thrown away.
+ * `getTicket` stays for the children a *resumed* run adopted, whose ids came
+ * from a listing rather than a create.
  *
  * Never throws: a child whose id cannot be resolved is counted as failed and
  * the remaining edges still go out.
@@ -162,6 +171,7 @@ export async function addSubIssueEdges({
  * @param {{
  *   epicNumber: number,
  *   childIssueNumbers: number[],
+ *   knownInternalIds?: Map<number, number>|null,
  *   getTicket: (issueNumber: number) => Promise<{ internalId: number }>,
  *   owner: string,
  *   repo: string,
@@ -173,6 +183,7 @@ export async function addSubIssueEdges({
 export async function linkStoriesToEpic({
   epicNumber,
   childIssueNumbers,
+  knownInternalIds = null,
   getTicket,
   owner,
   repo,
@@ -182,10 +193,16 @@ export async function linkStoriesToEpic({
   const numbers = Array.isArray(childIssueNumbers) ? childIssueNumbers : [];
   if (numbers.length === 0) return { added: 0, skipped: 0, failed: 0 };
 
+  const known = knownInternalIds instanceof Map ? knownInternalIds : new Map();
   let failed = 0;
   const childInternalIds = [];
 
   for (const childNumber of numbers) {
+    const alreadyKnown = known.get(Number(childNumber));
+    if (typeof alreadyKnown === 'number') {
+      childInternalIds.push(alreadyKnown);
+      continue;
+    }
     try {
       const ticket = await getTicket(childNumber);
       const internalId = ticket?.internalId;

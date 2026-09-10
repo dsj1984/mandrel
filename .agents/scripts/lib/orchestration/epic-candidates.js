@@ -81,7 +81,12 @@ async function readChildTitles({ childIds, provider }) {
  * @returns {Promise<{ id: number, title: string, url: string, score: number, childIds: number[] }|null>}
  */
 async function scoreEpic({ epic, seedTokens, provider, owner, repo }) {
-  const id = Number(epic?.number ?? epic?.id);
+  // `listTicketsByLabel` hands back the declared ticket shape, in which `id`
+  // is the issue number. The `number`-then-`id` fallback this replaced read as
+  // defensive and was not: on that shape it never fired, and on a raw REST
+  // payload it was the only thing standing between this and scoring an Epic
+  // under its database id.
+  const id = Number(epic?.id);
   if (!Number.isInteger(id) || id <= 0) return null;
 
   const title = typeof epic?.title === 'string' ? epic.title : '';
@@ -98,7 +103,7 @@ async function scoreEpic({ epic, seedTokens, provider, owner, repo }) {
   return {
     id,
     title,
-    url: epic?.html_url ?? epic?.url ?? buildEpicUrl(id, { owner, repo }),
+    url: epic?.url ?? buildEpicUrl(id, { owner, repo }),
     score: Number(score.toFixed(4)),
     childIds,
   };
@@ -126,14 +131,14 @@ async function scoreEpic({ epic, seedTokens, provider, owner, repo }) {
  */
 export async function findOpenEpicCandidates({ seed, provider, owner, repo }) {
   if (typeof seed !== 'string' || seed.trim() === '') return [];
-  if (typeof provider?.listIssuesByLabel !== 'function') return [];
+  if (typeof provider?.listTicketsByLabel !== 'function') return [];
 
   const seedTokens = tokenize(seed);
   if (seedTokens.size === 0) return [];
 
   let issues;
   try {
-    issues = await provider.listIssuesByLabel({
+    issues = await provider.listTicketsByLabel({
       state: 'open',
       labels: TYPE_LABELS.EPIC,
     });

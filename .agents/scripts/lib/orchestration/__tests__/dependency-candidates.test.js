@@ -19,7 +19,10 @@ function storyIssue({ number, title = 'A Story', paths = [], state = 'open' }) {
     .map((p) => `- \`${p}\` — refactors-existing`)
     .join('\n');
   return {
-    number,
+    // The mapped ticket shape `listTicketsByLabel` returns: `id` is the issue
+    // number. A raw REST payload would name the database id `id`, which is
+    // exactly the confusion the declared read exists to remove.
+    id: number,
     title,
     state,
     labels: ['type::story'],
@@ -48,7 +51,7 @@ function providerDouble({ stories = [], listThrows = false } = {}) {
   const calls = { list: 0 };
   return {
     calls,
-    listIssuesByLabel: async (args) => {
+    listTicketsByLabel: async (args) => {
       calls.list++;
       if (listThrows) throw new Error('listing down');
       assert.equal(args.labels, 'type::story');

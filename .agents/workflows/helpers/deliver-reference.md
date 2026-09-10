@@ -299,10 +299,10 @@ This executes, in order:
   (files issues when auto-file is on; posts `follow-ups`).
 - `sibling-coherence` — Spec/Acceptance coherence check across sibling bodies
   (`plan-run-sibling-coherence`).
-- `epic-close` — **reports** which container Epics this run closed and which
-  are still pending. It derives nothing itself: every step here and the
-  per-Story land tail alike delegate to `epic-rollup.js`, so one rule decides
-  a container's state.
+- `epic-close` — **reports** which of the run's container Epics its land tails
+  left closed and which are still open. **Read-only** — it derives nothing:
+  every child state change is already a rollup edge, so the container was
+  derived from a complete child set by the last Story's own land tail.
 
 A single-Story run skips the epilogue — follow-ups are captured on merge
 confirm instead (`captureStoryFollowUps`).
@@ -311,9 +311,12 @@ confirm instead (`captureStoryFollowUps`).
 
 A container Epic is never delivered, so nothing used to write to it during
 the run it was the subject of. `epic-rollup.js` derives its state from its
-children at both per-Story lifecycle edges — the `agent::executing` flip in
-`single-story-init.js` and the post-land tail (reported as the tail's
-`epicRollup` step) — which is why it holds at **N=1**, where no epilogue runs.
+children at **every edge that changes a child's state** — the
+`agent::executing` flip in `single-story-init.js`, the post-land tail
+(reported as the tail's `epicRollup` step), and `plan-persist`'s supersede
+close (reported as `supersede.epicRollup`) — which is why it holds at **N=1**,
+where no epilogue runs, and why a cohort superseded by a re-plan no longer
+strands its container open above finished work.
 
 - **Status** follows the children's composition (`deriveParentState` mapped
   onto the board's three options): any **open** child executing or blocked →
@@ -326,13 +329,24 @@ children at both per-Story lifecycle edges — the `agent::executing` flip in
   ready list.
 - **Owner** — `github.operatorHandle` is added to the Epic while any child is
   in flight, through the additive assignees endpoint, and is never removed.
-- **Closure** is one-way: every child landed closes the container as
-  `completed`; a reopened child moves Status back to `In Progress` and does
-  **not** reopen it.
-- The parent lookup scans open `type::epic` issues, because linkage is
-  parent→child only, and reads children as the body checklist **union** the
-  native sub-issue edges — the same reader `/mandrel-deliver`'s expansion
-  uses, so an Epic can never be expandable but unclosable.
+- **Closure** is one-way: a container whose children are all finished closes,
+  as `completed` when at least one child landed and as `not_planned` when none
+  did (a cohort superseded by a re-plan is finished, but nothing merged). A
+  reopened child moves Status back to `In Progress` and does **not** reopen the
+  issue — which is why the lookup reads `state: 'all'`, since an open-only
+  listing cannot see the container it would have to correct.
+- The parent lookup resolves the native parent edge in **one** call
+  (`getParentIssue`), because linkage is parent→child only; it falls back to a
+  `type::epic` scan for a child linked by checklist alone. Children are read as
+  the body checklist **union** the native sub-issue edges — literally the same
+  reader `/mandrel-deliver`'s expansion uses, so an Epic can never be
+  expandable but unclosable — bounded at 5 concurrent reads.
+- A checklist row citing an id that resolves to nothing is **dropped with a
+  warning** when the native read succeeded: hand-edited prose can cite a
+  deleted or mistyped issue, and no re-run will make it resolve. An
+  unresolvable *native* edge still fails the read. An Epic-typed child is
+  refused by name (`epic-typed-child`) and neither blocks nor advances the
+  parent.
 - Every step is best-effort and never throws: a stale container costs
   tidiness, not a landed Story's envelope.
 
