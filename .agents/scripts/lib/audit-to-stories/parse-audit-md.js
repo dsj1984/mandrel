@@ -460,27 +460,6 @@ export function readSeverityTally(markdown) {
   };
 }
 
-/**
- * Read the machine-readable severity tally the report envelope mandates in its
- * `## Executive Summary`:
- *
- * ```text
- * Severity tally: Critical 0 / High 2 / Medium 1 / Low 0
- * ```
- *
- * The convenience wrapper over {@link readSeverityTally} for callers that only
- * want the numbers. `null` therefore covers two different facts — no tally, and
- * more than one — so a caller that must tell them apart (the cross-check does:
- * a duplicate names the offending lines) reads the richer function instead.
- *
- * @param {string} markdown — full report text.
- * @returns {{ critical: number, high: number, medium: number, low: number }|null}
- *   `null` when the report declares no tally, or declares more than one.
- */
-export function parseSeverityTally(markdown) {
-  return readSeverityTally(markdown).tally;
-}
-
 function parseBlockFields(bodyLines) {
   const fields = {};
   let activeKey = null;

@@ -18,11 +18,11 @@ import {
   parseArgs,
   runAttribution,
 } from '../.agents/scripts/check-audit-attribution.js';
+import { extractBlockingAdvisories } from '../.agents/scripts/lib/audit-advisories.js';
 import {
   attributionExitCode,
   deriveVerdict,
   diffAdvisories,
-  extractBlockingAdvisories,
   renderAttribution,
   UNKNOWN,
 } from '../.agents/scripts/lib/audit-attribution.js';

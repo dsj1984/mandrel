@@ -32,7 +32,6 @@
 export {
   auditAdvisories,
   diffAdvisories,
-  extractBlockingAdvisories,
   renderAdvisoryDetail,
 } from './audit-advisories.js';
 

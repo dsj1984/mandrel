@@ -7,7 +7,6 @@ import {
   __testing,
   parseAuditReport,
   parseAuditReports,
-  parseSeverityTally,
   readSeverityTally,
 } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
@@ -174,9 +173,9 @@ test('parseAuditReport keeps #### sub-sections inside a ### block that IS a find
   assert.equal(findings[0].title, 'A real finding');
 });
 
-test('parseSeverityTally reads the mandated Executive Summary line', () => {
+test('readSeverityTally reads the mandated Executive Summary line', () => {
   const { markdown } = loadFixture('audit-security-results.md');
-  assert.deepEqual(parseSeverityTally(markdown), {
+  assert.deepEqual(readSeverityTally(markdown).tally, {
     critical: 0,
     high: 2,
     medium: 1,
@@ -184,18 +183,18 @@ test('parseSeverityTally reads the mandated Executive Summary line', () => {
   });
 });
 
-test('parseSeverityTally returns null when the report declares no tally', () => {
+test('readSeverityTally reports no tally when the report declares none', () => {
   assert.equal(
-    parseSeverityTally('# Report\n\n## Executive Summary\n\nAll good.\n'),
+    readSeverityTally('# Report\n\n## Executive Summary\n\nAll good.\n').tally,
     null,
   );
-  assert.equal(parseSeverityTally(null), null);
+  assert.equal(readSeverityTally(null).tally, null);
 });
 
 test('every shipped fixture report declares a tally matching its findings', () => {
   for (const name of fs.readdirSync(FIXTURES)) {
     const { markdown, sourceReport } = loadFixture(name);
-    const declared = parseSeverityTally(markdown);
+    const declared = readSeverityTally(markdown).tally;
     assert.ok(declared, `${name} declares a Severity tally line`);
     const counted = { critical: 0, high: 0, medium: 0, low: 0 };
     for (const finding of parseAuditReport({ markdown, sourceReport })) {
@@ -267,7 +266,7 @@ test('a report of nothing but empty grouping headers cross-checks against a zero
     markdown,
   });
   assert.deepEqual(findings, []);
-  assert.deepEqual(parseSeverityTally(markdown), {
+  assert.deepEqual(readSeverityTally(markdown).tally, {
     critical: 0,
     high: 0,
     medium: 0,
@@ -292,8 +291,8 @@ test('readSeverityTally refuses a report declaring the tally twice', () => {
   assert.equal(read.tally, null);
   assert.equal(read.matches.length, 2);
   assert.match(read.matches[1], /High 9/);
-  // The convenience wrapper collapses to null rather than adopting either line.
-  assert.equal(parseSeverityTally(markdown), null);
+  // A duplicate collapses the tally to null rather than adopting either line.
+  assert.equal(read.tally, null);
 });
 
 test('readSeverityTally scopes the single accepted line to the Executive Summary', () => {

@@ -83,7 +83,7 @@ function shortSha(git, cwd, baseRef) {
  * @param {{ git: Function, cwd: string, base: string, date: string }} params
  * @returns {{ branch: string, resuming: boolean }}
  */
-export function resolveLedgerBranch({ git, cwd, base, date }) {
+function resolveLedgerBranch({ git, cwd, base, date }) {
   const branch = `chore/audit-ledger-${date}-${shortSha(git, cwd, `origin/${base}`)}`;
   return {
     branch,
@@ -107,7 +107,7 @@ export function resolveLedgerBranch({ git, cwd, base, date }) {
  *   baseBranch: string }} state
  * @param {string} branch — the ledger branch name, allowed as a resume HEAD.
  */
-export function assertCommittable(state, branch) {
+function assertCommittable(state, branch) {
   if (!state.hasOrigin) {
     throw new Error(
       '--ledger-commit failed at step "verify-origin": this checkout has no "origin" remote, ' +
@@ -132,7 +132,7 @@ export function assertCommittable(state, branch) {
  * @param {unknown} result
  * @returns {string|null}
  */
-export function pullRequestUrl(result) {
+function pullRequestUrl(result) {
   const text = typeof result === 'string' ? result : (result?.stdout ?? '');
   const match = /https?:\/\/\S+/.exec(String(text ?? ''));
   return match ? match[0] : null;
@@ -186,7 +186,7 @@ function pullRequestBody(ledgerPath, date) {
  * @param {object} ctx
  * @returns {Promise<void>}
  */
-export async function commitLedgerOnto({
+async function commitLedgerOnto({
   git,
   cwd,
   branch,
@@ -221,7 +221,7 @@ export async function commitLedgerOnto({
  * @param {object} ctx
  * @returns {Promise<string|null>}
  */
-export async function pushAndOpenPullRequest({
+async function pushAndOpenPullRequest({
   git,
   cwd,
   gh,
@@ -260,7 +260,7 @@ export async function pushAndOpenPullRequest({
  *
  * @param {{ git: Function, cwd: string, startBranch: string, branch: string }} params
  */
-export function restoreBranch({ git, cwd, startBranch, branch }) {
+function restoreBranch({ git, cwd, startBranch, branch }) {
   if (!startBranch || startBranch === branch) return;
   try {
     git(cwd, 'checkout', startBranch);
