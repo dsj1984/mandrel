@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T21:24:03.519Z",
+  "generatedAt": "2026-09-10T21:30:22.142Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -2036,7 +2036,7 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "mi": 97.146
+      "mi": 97.758
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",
