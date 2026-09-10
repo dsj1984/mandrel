@@ -16,6 +16,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  disarmAutoMerge,
   enableAutoMergeWith,
   runAutoMergePhase,
 } from '../.agents/scripts/lib/orchestration/single-story-close/phases/auto-merge.js';
@@ -425,5 +426,51 @@ describe('runAutoMergePhase — advisory gate (Story #5096)', () => {
       },
     });
     assert.equal(armed, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `disarmAutoMerge` — the reversal the advisory gate depends on (Story #5266
+// gave it its first direct coverage). It lives here, beside the arm, because
+// lifecycle-lint confines every merge invocation to that one module.
+// ---------------------------------------------------------------------------
+
+describe('disarmAutoMerge', () => {
+  it('reports the disarm and says the PR stays hand-mergeable', async () => {
+    const calls = [];
+    const lines = [];
+    const disarmed = await disarmAutoMerge({
+      prNumber: 1850,
+      gh: {
+        pr: {
+          merge: async (ref, args) => {
+            calls.push([ref, args]);
+          },
+        },
+      },
+      progress: (tag, msg) => lines.push(`${tag} ${msg}`),
+    });
+    assert.equal(disarmed, true);
+    assert.deepEqual(calls, [['1850', ['--disable-auto']]]);
+    assert.match(lines.join('\n'), /DISARMED/);
+  });
+
+  it('is best-effort: a failed disarm reports false and warns that GitHub may still land it', async () => {
+    // The one thing it cannot do is stop GitHub, so the caller blocks either
+    // way — a throw here would turn a degraded report into a lost block.
+    const lines = [];
+    const disarmed = await disarmAutoMerge({
+      prNumber: 1850,
+      gh: {
+        pr: {
+          merge: async () => {
+            throw new Error('gh exploded');
+          },
+        },
+      },
+      progress: (tag, msg) => lines.push(`${tag} ${msg}`),
+    });
+    assert.equal(disarmed, false);
+    assert.match(lines.join('\n'), /Disarm by hand/);
   });
 });
