@@ -8,6 +8,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -19,6 +20,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   _currentSuiteTempRoot,
@@ -38,8 +40,11 @@ import {
  * This one directory is the bootstrap that cannot come from the helper.
  */
 let fakeTmp;
+/** Exit codes the reaper asked for, captured by {@link quietDeps}. */
+let exitCodes = [];
 
 beforeEach(() => {
+  exitCodes = [];
   // test-temp-allow: bootstrapping the fake OS temp root this spec runs against.
   fakeTmp = mkdtempSync(path.join(os.tmpdir(), 'test-temp-spec-'));
   _resetSuiteTempRootForTests();
@@ -64,6 +69,9 @@ const quietDeps = (warnings, onExit = () => {}) => ({
   tmpdir: () => fakeTmp,
   onExit,
   warn: (msg) => warnings.push(msg),
+  // Captured, never applied: an exit reaper invoked in-process would
+  // otherwise set this spec's own exit code to 1 and fail a green run.
+  setExitCode: (code) => exitCodes.push(code),
 });
 
 describe('test-temp — suite root', () => {
@@ -126,15 +134,57 @@ describe('test-temp — a suite root that vanishes mid-run', () => {
     assert.ok(after.startsWith(_currentSuiteTempRoot() + path.sep));
   });
 
-  it('re-creates the OS temp root too when the pruner took that as well', () => {
+  it('refuses to re-create the OS temp root, and names it', () => {
+    // Re-creating `/tmp` itself would hand the suite a directory with this
+    // process's umask instead of the system's sticky 1777, and report a
+    // broken machine as a passing run. Name it instead.
     const warnings = [];
     suiteTempRoot(quietDeps(warnings));
     rmSync(fakeTmp, { recursive: true, force: true });
 
-    const replacement = suiteTempRoot(quietDeps(warnings));
+    let err = null;
+    try {
+      suiteTempRoot(quietDeps(warnings));
+    } catch (caught) {
+      err = caught;
+    }
 
-    assert.ok(existsSync(replacement));
-    assert.ok(replacement.startsWith(fakeTmp + path.sep));
+    assert.ok(err, 'a missing OS temp root must throw, not be papered over');
+    assert.match(err.message, /OS temp root/);
+    assert.ok(
+      err.message.includes(fakeTmp),
+      'the message must name the directory that is gone',
+    );
+    assert.ok(!existsSync(fakeTmp), 'the guard creates nothing on its way out');
+  });
+
+  it('records every vanished root and fails the run at exit', () => {
+    const warnings = [];
+    const hooks = [];
+    const d = () => quietDeps(warnings, (fn) => hooks.push(fn));
+    const original = suiteTempRoot(d());
+    rmSync(original, { recursive: true, force: true });
+    suiteTempRoot(d());
+
+    for (const hook of hooks) hook();
+
+    assert.deepEqual(exitCodes, [1], 'a lost root is a non-zero verdict');
+    const report = warnings.join('\n');
+    assert.match(report, /1 suite temp root\(s\) disappeared mid-run/);
+    assert.ok(
+      report.includes(original),
+      'the reaper must name the path that vanished',
+    );
+  });
+
+  it('asks for no exit code when no root vanished', () => {
+    const warnings = [];
+    const hooks = [];
+    suiteTempRoot(quietDeps(warnings, (fn) => hooks.push(fn)));
+
+    for (const hook of hooks) hook();
+
+    assert.deepEqual(exitCodes, []);
   });
 
   it('warns once, naming both the vanished and the replacement path', () => {
@@ -193,6 +243,69 @@ describe('test-temp — a suite root that vanishes mid-run', () => {
     reapSuiteTempRoot();
 
     assert.ok(existsSync(sibling), 'a sibling process s root is untouched');
+  });
+});
+
+describe('test-temp — the vanished-root verdict in a real process', () => {
+  const MODULE_URL = pathToFileURL(
+    path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      '../../.agents/scripts/lib/test-temp.js',
+    ),
+  ).href;
+
+  /**
+   * Run `body` in a child that imports the real module, and report what the
+   * process did. The exit code is the claim under test, and only a real
+   * process has one — the in-process specs above can prove the reaper *asks*
+   * for a code, never that Node honours it from an `exit` listener.
+   *
+   * @param {string} body module source appended after the import
+   * @returns {{ status: number, stderr: string }}
+   */
+  const runChild = (body) => {
+    const script = [
+      "import { rmSync } from 'node:fs';",
+      `const mod = await import(${JSON.stringify(MODULE_URL)});`,
+      body,
+    ].join('\n');
+    const r = spawnSync(
+      process.execPath,
+      ['--input-type=module', '-e', script],
+      {
+        encoding: 'utf8',
+      },
+    );
+    return { status: r.status, stderr: r.stderr ?? '' };
+  };
+
+  it('exits non-zero and names the root when one vanished', () => {
+    const { status, stderr } = runChild(
+      [
+        'const root = mod.suiteTempRoot();',
+        'rmSync(root, { recursive: true, force: true });',
+        "mod.makeTempDir('after-');",
+        'process.stderr.write(`ORIGINAL ${root}\\n`);',
+      ].join('\n'),
+    );
+
+    assert.equal(status, 1, `a recovered run still fails; stderr:\n${stderr}`);
+    const original = /ORIGINAL (.+)/.exec(stderr)?.[1]?.trim();
+    assert.ok(original, 'the child must report the root it lost');
+    assert.match(stderr, /disappeared mid-run/);
+    assert.ok(
+      stderr.includes(original),
+      'the exit reaper must name the vanished path, not just its count',
+    );
+  });
+
+  it('exits zero when the root survives the run', () => {
+    const { status, stderr } = runChild(
+      ["mod.makeTempDir('kept-');"].join('\n'),
+    );
+
+    assert.equal(status, 0, stderr);
+    assert.doesNotMatch(stderr, /disappeared mid-run/);
   });
 });
 

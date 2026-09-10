@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -368,5 +368,49 @@ test('local and payload commands coexist without interfering', () => {
     );
   } finally {
     run.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Story #5284 — the developer's local zone must not reach the guard projection
+// ---------------------------------------------------------------------------
+
+test("the guard projection ignores the checkout's own .agents/local/workflows/", async () => {
+  // `SYNC_CLAUDE_COMMANDS_SRC` overrides the payload source only; LOCAL_SRC is
+  // resolved from the sync's cwd. A projection run from the repository root
+  // therefore folded whatever the developer keeps in their local zone into the
+  // file set the structural rename/retirement guards assert over — a file that
+  // is not in the repository and that CI will never see.
+  const { projectCommands } = await import(
+    pathToFileURL(
+      path.join(PROJECT_ROOT, 'tests/helpers/projected-commands.js'),
+    ).href
+  );
+
+  const localDir = path.join(PROJECT_ROOT, '.agents', 'local', 'workflows');
+  const planted = path.join(localDir, 'story-5284-local-probe.md');
+  const preexisting = fs.existsSync(localDir);
+  fs.mkdirSync(localDir, { recursive: true });
+  fs.writeFileSync(planted, '# a developer-only workflow\n', 'utf8');
+
+  try {
+    const projection = projectCommands();
+
+    assert.ok(
+      !projection.has('story-5284-local-probe.md'),
+      "a file in the developer's local zone must not appear in the projection the guards compute",
+    );
+    assert.ok(
+      projection.has('mandrel-deliver.md'),
+      'the payload projection itself must still be produced',
+    );
+  } finally {
+    fs.rmSync(planted, { force: true });
+    if (!preexisting) {
+      fs.rmSync(path.join(PROJECT_ROOT, '.agents', 'local'), {
+        recursive: true,
+        force: true,
+      });
+    }
   }
 });

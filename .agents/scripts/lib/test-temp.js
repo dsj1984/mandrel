@@ -88,12 +88,64 @@ const VANISHED =
   'outside this process):';
 
 /**
+ * Suite roots this process minted and later found gone.
+ *
+ * Recovery is the right behaviour — see {@link suiteTempRoot} — but a silent
+ * recovery is not. Incident #5272 was a required check going red with an
+ * unattributable `ENOENT`, and the hardening written to expose it made the
+ * run *quieter*: the re-mint succeeded, the suite went green, and the fact
+ * that something outside the process is deleting the temp tree left no trace
+ * anyone would look at. This list is that trace, and the exit reaper turns it
+ * into a verdict.
+ */
+const _vanishedRoots = [];
+
+/** Exit code a run that lost a suite root reports, when nothing worse did. */
+const VANISHED_EXIT_CODE = 1;
+
+/**
+ * Default `setExitCode` sink. Never lowers an exit code already set: a real
+ * test failure is the more informative verdict.
+ *
+ * @param {number} code
+ * @returns {void}
+ */
+function raiseExitCode(code) {
+  if (!process.exitCode) process.exitCode = code;
+}
+
+/**
  * Test-only: forget the per-process suite root without removing it, so a
  * test can exercise the creation branch repeatedly in one process.
  */
 export function _resetSuiteTempRootForTests() {
   _suiteRoot = null;
   _reaperRegistered = false;
+  _vanishedRoots.length = 0;
+}
+
+/**
+ * Report every root that vanished under this process, and fail the run.
+ *
+ * Called from the exit reaper, so it is the last word on a run that
+ * otherwise passed. The exit code is only raised when nothing else already
+ * failed: a real test failure is the more informative verdict and must not
+ * be overwritten by this one.
+ *
+ * @param {{ warn?: (msg: string) => void, setExitCode?: (code: number) => void }} [deps]
+ * @returns {void}
+ */
+function reportVanishedRoots({
+  warn = stderrWarn,
+  setExitCode = raiseExitCode,
+} = {}) {
+  if (_vanishedRoots.length === 0) return;
+  warn(
+    `[test-temp] FAIL — ${_vanishedRoots.length} suite temp root(s) disappeared mid-run:\n` +
+      _vanishedRoots.map((root) => `  - ${root}`).join('\n') +
+      '\n[test-temp] the suite recovered by re-minting, so the tests passed — but something outside this process is deleting the temp tree, and a fixture that hits the window between the removal and the re-mint fails with an unattributable ENOENT (#5272). Find the pruner before trusting this run.',
+  );
+  setExitCode(VANISHED_EXIT_CODE);
 }
 
 /**
@@ -157,17 +209,13 @@ export function reapSuiteTempRoot({ fsImpl = fs, warn = stderrWarn } = {}) {
  * invariant holds — this process still reaps only a root it minted, and
  * never one it has replaced.
  *
- * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
+ * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void, setExitCode?: (code: number) => void }} [deps]
  * @returns {string} absolute path to the suite root
  */
-export function suiteTempRoot({
-  fsImpl = fs,
-  tmpdir = os.tmpdir,
-  onExit = (fn) => process.once('exit', fn),
-  warn = stderrWarn,
-} = {}) {
+export function suiteTempRoot(deps = {}) {
+  const fsImpl = deps.fsImpl ?? fs;
   if (_suiteRoot !== null && fsImpl.existsSync(_suiteRoot)) return _suiteRoot;
-  return mintSuiteRoot(fsImpl, tmpdir, onExit, warn);
+  return mintSuiteRoot(deps);
 }
 
 /**
@@ -178,29 +226,44 @@ export function suiteTempRoot({
  * existence check callers pay on every `makeTempDir`, and the recovery it
  * guards reads as the exceptional branch it is.
  *
- * @param {typeof fs} fsImpl
- * @param {() => string} tmpdir
- * @param {(fn: () => void) => void} onExit
- * @param {(msg: string) => void} warn
+ * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void, setExitCode?: (code: number) => void }} deps
  * @returns {string} absolute path to the new suite root
  */
-function mintSuiteRoot(fsImpl, tmpdir, onExit, warn) {
+function mintSuiteRoot({
+  fsImpl = fs,
+  tmpdir = os.tmpdir,
+  onExit = (fn) => process.once('exit', fn),
+  warn = stderrWarn,
+  setExitCode = raiseExitCode,
+} = {}) {
   const vanished = _suiteRoot;
   const base = tmpdir();
-  // The pruner that took the root may have taken its parent too; a
-  // recursive mkdir on an existing directory is a no-op on first use.
-  fsImpl.mkdirSync(base, { recursive: true });
+  // Recovery re-creates the suite's OWN root and nothing above it. An
+  // earlier revision called `mkdirSync(base, { recursive: true })` here, so a
+  // process whose OS temp root had been removed silently re-created `/tmp`
+  // — with this process's umask rather than the sticky 1777 the system sets
+  // — and carried on. That is a broken machine reported as a passing suite;
+  // name it instead.
+  if (!fsImpl.existsSync(base))
+    throw new Error(
+      `[test-temp] OS temp root ${base} does not exist; refusing to create it. Something removed the system temp directory (or TMPDIR points at a path that was never created) — fix the environment rather than letting the suite mint it.`,
+    );
   _suiteRoot = fsImpl.mkdtempSync(
     path.join(base, `${SUITE_ROOT_PREFIX}${process.pid}-`),
   );
   // Say it once, loudly: this is the only trace that something outside the
   // process touched the temp tree, and the incident it explains (#5272) was
   // filed against the wrong mechanism for want of it.
-  if (vanished !== null)
+  if (vanished !== null) {
+    _vanishedRoots.push(vanished);
     warn(`${VANISHED} ${vanished}; re-created as ${_suiteRoot}`);
+  }
   if (!_reaperRegistered) {
     _reaperRegistered = true;
-    onExit(() => reapSuiteTempRoot({ fsImpl }));
+    onExit(() => {
+      reapSuiteTempRoot({ fsImpl, warn });
+      reportVanishedRoots({ warn, setExitCode });
+    });
   }
   return _suiteRoot;
 }

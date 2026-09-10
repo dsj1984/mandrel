@@ -107,6 +107,17 @@ jobs:
         # `npm run format:check` step is folded in and removed.
         run: npm run lint
 
+      - name: Test Portability Guard
+        # Story #5284: the `windows-smoke` job below is advisory, so a
+        # Windows-only break in a test file lands on main behind a green
+        # auto-merge — three did in one week. Two of those shapes are
+        # statically visible: a RegExp built from an interpolated filesystem
+        # path (literal on POSIX, escaped on Windows — PR #5276) and a
+        # dynamic import() of a raw path (not a valid ESM specifier on
+        # Windows). This catches both here, on the required leg, instead of
+        # in the advisory one nobody blocks on.
+        run: node .agents/scripts/check-test-portability.js
+
       # Story #5004: the `Maintainability Check` step that used to sit here
       # ran `npm run maintainability:check` — `check-baselines.js --gate
       # maintainability`, a strict subset of the `Run check-baselines` step in

@@ -177,14 +177,28 @@ describe('git-fixture — copyGitRepo retries once', () => {
   });
 });
 
-describe('git-fixture — copyGitRepo reports a twice-failed copy', () => {
-  it('names source, destination and suite root when the source is gone', () => {
+describe('git-fixture — copyGitRepo reports a failed copy', () => {
+  it('makes exactly one attempt, and says so, when the source is gone', () => {
     const src = makeRepoShapedDir('gone-src-');
     rmSync(src, { recursive: true, force: true });
+    let calls = 0;
 
-    const err = captureThrow(() => copyGitRepo(src));
+    const err = captureThrow(() =>
+      copyGitRepo(src, {
+        mintDest: () => {
+          calls += 1;
+          return makeTempDir('gone-dst-');
+        },
+      }),
+    );
 
-    assert.match(err.message, /copyGitRepo failed 2 times/);
+    assert.equal(
+      calls,
+      1,
+      'a missing source cannot be repaired by re-minting the destination, so the retry only doubles a certain failure',
+    );
+    assert.match(err.message, /copyGitRepo failed 1 time:/);
+    assert.doesNotMatch(err.message, /failed 2 times/);
     assert.ok(err.message.includes(`source: ${src} (MISSING)`));
     assert.match(err.message, /destination: .+ \(exists\)/);
     assert.ok(
@@ -202,6 +216,7 @@ describe('git-fixture — copyGitRepo reports a twice-failed copy', () => {
 
     const err = captureThrow(() => copyGitRepo(src));
 
+    assert.match(err.message, /copyGitRepo failed 2 times:/);
     assert.match(err.message, /no usable repository/);
     assert.match(err.message, /\.git\/HEAD and \.git\/objects/);
     assert.ok(err.message.includes(`source: ${src} (exists)`));
