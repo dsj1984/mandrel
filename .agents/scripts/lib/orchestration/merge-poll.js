@@ -113,6 +113,50 @@ export function deriveChecksStatus(statusCheckRollup) {
  * @param {Array<{status?: string, conclusion?: string, state?: string}>} statusCheckRollup
  * @returns {{ requiredRunFailed: boolean, requiredRunInFlight: boolean } | null}
  */
+/**
+ * Pure: the uppercase conclusion of a check that GENUINELY concluded red, or
+ * `null` when it did not.
+ *
+ * Red means `FAILURE` / `ERROR` only — never `CANCELLED` / `TIMED_OUT` /
+ * `SKIPPED`, which are the superseded-push and sibling-invalidated runs a bare
+ * rollup read miscounts (the #4695 / #4710 trap). A CheckRun carries the
+ * verdict on `conclusion`; a legacy StatusContext carries it on `state`, so
+ * both are read and the one that is red is the one returned.
+ *
+ * Extracted (Story #5266) because {@link deriveRequiredRunEvidence} and
+ * {@link deriveRedHeadRuns} were carrying byte-identical copies of this test:
+ * two places that must agree about what "red" means, and nothing making them.
+ *
+ * @param {{ conclusion?: string, state?: string }} [check]
+ * @returns {string|null}
+ */
+function redConclusionOf(check) {
+  const conclusion = String(check?.conclusion ?? '').toUpperCase();
+  if (conclusion === 'FAILURE' || conclusion === 'ERROR') return conclusion;
+  const state = String(check?.state ?? '').toUpperCase();
+  if (state === 'FAILURE' || state === 'ERROR') return state;
+  return null;
+}
+
+/**
+ * Pure: a check's display name — the CheckRun's `name`, falling back to a
+ * legacy StatusContext's `context`, and `null` when the projection carries
+ * neither.
+ *
+ * A run with no readable name can never match an allowlist entry, so it always
+ * blocks. That is the conservative direction for a gate whose whole purpose is
+ * to stop a silent landing.
+ *
+ * @param {{ name?: string, context?: string }} [check]
+ * @returns {string|null}
+ */
+function readRunName(check) {
+  for (const value of [check?.name, check?.context]) {
+    if (typeof value === 'string' && value) return value;
+  }
+  return null;
+}
+
 export function deriveRequiredRunEvidence(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup) || statusCheckRollup.length === 0) {
     return null;
@@ -120,7 +164,6 @@ export function deriveRequiredRunEvidence(statusCheckRollup) {
   let requiredRunFailed = false;
   let requiredRunInFlight = false;
   for (const check of statusCheckRollup) {
-    const conclusion = String(check?.conclusion ?? '').toUpperCase();
     const status = String(check?.status ?? '').toUpperCase();
     const state = String(check?.state ?? '').toUpperCase();
     // In flight: a CheckRun not yet COMPLETED, or a legacy StatusContext still
@@ -131,14 +174,7 @@ export function deriveRequiredRunEvidence(statusCheckRollup) {
     } else if (state === 'PENDING' || state === 'EXPECTED') {
       requiredRunInFlight = true;
     }
-    // Genuinely red: FAILURE / ERROR only. CANCELLED / TIMED_OUT / SKIPPED are
-    // the superseded / sibling-invalidated noise a bare rollup miscounts.
-    if (
-      conclusion === 'FAILURE' ||
-      conclusion === 'ERROR' ||
-      state === 'FAILURE' ||
-      state === 'ERROR'
-    ) {
+    if (redConclusionOf(check)) {
       requiredRunFailed = true;
     }
   }
@@ -330,32 +366,19 @@ export function deriveRedHeadRuns(statusCheckRollup) {
   if (!Array.isArray(statusCheckRollup)) return [];
   const red = [];
   for (const check of statusCheckRollup) {
-    const conclusion = String(check?.conclusion ?? '').toUpperCase();
-    const state = String(check?.state ?? '').toUpperCase();
-    const isRed =
-      conclusion === 'FAILURE' ||
-      conclusion === 'ERROR' ||
-      state === 'FAILURE' ||
-      state === 'ERROR';
-    if (!isRed) continue;
-    const name =
-      typeof check?.name === 'string' && check.name
-        ? check.name
-        : typeof check?.context === 'string' && check.context
-          ? check.context
-          : null;
+    const conclusion = redConclusionOf(check);
+    if (!conclusion) continue;
     const summary = readRunSummary(check);
     const runId = parseWorkflowRunId(check?.detailsUrl);
-    const completedAt =
-      typeof check?.completedAt === 'string' && check.completedAt
-        ? check.completedAt
-        : undefined;
+    const completedAt = check?.completedAt;
     red.push({
-      name,
-      conclusion: conclusion || state,
+      name: readRunName(check),
+      conclusion,
       ...(summary ? { summary } : {}),
       ...(runId ? { runId } : {}),
-      ...(completedAt ? { completedAt } : {}),
+      ...(typeof completedAt === 'string' && completedAt
+        ? { completedAt }
+        : {}),
     });
   }
   return red;
