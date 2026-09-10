@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T16:10:54.331Z",
+  "generatedAt": "2026-09-10T16:50:16.488Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.92,
+      "p50": 98.969,
       "p95": 122.902
     }
   },
@@ -968,7 +968,7 @@
     },
     {
       "path": ".agents/scripts/lib/git/sync-from-base.js",
-      "mi": 95.828
+      "mi": 99.93
     },
     {
       "path": ".agents/scripts/lib/github-url.js",
@@ -1500,7 +1500,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "mi": 98.358
+      "mi": 99.37
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
