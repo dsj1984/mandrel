@@ -95,7 +95,7 @@ not re-deriving which assumptions were really the agent's to make.
 ## Gate #1 → the memory-pool advisory (`memoryPoolAdvisory`)
 
 On a truthy `memoryPoolAdvisory.recommend`, name
-[`/memory-consolidate`](memory-consolidate.md) at Gate #1, quoting its
+[`/memory-consolidate`](../memory-consolidate.md) at Gate #1, quoting its
 `reasons[]`. Purely advisory: a stale pool degrades recall, it does not make
 the plan wrong, so it never blocks and never reroutes.
 
