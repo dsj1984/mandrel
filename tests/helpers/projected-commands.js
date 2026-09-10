@@ -32,6 +32,22 @@
  * `reapPluginTree()` step, so a projection run never touches the real
  * `.claude/` tree.
  *
+ * ## Why the sync runs from an empty scratch directory
+ *
+ * `SYNC_CLAUDE_COMMANDS_SRC` overrides the **payload** source only. The
+ * second source — `.agents/local/workflows/`, the consumer-owned, sync-exempt
+ * zone — is resolved from the script's `process.cwd()` and has no override.
+ * Running the projection from the repository root therefore folded whatever
+ * the developer happened to have in their own local zone into the file set
+ * these guards assert over: a hand-authored `/scratch.md` would make a
+ * structural rename guard pass or fail on a file that is not in the
+ * repository and that CI will never see.
+ *
+ * Pointing `cwd` at an empty directory resolves `LOCAL_SRC` to a path that
+ * does not exist, which the script already filters out. The projection is
+ * then a function of tracked payload source alone — the property this helper
+ * exists to provide.
+ *
  * @see .agents/scripts/sync-claude-commands.js — the projector under test.
  * @see tests/sync-claude-commands-local.test.js — the same seams, driven with
  *      synthetic fixture workflows rather than the real payload.
@@ -88,8 +104,13 @@ function listProjected(dir, prefix = '') {
  * @returns {{ dest: string, files: string[], has: (rel: string) => boolean }}
  */
 export function projectCommands({ seedOrphans = [] } = {}) {
-  const dest = path.join(makeTempDir('projected-commands-'), 'commands');
+  const scratch = makeTempDir('projected-commands-');
+  const dest = path.join(scratch, 'commands');
   fs.mkdirSync(dest, { recursive: true });
+  // The sync's cwd: empty, so LOCAL_SRC resolves to a path that does not
+  // exist and the developer's own local zone cannot enter the projection.
+  const cwd = path.join(scratch, 'empty-cwd');
+  fs.mkdirSync(cwd, { recursive: true });
 
   for (const rel of seedOrphans) {
     const abs = path.join(dest, rel);
@@ -98,7 +119,7 @@ export function projectCommands({ seedOrphans = [] } = {}) {
   }
 
   const result = spawnSync(process.execPath, [SYNC_SCRIPT], {
-    cwd: REPO_ROOT,
+    cwd,
     env: {
       ...process.env,
       SYNC_CLAUDE_COMMANDS_SRC: WORKFLOWS_SRC,
