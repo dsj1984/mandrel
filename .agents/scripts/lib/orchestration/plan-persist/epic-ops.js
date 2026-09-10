@@ -123,10 +123,10 @@ async function ensureEpicLabel({ provider }) {
  * @returns {Promise<{ id: number, url?: string }|null>}
  */
 async function findExistingEpic({ provider, fingerprint }) {
-  if (typeof provider?.listIssuesByLabel !== 'function') return null;
+  if (typeof provider?.listTicketsByLabel !== 'function') return null;
   try {
     const marker = epicFingerprintMarker(fingerprint);
-    const found = await provider.listIssuesByLabel({
+    const found = await provider.listTicketsByLabel({
       state: 'open',
       labels: TYPE_LABELS.EPIC,
     });
@@ -134,15 +134,38 @@ async function findExistingEpic({ provider, fingerprint }) {
       String(issue?.body ?? '').includes(marker),
     );
     if (!hit) return null;
-    const id = Number(hit.number ?? hit.id);
+    // The declared ticket shape: `id` is the issue number. The `number`-then-
+    // `id` fallback this replaced would have adopted the resumed container by
+    // database id — a number that exists, resolves to nothing, fails no guard.
+    const id = Number(hit.id);
     if (!Number.isInteger(id) || id <= 0) return null;
-    return { id, url: hit.html_url ?? hit.url ?? undefined };
+    return { id, url: hit.url ?? undefined };
   } catch (err) {
     Logger.warn(
       `[plan-persist] Epic resume lookup failed (${err.message}); creating a new container.`,
     );
     return null;
   }
+}
+
+/**
+ * Index a cohort's already-known database ids by issue number.
+ *
+ * A resumed run's adopted Stories carry no `internalId` — they were found by
+ * listing, not created — so they are simply absent from the map and fall
+ * through to the lookup. Absence means "not known here", never "has none".
+ *
+ * @param {Array<{ id?: number, internalId?: number }>|undefined} created
+ * @returns {Map<number, number>}
+ */
+function internalIdsFrom(created) {
+  const map = new Map();
+  for (const story of Array.isArray(created) ? created : []) {
+    if (Number.isInteger(story?.id) && typeof story?.internalId === 'number') {
+      map.set(story.id, story.internalId);
+    }
+  }
+  return map;
 }
 
 /**
@@ -156,10 +179,18 @@ async function findExistingEpic({ provider, fingerprint }) {
  * children exactly the way creation does — one mirroring rule, not two that
  * drift.
  *
- * @param {{ provider: object, epicNumber: number, childIds: number[] }} opts
+ * `created` is optional and carries the cohort's `createIssue` responses, so
+ * the linker can skip the id lookup for every child this run made itself.
+ *
+ * @param {{ provider: object, epicNumber: number, childIds: number[], created?: Array<{ id: number, internalId?: number }> }} opts
  * @returns {Promise<{ added: number, skipped: number, failed: number }|null>}
  */
-export async function mirrorSubIssueEdges({ provider, epicNumber, childIds }) {
+export async function mirrorSubIssueEdges({
+  provider,
+  epicNumber,
+  childIds,
+  created = [],
+}) {
   if (
     typeof provider?.getDependencyWriteContext !== 'function' ||
     typeof provider?.getTicket !== 'function'
@@ -176,6 +207,7 @@ export async function mirrorSubIssueEdges({ provider, epicNumber, childIds }) {
     const summary = await linkStoriesToEpic({
       epicNumber,
       childIssueNumbers: childIds,
+      knownInternalIds: internalIdsFrom(created),
       getTicket: (issueNumber) => provider.getTicket(issueNumber),
       owner,
       repo,
@@ -285,6 +317,7 @@ export async function createContainerEpic({
       provider,
       epicNumber: existing.id,
       childIds,
+      created,
     });
     return {
       id: existing.id,
@@ -303,11 +336,14 @@ export async function createContainerEpic({
     labels: [TYPE_LABELS.EPIC],
   });
 
-  const epicNumber = result.number ?? result.id;
+  // `createIssue` declares both `id` and `number` and sets them to the same
+  // issue number; reading one of them is the whole contract.
+  const epicNumber = result.id;
   const edges = await mirrorSubIssueEdges({
     provider,
     epicNumber,
     childIds,
+    created,
   });
 
   Logger.info(

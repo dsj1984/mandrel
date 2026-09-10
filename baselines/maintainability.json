@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.069,
+      "p50": 98.97,
       "p95": 122.902
     }
   },
@@ -105,6 +105,10 @@
     {
       "path": ".agents/scripts/check-schema-references.js",
       "mi": 99.343
+    },
+    {
+      "path": ".agents/scripts/check-test-portability.js",
+      "mi": 90.279
     },
     {
       "path": ".agents/scripts/check-test-temp-hygiene.js",
@@ -448,7 +452,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/merge-envelopes.js",
-      "mi": 87.376
+      "mi": 93.09
     },
     {
       "path": ".agents/scripts/lib/baselines/orphan-pruner.js",
@@ -504,7 +508,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baseline-merge-driver.js",
-      "mi": 97.415
+      "mi": 96.53
     },
     {
       "path": ".agents/scripts/lib/bootstrap/branch-protection.js",
@@ -1108,7 +1112,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/compare.js",
-      "mi": 100.859
+      "mi": 100.113
     },
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/evaluate.js",
@@ -1200,7 +1204,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-rollup.js",
-      "mi": 93.58
+      "mi": 90.987
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumption-enum.js",
@@ -1336,7 +1340,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-adoption.js",
-      "mi": 95.527
+      "mi": 94.418
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/epic-ops.js",
@@ -1360,7 +1364,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "mi": 95.159
+      "mi": 94.539
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
@@ -1372,7 +1376,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
-      "mi": 99.598
+      "mi": 98.381
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
@@ -1496,11 +1500,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/close-note.js",
-      "mi": 130.554
+      "mi": 125.085
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/failed-terminal.js",
-      "mi": 91.946
+      "mi": 94.758
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/gate-log.js",
@@ -1668,7 +1672,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "mi": 96.434
+      "mi": 97.288
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
@@ -2036,7 +2040,7 @@
     },
     {
       "path": ".agents/scripts/merge-baseline.js",
-      "mi": 98.894
+      "mi": 97.758
     },
     {
       "path": ".agents/scripts/nav-registry-diff.js",
@@ -2144,7 +2148,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/sub-issue-add.js",
-      "mi": 96.185
+      "mi": 94.604
     },
     {
       "path": ".agents/scripts/providers/github/sub-issues.js",
@@ -2180,7 +2184,7 @@
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
-      "mi": 106.791
+      "mi": 105.652
     },
     {
       "path": ".agents/scripts/resync-status-column.js",
@@ -2308,7 +2312,7 @@
     },
     {
       "path": "lib/cli/sync.js",
-      "mi": 89.621
+      "mi": 88.898
     },
     {
       "path": "lib/cli/uninstall.js",

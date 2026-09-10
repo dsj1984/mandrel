@@ -50,6 +50,7 @@ import {
   concurrentMap,
   FANOUT_CONCURRENCY,
 } from '../../util/concurrent-map.js';
+import { rollUpEpicForStory } from '../epic-rollup.js';
 import { upsertStructuredComment } from '../ticketing.js';
 
 /** Structured-comment type marking a source issue as superseded. */
@@ -444,6 +445,9 @@ async function closeOneSupersededTicket({
  *   slug is the only identifier that means anything before the writes land.
  * @property {Array<{ ticket: number, reason: string }>} skipped
  * @property {Array<{ ticket: number, reason: string }>} failed
+ * @property {{ closed: number[], pending: number[] }} epicRollup Container
+ *   Epics this phase's closes resolved. Empty on a dry run and on a phase that
+ *   closed nothing.
  */
 
 function emptyReport(overrides) {
@@ -455,8 +459,51 @@ function emptyReport(overrides) {
     planned: [],
     skipped: [],
     failed: [],
+    epicRollup: { closed: [], pending: [] },
     ...overrides,
   };
+}
+
+/**
+ * Re-derive the container Epic above every ticket this phase just closed.
+ *
+ * Closing a source ticket is a child state change like any other, and it was
+ * the one edge with no rollup behind it. Superseding a cohort therefore left
+ * its container open indefinitely: every child was closed, so no delivery
+ * would ever run and no land tail would ever fire the derivation. The Epic sat
+ * open above finished work until someone noticed.
+ *
+ * Runs **after** the closes land, never alongside them: the rollup reads each
+ * child's state back, so racing it against the writes it is meant to observe
+ * would derive from a tree half of which has not been written yet.
+ *
+ * Sequential, sharing one `skipEpicIds` set, because siblings share a
+ * container — without it the second ticket re-derives, and re-closes, the Epic
+ * the first already closed. `rollUpEpicForStory` never throws, so no guard is
+ * needed here beyond the phase-level one the caller already holds.
+ *
+ * @param {{ closedIds: number[], provider: object, config?: object }} opts
+ * @returns {Promise<{ closed: number[], pending: number[] }>}
+ */
+async function rollUpContainersFor({ closedIds, provider, config }) {
+  const seen = new Set();
+  const closed = new Set();
+  const pending = new Set();
+  for (const storyId of closedIds) {
+    const outcome = await rollUpEpicForStory({
+      storyId,
+      provider,
+      config,
+      skipEpicIds: seen,
+    });
+    for (const epic of outcome.epics) seen.add(epic.epicId);
+    for (const epicId of outcome.closed) closed.add(epicId);
+    for (const epicId of outcome.pending) pending.add(epicId);
+  }
+  // A container reported pending by one ticket's rollup and closed by a later
+  // one is closed: the last answer saw the whole cohort.
+  for (const epicId of closed) pending.delete(epicId);
+  return { closed: [...closed], pending: [...pending] };
 }
 
 /**
@@ -471,6 +518,7 @@ function emptyReport(overrides) {
  * @param {Array<{ slug: string, supersedes: Array<{ id: number, note: string|null }> }>} args.stories
  * @param {Array<{ slug: string, id: number, title: string }>} args.created
  * @param {number[]} args.sourceTicketIds
+ * @param {object} [args.config] Resolved `.agentrc.json`, for the Epic rollup.
  * @param {boolean} [args.dryRun=false]
  * @param {boolean} [args.closeSuperseded=true]
  * @returns {Promise<SupersedeReport>}
@@ -480,6 +528,7 @@ export async function closeSupersededTickets({
   stories,
   created,
   sourceTicketIds,
+  config,
   dryRun = false,
   closeSuperseded = true,
 }) {
@@ -531,6 +580,14 @@ export async function closeSupersededTickets({
   outcomes.forEach((result, index) => {
     recordSupersedeOutcome(report, units[index], result);
   });
+
+  if (report.closed.length > 0) {
+    report.epicRollup = await rollUpContainersFor({
+      closedIds: report.closed,
+      provider,
+      config,
+    });
+  }
 
   logSupersedeReport(report);
   return report;
@@ -611,6 +668,12 @@ function logSupersedeReport(report) {
     Logger.warn(
       `[plan-persist] could NOT close source ticket #${ticket}: ${reason} — ` +
         'close it by hand.',
+    );
+  }
+  if (report.epicRollup.closed.length > 0) {
+    Logger.info(
+      `[plan-persist] container Epic(s) closed by the supersede rollup: ` +
+        `${report.epicRollup.closed.map((id) => `#${id}`).join(', ')}.`,
     );
   }
 }

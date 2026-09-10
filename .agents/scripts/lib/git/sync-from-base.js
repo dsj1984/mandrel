@@ -52,6 +52,11 @@
  *   - `{ synced: false, kind: 'merge-failed', stderr }` — merge exited
  *     non-zero for a reason other than a parseable conflict (rare; treat
  *     as a hard blocker on the caller's side).
+ *   - `{ synced: false, kind: 'merge-driver-missing', stderr }` — the
+ *     worktree's `.gitattributes` routes `baselines/*.json` through the
+ *     `mandrel-baseline` merge driver and this clone has no
+ *     `merge.mandrel-baseline.driver` config, so git would text-merge
+ *     generated baselines. Nothing was fetched or merged (Story #5277).
  *
  * The helper does not mutate any ticket state, post comments, or write
  * to anything other than the worktree's git refs / index. Callers own
@@ -59,9 +64,49 @@
  */
 
 import {
+  BASELINE_MERGE_DRIVER_CONFIG_KEY,
+  BASELINE_MERGE_DRIVER_REMEDY,
+  probeBaselineMergeDriver,
+} from '../bootstrap/baseline-merge-driver.js';
+import {
   gitFetchWithRetry as defaultGitFetchWithRetry,
   gitSpawn as defaultGitSpawn,
 } from '../git-utils.js';
+
+/**
+ * Refuse the sync when the baseline merge driver is declared but unregistered
+ * (Story #5277). `probeBaselineMergeDriver` owns the two-part question and why
+ * each half matters; this is where the answer becomes a refusal.
+ *
+ * Base-sync is the one place the failure is catchable before it happens: it is
+ * the merge that runs unattended, immediately before the push, on exactly the
+ * files a concurrent sibling Story most often also refreshed. Refusing costs
+ * one operator command; proceeding costs a silently wrong baseline on `main`
+ * that nothing downstream re-derives.
+ *
+ * @param {string} cwd
+ * @param {typeof defaultGitSpawn} gitSpawn
+ * @returns {{ synced: false, kind: 'merge-driver-missing', stderr: string, remedy: string }|null}
+ */
+function refuseWithoutMergeDriver(cwd, gitSpawn) {
+  const { declared, command } = probeBaselineMergeDriver({
+    projectRoot: cwd,
+    runGit: (args) => gitSpawn(cwd, ...args),
+  });
+  if (!declared || command.length > 0) return null;
+  return {
+    synced: false,
+    kind: 'merge-driver-missing',
+    stderr:
+      `.gitattributes routes baselines/*.json through the mandrel-baseline merge ` +
+      `driver, but ${BASELINE_MERGE_DRIVER_CONFIG_KEY} is unset in this clone. ` +
+      'Merging origin now would text-merge generated baselines, which conflicts on ' +
+      'the generatedAt stamp and can splice rows neither branch scored. Register the ' +
+      `driver, then re-run:\n  ${BASELINE_MERGE_DRIVER_REMEDY}\n` +
+      '  (or: npm run baselines:merge-driver)',
+    remedy: BASELINE_MERGE_DRIVER_REMEDY,
+  };
+}
 
 /**
  * Resolve the current HEAD SHA, or `null` when git cannot answer.
@@ -146,6 +191,12 @@ export async function syncBranchFromBase({
     throw new TypeError(
       'syncBranchFromBase: baseBranch must be a non-empty string',
     );
+  }
+
+  const driverGap = refuseWithoutMergeDriver(cwd, gitSpawn);
+  if (driverGap) {
+    log('SYNC', driverGap.stderr);
+    return driverGap;
   }
 
   log('SYNC', `Fetching origin/${baseBranch}...`);

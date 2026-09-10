@@ -10,10 +10,15 @@
  *
  * This module is the one place that answers "what state is this Epic in?"
  * — by asking its children — and the one place that writes the answer.
- * {@link rollUpEpicForStory} is invoked from the two per-Story lifecycle
- * edges (the `agent::executing` flip in `single-story-init.js` and the
- * post-land tail), which is what makes the rollup hold at N=1, and the run
- * epilogue delegates its Epic close here so one closure rule exists.
+ * {@link rollUpEpicForStory} is invoked from **every edge that changes a
+ * child's state**: the `agent::executing` flip in `single-story-init.js`, the
+ * post-land tail, and the supersede close in `plan-persist`. Holding at N=1
+ * was never the hard part — the gap was that a container only re-derived on
+ * the edges someone had remembered to wire, so a cohort superseded by a
+ * re-plan left its Epic open with no child that would ever move again.
+ * Because every trigger is a child state change, the fallback scan reads
+ * `state: 'all'`: "did this reopen work under a container I already closed?"
+ * is always a live question.
  *
  * Three invariants shape the writes:
  *
@@ -41,18 +46,21 @@
  * @see Story #5205
  * @see Story #5210 — fail closed on a degraded child read.
  * @see Story #5255 — a closed child contributes no `agent::*` state.
+ * @see Story #5280 — every child edge derives; the parent resolves in one
+ *   call; the reads carry one declared shape.
  */
 
 import { Logger } from '../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { concurrentMap } from '../util/concurrent-map.js';
 import { ColumnSync, LABEL_TO_COLUMN } from './column-sync.js';
 import {
   isEpicTicket,
+  nativeChildReader,
   readEpicChildIdsFrom,
-  resolveEpicNodeId,
 } from './epic-container.js';
 import { resolveOperatorFromCandidates } from './lease-guard-shared.js';
-import { deriveParentState } from './ticketing/bulk.js';
+import { anyChildLanded, deriveParentState } from './ticketing/bulk.js';
 
 /**
  * Derived states that mean "children are moving" — the window in which the
@@ -73,31 +81,20 @@ const IN_FLIGHT_STATES = new Set([
 ]);
 
 /**
- * Read an Epic's native sub-issue children as issue numbers.
+ * How many child reads a rollup keeps in flight.
  *
- * A local adapter rather than an import from `resolve-stories.js`: that
- * module is a CLI entrypoint, and reaching up into one from the lib layer to
- * borrow four lines would invert the dependency direction for no gain. What
- * matters is that the *reader* handed to `readEpicChildIdsFrom` behaves the
- * same on both paths, which is what keeps an Epic from being expandable but
- * unclosable. The shared `resolveEpicNodeId` is what makes "the same" true of
- * the id itself: the Epics reaching this reader come from
- * `listIssuesByLabel`, whose raw REST payload carries `node_id`, while the
- * expansion path's come from `getTicket`, whose mapped ticket carries
- * `nodeId`.
+ * Matches the cap `resolve-stories.js` uses for the same shape of work — a
+ * fan-out of independent single-issue GETs against one repo — because the
+ * constraint being respected is GitHub's, not this module's: enough overlap to
+ * collapse a 58-child Epic from 58 sequential round-trips, well under the
+ * burst threshold that earns a secondary rate limit. The children of one Epic
+ * are order-independent, so the serial loop this replaces was paying
+ * `sum(round-trips)` for nothing.
  *
- * @param {object} provider
- * @returns {(epic: object) => Promise<number[]>}
+ * Deliberately not exported. Nothing outside this module reads the number, and
+ * an export only tests import fails the production dead-export gate.
  */
-function nativeChildReader(provider) {
-  return async (epic) => {
-    const nodeId = resolveEpicNodeId(epic);
-    if (nodeId === null) return [];
-    return (
-      provider?._getNativeSubIssues?.(nodeId, epic?.number ?? epic?.id) ?? []
-    );
-  };
-}
+const FETCH_CONCURRENCY = 5;
 
 /**
  * Resolve the handle the Epic is assigned to while its children run.
@@ -141,44 +138,97 @@ function isClosed(issue) {
 }
 
 /**
- * Read every child of one Epic, freshly.
+ * Fetch one child, or say why it does not count as one.
  *
- * Returns `null` when any child is unreadable. That is the conservative
- * answer, not a lazy one: `deriveParentState` reads "all children done" off
- * the list it is handed, so a silently dropped child could close a container
- * with work still open under it.
+ * Throws on a genuine read failure so the bounded fan-out around it rejects on
+ * the first — the conservative answer, not a lazy one: `deriveParentState`
+ * reads "all children done" off the list it is handed, so a silently dropped
+ * child could close a container with work still open under it.
+ *
+ * The one id it declines to fail on is a **body-only** one that resolves to
+ * nothing. The checklist is hand-editable prose, so a row can cite an issue
+ * that was deleted, transferred or mistyped, and no re-run will ever make it
+ * resolve — treating that as a failed read pins the container `pending`
+ * forever over a typo. A *native* id that will not resolve keeps failing the
+ * batch: the backend vouched for that edge, so its absence is a real read
+ * problem and next tick may well answer.
+ *
+ * @param {{ childId: number, droppable: boolean, provider: object }} opts
+ * @returns {Promise<{ childId: number, child: object|null }>}
+ */
+async function readOneChild({ childId, droppable, provider }) {
+  const child = await provider.getTicket(childId);
+  if (child) return { childId, child };
+  if (droppable) return { childId, child: null };
+  throw new Error(`child #${childId} was not found`);
+}
+
+/**
+ * Read every child of one Epic, freshly, bounded.
+ *
+ * Returns `null` when any child the Epic genuinely claims is unreadable, and
+ * otherwise the children that count plus the ones refused by name.
  *
  * Note the scope: this validates the **readability of the ids it was given**,
  * never the **completeness of the id list**. Completeness is
  * `nativeReadFailed`'s job in {@link rollUpOneEpic} — checking only this one
  * is what let three readable ids stand in for 58 (Story #5210).
  *
- * @param {{ epicId: number, childIds: number[], provider: object }} opts
- * @returns {Promise<object[]|null>}
+ * @param {{ epicId: number, childIds: number[], bodyOnlyIds?: number[], provider: object }} opts
+ * @returns {Promise<{ children: object[], refused: Array<{ childId: number, reason: string }> }|null>}
  */
-async function readChildren({ epicId, childIds, provider }) {
+async function readChildren({ epicId, childIds, bodyOnlyIds = [], provider }) {
+  const droppable = new Set(bodyOnlyIds);
+  let read;
+  try {
+    read = await concurrentMap(
+      childIds,
+      (childId) =>
+        readOneChild({
+          childId,
+          droppable: droppable.has(childId),
+          provider,
+        }),
+      { concurrency: FETCH_CONCURRENCY },
+    );
+  } catch (err) {
+    Logger.warn(
+      `[epic-rollup] Epic #${epicId}: could not read every child ` +
+        `(${err?.message ?? err}) — leaving the Epic untouched.`,
+    );
+    return null;
+  }
+
+  // Classified after the fan-out, in input order, so the warnings an operator
+  // reads and the `refused` list a caller reports do not depend on which
+  // round-trip happened to finish first.
   const children = [];
-  for (const childId of childIds) {
-    let child;
-    try {
-      child = await provider.getTicket(childId);
-    } catch (err) {
+  const refused = [];
+  for (const { childId, child } of read) {
+    if (child === null) {
       Logger.warn(
-        `[epic-rollup] Epic #${epicId}: could not read child #${childId} ` +
-          `(${err?.message ?? err}) — leaving the Epic untouched.`,
+        `[epic-rollup] Epic #${epicId}: checklist row cites #${childId}, which ` +
+          'resolves to no issue and is not a native sub-issue edge — dropping ' +
+          'it from the child set. Fix or remove the row.',
       );
-      return null;
+      continue;
     }
-    if (!child) {
+    if (isEpicTicket(child)) {
+      // A container under a container. It has no `agent::*` label by
+      // construction, so `deriveParentState` would read it as neither done nor
+      // in flight and stall the parent on a child that is itself derived.
+      // Nesting containers is out of scope entirely; say so and move on.
+      refused.push({ childId, reason: 'epic-typed-child' });
       Logger.warn(
-        `[epic-rollup] Epic #${epicId}: child #${childId} was not found — ` +
-          'leaving the Epic untouched.',
+        `[epic-rollup] Epic #${epicId}: child #${childId} is itself a container ` +
+          'Epic — refused (epic-typed-child). Nested containers derive no ' +
+          "state, so it neither blocks nor advances this Epic's.",
       );
-      return null;
+      continue;
     }
     children.push(child);
   }
-  return children;
+  return { children, refused };
 }
 
 /**
@@ -224,19 +274,28 @@ async function applyOwner({ epicId, epic, owner, provider }) {
 }
 
 /**
- * Close a container whose children have all landed.
+ * Close a container whose children are all finished.
  *
- * @param {{ epicId: number, provider: object }} opts
+ * `landed` picks the reason and the sentence, and the two must agree. A cohort
+ * re-planned out of existence closes every child as superseded — finished, so
+ * the container is finished too, but nothing merged. Reporting that as
+ * `completed` over "every child Story landed" is a false claim in the one
+ * place an operator goes to find out what a run actually delivered.
+ *
+ * @param {{ epicId: number, landed: boolean, provider: object }} opts
  * @returns {Promise<{ closed: boolean, detail: string|null }>}
  */
-async function applyClosure({ epicId, provider }) {
+async function applyClosure({ epicId, landed, provider }) {
   try {
     await provider.updateTicket(epicId, {
       state: 'closed',
-      state_reason: 'completed',
+      state_reason: landed ? 'completed' : 'not_planned',
     });
     Logger.info(
-      `[epic-rollup] Closed container Epic #${epicId} — every child Story landed.`,
+      landed
+        ? `[epic-rollup] Closed container Epic #${epicId} — every child Story landed.`
+        : `[epic-rollup] Closed container Epic #${epicId} as not_planned — every ` +
+            'child is closed and none landed.',
     );
     return { closed: true, detail: null };
   } catch (err) {
@@ -254,33 +313,44 @@ async function applyClosure({ epicId, provider }) {
  * — a reopened child pulls Status back but MUST NOT reopen the issue), so it
  * requires a child list we know to be complete.
  *
- * @param {{ epic: object, childIds: number[], nativeReadFailed?: boolean, provider: object, columnSync: object, owner: string|null }} opts
+ * @param {{ epic: object, childIds: number[], bodyOnlyIds?: number[], nativeReadFailed?: boolean, provider: object, columnSync: object, owner: string|null }} opts
  * @returns {Promise<object>} Per-Epic outcome record.
  */
 async function rollUpOneEpic({
   epic,
   childIds,
+  bodyOnlyIds = [],
   nativeReadFailed = false,
   provider,
   columnSync,
   owner,
 }) {
-  const epicId = Number(epic?.number ?? epic?.id);
+  // `epic.id` and nothing else: every read that reaches here now returns the
+  // declared ticket shape, in which `id` IS the issue number.
+  const epicId = Number(epic?.id);
   const outcome = {
     epicId,
     column: null,
     assigned: false,
     closed: false,
     pending: false,
+    refused: [],
     detail: null,
   };
 
-  const children = await readChildren({ epicId, childIds, provider });
-  if (children === null) {
+  const read = await readChildren({
+    epicId,
+    childIds,
+    bodyOnlyIds,
+    provider,
+  });
+  if (read === null) {
     outcome.pending = true;
     outcome.detail = 'child-read-failed';
     return outcome;
   }
+  const { children, refused } = read;
+  outcome.refused = refused;
 
   const derived = deriveParentState(children);
   const applied = await applyColumn({
@@ -326,7 +396,11 @@ async function rollUpOneEpic({
     return outcome;
   }
 
-  const closure = await applyClosure({ epicId, provider });
+  const closure = await applyClosure({
+    epicId,
+    landed: anyChildLanded(children),
+    provider,
+  });
   outcome.closed = closure.closed;
   outcome.pending = !closure.closed;
   if (closure.detail) outcome.detail = closure.detail;
@@ -334,47 +408,116 @@ async function rollUpOneEpic({
 }
 
 /**
- * Find the open container Epics that list a given Story, with their children.
+ * Resolve this Story's container in **one** request, via the native edge.
  *
- * The lookup runs child→parent by scanning open Epics because linkage is
- * parent→child only — a Story body carries no pointer back, and adding one
- * would reverse ADR `20260726-v2-story-collapse`. It is cheap: open
- * containers are few, and only one listing this Story is ever read further.
+ * `getParentIssue` reads the sub-issue link backwards, which is the question
+ * this module actually asks. The scan below is what it replaces: listing every
+ * candidate Epic and reading each one's children until one of them mentions
+ * the Story — O(containers) requests, all but one of them discarded.
  *
- * @param {{ storyId: number, provider: object, skipEpicIds: Set<number> }} opts
- * @returns {Promise<Array<{ epic: object, childIds: number[], nativeReadFailed: boolean }>>}
+ * Returns `null` — never throws — when the provider has no such port, when the
+ * Story has no parent, or when the parent is not a container Epic. Each of
+ * those is "no answer *here*", and the caller's checklist scan is the other
+ * half: linkage can legitimately exist as a body row with no native edge
+ * behind it.
+ *
+ * @param {{ storyId: number, provider: object }} opts
+ * @returns {Promise<object|null>} Mapped parent Epic, or null.
  */
-async function findEpicsForStory({ storyId, provider, skipEpicIds }) {
+async function parentEpicFor({ storyId, provider }) {
+  if (typeof provider?.getParentIssue !== 'function') return null;
+  let parent;
+  try {
+    parent = await provider.getParentIssue(storyId);
+  } catch (err) {
+    Logger.warn(
+      `[epic-rollup] Parent lookup for Story #${storyId} degraded ` +
+        `(${err?.message ?? err}); falling back to the label scan.`,
+    );
+    return null;
+  }
+  if (!parent || !isEpicTicket(parent)) return null;
+  return parent;
+}
+
+/**
+ * Every container Epic on the board, as the fallback for a Story whose parent
+ * edge the native read could not answer.
+ *
+ * **`state: 'all'`, deliberately.** The scan used to be `state: 'open'`, which
+ * made two of this module's documented behaviours unreachable: a closed
+ * container was never listed, so a *reopened* child could never pull its
+ * Status back to `In Progress`, and the `isClosed(epic)` branches downstream
+ * were dead code asserting a rule nothing could exercise. Every edge that
+ * invokes this rollup is a child's own state change — init, post-land, the
+ * supersede close, the epilogue — so "did this change reopen work under a
+ * container I already closed?" is always a live question, and an open-only
+ * listing answers it wrongly rather than partially.
+ *
+ * Closing stays one-way regardless: {@link rollUpOneEpic} corrects a closed
+ * Epic's Status and never writes its issue state.
+ *
+ * @param {{ provider: object }} opts
+ * @returns {Promise<object[]>}
+ */
+async function scanContainerEpics({ provider }) {
+  if (typeof provider?.listTicketsByLabel !== 'function') return [];
   let epics;
   try {
-    epics = await provider.listIssuesByLabel({
-      state: 'open',
+    epics = await provider.listTicketsByLabel({
+      state: 'all',
       labels: TYPE_LABELS.EPIC,
     });
   } catch (err) {
     Logger.warn(
-      `[epic-rollup] Could not list open Epics (${err?.message ?? err}); ` +
+      `[epic-rollup] Could not list Epics (${err?.message ?? err}); ` +
         'skipping the rollup.',
     );
     return [];
   }
+  return (Array.isArray(epics) ? epics : []).filter(isEpicTicket);
+}
+
+/**
+ * Find the container Epics that hold a given Story, with their children.
+ *
+ * The lookup runs child→parent because linkage is parent→child only — a Story
+ * body carries no pointer back, and adding one would reverse ADR
+ * `20260726-v2-story-collapse`. It resolves the native edge first and scans
+ * only when that answers nothing.
+ *
+ * The two paths differ in one thing: an Epic the *native* read named is this
+ * Story's parent by construction, so its child list is read to derive state,
+ * not to confirm the link. A *scanned* Epic still has to prove it lists the
+ * Story.
+ *
+ * @param {{ storyId: number, provider: object, skipEpicIds: Set<number> }} opts
+ * @returns {Promise<Array<{ epic: object, childIds: number[], nativeReadFailed: boolean, bodyOnlyIds: number[] }>>}
+ */
+async function findEpicsForStory({ storyId, provider, skipEpicIds }) {
+  const parent = await parentEpicFor({ storyId, provider });
+  const epics = parent ? [parent] : await scanContainerEpics({ provider });
+  const authoritative = parent !== null;
 
   const matches = [];
-  for (const epic of Array.isArray(epics) ? epics : []) {
-    if (!isEpicTicket(epic)) continue;
-    const epicId = Number(epic?.number ?? epic?.id);
+  for (const epic of epics) {
+    const epicId = Number(epic?.id);
     if (!Number.isInteger(epicId)) continue;
     if (skipEpicIds.has(epicId)) continue;
     // Body checklist UNION native sub-issue edges — the same reader the
-    // delivery expansion uses. Reading the body alone here is what made an
-    // Epic whose children were linked in the GitHub UI expandable but
-    // permanently unclosable.
-    const { ids: childIds, nativeReadFailed } = await readEpicChildIdsFrom({
+    // delivery expansion uses, now literally the same function. Reading the
+    // body alone here is what made an Epic whose children were linked in the
+    // GitHub UI expandable but permanently unclosable.
+    const {
+      ids: childIds,
+      nativeReadFailed,
+      bodyOnlyIds,
+    } = await readEpicChildIdsFrom({
       epic,
       readNativeChildIds: nativeChildReader(provider),
       onWarn: (message) => Logger.warn(message),
     });
-    if (!childIds.includes(storyId)) {
+    if (!authoritative && !childIds.includes(storyId)) {
       // A degraded read can truncate this Story out of its own container's
       // child list, which drops the Epic from the run entirely rather than
       // rolling it up wrongly. Non-destructive, but silent — say so, since it
@@ -387,7 +530,7 @@ async function findEpicsForStory({ storyId, provider, skipEpicIds }) {
       }
       continue;
     }
-    matches.push({ epic, childIds, nativeReadFailed });
+    matches.push({ epic, childIds, nativeReadFailed, bodyOnlyIds });
   }
   return matches;
 }
@@ -424,10 +567,15 @@ export async function rollUpEpicForStory({
   if (!Number.isInteger(id) || id <= 0) {
     return { ...empty, reason: 'invalid-story-id' };
   }
+  // One of the two lookup ports is enough: `getParentIssue` answers directly
+  // and `listTicketsByLabel` answers by scanning, and `findEpicsForStory`
+  // degrades from either to the other. Both absent means no way to reach a
+  // container at all.
   if (
-    typeof provider?.listIssuesByLabel !== 'function' ||
     typeof provider?.getTicket !== 'function' ||
-    typeof provider?.updateTicket !== 'function'
+    typeof provider?.updateTicket !== 'function' ||
+    (typeof provider?.getParentIssue !== 'function' &&
+      typeof provider?.listTicketsByLabel !== 'function')
   ) {
     return { ...empty, reason: 'provider-unsupported' };
   }
@@ -451,11 +599,12 @@ export async function rollUpEpicForStory({
       owner === undefined ? resolveEpicOwner(config) : owner;
 
     const epics = [];
-    for (const { epic, childIds, nativeReadFailed } of matches) {
+    for (const { epic, childIds, nativeReadFailed, bodyOnlyIds } of matches) {
       epics.push(
         await rollUpOneEpic({
           epic,
           childIds,
+          bodyOnlyIds,
           nativeReadFailed,
           provider,
           columnSync: sync,

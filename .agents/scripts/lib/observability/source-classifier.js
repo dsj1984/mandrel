@@ -101,6 +101,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'check-lifecycle-lint.js',
   'check-pinned-override-notes.js',
   'check-schema-references.js',
+  'check-test-portability.js',
   'check-test-temp-hygiene.js',
   'check-windows-git-perf.js',
   'check-workflow-citations.js',

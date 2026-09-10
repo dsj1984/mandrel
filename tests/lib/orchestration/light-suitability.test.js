@@ -2443,3 +2443,50 @@ describe('the backstop verdict stays pure (Story #5238)', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story #5284 — a refusal class must stay nameable as a GitHub label
+// ---------------------------------------------------------------------------
+
+/**
+ * GitHub's hard cap on a label NAME. Declared here rather than imported: the
+ * graduator's `FRICTION_LABEL_PREFIX` is module-private, and exporting a
+ * constant only a test consumes is what `check-dead-exports.js --production`
+ * reds on. `tests/lib/label-constants.test.js` declares the description-length
+ * cap the same way.
+ */
+const FRICTION_LABEL_MAX_LENGTH = 50;
+
+describe('every refusal class survives the label mint', () => {
+  test('no derived friction:: label exceeds the GitHub name cap', () => {
+    // A refusal that cannot be labelled is a refusal that never gets filed:
+    // `ensureIssueLabels` mints `friction::<category>` from live telemetry at
+    // file time, so an over-long name fails the `gh issue create` and the
+    // whole feedback loop records nothing for that class (Story #4828). The
+    // longest name today is exactly at the cap, which is why this is a test
+    // and not a comment.
+    const overLong = [];
+    for (const refusalClass of Object.values(LIGHT_REFUSAL_CLASSES)) {
+      const label = `friction::${lightScopeRejectedCategory(refusalClass)}`;
+      if (label.length > FRICTION_LABEL_MAX_LENGTH) {
+        overLong.push(`${label} (${label.length})`);
+      }
+    }
+
+    assert.deepEqual(
+      overLong,
+      [],
+      `a friction:: label over ${FRICTION_LABEL_MAX_LENGTH} characters cannot be minted, so the refusal is never filed — shorten the refusal class`,
+    );
+  });
+
+  test('the unclassified refusal is labellable too', () => {
+    const label = `friction::${lightScopeRejectedCategory(null)}`;
+
+    assert.equal(
+      label,
+      `friction::${RUNTIME_FRICTION_CATEGORIES.LIGHT_SCOPE_REJECTED}`,
+    );
+    assert.ok(label.length <= FRICTION_LABEL_MAX_LENGTH);
+  });
+});

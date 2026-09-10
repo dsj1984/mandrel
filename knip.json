@@ -28,6 +28,7 @@
     ".agents/scripts/check-lifecycle-lint.js!",
     ".agents/scripts/check-pinned-override-notes.js!",
     ".agents/scripts/check-schema-references.js!",
+    ".agents/scripts/check-test-portability.js!",
     ".agents/scripts/check-test-temp-hygiene.js!",
     ".agents/scripts/check-windows-git-perf.js!",
     ".agents/scripts/check-workflow-citations.js!",

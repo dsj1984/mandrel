@@ -470,6 +470,36 @@ export function deriveParentState(siblings) {
 }
 
 /**
+ * Did any of these children actually **land**?
+ *
+ * `deriveParentState` answers `agent::done` for a child set in which every
+ * child is done *or closed*, and it is right to: a closed child is finished
+ * work as far as the parent's lifecycle goes. But "finished" and "landed" are
+ * different claims, and the close path spends the difference. A cohort
+ * re-planned out of existence closes every child as superseded, carrying no
+ * `agent::done` and having merged nothing — and the container above it then
+ * closed as `completed`, over a log line claiming every child Story landed.
+ * Both the state reason and the sentence were false.
+ *
+ * So the two questions are asked separately: `deriveParentState` decides
+ * *whether* the parent is finished, this decides *how* it finished. A single
+ * landed child is enough — a container that delivered some of its work and
+ * superseded the rest completed, partially, and `not_planned` is reserved for
+ * the case where nothing was delivered at all.
+ *
+ * @param {Array<{ labels?: string[] }>} children
+ * @returns {boolean} True when at least one child carries `agent::done`.
+ */
+export function anyChildLanded(children) {
+  if (!Array.isArray(children)) return false;
+  return children.some((child) =>
+    (Array.isArray(child?.labels) ? child.labels : []).includes(
+      STATE_LABELS.DONE,
+    ),
+  );
+}
+
+/**
  * Parent-state cascade for non-terminal transitions. Story #2676.
  *
  * When a child ticket transitions to any `agent::*` state, this function

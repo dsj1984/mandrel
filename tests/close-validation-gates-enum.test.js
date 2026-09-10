@@ -178,27 +178,26 @@ test('AC-2 anchor: the close-validation phase sources its gates from buildDefaul
   );
 });
 
-test('AC-3 anchor: the failed terminal reports every split baselines entry buildDefaultGates can emit', () => {
-  // `failed-terminal.js` deliberately keeps a LOCAL copy of the split gate
+test('AC-3 anchor: the failed terminal reports every baselines entry buildDefaultGates can emit', () => {
+  // `failed-terminal.js` deliberately keeps a LOCAL copy of the baselines gate
   // names (several close suites replace `close-validation/gates.js` wholesale
   // via `t.mock.module`, and a named import there would fail to link against
-  // such a mock). This is the pin that stops the copy drifting: every split
-  // name the gate builder can emit must be a key the failed terminal reports,
-  // or a failing close would name a gate the envelope never mentions.
-  const reported = new Set(
-    Object.keys(gatesForFailedPhase('close-validation')),
-  );
-  for (const name of [
-    BASELINES_GATE_NAMES.independent,
-    BASELINES_GATE_NAMES.coverage,
-  ]) {
-    assert.ok(
-      reported.has(name),
-      `gatesForFailedPhase must report "${name}"; it reported ${[...reported].join(', ')}`,
+  // such a mock). This is the pin that stops the copy drifting: every name the
+  // gate builder can emit must be a key the failed terminal reports when the
+  // run observed it, or a failing close would swallow a gate outcome it held.
+  //
+  // Story #5279 — the terminal REPORTS observed outcomes rather than
+  // reconstructing them, so the pin feeds each name in as observed. Handing it
+  // nothing must report nothing: that is the phantom-key regression, asserted
+  // in tests/single-story-close-failed-gates.test.js.
+  for (const name of Object.values(BASELINES_GATE_NAMES)) {
+    const reported = gatesForFailedPhase('close-validation', {
+      observedGates: { [name]: 'failed' },
+    });
+    assert.equal(
+      reported[name],
+      'failed',
+      `gatesForFailedPhase must report an observed "${name}"; it reported ${JSON.stringify(reported)}`,
     );
   }
-  assert.ok(
-    !reported.has(BASELINES_GATE_NAMES.single),
-    'the unsplit fallback rolls up under `validation`; it is not a separate envelope key',
-  );
 });

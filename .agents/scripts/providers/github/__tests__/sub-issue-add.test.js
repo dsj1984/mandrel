@@ -173,3 +173,83 @@ describe('linkStoriesToEpic', () => {
     assert.deepEqual(out, { added: 0, skipped: 0, failed: 0 });
   });
 });
+
+describe('linkStoriesToEpic — ids the caller already holds (Story #5280)', () => {
+  it('issues no getTicket for a child whose database id createIssue returned', async () => {
+    // `plan-persist` creates the cohort and is handed `internalId` in each
+    // response, then threw it away — so linking the Epic re-read every Story
+    // the same process had created seconds earlier, one round-trip per Story,
+    // to recover a field it already had.
+    const gh = ghDouble();
+    const looked = [];
+    await linkStoriesToEpic({
+      epicNumber: 5,
+      childIssueNumbers: [10, 11],
+      knownInternalIds: new Map([
+        [10, 90010],
+        [11, 90011],
+      ]),
+      getTicket: async (n) => {
+        looked.push(n);
+        return { internalId: n + 90000 };
+      },
+      owner: 'o',
+      repo: 'r',
+      gh,
+      paginate: async () => [],
+    });
+
+    assert.deepEqual(looked, [], 'no child was re-read');
+    assert.deepEqual(
+      gh.posts.map((p) => p.body.sub_issue_id).sort((a, b) => a - b),
+      [90010, 90011],
+      'the edges still carry the database ids',
+    );
+  });
+
+  it('still looks up a child the caller has no id for', async () => {
+    // A resumed run's adopted Stories were found by listing, not created, so
+    // they carry no `internalId`. Absence means "not known here", never
+    // "has none" — they must fall through to the lookup.
+    const gh = ghDouble();
+    const looked = [];
+    await linkStoriesToEpic({
+      epicNumber: 5,
+      childIssueNumbers: [10, 11],
+      knownInternalIds: new Map([[10, 90010]]),
+      getTicket: async (n) => {
+        looked.push(n);
+        return { internalId: n + 90000 };
+      },
+      owner: 'o',
+      repo: 'r',
+      gh,
+      paginate: async () => [],
+    });
+
+    assert.deepEqual(looked, [11], 'only the unknown child was read');
+    assert.deepEqual(
+      gh.posts.map((p) => p.body.sub_issue_id).sort((a, b) => a - b),
+      [90010, 90011],
+    );
+  });
+
+  it('reads every child when no map is supplied at all', async () => {
+    const gh = ghDouble();
+    const looked = [];
+    await linkStoriesToEpic({
+      epicNumber: 5,
+      childIssueNumbers: [10, 11],
+      getTicket: async (n) => {
+        looked.push(n);
+        return { internalId: n + 90000 };
+      },
+      owner: 'o',
+      repo: 'r',
+      gh,
+      paginate: async () => [],
+    });
+
+    assert.deepEqual(looked, [10, 11], 'the pre-existing behaviour is intact');
+  });
+});

@@ -32,6 +32,7 @@
     "baseline:agents-loc": "node baselines/agents-loc-baseline.mjs",
     "baselines:scope": "node .agents/scripts/check-baseline-scope.js",
     "baselines:prune": "node .agents/scripts/prune-baseline-orphans.js",
+    "baselines:merge-driver": "node .agents/scripts/merge-baseline.js --install",
     "lint:md": "markdownlint-cli2 \".agents/**/*.md\" \"*.md\" \"!node_modules/**\" \"!.worktrees/**\"",
     "lint": "node .agents/scripts/run-lint.js && node .agents/scripts/check-generated-validator.js --check && node .agents/scripts/check-pinned-override-notes.js && npm run docs:check",
     "docs:gen": "node .agents/scripts/generate-config-docs.js && node .agents/scripts/generate-workflows-doc.js && node .agents/scripts/generate-lens-checklists.js",
@@ -63,7 +64,7 @@
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node bin/mandrel.js sync-commands",
     "sync:agents": "node .agents/scripts/sync-claude-agents.js",
-    "prepare": "husky && npm run sync:commands && npm run sync:agents",
+    "prepare": "husky && npm run sync:commands && npm run sync:agents && npm run baselines:merge-driver",
     "postinstall": "node bin/postinstall.js mandrel sync"
   },
   "repository": {

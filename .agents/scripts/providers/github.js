@@ -116,6 +116,8 @@ const DELEGATIONS = [
   ['graphql', 'issues.ghGraphql'],
   ['searchIssues', 'issues.searchIssues'],
   ['listIssuesByLabel', 'issues.listIssuesByLabel'],
+  ['listTicketsByLabel', 'issues.listTicketsByLabel'],
+  ['getParentIssue', 'issues.getParentIssue'],
   ['getEpic', 'issues.getEpic'],
   ['branchExists', 'issues.branchExists'],
   ['getSubTickets', 'issues.getSubTickets'],
@@ -126,6 +128,10 @@ const DELEGATIONS = [
   ['createIssue', 'tickets.createIssue'],
   ['updateTicket', 'tickets.updateTicket'],
   ['_applyLabelMutations', 'tickets._applyLabelMutations'],
+  ['getNativeSubIssues', 'subIssues.getNativeSubIssues'],
+  // The private alias predates the declared `getNativeSubIssues` port above
+  // and still has call sites; both forward to the same gateway method, so the
+  // two can never answer differently while the older name is retired.
   ['_getNativeSubIssues', 'subIssues.getNativeSubIssues'],
   ['getTicketComments', 'comments.getTicketComments'],
   ['deleteComment', 'comments.deleteComment'],

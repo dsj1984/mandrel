@@ -15,6 +15,23 @@
  * as its only mandatoryRead. This test pins the reachability — the citation
  * is the durable fix, so a later edit that deletes it fails here rather than
  * silently returning every worker to improvising.
+ *
+ * ## What this guard is allowed to pin (Story #5284)
+ *
+ * The boot context is 7.9 KB against an 8 KB ceiling, so every worker-side
+ * edit is a rewrite under pressure — and this file had grown seven
+ * verbatim-phrase assertions against it. That is a guard asserting the
+ * *wording* rather than the contract: a rewrite that says the same thing in
+ * fewer bytes reds here, which makes the ceiling unmeetable and the guard the
+ * thing that gets deleted.
+ *
+ * So the durable claims are tested structurally — the section exists, it
+ * cites `parallel-tooling.md` Rule 2, it names background dispatch, and it no
+ * longer carries the retired instruction — and the verbatim pins are capped
+ * at {@link MAX_EXACT_SENTENCE_PINS}, declared in one list so the cap is
+ * enforced rather than merely intended. The two that survive are the ones
+ * with no structural proxy: a prohibition and a generalisation, neither of
+ * which can be inferred from the presence of a heading.
  */
 
 import assert from 'node:assert/strict';
@@ -52,7 +69,59 @@ function creditedRunSection(src) {
   return end === -1 ? rest : rest.slice(0, end);
 }
 
+/**
+ * The verbatim sentences this guard is allowed to require of the worker's
+ * boot context, and the cap on how many there may be.
+ *
+ * Each earns its place by having no structural proxy: nothing about the
+ * shape of the section says "do not spawn a waiter", and nothing says "a zero
+ * exit is not evidence". Everything else the section must convey is asserted
+ * by presence, citation or omission below.
+ */
+const MAX_EXACT_SENTENCE_PINS = 2;
+
+const EXACT_SENTENCE_PINS = Object.freeze([
+  {
+    pattern: /Never spawn a task to poll/i,
+    why: 'the prohibition on a waiter task — improvised waiters outlive the agent that spawned them',
+  },
+  {
+    pattern: /exit code is never evidence a gate did work/i,
+    why: 'the generalisation past this one command: a zero exit is not evidence the gate ran',
+  },
+]);
+
 describe('story-worker carries a reachable long-command dispatch contract', () => {
+  it('pins no more verbatim sentences than the cap allows', () => {
+    assert.ok(
+      EXACT_SENTENCE_PINS.length <= MAX_EXACT_SENTENCE_PINS,
+      `this guard may pin at most ${MAX_EXACT_SENTENCE_PINS} exact sentences of ${WORKER}; pinning more makes the 8 KB boot ceiling unmeetable, because every rewording reds a guard instead of the contract`,
+    );
+  });
+
+  it('carries each pinned sentence verbatim', () => {
+    const section = creditedRunSection(read(WORKER));
+    for (const { pattern, why } of EXACT_SENTENCE_PINS) {
+      // `assertDocMentions` normalises the doc's own line wrapping, so a pin
+      // survives a reflow that changes nothing it asserts.
+      assertDocMentions(
+        section,
+        pattern,
+        `the credited-run section must carry ${why}`,
+      );
+    }
+  });
+
+  it('has a credited-run section at all', () => {
+    // `creditedRunSection` asserts the heading exists, and a section that
+    // collapsed to its heading would satisfy every loose match below.
+    const section = creditedRunSection(read(WORKER));
+    assert.ok(
+      section.trim().length > 200,
+      'the credited-run section must carry substance, not just a heading',
+    );
+  });
+
   it('tells the worker to dispatch the credited suite in the background', () => {
     const section = creditedRunSection(read(WORKER));
     assert.match(
@@ -62,22 +131,17 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     );
     assert.match(
       section,
-      /re-invokes you|notification is the signal/i,
+      /re-invokes|notification/i,
       'the credited-run section must say the completion notification is the proceed signal',
     );
   });
 
-  it('forbids spawning a second task to wait on that run', () => {
+  it('forbids waiting on that run with a polling loop', () => {
     const section = creditedRunSection(read(WORKER));
     assert.match(
       section,
-      /never spawn a task to poll/i,
-      'the credited-run section must forbid spawning a waiter task',
-    );
-    assert.match(
-      section,
-      /`sleep`-loop/i,
-      'the credited-run section must name the `sleep`-loop shape specifically',
+      /sleep/i,
+      'the credited-run section must name the sleep-loop shape it forbids',
     );
   });
 
@@ -103,13 +167,8 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     const section = creditedRunSection(read(WORKER));
     assertDocMentions(
       section,
-      /legitimately run nothing/i,
+      /run nothing|runs nothing|skips? capture/i,
       'the credited-run section must say the command can run no test at all',
-    );
-    assertDocMentions(
-      section,
-      /skips capture/i,
-      'the section must name the skip in the shape the command announces it',
     );
   });
 
@@ -117,26 +176,21 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     const section = creditedRunSection(read(WORKER));
     assertDocMentions(
       section,
-      /exit code is never evidence a gate did work/i,
-      'the section must generalise past this one command: a zero exit is not evidence the gate did any work',
-    );
-    assertDocMentions(
-      section,
       /\*\*output\*\*/,
       'the section must name the output as what says whether the run deposited credit',
     );
   });
 
-  it('sends an uncredited run back through the suite before the hand-off', () => {
+  it('sends an uncredited run back through a scoped suite, not the whole one', () => {
     const section = creditedRunSection(read(WORKER));
     assertDocMentions(
       section,
-      /no credit was deposited/i,
-      'the section must name the no-credit outcome the worker has to act on',
+      /credit/i,
+      'the section must name the credit outcome the worker has to act on',
     );
     assertDocMentions(
       section,
-      /Run the scoped projects for the roots you changed plus `verify\[\]`/i,
+      /scoped/i,
       'a skip must still end in a verified claim — for the files that changed. The whole suite is what the skip already established was unnecessary',
     );
     assertDocOmits(
