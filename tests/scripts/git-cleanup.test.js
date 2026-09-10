@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   buildAllowlistDecider,
   buildGlobFilter,
@@ -30,7 +33,14 @@ import {
   renderPruneLine,
   stashRefIndex,
 } from '../../.agents/scripts/git-cleanup.js';
+import { decideBranchPhase } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js';
 import { renderCandidateList } from '../../.agents/scripts/lib/orchestration/git-cleanup/phases/render.js';
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+);
 
 describe('git-cleanup.parseCleanupArgs', () => {
   it('defaults to dry-run with no flags', () => {
@@ -2373,7 +2383,7 @@ describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
   });
 
   it('indexes rows into a Map keyed by headRefName with probeLatestPr shape', () => {
-    const index = probeAllPrs('/repo', () =>
+    const { index } = probeAllPrs('/repo', () =>
       JSON.stringify([
         {
           number: 42,
@@ -2405,7 +2415,7 @@ describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
   });
 
   it('keeps the first (newest) row when a head ref appears more than once', () => {
-    const index = probeAllPrs('/repo', () =>
+    const { index } = probeAllPrs('/repo', () =>
       JSON.stringify([
         { number: 200, state: 'OPEN', headRefName: 'release-please/foo' },
         { number: 100, state: 'MERGED', headRefName: 'release-please/foo' },
@@ -2417,7 +2427,7 @@ describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
   });
 
   it('uppercases state and coerces missing optional fields to null', () => {
-    const index = probeAllPrs('/repo', () =>
+    const { index } = probeAllPrs('/repo', () =>
       JSON.stringify([{ number: 7, state: 'merged', headRefName: 'fix/a' }]),
     );
     const row = index.get('fix/a');
@@ -2427,15 +2437,22 @@ describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
     assert.equal(row.headRefOid, null);
   });
 
-  it('returns an empty Map on empty / whitespace / malformed / non-array output', () => {
-    assert.equal(probeAllPrs('/repo', () => '').size, 0);
-    assert.equal(probeAllPrs('/repo', () => '   ').size, 0);
-    assert.equal(probeAllPrs('/repo', () => '{not json').size, 0);
-    assert.equal(probeAllPrs('/repo', () => '{"not":"array"}').size, 0);
+  it('returns an empty index on empty / whitespace / malformed / non-array output', () => {
+    for (const stdout of ['', '   ', '{not json', '{"not":"array"}']) {
+      const { index, complete } = probeAllPrs('/repo', () => stdout);
+      assert.equal(index.size, 0, `index empty for ${JSON.stringify(stdout)}`);
+      // Story #5283: an unusable page proves nothing about which head refs
+      // have PRs, so the per-branch fallback must stay armed.
+      assert.equal(
+        complete,
+        false,
+        `an unusable page is never complete: ${JSON.stringify(stdout)}`,
+      );
+    }
   });
 
   it('skips rows with a missing or non-string headRefName', () => {
-    const index = probeAllPrs('/repo', () =>
+    const { index } = probeAllPrs('/repo', () =>
       JSON.stringify([
         { number: 1, state: 'MERGED' },
         { number: 2, state: 'MERGED', headRefName: 42 },
@@ -2444,6 +2461,29 @@ describe('git-cleanup.probeAllPrs (Story #3333 bulk fetch)', () => {
     );
     assert.equal(index.size, 1);
     assert.equal(index.get('fix/ok').number, 3);
+  });
+
+  it('reports complete only when the page returned fewer rows than its limit', () => {
+    const rows = (n) =>
+      JSON.stringify(
+        Array.from({ length: n }, (_, i) => ({
+          number: i + 1,
+          state: 'MERGED',
+          headRefName: `fix/${i}`,
+        })),
+      );
+    // Two rows against a limit of 3: gh had room to return more and did
+    // not, so every PR in the repo is on the page.
+    assert.equal(probeAllPrs('/repo', () => rows(2), 3).complete, true);
+    // Three rows against a limit of 3: the window is exactly full, so a
+    // fourth PR may exist just past it.
+    assert.equal(probeAllPrs('/repo', () => rows(3), 3).complete, false);
+  });
+
+  it('treats a parsed empty page as complete — a repo with no PRs at all', () => {
+    const { index, complete } = probeAllPrs('/repo', () => '[]', 10);
+    assert.equal(index.size, 0);
+    assert.equal(complete, true);
   });
 });
 
@@ -3187,4 +3227,319 @@ describe('git-cleanup remote-only --remote gate (Story #5188 AC-5)', () => {
       assert.equal(result.ok, true);
     });
   }
+});
+
+// =====================================================================
+// Story #5283 — the weak-signal remote guard, the bulk-index
+// short-circuit, and the forwarded remote name.
+// =====================================================================
+
+describe('git-cleanup weak-signal remote guard (Story #5283)', () => {
+  const contentMergedRemoteOnly = {
+    branch: 'fix/orphan',
+    detectedBy: 'content-merged',
+    localExists: false,
+    hasWorktree: false,
+    worktreePath: null,
+    prNumber: null,
+  };
+  const ghMergedRemoteOnly = {
+    branch: 'fix/landed',
+    detectedBy: 'gh',
+    localExists: false,
+    hasWorktree: false,
+    worktreePath: null,
+    prNumber: 7,
+  };
+
+  /**
+   * Drive the real path an unattended run takes: the argv the operator
+   * types goes through the real parser, the parsed options through the
+   * real decision, and the decision's own `executeArgs` into the real
+   * executor. Only the two destructive git calls are stubbed — everything
+   * that decides *whether* to make them is production code, so a guard
+   * that stopped being consulted would fail here.
+   */
+  function runUnattended(argv, candidates) {
+    const opts = parseCleanupArgs(argv);
+    const action = decideBranchPhase({
+      plan: { candidates, skipped: [] },
+      opts,
+      cwd: '/repo',
+    });
+    assert.equal(action.kind, 'execute', '--yes must not stop to prompt');
+    const deleted = [];
+    const result = executeCleanup({
+      ...action.executeArgs,
+      deleteLocalFn: (branch) => {
+        deleted.push({ scope: 'local', branch });
+        return { deleted: true, reason: 'deleted' };
+      },
+      deleteRemoteFn: (branch, cwd, remote) => {
+        deleted.push({ scope: 'remote', branch, cwd, remote });
+        return { deleted: true, reason: 'deleted' };
+      },
+      pruneRemoteFn: () => ({ ok: true, pruned: [] }),
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    return { opts, deleted, result };
+  }
+
+  const UNATTENDED = ['--yes', '--remote', '--execute'];
+
+  it('AC-1: withholds the remote delete of a content-merged candidate under --yes', () => {
+    const { deleted, result } = runUnattended(UNATTENDED, [
+      contentMergedRemoteOnly,
+    ]);
+    assert.deepEqual(
+      deleted,
+      [],
+      'no `git push --delete` may be issued for a weak-signal candidate',
+    );
+    assert.equal(result.remote.length, 1, 'the candidate is still reported');
+    assert.deepEqual(result.remote[0], {
+      branch: 'fix/orphan',
+      ok: true,
+      skipped: true,
+      reason: 'weak-signal-needs-confirmation',
+      alreadyGone: false,
+      detectedBy: 'content-merged',
+    });
+    assert.equal(result.ok, true, 'withholding is not a failure');
+    assert.equal(
+      result.prune,
+      null,
+      'nothing was deleted, so there is no stale tracking ref to prune',
+    );
+  });
+
+  it('AC-1: the guard is scoped to the weak signal — a merged-PR candidate still goes', () => {
+    const { deleted, result } = runUnattended(UNATTENDED, [
+      contentMergedRemoteOnly,
+      ghMergedRemoteOnly,
+    ]);
+    assert.deepEqual(
+      deleted.map((d) => d.branch),
+      ['fix/landed'],
+    );
+    const withheld = result.remote.filter((r) => r.skipped);
+    assert.deepEqual(
+      withheld.map((r) => r.branch),
+      ['fix/orphan'],
+    );
+    assert.ok(result.prune, 'a real delete still triggers the prune');
+  });
+
+  it('AC-1: local deletion is untouched — only the remote ref is withheld', () => {
+    const { deleted, result } = runUnattended(UNATTENDED, [
+      { ...contentMergedRemoteOnly, branch: 'fix/local', localExists: true },
+    ]);
+    assert.deepEqual(deleted, [{ scope: 'local', branch: 'fix/local' }]);
+    assert.equal(result.local.length, 1);
+    assert.equal(result.remote[0].skipped, true);
+  });
+
+  it('AC-2: --include-content-merged deletes the same candidate', () => {
+    const { opts, deleted, result } = runUnattended(
+      [...UNATTENDED, '--include-content-merged'],
+      [contentMergedRemoteOnly],
+    );
+    assert.equal(
+      opts.includeContentMerged,
+      true,
+      'the parser runs with strict:false — an undeclared flag would be dropped silently',
+    );
+    assert.deepEqual(
+      deleted.map((d) => ({ scope: d.scope, branch: d.branch })),
+      [{ scope: 'remote', branch: 'fix/orphan' }],
+    );
+    assert.equal(result.remote[0].skipped, undefined);
+    assert.equal(result.remote[0].ok, true);
+  });
+
+  it('AC-2: the flag is advertised in --help', () => {
+    const help = execFileSync(
+      process.execPath,
+      [path.join(REPO_ROOT, '.agents/scripts/git-cleanup.js'), '--help'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    assert.match(help, /^ {2}--include-content-merged/m);
+  });
+
+  it('defaults to withholding: no flag means includeContentMerged false', () => {
+    assert.equal(parseCleanupArgs([]).includeContentMerged, false);
+    assert.equal(
+      parseCleanupArgs(['--include-content-merged']).includeContentMerged,
+      true,
+    );
+  });
+
+  it('the interactive path does not arm the guard — the operator answered the prompt', () => {
+    const action = decideBranchPhase({
+      plan: { candidates: [contentMergedRemoteOnly], skipped: [] },
+      opts: parseCleanupArgs(['--remote', '--execute']),
+      cwd: '/repo',
+    });
+    assert.equal(action.kind, 'prompt-then-execute');
+    assert.match(action.promptMessage, /1 content-merged — weaker signal/);
+    assert.equal(action.executeArgs.skipWeakSignal, undefined);
+  });
+
+  it('renders a withheld remote entry as skipped, never as a completed reap', () => {
+    const line = renderExecutionLine(
+      {
+        branch: 'fix/orphan',
+        ok: true,
+        skipped: true,
+        reason: 'weak-signal-needs-confirmation',
+      },
+      'remote',
+    );
+    assert.doesNotMatch(line, /✅/);
+    assert.match(line, /fix\/orphan — withheld/);
+    assert.match(line, /--include-content-merged/);
+  });
+
+  it('the summary counts withheld remotes apart from reaped ones', () => {
+    const summary = renderExecutionSummary({
+      ok: true,
+      local: [],
+      remote: [
+        { branch: 'fix/landed', ok: true },
+        { branch: 'fix/orphan', ok: true, skipped: true },
+      ],
+      worktrees: [],
+      failures: [],
+    });
+    assert.match(summary, /Reaped 0 local \+ 1 remote/);
+    assert.match(summary, /1 remote delete\(s\) withheld/);
+  });
+});
+
+describe('git-cleanup bulk PR index short-circuit (Story #5283 AC-3)', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    mergedLister: () => [],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    branchTipShaFn: () => null,
+    contentEquivalentFn: () => ({ supported: false }),
+    branchLastCommitFn: () => null,
+    filter: () => true,
+    localLister: () => ['fix/in-page', 'fix/no-pr'],
+    ...overrides,
+  });
+  const page = () =>
+    new Map([
+      ['fix/in-page', { number: 1, state: 'MERGED', headRefOid: null }],
+    ]);
+
+  it('skips the per-branch fallback entirely when the bulk page was complete', () => {
+    const fallbackCalls = [];
+    const plan = planCleanup(
+      baseCtx({
+        prIndexFn: () => ({ index: page(), complete: true }),
+        prFallback: (branch) => {
+          fallbackCalls.push(branch);
+          return null;
+        },
+      }),
+    );
+    assert.deepEqual(
+      fallbackCalls,
+      [],
+      'a complete page already proves fix/no-pr has no PR',
+    );
+    // The short-circuit must change only the spawn count, not the verdict:
+    // the PR-less branch still falls through to the git-only signals.
+    assert.deepEqual(
+      plan.candidates.map((c) => c.branch),
+      ['fix/in-page'],
+    );
+    assert.equal(
+      plan.skipped.find((sk) => sk.branch === 'fix/no-pr').reason,
+      'not-merged',
+    );
+  });
+
+  it('still falls back when the page was truncated', () => {
+    const fallbackCalls = [];
+    planCleanup(
+      baseCtx({
+        prIndexFn: () => ({ index: page(), complete: false }),
+        prFallback: (branch) => {
+          fallbackCalls.push(branch);
+          return null;
+        },
+      }),
+    );
+    assert.deepEqual(fallbackCalls, ['fix/no-pr']);
+  });
+
+  it('a bare-Map index (pre-#5283 double) keeps the fallback armed', () => {
+    const fallbackCalls = [];
+    planCleanup(
+      baseCtx({
+        prIndexFn: () => page(),
+        prFallback: (branch) => {
+          fallbackCalls.push(branch);
+          return null;
+        },
+      }),
+    );
+    assert.deepEqual(fallbackCalls, ['fix/no-pr']);
+  });
+
+  it('a throwing bulk probe leaves the fallback armed rather than claiming completeness', () => {
+    const fallbackCalls = [];
+    const plan = planCleanup(
+      baseCtx({
+        logger: { warn: () => {} },
+        prIndexFn: () => {
+          throw new Error('gh: authentication failed');
+        },
+        prFallback: (branch) => {
+          fallbackCalls.push(branch);
+          return null;
+        },
+      }),
+    );
+    assert.equal(plan.ghDegraded, true);
+    assert.deepEqual(fallbackCalls, ['fix/in-page', 'fix/no-pr']);
+  });
+});
+
+describe('git-cleanup remote-name forwarding (Story #5283 AC-4)', () => {
+  it('targets the configured remote in the delete call, not origin', () => {
+    const calls = [];
+    const result = executeCleanup({
+      candidates: [
+        {
+          branch: 'fix/orphan',
+          detectedBy: 'gh',
+          localExists: false,
+          hasWorktree: false,
+          worktreePath: null,
+        },
+      ],
+      cwd: '/repo',
+      remote: true,
+      remoteName: 'upstream',
+      // The seam receives the exact triple `git push <remote> --delete
+      // <branch>` is built from, so a call that silently defaulted back to
+      // `origin` — the pre-#5283 behaviour — is visible here.
+      deleteRemoteFn: (branch, cwd, remote) => {
+        calls.push({ branch, cwd, remote });
+        return { deleted: true, reason: 'deleted' };
+      },
+      pruneRemoteFn: () => ({ ok: true, pruned: [] }),
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.deepEqual(calls, [
+      { branch: 'fix/orphan', cwd: '/repo', remote: 'upstream' },
+    ]);
+    assert.equal(result.ok, true);
+  });
 });

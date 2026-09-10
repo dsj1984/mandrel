@@ -20,6 +20,14 @@
  * Plus the visibility contract: a degraded gate is reported on the review
  * outcome (provider channel + rendered comment) while still emitting zero
  * findings, so #4699's severity-tier intent survives.
+ *
+ * Story #5282 — narrows that last clause to what it always meant. Findings are
+ * emitted from the parsed counts, not from `executionFailed`, which is the OR
+ * across surfaces: an absent biome (the default checkout since #5193) was
+ * discarding markdownlint's real errors. A degraded surface still contributes
+ * no counts and no finding, and the merged summary now carries per-surface
+ * `parsed` so a zero from an absent runner is distinguishable from a zero from
+ * a runner that ran.
  */
 
 import assert from 'node:assert/strict';
@@ -325,10 +333,11 @@ test('buildLintFindings: warnings-only collapses to a suggestion', () => {
   assert.equal(findings[0].severity, 'suggestion');
 });
 
-test('buildLintFindings: executionFailed emits zero findings (routed to friction telemetry, Story #4699)', () => {
+test('buildLintFindings: a degradation with nothing parsed emits zero findings (routed to friction telemetry, Story #4699)', () => {
   const findings = buildLintFindings({
     errors: 0,
     warnings: 0,
+    parsed: false,
     executionFailed: true,
     skipped: false,
     mode: 'changed-only',
@@ -338,6 +347,39 @@ test('buildLintFindings: executionFailed emits zero findings (routed to friction
     [],
     'a tool-execution degradation is not a code finding',
   );
+});
+
+test('buildLintFindings: an unparsed summary emits nothing even if it carries counts (Story #5282)', () => {
+  assert.deepEqual(
+    buildLintFindings({
+      errors: 7,
+      warnings: 2,
+      parsed: false,
+      executionFailed: false,
+      skipped: false,
+      mode: 'changed-only',
+    }),
+    [],
+    'counts that no surface parsed are not evidence of anything',
+  );
+});
+
+test('buildLintFindings: parsed counts survive a sibling surface degrading (Story #5282)', () => {
+  // The merged shape `runScopedLint` returns when markdownlint parsed 3 errors
+  // and biome never resolved: `executionFailed` is the OR, so gating findings
+  // on it discarded the markdown errors entirely.
+  const findings = buildLintFindings({
+    errors: 3,
+    warnings: 0,
+    parsed: true,
+    executionFailed: true,
+    skipped: false,
+    mode: 'changed-only',
+    degradations: [{ surface: 'biome', reason: 'runner-not-installed' }],
+  });
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, 'high');
+  assert.match(findings[0].title, /3 error\(s\)/);
 });
 
 test('buildLintFindings: scope-off / skipped / evidence-skipped emit no findings', () => {
@@ -877,6 +919,124 @@ test('runScopedLint: an installed code runner still lints and reports its counts
   assert.equal(out.parsed, true);
   assert.equal(out.executionFailed, false);
   assert.deepEqual(out.degradations, []);
+});
+
+test('scoped lint + findings: an absent biome no longer discards markdownlint errors (Story #5282, AC-1)', () => {
+  // The default state of a consumer checkout since the #5193 disk probe: no
+  // `node_modules/.bin/biome`, a working markdownlint, real markdown errors.
+  const { runner } = recordingRunner({
+    'markdownlint-cli2': {
+      status: 1,
+      stdout: 'Linting: 1 file(s)\nSummary: 3 error(s)\n',
+      stderr: '',
+    },
+  });
+
+  const out = runScopedLint(['a.js', 'README.md'], '/repo', runner, {
+    existsFn: binsInstalled('markdownlint-cli2'),
+  });
+
+  assert.equal(out.errors, 3, 'the surface that ran still contributes counts');
+  assert.equal(out.parsed, true);
+  assert.equal(out.executionFailed, true, 'the absent surface still degrades');
+  assert.deepEqual(
+    out.degradations,
+    [{ surface: 'biome', reason: 'runner-not-installed' }],
+    'the degradation is carried unchanged and still named',
+  );
+
+  const findings = buildLintFindings(out);
+  assert.equal(findings.length, 1, 'the real markdown errors reach the review');
+  assert.equal(findings[0].severity, 'high');
+  assert.match(findings[0].title, /3 error\(s\)/);
+});
+
+test('scoped lint + findings: both surfaces absent yields no findings and two degradations (Story #5282, AC-2)', () => {
+  const { calls, runner } = recordingRunner({});
+
+  const out = runScopedLint(['a.js', 'README.md'], '/repo', runner, {
+    existsFn: binsInstalled(),
+  });
+
+  assert.equal(calls.length, 0, 'no runner resolved, so none is spawned');
+  assert.equal(out.parsed, false);
+  assert.deepEqual(out.degradations, [
+    { surface: 'biome', reason: 'runner-not-installed' },
+    { surface: 'markdownlint', reason: 'runner-not-installed' },
+  ]);
+  assert.deepEqual(
+    buildLintFindings(out),
+    [],
+    'nothing ran, so there is nothing to report as a finding',
+  );
+});
+
+test('runScopedLint: per-surface `parsed` distinguishes an absent biome from a silent one (Story #5282, AC-3)', () => {
+  const { runner: absentRunner } = recordingRunner({});
+  const absent = runScopedLint(['a.js'], '/repo', absentRunner, {
+    existsFn: binsInstalled(),
+  });
+
+  const { runner: cleanRunner } = recordingRunner({
+    biome: { status: 0, stdout: 'Found 0 error(s).\n', stderr: '' },
+  });
+  const clean = runScopedLint(['a.js'], '/repo', cleanRunner, {
+    existsFn: binsInstalled('biome'),
+  });
+
+  // Both merge to errors: 0. Only the per-surface rows say which zero it is.
+  assert.equal(absent.errors, 0);
+  assert.equal(clean.errors, 0);
+  assert.deepEqual(absent.surfaces, [
+    {
+      surface: 'biome',
+      parsed: false,
+      errors: 0,
+      warnings: 0,
+      executionFailed: true,
+    },
+  ]);
+  assert.deepEqual(clean.surfaces, [
+    {
+      surface: 'biome',
+      parsed: true,
+      errors: 0,
+      warnings: 0,
+      executionFailed: false,
+    },
+  ]);
+});
+
+test('runScopedLint: per-surface rows attribute the merged counts to their surface (Story #5282, AC-3)', () => {
+  const { runner } = recordingRunner({
+    biome: { status: 1, stdout: 'Found 2 error(s).\n', stderr: '' },
+    'markdownlint-cli2': {
+      status: 1,
+      stdout: 'Summary: 5 error(s)\n',
+      stderr: '',
+    },
+  });
+
+  const out = runScopedLint(['a.js', 'README.md'], '/repo', runner, {
+    existsFn: binsInstalled('biome', 'markdownlint-cli2'),
+  });
+
+  assert.equal(out.errors, 7, 'the flat counts still add across surfaces');
+  assert.deepEqual(
+    out.surfaces.map((row) => [row.surface, row.errors, row.parsed]),
+    [
+      ['biome', 2, true],
+      ['markdownlint-cli2', 5, true],
+    ],
+  );
+});
+
+test('runScopedLint: a skipped gate reports no surface rows (Story #5282)', () => {
+  const out = runScopedLint(['a.css'], '/repo', () => {
+    throw new Error('must not spawn a runner for an empty lint surface');
+  });
+  assert.equal(out.skipped, true);
+  assert.deepEqual(out.surfaces, []);
 });
 
 test("parseLintOutput: npm's current E404 answer is runner-not-resolvable, not unparseable-output (Story #5193)", () => {

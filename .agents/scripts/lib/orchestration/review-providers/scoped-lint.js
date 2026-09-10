@@ -289,36 +289,38 @@ export function parseLintOutput(result) {
  * one degradation record naming itself. Merging *summaries* rather than raw
  * output is what stops one runner's failure from becoming the other's verdict.
  *
+ * The OR is deliberately lossy — it answers "did any surface fail?", which is
+ * the only question the degradation channel asks. Story #5282 added the
+ * `surfaces[]` rows so a consumer can ask the *other* questions the OR cannot
+ * answer: which surface the merged counts came from, and — via each row's
+ * `parsed` and `executionFailed` — whether an absent biome or a biome run that
+ * simply reported nothing is behind a zero. Consumers that read the flat
+ * counts are unaffected; the rows are additive.
+ *
  * @param {Array<{ surface: string, summary: ReturnType<typeof parseLintOutput> }>} surfaces
  */
 function mergeSurfaceSummaries(surfaces) {
-  let errors = 0;
-  let warnings = 0;
-  let parsed = false;
-  let executionFailed = false;
-  const degradations = [];
-
-  for (const { surface, summary } of surfaces) {
-    errors += summary.errors;
-    warnings += summary.warnings;
-    if (summary.parsed) parsed = true;
-    if (summary.executionFailed) {
-      executionFailed = true;
-      degradations.push({
-        surface,
-        reason: summary.reason ?? DEGRADATION_REASONS.UNPARSEABLE_OUTPUT,
-      });
-    }
-  }
+  const rows = surfaces.map(({ surface, summary }) => ({
+    surface,
+    parsed: summary.parsed,
+    errors: summary.errors,
+    warnings: summary.warnings,
+    executionFailed: summary.executionFailed,
+    reason: summary.reason ?? DEGRADATION_REASONS.UNPARSEABLE_OUTPUT,
+  }));
+  const total = (field) => rows.reduce((sum, row) => sum + row[field], 0);
 
   return {
-    errors,
-    warnings,
-    parsed,
-    executionFailed,
+    errors: total('errors'),
+    warnings: total('warnings'),
+    parsed: rows.some((row) => row.parsed),
+    executionFailed: rows.some((row) => row.executionFailed),
     skipped: false,
     mode: 'changed-only',
-    degradations,
+    degradations: rows
+      .filter((row) => row.executionFailed)
+      .map(({ surface, reason }) => ({ surface, reason })),
+    surfaces: rows.map(({ reason, ...row }) => row),
   };
 }
 
@@ -329,7 +331,7 @@ function mergeSurfaceSummaries(surfaces) {
  * @param {string} cwd
  * @param {typeof spawnLintRunner} [runnerFn]
  * @param {{ existsFn?: (p: string) => boolean }} [deps]  Test seam for runner resolution.
- * @returns {{ errors: number, warnings: number, parsed: boolean, skipped: boolean, mode: 'changed-only'|'off', executionFailed: boolean, degradations: Array<{ surface: string, reason: string }> }}
+ * @returns {{ errors: number, warnings: number, parsed: boolean, skipped: boolean, mode: 'changed-only'|'off', executionFailed: boolean, degradations: Array<{ surface: string, reason: string }>, surfaces: Array<{ surface: string, parsed: boolean, errors: number, warnings: number, executionFailed: boolean }> }}
  */
 export function runScopedLint(
   changedFiles,
@@ -348,6 +350,7 @@ export function runScopedLint(
       mode: 'changed-only',
       executionFailed: false,
       degradations: [],
+      surfaces: [],
     };
   }
 

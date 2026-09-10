@@ -372,11 +372,25 @@ export async function analyzeChangedFiles(
 /**
  * Pure: turn a lint summary into Finding(s). Lint errors collapse into a
  * single high-risk finding (the structured comment shows the count); lint
- * warnings collapse into a single suggestion. An `executionFailed` summary
- * produces **zero** findings (Story #4699): a runner that could not execute
- * is an operational degradation, not a code finding — the provider routes it
- * to friction telemetry instead so severity counts reflect code findings
- * only.
+ * warnings collapse into a single suggestion.
+ *
+ * **Findings come from the parsed counts, never from the execution flag**
+ * (Story #5282). `executionFailed` is the OR across the biome and markdownlint
+ * surfaces, so gating findings on it let *one* absent runner discard the
+ * *other* surface's real errors — and since the code surface's disk probe
+ * (#5193) degrades in every checkout without `node_modules/.bin/biome`, that
+ * was the default state of a consumer checkout: markdownlint errors reached
+ * neither the findings nor the severity tally while the outcome read clean
+ * apart from a degradation line.
+ *
+ * Story #4699's intent is preserved exactly, because it was never about the
+ * flag: a degradation is still not a `Finding` — it has no counts to report,
+ * so a surface that could not execute contributes `parsed: false` and zero
+ * counts and produces nothing here, while travelling on the degradation and
+ * friction-telemetry channels under its own name. A summary that explicitly
+ * reports `parsed: false` therefore yields no findings whatever its counts
+ * claim; a summary omitting `parsed` (an injected or pre-#4839 shape) is
+ * scored on its counts as before.
  *
  * @param {{ errors: number, warnings: number, parsed?: boolean, skipped?: boolean, mode?: string, executionFailed?: boolean, evidenceSkipped?: boolean }} lintSummary
  * @returns {Finding[]}
@@ -385,7 +399,7 @@ export function buildLintFindings(lintSummary) {
   if (lintSummary.mode === 'off') return [];
   if (lintSummary.evidenceSkipped) return [];
   if (lintSummary.skipped) return [];
-  if (lintSummary.executionFailed) return [];
+  if (lintSummary.parsed === false) return [];
   const findings = [];
   if (lintSummary.errors > 0) {
     findings.push({
@@ -428,6 +442,7 @@ async function runLintPhase({
       mode: 'off',
       executionFailed: false,
       degradations: [],
+      surfaces: [],
     };
   }
   logger?.info?.(
@@ -592,15 +607,19 @@ export function createNativeProvider(deps = {}) {
         // Story #4839 — telemetry alone left the review's own verdict unable to
         // distinguish "lint ran and found nothing" from "lint never ran", so
         // the same degradation is also recorded on the outcome channel. It is
-        // still never a `Finding`: the friction emission below is unchanged and
-        // severity counts remain code-findings-only.
+        // still never a `Finding`: the friction emission below is unchanged.
+        //
+        // Story #5282 — this branch is about the degraded surface only. A
+        // sibling surface that *did* run still contributes its parsed counts
+        // to `buildLintFindings` below, so a degradation here no longer
+        // suppresses the other surface's errors.
         recordedDegradations = buildLintDegradations(lintSummary);
         logger?.warn?.(
           `[native-review] Lint runner could not execute (${recordedDegradations
             .map((d) => `${d.surface}: ${d.reason}`)
             .join(
               '; ',
-            )}) — reported as a degraded gate on the review outcome and recorded as friction telemetry; no finding emitted. Verify with the canonical \`npm run lint\` before merging.`,
+            )}) — reported as a degraded gate on the review outcome and recorded as friction telemetry; the degradation itself is never a finding, and any surface that did run still reports its own errors. Verify with the canonical \`npm run lint\` before merging.`,
         );
         try {
           await emitToolDegradationFn({
@@ -622,8 +641,9 @@ export function createNativeProvider(deps = {}) {
 
       // Canonical ordering: critical (maintainability) first, then high
       // (lint errors), then medium (size/volume warnings), then suggestion
-      // (lint warnings). An execution failure contributes to none of these
-      // tiers — it travels on the degradation channel. The renderer
+      // (lint warnings). An execution failure contributes no counts of its
+      // own to these tiers — it travels on the degradation channel — but it
+      // no longer suppresses a sibling surface's. The renderer
       // re-bucketizes by severity tier, so this order only matters for
       // stability of fixture outputs.
       return [
