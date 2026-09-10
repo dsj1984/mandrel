@@ -141,10 +141,10 @@ owns target resolution, route sampling, median-of-3, and the two skip reasons
 (no configured target; browser tooling unavailable). This lens's probe is its
 step 3:
 
-**Run an accessibility engine per sampled route.** Use the
-`mcp__chrome-devtools__lighthouse_audit` tool's **Accessibility category**, or
-run **axe** via the browser tooling, against each sampled `baseUrl`-rooted
-route. Prefer a production-mode build.
+- **Run an accessibility engine per sampled route.** Use the
+  `mcp__chrome-devtools__lighthouse_audit` tool's **Accessibility category**, or
+  run **axe** via the browser tooling, against each sampled `baseUrl`-rooted
+  route. Prefer a production-mode build.
 
 Corroborate static findings against the runtime results (a statically-flagged
 contrast defect confirmed by the engine graduates from provisional to

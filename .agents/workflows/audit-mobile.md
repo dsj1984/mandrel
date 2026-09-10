@@ -198,14 +198,14 @@ owns target resolution, route sampling, median-of-3, and the two skip reasons
 (no configured target; browser tooling unavailable). This lens's probe is its
 step 3:
 
-**Drive two form factors per route.** Emulate a **phone** and a **tablet**
-viewport — `mcp__chrome-devtools__emulate` for a device profile, or
-`resize_page` for an explicit width/height — then, per route and viewport: take
-a screenshot, and evaluate the two observables static analysis cannot resolve —
-whether `document.scrollingElement.scrollWidth` exceeds the viewport width
-(horizontal overflow), and the rendered box of the interactive controls Step 1
-flagged as candidates. Reload after switching form factor so load-time device
-gates re-run.
+- **Drive two form factors per route.** Emulate a **phone** and a **tablet**
+  viewport — `mcp__chrome-devtools__emulate` for a device profile, or
+  `resize_page` for an explicit width/height — then, per route and viewport:
+  take a screenshot, and evaluate the two observables static analysis cannot
+  resolve — whether `document.scrollingElement.scrollWidth` exceeds the viewport
+  width (horizontal overflow), and the rendered box of the interactive controls
+  Step 1 flagged as candidates. Reload after switching form factor so load-time
+  device gates re-run.
 
 Corroborate static findings against the runtime observations (a statically
 flagged fixed width confirmed by a real horizontal overflow graduates from
