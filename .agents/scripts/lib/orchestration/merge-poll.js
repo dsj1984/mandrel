@@ -464,12 +464,14 @@ const VIOLATION_WORD = /\bviolations?\b|\bfailed assertion/i;
  * A counted phrase wins over the bare word so `0 violations found` — a scan
  * that completed cleanly and then died — is not read as a finding.
  *
- * @param {{ summary?: string }} [run]
+ * Takes the text, not the run: its one caller has already established the
+ * run says something, so a second empty-text guard here would be a branch no
+ * input can reach.
+ *
+ * @param {string} text A non-empty run summary.
  * @returns {boolean}
  */
-function runReportsViolations(run) {
-  const text = typeof run?.summary === 'string' ? run.summary : '';
-  if (!text) return false;
+function reportsViolations(text) {
   const counted = VIOLATION_COUNT.exec(text);
   if (counted) return Number.parseInt(counted[1], 10) > 0;
   return VIOLATION_WORD.test(text);
@@ -488,7 +490,7 @@ function runReportsViolations(run) {
  */
 function classifyAdvisoryRedRun(run) {
   const text = typeof run?.summary === 'string' ? run.summary : '';
-  if (!text || runReportsViolations(run)) return 'violation';
+  if (!text || reportsViolations(text)) return 'violation';
   return INCONCLUSIVE_MARKERS.some((marker) => marker.test(text))
     ? 'inconclusive'
     : 'violation';
@@ -502,13 +504,14 @@ function classifyAdvisoryRedRun(run) {
  * operator must not be offered a rerun as the remedy for it.
  *
  * Module-private: {@link resolveAdvisoryGateVerdict} is the one door, so a
- * caller cannot take the class without the reason that matches it.
+ * caller cannot take the class without the reason that matches it — and, being
+ * the one door, it is also what normalises `blockingRuns` to an array, so
+ * neither this nor {@link formatAdvisoryGateReason} re-guards the shape.
  *
- * @param {Array<{ summary?: string }>} blockingRuns
+ * @param {Array<{ summary?: string }>} runs
  * @returns {string} one of the two advisory classes above
  */
-function deriveAdvisoryGateClass(blockingRuns) {
-  const runs = Array.isArray(blockingRuns) ? blockingRuns : [];
+function deriveAdvisoryGateClass(runs) {
   if (runs.length === 0) return ADVISORY_GATE_RED_CLASS;
   return runs.every((run) => classifyAdvisoryRedRun(run) === 'inconclusive')
     ? ADVISORY_GATE_INCONCLUSIVE_CLASS
@@ -583,20 +586,21 @@ export function decideAdvisoryGateBlock({
  * failure. Both wordings name the same three remedies — rerun, hand-merge,
  * allowlist — in the order proportionate to the class.
  *
- * @param {Array<{ name: string|null, conclusion: string }>} blockingRuns
- * @param {{ blockClass?: string, rerunAllowance?: number }} [options]
+ * Module-private for the same reason {@link deriveAdvisoryGateClass} is: the
+ * class and the wording must travel together.
+ *
+ * @param {Array<{ name: string|null, conclusion: string }>} runs
+ * @param {{ blockClass: string, rerunAllowance: number }} options
  * @returns {string}
  */
-function formatAdvisoryGateReason(
-  blockingRuns,
-  { blockClass = ADVISORY_GATE_RED_CLASS, rerunAllowance = 0 } = {},
-) {
-  const named = (Array.isArray(blockingRuns) ? blockingRuns : [])
-    .map(
-      (run) =>
-        `${run?.name ?? '(unnamed run)'} → ${run?.conclusion ?? 'FAILURE'}`,
-    )
-    .join(', ');
+function formatAdvisoryGateReason(runs, { blockClass, rerunAllowance }) {
+  const named =
+    runs
+      .map(
+        (run) =>
+          `${run?.name ?? '(unnamed run)'} → ${run?.conclusion ?? 'FAILURE'}`,
+      )
+      .join(', ') || '(none named)';
   const spent =
     rerunAllowance > 0
       ? `The rerun allowance (${rerunAllowance}) is already spent on this head. `
@@ -607,7 +611,7 @@ function formatAdvisoryGateReason(
       'head — it reported no violation, so nothing here says the change is ' +
       'bad — and GitHub reports the PR mergeable anyway ' +
       '(mergeStateStatus=UNSTABLE), so native auto-merge would land it over ' +
-      `the failure. Unfinished advisory job(s): ${named || '(none named)'}. ` +
+      `the failure. Unfinished advisory job(s): ${named}. ` +
       `${spent}Re-run the job (--rerun-advisory <n>, or ` +
       'delivery.ci.rerunAdvisory), merge by hand to land over it ' +
       'deliberately, or exempt the job via delivery.ci.advisoryAllowlist.'
@@ -617,7 +621,7 @@ function formatAdvisoryGateReason(
     'A non-required (advisory) check concluded red on the PR head, and GitHub ' +
     'reports the PR mergeable anyway (mergeStateStatus=UNSTABLE) — native ' +
     'auto-merge would land it over the failure. Red advisory job(s): ' +
-    `${named || '(none named)'}. ${spent}Merge by hand to land over it ` +
+    `${named}. ${spent}Merge by hand to land over it ` +
     'deliberately, re-run the job (--rerun-advisory <n>, or ' +
     'delivery.ci.rerunAdvisory), or exempt the job via ' +
     'delivery.ci.advisoryAllowlist.'

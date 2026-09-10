@@ -49,3 +49,38 @@ describe('parseSprintArgs — --skip-validation', () => {
     assert.equal(parsed.skipDashboard, false);
   });
 });
+
+describe('parseSprintArgs — --rerun-advisory (Story #5266)', () => {
+  it('parses the allowance, preserving an explicit 0', () => {
+    assert.equal(
+      parseSprintArgs(argv('--story', '5266', '--rerun-advisory', '2'))
+        .rerunAdvisory,
+      2,
+    );
+    // Zero is meaningful here — "spend nothing" — so it must not be read as
+    // an absent flag the way `--max-wait-seconds 0` (a typo) is.
+    assert.equal(
+      parseSprintArgs(argv('--story', '5266', '--rerun-advisory', '0'))
+        .rerunAdvisory,
+      0,
+    );
+  });
+
+  it('is undefined when absent, so the config default (0) applies', () => {
+    assert.equal(
+      parseSprintArgs(argv('--story', '5266')).rerunAdvisory,
+      undefined,
+    );
+  });
+
+  it('degrades a junk or negative value to absent rather than guessing', () => {
+    assert.equal(
+      parseSprintArgs(argv('--rerun-advisory', 'abc')).rerunAdvisory,
+      undefined,
+    );
+    assert.equal(
+      parseSprintArgs(argv('--rerun-advisory=-1')).rerunAdvisory,
+      undefined,
+    );
+  });
+});

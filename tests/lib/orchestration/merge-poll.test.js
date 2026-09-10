@@ -679,6 +679,13 @@ describe('parseWorkflowRunId', () => {
     assert.equal(parseWorkflowRunId('https://example.com/build/7'), null);
     assert.equal(parseWorkflowRunId(undefined), null);
   });
+
+  it('returns null for a run id of zero — there is nothing to re-run', () => {
+    assert.equal(
+      parseWorkflowRunId('https://github.com/o/r/actions/runs/0/job/7'),
+      null,
+    );
+  });
 });
 
 describe('readRunSummary', () => {
@@ -724,6 +731,15 @@ describe('classifying one red advisory run', () => {
   it('a run that says nothing keeps the pre-#5266 verdict', () => {
     assert.equal(classOf({ name: 'x' }), ADVISORY_GATE_RED_CLASS);
     assert.equal(classOf(undefined), ADVISORY_GATE_RED_CLASS);
+  });
+
+  it('text that matches no timeout signature is a violation, not a timeout', () => {
+    // The recogniser is deliberately narrow: an unfamiliar failure keeps the
+    // pre-#5266 verdict rather than being excused as "did not finish".
+    assert.equal(
+      classOf({ summary: 'the bundle grew by 4kB' }),
+      ADVISORY_GATE_RED_CLASS,
+    );
   });
 });
 

@@ -213,6 +213,26 @@ function withGhTimeout(promise, timeoutMs, label) {
 }
 
 /**
+ * One string field off a `gh pr view` payload, or `absent` when the API did
+ * not return one. Deduplicated out of the probe below (Story #5266): six
+ * identical `typeof x === 'string'` ternaries put that one function over the
+ * CRAP ratchet the moment a seventh field was needed.
+ *
+ * An empty string counts as absent — `gh` returns `""` for a field it cannot
+ * read, and every caller treats that exactly as "not there".
+ *
+ * @param {unknown} value
+ * @param {null|undefined} [absent] What to report when the field is missing.
+ *   `null` for the three fields the poll loop compares against null; the
+ *   `undefined` default for the ones whose absence must not shadow a
+ *   downstream default.
+ * @returns {string|null|undefined}
+ */
+function readString(value, absent = undefined) {
+  return typeof value === 'string' && value ? value : absent;
+}
+
+/**
  * One probe per poll iteration, carrying every field the loop and the
  * terminal classifier need: merge state, the checks rollup, the merge-state
  * status (for BEHIND recovery and human-required classification), and
@@ -249,17 +269,11 @@ export async function readPrWaitProbe({
       `gh pr view ${prNumber}`,
     );
     return {
-      state: typeof view?.state === 'string' ? view.state : null,
-      mergedAt: typeof view?.mergedAt === 'string' ? view.mergedAt : null,
-      createdAt: typeof view?.createdAt === 'string' ? view.createdAt : null,
-      mergeStateStatus:
-        typeof view?.mergeStateStatus === 'string'
-          ? view.mergeStateStatus
-          : undefined,
-      reviewDecision:
-        typeof view?.reviewDecision === 'string'
-          ? view.reviewDecision
-          : undefined,
+      state: readString(view?.state, null),
+      mergedAt: readString(view?.mergedAt, null),
+      createdAt: readString(view?.createdAt, null),
+      mergeStateStatus: readString(view?.mergeStateStatus),
+      reviewDecision: readString(view?.reviewDecision),
       checksStatus: deriveChecksStatus(view?.statusCheckRollup),
       // Head-anchored per-run evidence (Story #4695): distinguishes a
       // genuinely red required run from the superseded / still-pending noise
@@ -270,10 +284,7 @@ export async function readPrWaitProbe({
       // verdict can name the offending job and match the allowlist. Same
       // red-ness test as `requiredRunEvidence`, so the two cannot disagree.
       redHeadRuns: deriveRedHeadRuns(view?.statusCheckRollup),
-      headSha:
-        typeof view?.headRefOid === 'string' && view.headRefOid
-          ? view.headRefOid
-          : undefined,
+      headSha: readString(view?.headRefOid),
     };
   } catch (err) {
     return {
@@ -714,6 +725,13 @@ async function rerunAdvisoryRuns({ blockingRuns, gh, ghTimeoutMs, progress }) {
  * Spend one unit of the rerun allowance, if there is one and the rerun takes.
  * Records the observation signature of every run it re-ran, so the stale
  * pre-rerun snapshot the next poll reads does not re-block on the same job.
+ *
+ * Deliberately does NOT disarm first, unlike the block path: the whole point
+ * of a rerun is that a green re-run lands the PR on its own. The cost is an
+ * armed window in which GitHub could land the PR over the still-red advisory
+ * if the required contexts go green before the re-run reports — which is
+ * exactly what opting in to `--rerun-advisory` buys and accepts. At the
+ * default 0 there is no such window.
  *
  * @returns {Promise<boolean>} `true` when the caller should keep polling.
  */
