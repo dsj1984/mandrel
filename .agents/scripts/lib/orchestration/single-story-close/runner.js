@@ -15,6 +15,7 @@ import { createProvider } from '../../provider-factory.js';
 import { flipLabelAndNotify } from '../../single-story/story-merged-notify.js';
 import { WorktreeManager } from '../../worktree-manager.js';
 import { runCodeReview as runCodeReviewDefault } from '../code-review.js';
+import { MERGED_FLIP_FAILED_BLOCK_CLASS } from '../lifecycle/emit-merge-flip-failed.js';
 import { resolveRunScopedConfig } from '../run-scoped-config.js';
 import { releaseStoryLease } from '../single-story-lease-guard.js';
 import {
@@ -204,6 +205,7 @@ async function runPrePushPhases({
   injectedSync,
   injectedGitSpawn,
   setPhase = () => {},
+  setObservedGates = () => {},
 }) {
   setPhase('wrong-tree-guard');
   await runWrongTreeGuardPhase({
@@ -236,18 +238,34 @@ async function runPrePushPhases({
     return { validationGates: null };
   }
   setPhase('close-validation');
-  const validation = await runCloseValidationPhase({
-    cwd,
-    worktreePath,
-    config,
-    baseBranch,
-    storyBranch,
-    storyId,
-    progress,
-    runCloseValidation,
-    buildDefaultGates,
-  });
-  return { validationGates: validation?.gates ?? null };
+  let validation;
+  try {
+    validation = await runCloseValidationPhase({
+      cwd,
+      worktreePath,
+      config,
+      baseBranch,
+      storyBranch,
+      storyId,
+      progress,
+      runCloseValidation,
+      buildDefaultGates,
+    });
+  } catch (err) {
+    // Story #5279 — the failed terminal REPORTS gates rather than
+    // reconstructing them, so hand it what this run observed. The phase tags
+    // `closeGate` with the entry that died; that one name is the whole of
+    // what the run observed about gate outcomes, and therefore the whole of
+    // what the envelope may claim. Anything else it might have named is a
+    // gate the run never proved ran at all.
+    if (typeof err?.closeGate === 'string') {
+      setObservedGates({ [err.closeGate]: 'failed' });
+    }
+    throw err;
+  }
+  const gates = validation?.gates ?? null;
+  setObservedGates(gates);
+  return { validationGates: gates };
 }
 
 async function openAndReviewPr({
@@ -403,6 +421,38 @@ async function releaseLeaseOnBlock(run, leaseArgs) {
   }
 }
 
+/**
+ * Did this run OBSERVE the PR merge? (Story #5279)
+ *
+ * `merged` used to be whatever the caller happened to pass, and the two
+ * finishers passed different halves of the truth. Three observations say a
+ * merge happened, and each of them reported `merged: false` on at least one
+ * path:
+ *
+ *   - the confirm phase watched it land (`waitOutcome.confirmed`);
+ *   - it landed and only the `agent::done` label write failed
+ *     (`merged-flip-failed`) — the terminal envelope for that same run
+ *     already reports `pr.state: MERGED` from the probe, so a result denying
+ *     the merge made the two halves of one run contradict each other;
+ *   - the arm phase direct-squash-merged it synchronously because the
+ *     repository has no native auto-merge (`directMerged`), which the
+ *     no-wait finisher never consulted at all.
+ *
+ * Deliberately observation-only: it reads what the run saw, never what the
+ * run intended. A `null`/absent `waitOutcome` is the no-wait finisher, whose
+ * sole observation is the direct merge.
+ *
+ * @param {{ waitOutcome?: object|null, directMerged?: boolean }} args
+ * @returns {boolean}
+ */
+function deriveObservedMerge({ waitOutcome = null, directMerged = false }) {
+  return (
+    waitOutcome?.confirmed === true ||
+    waitOutcome?.blockClass === MERGED_FLIP_FAILED_BLOCK_CLASS ||
+    directMerged === true
+  );
+}
+
 function closeResult({
   storyId,
   storyBranch,
@@ -417,6 +467,7 @@ function closeResult({
   directMerged = false,
   waitedForMerge = false,
   merged = false,
+  landCompleted = merged,
 }) {
   return {
     storyId,
@@ -445,7 +496,16 @@ function closeResult({
     // never from `waitedForMerge`. A wait that expired unmerged used to write
     // "PR merge confirmed" beside `merged: false`, and this log is what the
     // operator reads first. See close-note.js for the invariant.
-    note: deriveCloseNote({ merged, directMerged, autoMergeEnabled }),
+    // Story #5279 — `landCompleted` keeps that invariant intact now that
+    // `merged: true` no longer implies the flip and the tail ran: a direct
+    // merge under `--no-wait-merge`, and a `merged-flip-failed` block, are
+    // both merged WITHOUT a completed land.
+    note: deriveCloseNote({
+      merged,
+      directMerged,
+      autoMergeEnabled,
+      landCompleted,
+    }),
   };
 }
 
@@ -496,13 +556,23 @@ export async function runSingleStoryClose({
   // the `failed` terminal envelope. Tagging rather than swallowing is what
   // lets `failed` name its phase without inventing a second success path.
   let phase = 'init';
+  // Story #5279 — the per-gate outcomes this run OBSERVED, tagged onto a
+  // throwing error alongside the phase so `failedTerminalFor` reports gates
+  // instead of reconstructing which ones "must have" run. Stays null until
+  // close-validation reports, so a run that died before it claims no gates at
+  // all rather than inventing names for gates that were never registered.
+  let observedGates = null;
   const setPhase = (next) => {
     phase = next;
+  };
+  const setObservedGates = (gates) => {
+    observedGates = gates;
   };
   try {
     return await runClosePipeline({
       options,
       setPhase,
+      setObservedGates,
       injectedProvider,
       injectedConfig,
       injectedNotify,
@@ -513,8 +583,9 @@ export async function runSingleStoryClose({
       injectedReleaseLease,
     });
   } catch (err) {
-    if (err && typeof err === 'object' && !err.closePhase) {
-      err.closePhase = phase;
+    if (err && typeof err === 'object') {
+      if (!err.closePhase) err.closePhase = phase;
+      if (!err.closeGates && observedGates) err.closeGates = observedGates;
     }
     throw err;
   }
@@ -632,7 +703,15 @@ async function finishWithMergeWait(prCtx, deps) {
     localCleanupDeferred: prCtx.localCleanupDeferred,
     directMerged: prCtx.directMerged,
     waitedForMerge: true,
-    merged: waitOutcome.confirmed === true,
+    // Story #5279 — `confirmed` alone denied the merge behind a
+    // `merged-flip-failed` block, whose own envelope (above) reports
+    // `pr.state: MERGED` off the probe.
+    merged: deriveObservedMerge({
+      waitOutcome,
+      directMerged: prCtx.directMerged,
+    }),
+    // Only the confirmed ending runs the flip, the issue close and the tail.
+    landCompleted: waitOutcome.confirmed === true,
   });
   await emitTerminal({ terminal, result, config: prCtx.config });
   reportWaitTerminal(terminal, { storyId: prCtx.storyId, prUrl: prCtx.prUrl });
@@ -650,6 +729,11 @@ async function finishWithMergeWait(prCtx, deps) {
  * @returns {Promise<{ success: boolean, result: object, terminal: object }>}
  */
 async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
+  // Story #5279 — a repository with no native auto-merge is direct
+  // squash-merged synchronously by the arm phase, so this ending can and does
+  // hold an OBSERVED merge. It used to report `merged: false` and hard-code
+  // `pr.state: 'OPEN'` for a PR the same run had just merged.
+  const merged = deriveObservedMerge({ directMerged: prCtx.directMerged });
   const result = closeResult({
     storyId: prCtx.storyId,
     storyBranch: prCtx.storyBranch,
@@ -665,6 +749,10 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     leaseReleased: false,
     localCleanupDeferred: prCtx.localCleanupDeferred,
     directMerged: prCtx.directMerged,
+    merged,
+    // Whatever the merge state, this ending never flips `agent::done`, never
+    // closes the issue and never runs the tail — `nextCommand` does.
+    landCompleted: false,
   });
   const terminal = buildTerminalEnvelope({
     storyId: prCtx.storyId,
@@ -675,7 +763,7 @@ async function finishWithoutMergeWait(prCtx, waitForMergeReason) {
     pr: {
       number: prCtx.prNumber,
       url: prCtx.prUrl ?? null,
-      state: 'OPEN',
+      state: merged ? 'MERGED' : 'OPEN',
       autoMergeEnabled: Boolean(prCtx.autoMergeEnabled),
     },
     gates: prCtx.gates,
@@ -735,6 +823,7 @@ function reportOperatorMergeSkip({
 async function runClosePipeline({
   options,
   setPhase,
+  setObservedGates,
   injectedProvider,
   injectedConfig,
   injectedNotify,
@@ -809,6 +898,7 @@ async function runClosePipeline({
         injectedSync,
         injectedGitSpawn,
         setPhase,
+        setObservedGates,
       }),
     leaseArgs,
   );

@@ -1800,3 +1800,211 @@ describe('runSingleStoryClose — the lease is held until the merge confirms (St
     );
   });
 });
+
+/**
+ * Story #5279 — `merged` on close's result is derived from what the run
+ * OBSERVED, in both finishers.
+ *
+ * Two merges the close had itself watched happen were reported as
+ * `merged: false`, and the note derived from that flag then read "NOT merged":
+ *
+ *   - a repository with no native auto-merge is direct squash-merged
+ *     synchronously by the arm phase, and under `--no-wait-merge` the no-wait
+ *     finisher never looked at `directMerged` at all — it also hard-coded
+ *     `pr.state: 'OPEN'` for a PR it had just merged;
+ *   - a merge whose `agent::done` flip failed blocks as `merged-flip-failed`,
+ *     and the wait finisher read `waitOutcome.confirmed` alone — so the result
+ *     said NOT merged while the terminal envelope for the SAME run reported
+ *     `pr.state: MERGED` off the probe.
+ *
+ * These assert against the observed inputs (what gh did, what the wait
+ * outcome carried), never against the result's own flag.
+ */
+describe('runSingleStoryClose — merged is what the run observed (Story #5279)', () => {
+  /**
+   * A `gh` whose repository has no native auto-merge: the `--auto` arm is
+   * refused with the documented signature, and the direct `--squash` merge
+   * that follows lands the PR. Records the merge argv so a test can assert
+   * the direct merge is what actually happened.
+   */
+  function ghWithoutNativeAutoMerge(prUrl, mergeCalls) {
+    return makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') return `${prUrl}\n`;
+      if (args[1] === 'view') return { mergeStateStatus: 'CLEAN' };
+      if (args[1] === 'merge') {
+        mergeCalls.push(args.slice());
+        if (args.includes('--auto')) {
+          const err = new Error('gh pr merge failed');
+          err.code = 1;
+          err.stderr =
+            'Auto merge is not allowed for this repository (GraphQL: ' +
+            'enablePullRequestAutoMerge)';
+          throw err;
+        }
+        return 'ok';
+      }
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+  }
+
+  function mockConfirmMergePhaseOutcome(t, outcome) {
+    t.mock.module(CONFIRM_MERGE_PHASE_URL, {
+      namedExports: {
+        runConfirmMergePhase: async () => outcome,
+        resolveMergeWaitConfig: () => ({ maxWaitSeconds: 1, pollMs: 1 }),
+      },
+    });
+  }
+
+  it('AC-1: a direct squash-merge under --no-wait-merge reports merged and pr.state MERGED', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const mergeCalls = [];
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=5279-direct`);
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 5279,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      noWaitForMerge: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5279,
+          state: 'open',
+          title: 'direct merge, no wait',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: ghWithoutNativeAutoMerge(
+        'https://github.com/owner/repo/pull/279',
+        mergeCalls,
+      ),
+      injectedRunCodeReview: noopReview(),
+    });
+
+    // The observed input: the arm was refused and a direct squash-merge ran.
+    assert.equal(mergeCalls.length, 2, 'the --auto arm then the direct merge');
+    assert.ok(mergeCalls[1].includes('--squash'));
+    assert.ok(!mergeCalls[1].includes('--auto'));
+
+    assert.equal(result.directMerged, true);
+    assert.equal(result.merged, true, 'the run watched this PR merge');
+    assert.equal(terminal.pr.state, 'MERGED');
+    // Still `pending`: the merge landed but this ending never flips
+    // agent::done, closes the issue or runs the tail — `nextCommand` does.
+    assert.equal(terminal.status, 'pending');
+    assert.match(terminal.nextCommand, /single-story-confirm-merge\.js/);
+    assert.equal(result.leaseReleased, false);
+    assert.match(result.note, /DIRECT squash-merge/);
+    assert.doesNotMatch(result.note, /NOT merged/);
+    assert.match(result.note, /did NOT finish the land/);
+  });
+
+  it('AC-1: a merge whose agent::done flip failed reports merged with the flip-failed class', async (t) => {
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    // The observed input: the merge landed, only the label write failed.
+    mockConfirmMergePhaseOutcome(t, {
+      confirmed: false,
+      terminal: 'blocked',
+      blockClass: 'merged-flip-failed',
+      reason: 'label write failed after the merge landed',
+      frictionCommentId: 'c-5279',
+      elapsedSeconds: 12,
+      prProbe: { state: 'MERGED', checksStatus: 'success' },
+    });
+
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/280\n';
+      }
+      if (args[1] === 'view') return { mergeStateStatus: 'CLEAN' };
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=5279-flip`);
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 5280,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5280,
+          state: 'open',
+          title: 'merged, flip failed',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: gh,
+      injectedRunCodeReview: noopReview(),
+    });
+
+    assert.equal(terminal.status, 'blocked');
+    assert.equal(terminal.blocked.blockClass, 'merged-flip-failed');
+    // The envelope reports the merge off the probe; the result must agree.
+    assert.equal(terminal.pr.state, 'MERGED');
+    assert.equal(result.merged, true);
+    assert.doesNotMatch(result.note, /NOT merged/);
+    // …and must not claim the flip, the issue close or the tail: the whole
+    // point of this block class is that they did not happen.
+    assert.match(result.note, /did NOT finish the land/);
+    assert.equal(result.leaseReleased, false);
+  });
+
+  it('an ordinary wait that expired unmerged is still not merged', async (t) => {
+    // The negative control for the derivation above: no confirmation, no
+    // flip-failed class, no direct merge — nothing observed a merge.
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    mockCloseValidation(t, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+    mockConfirmMergePhaseOutcome(t, {
+      confirmed: false,
+      terminal: 'pending',
+      reason: 'still in flight',
+      prProbe: { state: 'OPEN', checksStatus: 'pending' },
+      waitBudget: { maxWaitSeconds: 1, waitedSeconds: 1, maxBudgetSeconds: 2 },
+    });
+
+    const gh = makeFakeGh((args) => {
+      if (args[1] === 'list') return [];
+      if (args[1] === 'create') {
+        return 'https://github.com/owner/repo/pull/281\n';
+      }
+      if (args[1] === 'view') return { mergeStateStatus: 'CLEAN' };
+      if (args[1] === 'merge') return 'ok';
+      throw new Error(`unexpected gh: ${args.join(' ')}`);
+    });
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=5279-pending`);
+    const { result, terminal } = await runSingleStoryClose({
+      storyId: 5281,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: {
+          id: 5281,
+          state: 'open',
+          title: 'still in flight',
+          labels: ['agent::executing'],
+        },
+      }),
+      injectedConfig: fakeConfig(),
+      injectedGh: gh,
+      injectedRunCodeReview: noopReview(),
+    });
+
+    assert.equal(terminal.status, 'pending');
+    assert.equal(result.merged, false);
+    assert.match(result.note, /NOT merged/);
+  });
+});

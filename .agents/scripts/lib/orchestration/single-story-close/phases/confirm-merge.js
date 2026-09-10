@@ -105,6 +105,8 @@ import {
 import { emitMergeUnlanded as defaultEmitMergeUnlanded } from '../../lifecycle/emit-merge-unlanded.js';
 import { classifyMergeBlock as defaultClassifyMergeBlock } from '../../merge-block-class.js';
 import {
+  ADVISORY_GATE_INCONCLUSIVE_CLASS,
+  ADVISORY_GATE_RED_CLASS,
   DEFAULT_INTERVAL_SECONDS,
   DEFAULT_MAX_BUDGET_SECONDS,
   decideAdvisoryGateBlock,
@@ -395,6 +397,83 @@ export function resolveBudgetAnchorMs({ createdAt, fallbackMs }) {
 }
 
 /**
+ * The advisory-gate half of {@link unlandedRemedy} (Story #5279).
+ *
+ * Both advisory classes used to fall through to the generic remedy, which
+ * opens by telling the operator to resolve "branch protection, required
+ * checks, or a manual merge" — a diagnosis of a fault that provably does not
+ * exist here. An advisory gate blocks precisely BECAUSE GitHub reports the PR
+ * mergeable (`mergeStateStatus=UNSTABLE`) over a NON-required red check, so
+ * close refused to let native auto-merge land it. Saying so is the paragraph
+ * that stops the operator hunting a protection rule that is working fine.
+ *
+ * The two classes then part on what the evidence authorises. `inconclusive`
+ * is a job that failed WITHOUT FINISHING and reported no violation — nothing
+ * says the change is bad — so the proportionate act is a re-run, named here
+ * as `--rerun-advisory`; the permanent global exemption is deliberately
+ * mentioned last. `advisory-gate-red` reported a real violation, so the
+ * change is implicated and landing over it is a deliberate override.
+ *
+ * @param {{ storyId: number, blockClass: string }} args
+ * @returns {string}
+ */
+function advisoryGateRemedy({ storyId, blockClass }) {
+  const mergeable =
+    'GitHub reports this PR **mergeable regardless** ' +
+    '(`mergeStateStatus=UNSTABLE`) — the check that blocked is **advisory** ' +
+    '(non-required), so there is nothing wrong with branch protection or the ' +
+    'required checks. Close refused to let native auto-merge land the PR ' +
+    'over the failure, and disarmed it.';
+  const act =
+    blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS
+      ? 'The job **failed without finishing** and reported no violation, so ' +
+        'nothing here says the change is bad. Re-run it — ' +
+        '`--rerun-advisory <n>` on this command, or ' +
+        '`delivery.ci.rerunAdvisory` — rather than granting the permanent ' +
+        'global exemption `delivery.ci.advisoryAllowlist` is. Merging by ' +
+        'hand also lands it.'
+      : 'The job reported a real violation, so the change **is** implicated. ' +
+        'Fix it and push a new head, merge by hand to land over it ' +
+        'deliberately, re-run the job (`--rerun-advisory <n>`, or ' +
+        '`delivery.ci.rerunAdvisory`) if you believe it flaked, or exempt ' +
+        'the job via `delivery.ci.advisoryAllowlist`.';
+  return (
+    `${mergeable}\n\n${act}\n\nThen resume the land:\n\n` +
+    `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
+  );
+}
+
+/**
+ * The class-specific remediation paragraph of the unlanded friction comment.
+ * Split out of {@link formatUnlandedFriction} so each class's wording is one
+ * named branch rather than a nested ternary.
+ *
+ * @param {{ storyId: number, prNumber: number|null, blockClass: string }} args
+ * @returns {string}
+ */
+function unlandedRemedy({ storyId, prNumber, blockClass }) {
+  if (blockClass === 'checks-failed') {
+    return (
+      `A required check is **red**. Fix the failure and push a new commit on \`story-${storyId}\`; ` +
+      `the red disarms auto-merge, and only a green on a new head SHA re-arms it — ` +
+      `re-running the failed job is forbidden. Watch the checks with:\n\n` +
+      `\`\`\`bash\n${NEXT_COMMANDS.watchCi(storyId, prNumber)}\n\`\`\``
+    );
+  }
+  if (
+    blockClass === ADVISORY_GATE_INCONCLUSIVE_CLASS ||
+    blockClass === ADVISORY_GATE_RED_CLASS
+  ) {
+    return advisoryGateRemedy({ storyId, blockClass });
+  }
+  return (
+    `Resolve the underlying condition (branch protection, required checks, ` +
+    `or a manual merge), then resume the land:\n\n` +
+    `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``
+  );
+}
+
+/**
  * Format the `friction` comment body posted alongside the `agent::blocked`
  * transition when a landing attempt gives up without a confirmed merge.
  */
@@ -410,15 +489,7 @@ function formatUnlandedFriction({
     Number.isInteger(prNumber) && prNumber > 0
       ? `PR #${prNumber}${prUrl ? ` (${prUrl})` : ''}`
       : (prUrl ?? 'the PR');
-  const remedy =
-    blockClass === 'checks-failed'
-      ? `A required check is **red**. Fix the failure and push a new commit on \`story-${storyId}\`; ` +
-        `the red disarms auto-merge, and only a green on a new head SHA re-arms it — ` +
-        `re-running the failed job is forbidden. Watch the checks with:\n\n` +
-        `\`\`\`bash\n${NEXT_COMMANDS.watchCi(storyId, prNumber)}\n\`\`\``
-      : `Resolve the underlying condition (branch protection, required checks, ` +
-        `or a manual merge), then resume the land:\n\n` +
-        `\`\`\`bash\n${NEXT_COMMANDS.resumeLand(storyId)}\n\`\`\``;
+  const remedy = unlandedRemedy({ storyId, prNumber, blockClass });
   return (
     `### close-and-land: merge did not land\n\n` +
     `Story #${storyId}: the close polled ${prLabel} for merge confirmation and ` +
