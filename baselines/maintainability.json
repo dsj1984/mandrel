@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:55:11.818Z",
+  "generatedAt": "2026-09-10T23:38:10.203Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.072,
+      "p50": 99.069,
       "p95": 122.902
     }
   },
@@ -156,7 +156,7 @@
     },
     {
       "path": ".agents/scripts/evidence-gate.js",
-      "mi": 82.223
+      "mi": 83.26
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -628,7 +628,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "mi": 99.354
+      "mi": 97.334
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -764,11 +764,11 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-fullscope.js",
-      "mi": 93.781
+      "mi": 95.649
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-incremental.js",
-      "mi": 90.084
+      "mi": 93.159
     },
     {
       "path": ".agents/scripts/lib/coverage-capture-usage.js",
@@ -776,7 +776,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
-      "mi": 96.565
+      "mi": 95.785
     },
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
@@ -948,7 +948,7 @@
     },
     {
       "path": ".agents/scripts/lib/full-suite-lock.js",
-      "mi": 95.57
+      "mi": 99.156
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
@@ -1512,7 +1512,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "mi": 99.37
+      "mi": 98.328
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
@@ -1684,7 +1684,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
-      "mi": 89.927
+      "mi": 94.268
     },
     {
       "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
@@ -1792,7 +1792,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
-      "mi": 101.742
+      "mi": 102.32
     },
     {
       "path": ".agents/scripts/lib/single-story/confirm-merge.js",
