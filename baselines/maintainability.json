@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T16:50:16.488Z",
+  "generatedAt": "2026-09-10T18:40:05.427Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1872,7 +1872,7 @@
     },
     {
       "path": ".agents/scripts/lib/test-temp.js",
-      "mi": 107.819
+      "mi": 108.681
     },
     {
       "path": ".agents/scripts/lib/test-tiers.js",
