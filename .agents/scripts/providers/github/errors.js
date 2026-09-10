@@ -15,13 +15,34 @@
  * Extracted from `../github.js` in Story #1846 / Task #1857.
  */
 
+/**
+ * Needles that mean "this API surface does not exist here", not "this call
+ * failed". Every one names a *schema* fact — an absent GraphQL field, a
+ * disabled feature — so a match is a settled answer no retry can improve.
+ *
+ * The bare `sub-issues` needle used to sit in this list and had to go: it
+ * matches the endpoint's own name, so any error that merely *mentions* the
+ * surface classified as `feature-disabled`. A secondary rate limit delivered
+ * as `HTTP 403: API rate limit exceeded while fetching sub-issues` is the live
+ * case — genuinely transient, but bucketed here it bypassed
+ * `withTransientRetry` entirely and the Epic rollup read the burst as "this
+ * repo has no sub-issues", degrading to the body checklist on a read that
+ * would have succeeded a second later. The narrower `subissues` spellings
+ * below still catch the real schema errors, because GraphQL names the field
+ * without the hyphen.
+ */
 const FEATURE_DISABLED_MESSAGES = [
   'feature not available',
   'feature is not enabled',
   "field 'subissues'",
   'field "subissues"',
   'subissues is not available',
-  'sub-issues',
+  // The field, never the endpoint. `<x> field` cannot appear in "while
+  // fetching sub-issues", which is what makes these safe to keep after the
+  // bare needle's removal.
+  'subissues field',
+  'sub_issues field',
+  'sub-issues field',
   "doesn't exist on type",
   'does not exist on type',
   'unknown field',

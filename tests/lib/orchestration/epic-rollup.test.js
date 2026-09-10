@@ -7,9 +7,18 @@
  */
 
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { rollUpEpicForStory } from '../../../.agents/scripts/lib/orchestration/epic-rollup.js';
+
+const SCRIPTS = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../.agents/scripts',
+);
+const readScript = (rel) => readFileSync(path.join(SCRIPTS, rel), 'utf8');
 
 /** A column sync that records every push instead of touching a board. */
 function fakeColumnSync(status = 'synced') {
@@ -28,20 +37,24 @@ function fakeColumnSync(status = 'synced') {
 /**
  * A container Epic whose children live in the body checklist.
  *
- * The node id is **snake_case on purpose**: the rollup reaches these objects
- * through `listIssuesByLabel`, which returns the REST payload verbatim, so
- * `node_id` — not the mapped `nodeId` — is the shape production actually
- * hands the native reader (Story #5251). Pass `{ node_id: null }` for an Epic
- * with no resolvable id.
+ * The **mapped** ticket shape (Story #5280): the rollup now reaches every Epic
+ * through `listTicketsByLabel` or `getParentIssue`, both of which map their
+ * payload, so `id` is the issue number and the node id is `nodeId`. The raw
+ * REST shape this fixture used to mimic — `number` plus `node_id` — is exactly
+ * what the declared read exists to keep out of consumer modules; a fixture
+ * still producing it would be testing a shape production can no longer hand
+ * them (Story #5251 arrived at from the other side).
  *
- * @param {number} number
+ * Pass `{ nodeId: null }` for an Epic with no resolvable id.
+ *
+ * @param {number} id
  * @param {number[]} childIds
- * @param {{ state?: string, assignees?: unknown[], node_id?: string|null }} [extra]
+ * @param {{ state?: string, assignees?: unknown[], nodeId?: string|null }} [extra]
  */
-function container(number, childIds, extra = {}) {
+function container(id, childIds, extra = {}) {
   return {
-    number,
-    node_id: `I_epic_${number}`,
+    id,
+    nodeId: `I_epic_${id}`,
     labels: ['type::epic'],
     state: 'open',
     body: `## Goal\n\nGroup them.\n\n## Stories\n\n${childIds
@@ -57,41 +70,101 @@ function container(number, childIds, extra = {}) {
  * @param {number} id
  * @param {string|null} agentLabel
  * @param {string} [state]
+ * @param {string[]} [extraLabels]
  */
-function child(id, agentLabel, state = 'open') {
+function child(id, agentLabel, state = 'open', extraLabels = []) {
   return {
     id,
-    number: id,
     title: `Story ${id}`,
     body: '',
-    labels: agentLabel ? ['type::story', agentLabel] : ['type::story'],
+    labels: [
+      'type::story',
+      ...(agentLabel ? [agentLabel] : []),
+      ...extraLabels,
+    ],
     state,
   };
 }
 
 /**
- * Provider double. `epics` is what the open-`type::epic` listing returns;
- * `tickets` is the child lookup; every write lands in `updates`.
+ * Provider double.
+ *
+ * `epics` is what the `type::epic` listing returns; `parent` (when given) is
+ * what the one-call parent lookup answers, and its presence is what selects
+ * the native path over the scan. `children` is the child lookup; every write
+ * lands in `updates`; every read is counted in `calls` so a test can assert
+ * how many round-trips a rollup actually spends.
  */
 function fakeProvider({
   epics = [],
   children = [],
+  parent = null,
+  parentError,
   nativeChildren,
   nativeChildrenError,
+  missingChildIds = [],
 } = {}) {
-  const byId = new Map(children.map((c) => [Number(c.number), c]));
+  const byId = new Map(children.map((c) => [Number(c.id), c]));
+  const missing = new Set(missingChildIds.map(Number));
   const updates = [];
   const nativeCalls = [];
+  const calls = { listTicketsByLabel: 0, getParentIssue: 0, getTicket: 0 };
+  let inFlight = 0;
+  let maxInFlight = 0;
   const provider = {
     updates,
     nativeCalls,
-    listIssuesByLabel: async ({ labels }) =>
-      labels === 'type::epic' ? epics : [],
-    getTicket: async (id) => byId.get(Number(id)) ?? null,
+    calls,
+    get maxInFlight() {
+      return maxInFlight;
+    },
+    listTicketsByLabel: async ({ state, labels }) => {
+      calls.listTicketsByLabel++;
+      // The double refuses a listing whose `state` it was not told to honour.
+      // A rollup asking "did a child reopen under a container I closed?" gets
+      // a wrong answer, not a partial one, from an open-only listing — so a
+      // caller that forgets the filter must fail here rather than silently
+      // pass every test that happens to use only open Epics.
+      if (state !== 'open' && state !== 'closed' && state !== 'all') {
+        throw new Error(
+          `listTicketsByLabel: unhonoured state filter ${String(state)}`,
+        );
+      }
+      if (labels !== 'type::epic') return [];
+      return state === 'all'
+        ? epics
+        : epics.filter((e) => (e.state ?? 'open') === state);
+    },
+    getTicket: async (id) => {
+      calls.getTicket++;
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      try {
+        // Yield twice so overlapping reads are actually observable — a mapper
+        // that never awaits would report a max of 1 whatever the cap is.
+        await Promise.resolve();
+        await Promise.resolve();
+        if (missing.has(Number(id))) return null;
+        return byId.get(Number(id)) ?? null;
+      } finally {
+        inFlight--;
+      }
+    },
     updateTicket: async (id, mutations) => {
       updates.push({ id, mutations });
     },
   };
+  if (parentError) {
+    provider.getParentIssue = async () => {
+      calls.getParentIssue++;
+      throw parentError;
+    };
+  } else if (parent !== null) {
+    provider.getParentIssue = async (storyId) => {
+      calls.getParentIssue++;
+      return typeof parent === 'function' ? parent(storyId) : parent;
+    };
+  }
   // The double reads its arguments. An earlier version answered
   // `async () => nativeChildren`, which is precisely why a reader passing
   // `undefined` as the node id for every Epic went unnoticed until a consumer
@@ -106,12 +179,12 @@ function fakeProvider({
     }
   };
   if (nativeChildrenError) {
-    provider._getNativeSubIssues = async (parentNodeId, parentId) => {
+    provider.getNativeSubIssues = async (parentNodeId, parentId) => {
       recordCall(parentNodeId, parentId);
       throw nativeChildrenError;
     };
   } else if (nativeChildren) {
-    provider._getNativeSubIssues = async (parentNodeId, parentId) => {
+    provider.getNativeSubIssues = async (parentNodeId, parentId) => {
       recordCall(parentNodeId, parentId);
       return nativeChildren;
     };
@@ -382,15 +455,22 @@ describe('rollUpEpicForStory — child discovery', () => {
     ]);
   });
 
-  it('reaches the native read with the raw REST `node_id` listIssuesByLabel returns', async () => {
+  it('reaches the native read with a raw REST `node_id`, whatever produced it', async () => {
     // The regression this file exists to pin (Story #5251): the rollup's
-    // Epics come straight from `listIssuesByLabel`, which does NOT run
-    // through `issueToTicket`, so they carry `node_id` and never `nodeId`.
+    // Epics used to come straight from `listIssuesByLabel`, which does NOT run
+    // through `issueToTicket`, so they carried `node_id` and never `nodeId`.
     // Reading the camelCase name alone sent `undefined` to `$id: ID!`, which
     // GitHub rejects as a `permanent` error — so every Epic silently fell
     // back to its body checklist while reporting an API failure.
+    //
+    // The declared read has since removed the *source* of that divergence, but
+    // the shared reader still accepts both casings for the expansion path, and
+    // this pins that it does: fixing one caller must not break the other.
+    const epic = container(90, []);
+    epic.node_id = epic.nodeId;
+    delete epic.nodeId;
     const provider = fakeProvider({
-      epics: [container(90, [])],
+      epics: [epic],
       children: [child(1, 'agent::done'), child(2, 'agent::done')],
       nativeChildren: [1, 2],
     });
@@ -410,11 +490,11 @@ describe('rollUpEpicForStory — child discovery', () => {
   });
 
   it("reaches the native read with a mapped ticket's camelCase `nodeId`", async () => {
-    // The other half of the contract: `resolve-stories.js` feeds its reader
-    // `getTicket` output, which IS mapped. Both casings must resolve, or
-    // fixing one path breaks the other.
-    const epic = container(90, [], { node_id: undefined });
-    epic.nodeId = 'I_epic_mapped_90';
+    // The other half of the contract, and now the shape every rollup read
+    // produces: both `listTicketsByLabel` and `getParentIssue` map their
+    // payload, and `resolve-stories.js` feeds the same reader `getTicket`
+    // output. Both casings must resolve, or fixing one path breaks the other.
+    const epic = container(90, [], { nodeId: 'I_epic_mapped_90' });
     const provider = fakeProvider({
       epics: [epic],
       children: [child(1, 'agent::done'), child(2, 'agent::done')],
@@ -439,7 +519,7 @@ describe('rollUpEpicForStory — child discovery', () => {
     // checklist still carries the children, and nothing is reported as
     // degraded because no read was attempted.
     const provider = fakeProvider({
-      epics: [container(90, [1, 2], { node_id: null })],
+      epics: [container(90, [1, 2], { nodeId: null })],
       children: [child(1, 'agent::done'), child(2, 'agent::done')],
       nativeChildren: [1, 2],
     });
@@ -647,7 +727,7 @@ describe('rollUpEpicForStory — degradation', () => {
     const result = await rollUpEpicForStory({
       storyId: 1,
       provider: {
-        listIssuesByLabel: boom,
+        listTicketsByLabel: boom,
         getTicket: boom,
         updateTicket: boom,
       },
@@ -754,5 +834,376 @@ describe('rollUpEpicForStory — owner resolution', () => {
       );
       assert.equal(result.epics[0].detail, 'no-operator-handle');
     }
+  });
+});
+
+describe('rollUpEpicForStory — the parent resolves in one call (Story #5280)', () => {
+  it('spends one getParentIssue and never lists Epics at all', async () => {
+    // The lookup used to be a search: list every open `type::epic`, read each
+    // one's children, keep the one that mentions this Story. That is
+    // O(containers) round-trips to answer a question the sub-issue edge
+    // answers directly, and all but one of the reads was discarded.
+    const provider = fakeProvider({
+      parent: container(90, [1, 2]),
+      children: [child(1, 'agent::executing'), child(2, 'agent::ready')],
+      nativeChildren: [1, 2],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].epicId, 90);
+    assert.equal(provider.calls.getParentIssue, 1, 'exactly one parent read');
+    assert.equal(
+      provider.calls.listTicketsByLabel,
+      0,
+      'the native edge answered, so nothing is scanned',
+    );
+    assert.deepEqual(
+      provider.nativeCalls,
+      [{ parentNodeId: 'I_epic_90', parentId: 90 }],
+      "only the resolved Epic's own sub-issue tree is walked",
+    );
+  });
+
+  it('rolls up a parent the scan would never have found, because it is closed', async () => {
+    // The native edge outlives the container's state, so a reopened child of a
+    // closed Epic is reachable in one call.
+    const provider = fakeProvider({
+      parent: container(90, [1], { state: 'closed' }),
+      children: [child(1, 'agent::executing')],
+    });
+    const columnSync = fakeColumnSync();
+
+    await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync,
+    });
+
+    assert.deepEqual(columnSync.calls, [
+      { issueId: 90, column: 'In Progress' },
+    ]);
+  });
+
+  it('falls back to the scan when the Story has no native parent edge', async () => {
+    // Linkage can legitimately be a checklist row with no sub-issue edge
+    // behind it — an operator typing `- [ ] #123` into the body by hand.
+    const provider = fakeProvider({
+      parent: async () => null,
+      epics: [container(90, [1])],
+      children: [child(1, 'agent::executing')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].epicId, 90);
+    assert.equal(provider.calls.listTicketsByLabel, 1);
+  });
+
+  it('falls back to the scan when the parent lookup itself fails', async () => {
+    const provider = fakeProvider({
+      parentError: new Error('HTTP 502'),
+      epics: [container(90, [1])],
+      children: [child(1, 'agent::executing')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].epicId, 90, 'the scan covered the degrade');
+  });
+
+  it('ignores a native parent that is not a container Epic', async () => {
+    const provider = fakeProvider({
+      parent: { id: 77, labels: ['type::story'], state: 'open', body: '' },
+      epics: [],
+      children: [child(1, 'agent::executing')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.reason, 'no-container-epic');
+  });
+});
+
+describe('rollUpEpicForStory — a reopened child pulls a closed Epic back', () => {
+  it('moves the closed container to In Progress without reopening the issue', async () => {
+    // The scan path, because the double exposes no `getParentIssue` — which is
+    // what puts the `state` filter under test. With `state: 'open'` the closed
+    // container is not in the listing at all, so the Status correction this
+    // module has always promised was unreachable and the `isClosed(epic)`
+    // branches downstream were dead code.
+    const provider = fakeProvider({
+      epics: [container(90, [1, 2], { state: 'closed' })],
+      children: [child(1, 'agent::executing'), child(2, 'agent::done')],
+    });
+    const columnSync = fakeColumnSync();
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync,
+    });
+
+    assert.deepEqual(columnSync.calls, [
+      { issueId: 90, column: 'In Progress' },
+    ]);
+    assert.equal(
+      provider.updates.some((u) => u.mutations.state !== undefined),
+      false,
+      'closure is one-way — an operator who closed a container is not overruled',
+    );
+    assert.deepEqual(
+      result.pending,
+      [],
+      'a closed container with live work is corrected, not reported pending',
+    );
+  });
+
+  it('refuses a listing whose state filter the provider did not honour', async () => {
+    // Guards the guard: the double throws on an unrecognised `state`, so this
+    // asserts the double is actually policing the filter rather than ignoring
+    // it — otherwise the test above would pass on a caller that sent none.
+    const provider = fakeProvider({ epics: [container(90, [1])] });
+    await assert.rejects(
+      () => provider.listTicketsByLabel({ labels: 'type::epic' }),
+      /unhonoured state filter/,
+    );
+  });
+});
+
+describe('rollUpEpicForStory — bounded child reads', () => {
+  it('keeps at most FETCH_CONCURRENCY reads in flight', async () => {
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const provider = fakeProvider({
+      parent: container(90, ids),
+      children: ids.map((id) => child(id, 'agent::done')),
+    });
+
+    await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(provider.calls.getTicket, ids.length, 'every child was read');
+    assert.equal(
+      provider.maxInFlight,
+      5,
+      'the fan-out saturates the cap and never exceeds it',
+    );
+  });
+
+  it('rejects the whole batch on the first child read that throws', async () => {
+    const ids = [1, 2, 3, 4, 5, 6, 7, 8];
+    const provider = fakeProvider({
+      parent: container(90, ids),
+      children: ids.map((id) => child(id, 'agent::done')),
+    });
+    const inner = provider.getTicket;
+    provider.getTicket = async (id) => {
+      if (Number(id) === 3) throw new Error('HTTP 500');
+      return inner(id);
+    };
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].detail, 'child-read-failed');
+    assert.deepEqual(result.pending, [90]);
+    assert.equal(
+      provider.updates.length,
+      0,
+      'nothing is written on a failed read',
+    );
+  });
+});
+
+describe('rollUpEpicForStory — what does and does not count as a child', () => {
+  it('drops a body-only id that resolves to nothing, rather than stalling', async () => {
+    // A checklist row is hand-editable prose and can cite a deleted,
+    // transferred or mistyped issue. No re-run will ever make it resolve, so
+    // reading it as a failed read pinned the container `pending` forever.
+    const epic = container(90, [1, 2, 999]);
+    const provider = fakeProvider({
+      parent: epic,
+      children: [child(1, 'agent::done'), child(2, 'agent::done')],
+      nativeChildren: [1, 2],
+      missingChildIds: [999],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.notEqual(result.epics[0].detail, 'child-read-failed');
+    assert.deepEqual(result.closed, [90], 'the real children all landed');
+  });
+
+  it('still fails the read when a NATIVE edge resolves to nothing', async () => {
+    // The backend vouched for that edge, so its absence is a real read
+    // problem and the next tick may well answer differently.
+    const provider = fakeProvider({
+      parent: container(90, []),
+      children: [child(1, 'agent::done')],
+      nativeChildren: [1, 999],
+      missingChildIds: [999],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.equal(result.epics[0].detail, 'child-read-failed');
+    assert.deepEqual(result.closed, []);
+  });
+
+  it('refuses an Epic-typed child by name and derives without it', async () => {
+    const nested = container(91, []);
+    const provider = fakeProvider({
+      parent: container(90, [1, 91]),
+      children: [child(1, 'agent::done'), nested],
+      nativeChildren: [1, 91],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(result.epics[0].refused, [
+      { childId: 91, reason: 'epic-typed-child' },
+    ]);
+    assert.deepEqual(
+      result.closed,
+      [90],
+      'the nested container neither blocked nor advanced the parent',
+    );
+  });
+});
+
+describe('rollUpEpicForStory — how a container closed', () => {
+  it('closes as not_planned when every child is closed and none landed', async () => {
+    // The supersede shape: a cohort re-planned out of existence closes every
+    // child, carrying no `agent::done` and having merged nothing. Reporting
+    // that as `completed` over "every child Story landed" was false twice.
+    const provider = fakeProvider({
+      parent: container(90, [1, 2]),
+      children: [child(1, null, 'closed'), child(2, null, 'closed')],
+    });
+
+    const result = await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(result.closed, [90]);
+    assert.deepEqual(provider.updates, [
+      { id: 90, mutations: { state: 'closed', state_reason: 'not_planned' } },
+    ]);
+  });
+
+  it('still closes as completed when a single child actually landed', async () => {
+    const provider = fakeProvider({
+      parent: container(90, [1, 2]),
+      children: [child(1, 'agent::done'), child(2, null, 'closed')],
+    });
+
+    await rollUpEpicForStory({
+      storyId: 1,
+      provider,
+      config: {},
+      columnSync: fakeColumnSync(),
+    });
+
+    assert.deepEqual(provider.updates, [
+      { id: 90, mutations: { state: 'closed', state_reason: 'completed' } },
+    ]);
+  });
+});
+
+describe('nativeChildReader has exactly one definition (Story #5280)', () => {
+  // The expansion path and the rollup path must read an Epic's children the
+  // same way. Two private copies is the shape that lets them drift, and the
+  // drift is not cosmetic: an Epic the expansion can see children under but
+  // the rollup cannot is expandable and permanently unclosable. A structural
+  // assertion rather than a behavioural one, because the property being
+  // protected is "there is only one of these" — which no amount of passing
+  // behaviour can demonstrate.
+  const OWNER = 'lib/orchestration/epic-container.js';
+  const CONSUMERS = ['resolve-stories.js', 'lib/orchestration/epic-rollup.js'];
+  const DEFINITION = /function nativeChildReader\s*\(/;
+
+  it('defines it in epic-container.js and nowhere else', () => {
+    assert.match(readScript(OWNER), DEFINITION);
+    for (const consumer of CONSUMERS) {
+      assert.doesNotMatch(
+        readScript(consumer),
+        DEFINITION,
+        `${consumer} must import the reader, not define its own`,
+      );
+    }
+  });
+
+  it('is imported from that module by both consumers', () => {
+    for (const consumer of CONSUMERS) {
+      const source = readScript(consumer);
+      assert.match(
+        source,
+        /import\s*\{[^}]*\bnativeChildReader\b[^}]*\}\s*from\s*'[^']*epic-container\.js'/s,
+        `${consumer} must import nativeChildReader from epic-container.js`,
+      );
+    }
+  });
+
+  it('hands both consumers the same function object', async () => {
+    const [
+      { nativeChildReader: fromOwner },
+      { nativeChildReader: reExported },
+    ] = await Promise.all([
+      import('../../../.agents/scripts/lib/orchestration/epic-container.js'),
+      import('../../../.agents/scripts/resolve-stories.js'),
+    ]);
+    assert.equal(
+      reExported,
+      fromOwner,
+      "resolve-stories re-exports the shared reader, it doesn't wrap one",
+    );
   });
 });

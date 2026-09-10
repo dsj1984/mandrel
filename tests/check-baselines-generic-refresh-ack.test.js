@@ -89,6 +89,15 @@ function installGitStub({ baseRows, baseRollup, commits = [], baselineRel }) {
   for (const c of commits) {
     if (c.rows)
       blobBySha.set(c.sha, JSON.stringify(covEnvelope({ rows: c.rows })));
+    // Story #5277 — the acknowledgment diffs `sha^ -> sha` to learn what the
+    // tagged commit itself rewrote. A fixture that omits `parentRows` models a
+    // commit whose parent has no blob (the baseline was created by it), which
+    // reads as "every row in it is new".
+    if (c.parentRows)
+      blobBySha.set(
+        `${c.sha}^`,
+        JSON.stringify(covEnvelope({ rows: c.parentRows })),
+      );
   }
   __setSpawnRunner({
     spawn: (_cmd, args) => {
@@ -343,13 +352,27 @@ describe('check-baselines — refresh acknowledgment is row-scoped (#5179)', () 
 
   // AC-1 — the larger half of the leak: one tagged commit cleared regressions
   // on rows it never touched, including rows in unrelated directories.
+  //
+  // Story #5277 sharpened this fixture. `src/b.js` now sits in the refresh
+  // commit's blob AT ITS LOWERED VALUE, which is what an earlier untagged
+  // commit on the same branch actually produces: a blob is a whole-file
+  // snapshot, so it carries every row the branch has already moved. Row
+  // membership alone therefore said "the commit covered b.js" and the
+  // head-vs-blob comparison said "and it has not drifted since" — both true,
+  // both irrelevant, and together enough to acknowledge a row the tagged
+  // commit never wrote.
   it('a regression on a row the refresh commit never touched still fails the gate', async () => {
     root = setupTmpRepo();
     writeHead(root, [covRow('src/a.js', 70), covRow('src/b.js', 70)]);
     installGitStub({
       baseRows: [covRow('src/a.js', 95), covRow('src/b.js', 95)],
       commits: [
-        { sha: 'r1', subject: REFRESH_SUBJECT, rows: [covRow('src/a.js', 70)] },
+        {
+          sha: 'r1',
+          subject: REFRESH_SUBJECT,
+          rows: [covRow('src/a.js', 70), covRow('src/b.js', 70)],
+          parentRows: [covRow('src/a.js', 95), covRow('src/b.js', 70)],
+        },
       ],
     });
     const res = await runCheckBaselines({ argv: ['--no-friction'], cwd: root });
@@ -361,6 +384,46 @@ describe('check-baselines — refresh acknowledgment is row-scoped (#5179)', () 
       gate.regressions.map((r) => r.key),
       ['src/b.js'],
       'only the unrefreshed row survives as a regression',
+    );
+  });
+
+  // Story #5277 AC-4 — the same leak stated as the sequence that produces it,
+  // with the untagged commit present in the range the way git reports it.
+  it('an untagged commit that lowered a row is not laundered by a later tagged one', async () => {
+    root = setupTmpRepo();
+    // Head: A refreshed to 70 by the tagged commit; B lowered to 70 earlier.
+    writeHead(root, [covRow('src/a.js', 70), covRow('src/b.js', 70)]);
+    installGitStub({
+      baseRows: [covRow('src/a.js', 95), covRow('src/b.js', 95)],
+      commits: [
+        {
+          // Tagged, and it changed row A only. Its blob still carries B at the
+          // value the untagged commit below left there.
+          sha: 'tagged',
+          subject: REFRESH_SUBJECT,
+          rows: [covRow('src/a.js', 70), covRow('src/b.js', 70)],
+          parentRows: [covRow('src/a.js', 95), covRow('src/b.js', 70)],
+        },
+        {
+          // Untagged: in the range and touching the baseline, so `git log`
+          // reports it, but the subject filter drops it. It is the commit that
+          // actually lowered B.
+          sha: 'untagged',
+          subject: 'refactor(scripts): split the dispatcher',
+          rows: [covRow('src/a.js', 95), covRow('src/b.js', 70)],
+          parentRows: [covRow('src/a.js', 95), covRow('src/b.js', 95)],
+        },
+      ],
+    });
+
+    const res = await runCheckBaselines({ argv: ['--no-friction'], cwd: root });
+    assert.equal(res.exitCode, 4);
+    const gate = res.report.gates.find((g) => g.kind === 'coverage');
+    assert.deepEqual(gate.acknowledgedKeys, ['src/a.js']);
+    assert.deepEqual(
+      gate.regressions.map((r) => r.key),
+      ['src/b.js'],
+      'B is reported as a remaining regression',
     );
   });
 

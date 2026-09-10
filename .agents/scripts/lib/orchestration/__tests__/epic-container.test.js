@@ -15,34 +15,57 @@ import {
   CHECKLIST_ITEM_LINE_RE,
   composeEpicBody,
   isEpicTicket,
+  nativeChildReader,
   normalizeChildIds,
   readEpicChildIds,
   readEpicChildIdsFrom,
-  resolveEpicNodeId,
 } from '../epic-container.js';
 
-describe('resolveEpicNodeId', () => {
-  it('reads the camelCase id a mapped ticket carries', () => {
-    assert.equal(resolveEpicNodeId({ nodeId: 'I_mapped' }), 'I_mapped');
+describe('node-id resolution, through the reader that consumes it', () => {
+  // `resolveEpicNodeId` is module-private: the reader below is its only
+  // production caller, and a helper nothing outside imports fails the
+  // production dead-export gate. Driving it through `nativeChildReader` also
+  // pins the thing that actually matters — that an unresolvable id means "skip
+  // the read", not "send undefined to `$id: ID!`".
+  function recordingProvider() {
+    const calls = [];
+    return {
+      calls,
+      getNativeSubIssues: async (nodeId, id) => {
+        calls.push({ nodeId, id });
+        return [11];
+      },
+    };
+  }
+
+  it('reads the camelCase id a mapped ticket carries', async () => {
+    const provider = recordingProvider();
+    await nativeChildReader(provider)({ nodeId: 'I_mapped', id: 1 });
+    assert.deepEqual(provider.calls, [{ nodeId: 'I_mapped', id: 1 }]);
   });
 
-  it('reads the snake_case id a raw REST issue carries', () => {
-    // `listIssuesByLabel` returns the REST payload verbatim, so this is the
-    // shape the Epic-rollup path actually holds (Story #5251).
-    assert.equal(resolveEpicNodeId({ node_id: 'I_raw' }), 'I_raw');
+  it('reads the snake_case id a raw REST issue carries', async () => {
+    // A raw REST payload names it `node_id`, and the expansion path can still
+    // hold one (Story #5251).
+    const provider = recordingProvider();
+    await nativeChildReader(provider)({ node_id: 'I_raw', number: 1 });
+    assert.deepEqual(provider.calls, [{ nodeId: 'I_raw', id: 1 }]);
   });
 
-  it('prefers the mapped name when an object somehow carries both', () => {
-    assert.equal(
-      resolveEpicNodeId({ nodeId: 'I_mapped', node_id: 'I_raw' }),
-      'I_mapped',
-    );
+  it('prefers the mapped name when an object somehow carries both', async () => {
+    const provider = recordingProvider();
+    await nativeChildReader(provider)({
+      nodeId: 'I_mapped',
+      node_id: 'I_raw',
+      id: 1,
+    });
+    assert.deepEqual(provider.calls, [{ nodeId: 'I_mapped', id: 1 }]);
   });
 
-  it('reports null rather than handing an unusable value to $id: ID!', () => {
+  it('skips the read rather than handing an unusable value to $id: ID!', async () => {
     // Every one of these reached GraphQL as an invalid `ID!` variable, whose
     // rejection classifies as `permanent` — a hard API error manufactured
-    // from a missing field. A null lets the caller skip the read instead.
+    // from a missing field. Skipping lets the body checklist stand in.
     for (const epic of [
       {},
       { nodeId: undefined },
@@ -52,8 +75,30 @@ describe('resolveEpicNodeId', () => {
       undefined,
       null,
     ]) {
-      assert.equal(resolveEpicNodeId(epic), null, JSON.stringify(epic ?? null));
+      const provider = recordingProvider();
+      assert.deepEqual(
+        await nativeChildReader(provider)(epic),
+        [],
+        JSON.stringify(epic ?? null),
+      );
+      assert.deepEqual(provider.calls, [], 'the API was never reached');
     }
+  });
+
+  it('yields [] on a provider exposing no sub-issue read at all', async () => {
+    assert.deepEqual(await nativeChildReader({})({ nodeId: 'I_x', id: 1 }), []);
+  });
+
+  it('accepts the legacy private alias so older doubles keep working', async () => {
+    const calls = [];
+    const ids = await nativeChildReader({
+      _getNativeSubIssues: async (nodeId, id) => {
+        calls.push({ nodeId, id });
+        return [11, 12];
+      },
+    })({ nodeId: 'I_x', id: 1 });
+    assert.deepEqual(ids, [11, 12]);
+    assert.deepEqual(calls, [{ nodeId: 'I_x', id: 1 }]);
   });
 });
 
@@ -222,13 +267,44 @@ describe('readEpicChildIdsFrom', () => {
       epic,
       readNativeChildIds: async () => [11, 12],
     });
-    assert.deepEqual(result, { ids: [11, 12, 10], nativeReadFailed: false });
+    assert.deepEqual(result, {
+      ids: [11, 12, 10],
+      nativeReadFailed: false,
+      // #10 is in the checklist and NOT in the native edges, so the union owes
+      // it to the body alone. Callers deciding what an unresolvable id means
+      // need that split: a native id that will not resolve is a failed read, a
+      // body-only one is a typo in hand-edited prose.
+      bodyOnlyIds: [10],
+    });
+  });
+
+  it('names no id body-only when the native read already vouched for it', async () => {
+    const result = await readEpicChildIdsFrom({
+      epic,
+      readNativeChildIds: async () => [10, 11],
+    });
+    assert.deepEqual(result.bodyOnlyIds, []);
+  });
+
+  it('names nothing body-only when the native read FAILED', async () => {
+    // With no authoritative source to contrast against, nothing is "body-only"
+    // in the sense that matters — every id is unvouched, and the caller must
+    // treat an unreadable one as a read failure, not a typo.
+    const result = await readEpicChildIdsFrom({
+      epic,
+      readNativeChildIds: async () => {
+        throw new Error('GraphQL unavailable');
+      },
+    });
+    assert.equal(result.nativeReadFailed, true);
+    assert.deepEqual(result.bodyOnlyIds, []);
   });
 
   it('falls back to the checklist alone when there is no native reader', async () => {
     assert.deepEqual(await readEpicChildIdsFrom({ epic }), {
       ids: [10, 11],
       nativeReadFailed: false,
+      bodyOnlyIds: [],
     });
   });
 

@@ -20,7 +20,7 @@ import { Logger } from '../../lib/Logger.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { isNotFoundError } from './branch-protection.js';
 import { classifyGithubError, withTransientRetry } from './errors.js';
-import { issueToEpic } from './mappers.js';
+import { issueToEpic, issueToTicket, subIssueNodeToTicket } from './mappers.js';
 import {
   defaultRetryWarn,
   paginateRest,
@@ -53,6 +53,32 @@ function classifySearchRetry(err) {
  * the old `./github/issues.js` predecessor.
  */
 export const SUBTICKET_HYDRATION_CONCURRENCY = 8;
+
+/**
+ * The `Issue.parent` read backing {@link IssuesGateway#getParentIssue}.
+ *
+ * Node selection is deliberately identical to `SUB_ISSUES_QUERY`'s, so the
+ * parent and the children a caller holds come back in one shape and
+ * `subIssueNodeToTicket` maps both. Addressed by `owner/repo/number` rather
+ * than by node id because every caller starts from an issue number and would
+ * otherwise pay a round-trip just to learn the node id.
+ */
+const PARENT_ISSUE_QUERY = `query($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    issue(number: $number) {
+      parent {
+        number
+        databaseId
+        id
+        title
+        body
+        state
+        labels(first: 30) { nodes { name } }
+        assignees(first: 20) { nodes { login } }
+      }
+    }
+  }
+}`;
 
 // Re-export so existing test consumers that previously imported
 // `paginateRest` from this module continue to work without an extra
@@ -122,6 +148,85 @@ export class IssuesGateway {
     const endpoint = `/repos/${this.owner}/${this.repo}/issues?${params}`;
     const issues = await paginateRest(this._gh, endpoint);
     return issues.filter((issue) => !issue?.pull_request);
+  }
+
+  /**
+   * The same scan as {@link listIssuesByLabel}, mapped through
+   * `issueToTicket` — one **declared** shape instead of a raw REST payload.
+   *
+   * The two differ in exactly the field that keeps biting: the REST payload
+   * calls the issue number `number` and the database id `id`, while every
+   * mapped read calls the issue number `id`. Consumers that could be handed
+   * either wrote `number ?? id` to cope, and that fallback is not a
+   * defensive nicety — it is a live bug, because on a *mapped* ticket `id`
+   * is the number and on a *raw* one it is the database id. A caller that
+   * ever receives the raw shape silently addresses issues by database id.
+   *
+   * `url` is carried alongside the mapped fields because two consumers
+   * (`epic-candidates`, `dependency-candidates`) render a link and
+   * `issueToTicket` drops `html_url`. It is the only addition; everything
+   * else is exactly what every other single-issue read returns.
+   *
+   * @param {{ state?: 'open'|'closed'|'all', labels?: string }} [opts]
+   * @returns {Promise<Array<object>>} Mapped tickets (`id` is the issue number).
+   * @field-manifest /repos/{owner}/{repo}/issues: number, id, node_id, title,
+   *                 body, labels, state, state_reason, assignees, html_url,
+   *                 pull_request
+   */
+  async listTicketsByLabel(opts = {}) {
+    const issues = await this.listIssuesByLabel(opts);
+    return issues.map((issue) => ({
+      ...issueToTicket(issue),
+      url: issue.html_url ?? null,
+    }));
+  }
+
+  /**
+   * Resolve an issue's container parent in **one** request.
+   *
+   * The rollup's child→parent lookup used to scan every open `type::epic`
+   * issue and read each one's children looking for the Story it was handed:
+   * O(open Epics) requests to answer a question the API answers directly.
+   * `Issue.parent` is the native sub-issue edge read backwards, so a Story
+   * with a container costs one call and a Story without one costs the same.
+   *
+   * Returns `null` — never throws — when the issue has no parent, when the
+   * response is shaped unexpectedly, or when the sub-issues feature is
+   * unavailable on this repo. A null is "no parent resolved here", which is
+   * exactly what the caller's body-checklist fallback exists for; turning a
+   * disabled feature into an exception would convert a degraded lookup into a
+   * failed lifecycle edge.
+   *
+   * @param {number} number Issue number whose parent to resolve.
+   * @returns {Promise<object|null>} Mapped parent ticket, or null.
+   * @field-manifest GraphQL Issue.parent: number, id, title, body, state,
+   *                 labels.nodes.name, assignees.nodes.login
+   */
+  async getParentIssue(number) {
+    const issueNumber = Number(number);
+    if (!Number.isInteger(issueNumber) || issueNumber <= 0) return null;
+    let data;
+    try {
+      data = await withTransientRetry(
+        () =>
+          this.ghGraphql(
+            PARENT_ISSUE_QUERY,
+            { owner: this.owner, repo: this.repo, number: issueNumber },
+            { headers: { 'GraphQL-Features': 'sub_issues' } },
+          ),
+        {
+          label: `getParentIssue #${issueNumber}`,
+          onRetry: defaultRetryWarn,
+        },
+      );
+    } catch (err) {
+      Logger.warn(
+        `[GitHubProvider] parent lookup for #${issueNumber} degraded to none ` +
+          `(${err?.message ?? err}).`,
+      );
+      return null;
+    }
+    return subIssueNodeToTicket(data?.repository?.issue?.parent ?? null);
   }
 
   /**

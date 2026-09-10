@@ -129,12 +129,62 @@ export function isEpicTicket(issue) {
  * really had. Callers skip the read on a `null` instead, the same clean
  * no-op `providers/github/board-add.js` makes with `reason: 'no-node-id'`.
  *
+ * Module-private since the reader that consumes it moved here: `nativeChildReader`
+ * below is the only production caller, and exporting a helper nothing outside
+ * imports fails the production dead-export gate. Its behaviour is pinned
+ * through that reader.
+ *
  * @param {{ nodeId?: unknown, node_id?: unknown }} epic
  * @returns {string|null}
  */
-export function resolveEpicNodeId(epic) {
+function resolveEpicNodeId(epic) {
   const nodeId = epic?.nodeId ?? epic?.node_id;
   return typeof nodeId === 'string' && nodeId !== '' ? nodeId : null;
+}
+
+/**
+ * Read an Epic's native sub-issue children as issue numbers.
+ *
+ * The **one** definition, injected into `readEpicChildIdsFrom` by both the
+ * delivery expansion (`resolve-stories.js`) and the rollup
+ * (`epic-rollup.js`). It lived in each of them as a private copy, and the two
+ * copies are exactly the pair that must not drift: if the expansion sees a
+ * child the rollup does not, an Epic becomes expandable but permanently
+ * unclosable — the Story #5210 failure, arrived at from the other direction.
+ * Sharing the reader makes that class of divergence unrepresentable.
+ *
+ * It lives *here*, in the module that already describes what a container Epic
+ * is, rather than in either consumer: `resolve-stories.js` is a CLI entrypoint
+ * and importing one from the lib layer would invert the dependency direction.
+ * The provider is a parameter, so this module stays provider-agnostic.
+ *
+ * `resolveEpicNodeId` is what makes the two callers agree on the *id* as well
+ * as the reader: an Epic reached through a mapped read carries `nodeId`, one
+ * read raw from REST carries `node_id`, and neither caller can tell from the
+ * value it holds. A missing id yields `[]` rather than an `undefined` reaching
+ * GraphQL as a rejected `ID!`.
+ *
+ * @param {object} provider
+ * @returns {(epic: object) => Promise<number[]>}
+ */
+export function nativeChildReader(provider) {
+  return async (epic) => {
+    const nodeId = resolveEpicNodeId(epic);
+    if (nodeId === null) return [];
+    // The declared port first, the legacy private alias second: both forward
+    // to the same gateway on the live provider, and the fallback is what keeps
+    // test doubles written against the older name working.
+    const read =
+      provider?.getNativeSubIssues ?? provider?._getNativeSubIssues ?? null;
+    if (typeof read !== 'function') return [];
+    // Diagnostics-only second argument, and the one place the two shapes are
+    // still read together on purpose: this module is the declared bridge
+    // between them (see `resolveEpicNodeId` above), and the expression is
+    // correct under both — a raw REST issue names the issue number `number`,
+    // a mapped ticket names it `id`. Every *consumer* module now receives one
+    // declared shape and reads the field directly.
+    return (await read.call(provider, nodeId, epic?.number ?? epic?.id)) ?? [];
+  };
 }
 
 /**
@@ -230,12 +280,22 @@ export function readEpicChildIds(body) {
  * supplied none never asked for authority and is not degraded relative to what
  * it requested.
  *
+ * **`bodyOnlyIds` names the ids the union owes to the checklist alone.** The
+ * two sources are not equally trustworthy about a *single* id: a native edge
+ * is a link the backend holds, so an id it returns names a real issue, while a
+ * checklist row is hand-editable prose and can cite an issue that was deleted,
+ * transferred, or simply mistyped. Callers that must decide what an
+ * unresolvable id means need to know which source vouched for it — a native id
+ * that will not resolve is a failed read, a body-only one is a typo. Empty
+ * when the native read failed or never ran: with no authoritative source to
+ * contrast against, nothing is "body-only" in the sense that matters.
+ *
  * @param {{
  *   epic: { number?: number, id?: number, body?: string, nodeId?: string },
  *   readNativeChildIds?: (epic: object) => Promise<number[]>,
  *   onWarn?: (message: string) => void,
  * }} opts
- * @returns {Promise<{ ids: number[], nativeReadFailed: boolean }>}
+ * @returns {Promise<{ ids: number[], nativeReadFailed: boolean, bodyOnlyIds: number[] }>}
  */
 export async function readEpicChildIdsFrom({
   epic,
@@ -244,14 +304,16 @@ export async function readEpicChildIdsFrom({
 } = {}) {
   const fromBody = readEpicChildIds(epic?.body);
   if (typeof readNativeChildIds !== 'function') {
-    return { ids: fromBody, nativeReadFailed: false };
+    return { ids: fromBody, nativeReadFailed: false, bodyOnlyIds: [] };
   }
 
   try {
     const native = normalizeChildIds(await readNativeChildIds(epic));
+    const nativeSet = new Set(native);
     return {
       ids: normalizeChildIds([...native, ...fromBody]),
       nativeReadFailed: false,
+      bodyOnlyIds: fromBody.filter((id) => !nativeSet.has(id)),
     };
   } catch (err) {
     onWarn?.(
@@ -259,6 +321,6 @@ export async function readEpicChildIdsFrom({
         `#${epic?.number ?? epic?.id ?? '?'} (${err?.message ?? String(err)}); ` +
         'using the body checklist alone — the child list may be incomplete.',
     );
-    return { ids: fromBody, nativeReadFailed: true };
+    return { ids: fromBody, nativeReadFailed: true, bodyOnlyIds: [] };
   }
 }

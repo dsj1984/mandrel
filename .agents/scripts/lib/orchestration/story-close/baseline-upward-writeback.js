@@ -64,7 +64,11 @@ import {
 import { getQuality } from '../../config-resolver.js';
 import { gitSync as defaultGitSync } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
-import { currentBranch, listChangedFiles } from './format-autofix.js';
+import {
+  currentBranch,
+  listChangedFiles,
+  listDirtyPaths,
+} from './format-autofix.js';
 
 const TAG = '[baseline-writeback]';
 
@@ -92,6 +96,7 @@ const GUARD_REASONS = new Set([
   'gate-disabled',
   'no-changed-files',
   'wrong-branch',
+  'dirty-tree',
   'no-baseline',
   'no-scorer',
 ]);
@@ -267,7 +272,14 @@ function commitBaseline({ cwd, git, relPath, subject, body }) {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
   } catch (err) {
-    git(['checkout', '--', relPath], {
+    // `git checkout -- <path>` restores the WORKTREE from the index — and the
+    // index is exactly what the `git add` above just overwrote, so on a
+    // rejected commit it restored the file to the value it was meant to be
+    // rolled back FROM. The rollback was a no-op that looked like one, and the
+    // rewritten row survived as a staged edit into whatever the gates scored
+    // next. `restore --staged --worktree` resets both to HEAD, which is what
+    // "leave the tree as the close found it" actually means.
+    git(['restore', '--staged', '--worktree', '--', relPath], {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -289,15 +301,75 @@ function commitBaseline({ cwd, git, relPath, subject, body }) {
  * so a mis-wired `worktreePath` can never leave a modified baseline in a tree
  * whose history we then refuse to touch.
  *
- * @param {{ gate: object|undefined, workTree: string, storyBranch: string, git: Function, changed: string[] }} ctx
+ * The dirty-tree guard is the same refusal `runScopedFormatAutofix` makes and
+ * for the same reason, sharpened to one path: this step's only write target is
+ * the baseline file, and it commits that file by name. An uncommitted edit
+ * sitting on it — a hand-run `maintainability:reanchor`, a half-resolved merge,
+ * an operator mid-edit — would be swept into a `baseline-refresh:` commit
+ * authored by close and attributed to rows this branch improved. That commit is
+ * the one `refresh-ack.js` VOUCHES for, so an absorbed edit is not merely
+ * unrelated: it arrives pre-acknowledged, which is the precise laundering this
+ * whole Story exists to close.
+ *
+ * @param {{ gate: object|undefined, workTree: string, storyBranch: string, git: Function, changed: string[], relPath: string }} ctx
  * @returns {string|null}
  */
-function precheck({ gate, workTree, storyBranch, git, changed }) {
+function precheck({ gate, workTree, storyBranch, git, changed, relPath }) {
   if (gate?.enabled === false) return 'gate-disabled';
   if (changed.length === 0) return 'no-changed-files';
   const onBranch = currentBranch(workTree, git);
   if (onBranch !== storyBranch) return 'wrong-branch';
+  if (isDirty({ workTree, git, relPath })) return 'dirty-tree';
   return null;
+}
+
+/**
+ * Is the baseline file already modified in the worktree or the index?
+ *
+ * Fails CLOSED on an unreadable status: a step that cannot tell whether it is
+ * about to absorb someone else's edit must not proceed, and skipping costs
+ * only a stale upward row that the nightly full-scope re-score still catches.
+ *
+ * @param {{ workTree: string, git: Function, relPath: string }} ctx
+ * @returns {boolean}
+ */
+function isDirty({ workTree, git, relPath }) {
+  try {
+    return listDirtyPaths(workTree, git).includes(relPath);
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * The ref the branch's changed-file set is measured against.
+ *
+ * `origin/<baseBranch>` when the remote-tracking ref exists, the local branch
+ * otherwise. A local `main` in a long-lived checkout — and in every Story
+ * worktree, which is seeded once and never pulled again — drifts behind the
+ * remote, and a stale base widens the three-dot range to include commits that
+ * landed on the base after the branch forked. Every file in that widening is
+ * then scored and written back by whichever Story happens to close next, which
+ * is precisely the "absorb unrelated drift into the next PR" failure
+ * constraint 3 in the preamble forbids.
+ *
+ * @param {{ workTree: string, git: Function, baseBranch: string }} ctx
+ * @returns {string}
+ */
+function resolveScopeBase({ workTree, git, baseBranch }) {
+  try {
+    git(
+      ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${baseBranch}`],
+      {
+        cwd: workTree,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+      },
+    );
+    return `origin/${baseBranch}`;
+  } catch {
+    return baseBranch;
+  }
 }
 
 /**
@@ -305,8 +377,8 @@ function precheck({ gate, workTree, storyBranch, git, changed }) {
  * fold them into one `baseline-refresh:` commit on the Story branch.
  *
  * Every no-op is reported by name rather than silently: `gate-disabled`,
- * `no-changed-files`, `wrong-branch`, `no-baseline`, `no-scored-rows`,
- * `no-improvements`, `unchanged`. The caller logs the reason and proceeds —
+ * `no-changed-files`, `wrong-branch`, `dirty-tree`, `no-baseline`,
+ * `no-scored-rows`, `no-improvements`, `unchanged`. The caller logs the reason and proceeds —
  * this step is never allowed to fail a close, because `check-baselines` is
  * still the gate and this is only the refresh half of the loop.
  *
@@ -364,12 +436,22 @@ export async function runBaselineUpwardWriteback({
 
   const changed = listChangedFiles({
     cwd: workTree,
-    baseBranch,
+    baseBranch: resolveScopeBase({ workTree, git, baseBranch }),
     storyBranch,
     git,
   }).filter((file) => SCORABLE.test(file));
 
-  const blocked = precheck({ gate, workTree, storyBranch, git, changed });
+  const writePath = resolveWritePath({ cwd: workTree });
+  const relPath = path.relative(workTree, writePath).split(path.sep).join('/');
+
+  const blocked = precheck({
+    gate,
+    workTree,
+    storyBranch,
+    git,
+    changed,
+    relPath,
+  });
   if (blocked) return skip(logger, blocked);
 
   const baselineRows = loadBaselineRows({ cwd: workTree });
@@ -399,7 +481,8 @@ export async function runBaselineUpwardWriteback({
     storyId,
     logger,
     refreshBaseline,
-    resolveWritePath,
+    writePath,
+    relPath,
   });
 }
 
@@ -420,10 +503,10 @@ async function persist({
   storyId,
   logger,
   refreshBaseline,
-  resolveWritePath,
+  writePath,
+  relPath,
 }) {
   const improvedPaths = improved.map((row) => row.path);
-  const writePath = resolveWritePath({ cwd: workTree });
   const { wrote } = await refreshBaseline({
     kind: KIND,
     cwd: workTree,
@@ -436,7 +519,6 @@ async function persist({
   // nothing worth a log line above debug.
   if (!wrote) return skip(logger, 'unchanged');
 
-  const relPath = path.relative(workTree, writePath).split(path.sep).join('/');
   const { sha } = commitBaseline({
     cwd: workTree,
     git,

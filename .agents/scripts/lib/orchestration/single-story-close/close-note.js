@@ -18,8 +18,13 @@
  *   > **No note may assert a state the same object denies.**
  *
  * Every branch below is therefore derived from the result's OWN
- * `merged` / `directMerged` / `autoMergeEnabled` fields — the three the note
- * ships next to — so no input can produce a note that contradicts them. The
+ * `merged` / `directMerged` / `autoMergeEnabled` / `landCompleted` fields —
+ * the ones the note ships next to — so no input can produce a note that
+ * contradicts them. Story #5279 added the fourth, because `merged: true`
+ * used to imply the flip, the issue close and the post-land tail: a direct
+ * squash-merge under `--no-wait-merge`, and a merge whose `agent::done` write
+ * failed, now reach it with none of the three, and reusing the confirmed
+ * wording for them would reintroduce the defect above one field over. The
  * unmerged branches deliberately claim nothing about the Story's label state
  * either: close's ending may be `pending` OR `blocked` with the same
  * `merged: false`, and the terminal envelope is the authority on which. They
@@ -31,23 +36,30 @@
 /**
  * The one line the note is not allowed to get wrong.
  *
- * @param {{ merged?: boolean, directMerged?: boolean, autoMergeEnabled?: boolean }} result
+ * @param {{ merged?: boolean, directMerged?: boolean,
+ *   autoMergeEnabled?: boolean, landCompleted?: boolean }} result
+ *   `landCompleted` — did THIS run flip `agent::done`, close the issue and
+ *   run the post-land tail? Defaults to `merged`, the pre-#5279 equivalence.
  * @returns {string}
  */
 export function deriveCloseNote({
   merged = false,
   directMerged = false,
   autoMergeEnabled = false,
+  landCompleted = merged,
 } = {}) {
   if (merged) {
-    return directMerged
-      ? 'Close-and-land: PR merge confirmed by a DIRECT squash-merge (native ' +
-          'auto-merge was unavailable on this repository). Story flipped ' +
-          'agent::closing → agent::done, the issue closed ' +
-          '(confirmStoryMerged), and the post-land tail ran.'
-      : 'Close-and-land: PR merge confirmed. Story flipped agent::closing → ' +
-          'agent::done, the issue closed (confirmStoryMerged), and the ' +
-          'post-land tail ran.';
+    const how = directMerged
+      ? 'PR merge confirmed by a DIRECT squash-merge (native auto-merge was ' +
+        'unavailable on this repository).'
+      : 'PR merge confirmed.';
+    return landCompleted
+      ? `Close-and-land: ${how} Story flipped agent::closing → agent::done, ` +
+          'the issue closed (confirmStoryMerged), and the post-land tail ran.'
+      : `Close-and-land: ${how} This close did NOT finish the land: ` +
+          'agent::done was not flipped and the post-land tail did not run. ' +
+          'Finish it with single-story-confirm-merge.js, idempotent against an ' +
+          'already-merged PR. The terminal envelope is authoritative.';
   }
   if (autoMergeEnabled) {
     return (

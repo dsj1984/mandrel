@@ -562,3 +562,44 @@ describe('providers/github/errors.js — unified transient predicate (Story #429
     assert.equal(calls, 1);
   });
 });
+
+describe('classifyGithubError — the endpoint name is not a schema fact (Story #5280)', () => {
+  it('classifies a rate-limited sub-issues read as transient, not feature-disabled', async () => {
+    // The bare `sub-issues` needle matched the endpoint's own name, so any
+    // error that merely *mentioned* the surface read as "this repo has no
+    // sub-issues". A secondary rate limit arrives as HTTP 403 naming the call
+    // it interrupted, which bypassed the retry entirely and made the Epic
+    // rollup degrade to the body checklist on a read that would have succeeded
+    // a second later.
+    assert.equal(
+      classifyGithubError({
+        stderr: 'HTTP 403: API rate limit exceeded while fetching sub-issues',
+      }),
+      'transient',
+    );
+  });
+
+  it('still classifies an absent sub-issues FIELD as feature-disabled', async () => {
+    for (const stderr of [
+      'the sub-issues field is unavailable on this installation',
+      "Field 'subIssues' doesn't exist on type 'Issue'",
+      'GraphQL error: subissues is not available',
+      'the sub_issues feature is not enabled for this repository',
+    ]) {
+      assert.equal(
+        classifyGithubError({ stderr }),
+        'feature-disabled',
+        `expected feature-disabled for: ${stderr}`,
+      );
+    }
+  });
+
+  it('keeps a genuine permission denial on the sub-issues read permanent', async () => {
+    assert.equal(
+      classifyGithubError({
+        stderr: 'HTTP 403: Resource not accessible by integration (sub-issues)',
+      }),
+      'permission',
+    );
+  });
+});
