@@ -25,8 +25,7 @@ mode from what the operator typed, announce it, act**:
 
 **Resolving a bare id.** Read live state rather than asking: `agent::done` can
 only be amended, an open unplanned issue only planned. **Announce the
-derivation** — "4712 is `agent::done` → amending". Ask **only** for an open
-Story already at `agent::ready`.
+derivation**. Ask **only** for an open Story already at `agent::ready`.
 
 ## Saying what you want
 
@@ -73,10 +72,6 @@ in Key Assumptions, each a decision-made-by-default.
 **Gate #1** — STOP to confirm the sharpened plan intent and any
 duplicate-candidate review. Under `--yes`, auto-proceed.
 
-On a truthy `memoryPoolAdvisory.recommend`, name
-[`/memory-consolidate`](memory-consolidate.md) quoting its `reasons[]`;
-advisory.
-
 On a truthy `deliverLightSuggestion.suggested`, offer — advisory, never an
 automatic reroute — to deliver the seed instead; on confirm route **in this
 session** into [`helpers/deliver-light.md`](helpers/deliver-light.md), its gate
@@ -93,7 +88,9 @@ persist parses either, serializes canonical markdown and syncs top-level
 
 **Grounding = your reads + Phase 8.** Nothing inventories the repo: read each
 file you cite; persist hard-errors on any `{path, assumption}` absent from the
-tree. Fields: [ref](helpers/plan-reference.md).
+tree — a `refactors-existing` on a path the base branch **deleted or renamed**
+included. One rescue: a **never-tracked** one normalises to `creates`. Fields:
+[ref](helpers/plan-reference.md).
 
 Artifacts under `temp/plan-<slug>/`: `stories.json` (**length 1 by default**;
 over-budget Specs fail closed — split or tighten, never under `docs/`); optional

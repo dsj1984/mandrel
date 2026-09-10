@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-09T02:17:25.075Z",
+  "generatedAt": "2026-09-10T15:06:54.980Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1196,7 +1196,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 83.433
+      "mi": 84.221
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-detect.js",
@@ -1361,6 +1361,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "mi": 99.598
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
+      "mi": 109.865
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-reachability.js",

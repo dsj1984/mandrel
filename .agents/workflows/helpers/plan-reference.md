@@ -92,6 +92,13 @@ The marker keeps the operator's undelegated decisions findable after the
 fact: reviewing a `--yes` plan means scanning its decisions-made-by-default,
 not re-deriving which assumptions were really the agent's to make.
 
+## Gate #1 → the memory-pool advisory (`memoryPoolAdvisory`)
+
+On a truthy `memoryPoolAdvisory.recommend`, name
+[`/memory-consolidate`](../memory-consolidate.md) at Gate #1, quoting its
+`reasons[]`. Purely advisory: a stale pool degrades recall, it does not make
+the plan wrong, so it never blocks and never reroutes.
+
 ## Gate #1 → the light path (in-session handoff)
 
 On a confirmed `deliverLightSuggestion`, `/mandrel-plan` routes into
