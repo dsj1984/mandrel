@@ -28,8 +28,4 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Typography and spacing
 - [ ] Coverage — is anything exercised at a non-desktop viewport?
 - [ ] Effectiveness — does that exercise assert anything mobile-specific?
-- [ ] Resolve the target from config — never a hardcoded URL.
-- [ ] Sample routes from the navigability SSOT.
 - [ ] Drive two form factors per route.
-- [ ] Median-of-3 or provisional.
-- [ ] Leave the viewport as you found it.

@@ -30,6 +30,7 @@
  *   node .agents/scripts/resolve-stories.js --ids 101-104        # inclusive range
  *   node .agents/scripts/resolve-stories.js --ids 101,102 --pretty
  *   node .agents/scripts/resolve-stories.js --ids 101 --no-native   # skip the dependencies API
+ *   node .agents/scripts/resolve-stories.js --ids 101 --allow-unlabelled
  *
  * Exit codes: 0 ok, 1 usage/resolution error.
  */
@@ -78,6 +79,11 @@ Options:
                  be mixed with Story ids.
   --pretty       Pretty-print the JSON envelope.
   --no-native    Skip the native blocked_by read (body edges only).
+  --allow-unlabelled
+                 Resolve a Story carrying no agent::* label. Without it such a
+                 Story is refused: the audit sweep files Stories without one on
+                 purpose, and delivering one means dispatching a worker at
+                 unenriched audit prose. Route it through /mandrel-plan first.
   --help         Show this help.
 `;
 
@@ -127,9 +133,10 @@ export function nativeChildReader(provider) {
  *
  * @param {object} provider
  * @param {number[]} ids
+ * @param {{ allowUnlabelled?: boolean }} [options]
  * @returns {Promise<object[]>}
  */
-export async function fetchStories(provider, ids) {
+export async function fetchStories(provider, ids, { allowUnlabelled } = {}) {
   const { ids: resolvedIds, expansions } = await expandEpicIds({
     ids,
     getTicket: (id) => provider.getTicket(id),
@@ -151,7 +158,7 @@ export async function fetchStories(provider, ids) {
       if (!issue) {
         throw new Error(`[resolve-stories] Issue #${id} was not found.`);
       }
-      return toStoryRecord(issue, id);
+      return toStoryRecord(issue, id, { allowUnlabelled });
     },
     { concurrency: FETCH_CONCURRENCY },
   );
@@ -237,19 +244,20 @@ export async function resolveForeignDone({ provider, dag, inSetIds }) {
  * stdout are injected so the whole path is unit-testable without a live
  * GitHub round-trip. Exported for testing.
  *
- * @param {{ ids: string, native?: boolean, pretty?: boolean }} args
+ * @param {{ ids: string, native?: boolean, pretty?: boolean,
+ *   allowUnlabelled?: boolean }} args
  * @param {{ provider: object, config: object, stdout?: { write(s: string): void } }} deps
  * @returns {Promise<number>}
  */
 export async function runResolveStories(
-  { ids: rawIds, native = true, pretty = false },
+  { ids: rawIds, native = true, pretty = false, allowUnlabelled = false },
   { provider, config, stdout = process.stdout },
 ) {
   const ids = parseIds(rawIds);
   const owner = config.github?.owner;
   const repo = config.github?.repo;
 
-  const stories = await fetchStories(provider, ids);
+  const stories = await fetchStories(provider, ids, { allowUnlabelled });
   const nativeEdges = native
     ? await readNativeEdges({ provider, stories, owner, repo })
     : new Map();
@@ -280,12 +288,29 @@ export async function runResolveStories(
   return 0;
 }
 
+/**
+ * Project the parsed flags onto the flow core's options object, so `main` reads
+ * as parse → help → run and the flag-name spellings live in one place.
+ *
+ * @param {Record<string, unknown>} values
+ * @returns {{ ids: string, native: boolean, pretty: boolean, allowUnlabelled: boolean }}
+ */
+function toRunOptions(values) {
+  return {
+    ids: values.ids,
+    native: values.native,
+    pretty: values.pretty,
+    allowUnlabelled: values['allow-unlabelled'],
+  };
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
       ids: { type: 'string' },
       pretty: { type: 'boolean', default: false },
       native: { type: 'boolean', default: true },
+      'allow-unlabelled': { type: 'boolean', default: false },
       help: { type: 'boolean', default: false },
     },
     // The documented opt-out is `--no-native`; without allowNegative,
@@ -308,10 +333,7 @@ async function main() {
   // headless caller can pipe this straight into stories-wave-tick.js.
   routeAllOutputToStderr();
 
-  return runResolveStories(
-    { ids: values.ids, native: values.native, pretty: values.pretty },
-    resolveStoriesProvider(),
-  );
+  return runResolveStories(toRunOptions(values), resolveStoriesProvider());
 }
 
 runAsCli(import.meta.url, main, {

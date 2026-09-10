@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-10T15:36:40.235Z",
+  "generatedAt": "2026-09-10T20:54:20.639Z",
   "rows": [
     {
       "file": ".agents/scripts/lib/baseline-schema-registry.js",
@@ -110,10 +110,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/git-probes.js",
       "symbol": "defaultGhRunner"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/single-story-close/phases/base-sync.js",
-      "symbol": "runBaseSyncPhase"
     },
     {
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/review-block.js",

@@ -82,9 +82,9 @@ the project is configured.** Before any detection:
 - **Design tokens:** the colour tokens (`tailwind.config.*`, CSS custom
   properties, a theme object) whose literal values you need to compute contrast
   ratios statically.
-- **Runtime target (optional):** the `qa.environments` map (see
-  [_Runtime verification mode_](#step-2-runtime-verification-mode-optional-corroboration))
-  and the navigability route SSOT.
+- **Runtime target (optional):** whatever the shared runtime scaffold in
+  [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md#runtime-pass)
+  resolves. Note only whether one exists; the scaffold owns how it is found.
 
 Record what exists. Every finding downstream is measured against _this
 discovered surface and config_, not a generic ideal. If **no** frontend surface
@@ -135,31 +135,16 @@ Cover every static WCAG dimension:
 
 ## Step 2: Runtime verification mode (optional corroboration)
 
-Static detection is the default and always runs. The runtime pass is
-**conditional** — it runs only when a live target is configured; its absence
-never blocks the static report.
+Run the shared runtime scaffold in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md#runtime-pass) — it
+owns target resolution, route sampling, median-of-3, and the two skip reasons
+(no configured target; browser tooling unavailable). This lens's probe is its
+step 3:
 
-1. **Resolve the target from config — never a hardcoded URL.** Resolve the
-   target through the consumer's `qa.environments.<env>.baseUrl` (via
-   [`resolveQaEnvironment`](../scripts/lib/qa/resolve-qa-contract.js), the same
-   resolver `/qa-run` uses): an `<env>` argument resolves by exact name or
-   origin match; with no argument, enumerate `name → baseUrl` and let the
-   operator pick. If **no** `qa.environments` target is configured, **skip this
-   step** and note in the report that runtime corroboration was unavailable —
-   do not invent a URL and do not start an arbitrary dev server.
-2. **Sample routes from the navigability SSOT.** Draw the routes to exercise
-   from the consumer's route/nav registry (`planning.navigation.navRegistry` /
-   `routeGlobs` — the same SSOT [`/audit-navigability`](audit-navigability.md)
-   reads), sampling a representative set (key personas' landing routes plus any
-   route in the change-set scope) rather than a single hardcoded page.
-3. **Run an accessibility engine per sampled route.** Use the
-   `mcp__chrome-devtools__lighthouse_audit` tool's **Accessibility category**,
-   or run **axe** via the browser tooling, against each sampled `baseUrl`-rooted
-   route. Prefer a production-mode build.
-4. **Median-of-3 or provisional.** Any runtime score or metric is subject to
-   run-to-run variance: capture a **median-of-3** (three runs per route, report
-   the median) before treating a number as authoritative. A single-run value is
-   reported **provisional** and never drives a Critical/High verdict on its own.
+- **Run an accessibility engine per sampled route.** Use the
+  `mcp__chrome-devtools__lighthouse_audit` tool's **Accessibility category**, or
+  run **axe** via the browser tooling, against each sampled `baseUrl`-rooted
+  route. Prefer a production-mode build.
 
 Corroborate static findings against the runtime results (a statically-flagged
 contrast defect confirmed by the engine graduates from provisional to
@@ -168,8 +153,8 @@ confirmed), and surface runtime-only violations the static pass could not see.
 ## Report additions
 
 Beyond the shared skeleton, the Executive Summary states the runtime mode's
-status (ran against `<env>` / skipped — no target configured), and the report
+status (ran against `<env>`, or the scaffold's skip reason), and the report
 ends with a **Runtime Verification** section: per-route median-of-3
-accessibility scores when the runtime mode ran, or "_Runtime corroboration
-unavailable — no `qa.environments` target configured._" Drop every claimed
+accessibility scores when the runtime mode ran, or that skip reason verbatim.
+Drop every claimed
 violation that names no concrete element and no specific WCAG success criterion.

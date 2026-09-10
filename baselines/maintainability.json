@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:21:19.135Z",
+  "generatedAt": "2026-09-10T20:55:11.818Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.048,
+      "p50": 99.072,
       "p95": 122.902
     }
   },
@@ -183,6 +183,10 @@
       "mi": 89.263
     },
     {
+      "path": ".agents/scripts/lib/audit-advisories.js",
+      "mi": 105.717
+    },
+    {
       "path": ".agents/scripts/lib/audit-attribution.js",
       "mi": 114.93
     },
@@ -292,7 +296,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
-      "mi": 90.343
+      "mi": 95.069
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/epic-grouping-directive.js",
@@ -307,8 +311,16 @@
       "mi": 93.387
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/issue-index.js",
+      "mi": 112.73
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "mi": 105.686
+      "mi": 107.073
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
+      "mi": 106.828
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
@@ -316,7 +328,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
-      "mi": 91.969
+      "mi": 93.223
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
@@ -1688,7 +1700,11 @@
     },
     {
       "path": ".agents/scripts/lib/pinned-override-notes.js",
-      "mi": 102.153
+      "mi": 112.738
+    },
+    {
+      "path": ".agents/scripts/lib/pinned-override-resolve.js",
+      "mi": 99.325
     },
     {
       "path": ".agents/scripts/lib/plan-phase-cleanup.js",

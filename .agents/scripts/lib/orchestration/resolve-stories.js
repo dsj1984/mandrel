@@ -41,6 +41,13 @@ import { resolveStoryDispatchMode } from './complexity-gate.js';
 const DONE_LABEL = 'agent::done';
 
 /**
+ * The lifecycle-label prefix a deliverable Story carries. Any `agent::*` label
+ * will do — the resolver is not a state machine and does not care WHICH state a
+ * Story is in, only that it has been through the step that assigns one.
+ */
+const AGENT_LABEL_PREFIX = 'agent::';
+
+/**
  * Module-private: `toStoryRecord` and `isSatisfiedBlocker` are its only
  * callers. The ancestor exported it with no external consumer, which is how
  * a symbol ends up baselined as a dead export.
@@ -64,9 +71,12 @@ function normalizeIssueLabels(issue) {
  *
  * @param {object} issue
  * @param {number} [requestedId] The id the operator asked for, for error text.
+ * @param {{ allowUnlabelled?: boolean }} [options] `allowUnlabelled` waives the
+ *   `agent::*` guard below — the deliberate escape hatch for delivering a Story
+ *   whose state label is absent for a reason the operator knows about.
  * @returns {{ id, title, body, url, labels, state, assignees }}
  */
-export function toStoryRecord(issue, requestedId) {
+export function toStoryRecord(issue, requestedId, { allowUnlabelled } = {}) {
   const id = Number(issue?.number ?? issue?.id ?? requestedId);
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(
@@ -88,6 +98,9 @@ export function toStoryRecord(issue, requestedId) {
         `v2 is Story-only — re-plan it as a v2 Story or finish it on a pre-v2 checkout.`,
     );
   }
+  // Last, so the two shape refusals above — not a Story at all, and a v1 body —
+  // keep naming their own remedy rather than being masked by a missing label.
+  assertDispatchable(id, labels, allowUnlabelled);
   return {
     id,
     title: String(issue?.title ?? ''),
@@ -104,6 +117,36 @@ export function toStoryRecord(issue, requestedId) {
       ? issue.assignees.filter((a) => typeof a === 'string' && a.length > 0)
       : [],
   };
+}
+
+/**
+ * Refuse a Story that has never been through planning.
+ *
+ * The audit sweep files Stories deliberately WITHOUT an `agent::*` label: their
+ * bodies are audit prose — a symptom and a recommendation — not a scoped change
+ * with acceptance criteria a worker can verify against, and the sweep's runbook
+ * says so. But `/mandrel-deliver` takes ids, and nothing downstream re-checked the
+ * label, so naming a freshly-filed audit Story dispatched a worker at an
+ * unenriched body: the run then either invented its own acceptance criteria or
+ * blocked several minutes in, having taken the Story's lease and flipped it to
+ * `agent::executing` on the way.
+ *
+ * The label is the cheap, honest signal that the enrich step ran — no state
+ * machine is consulted, only that SOME `agent::*` label exists.
+ *
+ * @param {number} id
+ * @param {string[]} labels
+ * @param {boolean} [allowUnlabelled]
+ */
+function assertDispatchable(id, labels, allowUnlabelled) {
+  if (allowUnlabelled) return;
+  if (labels.some((l) => l.startsWith(AGENT_LABEL_PREFIX))) return;
+  throw new Error(
+    `[resolve-stories] Issue #${id} carries no "${AGENT_LABEL_PREFIX}*" label, so it has not been ` +
+      `through planning — an audit sweep files Stories without one on purpose (its runbook's ` +
+      `"Enrich before you deliver" step). Route it through /mandrel-plan first, which applies ` +
+      `agent::ready once the finding is a scoped slice. Pass --allow-unlabelled to deliver it as-is.`,
+  );
 }
 
 /**

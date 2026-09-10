@@ -264,7 +264,13 @@ export async function probeLiveState({
   self,
   warn,
 }) {
-  const stories = await fetchStories(provider, ids);
+  // `allowUnlabelled` deliberately: the `agent::*` guard is an ADMISSION check
+  // at the entry resolution, where an operator names ids, and this is a
+  // per-beat REPORT on work already admitted. A Story dispatched a moment ago
+  // is legitimately unlabelled until `single-story-init.js` flips it — the
+  // init window this probe models explicitly — and refusing it here would fail
+  // a healthy beat mid-run over a Story the run already accepted.
+  const stories = await fetchStories(provider, ids, { allowUnlabelled: true });
   const nativeEdges = native
     ? await readNativeEdges({ provider, stories, owner, repo })
     : new Map();

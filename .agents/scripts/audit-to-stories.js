@@ -50,13 +50,17 @@ import {
 } from './lib/audit-to-stories/ledger-commit.js';
 import {
   parseAuditReports,
-  parseSeverityTally,
+  readSeverityTally,
 } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { wireAuditStoryEdges } from './lib/audit-to-stories/wire-dependencies.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { searchSemanticCandidates } from './lib/findings/semantic-issue-search.js';
-import { SEVERITIES, SEVERITY_RANK } from './lib/findings/severity.js';
+import {
+  normalizeSeverity,
+  SEVERITIES,
+  SEVERITY_RANK,
+} from './lib/findings/severity.js';
 import { Logger } from './lib/Logger.js';
 import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
@@ -209,6 +213,11 @@ function auditReportFailures({
  *   hand-written report). `allowMissingTally` downgrades ONLY this kind to a
  *   warning, for an interactive `--scan` over legacy reports.
  * - `tally-mismatch` — the report says one thing and the parse says another.
+ * - `duplicate-tally` — the report declares the tally more than once, so there
+ *   is no single number to check against. Adopting whichever line the scan
+ *   reached first would compare the parse against an arbitrary one of two
+ *   declarations, which is a cross-check in name only. `allowMissingTally`
+ *   does NOT downgrade it: the report is contradictory, not merely old.
  * - `unresolved-severity` — a finding parsed with no resolvable severity. It
  *   is a report defect, never an `unknown` group.
  *
@@ -232,7 +241,11 @@ function crossCheckReports({ reports, findings, allowMissingTally }) {
   for (const report of reports) {
     const own = byReport.get(report.sourceReport) ?? [];
     const parsed = comparableTally(own);
-    const reported = parseSeverityTally(report.markdown);
+    const {
+      tally: reported,
+      matches: tallyLines,
+      duplicate,
+    } = readSeverityTally(report.markdown);
     const sourceReport = report.sourceReport;
     const unresolved = own.filter((f) => !f.severity);
     if (unresolved.length > 0) {
@@ -243,6 +256,16 @@ function crossCheckReports({ reports, findings, allowMissingTally }) {
         parsed,
         titles: unresolved.map((f) => f.title),
       });
+    }
+    if (duplicate) {
+      failures.push({
+        sourceReport,
+        kind: 'duplicate-tally',
+        reported: null,
+        parsed,
+        tallyLines,
+      });
+      continue;
     }
     if (!reported) {
       const failure = {
@@ -282,7 +305,7 @@ function missingTallyWarning(failure) {
  *
  * Pure: returns the message string so the caller owns the single `Logger.warn`.
  *
- * @param {Array<{ sourceReport: string, kind: string, reported: object|null, parsed: object, titles?: string[] }>} failures
+ * @param {Array<{ sourceReport: string, kind: string, reported: object|null, parsed: object, titles?: string[], tallyLines?: string[] }>} failures
  * @returns {string}
  */
 function reportFailureWarning(failures) {
@@ -290,7 +313,13 @@ function reportFailureWarning(failures) {
     const titles = f.titles?.length
       ? ` findings=${f.titles.map((t) => `"${t}"`).join(', ')}`
       : '';
-    return `  - ${f.sourceReport} [${f.kind}] reported=${formatTally(f.reported)} parsed=${formatTally(f.parsed)}${titles}`;
+    // A duplicate names the competing lines rather than a tally: there is no
+    // single `reported` number to print, and "which two lines" is the whole
+    // remedy.
+    const declared = f.tallyLines?.length
+      ? ` declared=${f.tallyLines.map((t) => `"${t}"`).join(' | ')}`
+      : '';
+    return `  - ${f.sourceReport} [${f.kind}] reported=${formatTally(f.reported)} parsed=${formatTally(f.parsed)}${titles}${declared}`;
   });
   return [
     `audit report cross-check FAILED for ${failures.length} report(s) — the declared severity tally does not match the parsed findings:`,
@@ -360,6 +389,34 @@ function normaliseIssueHit(hit) {
 }
 
 /**
+ * Walk the list endpoint once per label and merge the pages into one
+ * deduplicated, normalised issue list.
+ *
+ * `labels` is an OR across the run's lenses, which the REST list endpoint
+ * cannot express in one query (its `labels` parameter is an AND), so one call
+ * per label is the narrowest honest read. Each is a paginated **list**, not a
+ * search — a different, far larger rate-limit budget.
+ *
+ * @param {object} provider
+ * @param {string[]} labels
+ * @returns {Promise<Array<object>>}
+ */
+async function listIssuesForLabels(provider, labels) {
+  const seen = new Map();
+  for (const label of labels) {
+    const issues = await provider.listIssuesByLabel({
+      state: 'all',
+      labels: label,
+    });
+    for (const raw of issues ?? []) {
+      const hit = normaliseIssueHit(raw);
+      if (!seen.has(hit.number)) seen.set(hit.number, hit);
+    }
+  }
+  return [...seen.values()];
+}
+
+/**
  * The two read ports the dedupe module consumes, adapted off the provider's
  * one full-text `searchIssues` call: `findIssuesByFingerprint(sha)` for the
  * exact-fingerprint pass and — since Story #4626 — `searchCandidates(finding)`
@@ -368,13 +425,29 @@ function normaliseIssueHit(hit) {
  *
  * @param {object} provider
  * @param {{ owner: string, repo: string }} coords
- * @returns {{ findIssuesByFingerprint: Function, searchCandidates: Function }}
+ * @returns {{ findIssuesByFingerprint: Function, listAuditIssues: Function,
+ *   searchCandidates: Function }}
  */
 function buildDedupPorts(provider, { owner, repo }) {
   return {
     async findIssuesByFingerprint(sha) {
       const hits = await provider.searchIssues({ query: sha, owner, repo });
       return (hits ?? []).map(normaliseIssueHit);
+    },
+    /**
+     * List every Issue carrying one of the run's `audit::*` labels, once, off
+     * the REST list endpoint. The dedup module indexes the result and answers
+     * every exact-fingerprint lookup from it, so the rate-limited search API is
+     * spent only on findings it has never seen. A provider without the list
+     * port yields `null`, which returns dedup to the per-finding search path
+     * rather than silently skipping it.
+     *
+     * @param {string[]} labels
+     * @returns {Promise<Array<object>|null>}
+     */
+    async listAuditIssues(labels) {
+      if (typeof provider.listIssuesByLabel !== 'function') return null;
+      return listIssuesForLabels(provider, labels);
     },
     async searchCandidates(finding) {
       // Wire the shared semantic search onto the provider's full-text
@@ -667,6 +740,7 @@ async function buildPlan(
         groups,
         provider,
         searchCandidates: provider.searchCandidates,
+        listAuditIssues: provider.listAuditIssues,
       });
       classifications = result.classifications;
       summary = result.summary;
@@ -1117,6 +1191,73 @@ export const __testing = {
  * }} [deps]
  * @returns {Promise<void>}
  */
+/**
+ * The one-line `--ledger-commit` outcome, for stderr.
+ *
+ * Names the branch and the PR on success — the two things an operator needs to
+ * go look at it — and the skip reason otherwise, because "nothing happened" and
+ * "the ledger was already clean" are different facts and only one of them is
+ * fine.
+ *
+ * @param {{ committed?: boolean, reason?: string, branch?: string,
+ *   prUrl?: string|null, resumed?: boolean, ledgerPath?: string }} [result]
+ * @returns {string}
+ */
+function describeLedgerCommit(result) {
+  return result?.committed
+    ? ledgerCommittedLine(result)
+    : ledgerSkippedLine(result);
+}
+
+/**
+ * The success half: the branch, whether it resumed a half-finished one, and
+ * the PR to go look at.
+ * @param {object} result
+ * @returns {string}
+ */
+function ledgerCommittedLine(result) {
+  const resumed = result.resumed ? ' (resumed an unpushed ledger branch)' : '';
+  const pr = result.prUrl ?? '(no URL reported by gh)';
+  return `--ledger-commit: pushed ${result.branch}${resumed} and opened ${pr}.`;
+}
+
+/**
+ * The skip half. It names the ledger file, because the fact that matters is
+ * which state is still only in the working tree.
+ * @param {object} [result]
+ * @returns {string}
+ */
+function ledgerSkippedLine(result) {
+  const reason = result?.reason ?? 'no result';
+  const ledgerPath = result?.ledgerPath ?? 'the ledger';
+  return `--ledger-commit: skipped (${reason}) — ${ledgerPath} was not committed.`;
+}
+
+/**
+ * Validate `--severity` against the canonical scale, failing on a value the
+ * filter would silently ignore.
+ *
+ * `meetsSeverity` reads an unknown threshold as rank `0`, so a typo — the
+ * classic being `--severity Hgh` — quietly widened the run to every finding
+ * instead of narrowing it. On an unattended sweep that is the difference
+ * between filing a batch and filing the backlog, with nothing on stderr to say
+ * so. An absent flag stays absent: the floor then resolves from config.
+ *
+ * @param {string|undefined} raw
+ * @returns {string|undefined} the canonical level.
+ */
+function validateSeverityFlag(raw) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (String(raw).toLowerCase() === 'all') return 'all';
+  const level = normalizeSeverity(String(raw), null);
+  if (!level) {
+    throw new Error(
+      `[audit-to-stories] --severity "${raw}" is not a severity. Accepted: ${SEVERITIES.join(', ')} (or "all").`,
+    );
+  }
+  return level;
+}
+
 export async function runAuditToStories(
   argv = process.argv.slice(2),
   deps = {},
@@ -1156,6 +1297,8 @@ export async function runAuditToStories(
     strict: false,
   });
 
+  values.severity = validateSeverityFlag(values.severity);
+
   const json = (value) => JSON.stringify(value, null, 2);
 
   const runAutoSummary = async () =>
@@ -1175,7 +1318,15 @@ export async function runAuditToStories(
   // findings, so the PR attempt is the last thing the run does (Story #5145).
   const commitLedger = async () => {
     if (!values['ledger-commit'] || values['dry-run']) return;
-    await runLedgerCommitImpl({ ledgerPath: values.ledger });
+    // Say what happened. The tail used to run silently, so an operator could
+    // not tell a ledger PR from a skip without going to look for the branch —
+    // and a skip is the outcome that matters, because it means the sweep's
+    // memory is still only in the working tree.
+    Logger.warn(
+      describeLedgerCommit(
+        await runLedgerCommitImpl({ ledgerPath: values.ledger }),
+      ),
+    );
   };
 
   const scanPlan = () =>

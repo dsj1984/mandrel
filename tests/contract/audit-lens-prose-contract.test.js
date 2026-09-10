@@ -224,3 +224,52 @@ describe('the capacity verdict (Story #4877, AC-8)', () => {
     }
   });
 });
+
+/**
+ * Story #5281 — the runtime-pass scaffold is written once.
+ *
+ * Two lenses carried the same four numbered steps verbatim. Duplicated prose is
+ * duplicated in the sense that matters here: the tool-unavailable skip reason
+ * was added to the shared scaffold, and a lens still restating the steps would
+ * quietly keep instructing an auditor to report a runtime section it never ran.
+ */
+describe('the runtime-pass scaffold is shared, not restated (Story #5281)', () => {
+  const RUNTIME_LENSES = [
+    '.agents/workflows/audit-mobile.md',
+    '.agents/workflows/audit-accessibility.md',
+  ];
+  const CORE = '.agents/workflows/helpers/audit-lens-core.md';
+
+  it('the core carries the scaffold, its anchor, and both skip reasons', () => {
+    const text = read(CORE);
+    assert.match(text, /## Runtime pass scaffold \{#runtime-pass\}/);
+    assert.match(text, /qa\.environments\.<env>\.baseUrl/);
+    assert.match(text, /Sample routes from the navigability SSOT/);
+    assert.match(text, /median-of-3/);
+    assert.match(text, /browser tooling unavailable/);
+  });
+
+  for (const lens of RUNTIME_LENSES) {
+    it(`${lens} cites the scaffold`, () => {
+      assert.match(read(lens), /audit-lens-core\.md#runtime-pass/);
+    });
+
+    it(`${lens} restates neither target resolution nor route sampling`, () => {
+      const text = read(lens);
+      for (const restated of [
+        /qa\.environments\.<env>\.baseUrl/,
+        /resolveQaEnvironment/,
+        /Sample routes from the navigability SSOT/,
+        /planning\.navigation\.navRegistry/,
+      ]) {
+        assert.doesNotMatch(
+          text,
+          restated,
+          `${lens} still restates the shared scaffold. One copy of these steps ` +
+            'is the point: a second one goes stale the next time the scaffold ' +
+            'gains a step.',
+        );
+      }
+    });
+  }
+});

@@ -1,9 +1,13 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-10T15:36:40.701Z",
+  "generatedAt": "2026-09-10T20:54:21.290Z",
   "mode": "production",
   "rows": [
+    {
+      "file": ".agents/scripts/lib/audit-advisories.js",
+      "symbol": "extractBlockingAdvisories"
+    },
     {
       "file": ".agents/scripts/lib/audit-suite/checklist-threading.js",
       "symbol": "DEFAULT_CHECKLIST_TOKEN_BUDGET"
@@ -935,10 +939,6 @@
     {
       "file": ".agents/scripts/lib/findings/route-finding.js",
       "symbol": "__testing"
-    },
-    {
-      "file": ".agents/scripts/lib/findings/route-finding.js",
-      "symbol": "parseFingerprintFooter"
     },
     {
       "file": ".agents/scripts/lib/findings/semantic-issue-search.js",

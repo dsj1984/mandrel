@@ -24,7 +24,4 @@ Self-check your change against this lens's concerns before you ship:
 - [ ] Media alternatives
 - [ ] Contrast where statically derivable
 - [ ] Raw-element census
-- [ ] Resolve the target from config — never a hardcoded URL.
-- [ ] Sample routes from the navigability SSOT.
 - [ ] Run an accessibility engine per sampled route.
-- [ ] Median-of-3 or provisional.

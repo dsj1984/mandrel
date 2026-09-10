@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-10T15:54:08.529Z",
+  "generatedAt": "2026-09-10T20:36:26.854Z",
   "rollup": {
     "*": {
-      "lines": 96.1,
-      "branches": 87.06,
-      "functions": 88.37
+      "lines": 96.11,
+      "branches": 87.04,
+      "functions": 88.42
     }
   },
   "rows": [
@@ -36,9 +36,9 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "lines": 98.93,
-      "branches": 81.15,
-      "functions": 97.87
+      "lines": 98.43,
+      "branches": 82.08,
+      "functions": 98.11
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -66,9 +66,9 @@
     },
     {
       "path": ".agents/scripts/check-audit-attribution.js",
-      "lines": 80.82,
-      "branches": 82.76,
-      "functions": 45.45
+      "lines": 89.74,
+      "branches": 84.21,
+      "functions": 61.54
     },
     {
       "path": ".agents/scripts/check-baseline-drift.js",
@@ -251,6 +251,12 @@
       "functions": 75
     },
     {
+      "path": ".agents/scripts/lib/audit-advisories.js",
+      "lines": 86.15,
+      "branches": 82.5,
+      "functions": 75
+    },
+    {
       "path": ".agents/scripts/lib/audit-attribution.js",
       "lines": 100,
       "branches": 95.24,
@@ -414,8 +420,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
-      "lines": 97.99,
-      "branches": 86.27,
+      "lines": 99.62,
+      "branches": 88.89,
       "functions": 100
     },
     {
@@ -437,9 +443,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/issue-index.js",
+      "lines": 97.59,
+      "branches": 66.67,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",
-      "lines": 98.97,
-      "branches": 86.67,
+      "lines": 98.73,
+      "branches": 87.5,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-pr.js",
+      "lines": 99.14,
+      "branches": 79.59,
       "functions": 100
     },
     {
@@ -450,8 +468,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
-      "lines": 98.9,
-      "branches": 85.42,
+      "lines": 98.84,
+      "branches": 88.97,
       "functions": 100
     },
     {
@@ -1405,7 +1423,7 @@
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
       "lines": 100,
-      "branches": 93.14,
+      "branches": 92.79,
       "functions": 100
     },
     {
@@ -2160,8 +2178,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/resolve-stories.js",
-      "lines": 97.57,
-      "branches": 78.95,
+      "lines": 97.8,
+      "branches": 81.4,
       "functions": 100
     },
     {
@@ -2570,6 +2588,12 @@
       "path": ".agents/scripts/lib/pinned-override-notes.js",
       "lines": 100,
       "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/pinned-override-resolve.js",
+      "lines": 100,
+      "branches": 94.87,
       "functions": 100
     },
     {
@@ -3258,9 +3282,9 @@
     },
     {
       "path": ".agents/scripts/resolve-stories.js",
-      "lines": 85.08,
-      "branches": 91.67,
-      "functions": 66.67
+      "lines": 84.55,
+      "branches": 92.31,
+      "functions": 56.25
     },
     {
       "path": ".agents/scripts/resync-status-column.js",

@@ -49,6 +49,13 @@ issue state rather than against anything you hand it. That is why there is no
 batch label to pass and why a blocker that landed in an unrelated run is simply
 seen as done.
 
+**A Story with no `agent::*` label is refused.** The audit sweep files Stories
+deliberately without one — their bodies are audit prose, not a scoped change
+with verifiable acceptance criteria — so resolving one means dispatching a
+worker at an unenriched body, after taking its lease. Route it through
+`/mandrel-plan` first, which applies `agent::ready` at the end of planning.
+`--allow-unlabelled` is the deliberate escape hatch.
+
 **The non-zero exit codes.** **2** — `cycleError`: the graph is
 self-referential; fix `depends_on`, do not retry. **3** — `wedged`: nothing
 dispatchable and nothing in flight, with the undone Stories and their unmet

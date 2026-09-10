@@ -16,7 +16,24 @@
  * the same audit, evaluated against the pull request's merge base.
  *
  * It buys legibility, never permission — see `attributionExitCode`.
+ *
+ * The comparison is **per advisory**, not per exit code. Reading only "did the
+ * base audit fail too" collapses the case a busy repository meets most: a base
+ * that is already red for advisory A, and a diff that adds advisory B. That
+ * answered `pre-existing` — a true statement about A, and a misleading one
+ * about the branch, because the author was told their diff was innocent while
+ * it was carrying B. Diffing advisory ids at or above `high` reports both
+ * facts separately: B introduced, A pre-existing.
  */
+
+// The per-advisory machinery lives next door and is re-exported here, so this
+// module stays the one import an attribution consumer needs while the audit
+// runner, the projection and the diff keep their own file.
+export {
+  auditAdvisories,
+  diffAdvisories,
+  renderAdvisoryDetail,
+} from './audit-advisories.js';
 
 // The verdict vocabulary. Only `UNKNOWN` is exported: the CLI branches on it
 // to decide whether to audit the base at all, while the other two are read by
@@ -38,6 +55,11 @@ export const UNKNOWN = 'unknown';
  * base could not be audited at all, which is the `unknown` path: an
  * attribution mechanism must never guess, because the guess it would make
  * (`introduced-by-this-diff`) is an accusation against the author reading it.
+ *
+ * `baseAudit.failed` is asked **per advisory** by the CLI: it passes
+ * `{ failed: <the base already carries every advisory the head has> }`, so a
+ * base that is red for its own advisory does not absolve a diff that added a
+ * different one.
  *
  * @param {{ headFailed: boolean, baseAudit: { failed: boolean } | null }} input
  * @returns {string} one of INTRODUCED / PRE_EXISTING / UNKNOWN

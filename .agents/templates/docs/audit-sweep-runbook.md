@@ -51,6 +51,17 @@ to that declared tally. A mismatch — or a missing tally line — means the rep
 is not trustworthy: a finding was malformed, a severity did not resolve onto the
 canonical scale, or the lens truncated its own output.
 
+The line is read **from the Executive Summary**, and a report declaring it more
+than once fails as `duplicate-tally` naming both lines rather than adopting
+whichever the scan reached first. Prose elsewhere in the report that quotes the
+tally format is a second declaration as far as the check is concerned; move it
+or reword it.
+
+A `###` heading with no severity axis and no field bullets is read as a
+**grouping header**, not as a finding — so a lens that emits `### Robust` with
+`_No findings._` under it contributes zero findings and still cross-checks
+against a zero tally.
+
 `--auto` **fails closed** on any such failure. It exits non-zero having opened
 no Issue and written no ledger, and names the offending report in
 `summary.reportFailures[]`. `--allow-missing-tally` is a `--scan` affordance
@@ -69,6 +80,10 @@ stop surprising you:
 ```bash
 node .agents/scripts/audit-to-stories.js --auto --dry-run
 ```
+
+`--severity` is validated against the canonical scale: a typo (`--severity Hgh`)
+exits non-zero naming the accepted levels rather than silently widening the run
+to every finding.
 
 `--dry-run` performs zero GitHub writes and skips the ledger write, printing
 only the run summary. Read `totals.create` before you let the sweep file
@@ -94,11 +109,24 @@ rejected.
 `--ledger-commit` closes that loop. After the run summary has printed, and only
 when the ledger actually changed, it:
 
-1. creates `chore/audit-ledger-<YYYY-MM-DD>` from the current HEAD,
-2. commits **only** the ledger file, subject
+1. refuses, naming its step, if HEAD is not the base branch or there is no
+   `origin` — before writing anything,
+2. creates `chore/audit-ledger-<YYYY-MM-DD>-<shortsha>` from `origin/<base>`,
+3. commits **only** the ledger file, subject
    `chore(audit): reconcile audit ledger <date>`,
-3. pushes the branch, and
-4. opens a PR against your base branch.
+4. pushes the branch,
+5. opens a PR against your base branch, and
+6. puts the checkout back on the branch it started from.
+
+It prints one line on stderr saying what happened: the branch and the PR URL on
+success, or the skip reason otherwise.
+
+**It is re-runnable.** The `<shortsha>` is the base commit, so a retry on the
+same day does not collide with the branch a failed run left behind — it
+recognises it. A ledger already committed on an **unpushed** ledger branch
+resumes at the push rather than reporting `ledger-unchanged` (the ledger file is
+clean: it is committed, just not pushed). Across a failed push and its retry you
+get exactly one PR.
 
 **Auto-merge is never requested.** The ledger records machine-derived lifecycle
 state, so a human glance before it lands is the point — nominate that reviewer
@@ -123,8 +151,10 @@ Those bodies are **audit prose**, not delivery-ready Specs: they describe a
 symptom and a recommendation, not a scoped change with acceptance criteria a
 worker can verify against.
 
-Do not point `/mandrel-deliver` at a freshly-filed audit Story. Route it through
-`/mandrel-plan` first — the planning pass is where the finding becomes a
+Do not point `/mandrel-deliver` at a freshly-filed audit Story — and as of the
+label guard below, you cannot: `resolve-stories.js` refuses a Story carrying no
+`agent::*` label, naming this step, unless `--allow-unlabelled` is passed. Route
+it through `/mandrel-plan` first — the planning pass is where the finding becomes a
 capability slice with a `## Spec`, real `acceptance[]` items and runnable
 `verify[]` lines. Planning is deliberately not automated here: deciding what a
 finding is worth, and how far the fix should reach, is the judgement the sweep
@@ -172,6 +202,10 @@ to mint labels no taxonomy defines.
 | --- | --- | --- |
 | Non-zero exit, `summary.reportFailures[]` populated | A lens report's tally is missing or disagrees with the parse | Re-run that lens; never downgrade with `--allow-missing-tally` |
 | `ledger.unpersisted: true` in the summary | No `origin`, or HEAD off the base branch | Re-run with `--ledger-commit`, or commit the ledger by hand |
-| `--ledger-commit failed at step "..."` | git or `gh` failed at the named step | Fix the remote/auth and re-run; the summary above it is still valid |
+| `--ledger-commit failed at step "..."` | git or `gh` failed at the named step | Fix the cause and re-run; a retry resumes rather than duplicating, and the summary above it is still valid |
+| `--ledger-commit failed at step "verify-base-branch"` | HEAD is on a feature branch | Check out the base branch and re-run; nothing was committed |
+| `[resolve-stories] ... carries no "agent::*" label` | An unenriched audit Story was named for delivery | Plan it (Step 5), or pass `--allow-unlabelled` deliberately |
+| `[audit-to-stories] --severity "..." is not a severity` | A typo in the floor | Use one of the canonical levels |
+| `duplicate-tally` in `summary.reportFailures[]` | The report declares the tally twice | Reword the prose copy; the Executive Summary line is the declaration |
 | Same findings re-proposed every cycle | The ledger is not being committed | Adopt Step 4 |
 | `totals.create` far larger than the team can absorb | Severity floor too low for a first full-scope run | Raise `--severity` and re-dry-run |

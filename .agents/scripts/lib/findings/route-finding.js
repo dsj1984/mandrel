@@ -160,12 +160,14 @@ export function semanticKeyFooter(keys) {
 /**
  * Extract semantic keys from an Issue body carrying the semantic-key footer.
  * The audit filers stamp the footer via {@link semanticKeyFooter}; the
- * confirmation path here and {@link carryProvenanceFooters} read it back.
+ * confirmation path here, {@link carryProvenanceFooters} and the audit dedup's
+ * local issue index read it back. Exported alongside its writer so an indexer
+ * cannot drift into a second parse of the same footer.
  *
  * @param {string} body
  * @returns {string[]}
  */
-function parseSemanticKeyFooter(body) {
+export function parseSemanticKeyFooter(body) {
   return parseAllFooterValues(
     body,
     /<!--\s*audit-semantic-keys:\s*([^>]*?)\s*-->/g,

@@ -7,7 +7,7 @@ import {
   __testing,
   parseAuditReport,
   parseAuditReports,
-  parseSeverityTally,
+  readSeverityTally,
 } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -173,9 +173,9 @@ test('parseAuditReport keeps #### sub-sections inside a ### block that IS a find
   assert.equal(findings[0].title, 'A real finding');
 });
 
-test('parseSeverityTally reads the mandated Executive Summary line', () => {
+test('readSeverityTally reads the mandated Executive Summary line', () => {
   const { markdown } = loadFixture('audit-security-results.md');
-  assert.deepEqual(parseSeverityTally(markdown), {
+  assert.deepEqual(readSeverityTally(markdown).tally, {
     critical: 0,
     high: 2,
     medium: 1,
@@ -183,18 +183,18 @@ test('parseSeverityTally reads the mandated Executive Summary line', () => {
   });
 });
 
-test('parseSeverityTally returns null when the report declares no tally', () => {
+test('readSeverityTally reports no tally when the report declares none', () => {
   assert.equal(
-    parseSeverityTally('# Report\n\n## Executive Summary\n\nAll good.\n'),
+    readSeverityTally('# Report\n\n## Executive Summary\n\nAll good.\n').tally,
     null,
   );
-  assert.equal(parseSeverityTally(null), null);
+  assert.equal(readSeverityTally(null).tally, null);
 });
 
 test('every shipped fixture report declares a tally matching its findings', () => {
   for (const name of fs.readdirSync(FIXTURES)) {
     const { markdown, sourceReport } = loadFixture(name);
-    const declared = parseSeverityTally(markdown);
+    const declared = readSeverityTally(markdown).tally;
     assert.ok(declared, `${name} declares a Severity tally line`);
     const counted = { critical: 0, high: 0, medium: 0, low: 0 };
     for (const finding of parseAuditReport({ markdown, sourceReport })) {
@@ -203,4 +203,174 @@ test('every shipped fixture report declares a tally matching its findings', () =
     }
     assert.deepEqual(declared, counted, `${name} tally matches its findings`);
   }
+});
+
+// --- Unattended-sweep shapes -------------------------------------------------
+// Every case below is a report shape a scheduled `--auto` run meets and an
+// interactive run rarely does: a lens that emits its clean dimensions as empty
+// headers, prose that quotes the tally format a second time, and a field bullet
+// written with the colon outside the bold run.
+
+test('parseAuditReport yields no finding for an empty grouping header with no #### children', () => {
+  const findings = parseAuditReport({
+    sourceReport: '/tmp/audit-accessibility-results.md',
+    markdown: [
+      '## Executive Summary',
+      '',
+      'Severity tally: Critical 0 / High 1 / Medium 0 / Low 0',
+      '',
+      '## Detailed Findings',
+      '',
+      '### Perceivable',
+      '',
+      '#### `src/a.jsx` — Icon button has no accessible name',
+      '',
+      '- **Severity:** High',
+      '- **Location:** src/a.jsx:12',
+      '',
+      '### Robust',
+      '',
+      '_No findings._',
+      '',
+      '### Operable',
+      '',
+      '_No findings._',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].severity, 'high');
+  assert.equal(
+    findings.some((f) => ['Robust', 'Operable'].includes(f.title)),
+    false,
+  );
+});
+
+test('a report of nothing but empty grouping headers cross-checks against a zero tally', () => {
+  const markdown = [
+    '## Executive Summary',
+    '',
+    'Severity tally: Critical 0 / High 0 / Medium 0 / Low 0',
+    '',
+    '## Detailed Findings',
+    '',
+    '### Robust',
+    '',
+    '_No findings._',
+    '',
+  ].join('\n');
+
+  const findings = parseAuditReport({
+    sourceReport: '/tmp/audit-accessibility-results.md',
+    markdown,
+  });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(readSeverityTally(markdown).tally, {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+  });
+});
+
+test('readSeverityTally refuses a report declaring the tally twice', () => {
+  const markdown = [
+    '## Executive Summary',
+    '',
+    'Severity tally: Critical 0 / High 2 / Medium 1 / Low 0',
+    '',
+    '## Remediation notes',
+    '',
+    'Last cycle the report said Severity tally: Critical 1 / High 9 / Medium 9 / Low 9.',
+    '',
+  ].join('\n');
+
+  const read = readSeverityTally(markdown);
+  assert.equal(read.duplicate, true);
+  assert.equal(read.tally, null);
+  assert.equal(read.matches.length, 2);
+  assert.match(read.matches[1], /High 9/);
+  // A duplicate collapses the tally to null rather than adopting either line.
+  assert.equal(read.tally, null);
+});
+
+test('readSeverityTally scopes the single accepted line to the Executive Summary', () => {
+  const read = readSeverityTally(
+    [
+      '## Executive Summary',
+      '',
+      'Severity tally: Critical 0 / High 2 / Medium 1 / Low 0',
+      '',
+      '## Detailed Findings',
+      '',
+      'Nothing here quotes the format.',
+    ].join('\n'),
+  );
+  assert.equal(read.duplicate, false);
+  assert.deepEqual(read.tally, { critical: 0, high: 2, medium: 1, low: 0 });
+});
+
+test('parseAuditReport accepts a field bullet with the colon outside the bold run', () => {
+  const [finding] = parseAuditReport({
+    sourceReport: '/tmp/audit-quality-results.md',
+    markdown: [
+      '## Detailed Findings',
+      '',
+      '### `src/b.js` — Assertion-free test',
+      '',
+      '- **Severity**: High',
+      '- **Location**: src/b.js:40',
+      '- **Recommendation**: Assert on the returned value.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(finding.severity, 'high');
+  assert.deepEqual(finding.files, ['src/b.js']);
+  assert.equal(finding.recommendation, 'Assert on the returned value.');
+});
+
+test('an #### Evidence section before the field bullets does not mis-title the finding', () => {
+  const findings = parseAuditReport({
+    sourceReport: '/tmp/audit-performance-results.md',
+    markdown: [
+      '## Detailed Findings',
+      '',
+      '### `src/c.js` — Unawaited write in the hot path',
+      '',
+      '#### Evidence',
+      '',
+      '- **Severity:** High',
+      '- **Location:** src/c.js:88',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(findings.length, 1);
+  assert.equal(
+    findings[0].title,
+    '`src/c.js` — Unawaited write in the hot path',
+  );
+  assert.equal(findings[0].severity, 'high');
+});
+
+test('isGroupingHeader reads the whole subtree, not the parent body alone', () => {
+  const { isGroupingHeader } = __testing;
+  const empty = { title: 'Perceivable', bodyLines: ['', '_No findings._'] };
+  assert.equal(isGroupingHeader(empty, []), true);
+  assert.equal(
+    isGroupingHeader(empty, [
+      { title: '`a.js` — one', bodyLines: ['- **Severity:** High'] },
+    ]),
+    true,
+  );
+  // A single axis-bearing sub-section under an anchorless header is that
+  // header's own evidence, not a finding of its own.
+  assert.equal(
+    isGroupingHeader(empty, [
+      { title: 'Evidence', bodyLines: ['- **Severity:** High'] },
+    ]),
+    false,
+  );
 });

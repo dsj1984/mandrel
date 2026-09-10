@@ -19,11 +19,19 @@ import path from 'node:path';
 
 import { normalizeSeverity } from '../findings/severity.js';
 
-const KEY_LINE = /^\s*-\s*\*\*([^:*]+):\*\*\s*(.*)$/;
+// A lens writes its field bullets either way round — `- **Severity:** High`
+// (colon inside the bold run) or `- **Severity**: High` (colon outside it).
+// Accepting only the first silently dropped the axis of every finding written
+// the second way: it parsed as prose, so the block carried no severity, and the
+// grouping-header rule below then read the whole finding as an organisational
+// heading. Both spellings are the same field.
+const KEY_LINE = /^\s*-\s*\*\*([^:*]+?)\s*(?::\*\*|\*\*\s*:)\s*(.*)$/;
 const HEADING_FINDING = /^(#{3,4})\s+(.+?)\s*$/;
-const SEVERITY_KEY_LINE = /^\s*-\s*\*\*(?:severity|impact)\s*:\*\*/i;
+const SEVERITY_KEY_LINE =
+  /^\s*-\s*\*\*(?:severity|impact)\s*(?::\*\*|\*\*\s*:)/i;
 const TALLY_LINE =
   /severity\s+tally\s*:?\**\s*critical\s+(\d+)\s*\/\s*high\s+(\d+)\s*\/\s*medium\s+(\d+)\s*\/\s*low\s+(\d+)/i;
+const TALLY_LINE_GLOBAL = new RegExp(TALLY_LINE.source, 'gi');
 const HEADING_SECTION = /^##\s+(.+?)\s*$/;
 const PATH_HINT =
   /(?<![\w/])([A-Za-z0-9_./\\@-]+\.(?:js|ts|tsx|jsx|mjs|cjs|md|json|yaml|yml|css|scss|html|py|go|rs|java|kt|rb|sh|ps1|tf|env))(?![\w])/g;
@@ -269,72 +277,186 @@ function carriesSeverity(block) {
 }
 
 /**
- * Resolve `###` headings that are **grouping headers** rather than findings.
+ * Does this block carry any `- **Key:** value` field bullet at all? A finding
+ * block is a field record; a grouping header is a heading with prose (or
+ * nothing) under it. Read together with {@link carriesSeverity} this is what
+ * lets an axis-less heading be recognised as organisational **without** having
+ * to see `####` children under it.
  *
- * Several lenses nest their findings one level deeper — a `###` per dimension
+ * @param {{ bodyLines: string[] }} block
+ * @returns {boolean}
+ */
+function carriesFieldBullet(block) {
+  return block.bodyLines.some((line) => KEY_LINE.test(line));
+}
+
+/**
+ * A block that declares nothing: no severity axis and no field bullets. A
+ * `### Robust` header whose whole body is `_No findings._` is the canonical
+ * case — it used to parse as a severity-less finding with no files and no
+ * recommendation, which an unattended sweep then filed as an empty Story.
+ *
+ * @param {{ bodyLines: string[] }} block
+ * @returns {boolean}
+ */
+function isEmptyBlock(block) {
+  return !carriesSeverity(block) && !carriesFieldBullet(block);
+}
+
+/**
+ * Decide whether a `###` block is a **grouping header** rather than a finding,
+ * reading its **whole subtree** — its own body and its `####` children.
+ *
+ * Several lenses nest their findings one level deeper: a `###` per dimension
  * (`### Perceivable`), each holding `####` finding blocks. Read flat, that
- * report parsed as one severity-less finding per dimension with no files and
- * no recommendation, and `--auto` filed those empties (Story #5144). The rule
- * this applies: a `###` heading that carries no `Severity:`/`Impact:` line and
- * is followed by `####` headings is a grouping header — its `####` children
- * are emitted as findings and the header itself never is.
+ * report parsed as one severity-less finding per dimension, and the unattended
+ * sweep filed those empties. The subtree rule this applies, in order:
  *
- * A `###` heading that DOES carry the axis line keeps the previous behaviour:
- * its `####` sub-sections fold back into its own body rather than splitting
- * into phantom findings, so existing flat reports parse exactly as before.
+ *   1. A block whose own body carries the severity axis **or any field
+ *      bullet** is a finding. Its `####` sub-sections fold back into its body
+ *      rather than splitting into phantom findings, so flat reports parse
+ *      exactly as before.
+ *   2. A block whose title leads with a backticked path — the anchor the
+ *      finding-block skeleton mandates — is a finding even when its own body
+ *      is empty, because its fields live under a `#### Evidence`-style
+ *      sub-section. Folding is what stops that sub-section's heading from
+ *      becoming the finding's title.
+ *   3. Otherwise it is a grouping header when its children look like findings:
+ *      any child carrying its own path anchor, or more than one child carrying
+ *      the severity axis. A **single** axis-bearing child under an anchorless
+ *      header is the `#### Evidence` shape again, so it folds.
+ *   4. A block with no children at all and nothing declared is a grouping
+ *      header (or a stray heading) either way — it yields no finding.
+ *
+ * @param {{ title: string, bodyLines: string[] }} parent
+ * @param {Array<{ title: string, bodyLines: string[] }>} children
+ * @returns {boolean}
+ */
+function isGroupingHeader(parent, children) {
+  if (!isEmptyBlock(parent)) return false;
+  if (TITLE_ANCHOR.test(parent.title)) return false;
+  if (children.length === 0) return true;
+  if (children.some((child) => TITLE_ANCHOR.test(child.title))) return true;
+  return children.filter((child) => carriesSeverity(child)).length > 1;
+}
+
+/**
+ * Fold the flat heading stream into findings: emit a grouping header's
+ * children, fold a finding's sub-sections into its own body, and drop every
+ * block that declares nothing.
  *
  * @param {Array<{ level: number, title: string, bodyLines: string[] }>} blocks
  * @returns {Array<{ level: number, title: string, bodyLines: string[] }>}
  */
 function foldGroupingHeaders(blocks) {
   const out = [];
-  let parent = null;
-  for (const block of blocks) {
-    if (block.level <= 3) {
-      parent = block;
-      out.push(block);
+  const keep = (block) => {
+    if (!isEmptyBlock(block)) out.push(block);
+  };
+
+  let i = 0;
+  while (i < blocks.length) {
+    const block = blocks[i];
+    if (block.level > 3) {
+      // A `####` with no `###` parent above it — read it on its own terms.
+      keep(block);
+      i += 1;
       continue;
     }
-    if (!parent) {
-      out.push(block);
-      continue;
+    const children = [];
+    let j = i + 1;
+    while (j < blocks.length && blocks[j].level > 3) {
+      children.push(blocks[j]);
+      j += 1;
     }
-    if (carriesSeverity(parent)) {
-      parent.bodyLines.push(`#### ${block.title}`, ...block.bodyLines);
-      continue;
+    if (isGroupingHeader(block, children)) {
+      for (const child of children) keep(child);
+    } else {
+      for (const child of children) {
+        block.bodyLines.push(`#### ${child.title}`, ...child.bodyLines);
+      }
+      keep(block);
     }
-    parent.isGroupingHeader = true;
-    out.push(block);
+    i = j;
   }
-  return out.filter((block) => !block.isGroupingHeader);
+  return out;
 }
 
 /**
- * Read the machine-readable severity tally the report envelope mandates in its
- * `## Executive Summary`:
+ * Slice the `## Executive Summary` section out of a report, or `null` when the
+ * report declares none. The tally the cross-check trusts is the one the report
+ * envelope mandates *there*; a `Severity tally:` string anywhere else is prose
+ * quoting the format, not a declaration.
  *
- * ```text
- * Severity tally: Critical 0 / High 2 / Medium 1 / Low 0
- * ```
+ * @param {string} markdown
+ * @returns {{ start: number, end: number }|null} character offsets.
+ */
+function executiveSummaryRange(markdown) {
+  const heading = /^##\s+executive\s+summary\s*$/gim;
+  const opened = heading.exec(markdown);
+  if (!opened) return null;
+  const start = opened.index + opened[0].length;
+  const next = /^##\s+/gm;
+  next.lastIndex = start;
+  const closed = next.exec(markdown);
+  return { start, end: closed ? closed.index : markdown.length };
+}
+
+/**
+ * Read every `Severity tally:` line the report carries, scoped to its
+ * Executive Summary and failing closed on more than one.
  *
- * The line is what lets a consumer cross-check what the lens says it found
+ * The tally is what lets a consumer cross-check what the lens says it found
  * against what the parser actually extracted — a parse that silently drops
- * findings is otherwise indistinguishable from a clean report. `Info` is never
- * counted (the severity scale already excludes it from scheduled work).
+ * findings is otherwise indistinguishable from a clean report. That only holds
+ * while exactly one line claims to be the tally. A report whose prose quotes
+ * the format a second time (a remediation section restating a lens's output,
+ * say) used to have whichever line the regex reached first silently adopted as
+ * the declaration, so the cross-check compared the parse against an arbitrary
+ * one of two numbers. Both are now reported and the report fails.
+ *
+ * `Info` is never counted (the severity scale already excludes it from
+ * scheduled work).
  *
  * @param {string} markdown — full report text.
- * @returns {{ critical: number, high: number, medium: number, low: number }|null}
- *   `null` when the report declares no tally at all.
+ * @returns {{ tally: {critical:number,high:number,medium:number,low:number}|null,
+ *   matches: string[], duplicate: boolean }}
  */
-export function parseSeverityTally(markdown) {
-  if (typeof markdown !== 'string') return null;
-  const match = TALLY_LINE.exec(markdown);
-  if (!match) return null;
+export function readSeverityTally(markdown) {
+  if (typeof markdown !== 'string') {
+    return { tally: null, matches: [], duplicate: false };
+  }
+  const range = executiveSummaryRange(markdown);
+  const matches = [];
+  TALLY_LINE_GLOBAL.lastIndex = 0;
+  for (const hit of markdown.matchAll(TALLY_LINE_GLOBAL)) {
+    // Outside an Executive Summary the whole document is the scope; with one,
+    // a line beyond it is a stray that must not be adopted silently.
+    matches.push({ text: hit[0].trim(), groups: hit, index: hit.index });
+  }
+  const scoped = range
+    ? matches.filter((m) => m.index >= range.start && m.index < range.end)
+    : matches;
+  if (matches.length === 0) {
+    return { tally: null, matches: [], duplicate: false };
+  }
+  if (matches.length > 1) {
+    return {
+      tally: null,
+      matches: matches.map((m) => m.text),
+      duplicate: true,
+    };
+  }
+  const [only] = scoped.length > 0 ? scoped : matches;
   return {
-    critical: Number(match[1]),
-    high: Number(match[2]),
-    medium: Number(match[3]),
-    low: Number(match[4]),
+    tally: {
+      critical: Number(only.groups[1]),
+      high: Number(only.groups[2]),
+      medium: Number(only.groups[3]),
+      low: Number(only.groups[4]),
+    },
+    matches: [only.text],
+    duplicate: false,
   };
 }
 
@@ -446,7 +568,10 @@ export function parseAuditReports(reports, { repoRoot } = {}) {
 }
 
 export const __testing = {
+  carriesFieldBullet,
   carriesSeverity,
+  isEmptyBlock,
+  isGroupingHeader,
   foldGroupingHeaders,
   normaliseSeverity,
   extractFilePaths,

@@ -12,8 +12,9 @@
  * This module closes that hole from both ends:
  *
  *   - {@link runLedgerCommit} (`--auto --ledger-commit`) commits the changed
- *     ledger onto a dated `chore/audit-ledger-<YYYY-MM-DD>` branch, pushes it,
- *     and opens a PR against `project.baseBranch` through the `gh` wrapper.
+ *     ledger onto a `chore/audit-ledger-<YYYY-MM-DD>-<shortsha>` branch cut
+ *     from `origin/<base>`, pushes it, and opens a PR against
+ *     `project.baseBranch` through the `gh` wrapper.
  *     Auto-merge is never requested: a ledger PR records machine-derived state
  *     a human should glance at, so landing it stays an operator decision.
  *   - {@link resolveLedgerSummary} answers the question the *unflagged* sweep
@@ -30,6 +31,7 @@
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSync } from '../git-utils.js';
 import { DEFAULT_LEDGER_PATH } from './ledger.js';
+import { openLedgerPullRequest, probeGit } from './ledger-pr.js';
 
 /** Fallback base branch when config carries no `project.baseBranch`. */
 const DEFAULT_BASE_BRANCH = 'main';
@@ -65,43 +67,6 @@ async function resolveBaseBranch(explicit) {
 }
 
 /**
- * Run a read-only git probe that must never throw: a checkout with no commits
- * (or no repository at all) is a legitimate answer of "nothing to report",
- * not a crash. The write path below uses {@link runStep} instead, where a
- * failure IS fatal.
- * @param {(cwd: string, ...args: string[]) => string} git
- * @param {string} cwd
- * @param {string[]} args
- * @returns {string} trimmed stdout, or `''` when git failed.
- */
-function probeGit(git, cwd, args) {
-  try {
-    const out = git(cwd, ...args);
-    return typeof out === 'string' ? out.trim() : '';
-  } catch (_) {
-    return '';
-  }
-}
-
-/**
- * Wrap one write step so a git or `gh` failure surfaces as a fatal error that
- * names the step that broke. Accepts sync and async steps alike.
- * @param {string} name
- * @param {() => unknown} fn
- * @returns {Promise<unknown>}
- */
-async function runStep(name, fn) {
-  try {
-    return await fn();
-  } catch (error) {
-    throw new Error(
-      `--ledger-commit failed at step "${name}": ${error?.message ?? error}`,
-      { cause: error },
-    );
-  }
-}
-
-/**
  * Inspect whether the ledger changed and whether this checkout could persist
  * it at all. Module-local: the two exported entry points below are the whole
  * public surface, so a probe helper never becomes a second way in.
@@ -127,14 +92,10 @@ async function assessLedgerPersistence({
   git = gitSync,
 } = {}) {
   const base = await resolveBaseBranch(baseBranch);
-  const changed =
-    probeGit(git, cwd, ['status', '--porcelain', '--', ledgerPath]).length > 0;
-  const hasOrigin = probeGit(git, cwd, ['remote'])
-    .split('\n')
-    .map((line) => line.trim())
-    .includes('origin');
-  const headBranch = probeGit(git, cwd, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  const onBaseBranch = headBranch === base;
+  const probe = (args) => probeGit(git, cwd, args);
+  const changed = ledgerIsDirty(probe, ledgerPath);
+  const hasOrigin = hasOriginRemote(probe);
+  const headBranch = headBranchOf(probe);
 
   return {
     ledgerPath,
@@ -142,9 +103,44 @@ async function assessLedgerPersistence({
     changed,
     hasOrigin,
     headBranch,
-    onBaseBranch,
-    unpersisted: changed && (!hasOrigin || !onBaseBranch),
+    onBaseBranch: headBranch === base,
+    unpersisted: changed && (!hasOrigin || headBranch !== base),
   };
+}
+
+/**
+ * Has the sweep actually written new memory? Scoped to the ledger pathspec, so
+ * unrelated dirt in the checkout is never mistaken for it.
+ * @param {(args: string[]) => string} probe
+ * @param {string} ledgerPath
+ * @returns {boolean}
+ */
+function ledgerIsDirty(probe, ledgerPath) {
+  return probe(['status', '--porcelain', '--', ledgerPath]).length > 0;
+}
+
+/**
+ * Is there an `origin` to push to at all? The ephemeral-clone shape that makes
+ * a sweep amnesiac usually has none.
+ * @param {(args: string[]) => string} probe
+ * @returns {boolean}
+ */
+function hasOriginRemote(probe) {
+  return probe(['remote'])
+    .split('\n')
+    .map((line) => line.trim())
+    .includes('origin');
+}
+
+/**
+ * The branch HEAD is on, or `''` when the checkout is detached or has no
+ * commits — both of which read as "not the base branch", which is the answer
+ * the callers need.
+ * @param {(args: string[]) => string} probe
+ * @returns {string}
+ */
+function headBranchOf(probe) {
+  return probe(['rev-parse', '--abbrev-ref', 'HEAD']);
 }
 
 /**
@@ -196,34 +192,13 @@ export async function resolveLedgerSummary({
 }
 
 /**
- * Compose the ledger PR body. Kept separate so the step sequence below reads
- * as a sequence and not as a string-building exercise.
- * @param {string} ledgerPath
- * @param {string} date
- * @returns {string}
- */
-function pullRequestBody(ledgerPath, date) {
-  return [
-    `Reconciles the cross-run audit ledger (\`${ledgerPath}\`) written by the`,
-    `unattended \`audit-to-stories --auto\` sweep on ${date}.`,
-    '',
-    'Ledger-only change — no source, workflow or documentation file is touched.',
-    'Merging it is what gives the next sweep a memory: without it the ledger',
-    'dies with the checkout and every later run re-proposes findings this one',
-    'already filed, and re-surfaces findings a human already rejected.',
-    '',
-    'Auto-merge is deliberately not requested: the ledger records machine-derived',
-    'lifecycle state, and a human glance before it lands is the point.',
-  ].join('\n');
-}
-
-/**
- * Commit the changed ledger onto a dated branch and open a PR for it.
+ * Commit the changed ledger onto a unique branch cut from the remote base and
+ * open a PR for it.
  *
- * Skipped — returning `{ committed: false }` with a `reason` — when the ledger
- * did not change. Every git/`gh` failure is fatal and names its step; the
- * caller runs this *after* printing the run summary, so a broken remote never
- * costs the operator the sweep's findings.
+ * Assesses the checkout, then hands the whole write sequence to
+ * {@link openLedgerPullRequest}. Every git/`gh` failure is fatal and names its
+ * step; the caller runs this *after* printing the run summary, so a broken
+ * remote never costs the operator the sweep's findings.
  *
  * @param {object} [params]
  * @param {string} [params.ledgerPath]
@@ -233,7 +208,8 @@ function pullRequestBody(ledgerPath, date) {
  * @param {{ pr: { create: (flags: string[]) => Promise<unknown> } }} [params.gh]
  * @param {Date|string|number} [params.now]
  * @returns {Promise<{ committed: boolean, reason?: string, branch?: string,
- *   subject?: string, baseBranch?: string, ledgerPath: string }>}
+ *   subject?: string, baseBranch?: string, prUrl?: string|null,
+ *   resumed?: boolean, ledgerPath: string }>}
  */
 export async function runLedgerCommit({
   ledgerPath = DEFAULT_LEDGER_PATH,
@@ -249,42 +225,12 @@ export async function runLedgerCommit({
     cwd,
     git,
   });
-  if (!state.changed) {
-    return { committed: false, reason: 'ledger-unchanged', ledgerPath };
-  }
-
-  const date = isoDate(now);
-  const branch = `chore/audit-ledger-${date}`;
-  const subject = `chore(audit): reconcile audit ledger ${date}`;
-
-  await runStep('create-branch', () => git(cwd, 'checkout', '-b', branch));
-  await runStep('stage-ledger', () => git(cwd, 'add', '--', ledgerPath));
-  // The `-- <path>` pathspec is what keeps the commit ledger-only even when
-  // the sweep's checkout carries unrelated dirt.
-  await runStep('commit-ledger', () =>
-    git(cwd, 'commit', '-m', subject, '--', ledgerPath),
-  );
-  await runStep('push-branch', () =>
-    git(cwd, 'push', '--set-upstream', 'origin', branch),
-  );
-  await runStep('open-pull-request', () =>
-    gh.pr.create([
-      '--base',
-      state.baseBranch,
-      '--head',
-      branch,
-      '--title',
-      subject,
-      '--body',
-      pullRequestBody(ledgerPath, date),
-    ]),
-  );
-
-  return {
-    committed: true,
-    branch,
-    subject,
-    baseBranch: state.baseBranch,
+  return openLedgerPullRequest({
+    state,
     ledgerPath,
-  };
+    cwd,
+    git,
+    gh,
+    date: isoDate(now),
+  });
 }

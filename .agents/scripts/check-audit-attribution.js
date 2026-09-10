@@ -24,11 +24,14 @@ import process from 'node:process';
 
 import {
   attributionExitCode,
+  auditAdvisories,
   deriveVerdict,
+  diffAdvisories,
+  renderAdvisoryDetail,
   renderAttribution,
   UNKNOWN,
 } from './lib/audit-attribution.js';
-import { execFileCapture, spawnCapture } from './lib/child-exec.js';
+import { execFileCapture } from './lib/child-exec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 
@@ -43,6 +46,10 @@ const HELP = {
   flags: [
     ['--base <ref>', 'Base commit or ref to attribute against. Required.'],
     ['--cwd <dir>', 'Repository root. Default: process.cwd().'],
+    [
+      '--no-tracking-issue',
+      "Skip the `gh issue list` lookup for the nightly sweep's tracking issue.",
+    ],
   ],
   notes: [
     'Run it only after the required SCA step has already failed — it re-audits\nthe base to attribute that failure, and reports `unknown` when the head\naudits clean.',
@@ -52,41 +59,18 @@ const HELP = {
 };
 
 export function parseArgs(argv) {
-  const out = { base: null, cwd: process.cwd() };
+  const out = { base: null, cwd: process.cwd(), trackingIssue: true };
   for (let i = 2; i < argv.length; i += 1) {
-    const a = argv[i];
-    if (a === '--base') out.base = argv[++i] ?? null;
-    else if (a === '--cwd') out.cwd = argv[++i] ?? out.cwd;
+    // Read the option KEY, not the dashed spelling: the key is what the
+    // negation guard and every reader below name.
+    const key = argv[i].replace(/^--/, '');
+    if (key === 'base') out.base = argv[++i] ?? null;
+    else if (key === 'cwd') out.cwd = argv[++i] ?? out.cwd;
+    // A runner with no `gh` credentials would spend a subprocess to fail; the
+    // verdict never depended on the lookup, so let the caller skip it.
+    else if (key === 'no-tracking-issue') out.trackingIssue = false;
   }
   return out;
-}
-
-/**
- * Run `npm audit --audit-level=high` over a dependency manifest pair.
- *
- * `--package-lock-only` audits the committed lockfile without installing, so
- * the probe never touches the job's own `node_modules`: an attribution
- * mechanism that could disturb the tree it is reporting on would be a worse
- * defect than the one it explains.
- *
- * @param {string} dir directory holding package.json + package-lock.json
- * @returns {{ failed: boolean }}
- */
-function auditDir(dir) {
-  const result = spawnCapture(
-    'npm',
-    ['audit', '--audit-level=high', '--package-lock-only'],
-    { cwd: dir },
-  );
-  if (result.status === 0) return { failed: false };
-  // npm exits non-zero for "advisories found" and for "could not audit"
-  // alike. Only a real audit verdict carries a report on stdout; anything
-  // else is a probe failure the caller must read as `unknown`.
-  if (/vulnerabilit/i.test(String(result.stdout ?? '')))
-    return { failed: true };
-  throw new Error(
-    `npm audit could not evaluate the base tree: ${String(result.stderr ?? '').slice(0, 200)}`,
-  );
 }
 
 /**
@@ -121,8 +105,8 @@ const defaultGit = (cwd, ...args) => execFileCapture('git', args, { cwd });
 export function runAttribution(argv = process.argv, deps = {}) {
   const {
     git = defaultGit,
-    auditHead = auditDir,
-    auditBase = auditDir,
+    auditHead = auditAdvisories,
+    auditBase = auditAdvisories,
     materialize = materializeBase,
     lookupTrackingIssue = defaultLookupTrackingIssue,
     cleanup = (dir) => rmSync(dir, { recursive: true, force: true }),
@@ -139,29 +123,93 @@ export function runAttribution(argv = process.argv, deps = {}) {
     return { verdict: UNKNOWN, exitCode: 0, lines };
   }
 
-  let headFailed;
-  try {
-    headFailed = auditHead(args.cwd).failed;
-  } catch (err) {
-    return report({ verdict: UNKNOWN, args, logger, reason: msg(err) });
-  }
-  if (!headFailed) {
-    return report({
-      verdict: UNKNOWN,
-      args,
-      logger,
-      reason: 'the head tree audits clean, so there is nothing to attribute',
-    });
+  const head = auditTheHead({ args, auditHead });
+  if (head.reason) {
+    return report({ verdict: UNKNOWN, args, logger, reason: head.reason });
   }
 
+  const { baseAudit, reason } = auditTheBase({
+    args,
+    git,
+    auditBase,
+    materialize,
+    cleanup,
+  });
+  const { introduced, preExisting } = diffAdvisories({
+    head: head.advisories,
+    base: baseAudit?.advisories ?? null,
+  });
+
+  // Per advisory: the merge base is "already failing for this" exactly when it
+  // carries every advisory the head does. A base red for its own advisory must
+  // not absolve a diff that added a different one.
+  const verdict = deriveVerdict({
+    headFailed: true,
+    baseAudit: baseAudit && { failed: introduced.length === 0 },
+  });
+  return report({
+    verdict,
+    args,
+    logger,
+    reason,
+    trackingIssue: resolveTrackingIssue({
+      verdict,
+      args,
+      lookupTrackingIssue,
+    }),
+    introduced,
+    preExisting,
+  });
+}
+
+/**
+ * Audit the head tree, converting both no-verdict cases — the audit itself
+ * broke, or the head is clean — into a `reason` the caller reports as
+ * `unknown`. Neither is an accusation, and neither is worth auditing a base for.
+ *
+ * @param {{ args: object, auditHead: Function }} ctx
+ * @returns {{ advisories?: Array<object>, reason: string|null }}
+ */
+function auditTheHead({ args, auditHead }) {
+  try {
+    const head = auditHead(args.cwd);
+    return head.failed
+      ? { advisories: head.advisories, reason: null }
+      : {
+          reason:
+            'the head tree audits clean, so there is nothing to attribute',
+        };
+  } catch (err) {
+    return { reason: msg(err) };
+  }
+}
+
+/**
+ * Look the nightly sweep's tracking issue up, unless there is no verdict to
+ * attach it to or `--no-tracking-issue` said not to spend the round-trip.
+ *
+ * @param {{ verdict: string, args: object, lookupTrackingIssue: Function }} ctx
+ * @returns {number|null}
+ */
+function resolveTrackingIssue({ verdict, args, lookupTrackingIssue }) {
+  if (verdict === UNKNOWN || !args.trackingIssue) return null;
+  return safeLookup(lookupTrackingIssue, args.cwd);
+}
+
+/**
+ * Materialize the merge base and audit it, converting every way that can fail
+ * into a `reason` rather than a throw. The scratch directory is always removed.
+ *
+ * @param {object} ctx
+ * @returns {{ baseAudit: object|null, reason: string|null }}
+ */
+function auditTheBase({ args, git, auditBase, materialize, cleanup }) {
   let dir = null;
-  let baseAudit = null;
-  let reason = null;
   try {
     dir = materialize({ cwd: args.cwd, base: args.base, git });
-    baseAudit = auditBase(dir);
+    return { baseAudit: auditBase(dir), reason: null };
   } catch (err) {
-    reason = msg(err);
+    return { baseAudit: null, reason: msg(err) };
   } finally {
     if (dir) {
       try {
@@ -172,11 +220,6 @@ export function runAttribution(argv = process.argv, deps = {}) {
       }
     }
   }
-
-  const verdict = deriveVerdict({ headFailed, baseAudit });
-  const trackingIssue =
-    verdict === UNKNOWN ? null : safeLookup(lookupTrackingIssue, args.cwd);
-  return report({ verdict, args, logger, reason, trackingIssue });
 }
 
 function msg(err) {
@@ -189,15 +232,29 @@ function report({
   logger,
   reason = null,
   trackingIssue = null,
+  introduced = [],
+  preExisting = [],
 }) {
-  const lines = renderAttribution({
-    verdict,
-    baseRef: args.base,
-    trackingIssue,
-    reason,
-  });
+  const lines = [
+    ...renderAttribution({
+      verdict,
+      baseRef: args.base,
+      trackingIssue,
+      reason,
+    }),
+    // The two lists are reported separately even when the verdict is
+    // `introduced-by-this-diff`: an author fixing B still needs to know A is
+    // not theirs.
+    ...renderAdvisoryDetail({ introduced, preExisting }),
+  ];
   for (const line of lines) logger.info(line);
-  return { verdict, exitCode: attributionExitCode(verdict), lines };
+  return {
+    verdict,
+    exitCode: attributionExitCode(verdict),
+    lines,
+    introduced,
+    preExisting,
+  };
 }
 
 /**

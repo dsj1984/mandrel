@@ -88,9 +88,9 @@ what they declare:
   explicit `viewport`, a Cypress `viewportWidth`/`viewportHeight`, a
   visual-regression viewport list. This is the project's own statement of which
   form factors it holds itself to.
-- **Runtime target (optional):** the `qa.environments` map (see
-  [*Runtime viewport pass*](#step-3-runtime-viewport-pass-optional-corroboration))
-  and the navigability route SSOT.
+- **Runtime target (optional):** whatever the shared runtime scaffold in
+  [`helpers/audit-lens-core.md`](helpers/audit-lens-core.md#runtime-pass)
+  resolves. Note only whether one exists; the scaffold owns how it is found.
 
 Record the breakpoints, the viewport contract, and the device matrix. Every
 finding downstream is measured against *this discovered baseline*. If the
@@ -192,37 +192,20 @@ fix is a new test, name the viewport and the assertion it should make, not just
 
 ## Step 3: Runtime viewport pass (optional corroboration)
 
-Static detection is the default and always runs. The runtime pass is
-**conditional** — it runs only when a live target is configured; its absence
-never blocks the static report.
+Run the shared runtime scaffold in
+[`helpers/audit-lens-core.md`](helpers/audit-lens-core.md#runtime-pass) — it
+owns target resolution, route sampling, median-of-3, and the two skip reasons
+(no configured target; browser tooling unavailable). This lens's probe is its
+step 3:
 
-1. **Resolve the target from config — never a hardcoded URL.** Resolve the
-   target through the consumer's `qa.environments.<env>.baseUrl` (via
-   [`resolveQaEnvironment`](../scripts/lib/qa/resolve-qa-contract.js), the same
-   resolver `/qa-run` uses): an `<env>` argument resolves by exact name or
-   origin match; with no argument, enumerate `name → baseUrl` and let the
-   operator pick. If **no** `qa.environments` target is configured, **skip this
-   step** and note in the report that runtime corroboration was unavailable —
-   do not invent a URL and do not start an arbitrary dev server.
-2. **Sample routes from the navigability SSOT.** Draw the routes to exercise
-   from the consumer's route/nav registry (`planning.navigation.navRegistry` /
-   `routeGlobs` — the same SSOT [`/audit-navigability`](audit-navigability.md)
-   reads), sampling a representative set (key personas' landing routes plus any
-   route in the change-set scope) rather than a single hardcoded page.
-3. **Drive two form factors per route.** Emulate a **phone** and a **tablet**
-   viewport — `mcp__chrome-devtools__emulate` for a device profile, or
-   `resize_page` for an explicit width/height — then, per route and viewport:
-   take a screenshot, and evaluate the two observables static analysis cannot
-   resolve — whether `document.scrollingElement.scrollWidth` exceeds the
-   viewport width (horizontal overflow), and the rendered box of the
-   interactive controls Step 1 flagged as candidates. Reload after switching
-   form factor so load-time device gates re-run.
-4. **Median-of-3 or provisional.** Any runtime measurement is subject to
-   run-to-run variance: capture a **median-of-3** (three runs per route, report
-   the median) before treating a number as authoritative. A single-run value is
-   reported **provisional** and never drives a Critical/High verdict on its own.
-5. **Leave the viewport as you found it.** Reset the emulation before finishing
-   so a following lens or QA run does not inherit a phone viewport.
+- **Drive two form factors per route.** Emulate a **phone** and a **tablet**
+  viewport — `mcp__chrome-devtools__emulate` for a device profile, or
+  `resize_page` for an explicit width/height — then, per route and viewport:
+  take a screenshot, and evaluate the two observables static analysis cannot
+  resolve — whether `document.scrollingElement.scrollWidth` exceeds the viewport
+  width (horizontal overflow), and the rendered box of the interactive controls
+  Step 1 flagged as candidates. Reload after switching form factor so load-time
+  device gates re-run.
 
 Corroborate static findings against the runtime observations (a statically
 flagged fixed width confirmed by a real horizontal overflow graduates from
@@ -233,10 +216,10 @@ that opens off-screen.
 ## Report additions
 
 Beyond the shared skeleton, the Executive Summary states the runtime mode's
-status (ran against `<env>` / skipped — no target configured) and names the
+status (ran against `<env>`, or the scaffold's skip reason) and names the
 narrowest breakpoint the project declares, so a reader can tell what "mobile"
 meant for this run. The report ends with a **Runtime Viewport Pass** section:
-per-route, per-form-factor observations when the runtime mode ran, or
-"*Runtime corroboration unavailable — no `qa.environments` target configured.*"
+per-route, per-form-factor observations when the runtime mode ran, or the
+scaffold's skip reason verbatim.
 Drop every claimed finding that names no concrete element, style rule, or test
 file.

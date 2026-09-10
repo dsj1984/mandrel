@@ -20,7 +20,7 @@ import {
 const story = (number, extra = {}) => ({
   number,
   title: `Story ${number}`,
-  labels: ['type::story'],
+  labels: ['type::story', 'agent::ready'],
   state: 'open',
   body: '',
   ...extra,

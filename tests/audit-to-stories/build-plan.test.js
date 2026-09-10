@@ -654,3 +654,118 @@ describe('wireEdges', () => {
     );
   });
 });
+
+// Story #5281 — the two report shapes an unattended sweep meets, driven
+// through `buildPlan` so the cross-check itself (not just the parser) is what
+// is being asserted.
+describe('buildPlan cross-check — unattended report shapes', () => {
+  let dir;
+  const write = (name, body) => {
+    fs.writeFileSync(path.join(dir, name), body);
+    return path.join(dir, 'audit-*-results.md');
+  };
+
+  before(() => {
+    dir = makeTempDir('audit-cross-check-');
+  });
+  after(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('passes a report whose only extra headings are empty grouping headers', async () => {
+    const glob = write(
+      'audit-accessibility-results.md',
+      [
+        '## Executive Summary',
+        '',
+        'Severity tally: Critical 0 / High 1 / Medium 0 / Low 0',
+        '',
+        '## Detailed Findings',
+        '',
+        '### Perceivable',
+        '',
+        '#### `src/a.jsx` — Icon button has no accessible name',
+        '',
+        '- **Severity**: High',
+        '- **Location**: src/a.jsx:12',
+        '- **Recommendation**: Add an aria-label.',
+        '',
+        '### Robust',
+        '',
+        '_No findings._',
+        '',
+      ].join('\n'),
+    );
+
+    const plan = await buildPlan({ glob, useProvider: false }, silent);
+    assert.deepEqual(plan.summary.reportFailures, []);
+    assert.equal(plan.summary.totalFindings, 1);
+  });
+
+  it('fails a report declaring the tally twice, naming both lines', async () => {
+    const glob = write(
+      'audit-accessibility-results.md',
+      [
+        '## Executive Summary',
+        '',
+        'Severity tally: Critical 0 / High 1 / Medium 0 / Low 0',
+        '',
+        '## Detailed Findings',
+        '',
+        '### `src/a.jsx` — Icon button has no accessible name',
+        '',
+        '- **Severity**: High',
+        '- **Location**: src/a.jsx:12',
+        '',
+        '## Remediation notes',
+        '',
+        'Last cycle it said Severity tally: Critical 1 / High 9 / Medium 9 / Low 9.',
+        '',
+      ].join('\n'),
+    );
+
+    const warnings = [];
+    const plan = await buildPlan(
+      { glob, useProvider: false },
+      { logger: { warn: (m) => warnings.push(String(m)) } },
+    );
+    const failure = plan.summary.reportFailures.find(
+      (f) => f.kind === 'duplicate-tally',
+    );
+    assert.ok(
+      failure,
+      `expected a duplicate-tally failure: ${JSON.stringify(plan.summary.reportFailures)}`,
+    );
+    assert.equal(failure.tallyLines.length, 2);
+    // The operator-facing block names both declarations rather than comparing
+    // the parse against an arbitrary one of them.
+    const block = warnings.join('\n');
+    assert.match(block, /duplicate-tally/);
+    assert.match(block, /High 1 \/ Medium 0 \/ Low 0/);
+    assert.match(block, /High 9 \/ Medium 9 \/ Low 9/);
+  });
+
+  it('--allow-missing-tally does not downgrade a duplicate', async () => {
+    const glob = write(
+      'audit-accessibility-results.md',
+      [
+        '## Executive Summary',
+        '',
+        'Severity tally: Critical 0 / High 0 / Medium 0 / Low 0',
+        '',
+        '## Notes',
+        '',
+        'Severity tally: Critical 0 / High 0 / Medium 0 / Low 0',
+        '',
+      ].join('\n'),
+    );
+    const plan = await buildPlan(
+      { glob, useProvider: false, allowMissingTally: true },
+      silent,
+    );
+    assert.deepEqual(
+      plan.summary.reportFailures.map((f) => f.kind),
+      ['duplicate-tally'],
+    );
+  });
+});
