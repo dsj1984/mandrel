@@ -7,8 +7,8 @@
  *   2. Rolls up friction follow-ups across every Story in the run and
  *      files/posts them on the primary Story.
  *   3. Checks sibling Spec/acceptance coherence across Story bodies.
- *   4. Reports the container Epics whose children all landed (Story #5139),
- *      delegating the derivation and the close to `epic-rollup.js`.
+ *   4. Reports what the per-Story land tails left the run's container Epics
+ *      in — closed, or still open (Story #5139; read-only since #5280).
  *
  * There is no inert planner-only path: `planRunEpilogue` enumerates steps
  * and `runPlanRunEpilogue` executes them. Single-Story runs skip the
@@ -21,7 +21,7 @@ import { selectAudits } from '../audit-suite/index.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
 import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
-import { rollUpEpicForStory } from './epic-rollup.js';
+import { isEpicTicket } from './epic-container.js';
 import { composeRoutedProposals } from './retro-proposals.js';
 import {
   assessRollupOutcome,
@@ -44,59 +44,80 @@ export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
 ]);
 
 /**
- * Close every container Epic whose children all landed in this run.
+ * Report which container Epics this run's Stories left closed, and which are
+ * still open.
  *
- * Delegates to `epic-rollup.js` (Story #5205) rather than deriving anything
- * itself. That module owns the child→parent scan, the body-checklist-union-
- * native-sub-issue child read, and the one-way closure rule, and it is also
- * invoked from the per-Story land tail — which is what closes a container
- * whose last open child was a single Story, a case this epilogue never
- * reaches because a one-Story run reports `applicable: false`.
+ * **It derives nothing and writes nothing.** It used to: it walked every Story
+ * and re-ran the full rollup, closing containers itself. That made sense while
+ * the rollup only fired on the edges someone had wired, and the epilogue was
+ * the backstop for the ones that were missed. Every child state change is now
+ * an edge — init, post-land, the supersede close — so by the time the last
+ * Story of a run has landed, its container has already been derived from a
+ * complete child set by that Story's own land tail. Re-deriving here would ask
+ * the same question a second time and answer it identically, at the cost of a
+ * full re-read per Story and a second writer on the same issue.
  *
- * The step survives for its report: this is the surface an operator reads to
- * see which containers a multi-Story run closed and which are still pending.
+ * What survives is the report, which is why the step exists at all: one place
+ * an operator reads to see what a multi-Story run did to its containers. A
+ * pending Epic here is a real signal — it means a land tail's rollup declined
+ * to close, and the tail's own outcome says why.
  *
- * Non-fatal throughout: the epilogue is a reporting tail, and a container
- * left open costs tidiness, not correctness.
+ * Non-fatal throughout: a container it cannot read is simply not reported.
  *
- * @param {{ stories: string[], provider: object, config?: object }} opts
+ * @param {{ stories: string[], provider: object }} opts
  * @returns {Promise<{ kind: string, closed: number[], pending: number[] }>}
  */
-async function executeEpicClose({ stories, provider, config }) {
+async function executeEpicClose({ stories, provider }) {
   const closed = new Set();
   const pending = new Set();
-  // Siblings share a container, so an Epic resolved by one Story's rollup is
-  // withheld from the next one's — otherwise the second Story would re-derive
-  // and re-close what the first already closed.
+  // Siblings share a container: resolve each distinct Epic once, however many
+  // of the run's Stories point at it.
   const seen = new Set();
 
-  // `rollUpEpicForStory` never throws and always returns the full envelope,
-  // so its three lists are read directly — a `?? []` guard here would be an
-  // unreachable branch asserting a contract the module already keeps.
   for (const raw of stories) {
     const storyId = Number(raw);
     if (!Number.isInteger(storyId) || storyId <= 0) continue;
-    const outcome = await rollUpEpicForStory({
-      storyId,
-      provider,
-      config,
-      skipEpicIds: seen,
-    });
-    for (const epic of outcome.epics) seen.add(epic.epicId);
-    for (const epicId of outcome.closed) closed.add(epicId);
-    for (const epicId of outcome.pending) pending.add(epicId);
+    const epic = await readContainerFor({ storyId, provider });
+    if (!epic) continue;
+    const epicId = Number(epic.id);
+    if (!Number.isInteger(epicId) || seen.has(epicId)) continue;
+    seen.add(epicId);
+    if (String(epic.state ?? '').toLowerCase() === 'closed') {
+      closed.add(epicId);
+    } else {
+      pending.add(epicId);
+    }
   }
-
-  // An Epic this run closed can also have been reported pending by an
-  // earlier Story's rollup, when a sibling had not landed yet. The close is
-  // the later, truer answer.
-  for (const epicId of closed) pending.delete(epicId);
 
   return {
     kind: 'epic-close',
     closed: [...closed],
     pending: [...pending],
   };
+}
+
+/**
+ * Read one Story's container Epic, or null.
+ *
+ * One request per Story via the declared parent port. Degrades to null on any
+ * failure and on a provider without the port — this is a report, and a
+ * container it could not read is better omitted than guessed at.
+ *
+ * @param {{ storyId: number, provider: object }} opts
+ * @returns {Promise<object|null>}
+ */
+async function readContainerFor({ storyId, provider }) {
+  if (typeof provider?.getParentIssue !== 'function') return null;
+  try {
+    const parent = await provider.getParentIssue(storyId);
+    return parent && isEpicTicket(parent) ? parent : null;
+  } catch (err) {
+    Logger.warn(
+      `[run-epilogue] could not read the container for Story #${storyId} ` +
+        `(${err?.message ?? err}); omitting it from the Epic report.`,
+    );
+    return null;
+  }
 }
 
 /**
@@ -185,7 +206,7 @@ export function planRunEpilogue({ planRunId, stories } = {}) {
     },
     {
       kind: 'epic-close',
-      description: `Close any container Epic whose children all landed in run ${effectiveRunId}`,
+      description: `Report the container Epic state the land tails of run ${effectiveRunId} left behind`,
       stories: ids,
     },
   ];
@@ -892,7 +913,7 @@ export async function runPlanRunEpilogue({
         );
       } else if (step.kind === 'epic-close') {
         results.push(
-          await executeEpicClose({ stories: plan.stories, provider, config }),
+          await executeEpicClose({ stories: plan.stories, provider }),
         );
       }
     } catch (err) {

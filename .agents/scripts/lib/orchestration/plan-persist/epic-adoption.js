@@ -145,6 +145,7 @@ export async function adoptContainerEpic({
     provider,
     epicNumber: target.id,
     childIds,
+    created: all,
   });
 
   Logger.info(
@@ -164,6 +165,24 @@ export async function adoptContainerEpic({
 /**
  * Write the appended checklist back to the Epic body.
  *
+ * **The body is re-read `fresh` immediately before the append.** `target.body`
+ * was captured by `resolveAdoptionTarget` before the first Story was created,
+ * which on a cohort of any size is many seconds and several writes ago. An
+ * append computed against that snapshot and PATCHed wholesale silently drops
+ * every checklist row another writer added in between — a concurrent persist
+ * run adopting the same Epic, or an operator ticking a child off by hand. The
+ * body is a full-document write, so a stale base is not a merge conflict; it
+ * is a silent revert.
+ *
+ * This **narrows** the read-then-PATCH window; it does not close it. Nothing
+ * here is atomic, and GitHub's issue API offers no compare-and-swap, so a
+ * write landing between this read and this PATCH is still lost. Narrowing it
+ * from "the whole create phase" to "one round-trip" is the available fix; a
+ * real one needs an API that does not exist.
+ *
+ * The PATCH is skipped when the append changes nothing, so re-running an
+ * adoption that already landed writes nothing at all.
+ *
  * Non-fatal: the Stories are already live, and the native sub-issue edges
  * written next are the other half of the linkage. Losing the checklist costs
  * the body-only fallback path, not the grouping.
@@ -179,8 +198,9 @@ async function appendChecklist({ provider, target, childIds }) {
     );
     return;
   }
-  const next = appendEpicChildIds(target.body, childIds);
-  if (next === target.body) return;
+  const base = await readFreshEpicBody({ provider, target });
+  const next = appendEpicChildIds(base, childIds);
+  if (next === base) return;
   try {
     await provider.updateTicket(target.id, { body: next });
   } catch (err) {
@@ -189,4 +209,31 @@ async function appendChecklist({ provider, target, childIds }) {
         `(${err?.message ?? err}). The native sub-issue edges still record the grouping.`,
     );
   }
+}
+
+/**
+ * Re-read the Epic's body, bypassing any provider cache.
+ *
+ * `{ fresh: true }` is the whole point: the adoption path already read this
+ * issue once, so a cached read would hand back the very snapshot this function
+ * exists to replace. Falls back to the snapshot when the re-read fails or the
+ * provider has no `getTicket` — a stale base still appends the run's own
+ * children, which beats not linking them.
+ *
+ * @param {{ provider: object, target: { id: number, body: string } }} opts
+ * @returns {Promise<string>}
+ */
+async function readFreshEpicBody({ provider, target }) {
+  if (typeof provider?.getTicket !== 'function') return target.body;
+  try {
+    const fresh = await provider.getTicket(target.id, { fresh: true });
+    if (typeof fresh?.body === 'string') return fresh.body;
+  } catch (err) {
+    Logger.warn(
+      `[plan-persist] could not re-read Epic #${target.id} before appending its ` +
+        `checklist (${err?.message ?? err}); appending to the body read earlier. ` +
+        'A child linked by another writer since then may be dropped.',
+    );
+  }
+  return target.body;
 }

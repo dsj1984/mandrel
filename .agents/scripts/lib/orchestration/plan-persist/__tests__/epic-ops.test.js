@@ -35,7 +35,7 @@ function providerDouble({
     created,
     posts,
     ensureLabels: ensure,
-    listIssuesByLabel: async () => {
+    listTicketsByLabel: async () => {
       if (listThrows) throw new Error('search down');
       return existing;
     },
@@ -251,9 +251,9 @@ describe('createContainerEpic — degradation', () => {
     assert.equal(provider.created.length, 1);
   });
 
-  it('tolerates a provider with no listIssuesByLabel', async () => {
+  it('tolerates a provider with no listTicketsByLabel', async () => {
     const provider = providerDouble();
-    provider.listIssuesByLabel = undefined;
+    provider.listTicketsByLabel = undefined;
     const out = await createContainerEpic({
       provider,
       epic: EPIC,
@@ -276,10 +276,12 @@ describe('createContainerEpic — resume', () => {
   it('adopts an open Epic carrying the same fingerprint', async () => {
     const fp = await fingerprintFor(THREE);
     const provider = providerDouble({
+      // The mapped ticket shape `listTicketsByLabel` returns: `id` is the
+      // issue number and the link is `url`.
       existing: [
         {
-          number: 77,
-          html_url: 'https://x/77',
+          id: 77,
+          url: 'https://x/77',
           body: `body <!-- mandrel-epic-fingerprint ${fp} -->`,
         },
       ],
@@ -303,9 +305,7 @@ describe('createContainerEpic — resume', () => {
   it('does NOT adopt a container grouping a different child set', async () => {
     const fp = await fingerprintFor(THREE);
     const provider = providerDouble({
-      existing: [
-        { number: 77, body: `<!-- mandrel-epic-fingerprint ${fp} -->` },
-      ],
+      existing: [{ id: 77, body: `<!-- mandrel-epic-fingerprint ${fp} -->` }],
     });
     // Same title, different Stories — a different container.
     const out = await createContainerEpic({

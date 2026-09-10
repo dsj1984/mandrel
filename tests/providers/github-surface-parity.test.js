@@ -73,6 +73,8 @@ function buildProvider() {
   provider.issues = {
     ghGraphql: async () => 'issues.ghGraphql',
     listIssuesByLabel: async () => 'issues.listIssuesByLabel',
+    listTicketsByLabel: async () => 'issues.listTicketsByLabel',
+    getParentIssue: async () => 'issues.getParentIssue',
     getEpic: async () => 'issues.getEpic',
     branchExists: async () => 'issues.branchExists',
     getSubTickets: async () => 'issues.getSubTickets',
@@ -119,8 +121,14 @@ describe('providers/github.js — surface parity (Story #2462 / Task #2481)', ()
       ['getTicketDependencies', [1], 'tickets.getTicketDependencies'],
       ['updateTicket', [1, {}], 'tickets.updateTicket'],
       ['_applyLabelMutations', [1, {}, false], 'tickets._applyLabelMutations'],
-      // sub-issues
+      // sub-issues — the declared port and the legacy private alias must
+      // reach the same gateway method, or the two can answer differently
+      // while the older name is being retired.
+      ['getNativeSubIssues', ['NODE', 1], 'subIssues.getNativeSubIssues'],
       ['_getNativeSubIssues', ['NODE', 1], 'subIssues.getNativeSubIssues'],
+      // declared reads (Story #5280)
+      ['listTicketsByLabel', [{}], 'issues.listTicketsByLabel'],
+      ['getParentIssue', [1], 'issues.getParentIssue'],
       // comments
       ['getTicketComments', [1], 'comments.getTicketComments'],
       ['deleteComment', [1], 'comments.deleteComment'],
