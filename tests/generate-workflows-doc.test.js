@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { afterEach, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { renderWorkflowsDoc } from '../.agents/scripts/generate-workflows-doc.js';
+import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 
 /**
  * Tests for `generate-workflows-doc.js` — the catalog-backed generator that
@@ -14,6 +15,25 @@ import { renderWorkflowsDoc } from '../.agents/scripts/generate-workflows-doc.js
  * Covers: the pure render shape (header, command count, one table row per
  * entry, pipe escaping) and the drift gate (mutating a workflow description
  * makes `--check` exit non-zero; regenerating restores a clean check).
+ *
+ * ## Why the drift gate runs against a fixture root
+ *
+ * The drift gate can only be proved by making a workflow description drift,
+ * and this file used to do that to the **real**
+ * `.agents/workflows/mandrel-deliver.md`, restoring it in `afterEach`. The
+ * proof was sound; the blast radius was not. `node --test` runs test files
+ * concurrently against one shared checkout, so while that edit stood, every
+ * other test file in the run saw a dirty tree —
+ * `tests/enforcement/workflow-script-help.test.js` ends on a repo-wide
+ * `git status --porcelain` and reported the collision as "`--help` mutated
+ * the working tree", naming `.agents/workflows/mandrel-deliver.md`. It went
+ * red on the Windows Smoke job, where each `node` spawn between the mutation
+ * and its restore costs enough to stretch a ~130 ms window on Linux into
+ * roughly a second, and stayed green on ubuntu — the signature of a race,
+ * not of a script that writes on `--help`.
+ *
+ * `--root` lets the same proof run inside a tmpdir. The guard below keeps it
+ * there.
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,13 +45,17 @@ const SCRIPT = path.join(
   'scripts',
   'generate-workflows-doc.js',
 );
-const DOC_PATH = path.join(REPO_ROOT, '.agents', 'docs', 'workflows.md');
-const SAMPLE_WORKFLOW = path.join(
-  REPO_ROOT,
-  '.agents',
-  'workflows',
-  'mandrel-deliver.md',
-);
+
+/**
+ * The two real paths the pre-fixture version of this suite wrote to. Read
+ * before and after the drift-gate run so a future edit that re-points the
+ * suite at the live checkout fails here rather than surfacing as an
+ * unrelated test file's phantom dirty-tree failure.
+ */
+const REAL_TREE_WITNESSES = [
+  path.join(REPO_ROOT, '.agents', 'workflows', 'mandrel-deliver.md'),
+  path.join(REPO_ROOT, '.agents', 'docs', 'workflows.md'),
+];
 
 describe('renderWorkflowsDoc', () => {
   it('renders the generated header, command count, and one row per entry', () => {
@@ -55,50 +79,94 @@ describe('renderWorkflowsDoc', () => {
 });
 
 describe('generate-workflows-doc --check drift gate', () => {
-  let savedDescriptionFile = null;
+  /** @type {string} */
+  let root;
+  /** @type {string} */
+  let sampleWorkflow;
+  /** @type {string} */
+  let docPath;
+  /** @type {Map<string, Buffer>} */
+  const realTreeBefore = new Map();
 
-  afterEach(() => {
-    if (savedDescriptionFile !== null) {
-      fs.writeFileSync(SAMPLE_WORKFLOW, savedDescriptionFile, 'utf8');
-      savedDescriptionFile = null;
+  const run = (...args) =>
+    execFileSync('node', [SCRIPT, '--root', root, ...args], {
+      cwd: REPO_ROOT,
+      stdio: 'pipe',
+    });
+
+  before(() => {
+    for (const witness of REAL_TREE_WITNESSES) {
+      realTreeBefore.set(witness, fs.readFileSync(witness));
     }
-    // Always restore the generated doc to its on-disk-canonical form.
-    execFileSync('node', [SCRIPT], { cwd: REPO_ROOT });
+    root = makeTempDir('generate-workflows-doc-');
+    const workflows = path.join(root, '.agents', 'workflows');
+    fs.mkdirSync(path.join(workflows, 'loops'), { recursive: true });
+    sampleWorkflow = path.join(workflows, 'sample-deliver.md');
+    docPath = path.join(root, '.agents', 'docs', 'workflows.md');
+    fs.writeFileSync(
+      sampleWorkflow,
+      '---\ndescription: Land a planned Story on its own branch and open the PR.\n---\n\n# /sample-deliver\n',
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(workflows, 'sample-plan.md'),
+      '---\ndescription: Interrogate the request, author the Story, persist it.\n---\n\n# /sample-plan\n',
+      'utf8',
+    );
+    fs.writeFileSync(
+      path.join(workflows, 'loops', 'sample-loop.md'),
+      '---\ndescription: Poll the open pull requests until every check reports.\n---\n\n# /loops:sample-loop\n',
+      'utf8',
+    );
   });
 
-  it('passes when the doc is in sync with the workflow set', () => {
-    // Regenerate first so the precondition is clean regardless of test order.
-    execFileSync('node', [SCRIPT], { cwd: REPO_ROOT });
-    assert.doesNotThrow(() =>
-      execFileSync('node', [SCRIPT, '--check'], { cwd: REPO_ROOT }),
-    );
+  it('refuses a doc that does not exist yet, then passes once generated', () => {
+    assert.throws(() => run('--check'));
+    run();
+    const doc = fs.readFileSync(docPath, 'utf8');
+    assert.match(doc, /## Commands \(2\)/);
+    assert.match(doc, /\| `\/sample-deliver` \|/);
+    assert.match(doc, /\| `\/loops:sample-loop` \|/);
+    assert.doesNotThrow(() => run('--check'));
   });
 
   it('fails after a workflow description is mutated, then passes once regenerated', () => {
-    execFileSync('node', [SCRIPT], { cwd: REPO_ROOT });
+    run();
+    assert.doesNotThrow(() => run('--check'));
 
-    // Mutate a real workflow's front-matter description.
-    savedDescriptionFile = fs.readFileSync(SAMPLE_WORKFLOW, 'utf8');
-    const mutated = savedDescriptionFile.replace(
+    const original = fs.readFileSync(sampleWorkflow, 'utf8');
+    const mutated = original.replace(
       /^description:.*$/m,
       'description: A deliberately mutated description for the drift gate test.',
     );
-    assert.notEqual(mutated, savedDescriptionFile, 'expected a real mutation');
-    fs.writeFileSync(SAMPLE_WORKFLOW, mutated, 'utf8');
+    assert.notEqual(mutated, original, 'expected a real mutation');
+    fs.writeFileSync(sampleWorkflow, mutated, 'utf8');
 
     // --check must now exit non-zero (stale doc vs mutated source).
-    assert.throws(() =>
-      execFileSync('node', [SCRIPT, '--check'], {
-        cwd: REPO_ROOT,
-        stdio: 'pipe',
-      }),
-    );
+    assert.throws(() => run('--check'));
 
     // Regenerate against the mutated source — check is clean again.
-    execFileSync('node', [SCRIPT], { cwd: REPO_ROOT });
-    assert.doesNotThrow(() =>
-      execFileSync('node', [SCRIPT, '--check'], { cwd: REPO_ROOT }),
-    );
-    assert.match(fs.readFileSync(DOC_PATH, 'utf8'), /deliberately mutated/);
+    run();
+    assert.doesNotThrow(() => run('--check'));
+    assert.match(fs.readFileSync(docPath, 'utf8'), /deliberately mutated/);
+  });
+
+  it('leaves the real checkout byte-identical (Windows Smoke race, CI 34523840460)', () => {
+    for (const [witness, before_] of realTreeBefore) {
+      assert.ok(
+        fs.readFileSync(witness).equals(before_),
+        `${path.relative(REPO_ROOT, witness)} was rewritten by this suite. The ` +
+          'drift gate must be proved against a `--root` fixture: `node --test` ' +
+          'shares one checkout across concurrent test files, so a mutation here ' +
+          'surfaces as a dirty-tree failure in whichever unrelated file happens ' +
+          'to run `git status` inside the window.',
+      );
+    }
+  });
+
+  after(() => {
+    // The generator is the only writer under `root`, and `makeTempDir`
+    // registers its own reaping — nothing to restore.
+    assert.ok(fs.existsSync(docPath), 'fixture doc should have been written');
   });
 });
