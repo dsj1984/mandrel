@@ -22,9 +22,22 @@ const CLI_OPTIONS = {
   include: { type: 'string', multiple: true, default: [] },
   exclude: { type: 'string', multiple: true, default: [] },
   'drop-stashes': { type: 'string', multiple: true, default: [] },
+  'include-content-merged': { type: 'boolean', default: false },
   base: { type: 'string' },
   cwd: { type: 'string' },
 };
+
+/**
+ * Normalize a repeatable flag's parsed value to a list. `parseArgs` yields
+ * an array for a `multiple: true` option, but only once the flag appears;
+ * this keeps the three repeatable flags reading identically.
+ *
+ * @param {unknown} value
+ * @returns {string[]}
+ */
+function asList(value) {
+  return Array.isArray(value) ? value : [];
+}
 
 function resolveActivePhases(values) {
   const anyPhaseFlag =
@@ -44,6 +57,14 @@ function resolveActivePhases(values) {
 /**
  * Pure: parse argv into the normalized CLI option bag.
  *
+ * Every flag the CLI honours MUST be declared in {@link CLI_OPTIONS}:
+ * `parseArgs` runs with `strict: false`, so an undeclared flag is not
+ * rejected — it is silently absorbed and the option it was meant to set
+ * stays at its default. For `--include-content-merged` that failure mode
+ * is destructive in the quiet direction's opposite: the operator asks to
+ * include the weak-signal candidates, the flag is dropped, and the run
+ * withholds them anyway.
+ *
  * @param {string[]} argv
  * @returns {{
  *   dryRun: boolean,
@@ -55,6 +76,7 @@ function resolveActivePhases(values) {
  *   include: string[],
  *   exclude: string[],
  *   dropStashes: string[],
+ *   includeContentMerged: boolean,
  *   base: string|null,
  *   cwd: string|null,
  * }}
@@ -73,11 +95,10 @@ export function parseCleanupArgs(argv) {
     yes: values.yes === true,
     json: values.json === true,
     phases: resolveActivePhases(values),
-    include: Array.isArray(values.include) ? values.include : [],
-    exclude: Array.isArray(values.exclude) ? values.exclude : [],
-    dropStashes: Array.isArray(values['drop-stashes'])
-      ? values['drop-stashes']
-      : [],
+    include: asList(values.include),
+    exclude: asList(values.exclude),
+    dropStashes: asList(values['drop-stashes']),
+    includeContentMerged: values['include-content-merged'] === true,
     base: typeof values.base === 'string' ? values.base : null,
     cwd: typeof values.cwd === 'string' ? values.cwd : null,
   };

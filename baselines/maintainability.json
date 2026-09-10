@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:36:26.671Z",
+  "generatedAt": "2026-09-10T20:43:17.262Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.048,
+      "p50": 99.072,
       "p95": 122.902
     }
   },
@@ -1220,7 +1220,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches.js",
-      "mi": 85.806
+      "mi": 86.995
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/cli.js",
@@ -1248,7 +1248,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/parse-args.js",
-      "mi": 82.525
+      "mi": 87.18
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/phase-drivers.js",
@@ -1404,7 +1404,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning/memory-pool-advisory.js",
-      "mi": 96.811
+      "mi": 101.487
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
@@ -1472,7 +1472,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/scoped-lint.js",
-      "mi": 90.382
+      "mi": 99.154
     },
     {
       "path": ".agents/scripts/lib/orchestration/review-providers/security-review.js",

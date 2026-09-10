@@ -286,6 +286,11 @@ describe('local skills zone — second resolution root (Story #5135)', () => {
       '.agents/local/skills/stack/qa/acme-sso/SKILL.md',
     );
     assert.equal(resolveSkillFile(root, 'stack/qa/absent'), null);
+    // Story #5285: a malformed id is a distinct return, so a caller can say
+    // "fix the id" instead of "author the skill".
+    assert.deepEqual(resolveSkillFile(root, '../../secrets'), {
+      reason: 'invalid-id',
+    });
   });
 
   it('keeps the shipped manifest payload-only and writes local skills to their own index', () => {

@@ -50,6 +50,19 @@ import { parsePrunedRefs } from './prune.js';
 
 const TAG = '[git-cleanup]';
 
+/**
+ * The detection signal the weak-signal guard withholds on, and the reason
+ * it records (Story #5283). `content-merged` comes from
+ * `git merge-tree --write-tree` finding the branch's changes already
+ * present in the base by *some* route — it cannot tell a squash-merge
+ * from a branch whose every change was independently reverted, so it is
+ * the one signal an unattended `--yes` run must not delete a remote ref
+ * on. Named here so the guard, the renderer and the tests share one
+ * spelling.
+ */
+const WEAK_SIGNAL_DETECTOR = 'content-merged';
+const WEAK_SIGNAL_REASON = 'weak-signal-needs-confirmation';
+
 function evaluateLocalBranch({
   branch,
   baseBranch,
@@ -167,16 +180,45 @@ function evaluateLocalBranch({
  * collections. Deletion is unchanged: a remote-only candidate still needs
  * `--remote`, whichever signal detected it.
  */
+/**
+ * Normalize whatever `prIndexFn` returned into the
+ * `{ index, complete }` pair {@link probeAllPrs} emits (Story #5283).
+ *
+ * The seam is injectable, and a caller that hands back a bare `Map` —
+ * every pre-#5283 double does — means "here is the page" without
+ * claiming it was exhaustive. That reads as `complete: false`, which
+ * keeps the per-branch fallback armed: the conservative direction, since
+ * a wrongly-complete page suppresses a probe that would have found a
+ * real PR.
+ *
+ * @param {unknown} value
+ * @returns {{ index: Map, complete: boolean }}
+ */
+function normalizePrIndex(value) {
+  if (value instanceof Map) return { index: value, complete: false };
+  return {
+    index: value?.index instanceof Map ? value.index : new Map(),
+    complete: value?.complete === true,
+  };
+}
+
 function buildGuardedPrProbe({ cwd, prIndexFn, prFallback, onDegrade }) {
-  let prIndex;
+  let bulk;
   try {
-    prIndex = prIndexFn(cwd);
+    bulk = normalizePrIndex(prIndexFn(cwd));
   } catch (err) {
     onDegrade(err);
-    prIndex = new Map();
+    bulk = { index: new Map(), complete: false };
   }
+  const { index: prIndex, complete } = bulk;
   return (branch, c) => {
     if (prIndex.has(branch)) return prIndex.get(branch);
+    // Story #5283: a complete page listed every PR in the repo, so this
+    // head ref demonstrably has none. Probing it per-branch spends a `gh`
+    // spawn to be told the same thing — once per PR-less branch, which on
+    // a checkout full of local scratch branches is the whole point of the
+    // bulk fetch undone.
+    if (complete) return null;
     try {
       return prFallback(branch, c);
     } catch (err) {
@@ -302,6 +344,21 @@ function worktreeRootFor(cand) {
 /**
  * Pure-ish: execute the branch reap plan.
  *
+ * ## Weak-signal guard (Story #5283)
+ *
+ * `skipWeakSignal` withholds the **remote** delete of any candidate
+ * detected only by content-equivalence, recording it on `remote[]` as
+ * `{ skipped: true, reason: 'weak-signal-needs-confirmation' }` instead
+ * of issuing `git push --delete`. The branch-phase driver arms it on the
+ * `--yes` path unless the operator passed `--include-content-merged`,
+ * mirroring the stash phase's `--drop-stashes` allowlist: an unattended
+ * run may not destroy a remote ref on the weakest merge signal without
+ * being told to. The interactive path leaves it disarmed — the prompt
+ * already names the weak-signal count and the operator answered it.
+ *
+ * Local deletion is deliberately untouched: a local ref is recoverable
+ * from the remote, which is exactly what the guard preserves.
+ *
  * Ref-reap is decoupled from worktree-reap (Story #3598): every
  * already-merged candidate has its local ref (and remote ref, in
  * `--remote` mode) deleted regardless of whether its worktree directory
@@ -319,12 +376,21 @@ export function executeCleanup(ctx) {
     remote,
     removeWorktreeFn = removeWorktree,
     deleteLocalFn = (b, c) => deleteBranchLocal(b, { cwd: c, force: true }),
-    deleteRemoteFn = (b, c) => deleteBranchRemote(b, { cwd: c }),
+    deleteRemoteFn = (b, c, r) => deleteBranchRemote(b, { cwd: c, remote: r }),
     pruneRemoteFn = (c, r) => pruneRemoteTracking(c, r, parsePrunedRefs),
     recordPendingCleanupFn = recordPendingCleanup,
     remoteName = 'origin',
+    skipWeakSignal = false,
     logger = Logger,
   } = ctx;
+  // The remote name belongs to `executeCleanup`, not to the per-candidate
+  // reap helper, so bind it here (Story #5283). The default deleter used
+  // to drop it and let `deleteBranchRemote` fall back to `origin`, which
+  // sent every `--remote` delete of an `upstream`-configured checkout at
+  // the wrong remote. Binding — rather than closing over it — also hands
+  // an injected deleter the same `(branch, cwd, remote)` triple the git
+  // invocation is built from, so a test can see which remote was targeted.
+  const boundDeleteRemote = (b, c) => deleteRemoteFn(b, c, remoteName);
   const worktrees = [];
   const local = [];
   const remoteResults = [];
@@ -347,11 +413,31 @@ export function executeCleanup(ctx) {
       worktreeRoot: worktreeRootFor(cand),
     });
     if (!reapLocalRef({ cand, deleteLocalFn, cwd, local, failures })) continue;
-    if (remote)
-      reapRemoteRef({ cand, deleteRemoteFn, cwd, remoteResults, failures });
+    if (!remote) continue;
+    if (skipWeakSignal && cand.detectedBy === WEAK_SIGNAL_DETECTOR) {
+      remoteResults.push({
+        branch: cand.branch,
+        ok: true,
+        skipped: true,
+        reason: WEAK_SIGNAL_REASON,
+        alreadyGone: false,
+        detectedBy: cand.detectedBy,
+      });
+      continue;
+    }
+    reapRemoteRef({
+      cand,
+      deleteRemoteFn: boundDeleteRemote,
+      cwd,
+      remoteResults,
+      failures,
+    });
   }
   let prune = null;
-  if (remote && remoteResults.length > 0) {
+  // Prune drops the tracking refs a remote *delete* left behind. A run
+  // whose every remote candidate was withheld deleted nothing, so there
+  // is nothing stale to prune and no reason to spend the fetch.
+  if (remote && remoteResults.some((r) => !r.skipped)) {
     prune = buildPruneSummary({ pruneRemoteFn, cwd, remoteName, failures });
   }
   return {

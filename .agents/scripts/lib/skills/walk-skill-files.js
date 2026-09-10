@@ -48,8 +48,15 @@ export const LOCAL_SKILLS_SEGMENTS = Object.freeze([
  * The pattern is deliberately strict: ids resolve to filesystem paths, so
  * anything that could escape a root (`..`, absolute paths, backslashes) or
  * smuggle a shell metacharacter is rejected rather than normalized.
+ *
+ * Exported because `config-settings-schema.js` mirrors it as the `pattern`
+ * on `qa.environments.*.signInSeam.skill`, so a malformed id is rejected at
+ * config-validation time rather than surviving to a path join (Story #5285).
+ * It is one regex with two enforcement points, never two regexes: the AJV
+ * `pattern` keyword takes the source string, so the schema must import this
+ * value rather than restate it.
  */
-const SKILL_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+$/;
+export const SKILL_ID_RE = /^[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+$/;
 
 /**
  * Recursively enumerate `SKILL.md` paths under a directory.
@@ -145,17 +152,27 @@ export function collectLocalSkillFiles(repoRoot) {
  * first and the local zone second (payload-wins, matching
  * {@link collectAllSkillFiles}).
  *
- * Returns `null` rather than throwing so callers own the error message —
- * a config resolver wants to name the offending config key, a workflow
- * wants to name the seam.
+ * Returns rather than throwing so callers own the error message — a config
+ * resolver wants to name the offending config key, a workflow wants to name
+ * the seam. The two failures are **distinguishable** (Story #5285):
+ *
+ *   - `null` — a well-formed id that resolves under neither root. The remedy
+ *     is to author the skill, so the caller says so.
+ *   - `{ reason: 'invalid-id' }` — an id the pattern rejects (`../../secrets`,
+ *     `Core/Foo`, a bare `core`). No filesystem lookup happens, and telling
+ *     the operator to author `../../secrets/SKILL.md` would be advice that
+ *     cannot be followed. The remedy is to fix the id.
  *
  * @param {string} repoRoot
  * @param {string} skillId Tier-relative id, e.g. `stack/qa/acme-sso`.
- * @returns {{ path: string, root: string } | null} absolute `SKILL.md`
- *   path and the POSIX repo-relative root it resolved under.
+ * @returns {{ path: string, root: string } | { reason: 'invalid-id' } | null}
+ *   the absolute `SKILL.md` path and the POSIX repo-relative root it resolved
+ *   under, the malformed-id marker, or `null` when nothing resolved.
  */
 export function resolveSkillFile(repoRoot, skillId) {
-  if (typeof skillId !== 'string' || !SKILL_ID_RE.test(skillId)) return null;
+  if (typeof skillId !== 'string' || !SKILL_ID_RE.test(skillId)) {
+    return { reason: 'invalid-id' };
+  }
   for (const segments of [PAYLOAD_SKILLS_SEGMENTS, LOCAL_SKILLS_SEGMENTS]) {
     const candidate = path.join(repoRoot, ...segments, skillId, 'SKILL.md');
     try {

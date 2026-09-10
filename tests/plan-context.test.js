@@ -213,6 +213,11 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.deepEqual(Object.keys(advisory).sort(), [
       'entriesSinceConsolidation',
       'entryCount',
+      // Story #5285's index byte arm. The envelope shape is pinned in two
+      // places on purpose — here at the planning envelope's edge and in the
+      // builder's own suite — so a field reaching one and not the other is
+      // caught rather than absorbed.
+      'indexBytes',
       'lastConsolidatedAt',
       'present',
       'reasons',

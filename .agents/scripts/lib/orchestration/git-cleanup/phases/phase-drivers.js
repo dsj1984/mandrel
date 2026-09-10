@@ -218,7 +218,8 @@ function countActionableCandidates(candidates, remote) {
  *
  * @param {object} state
  * @param {object} state.plan         Output of `planCleanup`.
- * @param {object} state.opts         CLI options (`dryRun`, `yes`, `remote`).
+ * @param {object} state.opts         CLI options (`dryRun`, `yes`, `remote`,
+ *                                    `includeContentMerged`).
  * @param {string} state.cwd          Working directory.
  */
 export function decideBranchPhase(state) {
@@ -254,7 +255,17 @@ export function decideBranchPhase(state) {
       executeArgs,
     };
   }
-  return { kind: 'execute', plan, executeArgs };
+  // Story #5283: the unattended arm. Nobody saw the weak-signal note
+  // above, so a `content-merged` candidate's remote ref is withheld
+  // unless the operator opted in with `--include-content-merged`.
+  return {
+    kind: 'execute',
+    plan,
+    executeArgs: {
+      ...executeArgs,
+      skipWeakSignal: opts.includeContentMerged !== true,
+    },
+  };
 }
 
 /**

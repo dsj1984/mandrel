@@ -265,6 +265,14 @@ function toOrigin(value) {
  * than mid-sweep. The resolved `SKILL.md` path is attached as
  * `skillPath` so the harness reads the file the check actually found.
  *
+ * The two failures get **different** messages (Story #5285). A well-formed id
+ * that resolves nowhere is a skill to author; a malformed one is an id to
+ * fix, and telling the operator to author `../../secrets/SKILL.md` would be
+ * advice they cannot take. A config validated against the shipped schema
+ * never reaches the malformed branch — the `pattern` rejects it first — but
+ * this resolver also runs over hand-assembled contracts in tests and over
+ * configs loaded past a degraded validator, so the branch is real.
+ *
  * @param {object | undefined} seam
  * @param {string} envName Environment name, for the error message.
  * @param {{ repoRoot?: string }} options
@@ -276,6 +284,16 @@ function resolveSignInSeam(seam, envName, options) {
 
   const repoRoot = options.repoRoot ?? PROJECT_ROOT;
   const found = resolveSkillFile(repoRoot, seam.skill);
+  if (found?.reason === 'invalid-id') {
+    throw new Error(
+      `qa: environment \`${envName}\` declares signInSeam.skill ` +
+        `\`${seam.skill}\`, which is not a well-formed skill id. ` +
+        'An id is two or more lowercase segments of letters, digits, `.`, ' +
+        '`_` or `-` joined by `/` — e.g. `stack/qa/acme-sso`. Traversals, ' +
+        'absolute paths, backslashes and uppercase segments are rejected ' +
+        'outright, so no skills root was searched. Correct the id.',
+    );
+  }
   if (found === null) {
     throw new Error(
       `qa: environment \`${envName}\` declares signInSeam.skill ` +
