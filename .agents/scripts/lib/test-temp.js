@@ -167,6 +167,24 @@ export function suiteTempRoot({
   warn = stderrWarn,
 } = {}) {
   if (_suiteRoot !== null && fsImpl.existsSync(_suiteRoot)) return _suiteRoot;
+  return mintSuiteRoot(fsImpl, tmpdir, onExit, warn);
+}
+
+/**
+ * Mint the process's suite root — the first one, or a replacement for one
+ * that disappeared underneath it — and arm the reaper if nothing has.
+ *
+ * Separate from {@link suiteTempRoot} so the hot path stays the single
+ * existence check callers pay on every `makeTempDir`, and the recovery it
+ * guards reads as the exceptional branch it is.
+ *
+ * @param {typeof fs} fsImpl
+ * @param {() => string} tmpdir
+ * @param {(fn: () => void) => void} onExit
+ * @param {(msg: string) => void} warn
+ * @returns {string} absolute path to the new suite root
+ */
+function mintSuiteRoot(fsImpl, tmpdir, onExit, warn) {
   const vanished = _suiteRoot;
   const base = tmpdir();
   // The pruner that took the root may have taken its parent too; a
