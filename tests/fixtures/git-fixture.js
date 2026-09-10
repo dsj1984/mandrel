@@ -23,7 +23,10 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
-import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
+import {
+  _currentSuiteTempRoot,
+  makeTempDir,
+} from '../../.agents/scripts/lib/test-temp.js';
 
 /**
  * Env with every `GIT_*` variable dropped. When a test runs inside a git
@@ -38,6 +41,21 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 const CLEAN_ENV = Object.fromEntries(
   Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
 );
+
+/** Attempts `copyGitRepo` makes before it gives up: the copy, then one retry. */
+const COPY_ATTEMPTS = 2;
+
+/**
+ * Entries a `git init` repository must have for a copy of it to be usable.
+ * `objects` is the one the #5272 incident reported missing, and `HEAD` is
+ * what makes a directory a repository rather than a directory of objects.
+ */
+const REPO_MARKERS = ['HEAD', 'objects'];
+
+/** Cause reported when a copy succeeded but produced no repository. */
+const NOT_A_REPO = `copy completed but left no usable repository (expected ${REPO_MARKERS.map(
+  (marker) => `.git/${marker}`,
+).join(' and ')})`;
 
 /**
  * Create a throwaway git repository in the OS temp directory with one
@@ -122,15 +140,92 @@ export function makeGitRepo({
  * Use it whenever a test would otherwise mutate a shared fixture; read-only
  * tests can share the pristine directory directly.
  *
+ * ## Why the copy is verified and retried
+ *
+ * `cpSync` alone reports whatever `ENOENT` it hit — one interior path, no
+ * side, no cause. Incident #5272 was a required check going red on an
+ * unrelated PR with `ENOENT … /.git/objects` and nothing to attribute it
+ * to. So the copy is checked for a usable repository before it is handed
+ * back, retried once against a freshly-minted destination (which
+ * re-creates a suite root that has gone missing), and only then reported —
+ * naming both paths and which of them survive. The happy path is
+ * unchanged and still spawns nothing.
+ *
  * @param {string} srcDir - a repo built by `makeGitRepo` or a local `git init`.
  * @param {object} [opts]
  * @param {string} [opts.prefix] - Temp-dir name prefix for the copy.
+ * @param {() => string} [opts.mintDest] - Destination factory, one call per
+ *   attempt. Defaults to `makeTempDir(prefix)`; a test overrides it to put a
+ *   real missing directory in the first attempt's way and a real one in the
+ *   retry's, which is the only way to stage a *transient* failure from
+ *   outside the helper.
  * @returns {string} Absolute path to the copy.
  */
-export function copyGitRepo(srcDir, { prefix = 'git-fixture-copy-' } = {}) {
-  const dst = makeTempDir(prefix);
-  cpSync(srcDir, dst, { recursive: true });
-  return dst;
+export function copyGitRepo(
+  srcDir,
+  { prefix = 'git-fixture-copy-', mintDest = () => makeTempDir(prefix) } = {},
+) {
+  let dst = null;
+  let cause = null;
+  for (let attempt = 1; attempt <= COPY_ATTEMPTS; attempt += 1) {
+    try {
+      dst = mintDest();
+      cpSync(srcDir, dst, { recursive: true });
+      if (isUsableRepo(dst)) return dst;
+      cause = NOT_A_REPO;
+    } catch (err) {
+      cause = err.message;
+    }
+  }
+  throw new Error(describeCopyFailure(srcDir, dst, cause));
+}
+
+/**
+ * Whether `dir` looks like a working copy of a `git init` repository —
+ * checked without a subprocess, so the happy path stays spawn-free
+ * (Story #5121).
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
+function isUsableRepo(dir) {
+  const gitDir = path.join(dir, '.git');
+  return REPO_MARKERS.every((marker) => existsSync(path.join(gitDir, marker)));
+}
+
+/**
+ * Render one path as evidence: where it is, and whether it is still there.
+ *
+ * @param {string} label
+ * @param {string|null} target
+ * @returns {string}
+ */
+function describePath(label, target) {
+  if (!target) return `${label}: <never created>`;
+  return `${label}: ${target} (${existsSync(target) ? 'exists' : 'MISSING'})`;
+}
+
+/**
+ * Build the message a twice-failed copy raises.
+ *
+ * A bare `cpSync` reports `ENOENT … /.git/objects` and nothing else: the
+ * failing side is unrecoverable from it, which is why incident #5272 was
+ * filed against the source repo's git when the destination was what had
+ * vanished. Naming all three paths and which survive makes the next report
+ * diagnosable from its first line.
+ *
+ * @param {string} srcDir
+ * @param {string|null} dstDir
+ * @param {string|null} cause
+ * @returns {string}
+ */
+function describeCopyFailure(srcDir, dstDir, cause) {
+  return [
+    `[git-fixture] copyGitRepo failed ${COPY_ATTEMPTS} times: ${cause}`,
+    describePath('source', srcDir),
+    describePath('destination', dstDir),
+    describePath('suite root', _currentSuiteTempRoot()),
+  ].join('\n  ');
 }
 
 /**

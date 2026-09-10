@@ -51,11 +51,41 @@ export const SUITE_ROOT_PREFIX = 'mandrel-suite-';
  */
 export const SUITE_ROOTS_KEY = '#suiteRoots';
 
+/** Default `warn` sink: one line on stderr, shared by every seam below. */
+const stderrWarn = (msg) => process.stderr.write(`${msg}\n`);
+
+/**
+ * Remove one directory, reporting a failure rather than throwing it.
+ *
+ * Both reapers need exactly this: a suite that passed must not start
+ * failing because a directory could not be unlinked (a Windows file lock, a
+ * read-only mount). The leak is the lesser defect, and the guard reports it
+ * separately.
+ *
+ * @param {string} target absolute path to remove
+ * @param {string} label what `target` is, for the failure message
+ * @param {typeof fs} fsImpl
+ * @param {(msg: string) => void} warn
+ * @returns {void}
+ */
+function rmQuietly(target, label, fsImpl, warn) {
+  try {
+    fsImpl.rmSync(target, { recursive: true, force: true });
+  } catch (err) {
+    warn(`[test-temp] failed to reap ${label} ${target}: ${err.message}`);
+  }
+}
+
 /** Per-process suite root, or `null` before the first `makeTempDir`. */
 let _suiteRoot = null;
 
 /** Guards against registering the exit reaper more than once. */
 let _reaperRegistered = false;
+
+/** Lead-in of the one warning a root disappearing mid-run produces. */
+const VANISHED =
+  '[test-temp] suite temp root disappeared mid-run (removed by something ' +
+  'outside this process):';
 
 /**
  * Test-only: forget the per-process suite root without removing it, so a
@@ -67,7 +97,12 @@ export function _resetSuiteTempRootForTests() {
 }
 
 /**
- * Test-only: report whether this process currently owns a suite root.
+ * Report the suite root this process currently owns, without minting one.
+ *
+ * Test-only in spirit, but also the honest way for a failing fixture to say
+ * whether the root still exists when it reports a copy failure: asking
+ * {@link suiteTempRoot} would *create* one and destroy the evidence.
+ *
  * @returns {string|null}
  */
 export function _currentSuiteTempRoot() {
@@ -77,29 +112,23 @@ export function _currentSuiteTempRoot() {
 /**
  * Remove this process's suite root and everything under it.
  *
- * A teardown failure is reported on stderr and swallowed: a suite that
- * passed must not start failing because a directory could not be unlinked
- * (a Windows file lock, a read-only mount). The leak is the lesser defect
- * and the guard reports it separately.
+ * A teardown failure is reported on stderr and swallowed — see
+ * {@link rmQuietly}.
  *
  * Only the process that minted the root can reach a non-null `_suiteRoot`,
- * so this is creator-only by construction.
+ * so this is creator-only by construction. It reads that variable *live*
+ * rather than a path captured at arming time, which is what keeps a root
+ * re-created mid-run (see {@link suiteTempRoot}) reapable and a root it has
+ * replaced unreachable — a stale path is never passed to `rmSync`.
  *
  * @param {{ fsImpl?: typeof fs, warn?: (msg: string) => void }} [deps]
  * @returns {string|null} the removed root, or `null` when there was none
  */
-export function reapSuiteTempRoot({
-  fsImpl = fs,
-  warn = (msg) => process.stderr.write(`${msg}\n`),
-} = {}) {
+export function reapSuiteTempRoot({ fsImpl = fs, warn = stderrWarn } = {}) {
   const root = _suiteRoot;
   if (root === null) return null;
   _suiteRoot = null;
-  try {
-    fsImpl.rmSync(root, { recursive: true, force: true });
-  } catch (err) {
-    warn(`[test-temp] failed to reap suite temp root ${root}: ${err.message}`);
-  }
+  rmQuietly(root, 'suite temp root', fsImpl, warn);
   return root;
 }
 
@@ -110,18 +139,47 @@ export function reapSuiteTempRoot({
  * cannot exist without its teardown already armed — including when the
  * suite fails, since a failing `node --test` run still exits normally.
  *
- * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void }} [deps]
+ * ## Why the memoised path is re-checked every call
+ *
+ * The root lives under a temp tree this process does not own exclusively
+ * (see the module docstring: a `/tmp` shared with self-hosted runners, an
+ * OS or operator pruner). Memoising the path without re-checking it made a
+ * single external removal terminal: every later `makeTempDir` in the
+ * process failed with an `ENOENT` naming an interior path, and with 204
+ * call sites reaching this helper one deletion cascaded through the rest
+ * of the file. Re-creating is strictly better than failing — nothing in
+ * the suite holds a handle to the root itself, only to directories minted
+ * beneath it, which the removal already took.
+ *
+ * The reaper armed at first use needs no re-arming: it reads `_suiteRoot`
+ * live, so it already covers whatever root this process owns at exit.
+ * Re-creation leaves the replaced path unreachable, so the creator-only
+ * invariant holds — this process still reaps only a root it minted, and
+ * never one it has replaced.
+ *
+ * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
  * @returns {string} absolute path to the suite root
  */
 export function suiteTempRoot({
   fsImpl = fs,
   tmpdir = os.tmpdir,
   onExit = (fn) => process.once('exit', fn),
+  warn = stderrWarn,
 } = {}) {
-  if (_suiteRoot !== null) return _suiteRoot;
+  if (_suiteRoot !== null && fsImpl.existsSync(_suiteRoot)) return _suiteRoot;
+  const vanished = _suiteRoot;
+  const base = tmpdir();
+  // The pruner that took the root may have taken its parent too; a
+  // recursive mkdir on an existing directory is a no-op on first use.
+  fsImpl.mkdirSync(base, { recursive: true });
   _suiteRoot = fsImpl.mkdtempSync(
-    path.join(tmpdir(), `${SUITE_ROOT_PREFIX}${process.pid}-`),
+    path.join(base, `${SUITE_ROOT_PREFIX}${process.pid}-`),
   );
+  // Say it once, loudly: this is the only trace that something outside the
+  // process touched the temp tree, and the incident it explains (#5272) was
+  // filed against the wrong mechanism for want of it.
+  if (vanished !== null)
+    warn(`${VANISHED} ${vanished}; re-created as ${_suiteRoot}`);
   if (!_reaperRegistered) {
     _reaperRegistered = true;
     onExit(() => reapSuiteTempRoot({ fsImpl }));
@@ -137,8 +195,12 @@ export function suiteTempRoot({
  * path is absolute and unique, so call sites change only where the
  * directory comes from, never how it is used.
  *
+ * A vanished suite root is re-created by {@link suiteTempRoot} first, so
+ * this never fails with an `ENOENT` naming a directory the caller did not
+ * ask for.
+ *
  * @param {string} [prefix='t-'] label kept for readability in a stack trace
- * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void }} [deps]
+ * @param {{ fsImpl?: typeof fs, tmpdir?: () => string, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
  * @returns {string} absolute path to the new directory
  */
 export function makeTempDir(prefix = 't-', deps = {}) {
@@ -157,7 +219,7 @@ export function makeTempDir(prefix = 't-', deps = {}) {
  * never reap it, or it deletes its parent's scratch mid-run.
  *
  * Teardown failures are swallowed for the same reason as
- * {@link reapSuiteTempRoot}: a leak must not turn a passing suite red.
+ * {@link reapSuiteTempRoot} — see {@link rmQuietly}.
  *
  * @param {string} dirPath absolute path this process minted
  * @param {{ fsImpl?: typeof fs, onExit?: (fn: () => void) => void, warn?: (msg: string) => void }} [deps]
@@ -168,16 +230,10 @@ export function reapOnExit(
   {
     fsImpl = fs,
     onExit = (fn) => process.once('exit', fn),
-    warn = (msg) => process.stderr.write(`${msg}\n`),
+    warn = stderrWarn,
   } = {},
 ) {
-  onExit(() => {
-    try {
-      fsImpl.rmSync(dirPath, { recursive: true, force: true });
-    } catch (err) {
-      warn(`[test-temp] failed to reap scratch dir ${dirPath}: ${err.message}`);
-    }
-  });
+  onExit(() => rmQuietly(dirPath, 'scratch dir', fsImpl, warn));
 }
 
 /**

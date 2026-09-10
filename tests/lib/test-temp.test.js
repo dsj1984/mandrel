@@ -53,6 +53,19 @@ afterEach(() => {
 /** Deps bag pointing the module at the fake temp root, never the real one. */
 const deps = () => ({ tmpdir: () => fakeTmp, onExit: () => {} });
 
+/**
+ * Deps bag that also captures the re-creation warning, so the vanished-root
+ * branch never writes to the suite's stderr.
+ *
+ * @param {string[]} warnings sink the branch appends to
+ * @param {(fn: () => void) => void} [onExit]
+ */
+const quietDeps = (warnings, onExit = () => {}) => ({
+  tmpdir: () => fakeTmp,
+  onExit,
+  warn: (msg) => warnings.push(msg),
+});
+
 describe('test-temp — suite root', () => {
   it('mints one root per process and memoizes it', () => {
     const first = suiteTempRoot(deps());
@@ -80,6 +93,106 @@ describe('test-temp — suite root', () => {
     suiteTempRoot(d);
 
     assert.equal(registered.length, 1);
+  });
+});
+
+describe('test-temp — a suite root that vanishes mid-run', () => {
+  it('re-creates the root and returns the new path', () => {
+    const warnings = [];
+    const original = suiteTempRoot(quietDeps(warnings));
+    rmSync(original, { recursive: true, force: true });
+
+    const replacement = suiteTempRoot(quietDeps(warnings));
+
+    assert.notEqual(replacement, original);
+    assert.ok(existsSync(replacement));
+    assert.equal(_currentSuiteTempRoot(), replacement);
+  });
+
+  it('lets a later makeTempDir succeed instead of throwing ENOENT', () => {
+    const warnings = [];
+    const before = makeTempDir('before-', quietDeps(warnings));
+    rmSync(suiteTempRoot(quietDeps(warnings)), {
+      recursive: true,
+      force: true,
+    });
+
+    // The pre-removal directory is gone with the root; the point is that the
+    // NEXT call works rather than cascading through the rest of the file.
+    assert.ok(!existsSync(before));
+    const after = makeTempDir('after-', quietDeps(warnings));
+
+    assert.ok(existsSync(after));
+    assert.ok(after.startsWith(_currentSuiteTempRoot() + path.sep));
+  });
+
+  it('re-creates the OS temp root too when the pruner took that as well', () => {
+    const warnings = [];
+    suiteTempRoot(quietDeps(warnings));
+    rmSync(fakeTmp, { recursive: true, force: true });
+
+    const replacement = suiteTempRoot(quietDeps(warnings));
+
+    assert.ok(existsSync(replacement));
+    assert.ok(replacement.startsWith(fakeTmp + path.sep));
+  });
+
+  it('warns once, naming both the vanished and the replacement path', () => {
+    const warnings = [];
+    const original = suiteTempRoot(quietDeps(warnings));
+    rmSync(original, { recursive: true, force: true });
+    const replacement = suiteTempRoot(quietDeps(warnings));
+    suiteTempRoot(quietDeps(warnings));
+
+    assert.equal(warnings.length, 1, 'a surviving root re-warns nothing');
+    assert.match(warnings[0], /disappeared mid-run/);
+    assert.ok(warnings[0].includes(original));
+    assert.ok(warnings[0].includes(replacement));
+  });
+
+  it('arms the exit reaper for the re-created root', () => {
+    const warnings = [];
+    const hooks = [];
+    const d = () => quietDeps(warnings, (fn) => hooks.push(fn));
+    rmSync(suiteTempRoot(d()), { recursive: true, force: true });
+    const replacement = suiteTempRoot(d());
+
+    // Whatever was armed — the hook reads the owned root at exit, so the
+    // replacement is covered without a second registration.
+    assert.ok(hooks.length >= 1);
+    for (const hook of hooks) hook();
+
+    assert.ok(!existsSync(replacement));
+    assert.deepEqual(readdirSync(fakeTmp), [], 'nothing survives the exit');
+  });
+
+  it('reaps the root it now owns, never the path it replaced', () => {
+    const warnings = [];
+    const original = suiteTempRoot(quietDeps(warnings));
+    rmSync(original, { recursive: true, force: true });
+    const replacement = suiteTempRoot(quietDeps(warnings));
+
+    const reaped = reapSuiteTempRoot();
+
+    assert.equal(reaped, replacement);
+    assert.notEqual(reaped, original);
+    assert.ok(!existsSync(replacement));
+  });
+
+  it('re-creation does not let this process reach a sibling s root', () => {
+    const warnings = [];
+    const sibling = mkdtempSync(
+      path.join(fakeTmp, `${SUITE_ROOT_PREFIX}999999-`),
+    );
+    rmSync(suiteTempRoot(quietDeps(warnings)), {
+      recursive: true,
+      force: true,
+    });
+    suiteTempRoot(quietDeps(warnings));
+
+    reapSuiteTempRoot();
+
+    assert.ok(existsSync(sibling), 'a sibling process s root is untouched');
   });
 });
 
