@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T20:43:17.262Z",
+  "generatedAt": "2026-09-10T20:55:11.818Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -328,7 +328,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
-      "mi": 93.736
+      "mi": 93.223
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
