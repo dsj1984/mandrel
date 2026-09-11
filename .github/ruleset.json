@@ -42,6 +42,10 @@
           {
             "context": "install (yarn / windows-latest)",
             "integration_id": 15368
+          },
+          {
+            "context": "Windows Smoke",
+            "integration_id": 15368
           }
         ]
       }
