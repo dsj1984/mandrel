@@ -127,12 +127,15 @@ test('classifyGroupsAgainstGitHub summary tallies multiple groups', async () => 
   ]);
   const { summary } = await classifyGroupsAgainstGitHub({ groups, provider });
   // `dedupDegraded` is always reported alongside the counters (Story #4678):
-  // zero degradations when every lookup completes.
+  // zero degradations when every lookup completes. `dedupIndex` joined it in
+  // Story #5301 — `source: 'none'` here because this provider wires no list
+  // port and no corpus was injected, so every lookup went to the search path.
   assert.deepEqual(summary, {
     create: 1,
     skipOpen: 1,
     skipReoccurring: 1,
     dedupDegraded: { count: 0, groups: [] },
+    dedupIndex: { source: 'none', size: 0 },
   });
 });
 
