@@ -152,14 +152,23 @@ function normalizeIssue(raw) {
   if (number === null) return null;
   const title = typeof raw.title === 'string' ? raw.title : '';
   const url = typeof raw.url === 'string' ? raw.url : '';
-  const labels = Array.isArray(raw.labels)
-    ? raw.labels
-        .map((l) => (l && typeof l === 'object' ? l.name : l))
-        .filter((name) => typeof name === 'string')
-    : [];
   const intake =
     typeof raw.body === 'string' && raw.body.includes(CI_GAP_INTAKE_MARKER);
-  return { number, title, url, labels, intake };
+  return { number, title, url, labels: normalizeLabels(raw.labels), intake };
+}
+
+/**
+ * Flatten `gh issue list --json labels` into plain names. `gh` returns label
+ * objects; a hand-built fixture may return strings. Pure.
+ *
+ * @param {unknown} raw
+ * @returns {string[]}
+ */
+function normalizeLabels(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((l) => (l && typeof l === 'object' ? l.name : l))
+    .filter((name) => typeof name === 'string');
 }
 
 /**
@@ -215,6 +224,26 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
       issues: [],
       error: `Failed to parse gh issue list JSON for label "${label}": ${err.message}`,
     };
+  }
+}
+
+/**
+ * Append every not-yet-seen issue to one bucket, marking it seen.
+ *
+ * An issue carrying more than one meta label must reach the planner exactly
+ * once, so the `seen` set spans all three buckets and the first bucket to
+ * claim a number keeps it. Mutates both arguments — one walk, three buckets.
+ *
+ * @param {object[]} bucket
+ * @param {object[]} issues
+ * @param {Set<number>} seen
+ * @returns {void}
+ */
+function dedupeInto(bucket, issues, seen) {
+  for (const issue of issues) {
+    if (seen.has(issue.number)) continue;
+    seen.add(issue.number);
+    bucket.push(issue);
   }
 }
 
@@ -299,29 +328,17 @@ export async function fetchPriorFeedback({
     }),
   ]);
 
-  if (gapsResult.error) errors.push(gapsResult.error);
-  if (improvementsResult.error) errors.push(improvementsResult.error);
-  if (platformResult.error) errors.push(platformResult.error);
+  for (const { error } of [gapsResult, improvementsResult, platformResult]) {
+    if (error) errors.push(error);
+  }
 
   // Dedupe by issue number across both arrays. Issues that carry both labels
   // land in frameworkGaps first (deterministic) and are filtered out of
   // consumerImprovements.
   const seen = new Set();
-  for (const issue of gapsResult.issues) {
-    if (seen.has(issue.number)) continue;
-    seen.add(issue.number);
-    envelope.frameworkGaps.push(issue);
-  }
-  for (const issue of improvementsResult.issues) {
-    if (seen.has(issue.number)) continue;
-    seen.add(issue.number);
-    envelope.consumerImprovements.push(issue);
-  }
-  for (const issue of platformResult.issues) {
-    if (seen.has(issue.number)) continue;
-    seen.add(issue.number);
-    envelope.platformGaps.push(issue);
-  }
+  dedupeInto(envelope.frameworkGaps, gapsResult.issues, seen);
+  dedupeInto(envelope.consumerImprovements, improvementsResult.issues, seen);
+  dedupeInto(envelope.platformGaps, platformResult.issues, seen);
 
   // Story #4135 (Epic #4131, F11) — close the retro→planner loop: derive the
   // recurring defect classes from the `friction::<class>` labels carried by

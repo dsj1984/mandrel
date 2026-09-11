@@ -22,7 +22,7 @@ import { resolveConfig } from './lib/config-resolver.js';
 import {
   createFollowUpIssue,
   ensureIssueLabels,
-  runChild,
+  updateFollowUpIssue,
 } from './lib/feedback-loop/graduator-core.js';
 import { issueNumberFromUrl } from './lib/feedback-loop/retro-proposals-graduator.js';
 import {
@@ -126,30 +126,8 @@ function liveIntakePorts({ provider, searchRepo, cwd, logger }) {
         error: created.error,
       };
     },
-    updateIssue: async ({ owner, repo, number, body }) => {
-      const res = await runChild({
-        cmd: 'gh',
-        args: [
-          'issue',
-          'edit',
-          String(number),
-          '--repo',
-          `${owner}/${repo}`,
-          '--body',
-          body,
-        ],
-        cwd,
-      });
-      if (res.spawnError || (typeof res.code === 'number' && res.code !== 0)) {
-        return {
-          url: null,
-          error: res.spawnError
-            ? `gh issue edit spawn failed: ${res.spawnError.message}`
-            : `gh issue edit exited ${res.code}: ${(res.stderr || '').trim()}`,
-        };
-      }
-      return { url: (res.stdout || '').trim(), error: null };
-    },
+    updateIssue: ({ owner, repo, number, body }) =>
+      updateFollowUpIssue({ owner, repo, number, body, ghPath: 'gh', cwd }),
   };
 }
 

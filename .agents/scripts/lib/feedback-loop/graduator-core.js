@@ -537,7 +537,7 @@ async function findExistingFollowUp({
  *
  * @returns {Promise<{ url: string|null, error: string|null }>}
  */
-async function updateFollowUpIssue({
+export async function updateFollowUpIssue({
   owner,
   repo,
   number,
