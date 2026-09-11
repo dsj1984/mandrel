@@ -65,6 +65,28 @@ async function resolveIssueCorpus({ listAuditIssues, groups, issues }) {
 }
 
 /**
+ * Attach the index description to a seeded summary, when there is one to make.
+ *
+ * A run with neither an injected corpus nor a list port has no index to
+ * describe, and `{ source: 'none', size: 0 }` says nothing the field's absence
+ * does not — while inviting the reading "an index was consulted and it was
+ * empty", the exact confusion this whole path exists to remove. Omitting it
+ * also leaves the summary a pure per-finding-search run emits byte-identical
+ * to what it has always been.
+ *
+ * A failed pre-fetch is the one `none` that IS described: there the run ended
+ * *without* an index it expected to have, and the operator needs to see that.
+ *
+ * @param {object} summary — the seeded counters.
+ * @param {{ source: string, index: object|null, error?: unknown }} resolution
+ * @returns {object} the same summary, with `dedupIndex` when applicable.
+ */
+function withIndexDescription(summary, { source, index, error }) {
+  if (source === 'none' && !error) return summary;
+  return { ...summary, dedupIndex: { source, size: index?.size ?? 0 } };
+}
+
+/**
  * Assemble everything routing needs from the caller's ports and corpus: the
  * read ports, the resolved index, and the two facts the caller must report —
  * what the corpus was and whether fetching it degraded.
@@ -126,13 +148,15 @@ export async function prepareDedupRouting({
       },
       index,
     },
-    summary: {
-      create: 0,
-      skipOpen: 0,
-      skipReoccurring: 0,
-      dedupDegraded: { count: 0, groups: [] },
-      dedupIndex: { source, size: index?.size ?? 0 },
-    },
+    summary: withIndexDescription(
+      {
+        create: 0,
+        skipOpen: 0,
+        skipReoccurring: 0,
+        dedupDegraded: { count: 0, groups: [] },
+      },
+      { source, index, error },
+    ),
     error,
   };
 }

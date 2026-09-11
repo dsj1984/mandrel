@@ -110,6 +110,18 @@ describe('an injected issue corpus dedups without a provider', () => {
     );
   });
 
+  it('omits dedupIndex entirely when no corpus source was wired', async () => {
+    // The summary a pure per-finding-search run emits is unchanged by this
+    // Story: with nothing to describe, the field is absent rather than
+    // reporting an empty one, which would read as "an index was consulted".
+    const { summary } = await classifyGroupsAgainstGitHub({
+      groups: [fakeGroup([FINDING])],
+      provider: { findIssuesByFingerprint: async () => [] },
+    });
+    assert.equal(summary.dedupIndex, undefined);
+    assert.deepEqual(summary.dedupDegraded, { count: 0, groups: [] });
+  });
+
   it('still requires the provider port on the un-indexed path, where it is genuinely used', async () => {
     await assert.rejects(
       () => classifyGroupsAgainstGitHub({ groups: [fakeGroup([FINDING])] }),
@@ -202,6 +214,9 @@ describe('a failed index pre-fetch is surfaced, not swallowed', () => {
     // The pre-fetch is not a group, so it must not inflate the group count the
     // operator reads as "groups classified without a check".
     assert.equal(summary.dedupDegraded.count, 0);
+    // Reported here even though the source resolved to none: the run ended
+    // WITHOUT an index and the operator needs to see that, which is the whole
+    // difference between this and a run that simply never wired a corpus.
     assert.deepEqual(summary.dedupIndex, { source: 'none', size: 0 });
   });
 
