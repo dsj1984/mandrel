@@ -46,9 +46,14 @@ import {
  * @param {object} params
  * @param {Array<object>} params.groups — the `create`-eligible groups.
  * @param {Record<string, number>} params.issueByGroupKey — group key → issue number.
+ * Module-internal: `recordFiledIssues` is the only production entrypoint, and
+ * exporting this for tests alone trips the CI-only `dead-exports:production`
+ * gate. It is covered through `recordFiledIssues`, which is the seam that
+ * actually ships.
+ *
  * @returns {{ findings: Array<object>, issueStates: Record<string, { state: string, number: number }>, groupsRecorded: number }}
  */
-export function issueStatesFromIssueMap({ groups, issueByGroupKey }) {
+function issueStatesFromIssueMap({ groups, issueByGroupKey }) {
   const findings = [];
   const issueStates = {};
   let groupsRecorded = 0;

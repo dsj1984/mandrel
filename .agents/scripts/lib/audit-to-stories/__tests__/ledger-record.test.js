@@ -21,10 +21,7 @@ import { test } from 'node:test';
 import { __testing } from '../../../audit-to-stories.js';
 import { fingerprintAuditFinding } from '../finding-adapter.js';
 import { reconcileLedger } from '../ledger.js';
-import {
-  issueStatesFromIssueMap,
-  recordFiledIssues,
-} from '../ledger-record.js';
+import { recordFiledIssues } from '../ledger-record.js';
 
 const { wireEdges } = __testing;
 
@@ -131,14 +128,24 @@ test('a group the map does not mention contributes nothing and keeps its prior e
   );
 });
 
-test('an unmapped group yields no issue state at all', () => {
-  const { findings, issueStates, groupsRecorded } = issueStatesFromIssueMap({
-    groups: [group('g-a', [FINDING_A])],
-    issueByGroupKey: { 'other-key': 1 },
-  });
-  assert.deepEqual(findings, []);
-  assert.deepEqual(issueStates, {});
-  assert.equal(groupsRecorded, 0);
+test('a map naming no present group records nothing and writes nothing', () => {
+  const store = ledgerStore();
+  const result = recordFiledIssues(
+    {
+      groups: [group('g-a', [FINDING_A])],
+      issueByGroupKey: { 'other-key': 1 },
+    },
+    store.seams,
+  );
+  assert.equal(result.groupsRecorded, 0);
+  assert.equal(result.findingsRecorded, 0);
+  assert.equal(result.filed, 0);
+  assert.equal(
+    result.written,
+    false,
+    'nothing to record means nothing to write',
+  );
+  assert.equal(store.state.writes, 0);
 });
 
 test('a second pass over the same findings is known, not proposed', () => {
