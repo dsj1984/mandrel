@@ -268,6 +268,32 @@ describe('buildPlan runs dedup off a corpus even under --no-provider', () => {
     assert.ok(warnings.some((w) => /dedup index: 1 issue/.test(w)));
   });
 
+  it('surfaces a failed index pre-fetch on stderr, naming the underlying failure', async () => {
+    const { warnings } = await runBuildPlan({
+      useProvider: false,
+      issues: [],
+      classifySpy: async () => ({
+        classifications: [],
+        summary: {
+          create: 0,
+          skipOpen: 0,
+          skipReoccurring: 0,
+          dedupDegraded: {
+            count: 0,
+            groups: [],
+            indexPrefetch:
+              'issue-index pre-fetch failed: dedup lookup failed: spawn gh ENOENT',
+          },
+          dedupIndex: { source: 'none', size: 0 },
+        },
+      }),
+    });
+
+    const degraded = warnings.find((w) => /dedup index unavailable/i.test(w));
+    assert.ok(degraded, 'the pre-fetch failure reached the operator');
+    assert.match(degraded, /spawn gh ENOENT/);
+  });
+
   it('still warns dedup was skipped when --no-provider carries no corpus', async () => {
     let called = false;
     const { plan, warnings } = await runBuildPlan({
