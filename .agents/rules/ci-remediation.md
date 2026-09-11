@@ -27,13 +27,29 @@ exactly one of two ways, and no others:
    through the fix table in
    [`deliver-story-reference.md` § Step 4](../workflows/helpers/deliver-story-reference.md#step-4--ci-watch--fix-recovery);
    refresh a baseline only when the diff demonstrably can't be covered.
-2. **File a `meta::framework-gap` issue** when the root cause is outside this
+2. **File the CI-gap intake issue** when the root cause is outside this
    delivery's scope — a pre-existing flaky test, a runner/infra weakness, a
-   framework-level environment gap. Open the issue with the `meta::framework-gap`
-   label (see [`git-conventions.md`](git-conventions.md)) carrying **the run
-   link and the failure signature** so a later `/mandrel-plan` Phase 0 sweep can act on
-   it. Remediate this delivery only if the pre-existing defect is genuinely
-   blocking it.
+   framework-level environment gap. One command does it, and it is the only
+   sanctioned filing surface:
+
+   ```bash
+   node .agents/scripts/file-ci-gap.js --story <id> --verdict <verdict> \
+     --owner <consumer|framework|platform> --evidence "<proof reading>" [--block]
+   ```
+
+   It reads the digest for the run link and failure signature, routes the
+   filing to the repository that **owns** the fault, dedups by signature so
+   the Nth occurrence updates the existing ticket, posts the `friction`
+   comment, and (with `--block`) flips the Story. Hand-running `gh issue
+   create` is not the fallback: it files an issue no `/mandrel-plan` pass can
+   graduate, in whichever repo you happen to be standing in. Remediate this
+   delivery only if the pre-existing defect is genuinely blocking it.
+
+   **`--owner` is the judgement call**, and it is yours to make from the
+   evidence: `consumer` for this repository's own code, `framework` for a
+   Mandrel defect, `platform` for a shared base config, runner fleet, or
+   cross-repo toolchain that neither owns. An unconfigured bucket files
+   locally and says so in the issue body — it never pretends to be routed.
 
 Infra, transient, and flaky failures are root-cause defects too — a flaky test
 that passes on a rerun is still a bug that will fail a future run. They route
@@ -49,9 +65,9 @@ the two options above. Name the verdict you reached in the `friction` comment.
 | Verdict | Evidence | Routes to |
 | --- | --- | --- |
 | **defect-in-diff** | The failure reproduces on the branch and not on an unmodified `main` | Option 1 — fix at source |
-| **pre-existing** | The same check fails on an unmodified `main` too | Option 2 — file `meta::framework-gap`; remediate here only if it blocks this delivery |
-| **capacity** | Proven exhaustion of a runner resource, not a property of the diff (see below) | Option 2 — file `meta::framework-gap` **and** escalate to the operator |
-| **unreproducible-tier** | The tier cannot be exercised in this sandbox at all, proven by an attempted attach (see below) | Option 2 — file `meta::framework-gap` **and** escalate on first encounter |
+| **pre-existing** | The same check fails on an unmodified `main` too | Option 2 — `file-ci-gap.js --verdict pre-existing`; remediate here only if it blocks this delivery |
+| **capacity** | Proven exhaustion of a runner resource, not a property of the diff (see below) | Option 2 — `file-ci-gap.js --verdict capacity` (`meta::framework-gap` unless `--owner` routes it elsewhere) **and** escalate to the operator |
+| **unreproducible-tier** | The tier cannot be exercised in this sandbox at all, proven by an attempted attach (see below) | Option 2 — `file-ci-gap.js --verdict unreproducible-tier` (`meta::framework-gap` unless `--owner` routes it elsewhere) **and** escalate on first encounter |
 
 Why the verdict set carries these last two is recorded in
 [`docs/decisions.md` ADR 20260906-5160a](../../docs/decisions.md).
@@ -72,10 +88,12 @@ line naming the exhausted limit (an OOM kill, `ENOSPC`, `EMFILE`,
 timeout), plus the fact that the failure is not specific to this diff. Absent
 that reading the verdict is **flaky, not capacity**, and it routes to Option 1.
 
-On a `capacity` verdict: file the `meta::framework-gap` issue with the run link,
-the failure signature, and the resource reading; flip the Story to
-`agent::blocked` with a `friction` comment naming the verdict; and hand back to
-the operator, who owns the runner pool. Do not sit in a retry loop waiting for
+On a `capacity` verdict: run `file-ci-gap.js --verdict capacity --block`, passing
+the resource reading as `--evidence` (the run link and failure signature come
+from the digest). That files the intake issue — `meta::framework-gap`, or
+`meta::platform-gap` when `--owner platform` names a shared runner fleet — posts
+the `friction` comment and flips the Story in one call; then hand back to the
+operator, who owns the runner pool. Do not sit in a retry loop waiting for
 capacity to return.
 
 **Rerunning a failed job to reach green stays forbidden under every verdict,
@@ -106,10 +124,9 @@ both:
   failure in the app under test.
 
 Absent both readings the verdict is unavailable and the failure routes as it did
-before. On the verdict: file the `meta::framework-gap` issue with the run link,
-the failure signature, and the attach attempt; flip the Story to
-`agent::blocked` with a `friction` comment naming the verdict; and hand back to
-the operator, who owns the sandbox. Do not author a fix for a tier you could not
+before. On the verdict: run
+`file-ci-gap.js --verdict unreproducible-tier --block`, passing the failed attach
+as `--evidence`; then hand back to the operator, who owns the sandbox. Do not author a fix for a tier you could not
 run — a blind fix to a suite nobody exercised is how the gap compounds.
 
 ## Verifier
@@ -131,8 +148,9 @@ alongside the failing check-run identity. On green it adjudicates:
 
 - **Same head SHA** → the green came from re-running the failed job. The
   watcher exits non-zero, flips the Story to `agent::blocked` with a
-  `friction` comment, and requires the `meta::framework-gap` issue (run link +
-  failure signature, both already in the digest) before the delivery proceeds.
+  `friction` comment, and requires the CI-gap intake issue
+  (`file-ci-gap.js` — run link and failure signature are already in the
+  digest) before the delivery proceeds.
 - **New head SHA** → fix at source. The digest is retired, auto-merge is
   re-armed, and the delivery continues unobstructed.
 
@@ -153,8 +171,8 @@ operator under **any** of:
 - **Clearly-environmental → escalate immediately.** An unambiguously
   environmental failure outside your control (runner provisioning, a persistent
   registry/network outage, a branch-protection or CI misconfiguration, an
-  expired credential) — file the `meta::framework-gap` issue (with run link +
-  signature) and escalate on the first encounter rather than burning iterations
+  expired credential) — run `file-ci-gap.js --block` and escalate on the
+  first encounter rather than burning iterations
   trying to code around it. A proven-capacity failure is this case: reach the
   `capacity` verdict above and escalate on the first encounter.
 - **Unrunnable tier → escalate immediately.** A tier the sandbox cannot host at

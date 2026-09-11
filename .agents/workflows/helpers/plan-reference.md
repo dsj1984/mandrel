@@ -99,6 +99,29 @@ On a truthy `memoryPoolAdvisory.recommend`, name
 `reasons[]`. Purely advisory: a stale pool degrades recall, it does not make
 the plan wrong, so it never blocks and never reroutes.
 
+## Gate #1 → graduating a CI-gap intake filing (`intake`)
+
+The envelope's `priorFeedback` arrays carry the open `meta::*` feedback issues.
+A row flagged `intake: true` is a **CI-gap intake filing** — written by
+[`file-ci-gap.js`](../../scripts/file-ci-gap.js) when a delivery reached an
+Option-2 verdict in [`ci-remediation.md`](../../rules/ci-remediation.md) and the
+root cause was outside its scope. It carries evidence (failure signature, run
+link, occurrence history, ownership routing) but **no `## Spec`, no
+`acceptance[]` / `verify[]` and no `agent::*` label**, so `/mandrel-deliver`
+cannot take it: it is intake awaiting graduation, by design. Delivery files it
+and moves on rather than blocking on a planning pass nobody is present for.
+
+Graduating one is exactly **tickets mode**: `/mandrel-plan <issue number>`
+rewrites it into a Story, `supersedes[]` claims it, and persist closes it.
+
+At Gate #1, in **ask** and **seed** mode, name any open intake rows and offer
+that instead of the seed in front of you — a filing that keeps recurring
+(its `## Occurrences` table is the count) is usually the better next Story than
+whatever prompted this run. It is **advisory**: never reroute automatically, and
+skip the offer entirely under `--yes`, where nobody is at the keyboard to take
+it. A `platformGaps[]` row is the same shape with a different owner — the
+Story it graduates into may well be a config or runbook change rather than code.
+
 ## Gate #1 → the light path (in-session handoff)
 
 On a confirmed `deliverLightSuggestion`, `/mandrel-plan` routes into

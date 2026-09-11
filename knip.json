@@ -41,6 +41,7 @@
     ".agents/scripts/diagnose.js!",
     ".agents/scripts/drain-pending-cleanup.js!",
     ".agents/scripts/evidence-gate.js!",
+    ".agents/scripts/file-ci-gap.js!",
     ".agents/scripts/generate-config-docs.js!",
     ".agents/scripts/generate-lens-checklists.js!",
     ".agents/scripts/generate-skills-index.js!",

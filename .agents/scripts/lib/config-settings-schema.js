@@ -16,6 +16,7 @@ import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
 // resolved AGENTRC_SCHEMA is unchanged.
 import { DELIVERY_SCHEMA } from './config-settings-schema-delivery.js';
 import compiledAgentrcValidator from './generated/agentrc-validator.js';
+import { DEFAULT_FRAMEWORK_REPO } from './github/framework-repo.js';
 import { SKILL_ID_RE } from './skills/walk-skill-files.js';
 
 /**
@@ -386,6 +387,37 @@ const MERGE_METHODS_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * Where follow-up work is filed when the repository that surfaced it does not
+ * own it. Ownership splits three ways — consumer / framework / platform — and
+ * `github.owner`/`github.repo` already carry the consumer bucket, so only the
+ * other two are configured here. Routing itself lives in
+ * `lib/github/framework-repo.js`; an unset bucket is reported as unroutable
+ * rather than silently re-pointed at the consumer's own tracker.
+ */
+const FOLLOW_UP_REPOS_SCHEMA = {
+  type: 'object',
+  description:
+    'Repository slugs for the non-consumer follow-up ownership buckets, used when a CI gap, retro proposal, or audit finding belongs to someone other than the repo that surfaced it.',
+  properties: {
+    framework: {
+      type: 'string',
+      pattern: '^[^/\\s]+/[^/\\s]+$',
+      description:
+        '`<owner>/<repo>` that owns framework-level defects. Defaults to the Mandrel mirror — the one bucket with a knowable default.',
+      default: DEFAULT_FRAMEWORK_REPO,
+    },
+    platform: {
+      type: ['string', 'null'],
+      pattern: '^[^/\\s]+/[^/\\s]+$',
+      description:
+        '`<owner>/<repo>` for a shared platform or infrastructure tracker (a shared base config, a runner fleet, a cross-repo toolchain). No default — nothing can guess a shared repo. Left unset, platform-owned findings file locally and say so.',
+      default: null,
+    },
+  },
+  additionalProperties: false,
+};
+
 const GITHUB_SCHEMA = {
   type: 'object',
   description:
@@ -432,6 +464,7 @@ const GITHUB_SCHEMA = {
         'Default `timeoutMs` applied to every `gh` subprocess the provider facade spawns, so a stalled socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Story #2860.',
       default: 60000,
     },
+    followUpRepos: FOLLOW_UP_REPOS_SCHEMA,
     branchProtection: BRANCH_PROTECTION_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
     notifications: NOTIFICATIONS_SCHEMA,

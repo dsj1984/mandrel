@@ -58,10 +58,9 @@ and derives source ids from its `sourceTickets[]`; it also writes
 
 The envelope carries docs context, the story-author prompt, `sourceTickets[]`,
 `duplicates[]` (open **Stories**, never Epics), `epicCandidates[]` +
-`dependencyCandidates[]` (Gate #3; path collisions) and advisory
-`complexitySignals` (**no routing authority**). A trivial scope can claim the
-lite route at persist — shape-validated, failing closed to `full`
-([ref](helpers/plan-reference.md)).
+`dependencyCandidates[]` (Gate #3; path collisions), `priorFeedback` and
+advisory `complexitySignals` (**no routing authority**). A trivial scope claims
+the lite route at persist, failing closed to `full`.
 
 **Triage each unknown by resolver** ([ref](helpers/plan-reference.md)): an
 **AFK** unknown (research settles it) is resolved before authoring, never
@@ -69,8 +68,9 @@ assumed; a **HITL** unknown goes to Gate #1. Under `--yes` do not ask free-form
 operator questions — AFK unknowns are still researched; only HITL unknowns land
 in Key Assumptions, each a decision-made-by-default.
 
-**Gate #1** — STOP to confirm the sharpened plan intent and any
-duplicate-candidate review. Under `--yes`, auto-proceed.
+**Gate #1** — STOP to confirm the sharpened plan intent, any
+duplicate-candidate review, and any `intake` row worth graduating
+([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
 
 On a truthy `deliverLightSuggestion.suggested`, offer — advisory, never an
 automatic reroute — to deliver the seed instead; on confirm route **in this

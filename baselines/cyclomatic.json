@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-10T21:29:05.055Z",
+  "generatedAt": "2026-09-11T12:07:41.742Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -93,7 +93,7 @@
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 16
+      "maxCyclomatic": 14
     },
     {
       "file": ".agents/scripts/lib/json-utils.js",

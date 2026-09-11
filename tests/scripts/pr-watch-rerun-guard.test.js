@@ -255,7 +255,9 @@ describe('no-rerun guard — green path (AC-3, AC-4, AC-5)', () => {
       assert.equal(code, 1, 'a rerun-green must NOT exit 0');
       assert.equal(reArmed, 0, 'a rerun-green never re-arms auto-merge');
       assert.equal(blocks.length, 1);
-      assert.match(blocks[0].body, /meta::framework-gap/);
+      // Story #5300 — the block names the filing MECHANISM, not a label to
+      // hand-type into `gh issue create`.
+      assert.match(blocks[0].body, /file-ci-gap\.js/);
       assert.match(blocks[0].body, /runs\/5150/, 'the run link is carried');
       assert.match(
         blocks[0].body,
@@ -523,6 +525,11 @@ describe('ci-rerun-guard units', () => {
     });
     assert.match(body, /runs\/9/);
     assert.match(body, /AssertionError: expected 1 to equal 2/);
-    assert.match(body, /meta::framework-gap/);
+    assert.match(body, /file-ci-gap\.js/);
+    assert.match(
+      body,
+      /pre-existing\|capacity\|unreproducible-tier/,
+      'the violation names the verdicts that route to a filing',
+    );
   });
 });

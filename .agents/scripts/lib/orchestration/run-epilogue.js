@@ -683,10 +683,10 @@ async function executeFollowUpRollup({
     provider,
     config,
     currentRepo: repos.currentRepo,
-    frameworkRepo: (() => {
-      const [owner, repo] = repos.frameworkRepo.split('/');
-      return { owner, repo };
-    })(),
+    // The resolved bucket object, not a re-split of the slug: routing is
+    // decided once in `github/framework-repo.js`.
+    frameworkRepo: repos.repos.framework,
+    platformRepo: repos.repos.platform,
     routedProposals: proposals,
     cwd,
   });
