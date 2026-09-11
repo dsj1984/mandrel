@@ -115,16 +115,19 @@ describe('fetchPriorFeedback', () => {
       spawnImpl: makeSpawnStub(responder),
     });
 
-    assert.equal(seen.length, 2, 'expected two gh invocations (one per label)');
+    // One invocation per ownership bucket (Story #5300 added the third).
+    assert.equal(seen.length, 3, 'expected one gh invocation per meta label');
+    assert.deepEqual(seen.map((args) => flagValue(args, '--label')).sort(), [
+      'meta::consumer-improvement',
+      'meta::framework-gap',
+      'meta::platform-gap',
+    ]);
     for (const args of seen) {
       assert.equal(flagValue(args, '--state'), 'open');
       assert.equal(flagValue(args, '--repo'), 'o/r');
-      assert.ok(
-        ['meta::framework-gap', 'meta::consumer-improvement'].includes(
-          flagValue(args, '--label'),
-        ),
-      );
-      assert.equal(flagValue(args, '--json'), 'number,title,labels,url');
+      // `body` is fetched so the CI-gap intake marker is visible; the body
+      // itself is not carried onto the planner envelope.
+      assert.equal(flagValue(args, '--json'), 'number,title,labels,url,body');
     }
   });
 
@@ -226,8 +229,8 @@ describe('fetchPriorFeedback', () => {
 
     assert.equal(result.frameworkGaps.length, 0);
     assert.equal(result.consumerImprovements.length, 0);
-    // Two errors — one per label invocation.
-    assert.equal(result.errors.length, 2);
+    // One error per label invocation.
+    assert.equal(result.errors.length, 3);
     for (const msg of result.errors) {
       assert.match(msg, /gh CLI not found/);
     }
@@ -248,10 +251,73 @@ describe('fetchPriorFeedback', () => {
 
     assert.equal(result.frameworkGaps.length, 0);
     assert.equal(result.consumerImprovements.length, 0);
-    assert.equal(result.errors.length, 2);
+    assert.equal(result.platformGaps.length, 0);
+    assert.equal(result.errors.length, 3);
     for (const msg of result.errors) {
       assert.match(msg, /Failed to parse gh issue list JSON/);
     }
+  });
+
+  it('returns platform gaps and flags CI-gap intake issues (Story #5300)', async () => {
+    // The graduation surface: `/mandrel-plan` offers an intake filing a
+    // `/mandrel-plan <id>` rewrite, so the flag has to survive the fetch.
+    const responder = (args) => {
+      const label = flagValue(args, '--label');
+      if (label === 'meta::platform-gap') {
+        return {
+          stdout: JSON.stringify([
+            {
+              number: 2587,
+              title: 'CI gap (capacity): runner host saturated',
+              url: 'https://github.com/o/r/issues/2587',
+              labels: [
+                { name: 'meta::platform-gap' },
+                { name: 'friction::capacity' },
+              ],
+              body: '<!-- ci-gap-intake: v1 -->\n\n## Signature\n…',
+            },
+          ]),
+          stderr: '',
+          code: 0,
+        };
+      }
+      if (label === 'meta::framework-gap') {
+        return {
+          stdout: JSON.stringify([
+            {
+              number: 100,
+              title: 'A hand-written framework report',
+              url: 'https://github.com/o/r/issues/100',
+              labels: [{ name: 'meta::framework-gap' }],
+              body: 'Someone wrote this by hand.',
+            },
+          ]),
+          stderr: '',
+          code: 0,
+        };
+      }
+      return { stdout: '[]', stderr: '', code: 0 };
+    };
+
+    const result = await fetchPriorFeedback({
+      owner: 'o',
+      repo: 'r',
+      spawnImpl: makeSpawnStub(responder),
+    });
+
+    assert.equal(result.errors.length, 0, JSON.stringify(result.errors));
+    assert.equal(result.platformGaps.length, 1);
+    assert.equal(result.platformGaps[0].number, 2587);
+    assert.equal(result.platformGaps[0].intake, true);
+    // The body is the marker's carrier, not planner payload.
+    assert.equal(result.platformGaps[0].body, undefined);
+    // A hand-written report is NOT an intake filing — nothing to graduate.
+    assert.equal(result.frameworkGaps[0].intake, false);
+    // The verdict label still feeds recurrence counting.
+    assert.ok(
+      result.recurringDefectClasses.some((c) => c.class === 'capacity'),
+      'a friction::capacity intake must reach recurringDefectClasses',
+    );
   });
 
   it('rejects missing owner/repo by populating errors[] (no throw, no spawn)', async () => {

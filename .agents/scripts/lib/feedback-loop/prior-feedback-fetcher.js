@@ -25,6 +25,7 @@
  */
 
 import { META_LABELS } from '../label-constants.js';
+import { CI_GAP_INTAKE_MARKER } from '../orchestration/ci-gap-intake.js';
 import { runChild } from './graduator-core.js';
 
 const DEFAULT_LIMIT = 50;
@@ -135,8 +136,15 @@ function formatGhError(label, { code, stderr, spawnError }) {
  * already-budgeted envelope, and trimming early avoids any ambient assumption
  * that downstream consumers can rely on extra fields.
  *
+ * `intake` is the one field derived rather than copied: an issue whose body
+ * carries the CI-gap intake marker is a filing awaiting graduation, not a
+ * finished report, and `/mandrel-plan` offers those a `/mandrel-plan <id>`
+ * rewrite. The body itself is NOT carried onto the envelope — the marker
+ * check is the whole reason it was fetched, and a planner payload does not
+ * need every intake issue's full text.
+ *
  * @param {object} raw
- * @returns {{ number: number, title: string, url: string, labels: string[] }|null}
+ * @returns {{ number: number, title: string, url: string, labels: string[], intake: boolean }|null}
  */
 function normalizeIssue(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -149,7 +157,9 @@ function normalizeIssue(raw) {
         .map((l) => (l && typeof l === 'object' ? l.name : l))
         .filter((name) => typeof name === 'string')
     : [];
-  return { number, title, url, labels };
+  const intake =
+    typeof raw.body === 'string' && raw.body.includes(CI_GAP_INTAKE_MARKER);
+  return { number, title, url, labels, intake };
 }
 
 /**
@@ -176,7 +186,7 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
     '--label',
     label,
     '--json',
-    'number,title,labels,url',
+    'number,title,labels,url,body',
     '--limit',
     String(limit),
   ];
@@ -209,10 +219,12 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
 }
 
 /**
- * Fetch the union of open issues carrying either `meta::framework-gap` or
- * `meta::consumer-improvement` and split them into two arrays. Issues that
- * carry **both** labels appear in `frameworkGaps` only — dedupe-by-number
- * runs across both arrays so the planner sees each issue exactly once.
+ * Fetch the union of open issues carrying `meta::framework-gap`,
+ * `meta::consumer-improvement` or `meta::platform-gap` and split them into
+ * three arrays — one per ownership bucket in `github/framework-repo.js`, so
+ * a filing's bucket survives all the way to the planner. An issue carrying
+ * more than one label appears once, in that precedence order; dedupe-by-number
+ * runs across all three arrays so the planner sees each issue exactly once.
  *
  * The returned envelope is best-effort: every failure mode (gh missing, repo
  * not found, non-zero exit, malformed JSON) is captured as a string in
@@ -227,6 +239,7 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
  * @returns {Promise<{
  *   frameworkGaps: object[],
  *   consumerImprovements: object[],
+ *   platformGaps: object[],
  *   recurringDefectClasses: Array<{ class: string, count: number, issues: number[] }>,
  *   fetchedAt: string,
  *   errors: string[],
@@ -251,6 +264,7 @@ export async function fetchPriorFeedback({
   const envelope = {
     frameworkGaps: [],
     consumerImprovements: [],
+    platformGaps: [],
     recurringDefectClasses: [],
     fetchedAt: new Date().toISOString(),
     errors,
@@ -258,7 +272,7 @@ export async function fetchPriorFeedback({
 
   if (errors.length > 0) return envelope;
 
-  const [gapsResult, improvementsResult] = await Promise.all([
+  const [gapsResult, improvementsResult, platformResult] = await Promise.all([
     fetchByLabel({
       owner,
       repo,
@@ -275,10 +289,19 @@ export async function fetchPriorFeedback({
       limit,
       spawnImpl,
     }),
+    fetchByLabel({
+      owner,
+      repo,
+      label: META_LABELS.PLATFORM_GAP,
+      ghPath,
+      limit,
+      spawnImpl,
+    }),
   ]);
 
   if (gapsResult.error) errors.push(gapsResult.error);
   if (improvementsResult.error) errors.push(improvementsResult.error);
+  if (platformResult.error) errors.push(platformResult.error);
 
   // Dedupe by issue number across both arrays. Issues that carry both labels
   // land in frameworkGaps first (deterministic) and are filtered out of
@@ -294,6 +317,11 @@ export async function fetchPriorFeedback({
     seen.add(issue.number);
     envelope.consumerImprovements.push(issue);
   }
+  for (const issue of platformResult.issues) {
+    if (seen.has(issue.number)) continue;
+    seen.add(issue.number);
+    envelope.platformGaps.push(issue);
+  }
 
   // Story #4135 (Epic #4131, F11) — close the retro→planner loop: derive the
   // recurring defect classes from the `friction::<class>` labels carried by
@@ -303,6 +331,7 @@ export async function fetchPriorFeedback({
   envelope.recurringDefectClasses = extractRecurringDefectClasses([
     ...envelope.frameworkGaps,
     ...envelope.consumerImprovements,
+    ...envelope.platformGaps,
   ]);
 
   return envelope;

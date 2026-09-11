@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { graduateRetroProposals } from '../../../.agents/scripts/lib/feedback-loop/retro-proposals-graduator.js';
+import { DEFAULT_FRAMEWORK_REPO } from '../../../.agents/scripts/lib/github/framework-repo.js';
 import {
   emitBlockRecoveredFriction,
   emitRuntimeFriction,
@@ -27,10 +28,52 @@ import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 describe('story follow-ups', () => {
   it('resolves repos from github config', () => {
     const repos = resolveFollowUpRepos({
-      github: { owner: 'acme', repo: 'app', frameworkRepo: 'acme/mandrel' },
+      github: {
+        owner: 'acme',
+        repo: 'app',
+        followUpRepos: { framework: 'acme/mandrel', platform: 'acme/platform' },
+      },
     });
     assert.equal(repos.consumerRepo, 'acme/app');
     assert.equal(repos.frameworkRepo, 'acme/mandrel');
+    assert.equal(repos.platform, 'acme/platform');
+    assert.deepEqual(repos.repos.platform, { owner: 'acme', repo: 'platform' });
+  });
+
+  it('defaults the framework bucket but never invents a platform one', () => {
+    // Story #5300 — `framework` is the one bucket with a knowable default;
+    // `platform` unset must stay null so a caller reports it as unroutable
+    // instead of filing platform-owned work in the nearest tracker.
+    const repos = resolveFollowUpRepos({
+      github: { owner: 'acme', repo: 'app' },
+    });
+    assert.equal(repos.frameworkRepo, DEFAULT_FRAMEWORK_REPO);
+    assert.equal(repos.platform, null);
+    assert.equal(repos.repos.platform, null);
+    assert.deepEqual(repos.repos.consumer, { owner: 'acme', repo: 'app' });
+  });
+
+  it('falls back to the mirror constant when no consumer repo is configured', () => {
+    // The `currentRepo` arm nothing else reaches: with no github block the
+    // consumer slug has to come from somewhere, and it is the mirror — never
+    // a half-formed `unknown/unknown` the graduators would then file into.
+    const repos = resolveFollowUpRepos({});
+    assert.equal(repos.consumerRepo, DEFAULT_FRAMEWORK_REPO);
+    assert.deepEqual(
+      repos.currentRepo,
+      { owner: 'dsj1984', repo: 'mandrel' },
+      'currentRepo is derived from the resolved consumer slug',
+    );
+    assert.deepEqual(repos.repos.consumer, repos.currentRepo);
+  });
+
+  it('ignores the retired github.frameworkRepo key', () => {
+    // It was read here but rejected by the closed schema, so it never
+    // validated — a phantom key, retired by Story #5300 rather than migrated.
+    const repos = resolveFollowUpRepos({
+      github: { owner: 'acme', repo: 'app', frameworkRepo: 'acme/legacy' },
+    });
+    assert.equal(repos.frameworkRepo, DEFAULT_FRAMEWORK_REPO);
   });
 
   it('records — but does not file — single-occurrence Story friction', () => {

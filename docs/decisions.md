@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (41).** Each governs the surface named beside it.
+**In force (42).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260911-5300`](#adr-20260911-5300-follow-up-ownership-is-three-buckets-and-an-unroutable-bucket-is-an-outcome-not-a-fallback) | Follow-up ownership is three buckets; unroutable is an outcome | `.agents/scripts/lib/github/framework-repo.js` | Accepted |
 | [`20260906-5160a`](#adr-20260906-5160a-why-the-ci-verdict-set-carries-capacity-and-unreproducible-tier) | Why the CI verdict set carries `capacity` and `unreproducible-tier` | `.agents/rules/ci-remediation.md` | Accepted |
 | [`20260906-5160b`](#adr-20260906-5160b-the-baseline-refresh-true-body-trailer-is-the-canonical-refresh-marker) | The `baseline-refresh: true` body trailer is the canonical refresh marker | `.agents/skills/core/gates-and-baselines/reference.md` | Accepted |
 | [`20260905-5139`](#adr-20260905-5139-the-container-epic-a-grouping-ticket-with-parentchild-linkage-only) | The container Epic — grouping only, parent→child linkage | `.agents/scripts/lib/orchestration/epic-container.js` | Accepted |
@@ -145,6 +146,46 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260911-5300: Follow-up ownership is three buckets, and an unroutable bucket is an outcome, not a fallback
+
+**Status:** Accepted
+**Date:** 2026-09-11
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/lib/github/framework-repo.js`
+**Story:** #5300
+
+### Context
+
+Routing resolved a framework-tagged item with
+`frameworkRepo ? frameworkRepo : currentRepo`, so an unset key filed
+framework-owned work into the **consumer's** tracker while the retro claimed
+otherwise — invisible here, where the two repos coincide. A real CI-gap filing
+showed the rest: its root cause split across consumer helpers, a shared base
+config and the runner host, and only two of the three had anywhere to go.
+
+### Decision
+
+**Three buckets.** `consumer` (`github.owner`/`repo`), `framework`
+(`github.followUpRepos.framework`, defaulted to the mirror), `platform`
+(`github.followUpRepos.platform`, **no default** — nothing can guess a shared
+repo). `meta::platform-gap` mirrors the third so a filing's label and its
+destination cannot disagree.
+
+**An unresolvable bucket is never re-pointed.** `routeOwnership` returns
+`routable: false` plus the `missingKey` that fixes it, and each caller says so
+out loud: the CI-gap filer files locally with `unroutable` and that key in its
+`## Routing` block; the graduators defer and name it. No caller may pick a
+plausible repo quietly.
+
+**Cross-repo writes are attempted, then degraded** — a refused write files
+locally recording `deferred to <slug>` and the refusal, where demanding a
+write-scoped token up front would lose the evidence entirely.
+
+### Consequences
+
+`github.frameworkRepo` is retired: read but rejected by the closed schema, it
+never validated, so there is nothing to migrate.
 
 ## ADR 20260906-5160a: Why the CI verdict set carries capacity and unreproducible-tier
 

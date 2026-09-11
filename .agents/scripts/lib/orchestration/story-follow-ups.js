@@ -11,7 +11,11 @@
 
 import { signalsFile } from '../config/temp-paths.js';
 import { graduateRetroProposals } from '../feedback-loop/retro-proposals-graduator.js';
-import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
+import {
+  DEFAULT_FRAMEWORK_REPO,
+  formatRepoSlug,
+  resolveOwnershipRepos,
+} from '../github/framework-repo.js';
 import { Logger } from '../Logger.js';
 import { normalizeGatheredSignal } from '../observability/runtime-friction.js';
 import {
@@ -54,28 +58,36 @@ function resolveFrictionWindowDays(config) {
 }
 
 /**
+ * Resolve the follow-up ownership buckets for the retro composer and the
+ * graduator walk.
+ *
+ * Routing itself lives in `github/framework-repo.js` — this is the slug-shaped
+ * adapter the composer wants (`composeRoutedProposals` renders slugs in prose)
+ * plus the `{owner, repo}` map `graduate()` routes on. The `platform` bucket
+ * has **no default**: an unconfigured shared-infra repo stays `null` so a
+ * caller reports it rather than filing platform-owned work somewhere plausible.
+ *
  * @param {object} [config]
- * @returns {{ frameworkRepo: string, consumerRepo: string, currentRepo: { owner: string, repo: string } }}
+ * @returns {{ frameworkRepo: string, consumerRepo: string, platform: (string|null), currentRepo: { owner: string, repo: string }, repos: { consumer: object|null, framework: object|null, platform: object|null } }}
  */
 export function resolveFollowUpRepos(config) {
-  const owner =
-    typeof config?.github?.owner === 'string' ? config.github.owner.trim() : '';
-  const repo =
-    typeof config?.github?.repo === 'string' ? config.github.repo.trim() : '';
-  const consumerRepo =
-    owner && repo ? `${owner}/${repo}` : DEFAULT_FRAMEWORK_REPO;
-  const frameworkRepo =
-    typeof config?.github?.frameworkRepo === 'string' &&
-    config.github.frameworkRepo.trim()
-      ? config.github.frameworkRepo.trim()
-      : DEFAULT_FRAMEWORK_REPO;
+  const repos = resolveOwnershipRepos(config);
+  const consumerRepo = formatRepoSlug(repos.consumer) ?? DEFAULT_FRAMEWORK_REPO;
+  // `resolveOwnershipRepos` always resolves the framework bucket (it defaults
+  // to the mirror constant), and both slugs above are well-formed by
+  // construction — so neither the render nor the split can yield a blank half.
+  const frameworkRepo = formatRepoSlug(repos.framework);
   const [cOwner, cRepo] = consumerRepo.split('/');
+  const currentRepo = { owner: cOwner, repo: cRepo };
   return {
     frameworkRepo,
     consumerRepo,
-    currentRepo: {
-      owner: cOwner || 'unknown',
-      repo: cRepo || 'unknown',
+    platform: formatRepoSlug(repos.platform),
+    currentRepo,
+    repos: {
+      consumer: currentRepo,
+      framework: repos.framework,
+      platform: repos.platform,
     },
   };
 }
@@ -749,10 +761,10 @@ export async function captureStoryFollowUps({
       provider,
       config,
       currentRepo: repos.currentRepo,
-      frameworkRepo: (() => {
-        const [owner, repo] = repos.frameworkRepo.split('/');
-        return { owner, repo };
-      })(),
+      // The resolved bucket object, not a re-split of the slug: routing is
+      // decided once in `github/framework-repo.js`.
+      frameworkRepo: repos.repos.framework,
+      platformRepo: repos.repos.platform,
       routedProposals: proposals,
       cwd,
     });

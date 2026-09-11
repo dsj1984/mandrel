@@ -115,6 +115,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'diagnose.js',
   'drain-pending-cleanup.js',
   'evidence-gate.js',
+  'file-ci-gap.js',
   'generate-config-docs.js',
   'generate-lens-checklists.js',
   'generate-skills-index.js',

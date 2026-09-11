@@ -330,6 +330,45 @@ describe('graduate (parametrized walk)', () => {
     assert.equal(env.skipped[0].lens, 'audit-security');
   });
 
+  it('skips a framework finding as `unroutable` rather than filing it locally', async () => {
+    // Story #5300 — the retired `frameworkRepo ? frameworkRepo : currentRepo`
+    // fallback filed framework-owned work into the CONSUMER's tracker when
+    // the key was unset. With no framework bucket the finding must be named
+    // and deferred, never re-pointed at whatever repo the run stands in.
+    const provider = {
+      postComment: async () => {},
+      getTicketComments: async () => [],
+    };
+    const created = [];
+    const spawnImpl = makeSpawnStub({
+      git: () => ({ code: 0 }),
+      ghCreate: () => {
+        created.push(1);
+        return { stdout: 'https://x/issues/1', code: 0 };
+      },
+    });
+    const warnings = [];
+    const env = await graduate({
+      epicId: 1,
+      findings: FINDINGS(),
+      provider,
+      currentRepo,
+      // No frameworkRepo — the bucket is unconfigured.
+      classifier: () => 'framework',
+      spawnImpl,
+      logger: { warn: (m) => warnings.push(m), info() {}, debug() {} },
+      spec: makeSpec(),
+    });
+
+    assert.equal(env.filed.length, 0, 'nothing may be filed in the wrong repo');
+    assert.equal(created.length, 0, 'no issue create may be attempted');
+    assert.equal(env.skipped[0]?.reason, 'unroutable');
+    assert.ok(
+      warnings.some((w) => w.includes('github.followUpRepos.framework')),
+      `expected the missing key to be named; got ${JSON.stringify(warnings)}`,
+    );
+  });
+
   it('never throws — a failing cross-repo comment upsert lands in errors[]', async () => {
     // `persistCrossRepoDeferred` upserts through the ticketing helper, which
     // reads the existing comments first. A provider that faults there is the

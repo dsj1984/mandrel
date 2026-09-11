@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-10T23:30:57.564Z",
+  "generatedAt": "2026-09-11T12:00:27.749Z",
   "rollup": {
     "*": {
-      "lines": 96.12,
-      "branches": 87.05,
-      "functions": 88.46
+      "lines": 96.11,
+      "branches": 87.01,
+      "functions": 88.62
     }
   },
   "rows": [
@@ -225,6 +225,12 @@
       "lines": 98.08,
       "branches": 84.62,
       "functions": 80
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "lines": 78.76,
+      "branches": 61.11,
+      "functions": 75
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -1392,20 +1398,20 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "lines": 97.98,
-      "branches": 82.82,
+      "lines": 98.18,
+      "branches": 83.4,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
-      "lines": 93.25,
-      "branches": 67.8,
+      "lines": 98.03,
+      "branches": 71.19,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
-      "lines": 95.59,
-      "branches": 69.57,
+      "lines": 95.53,
+      "branches": 72.31,
       "functions": 100
     },
     {
@@ -1526,7 +1532,7 @@
       "path": ".agents/scripts/lib/github/framework-repo.js",
       "lines": 100,
       "branches": 100,
-      "functions": 0
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/Graph.js",
@@ -1751,9 +1757,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/ci-gap-intake.js",
+      "lines": 100,
+      "branches": 77.53,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",
-      "lines": 91.99,
-      "branches": 76.56,
+      "lines": 92.06,
+      "branches": 77.1,
       "functions": 94.12
     },
     {
@@ -2274,8 +2286,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/run-epilogue.js",
-      "lines": 97.7,
-      "branches": 84.04,
+      "lines": 97.75,
+      "branches": 85.43,
       "functions": 100
     },
     {
@@ -2478,8 +2490,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-follow-ups.js",
-      "lines": 98.48,
-      "branches": 86.47,
+      "lines": 98.51,
+      "branches": 87.5,
       "functions": 100
     },
     {

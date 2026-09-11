@@ -20,9 +20,9 @@
  * **Head SHA is the discriminator.** A green on a *different* head SHA is a
  * fix at source — legal, and it retires the digest. A green on the *same*
  * head SHA is a re-run of a failed job, which the rule forbids: the
- * delivery hard-stops at `agent::blocked` and a `meta::framework-gap` issue
- * (carrying the run link and failure signature the digest already holds) is
- * required before it can proceed.
+ * delivery hard-stops at `agent::blocked` and a CI-gap intake filing
+ * (`file-ci-gap.js`, carrying the run link and failure signature the digest
+ * already holds) is required before it can proceed.
  *
  * **Fail closed on an unverifiable green.** A digest whose head SHA is
  * missing, or a current head SHA that `gh` could not resolve, leaves no
@@ -136,7 +136,7 @@ function ghRunLogTail({ runId, cwd, spawnFn, maxLines = 40 }) {
  * Resolve the failing check's run identity — the GitHub Actions run id AND
  * the run URL. Best-effort via `gh pr checks --json name,link`: the `link`
  * field carries the run URL whose trailing path segment is the run id. The
- * URL matters as much as the id, because the `meta::framework-gap` issue a
+ * URL matters as much as the id, because the intake issue a
  * rerun violation demands must carry a run **link**.
  *
  * @returns {{ runId: string|null, url: string|null }}
@@ -441,7 +441,8 @@ export function classifyGreenVerdict({ digest, headSha }) {
 }
 
 /**
- * The failure signature a `meta::framework-gap` issue must carry: the first
+ * The failure signature an intake filing must carry (see `file-ci-gap.js`):
+ * the first
  * distinctive line of the captured failed-job log.
  */
 function failureSignature(digest) {
@@ -480,9 +481,13 @@ export function formatRerunViolation({ digest, headSha, prNumber, reason }) {
     '',
     '1. Fix the root cause on `story-<id>` and push a new commit — the head SHA',
     '   moving is what clears the block.',
-    '2. File a `meta::framework-gap` issue carrying the run link and failure',
-    '   signature above when the root cause is outside this delivery, then',
-    '   resume.',
+    '2. When the root cause is outside this delivery, file the routed intake',
+    '   issue — `node .agents/scripts/file-ci-gap.js --story <id> --verdict',
+    '   <pre-existing|capacity|unreproducible-tier> --owner',
+    '   <consumer|framework|platform> --evidence "<proof reading>"` — then',
+    '   resume. It carries the run link and signature above, routes the filing',
+    '   to whoever owns the fault, and updates the existing ticket when this',
+    '   signature has been seen before.',
   ].join('\n');
 }
 

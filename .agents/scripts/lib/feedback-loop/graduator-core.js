@@ -45,12 +45,18 @@
  *   - **Durable cross-repo deferral.** Cross-repo-deferred findings are
  *     upserted into a structured comment on the Epic instead of only a
  *     log line.
+ *   - **Routed, never re-pointed.** Ownership routing is delegated to
+ *     `github/framework-repo.js#routeOwnership`; an unroutable bucket is
+ *     skipped `unroutable` and named in that same durable comment. The
+ *     predecessor resolved an absent framework slug to the consumer's own
+ *     repo, which silently mis-filed framework-owned work.
  */
 
 import { spawn as defaultSpawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 
 import { inNodeTestContext } from '../config/temp-paths.js';
+import { routeOwnership } from '../github/framework-repo.js';
 import { LABEL_COLORS } from '../label-constants.js';
 import { classifyPathSource as defaultClassifier } from '../observability/source-classifier.js';
 import { upsertStructuredComment } from '../orchestration/ticketing.js';
@@ -675,7 +681,7 @@ async function readLiveLabelNames({
  * @param {number} [opts.timeoutMs]
  * @returns {Promise<{ created: string[], missing: string[], errors: string[] }>}
  */
-async function ensureIssueLabels({
+export async function ensureIssueLabels({
   owner,
   repo,
   labels,
@@ -947,7 +953,7 @@ async function processGraduateFinding({
   decorate,
   epicId,
   currentRepo,
-  frameworkRepo,
+  repos,
   classifier,
   gitRef,
   ghPath,
@@ -994,12 +1000,26 @@ async function processGraduateFinding({
   }
 
   const source = classifier(finding.path, null);
-  const routedRepo =
-    source === 'framework' && frameworkRepo ? frameworkRepo : currentRepo;
-  const isCrossRepo =
-    routedRepo.owner !== currentRepo.owner ||
-    routedRepo.repo !== currentRepo.repo;
-  if (isCrossRepo) {
+  // Ownership routing is the shared SSOT's call, and an unroutable bucket is
+  // an outcome rather than a fallback: the predecessor resolved an absent
+  // framework slug to the CONSUMER's repo, silently filing framework-owned
+  // work in the wrong place (see `github/framework-repo.js`). Unroutable
+  // findings are deferred and named, never re-pointed.
+  const routing = routeOwnership({ bucket: source, repos, currentRepo });
+  if (!routing.routable) {
+    const logLine = `[${spec.fnName}] unroutable ${source} finding (${routing.missingKey} is unset) — not filed: ${finding.title ?? finding.path ?? `finding ${finding.index}`}`;
+    logger?.warn?.(logLine);
+    crossRepoDeferred.push({
+      finding,
+      routedRepo: null,
+      source,
+      logLine,
+      missingKey: routing.missingKey,
+    });
+    return skip('unroutable');
+  }
+  const routedRepo = routing.routedRepo;
+  if (routing.crossRepo) {
     const logLine = spec.buildCrossRepoLog({ finding, routedRepo, source });
     logger?.info?.(logLine);
     crossRepoDeferred.push({ finding, routedRepo, source, logLine });
@@ -1165,13 +1185,18 @@ function renderCrossRepoDeferredBody(deferred, spec) {
   const header =
     spec.crossRepoCommentHeader ??
     '### Cross-repo-deferred findings\n\nThese findings route to a different repository and were **not** filed here. They are recorded for a cross-repo follow-up pass.';
-  const rows = deferred.map(({ finding, routedRepo, logLine }) => {
+  const rows = deferred.map(({ finding, routedRepo, logLine, missingKey }) => {
     const path =
       typeof finding.path === 'string' && finding.path.length > 0
         ? `\`${finding.path}\``
         : '_(no path)_';
+    // An unroutable finding has no destination to name — say which config
+    // key would give it one instead of inventing a repo for the row.
+    const destination = routedRepo
+      ? `${routedRepo.owner}/${routedRepo.repo}`
+      : `**unroutable** (\`${missingKey}\` is unset)`;
     return [
-      `- ${path} (severity: ${finding.severity ?? 'n/a'}) → ${routedRepo.owner}/${routedRepo.repo}`,
+      `- ${path} (severity: ${finding.severity ?? 'n/a'}) → ${destination}`,
       `  - ${logLine}`,
     ].join('\n');
   });
@@ -1244,7 +1269,12 @@ async function persistCrossRepoDeferred({
  *   the durable cross-repo-deferred persistence
  * @param {object} [opts.config]
  * @param {{owner: string, repo: string}} opts.currentRepo
- * @param {{owner: string, repo: string}} [opts.frameworkRepo]
+ * @param {{owner: string, repo: string}} [opts.frameworkRepo] — the
+ *   `framework` ownership bucket. Absent means **unroutable**, never the
+ *   consumer's repo: a framework-classified finding is then deferred and
+ *   named rather than filed in the wrong tracker.
+ * @param {{owner: string, repo: string}} [opts.platformRepo] — the shared
+ *   platform/infra bucket, for a caller whose classifier can reach it.
  * @param {string} [opts.gitRef='HEAD']
  * @param {Function} [opts.classifier=classifyPathSource]
  * @param {string} [opts.ghPath='gh']
@@ -1279,6 +1309,7 @@ export async function graduate({
   config,
   currentRepo,
   frameworkRepo,
+  platformRepo,
   gitRef = 'HEAD',
   classifier = defaultClassifier,
   ghPath = 'gh',
@@ -1347,6 +1378,15 @@ export async function graduate({
     return envelope;
   }
 
+  // The ownership map the routing SSOT resolves against. `platform` is
+  // absent for both graduators today (their classifier is binary) and is
+  // threaded so a caller that does know a shared-infra repo routes there
+  // rather than into the nearest plausible tracker.
+  const repos = {
+    consumer: currentRepo,
+    framework: frameworkRepo ?? null,
+    platform: platformRepo ?? null,
+  };
   const crossRepoDeferred = [];
   for (const finding of findings) {
     await processGraduateFinding({
@@ -1355,7 +1395,7 @@ export async function graduate({
       decorate,
       epicId,
       currentRepo,
-      frameworkRepo,
+      repos,
       classifier,
       gitRef,
       ghPath,
