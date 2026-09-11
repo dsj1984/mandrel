@@ -15,6 +15,16 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.56.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.55.0...mandrel-v2.56.0) (2026-09-11)
+
+
+### Added
+
+* audit-to-stories: dedup against a host-supplied issue index, so a sweep on a gh-less host stops re-filing what it already filed ([#5301](https://github.com/dsj1984/mandrel/issues/5301)) ([#5304](https://github.com/dsj1984/mandrel/issues/5304)) ([1b8abf0](https://github.com/dsj1984/mandrel/commit/1b8abf072a05db65e54a63cb8ec6cf6f06bc80ab))
+* audit-to-stories: make Phase 5a filings visible to the next sweep — record the ledger from plan-persist and stamp the audit labels the corpus is listed by ([#5307](https://github.com/dsj1984/mandrel/issues/5307)) ([#5308](https://github.com/dsj1984/mandrel/issues/5308)) ([094ba8a](https://github.com/dsj1984/mandrel/commit/094ba8ae6e2640ba3ac7cb5a4aeb9309aa72e42d))
+* audit-to-stories: record filed Issues in the cross-run ledger, so its suppression branch stops being unreachable ([#5305](https://github.com/dsj1984/mandrel/issues/5305)) ([#5306](https://github.com/dsj1984/mandrel/issues/5306)) ([d5e36ab](https://github.com/dsj1984/mandrel/commit/d5e36ab796f6946bf93d7161efa1470cad8a0a2b))
+* cI-gap intake: script-backed, repo-routed, deduped meta filings that /mandrel-plan can graduate ([#5300](https://github.com/dsj1984/mandrel/issues/5300)) ([#5302](https://github.com/dsj1984/mandrel/issues/5302)) ([37bc287](https://github.com/dsj1984/mandrel/commit/37bc2875ed8c98298afd90c72ece4f318e2c233d))
+
 ## [2.55.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.54.0...mandrel-v2.55.0) (2026-09-11)
 
 
