@@ -100,11 +100,16 @@ export function recordFiledIssues(
     findings,
     issueStates,
   });
-  if (write) writeLedgerImpl(path, next);
+  // Nothing to record means nothing to write. The ledger is committed consumer
+  // state and `--ledger-commit` opens a PR only when it changed, so rewriting
+  // it with a fresh `generatedAt` and no new memory would manufacture a diff
+  // that says nothing.
+  const wrote = Boolean(write) && findings.length > 0;
+  if (wrote) writeLedgerImpl(path, next);
 
   return {
     path,
-    written: Boolean(write),
+    written: wrote,
     groupsRecorded,
     findingsRecorded: findings.length,
     filed: classifications.filter((c) => c.status === 'filed').length,

@@ -1169,13 +1169,23 @@ function wireEdgesPreconditionError(reason, detail) {
  * re-rendered with a canonical `blocked by #N` footer and the same edges are
  * mirrored as native `blocked_by` relations.
  *
+ * The same map is what the cross-run ledger needs to record what this run
+ * filed, so the record rides along here rather than arriving as a second
+ * command an operator must remember (Story #5305).
+ *
  * @param {object} params
  * @param {object} params.plan   A `--scan` plan envelope.
  * @param {Record<string, number>} params.issueByGroupKey
+ * @param {string} [params.ledgerPath] — ledger to record into; defaults to
+ *   `DEFAULT_LEDGER_PATH` inside the record.
+ * @param {boolean} [params.write] — `false` computes the record without
+ *   persisting it (what `--dry-run` passes).
  * @param {object} [deps]
  * @param {Function} [deps.loadProviderImpl]
  * @param {Function} [deps.wireImpl]
- * @returns {Promise<object>} the wiring summary.
+ * @param {Function} [deps.recordFiledIssuesImpl]
+ * @returns {Promise<object>} the wiring summary, with the ledger record on
+ *   `ledger`.
  */
 async function wireEdges(
   { plan, issueByGroupKey, ledgerPath, write },

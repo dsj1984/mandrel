@@ -260,6 +260,16 @@ const PLAN = {
 };
 
 describe('wireEdges — the live provider reaches the wire step (Story #5143)', () => {
+  // Story #5305 — the pass also records the ledger. Injected in every case
+  // here: the real implementation would write the repo's committed
+  // `baselines/audit-ledger.json` from a unit test, which the read-only
+  // invariant over `baselines/` (rightly) fails on.
+  const recordFiledIssuesImpl = () => ({
+    path: 'baselines/audit-ledger.json',
+    written: true,
+    filed: 0,
+  });
+
   it('carries updateTicket/getTicket/getDependencyWriteContext through the dedup adapter (AC-1)', async () => {
     // Pre-change, `loadProvider` returned an adapter narrowed to the two dedup
     // search ports, so this threw "--wire-edges needs a provider exposing
@@ -267,7 +277,7 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
     const stub = new StubLiveProvider();
     const summary = await wireEdges(
       { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
-      { loadProviderImpl: liveAdapter(stub) },
+      { loadProviderImpl: liveAdapter(stub), recordFiledIssuesImpl },
     );
 
     assert.deepEqual(
@@ -296,6 +306,7 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
         wireEdges(
           { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
           {
+            recordFiledIssuesImpl,
             loadProviderImpl: () =>
               loadProvider({ resolveConfigImpl: () => ({ github: {} }) }),
           },
@@ -317,6 +328,7 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
         wireEdges(
           { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
           {
+            recordFiledIssuesImpl,
             loadProviderImpl: () =>
               loadProvider({
                 resolveConfigImpl: () => ({
@@ -342,7 +354,11 @@ describe('wireEdges — the live provider reaches the wire step (Story #5143)', 
     process.env.AUDIT_TO_STORIES_PROVIDER_FIXTURE = SEARCH_ONLY_FIXTURE;
     try {
       await assert.rejects(
-        () => wireEdges({ plan: PLAN, issueByGroupKey: { a: 101, b: 102 } }),
+        () =>
+          wireEdges(
+            { plan: PLAN, issueByGroupKey: { a: 101, b: 102 } },
+            { recordFiledIssuesImpl },
+          ),
         (err) => {
           assert.match(
             err.message,

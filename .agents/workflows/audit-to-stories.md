@@ -249,7 +249,7 @@ record: each mapped group's findings are written `filed` against its Issue
 (`--ledger <path>`, default `baselines/audit-ledger.json`; `--dry-run`
 suppresses the write). The record runs **before** the provider loads, so a host
 with no `gh` still remembers what it filed. Without it nothing ever writes
-`filed` and the ledger suppresses nothing (Story #5305).
+`filed` and the ledger suppresses nothing.
 
 **Do not skip this.** `/mandrel-deliver` has no other source for this cohort's order:
 its footprint guard ignores the shared provenance footers, so an unwired cohort

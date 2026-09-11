@@ -611,12 +611,22 @@ describe('wireEdges', () => {
     ],
   };
 
+  // Story #5305 — the pass also records the ledger, so every case here injects
+  // the record seam: the real one would write the repo's committed
+  // `baselines/audit-ledger.json` from a unit test.
+  const recordSeam = (sink) => (args) => {
+    sink?.push(args);
+    return { path: 'baselines/audit-ledger.json', written: true, filed: 0 };
+  };
+
   it('passes only the create-eligible groups and an updateBody bound to updateTicket', async () => {
     const patched = [];
+    const recorded = [];
     let seen;
     const summary = await wireEdges(
       { plan, issueByGroupKey: { a: 101, b: 102 } },
       {
+        recordFiledIssuesImpl: recordSeam(recorded),
         loadProviderImpl: async () => ({
           updateTicket: (issueNumber, mutations) => {
             patched.push({ issueNumber, body: mutations.body });
@@ -639,7 +649,15 @@ describe('wireEdges', () => {
     assert.deepEqual(seen.edges, plan.edges);
     assert.deepEqual(seen.issueByGroupKey, { a: 101, b: 102 });
     assert.deepEqual(patched, [{ issueNumber: 102, body: 'NEW BODY' }]);
-    assert.deepEqual(summary, { storiesWired: 1 });
+    assert.deepEqual(
+      recorded.map((r) => r.issueByGroupKey),
+      [{ a: 101, b: 102 }],
+      'the ledger record sees the same map the wiring does',
+    );
+    assert.deepEqual(summary, {
+      storiesWired: 1,
+      ledger: { path: 'baselines/audit-ledger.json', written: true, filed: 0 },
+    });
   });
 
   it('fails loudly when the provider cannot rewrite a body', async () => {
@@ -649,7 +667,10 @@ describe('wireEdges', () => {
       () =>
         wireEdges(
           { plan, issueByGroupKey: { a: 101 } },
-          { loadProviderImpl: async () => ({}) },
+          {
+            recordFiledIssuesImpl: recordSeam(),
+            loadProviderImpl: async () => ({}),
+          },
         ),
       /--wire-edges needs a provider exposing updateTicket/,
     );
