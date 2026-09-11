@@ -339,7 +339,8 @@ on every later scan; a `fixed` finding that re-appears becomes `regressed`. The
 ledger is written by the unattended `--auto` sweep, by any `--scan --ledger`
 run, and by the Phase 5c `--wire-edges` pass that records what was filed; the
 plain `--scan` path leaves it untouched. A finding whose resolved Issue is open
-is `filed`/known — a closed Issue still outranks that.
+is recorded `filed` and is known on re-detection; a closed Issue still outranks
+that.
 
 ## Phase 7 — Summary & cleanup
 
