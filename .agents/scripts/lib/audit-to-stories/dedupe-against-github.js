@@ -27,13 +27,21 @@
  * both provenance footers, so `findIssuesByFingerprint` is answered locally and
  * the rate-limited search API is spent only on findings with no exact hit.
  *
- * Pure orchestration: this module performs no network I/O itself.
+ * A caller that already holds the corpus injects it directly as `issues`
+ * instead (Story #5301) — the host fetched it by whatever access path it has,
+ * which is what lets dedup run on a host with no `gh` CLI at all. That source
+ * needs no provider: with an index in play the exact lookup is answered from
+ * memory and `findIssuesByFingerprint` is never called, so the port is required
+ * only on the un-indexed path where it is genuinely used.
+ *
+ * Pure orchestration: this module performs no network I/O itself, and reads no
+ * file — the caller hands over an array, never a path.
  */
 
 import { routeFinding, semanticKeyFor } from '../findings/route-finding.js';
-import { auditLabelsForFindings } from './audit-lenses.js';
 import { toCanonicalFinding } from './finding-adapter.js';
-import { buildIssueIndex, lookupLocally } from './issue-index.js';
+import { prepareDedupRouting } from './issue-corpus.js';
+import { lookupLocally } from './issue-index.js';
 
 /**
  * @typedef {object} GroupClassification
@@ -46,6 +54,11 @@ import { buildIssueIndex, lookupLocally } from './issue-index.js';
 /**
  * Render a short, operator-legible reason from a dedup-lookup failure. Pure —
  * no imports, no I/O — so the module stays pure orchestration (Story #4678).
+ *
+ * Both degrade paths run through here, so the wording an operator reads for a
+ * failed index pre-fetch matches the wording for a failed per-group lookup:
+ * one vocabulary for "the GitHub read did not complete", whichever read it was.
+ *
  * @param {unknown} err
  * @returns {string}
  */
@@ -155,31 +168,6 @@ function portsFor(canonical, sha, { searchIssues, semanticPort, index }) {
 }
 
 /**
- * Pre-fetch and index every Issue carrying one of the run's `audit::*` labels.
- *
- * Returns `null` — the un-indexed, per-finding-search path — when no list port
- * is wired, when the run's findings resolve to no canonical lens label, or when
- * the list itself fails. A degraded pre-fetch must cost the run its saving, not
- * its dedup.
- *
- * @param {{ listAuditIssues?: Function, groups: Array<object>,
- *   onDegraded?: Function }} params
- * @returns {Promise<object|null>}
- */
-async function prefetchIssueIndex({ listAuditIssues, groups }) {
-  if (typeof listAuditIssues !== 'function') return null;
-  const labels = auditLabelsForFindings(
-    groups.flatMap((group) => group?.findings ?? []),
-  );
-  if (labels.length === 0) return null;
-  try {
-    return buildIssueIndex(await listAuditIssues(labels));
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
  * @param {object} params
  * @param {Array<object>} params.groups — output of `groupFindings`.
  * @param {{ findIssuesByFingerprint: (sha: string) => Promise<Array<{ number: number, state: string, body?: string }>> }} params.provider
@@ -191,6 +179,12 @@ async function prefetchIssueIndex({ listAuditIssues, groups }) {
  *   Optional list port over the run's `audit::*` labels. When wired, its result
  *   is fetched once and indexed, and `provider.findIssuesByFingerprint` is not
  *   called at all — the exact lookup is answered from that index.
+ * @param {Array<object>} [params.issues]
+ *   Optional pre-fetched corpus the caller already holds, used in preference to
+ *   `listAuditIssues`. Supplying it makes `provider` optional: with an index in
+ *   play no provider read port is ever invoked, which is what lets a host with
+ *   no `gh` CLI dedup at all (Story #5301). An empty array is a valid corpus —
+ *   a first sweep — and is NOT read as "no index".
  * @param {(entry: { group: object, reason: string }) => void} [params.onDegraded]
  *   Optional sink notified once per group whose dedup lookup could not complete
  *   (Story #4678). The group is then classified `create` — a soft-fail, never
@@ -204,37 +198,31 @@ export async function classifyGroupsAgainstGitHub({
   searchCandidates,
   onDegraded,
   listAuditIssues,
+  issues,
 }) {
   if (!Array.isArray(groups)) {
     throw new Error('classifyGroupsAgainstGitHub: groups must be an array');
   }
-  if (!provider || typeof provider.findIssuesByFingerprint !== 'function') {
-    throw new Error(
-      'classifyGroupsAgainstGitHub: provider.findIssuesByFingerprint is required',
-    );
+
+  const { routing, summary, error } = await prepareDedupRouting({
+    groups,
+    provider,
+    searchCandidates,
+    listAuditIssues,
+    issues,
+  });
+  if (error) {
+    // Same vocabulary as a per-group failure, but deliberately NOT counted as
+    // a degraded group: the count names groups classified without a check, and
+    // every group still gets one here, off the per-finding search path. Until
+    // Story #5301 this failure was swallowed whole, so the operator saw only
+    // the downstream per-group degradation and could not tell what caused it.
+    const reason = `issue-index pre-fetch failed: ${describeDegradeReason(error)}`;
+    summary.dedupDegraded.indexPrefetch = reason;
+    if (typeof onDegraded === 'function') onDegraded({ group: null, reason });
   }
 
-  // Adapt the provider port into the `searchIssues` shape routeFinding wants.
-  // routeFinding hands the port the sha it computed off the canonical
-  // projection, which equals the sha the group already carries (both come
-  // from the same `toCanonicalFinding` projection).
-  const searchIssues = (sha) => provider.findIssuesByFingerprint(sha);
-  const semanticPort =
-    typeof searchCandidates === 'function' ? searchCandidates : undefined;
-  const routing = {
-    searchIssues,
-    semanticPort,
-    routeOptions: { semanticKeyConfirm: Boolean(semanticPort) },
-    index: await prefetchIssueIndex({ listAuditIssues, groups }),
-  };
-
   const classifications = [];
-  const summary = {
-    create: 0,
-    skipOpen: 0,
-    skipReoccurring: 0,
-    dedupDegraded: { count: 0, groups: [] },
-  };
 
   for (const group of groups) {
     let result;

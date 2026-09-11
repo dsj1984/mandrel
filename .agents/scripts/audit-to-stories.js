@@ -39,6 +39,10 @@ import { formatEpicGrouping } from './lib/audit-to-stories/epic-grouping-directi
 import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import {
+  loadIssuesFile,
+  normaliseIssueHit,
+} from './lib/audit-to-stories/issues-file.js';
+import {
   DEFAULT_LEDGER_PATH,
   readLedger,
   reconcileLedger,
@@ -367,28 +371,6 @@ class ProviderUnavailableError extends Error {
 }
 
 /**
- * Flatten one raw `searchIssues` hit onto the `{ number, state, title, body }`
- * shape the dedupe module reads, collapsing every closed-ish state spelling
- * (`CLOSED`, `state_reason: not_planned`, …) onto `'closed'`.
- *
- * @param {object} hit
- * @returns {{ number: number, state: 'open'|'closed', title: string, body: string }}
- */
-function normaliseIssueHit(hit) {
-  return {
-    number: hit.number,
-    state: (hit.state ?? hit.state_reason ?? 'open')
-      .toString()
-      .toLowerCase()
-      .includes('closed')
-      ? 'closed'
-      : 'open',
-    title: hit.title ?? '',
-    body: hit.body ?? '',
-  };
-}
-
-/**
  * Walk the list endpoint once per label and merge the pages into one
  * deduplicated, normalised issue list.
  *
@@ -650,6 +632,136 @@ function dedupDegradedWarning(entries) {
 }
 
 /**
+ * Render the operator-visible line naming a host-supplied index and its size.
+ *
+ * Always emitted for a `--issues-file` run, because "how many issues did you
+ * actually check against" is the one number that separates a real dedup from a
+ * plan that merely looks checked. At zero it is the load-bearing case: an empty
+ * corpus is a legitimate first sweep AND exactly what a broken fetch writes, so
+ * the operator — not the run — decides which this was. Deliberately distinct in
+ * wording from both `dedupSkippedWarning` and `dedupDegradedWarning` so the
+ * three are never confused in a scrollback.
+ *
+ * @param {{ source?: string, size?: number }} dedupIndex
+ * @returns {string}
+ */
+function dedupIndexWarning({ size = 0 } = {}) {
+  if (size === 0) {
+    return (
+      'dedup index: 0 issues supplied via --issues-file. Dedup DID run and ' +
+      'every group is correctly "create" — but that is also what a fetch that ' +
+      'returned nothing looks like. If audit issues already exist, the fetch ' +
+      'that wrote this file is broken and this run will re-file them.'
+    );
+  }
+  return `dedup index: ${size} issue(s) supplied via --issues-file; every exact-fingerprint lookup was answered from it.`;
+}
+
+/**
+ * Render the warning for a pre-fetch of the issue index that could not
+ * complete. The run still dedups — it falls back to a per-finding search — but
+ * it loses the one-list saving, and until Story #5301 this failure was
+ * swallowed whole: the operator saw only the downstream per-group degradation
+ * and could not tell that the pre-fetch itself was the cause.
+ *
+ * @param {string} reason
+ * @returns {string}
+ */
+function dedupIndexDegradedWarning(reason) {
+  return (
+    `dedup index unavailable: ${reason}. Dedup fell back to a per-finding ` +
+    'search, which is slower and rate-limited — if those searches also fail, ' +
+    'every affected group is classified "create" WITHOUT a dedup check.'
+  );
+}
+
+/**
+ * Phase 6: classify every group against GitHub, and say loudly whichever way
+ * it went.
+ *
+ * Extracted from `buildPlan` because the gate has three outcomes, not two, and
+ * inlining them pushed the caller past its complexity ceiling. The three:
+ *
+ *   - **deduped** — a provider resolved, or the host supplied a corpus, or
+ *     both. A host-supplied corpus is a dedup source in its own right, which is
+ *     the whole point: the gate asks "can we dedup at all", not "did a provider
+ *     resolve". While it asked the latter, `--no-provider --issues-file` — the
+ *     one invocation a `gh`-less host can run — short-circuited to the seeded
+ *     all-`create` classifications however well the dedupe module worked.
+ *   - **skipped, no port** — a provider was wanted but could not be adapted.
+ *   - **skipped, disabled** — `--no-provider` with no corpus to fall back on.
+ *
+ * Every outcome warns on stderr, so the `--scan` JSON on stdout stays clean and
+ * a create-only plan is never read as "checked, found nothing".
+ *
+ * @param {{ groups: Array<object>, useProvider?: boolean,
+ *   issues?: Array<object>|null }} params
+ * @param {{ loadProviderImpl: Function, classifyGroupsImpl: Function,
+ *   logger: { warn: Function } }} deps
+ * @returns {Promise<{ classifications: Array<object>, summary: object,
+ *   dedupApplied: boolean }>}
+ */
+async function runDedupPhase(
+  { groups, useProvider, issues },
+  { loadProviderImpl, classifyGroupsImpl, logger },
+) {
+  const provider = useProvider ? await loadProviderImpl() : null;
+  if (!provider && !issues) {
+    logger.warn(
+      dedupSkippedWarning(useProvider ? 'no-provider-port' : 'disabled'),
+    );
+    return {
+      classifications: groups.map((group) => ({
+        group,
+        action: 'create',
+        matchedIssues: [],
+        matchedFingerprints: [],
+      })),
+      summary: { create: groups.length, skipOpen: 0, skipReoccurring: 0 },
+      dedupApplied: false,
+    };
+  }
+
+  const { classifications, summary } = await classifyGroupsImpl({
+    groups,
+    provider,
+    searchCandidates: provider?.searchCandidates,
+    listAuditIssues: provider?.listAuditIssues,
+    issues,
+  });
+  for (const warning of dedupPhaseWarnings({ issues, summary })) {
+    logger.warn(warning);
+  }
+  return { classifications, summary, dedupApplied: true };
+}
+
+/**
+ * Every warning a completed dedup pass owes the operator, in order. Pure, so
+ * the wording stays unit-testable and `runDedupPhase` keeps one write site.
+ *
+ * @param {{ issues?: Array<object>|null, summary: object }} params
+ * @returns {string[]}
+ */
+function dedupPhaseWarnings({ issues, summary }) {
+  const warnings = [];
+  if (issues) warnings.push(dedupIndexWarning(summary.dedupIndex));
+  // The pre-fetch failing is a distinct fact from any group's lookup failing,
+  // and used to be invisible: the operator saw only the downstream per-group
+  // degradation and could not tell what had caused it.
+  if (summary.dedupDegraded?.indexPrefetch) {
+    warnings.push(
+      dedupIndexDegradedWarning(summary.dedupDegraded.indexPrefetch),
+    );
+  }
+  // A partially-checked plan is a useful result — name the groups that degraded
+  // to create because their lookup could not complete (Story #4678).
+  if (summary.dedupDegraded?.count > 0) {
+    warnings.push(dedupDegradedWarning(summary.dedupDegraded.groups));
+  }
+  return warnings;
+}
+
+/**
  * Scan → group → dedup → (optionally) reconcile the cross-run ledger, and
  * return the plan envelope.
  *
@@ -657,12 +769,14 @@ function dedupDegradedWarning(entries) {
  * implementation (`.agents/rules/test-seams.md` rules 1-2, 4), so `main`,
  * `runAuto`, and every production caller are unchanged.
  *
- * @param {{ glob?: string, severity?: string, useProvider?: boolean, ledger?: object }} params
+ * @param {{ glob?: string, severity?: string, useProvider?: boolean,
+ *   issuesFile?: string, ledger?: object }} params
  * @param {{
  *   collectReportPathsImpl?: typeof collectReportPaths,
  *   readReportsImpl?: typeof readReports,
  *   loadProviderImpl?: typeof loadProviderOrNull,
  *   classifyGroupsImpl?: typeof classifyGroupsAgainstGitHub,
+ *   loadIssuesFileImpl?: typeof loadIssuesFile,
  *   reconcileScanLedgerImpl?: typeof reconcileScanLedger,
  *   logger?: { warn: Function },
  * }} [deps]
@@ -673,6 +787,7 @@ async function buildPlan(
     glob: pattern,
     severity,
     useProvider,
+    issuesFile,
     ledger,
     allowMissingTally,
     failOnReportFailures,
@@ -684,9 +799,14 @@ async function buildPlan(
     readReportsImpl = readReports,
     loadProviderImpl = loadProviderOrNull,
     classifyGroupsImpl = classifyGroupsAgainstGitHub,
+    loadIssuesFileImpl = loadIssuesFile,
     reconcileScanLedgerImpl = reconcileScanLedger,
     logger = Logger,
   } = deps;
+  // Deliberately BEFORE the reports are read: an unusable corpus is a usage
+  // error, and failing fast costs the operator nothing, where failing late
+  // would tempt a fallback that silently dedups nothing.
+  const issues = issuesFile ? loadIssuesFileImpl(issuesFile) : null;
   const reportPaths = await collectReportPathsImpl(pattern ?? DEFAULT_GLOB);
   if (reportPaths.length === 0) {
     return {
@@ -724,45 +844,10 @@ async function buildPlan(
   const stamped = withFingerprints(filtered.filter((f) => Boolean(f.severity)));
   const { groups, edges } = groupFindings(stamped);
 
-  let classifications = groups.map((g) => ({
-    group: g,
-    action: 'create',
-    matchedIssues: [],
-    matchedFingerprints: [],
-  }));
-  let summary = { create: groups.length, skipOpen: 0, skipReoccurring: 0 };
-  let dedupApplied = false;
-
-  if (useProvider) {
-    const provider = await loadProviderImpl();
-    if (provider) {
-      const result = await classifyGroupsImpl({
-        groups,
-        provider,
-        searchCandidates: provider.searchCandidates,
-        listAuditIssues: provider.listAuditIssues,
-      });
-      classifications = result.classifications;
-      summary = result.summary;
-      dedupApplied = true;
-      // A partially-checked plan is a useful result — warn loudly (stderr, so
-      // the --scan JSON on stdout stays clean) naming the groups that degraded
-      // to create because their lookup could not complete (Story #4678).
-      if (summary.dedupDegraded?.count > 0) {
-        logger.warn(dedupDegradedWarning(summary.dedupDegraded.groups));
-      }
-    } else {
-      // The provider could not resolve a searchIssues port — the dedup gate
-      // is silently a no-op without this. Surface it loudly (stderr, so the
-      // --scan JSON on stdout stays clean) so the operator does not read a
-      // create-only plan as "no duplicates found".
-      logger.warn(dedupSkippedWarning('no-provider-port'));
-    }
-  } else {
-    // Operator explicitly opted out via --no-provider. Still warn so a
-    // duplicate-opening re-run is never a surprise.
-    logger.warn(dedupSkippedWarning('disabled'));
-  }
+  const { classifications, summary, dedupApplied } = await runDedupPhase(
+    { groups, useProvider, issues },
+    { loadProviderImpl, classifyGroupsImpl, logger },
+  );
 
   // Cross-run ledger (Story #4626): fold this scan onto the committed memory,
   // suppress findings a prior run recorded as accepted-risk, and (unless the
@@ -918,6 +1003,7 @@ async function runAuto({
   severity,
   dryRun,
   useProvider,
+  issuesFile,
   ledgerPath,
   ledgerCommit,
   git,
@@ -930,6 +1016,7 @@ async function runAuto({
     glob,
     severity: floor,
     useProvider,
+    issuesFile,
     ledger: { path: resolvedLedgerPath, write: !dryRun },
     // `--auto` never accepts `--allow-missing-tally`: an unattended sweep has
     // no operator to read a warning, so every report failure is fatal here.
@@ -1161,6 +1248,8 @@ export const __testing = {
   loadProviderOrNull,
   dedupSkippedWarning,
   dedupDegradedWarning,
+  dedupIndexWarning,
+  dedupIndexDegradedWarning,
   buildAndGateStories,
   runAuto,
   resolveSeverityFloor,
@@ -1291,6 +1380,7 @@ export async function runAuditToStories(
       plan: { type: 'string' },
       out: { type: 'string' },
       'no-provider': { type: 'boolean' },
+      'issues-file': { type: 'string' },
       'allow-missing-tally': { type: 'boolean' },
       json: { type: 'boolean' },
     },
@@ -1308,6 +1398,7 @@ export async function runAuditToStories(
         severity: values.severity,
         dryRun: values['dry-run'],
         useProvider: !values['no-provider'],
+        issuesFile: values['issues-file'],
         ledgerPath: values.ledger,
         ledgerCommit: values['ledger-commit'],
       })
@@ -1334,6 +1425,7 @@ export async function runAuditToStories(
       glob: values.glob,
       severity: values.severity,
       useProvider: !values['no-provider'],
+      issuesFile: values['issues-file'],
       allowMissingTally: values['allow-missing-tally'],
     });
 
@@ -1454,6 +1546,10 @@ runAsCli(import.meta.url, main, {
       ],
       ['--out <path>', 'Write output to a file instead of stdout.'],
       ['--no-provider', 'Skip live GitHub dedup lookups (offline).'],
+      [
+        '--issues-file <path>',
+        'Dedup against a JSON array of issues the host already fetched (every issue labelled audit::*, state all) instead of listing them through the provider. Lets dedup run where there is no gh CLI; composes with --no-provider.',
+      ],
       [
         '--allow-missing-tally',
         'Downgrade a missing "Severity tally:" line to a warning (--scan only; --auto ignores it).',
