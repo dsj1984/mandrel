@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-10T23:30:57.564Z",
+  "generatedAt": "2026-09-11T11:53:25.574Z",
   "rollup": {
     "*": {
-      "lines": 96.12,
-      "branches": 87.05,
-      "functions": 88.46
+      "lines": 96.14,
+      "branches": 87.08,
+      "functions": 88.5
     }
   },
   "rows": [
@@ -36,9 +36,9 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "lines": 98.43,
-      "branches": 82.08,
-      "functions": 98.11
+      "lines": 98.82,
+      "branches": 84.93,
+      "functions": 98.15
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -426,8 +426,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
-      "lines": 99.62,
-      "branches": 88.89,
+      "lines": 100,
+      "branches": 91.67,
       "functions": 100
     },
     {
@@ -449,9 +449,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/issue-corpus.js",
+      "lines": 100,
+      "branches": 92.31,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/issue-index.js",
       "lines": 97.59,
       "branches": 66.67,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/issues-file.js",
+      "lines": 100,
+      "branches": 95.45,
       "functions": 100
     },
     {
