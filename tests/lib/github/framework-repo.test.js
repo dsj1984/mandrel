@@ -15,11 +15,17 @@ import {
   DEFAULT_FRAMEWORK_REPO,
   formatRepoSlug,
   OWNERSHIP_BUCKETS,
-  OWNERSHIP_CONFIG_KEYS,
   parseRepoSlug,
   resolveOwnershipRepos,
   routeOwnership,
 } from '../../../.agents/scripts/lib/github/framework-repo.js';
+
+/** The `.agentrc` key each bucket is configured under, asserted verbatim. */
+const CONFIG_KEY = {
+  consumer: 'github.owner / github.repo',
+  framework: 'github.followUpRepos.framework',
+  platform: 'github.followUpRepos.platform',
+};
 
 describe('parseRepoSlug', () => {
   it('parses a well-formed slug, trimming surrounding space', () => {
@@ -169,7 +175,7 @@ describe('routeOwnership', () => {
   it('is total — no repos map, no currentRepo, no arguments at all', () => {
     const noRepos = routeOwnership({ bucket: 'framework' });
     assert.equal(noRepos.routable, false);
-    assert.equal(noRepos.missingKey, OWNERSHIP_CONFIG_KEYS.framework);
+    assert.equal(noRepos.missingKey, CONFIG_KEY.framework);
 
     const noCurrent = routeOwnership({ bucket: 'framework', repos });
     assert.equal(noCurrent.routable, true);
@@ -192,11 +198,13 @@ describe('routeOwnership', () => {
     assert.equal(routed.routable, false);
   });
 
-  it('keys every bucket in the closed set to a config key', () => {
+  it('names the operator-settable key for every bucket in the closed set', () => {
+    // An unroutable bucket is only actionable if it says which key to set.
     for (const bucket of OWNERSHIP_BUCKETS) {
+      const routed = routeOwnership({ bucket, repos: {}, currentRepo: null });
       assert.equal(
-        typeof OWNERSHIP_CONFIG_KEYS[bucket],
-        'string',
+        routed.missingKey,
+        CONFIG_KEY[bucket],
         `${bucket} must name the key an operator would set`,
       );
     }

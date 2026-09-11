@@ -14,15 +14,20 @@ import { describe, it } from 'node:test';
 
 import { fingerprintFooter } from '../../../.agents/scripts/lib/findings/route-finding.js';
 import {
-  appendOccurrence,
-  assertIntakeVerdict,
-  buildIntakeFinding,
   CI_GAP_INTAKE_MARKER,
   fileCiGapIntake,
   INTAKE_VERDICTS,
-  normaliseSignature,
   REFUSED_VERDICT,
 } from '../../../.agents/scripts/lib/orchestration/ci-gap-intake.js';
+
+/**
+ * Score one filing through the module's public seam.
+ *
+ * The signature normaliser, the body renderer and the occurrence appender are
+ * module-private on purpose — they are steps of this one call, not a toolkit —
+ * so every assertion below reaches them the way production does.
+ */
+const file = (over) => fileCiGapIntake({ ...BASE, ...over });
 
 const DIGEST = Object.freeze({
   storyId: 5300,
@@ -89,9 +94,14 @@ const BASE = {
 };
 
 describe('ci-gap-intake — verdict set (AC-2)', () => {
-  it('accepts exactly the three Option-2 verdicts', () => {
+  it('accepts exactly the three Option-2 verdicts', async () => {
     for (const verdict of INTAKE_VERDICTS) {
-      assert.equal(assertIntakeVerdict(verdict), verdict);
+      const res = await file({
+        verdict,
+        bucket: 'consumer',
+        ports: makePorts().ports,
+      });
+      assert.equal(res.decision, 'new', `${verdict} must be accepted`);
     }
     assert.deepEqual(
       [...INTAKE_VERDICTS],
@@ -101,7 +111,6 @@ describe('ci-gap-intake — verdict set (AC-2)', () => {
   });
 
   it('refuses defect-in-diff by name, pointing at Option 1', async () => {
-    assert.throws(() => assertIntakeVerdict(REFUSED_VERDICT), /Option 1/);
     await assert.rejects(
       fileCiGapIntake({
         ...BASE,
@@ -113,8 +122,11 @@ describe('ci-gap-intake — verdict set (AC-2)', () => {
     );
   });
 
-  it('refuses an unknown verdict rather than defaulting to one', () => {
-    assert.throws(() => assertIntakeVerdict('flaky'), /unknown verdict/);
+  it('refuses an unknown verdict rather than defaulting to one', async () => {
+    await assert.rejects(
+      file({ verdict: 'flaky', bucket: 'consumer', ports: makePorts().ports }),
+      /unknown verdict/,
+    );
   });
 
   it('refuses an unknown ownership bucket', async () => {
@@ -179,46 +191,52 @@ describe('ci-gap-intake — body and labels (AC-1)', () => {
     assert.match(res.body, /unproven/);
   });
 
-  it('normalises run-specific noise out of the dedup identity', () => {
-    const a = normaliseSignature(
+  it('normalises run-specific noise out of the dedup identity', async () => {
+    // Two runs of ONE defect: different timestamp, port, duration and sha.
+    // They must fingerprint alike or the Nth occurrence mints a new issue.
+    const withTail = (logTail) =>
+      file({
+        verdict: 'capacity',
+        bucket: 'platform',
+        digest: { ...DIGEST, logTail },
+        ports: makePorts().ports,
+      });
+    const a = await withTail(
       'timeout after 15000ms at 2026-09-11T10:00:00Z on port :61512 (sha deadbeefcafe)',
     );
-    const b = normaliseSignature(
+    const b = await withTail(
       'timeout after 20000ms at 2026-09-12T11:30:00Z on port :49221 (sha feedfacebeef)',
     );
-    assert.equal(a, b, 'two occurrences of one defect must fingerprint alike');
+    assert.equal(a.fingerprint, b.fingerprint);
   });
 
-  it('keeps two verdicts over one signature distinct', () => {
-    const capacity = buildIntakeFinding({
-      digest: DIGEST,
+  it('keeps two verdicts over one signature distinct', async () => {
+    const capacity = await file({
       verdict: 'capacity',
       bucket: 'platform',
+      ports: makePorts().ports,
     });
-    const preExisting = buildIntakeFinding({
-      digest: DIGEST,
+    const preExisting = await file({
       verdict: 'pre-existing',
       bucket: 'platform',
+      ports: makePorts().ports,
     });
-    assert.notEqual(capacity.area, preExisting.area);
+    assert.notEqual(
+      capacity.fingerprint,
+      preExisting.fingerprint,
+      'the verdict is who owns the fix — merging two would merge two jobs',
+    );
   });
 });
 
 describe('ci-gap-intake — recurrence (AC-3)', () => {
   it('updates the existing issue and appends exactly one occurrence row', async () => {
     // Seed an open issue carrying the fingerprint this filing will compute.
-    const finding = buildIntakeFinding({
-      digest: DIGEST,
-      verdict: 'capacity',
-      bucket: 'platform',
-    });
-    const probe = await fileCiGapIntake({
-      ...BASE,
+    const probe = await file({
       verdict: 'capacity',
       bucket: 'platform',
       ports: makePorts().ports,
     });
-    assert.ok(finding.area);
 
     const existingBody = probe.body;
     const before = existingBody
@@ -262,15 +280,35 @@ describe('ci-gap-intake — recurrence (AC-3)', () => {
     assert.match(res.body, /abc123def456/, 'the row carries the head SHA');
   });
 
-  it('grafts a table onto a body an operator has rewritten', () => {
-    const grafted = appendOccurrence('Someone rewrote this by hand.', {
-      at: '2026-09-18T09:00:00.000Z',
-      runUrl: null,
-      headSha: null,
-      prNumber: null,
+  it('grafts a table onto a body an operator has rewritten', async () => {
+    // An operator who rewrites the issue body must not silently stop
+    // accumulating occurrences — the table is grafted back on.
+    const seeded = await file({
+      verdict: 'capacity',
+      bucket: 'platform',
+      ports: makePorts().ports,
     });
-    assert.match(grafted, /## Occurrences/);
-    assert.match(grafted, /2026-09-18/);
+    const { ports } = makePorts({
+      hits: [
+        {
+          number: 7,
+          state: 'open',
+          title: 'CI gap (capacity)',
+          body: `Someone rewrote this by hand.\n\n${fingerprintFooter([seeded.fingerprint])}`,
+          url: 'https://github.com/acme/platform/issues/7',
+        },
+      ],
+    });
+    const res = await file({
+      verdict: 'capacity',
+      bucket: 'platform',
+      ports,
+      now: '2026-09-18T09:00:00.000Z',
+    });
+    assert.equal(res.decision, 'update-existing');
+    assert.match(res.body, /Someone rewrote this by hand\./);
+    assert.match(res.body, /## Occurrences/);
+    assert.match(res.body, /2026-09-18/);
   });
 
   it('stops rather than guessing `new` when the dedup lookup fails', async () => {

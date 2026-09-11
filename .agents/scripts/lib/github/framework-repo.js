@@ -53,7 +53,7 @@ export const OWNERSHIP_BUCKETS = Object.freeze([
  * is unroutable so the operator is told which key to set rather than that
  * "routing failed".
  */
-export const OWNERSHIP_CONFIG_KEYS = Object.freeze({
+const OWNERSHIP_CONFIG_KEYS = Object.freeze({
   consumer: 'github.owner / github.repo',
   framework: 'github.followUpRepos.framework',
   platform: 'github.followUpRepos.platform',

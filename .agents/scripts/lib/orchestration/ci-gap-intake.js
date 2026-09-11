@@ -94,7 +94,7 @@ const BUCKET_META_LABEL = Object.freeze({
  * @param {string} verdict
  * @returns {string} the validated verdict
  */
-export function assertIntakeVerdict(verdict) {
+function assertIntakeVerdict(verdict) {
   if (verdict === REFUSED_VERDICT) {
     throw new Error(
       `verdict "${REFUSED_VERDICT}" routes to Option 1 (fix at source on the branch), not to an intake filing — see .agents/rules/ci-remediation.md`,
@@ -114,7 +114,7 @@ export function assertIntakeVerdict(verdict) {
  * @param {string} bucket
  * @returns {string} the validated bucket
  */
-export function assertOwnershipBucket(bucket) {
+function assertOwnershipBucket(bucket) {
   if (!OWNERSHIP_BUCKETS.includes(bucket)) {
     throw new Error(
       `unknown ownership bucket "${bucket}" — expected one of ${OWNERSHIP_BUCKETS.join(', ')}`,
@@ -131,7 +131,7 @@ export function assertOwnershipBucket(bucket) {
  * @param {object} digest
  * @returns {string}
  */
-export function failureSignature(digest) {
+function failureSignature(digest) {
   const line = String(digest?.logTail ?? '')
     .split('\n')
     .map((l) => l.trim())
@@ -150,7 +150,7 @@ export function failureSignature(digest) {
  * @param {string} line
  * @returns {string}
  */
-export function normaliseSignature(line) {
+function normaliseSignature(line) {
   return String(line ?? '')
     .replace(/\b\d{4}-\d{2}-\d{2}[T ][\d:.]+Z?\b/g, '<ts>')
     .replace(/\b[0-9a-f]{7,40}\b/gi, '<sha>')
@@ -175,7 +175,7 @@ export function normaliseSignature(line) {
  * @param {string} opts.bucket
  * @returns {object} canonical finding for `route-finding.js`
  */
-export function buildIntakeFinding({ digest, verdict, bucket }) {
+function buildIntakeFinding({ digest, verdict, bucket }) {
   return {
     title: normaliseSignature(failureSignature(digest)),
     area: `ci:${verdict}`,
@@ -245,7 +245,7 @@ function renderRouting(routing) {
  * @param {object} opts
  * @returns {string}
  */
-export function renderIntakeBody({
+function renderIntakeBody({
   digest,
   verdict,
   evidence,
@@ -299,7 +299,7 @@ export function renderIntakeBody({
  * @param {object} occurrence
  * @returns {string}
  */
-export function appendOccurrence(body, occurrence) {
+function appendOccurrence(body, occurrence) {
   const row = renderOccurrenceRow(occurrence);
   const existing = String(body ?? '');
   if (!existing.includes('## Occurrences')) {
@@ -326,7 +326,7 @@ export function appendOccurrence(body, occurrence) {
  * @param {object} opts
  * @returns {string}
  */
-export function buildIntakeTitle({ digest, verdict }) {
+function buildIntakeTitle({ digest, verdict }) {
   const signature = failureSignature(digest).slice(0, 110);
   return `CI gap (${verdict}): \`${digest?.failingCheck ?? 'unknown check'}\` — ${signature}`;
 }
