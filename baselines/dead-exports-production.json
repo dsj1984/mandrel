@@ -898,10 +898,6 @@
     },
     {
       "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "symbol": "createFollowUpIssue"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/graduator-core.js",
       "symbol": "probeMarkerExists"
     },
     {
@@ -923,10 +919,6 @@
     {
       "file": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
       "symbol": "isAutoFileEnabled"
-    },
-    {
-      "file": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
-      "symbol": "issueNumberFromUrl"
     },
     {
       "file": ".agents/scripts/lib/findings/classify-finding.js",
