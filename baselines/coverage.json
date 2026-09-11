@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-11T12:07:40.539Z",
+  "generatedAt": "2026-09-11T13:00:15.578Z",
   "rollup": {
     "*": {
-      "lines": 96.12,
-      "branches": 87.04,
-      "functions": 88.66
+      "lines": 96.13,
+      "branches": 87.03,
+      "functions": 88.68
     }
   },
   "rows": [
@@ -36,9 +36,9 @@
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "lines": 98.82,
-      "branches": 84.93,
-      "functions": 98.15
+      "lines": 99.13,
+      "branches": 85.57,
+      "functions": 98.21
     },
     {
       "path": ".agents/scripts/boot-sweep.js",
@@ -485,9 +485,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
+      "lines": 100,
+      "branches": 83.33,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
-      "lines": 95.7,
-      "branches": 73.77,
+      "lines": 96.77,
+      "branches": 75.76,
       "functions": 100
     },
     {

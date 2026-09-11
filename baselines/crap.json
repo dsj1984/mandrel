@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-10T23:40:07.844Z",
+  "generatedAt": "2026-09-11T13:00:16.480Z",
   "scoringSemantics": "method-identity-v3",
   "tsTranspilerVersion": "6.0.3",
   "provenanceStamped": true,
@@ -141,536 +141,561 @@
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "meetsSeverity",
-      "startLine": 87,
+      "startLine": 92,
       "crap": 3
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "collectReportPaths",
-      "startLine": 94,
+      "startLine": 99,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "readReports",
-      "startLine": 103,
+      "startLine": 108,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon readReports/(p)#0>",
-      "startLine": 104,
+      "startLine": 109,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "tallyBySeverity",
-      "startLine": 120,
+      "startLine": 125,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon tallyBySeverity/(s)#0>",
-      "startLine": 122,
+      "startLine": 127,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "comparableTally",
-      "startLine": 147,
+      "startLine": 152,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon comparableTally/(level)#0>",
-      "startLine": 149,
+      "startLine": 154,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "sameTally",
-      "startLine": 152,
+      "startLine": 157,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon sameTally/(level)#0>",
-      "startLine": 153,
+      "startLine": 158,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "formatTally",
-      "startLine": 156,
+      "startLine": 161,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "auditReportFailures",
-      "startLine": 179,
+      "startLine": 184,
       "crap": 3
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "crossCheckReports",
-      "startLine": 233,
+      "startLine": 238,
       "crap": 6
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon crossCheckReports/(r)#0>",
-      "startLine": 236,
+      "startLine": 241,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon crossCheckReports/(f)#0>",
-      "startLine": 250,
+      "startLine": 255,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon crossCheckReports/(f)#1>",
-      "startLine": 257,
+      "startLine": 262,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "missingTallyWarning",
-      "startLine": 297,
+      "startLine": 302,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "reportFailureWarning",
-      "startLine": 311,
+      "startLine": 316,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon reportFailureWarning/(f)#0>",
-      "startLine": 312,
+      "startLine": 317,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon reportFailureWarning/(f)#0/(t)#0>",
-      "startLine": 314,
+      "startLine": 319,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon reportFailureWarning/(f)#0/(t)#1>",
-      "startLine": 320,
+      "startLine": 325,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "loadFixtureProvider",
-      "startLine": 340,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/audit-to-stories.js",
-      "method": "normaliseIssueHit",
-      "startLine": 377,
+      "startLine": 345,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "listIssuesForLabels",
-      "startLine": 404,
+      "startLine": 387,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "buildDedupPorts",
-      "startLine": 431,
+      "startLine": 414,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildDedupPorts/(query)#0>",
-      "startLine": 455,
+      "startLine": 438,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "bindWritePorts",
-      "startLine": 479,
+      "startLine": 462,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "constructProvider",
-      "startLine": 504,
+      "startLine": 487,
       "crap": 3
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "loadProvider",
-      "startLine": 550,
+      "startLine": 533,
       "crap": 3
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "loadProviderOrNull",
-      "startLine": 580,
+      "startLine": 563,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "dedupSkippedWarning",
-      "startLine": 608,
+      "startLine": 591,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "dedupDegradedWarning",
-      "startLine": 642,
+      "startLine": 625,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon dedupDegradedWarning/(e)#0>",
-      "startLine": 643,
+      "startLine": 626,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
-      "method": "buildPlan",
+      "method": "dedupIndexWarning",
+      "startLine": 649,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "dedupIndexDegradedWarning",
       "startLine": 671,
-      "crap": 10
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "runDedupPhase",
+      "startLine": 705,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "<anon runDedupPhase/(group)#0>",
+      "startLine": 715,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "dedupPhaseWarnings",
+      "startLine": 746,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "buildPlan",
+      "startLine": 786,
+      "crap": 8
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildPlan/(f)#0>",
-      "startLine": 720,
+      "startLine": 841,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildPlan/(f)#1>",
-      "startLine": 724,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/audit-to-stories.js",
-      "method": "<anon buildPlan/(g)#0>",
-      "startLine": 727,
+      "startLine": 845,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildPlan/(f)#2>",
-      "startLine": 784,
+      "startLine": 870,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "reconcileScanLedger",
-      "startLine": 828,
+      "startLine": 914,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon reconcileScanLedger/(e)#0>",
-      "startLine": 839,
+      "startLine": 925,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon reconcileScanLedger/(e)#1>",
-      "startLine": 840,
+      "startLine": 926,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "issueStatesFromClassifications",
-      "startLine": 850,
+      "startLine": 936,
       "crap": 3.059326171875
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "loadPlan",
-      "startLine": 867,
+      "startLine": 953,
       "crap": 6
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "resolveSeverityFloor",
-      "startLine": 883,
+      "startLine": 969,
       "crap": 4.074074074074074
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "runAuto",
-      "startLine": 916,
-      "crap": 6.002214244058901
+      "startLine": 1002,
+      "crap": 6.001699933716576
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuto/(c)#0>",
-      "startLine": 953,
-      "crap": 1.0000615067794139,
+      "startLine": 1041,
+      "crap": 1.000047220381016,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/audit-to-stories.js",
+      "method": "<anon runAuto/(g)#0>",
+      "startLine": 1062,
+      "crap": 1.000047220381016,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuto/(c)#1>",
-      "startLine": 972,
-      "crap": 1.0000615067794139,
+      "startLine": 1065,
+      "crap": 1.000047220381016,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuto/(i)#0>",
-      "startLine": 973,
-      "crap": 1.0000615067794139,
+      "startLine": 1066,
+      "crap": 1.000047220381016,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuto/(n)#0>",
-      "startLine": 974,
-      "crap": 1.0000615067794139,
+      "startLine": 1067,
+      "crap": 1.000047220381016,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "buildAndGateStories",
-      "startLine": 1009,
+      "startLine": 1102,
       "crap": 6
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildAndGateStories/(g)#0>",
-      "startLine": 1010,
+      "startLine": 1103,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon buildAndGateStories/(t)#0>",
-      "startLine": 1024,
+      "startLine": 1117,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "wireEdgesPreconditionError",
-      "startLine": 1058,
+      "startLine": 1151,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "wireEdges",
-      "startLine": 1087,
+      "startLine": 1190,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon wireEdges/(c)#0>",
-      "startLine": 1091,
+      "startLine": 1200,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon wireEdges/(c)#1>",
-      "startLine": 1092,
+      "startLine": 1201,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon wireEdges/(issueNumber,body)#0>",
-      "startLine": 1107,
+      "startLine": 1230,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "parseIssueMap",
-      "startLine": 1119,
+      "startLine": 1243,
       "crap": 5
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "persist",
-      "startLine": 1145,
+      "startLine": 1269,
       "crap": 2.0625
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "describeLedgerCommit",
-      "startLine": 1206,
+      "startLine": 1332,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "ledgerCommittedLine",
-      "startLine": 1218,
+      "startLine": 1344,
       "crap": 2
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "ledgerSkippedLine",
-      "startLine": 1230,
+      "startLine": 1356,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "validateSeverityFlag",
-      "startLine": 1249,
+      "startLine": 1375,
       "crap": 6
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "runAuditToStories",
-      "startLine": 1261,
+      "startLine": 1387,
       "crap": 5
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/(value)#0>",
-      "startLine": 1302,
+      "startLine": 1429,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#0>",
-      "startLine": 1304,
+      "startLine": 1431,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#1>",
-      "startLine": 1319,
+      "startLine": 1447,
       "crap": 3,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#2>",
-      "startLine": 1332,
+      "startLine": 1460,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#3>",
-      "startLine": 1340,
+      "startLine": 1469,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#4>",
-      "startLine": 1349,
+      "startLine": 1478,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#4/(c)#0>",
-      "startLine": 1352,
+      "startLine": 1481,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#4/(c)#1>",
-      "startLine": 1353,
+      "startLine": 1482,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#5>",
-      "startLine": 1358,
+      "startLine": 1487,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#6>",
-      "startLine": 1371,
+      "startLine": 1505,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#7>",
-      "startLine": 1372,
+      "startLine": 1506,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#8>",
-      "startLine": 1373,
+      "startLine": 1507,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#9>",
-      "startLine": 1374,
+      "startLine": 1508,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/()#10>",
-      "startLine": 1375,
+      "startLine": 1509,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon runAuditToStories/(flag)#0>",
-      "startLine": 1378,
+      "startLine": 1512,
       "crap": 1,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "renderStoryDrafts",
-      "startLine": 1406,
+      "startLine": 1540,
       "crap": 1
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "<anon renderStoryDrafts/(s,i)#0>",
-      "startLine": 1408,
+      "startLine": 1542,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/audit-to-stories.js",
       "method": "main",
-      "startLine": 1420,
+      "startLine": 1554,
       "crap": 1
     },
     {
@@ -4142,6 +4167,73 @@
       "method": "openLedgerPullRequest",
       "startLine": 295,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
+      "method": "issueStatesFromIssueMap",
+      "startLine": 51,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
+      "method": "recordFiledIssues",
+      "startLine": 88,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
+      "method": "<anon recordFiledIssues/(c)#0>",
+      "startLine": 115,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "createEmptyLedger",
+      "startLine": 50,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "findingIdentity",
+      "startLine": 60,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "readLedger",
+      "startLine": 74,
+      "crap": 9.057099924868519
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "writeLedger",
+      "startLine": 93,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "indexLedger",
+      "startLine": 105,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "resolveIssueState",
+      "startLine": 124,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "decideStatus",
+      "startLine": 155,
+      "crap": 10.049205423531127
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
+      "method": "reconcileLedger",
+      "startLine": 209,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",

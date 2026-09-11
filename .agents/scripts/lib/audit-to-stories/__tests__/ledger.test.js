@@ -208,3 +208,70 @@ test('an untouched prior entry survives a scan that does not re-detect it', () =
     [idOf(other).semanticKey, idOf(FINDING).semanticKey].sort(),
   );
 });
+
+/**
+ * Story #5305 — the self-heal half of the record loop. An OPEN tracking Issue
+ * means the finding is filed, whatever the prior entry said, so the ledger
+ * becomes correct on any host where dedup resolves the Issue state rather than
+ * only where the explicit record pass ran.
+ */
+test('AC-3: an existing `new` entry with a live OPEN issue heals to filed/known', () => {
+  const finding = auditFinding('architecture', 'Seam leaks', 'lib/a.js');
+  const id = idOf(finding);
+  const prior = {
+    $schema: 'x',
+    generatedAt: NOW,
+    entries: [
+      {
+        fingerprint: id.fingerprint,
+        semanticKey: id.semanticKey,
+        title: 'Seam leaks',
+        dimension: 'architecture',
+        primaryFile: 'lib/a.js',
+        status: 'new',
+        issue: null,
+        firstSeen: NOW,
+        lastSeen: NOW,
+      },
+    ],
+  };
+
+  const { classifications } = reconcileLedger({
+    ledger: prior,
+    findings: [finding],
+    issueStates: { [id.fingerprint]: { state: 'open', number: 2588 } },
+    now: NOW,
+  });
+
+  assert.equal(classifications[0].status, 'filed');
+  assert.equal(classifications[0].action, 'known');
+  assert.equal(classifications[0].issue.number, 2588);
+});
+
+test('AC-3: a first-sight finding with a live OPEN issue is filed on the FIRST pass', () => {
+  const finding = auditFinding('clean-code', 'Dead branch', 'lib/b.js');
+  const id = idOf(finding);
+
+  const { classifications } = reconcileLedger({
+    findings: [finding],
+    issueStates: { [id.fingerprint]: { state: 'open', number: 2589 } },
+    now: NOW,
+  });
+
+  assert.equal(
+    classifications[0].status,
+    'filed',
+    'the record pass must not need a second run to be correct',
+  );
+  assert.equal(classifications[0].action, 'known');
+});
+
+test('AC-3: with no issue at all an unseen finding is still proposed', () => {
+  const finding = auditFinding('quality', 'Missing assertion', 'lib/c.js');
+  const { classifications } = reconcileLedger({
+    findings: [finding],
+    now: NOW,
+  });
+  assert.equal(classifications[0].status, 'new');
+  assert.equal(classifications[0].action, 'propose');
+});

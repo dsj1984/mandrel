@@ -97,3 +97,25 @@ test('AC-6: an explicit --severity floor overrides the default', () => {
   assert.equal(summary.severityFloor, 'all');
   assert.equal(summary.totals.filtered, 2);
 });
+
+/**
+ * Story #5305 — `--auto` opens no Issues itself, so the group keys are the only
+ * thing standing between its summary and the `--wire-edges --ids` map a
+ * scheduled sweep needs to record what it filed.
+ */
+test('--auto names the group keys of every group classified create', () => {
+  const summary = runAuto([]);
+  assert.ok(
+    Array.isArray(summary.createGroupKeys),
+    'summary carries createGroupKeys',
+  );
+  assert.equal(
+    summary.createGroupKeys.length,
+    summary.totals.create,
+    'one key per group the sweep would file',
+  );
+  for (const key of summary.createGroupKeys) {
+    assert.equal(typeof key, 'string');
+    assert.ok(key.length > 0);
+  }
+});

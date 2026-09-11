@@ -243,6 +243,14 @@ every Story that has a resolvable blocker with a canonical
 GitHub `blocked_by` relations. An edge whose target was never opened (deduped,
 ledger-suppressed) drops rather than becoming a `blocked by #undefined`.
 
+**This pass also records the ledger.** The `--ids` map is the only artifact
+carrying the numbers just opened, so `--wire-edges` folds in the cross-run
+record: each mapped group's findings are written `filed` against its Issue
+(`--ledger <path>`, default `baselines/audit-ledger.json`; `--dry-run`
+suppresses the write). The record runs **before** the provider loads, so a host
+with no `gh` still remembers what it filed. Without it nothing ever writes
+`filed` and the ledger suppresses nothing.
+
 **Do not skip this.** `/mandrel-deliver` has no other source for this cohort's order:
 its footprint guard ignores the shared provenance footers, so an unwired cohort
 is genuinely unordered and `/mandrel-deliver` will co-dispatch Stories the edges say
@@ -328,8 +336,11 @@ shape). Each entry is keyed by the finding's fingerprint plus a location-based
 (`new | filed | fixed | accepted-risk | regressed`). A finding whose tracking
 Issue was closed as `not_planned` becomes `accepted-risk` and is **suppressed**
 on every later scan; a `fixed` finding that re-appears becomes `regressed`. The
-ledger is written by the unattended `--auto` sweep and by any `--scan --ledger`
-run; the plain `--scan` path leaves it untouched.
+ledger is written by the unattended `--auto` sweep, by any `--scan --ledger`
+run, and by the Phase 5c `--wire-edges` pass that records what was filed; the
+plain `--scan` path leaves it untouched. A finding whose resolved Issue is open
+is recorded `filed` and is known on re-detection; a closed Issue still outranks
+that.
 
 ## Phase 7 — Summary & cleanup
 
@@ -405,8 +416,10 @@ The routine shape is **lenses full-scope → dry-run → live with a ledger PR**
 from `delivery.auditToStories.severityFloor` (default `high`, overridable with
 `--severity`), applies the two-stage dedup, reconciles the cross-run ledger,
 and prints a run-summary JSON (create / skip-open / skip-reoccurring /
-suppressed-by-ledger tallies, plus the re-detected open Issue numbers an
-operator may want a "re-detected" comment on). `--dry-run` performs zero GitHub
+suppressed-by-ledger tallies, the `create`-classified group keys the `--ids`
+map is built from, plus the re-detected open Issue numbers an operator may want
+a "re-detected" comment on). It opens no Issues itself, so run Phase 5c after
+filing or the sweep's memory stays empty. `--dry-run` performs zero GitHub
 writes and skips the ledger write, emitting only the summary.
 
 `--auto` **fails closed on any `summary.reportFailures[]` entry** (Phase 1): an
