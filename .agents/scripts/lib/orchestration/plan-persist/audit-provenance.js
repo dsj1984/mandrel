@@ -158,6 +158,7 @@ function flushAuditLedger(ledgerRecord, logger) {
  * @param {Array<object>} params.tickets — the raw authored tickets.
  * @param {string} [params.ledgerPath]
  * @param {{ warn: Function }} [params.logger]
+ * @param {boolean} [params.dryRun] — a dry run records nothing at all.
  * @returns {{ recorded: number, ambiguous: number }}
  */
 export function recordAuditFilings({
@@ -166,7 +167,11 @@ export function recordAuditFilings({
   tickets,
   ledgerPath,
   logger,
+  dryRun = false,
 }) {
+  // A dry run created no issue to record against, and must not touch committed
+  // state. Owned here rather than at the call site so the contract is testable.
+  if (dryRun) return { recorded: 0, ambiguous: 0 };
   const record = newAuditLedgerRecord(ledgerPath);
   const idBySlug = new Map((created ?? []).map((c) => [c.slug, c.id]));
   // Attribution is a property of what the plan AUTHORED, so it is read off the

@@ -191,6 +191,43 @@ describe('recordAuditFilings — the ledger record', () => {
   });
 });
 
+describe('recordAuditFilings — the dry-run contract', () => {
+  it('records nothing and writes nothing under --dry-run', () => {
+    withTempLedger((ledgerPath) => {
+      const { tickets, stories } = plan([
+        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
+      ]);
+      const result = recordAuditFilings({
+        stories,
+        created: receipts(stories),
+        tickets,
+        ledgerPath,
+        logger: quietLogger,
+        dryRun: true,
+      });
+      assert.deepEqual(result, { recorded: 0, ambiguous: 0 });
+      assert.equal(fs.existsSync(ledgerPath), false);
+    });
+  });
+
+  it('skips a Story the create pass never opened', () => {
+    withTempLedger((ledgerPath) => {
+      const { tickets, stories } = plan([
+        ticket('a', { provenance: { fingerprints: [SHA_A] } }),
+      ]);
+      const result = recordAuditFilings({
+        stories,
+        created: [],
+        tickets,
+        ledgerPath,
+        logger: quietLogger,
+      });
+      assert.equal(result.recorded, 0);
+      assert.equal(fs.existsSync(ledgerPath), false);
+    });
+  });
+});
+
 describe('withAuditLabels — the corpus labels', () => {
   it('stamps the seed audit::* labels on every Story', () => {
     const { stories } = plan([ticket('a'), ticket('b')]);

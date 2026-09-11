@@ -781,6 +781,7 @@ export async function runPlanPersist({
   });
 
   // Split policy + inline Spec fold (over-budget Specs fail closed — no docs/).
+  const seedContent = planContextEnvelope?.seed?.content ?? '';
   const { stories: assembled } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
     planAcceptance: planAcceptance ?? undefined,
@@ -792,7 +793,7 @@ export async function runPlanPersist({
     // is the **fallback** — it is carried onto every Story that did not
     // attribute its own `provenance`, which keeps an un-attributed plan exactly
     // as recall-safe as it was. Empty for a `--tickets` run, a no-op there.
-    provenanceSource: planContextEnvelope?.seed?.content ?? '',
+    provenanceSource: seedContent,
   });
 
   // Stamp the `audit::*` labels the dedup corpus is listed by. Without them a
@@ -800,10 +801,7 @@ export async function runPlanPersist({
   // against, and an indexed run answers exact lookups from that pool without
   // ever reaching the provider — so the provenance footers alone leave it
   // invisible (Story #5307). A non-audit seed carries none: a no-op there.
-  const stories = withAuditLabels(
-    assembled,
-    planContextEnvelope?.seed?.content ?? '',
-  );
+  const stories = withAuditLabels(assembled, seedContent);
 
   // Story #5045: the cross-Story conflict passes re-run over the assembled,
   // footer-stamped bodies — the artifact persist actually writes — before any
@@ -835,9 +833,9 @@ export async function runPlanPersist({
       opts: { dryRun, routeLabel: isLiteRoute ? LITE_ROUTE_LABEL : null },
     });
 
-  // What this run filed, recorded where the next audit sweep reads it. Skipped
-  // under --dry-run, which created nothing to record (Story #5307).
-  if (!dryRun) recordAuditFilings({ stories, created, tickets: rawStories });
+  // What this run filed, recorded where the next audit sweep reads it
+  // (Story #5307). A dry run created nothing, and the call knows it.
+  recordAuditFilings({ stories, created, tickets: rawStories, dryRun });
 
   const primary = created[0];
   const waveTable = buildWaveTable(
