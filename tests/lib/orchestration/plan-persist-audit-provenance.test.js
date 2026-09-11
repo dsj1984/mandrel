@@ -9,7 +9,6 @@
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
@@ -18,6 +17,7 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/audit-provenance.js';
 import { assemblePlanStories } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
+import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -57,12 +57,9 @@ function receipts(stories) {
 }
 
 function withTempLedger(run) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'audit-provenance-'));
-  try {
-    return run(path.join(dir, 'audit-ledger.json'));
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
+  // makeTempDir mints under the suite temp root and registers its own
+  // teardown — a raw os.tmpdir() mkdtemp fails the CI temp-hygiene lint.
+  return run(path.join(makeTempDir('audit-provenance-'), 'audit-ledger.json'));
 }
 
 describe('recordAuditFilings — the ledger record', () => {

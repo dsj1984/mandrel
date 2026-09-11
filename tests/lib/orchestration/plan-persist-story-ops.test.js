@@ -3,9 +3,6 @@
  */
 
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { describe, it } from 'node:test';
 import { parseBlockedBy } from '../../../.agents/scripts/lib/dependency-parser.js';
 import {
@@ -1158,17 +1155,11 @@ describe('the dependent path re-carries the provenance (Story #4935/#5056)', () 
     // records the audit ledger. Point it at a temp file: the default is the
     // repo's committed `baselines/audit-ledger.json`, which a unit test must
     // never write.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'provenance-carry-'));
     await createStoryIssues({
       provider,
       stories,
-      opts: {
-        planRunId: 'provenance-carry',
-        auditLedgerPath: path.join(dir, 'audit-ledger.json'),
-        logger: { warn: () => {} },
-      },
+      opts: { planRunId: 'provenance-carry' },
     });
-    fs.rmSync(dir, { recursive: true, force: true });
     return {
       posted: new Map(
         provider.createPayloads.map((payload) => [payload.title, payload.body]),
