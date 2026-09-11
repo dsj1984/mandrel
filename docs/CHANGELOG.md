@@ -15,6 +15,33 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.55.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.54.0...mandrel-v2.55.0) (2026-09-11)
+
+
+### Added
+
+* a backgrounded capture ends the worker's turn on an unpushed branch, and close's base-sync silently spends the credit that capture was earning ([#5267](https://github.com/dsj1984/mandrel/issues/5267)) ([#5273](https://github.com/dsj1984/mandrel/issues/5273)) ([8d2bed1](https://github.com/dsj1984/mandrel/commit/8d2bed1e2132bc8b8901b58a33231b2bda5fd61c))
+* epic rollup: every child state change is an edge, the parent is resolved in one call, and provider reads carry one declared shape ([#5280](https://github.com/dsj1984/mandrel/issues/5280)) ([#5294](https://github.com/dsj1984/mandrel/issues/5294)) ([c2c9b96](https://github.com/dsj1984/mandrel/commit/c2c9b9654497404c20105bc3b7edcdbd45fb307e))
+* full-suite credit: a deposit path exists, the lock is liveness-aware, and stamps and evidence are keyed on content ([#5278](https://github.com/dsj1984/mandrel/issues/5278)) ([#5296](https://github.com/dsj1984/mandrel/issues/5296)) ([96c3240](https://github.com/dsj1984/mandrel/commit/96c32405025768de96d2e12680a54ed326787345))
+* memory advisory: measure the index against the harness byte cap, reject future-dated stamps, tighten the skill-id schema, and correct the rename cutover text ([#5285](https://github.com/dsj1984/mandrel/issues/5285)) ([#5289](https://github.com/dsj1984/mandrel/issues/5289)) ([22389a1](https://github.com/dsj1984/mandrel/commit/22389a106cb8e3ce42b0fde288ee473b88e49b99))
+* tests: a portability lint catches the Windows-only shapes before they land, and a vanished temp root is recorded instead of healed ([#5284](https://github.com/dsj1984/mandrel/issues/5284)) ([#5295](https://github.com/dsj1984/mandrel/issues/5295)) ([3358eef](https://github.com/dsj1984/mandrel/commit/3358eefeb0e5f36446b84a4f995e4b90641f64dc))
+
+
+### Fixed
+
+* a test fixture that loses its temp root mid-run fails with an unreadable ENOENT, and every later makeTempDir in that process fails with it ([#5274](https://github.com/dsj1984/mandrel/issues/5274)) ([#5275](https://github.com/dsj1984/mandrel/issues/5275)) ([5ac8699](https://github.com/dsj1984/mandrel/commit/5ac86995b92537b33bb209492cf9c3d9a064f792))
+* audit sweep: empty groups parse, the ledger commit is re-runnable from the remote base, SCA attribution is per advisory, and label-less audit Stories cannot be dispatched ([#5281](https://github.com/dsj1984/mandrel/issues/5281)) ([#5290](https://github.com/dsj1984/mandrel/issues/5290)) ([e229b0f](https://github.com/dsj1984/mandrel/commit/e229b0fb07e37e251b713a35646105cc54e791c9))
+* baselines: the merge driver is installed wherever base-sync runs, the refresh ack is scoped to the tagged commit's diff, and the land-time write-back cannot launder a regression ([#5277](https://github.com/dsj1984/mandrel/issues/5277)) ([#5292](https://github.com/dsj1984/mandrel/issues/5292)) ([9354e93](https://github.com/dsj1984/mandrel/commit/9354e93f7e74f263ffaf64c6e72056784a9b74d4))
+* close result: the merged flag is derived from what the run observed, failed closes report only registered gates, and advisory blocks carry their own remedy ([#5279](https://github.com/dsj1984/mandrel/issues/5279)) ([#5293](https://github.com/dsj1984/mandrel/issues/5293)) ([93414ac](https://github.com/dsj1984/mandrel/commit/93414ac756bd3f3300f869d46c28f680883edce4))
+* close's result note claims a merge it never confirmed, and a timed-out advisory scan blocks with the same class and remedies as a real violation ([#5266](https://github.com/dsj1984/mandrel/issues/5266)) ([#5271](https://github.com/dsj1984/mandrel/issues/5271)) ([585a2c3](https://github.com/dsj1984/mandrel/commit/585a2c340d96b972028d2d2f469e2f6b287f7ac2))
+* **deps:** override smol-toml past the GHSA-7w5x-hrqm-74c2 DoS advisory (refs [#5264](https://github.com/dsj1984/mandrel/issues/5264)) ([#5268](https://github.com/dsj1984/mandrel/issues/5268)) ([8db060c](https://github.com/dsj1984/mandrel/commit/8db060ca23a5242c1d13e4a049647be86e853504))
+* git-cleanup: weak-signal remote deletes need an explicit opt-in under --yes, and the bulk PR index short-circuits its per-branch fallback ([#5283](https://github.com/dsj1984/mandrel/issues/5283)) ([#5288](https://github.com/dsj1984/mandrel/issues/5288)) ([8346932](https://github.com/dsj1984/mandrel/commit/83469327b63488ea41a2bd9fb53a37bc2f57d1c0))
+* plan-persist reports two things the tree contradicts: a refactors-existing path deleted weeks ago, and a wave table promising parallelism the dispatch guard refuses ([#5265](https://github.com/dsj1984/mandrel/issues/5265)) ([#5270](https://github.com/dsj1984/mandrel/issues/5270)) ([1b5d1ff](https://github.com/dsj1984/mandrel/commit/1b5d1ffdd6e8821c833d320e93381f7804cb61c8))
+* scoped lint: a degraded surface no longer discards the other surface's findings ([#5282](https://github.com/dsj1984/mandrel/issues/5282)) ([#5287](https://github.com/dsj1984/mandrel/issues/5287)) ([75005ee](https://github.com/dsj1984/mandrel/commit/75005ee925d463d46f5cb24cb3788647e08a37b2))
+* **tests:** a RegExp built from a raw path can never match on Windows (refs [#5274](https://github.com/dsj1984/mandrel/issues/5274)) ([#5276](https://github.com/dsj1984/mandrel/issues/5276)) ([8d5efb2](https://github.com/dsj1984/mandrel/commit/8d5efb256d936f7dd955eff55c68d70d8abbfb9c))
+* **tests:** close the two Windows-only breaks Epic [#5286](https://github.com/dsj1984/mandrel/issues/5286) left on main, and the class behind them ([#5297](https://github.com/dsj1984/mandrel/issues/5297)) ([ec419c7](https://github.com/dsj1984/mandrel/commit/ec419c7b7462f4e6e0adf76805c22735ac2e9673))
+* **tests:** prove the workflows-doc drift gate on a fixture root, not the live checkout ([#5291](https://github.com/dsj1984/mandrel/issues/5291)) ([e44aa99](https://github.com/dsj1984/mandrel/commit/e44aa991027859c5d94d9dc875e80d41e1572c00))
+
 ## [2.54.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.53.0...mandrel-v2.54.0) (2026-09-09)
 
 
