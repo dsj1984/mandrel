@@ -26,13 +26,14 @@
  * label spelling — so a rename still lands in one place.
  */
 
+import { auditLabelFooter } from '../findings/route-finding.js';
 import {
   AGENT_LABELS,
   LABEL_COLORS,
   RISK_LABELS,
   TYPE_LABELS,
 } from '../label-constants.js';
-import { AUDIT_LENSES } from './audit-lenses.js';
+import { AUDIT_LENSES, auditLabelsForFindings } from './audit-lenses.js';
 
 /**
  * Per-lens label presentation, keyed by canonical lens name. A lens absent from
@@ -182,4 +183,27 @@ const DEFINED_NAMES = new Set(AUDIT_LABEL_TAXONOMY.map((l) => l.name));
  */
 export function definesAuditLabel(name) {
   return typeof name === 'string' && DEFINED_NAMES.has(name);
+}
+
+/**
+ * Render the `audit-labels` footer for a group of findings.
+ *
+ * The dedup corpus is listed by `audit::*` label, so a Story filed without one
+ * is absent from the pool an indexed run matches against — and with an index in
+ * play the exact lookup is answered locally and never reaches the provider, so
+ * a fingerprint footer alone cannot rescue it. Carrying the labels through the
+ * seed is what lets the chained planning path stamp them without the authoring
+ * agent being asked to notice them (Story #5307).
+ *
+ * Lives here rather than beside {@link auditLabelsForFindings} because it needs
+ * {@link definesAuditLabel}, and the taxonomy already depends on the lens list —
+ * the reverse edge would be a cycle.
+ *
+ * @param {Array<object>} findings
+ * @returns {string} the footer, or '' when no finding resolves to a label.
+ */
+export function auditLabelFooterForFindings(findings) {
+  return auditLabelFooter(
+    auditLabelsForFindings(findings).filter(definesAuditLabel),
+  );
 }

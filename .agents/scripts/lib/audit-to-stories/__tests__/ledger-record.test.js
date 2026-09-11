@@ -19,8 +19,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { __testing } from '../../../audit-to-stories.js';
-import { fingerprintAuditFinding } from '../finding-adapter.js';
-import { reconcileLedger } from '../ledger.js';
+import { reconcileLedger } from '../../findings/audit-ledger.js';
+import {
+  fingerprintAuditFinding,
+  toCanonicalFinding,
+} from '../finding-adapter.js';
 import { recordFiledIssues } from '../ledger-record.js';
 
 const { wireEdges } = __testing;
@@ -159,6 +162,7 @@ test('a second pass over the same findings is known, not proposed', () => {
   // Re-reconcile exactly as the next sweep would: prior ledger, same finding,
   // no fresh issueStates — the recorded entry must carry the verdict alone.
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: store.state.ledger,
     findings: [FINDING_A],
   });
@@ -175,6 +179,7 @@ test('a filed entry whose Issue later closed loses to the closed-Issue branch', 
   const fp = fingerprintAuditFinding(FINDING_A).full;
 
   const rejected = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: store.state.ledger,
     findings: [FINDING_A],
     issueStates: {
@@ -185,6 +190,7 @@ test('a filed entry whose Issue later closed loses to the closed-Issue branch', 
   assert.equal(rejected.classifications[0].action, 'suppress');
 
   const completed = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: store.state.ledger,
     findings: [FINDING_A],
     issueStates: {

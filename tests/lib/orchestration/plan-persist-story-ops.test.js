@@ -1151,6 +1151,10 @@ describe('the dependent path re-carries the provenance (Story #4935/#5056)', () 
       provenanceSource: auditSeed,
     });
     const provider = makeMirrorProvider();
+    // Story #5307 — these tickets attribute provenance, so the create loop now
+    // records the audit ledger. Point it at a temp file: the default is the
+    // repo's committed `baselines/audit-ledger.json`, which a unit test must
+    // never write.
     await createStoryIssues({
       provider,
       stories,

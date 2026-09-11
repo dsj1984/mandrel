@@ -36,6 +36,7 @@ import { fingerprintSeverity } from './severity.js';
 const SEP = '␟'; // unit separator — keeps fingerprint fields unambiguous
 const MARKER = 'audit-fingerprints:';
 const SEMANTIC_MARKER = 'audit-semantic-keys:';
+const LABEL_MARKER = 'audit-labels:';
 export const SHA1_RE = /^[0-9a-f]{40}$/;
 // A semantic key round-trips through a comma-joined footer, so it must not
 // carry a comma or a `>` (which would truncate the HTML comment). Both are
@@ -172,6 +173,43 @@ export function parseSemanticKeyFooter(body) {
     body,
     /<!--\s*audit-semantic-keys:\s*([^>]*?)\s*-->/g,
     (s) => s.length > 0,
+  );
+}
+
+/**
+ * Render the machine-readable audit-label footer
+ * (`<!-- audit-labels: audit::x,audit::y -->`).
+ *
+ * The dedup corpus is listed by `audit::*` label, so a Story carrying none is
+ * absent from the pool an indexed run matches against — and with an index in
+ * play the exact lookup is answered locally and never reaches the provider, so
+ * a fingerprint footer alone cannot rescue it. Carrying the labels through the
+ * seed is what lets the planning path stamp them without the authoring agent
+ * being asked to notice them (Story #5307).
+ *
+ * @param {string | string[]} labels
+ * @returns {string}
+ */
+export function auditLabelFooter(labels) {
+  const list = (Array.isArray(labels) ? labels : [labels])
+    .filter((l) => typeof l === 'string' && l.startsWith('audit::'))
+    .map((l) => l.replace(/[,>]/g, ' ').trim())
+    .filter((l) => l.length > 0);
+  if (list.length === 0) return '';
+  return `<!-- ${LABEL_MARKER} ${[...new Set(list)].sort().join(',')} -->`;
+}
+
+/**
+ * Read every `audit-labels` footer out of a body, de-duplicated.
+ *
+ * @param {string} body
+ * @returns {string[]}
+ */
+export function parseAuditLabelFooter(body) {
+  return parseAllFooterValues(
+    body,
+    /<!--\s*audit-labels:\s*([^>]*?)\s*-->/g,
+    (s) => s.startsWith('audit::'),
   );
 }
 

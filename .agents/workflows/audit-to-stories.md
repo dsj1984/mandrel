@@ -181,6 +181,14 @@ persists, via `carryProvenanceFooters`
 The carry is additive, union-preserving and idempotent, so a resumed persist
 cannot stack footers and a hand-authored fingerprint is never dropped.
 
+**Persist records the ledger and the labels too.** It stamps the seed's
+`audit::<dimension>` labels — the dedup corpus is listed by them, and an indexed
+run answers lookups from that pool without reaching the provider, so a footer
+alone leaves a plan-path Story invisible — and records each Story's
+**attributed** identities. Union-only identities are not recorded: every sibling
+carries every fingerprint, so an owner would be a coin flip; persist says so on
+stderr. Author per-Story `provenance` to record them.
+
 This is deliberately not an authoring step. It used to be: the footers reached
 the seed and stopped there, leaving the authoring agent to notice HTML comments
 in a one-pager and copy them forward — a remembered step, which is to say no
@@ -337,7 +345,8 @@ shape). Each entry is keyed by the finding's fingerprint plus a location-based
 Issue was closed as `not_planned` becomes `accepted-risk` and is **suppressed**
 on every later scan; a `fixed` finding that re-appears becomes `regressed`. The
 ledger is written by the unattended `--auto` sweep, by any `--scan --ledger`
-run, and by the Phase 5c `--wire-edges` pass that records what was filed; the
+run, by the Phase 5c `--wire-edges` pass, and by `plan-persist` on the Phase 5a
+chained path — the two filing paths both record what they filed; the
 plain `--scan` path leaves it untouched. A finding whose resolved Issue is open
 is recorded `filed` and is known on re-detection; a closed Issue still outranks
 that.

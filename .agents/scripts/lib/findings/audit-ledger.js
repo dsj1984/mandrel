@@ -1,5 +1,5 @@
 /**
- * lib/audit-to-stories/ledger.js — Cross-run audit findings ledger.
+ * lib/findings/audit-ledger.js — Cross-run audit findings ledger.
  *
  * Without a committed memory of what a prior sweep already saw, every
  * `/audit-to-stories` run re-litigates the whole backlog from zero: it cannot
@@ -30,10 +30,7 @@
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
-import {
-  fingerprintAuditFinding,
-  semanticKeyForAuditFinding,
-} from './finding-adapter.js';
+import { fingerprintFinding, semanticKeyFor } from './route-finding.js';
 
 export const DEFAULT_LEDGER_PATH = 'baselines/audit-ledger.json';
 const LEDGER_SCHEMA_URL =
@@ -54,13 +51,24 @@ function createEmptyLedger(now = new Date().toISOString()) {
 /**
  * Compute a finding's stable identity: its fingerprint (title-sensitive) and
  * its location-based semantic key (title-insensitive).
+ *
+ * The projection onto the canonical identity is the **caller's**, injected as
+ * `toCanonical`. That is what lets this module live beside `route-finding.js`
+ * in the shared findings layer: the audit pipeline's own adapter
+ * (`lib/audit-to-stories/finding-adapter.js`) imports *from* here, so importing
+ * it back would close a `findings → audit-to-stories → findings` cycle that
+ * `check-arch-cycles` rightly refuses. A caller that already holds canonical
+ * findings passes nothing.
+ *
  * @param {object} finding — a parsed/stamped audit finding.
+ * @param {(finding: object) => object} [toCanonical]
  * @returns {{ fingerprint: string, semanticKey: string }}
  */
-function findingIdentity(finding) {
+function findingIdentity(finding, toCanonical) {
+  const canonical = toCanonical ? toCanonical(finding) : finding;
   return {
-    fingerprint: fingerprintAuditFinding(finding).full,
-    semanticKey: semanticKeyForAuditFinding(finding),
+    fingerprint: fingerprintFinding(canonical).full,
+    semanticKey: semanticKeyFor(canonical),
   };
 }
 
@@ -201,6 +209,8 @@ function decideStatus(existing, issue) {
  *   Live Issue state keyed by fingerprint (or semanticKey). Optional — when a
  *   prior entry already records the Issue, that is used.
  * @param {string} [params.now] — ISO timestamp for firstSeen/lastSeen stamping.
+ * @param {(finding: object) => object} [params.toCanonical] — projection onto
+ *   the canonical identity; omit when `findings` are already canonical.
  * @returns {{
  *   ledger: { $schema: string, generatedAt: string, entries: object[] },
  *   classifications: Array<{ fingerprint: string, semanticKey: string, status: string, action: string, issue: object|null }>,
@@ -211,6 +221,7 @@ export function reconcileLedger({
   findings,
   issueStates = {},
   now = new Date().toISOString(),
+  toCanonical,
 } = {}) {
   if (!Array.isArray(findings)) {
     throw new Error('reconcileLedger: findings must be an array');
@@ -222,7 +233,7 @@ export function reconcileLedger({
   const classifications = [];
 
   for (const finding of findings) {
-    const id = findingIdentity(finding);
+    const id = findingIdentity(finding, toCanonical);
     const existing =
       byFingerprint.get(id.fingerprint) ??
       (id.semanticKey ? bySemanticKey.get(id.semanticKey) : undefined) ??
@@ -275,5 +286,78 @@ export function reconcileLedger({
       entries: [...nextByFingerprint.values()],
     },
     classifications,
+  };
+}
+
+/**
+ * Record a set of already-known identities as filed against one Issue.
+ *
+ * The finding-shaped {@link reconcileLedger} cannot serve this caller:
+ * `plan-persist` never sees findings. It holds the provenance identities it
+ * stamped on a Story body — fingerprints and semantic keys, as strings — plus
+ * the issue number it just created. That is enough to record the filing, and
+ * demanding a finding it does not have would be the reason the recommended
+ * planning path never reached this ledger at all.
+ *
+ * An identity already carrying a **closed** Issue is left exactly as it is: a
+ * finding whose tracking Issue was closed `not_planned` is `accepted-risk` and
+ * must stay suppressed, and one closed as completed is a `regressed` the
+ * operator still needs to see. A fresh filing never overwrites either verdict.
+ *
+ * @param {object} params
+ * @param {{ entries?: object[] }} [params.ledger] — prior ledger (default empty).
+ * @param {Array<{ fingerprint: string, semanticKey?: string, title?: string, dimension?: string, primaryFile?: string }>} params.identities
+ * @param {{ number: number }} params.issue — the Issue these identities were filed as.
+ * @param {string} [params.now]
+ * @returns {{ ledger: object, recorded: number, skipped: number }}
+ */
+export function recordFiledIdentities({
+  ledger = createEmptyLedger(),
+  identities,
+  issue,
+  now = new Date().toISOString(),
+} = {}) {
+  if (!Array.isArray(identities)) {
+    throw new Error('recordFiledIdentities: identities must be an array');
+  }
+  if (!issue || typeof issue.number !== 'number') {
+    throw new Error('recordFiledIdentities: issue.number must be a number');
+  }
+
+  const { byFingerprint } = indexLedger(ledger);
+  const next = new Map(byFingerprint);
+  let recorded = 0;
+  let skipped = 0;
+
+  for (const identity of identities) {
+    const fingerprint = identity?.fingerprint;
+    if (typeof fingerprint !== 'string' || fingerprint.length === 0) continue;
+    const existing = byFingerprint.get(fingerprint) ?? null;
+    if (existing?.issue && existing.issue.state === 'closed') {
+      skipped += 1;
+      continue;
+    }
+    next.set(fingerprint, {
+      fingerprint,
+      semanticKey: identity.semanticKey ?? existing?.semanticKey ?? '',
+      title: identity.title ?? existing?.title ?? '',
+      dimension: identity.dimension ?? existing?.dimension ?? '',
+      primaryFile: identity.primaryFile ?? existing?.primaryFile ?? '',
+      status: 'filed',
+      issue: { number: issue.number, state: 'open', stateReason: null },
+      firstSeen: existing?.firstSeen ?? now,
+      lastSeen: now,
+    });
+    recorded += 1;
+  }
+
+  return {
+    ledger: {
+      $schema: ledger?.$schema ?? LEDGER_SCHEMA_URL,
+      generatedAt: now,
+      entries: [...next.values()],
+    },
+    recorded,
+    skipped,
   };
 }

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T13:00:15.968Z",
+  "generatedAt": "2026-09-11T14:31:54.308Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -292,7 +292,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/audit-label-taxonomy.js",
-      "mi": 95.493
+      "mi": 97.995
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/audit-lenses.js",
@@ -341,10 +341,6 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
       "mi": 99.709
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
-      "mi": 89.349
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/parse-audit-md.js",
@@ -931,6 +927,10 @@
       "mi": 97.358
     },
     {
+      "path": ".agents/scripts/lib/findings/audit-ledger.js",
+      "mi": 84.799
+    },
+    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "mi": 104.889
     },
@@ -944,7 +944,7 @@
     },
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
-      "mi": 105.27
+      "mi": 106.449
     },
     {
       "path": ".agents/scripts/lib/findings/semantic-issue-search.js",
@@ -1353,6 +1353,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-navigation.js",
       "mi": 106.793
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
+      "mi": 106.467
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",

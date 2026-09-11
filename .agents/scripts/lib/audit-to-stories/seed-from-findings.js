@@ -18,6 +18,7 @@
  */
 
 import { SEVERITIES } from '../findings/severity.js';
+import { auditLabelFooterForFindings } from './audit-label-taxonomy.js';
 import { formatEpicGrouping } from './epic-grouping-directive.js';
 import {
   renderFingerprintFooter,
@@ -107,6 +108,16 @@ function formatMVPScope(groups) {
       const footers = [
         renderFingerprintFooter(findings),
         renderSemanticKeyFooter(findings),
+        // ...and the `audit::*` labels the dedup corpus is listed by.
+        //
+        // Without them a Story the chained planning path files is absent from
+        // the pool an indexed sweep matches against, and with an index in play
+        // the exact lookup is answered from that pool without ever reaching
+        // the provider — so the fingerprint footer above cannot rescue it. The
+        // two footers are therefore a pair: one carries the identity, the
+        // other carries the reason the next sweep ever looks at this issue
+        // (Story #5307).
+        auditLabelFooterForFindings(findings),
       ]
         .map((f) => `   ${f}`)
         .join('\n');

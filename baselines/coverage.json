@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-11T13:00:15.578Z",
+  "generatedAt": "2026-09-11T14:31:53.752Z",
   "rollup": {
     "*": {
-      "lines": 96.13,
-      "branches": 87.03,
-      "functions": 88.68
+      "lines": 96.14,
+      "branches": 87.04,
+      "functions": 88.7
     }
   },
   "rows": [
@@ -488,12 +488,6 @@
       "path": ".agents/scripts/lib/audit-to-stories/ledger-record.js",
       "lines": 100,
       "branches": 83.33,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/audit-to-stories/ledger.js",
-      "lines": 96.77,
-      "branches": 75.76,
       "functions": 100
     },
     {
@@ -1433,6 +1427,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/findings/audit-ledger.js",
+      "lines": 97.52,
+      "branches": 74.47,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/findings/classify-finding.js",
       "lines": 100,
       "branches": 100,
@@ -1453,7 +1453,7 @@
     {
       "path": ".agents/scripts/lib/findings/route-finding.js",
       "lines": 100,
-      "branches": 92.79,
+      "branches": 93.44,
       "functions": 100
     },
     {
@@ -2069,6 +2069,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
+      "lines": 100,
+      "branches": 89.74,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
       "lines": 91.57,
       "branches": 75,
@@ -2113,7 +2119,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
       "lines": 94.36,
-      "branches": 80.21,
+      "branches": 80.41,
       "functions": 100
     },
     {

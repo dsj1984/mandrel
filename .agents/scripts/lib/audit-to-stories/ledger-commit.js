@@ -28,9 +28,9 @@
  * complexity budget does not absorb a git driver.
  */
 
+import { DEFAULT_LEDGER_PATH } from '../findings/audit-ledger.js';
 import { gh as defaultGh } from '../gh-exec.js';
 import { gitSync } from '../git-utils.js';
-import { DEFAULT_LEDGER_PATH } from './ledger.js';
 import { openLedgerPullRequest, probeGit } from './ledger-pr.js';
 
 /** Fallback base branch when config carries no `project.baseBranch`. */
