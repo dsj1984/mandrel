@@ -133,6 +133,19 @@ function resolveIssueState(id, existing, issueStates) {
 }
 
 /**
+ * The four verdicts the policy can reach, spelled once. Deduping them keeps
+ * `decideStatus` readable as the decision table it is, rather than eight
+ * near-identical object literals.
+ * @type {Record<string, { status: string, action: string }>}
+ */
+const VERDICT = Object.freeze({
+  filed: Object.freeze({ status: 'filed', action: 'known' }),
+  propose: Object.freeze({ status: 'new', action: 'propose' }),
+  suppress: Object.freeze({ status: 'accepted-risk', action: 'suppress' }),
+  regressed: Object.freeze({ status: 'regressed', action: 'regressed' }),
+});
+
+/**
  * Decide the finding's next status + action from its prior ledger state and
  * the live Issue state. This is the whole reconciliation policy in one place.
  * @param {object|null} existing — prior ledger entry (or null when unseen).
@@ -140,31 +153,41 @@ function resolveIssueState(id, existing, issueStates) {
  * @returns {{ status: string, action: 'propose'|'known'|'suppress'|'regressed' }}
  */
 function decideStatus(existing, issue) {
-  // A closed Issue is the strongest signal — its close reason drives the verdict.
+  // A closed Issue is the strongest signal — its close reason drives the
+  // verdict, and it is read FIRST so a recorded `filed` can never outrank it.
   if (issue && issue.state === 'closed') {
-    if (issue.stateReason === 'not_planned') {
-      return { status: 'accepted-risk', action: 'suppress' };
-    }
-    // Closed as completed (or unspecified) but the finding is in this scan →
-    // it came back. That is a regression, not a fresh proposal.
-    return { status: 'regressed', action: 'regressed' };
+    return issue.stateReason === 'not_planned'
+      ? VERDICT.suppress
+      : // Closed as completed (or unspecified) but the finding is in this scan
+        // → it came back. That is a regression, not a fresh proposal.
+        VERDICT.regressed;
   }
 
-  if (!existing) return { status: 'new', action: 'propose' };
+  // An OPEN tracking Issue means the finding has been filed, whatever the prior
+  // entry said — including when there is no prior entry at all. Until Story
+  // #5305 nothing in the package ever assigned `filed`, so this fell through to
+  // `new`/`propose` on every run and the `filed` arm below was unreachable in
+  // production: the ledger suppressed nothing, and only the GitHub-search dedup
+  // stopped a sweep re-filing what it had already filed. Reading it before the
+  // `!existing` guard is what makes a record pass correct on its FIRST run
+  // rather than its second.
+  const unseen = issue?.state === 'open' ? VERDICT.filed : VERDICT.propose;
+  if (!existing) return unseen;
 
   switch (existing.status) {
     case 'accepted-risk':
-      return { status: 'accepted-risk', action: 'suppress' };
+      return VERDICT.suppress;
     case 'filed':
-      return { status: 'filed', action: 'known' };
+      return VERDICT.filed;
+    // Recorded fixed, yet detected again with no closed-Issue evidence → treat
+    // as a regression the operator should look at. An open Issue does not
+    // soften that: the finding came back either way.
     case 'fixed':
-      // Recorded fixed, yet detected again with no closed-Issue evidence →
-      // treat as a regression the operator should look at.
-      return { status: 'regressed', action: 'regressed' };
+      return VERDICT.regressed;
     case 'regressed':
-      return { status: 'regressed', action: 'regressed' };
+      return VERDICT.regressed;
     default:
-      return { status: 'new', action: 'propose' };
+      return unseen;
   }
 }
 

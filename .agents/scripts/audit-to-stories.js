@@ -52,6 +52,7 @@ import {
   resolveLedgerSummary,
   runLedgerCommit,
 } from './lib/audit-to-stories/ledger-commit.js';
+import { recordFiledIssues } from './lib/audit-to-stories/ledger-record.js';
 import {
   parseAuditReports,
   readSeverityTally,
@@ -1054,6 +1055,11 @@ async function runAuto({
       skipReoccurring: byAction.skipReoccurring.length,
       suppressedByLedger: byAction.suppressed.length,
     },
+    // `--auto` opens no Issues itself — the caller does, from the `--emit-stories`
+    // drafts — so these keys are the only thing standing between its summary and
+    // the `--wire-edges --ids` map. Without them an unattended sweep cannot
+    // record what it filed, and the ledger stays empty however well it works.
+    createGroupKeys: eligible.map((g) => g?.groupKey).filter(Boolean),
     // Re-detected open Issues the operator may want a "re-detected" comment on.
     reDetected: byAction.skipOpen
       .flatMap((c) => c.matchedIssues ?? [])
@@ -1171,12 +1177,32 @@ function wireEdgesPreconditionError(reason, detail) {
  * @param {Function} [deps.wireImpl]
  * @returns {Promise<object>} the wiring summary.
  */
-async function wireEdges({ plan, issueByGroupKey }, deps = {}) {
-  const { loadProviderImpl = loadProvider, wireImpl = wireAuditStoryEdges } =
-    deps;
+async function wireEdges(
+  { plan, issueByGroupKey, ledgerPath, write },
+  deps = {},
+) {
+  const {
+    loadProviderImpl = loadProvider,
+    wireImpl = wireAuditStoryEdges,
+    recordFiledIssuesImpl = recordFiledIssues,
+  } = deps;
   const groups = (plan.classifications ?? [])
     .filter((c) => c.action === 'create')
     .map((c) => c.group);
+
+  // Record BEFORE the provider is loaded. The record is pure local filesystem
+  // work, while the wiring below needs a provider exposing `updateTicket` — and
+  // the host most likely to lack one is the `gh`-less host where the ledger is
+  // the only duplicate protection there is. Recording first means such a run
+  // still remembers what it filed, and the precondition error below still
+  // surfaces unchanged afterwards.
+  const ledger = recordFiledIssuesImpl({
+    ledgerPath,
+    groups,
+    issueByGroupKey,
+    write,
+  });
+
   let provider;
   try {
     provider = await loadProviderImpl();
@@ -1186,7 +1212,7 @@ async function wireEdges({ plan, issueByGroupKey }, deps = {}) {
   if (typeof provider?.updateTicket !== 'function') {
     throw wireEdgesPreconditionError('fixture-no-write-port');
   }
-  return wireImpl({
+  const wired = await wireImpl({
     groups,
     edges: plan.edges ?? [],
     issueByGroupKey,
@@ -1194,6 +1220,7 @@ async function wireEdges({ plan, issueByGroupKey }, deps = {}) {
     updateBody: (issueNumber, body) =>
       provider.updateTicket(issueNumber, { body }),
   });
+  return { ...wired, ledger };
 }
 
 /**
@@ -1451,6 +1478,11 @@ export async function runAuditToStories(
     wireEdgesImpl({
       plan: loadPlanImpl(values.plan),
       issueByGroupKey: parseIssueMapImpl(values.ids),
+      ledgerPath: values.ledger,
+      // `--scan` still never writes the ledger; `--wire-edges` runs only after
+      // the Issues were really opened, where recording is never wrong — so the
+      // record is on by default here and `--dry-run` is what suppresses it.
+      write: !values['dry-run'],
     });
 
   // One table, not a chain of `if (values.X) { …; return; }`. Each entry
@@ -1527,7 +1559,7 @@ runAsCli(import.meta.url, main, {
       ['--emit-stories', 'Emit the Story drafts as JSON.'],
       [
         '--wire-edges',
-        'Second pass: resolve the detected group edges to blocked by #N footers plus native blocked_by relations. Needs --plan and --ids.',
+        'Second pass: resolve the detected group edges to blocked by #N footers plus native blocked_by relations, and record the mapped issues in the cross-run ledger as filed. Needs --plan and --ids; --dry-run suppresses the ledger write.',
       ],
       [
         '--ids <json|path>',
@@ -1535,7 +1567,10 @@ runAsCli(import.meta.url, main, {
       ],
       ['--glob <pattern>', 'Override the audit-results glob.'],
       ['--severity <level>', 'Lowest severity to include (high|medium|low).'],
-      ['--ledger <path>', 'Path to the dedup ledger.'],
+      [
+        '--ledger <path>',
+        `Path to the cross-run dedup ledger (default ${DEFAULT_LEDGER_PATH}).`,
+      ],
       [
         '--ledger-commit',
         'After the --auto summary prints, commit a changed ledger onto chore/audit-ledger-<date>, push it, and open a PR against the base branch (never auto-merged). Ignored under --dry-run.',
