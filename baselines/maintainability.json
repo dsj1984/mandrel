@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T12:00:25.253Z",
+  "generatedAt": "2026-09-11T12:23:57.769Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -304,7 +304,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/dedupe-against-github.js",
-      "mi": 95.069
+      "mi": 92.389
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/epic-grouping-directive.js",
@@ -319,8 +319,16 @@
       "mi": 93.387
     },
     {
+      "path": ".agents/scripts/lib/audit-to-stories/issue-corpus.js",
+      "mi": 98.572
+    },
+    {
       "path": ".agents/scripts/lib/audit-to-stories/issue-index.js",
       "mi": 112.73
+    },
+    {
+      "path": ".agents/scripts/lib/audit-to-stories/issues-file.js",
+      "mi": 108.059
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/ledger-commit.js",

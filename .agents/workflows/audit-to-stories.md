@@ -277,31 +277,45 @@ the `classifications` array:
   is skipped by default; flag in the Phase 7 summary so the operator
   can decide whether to reopen.
 
-`routeFinding` is handed a `searchIssues` port adapted from the
-project's existing GitHub provider — the actual search runs against the
-repo's open + closed issues for each sha in the group, and the helper's
-footer-confirmation step filters out false-positive search hits whose
-body mentions the sha in prose without the canonical marker. The
-workflow owns **no** parallel dedup or footer-parsing code: the
-fingerprint, footer round-trip, and routing all live in that one shared
-module.
-
-Dedup runs in **two stages** when a provider resolves: a
-meaning-first **semantic candidate** pass (`searchCandidates`, wired to
-[`lib/findings/semantic-issue-search.js`](../scripts/lib/findings/semantic-issue-search.js))
-runs FIRST and widens the net across open + closed issues; the exact
-**fingerprint / semantic-key** confirmation runs SECOND. A finding whose title
-was reworded but whose *location* is unchanged still confirms against the Issue
-that already tracks that location, because the audit filers stamp a
-location-based `audit-semantic-keys` footer alongside the `audit-fingerprints`
-footer. Filings from the
+`routeFinding` reads open + closed issues through two ports, which **both run
+and union their pools** — the exact `searchIssues` lookup, and the meaning-first
+`searchCandidates` pass wired to
+[`lib/findings/semantic-issue-search.js`](../scripts/lib/findings/semantic-issue-search.js).
+Confirmation then filters that union by footer, dropping hits whose body
+mentions a sha in prose without the canonical marker. A finding reworded but
+unmoved still confirms, because the filers stamp a location-based
+`audit-semantic-keys` footer
+beside `audit-fingerprints`; so do
 [`retro-proposals-graduator`](../scripts/lib/feedback-loop/retro-proposals-graduator.js)
-carry the same canonical `audit-fingerprints` footer, so a sweep recognizes a
-graduator-filed issue and never re-files it.
+filings, which a sweep therefore never re-files.
 
-When no provider is available (e.g. air-gapped dev environment), pass
-`--no-provider` to the `--scan` step — every group is classified
-`create` and the operator is informed that dedupe was skipped.
+Where the corpus is pre-fetched — either off the list endpoint or from
+`--issues-file` — the exact lookup is answered from that local index and the
+search API is spent only on findings with no exact hit. The workflow owns **no**
+parallel dedup or footer-parsing code: fingerprint, footer round-trip, and
+routing all live in that one shared module.
+
+### When there is no `gh` CLI
+
+**No GitHub access** (air-gapped): pass `--no-provider` to `--scan`. Every
+group is classified `create` and the operator is told dedupe was skipped — a
+re-run opens duplicates.
+
+**Reachable, but not through `gh`** (a cloud sandbox: no `gh`, no direct API,
+MCP fine): fetch the corpus yourself. List every issue labelled `audit::*` at
+state `all` — `mcp__github__list_issues` or any other path — write the raw
+result as a JSON array, and pass it:
+
+```bash
+node .agents/scripts/audit-to-stories.js --scan --no-provider \
+  --issues-file temp/audits/issues.json --glob "temp/audits/audit-*-results.md"
+```
+
+Real `skip-open` / `skip-reoccurring` classifications come back. The corpus is
+normalised on load, so a raw list result works as-is; only `number` and `body`
+are read. An unreadable file is a hard error, never a silent fall-back to an
+unchecked run; an **empty** array — a valid first sweep — is reported with its
+count so it cannot pass for a failed fetch.
 
 ### Cross-run ledger
 

@@ -454,6 +454,7 @@ describe('runAuditToStories (sub-command dispatch)', () => {
       severity: 'high',
       dryRun: true,
       useProvider: true,
+      issuesFile: undefined,
       ledgerPath: 'l.json',
       ledgerCommit: undefined,
     });
