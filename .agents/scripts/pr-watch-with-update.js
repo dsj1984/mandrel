@@ -66,7 +66,8 @@
  * green can already have merged by the time it is observed. On red the
  * watcher disarms auto-merge and records the head SHA; on green it reads
  * the digest and adjudicates: a green on the SAME head SHA is a forbidden
- * re-run (exit 1, `agent::blocked`, `meta::framework-gap` required), while
+ * re-run (exit 1, `agent::blocked`, a `file-ci-gap.js` intake filing
+ *             required), while
  * a green on a NEW head SHA is a fix at source — the digest is retired,
  * auto-merge is re-armed, and the delivery proceeds. A delivery that never
  * went red has no digest and is untouched. Mechanism:
@@ -475,7 +476,7 @@ async function evaluateGreenWatch({
     `[pr-watch] run link: ${digest.runUrl ?? `run id ${digest.runId ?? 'unresolved'}`} — classification: ${digest.classification ?? 'unknown'}`,
   );
   logger.error?.(
-    '[pr-watch] fix the root cause and push a new commit, or file a `meta::framework-gap` issue carrying the run link and failure signature.',
+    '[pr-watch] fix the root cause and push a new commit, or — when the root cause is outside this delivery — run `node .agents/scripts/file-ci-gap.js --story <id> --verdict <verdict> --owner <bucket> --block` to file the routed, deduped intake issue.',
   );
   const outcome = await blockFn({ storyId, body });
   return {

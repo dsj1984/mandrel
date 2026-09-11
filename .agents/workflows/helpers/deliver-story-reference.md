@@ -682,12 +682,27 @@ When the watch exits, branch on the exit code:
 
 **Triage authority.** How to classify and remediate a red (or repeatedly slow)
 check — the root-cause-only decision tree for infra/transient and flaky failures
-(reproduce → check `main` → bisect env vs code → fix in-scope or file a
-`meta::framework-gap` issue), the never-rerun / never-quarantine prohibitions,
-and the escalation criteria (three-strikes, the 30-minute wall-clock timebox,
-and the clearly-environmental fast path) — is defined once in
+(reproduce → check `main` → bisect env vs code → fix in-scope, or reach an
+Option-2 verdict and file the intake issue), the never-rerun / never-quarantine
+prohibitions, and the escalation criteria (three-strikes, the 30-minute
+wall-clock timebox, and the clearly-environmental fast path) — is defined once in
 [`.agents/rules/ci-remediation.md`](../../rules/ci-remediation.md). Read it
 before remediating a red check.
+
+**Filing an out-of-scope root cause is one command, never a hand-run `gh issue
+create`:**
+
+```bash
+node <agentRoot>/scripts/file-ci-gap.js --story <storyId> \
+  --verdict <pre-existing|capacity|unreproducible-tier> \
+  --owner <consumer|framework|platform> --evidence "<proof reading>" [--block]
+```
+
+It reads the digest, routes the filing to the repo that owns the fault, updates
+the existing ticket when the signature is a repeat, posts the `friction`
+comment, and with `--block` flips the Story. What it files is an **intake**
+issue, not a Story — `/mandrel-plan <issue number>` graduates it on the next
+planning pass, so the delivery never waits on planning.
 
 ### The auto-merge wait is an internally-blocking step
 

@@ -22,7 +22,10 @@
  * Routing correctness: a routed item already knows its source
  * (`framework` / `consumer`), so we file each source bucket with its own
  * constant classifier and thread the graduator's per-run filing cap across
- * the two buckets. The `meta::<framework-gap|consumer-improvement>` +
+ * the two buckets. Which repository a source routes to is decided once, in
+ * `github/framework-repo.js` — the silent consumer-repo fallback that used
+ * to live here (and mis-filed framework work into the consumer's tracker)
+ * is gone from the whole path, not just from this module. The `meta::<framework-gap|consumer-improvement>` +
  * `friction::<category>` labels are lifted verbatim from the routed item.
  *
  * Behind the `delivery.feedbackLoop.retroProposals` toggle (default ON,
@@ -30,7 +33,10 @@
  * failure path is captured in `errors[]`.
  */
 
-import { DEFAULT_FRAMEWORK_REPO } from '../github/framework-repo.js';
+import {
+  DEFAULT_FRAMEWORK_REPO,
+  parseRepoSlug,
+} from '../github/framework-repo.js';
 import { META_LABELS } from '../label-constants.js';
 import {
   contentFingerprint,
@@ -218,6 +224,8 @@ function toFinding(item, source, index) {
  * @param {{owner: string, repo: string}} opts.currentRepo — the repo the
  *   retro is running inside (the consumer's own repo); the cross-repo guard's
  *   anchor.
+ * @param {{owner: string, repo: string}} [opts.platformRepo] — the shared
+ *   platform/infra bucket, forwarded to the walk's routing SSOT.
  * @param {{owner: string, repo: string}} [opts.frameworkRepo] — where
  *   framework-tagged proposals route.
  * @param {{ framework?: object[], consumer?: object[] }} [opts.routedProposals]
@@ -239,6 +247,7 @@ export async function graduateRetroProposals({
   config,
   currentRepo,
   frameworkRepo,
+  platformRepo,
   routedProposals,
   ghPath,
   spawnImpl,
@@ -294,6 +303,7 @@ export async function graduateRetroProposals({
       config,
       currentRepo,
       frameworkRepo,
+      platformRepo,
       // Each bucket's source is known — a constant classifier routes the
       // whole bucket to the correct repo and stamps the correct label.
       classifier: () => source,
@@ -381,22 +391,6 @@ export function enrichRoutedProposalsWithFilings(routedProposals, filed) {
 }
 
 /**
- * Parse an `"<owner>/<repo>"` slug into `{ owner, repo }`, or `null` when
- * the slug is empty / malformed.
- *
- * @param {string|null|undefined} slug
- * @returns {{ owner: string, repo: string } | null}
- */
-function parseRepoSlug(slug) {
-  if (typeof slug !== 'string') return null;
-  const parts = slug.split('/');
-  if (parts.length !== 2) return null;
-  const [owner, repo] = parts;
-  if (!owner || !repo) return null;
-  return { owner, repo };
-}
-
-/**
  * Orchestrating seam invoked by the retro post-and-mirror phase: gate the
  * toggle, file the routed proposals, and return the routed proposals
  * enriched with the filed issue references so the body composer renders real
@@ -452,13 +446,12 @@ export async function fileRetroProposals({
     );
     return passthrough('no-current-repo');
   }
-  // Framework-repo fallback parity with `gatherRetroSignals`
-  // (gather-signals.js): an unconfigured `github.frameworkRepo` falls
-  // back to the Mandrel mirror constant, NEVER to the consumer's own
-  // repo — the prior `?? currentRepo` fallback silently auto-filed
-  // framework-tagged proposals into the consumer's repo while the retro
-  // body rendered them under "framework repo" (masked in this repo only
-  // because consumer === framework here).
+  // An unconfigured framework slug falls back to the Mandrel mirror
+  // constant, NEVER to the consumer's own repo: the retired consumer-repo
+  // fallback silently auto-filed framework-tagged proposals into the
+  // consumer's tracker while the retro body rendered them under "framework
+  // repo" (masked in this repo only because consumer === framework here).
+  // `github/framework-repo.js` is the SSOT for that rule now.
   const frameworkRepoObj =
     parseRepoSlug(frameworkRepo) ?? parseRepoSlug(DEFAULT_FRAMEWORK_REPO);
 

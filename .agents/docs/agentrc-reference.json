@@ -28,6 +28,10 @@
     "projectOwner": null,
     "operatorHandle": "@[USERNAME]",
     "defaultTimeoutMs": 60000,
+    "followUpRepos": {
+      "framework": "dsj1984/mandrel",
+      "platform": null
+    },
     "branchProtection": {
       "enforce": true,
       "requiredChecks": [

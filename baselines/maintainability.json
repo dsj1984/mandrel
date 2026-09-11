@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T11:53:02.377Z",
+  "generatedAt": "2026-09-11T12:00:25.253Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.97,
-      "p95": 122.902
+      "p50": 98.949,
+      "p95": 122.565
     }
   },
   "rows": [
@@ -161,6 +161,10 @@
     {
       "path": ".agents/scripts/evidence-gate.js",
       "mi": 83.26
+    },
+    {
+      "path": ".agents/scripts/file-ci-gap.js",
+      "mi": 84.753
     },
     {
       "path": ".agents/scripts/generate-config-docs.js",
@@ -912,11 +916,11 @@
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
-      "mi": 86.684
+      "mi": 86.165
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/prior-feedback-fetcher.js",
-      "mi": 92.648
+      "mi": 94.474
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/retro-proposals-graduator.js",
@@ -1000,7 +1004,7 @@
     },
     {
       "path": ".agents/scripts/lib/github/framework-repo.js",
-      "mi": 163.888
+      "mi": 94.684
     },
     {
       "path": ".agents/scripts/lib/Graph.js",
@@ -1032,7 +1036,7 @@
     },
     {
       "path": ".agents/scripts/lib/label-constants.js",
-      "mi": 87.92
+      "mi": 87.214
     },
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
@@ -1149,6 +1153,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/check-baselines/phases/report.js",
       "mi": 113.534
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ci-gap-intake.js",
+      "mi": 88.737
     },
     {
       "path": ".agents/scripts/lib/orchestration/ci-rerun-guard.js",

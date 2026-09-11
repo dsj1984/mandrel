@@ -169,6 +169,25 @@
           "description": "Default `timeoutMs` applied to every `gh` subprocess the provider facade spawns, so a stalled socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Story #2860.",
           "default": 60000
         },
+        "followUpRepos": {
+          "type": "object",
+          "description": "Repository slugs for the non-consumer follow-up ownership buckets, used when a CI gap, retro proposal, or audit finding belongs to someone other than the repo that surfaced it.",
+          "properties": {
+            "framework": {
+              "type": "string",
+              "pattern": "^[^/\\s]+/[^/\\s]+$",
+              "description": "`<owner>/<repo>` that owns framework-level defects. Defaults to the Mandrel mirror — the one bucket with a knowable default.",
+              "default": "dsj1984/mandrel"
+            },
+            "platform": {
+              "type": ["string", "null"],
+              "pattern": "^[^/\\s]+/[^/\\s]+$",
+              "description": "`<owner>/<repo>` for a shared platform or infrastructure tracker (a shared base config, a runner fleet, a cross-repo toolchain). No default — nothing can guess a shared repo. Left unset, platform-owned findings file locally and say so.",
+              "default": null
+            }
+          },
+          "additionalProperties": false
+        },
         "branchProtection": {
           "type": "object",
           "description": "Branch-protection stance applied to `project.baseBranch` by the GitHub bootstrap, and reproduced locally before every push.",
