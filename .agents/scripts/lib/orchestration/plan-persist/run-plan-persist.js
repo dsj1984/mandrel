@@ -68,6 +68,7 @@ import {
   renderHardConflictError,
 } from '../ticket-validator-conflicts.js';
 import { upsertStructuredComment } from '../ticketing.js';
+import { recordAuditFilings, withAuditLabels } from './audit-provenance.js';
 import {
   resolveContainerEpic,
   resolveCrossPlanLinks,
@@ -780,7 +781,7 @@ export async function runPlanPersist({
   });
 
   // Split policy + inline Spec fold (over-budget Specs fail closed — no docs/).
-  const { stories } = assemblePlanStories(rawStories, {
+  const { stories: assembled } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
     planAcceptance: planAcceptance ?? undefined,
     sourceTicketIds,
@@ -793,6 +794,16 @@ export async function runPlanPersist({
     // as recall-safe as it was. Empty for a `--tickets` run, a no-op there.
     provenanceSource: planContextEnvelope?.seed?.content ?? '',
   });
+
+  // Stamp the `audit::*` labels the dedup corpus is listed by. Without them a
+  // Story this path files is absent from the pool an indexed sweep matches
+  // against, and an indexed run answers exact lookups from that pool without
+  // ever reaching the provider — so the provenance footers alone leave it
+  // invisible (Story #5307). A non-audit seed carries none: a no-op there.
+  const stories = withAuditLabels(
+    assembled,
+    planContextEnvelope?.seed?.content ?? '',
+  );
 
   // Story #5045: the cross-Story conflict passes re-run over the assembled,
   // footer-stamped bodies — the artifact persist actually writes — before any
@@ -823,6 +834,10 @@ export async function runPlanPersist({
       stories,
       opts: { dryRun, routeLabel: isLiteRoute ? LITE_ROUTE_LABEL : null },
     });
+
+  // What this run filed, recorded where the next audit sweep reads it. Skipped
+  // under --dry-run, which created nothing to record (Story #5307).
+  if (!dryRun) recordAuditFilings({ stories, created, tickets: rawStories });
 
   const primary = created[0];
   const waveTable = buildWaveTable(

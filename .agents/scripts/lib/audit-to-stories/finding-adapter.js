@@ -62,10 +62,14 @@ export function fingerprintAuditFinding(finding) {
  * shared helper. Stable across a reworded title; used to confirm a dedup
  * match when the fingerprint has drifted (Story #4626).
  *
+ * Module-internal since the ledger moved to the shared findings layer and takes
+ * its projection injected: `renderSemanticKeyFooter` below is the only caller,
+ * and re-exporting it for none would trip `dead-exports:production`.
+ *
  * @param {object} finding
  * @returns {string}
  */
-export function semanticKeyForAuditFinding(finding) {
+function semanticKeyForAuditFinding(finding) {
   return semanticKeyFor(toCanonicalFinding(finding));
 }
 

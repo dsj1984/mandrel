@@ -14,11 +14,9 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  fingerprintAuditFinding,
-  semanticKeyForAuditFinding,
-} from '../finding-adapter.js';
-import { reconcileLedger } from '../ledger.js';
+import { toCanonicalFinding } from '../../audit-to-stories/finding-adapter.js';
+import { reconcileLedger } from '../audit-ledger.js';
+import { fingerprintFinding, semanticKeyFor } from '../route-finding.js';
 
 const NOW = '2026-07-19T00:00:00.000Z';
 
@@ -35,11 +33,16 @@ function auditFinding(dimension, title, file) {
   };
 }
 
-/** Local identity helper (mirrors the module's internal one). */
+/**
+ * Local identity helper (mirrors the module's internal one): project the
+ * audit-shaped fixture onto the canonical identity, then use the shared
+ * primitives — the same two calls `findingIdentity` makes.
+ */
 function idOf(finding) {
+  const canonical = toCanonicalFinding(finding);
   return {
-    fingerprint: fingerprintAuditFinding(finding).full,
-    semanticKey: semanticKeyForAuditFinding(finding),
+    fingerprint: fingerprintFinding(canonical).full,
+    semanticKey: semanticKeyFor(canonical),
   };
 }
 
@@ -73,6 +76,7 @@ const FINDING = auditFinding(
 
 test('a brand-new finding classifies as new/propose and lands in the ledger', () => {
   const { ledger, classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     findings: [FINDING],
     now: NOW,
   });
@@ -91,6 +95,7 @@ test('AC-1: a re-detected finding already filed classifies as known, not new', (
   });
 
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: filedLedger,
     findings: [FINDING],
     now: '2026-07-20T00:00:00.000Z',
@@ -108,6 +113,7 @@ test('AC-2: a finding whose Issue was closed as not_planned is suppressed', () =
   const id = idOf(FINDING);
 
   const { ledger, classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: filedLedger,
     findings: [FINDING],
     issueStates: {
@@ -134,6 +140,7 @@ test('accepted-risk stays suppressed on a later scan even without fresh Issue st
     issue: { number: 7, state: 'closed', stateReason: 'not_planned' },
   });
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: priorLedger,
     findings: [FINDING],
     now: '2026-07-22T00:00:00.000Z',
@@ -148,6 +155,7 @@ test('a completed-then-redetected finding classifies as regressed', () => {
   });
   const id = idOf(FINDING);
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: filedLedger,
     findings: [FINDING],
     issueStates: {
@@ -179,6 +187,7 @@ test('a reworded title at the same location matches the existing entry by semant
   assert.equal(idOf(reworded).semanticKey, idOf(FINDING).semanticKey);
 
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: filedLedger,
     findings: [reworded],
     now: '2026-07-24T00:00:00.000Z',
@@ -187,17 +196,24 @@ test('a reworded title at the same location matches the existing entry by semant
 });
 
 test('reconcileLedger throws on a non-array findings argument', () => {
-  assert.throws(() => reconcileLedger({ findings: null }));
+  assert.throws(() =>
+    reconcileLedger({
+      toCanonical: toCanonicalFinding,
+      findings: null,
+    }),
+  );
 });
 
 test('an untouched prior entry survives a scan that does not re-detect it', () => {
   const other = auditFinding('perf', 'N+1 in list', 'src/list.js');
   const seeded = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     findings: [FINDING, other],
     now: NOW,
   }).ledger;
   // Re-scan only FINDING; `other` must remain in the ledger memory.
   const { ledger } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: seeded,
     findings: [FINDING],
     now: '2026-07-25T00:00:00.000Z',
@@ -237,6 +253,7 @@ test('AC-3: an existing `new` entry with a live OPEN issue heals to filed/known'
   };
 
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     ledger: prior,
     findings: [finding],
     issueStates: { [id.fingerprint]: { state: 'open', number: 2588 } },
@@ -253,6 +270,7 @@ test('AC-3: a first-sight finding with a live OPEN issue is filed on the FIRST p
   const id = idOf(finding);
 
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     findings: [finding],
     issueStates: { [id.fingerprint]: { state: 'open', number: 2589 } },
     now: NOW,
@@ -269,6 +287,7 @@ test('AC-3: a first-sight finding with a live OPEN issue is filed on the FIRST p
 test('AC-3: with no issue at all an unseen finding is still proposed', () => {
   const finding = auditFinding('quality', 'Missing assertion', 'lib/c.js');
   const { classifications } = reconcileLedger({
+    toCanonical: toCanonicalFinding,
     findings: [finding],
     now: NOW,
   });

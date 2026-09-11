@@ -36,18 +36,15 @@ import { parseArgs } from 'node:util';
 import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
 import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
 import { formatEpicGrouping } from './lib/audit-to-stories/epic-grouping-directive.js';
-import { withFingerprints } from './lib/audit-to-stories/finding-adapter.js';
+import {
+  toCanonicalFinding,
+  withFingerprints,
+} from './lib/audit-to-stories/finding-adapter.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
 import {
   loadIssuesFile,
   normaliseIssueHit,
 } from './lib/audit-to-stories/issues-file.js';
-import {
-  DEFAULT_LEDGER_PATH,
-  readLedger,
-  reconcileLedger,
-  writeLedger,
-} from './lib/audit-to-stories/ledger.js';
 import {
   resolveLedgerSummary,
   runLedgerCommit,
@@ -60,6 +57,12 @@ import {
 import { buildPlanSeedMarkdown } from './lib/audit-to-stories/seed-from-findings.js';
 import { wireAuditStoryEdges } from './lib/audit-to-stories/wire-dependencies.js';
 import { runAsCli } from './lib/cli-utils.js';
+import {
+  DEFAULT_LEDGER_PATH,
+  readLedger,
+  reconcileLedger,
+  writeLedger,
+} from './lib/findings/audit-ledger.js';
 import { searchSemanticCandidates } from './lib/findings/semantic-issue-search.js';
 import {
   normalizeSeverity,
@@ -918,6 +921,9 @@ function reconcileScanLedger({ ledgerPath, findings, classifications, write }) {
     ledger: prior,
     findings,
     issueStates,
+    // The ledger lives in the shared findings layer and cannot import the
+    // audit adapter without closing a cycle, so the projection is ours to pass.
+    toCanonical: toCanonicalFinding,
   });
   if (write !== false) writeLedger(ledgerPath, next);
   return new Set(

@@ -21,13 +21,16 @@
  * so a host whose provider cannot be constructed still records what it filed.
  */
 
-import { fingerprintAuditFinding } from './finding-adapter.js';
 import {
   DEFAULT_LEDGER_PATH,
   readLedger,
   reconcileLedger,
   writeLedger,
-} from './ledger.js';
+} from '../findings/audit-ledger.js';
+import {
+  fingerprintAuditFinding,
+  toCanonicalFinding,
+} from './finding-adapter.js';
 
 /**
  * Project the opened-issue map onto the `{ fingerprint → issueState }` shape
@@ -104,6 +107,7 @@ export function recordFiledIssues(
     ledger: readLedgerImpl(path),
     findings,
     issueStates,
+    toCanonical: toCanonicalFinding,
   });
   // Nothing to record means nothing to write. The ledger is committed consumer
   // state and `--ledger-commit` opens a PR only when it changed, so rewriting
