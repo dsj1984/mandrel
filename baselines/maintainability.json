@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T12:00:25.253Z",
+  "generatedAt": "2026-09-11T12:23:57.769Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -320,7 +320,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/issue-corpus.js",
-      "mi": 97.88
+      "mi": 98.572
     },
     {
       "path": ".agents/scripts/lib/audit-to-stories/issue-index.js",
