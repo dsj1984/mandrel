@@ -83,34 +83,20 @@ Do **not** re-read every file in `project.docsContextFiles`. Read the
 digest your caller passes, then pull files on demand at the lines it
 names. A null digest path means no docs mandate.
 
-## Close gates — one credited run
+## Close gates — one full-suite run
 
 `single-story-close.js` runs the canonical close-validation chain
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
-the authoritative gate — do not pre-run it. The **one** exception is
-the full suite: run it exactly once, after the self-eval loop's last fix
-commit and immediately after the push, in the shape close credits. A bare
-`npm test` / `pnpm run test` deposits **no** credit:
-
-```bash
-# CRAP gate on (default) + a `test:coverage` script:
-node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>
-# otherwise — <workCwd> ABSOLUTE, runner exactly `npm test`:
-node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
-  --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
-```
-
-Dispatch it in the **background**: it routinely outruns the host's sync
-Bash ceiling, and its completion re-invokes you — which is why the push
-comes first. Never spawn a task to poll or `sleep`-loop
-against it; a waiter with a wrong condition outlives the agent. Share
-`lint` / `typecheck` evidence with close via `evidence-gate.js`; never
-stamp coverage / CRAP fresh any other way.
-
-**It can legitimately run nothing.** With nothing changed under the CRAP
-`targetDirs` it skips capture and exits 0. An exit code is never evidence a
-gate did work — its **output** is: no credit was deposited. Run the scoped
-projects for the roots you changed plus `verify[]`, not the whole suite.
+the authoritative gate — do not pre-run it. The **one** exception is the
+full suite: after the self-eval loop's last fix commit, run `npm test`
+exactly once in `<workCwd>`. A green full run on `story-<storyId>`
+deposits the `test` credit close reads, keyed on the tree; a later commit
+voids it, and close captures coverage itself when the CRAP gate needs an
+artifact. Redraft rounds run the scoped projects for the roots you changed
+plus `verify[]`, not the whole suite. Share `lint` / `typecheck` evidence
+with close via `evidence-gate.js`; never stamp coverage / CRAP fresh any
+other way. Never spawn a task to poll or `sleep`-loop against a run; a
+waiter with a wrong condition outlives the agent.
 
 Gate output that lies: [`known-tooling-behavior.md`](../rules/known-tooling-behavior.md).
 Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) Rule 2.
@@ -119,12 +105,13 @@ Waiter traps: [`parallel-tooling.md`](../workflows/helpers/parallel-tooling.md) 
 
 **Before** flipping to `closing`, run the bounded self-eval loop
 ([`acceptance-self-eval.md`](../workflows/helpers/acceptance-self-eval.md)).
-It scores the change set you computed **once** and injected into the critic
-— never one it re-derives — against each `acceptance[]` item,
-consuming `verify[]` output as evidence. **proceed** → flip to `closing`,
-push, capture, hand off; **redraft** → fix the criteria, commit, re-eval;
-**block** → take the blocked path below. Never hand off an unscored
-branch.
+Derive the change set, level and ceremony with
+`node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>`
+and hand its `files` to the critic — never one it re-derives. It scores
+each `acceptance[]` item, consuming `verify[]` output as evidence.
+**proceed** → flip to `closing`, run the suite, push, hand off;
+**redraft** → fix the criteria, commit, re-eval; **block** → take the
+blocked path below. Never hand off an unscored branch.
 
 ## Lifecycle: progress & blocked (MUST)
 
@@ -146,9 +133,8 @@ the only sanctioned landing.
 ## Your turn ends at a pushed branch (MUST)
 
 You do **not** run close. Push `story-<storyId>` to `origin` — confirming
-the remote ref moved — **before** the credited capture, then return: the
-capture is backgrounded, so its completion ends your turn, and a turn that
-ends unpushed reads as unfinished work. The orchestrator runs
+the remote ref moved — then return: a turn that ends unpushed reads as
+unfinished work. The orchestrator runs
 `single-story-close.js` in its own session, serialized against your
 siblings. Do not open the PR, flip `agent::done`, or spawn a child to
 close for you. If the push fails, take the blocked path above.

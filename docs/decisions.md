@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (43).** Each governs the surface named beside it.
+**In force (44).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260912-5313`](#adr-20260912-5313-the-delivery-diet--deliver-time-knobs-bound-by-risk-not-by-count-and-scripts-read-ground-truth) | The delivery diet: deliver-time knobs bound by risk, not by count | `.agents/scripts/ceremony-derive.js` | Accepted |
 | [`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs) | The planning diet: no plan-time limit that never fires on real work | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260911-5300`](#adr-20260911-5300-follow-up-ownership-is-three-buckets-and-an-unroutable-bucket-is-an-outcome-not-a-fallback) | Follow-up ownership is three buckets; unroutable is an outcome | `.agents/scripts/lib/github/framework-repo.js` | Accepted |
 | [`20260906-5160a`](#adr-20260906-5160a-why-the-ci-verdict-set-carries-capacity-and-unreproducible-tier) | Why the CI verdict set carries `capacity` and `unreproducible-tier` | `.agents/rules/ci-remediation.md` | Accepted |
@@ -147,6 +148,87 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260912-5313: The delivery diet — deliver-time knobs bound by risk, not by count, and scripts read ground truth
+
+**Status:** Accepted
+**Date:** 2026-09-12
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/ceremony-derive.js`
+**Story:** #5313
+
+### Context
+
+The deliver side had the same shape the planning diet (`20260912-5312`)
+removed from the plan side: knobs that bounded execution by a count rather
+than by a risk signal, and ceremonies the worker held in context as
+hand-carried incantations. A maker-checker sampling floor forced a fixed
+fraction of low-risk clusters through a fresh critic by cluster-index
+stride; a hard ceiling and a floor-of-one clamp made `maxRounds: 0`
+unsayable; an auto-fix file-count ceiling and a set of friction-signal
+thresholds were configured and read by nothing that changed an outcome; a
+`cyclomaticMustFix` key tuned a ratchet whose only correct value was its
+default. The digest handed the worker a three-module import block to derive
+ceremony, a paragraph explaining which of two suite invocations earned close
+credit and in what order to push around it, and a `--expected-criteria`
+count it had already read off the Story. The light path stopped on any
+predicted shape past a ceiling and grew an answer flag to get past its own
+question. The footprint guard scraped Story prose for paths and spent three
+narrowing passes teaching the scrape what a path is not. The context-budget
+ratchet went red on a trim.
+
+### Decision
+
+**Remove every deliver-time knob that bounds by count**, behind a 2.57.0
+migration step and a `BREAKING CHANGE:` footer:
+`delivery.routing.freshCriticSampleRate`, `delivery.codeReview.maxFixScopeFiles`,
+`delivery.signals`, `delivery.quality.codingGuardrails.cyclomaticMustFix`,
+and the `ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING` / floor-of-one clamp. The
+standard profile routes a high or null derived level to a fresh critic and
+a low level inline; `maxRounds: 0` scores once; the cyclomatic ratchet keeps
+a fixed ceiling of 12 and `cyclomaticFlag` is advisory.
+
+**Script the ceremony derivation.** `ceremony-derive.js` computes the change
+set once, derives the level and classes, resolves the ceremony and prints
+one JSON object; the digest, the self-eval helper and the story-worker
+context cite it and carry no import block.
+
+**Let the runner earn the credit.** A green bare `npm test` on a Story
+branch deposits the `test` evidence close reads, keyed on the tree; close
+registers the gate as credited beside the coverage capture, which still
+runs when the CRAP gate needs an artifact. The capture stamp stays an
+artifact claim and is never written by a bare run.
+
+**Make the gate read the count.** `acceptance-eval.js` reads the Story's
+`acceptance[]` count itself; an inline-owned verdict is one file scored in
+one call, and the cluster merge applies to fresh critics only.
+
+**Warn on the predicted shape; block on the diff.** The light path proceeds
+on any predicted shape with a `warnings[]` entry naming the exceeded axis;
+`LIGHT_DIFF_CEILINGS` is the only size block and a sensitive-path footprint
+still escalates. `ask-operator` and `--operator-proceed-light` are gone.
+
+**Read the footprint off the declaration.** The dispatch guard compares
+declared `changes[]` only; the prose scrape, the `scraped-overlap` class and
+the per-path attribution are removed.
+
+**Lock a context-budget gain in without a red gate.** A gated tier below
+its recorded total passes, and the close's pre-gate write-back seam rewrites
+the lower total into `baselines/context-budget.json` on the Story branch.
+This reverses `20260821-4872`'s shrink-fails clause by design; growth past
+tolerance and an unbacked row still fail.
+
+### Consequences
+
+- The only remaining deliver-time bounds are risk-derived (the sensitive-path
+  level, `LIGHT_DIFF_CEILINGS`, the close gates) or explicit operator budgets
+  (`maxRounds`, `maxFixAttempts`, timeouts). No knob fires on a count.
+- Two Stories whose prose names the same path co-dispatch; what a Story
+  edits beyond its declaration is the close-time merge's business.
+- The write-back runs on the Story branch ahead of the gates rather than in
+  the post-land tail, because the Story branch → PR → `main` path is the
+  only sanctioned landing; a post-land write would commit to the base
+  branch directly.
 
 ## ADR 20260912-5312: The planning diet — a Story is as large and as loosely prescribed as the work needs
 

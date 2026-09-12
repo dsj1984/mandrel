@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T17:23:31.736Z",
+  "generatedAt": "2026-09-12T17:37:06.612Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.069,
-      "p95": 122.902
+      "p50": 99.072,
+      "p95": 122.565
     }
   },
   "rows": [
@@ -384,7 +384,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
-      "mi": 94.47
+      "mi": 100.874
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
@@ -1576,7 +1576,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
-      "mi": 106.98
+      "mi": 107.791
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
@@ -1625,6 +1625,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",
       "mi": 97.791
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
+      "mi": 99.886
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
@@ -1919,6 +1923,10 @@
       "mi": 99.299
     },
     {
+      "path": ".agents/scripts/lib/test-run-credit.js",
+      "mi": 89.592
+    },
+    {
       "path": ".agents/scripts/lib/test-runner-contract.js",
       "mi": 104.355
     },
@@ -1960,7 +1968,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
-      "mi": 101.626
+      "mi": 105.311
     },
     {
       "path": ".agents/scripts/lib/wave-runner/live-probe.js",

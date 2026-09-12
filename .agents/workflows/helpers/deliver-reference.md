@@ -361,7 +361,7 @@ sensitive-path classes in `audit-rules.json`
 | Profile | Acceptance critic | When to use |
 | --- | --- | --- |
 | `minimal` | Always inline | Tiny trusted N=1 Stories |
-| `standard` | Derived-level routed (+ sampling floor) | Default |
+| `standard` | Derived-level routed | Default |
 | `strict` | Always fresh-context | High-assurance / regulated surfaces |
 
 | Scope | What runs | Mechanism |

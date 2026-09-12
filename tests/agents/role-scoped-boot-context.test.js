@@ -138,70 +138,47 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     }
   });
 
-  test('carries both crediting invocations of the one full-suite run (#5174)', () => {
-    // The invocation used to live only in deliver-story-reference.md — a file
-    // a dispatched worker is told NOT to read on the happy path. So every
-    // worker ran the suite in the shape that earns no credit, and close ran
-    // the identical suite again. The instruction has to reach the file the
-    // worker actually boots on.
+  test('AC-5: names a bare npm test as the credited run, no invocation-shape rules (#5313)', () => {
     const { body } = bootContext('story-worker.md');
-    assert.match(
-      body,
-      /scripts\/coverage-capture\.js --cwd <workCwd>/,
-      'the boot context must carry the coverage-capture crediting invocation',
-    );
-    assert.match(
-      body,
-      /scripts\/evidence-gate\.js --standalone/,
-      'the boot context must carry the evidence-gate alternative for repos with no capture stamp',
-    );
     assertDocMentions(
       body,
-      /--gate test --worktree <workCwd> -- npm test/,
-      'the evidence-gate alternative must be complete enough to run verbatim',
+      /run `npm test`\s+exactly once in `<workCwd>`/,
+      'the boot context must name the runner the worker actually types',
+    );
+    assertDocOmits(
+      body,
+      /deposits \*\*no\*\* credit/,
+      'the retired no-credit shape must not survive',
+    );
+    assertDocOmits(
+      body,
+      /coverage-capture\.js --cwd <workCwd>|--gate test --worktree <workCwd> -- npm test/,
+      'the retired crediting invocations must not survive',
+    );
+    assertDocOmits(
+      body,
+      /(before|after) the push/,
+      'no push-before-capture ordering rule',
     );
   });
 
-  test('names the shape that deposits no credit (#5174)', () => {
-    assertDocMentions(
-      bootContext('story-worker.md').body,
-      /bare `npm test` \/ `pnpm run test` deposits \*\*no\*\* credit/,
-      'the boot context must say plainly which invocation earns nothing',
-    );
+  test('AC-3: cites ceremony-derive.js and carries no import block (#5313)', () => {
+    const { body } = bootContext('story-worker.md');
+    assertDocMentions(body, /ceremony-derive\.js --story <storyId>/);
+    assertDocOmits(body, /--input-type=module/);
   });
 
   test('permits the credited run without licensing ad-hoc stamping (#5174)', () => {
-    // The reconciliation this Story exists for: the old paragraph told the
-    // worker never to stamp coverage/CRAP fresh at all, which reads as a
-    // prohibition on the very invocation the digest now mandates. Appending
-    // the new text would have left the worker holding both. Assert the
-    // contradiction is gone AND that the narrow prohibition survives — a
-    // rewrite that dropped the second half would license a hand-rolled
-    // coverage record, which silently weakens the floor.
     const { body } = bootContext('story-worker.md');
     assertDocOmits(
       body,
       /never stamp coverage \/ CRAP fresh that way/,
-      'the blanket prohibition contradicts the credited invocation — it must be rewritten, not kept alongside it',
+      'the blanket prohibition contradicts the credited run — it must be rewritten, not kept alongside it',
     );
     assertDocMentions(
       body,
       /never stamp coverage \/ CRAP fresh any other way/,
-      'ad-hoc coverage/CRAP stamping must still be forbidden outside the credited invocation',
-    );
-    // Story #5267 flipped this ordering. The stamp is keyed on the tree, not
-    // on push state, so the push does not spend it — while capturing first
-    // does spend the push: the capture is backgrounded, and its completion
-    // notification is what ends the worker's turn.
-    assertDocMentions(
-      body,
-      /run it exactly once, after the self-eval loop's last fix commit and immediately after the push/,
-      'the boot context must place the credited run after the push, where the turn cannot end before the branch is on origin',
-    );
-    assertDocOmits(
-      body,
-      /immediately before the push/,
-      'no surviving instruction may tell the worker to capture before pushing',
+      'ad-hoc coverage/CRAP stamping must still be forbidden outside the credited run',
     );
   });
 

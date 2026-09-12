@@ -28,15 +28,15 @@ hook calls the same script.
 
 Cyclomatic complexity (CC) is measured per function by `escomplex` (the same
 engine the maintainability axis of `check-baselines.js` runs). Two
-thresholds, sourced from
-`delivery.quality.codingGuardrails.cyclomaticFlag` /
-`cyclomaticMustFix`:
+thresholds — the advisory `delivery.quality.codingGuardrails.cyclomaticFlag`
+and the fixed ceiling of 12 (`cyclomaticMustFix` was retired as a config
+key in Story #5313):
 
 | CC range | Action |
 | --- | --- |
 | ≤ 8 | Pass — no annotation required. |
 | > 8 (default `cyclomaticFlag`) | **Flag** — `quality:preview` counts the function in its `new-method count over c=<flag>` column. The function is allowed to land but the report names it. |
-| > 12 (default `cyclomaticMustFix`) | **Must-fix**: `check-cyclomatic.js` fails when a file gains a function above the ceiling, or when its worst function gets worse than the recorded baseline. |
+| ≥ 12 | **Advisory in `quality:preview`** — listed by file, method and reading; the preview exits 0 on it. **Ratchet in `check-cyclomatic.js`**: fails when a file gains a function above 12, or when its worst function gets worse than the recorded baseline. |
 
 `check-cyclomatic.js` is a **ratchet**, not a cliff: `baselines/cyclomatic.json`
 records the over-ceiling functions a repository already carries, so adopting

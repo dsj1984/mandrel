@@ -60,14 +60,11 @@ describe('helpers/deliver-digest.md — the one bundled deliver read (AC-5)', ()
       ['the dispatch decision', 'dispatchMode'],
       ['the single-Story inline rule', 'one-Story run'],
       ['the branch/merge invariants', 'story-<id>'],
-      ['the change-set-once discipline', 'computeChangeSet'],
-      ['the ceremony resolution', 'resolveCeremonyForRisk'],
-      ['the deriveChangeLevel argument key', 'changedFiles'],
-      ['the deriveChangeLevel return shape', '{ level, classes }'],
-      ['the resolveCeremonyForRisk argument key', 'derivedLevel'],
+      ['the change-set-once discipline', 'computed once'],
+      ['the scripted ceremony derivation', 'ceremony-derive.js'],
+      ['the derivation envelope fields', 'verdictOwner'],
       ['the acceptance gate invocation', 'acceptance-eval.js'],
-      ['the crediting full-suite invocation', 'coverage-capture.js --cwd'],
-      ['the evidence-gate alternative', 'evidence-gate.js --standalone'],
+      ['the one full-suite run', 'npm test'],
       ['the terminal envelope marker', '--- STORY DELIVER TERMINAL ---'],
       ['the state-transition command', 'update-ticket-state.js'],
     ];
@@ -148,139 +145,127 @@ describe('helpers/deliver-story.md — the orphaned-envelope fallback (#4816)', 
   });
 });
 
-describe('deliver-digest § 3 — the ceremony incantation, verified by execution (#4904)', () => {
-  // § 3 is the only place the deliver path learns how to route ceremony, and a
-  // prose assertion cannot protect it: both functions are total, so a
-  // wrong-shaped argument raises nothing and merely resolves to the `null`
-  // fail-safe — a fresh critic sub-agent bought on every low-risk Story, with
-  // no error anywhere to attribute the cost to. Grepping the markdown for
-  // `changedFiles` would still pass after the parameter was renamed in source.
-  // So these two tests CALL the documented composition instead.
+describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', () => {
+  // § 3 used to hand the worker a three-module import block, and the
+  // object-for-string `derivedLevel` slip routed low-risk Stories to the null
+  // fail-safe with no error to attribute the cost to. The block is gone: the
+  // digest cites `ceremony-derive.js`, which computes the composition itself.
+  const digest = () => read(DIGEST);
 
-  it('yields a real level and a real mode when called with the documented shapes', () => {
-    // Arrange — the digest's own argument shape and nothing else, against the
-    // real audit-rules.json manifest the deliverer would hit.
-    const changedFiles = ['docs/onboarding.md', 'README.md'];
+  it('AC-3: cites ceremony-derive.js and carries no --input-type=module block', () => {
+    for (const [label, file] of [
+      ['the digest', DIGEST],
+      [
+        'the self-eval helper',
+        path.join(WORKFLOWS, 'helpers', 'acceptance-self-eval.md'),
+      ],
+      [
+        'the story-worker context',
+        path.join(REPO_ROOT, '.agents', 'agents', 'story-worker.md'),
+      ],
+    ]) {
+      const doc = read(file);
+      assertDocMentions(
+        doc,
+        /ceremony-derive\.js --story <storyId>/,
+        `${label} must cite the scripted derivation`,
+      );
+      assertDocOmits(
+        doc,
+        /--input-type=module/,
+        `${label} must carry no hand-carried import block`,
+      );
+      assertDocOmits(
+        doc,
+        /freshCriticSampleRate|sampling floor/,
+        `${label} must not describe the retired sampling floor`,
+      );
+    }
+  });
 
-    // Act — the composition exactly as § 3 spells it out.
-    const derived = deriveChangeLevel({ changedFiles });
+  it('names every field the derivation prints', () => {
+    for (const field of [
+      'files',
+      'level',
+      'classes',
+      'mode',
+      'reason',
+      'verdictOwner',
+    ]) {
+      assert.ok(
+        digest().includes(`\`${field}\``),
+        `the digest must name the ${field} field of the derivation envelope`,
+      );
+    }
+  });
+
+  it('the documented composition still resolves a real mode from a real level', () => {
+    const derived = deriveChangeLevel({
+      changedFiles: ['docs/onboarding.md', 'README.md'],
+    });
     const ceremony = resolveCeremonyForRisk({
       derivedLevel: derived.level,
       clusterIndex: 0,
     });
-
-    // Assert — a derivable level is the whole point: `null` here would mean
-    // `changedFiles` is no longer the key `deriveChangeLevel` reads.
-    assert.notEqual(
-      derived.level,
-      null,
-      'deriveChangeLevel({ changedFiles }) returned the null fail-safe for an enumerable, non-sensitive change set — the documented argument key no longer reaches the derivation',
-    );
-    assert.ok(
-      Array.isArray(derived.classes),
-      'deriveChangeLevel must return { level, classes } — § 3 documents the classes array, so a caller destructuring it cannot get undefined',
-    );
-    assert.ok(
-      ceremony.mode === 'fresh' || ceremony.mode === 'inline',
-      `resolveCeremonyForRisk({ derivedLevel }) must resolve a concrete mode, got ${JSON.stringify(ceremony.mode)}`,
-    );
+    assert.notEqual(derived.level, null);
+    assert.ok(ceremony.mode === 'fresh' || ceremony.mode === 'inline');
     assert.equal(
       ceremony.verdictOwner,
       ceremony.mode === 'fresh' ? 'fresh-critic' : 'inline-self-eval',
-      'the resolved decision must name its single verdict owner — § 3 promises verdictOwner on the returned object',
     );
   });
 
   it('routes the object-for-string mistake to the null fail-safe, never a low verdict', () => {
-    // Arrange — pin the level to `low` independently of the shipped manifest by
-    // injecting the documented `selectSensitivePathClassesFn` seam, so the only
-    // variable between the two resolutions below is the argument SHAPE.
     const derived = deriveChangeLevel({
       changedFiles: ['docs/onboarding.md'],
       selectSensitivePathClassesFn: () => [],
     });
-    assert.equal(
-      derived.level,
-      'low',
-      'precondition: an injected no-match selector must derive `low`',
-    );
-
-    // Act — the documented composition, then the mistake the old § 3 wording
-    // invited: handing `derivedLevel` the whole result object. Sampling is
-    // disabled in both so the floor cannot account for any difference.
+    assert.equal(derived.level, 'low');
     const documented = resolveCeremonyForRisk({
       derivedLevel: derived.level,
       clusterIndex: 1,
-      freshCriticSampleRate: 0,
     });
     const mistaken = resolveCeremonyForRisk({
       derivedLevel: derived,
       clusterIndex: 1,
-      freshCriticSampleRate: 0,
     });
-
-    // Assert — the two disagree, which is what makes the documented shape
-    // load-bearing rather than decorative.
-    assert.equal(
-      documented.mode,
-      'inline',
-      'a `low` level with sampling off must resolve inline — otherwise the digest is documenting a composition that never buys the cheap path',
-    );
-    assert.equal(
-      mistaken.mode,
-      'fresh',
-      'passing the { level, classes } object as derivedLevel must hit the null fail-safe; if this ever resolves inline the fail-safe has inverted',
-    );
-    assert.match(
-      mistaken.reason,
-      /underivable/,
-      'the fail-safe must say the level was underivable — that string is the only evidence a deliverer has that it paid for a fresh critic by mis-shaping the call',
-    );
-    assert.notEqual(
-      mistaken.mode,
-      documented.mode,
-      'object-for-string must be observably different from the documented call, or § 3 stating the shape guards nothing',
-    );
+    assert.equal(documented.mode, 'inline');
+    assert.equal(mistaken.mode, 'fresh');
+    assert.match(mistaken.reason, /underivable/);
   });
 });
 
-describe('deliver-digest § 5 — the one creditable full-suite run (#5174)', () => {
+describe('deliver-digest § 5 — the one full-suite run (#5174, #5313)', () => {
   const digest = () => read(DIGEST);
   const spine = () => read(path.join(WORKFLOWS, 'helpers', 'deliver-story.md'));
+  const worker = () =>
+    read(path.join(REPO_ROOT, '.agents', 'agents', 'story-worker.md'));
 
-  it('carries BOTH crediting invocations, not just the one this repo happens to use', () => {
-    // The predicate is per-consumer: a repo with the CRAP gate on and a
-    // `test:coverage` script writes a capture stamp; every other repo records
-    // evidence. A digest carrying only one shape strands the other half of the
-    // corpus on the no-credit path without telling them why.
-    assertDocMentions(
-      digest(),
-      /node <main-repo>\/\.agents\/scripts\/coverage-capture\.js --cwd <workCwd>/,
-      'the digest must carry the coverage-capture crediting invocation verbatim',
-    );
-    assertDocMentions(
-      digest(),
-      /evidence-gate\.js --standalone[\s\S]{0,160}--gate test[\s\S]{0,80}-- npm test/,
-      'the digest must carry the evidence-gate alternative for repos without the capture stamp',
-    );
+  it('AC-5: names a bare npm test as the credited run and carries no invocation-shape rules', () => {
+    for (const [label, doc] of [
+      ['the digest', digest()],
+      ['the story-worker context', worker()],
+    ]) {
+      assertDocMentions(doc, /npm test/, `${label} must name the runner`);
+      assertDocOmits(
+        doc,
+        /deposits \*{0,2}no\*{0,2}\*{0,2}ne?\*{0,2} credit|deposits \*\*none\*\*/,
+        `${label} must not say a bare run deposits no credit`,
+      );
+      assertDocOmits(
+        doc,
+        /coverage-capture\.js --cwd|evidence-gate\.js --standalone[^\n]*--gate test/,
+        `${label} must not carry the retired crediting invocations`,
+      );
+      assertDocOmits(
+        doc,
+        /(before|after) the push/,
+        `${label} must carry no push-before-capture ordering rule`,
+      );
+    }
   });
 
-  it('names the no-credit shape so a bare suite run is a stated mistake', () => {
-    assertDocMentions(
-      digest(),
-      /bare `npm test` \/ `pnpm run test` deposits \*\*none\*\*/,
-      'the digest must say plainly that a bare npm/pnpm test earns no credit',
-    );
-  });
-
-  it('places the run after the last fix commit and after the push (#5267)', () => {
-    // The ordering IS the contract, not a stylistic preference — and Story
-    // #5267 reversed it. The credit is keyed on the TREE, not on push state,
-    // so pushing first costs nothing; capturing first costs the push, because
-    // the capture is dispatched in the background and the harness fires its
-    // completion notification when that shell exits, ending the worker's turn
-    // on an unpushed branch. Five of seven deliveries in one measured session
-    // ended exactly there, one of them after being told in-prompt to push.
+  it('places the run after the last fix commit', () => {
     for (const [label, doc] of [
       ['the digest', digest()],
       ['the spine', spine()],
@@ -288,37 +273,27 @@ describe('deliver-digest § 5 — the one creditable full-suite run (#5174)', ()
       assertDocMentions(
         doc,
         /last fix commit/,
-        `${label} must anchor the creditable run to the loop's last fix commit`,
-      );
-      assertDocMentions(
-        doc,
-        /after the push/,
-        `${label} must place the creditable run after the push`,
-      );
-      assertDocOmits(
-        doc,
-        /\*{0,2}before\*{0,2} the push/,
-        `${label} must carry no surviving instruction to capture before pushing`,
+        `${label} must anchor the run to the loop's last fix commit`,
       );
     }
   });
 
-  it('the spine points at the digest rather than restating the invocation', () => {
+  it('the spine points at the digest rather than restating the run', () => {
     assertDocMentions(
       spine(),
       /digest § 5/,
-      'deliver-story.md Step 2.5 must route the invocation at the digest',
+      'deliver-story.md Step 2.5 must route the run at the digest',
     );
     assert.ok(
       !spine().includes('coverage-capture.js'),
-      'the spine must not carry its own copy of the invocation — one home, cited from the other',
+      'the spine must not carry a crediting invocation',
     );
   });
 
   it('states the verify[] reuse rule so the suite is not spawned a third time', () => {
     assertDocMentions(
       digest(),
-      /full-suite command is reported credited against the same stamp, never respawned/,
+      /full-suite command is reported credited against the same record, never\s+respawned/,
       'the digest must state that a full-suite verify[] entry is credited, not respawned',
     );
   });

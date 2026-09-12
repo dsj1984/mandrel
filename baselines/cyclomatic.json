@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-12T15:53:01.736Z",
+  "generatedAt": "2026-09-12T17:37:06.375Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -76,6 +76,11 @@
       "maxCyclomatic": 18
     },
     {
+      "file": ".agents/scripts/lib/close-validation/gates.js",
+      "methodsAboveCeiling": 1,
+      "maxCyclomatic": 14
+    },
+    {
       "file": ".agents/scripts/lib/config-resolver.js",
       "methodsAboveCeiling": 2,
       "maxCyclomatic": 14
@@ -97,11 +102,6 @@
     },
     {
       "file": ".agents/scripts/lib/json-utils.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
     },

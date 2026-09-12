@@ -46,7 +46,8 @@ run the tools first.
    `check-baselines.js` gate enforces. Treat any per-file MI drop beyond
    `delivery.quality.gates.maintainability.tolerance` (default 0.5pt) as a
    grounded must-fix finding, and any cyclomatic reading over the
-   `codingGuardrails` ceilings (flag > 8, must-fix > 12) as measured, not
+   `codingGuardrails.cyclomaticFlag` (> 8) or the fixed ratchet ceiling
+   (≥ 12, reported by `quality:preview` as an advisory) as measured, not
    guessed.
 
 2. **Committed baselines (codebase-wide mode).** Read the committed metric
@@ -98,8 +99,8 @@ Analyze the repository with a focus on:
   from
   [`helpers/code-quality-guardrails.md`](helpers/code-quality-guardrails.md):
   cyclomatic complexity > 8 (`delivery.quality.codingGuardrails.cyclomaticFlag`)
-  is **flag in review** (annotate or split); > 12
-  (`codingGuardrails.cyclomaticMustFix`) is **must-fix** before the work merges.
+  is **flag in review** (annotate or split); ≥ 12 is the fixed ratchet
+  ceiling `check-cyclomatic.js` enforces on new breaches.
   A per-file MI drop beyond the configured
   `delivery.quality.gates.maintainability.tolerance` (default 0.5pt) requires
   a refactor in the same Story rather than a baseline bump.

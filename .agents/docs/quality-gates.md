@@ -302,8 +302,9 @@ default and the deep-merge extender form).
 
 ## Cyclomatic ceiling ratchet
 
-`delivery.quality.codingGuardrails.cyclomaticMustFix` (default `12`) is the
-per-function complexity ceiling, enforced by `check-cyclomatic.js`. It is a
+A fixed per-function complexity ceiling of `12` is enforced by
+`check-cyclomatic.js` (`lib/cyclomatic-ceiling.js#CYCLOMATIC_CEILING`; the
+`cyclomaticMustFix` config key was retired in Story #5313). It is a
 **standalone ratchet** — the same slot as `check-arch-cycles.js`,
 `check-dead-exports.js`, and `check-context-budget.js` — not a
 `delivery.quality.gates` kind, so it needs no gate block and no floor.
@@ -330,9 +331,10 @@ The scan reuses `delivery.quality.gates.maintainability.targetDirs` /
 `ignoreGlobs` — both instruments read the same coverage-free escomplex
 surface, so a separate scope declaration could only ever restate it.
 
-`cyclomaticFlag` (default `8`) is the softer half of the pair: it is not
-gated, and names the ceiling `quality:preview` counts new methods against in
-its `new-method count over c=<flag>` column.
+`cyclomaticFlag` (default `8`) is the one advisory knob: it is not gated, and
+names the ceiling `quality:preview` counts new methods against in its
+`new-method count over c=<flag>` column. The preview also lists every scanned
+method at cyclomatic 12 or above as an advisory and exits 0 on it.
 
 ---
 
