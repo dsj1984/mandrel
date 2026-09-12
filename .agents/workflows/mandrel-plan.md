@@ -74,9 +74,9 @@ in Key Assumptions, each a decision-made-by-default.
 and settle any HITL unknown the operator owns. Everything else the envelope
 surfaced — `duplicates[]`, open `intake` rows, a truthy
 `memoryPoolAdvisory.recommend`, a truthy `complexitySignals.uiSurface` naming
-[`/prototype`](prototype.md) (never invoke it here) — collapses to **one
-advisory line** under the gate; none of it stops the run or reroutes it
-([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
+[`/prototype`](prototype.md) (never invoke it here) — collapses to
+**one advisory line** under the gate; none of it stops the run or reroutes
+it ([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
 
 ### 2. Author
 
