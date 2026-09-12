@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-12T15:54:10.059Z",
+  "generatedAt": "2026-09-12T16:14:40.445Z",
   "rollup": {
     "*": {
-      "lines": 96.17,
-      "branches": 87.1,
+      "lines": 96.28,
+      "branches": 87.19,
       "functions": 88.36
     }
   },
@@ -2076,8 +2076,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
-      "lines": 89.33,
-      "branches": 59.02,
+      "lines": 100,
+      "branches": 91.26,
       "functions": 100
     },
     {
@@ -2124,8 +2124,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/soft-findings.js",
-      "lines": 83.64,
-      "branches": 80,
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2544,8 +2544,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "lines": 98.61,
-      "branches": 85.27,
+      "lines": 99.6,
+      "branches": 86.47,
       "functions": 100
     },
     {
