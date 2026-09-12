@@ -4,7 +4,13 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, utimesSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -20,6 +26,7 @@ import {
 import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
 import {
   resolveBaseBranchRef,
+  resolveProbeRef,
   validateTickets,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
 import {
@@ -199,6 +206,57 @@ describe('base-branch resolution (Story #4541)', () => {
       }),
       'develop',
     );
+  });
+
+  it('probes origin/<base> when the checkout carries no local base branch', () => {
+    // A CI pull-request checkout is detached with only `origin/main`
+    // fetched. Probing the bare name there reads every path as absent —
+    // which turned each bare-path repair into a `creates` and every
+    // declared path into a stale reference on the first #5312 CI run.
+    const git = (cwd, ...args) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' });
+    const upstream = makeTempDir('probe-ref-upstream-');
+    git(upstream, 'init', '-q', '-b', 'main');
+    git(upstream, 'config', 'user.email', 'test@example.com');
+    git(upstream, 'config', 'user.name', 'Test');
+    mkdirSync(path.join(upstream, 'src'));
+    writeFileSync(path.join(upstream, 'src', 'tracked.js'), 'x\n');
+    git(upstream, 'add', '.');
+    git(upstream, 'commit', '-q', '-m', 'seed');
+    git(upstream, 'checkout', '-q', '-b', 'story-1');
+    const clone = path.join(makeTempDir('probe-ref-clone-'), 'repo');
+    git(tmpdir(), 'clone', '-q', '--branch', 'story-1', upstream, clone);
+
+    assert.equal(
+      resolveProbeRef({ baseBranch: 'main', cwd: clone }),
+      'origin/main',
+      'no local main, so the tracking ref is the probe target',
+    );
+    assert.equal(
+      resolveProbeRef({ baseBranch: 'main', cwd: upstream }),
+      'main',
+      'a local branch wins when it exists',
+    );
+    assert.equal(
+      resolveProbeRef({ baseBranch: 'nope', cwd: clone }),
+      'nope',
+      'a name that resolves nowhere is left for the probe to report',
+    );
+
+    // End to end: a bare-path bullet naming a tracked file repairs to
+    // refactors-existing in the clone, and the declared path probes clean.
+    const bare = ticket('clone');
+    bare.body = serialize({
+      goal: 'Goal of clone.',
+      changes: [{ path: 'src/tracked.js', assumption: 'refactors-existing' }],
+      acceptance: bare.acceptance,
+      verify: bare.verify,
+    }).replace('`src/tracked.js` — refactors-existing', 'src/tracked.js');
+    const validated = validateTickets([bare], {}, { cwd: clone });
+    assert.deepEqual(validated.errors, []);
+    assert.deepEqual(validated.warnings, []);
+    assert.equal(validated.repairs.length, 1);
+    assert.equal(validated.repairs[0].assumption, 'refactors-existing');
   });
 
   it('threads the configured branch into the probes, not the literal main', () => {

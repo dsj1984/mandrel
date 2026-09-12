@@ -3,7 +3,10 @@
  *
  * Exports:
  *   - `resolveBaseBranchRef(config)` — the one place the persist gates learn
- *     which ref to probe.
+ *     which branch name the operator configured.
+ *   - `resolveProbeRef({ baseBranch, cwd })` — the ref that name resolves to
+ *     in *this* checkout: the local branch when it exists, else its
+ *     `origin/` tracking ref (a PR checkout on CI has no local `main`).
  *   - `validateTickets(tickets, config, opts)` — repairs the mechanical
  *     `changes[]` formalities against the base branch, then runs the
  *     cross-link, freshness, and task-body validators in one pass.
@@ -42,6 +45,42 @@ export function resolveBaseBranchRef(config) {
 }
 
 /**
+ * Does `ref` name a commit in the repo at `cwd`?
+ *
+ * @param {string} ref
+ * @param {string} cwd
+ * @returns {boolean}
+ */
+function refResolves(ref, cwd) {
+  return (
+    gitSpawn(cwd, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`)
+      .status === 0
+  );
+}
+
+/**
+ * Resolve the configured base branch to a ref the footprint probes can read
+ * in this checkout.
+ *
+ * A developer checkout carries a local `main`; a CI pull-request checkout
+ * (`actions/checkout` at the merge ref, detached) carries only
+ * `origin/main`. Probing the bare branch name there answers "absent" for
+ * every path, which turns each bare-path repair into a `creates` and every
+ * declared path into a stale reference. So: the local branch when it
+ * resolves, else its `origin/` tracking ref when that does, else the
+ * configured name unchanged — a name that resolves nowhere still probes as
+ * absent, and the warning names the branch the operator configured.
+ *
+ * @param {{ baseBranch: string, cwd?: string }} opts
+ * @returns {string}
+ */
+export function resolveProbeRef({ baseBranch, cwd }) {
+  const repo = cwd ?? process.cwd();
+  const candidates = [baseBranch, `origin/${baseBranch}`];
+  return candidates.find((ref) => refResolves(ref, repo)) ?? baseBranch;
+}
+
+/**
  * Default git probe: returns true when `path` exists at `ref` in the cwd repo.
  * `git cat-file -e <ref>:<path>` is the standard low-cost existence check —
  * the same probe the validator's own gates run, so the repair pass and the
@@ -76,7 +115,10 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
  * @returns {object[] & { findings: object[], errors: string[], warnings: string[], normalizations: object[], repairs: object[] }}
  */
 export function validateTickets(tickets, config, opts = {}) {
-  const baseBranchRef = resolveBaseBranchRef(config);
+  const baseBranchRef = resolveProbeRef({
+    baseBranch: resolveBaseBranchRef(config),
+    cwd: opts.cwd,
+  });
   const gitRunner = opts.gitRunner ?? defaultGitRunner;
   const repairs = repairChangeEntries(tickets, {
     existsAtBase: (path) =>
