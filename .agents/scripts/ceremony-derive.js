@@ -64,7 +64,7 @@ const USAGE = {
  * @param {string[]} argv
  * @returns {{ storyId: number|null, base: string|null, cwd: string|null }}
  */
-export function parseCliArgs(argv) {
+export function parseArgv(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {
@@ -157,7 +157,7 @@ export async function runCeremonyDeriveCli(
     cwd: defaultCwd = process.cwd(),
     ...derivationDeps
   } = deps;
-  const { storyId, base, cwd } = parseCliArgs(argv);
+  const { storyId, base, cwd } = parseArgv(argv);
   if (!storyId) {
     throw new Error(
       'ceremony-derive: --story <id> is required (a positive integer).',

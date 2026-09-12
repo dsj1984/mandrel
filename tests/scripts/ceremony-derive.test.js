@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   deriveCeremony,
-  parseCliArgs,
+  parseArgv,
   runCeremonyDeriveCli,
 } from '../../.agents/scripts/ceremony-derive.js';
 
@@ -30,13 +30,13 @@ const changeSetOf = (files) => () => ({
   enumerated: files !== null,
 });
 
-describe('parseCliArgs', () => {
+describe('parseArgv', () => {
   test('reads --story as a positive integer, with optional --base and --cwd', () => {
     assert.deepEqual(
-      parseCliArgs(['--story', '42', '--base', 'develop', '--cwd', '/x']),
+      parseArgv(['--story', '42', '--base', 'develop', '--cwd', '/x']),
       { storyId: 42, base: 'develop', cwd: '/x' },
     );
-    assert.deepEqual(parseCliArgs(['--story', '7']), {
+    assert.deepEqual(parseArgv(['--story', '7']), {
       storyId: 7,
       base: null,
       cwd: null,
@@ -45,7 +45,7 @@ describe('parseCliArgs', () => {
 
   test('a missing or malformed --story resolves to null', () => {
     for (const argv of [[], ['--story', 'x'], ['--story', '0'], ['--story']]) {
-      assert.equal(parseCliArgs(argv).storyId, null, JSON.stringify(argv));
+      assert.equal(parseArgv(argv).storyId, null, JSON.stringify(argv));
     }
   });
 });

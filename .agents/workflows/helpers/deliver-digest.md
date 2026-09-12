@@ -106,8 +106,14 @@ npm test   # in <workCwd>
 A green full run on `story-<id>` deposits the `test` evidence close reads,
 keyed on the tree, so close reports the gate as **credited** at unchanged
 HEAD — a later commit voids it. The CRAP gate still captures coverage itself
-when it needs an artifact. Redraft rounds run scoped tests; only this run
-needs credit.
+when it needs an artifact. If the suite outruns the host's sync Bash
+ceiling, dispatch it in the **background** — its completion re-invokes you;
+never spawn a task to poll or `sleep`-loop against it
+([`parallel-tooling.md`](parallel-tooling.md) Rule 2). Read the **output**,
+not the exit code: the runner prints whether it deposited credit, and a run
+off the Story branch or of a partial tier deposits nothing and says so.
+Redraft rounds run the scoped projects for the roots you changed plus
+`verify[]`, not the whole suite; only this run needs credit.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
 full-suite command is reported credited against the same record, never

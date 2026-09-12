@@ -203,7 +203,7 @@ describe('helper accessors against the post-reshape shape', () => {
     assert.equal(paths.auditOutputDir, 'temp/audits');
   });
 
-  it('getLimits exposes the surviving budget + signals surface', () => {
+  it('getLimits exposes the surviving budget surface and no signals (Story #5313)', () => {
     const lim = getLimits({
       delivery: {
         maxTokenBudget: 50000,
@@ -215,8 +215,7 @@ describe('helper accessors against the post-reshape shape', () => {
     assert.equal(lim.maxTickets, LIMITS_DEFAULTS.maxTickets);
     assert.equal('maxTokenBudget' in lim, false);
     assert.equal(lim.executionTimeoutMs, 1234);
-    assert.equal(lim.signals.rework.editsPerFile, 9);
-    assert.equal(lim.signals.retry.repeatCount, 3);
+    assert.equal('signals' in lim, false);
   });
 
   it('getLimits applies framework defaults for empty config', () => {
