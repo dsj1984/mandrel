@@ -62,8 +62,8 @@ import {
   conflictFindingKey,
 } from '../ticket-validator-conflicts.js';
 import { upsertStructuredComment } from '../ticketing.js';
+import { renderRepair } from './acceptance-handle-repair.js';
 import { recordAuditFilings, withAuditLabels } from './audit-provenance.js';
-import { renderChangeRepair } from './changes-repair.js';
 import {
   resolveContainerEpic,
   resolveCrossPlanLinks,
@@ -146,7 +146,7 @@ function enforceTicketValidation(validated) {
     );
   }
   const warnings = [
-    ...(validated.repairs ?? []).map((repair) => renderChangeRepair(repair)),
+    ...(validated.repairs ?? []).map(renderRepair),
     ...(validated.warnings ?? []),
   ];
   return {

@@ -29,7 +29,7 @@ import { parse as parseStoryBody } from '../story-body/story-body.js';
 import {
   renderStoryAuthorCore,
   renderStorySplitRules,
-  renderStoryTicketsRules,
+  ticketsModePromptField,
 } from '../templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -650,14 +650,13 @@ function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
  * @returns {{ spec: string, acceptance: string, story: string, storySplitRules: string, storyTicketsRules?: string }}
  */
 export function buildSystemPrompts({ mode } = {}) {
-  const prompts = {
+  return {
     spec: renderTechSpecSystemPrompt(),
     acceptance: renderAcceptanceSpecSystemPrompt(),
     story: renderStoryAuthorCore(),
     storySplitRules: renderStorySplitRules(),
+    ...ticketsModePromptField(mode),
   };
-  if (mode === 'tickets') prompts.storyTicketsRules = renderStoryTicketsRules();
-  return prompts;
 }
 
 /**

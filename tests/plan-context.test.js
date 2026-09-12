@@ -48,7 +48,7 @@ import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 import {
   renderStoryAuthorCore,
   renderStorySplitRules,
-  renderStoryTicketsRules,
+  ticketsModePromptField,
 } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -1456,7 +1456,7 @@ describe('plan-context systemPrompts — tickets addendum (Story #5323)', () => 
     const ticketsPrompts = buildSystemPrompts({ mode: 'tickets' });
     assert.equal(
       ticketsPrompts.storyTicketsRules,
-      renderStoryTicketsRules(),
+      ticketsModePromptField('tickets').storyTicketsRules,
       'tickets mode renders the addendum from its shared carrier',
     );
 

@@ -261,29 +261,17 @@ function repairTicket(ticket, existsAtBase) {
 }
 
 /**
- * Render one repair as the dry-run line the operator reads.
+ * Render one `changes[]` repair as the dry-run line the operator reads.
  *
- * The repair list is mixed (Story #5323): `changes[]` entries repaired by
- * probing base, and `acceptance[]` items whose presentation handle was
- * normalised off. Both are mechanical corrections the run applied on the
- * author's behalf, so both belong on the one list the dry-run prints — the
- * `kind` tag says which is being read.
+ * The dry-run's repair list is mixed — an `acceptance[]` handle strip is
+ * reported on it too — but the dispatch across kinds lives in
+ * [`acceptance-handle-repair.js`](acceptance-handle-repair.js)`#renderRepair`,
+ * which delegates here for this kind. Each producer owns its own line.
  *
- * @param {{ kind?: string, slug: string, from: string, to?: string, path?: string, assumption?: string, reason?: string }} repair
+ * @param {{ slug: string, from: string, path: string, assumption: string, reason: string }} repair
  * @returns {string}
  */
-export function renderChangeRepair({
-  kind,
-  slug,
-  from,
-  to,
-  path,
-  assumption,
-  reason,
-}) {
-  if (kind === 'acceptance-handle') {
-    return `Story "${slug}": acceptance[] item "${from}" carried an AC-<n> handle — normalised to "${to}"; the body renderer numbers the checkboxes.`;
-  }
+export function renderChangeRepair({ slug, from, path, assumption, reason }) {
   const why =
     reason === 'plain-string'
       ? 'plain-string bullet'

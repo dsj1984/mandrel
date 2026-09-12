@@ -9,8 +9,10 @@ import {
   AGENT_LABELS,
   TYPE_LABELS,
 } from '../../../.agents/scripts/lib/label-constants.js';
-import { normalizeAcceptanceHandles } from '../../../.agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js';
-import { renderChangeRepair } from '../../../.agents/scripts/lib/orchestration/plan-persist/changes-repair.js';
+import {
+  normalizeAcceptanceHandles,
+  renderRepair,
+} from '../../../.agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js';
 import {
   assemblePlanStories,
   createStoryIssues,
@@ -1474,14 +1476,14 @@ describe('normalizeAcceptanceHandles (Story #5323)', () => {
     const [repair] = normalizeAcceptanceHandles([
       { type: 'story', slug: 'carried', acceptance: ['AC-2: the outcome'] },
     ]);
-    const line = renderChangeRepair(repair);
+    const line = renderRepair(repair);
     assert.match(line, /Story "carried"/);
     assert.match(line, /AC-2: the outcome/);
     assert.match(line, /normalised to "the outcome"/);
   });
 
-  it('leaves a changes[] repair rendering unchanged', () => {
-    const line = renderChangeRepair({
+  it('delegates a changes[] repair to its own renderer', () => {
+    const line = renderRepair({
       slug: 's',
       from: 'src/app.js',
       path: 'src/app.js',

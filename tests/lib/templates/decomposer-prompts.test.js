@@ -24,7 +24,7 @@ import {
   renderStoryAuthorCore,
   renderStoryAuthorPrompt,
   renderStorySplitRules,
-  renderStoryTicketsRules,
+  ticketsModePromptField,
 } from '../../../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 /** AC-2: the strings the N=1 core must not carry. */
@@ -220,7 +220,7 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
 
 describe('tickets-mode addendum (Story #5323)', () => {
   test('binds the author to re-derive acceptance rather than carry it', () => {
-    const rules = renderStoryTicketsRules();
+    const rules = ticketsModePromptField('tickets').storyTicketsRules;
     assert.match(rules, /TICKETS-MODE DRAFT/);
     assert.match(rules, /evidence, not a template/i);
     // Re-derive, never carry the handles.

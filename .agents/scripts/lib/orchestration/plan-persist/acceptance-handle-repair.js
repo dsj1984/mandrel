@@ -24,6 +24,7 @@
  */
 
 import { stripAcceptanceHandle } from '../../story-body/story-body.js';
+import { renderChangeRepair } from './changes-repair.js';
 
 /**
  * Strip the handle off one surface's `acceptance[]`, recording each distinct
@@ -83,4 +84,24 @@ export function normalizeAcceptanceHandles(tickets) {
     }
   }
   return repairs;
+}
+
+/**
+ * Render one entry of the dry-run's mixed repair list.
+ *
+ * The list carries two kinds — a `changes[]` entry repaired by probing base,
+ * and an `acceptance[]` item whose handle was normalised off — and both are
+ * mechanical corrections the run applied on the author's behalf, so both
+ * belong on the one list the operator reads. This module owns the dispatch
+ * because it owns the newer kind: it renders its own line and delegates
+ * every other kind to `changes-repair.js`, so neither producer has to know
+ * the other's shape.
+ *
+ * @param {{ kind?: string, slug: string, from: string, to?: string }} repair
+ * @returns {string}
+ */
+export function renderRepair(repair) {
+  if (repair.kind !== 'acceptance-handle') return renderChangeRepair(repair);
+  const { slug, from, to } = repair;
+  return `Story "${slug}": acceptance[] item "${from}" carried an AC-<n> handle — normalised to "${to}"; the body renderer numbers the checkboxes.`;
 }

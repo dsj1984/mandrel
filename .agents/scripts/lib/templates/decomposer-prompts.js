@@ -28,7 +28,7 @@ import { BODY_FORMAT_LINTS } from '../story-body/body-format-lints.js';
  *     partition rules that only mean anything once a draft has siblings:
  *     every Story must earn its slot in the wave schedule, and every
  *     acceptance criterion belongs to exactly one Story.
- *   - **The tickets-mode rules** ({@link renderStoryTicketsRules}, Story
+ *   - **The tickets-mode rules** ({@link ticketsModePromptField}, Story
  *     #5323) — what to re-derive rather than carry when the seed is an
  *     existing ticket whose body is already in Story shape.
  *
@@ -239,7 +239,7 @@ You are splitting past the default-single policy, so simulate the delivery sched
  *
  * @returns {string}
  */
-export function renderStoryTicketsRules() {
+function renderStoryTicketsRules() {
   return `#### TICKETS-MODE DRAFT — the source ticket is evidence, not a template:
 
 You are planning from one or more existing tickets. Read them for **what the work is** — the problem, the constraints, the commands that verify it — and re-derive everything else. Specifically:
@@ -262,4 +262,23 @@ You are planning from one or more existing tickets. Read them for **what the wor
 export function renderStoryAuthorPrompt({ storyCount = 1 } = {}) {
   const core = renderStoryAuthorCore();
   return storyCount > 1 ? `${core}\n\n${renderStorySplitRules()}` : core;
+}
+
+/**
+ * The mode-conditional slice of `systemPrompts`.
+ *
+ * `storyTicketsRules` only means anything when the seed is an existing
+ * ticket, and an envelope carrying it in every mode teaches the author to
+ * look for a source ticket a `--seed` run does not have. Returning a
+ * spreadable object rather than a nullable string keeps the decision here,
+ * beside the prompt it selects, instead of as a branch in the envelope
+ * builder.
+ *
+ * @param {string|undefined} mode The plan-context mode.
+ * @returns {{ storyTicketsRules?: string }}
+ */
+export function ticketsModePromptField(mode) {
+  return mode === 'tickets'
+    ? { storyTicketsRules: renderStoryTicketsRules() }
+    : {};
 }
