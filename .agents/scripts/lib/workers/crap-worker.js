@@ -30,7 +30,11 @@
  */
 
 import { parentPort } from 'node:worker_threads';
-import { calculateCrapForSource, finalizeMethodRows } from '../crap-engine.js';
+import {
+  calculateCrapForSource,
+  finalizeMethodRows,
+  UNSCORABLE,
+} from '../crap-engine.js';
 import { prepareSourceForScoring } from '../transpile.js';
 import { serveWorkerMessages } from './serve-worker-messages.js';
 
@@ -136,13 +140,13 @@ export function handleCrapWorkerMessage(msg, _coverage, deps = {}) {
       err && typeof err.message === 'string' ? err.message : String(err),
     );
   }
-  // Story #5311: the kernel returns `null` — not `[]` — for a source it could
-  // not parse. Collapsing the two here is what made this drop path unreachable
-  // for the whole parse-failure class: the file reached the host as a
-  // successfully-scored file with no methods, and its baseline rows vanished
-  // without a counter moving. `rows: null` is the serial path's `parseError`
-  // verdict in the shape the host loop already drops on.
-  if (methodRows === null) return dropped(null);
+  // Story #5311: the kernel answers `UNSCORABLE` — not `[]` — for a source it
+  // could not parse. Collapsing the two here is what made this drop path
+  // unreachable for the whole parse-failure class: the file reached the host
+  // as a successfully-scored file with no methods, and its baseline rows
+  // vanished without a counter moving. `rows: null` is the serial path's
+  // `parseError` verdict in the shape the host loop already drops on.
+  if (methodRows === UNSCORABLE) return dropped(null);
 
   return reply(
     finalizeMethodRows(methodRows, { requireCoverage, coverageAvailable }),
