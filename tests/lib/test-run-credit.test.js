@@ -1,12 +1,20 @@
 // tests/lib/test-run-credit.test.js
 //
-// Story #5313 — a green bare `npm test` in a Story worktree deposits the
-// `test` gate's evidence record close reads. Every seam is injected so no
-// test spawns git or touches the real temp tree.
+// Story #5313 — a green `npm test` in a Story worktree deposits the `test`
+// gate's evidence record close reads. Story #5324 scopes that claim: the
+// deposit fires only where `npm test` routes through mandrel's own runner,
+// which is why the last describe below pins the module's reach to that single
+// call site. The deposit every project can rely on is `evidence-gate.js …
+// --gate test -- npm test`, which stamps whatever it just ran.
+//
+// Every seam is injected so no test spawns git or touches the real temp tree;
+// the reach guard reads two source files and nothing else.
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   depositTestRunCredit,
@@ -247,6 +255,58 @@ describe('predictsTestEvidenceCredit — the read side close consults', () => {
         },
       }),
       false,
+    );
+  });
+});
+
+describe('reach — the runner-side deposit is a bonus, not the contract', () => {
+  const scriptsDir = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '.agents',
+    'scripts',
+  );
+
+  test('run-tests.js is the one production caller of the depositor', () => {
+    // A consumer whose `npm test` is `vitest run` or `jest` never executes
+    // run-tests.js, so it never reaches this module — no record, and no line
+    // on stderr either. That silence is the whole reason `mandrel doctor`
+    // carries the `test-credit-path` check and the delivery surfaces name
+    // `evidence-gate.js` instead (Story #5324). If a second caller is ever
+    // added, that reasoning has to be re-checked rather than quietly widened.
+    const callers = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === '__tests__' || entry.name === 'node_modules')
+          continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+        } else if (entry.name.endsWith('.js')) {
+          const text = fs.readFileSync(full, 'utf8');
+          if (/from '[^']*test-run-credit\.js'/.test(text)) {
+            callers.push({ file: path.relative(scriptsDir, full), text });
+          }
+        }
+      }
+    };
+    walk(scriptsDir);
+
+    const depositors = callers
+      .filter(({ text }) =>
+        /reportTestRunCredit|depositTestRunCredit/.test(text),
+      )
+      .map(({ file }) => file);
+    assert.deepEqual(depositors, ['run-tests.js']);
+
+    // The read side is a separate concern and may live anywhere close runs.
+    const readers = callers
+      .filter(({ text }) => /predictsTestEvidenceCredit/.test(text))
+      .map(({ file }) => file);
+    assert.ok(
+      readers.every((file) => file !== 'run-tests.js'),
+      'the depositor and the reader are different call sites',
     );
   });
 });

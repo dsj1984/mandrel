@@ -235,27 +235,43 @@ describe('deliver-digest § 3 — the ceremony derivation is scripted (#5313)', 
   });
 });
 
-describe('deliver-digest § 5 — the one full-suite run (#5174, #5313)', () => {
+describe('deliver-digest § 5 — the one credited run (#5174, #5313, #5324)', () => {
   const digest = () => read(DIGEST);
   const spine = () => read(path.join(WORKFLOWS, 'helpers', 'deliver-story.md'));
   const worker = () =>
     read(path.join(REPO_ROOT, '.agents', 'agents', 'story-worker.md'));
 
-  it('AC-5: names a bare npm test as the credited run and carries no invocation-shape rules', () => {
+  // Story #5324 supersedes #5313's claim here rather than sitting beside it:
+  // the credited run is no longer a bare `npm test` but the wrapper that runs
+  // whatever `npm test` resolves to and stamps what it just ran — the only
+  // shape a vitest or jest consumer can earn the credit with. Both surfaces
+  // assert one contract; a doc that still told a worker the bare run earns it
+  // would be the defect this Story exists to remove.
+  it('AC-5: names the runner-agnostic deposit, not a bare npm test', () => {
     for (const [label, doc] of [
       ['the digest', digest()],
       ['the story-worker context', worker()],
     ]) {
       assertDocMentions(doc, /npm test/, `${label} must name the runner`);
-      assertDocOmits(
+      assertDocMentions(
         doc,
-        /deposits \*{0,2}no\*{0,2}\*{0,2}ne?\*{0,2} credit|deposits \*\*none\*\*/,
-        `${label} must not say a bare run deposits no credit`,
+        /--gate test --worktree <workCwd> -- npm test/,
+        `${label} must give the deposit that works whatever the test script resolves to`,
+      );
+      assertDocMentions(
+        doc,
+        /routes through mandrel's own runner/,
+        `${label} must scope the bare-run deposit to the runner that performs it`,
       );
       assertDocOmits(
         doc,
-        /coverage-capture\.js --cwd|evidence-gate\.js --standalone[^\n]*--gate test/,
-        `${label} must not carry the retired crediting invocations`,
+        /run `npm test` exactly once/,
+        `${label} must not carry #5313's bare-run instruction`,
+      );
+      assertDocOmits(
+        doc,
+        /coverage-capture\.js --cwd/,
+        `${label} must not carry the retired capture invocation`,
       );
       assertDocOmits(
         doc,

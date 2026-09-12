@@ -94,26 +94,33 @@ whose `criteria[]` length differs **before** scoring, consuming no round;
 not close**: post a `friction` comment and flip `agent::blocked`.
 Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
-## 5. The one full-suite run
+## 5. The one credited suite run
 
-After the self-eval loop's last fix commit, run the project test runner
-**once** in the worktree:
+After the self-eval loop's last fix commit, run the suite **once** in the
+worktree through the depositor — it spawns the project's own `npm test`,
+whatever that resolves to, and stamps the result, so any runner earns the
+credit:
 
 ```bash
-npm test   # in <workCwd>
+node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
+  --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
 ```
 
-A green full run on `story-<id>` deposits the `test` evidence close reads,
-keyed on the tree, so close reports the gate as **credited** at unchanged
-HEAD — a later commit voids it. The CRAP gate still captures coverage itself
-when it needs an artifact. If the suite outruns the host's sync Bash
-ceiling, dispatch it in the **background** — its completion re-invokes you;
-never spawn a task to poll or `sleep`-loop against it
-([`parallel-tooling.md`](parallel-tooling.md) Rule 2). Read the **output**,
-not the exit code: the runner prints whether it deposited credit, and a run
-off the Story branch or of a partial tier deposits nothing and says so.
-Redraft rounds run the scoped projects for the roots you changed plus
-`verify[]`, not the whole suite; only this run needs credit.
+Green deposits the `test` evidence close reads, keyed on the tree, so close
+reports the gate as **credited** at unchanged HEAD — a later commit voids it.
+Read its **output**, not the exit code: `✓ test passed` is the signal. The
+CRAP gate still captures coverage itself when it needs an artifact.
+
+A bare `npm test` earns the same credit **only** where the project's test
+script routes through mandrel's own runner, which prints the outcome. On any
+other runner it deposits nothing and prints nothing, so silence is never
+evidence of credit; `mandrel doctor`'s `test-credit-path` check names which
+shape this project is. If the suite outruns the host's sync Bash ceiling,
+dispatch it in the **background** — its completion re-invokes you; never spawn
+a task to poll or `sleep`-loop against it
+([`parallel-tooling.md`](parallel-tooling.md) Rule 2). Redraft rounds run the
+scoped projects for the roots you changed plus `verify[]`, not the whole
+suite; only this run needs credit.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
 full-suite command is reported credited against the same record, never

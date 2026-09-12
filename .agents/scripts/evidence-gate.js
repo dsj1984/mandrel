@@ -269,7 +269,7 @@ runAsCli(import.meta.url, main, {
   source: 'evidence-gate',
   usage: {
     invocation:
-      'node .agents/scripts/evidence-gate.js --scope-id <id> --gate <name> [--standalone] [--no-evidence] [--cwd <path>] [--worktree <path>]',
+      'node .agents/scripts/evidence-gate.js --scope-id <id> --gate <name> [--standalone] [--no-evidence] [--cwd <path>] [--worktree <path>] -- <cmd> [args...]',
     summary:
       'Run one named gate, reusing a prior evidence stamp for the same HEAD instead of re-running it.',
     flags: [
@@ -282,6 +282,22 @@ runAsCli(import.meta.url, main, {
       ],
       ['--cwd <path>', 'Repository root (default: project root).'],
       ['--worktree <path>', 'Worktree the gate runs in.'],
+      [
+        '-- <cmd> [args...]',
+        'Required. The command this gate runs, passed through verbatim (never via a shell).',
+      ],
+    ],
+    notes: [
+      [
+        'Everything after the first `--` is the gate. The stamp therefore describes',
+        'what actually ran, whatever that is — which is how a project on any test',
+        'runner earns the close `test` credit:',
+        '',
+        '  node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 \\',
+        '    --gate lint --worktree .worktrees/story-4250 -- npm run lint',
+        '  node .agents/scripts/evidence-gate.js --standalone --scope-id 4250 \\',
+        '    --gate test --worktree .worktrees/story-4250 -- npm test',
+      ].join('\n'),
     ],
   },
 });

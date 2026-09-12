@@ -83,21 +83,22 @@ Do **not** re-read every file in `project.docsContextFiles`. Read the
 digest your caller passes, then pull files on demand at the lines it
 names. A null digest path means no docs mandate.
 
-## Close gates — one full-suite run
+## Close gates — one credited run
 
 `single-story-close.js` runs the canonical close-validation chain
 (**typecheck, lint, test, format, maintainability, coverage, crap**) and is
 the authoritative gate — do not pre-run it. The **one** exception is the
-full suite: after the self-eval loop's last fix commit, run `npm test`
-exactly once in `<workCwd>`. A green full run on `story-<storyId>`
-deposits the `test` credit close reads, keyed on the tree; a later commit
-voids it, and close captures coverage itself when the CRAP gate needs an
-artifact. If the suite outruns the host's sync Bash ceiling, dispatch it in
-the **background** — its completion notification re-invokes you. Never
-spawn a task to poll or `sleep`-loop against it; a waiter with a wrong
-condition outlives the agent. An exit code is never evidence a gate did
-work — the runner's **output** is: it prints whether it deposited credit,
-and a run off the Story branch or of a partial tier deposits nothing and
+full suite: after the self-eval loop's last fix commit, run it once in
+`<workCwd>` through the depositor — `evidence-gate.js --standalone
+--scope-id <storyId> --gate test --worktree <workCwd> -- npm test`. It runs
+whatever `npm test` resolves to and stamps that, so the credit is earned on
+any runner; a later commit voids it, and close captures coverage itself when
+the CRAP gate needs an artifact. If the suite outruns the host's sync Bash
+ceiling, dispatch it in the **background** — its completion notification
+re-invokes you. Never spawn a task to poll or `sleep`-loop against it; a
+waiter with a wrong condition outlives the agent. An exit code is never
+evidence a gate did work — the **output** is: a bare `npm test` deposits
+nothing unless it routes through mandrel's own runner, the only shape that
 says so. Redraft rounds run the scoped projects for the roots you changed
 plus `verify[]`, not the whole suite. Share `lint` / `typecheck` evidence
 with close via `evidence-gate.js`; never stamp coverage / CRAP fresh any
