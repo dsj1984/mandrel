@@ -10,9 +10,10 @@
  * checkout on CI has no local `main`), else nothing — a shallow checkout
  * with no base at all skips the probes instead of reading every path as
  * absent.
- *   - `validateTickets(tickets, config, opts)` — repairs the mechanical
- *     `changes[]` formalities against the base branch, then runs the
- *     cross-link, freshness, and task-body validators in one pass.
+ *   - `validateTickets(tickets, config, opts)` — normalises the authored
+ *     `acceptance[]` handles and repairs the mechanical `changes[]`
+ *     formalities against the base branch, then runs the cross-link,
+ *     freshness, and task-body validators in one pass.
  *
  * Story #5312 deleted the fan-out probe that lived here: the delete
  * blast-radius count never refused a real plan, and the `git grep` it paid
@@ -24,6 +25,7 @@
 import { gitSpawn } from '../../git-utils.js';
 import { validateTaskBodies } from '../task-body-validator.js';
 import { validateAndNormalizeTickets } from '../ticket-validator.js';
+import { normalizeAcceptanceHandles } from './acceptance-handle-repair.js';
 import { repairChangeEntries } from './changes-repair.js';
 
 /**
@@ -167,13 +169,16 @@ function defineHidden(validated, extras) {
 export function validateTickets(tickets, config, opts = {}) {
   const baseBranch = resolveBaseBranchRef(config);
   const baseBranchRef = resolveProbeRef({ baseBranch, cwd: opts.cwd });
-  const repairs = repairChangeEntries(tickets, {
-    existsAtBase: makeExistsAtBase({
-      baseBranchRef,
-      cwd: opts.cwd,
-      gitRunner: opts.gitRunner,
+  const repairs = [
+    ...normalizeAcceptanceHandles(tickets),
+    ...repairChangeEntries(tickets, {
+      existsAtBase: makeExistsAtBase({
+        baseBranchRef,
+        cwd: opts.cwd,
+        gitRunner: opts.gitRunner,
+      }),
     }),
-  });
+  ];
   const validated = validateAndNormalizeTickets(tickets, {
     baseBranchRef: baseBranchRef ?? undefined,
     gitRunner: opts.gitRunner,

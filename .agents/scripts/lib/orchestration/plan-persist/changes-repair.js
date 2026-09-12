@@ -261,7 +261,12 @@ function repairTicket(ticket, existsAtBase) {
 }
 
 /**
- * Render one repair as the dry-run line the operator reads.
+ * Render one `changes[]` repair as the dry-run line the operator reads.
+ *
+ * The dry-run's repair list is mixed — an `acceptance[]` handle strip is
+ * reported on it too — but the dispatch across kinds lives in
+ * [`acceptance-handle-repair.js`](acceptance-handle-repair.js)`#renderRepair`,
+ * which delegates here for this kind. Each producer owns its own line.
  *
  * @param {{ slug: string, from: string, path: string, assumption: string, reason: string }} repair
  * @returns {string}
