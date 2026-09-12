@@ -384,9 +384,8 @@ ceremony above:
    `[HEAD_REF]`, stage explicit paths only, and make **one focused
    conventional commit per lens** (`fix(<scope>): <description> (review findings batch)`).
 3. Bounded-attempt semantics extend to the batch: each finding gets **at
-   most one** attempt, and a lens's batch commit that would exceed
-   `delivery.codeReview.maxFixScopeFiles` routes that lens's findings to
-   escalation (`scope-exceeded`) instead of committing.
+   most one** attempt (the `maxFixScopeFiles` file-count ceiling was retired
+   in Story #5313 — a fix is bounded by attempts, not by file count).
 4. After **all** lens batches are committed, run a **single** validation
    pass (`npm run lint` plus the relevant `npm test` slice) and a
    **single** targeted rescan over the touched files. Surviving batched

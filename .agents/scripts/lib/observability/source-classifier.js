@@ -107,6 +107,7 @@ const FRAMEWORK_SCRIPT_BASENAMES = Object.freeze([
   'check-workflow-citations.js',
   'check-workflow-cli-lint.js',
   'check-workflow-timeouts.js',
+  'ceremony-derive.js',
   'cleanup-repo-test-temp.js',
   'coverage-capture.js',
   'deliver-light.js',

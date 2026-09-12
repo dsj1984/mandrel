@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-12T15:53:06.948Z",
+  "generatedAt": "2026-09-12T17:37:05.740Z",
   "mode": "production",
   "rows": [
     {
@@ -155,6 +155,10 @@
     {
       "file": ".agents/scripts/lib/baselines/components.js",
       "symbol": "_internals"
+    },
+    {
+      "file": ".agents/scripts/lib/baselines/crap-preview-scan.js",
+      "symbol": "listCyclomaticAdvisories"
     },
     {
       "file": ".agents/scripts/lib/baselines/duplication-scanner.js",
@@ -669,10 +673,6 @@
       "symbol": "WEBHOOK_EVENT_NAMES"
     },
     {
-      "file": ".agents/scripts/lib/config/acceptance-eval.js",
-      "symbol": "ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING"
-    },
-    {
       "file": ".agents/scripts/lib/config/defaults.js",
       "symbol": "FULL_AGENTRC_PATH"
     },
@@ -698,15 +698,7 @@
     },
     {
       "file": ".agents/scripts/lib/config/limits.js",
-      "symbol": "getSignals"
-    },
-    {
-      "file": ".agents/scripts/lib/config/limits.js",
       "symbol": "resolveLimits"
-    },
-    {
-      "file": ".agents/scripts/lib/config/limits.js",
-      "symbol": "SIGNALS_DEFAULTS"
     },
     {
       "file": ".agents/scripts/lib/config/qa.js",
@@ -1162,7 +1154,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ceremony-routing.js",
-      "symbol": "*"
+      "symbol": "verdictOwnerForMode"
     },
     {
       "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -1242,15 +1234,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "symbol": "OVERRIDABLE_SHAPE_CODES"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/light-suitability.js",
       "symbol": "resolveLedgeredVerdict"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "symbol": "resolveOperatorOverride"
     },
     {
       "file": ".agents/scripts/lib/orchestration/merge-block-class.js",
@@ -1693,6 +1677,10 @@
       "symbol": "*"
     },
     {
+      "file": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
+      "symbol": "*"
+    },
+    {
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "symbol": "*"
     },
@@ -2039,6 +2027,22 @@
     {
       "file": ".agents/scripts/lib/test-isolate/runner.js",
       "symbol": "bisectFlipper"
+    },
+    {
+      "file": ".agents/scripts/lib/test-run-credit.js",
+      "symbol": "depositTestRunCredit"
+    },
+    {
+      "file": ".agents/scripts/lib/test-run-credit.js",
+      "symbol": "predictsTestEvidenceCredit"
+    },
+    {
+      "file": ".agents/scripts/lib/test-run-credit.js",
+      "symbol": "resolveEvidenceRoot"
+    },
+    {
+      "file": ".agents/scripts/lib/test-run-credit.js",
+      "symbol": "storyIdFromBranch"
     },
     {
       "file": ".agents/scripts/lib/test-temp.js",

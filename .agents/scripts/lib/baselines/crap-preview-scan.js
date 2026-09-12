@@ -16,6 +16,7 @@ import {
   resolveEscomplexVersion,
   scanAndScore,
 } from '../crap-utils.js';
+import { CYCLOMATIC_CEILING } from '../cyclomatic-ceiling.js';
 import { resolveCrapPreviewIncremental } from './crap-preview-incremental.js';
 import { resolveCrapEnvOverrides } from './env-overrides.js';
 import {
@@ -66,6 +67,26 @@ function hasCrapRegressions(result) {
  * }} opts
  * @returns {Promise<{ exitCode: number, envelope: object }>}
  */
+/**
+ * The scanned methods at or over the fixed cyclomatic ceiling (Story #5313),
+ * as advisories: `quality-preview.js` lists them and exits 0 on them, so the
+ * reading reaches the author without the preview ever refusing a commit on
+ * complexity alone. Pure.
+ *
+ * @param {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>} rows
+ * @returns {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>}
+ */
+export function listCyclomaticAdvisories(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .filter((r) => Number(r?.cyclomatic) >= CYCLOMATIC_CEILING)
+    .map(({ file, method, startLine, cyclomatic }) => ({
+      file,
+      method,
+      startLine,
+      cyclomatic,
+    }));
+}
+
 export async function computeCrapPreviewScan({
   crap,
   cwd,
@@ -120,6 +141,10 @@ export async function computeCrapPreviewScan({
     newMethodCeiling,
     scopeInfo: { scope, diffRef },
   });
+  // Story #5313: a method at or over the cyclomatic ceiling is an ADVISORY
+  // on the preview — reported, never a verdict. The ratchet in
+  // `check-cyclomatic.js` owns enforcement.
+  envelope.cyclomaticAdvisories = listCyclomaticAdvisories(scan.rows);
   // Story #4866 (AC-5): above the drifted-row ratio the basis is self-
   // evidently unsound and every per-method verdict below it is an artefact of
   // a mis-keyed join. Say so once, by name, and fail open.

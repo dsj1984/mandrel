@@ -22,9 +22,9 @@ maintainability / coverage / crap) proves the code is *healthy*, not that it
 satisfies *this Story's* acceptance criteria.
 
 The loop is **always on** (a hard cutover — there is no flag to disable it) and
-**bounded** by `delivery.acceptanceEval.maxRounds` (default 2), which the
-resolver clamps into `[1, hard ceiling]` so the cap can never be switched off or
-run unbounded. It is **distinct from** the per-run `sibling-coherence` epilogue
+**bounded** by `delivery.acceptanceEval.maxRounds` (default 2; `0` means the
+verdict is scored once with no redraft round). It is **distinct from** the
+per-run `sibling-coherence` epilogue
 step (`planRunEpilogue` for N>1): this loop is per-Story, per-criterion,
 mid-delivery, and evaluates the actual work product.
 
@@ -55,23 +55,21 @@ mid-delivery, and evaluates the actual work product.
    >
    > **Whether to spawn fresh at all is routed off the derived change level**
    > — the same signal `review-depth.js` resolves depth from, so the two
-   > decisions cannot disagree. Derive it with `deriveChangeLevel` from
-   > [`review-depth.js`](../../scripts/lib/orchestration/review-depth.js) over
-   > the **change set your caller computed once** for this Story
-   > (`computeChangeSet` from
-   > [`change-set.js`](../../scripts/lib/orchestration/change-set.js); see
-   > [`deliver-story.md`](deliver-story.md) Step 2), then
-   > resolve the ceremony per cluster with `resolveCeremonyForRisk` from
-   > [`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js)
-   > using that `derivedLevel` and `delivery.routing.freshCriticSampleRate`:
-   > **`high` (the diff touches a sensitive path registered in
-   > `audit-rules.json`) → `fresh`** (spawn the critic); **`low` (it touches
-   > none) → `inline`** (the contract-identical inline fallback below),
-   > **except** the `freshCriticSampleRate` fraction of low-level clusters the
-   > sampling floor forces `fresh` so a low level never means zero independent
-   > checking; **`null` / unknown (the diff could not be enumerated) → `fresh` +
-   > full ceremony** (fail-safe). This chooses fresh-vs-inline **per cluster
-   > only — it never changes the cluster count**.
+   > decisions cannot disagree. Derive it with one script over the Story
+   > branch (Story #5313) — never a hand-carried import block:
+   >
+   > ```bash
+   > node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
+   > ```
+   >
+   > It computes the change set once (`files`), derives the level and
+   > classes, and resolves the ceremony per cluster (`mode`, `reason`,
+   > `verdictOwner`): **`high` (the diff touches a sensitive path registered
+   > in `audit-rules.json`) → `fresh`** (spawn the critic); **`low` (it
+   > touches none) → `inline`** (the contract-identical inline fallback
+   > below); **`null` / unknown (the diff could not be enumerated) → `fresh`
+   > + full ceremony** (fail-safe). This chooses fresh-vs-inline **per
+   > cluster only — it never changes the cluster count**.
    >
    > The routing signal is deliberately **not** a planner-authored risk
    > verdict: a level the plan asserted about itself was exactly the signal
@@ -80,7 +78,7 @@ mid-delivery, and evaluates the actual work product.
    >
    > **Inline-critic path (low-level-routed OR nesting-absent harness).** The
    > verdict is authored **inline** whenever the risk router above resolves to
-   > `inline` (a low-risk cluster not caught by the sampling floor), and also as
+   > `inline` (a low-risk cluster), and also as
    > a **fallback** on any harness that cannot spawn the fresh critic.
    > Dispatching the critic as a nested `Agent` is the fresh-context shape and
    > works on any harness that carries `Agent` into sub-agents (Claude Code ≥
@@ -102,18 +100,18 @@ mid-delivery, and evaluates the actual work product.
    > comment (if you block) that the inline fallback was used.
 
    The critic:
-   - Inspects the **change set handed to it in its spawn context** — the one
+   + Inspects the **change set handed to it in its spawn context** — the one
      list computed above — and the Story's inline `acceptance[]` / `verify[]`
      arrays. Pass the file list explicitly when you dispatch the critic; it
      does not re-enumerate the diff for itself, so a commit
      landing mid-ceremony cannot leave the critic scoring a different change
      than the one that routed it.
-   - **Runs the `verify[]` commands** and consumes their output as **required
+   + **Runs the `verify[]` commands** and consumes their output as **required
      evidence** when scoring the relevant acceptance items. `verify[]` is not
      optional advisory pre-flight — a criterion cannot be scored `met` without
      the supporting `verify[]` evidence where a `verify[]` command is relevant
      to it.
-   - **Reuses the credited full-suite run instead of re-paying for it.**
+   + **Reuses the credited full-suite run instead of re-paying for it.**
      Before spawning a `verify[]` entry, classify it with `resolveVerifyCredit`
      from
      [`verify-credit.js`](../../scripts/lib/orchestration/verify-credit.js): an
@@ -125,7 +123,7 @@ mid-delivery, and evaluates the actual work product.
      manufacture a pass. The gate warns on any such entry: the intended shape
      is scoped `verify[]` entries **plus** the one credited run
      ([`deliver-digest.md`](deliver-digest.md) § 5).
-   - **Shares `lint` / `typecheck` evidence with close.** When a
+   + **Shares `lint` / `typecheck` evidence with close.** When a
      `verify[]` command is **byte-identical** to a close-validation gate — in
      practice only the cheap, command-identical `lint` and `typecheck` gates
      (`npm run lint` and the resolved `project.commands.typecheck`) — the
@@ -146,19 +144,21 @@ mid-delivery, and evaluates the actual work product.
      fresh — a false-fresh coverage record without `coverage-final.json`
      silently weakens the floor. Limit the evidence-share to `lint` and
      `typecheck`.
-   - Emits a **cluster** verdict file under `temp/` conforming to
+   + Emits a **cluster** verdict file under `temp/` conforming to
      [`acceptance-eval-verdict.schema.json`](../../schemas/acceptance-eval-verdict.schema.json):
      one `{ index, criterion, verdict: met|partial|unmet, evidence,
      verifyEvidence[] }` record per acceptance item **in that cluster**, each
      `index` being the item's position in the Story's full `acceptance[]`
      array. A fresh critic **returns that path to you** rather than calling the
      gate itself.
-2. **Dispatch the round's clusters in parallel, then merge into one verdict.**
-   The clusters of a round are independent, so dispatch **all** of the round's
-   fresh critics as N `Agent` calls **in a single assistant turn** —
-   [`parallel-tooling.md`](parallel-tooling.md) **Rule 3** — never serially,
-   and never one round per cluster. Clusters routed `inline` are authored in
-   the same round alongside them.
+2. **Dispatch the round's clusters in parallel, then merge into one verdict
+   (fresh critics only).** When the verdict owner is the **inline self-eval**,
+   author **one** verdict file covering every `acceptance[]` item and score it
+   in one gate call — the cluster merge below does not apply (Story #5313).
+   For fresh critics, the clusters of a round are independent, so dispatch
+   **all** of the round's critics as N `Agent` calls **in a single assistant
+   turn** — [`parallel-tooling.md`](parallel-tooling.md) **Rule 3** — never
+   serially, and never one round per cluster.
 
    Then **merge** the cluster verdicts into **one** verdict file under `temp/`:
    concatenate every cluster's `criteria[]` records and order the merged array
@@ -187,24 +187,24 @@ mid-delivery, and evaluates the actual work product.
 
    ```bash
    node <main-repo>/.agents/scripts/acceptance-eval.js \
-     --story <storyId> --verdict <merged-verdict-path> \
-     --expected-criteria <number of acceptance[] items>
+     --story <storyId> --verdict <verdict-path>
    ```
 
-   Pass `--expected-criteria` from the `acceptance[]` count you already read
-   off the Story body: a verdict whose `criteria[]` length differs — a single
-   cluster's verdict handed over unmerged — is rejected **before scoring**,
-   with an error naming the merge contract and consuming **no round**.
+   The gate reads the Story's `acceptance[]` count itself (Story #5313): a
+   verdict whose `criteria[]` length differs — a single cluster's verdict
+   handed over unmerged — is rejected **before scoring**, with an error naming
+   the merge contract and consuming **no round**. `--expected-criteria` is
+   still accepted but redundant; when passed it must agree with that count.
 
    The gate validates the verdict against the schema, applies the round cap,
    emits the per-criterion `acceptance-eval` signal into the retro / feedback
    substrate, prints a JSON envelope, and exits with one of three decisions:
-   - **`decision: "proceed"`** (every criterion `met`) → exit 0. Proceed to
+   + **`decision: "proceed"`** (every criterion `met`) → exit 0. Proceed to
      close.
-   - **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining) →
+   + **`decision: "redraft"`** (some `partial`/`unmet`, rounds remaining) →
      exit 0. Redraft the flagged criteria (named in `unmetCriteria[]`), commit
      the fix, and start another round.
-   - **`decision: "block"`** (round cap reached, criteria still unmet) → exit
+   + **`decision: "block"`** (round cap reached, criteria still unmet) → exit
      non-zero. **Do not proceed to close.** Take the caller's blocked path
      (transition to `agent::blocked`) and post a `friction` comment naming the
      unmet criteria and their evidence. Never silently proceed to close.

@@ -296,7 +296,7 @@ describe('one gate call per round — merged-verdict coverage (Story #4951)', ()
           ],
           cliDeps(mergedVerdict(2), appended),
         ),
-      /verdict covers 2 criteria but --expected-criteria is 4/,
+      /verdict covers 2 criteria but the Story's acceptance\[\] count is 4/,
     );
     assert.deepEqual(
       appended,

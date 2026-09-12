@@ -1,34 +1,23 @@
 /**
- * Acceptance self-eval accessor (Story #3819).
+ * Acceptance self-eval accessor (Story #3819, Story #5313).
  *
  * Resolves `.agentrc.json → delivery.acceptanceEval` into the canonical
  * shape the per-Story acceptance self-eval loop consumes. The loop scores
  * the caller-injected change set against each inline `acceptance[]` item,
- * redrafts the unmet items, and re-evaluates — capped at `maxRounds` rounds,
- * then escalates to `agent::blocked` when criteria remain unmet.
+ * redrafts the unmet items, and re-evaluates — capped at `maxRounds`
+ * redraft rounds, then escalates to `agent::blocked` when criteria remain
+ * unmet.
  *
- * ## The undisableable cap
- *
- * `maxRounds` is operator-tunable, but the cap itself can never be turned
- * off. Two invariants enforce the open-loop token-burn guard:
- *
- *   1. A configured value is clamped into
- *      `[1, ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING]`. `maxRounds: 0` (which
- *      would disable the loop) clamps up to 1; a pathological
- *      `maxRounds: 9999` clamps down to the ceiling.
- *   2. Non-integer / non-finite / missing values fall back to the
- *      documented default. The AJV schema already rejects `maxRounds < 1`
- *      and non-integers before they reach this accessor, but the resolver
- *      stays defensive so unit-test fixtures and degraded configs never
- *      produce an unbounded or zero-round loop.
- *
- * There is intentionally no `enabled` flag — the loop is a hard cutover
- * (always on) per `rules/git-conventions.md` (no parallel old-shape path,
- * no toggle between "loop" and "no loop").
+ * Story #5313 dropped the hard ceiling (`ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING`)
+ * and the floor-of-one clamp: `maxRounds` is any non-negative integer, and
+ * `0` means the verdict is scored **once** with no redraft round. The
+ * scoring pass itself is always on — there is intentionally no `enabled`
+ * flag (hard cutover per `rules/git-conventions.md`); only the redraft
+ * budget is tunable.
  */
 
 /**
- * Default redraft-round ceiling applied when `.agentrc.json` omits
+ * Default redraft-round budget applied when `.agentrc.json` omits
  * `delivery.acceptanceEval.maxRounds`. Frozen so downstream callers cannot
  * mutate the resolver's defaults across processes.
  *
@@ -41,55 +30,34 @@ export const ACCEPTANCE_EVAL_DEFAULTS = Object.freeze({
 });
 
 /**
- * Hard, undisableable ceiling on the number of redraft rounds. No
- * configuration can exceed this value — it is the open-loop token-burn
- * guard. A configured `maxRounds` larger than the ceiling is clamped down
- * to it.
- *
- * @type {number}
- */
-export const ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING = 5;
-
-/**
- * Clamp a candidate round count into the inviolable `[1, ceiling]` range.
- * Non-integer / non-finite inputs fall back to the documented default.
+ * Normalize a candidate round count: a non-negative integer is taken as-is
+ * (including `0`); anything else — negative, non-integer, non-finite,
+ * missing — falls back to the documented default.
  *
  * @param {unknown} value
  * @param {number} fallback
  * @returns {number}
  */
-function clampRounds(value, fallback) {
-  const candidate =
-    typeof value === 'number' && Number.isInteger(value) ? value : fallback;
-  if (candidate < 1) return 1;
-  if (candidate > ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING) {
-    return ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING;
-  }
-  return candidate;
+function normalizeRounds(value, fallback) {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : fallback;
 }
 
 /**
  * Read the merged acceptance-eval block. Returns the canonical shape:
  *
- *   {
- *     maxRounds: number,  // clamped into [1, ceiling]
- *     ceiling: number     // the undisableable hard cap on rounds
- *   }
- *
- * `maxRounds` is always a positive integer no greater than `ceiling`,
- * regardless of what the resolved config carried.
+ *   { maxRounds: number }  // non-negative integer; 0 = scored once
  *
  * @param {object | null | undefined} config
- * @returns {{ maxRounds: number, ceiling: number }}
+ * @returns {{ maxRounds: number }}
  */
 export function getAcceptanceEval(config) {
   const user = config?.delivery?.acceptanceEval ?? {};
-  const maxRounds = clampRounds(
-    user.maxRounds,
-    ACCEPTANCE_EVAL_DEFAULTS.maxRounds,
-  );
   return {
-    maxRounds,
-    ceiling: ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING,
+    maxRounds: normalizeRounds(
+      user.maxRounds,
+      ACCEPTANCE_EVAL_DEFAULTS.maxRounds,
+    ),
   };
 }

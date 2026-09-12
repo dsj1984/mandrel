@@ -28,6 +28,11 @@
  * (`MAX_TARGET_CHARS`) and spawns one `node --test` process per chunk,
  * aggregating the exit codes. On POSIX the far larger
  * `POSIX_MAX_TARGET_CHARS` budget collapses every tier back into one spawn.
+ *
+ * Suite credit (Story #5313): a green full-tier run inside a `story-<id>`
+ * checkout deposits the `test` gate's evidence record — the one
+ * `single-story-close.js` reads — so a bare `npm test` in the worktree is
+ * credited at unchanged HEAD. See `lib/test-run-credit.js`.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -37,6 +42,7 @@ import { assertNoReservedIdStreams } from './check-test-temp-hygiene.js';
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { buildWebhookSafeTestEnv } from './lib/test-env.js';
+import { reportTestRunCredit } from './lib/test-run-credit.js';
 import {
   resolveTestConcurrency,
   runTierPreflight,
@@ -171,6 +177,7 @@ export function runTestSuite({
   maxTargetChars = resolveMaxTargetChars(),
   fixtureStreamGuard = assertNoReservedIdStreams,
   preflight = runTierPreflight,
+  depositCredit = reportTestRunCredit,
 } = {}) {
   const { tier, rest } = parseTierArgv(argv);
 
@@ -185,6 +192,7 @@ export function runTestSuite({
   const chunks = chunkTestTargets(targets, maxTargetChars);
 
   const env = buildWebhookSafeTestEnv(process.env);
+  const startedAt = Date.now();
   let status = 0;
   let spawnError = null;
 
@@ -223,6 +231,10 @@ export function runTestSuite({
   if (spawnError) {
     throw spawnError;
   }
+
+  // Story #5313 — a green full run earns close's `test` credit; best-effort,
+  // never the exit code.
+  depositCredit({ cwd, tier, status, durationMs: Date.now() - startedAt });
 
   return status;
 }

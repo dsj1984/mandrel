@@ -1,20 +1,20 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-12T16:14:40.445Z",
+  "generatedAt": "2026-09-12T17:53:53.393Z",
   "rollup": {
     "*": {
-      "lines": 96.28,
-      "branches": 87.19,
-      "functions": 88.36
+      "lines": 96.3,
+      "branches": 87.27,
+      "functions": 88.21
     }
   },
   "rows": [
     {
       "path": ".agents/scripts/acceptance-eval.js",
-      "lines": 99.61,
-      "branches": 90.28,
-      "functions": 88.89
+      "lines": 99.67,
+      "branches": 92.55,
+      "functions": 91.67
     },
     {
       "path": ".agents/scripts/apply-quality-bootstrap.js",
@@ -51,6 +51,12 @@
       "lines": 94.49,
       "branches": 79.03,
       "functions": 87.23
+    },
+    {
+      "path": ".agents/scripts/ceremony-derive.js",
+      "lines": 97.91,
+      "branches": 92.86,
+      "functions": 75
     },
     {
       "path": ".agents/scripts/check-action-pinning.js",
@@ -90,8 +96,8 @@
     },
     {
       "path": ".agents/scripts/check-context-budget.js",
-      "lines": 93.72,
-      "branches": 87.59,
+      "lines": 93.68,
+      "branches": 88.11,
       "functions": 95
     },
     {
@@ -198,8 +204,8 @@
     },
     {
       "path": ".agents/scripts/deliver-light.js",
-      "lines": 97.29,
-      "branches": 83.02,
+      "lines": 96.91,
+      "branches": 76.74,
       "functions": 100
     },
     {
@@ -547,7 +553,7 @@
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "lines": 100,
-      "branches": 69.23,
+      "branches": 78.95,
       "functions": 100
     },
     {
@@ -954,8 +960,8 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "lines": 98.89,
-      "branches": 93.83,
+      "lines": 98.98,
+      "branches": 94.02,
       "functions": 100
     },
     {
@@ -1062,8 +1068,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/delivery-routing.js",
-      "lines": 98.08,
-      "branches": 90.91,
+      "lines": 100,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -1164,8 +1170,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "lines": 97.69,
-      "branches": 83.12,
+      "lines": 97.7,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -1285,7 +1291,7 @@
     {
       "path": ".agents/scripts/lib/cyclomatic-ceiling.js",
       "lines": 100,
-      "branches": 78.95,
+      "branches": 78.57,
       "functions": 85.71
     },
     {
@@ -1663,7 +1669,7 @@
     {
       "path": ".agents/scripts/lib/observability/runtime-friction.js",
       "lines": 97.22,
-      "branches": 83.17,
+      "branches": 83,
       "functions": 100
     },
     {
@@ -1705,7 +1711,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/acceptance-eval-decision.js",
       "lines": 99.73,
-      "branches": 80,
+      "branches": 79.49,
       "functions": 88.89
     },
     {
@@ -1723,7 +1729,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
       "lines": 100,
-      "branches": 85.71,
+      "branches": 90.48,
       "functions": 100
     },
     {
@@ -2016,8 +2022,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "lines": 99.79,
-      "branches": 92.72,
+      "lines": 99.74,
+      "branches": 91.8,
       "functions": 100
     },
     {
@@ -2149,7 +2155,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
       "lines": 100,
-      "branches": 90.48,
+      "branches": 88.89,
       "functions": 100
     },
     {
@@ -2353,7 +2359,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
       "lines": 100,
-      "branches": 84.62,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -2395,8 +2401,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pre-gate-steps.js",
       "lines": 100,
-      "branches": 81.82,
-      "functions": 100
+      "branches": 83.33,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/pull-request.js",
@@ -2469,6 +2475,12 @@
       "lines": 97.08,
       "branches": 84.93,
       "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/context-budget-writeback.js",
+      "lines": 97.65,
+      "branches": 86.11,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
@@ -2593,7 +2605,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "lines": 100,
-      "branches": 93.48,
+      "branches": 94.44,
       "functions": 100
     },
     {
@@ -2909,6 +2921,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/test-run-credit.js",
+      "lines": 99.25,
+      "branches": 92.59,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/test-runner-contract.js",
       "lines": 100,
       "branches": 100,
@@ -2971,7 +2989,7 @@
     {
       "path": ".agents/scripts/lib/wave-runner/footprint.js",
       "lines": 100,
-      "branches": 97.22,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -3318,8 +3336,8 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "lines": 98.91,
-      "branches": 85.26,
+      "lines": 99.03,
+      "branches": 87.27,
       "functions": 100
     },
     {
@@ -3378,8 +3396,8 @@
     },
     {
       "path": ".agents/scripts/stories-wave-tick.js",
-      "lines": 98.89,
-      "branches": 91.71,
+      "lines": 98.87,
+      "branches": 92.66,
       "functions": 100
     },
     {
@@ -3576,6 +3594,12 @@
     },
     {
       "path": "lib/migrations/steps/2.32.0-retire-lint-baseline-command.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": "lib/migrations/steps/2.57.0-retire-delivery-limit-knobs.js",
       "lines": 100,
       "branches": 100,
       "functions": 0

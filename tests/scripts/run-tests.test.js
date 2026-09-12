@@ -133,6 +133,53 @@ test('buildNodeTestArgs quick tier resolves explicit file targets', () => {
   assert.ok(!args.includes('tests/hook-chain-reflog-invariant.test.js'));
 });
 
+test('runTestSuite deposits the close test credit after a green full run (Story #5313)', () => {
+  const deposits = [];
+  const status = runTestSuite({
+    argv: [],
+    cwd: '/repo',
+    spawn: () => ({ status: 0 }),
+    cleanup: () => {},
+    fixtureStreamGuard: () => 0,
+    preflight: () => 0,
+    listTargets: () => ['tests/a.test.js'],
+    depositCredit: (args) => {
+      deposits.push(args);
+      return {
+        deposited: true,
+        reason: 'recorded',
+        storyId: 7,
+        sha: 'abcdef0',
+      };
+    },
+  });
+  assert.equal(status, 0);
+  assert.equal(deposits.length, 1);
+  assert.equal(deposits[0].cwd, '/repo');
+  assert.equal(deposits[0].tier, 'full');
+  assert.equal(deposits[0].status, 0);
+  assert.ok(Number.isInteger(deposits[0].durationMs));
+});
+
+test('runTestSuite hands a red run to the depositor and keeps its exit code', () => {
+  const seen = [];
+  const status = runTestSuite({
+    argv: [],
+    cwd: '/repo',
+    spawn: () => ({ status: 3 }),
+    cleanup: () => {},
+    fixtureStreamGuard: () => 0,
+    preflight: () => 0,
+    listTargets: () => ['tests/a.test.js'],
+    depositCredit: (args) => {
+      seen.push(args.status);
+      return { deposited: false, reason: 'run-not-green' };
+    },
+  });
+  assert.equal(status, 3);
+  assert.deepEqual(seen, [3]);
+});
+
 test('runTestSuite cleans reserved temp even when the test process fails', () => {
   const calls = [];
   const status = runTestSuite({

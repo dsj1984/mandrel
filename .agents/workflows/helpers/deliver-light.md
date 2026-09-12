@@ -53,8 +53,10 @@ obeying its own test-first rule is a ceiling that over-fires.
 
 Sensitivity is the exception and stays absolute: a footprint touching an auth,
 crypto, billing, or migration class routes `full` however small or mechanical —
-and unlike a ceiling, it is **not overridable** (§ Recording a proceed-light
-answer).
+and unlike a ceiling, it is never a warning. The shape ceilings themselves
+stopped gating in Story #5313: a prediction past one is carried as a
+`warnings[]` entry on the envelope, naming the exceeded axis, and the run
+proceeds — `LIGHT_DIFF_CEILINGS` in the backstop is the only size block.
 
 ## Four invariants (do not skip one)
 
@@ -62,12 +64,13 @@ answer).
    shared effort/risk machinery (`deriveStoryShape` / `deriveChangeLevel`)
    **and** a ledgered model verdict with a recorded reason. Both must agree on
    `lite`.
-2. **Over-scope stops — it never hard-fails.** An over-ceiling prompt STOPS and
-   asks the operator to escalate to `/mandrel-plan` or proceed light. **Both answers
-   are executable** — `--operator-proceed-light` records the second one
-   (§ Recording a proceed-light answer). Under `--yes` it fails closed to an
+2. **The predicted shape warns; risk escalates.** A prompt past a shape
+   ceiling proceeds light with a `warnings[]` entry (Story #5313) — the
+   prediction is a guess the backstop bounds for real. Only an un-ledgered
+   verdict or an un-waivable risk rule (a sensitive-path class, a migration
+   span) refuses, and it refuses the same way attended or not: an
    **`escalated` terminal envelope** that ends the session (§ Escalation is
-   terminal).
+   terminal). There is no question to wait for and no answer flag.
 3. **Diff-derived backstop.** After implementation the ACTUAL change set is
    re-checked — the diff is the real scope signal — and an over-ceiling diff is
    blocked rather than landed.
@@ -93,16 +96,12 @@ answer).
 
    Branch on `action` in the JSON envelope:
    - **`proceed-light`** — the receipt Story is authored; read `storyId` and
-     `nextCommands`. Continue to step 2.
-   - **`ask-operator`** — predicted scope exceeds the light ceilings. STOP and
-     ask the operator to escalate to `/mandrel-plan` or proceed light. Do not proceed
-     on your own. This is a **question, not a terminal** — wait for the answer,
-     then act on it: *escalate* leaves for `/mandrel-plan`, *proceed light* re-runs the
-     same command with `--operator-proceed-light "<their reason>"`
-     (§ Recording a proceed-light answer).
-   - **over-scope under `--yes`** — no `action` to branch on: the gate emits an
-     **`escalated` terminal envelope** instead (exit 2). § Escalation is
-     terminal governs; you are finished.
+     `nextCommands`. Relay every `warnings[]` entry to the operator verbatim
+     (each names the shape axis the prediction exceeded), then continue to
+     step 2 — the diff backstop in step 4 is what bounds the actual change.
+   - **escalation** — no `action` to branch on: the gate emits an
+     **`escalated` terminal envelope** instead (exit 2), attended or not.
+     § Escalation is terminal governs; you are finished.
 
    `--amends '#<id>'` is the canonical light case — shape-checked identically; a
    heavy amendment escalates to `/mandrel-plan` like any other over-scope prompt.
@@ -165,42 +164,10 @@ answer).
    [`deliver-digest.md`](deliver-digest.md) § 5 — every close
    gate runs byte-identical to the full path.
 
-## Recording a proceed-light answer {#recording-a-proceed-light-answer}
-
-The gate offers the operator two options, so **both** have to be executable.
-Re-run the identical gate command with their answer appended:
-
-```bash
-node .agents/scripts/deliver-light.js --prompt "<prompt>" … \
-  --operator-proceed-light "<the operator's reason, in their words>"
-```
-
-The gate then proceeds light, records the decision in the receipt Story, and
-returns it on the envelope's `override`. Do **not** instead re-shape the
-prediction — shrinking `--refactors` until the gate stops objecting is
-under-declaring the footprint, which is the one thing the coarse design must
-not reward.
-
-It is deliberately narrow, and a refusal is printed rather than silent:
-
-- **Only a size prediction is waivable** — change kinds, magnitude,
-  uncertainty, deployable span. A sensitive-path class, a
-  migration-with-consumers span, and an unknown footprint (undeclared, glob,
-  no acceptance, unclassifiable) are refused: those are risk, not size, and
-  § Scope by effort keeps them absolute.
-- **The ledgered verdict still stands on its own.** The override substitutes
-  for the predicted *shape* only; `--route lite --reason "<why>"` is still
-  required.
-- **Attended-only.** With `--yes` it is a usage error, not a quiet no-op —
-  an unattended run has no operator whose answer this could be, and over-scope
-  there still fails closed (§ Escalation is terminal).
-
-What licenses this at all is step 4: the operator waives a *guess*, never the
-diff backstop, which re-checks the actual change set against ground truth.
-
 ## Escalation is terminal {#escalation-is-terminal}
 
-Over-scope under `--yes` emits a schema-validated `story-deliver-terminal`
+A refused gate — an un-ledgered verdict or an un-waivable risk rule, under
+`--yes` or attended alike — emits a schema-validated `story-deliver-terminal`
 envelope with **`status: "escalated"`**, `storyId: null`, and a `nextCommand`
 naming the `/mandrel-plan` invocation that owns the work.
 

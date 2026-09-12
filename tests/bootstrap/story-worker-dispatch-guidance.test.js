@@ -159,16 +159,16 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     );
   });
 
-  it('names the skip as a legitimate outcome of the credited run', () => {
-    // `coverage-capture.js` delegates to the incremental path, which by design
-    // runs nothing when the change set touches no crap `targetDirs` entry — a
-    // docs- or tests-only Story hits it every time. Unstated, the worker reads
-    // the zero exit as a green suite it never ran.
+  it('names the no-credit outcome as a legitimate result of the run', () => {
+    // Story #5313: the credited run is a bare `npm test`, and the runner
+    // deposits credit only for a green FULL run on the Story branch. A run of
+    // a partial tier, or off the branch, is green and deposits nothing — the
+    // worker must know that outcome exists and is named in the output.
     const section = creditedRunSection(read(WORKER));
     assertDocMentions(
       section,
-      /run nothing|runs nothing|skips? capture/i,
-      'the credited-run section must say the command can run no test at all',
+      /deposits nothing|no credit deposited|no close test credit/i,
+      'the credited-run section must say a green run can deposit no credit',
     );
   });
 
@@ -265,8 +265,8 @@ describe('the bundled delivery read pins the same dispatch shape', () => {
     const section = end === -1 ? rest : rest.slice(0, end);
     assertDocMentions(
       section,
-      /capture skips/i,
-      'digest § 5 must name the skip — the digest is the only delivery read on the path where role-scoped agents are disabled',
+      /deposits nothing|no credit deposited|no close test credit/i,
+      'digest § 5 must name the no-credit outcome — the digest is the only delivery read on the path where role-scoped agents are disabled',
     );
     assertDocMentions(
       section,

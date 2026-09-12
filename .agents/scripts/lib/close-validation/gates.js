@@ -14,6 +14,7 @@ import { getQuality } from '../config/quality.js';
 import { filterFilesUnderTargets } from '../coverage-capture.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
+import { predictsTestEvidenceCredit } from '../test-run-credit.js';
 import {
   buildFormatHint,
   FORMAT_CHECK_FALLBACK,
@@ -416,6 +417,35 @@ function predictsIncrementalCaptureSkip({
 }
 
 /**
+ * Is the `test` gate already credited for this build? Only consulted when
+ * coverage-capture is the active runner; a consumer without one gets the
+ * plain `test` gate regardless (Story #5313).
+ *
+ * @param {{ coverageCaptureActive: boolean } & Parameters<typeof predictsTestEvidenceCredit>[0]} opts
+ * @returns {boolean}
+ */
+function resolveTestCredited({ coverageCaptureActive, ...probe }) {
+  return coverageCaptureActive && predictsTestEvidenceCredit(probe);
+}
+
+/**
+ * Will the `coverage-capture` gate be the one that runs the suite for this
+ * build — so the plain `test` gate is dropped? It is not when it is inactive,
+ * when its incremental skip is pre-decided (Story #5278), or when a green
+ * bare `npm test` already deposited the test credit (Story #5313).
+ *
+ * @param {{ coverageCaptureActive: boolean, captureSkipPredicted: boolean, testCredited: boolean }} opts
+ * @returns {boolean}
+ */
+function coverageCaptureRunsSuite({
+  coverageCaptureActive,
+  captureSkipPredicted,
+  testCredited,
+}) {
+  return coverageCaptureActive && !captureSkipPredicted && !testCredited;
+}
+
+/**
  * The `coverage-capture` gate's argv.
  *
  * Story #5278 — `--require-credited` is passed here, and only here, when the
@@ -510,10 +540,25 @@ export function buildDefaultGates({
   presentBaselines,
   log,
   getChangedFilesImpl,
+  storyId,
+  evidenceCwd,
+  gitSpawnImpl,
+  shouldSkipImpl,
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive =
     isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
+  // Story #5313 — a credited bare `npm test` registers the plain `test` gate
+  // beside the capture so the credit is reported, never re-spent.
+  const testCredited = resolveTestCredited({
+    coverageCaptureActive,
+    storyId,
+    cwd,
+    evidenceCwd,
+    gitSpawnImpl,
+    shouldSkipImpl,
+    log,
+  });
   // Story #5278 — a registered coverage-capture gate that is going to take
   // its own incremental skip is not the test runner for this close, so the
   // plain `test` gate comes back beside it and the capture gate registers as
@@ -563,7 +608,13 @@ export function buildDefaultGates({
     // scoped pair does not shift the close-orchestrator log line, the
     // evidence keyspace, or the parallel-partition membership below.
     { name: 'lint', cmd: lint.cmd, args: lint.args },
-    ...buildTestGateEntry(coverageCaptureActive && !captureSkipPredicted),
+    ...buildTestGateEntry(
+      coverageCaptureRunsSuite({
+        coverageCaptureActive,
+        captureSkipPredicted,
+        testCredited,
+      }),
+    ),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // doesn't shift when a repo swaps biome for Prettier / dprint via

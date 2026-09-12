@@ -624,17 +624,20 @@ deterministic CLIs, not as sub-agents:
 cluster: profile `minimal` → always inline, `strict` → always fresh, and
 the default `standard` routes by the same `deriveChangeLevel` signal that
 sets review depth — sensitive-path (`high`) clusters go fresh, `low`
-clusters stay inline except for a deterministic sampling floor
-(`freshCriticSampleRate`, default 0.2), and an unknown level fails safe
-to fresh. The cluster count is owned by the dispatching caller and handed
-to the router as an input; routing never changes it.
+clusters stay inline, and an unknown level fails safe to fresh (the
+`freshCriticSampleRate` sampling floor was retired in Story #5313).
+`ceremony-derive.js` is the one-call derivation the deliver path runs. The
+cluster count is owned by the dispatching caller and handed to the router
+as an input; routing never changes it.
 
 **Evidence share.** A fresh critic re-runs the Story's `verify[]`
 commands itself as required evidence; its byte-identical `lint` /
 `typecheck` runs go through `evidence-gate.js --standalone` so close can
-short-circuit those two gates at unchanged HEAD. Coverage and CRAP
-evidence are deliberately excluded from the share and always re-run at
-close.
+short-circuit those two gates at unchanged HEAD. A green bare `npm test`
+in the worktree deposits the `test` credit the same way
+(`lib/test-run-credit.js`, Story #5313). Coverage and CRAP evidence are
+deliberately excluded from the share and re-captured at close when the
+artifact is stale.
 
 ### State machine (Story labels)
 

@@ -49,37 +49,24 @@ the only sanctioned landing. A silent local build is not a delivery.
 ## 3. Change set — computed once, handed to everyone
 
 One enumeration per Story. A critic that re-runs its own `git diff`
-can score a different set than the one that routed it. Both routing calls take
-a single options object and are **total — they never throw**, so a wrong-shaped
-argument is silently absorbed into the `null` fail-safe:
+can score a different set than the one that routed it. Derive the change
+set, the level and the ceremony with **one script** — never a hand-carried
+import block:
 
 ```bash
-node --input-type=module -e '
-  const lib = "<main-repo>/.agents/scripts/lib/orchestration";
-  const { computeChangeSet } = await import(`${lib}/change-set.js`);
-  const { deriveChangeLevel } = await import(`${lib}/review-depth.js`);
-  const { resolveCeremonyForRisk } = await import(`${lib}/ceremony-routing.js`);
-  const { files } = computeChangeSet({ baseRef: "main", headRef: "story-<storyId>" });
-  // deriveChangeLevel({ changedFiles, injectedRules?, selectSensitivePathClassesFn? })
-  //   -> { level, classes } — an OBJECT, never a bare level.
-  const { level, classes } = deriveChangeLevel({ changedFiles: files });
-  // resolveCeremonyForRisk({ derivedLevel, clusterIndex?, freshCriticSampleRate?,
-  //   ceremonyProfile? }) -> { mode, reason, sampled, profile, verdictOwner }.
-  // derivedLevel is that level STRING — the object above matches no tier and
-  // routes to the null fail-safe: a fresh critic, silently.
-  const ceremony = resolveCeremonyForRisk({ derivedLevel: level, clusterIndex: 0 });
-  console.log(JSON.stringify({ files, level, classes, ...ceremony }));
-'
+node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
 ```
 
-Level rules ([`review-depth.js`](../../scripts/lib/orchestration/review-depth.js)):
-a sensitive path registered in `audit-rules.json` → `high`, none → `low`, an
-unenumerable diff (`files === null`) → `null`. Ceremony rules
-([`ceremony-routing.js`](../../scripts/lib/orchestration/ceremony-routing.js)):
-`minimal` → always inline, `strict` → always fresh, `standard` → `high`/`null`
-→ fresh and `low` → inline unless the `freshCriticSampleRate` floor forces
-fresh. An `inline` dispatch mode overrides all of it to inline critics. Close's
-`review-depth.js` reads the same derived level, so the two cannot disagree.
+It prints one JSON object: `files` — the one change set every critic is
+handed (`null` when the diff could not be enumerated) — plus `level` and
+`classes` from `review-depth.js`, and `mode`, `reason` and `verdictOwner`
+from `ceremony-routing.js`. Level rules: a sensitive path registered in
+`audit-rules.json` → `high`, none → `low`, an unenumerable diff → `null`.
+Ceremony rules: `minimal` → always inline, `strict` → always fresh,
+`standard` → `high`/`null` → fresh and `low` → inline. An `inline` dispatch
+mode overrides all of it to inline critics. Close's `review-depth.js` reads
+the same derived level, so the two cannot disagree. `--base <ref>` overrides
+`project.baseBranch`.
 
 ## 4. Acceptance self-eval (Step 1a, required)
 
@@ -87,52 +74,49 @@ fresh. An `inline` dispatch mode overrides all of it to inline critics. Close's
 self-eval, named by `verdictOwner`, never both and never a warm-up pass. Each
 scores its cluster's `acceptance[]` items against the change set above, with
 `verify[]` output as evidence. Bounded by `delivery.acceptanceEval.maxRounds`
-(default 2).
+(default 2; `0` scores once with no redraft).
 
-**One round = N cluster critics → ONE merged verdict → ONE gate call.** Merge
-every cluster's records into a single `criteria[]` in `acceptance[]` order, one
-per acceptance item, and score that once. A gate call per cluster spends a
-round *per cluster* and races the round ledger:
+**Inline owner:** author **one** verdict file covering every `acceptance[]`
+item and score it in **one** gate call — there is no cluster merge.
+**Fresh critics:** one round = N cluster critics → ONE merged verdict → ONE
+gate call. Merge every cluster's records into a single `criteria[]` in
+`acceptance[]` order and score that once; a gate call per cluster spends a
+round *per cluster* and races the round ledger.
 
 `node <main-repo>/.agents/scripts/acceptance-eval.js --story <storyId>
---verdict <merged-verdict-path> --expected-criteria <acceptance[] count>`
+--verdict <verdict-path>`
 
-Pass `--expected-criteria` — **without it the coverage assertion is inert**, so
-an unmerged cluster verdict scores a fraction of the criteria and still reports
-`proceed`. A mismatch is rejected before scoring and costs no round.
+The gate reads the Story's `acceptance[]` count itself and rejects a verdict
+whose `criteria[]` length differs **before** scoring, consuming no round;
+`--expected-criteria` is accepted but redundant.
 
 `proceed` → close. `redraft` → one more round inside the cap. `block` → **do
 not close**: post a `friction` comment and flip `agent::blocked`.
 Per-round mechanics: [`acceptance-self-eval.md`](acceptance-self-eval.md).
 
-## 5. The one creditable full-suite run
+## 5. The one full-suite run
 
-**After the self-eval loop's last fix commit, immediately after the push** —
-the credit is keyed on the tree, not push state: a later commit voids it, a
-push does not, and the backgrounded capture (below) ends the turn. Redraft
-rounds run scoped tests; only this run needs credit, and a bare `npm test` /
-`pnpm run test` deposits **none**, so close re-runs it. Shape it by what
-`close-validation/gates.js` runs:
+After the self-eval loop's last fix commit, run the project test runner
+**once** in the worktree:
 
 ```bash
-# CRAP gate on (default) + a `test:coverage` script — writes close's stamp:
-node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>
-# otherwise — the record close's `test` gate reads; <workCwd> ABSOLUTE,
-# runner exactly `npm test` (both sides hash {cmd, args, cwd}):
-node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
-  --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
+npm test   # in <workCwd>
 ```
 
-Dispatch it in the **background**: it outruns the host's sync Bash ceiling, and its completion re-invokes you. Never spawn a task to poll or
-`sleep`-loop against it ([`parallel-tooling.md`](parallel-tooling.md)
-Rule 2).
-
-Read the **output**, not the exit code: capture skips — no test run, no
-credit — when nothing changed under CRAP `targetDirs`. Run the scoped
-projects for the roots you changed plus `verify[]`, not the whole suite.
+A green full run on `story-<id>` deposits the `test` evidence close reads,
+keyed on the tree, so close reports the gate as **credited** at unchanged
+HEAD — a later commit voids it. The CRAP gate still captures coverage itself
+when it needs an artifact. If the suite outruns the host's sync Bash
+ceiling, dispatch it in the **background** — its completion re-invokes you;
+never spawn a task to poll or `sleep`-loop against it
+([`parallel-tooling.md`](parallel-tooling.md) Rule 2). Read the **output**,
+not the exit code: the runner prints whether it deposited credit, and a run
+off the Story branch or of a partial tier deposits nothing and says so.
+Redraft rounds run the scoped projects for the roots you changed plus
+`verify[]`, not the whole suite; only this run needs credit.
 
 `verify[]` is scoped entries **plus** this one run: an entry that is itself a
-full-suite command is reported credited against the same stamp, never
+full-suite command is reported credited against the same record, never
 respawned.
 
 ## 6. Terminal envelope — the return contract

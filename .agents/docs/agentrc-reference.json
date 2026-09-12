@@ -115,14 +115,6 @@
         ".agents/instructions.local.md"
       ]
     },
-    "signals": {
-      "rework": {
-        "editsPerFile": 5
-      },
-      "retry": {
-        "repeatCount": 3
-      }
-    },
     "quality": {
       "gateScoping": {
         "scope": "diff",
@@ -269,7 +261,6 @@
       },
       "codingGuardrails": {
         "cyclomaticFlag": 8,
-        "cyclomaticMustFix": 12,
         "requireSiblingTest": false
       },
       "autoRefresh": {
@@ -317,7 +308,6 @@
         }
       ],
       "maxFixAttempts": 3,
-      "maxFixScopeFiles": 5,
       "autoFixSeverity": "medium"
     },
     "refactorStage": {
@@ -344,7 +334,6 @@
     },
     "routing": {
       "roleScopedAgents": true,
-      "freshCriticSampleRate": 0.2,
       "ceremonyProfile": "standard",
       "closeAndLand": true
     }

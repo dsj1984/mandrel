@@ -296,12 +296,13 @@ function reservesConcretePath(held, candidate, options = {}) {
  *   the guard *detects* — every would-be withhold is still computed and
  *   returned in `footprintWithholds` with `enforced: false` — so turning it on
  *   trades serialization for throughput without going blind (Story #5044).
- * @param {string} [args.tempRoot] Resolved `project.paths.tempRoot`, threaded
- *   so the evidence scrape can ignore gitignored scratch paths.
+ * @param {string} [args.tempRoot] Resolved `project.paths.tempRoot`. Accepted
+ *   for call-site compatibility; the evidence scrape that read it was retired
+ *   in Story #5313 and the footprint is the declared `changes[]` alone.
  * @returns {{
  *   selected: StoryRecord[],
  *   withheldByInFlight: Array<{id: number, blockedBy: number}>,
- *   footprintWithholds: Array<{id: number, blockedBy: number, scope: string, source: string, paths: string[], attribution: object[], enforced: boolean}>,
+ *   footprintWithholds: Array<{id: number, blockedBy: number, scope: string, source: string, paths: string[], enforced: boolean}>,
  *   guardMode: 'enforce'|'advisory'
  * }}
  *   `selected` is the dispatch set: a subset of `stories`, ascending by id,
@@ -309,8 +310,8 @@ function reservesConcretePath(held, candidate, options = {}) {
  *   names each eligible Story a reservation held back and the in-flight
  *   Story that holds it. `footprintWithholds` is the **complete** ledger —
  *   beat-local skips as well as cross-beat reservations, each with the
- *   colliding paths and its `declared-overlap` / `scraped-overlap` source — so
- *   no withheld dispatch is unexplained (Story #5044).
+ *   colliding paths and its `declared-overlap` source — so no withheld
+ *   dispatch is unexplained (Story #5044).
  */
 export function planReadySet({
   stories,

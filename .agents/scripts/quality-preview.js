@@ -249,7 +249,54 @@ export function mergeEnvelopes(
         (crapEnvelope?.summary?.newViolations ?? 0),
     },
     cyclomaticFlag: flag,
+    // Story #5313: advisories ride the merge but never the exit code.
+    advisories: advisoriesOf(crapEnvelope),
   };
+}
+
+/**
+ * The cyclomatic advisories a CRAP envelope carries (Story #5313), or none.
+ *
+ * @param {{ cyclomaticAdvisories?: unknown } | null | undefined} crapEnvelope
+ * @returns {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>}
+ */
+function advisoriesOf(crapEnvelope) {
+  const list = crapEnvelope?.cyclomaticAdvisories;
+  return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Print the advisories block when there is one (Story #5313). Split out of
+ * `emitReport` so that function's branching stays inside its committed
+ * cyclomatic budget.
+ *
+ * @param {Array<object>} advisories
+ * @param {{ write: (s: string) => void }} stdout
+ * @returns {void}
+ */
+function writeAdvisories(advisories, stdout) {
+  const block = renderAdvisories(advisories);
+  if (block) stdout.write(`\n${block}\n`);
+}
+
+/**
+ * Render the cyclomatic advisories block (Story #5313), or `null` when the
+ * scan carried none. One line per method at or over the ceiling; the block
+ * says outright that it is advisory so a reader does not hunt for the exit
+ * code it did not change.
+ *
+ * @param {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>} advisories
+ * @returns {string|null}
+ */
+export function renderAdvisories(advisories) {
+  const list = Array.isArray(advisories) ? advisories : [];
+  if (list.length === 0) return null;
+  return [
+    `Advisory — ${list.length} method(s) at cyclomatic 12 or above (reported, not a verdict; check-cyclomatic.js owns the ratchet):`,
+    ...list.map(
+      (a) => `  - ${a.file}:${a.startLine} ${a.method} (c=${a.cyclomatic})`,
+    ),
+  ].join('\n');
 }
 
 /**
@@ -285,6 +332,9 @@ export function renderDiagnostics(results) {
  *
  * Both signals are combined so a transient gate failure (e.g. JSON write
  * error) still surfaces even if the violations array happens to be empty.
+ *
+ * Advisories (`merged.advisories`, Story #5313) are deliberately not read
+ * here: a method at cyclomatic 12 or above is reported and exits 0.
  *
  * @param {{ rows: Array<unknown>, totals: { miRegressions: number, crapViolations: number } }} merged
  * @param {number} miExit
@@ -484,6 +534,7 @@ function emitReport({
   stdout.write('\n--- quality:preview ---\n');
   stdout.write(stagedScopeLine({ staged, ref, cwd }));
   stdout.write(`${renderTable(merged)}\n`);
+  writeAdvisories(merged.advisories, stdout);
   const diagnostics = renderDiagnostics([miResult, crapResult]);
   if (diagnostics) stdout.write(`\n${diagnostics}\n`);
   if (miExit !== 0 || crapExit !== 0) {

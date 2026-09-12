@@ -1,6 +1,6 @@
 /**
- * cyclomatic-ceiling.js — the enforcing core behind
- * `delivery.quality.codingGuardrails.cyclomaticMustFix` (Story #4923).
+ * cyclomatic-ceiling.js — the enforcing core behind the cyclomatic ceiling
+ * ratchet (Story #4923; fixed ceiling since Story #5313).
  *
  * The two `codingGuardrails` cyclomatic knobs shipped schema-validated,
  * bootstrap-defaulted and resolver-resolved, and were then read by nothing:
@@ -8,6 +8,12 @@
  * shadowed by a hardcoded `8` in a `quality-preview` display column. A ceiling
  * nothing enforces is worse than no ceiling, because the workflow docs promise
  * the merge will be refused.
+ *
+ * Story #5313 retired the `cyclomaticMustFix` config key: the ratchet's
+ * ceiling is the fixed {@link CYCLOMATIC_CEILING} (12), so a consumer cannot
+ * bound this gate by tuning a number, and `cyclomaticFlag` is the one
+ * advisory knob — `quality-preview.js` reports over-flag methods and exits 0
+ * on them.
  *
  * This module is that enforcement, shaped as a **ratchet** rather than a
  * cliff. The repository already carries dozens of functions above the
@@ -37,6 +43,13 @@ import { scanDirectory } from './maintainability-utils.js';
 /** Default location of the committed breach baseline. */
 export const DEFAULT_CYCLOMATIC_BASELINE = 'baselines/cyclomatic.json';
 
+/**
+ * The per-function cyclomatic ceiling the ratchet enforces. Fixed — not a
+ * config key — since Story #5313.
+ * @type {number}
+ */
+export const CYCLOMATIC_CEILING = 12;
+
 /** Baseline `$schema` marker, matching the sibling ratchet baselines. */
 const CYCLOMATIC_BASELINE_SCHEMA =
   'https://mandrel.dev/baselines/cyclomatic.schema.json';
@@ -44,10 +57,9 @@ const CYCLOMATIC_BASELINE_SCHEMA =
 /**
  * Resolve the enforcement policy from a resolved `delivery.quality` block.
  *
- * `mustFix` and `flag` come straight from `resolveCodingGuardrails`, so a
- * consumer that tunes either knob tunes this gate — which is the whole point
- * of the Story. `targetDirs` / `ignoreGlobs` are borrowed from the
- * maintainability gate (see the module note).
+ * `mustFix` is the fixed {@link CYCLOMATIC_CEILING}; `flag` comes from
+ * `resolveCodingGuardrails` (advisory only). `targetDirs` / `ignoreGlobs`
+ * are borrowed from the maintainability gate (see the module note).
  *
  * @param {object | null | undefined} quality resolved `delivery.quality`
  * @returns {{ mustFix: number, flag: number, targetDirs: string[], ignoreGlobs: string[] }}
@@ -56,7 +68,7 @@ export function resolveCyclomaticPolicy(quality) {
   const guardrails = quality?.codingGuardrails ?? {};
   const mi = quality?.maintainability ?? {};
   return {
-    mustFix: Number(guardrails.cyclomaticMustFix ?? 12),
+    mustFix: CYCLOMATIC_CEILING,
     flag: Number(guardrails.cyclomaticFlag ?? 8),
     targetDirs: Array.isArray(mi.targetDirs) ? mi.targetDirs : [],
     ignoreGlobs: Array.isArray(mi.ignoreGlobs) ? mi.ignoreGlobs : [],

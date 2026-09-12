@@ -76,7 +76,7 @@ function buildRerunBackstopCommand(storyId) {
  * number, or `null` when absent/malformed.
  *
  * This is the only Story context a **gate-stage** rejection can legitimately
- * claim: the signals stream is keyed on a Story id, and an `ask-operator` gate
+ * claim: the signals stream is keyed on a Story id, and an escalating gate
  * has authored no receipt yet — deliberately, since not creating one is the
  * point of that outcome. A bare prompt's rejection therefore has no stream to
  * land in, and attributing it to a fabricated id would be worse than recording
@@ -93,8 +93,8 @@ function normalizeAmendsId(amends) {
 }
 
 /**
- * Record a suitability-gate refusal (`ask-operator`) as friction, attributed to
- * the `--amends` target when there is one.
+ * Record a suitability-gate refusal (`escalate-plan`) as friction, attributed
+ * to the `--amends` target when there is one.
  *
  * @param {{
  *   gate: object,

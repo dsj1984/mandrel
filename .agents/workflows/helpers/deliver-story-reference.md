@@ -238,35 +238,19 @@ discovers them only after the whole close pipeline has run, at several times
 the cost of one full-suite run in the worktree.
 
 **Run it once, last, so close can credit it.** The run belongs **after** the
-self-eval loop's last fix commit and **after** the hand-off push — the credit
-is keyed on the tree, not on push state, so pushing first keeps the stamp and
-buys the ordering Step 2.5 needs (the capture is backgrounded, and its
-completion ends the turn); redraft rounds run scoped tests. Close skips a gate that already passed at the current HEAD, but a bare
-`npm test` deposits no such record — the suite then runs twice per delivery,
-once here and once in the close gate chain. Pick the invocation by the same
-predicate `close-validation/gates.js` uses to choose its test gate:
+self-eval loop's last fix commit; redraft rounds run scoped tests. A green
+`npm test` in the worktree on `story-<id>` deposits the `test` evidence
+record close reads (Story #5313 — `lib/test-run-credit.js`), keyed on HEAD
+and the tree fingerprint and hashed on the exact command close spawns, so
+close reports the gate as credited at unchanged HEAD instead of re-running
+the suite. The credit expires the moment it stops describing the tree: any
+later commit invalidates it and close re-runs the suite for real, so this
+never trades away the gate. The CRAP gate still runs `coverage-capture.js`
+itself when it needs a fresh artifact — the capture stamp is a claim about
+`coverage/coverage-final.json`, which a bare `npm test` does not produce.
 
-```bash
-# CRAP gate enabled (default) + a `test:coverage` script — writes the stamp
-# the close `coverage-capture` gate reads:
-node <main-repo>/.agents/scripts/coverage-capture.js --cwd <workCwd>
-# otherwise — the evidence record the close `test` gate reads. <workCwd> must
-# be ABSOLUTE and the runner exactly `npm test`: both sides hash
-# {cmd, args, cwd}, so a relative path or a wrapper misses the credit.
-node <main-repo>/.agents/scripts/evidence-gate.js --standalone \
-  --scope-id <storyId> --gate test --worktree <workCwd> -- npm test
-```
-
-The credit expires the moment it stops describing the tree: evidence is keyed
-on HEAD, the capture stamp on a content digest of `crap.targetDirs`. A
-self-eval fix — or any commit — invalidates it and close re-runs the suite for
-real, so this never trades away the gate. That keying is exactly why the run
-comes last, and why the push before it is free. Close's own base-sync can
-spend the stamp too when it lands base commits; it now says so out loud rather
-than silently re-running the suite.
-
-**`verify[]` reuses the same stamp.** A `verify[]` entry that is itself a
-full-suite command is reported **credited** against that stamp rather than
+**`verify[]` reuses the same credit.** A `verify[]` entry that is itself a
+full-suite command is reported **credited** against that record rather than
 respawned (`resolveVerifyCredit` in
 [`verify-credit.js`](../../scripts/lib/orchestration/verify-credit.js)), and the
 self-eval gate warns when it sees one: the intended shape is scoped `verify[]`
@@ -292,24 +276,23 @@ round cap, proceed / redraft / block — not an independent additional pass
 over the criteria. The M4-B floor holds: one verdict per cluster, with the
 cluster count owned by the dispatching caller and never by routing.
 
-**One round = N cluster critics → ONE merged verdict → ONE gate call.** The
+**One round = N cluster critics → ONE merged verdict → ONE gate call** (fresh
+critics; an inline-owned verdict is one file scored in one call). The
 clusters are how a round is _authored_; they are not how it is _scored_.
 Concatenate every cluster's records into a single `criteria[]` ordered by
 `index` — exactly one per `acceptance[]` item, under one `storyId`,
 `schemaVersion`, `round` and `commitSha` — and hand that merged file to the
-gate once, with `--expected-criteria` set to the Story's `acceptance[]` count:
+gate once:
 
 ```bash
 node <main-repo>/.agents/scripts/acceptance-eval.js \
-  --story <storyId> --verdict <merged-verdict-path> \
-  --expected-criteria <acceptance[] count>
+  --story <storyId> --verdict <merged-verdict-path>
 ```
 
-The flag is what makes the merge enforceable: `assertCriteriaCoverage` returns
-early on the `null` default, so **omitting it leaves the guard inert** and a
-single cluster's verdict handed over unmerged scores a fraction of the criteria
-and still reports `proceed`. A length mismatch is rejected before scoring and
-consumes no round. Calling the gate once per cluster instead spends a round
+The gate reads the Story's `acceptance[]` count itself (Story #5313), so a
+single cluster's verdict handed over unmerged is rejected before scoring and
+consumes no round; `--expected-criteria` is accepted but redundant. Calling
+the gate once per cluster instead spends a round
 _per cluster_ — a Story past the cluster ceiling would burn its whole redraft
 budget on cluster arithmetic — and N concurrent calls race the Story-scoped
 round ledger. Full per-round mechanics, including the parallel dispatch and the
@@ -340,32 +323,30 @@ node .agents/scripts/update-ticket-state.js --ticket <storyId> --state agent::bl
 
 ## Step 2 — Ceremony detail
 
-**Compute the change set once** with the shared enumerator —
-the same module close uses — and reuse that one list downstream:
+**Compute the change set once** with the shared enumerator — the same module
+close uses — and reuse that one list downstream. `ceremony-derive.js`
+(Story #5313) is that enumeration, the level derivation and the ceremony
+resolution in one call:
 
 ```bash
-node --input-type=module -e '
-  import { computeChangeSet } from "<main-repo>/.agents/scripts/lib/orchestration/change-set.js";
-  const { files } = computeChangeSet({ baseRef: "main", headRef: "story-<storyId>" });
-  console.log(JSON.stringify(files));
-'
+node <main-repo>/.agents/scripts/ceremony-derive.js --story <storyId> --cwd <workCwd>
 ```
 
-Derive the level with
+Its `level` comes from
 [`deriveChangeLevel`](../../scripts/lib/orchestration/review-depth.js) over
 the one computed change-set list: a diff touching a sensitive path registered
 in `.agents/schemas/audit-rules.json` derives `high`, one touching none
-derives `low`, and an unenumerable diff (`files === null`) derives `null`.
-Hand the **same** list to every acceptance critic you spawn (Step 1a) — a
-critic that re-ran its own `git diff` could score against a different set
-than the one that routed it.
+derives `low`, and an unenumerable diff (`files: null`) derives `null`.
+Hand the **same** `files` list to every acceptance critic you spawn (Step 1a)
+— a critic that re-ran its own `git diff` could score against a different
+set than the one that routed it.
 
-Resolve fresh-vs-inline acceptance critics per AC-cluster with
+Its `mode` / `verdictOwner` come from
 [`resolveCeremonyForRisk`](../../scripts/lib/orchestration/ceremony-routing.js)
 (`minimal` → always inline; `strict` → always fresh; `standard` →
-`high`/`null` → `fresh`, `low` → `inline` unless the `freshCriticSampleRate`
-floor forces `fresh`). Review depth reads the same derived level via
-`review-depth.js` inside close, so the two decisions cannot disagree.
+`high`/`null` → `fresh`, `low` → `inline`). Review depth reads the same
+derived level via `review-depth.js` inside close, so the two decisions cannot
+disagree.
 
 **Inline-dispatch override.** When the Story dispatches
 `inline` (`resolveStoryDispatchMode` → `inline`, which is exactly a

@@ -10,7 +10,7 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 // The surviving operator-configurable budget/timeout keys are spread across
 // the new top-level blocks rather than a single `agentSettings.limits` block:
 //   - delivery.execution.timeoutMs
-//   - delivery.signals.{rework, retry}
+// (`delivery.signals.{rework, retry}` was retired in Story #5313.)
 //
 // This guard keeps `.agents/docs/agentrc-reference.json` aligned with
 // `LIMITS_DEFAULTS` so the exhaustive reference template documents the
@@ -62,17 +62,8 @@ describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
     );
   });
 
-  it('declares the two surviving detector blocks under delivery.signals', () => {
-    const sig = parsed?.delivery?.signals;
-    assert.ok(sig, 'delivery.signals must be present');
-    assert.deepEqual(Object.keys(sig).sort(), ['retry', 'rework']);
-    assert.equal(
-      sig.rework.editsPerFile,
-      LIMITS_DEFAULTS.signals.rework.editsPerFile,
-    );
-    assert.equal(
-      sig.retry.repeatCount,
-      LIMITS_DEFAULTS.signals.retry.repeatCount,
-    );
+  it('does not declare the retired delivery.signals block (Story #5313)', () => {
+    assert.equal('signals' in (parsed?.delivery ?? {}), false);
+    assert.equal('signals' in LIMITS_DEFAULTS, false);
   });
 });

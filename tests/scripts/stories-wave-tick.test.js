@@ -972,9 +972,6 @@ describe('buildReadySetEnvelope — inFlightReservation (Story #4950)', () => {
         // evidence widening (Story #5044).
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        // Story #5265: both sides declared it, so there is no scrape
-        // provenance to report — `fields` is empty, not absent.
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
     ]);
     // The note must name both sides — an unfilled slot with no explanation is
@@ -1107,7 +1104,6 @@ describe('runProbedStoriesWaveTick — threads the probed in-flight records (AC-
         reason: 'in-flight-earlier-beat',
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
     ]);
   });
@@ -1156,7 +1152,6 @@ describe('buildReadySetEnvelope — footprintGuard reports the beat-local half (
         scope: 'beat',
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
     ]);
     assert.deepEqual(envelope.footprintGuard.advisory, []);
@@ -1164,7 +1159,7 @@ describe('buildReadySetEnvelope — footprintGuard reports the beat-local half (
     assert.match(envelope.footprintGuard.note, /lib\/shared\.js/);
   });
 
-  it('tags a scraped collision apart from a declared one', () => {
+  it('AC-7: a prose-only overlap is not a collision and no envelope carries scraped-overlap', () => {
     const { envelope } = buildReadySetEnvelope(
       [
         { id: 1, dependsOn: [], files: ['lib/a.js'] },
@@ -1177,17 +1172,9 @@ describe('buildReadySetEnvelope — footprintGuard reports the beat-local half (
       ],
       { concurrencyCap: 5 },
     );
-    assert.deepEqual(envelope.ready, [1]);
-    assert.deepEqual(envelope.footprintGuard.withheld, [
-      {
-        id: 2,
-        blockedBy: 1,
-        scope: 'beat',
-        source: 'scraped-overlap',
-        paths: ['lib/a.js'],
-        attribution: [{ path: 'lib/a.js', declared: false, fields: ['body'] }],
-      },
-    ]);
+    assert.deepEqual(envelope.ready, [1, 2]);
+    assert.deepEqual(envelope.footprintGuard.withheld, []);
+    assert.doesNotMatch(JSON.stringify(envelope), /scraped-overlap/);
   });
 
   it('reports an empty guard rather than omitting it, on every short-circuit', () => {
@@ -1254,15 +1241,10 @@ describe('buildReadySetEnvelope — footprintGuard reports the beat-local half (
 describe('buildReadySetEnvelope — footprintGuard: advisory (AC-5)', () => {
   const colliding = () => [
     { id: 1, dependsOn: [], files: ['lib/a.js'] },
-    {
-      id: 2,
-      dependsOn: [],
-      files: ['lib/b.js'],
-      body: 'also rewrites lib/a.js',
-    },
+    { id: 2, dependsOn: [], files: ['lib/a.js', 'lib/b.js'] },
   ];
 
-  it('admits the scraped-overlap pair and logs the would-be withhold', () => {
+  it('admits the declared-overlap pair and logs the would-be withhold', () => {
     const { envelope } = buildReadySetEnvelope(colliding(), {
       concurrencyCap: 5,
       footprintGuard: 'advisory',
@@ -1276,9 +1258,8 @@ describe('buildReadySetEnvelope — footprintGuard: advisory (AC-5)', () => {
         id: 2,
         blockedBy: 1,
         scope: 'beat',
-        source: 'scraped-overlap',
+        source: 'declared-overlap',
         paths: ['lib/a.js'],
-        attribution: [{ path: 'lib/a.js', declared: false, fields: ['body'] }],
       },
     ]);
     assert.match(envelope.footprintGuard.note, /advisory/);
@@ -1340,53 +1321,30 @@ describe('resolveFootprintGuardSettings — config seam', () => {
   });
 });
 
-describe('the withheld entry says which FIELD scraped the path (Story #5265)', () => {
-  // The live fixture this Story was filed on: two Stories withheld on
-  // `.agents/scripts/check-baselines.js` as `scraped-overlap`, where the
-  // shared path is a gate every Story RUNS in `## Verify` and none edits.
-  // The note already explained what `scraped-overlap` means; what it could
-  // not say is where the token was written.
-  const verifyingStories = () => [
-    {
-      id: 5266,
-      dependsOn: [],
-      files: ['lib/one.js'],
-      body: '## Verify\n- node .agents/scripts/check-baselines.js (validate)',
-    },
-    {
-      id: 5267,
-      dependsOn: [],
-      files: ['lib/two.js'],
-      body: '## Verify\n- node .agents/scripts/check-baselines.js (validate)',
-    },
-  ];
-
-  it('AC-6: the beat-local withheld entry carries the attribution', () => {
-    const { envelope } = buildReadySetEnvelope(verifyingStories(), {
-      concurrencyCap: 5,
-    });
-    assert.deepEqual(envelope.ready, [5266]);
-    assert.deepEqual(envelope.footprintGuard.withheld[0].attribution, [
-      {
-        path: '.agents/scripts/check-baselines.js',
-        declared: false,
-        fields: ['body:Verify'],
-      },
-    ]);
-  });
-
-  it('the operator note renders the attribution, not just the tag', () => {
-    const { envelope } = buildReadySetEnvelope(verifyingStories(), {
-      concurrencyCap: 5,
-    });
-    assert.match(envelope.footprintGuard.note, /#5267 ← #5266/);
-    assert.match(
-      envelope.footprintGuard.note,
-      /scraped from \.agents\/scripts\/check-baselines\.js ← body:Verify/,
+describe('the withheld entry names declared paths only (Story #5313)', () => {
+  it('two Stories that merely run the same gate in ## Verify co-dispatch', () => {
+    const { envelope } = buildReadySetEnvelope(
+      [
+        {
+          id: 5266,
+          dependsOn: [],
+          files: ['lib/one.js'],
+          body: '## Verify\n- node .agents/scripts/check-baselines.js (validate)',
+        },
+        {
+          id: 5267,
+          dependsOn: [],
+          files: ['lib/two.js'],
+          body: '## Verify\n- node .agents/scripts/check-baselines.js (validate)',
+        },
+      ],
+      { concurrencyCap: 5 },
     );
+    assert.deepEqual(envelope.ready, [5266, 5267]);
+    assert.deepEqual(envelope.footprintGuard.withheld, []);
   });
 
-  it('a declared collision renders no scrape clause', () => {
+  it('a declared collision renders the declared-overlap tag and no scrape clause', () => {
     const { envelope } = buildReadySetEnvelope(
       [
         { id: 1, dependsOn: [], files: ['baselines/crap.json'] },
@@ -1395,9 +1353,7 @@ describe('the withheld entry says which FIELD scraped the path (Story #5265)', (
       { concurrencyCap: 5 },
     );
     assert.match(envelope.footprintGuard.note, /declared-overlap\)/);
-    // The trailing paragraph explains what the clause WOULD mean; the
-    // per-entry detail is the half that must stay silent here.
-    const detail = envelope.footprintGuard.note.split('. Each is still')[0];
-    assert.doesNotMatch(detail, /scraped from/);
+    assert.doesNotMatch(envelope.footprintGuard.note, /scraped/);
+    assert.equal('attribution' in envelope.footprintGuard.withheld[0], false);
   });
 });

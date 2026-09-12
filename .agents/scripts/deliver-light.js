@@ -22,12 +22,12 @@
  *
  *   - **gate** (default) — judge a prompt's predicted footprint. On
  *     `proceed-light` it authors the receipt Story (via the plan-persist
- *     `createStoryIssues` surface) and prints the init/close hand-off. On
- *     over-scope it prints `ask-operator` (attended) or emits an `escalated`
- *     terminal envelope (`--yes`), never landing silently. An attended
- *     `ask-operator` is answerable **either** way: `--operator-proceed-light`
- *     records the operator's proceed answer (Story #4815), which the gate
- *     applies only to a coarse size prediction and never to a risk rule.
+ *     `createStoryIssues` surface) and prints the init/close hand-off,
+ *     carrying any predicted-shape `warnings[]` (Story #5313: an over-ceiling
+ *     prediction warns, it no longer stops). An un-ledgered verdict or an
+ *     un-waivable risk rule emits an `escalated` terminal envelope, never
+ *     landing silently. The former attended stop-and-ask outcome and the
+ *     flag that answered it went with the gate they answered.
  *   - **backstop** (`--backstop --story <id>`) — re-check the ACTUAL diff of
  *     the Story branch after implementation; exit non-zero when it exceeds the
  *     light ceilings, so an over-scope diff is blocked rather than landed.
@@ -52,8 +52,7 @@
  *   node .agents/scripts/deliver-light.js --backstop --story 4741
  *
  * Exit codes: 0 ok (proceed / clean backstop), 1 usage error, 2 the gate did
- * not proceed light (ask-operator, or an `escalated` terminal), 3 the diff
- * backstop blocked.
+ * not proceed light (an `escalated` terminal), 3 the diff backstop blocked.
  */
 
 import { parseArgs } from 'node:util';
@@ -84,15 +83,17 @@ Usage:
   deliver-light.js --prompt <text> [--creates csv] [--refactors csv]
                    [--acceptance n] [--kinds csv] [--magnitude m]
                    [--uncertainty u] [--route lite|full] [--reason <text>]
-                   [--amends '#id'] [--operator-proceed-light <text>] [--yes]
+                   [--amends '#id'] [--yes]
   deliver-light.js --backstop --story <id>
 
 The thin /deliver-light entry point: suitability gate → inline receipt Story →
 the same single-story-init.js / single-story-close.js engine /mandrel-deliver uses.
 
 The gate judges EFFORT and RISK, not artifact counts: N instances of one
-mechanical edit is one kind at N sites. It rejects only clearly-epic work; the
---backstop pass enforces size against the actual diff.
+mechanical edit is one kind at N sites. A predicted shape past a light ceiling
+is a WARNING on the envelope, not a refusal (Story #5313); only an un-ledgered
+verdict or an un-waivable risk rule (sensitive path, migration span) escalates.
+The --backstop pass enforces size against the actual diff.
 
 Gate options:
   --prompt <text>    Operator prompt describing the change. Required for the gate.
@@ -108,17 +109,9 @@ Gate options:
   --route <r>        Ledgered model verdict route: lite | full.
   --reason <text>    Recorded reason for a lite verdict (required for lite).
   --amends <#id>     Mark this as an amendment of an existing issue.
-  --operator-proceed-light <text>
-                     Record the operator's "proceed light" answer to an
-                     ask-operator gate, with their reason. Attended-only:
-                     refused with --yes. Waives a coarse SIZE prediction
-                     (change kinds, magnitude, uncertainty, deployable span)
-                     only — sensitivity, migration span, and an unknown
-                     footprint stay non-negotiable, the ledgered --route lite
-                     verdict is still required, and the --backstop pass still
-                     bounds the actual diff. Recorded in the receipt Story.
-  --yes              Unattended: over-scope emits an escalated terminal
-                     envelope and ENDS the session (no prompt, no fallback).
+  --yes              Unattended marker. Escalation is terminal either way;
+                     the flag is accepted so unattended callers keep their
+                     invocation shape.
 
 Backstop options:
   --backstop         Re-check the ACTUAL diff after implementation. Bounds the
@@ -131,9 +124,6 @@ Backstop options:
   --pretty           Pretty-print the JSON envelope.
   --help             Show this help.
 `;
-
-/** Exit code when the gate did not resolve to proceed-light. */
-const EXIT_NOT_PROCEED = 2;
 
 /**
  * Split a comma-separated path list into trimmed, non-empty entries.
@@ -196,14 +186,10 @@ export function synthesizeAcceptance(count) {
  *   uncertainty?: string,
  *   route?: string,
  *   reason?: string,
- *   operatorProceedLight?: string,
- *   yes?: boolean,
  *   injectedRules?: object,
  * }} args `kinds` / `magnitude` / `uncertainty` are the declared effort-and-risk
  *   axes the gate judges (Story #4764); omitting them declares no signal, not a
- *   small one — an unrecognized bucket fails closed. `operatorProceedLight`
- *   carries the operator's recorded answer to an `ask-operator` outcome
- *   (Story #4815) and is adjudicated inside the gate, never applied here.
+ *   small one — an unrecognized bucket is reported as a warning (Story #5313).
  * @returns {{ action: string, suitability: object, outcome: object }}
  */
 export function runLightGate({
@@ -215,8 +201,6 @@ export function runLightGate({
   uncertainty,
   route,
   reason,
-  operatorProceedLight,
-  yes = false,
   injectedRules,
 } = {}) {
   const predictedChanges = buildPredictedChanges({ creates, refactors });
@@ -229,11 +213,7 @@ export function runLightGate({
     verdict: { route, reason },
     injectedRules,
   });
-  const outcome = resolveLightGateOutcome({
-    suitability,
-    yes,
-    operatorOverride: operatorProceedLight,
-  });
+  const outcome = resolveLightGateOutcome({ suitability });
   return { action: outcome.action, suitability, outcome };
 }
 
@@ -246,11 +226,9 @@ export function runLightGate({
  *   prompt: string,
  *   changedFiles?: string[],
  *   amends?: string|number|null,
- *   override?: object|null,
  *   assembleFn?: typeof assemblePlanStories,
  *   createFn?: typeof createStoryIssues,
- * }} args `override` is the applied operator scope override (Story #4815),
- *   recorded in the receipt body so the decision is auditable from the ticket.
+ * }} args
  * @returns {Promise<{ storyId: number, url: string|undefined, title: string }>}
  */
 export async function createLightReceipt({
@@ -258,7 +236,6 @@ export async function createLightReceipt({
   prompt,
   changedFiles = [],
   amends = null,
-  override = null,
   assembleFn = assemblePlanStories,
   createFn = createStoryIssues,
 } = {}) {
@@ -266,7 +243,6 @@ export async function createLightReceipt({
     prompt,
     changedFiles,
     amends,
-    override,
   });
   const { stories } = assembleFn([ticket]);
   const { created } = await createFn({ provider, stories });
@@ -292,19 +268,6 @@ export function buildNextCommands(storyId) {
     init: `node .agents/scripts/single-story-init.js --story ${storyId}`,
     close: `node .agents/scripts/single-story-close.js --story ${storyId} --cwd <main-repo>`,
   };
-}
-
-/**
- * Was a non-blank `--operator-proceed-light` supplied? The gate core decides
- * whether it *applies*; this only asks whether the operator typed one, so the
- * attended-only refusal can fire before any adjudication.
- *
- * @param {{ 'operator-proceed-light'?: unknown }} values Parsed CLI values.
- * @returns {boolean}
- */
-export function hasOperatorOverride(values = {}) {
-  const raw = values['operator-proceed-light'];
-  return typeof raw === 'string' && raw.trim() !== '';
 }
 
 /**
@@ -355,12 +318,12 @@ async function runBackstopMode(values, deps = {}) {
  *     envelope** and stops (Story #4746). It is placed **first**, above every
  *     creation call site, so "nothing was started" is a property of the
  *     control flow rather than a claim the envelope makes about itself.
- *   - **`ask-operator`** is unchanged: the plain gate envelope and exit 2. It
- *     is not terminal — the operator has a choice to make, and manufacturing a
- *     terminal for it would end a session that is supposed to be waiting. The
- *     operator's proceed answer comes back as `--operator-proceed-light`.
  *   - **`proceed-light`** authors the receipt Story and prints the hand-off,
- *     carrying any applied `override` into both the receipt and the envelope.
+ *     carrying the predicted-shape `warnings[]` (Story #5313) on the envelope
+ *     and on stderr, so an over-ceiling prediction is stated rather than
+ *     silently waved through. The former attended stop-and-ask outcome is
+ *     gone: the gate never had a question a human could answer that the diff
+ *     backstop does not answer better.
  *
  * The injectable seams exist so the no-side-effect guarantee is testable
  * without a network: a test asserts the escalate path never reaches them.
@@ -390,17 +353,6 @@ export async function runGateMode(values, deps = {}) {
     throw new Error('[deliver-light] --prompt <text> is required for the gate');
   }
 
-  // Attended-only, enforced loudly (Story #4815). Silently ignoring the flag
-  // under --yes would let an automated caller pass it as a hopeful no-op and
-  // read the resulting escalation as a bug; a usage error says which of the
-  // two the caller has to give up.
-  if (values.yes === true && hasOperatorOverride(values)) {
-    process.stderr.write(HELP);
-    throw new Error(
-      '[deliver-light] --operator-proceed-light is attended-only and cannot be combined with --yes: an unattended run has no operator whose answer this is, and over-scope must fail closed to /mandrel-plan',
-    );
-  }
-
   const gate = runLightGate({
     creates: parseCsvPaths(values.creates),
     refactors: parseCsvPaths(values.refactors),
@@ -412,35 +364,24 @@ export async function runGateMode(values, deps = {}) {
     uncertainty: values.uncertainty,
     route: values.route,
     reason: values.reason,
-    operatorProceedLight: values['operator-proceed-light'],
-    yes: values.yes === true,
   });
 
-  if (gate.action === 'escalate-plan') {
+  if (gate.action !== 'proceed-light') {
     const envelope = buildEscalationTerminal({
       prompt: String(values.prompt),
       reasons: gate.outcome.reasons,
     });
     emitTerminalFn(envelope);
+    // The refusal is still telemetered (Story #4856): the ceilings stay
+    // recalibratable from evidence even now that only risk rules refuse.
+    await recordRefusalFn({ gate, amends: values.amends });
     Logger.warn(
       `[deliver-light] ESCALATED to /mandrel-plan — this session ENDS here; run ${envelope.nextCommand} in a FRESH session: ${gate.outcome.reasons.join('; ')}`,
     );
     return exitCodeForTerminal(envelope);
   }
 
-  if (gate.action !== 'proceed-light') {
-    emitFn(
-      { mode: 'gate', action: gate.action, outcome: gate.outcome },
-      values.pretty,
-    );
-    await recordRefusalFn({ gate, amends: values.amends });
-    Logger.warn(
-      `[deliver-light] gate did not proceed light (${gate.action}): ${gate.outcome.reasons.join('; ')}`,
-    );
-    return EXIT_NOT_PROCEED;
-  }
-
-  const override = gate.outcome.override ?? null;
+  const warnings = gate.outcome.warnings ?? [];
   const provider = createProviderFn(resolveConfigFn());
   const receipt = await createReceiptFn({
     provider,
@@ -450,7 +391,6 @@ export async function runGateMode(values, deps = {}) {
       ...parseCsvPaths(values.refactors),
     ],
     amends: values.amends ?? null,
-    override,
   });
   emitFn(
     {
@@ -458,16 +398,14 @@ export async function runGateMode(values, deps = {}) {
       action: 'proceed-light',
       storyId: receipt.storyId,
       url: receipt.url,
-      ...(override === null ? {} : { override }),
+      warnings,
       nextCommands: buildNextCommands(receipt.storyId),
       outcome: gate.outcome,
     },
     values.pretty,
   );
-  if (override !== null) {
-    Logger.warn(
-      `[deliver-light] operator scope override recorded on Story #${receipt.storyId}: waived "${override.overriddenCode}" — ${override.recordedReason}`,
-    );
+  for (const warning of warnings) {
+    Logger.warn(`[deliver-light] ⚠ ${warning}`);
   }
   Logger.info(
     `[deliver-light] receipt Story #${receipt.storyId} created — hand off to single-story-init.js.`,
@@ -488,7 +426,6 @@ async function main() {
       route: { type: 'string' },
       reason: { type: 'string' },
       amends: { type: 'string' },
-      'operator-proceed-light': { type: 'string' },
       yes: { type: 'boolean', default: false },
       backstop: { type: 'boolean', default: false },
       story: { type: 'string' },

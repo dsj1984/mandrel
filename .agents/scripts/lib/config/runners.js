@@ -49,10 +49,11 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
  * Default auto-fix loop ceilings for /mandrel-deliver code-review. Operators
  * override via `delivery.codeReview.*` in `.agentrc.json` (Story #2611,
  * Epic #2586; `autoFixSeverity` default `'medium'` per Story #4399).
+ * `maxFixScopeFiles` was retired in Story #5313 — it bounded a fix by file
+ * count rather than by risk.
  */
 export const DEFAULT_CODE_REVIEW = Object.freeze({
   maxFixAttempts: 3,
-  maxFixScopeFiles: 5,
   autoFixSeverity: 'medium',
 });
 
@@ -62,7 +63,7 @@ export const DEFAULT_CODE_REVIEW = Object.freeze({
  * @param {object | null | undefined} config
  * @returns {{
  *   deliverRunner: { concurrencyCap: number, footprintGuard: 'enforce'|'advisory' },
- *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number, autoFixSeverity: 'high'|'medium' },
+ *   codeReview: { maxFixAttempts: number, autoFixSeverity: 'high'|'medium' },
  *   decomposer: { concurrencyCap: number },
  * }}
  */

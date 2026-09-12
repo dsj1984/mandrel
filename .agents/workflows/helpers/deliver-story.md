@@ -74,7 +74,7 @@ One branch, one PR to `main`, commits against the inline `acceptance[]` /
    `## Slicing` rows as **intra-session checkpoints** (reference § Step 1).
 2. Implement and commit on the Story branch, iterating with quick advisory
    gates (`typecheck`, `lint`, scoped tests) — the full chain runs in Step 3,
-   and the **one** creditable full-suite run at Step 2.5.
+   and the **one** full-suite run at Step 2.5.
 
 ### Step 1a — Bounded acceptance self-eval loop (**required**)
 
@@ -93,21 +93,17 @@ are reference § Step 2. Hard gates always run in Step 3 — the derived level
 never disables them; do **not** pre-run the chain here — Step 2.5's credited
 suite run is the sole exception.
 
-### Step 2.5 — Push, then the creditable full-suite run, then hand off
+### Step 2.5 — The one full-suite run, the push, then hand off
 
-**Push first.** After the self-eval loop's last fix commit, push
-`story-<storyId>` to `origin`, confirming the remote ref moved: the capture
-below is backgrounded, so *its* completion ends the turn.
+After the self-eval loop's last fix commit, run `npm test` **once** in the
+worktree (**digest § 5**): a green full run deposits the `test` credit close
+reads, keyed on the tree, so only a *later* commit invalidates it. Red →
+fix, commit, re-run.
 
-Then run the full suite **once**, after the push, in the shape close credits
-(**digest § 5**): the credit is keyed on the tree, not on push state, so only
-a *later* commit invalidates it; a bare `npm test` deposits none. Red →
-fix, commit, push, re-capture.
-
-Then (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
+Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
+(sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
 branch, pushed head SHA, self-eval verdict, `verify[]` evidence — and stop.
-Do not open the PR or compose a terminal envelope. An inline run captures
-before Step 3.
+Do not open the PR or compose a terminal envelope.
 
 ## Step 3 — Close and land (`single-story-close.js`)
 

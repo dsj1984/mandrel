@@ -438,9 +438,9 @@ describe('delivery.* shape', () => {
     );
   });
 
-  it('accepts delivery.signals.{rework,retry}', () => {
-    assert.equal(
-      validate({
+  it('rejects the retired delivery.signals block outright (Story #5313)', () => {
+    expectErrors(
+      {
         ...REQ,
         delivery: {
           signals: {
@@ -448,8 +448,8 @@ describe('delivery.* shape', () => {
             retry: { repeatCount: 3 },
           },
         },
-      }),
-      true,
+      },
+      /additional properties/,
     );
   });
 
@@ -547,7 +547,6 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
             gates: POPULATED_GATES,
             codingGuardrails: {
               cyclomaticFlag: 8,
-              cyclomaticMustFix: 12,
               requireSiblingTest: false,
             },
             autoRefresh: {
@@ -1031,7 +1030,7 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
     );
   });
 
-  it('preserves maxFixAttempts and maxFixScopeFiles validation', () => {
+  it('preserves maxFixAttempts validation and rejects the retired maxFixScopeFiles', () => {
     assert.equal(
       validate({
         ...REQ,
@@ -1040,11 +1039,45 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.providers (Story #2871)', () =>
             providers: [{ name: 'native' }],
             providerConfig: {},
             maxFixAttempts: 3,
-            maxFixScopeFiles: 5,
           },
         },
       }),
       true,
+    );
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { codeReview: { maxFixScopeFiles: 5 } },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('rejects the retired codingGuardrails.cyclomaticMustFix and routing.freshCriticSampleRate (Story #5313)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { quality: { codingGuardrails: { cyclomaticMustFix: 12 } } },
+      },
+      /additional properties/,
+    );
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { routing: { freshCriticSampleRate: 0.2 } },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('accepts acceptanceEval.maxRounds: 0 (Story #5313)', () => {
+    assert.equal(
+      validate({ ...REQ, delivery: { acceptanceEval: { maxRounds: 0 } } }),
+      true,
+    );
+    expectErrors(
+      { ...REQ, delivery: { acceptanceEval: { maxRounds: -1 } } },
+      /must be >= 0/,
     );
   });
 });

@@ -2,7 +2,8 @@
 //
 // Unit tier: the `delivery.routing` accessor mirrors the framework-defaults
 // pattern of `lib/config/ci.js#getCiDelivery`. Stage 6 dropped
-// `singleDelivery`; these tests pin role-scoped agents + critic sampling.
+// `singleDelivery`; Story #5313 dropped `freshCriticSampleRate`. These tests
+// pin role-scoped agents, the ceremony profile, and the retired keys' absence.
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
@@ -52,46 +53,17 @@ describe('getDeliveryRouting — roleScopedAgents (Epic #4478, M7-B)', () => {
   });
 });
 
-describe('getDeliveryRouting — freshCriticSampleRate (M7-B floor)', () => {
-  test('defaults to 0.2 when unset', () => {
-    assert.equal(getDeliveryRouting({}).freshCriticSampleRate, 0.2);
-    assert.equal(DELIVERY_ROUTING_DEFAULTS.freshCriticSampleRate, 0.2);
+describe('getDeliveryRouting — freshCriticSampleRate is retired (Story #5313)', () => {
+  test('the accessor exposes no sampling rate and the defaults carry none', () => {
+    assert.equal('freshCriticSampleRate' in getDeliveryRouting({}), false);
+    assert.equal('freshCriticSampleRate' in DELIVERY_ROUTING_DEFAULTS, false);
   });
 
-  test('reads an explicit in-range rate', () => {
-    assert.equal(
-      getDeliveryRouting({
-        delivery: { routing: { freshCriticSampleRate: 0.5 } },
-      }).freshCriticSampleRate,
-      0.5,
-    );
-    assert.equal(
-      getDeliveryRouting({ routing: { freshCriticSampleRate: 0 } })
-        .freshCriticSampleRate,
-      0,
-    );
-  });
-
-  test('clamps out-of-range and coerces non-numbers to the default', () => {
-    assert.equal(
-      getDeliveryRouting({ routing: { freshCriticSampleRate: -3 } })
-        .freshCriticSampleRate,
-      0,
-    );
-    assert.equal(
-      getDeliveryRouting({ routing: { freshCriticSampleRate: 42 } })
-        .freshCriticSampleRate,
-      1,
-    );
-    assert.equal(
-      getDeliveryRouting({ routing: { freshCriticSampleRate: 'lots' } })
-        .freshCriticSampleRate,
-      0.2,
-    );
-    assert.equal(
-      getDeliveryRouting({ routing: { freshCriticSampleRate: Number.NaN } })
-        .freshCriticSampleRate,
-      0.2,
-    );
+  test('a leftover rate in the config is ignored, not resolved', () => {
+    const routing = getDeliveryRouting({
+      delivery: { routing: { freshCriticSampleRate: 0.5 } },
+    });
+    assert.equal('freshCriticSampleRate' in routing, false);
+    assert.equal(routing.ceremonyProfile, 'standard');
   });
 });

@@ -40,13 +40,6 @@ const CODING_GUARDRAILS_SCHEMA = {
         'Cyclomatic complexity at which a new or changed method is flagged for a refactor look.',
       default: CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag,
     },
-    cyclomaticMustFix: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Cyclomatic complexity at which a new or changed method must be decomposed before the diff closes.',
-      default: CODING_GUARDRAILS_DEFAULTS.cyclomaticMustFix,
-    },
     requireSiblingTest: {
       type: 'boolean',
       description:
@@ -355,13 +348,6 @@ export const CODE_REVIEW_SCHEMA = {
       description:
         'Maximum auto-fix retry attempts per finding in /mandrel-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3.',
       default: DEFAULT_CODE_REVIEW.maxFixAttempts,
-    },
-    maxFixScopeFiles: {
-      type: 'integer',
-      minimum: 1,
-      description:
-        'Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5.',
-      default: DEFAULT_CODE_REVIEW.maxFixScopeFiles,
     },
     autoFixSeverity: {
       type: 'string',

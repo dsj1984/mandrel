@@ -12,6 +12,7 @@ import {
   parseChangedSinceArg,
   parseJsonFlag,
   parseStagedFlag,
+  renderAdvisories,
   renderDiagnostics,
   renderTable,
   runCli,
@@ -1050,4 +1051,58 @@ test('runCli — prints the diagnostic even though the gate exits 0', async () =
   const printed = out.join('');
   assert.match(printed, /crap-unsound-comparison-basis/);
   assert.match(printed, /re-seed the baseline/);
+});
+
+// ---------------------------------------------------------------------------
+// Story #5313 — a method at cyclomatic 12 or above is an ADVISORY: reported,
+// never a verdict. The ratchet in check-cyclomatic.js owns enforcement.
+// ---------------------------------------------------------------------------
+
+test('AC-9: mergeEnvelopes carries the scan advisories and computeExitCode ignores them', () => {
+  const crap = {
+    ...makeCrapEnvelope(),
+    cyclomaticAdvisories: [
+      { file: 'lib/a.js', method: 'branchy', startLine: 10, cyclomatic: 12 },
+      { file: 'lib/b.js', method: 'worse', startLine: 3, cyclomatic: 19 },
+    ],
+  };
+  const merged = mergeEnvelopes(makeMiEnvelope([], 0), crap);
+  assert.equal(merged.rows.length, 0, 'an advisory is not a regression row');
+  assert.deepEqual(
+    merged.advisories.map((a) => a.cyclomatic),
+    [12, 19],
+  );
+  assert.equal(computeExitCode(merged, 0, 0), 0);
+});
+
+test('AC-9: runCli reports a c=12 method as an advisory and exits 0 on it', async () => {
+  const out = makeStreamCapture();
+  const { exitCode, merged } = await runCli({
+    argv: ['--changed-since', 'HEAD'],
+    cwd: process.cwd(),
+    stdout: out,
+    stderr: makeStreamCapture(),
+    runMi: makeMiStub(makeMiEnvelope([], 0)),
+    runCrap: makeCrapStub({
+      ...makeCrapEnvelope(),
+      cyclomaticAdvisories: [
+        { file: 'lib/a.js', method: 'branchy', startLine: 10, cyclomatic: 12 },
+      ],
+    }),
+  });
+  assert.equal(exitCode, 0);
+  assert.equal(merged.advisories.length, 1);
+  const text = out.lines.join('');
+  assert.match(text, /Advisory — 1 method\(s\) at cyclomatic 12 or above/);
+  assert.match(text, /lib\/a\.js:10 branchy \(c=12\)/);
+  assert.match(text, /reported, not a verdict/);
+});
+
+test('renderAdvisories is silent without advisories and tolerates a missing list', () => {
+  assert.equal(renderAdvisories([]), null);
+  assert.equal(renderAdvisories(undefined), null);
+  assert.deepEqual(
+    mergeEnvelopes(makeMiEnvelope([], 0), makeCrapEnvelope()).advisories,
+    [],
+  );
 });

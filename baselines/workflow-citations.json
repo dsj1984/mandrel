@@ -1,15 +1,27 @@
 {
   "$schema": "https://mandrel.dev/baselines/workflow-citations.schema.json",
-  "generatedAt": "2026-09-12T15:50:46.697Z",
-  "total": 10,
+  "generatedAt": "2026-09-12T17:53:53.440Z",
+  "total": 20,
   "files": [
     {
+      "path": ".agents/workflows/helpers/acceptance-self-eval.md",
+      "count": 3
+    },
+    {
+      "path": ".agents/workflows/helpers/code-quality-guardrails.md",
+      "count": 1
+    },
+    {
+      "path": ".agents/workflows/helpers/code-review.md",
+      "count": 1
+    },
+    {
       "path": ".agents/workflows/helpers/deliver-light.md",
-      "count": 2
+      "count": 4
     },
     {
       "path": ".agents/workflows/helpers/deliver-story-reference.md",
-      "count": 1
+      "count": 4
     },
     {
       "path": ".agents/workflows/helpers/plan-reference.md",

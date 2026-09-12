@@ -34,6 +34,7 @@
     ".agents/scripts/check-workflow-citations.js!",
     ".agents/scripts/check-workflow-cli-lint.js!",
     ".agents/scripts/check-workflow-timeouts.js!",
+    ".agents/scripts/ceremony-derive.js!",
     ".agents/scripts/coverage-capture.js!",
     ".agents/scripts/deliver-light.js!",
     ".agents/scripts/deliver-recover.js!",

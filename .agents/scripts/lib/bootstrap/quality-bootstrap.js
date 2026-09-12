@@ -86,7 +86,6 @@ export const PRE_COMMIT_MARKER =
 const QUALITY_CONFIG_DEFAULTS = Object.freeze({
   codingGuardrails: Object.freeze({
     cyclomaticFlag: 8,
-    cyclomaticMustFix: 12,
     requireSiblingTest: false,
   }),
   autoRefresh: Object.freeze({
