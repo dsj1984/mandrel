@@ -78,6 +78,7 @@ import { runPreGateSteps as defaultRunPreGateSteps } from './pre-gate-steps.js';
  *   runPreGateSteps?: typeof defaultRunPreGateSteps,
  *   runScopedFormatAutofix?: Function,
  *   runBaselineUpwardWriteback?: Function,
+ *   runContextBudgetWriteback?: Function,
  *   createGateLogSink?: typeof defaultCreateGateLogSink,
  * }} args
  * @returns {Promise<{ gates: Record<string, 'passed'|'skipped'> }>} Per-gate
@@ -98,6 +99,7 @@ export async function runCloseValidationPhase({
   runPreGateSteps = defaultRunPreGateSteps,
   runScopedFormatAutofix,
   runBaselineUpwardWriteback,
+  runContextBudgetWriteback,
   createGateLogSink = defaultCreateGateLogSink,
 }) {
   await runPreGateSteps({
@@ -110,6 +112,7 @@ export async function runCloseValidationPhase({
     progress,
     runScopedFormatAutofix,
     runBaselineUpwardWriteback,
+    runContextBudgetWriteback,
   });
 
   progress(

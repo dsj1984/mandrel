@@ -18,6 +18,9 @@
  *      maintainability rows this branch improved on files it touched, as a
  *      `baseline-refresh:` commit, so the committed baseline stops falling
  *      behind the tree in the upward direction.
+ *   3. **Context-budget write-back** (Story #5313) — persist the lower
+ *      documentation-tier totals this branch measured, so a trimmed tier's
+ *      gain locks in without `check-context-budget.js` ever going red on it.
  *
  * Extracted from `close-validation.js` when the second step landed. The phase
  * module's job is the gate chain, the evidence keyspace and the gate-log sink;
@@ -29,6 +32,7 @@
 
 import { Logger } from '../../../Logger.js';
 import { runBaselineUpwardWriteback as defaultRunBaselineUpwardWriteback } from '../../story-close/baseline-upward-writeback.js';
+import { runContextBudgetWriteback as defaultRunContextBudgetWriteback } from '../../story-close/context-budget-writeback.js';
 import { runScopedFormatAutofix as defaultRunScopedFormatAutofix } from '../../story-close/format-autofix.js';
 
 /**
@@ -69,22 +73,22 @@ function formatAutofixStep({
 }
 
 /**
- * Run the upward maintainability write-back.
+ * Run one of the two baseline write-backs and report it on one progress line.
+ *
+ * Both steps (Story #5224's maintainability rows, Story #5313's context-budget
+ * totals) take the same context and answer in the same shape — `committed`
+ * with a `sha`, or a named `reason` — so one wrapper serves both; `describe`
+ * renders the committed outcome in the step's own words.
  *
  * @param {object} ctx the shared step context (see {@link runPreGateSteps})
+ * @param {{ tag: string, run: Function, describe: (w: object) => string, noun: string }} step
  * @returns {Promise<void>}
  */
-async function baselineWritebackStep({
-  cwd,
-  worktreePath,
-  storyId,
-  baseBranch,
-  storyBranch,
-  config,
-  progress,
-  runBaselineUpwardWriteback,
-}) {
-  const writeback = await runBaselineUpwardWriteback({
+async function writebackStep(
+  { cwd, worktreePath, storyId, baseBranch, storyBranch, config, progress },
+  { tag, run, describe, noun },
+) {
+  const writeback = await run({
     cwd,
     worktreePath,
     storyId,
@@ -94,10 +98,10 @@ async function baselineWritebackStep({
     logger: Logger,
   });
   progress(
-    'BASELINE',
+    tag,
     writeback?.committed
-      ? `✅ Wrote back ${writeback.improvedPaths?.length ?? 0} improved maintainability row(s) as ${writeback.sha} on ${storyBranch}.`
-      : `⏭ No baseline write-back (${writeback?.reason ?? 'nothing to write'}).`,
+      ? `✅ ${describe(writeback)} as ${writeback.sha} on ${storyBranch}.`
+      : `⏭ No ${noun} (${writeback?.reason ?? 'nothing to write'}).`,
   );
 }
 
@@ -142,18 +146,24 @@ async function bestEffort({ tag, label, progress, run }) {
  *   progress: (tag: string, msg: string) => void,
  *   runScopedFormatAutofix?: typeof defaultRunScopedFormatAutofix,
  *   runBaselineUpwardWriteback?: typeof defaultRunBaselineUpwardWriteback,
+ *   runContextBudgetWriteback?: typeof defaultRunContextBudgetWriteback,
  * }} args
  * @returns {Promise<void>}
  */
 export async function runPreGateSteps({
   runScopedFormatAutofix = defaultRunScopedFormatAutofix,
   runBaselineUpwardWriteback = defaultRunBaselineUpwardWriteback,
+  runContextBudgetWriteback = defaultRunContextBudgetWriteback,
   ...ctx
 }) {
   const { storyBranch, progress } = ctx;
   if (!storyBranch) {
     progress('FORMAT', '⏭ Skipped scoped format-autofix (no story branch).');
     progress('BASELINE', '⏭ Skipped baseline write-back (no story branch).');
+    progress(
+      'BUDGET',
+      '⏭ Skipped context-budget write-back (no story branch).',
+    );
     return;
   }
   await bestEffort({
@@ -166,6 +176,26 @@ export async function runPreGateSteps({
     tag: 'BASELINE',
     label: 'baseline write-back',
     progress,
-    run: () => baselineWritebackStep({ ...ctx, runBaselineUpwardWriteback }),
+    run: () =>
+      writebackStep(ctx, {
+        tag: 'BASELINE',
+        run: runBaselineUpwardWriteback,
+        noun: 'baseline write-back',
+        describe: (w) =>
+          `Wrote back ${w.improvedPaths?.length ?? 0} improved maintainability row(s)`,
+      }),
+  });
+  await bestEffort({
+    tag: 'BUDGET',
+    label: 'context-budget write-back',
+    progress,
+    run: () =>
+      writebackStep(ctx, {
+        tag: 'BUDGET',
+        run: runContextBudgetWriteback,
+        noun: 'context-budget write-back',
+        describe: (w) =>
+          `Wrote back lower context-budget totals (${w.tiers?.join(', ')})`,
+      }),
   });
 }
