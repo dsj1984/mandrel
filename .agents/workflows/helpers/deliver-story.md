@@ -98,10 +98,8 @@ suite run is the sole exception.
 After the self-eval loop's last fix commit, run the suite **once** in the
 worktree through the depositor — `evidence-gate.js … --gate test -- npm test`,
 spelled out in **digest § 5**. It runs whatever `npm test` resolves to and
-stamps the result, so the `test` credit is earned on any runner; the record is
-keyed on the tree, so only a *later* commit invalidates it. A bare `npm test`
-earns it only where the project's test script routes through mandrel's own
-runner. Red → fix, commit, re-run.
+stamps that, so the `test` credit is earned on any runner and only a *later*
+commit invalidates it. Red → fix, commit, re-run.
 
 Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
 (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
