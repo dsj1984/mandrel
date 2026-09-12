@@ -138,12 +138,22 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     }
   });
 
-  test('AC-5: names a bare npm test as the credited run, no invocation-shape rules (#5313)', () => {
+  test('AC-1: names the runner-agnostic deposit, not a bare npm test (#5324)', () => {
     const { body } = bootContext('story-worker.md');
     assertDocMentions(
       body,
-      /run `npm test`\s+exactly once in `<workCwd>`/,
-      'the boot context must name the runner the worker actually types',
+      /--gate test --worktree <workCwd> -- npm test/,
+      'the boot context must name the deposit that earns the credit whatever `npm test` resolves to',
+    );
+    assertDocMentions(
+      body,
+      /a bare `npm test` deposits nothing unless it routes through mandrel's own runner/,
+      'the boot context must not leave a worker believing a bare run earns the credit',
+    );
+    assertDocOmits(
+      body,
+      /run `npm test` exactly once/,
+      "#5313's bare-run instruction is the claim #5324 falsifies — it must not survive",
     );
     assertDocOmits(
       body,
@@ -152,8 +162,8 @@ describe('story-worker boot context carries every delivery MUST (default-true ga
     );
     assertDocOmits(
       body,
-      /coverage-capture\.js --cwd <workCwd>|--gate test --worktree <workCwd> -- npm test/,
-      'the retired crediting invocations must not survive',
+      /coverage-capture\.js --cwd <workCwd>/,
+      'the retired capture invocation must not survive',
     );
     assertDocOmits(
       body,
