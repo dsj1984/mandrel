@@ -148,7 +148,7 @@ test('runCodeReview: critical findings set halted=true with a reason', async () 
   assert.match(out.blockerReason, /1 critical/);
 });
 
-test('runCodeReview: defaults baseRef to project.baseBranch when arg is null', async () => {
+test('runCodeReview: defaults baseRef to the REMOTE project.baseBranch when arg is null', async () => {
   const adapter = fakeAdapter([]);
   await runCodeReview({
     ticketId: 7,
@@ -161,7 +161,10 @@ test('runCodeReview: defaults baseRef to project.baseBranch when arg is null', a
     }),
     upsertCommentFn: noopUpsert(),
   });
-  assert.equal(adapter.calls[0].baseRef, 'trunk');
+  // Story #5325 — the bare name resolves to the LOCAL `refs/heads/trunk`,
+  // whose drift would be scored as the ticket's own change. A caller that
+  // omits a base must inherit the remote-tracking ref instead.
+  assert.equal(adapter.calls[0].baseRef, 'origin/trunk');
 });
 
 test('runCodeReview: surfaces upsert failure as posted=false but still returns ok', async () => {

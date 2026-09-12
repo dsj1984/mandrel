@@ -25,9 +25,21 @@
  * shares a single invocation pattern (Story #3653). Review depth needs no
  * input here: it is derived from this Story's own diff inside `runCodeReview`
  * (Story #4542).
+ *
+ * Story #5325 — this phase boundary is where the base ref is resolved, once.
+ * The resolved ref threads into `runStoryReviewCore`, which hands it to both
+ * the change-set enumeration (and through it the provider review) and the
+ * local lens pass, so one resolution corrects both arms. It resolves to
+ * `origin/<baseBranch>` — the ref base-sync merged from — rather than the bare
+ * branch name git would resolve to the local `refs/heads/<baseBranch>`, whose
+ * drift would otherwise be scored as this Story's own change.
  */
 
 import { parsePrNumberFromUrl } from '../../../github-url.js';
+import {
+  resolveSharedBaseRef,
+  unresolvedBaseReviewOutcome,
+} from '../../review-base-ref.js';
 import { degradationEnvelope } from '../../review-providers/degraded-gates.js';
 import { runStoryReviewCore } from '../../story-close/phases/review-core.js';
 import { postStructuredComment } from '../../ticketing/state.js';
@@ -78,23 +90,25 @@ export function buildStoryReviewCrossRefBody({
 async function invokeStoryReviewCore({
   storyId,
   storyBranch,
-  baseBranch,
+  baseRef,
   prNumber,
   provider,
   runCodeReviewFn,
   runLocalLensReviewFn,
   appendFindingsYieldFn,
+  gitSpawnFn,
   progress,
 }) {
   return runStoryReviewCore({
     storyId,
-    baseRef: baseBranch,
+    baseRef,
     headRef: storyBranch,
     commentTargetId: prNumber,
     provider,
     progress,
     progressTag: 'REVIEW',
     runCodeReviewFn,
+    gitSpawnFn,
     // Forward the seams only when the caller injects them; otherwise
     // `runStoryReviewCore` uses its defaults. `undefined` deep-merges to
     // the default via the destructuring default there.
@@ -153,6 +167,9 @@ async function postStoryReviewCrossRef({
  * Failure modes:
  *   - When `prNumber` is null (couldn't parse), the review is skipped
  *     and the function returns `{ halted: false, skipped: true }`.
+ *   - When `origin/<baseBranch>` cannot be resolved, the review is skipped,
+ *     a `base-ref-resolution` degradation is recorded on the returned
+ *     envelope, and no findings are raised (Story #5325).
  *   - When the runner throws, the close fails non-zero (the throw
  *     propagates) — a Story-scope review failure is not silently
  *     ignored.
@@ -170,6 +187,7 @@ async function postStoryReviewCrossRef({
  *   runCodeReviewFn: Function,
  *   runLocalLensReviewFn?: Function,
  *   appendFindingsYieldFn?: Function,
+ *   gitSpawnFn?: Function,
  *   progress: (tag: string, msg: string) => void,
  * }} args
  * @returns {Promise<{
@@ -185,7 +203,7 @@ async function postStoryReviewCrossRef({
  * }>}
  */
 export async function runStoryScopeReview({
-  cwd: _cwd,
+  cwd,
   storyId,
   storyBranch,
   baseBranch,
@@ -195,6 +213,7 @@ export async function runStoryScopeReview({
   runCodeReviewFn,
   runLocalLensReviewFn,
   appendFindingsYieldFn,
+  gitSpawnFn,
   progress,
 }) {
   if (prNumber == null) {
@@ -205,20 +224,33 @@ export async function runStoryScopeReview({
     return { halted: false, skipped: true };
   }
 
+  // One resolution per close, at the phase boundary: `baseRef` threads from
+  // here into the change set, the provider review and the local lens pass.
+  const base = resolveSharedBaseRef({ baseBranch, cwd, gitSpawnFn });
+  if (!base.resolved) {
+    return unresolvedBaseReviewOutcome({
+      storyId,
+      baseBranch,
+      remoteRef: base.remoteRef,
+      progress,
+    });
+  }
+
   progress(
     'REVIEW',
-    `Running Story-scope code review for Story #${storyId} (${baseBranch}...${storyBranch}) → PR #${prNumber}...`,
+    `Running Story-scope code review for Story #${storyId} (${base.ref}...${storyBranch}) → PR #${prNumber}...`,
   );
 
   const result = await invokeStoryReviewCore({
     storyId,
     storyBranch,
-    baseBranch,
+    baseRef: base.ref,
     prNumber,
     provider,
     runCodeReviewFn,
     runLocalLensReviewFn,
     appendFindingsYieldFn,
+    gitSpawnFn,
     progress,
   });
 

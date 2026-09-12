@@ -226,7 +226,14 @@ function defaultGitUtilsMock({ pushImpl } = {}) {
       // whether the tail runs, so the mock must surface a no-op variant or
       // the loader throws "does not provide an export named 'gitSpawn'".
       // status:1 = "ref absent", which is the tail's idempotent no-op path.
-      gitSpawn: (..._args) => ({ status: 1, stdout: '', stderr: '' }),
+      //
+      // Story #5325 — the review phase resolves `origin/<base>` through this
+      // same export and scores nothing until it succeeds, so that one
+      // `rev-parse` answers; every other probe keeps the "ref absent" reply.
+      gitSpawn: (_cwd, ...args) =>
+        args[0] === 'rev-parse' && `${args.at(-1)}`.startsWith('origin/')
+          ? { status: 0, stdout: 'deadbeefdeadbeef\n', stderr: '' }
+          : { status: 1, stdout: '', stderr: '' },
       // refs #3685 — single-story-close now reaches its phase chain (via the
       // lazily-imported runner) only after this mock is installed, so the
       // `changed-files.js` → `createGitInterface` import resolves against the
