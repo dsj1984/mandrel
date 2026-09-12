@@ -10,23 +10,19 @@
  * @module lib/orchestration/plan-persist/wave-serialisation
  */
 
-import {
-  detectCollision,
-  OVERLAP_SOURCES,
-  renderScrapeAttribution,
-} from '../../wave-runner/footprint.js';
+import { detectCollision } from '../../wave-runner/footprint.js';
 
 /**
  * Predict which same-wave pairs the dispatch guard will actually refuse to
  * co-dispatch (Story #5265).
  *
  * The wave table answers a `depends_on` question, and the runtime answers a
- * different one: `stories-wave-tick.js` withholds on {@link detectCollision},
- * whose footprint is the declared `changes[]` **plus** every path scraped out
- * of the Story's title, spec and serialized body — and that body carries
- * `## Verify`, so two Stories that merely run the same gate script share a
- * path neither will edit. The table therefore promised parallelism the very
- * next tick refused, with nothing anywhere reconciling the two.
+ * different one: `stories-wave-tick.js` withholds on {@link detectCollision}
+ * over the declared `changes[]` (Story #5313 retired the text scrape), so
+ * two same-wave Stories that both declare a path — a shared generated
+ * baseline, say — are shown in one order and dispatched one at a time. The
+ * table promised parallelism the next tick refused, with nothing anywhere
+ * reconciling the two.
  *
  * This runs the runtime's own exported predicate — not a reimplementation of
  * it — pairwise within each wave, so the prediction cannot drift from the
@@ -34,8 +30,8 @@ import {
  *
  * @param {ReturnType<typeof buildWaveTable>} waveTable
  * @param {Array<{ slug: string, title?: string, body?: string, spec?: string, changes?: Array }>} stories
- * @param {{ tempRoot?: string }} [options]
- * @returns {Array<{ wave: number, slugs: [string, string], paths: string[], source: string, attribution: object[] }>}
+ * @param {{ tempRoot?: string }} [options] Accepted for compatibility; unread.
+ * @returns {Array<{ wave: number, slugs: [string, string], paths: string[], source: string }>}
  */
 export function predictWaveSerialisation(waveTable, stories, options = {}) {
   const bySlug = new Map(
@@ -71,8 +67,7 @@ export function predictWaveSerialisation(waveTable, stories, options = {}) {
  * against the same promise, and an operator should read them the same way.
  * The difference is what they know — the shared-editor pass names paths two
  * Stories both *write*, this one names every pair the dispatcher will refuse
- * to run together whatever the reason, including the pairs whose only shared
- * path was scraped out of a `## Verify` line.
+ * to run together, glob declarations included.
  *
  * @param {ReturnType<typeof predictWaveSerialisation>} collisions
  * @returns {string[]}
@@ -80,31 +75,23 @@ export function predictWaveSerialisation(waveTable, stories, options = {}) {
 export function renderPredictedSerialisationLines(collisions) {
   const list = Array.isArray(collisions) ? collisions : [];
   if (list.length === 0) return [];
-  const rows = list.map((c) => {
-    const scraped = renderScrapeAttribution(c.attribution);
-    return `| \`${c.slugs[0]}\` + \`${c.slugs[1]}\` | ${c.paths
-      .map((p) => `\`${p}\``)
-      .join(', ')} | ${c.source} | ${scraped ? `\`${scraped}\`` : '—'} |`;
-  });
-  const scrapedOnly = list.filter(
-    (c) => c.source === OVERLAP_SOURCES.SCRAPED,
-  ).length;
+  const rows = list.map(
+    (c) =>
+      `| \`${c.slugs[0]}\` + \`${c.slugs[1]}\` | ${c.paths
+        .map((p) => `\`${p}\``)
+        .join(', ')} | ${c.source} |`,
+  );
   return [
     '',
     `#### ⚠️ Predicted serialisation (${list.length} same-order pair(s))`,
     '',
-    '| Stories | Colliding paths | Overlap source | Scraped from |',
-    '| --- | --- | --- | --- |',
+    '| Stories | Colliding paths | Overlap source |',
+    '| --- | --- | --- |',
     ...rows,
     '',
-    '_The dispatcher compares the **evidence-widened** footprint — declared ' +
-      '`changes[]` plus every path named in the title, `## Spec` and the rest ' +
-      'of the body — so these pairs are shown in one order above but will be ' +
-      `dispatched one at a time. ${scrapedOnly} pair(s) collide only on ` +
-      'scraped paths; the "Scraped from" column names the field each such ' +
-      'path was read out of, so a shared `## Verify` command is ' +
-      'distinguishable from a genuine unpredicted edit target. The guard is ' +
-      'deliberately not narrowed to `changes[]`: the declaration is a lower ' +
-      'bound (Story #4875) and under-serialising is the worse failure._',
+    '_The dispatcher compares the **declared** `changes[]` footprints ' +
+      '(Story #5313 retired the text scrape), so these pairs are shown in ' +
+      'one order above but will be dispatched one at a time: both Stories ' +
+      'declare a colliding path, or one declares a glob._',
   ];
 }

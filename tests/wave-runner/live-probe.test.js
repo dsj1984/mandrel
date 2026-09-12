@@ -809,7 +809,6 @@ describe('probeLiveState — inFlightRecords feed the footprint reservation', ()
         reason: 'in-flight-earlier-beat',
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
     ]);
   });
@@ -849,7 +848,6 @@ describe('probeLiveState — inFlightRecords feed the footprint reservation', ()
         reason: 'foreign-lease',
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
     ]);
     assert.match(
@@ -885,7 +883,6 @@ describe('probeLiveState — inFlightRecords feed the footprint reservation', ()
         reason: 'foreign-lease',
         source: 'declared-overlap',
         paths: ['lib/shared.js'],
-        attribution: [{ path: 'lib/shared.js', declared: true, fields: [] }],
       },
       {
         id: 104,
@@ -893,7 +890,6 @@ describe('probeLiveState — inFlightRecords feed the footprint reservation', ()
         reason: 'in-flight-earlier-beat',
         source: 'declared-overlap',
         paths: ['lib/other.js'],
-        attribution: [{ path: 'lib/other.js', declared: true, fields: [] }],
       },
     ]);
     assert.match(envelope.inFlightReservation.note, /#103 ← #101/);

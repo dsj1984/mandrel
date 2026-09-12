@@ -180,11 +180,20 @@ describe('plan summary — findings persist beside the promise (Story #5045)', (
   });
 });
 
-describe('plan-summary — predicted serialisation (Story #5265)', () => {
-  // The tick withholds on `detectCollision`'s evidence-widened footprint, so
-  // two Stories that merely cite the same gate script in `## Verify` are one
-  // wave in the table and two beats in reality. Persist runs that same
-  // exported predicate and renders what it will do.
+describe('plan-summary — predicted serialisation (Story #5265, narrowed by #5313)', () => {
+  // The tick withholds on `detectCollision` over the DECLARED footprint, so
+  // two same-wave Stories that both declare a path are one wave in the table
+  // and two beats in reality. Persist runs that same exported predicate and
+  // renders what it will do; a shared `## Verify` gate predicts nothing.
+  const declaring = (slug, shared) => ({
+    slug,
+    title: slug,
+    changes: [
+      { path: `lib/${slug}.js`, assumption: 'refactors-existing' },
+      { path: shared, assumption: 'refactors-existing' },
+    ],
+    body: `## Changes\n- \`lib/${slug}.js\`\n- \`${shared}\``,
+  });
   const withVerify = (slug, gate) => ({
     slug,
     title: slug,
@@ -204,20 +213,20 @@ describe('plan-summary — predicted serialisation (Story #5265)', () => {
 
   it('AC-4: names every same-wave pair the guard would withhold', () => {
     const stories = [
-      withVerify('alpha', '.agents/scripts/check-baselines.js'),
-      withVerify('beta', '.agents/scripts/check-baselines.js'),
-      // `gamma` runs a different gate — no shared path, so it must NOT
-      // appear: a prediction that names every pair is no prediction.
-      withVerify('gamma', '.agents/scripts/check-other.js'),
+      declaring('alpha', 'baselines/maintainability.json'),
+      declaring('beta', 'baselines/maintainability.json'),
+      // `gamma` shares no declared path, so it must NOT appear: a prediction
+      // that names every pair is no prediction.
+      withVerify('gamma', '.agents/scripts/check-baselines.js'),
     ];
     const waveTable = oneWave(['alpha', 'beta', 'gamma']);
 
     const collisions = predictWaveSerialisation(waveTable, stories);
     assert.equal(collisions.length, 1);
     assert.deepEqual(collisions[0].slugs, ['alpha', 'beta']);
-    assert.deepEqual(collisions[0].paths, [
-      '.agents/scripts/check-baselines.js',
-    ]);
+    assert.deepEqual(collisions[0].paths, ['baselines/maintainability.json']);
+    assert.equal(collisions[0].source, 'declared-overlap');
+    assert.equal('attribution' in collisions[0], false);
 
     const body = buildPlanSummaryCommentBody({
       ...BASE,
@@ -226,58 +235,19 @@ describe('plan-summary — predicted serialisation (Story #5265)', () => {
     });
     assert.match(body, /Predicted serialisation \(1 same-order pair\(s\)\)/);
     assert.match(body, /`alpha` \+ `beta`/);
-    assert.match(body, /check-baselines\.js/);
-    // `gamma` shares the wave but no path, so it appears in the order table
-    // and must NOT appear as a predicted pair.
+    assert.match(body, /maintainability\.json/);
+    assert.match(body, /declared-overlap/);
+    assert.doesNotMatch(body, /Scraped from|scraped-overlap/);
     const predicted = body.slice(body.indexOf('Predicted serialisation'));
     assert.doesNotMatch(predicted, /`gamma`/);
   });
 
-  it('AC-5: a scrape-only collision is labelled and names the field', () => {
+  it('Story #5313: a shared ## Verify gate predicts no serialisation', () => {
     const collisions = predictWaveSerialisation(oneWave(['alpha', 'beta']), [
       withVerify('alpha', '.agents/scripts/check-baselines.js'),
       withVerify('beta', '.agents/scripts/check-baselines.js'),
     ]);
-
-    assert.equal(collisions[0].source, 'scraped-overlap');
-    assert.deepEqual(collisions[0].attribution, [
-      {
-        path: '.agents/scripts/check-baselines.js',
-        declared: false,
-        fields: ['body:Verify'],
-      },
-    ]);
-
-    const body = buildPlanSummaryCommentBody({
-      ...BASE,
-      waveCollisions: collisions,
-    });
-    assert.match(body, /Scraped from/);
-    assert.match(body, /check-baselines\.js ← body:Verify/);
-    assert.match(body, /scraped-overlap/);
-  });
-
-  it('a declared collision reports no scrape provenance', () => {
-    const shared = (slug) => ({
-      slug,
-      title: slug,
-      changes: [{ path: 'baselines/maintainability.json' }],
-      body: '## Changes\n- `baselines/maintainability.json`',
-    });
-    const collisions = predictWaveSerialisation(oneWave(['a2', 'b2']), [
-      shared('a2'),
-      shared('b2'),
-    ]);
-
-    assert.equal(collisions[0].source, 'declared-overlap');
-    assert.deepEqual(collisions[0].attribution[0].fields, []);
-
-    const body = buildPlanSummaryCommentBody({
-      ...BASE,
-      waveCollisions: collisions,
-    });
-    assert.match(body, /declared-overlap/);
-    assert.match(body, /\| — \|/);
+    assert.deepEqual(collisions, []);
   });
 
   it('never pairs Stories from different waves', () => {

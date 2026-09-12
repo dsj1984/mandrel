@@ -55,12 +55,13 @@
  *     inFlight: number,
  *     cycleError: string | null,
  *     wedged: { reason, stories: [{ id, unmetBlockers }] } | null,
- *     inFlightReservation: { available, withheld: [{ id, blockedBy, reason, source, paths, attribution }], note },
- *     footprintGuard: { mode, withheld: [{ id, blockedBy, scope, source, paths, attribution }], advisory, note }
+ *     inFlightReservation: { available, withheld: [{ id, blockedBy, reason, source, paths }], note },
+ *     footprintGuard: { mode, withheld: [{ id, blockedBy, scope, source, paths }], advisory, note }
  *   }
  *
  * `inFlightReservation` reports the cross-beat half of the co-dispatch guard
- * (Story #4875 widened the footprint; Story #4950 made it reserve). Under
+ * (Story #4950 made it reserve; Story #5313 narrowed the footprint back to
+ * the declared `changes[]`). Under
  * `--probe-live` the in-flight Stories' own records are handed to the kernel,
  * so a candidate sharing a CONCRETE path with a Story dispatched on an EARLIER
  * beat is withheld and named here with its blocker and a `reason`
@@ -75,10 +76,10 @@
  * reported nowhere: a same-beat overlap skip was a bare `continue` inside
  * `planReadySet`, so the Story vanished from `ready[]` with no field anywhere
  * naming the collision. Every entry in either report now also carries the
- * colliding `paths` and a `source` tag — `declared-overlap` when both Stories'
- * `changes[]` named the path (intended serialization: two Stories really do
- * rewrite the same generated baseline) versus `scraped-overlap` when only the
- * text evidence produced it. `mode` names the `footprintGuard` config value;
+ * colliding `paths` and a `source` tag — `declared-overlap`, the one class
+ * left since Story #5313: both Stories' `changes[]` named the path (intended
+ * serialization: two Stories really do rewrite the same generated baseline)
+ * or one declared a glob. `mode` names the `footprintGuard` config value;
  * under `advisory` the collisions are detected and listed in `advisory[]` but
  * dispatch follows the declared `depends_on` edges alone.
  *
@@ -130,10 +131,7 @@ import { AGENT_LABELS } from './lib/label-constants.js';
 import { parseIds } from './lib/orchestration/resolve-stories.js';
 import { buildStoryAdjacency } from './lib/story-adjacency.js';
 import { expandIdList } from './lib/util/parse-id-list.js';
-import {
-  OVERLAP_SOURCES,
-  renderScrapeAttribution,
-} from './lib/wave-runner/footprint.js';
+import { OVERLAP_SOURCES } from './lib/wave-runner/footprint.js';
 import {
   createProbeContext,
   probeLiveState,
@@ -240,10 +238,7 @@ Output envelope:
           "blockedBy": 4949,
           "reason": "in-flight-earlier-beat",
           "source": "declared-overlap",
-          "paths": ["lib/shared.js"],
-          "attribution": [
-            { "path": "lib/shared.js", "declared": true, "fields": [] }
-          ]
+          "paths": ["lib/shared.js"]
         }
       ],
       "note": "..."
@@ -255,15 +250,8 @@ Output envelope:
           "id": 4952,
           "blockedBy": 4951,
           "scope": "beat",
-          "source": "scraped-overlap",
-          "paths": ["lib/other.js"],
-          "attribution": [
-            {
-              "path": "lib/other.js",
-              "declared": false,
-              "fields": ["body:Verify"]
-            }
-          ]
+          "source": "declared-overlap",
+          "paths": ["lib/other.js"]
         }
       ],
       "advisory": [],
@@ -280,11 +268,9 @@ report is { available: false } and selection de-conflicts within the beat only.
 footprintGuard names each Story withheld from THIS beat by a peer already
 admitted on it — the half that used to be an unreported skip — and every
 entry in either report carries the colliding paths plus a source tag
-(declared-overlap when both changes[] declarations named the path, else
-scraped-overlap from the text evidence) and an "attribution" list naming, per
-path, the field the scrape read it from ("title", "spec", or "body:<section>"
-— so a path that reached the comparison only because every Story RUNS it in
-"## Verify" says so). Its "mode" echoes
+(declared-overlap: both changes[] declarations named the path, or one declared
+a glob — the text scrape that used to widen this was retired in Story #5313).
+Its "mode" echoes
 delivery.deliverRunner.footprintGuard: under "advisory" the collisions are
 detected and listed in "advisory" but never withhold, and dispatch follows the
 declared depends_on edges alone.
@@ -406,7 +392,6 @@ export function buildReservationReport(
       : RESERVATION_REASONS.EARLIER_BEAT,
     source: w.source ?? OVERLAP_SOURCES.DECLARED,
     paths: w.paths ?? [],
-    attribution: w.attribution ?? [],
   }));
   return {
     available: true,
@@ -438,16 +423,12 @@ export function buildReservationReport(
  */
 export function buildFootprintGuardReport(footprintWithholds, mode) {
   const ledger = Array.isArray(footprintWithholds) ? footprintWithholds : [];
-  const project = ({ id, blockedBy, scope, source, paths, attribution }) => ({
+  const project = ({ id, blockedBy, scope, source, paths }) => ({
     id,
     blockedBy,
     scope,
     source,
     paths,
-    // Story #5265: the per-path field attribution rides the entry itself, so
-    // a consumer reading the envelope never has to re-derive where a scraped
-    // path came from (and cannot get a different answer than the note did).
-    attribution: attribution ?? [],
   });
   const beat = ledger
     .filter((w) => w.scope === WITHHOLD_SCOPES.BEAT && w.enforced)
@@ -474,22 +455,19 @@ export function buildFootprintGuardReport(footprintWithholds, mode) {
 function footprintGuardNote(beat, advisory, mode) {
   const detail = (entries) =>
     entries
-      .map((w) => {
-        const scraped = renderScrapeAttribution(w.attribution);
-        const provenance = scraped ? `, scraped from ${scraped}` : '';
-        return `#${w.id} ← #${w.blockedBy} on ${w.paths.join(', ')} (${w.source}${provenance})`;
-      })
+      .map(
+        (w) =>
+          `#${w.id} ← #${w.blockedBy} on ${w.paths.join(', ')} (${w.source})`,
+      )
       .join('; ');
   if (beat.length > 0) {
     return (
       `${beat.length} Story(ies) withheld from THIS beat because their file ` +
       `footprint overlaps a peer already admitted on it — ${detail(beat)}. ` +
       `Each is still eligible and re-admits on a later beat once its peer ` +
-      `lands. A ${OVERLAP_SOURCES.SCRAPED} source means the collision came ` +
-      `from path evidence in the Story text rather than from either ` +
-      `changes[] declaration — the 'scraped from' clause names the field ` +
-      `each such path was read out of, so a path only cited in '## Verify' ` +
-      `is distinguishable from an unpredicted edit target.`
+      `lands. Both Stories declared every colliding path in changes[] (or ` +
+      `one declared a glob): since Story #5313 the guard reads declarations ` +
+      `only, never the Story text.`
     );
   }
   if (advisory.length > 0) {
