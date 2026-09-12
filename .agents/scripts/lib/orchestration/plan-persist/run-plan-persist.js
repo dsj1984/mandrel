@@ -2,11 +2,12 @@
  * run-plan-persist.js — flat Story persist for the v2 `/mandrel-plan` collapse
  * (Stage 3 — `docs/roadmap.md`).
  *
- * Ordered, fail-closed pipeline:
+ * Ordered pipeline — hard gates refuse, everything else is a **warning** the
+ * dry-run lists (Story #5312):
  *
- *   1. Ticket validator + file-assumption + DAG + capacity + budget
+ *   1. `changes[]` repair + ticket validator + file-assumption + DAG
  *   2. Draft reachability (named soft failure, exit 3)
- *   3. Split-policy partition (`assertAcceptancePartition`) + spec fold/spill
+ *   3. Split-policy partition (`assertAcceptancePartition`) + spec fold
  *   4. Create Story issues (`type::story` + sanitized authored labels —
  *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
  *   5. Upsert `story-plan-state` on every created Story; upsert `plan-summary`
@@ -38,20 +39,13 @@
  */
 
 import { rm } from 'node:fs/promises';
-import { getLimits, getPaths, PROJECT_ROOT } from '../../config-resolver.js';
-import { gitSpawn } from '../../git-utils.js';
+import { getPaths, PROJECT_ROOT } from '../../config-resolver.js';
 import { Logger } from '../../Logger.js';
 import { sweepTempRetention } from '../../temp-retention.js';
 import {
   concurrentMap,
   FANOUT_CONCURRENCY,
 } from '../../util/concurrent-map.js';
-import {
-  deriveStoryShape,
-  LITE_ROUTE_LABEL,
-  resolveComplexityGate,
-  resolvePlannerRouteVerdict,
-} from '../complexity-gate.js';
 import {
   appendCriticSkip,
   readPlanMetrics,
@@ -62,22 +56,20 @@ import {
   evaluateDraftReachability,
   renderReachabilityOrphans,
 } from '../plan-reachability.js';
+import { evaluateTextHygiene } from '../plan-text-hygiene.js';
 import {
   computeAssembledConflictFindings,
   conflictFindingKey,
-  renderHardConflictError,
 } from '../ticket-validator-conflicts.js';
 import { upsertStructuredComment } from '../ticketing.js';
 import { recordAuditFilings, withAuditLabels } from './audit-provenance.js';
+import { renderChangeRepair } from './changes-repair.js';
 import {
   resolveContainerEpic,
   resolveCrossPlanLinks,
 } from './cross-plan-links.js';
-import {
-  enforceFanOutGate,
-  surfaceSoftConflictFindings,
-} from './fan-out-gate.js';
-import { resolveBaseBranchRef, validateTickets } from './persist-helpers.js';
+import { validateTickets } from './persist-helpers.js';
+import { surfaceSoftConflictFindings } from './soft-findings.js';
 import {
   assemblePlanStories,
   createStoryIssues,
@@ -128,66 +120,87 @@ export async function writeCheckpointV2(provider, storyId, state) {
 }
 
 /**
- * Enforce the ticket validator's findings and report what the file-assumption
- * gate actually concluded.
+ * Enforce the ticket validator's hard errors and collect its warnings.
  *
- * The return value feeds the posted `plan-summary`'s freshness line, which
- * used to be hard-coded `{ stale: 0, ambiguous: 0 }` — so the comment read
- * "Spec freshness: clean" even on the one run where the gate had *given up*
- * (Story #4541's unresolvable-base-ref downgrade). The summary asserted a
- * clean result precisely when it had the least evidence for one.
+ * Since Story #5312 the only hard refusal the validator batches into
+ * `errors[]` is a `deletes` naming a path absent at base; every other
+ * footprint probe — a `creates` / `refactors-existing` mismatch, a goal,
+ * acceptance or verify path absent at base — lands on `warnings[]`, which
+ * the dry-run prints and the persist proceeds past. The `changes[]` repairs
+ * the helper applied are reported alongside so the operator sees what was
+ * rewritten.
  *
- * The mapping is deliberate. A confirmed mismatch is never reported here at
- * all — it throws, and the run posts no summary. The only findings that
- * survive to the summary are ones the gate could not *verify*, because the
- * base ref they were computed against does not resolve; unverifiable is
- * `ambiguous`, not `stale`.
+ * The returned freshness counts feed the posted `plan-summary`'s freshness
+ * line: every warning is a reference the base branch disagreed with, so it
+ * counts as `stale` there rather than the comment reading "clean" on a run
+ * that had something to say.
  *
- * @returns {{ stale: number, ambiguous: number }} Freshness counts for the
- *   posted summary.
+ * @returns {{ warnings: string[], freshness: { stale: number, ambiguous: number } }}
  */
-function enforceTicketValidation(validated, { config, settings, cwd }) {
-  const validationErrors = validated.errors ?? [];
-  const assumptionFailures = validationErrors.filter((error) =>
-    error.startsWith('File assumption mismatch:'),
-  );
-  const blockingErrors = validationErrors.filter(
-    (error) => !error.startsWith('File assumption mismatch:'),
-  );
-  if (blockingErrors.length > 0) {
+function enforceTicketValidation(validated) {
+  const errors = validated.errors ?? [];
+  if (errors.length > 0) {
     throw new Error(
-      `[plan-persist] ticket validation failed with ${blockingErrors.length} ` +
-        `hard error(s):\n${blockingErrors.map((error) => `  - ${error}`).join('\n')}`,
+      `[plan-persist] ticket validation failed with ${errors.length} ` +
+        `hard error(s):\n${errors.map((error) => `  - ${error}`).join('\n')}`,
     );
   }
-  if (assumptionFailures.length === 0) return { stale: 0, ambiguous: 0 };
-  // Story #4541: resolve through the canonical `project.baseBranch` (the
-  // shape `config-resolver` actually emits) with the legacy settings bag as
-  // a fallback — reading a bare `config.baseBranch` meant this probe always
-  // targeted the literal `main`.
-  const gateBaseRef =
-    config?.project?.baseBranch ??
-    settings?.baseBranch ??
-    resolveBaseBranchRef(config);
-  const refResolves =
-    gitSpawn(
-      cwd ?? process.cwd(),
-      'rev-parse',
-      '--verify',
-      '--quiet',
-      `${gateBaseRef}^{commit}`,
-    ).status === 0;
-  if (refResolves) {
-    throw new Error(
-      `[plan-persist] file-assumption gate: ${assumptionFailures.length} ` +
-        `mismatch(es):\n${assumptionFailures.map((error) => `  - ${error}`).join('\n')}`,
-    );
-  }
+  const warnings = [
+    ...(validated.repairs ?? []).map((repair) => renderChangeRepair(repair)),
+    ...(validated.warnings ?? []),
+  ];
+  return {
+    warnings,
+    freshness: freshnessCounts(validated.probeRef, validated.warnings ?? []),
+  };
+}
+
+/**
+ * Freshness counts for the posted plan summary. Every validator warning is
+ * a reference the base branch disagreed with — `stale` when a base ref was
+ * actually read, `ambiguous` when none resolved in this checkout and the
+ * probes were skipped, since nothing was verified either way.
+ *
+ * @param {string|null} probeRef
+ * @param {string[]} warnings
+ * @returns {{ stale: number, ambiguous: number }}
+ */
+function freshnessCounts(probeRef, warnings) {
+  if (probeRef === null) return { stale: 0, ambiguous: warnings.length };
+  return { stale: warnings.length, ambiguous: 0 };
+}
+
+/**
+ * The `open-question` lint over the draft bodies (Story #5312) — an
+ * operator-directed question persisted into a Story a non-interactive
+ * sub-agent executes. A warning the dry-run lists, never a refusal.
+ *
+ * @param {object[]} rawStories
+ * @returns {string[]}
+ */
+function collectOpenQuestionWarnings(rawStories) {
+  return evaluateTextHygiene({ draftStories: rawStories }).findings.map(
+    (finding) =>
+      `Story "${finding.slug}": open question in body — "${finding.evidence}". ${finding.message}`,
+  );
+}
+
+/**
+ * Print every warning the run collected under one heading. The dry-run is
+ * where an operator reads these; the persist prints the same list so a
+ * `--chain-on-clean` run loses nothing.
+ *
+ * @param {string[]} warnings
+ * @returns {void}
+ */
+function logWarnings(warnings) {
+  if (warnings.length === 0) return;
   Logger.warn(
-    `[plan-persist] file-assumption gate skipped: base ref '${gateBaseRef}' ` +
-      `does not resolve — ${assumptionFailures.length} finding(s) downgraded.`,
+    `[plan-persist] ${warnings.length} warning(s) — the persist proceeds; review before delivering:`,
   );
-  return { stale: 0, ambiguous: assumptionFailures.length };
+  for (const warning of warnings) {
+    Logger.warn(`[plan-persist] warning: ${warning}`);
+  }
 }
 
 /**
@@ -282,144 +295,23 @@ async function renderRunScopedPlanMetricsLine({
 }
 
 /**
- * Resolve the plan's **effective** complexity route for persist
- * (Story #4722, superseding the envelope-verdict model of Story #4707).
- *
- * Two staged inputs, no word count anywhere:
- *
- *   1. **The planner's authored verdict** — `--route-downgrade-reason` is the
- *      lite claim's recorded reason (`resolvePlannerRouteVerdict`). No
- *      recorded reason means no claim: the plan persists as standard `full`
- *      and nothing is ledgered (`null`).
- *   2. **The deterministic shape backstop** — a lite claim is validated
- *      against every assembled Story's own shape (`deriveStoryShape` over its
- *      `changes[]`, acceptance count, creates-vs-refactors mix, and
- *      sensitive-path classes). Any Story exceeding the ceilings **fails the
- *      claim closed to `full`** — the honest gate: after authoring, the work
- *      has measurable shape, so complexity is read from the work, not guessed
- *      from the seed.
- *
- * The resolved route decides whether the created Stories carry the
- * {@link LITE_ROUTE_LABEL} **hint** (never the control signal — `/mandrel-deliver`
- * re-derives the route from the Story body's shape) and the `route` block
- * ledgered on their `story-plan-state` checkpoint, including the authored
- * verdict, its recorded reason, and the per-Story shape evidence. A refused
- * claim is ledgered too (route `full` with the refusal reasons), so the
- * judgment stays auditable either way.
- *
- * Module-private: reachable end to end through {@link runPlanPersist}
- * (whose result reports the resolved route), so there is no test-only
- * export to leave production-dead.
- *
- * @param {{
- *   stories: ReturnType<typeof assemblePlanStories>['stories'],
- *   routeDowngradeReason?: string|null,
- *   config?: object,
- *   injectedRules?: object,
- * }} args
- * @returns {{
- *   route: 'lite'|'full',
- *   reasons: string[],
- *   authored: { route: 'lite', reason: string },
- *   shape: Array<{ slug: string, route: string, reasons: string[], shape: object|null }>,
- * }|null} `null` when the planner authored no verdict (nothing to persist).
- */
-function resolveEffectiveRoute({
-  stories,
-  routeDowngradeReason = null,
-  config = {},
-  injectedRules,
-}) {
-  const verdict = resolvePlannerRouteVerdict({ reason: routeDowngradeReason });
-  if (verdict.route !== 'lite') return null;
-
-  // The schema's documented contract: with the gate disabled
-  // (`planning.complexityGate.enabled=false`), persist refuses lite claims —
-  // the same switch dispatch reads (`resolveStoryDispatchMode` falls back to
-  // sub-agent), so neither read point can honor a lite claim the operator
-  // has switched off. The refusal is ledgered like any other, keeping the
-  // judgment auditable.
-  if (!resolveComplexityGate(config).enabled) {
-    return {
-      route: 'full',
-      reasons: [
-        'planner lite verdict refused: complexity routing is disabled ' +
-          '(planning.complexityGate.enabled=false)',
-      ],
-      authored: verdict.authored,
-      shape: [],
-    };
-  }
-
-  const perStory = (Array.isArray(stories) ? stories : []).map((story) => {
-    const derived = deriveStoryShape({
-      changes: story.bodyObject?.changes,
-      acceptance: story.acceptance,
-      injectedRules,
-    });
-    return {
-      slug: story.slug,
-      route: derived.route,
-      reasons: derived.reasons,
-      shape: derived.shape,
-    };
-  });
-  const offenders = perStory.filter((entry) => entry.route !== 'lite');
-  if (offenders.length > 0) {
-    return {
-      route: 'full',
-      reasons: [
-        `planner lite verdict refused: ${offenders.length} of ${perStory.length} ` +
-          'Story(ies) exceed the lite shape ceilings — failing closed to full',
-        ...offenders.map((entry) => `${entry.slug}: ${entry.reasons[0]}`),
-      ],
-      authored: verdict.authored,
-      shape: perStory,
-    };
-  }
-  return {
-    route: 'lite',
-    reasons: [
-      ...verdict.reasons,
-      'shape backstop: every authored Story fits the lite shape ceilings',
-    ],
-    authored: verdict.authored,
-    shape: perStory,
-  };
-}
-
-/**
- * Re-run the cross-Story conflict passes over the assembled bodies and route
- * the result (Story #5045).
+ * Re-run the cross-Story conflict passes over the assembled bodies
+ * (Story #5045).
  *
  * `validateTickets` runs before assembly, over the raw payload, so until now
  * plan-time conflict analysis judged an artifact that is not the one persist
  * writes — and the passes that scan `body.acceptance` / `body.verify` were
- * inert on the canonical top-level authoring shape as a result.
+ * inert on the canonical top-level authoring shape as a result. Findings the
+ * raw pass already reported are dropped so the same collision is not
+ * announced twice per run; the rest are returned for the plan-summary
+ * comment, which is where these findings stop being a stderr line nobody
+ * keeps. Every finding is advisory (Story #5312).
  *
- * Three outcomes, in order:
- *
- * 1. **Hard findings throw.** Policy upgrades (`planning.failOnSharedEditors`,
- *    `planning.requireExplicitCrossStoryDeps`) are off by default; when an
- *    operator turns one on it must bite on the persisted artifact too, and it
- *    must bite **before** the first `createIssue`.
- * 2. **Soft findings the raw pass already reported are dropped**, so the same
- *    collision is not announced twice per run.
- * 3. **Everything else is returned** for the plan-summary comment, which is
- *    where these findings stop being a stderr line nobody keeps.
- *
- * @param {{ stories: object[], config: object, rawFindings: object[] }} args
+ * @param {{ stories: object[], rawFindings: object[] }} args
  * @returns {object[]} The assembled-pass findings, for the summary comment.
  */
-function analyzeAssembledStories({ stories, config, rawFindings }) {
-  const findings = computeAssembledConflictFindings({ stories, config });
-  const hard = findings.filter((finding) => finding.severity === 'hard');
-  if (hard.length > 0) {
-    throw new Error(
-      `[plan-persist] ${hard.length} cross-Story conflict(s) in the assembled ` +
-        `Story bodies:\n${hard.map((f) => `  - ${renderHardConflictError(f)}`).join('\n')}`,
-    );
-  }
+function analyzeAssembledStories({ stories, rawFindings }) {
+  const findings = computeAssembledConflictFindings({ stories });
   const alreadyReported = new Set(
     (rawFindings ?? []).map((finding) => conflictFindingKey(finding)),
   );
@@ -470,33 +362,22 @@ export async function reapStalePlanDirs({
 }
 
 /**
- * Fail closed on a payload that cannot be persisted, and warn on an
- * explicitly-authorized over-budget one. Extracted from `runPlanPersist`
- * (Story #4926) so the entry point carries the flow, not the guards.
+ * Fail closed on a payload that cannot be persisted. Extracted from
+ * `runPlanPersist` (Story #4926) so the entry point carries the flow, not the
+ * guards. The reviewability budget that used to sit beside this check went
+ * with Story #5312 — a plan is as many Stories as the split policy yields.
  *
  * @param {unknown} rawStories
- * @param {{ maxTickets: number, allowOverBudget: boolean }} limits
  * @returns {void}
- * @throws {Error} On an empty payload or an unauthorized over-budget one.
+ * @throws {Error} On an empty payload.
  */
-function assertPersistablePlan(rawStories, { maxTickets, allowOverBudget }) {
+function assertPersistablePlan(rawStories) {
   if (!Array.isArray(rawStories) || rawStories.length === 0) {
     throw new Error(
       '[plan-persist] stories payload must be a non-empty array ' +
         '(--stories <file>). Default is one Story.',
     );
   }
-  if (rawStories.length <= maxTickets) return;
-  if (!allowOverBudget) {
-    throw new Error(
-      `[plan-persist] Stories (${rawStories.length}) exceed the reviewability ` +
-        `budget (${maxTickets}). Re-scope, or rerun with --allow-over-budget.`,
-    );
-  }
-  Logger.warn(
-    `[plan-persist] Persisting an over-budget plan: ${rawStories.length} ` +
-      `Stories vs. budget ${maxTickets} (--allow-over-budget).`,
-  );
 }
 
 /**
@@ -549,7 +430,6 @@ async function persistStoryArtifacts({
   provider,
   created,
   primary,
-  route,
   summaryBody,
 }) {
   const cohort = created.map((createdStory) => ({
@@ -566,11 +446,6 @@ async function persistStoryArtifacts({
           primaryStoryId: primary.id,
           stories: cohort,
         },
-        // Ledger the authored route verdict — the recorded reason and the
-        // per-Story shape evidence, including a shape-refused claim — on plan
-        // state (Story #4722). No authored verdict writes no block: absence
-        // is the standard full path.
-        ...(route ? { route } : {}),
       }),
     // The per-Story checkpoint upserts (Story #4952): each targets a
     // different issue and reads nothing another writes, so this loop was
@@ -603,32 +478,6 @@ async function cleanupPlanDirs({ config, planDir, skipCleanup }) {
     }
   }
   await reapStalePlanDirs({ config, keepDir: skipCleanup ? planDir : null });
-}
-
-/**
- * Log the effective complexity route (Story #4722). Lite is upheld by the
- * shape backstop; anything else reports why it fell back to full.
- *
- * @param {object|null} route
- * @param {boolean} isLiteRoute
- * @returns {void}
- */
-function logEffectiveRoute(route, isLiteRoute) {
-  if (isLiteRoute) {
-    Logger.info(
-      `[plan-persist] ceremony-lite route upheld by the shape backstop: ` +
-        `created Stories carry the ${LITE_ROUTE_LABEL} hint ` +
-        `(recorded reason: ${route.authored.reason}). /mandrel-deliver re-derives ` +
-        'the route from each Story body — the label is never the control signal.',
-    );
-    return;
-  }
-  if (route) {
-    Logger.warn(
-      `[plan-persist] ${route.reasons.join('; ')} — persisting as full ` +
-        '(no route hint label).',
-    );
-  }
 }
 
 /**
@@ -688,21 +537,16 @@ function logPersistEpilogue({
  *     planContextEnvelope?: object|null,
  *   },
  *   config?: object,
- *   settings?: object,
  *   opts?: {
  *     forceReview?: boolean,
- *     allowOverBudget?: boolean,
- *     allowLargeFanOut?: boolean,
  *     skipCleanup?: boolean,
  *     dryRun?: boolean,
  *     planDir?: string,
- *     fanOutCounter?: Function,
+ *     gitRunner?: Function,
  *     cwd?: string,
  *     sourceTicketIds?: number[],
  *     sourceTicketOrigin?: 'flag'|'envelope'|'none',
  *     closeSuperseded?: boolean,
- *     routeDowngradeReason?: string|null,
- *     injectedRules?: object,
  *   },
  * }} input
  */
@@ -710,7 +554,6 @@ export async function runPlanPersist({
   provider,
   artifacts,
   config = {},
-  settings = {},
   opts = {},
 }) {
   const {
@@ -721,18 +564,14 @@ export async function runPlanPersist({
   } = artifacts ?? {};
   const {
     forceReview = false,
-    allowOverBudget = false,
-    allowLargeFanOut = false,
     skipCleanup = false,
     dryRun = false,
     planDir = null,
-    fanOutCounter = undefined,
+    gitRunner = undefined,
     cwd = PROJECT_ROOT,
     sourceTicketIds = [],
     sourceTicketOrigin = 'none',
     closeSuperseded = true,
-    routeDowngradeReason = null,
-    injectedRules = undefined,
     // Story #5139 — the optional container Epic. `null` (the default) is the
     // ordinary shape: no Epic is created unless `/mandrel-plan` offered one
     // above the threshold and the operator confirmed it.
@@ -745,26 +584,20 @@ export async function runPlanPersist({
   // through the shared standalone ledger (Story #4541).
   const runStartedAt = opts.metricsSince ?? new Date().toISOString();
 
-  assertPersistablePlan(rawStories, {
-    maxTickets: getLimits(config).maxTickets,
-    allowOverBudget,
-  });
+  assertPersistablePlan(rawStories);
 
   Logger.info(
     `[plan-persist] Running cross-validation on ${rawStories.length} Story ticket(s)...`,
   );
-  const validated = validateTickets(rawStories, config, {
-    fanOutCounter,
-    cwd,
-    modelCapacity: opts.modelCapacity,
-  });
-  enforceFanOutGate(validated.findings, allowLargeFanOut, 'plan-persist');
+  const validated = validateTickets(rawStories, config, { cwd, gitRunner });
   surfaceSoftConflictFindings(validated.findings, 'plan-persist');
-  const freshness = enforceTicketValidation(validated, {
-    config,
-    settings,
-    cwd,
-  });
+  const { warnings: validationWarnings, freshness } =
+    enforceTicketValidation(validated);
+  const warnings = [
+    ...validationWarnings,
+    ...collectOpenQuestionWarnings(rawStories),
+  ];
+  logWarnings(warnings);
 
   const reachability = evaluateDraftReachability({
     tickets: rawStories,
@@ -780,7 +613,7 @@ export async function runPlanPersist({
     epicId: opts.adoptEpicId ?? null,
   });
 
-  // Split policy + inline Spec fold (over-budget Specs fail closed — no docs/).
+  // Split policy + inline Spec fold (Specs stay inline, never under docs/).
   const seedContent = planContextEnvelope?.seed?.content ?? '';
   const { stories: assembled } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
@@ -808,29 +641,14 @@ export async function runPlanPersist({
   // GitHub call, so a policy upgrade still refuses the plan pre-creation.
   const assembledConflicts = analyzeAssembledStories({
     stories,
-    config,
     rawFindings: validated.findings,
   });
-
-  // Effective complexity route (Story #4722): the planner's authored lite
-  // verdict (recorded reason), validated against every assembled Story's own
-  // shape — a claim exceeding the shape ceilings fails closed to full. Lite
-  // persists the `route::lite` HINT label + a checkpoint route block; a
-  // refused claim ledgers the refusal (no label); no claim persists nothing.
-  const route = resolveEffectiveRoute({
-    stories,
-    routeDowngradeReason,
-    config,
-    injectedRules,
-  });
-  const isLiteRoute = route?.route === 'lite';
-  logEffectiveRoute(route, isLiteRoute);
 
   const { created, planRunLabel, planRunLabelApplied } =
     await createStoryIssues({
       provider,
       stories,
-      opts: { dryRun, routeLabel: isLiteRoute ? LITE_ROUTE_LABEL : null },
+      opts: { dryRun },
     });
 
   // What this run filed, recorded where the next audit sweep reads it
@@ -894,7 +712,6 @@ export async function runPlanPersist({
       provider,
       created,
       primary,
-      route,
       summaryBody,
     });
   }
@@ -941,10 +758,14 @@ export async function runPlanPersist({
     stories: created,
     primaryStoryId: primary.id,
     planRunLabel,
-    route,
     forceReview,
     reachability,
     freshness,
+    // Story #5312: what the run rewrote and what it noticed. The dry-run is
+    // the review surface now that the footprint probes warn instead of
+    // refusing, so the list rides the result envelope, not just stderr.
+    warnings,
+    repairs: validated.repairs ?? [],
     waveTable,
     // Story #5265 AC-2/AC-4: both halves of what persist concluded but used
     // to keep to itself — the `refactors-existing` declarations it rewrote,

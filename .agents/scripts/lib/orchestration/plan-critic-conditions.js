@@ -1,123 +1,49 @@
 /**
- * plan-critic-conditions.js — size/heuristic-conditional dispatch decisions for
- * the /mandrel-plan author-step critics (Epic #4474 PR6, design §4).
+ * plan-critic-conditions.js — the pre-mortem critic's dispatch decision for
+ * the `/mandrel-plan` critic CLI (Epic #4474 PR6, design §4; narrowed to one
+ * arm by Story #5312).
  *
- * The collapsed plan flow keeps the consolidation and pre-mortem critics as
- * fresh-context sub-agent dispatches, but makes each dispatch
- * **conditional** instead of unconditional — the dominant plan cost is
- * turns × standing context, and an unconditional critic pays a full
- * sub-agent spawn even when it provably has nothing to find. This module
- * computes those decisions deterministically so the workflow never judges
- * its own dispatch conditions:
+ * The critic is a fresh-context sub-agent dispatch, and the dispatch is
+ * **conditional**: the dominant plan cost is turns × standing context, and an
+ * unconditional critic pays a full sub-agent spawn even when it provably has
+ * nothing to find. This module computes the decision deterministically so
+ * the workflow never judges its own dispatch condition.
  *
- *   - **Consolidation**: dispatch only when the existing
- *     `evaluateConsolidationPrecondition` gate says `dispatch: true` AND
- *     (the draft has more than `CONSOLIDATION_STORY_THRESHOLD` stories OR
- *     the precondition confirmed a divergence from the Delivery Slicing
- *     table). A fail-open precondition (missing/unparseable table) on a
- *     small draft is NOT a confirmed divergence — it skips, because a
- *     ≤-threshold draft is small enough for gate #2's single-view review
- *     to catch a distorted shape without a dedicated sub-agent.
- *   - **Pre-mortem**: dispatch when the ticket count is at least half
- *     of `maxTickets`, OR any configured `planning.riskHeuristics` phrase
- *     matches the plan text (case-insensitive substring), OR the
- *     **external-dependency probe** (Story #4700) finds an out-of-repo marker
- *     in the plan text. Story #4542 removed the authored-risk-verdict condition
- *     along with the verdict itself; every surviving condition reads the plan's
- *     own observable text and shape rather than a self-assessment.
- *
- * The external-dependency probe (Story #4700) is what gives the default N=1
- * path a cheap viability check: on that path the size condition is unreachable
- * (`count*2 >= maxTickets` never holds at one ticket) and a repo whose resolved
- * `planning.riskHeuristics` is empty has no phrase to match, so a plan-time
- * discoverable blocker — a scoped package the plan names that no manifest
- * declares, a cross-repo reference, an external service prerequisite — reached
+ * One trigger survives: the **external-dependency probe** (Story #4700),
+ * which finds an out-of-repo marker in the plan text — a scoped package the
+ * plan names that no manifest declares, a cross-repo reference, an external
+ * service prerequisite — so a plan-time discoverable blocker does not reach
  * delivery unquestioned (the swarm-os #757 shape). The probe is deliberately
- * **conservative**: it matches only explicit markers (npm scoped-package specs,
- * `github.com/<owner>/<repo>` URLs, prerequisite-keyword-anchored endpoints),
- * never NLP guesswork, so a plan with no such marker dispatches exactly as it
- * did before.
+ * **conservative**: it matches only explicit markers (npm scoped-package
+ * specs, `github.com/<owner>/<repo>` URLs, prerequisite-keyword-anchored
+ * endpoints), never NLP guesswork.
  *
- * Under-firing risk (design PR6 note): the persist validators are
- * unchanged hard gates and G2's cohort re-measures plan quality; every
- * skip decision this module produces is logged to the plan-metrics ledger
- * (`appendCriticSkip`) by the caller so under-firing is auditable.
+ * Story #5312 deleted the two triggers that sat beside it — the ticket count
+ * reaching half a `maxTickets` budget, and a `planning.riskHeuristics` phrase
+ * matching the plan text — with the constants they read. The count trigger
+ * was unreachable at the default N=1; the phrase list was empty in every
+ * consumer that resolved it. The consolidation critic went with them: its
+ * one deterministic input was a `## Delivery Slicing` table no Story carries.
+ *
+ * Under-firing risk (design PR6 note): the persist validators are unchanged
+ * hard gates; every skip decision this module produces is logged to the
+ * plan-metrics ledger (`appendCriticSkip`) by the caller so under-firing is
+ * auditable.
  *
  * Pure, synchronous, no I/O. The single caller is `plan-critics-evaluate.js`,
- * driven by the `plan-critics.js` CLI that `/mandrel-plan` runs between Author and
- * Persist (Story #4592); the CLI owns reading the authored artifacts and the
- * resolved config.
+ * driven by the `plan-critics.js` CLI the operator runs between Author and
+ * Persist when they want the critic; the CLI owns reading the authored
+ * artifacts and the resolved config.
  */
-
-import { evaluateConsolidationPrecondition } from './consolidation-precondition.js';
-
-/**
- * Draft-story count above which the consolidation critic fires even
- * without a confirmed slicing divergence (#4474 PR6: "> 5 stories").
- */
-export const CONSOLIDATION_STORY_THRESHOLD = 5;
 
 /**
  * @typedef {Object} CriticDispatchDecision
- * @property {'consolidation'|'pre-mortem'} critic
+ * @property {'pre-mortem'} critic
  * @property {boolean} dispatch
  * @property {string[]} reasons Why the critic fires — or why it is safe to
  *   skip. Never empty: a skip's reasons are the audit trail the
  *   plan-metrics ledger records.
  */
-
-/**
- * Decide the consolidation dispatch: precondition AND size/divergence.
- *
- * @param {object} input
- * @param {object[]} input.draftStories - The draft `tickets.json` array
- *   (raw Story objects with top-level `slug` / `depends_on` / `body`).
- * @param {string} input.specText - The text carrying the `## Delivery
- *   Slicing` table. At author time this is the authored `techspec.md`
- *   content (the Epic body carries the same folded section post-persist).
- * @returns {CriticDispatchDecision}
- */
-export function evaluateConsolidationDispatch({ draftStories, specText }) {
-  const precondition = evaluateConsolidationPrecondition({
-    draftStories,
-    epicBody: specText,
-  });
-
-  if (!precondition.dispatch) {
-    return {
-      critic: 'consolidation',
-      dispatch: false,
-      reasons: precondition.reasons,
-    };
-  }
-
-  const storyCount = draftStories.length;
-  const oversized = storyCount > CONSOLIDATION_STORY_THRESHOLD;
-  const diverges = precondition.cause === 'divergence';
-
-  if (!oversized && !diverges) {
-    return {
-      critic: 'consolidation',
-      dispatch: false,
-      reasons: [
-        `Draft has ${storyCount} story(ies) (≤ ${CONSOLIDATION_STORY_THRESHOLD}) and no confirmed Delivery Slicing divergence — gate #2's single-view review covers a draft this small.`,
-        ...precondition.reasons,
-      ],
-    };
-  }
-
-  const reasons = [];
-  if (diverges) reasons.push(...precondition.reasons);
-  if (oversized) {
-    reasons.push(
-      `Draft has ${storyCount} stories (> ${CONSOLIDATION_STORY_THRESHOLD}) — large enough that a distorted shape can hide from the gate #2 single view.`,
-    );
-  }
-  if (!diverges && precondition.cause === 'fail-open') {
-    reasons.push(...precondition.reasons);
-  }
-  return { critic: 'consolidation', dispatch: true, reasons };
-}
 
 /**
  * Explicit npm scoped-package marker: `@scope/name`. Requires the leading `@`
@@ -215,8 +141,8 @@ function matchExternalServicePrereqs(planText) {
 /**
  * The external-dependency probe (Story #4700): a conservative, marker-only
  * scan of the draft plan text for artifacts outside the current repo that the
- * plan depends on. A match is the pre-mortem's third dispatch condition; a
- * no-match plan behaves exactly as it did before this probe existed.
+ * plan depends on. A match is the pre-mortem's dispatch condition; a no-match
+ * plan skips the critic.
  *
  * @param {object} input
  * @param {string} [input.planText] - Concatenated plan text (tech spec +
@@ -262,19 +188,12 @@ export function evaluateExternalDependencyProbe({
 }
 
 /**
- * Decide the pre-mortem dispatch: size ≥ ½ budget, a risk-heuristic phrase
- * match, or an external-dependency probe match (Story #4700).
+ * Decide the pre-mortem dispatch: an external-dependency probe match
+ * (Story #4700) — the one deterministic trigger left after Story #5312.
  *
  * @param {object} input
- * @param {number} input.ticketCount - Draft ticket count (0 in the
- *   single-delivery shape — no tickets exist).
- * @param {number} input.maxTickets - The reviewability budget
- *   (`getLimits(config).maxTickets`).
- * @param {string[]} [input.riskHeuristics] - `planning.riskHeuristics`
- *   phrases from the resolved config.
- * @param {string} [input.planText] - Concatenated plan text the heuristics and
- *   the external-dependency probe match against (tech spec + serialized
- *   tickets).
+ * @param {string} [input.planText] - Concatenated plan text the probe
+ *   matches against (tech spec + serialized tickets).
  * @param {string[]} [input.knownPackages] - Package specifiers the repo's own
  *   manifests declare (own name + dependency maps + workspace package names),
  *   passed to the external-dependency probe.
@@ -284,58 +203,28 @@ export function evaluateExternalDependencyProbe({
  * @returns {CriticDispatchDecision}
  */
 export function evaluatePremortemDispatch({
-  ticketCount,
-  maxTickets,
-  riskHeuristics = [],
   planText = '',
   knownPackages = [],
   ownerRepo = null,
 }) {
-  if (!Number.isInteger(maxTickets) || maxTickets <= 0) {
-    throw new TypeError(
-      'evaluatePremortemDispatch: maxTickets must be a positive integer',
-    );
-  }
-  const reasons = [];
-
-  const count = Number.isInteger(ticketCount) ? ticketCount : 0;
-  if (count * 2 >= maxTickets) {
-    reasons.push(
-      `Ticket count ${count} is at least half the reviewability budget (maxTickets ${maxTickets}).`,
-    );
-  }
-
-  const haystack = String(planText).toLowerCase();
-  const matched = riskHeuristics.filter(
-    (phrase) =>
-      typeof phrase === 'string' &&
-      phrase.trim().length > 0 &&
-      haystack.includes(phrase.trim().toLowerCase()),
-  );
-  if (matched.length > 0) {
-    reasons.push(
-      `planning.riskHeuristics match(es) in the plan text: ${matched.map((p) => `"${p.trim()}"`).join(', ')}.`,
-    );
-  }
-
   const externalDeps = evaluateExternalDependencyProbe({
     planText,
     knownPackages,
     ownerRepo,
   });
   if (externalDeps.matched) {
-    reasons.push(...externalDeps.reasons);
-  }
-
-  if (reasons.length > 0) {
-    return { critic: 'pre-mortem', dispatch: true, reasons };
+    return {
+      critic: 'pre-mortem',
+      dispatch: true,
+      reasons: externalDeps.reasons,
+    };
   }
 
   return {
     critic: 'pre-mortem',
     dispatch: false,
     reasons: [
-      `Ticket count ${count} is under half the budget (maxTickets ${maxTickets}), no planning.riskHeuristics phrase matches the plan text, and the external-dependency probe found no out-of-repo markers.`,
+      'The external-dependency probe found no out-of-repo markers in the plan text.',
     ],
   };
 }

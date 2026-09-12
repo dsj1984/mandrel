@@ -164,6 +164,10 @@
       "symbol": "walkTestFiles"
     },
     {
+      "file": ".agents/scripts/lib/ticket-body-sections.js",
+      "symbol": "DELIVERY_SLICING_RE"
+    },
+    {
       "file": ".agents/scripts/lib/worktree/git-hooks.js",
       "symbol": "resolveCommonCheckout"
     },

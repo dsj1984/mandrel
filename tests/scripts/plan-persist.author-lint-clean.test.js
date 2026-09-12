@@ -52,8 +52,6 @@ function promptAuthoredStory() {
     '',
     '## Changes',
     '- {"path": "tests/scripts/plan-persist.flat-stories.test.js", "assumption": "refactors-existing"}',
-    '',
-    '<!-- meta: {"reason_to_exist": "One coherent JWT-exchange capability (b: isolates the token-exchange cutover)"} -->',
   ].join('\n');
 
   return {
@@ -81,16 +79,45 @@ describe('AC-3: a prompt-authored Story passes dry-run on the first attempt', ()
     assert.equal(provider.created.length, 0);
   });
 
-  it('is the format that fails when the two mechanical lints are violated (control)', async () => {
+  it('repairs a bare-path Changes bullet and a tier-less verify entry instead of refusing (Story #5312)', async () => {
     // Same Story, but authored the way the bench evidence captured: a bare-path
-    // Changes bullet and a tier-less verify entry. Persist must reject it —
-    // proving the dry-run above passes because the format is correct, not
-    // because the gates are inert.
+    // Changes bullet and a tier-less verify entry. Both used to cost a
+    // re-authoring round; now the bullet is repaired by probing base and
+    // reported, and the verify entry is simply a command.
     const broken = promptAuthoredStory();
     broken.verify = ['npm run validate'];
     broken.body = broken.body.replace(
       '- {"path": "tests/scripts/plan-persist.flat-stories.test.js", "assumption": "refactors-existing"}',
       '- tests/scripts/plan-persist.flat-stories.test.js',
+    );
+
+    const result = await runPlanPersist({
+      provider: fakeProvider(),
+      artifacts: { stories: [broken] },
+      config: {},
+      opts: { dryRun: true, skipCleanup: true },
+    });
+    assert.equal(result.stories.length, 1);
+    assert.equal(result.repairs.length, 1);
+    assert.equal(
+      result.repairs[0].path,
+      'tests/scripts/plan-persist.flat-stories.test.js',
+    );
+    assert.equal(result.repairs[0].assumption, 'refactors-existing');
+    assert.ok(
+      result.warnings.some((w) => /plain-string bullet/.test(w)),
+      'the repair is reported on the warning list',
+    );
+  });
+
+  it('still refuses the one Changes shape only the author can resolve (control)', async () => {
+    // A bullet with no path-shaped token cannot be salvaged: persist must
+    // reject it — proving the dry-run above passes because the format is
+    // correct (or repairable), not because the gates are inert.
+    const broken = promptAuthoredStory();
+    broken.body = broken.body.replace(
+      '- {"path": "tests/scripts/plan-persist.flat-stories.test.js", "assumption": "refactors-existing"}',
+      '- tidy up the persist tests',
     );
 
     await assert.rejects(
@@ -101,7 +128,7 @@ describe('AC-3: a prompt-authored Story passes dry-run on the first attempt', ()
           config: {},
           opts: { dryRun: true, skipCleanup: true },
         }),
-      /Suggested fix/,
+      /plain string bullets are no longer accepted/,
     );
   });
 });

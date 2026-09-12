@@ -6,20 +6,11 @@ import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import { validateStoryFileAssumptions } from './file-assumptions.js';
 import { isExternalDependencyRef } from './plan-persist/external-deps.js';
-import { computeSpecBudgetFindings } from './spec-budget.js';
 import {
   assertStoryBodiesParse,
   parseStoryBodyOrThrow,
 } from './story-body-gate.js';
-import {
-  CONFLICT_KINDS,
-  computeConflictFindings,
-  renderHardConflictError,
-} from './ticket-validator-conflicts.js';
-import {
-  computeSizingFindings,
-  renderHardFindingError,
-} from './ticket-validator-sizing.js';
+import { computeConflictFindings } from './ticket-validator-conflicts.js';
 
 /**
  * Regex matching code-asset paths the freshness gate cares about. The three
@@ -230,10 +221,13 @@ function makeMemoizedGitRunner(runner) {
 }
 
 /**
- * Verify that every code-asset path referenced by a Task body or AC exists at
- * `baseBranchRef`. A missing path means the planner LLM hallucinated (or the
- * path was deleted between planning and decomposition) — refuse to decompose
- * because the resulting Task would be unimplementable as written.
+ * Check that every code-asset path referenced by a Story body or AC exists at
+ * `baseBranchRef`, and report the ones that do not. A missing path usually
+ * means the planner named a file it is about to create without declaring it,
+ * or a stale reference — worth saying, not worth refusing on: Story #5312
+ * demoted this gate from a throw to the **warning list** the dry-run prints,
+ * because the paths a goal or acceptance line names are prose the deliverer
+ * reads against the real tree, never a contract the validator can hold it to.
  *
  * Only Stories are scanned — they are the implementation unit; the Epic
  * carries narrative copy, not implementation paths.
@@ -243,7 +237,7 @@ function makeMemoizedGitRunner(runner) {
  * @param {string}   opts.baseBranchRef   - Ref to probe (e.g. 'main' or 'origin/main').
  * @param {Function} [opts.gitRunner]     - Probe override (testing seam).
  * @param {string}   [opts.cwd]           - Repo cwd (forwarded to default runner).
- * @throws {ValidationError} when one or more Story references are stale.
+ * @returns {string[]} One warning line per missing reference, empty when clean.
  */
 export function validateAcFreshness({
   tickets,
@@ -286,12 +280,7 @@ export function validateAcFreshness({
       }
     }
   }
-  if (misses.length === 0) return;
-  const lines = misses.map((m) => renderMissLine(m)).join('\n');
-  throw new ValidationError(
-    `Cross-Validation Failed: ${misses.length} Story reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nEither declare the path in body.changes (signals net-new) or correct the reference.`,
-    { misses, baseBranchRef },
-  );
+  return misses.map((m) => renderMissLine(m, baseBranchRef));
 }
 
 /**
@@ -406,40 +395,35 @@ export function validateAcceptanceSubjectPrefix({ tickets }) {
 }
 
 /**
- * Render one missing-path line with a remediation hint pointing at the
- * task's `body.changes`. For `tests/**` paths we suggest the explicit
+ * Render one missing-path warning with a remediation hint pointing at the
+ * Story's `changes[]`. For `tests/**` paths we suggest the explicit
  * "add the test file" verb; for everything else we emit a generic hint
  * since the planner knows whether the path is net-new or a typo.
  */
-function renderMissLine({ slug, path }) {
+function renderMissLine({ slug, path }, baseBranchRef) {
   const verb = path.startsWith('tests/') ? 'add test file' : 'create';
-  return `  - "${slug}" → ${path}\n      hint: if net-new, add '${path}: ${verb}' to body.changes; otherwise fix the typo or stale reference against current main.`;
+  return `Story "${slug}" references ${path}, which does not exist at ${baseBranchRef} — if net-new, declare {"path":"${path}","assumption":"creates"} in changes[] (${verb}); otherwise fix the typo or stale reference.`;
 }
 
 /**
  * Validates the generated ticket hierarchy and handles lifting cross-story dependencies.
  *
- * The returned tickets array carries two extra non-array properties:
- *   - `findings` — structured sizing findings (hard + soft) keyed by the
- *     three-layer sizing model. The bounded re-decomposition loop in
- *     `/mandrel-plan` reads `findings.filter(f => f.severity === 'hard')` to decide
- *     whether to re-prompt.
- *   - `errors`   — human-readable strings, one per hard finding. Non-empty
- *     `errors[]` is the AC-visible "block normalization" signal; the legacy
- *     hierarchy/cycle/freshness checks continue to throw, so callers that
- *     only inspect the array shape are unaffected when no sizing
- *     violations occur.
+ * The returned tickets array carries extra non-array properties:
+ *   - `findings` — the advisory cross-Story conflict findings.
+ *   - `errors`   — human-readable strings, one per hard refusal: a `deletes`
+ *     naming a path absent at base (prefixed `File assumption mismatch:`).
+ *     The hierarchy/cycle/parse checks continue to throw.
+ *   - `warnings` — the demoted footprint probes (Story #5312): a `creates`
+ *     or `refactors-existing` mismatch, a goal/acceptance/verify path absent
+ *     at base. Listed by the dry-run; the persist proceeds.
+ *   - `normalizations` — the `refactors-existing`→`creates` rewrites applied.
  *
  * @param {object[]}                   tickets             - Array of ticket objects parsed from LLM output.
  * @param {object}                     [opts]
- * @param {string}                     [opts.baseBranchRef] - When set, runs `validateAcFreshness` against this ref.
+ * @param {string}                     [opts.baseBranchRef] - When set, runs the base-branch probes against this ref.
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
- * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
- * @param {object}                     [opts.modelCapacity] - Programmatic override of `DEFAULT_MODEL_CAPACITY` (tests only — not read from `.agentrc.json`).
- * @param {object}                     [opts.conflictPolicy] - Severity controls for cross-Story conflict findings.
- * @param {boolean}                    [opts.conflictPolicy.failOnSharedEditors=false]          - Upgrade `shared-editor` findings to `hard`.
- * @param {boolean}                    [opts.conflictPolicy.requireExplicitCrossStoryDeps=false] - Upgrade `implicit-cross-story-dep` findings to `hard`.
- * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing + conflict findings.
+ * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the probes).
+ * @returns {object[] & { findings: object[], errors: string[], warnings: string[], normalizations: object[] }}
  */
 /**
  * Internal helpers extracted from `validateAndNormalizeTickets` so each
@@ -603,13 +587,12 @@ function assertAcyclic(slugAdjacency) {
 
 function attachFindingsAndErrors(
   tickets,
-  findings,
-  errors,
-  normalizations = [],
+  { findings, errors, warnings, normalizations },
 ) {
   for (const [key, value] of [
     ['findings', findings],
     ['errors', errors],
+    ['warnings', warnings],
     // Story #5265: the auto-normalizations the assumption gate applied. They
     // used to end at a `Logger.warn` and die with the process, so persist's
     // emitted result reported a plan whose declarations it had silently
@@ -660,25 +643,26 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     ? makeMemoizedGitRunner(opts.gitRunner ?? defaultGitRunner)
     : null;
 
-  // Refuse to decompose when any Task body or AC names a code-asset path
-  // missing from the Epic's base branch tree. Skipped when the caller
-  // omits `baseBranchRef` so legacy unit tests keep their existing
-  // semantics; production call-sites always pass it.
+  const warnings = [];
+  // Story #5312: a goal / acceptance / verify path absent at base is a
+  // warning the dry-run lists, not a refusal. Skipped when the caller omits
+  // `baseBranchRef` so unit tests keep their semantics; production
+  // call-sites always pass it.
   if (opts.baseBranchRef) {
-    validateAcFreshness({
-      tickets,
-      baseBranchRef: opts.baseBranchRef,
-      gitRunner: sharedGitRunner,
-      cwd: opts.cwd,
-    });
+    warnings.push(
+      ...validateAcFreshness({
+        tickets,
+        baseBranchRef: opts.baseBranchRef,
+        gitRunner: sharedGitRunner,
+        cwd: opts.cwd,
+      }),
+    );
   }
 
   // Story #2636 — Phase 8 path-assumption gate. Cross-check every Story's
   // declared `{ path, assumption }` against the actual state of the base
-  // branch and batch the mismatches per-Story into the validator's errors
-  // envelope. Skipped when the caller omits `baseBranchRef` so legacy
-  // unit tests keep their semantics; production call-sites always pass
-  // it.
+  // branch. A `deletes` on an absent path batches into the validator's
+  // errors envelope; every other mismatch is a warning (Story #5312).
   let assumptionErrors = [];
   let assumptionNormalizations = [];
   if (opts.baseBranchRef) {
@@ -688,71 +672,23 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       gitRunner: sharedGitRunner,
       cwd: opts.cwd,
     });
-    // Auto-normalizations (#4496 fix 5) get their own prefix so the logged
-    // warning is self-explanatory; everything else on the warnings channel
-    // is a legacy-shape deprecation nudge.
-    const normalizationWarnings = new Set(
-      (assumptionReport.normalizations ?? []).map((n) => n.path),
-    );
-    for (const warning of assumptionReport.warnings) {
-      const isNormalization = warning.includes('auto-normalized to "creates"');
-      Logger.warn(
-        `[ticket-validator] ${isNormalization ? 'assumption-normalized' : 'assumption-deprecation'}: ${warning}`,
-      );
-    }
-    if (normalizationWarnings.size > 0) {
-      Logger.warn(
-        `[ticket-validator] ${normalizationWarnings.size} refactors-existing ` +
-          'declaration(s) on base-untracked path(s) auto-normalized to ' +
-          '"creates" — the gate proceeds; update the plan declarations at ' +
-          'the next amend.',
-      );
-    }
+    warnings.push(...assumptionReport.warnings);
     assumptionErrors = assumptionReport.errors;
     assumptionNormalizations = assumptionReport.normalizations ?? [];
   }
 
-  const sizingFindings = computeSizingFindings({
-    stories,
-    capacity: opts.modelCapacity,
-  });
   // Cross-Story path-conflict pass observes the story-level depends_on
-  // graph. Findings are appended to the same `findings` array consumed by
-  // the decompose-loop's hard-finding gate; severity is controlled by
-  // `opts.conflictPolicy`.
-  const conflictFindings = computeConflictFindings({
-    stories,
-    policy: opts.conflictPolicy,
-  });
-  // Advisory `## Spec` word-budget pass (Story #4723) — soft findings only,
-  // never promoted to `errors[]`, so an over-budget Spec cannot fail the
-  // persist. Runs after `assertStoryBodiesParse`, so string bodies parse.
-  // This pass computes but does not report: the sole production caller always
-  // runs the persist soft-finding surface, which reports every soft kind
-  // uniformly. Warning here too made `spec-word-budget` the only kind logged
-  // twice per run (Story #4907).
-  const specBudgetFindings = computeSpecBudgetFindings({ stories });
-  const findings = [
-    ...sizingFindings,
-    ...conflictFindings,
-    ...specBudgetFindings,
-  ];
-  const errors = findings
-    .filter((f) => f.severity === 'hard')
-    .map((f) =>
-      CONFLICT_KINDS.has(f.kind)
-        ? renderHardConflictError(f)
-        : renderHardFindingError(f),
-    );
-  // Append per-Story path-assumption mismatches (Story #2636) to the
-  // hard-error list. The decompose loop already gates on
-  // `errors.length > 0` to trigger a re-prompt, so the new check
-  // participates in the same loop without bespoke wiring.
-  for (const e of assumptionErrors) {
-    errors.push(`File assumption mismatch: ${e}`);
-  }
+  // graph. Every finding is advisory; the persist surfaces them and the
+  // plan summary renders the shared-editor class beside the wave table.
+  const findings = computeConflictFindings({ stories });
+  const errors = assumptionErrors.map((e) => `File assumption mismatch: ${e}`);
 
-  attachFindingsAndErrors(tickets, findings, errors, assumptionNormalizations);
+  attachFindingsAndErrors(tickets, {
+    findings,
+    errors,
+    warnings,
+    normalizations: assumptionNormalizations,
+  });
   return tickets;
 }
 

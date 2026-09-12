@@ -4,7 +4,7 @@
  *   - rejects each empty-section variant (changes / acceptance / verify);
  *   - rejects bullets that name no path-shaped token;
  *   - rejects vague verbs without a named target;
- *   - allows manual:<reason> in verify;
+ *   - accepts any verify[] command (Story #5312 deleted the tier suffix);
  *   - skips legacy string / undefined bodies (only structured object
  *     bodies are inspected).
  *
@@ -130,26 +130,6 @@ describe('collectTaskBodyErrors — path-shape and string-bullet rejection', () 
   });
 });
 
-describe('collectTaskBodyErrors — verify entries', () => {
-  it('accepts manual:<reason>', () => {
-    const errs = collectTaskBodyErrors([
-      story('t1', {
-        ...validStoryBody,
-        verify: ['manual: copy review by brand lead'],
-      }),
-    ]);
-    assert.deepEqual(errs, []);
-  });
-
-  it('rejects manual: with no reason', () => {
-    const errs = collectTaskBodyErrors([
-      story('t1', { ...validStoryBody, verify: ['manual:'] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /"manual:" entry has no reason/);
-  });
-});
-
 describe('collectTaskBodyErrors — body routing (Story #3906)', () => {
   it('skips Story tickets with undefined body', () => {
     assert.deepEqual(collectTaskBodyErrors([story('t1', undefined)]), []);
@@ -190,18 +170,6 @@ describe('collectTaskBodyErrors — body routing (Story #3906)', () => {
     // sections rather than skipping it.
     const serialized = serialize(validStoryBody);
     assert.deepEqual(collectTaskBodyErrors([story('s1', serialized)]), []);
-  });
-
-  it('rejects a serialized string body whose verify entry lacks a tier suffix', () => {
-    const serialized = serialize({
-      ...validStoryBody,
-      verify: ['npm run test'],
-    });
-    const errs = collectTaskBodyErrors([story('s1', serialized)]);
-    assert.ok(
-      errs.some((e) => e.includes('tier in parentheses')),
-      `expected a verify tier-suffix error, got: ${JSON.stringify(errs)}`,
-    );
   });
 
   it('rejects a legacy unstructured string body (no sections → empty arrays)', () => {
@@ -311,18 +279,8 @@ describe('validateTaskBodyShape (predicate)', () => {
       expectIncludes: 'verify must list at least one entry',
     },
     {
-      name: 'verify manual: with no reason',
-      body: { ...validStoryBody, verify: ['manual:'] },
-      expectIncludes: '"manual:" entry has no reason after the colon',
-    },
-    {
-      name: 'verify manual: with whitespace reason',
-      body: { ...validStoryBody, verify: ['manual:   '] },
-      expectIncludes: '"manual:" entry has no reason after the colon',
-    },
-    {
-      name: 'verify manual: with valid reason is clean',
-      body: { ...validStoryBody, verify: ['manual: see PR'] },
+      name: 'a tier-less verify command is clean (Story #5312)',
+      body: { ...validStoryBody, verify: ['npm test'] },
       expectErrors: 0,
     },
     {
@@ -409,7 +367,7 @@ describe('contract fields resolve from the ticket top level (Story #4541)', () =
       canonicalTicket({
         verify: ['npm test (unit)'],
         body: serialize({
-          goal: 'Mirrored lists.',
+          goal: '',
           changes: [{ path: 'lib/x.js', assumption: 'creates' }],
           acceptance,
           verify: ['npm test'],
@@ -417,7 +375,7 @@ describe('contract fields resolve from the ticket top level (Story #4541)', () =
       }),
     ]);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /must end with a tier in parentheses/);
+    assert.match(errs[0], /body\.goal must be a non-empty string/);
   });
 });
 

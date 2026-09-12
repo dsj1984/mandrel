@@ -18,8 +18,6 @@
  *   verify:              string[],         // exact commands / tier annotation
  *   references:          PathEntry[],      // read-only paths (optional)
  *   non_goals:           string[],         // negative-scope bullets (optional, advisory)
- *   wide:                { reason } | null,// declared-wide footprint (optional)
- *   reason_to_exist:     string | null,    // one-sentence cohesion reason (optional)
  *   depends_on:          string[],         // blocker story slugs or #ids
  * }
  * ```
@@ -42,10 +40,6 @@
  * @module story-body
  */
 
-import {
-  AUTHORED_MARKER_LINE_RE,
-  authoredMarkerLine,
-} from '../framework-version.js';
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
 import { suggestPathEntryFix } from './body-format-lints.js';
 import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
@@ -73,14 +67,10 @@ import { isFooterSeparator, parseFooterBlockedByRefs } from './footer-block.js';
  * @property {string}        spec                - Optional folded Tech Spec text block; '' when absent.
  * @property {PathEntry[]}   changes             - Files / globs this Story modifies.
  * @property {string[]}      acceptance          - Observable acceptance criteria.
- * @property {string[]}      verify              - Exact commands with tier annotation.
+ * @property {string[]}      verify              - Exact commands the deliverer runs.
  * @property {PathEntry[]}   references          - Read-only paths (may be empty).
  * @property {string[]}      non_goals           - Negative-scope bullets (advisory; may be empty).
- * @property {{ reason: string }|null} wide      - Declared-wide footprint (reason), or null.
- * @property {string|null}   reason_to_exist     - One-sentence cohesion reason ("why this Story exists"), or null.
  * @property {string[]}      depends_on          - Blocking story slugs / issue refs.
- * @property {string|null}   mandrel_version     - Framework version stamped at authoring, or null.
- * @property {string|null}   authored_at         - Authoring date (YYYY-MM-DD) stamped at authoring, or null.
  */
 
 /**
@@ -176,11 +166,18 @@ const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 // top-level acceptance[] machine contract round-trips byte-identical.
 const AC_PREFIX_RE = /^AC-\d+:\s+/;
 
-// Visible wide-rationale line (Story #4600): `> **Wide:** <reason>` rendered
-// under `## Goal`. Presentation only — the `<!-- meta -->` block stays the
-// canonical machine carrier, so the parser skips this line wherever it
-// appears (same treatment as the authored-provenance marker).
+// Machine-managed marker lines a body authored before Story #5312 may still
+// carry: the `> **Wide:** <reason>` rationale line (Story #4600), the
+// `> 🏷️ Authored with Mandrel …` provenance line, and the trailing
+// `<!-- meta: {...} -->` block. Nothing writes them any more — the `wide` /
+// `reason_to_exist` fields and the provenance stamp went with the plan-time
+// sizing model — but live issue bodies are never rewritten, so the parser
+// still skips them wherever they appear rather than absorbing a stray line
+// into the last structured section. A skipped block is dropped on
+// re-serialize, which is the cutover working as intended.
 const WIDE_MARKER_LINE_RE = /^>\s*\*\*Wide:\*\*/;
+const AUTHORED_MARKER_LINE_RE = /^\s*>\s*🏷️\s+Authored with Mandrel\b/;
+const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
 
 /**
  * Parse a single `changes` / `references` bullet into a `PathEntry`.
@@ -325,99 +322,6 @@ function extractBlockedBy(footerBlock) {
   return parseFooterBlockedByRefs(footerBlock);
 }
 
-// Matches any trailing `<!-- meta: … -->` block. Object payloads are the
-// canonical serialize() shape; non-object / malformed payloads are still
-// recognized so section parsing can skip them and extractMeta can degrade.
-const META_BLOCK_RE = /<!--\s*meta:\s*([\s\S]*?)\s*-->/;
-const META_OBJECT_RE = /<!--\s*meta:\s*(\{[\s\S]*?\})\s*-->/;
-
-/**
- * Extract the `wide` / `reason_to_exist` fields from the trailing
- * `<!-- meta: {...} -->` comment block written by {@link serialize}. Returns
- * canonical-shaped values (null when absent or malformed) so the parser
- * round-trips the meta block faithfully.
- *
- * Failing closed here would be wrong: the meta block is an optional,
- * machine-written convenience and a malformed comment must not corrupt an
- * otherwise-valid Story body. A parse failure degrades to the absent-meta
- * defaults instead of throwing.
- *
- * The `mandrel_version` / `authored_at` provenance stamp (written once at
- * authoring time by the ticket-creation path) is recovered here too so a later
- * `parse → serialize` preserves the originally-authored version verbatim
- * rather than dropping or re-deriving it.
- *
- * @param {string} markdown
- * @returns {{ wide: { reason: string }|null, reason_to_exist: string|null, mandrel_version: string|null, authored_at: string|null }}
- */
-function extractMeta(markdown) {
-  const result = {
-    wide: null,
-    reason_to_exist: null,
-    mandrel_version: null,
-    authored_at: null,
-  };
-  const match = markdown.match(META_OBJECT_RE) ?? markdown.match(META_BLOCK_RE);
-  if (!match) return result;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(match[1]);
-  } catch {
-    // Malformed meta comment — degrade to defaults rather than corrupt the body.
-    return result;
-  }
-  // Non-object JSON (array / scalar / null) is treated as absent meta.
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return result;
-  }
-
-  result.wide = normalizeWide(parsed.wide);
-  result.reason_to_exist = normalizeReasonToExist(parsed.reason_to_exist);
-  if (
-    typeof parsed.mandrel_version === 'string' &&
-    parsed.mandrel_version.trim()
-  ) {
-    result.mandrel_version = parsed.mandrel_version.trim();
-  }
-  if (typeof parsed.authored_at === 'string' && parsed.authored_at.trim()) {
-    result.authored_at = parsed.authored_at.trim();
-  }
-  return result;
-}
-
-/**
- * Normalize a raw `reason_to_exist` value to a non-empty trimmed string or
- * `null`. The field is the machine-checkable form of the cohesion rule
- * ("one Story = one coherent change with one reason to exist"): the
- * `epic-plan-consolidate` critic flags any Story whose body carries no
- * non-empty reason. An empty or non-string value is treated as absent.
- *
- * @param {unknown} raw
- * @returns {string|null}
- */
-function normalizeReasonToExist(raw) {
-  if (typeof raw !== 'string') return null;
-  const reason = raw.trim();
-  return reason.length === 0 ? null : reason;
-}
-
-/**
- * Normalize a raw `wide` declaration to the canonical `{ reason }` shape or
- * `null`. A `wide` declaration is only honoured when it carries a non-empty
- * one-line reason — the reason is the whole point of the field (it states why
- * a Story is legitimately broad and lifts the hard file-width ceiling).
- *
- * @param {unknown} raw
- * @returns {{ reason: string }|null}
- */
-function normalizeWide(raw) {
-  if (raw === null || typeof raw !== 'object') return null;
-  const reason = typeof raw.reason === 'string' ? raw.reason.trim() : '';
-  if (reason.length === 0) return null;
-  return { reason };
-}
-
 /**
  * Split markdown into named sections plus a footer block.
  *
@@ -515,18 +419,10 @@ function isSectionTerminatorHeading(line, inPreamble, currentSection) {
 }
 
 /**
- * True for machine-managed marker lines section parsing skips wherever they
- * appear:
- *   - the trailing `<!-- meta: {...} -->` block — machine metadata, not
- *     section content, read separately by `extractMeta`, and skipped so a
- *     `## References` section immediately followed by it does not swallow
- *     the comment as a references entry;
- *   - the visible `> 🏷️ Authored with Mandrel …` provenance marker (emitted
- *     alongside the meta block by the authoring path; the value round-trips
- *     via the meta block);
- *   - the visible `> **Wide:** <reason>` rationale line (Story #4600):
- *     presentation only — the meta block remains the canonical carrier for
- *     `wide.reason`.
+ * True for the legacy machine-managed marker lines section parsing skips
+ * wherever they appear (see the regexes above): a `## References` section
+ * immediately followed by a retired meta block must not swallow the comment
+ * as a references entry.
  *
  * @param {string} line
  * @returns {boolean}
@@ -567,11 +463,7 @@ function parseUnstructuredBody(input, preamble, footer) {
     verify: [],
     references: [],
     non_goals: [],
-    wide: null,
-    reason_to_exist: null,
     depends_on: extractBlockedBy(footer),
-    mandrel_version: null,
-    authored_at: null,
   };
   return {
     body,
@@ -736,17 +628,6 @@ export function parse(input) {
   const non_goals = parseTextListSection(sections.get('non_goals') ?? []);
   const dependsOn = extractBlockedBy(footer);
 
-  // --- Recover wide / reason_to_exist / provenance from the meta block ---
-  // serialize() writes these into a trailing `<!-- meta: {...} -->` comment
-  // so round-trips preserve them. Absent meta block → canonical null defaults.
-  // Unknown keys are ignored, so a body carrying a retired meta field parses
-  // clean and simply drops it.
-  const meta = extractMeta(input);
-  const wide = meta.wide;
-  const reason_to_exist = meta.reason_to_exist;
-  const mandrel_version = meta.mandrel_version;
-  const authored_at = meta.authored_at;
-
   const body = {
     goal,
     slicing,
@@ -756,11 +637,7 @@ export function parse(input) {
     verify,
     references,
     non_goals,
-    wide,
-    reason_to_exist,
     depends_on: dependsOn,
-    mandrel_version,
-    authored_at,
   };
 
   return {
@@ -800,10 +677,6 @@ function parseStructuredObject(obj) {
     body[name] = STRUCTURED_FIELD_NORMALIZERS[kind](obj[name], warnings);
   }
 
-  // Provenance stamp (preserved verbatim; never re-derived here).
-  body.mandrel_version = normalizeProvenanceString(obj.mandrel_version);
-  body.authored_at = normalizeProvenanceString(obj.authored_at);
-
   return {
     body,
     warnings,
@@ -829,8 +702,6 @@ function parseStructuredObject(obj) {
  *   - `stringList`    — array filtered to non-empty strings, else `[]`.
  *   - `pathEntryList` — array normalized entry-wise via `parsePathEntry`
  *                       (fails closed on a malformed entry), else `[]`.
- *   - `wide` / `reasonToExist` — the dedicated normalizers shared with the
- *                       markdown parse path's meta-block recovery.
  *
  * @type {Array<{ name: string, kind: keyof typeof STRUCTURED_FIELD_NORMALIZERS }>}
  */
@@ -846,8 +717,6 @@ const STRUCTURED_FIELD_SPECS = [
   { name: 'references', kind: 'pathEntryList' },
   // non_goals — advisory negative-scope bullets.
   { name: 'non_goals', kind: 'stringList' },
-  { name: 'wide', kind: 'wide' },
-  { name: 'reason_to_exist', kind: 'reasonToExist' },
   // depends_on — may be at top level or in body.
   { name: 'depends_on', kind: 'stringList' },
 ];
@@ -872,20 +741,7 @@ const STRUCTURED_FIELD_NORMALIZERS = {
     }
     return entries;
   },
-  wide: (raw) => normalizeWide(raw),
-  reasonToExist: (raw) => normalizeReasonToExist(raw),
 };
-
-/**
- * Normalize a provenance stamp field (`mandrel_version` / `authored_at`) to
- * a non-empty trimmed string or `null`.
- *
- * @param {unknown} raw
- * @returns {string|null}
- */
-function normalizeProvenanceString(raw) {
-  return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
-}
 
 // ---------------------------------------------------------------------------
 // Serializer
@@ -925,18 +781,6 @@ const SERIALIZE_SECTIONS = [
       typeof goal === 'string' && goal.trim().length > 0
         ? `## Goal\n${goal.trim()}`
         : null,
-  },
-  {
-    // Visible wide-rationale line (Story #4600), rendered directly under
-    // `## Goal`. Presentation only: the `<!-- meta -->` block remains the
-    // canonical machine carrier and the parser skips this line, so `wide`
-    // round-trips through the meta block alone. Absent/invalid wide emits
-    // nothing, keeping every non-wide body byte-identical to before.
-    field: 'wide',
-    render: (wide) => {
-      const normalized = normalizeWide(wide);
-      return normalized === null ? null : `> **Wide:** ${normalized.reason}`;
-    },
   },
   {
     // Optional v2 intra-Story delivery slice plan. Single-token `## Slicing`
@@ -1005,61 +849,6 @@ const SERIALIZE_SECTIONS = [
 ];
 
 /**
- * Build the trailing `<!-- meta: {...} -->` block carrying the fields that
- * have no human-readable section (`wide`, `reason_to_exist`). Returns the
- * empty string when no meta field is present so {@link serialize} appends
- * nothing.
- *
- * Key insertion order (`wide` → `reason_to_exist` →
- * `mandrel_version` → `authored_at`) is load-bearing: it fixes the serialized
- * JSON byte sequence the parser's meta round-trip and the unit suite assert
- * against. The provenance stamp keys are appended **last** so every
- * pre-existing (stamp-less) body serialises byte-identically to before.
- *
- * @param {StoryBody} body
- * @returns {string}
- */
-function serializeMetaBlock(body) {
-  const metaFields = {};
-  const wide = normalizeWide(body.wide);
-  if (wide !== null) {
-    metaFields.wide = wide;
-  }
-  const reasonToExist = normalizeReasonToExist(body.reason_to_exist);
-  if (reasonToExist !== null) {
-    metaFields.reason_to_exist = reasonToExist;
-  }
-  if (typeof body.mandrel_version === 'string' && body.mandrel_version.trim()) {
-    metaFields.mandrel_version = body.mandrel_version.trim();
-  }
-  if (typeof body.authored_at === 'string' && body.authored_at.trim()) {
-    metaFields.authored_at = body.authored_at.trim();
-  }
-  if (Object.keys(metaFields).length === 0) return '';
-  return `\n\n<!-- meta: ${JSON.stringify(metaFields)} -->`;
-}
-
-/**
- * Build the visible `> 🏷️ Authored with Mandrel v<version> · <date>` marker
- * line when the body carries a complete provenance stamp
- * (`mandrel_version` + `authored_at`). Emitted just above the meta block so it
- * round-trips with the hidden field. Returns the empty string when either
- * field is absent, so every pre-existing (stamp-less) body serialises
- * byte-identically to before.
- *
- * @param {StoryBody} body
- * @returns {string}
- */
-function serializeAuthoredMarker(body) {
-  const version =
-    typeof body.mandrel_version === 'string' ? body.mandrel_version.trim() : '';
-  const authoredAt =
-    typeof body.authored_at === 'string' ? body.authored_at.trim() : '';
-  if (!version || !authoredAt) return '';
-  return `\n\n${authoredMarkerLine({ version, authoredAt })}`;
-}
-
-/**
  * Build the optional `---` footer block (`parent` / `blocked by` lines).
  * Returns the empty string when `opts.includeFooter` is falsy.
  *
@@ -1090,10 +879,6 @@ function serializeFooter(body, opts) {
  * `## Goal`, `## Slicing`, `## Spec`, `## Changes`, `## Acceptance`,
  * `## Verify`, `## References`, `## Non-Goals` (each omitted when empty).
  *
- * `wide` and `reason_to_exist` are emitted as a fenced `<!-- meta -->`
- * comment block so round-trips preserve them without polluting the
- * human-readable body.
- *
  * @param {StoryBody} body
  * @param {SerializeOptions} [opts]
  * @returns {string}
@@ -1111,12 +896,7 @@ export function serialize(body, opts = {}) {
     if (block !== null) sections.push(block);
   }
 
-  return (
-    sections.join('\n\n') +
-    serializeAuthoredMarker(body) +
-    serializeMetaBlock(body) +
-    serializeFooter(body, opts)
-  );
+  return sections.join('\n\n') + serializeFooter(body, opts);
 }
 
 // ---------------------------------------------------------------------------

@@ -7,8 +7,9 @@
  * the Stage-1 split-policy validator (`assertAcceptancePartition`).
  *
  * Each Story body is the single executable document: Tech Spec stays inline
- * under `## Spec`. Over-budget Specs fail closed (split / tighten) — never
- * spill to `docs/`. Top-level `acceptance[]` / `verify[]` are the machine
+ * under `## Spec`, at whatever length the work needs (Story #5312 deleted
+ * the token budget that used to refuse it) — never spilled to `docs/`.
+ * Top-level `acceptance[]` / `verify[]` are the machine
  * contract and are synced into the body so the GitHub issue stays complete
  * without requiring the LLM to dual-author the same lists.
  *
@@ -33,7 +34,6 @@ import {
   concurrentMap,
   FANOUT_CONCURRENCY,
 } from '../../util/concurrent-map.js';
-import { assertSpecWithinBudget } from '../spec-spill.js';
 import { assertAcceptancePartition } from '../split-policy-validator.js';
 import {
   externalDependencyId,
@@ -59,13 +59,6 @@ export const PLAN_RUN_LABEL_PREFIX = 'plan-run::';
 
 /** Stable color for the cohort grouping label (`ensureLabels`). */
 const PLAN_RUN_LABEL_COLOR = '#C5DEF5';
-
-/**
- * Stable color for the `route::lite` ceremony-route hint (Story #4707;
- * hint-only since Story #4722 — `/mandrel-deliver` re-derives the route from the
- * Story body's shape).
- */
-const LITE_ROUTE_LABEL_COLOR = '#D4C5F9';
 
 /** Length of the derived plan-run id (hex chars). */
 const PLAN_RUN_ID_LENGTH = 8;
@@ -226,11 +219,10 @@ function extractPlanFingerprint(body) {
  * Labels the authoring pass is never allowed to set. The `agent::*` axis is
  * the runtime's lifecycle state (persist owns the terminal `agent::ready`
  * flip itself), `type::*` is fixed to `type::story` by the v2 hierarchy,
- * `persona::*` is a retired axis, `plan-run::*` is the runtime-derived
- * cohort grouping axis (Story #4692), and `route::*` is the runtime-derived
- * ceremony-route axis (Story #4707) — a hand-authored entry on either
- * derived axis would compete with the deterministic label persist applies
- * itself.
+ * `persona::*` and `route::*` are retired axes (the latter with the
+ * plan-side lite claim, Story #5312), and `plan-run::*` is the
+ * runtime-derived cohort grouping axis (Story #4692) — a hand-authored entry
+ * on it would compete with the deterministic label persist applies itself.
  */
 const FORBIDDEN_LABEL_PREFIXES = Object.freeze([
   'agent::',
@@ -299,8 +291,6 @@ function bodyObjectFromTicket(ticket) {
     verify: ticket.verify ?? [],
     references: ticket.references ?? [],
     non_goals: ticket.non_goals ?? [],
-    wide: ticket.wide ?? null,
-    reason_to_exist: ticket.reason_to_exist ?? null,
     depends_on: ticket.depends_on ?? [],
   }).body;
 }
@@ -398,7 +388,7 @@ export function normalizeStoryTicket(ticket) {
 
 /**
  * Fold optional shared Tech Spec prose into a Story body when the Story has
- * no inline Spec. Specs stay inline; over-budget Specs throw.
+ * no inline Spec. Specs stay inline, verbatim, at any length.
  *
  * Precedence: per-Story `body.spec` wins; otherwise `sharedSpec` is used
  * (N===1 convenience only — callers must not share one Spec across N>1).
@@ -430,8 +420,7 @@ export function foldSpecIntoStoryBody(bodyObject, slug, opts = {}) {
     return { bodyObject: next };
   }
 
-  const { content } = assertSpecWithinBudget({ storyId: slug, spec: inline });
-  next.spec = content;
+  next.spec = inline;
   return { bodyObject: next };
 }
 
@@ -854,16 +843,14 @@ async function mirrorNativeDependencyEdges({ provider, stories, idBySlug }) {
 }
 
 /**
- * Ensure a runtime-derived persist label (`plan-run::<id>` cohort grouping,
- * `route::lite` route marker) exists before it is applied — GitHub's
- * create-issue path does not auto-create unknown labels on every provider
- * route, and an opaque derived label never exists yet.
+ * Ensure the runtime-derived `plan-run::<id>` cohort label exists before it
+ * is applied — GitHub's create-issue path does not auto-create unknown
+ * labels on every provider route, and an opaque derived label never exists
+ * yet.
  *
  * **Non-fatal by design**, matching the native-blocked_by mirroring posture:
- * neither label is load-bearing for correctness (grouping is cosmetic, and
- * the route label is a human-visible hint only — `/mandrel-deliver` re-derives the
- * route from the Story body's shape, Story #4722), so it is never a reason
- * to fail persist. On an ensure
+ * the label is not load-bearing for correctness (grouping is cosmetic), so
+ * it is never a reason to fail persist. On an ensure
  * failure (throw, or the label reported `missing` by the post-loop
  * reconcile) the create loop proceeds **without** the label — applying an
  * unensured label could fail the issue create itself, and the Stories matter
@@ -957,30 +944,16 @@ async function ensurePersistLabel({
  * every id is known (Story #4544), so plan-created order stops depending on
  * prose. That pass is non-fatal — see `mirrorNativeDependencyEdges`.
  *
- * **A lite-routed cohort carries the `route::lite` hint** (Story #4707,
- * hint-only since Story #4722). When the caller resolves the plan's
- * effective complexity route to `lite` (the planner's recorded verdict,
- * upheld by the shape backstop), it passes the label via `opts.routeLabel`
- * and every created Story carries it — a **human-visible hint only**, never
- * the control signal: `/mandrel-deliver` re-derives the route from each Story body's
- * own shape (`resolveStoryDispatchMode`), so a lost or failed label write
- * cannot misroute delivery. A full-routed plan passes nothing and its
- * Stories carry **no** route label. Like the cohort label, the ensure is
- * non-fatal — the label is cosmetic either way.
- *
  * @param {object} args
  * @param {object} args.provider
  * @param {ReturnType<typeof assemblePlanStories>['stories']} args.stories
  * @param {object} [args.opts]
  * @param {boolean} [args.opts.dryRun=false]
- * @param {string|null} [args.opts.routeLabel=null] Route marker label to
- *   apply to every created Story (`route::lite`), or null for none.
  * @returns {Promise<{
  *   created: Array<{ slug: string, id: number, url?: string, title: string, adopted: boolean }>,
  *   dependencyEdges: { edgesAdded: number, edgesSkipped: number, edgesFailed: number, storiesProcessed: number }|null,
  *   planRunLabel: string,
  *   planRunLabelApplied: boolean,
- *   routeLabel: string|null,
  * }>}
  */
 export async function createStoryIssues({ provider, stories, opts = {} }) {
@@ -991,10 +964,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
   }
 
   const list = Array.isArray(stories) ? stories : [];
-  const routeLabel =
-    typeof opts.routeLabel === 'string' && opts.routeLabel.trim() !== ''
-      ? opts.routeLabel.trim()
-      : null;
 
   // Derived once for the whole cohort, before any write — a pure function of
   // the authored artifacts, so dry-run can report it write-free and a resume
@@ -1018,7 +987,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       // the label — the derived id is still reported, the application is not
       // claimed.
       planRunLabelApplied: false,
-      routeLabel,
     };
   }
 
@@ -1031,18 +999,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
       'metadata only, never a deliver input.',
     role: 'cohort',
   });
-  const applyRouteLabel =
-    routeLabel !== null &&
-    (await ensurePersistLabel({
-      provider,
-      label: routeLabel,
-      color: LITE_ROUTE_LABEL_COLOR,
-      description:
-        'Ceremony-lite hint only: /mandrel-deliver re-derives the route; ' +
-        'every close gate still runs.',
-      role: 'route-marker',
-    }));
-
   const { byFingerprint, idsByTitle } = await indexExistingStories(provider);
   const created = [];
   const idBySlug = new Map();
@@ -1073,11 +1029,7 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     const result = await provider.createIssue({
       title: story.title,
       body: renderStoryBodyForCreate(story, idBySlug),
-      labels: [
-        ...story.labels,
-        ...(applyCohortLabel ? [cohortLabel] : []),
-        ...(applyRouteLabel ? [routeLabel] : []),
-      ],
+      labels: [...story.labels, ...(applyCohortLabel ? [cohortLabel] : [])],
       // Story #5112 — hand the provider the same content-keyed lookup this
       // loop's resume path uses, so a retry after a lost response adopts the
       // issue attempt 1 already filed instead of creating a twin.
@@ -1128,7 +1080,6 @@ export async function createStoryIssues({ provider, stories, opts = {} }) {
     // consult before advertising a `label:` filter that may match nothing.
     planRunLabel: cohortLabel,
     planRunLabelApplied: applyCohortLabel,
-    routeLabel: applyRouteLabel ? routeLabel : null,
   };
 }
 

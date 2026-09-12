@@ -94,14 +94,14 @@ describe('config-resolver — loading + legacy shim', () => {
       JSON.stringify({
         project: { ...REQ.project, baseBranch: 'develop' },
         github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
-        planning: { riskHeuristics: ['no destructive ops'] },
+        planning: { memoryPool: { indexByteCeiling: 20000 } },
         delivery: { execution: { timeoutMs: 100000 } },
       }),
     );
     const config = resolveConfig({ bustCache: true });
     assert.equal(config.project.baseBranch, 'develop');
     assert.equal(config.github.owner, 'org');
-    assert.deepEqual(config.planning.riskHeuristics, ['no destructive ops']);
+    assert.deepEqual(config.planning.memoryPool, { indexByteCeiling: 20000 });
     assert.equal(config.delivery.execution.timeoutMs, 100000);
   });
 

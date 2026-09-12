@@ -30,7 +30,9 @@ import {
   matchLocalLenses,
   readAuditRules,
 } from '../../.agents/scripts/lib/audit-suite/index.js';
-import { estimateTokens } from '../../.agents/scripts/lib/orchestration/spec-spill.js';
+
+/** Mirror of the hydrator's private ≈4-chars/token estimate. */
+const estimateTokens = (text) => Math.ceil(String(text ?? '').length / 4);
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MODULE_PATH = path.join(

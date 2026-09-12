@@ -1,6 +1,23 @@
 {
   "$schema": "https://mandrel.dev/baselines/workflow-citations.schema.json",
-  "generatedAt": "2026-08-06T03:08:58.646Z",
-  "total": 0,
-  "files": []
+  "generatedAt": "2026-09-12T15:50:46.697Z",
+  "total": 10,
+  "files": [
+    {
+      "path": ".agents/workflows/helpers/deliver-light.md",
+      "count": 2
+    },
+    {
+      "path": ".agents/workflows/helpers/deliver-story-reference.md",
+      "count": 1
+    },
+    {
+      "path": ".agents/workflows/helpers/plan-reference.md",
+      "count": 6
+    },
+    {
+      "path": ".agents/workflows/memory-consolidate.md",
+      "count": 1
+    }
+  ]
 }

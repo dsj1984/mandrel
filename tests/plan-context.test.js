@@ -29,8 +29,6 @@ import { describe, it } from 'node:test';
 import { findSimilarOpenStories } from '../.agents/scripts/lib/duplicate-search.js';
 import { buildComplexitySignals } from '../.agents/scripts/lib/orchestration/complexity-gate.js';
 import {
-  buildDeliverLightSuggestion,
-  buildDeliveryShapeSignal,
   buildPlanContext,
   buildScopeTriageSignal,
   buildSystemPrompts,
@@ -44,13 +42,13 @@ import {
   resolvePlanContextPath,
 } from '../.agents/scripts/lib/orchestration/plan-persist/plan-context-source.js';
 import { resolveSourceTicketIds } from '../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
-import { buildDecomposerSystemPrompt } from '../.agents/scripts/lib/orchestration/planning/decomposer-context.js';
-import {
-  VERIFY_TIER_VALUES,
-  validateTaskBodies,
-} from '../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { validateTaskBodies } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
 import { validateAndNormalizeTickets } from '../.agents/scripts/lib/orchestration/ticket-validator.js';
 import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
+import {
+  renderStoryAuthorCore,
+  renderStorySplitRules,
+} from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
@@ -148,13 +146,11 @@ const SEED_MODE_KEYS = [
   'docsContext',
   'duplicates',
   'epicCandidates',
-  'maxTickets',
   'memoryPoolAdvisory',
   'mode',
   'planProfile',
   'planState',
   'priorFeedback',
-  'riskHeuristics',
   'seed',
   'systemPrompts',
   'ticketSchema',
@@ -168,13 +164,11 @@ const SEED_FILE_MODE_KEYS = [
   'docsContext',
   'duplicates',
   'epicCandidates',
-  'maxTickets',
   'memoryPoolAdvisory',
   'mode',
   'planProfile',
   'planState',
   'priorFeedback',
-  'riskHeuristics',
   'seed',
   'systemPrompts',
   'ticketSchema',
@@ -211,14 +205,12 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     const advisory = env.memoryPoolAdvisory;
     assert.ok(advisory, 'memoryPoolAdvisory must be present');
     assert.deepEqual(Object.keys(advisory).sort(), [
-      'entriesSinceConsolidation',
       'entryCount',
-      // Story #5285's index byte arm. The envelope shape is pinned in two
-      // places on purpose — here at the planning envelope's edge and in the
-      // builder's own suite — so a field reaching one and not the other is
-      // caught rather than absorbed.
+      // Story #5285's index byte arm — the one arm left after Story #5312.
+      // The envelope shape is pinned in two places on purpose — here at the
+      // planning envelope's edge and in the builder's own suite — so a field
+      // reaching one and not the other is caught rather than absorbed.
       'indexBytes',
-      'lastConsolidatedAt',
       'present',
       'reasons',
       'recommend',
@@ -226,14 +218,6 @@ describe('plan-context envelope schema (design §1 step 1)', () => {
     assert.equal(typeof advisory.present, 'boolean');
     assert.equal(typeof advisory.recommend, 'boolean');
     assert.ok(Array.isArray(advisory.reasons));
-    // Story #5182 — the growth measure the /mandrel-plan spine quotes. A number
-    // when the stamp carries a baseline, null when growth is unmeasured;
-    // never absent, so the spine never has to guess which it got.
-    assert.ok(
-      advisory.entriesSinceConsolidation === null ||
-        typeof advisory.entriesSinceConsolidation === 'number',
-      'entriesSinceConsolidation is a number or null',
-    );
   });
 
   it('seed mode emits the seed-mode key set (#4496)', async () => {
@@ -363,12 +347,12 @@ describe('plan-context dup-search fold parity vs library', () => {
 });
 
 describe('plan-context systemPrompts fold', () => {
-  it('renders spec/acceptance/story/decompose from the shared prompt carriers', async () => {
+  it('renders spec/acceptance/story/storySplitRules from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
       mode: 'seed-file',
       seedFileContent: ONE_PAGER,
       provider: buildProvider(),
-      config: { planning: { riskHeuristics: ['touches auth'] } },
+      config: {},
       settings: {},
     });
     assert.equal(env.systemPrompts.spec, renderTechSpecSystemPrompt());
@@ -376,74 +360,23 @@ describe('plan-context systemPrompts fold', () => {
       env.systemPrompts.acceptance,
       renderAcceptanceSpecSystemPrompt(),
     );
-    assert.equal(
-      env.systemPrompts.decompose,
-      buildDecomposerSystemPrompt(['touches auth'], {
-        maxTickets: env.maxTickets,
-        epicId: null,
-      }),
-    );
-    assert.deepEqual(env.riskHeuristics, ['touches auth']);
+    // Story #5312: the story prompt is the N=1 core; the schedule and
+    // partition rules ride separately for a draft that splits.
+    assert.equal(env.systemPrompts.story, renderStoryAuthorCore());
+    assert.equal(env.systemPrompts.storySplitRules, renderStorySplitRules());
+    assert.equal('decompose' in env.systemPrompts, false);
+    assert.equal('riskHeuristics' in env, false);
+    assert.equal('maxTickets' in env, false);
     assert.match(env.systemPrompts.spec, /Engineering Architect/);
     assert.match(env.systemPrompts.acceptance, /Acceptance Engineer/);
-    assert.match(env.systemPrompts.story, /v2 DEFAULT-SINGLE SPLIT POLICY/);
-    assert.match(
-      env.systemPrompts.story,
-      /Do \*\*not\*\* emit `deliveryShape`/,
-    );
+    assert.match(env.systemPrompts.story, /Emit exactly one Story by default/);
+    assert.doesNotMatch(env.systemPrompts.story, /ACCEPTANCE PARTITION/);
+    assert.match(env.systemPrompts.storySplitRules, /ACCEPTANCE PARTITION/);
     // The envelope's systemPrompts are exactly what the exported helper
-    // renders for the same inputs, and the ticketSchema is the shared
-    // frozen descriptor.
-    assert.deepEqual(
-      env.systemPrompts,
-      buildSystemPrompts({
-        heuristics: ['touches auth'],
-        maxTickets: env.maxTickets,
-        epicId: null,
-      }),
-    );
+    // renders, and the ticketSchema is the shared frozen descriptor.
+    assert.deepEqual(env.systemPrompts, buildSystemPrompts());
     assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
     assert.equal(env.ticketSchema.itemFields.type.includes('story'), true);
-  });
-});
-
-describe('plan-context deliveryShapeSignal (advisory, #4475 heuristics)', () => {
-  it('recommends single for a delivery-slicing table of ≤ 2 slices', () => {
-    const body = `## Delivery Slicing\n\n| Slice | What ships | Independent? |\n|---|---|---|\n| All of it | everything | Yes |\n`;
-    const signal = buildDeliveryShapeSignal({ body });
-    assert.equal(signal.recommendation, 'single');
-    assert.equal(signal.advisory, true);
-    assert.match(signal.reasons[0], /one-pass-sized/);
-  });
-
-  it('recommends single for a pure dependent chain (zero fan-out parallelism)', () => {
-    const body = `## Delivery Slicing\n\n| Slice | What ships | Independent? |\n|---|---|---|\n| A | a | Yes |\n| B | b | No — needs A |\n| C | c | No — needs B |\n| D | d | No — needs C |\n`;
-    const signal = buildDeliveryShapeSignal({ body });
-    assert.equal(signal.recommendation, 'single');
-    assert.match(signal.reasons[0], /pure dependent chain/);
-  });
-
-  it('recommends fan-out for a slicing table with independent parallelism', () => {
-    const body = `## Delivery Slicing\n\n| Slice | What ships | Independent? |\n|---|---|---|\n| A | a | Yes |\n| B | b | Yes |\n| C | c | Yes |\n`;
-    const signal = buildDeliveryShapeSignal({ body });
-    assert.equal(signal.recommendation, 'fan-out');
-  });
-
-  it('defaults to fan-out when there is no sizing signal at all', () => {
-    const signal = buildDeliveryShapeSignal({ body: 'freeform prose only' });
-    assert.equal(signal.recommendation, 'fan-out');
-    assert.match(signal.reasons[0], /defaulting to fan-out/);
-  });
-
-  it('uses the scope enumeration when no slicing table exists', () => {
-    const single = buildDeliveryShapeSignal({
-      body: '## Scope\n- one thing\n- another\n',
-    });
-    assert.equal(single.recommendation, 'single');
-    const fanOut = buildDeliveryShapeSignal({
-      body: '## Scope\n- a\n- b\n- c\n- d\n',
-    });
-    assert.equal(fanOut.recommendation, 'fan-out');
   });
 });
 
@@ -495,83 +428,85 @@ describe('plan-context stdout purity (Story #2278 discipline)', () => {
   });
 });
 
-describe('plan-context envelope byte ceiling — runtime enforcement', () => {
-  // The ceiling used to be asserted only by the fixture tests below, which
-  // bound nothing at runtime: the sizes that matter come from a consumer's
-  // seed or --tickets source bodies, and no fixture sees those. The
-  // documented cap (`planning.context.maxBytes`) resolved but was wired to
-  // nothing and has since been removed (Story #4541), so this is the only
-  // real bound on the path that needs one.
+describe('plan-context envelope byte ceiling — truncates, never refuses (Story #5312 AC-6)', () => {
+  // The ceiling used to refuse the envelope outright and exit non-zero naming
+  // what to trim. The sizes that matter come from a consumer's seed or
+  // --tickets source bodies — real operator input — so the envelope is now
+  // written truncated, with a `truncated` note naming what was cut.
   /** A seed large enough to carry the envelope past the real ceiling. */
   const OVER_CEILING_SEED = 'lorem ipsum dolor sit amet consectetur. '.repeat(
     9000,
   );
 
-  it('refuses an envelope over the ceiling rather than emitting it', async () => {
-    // The risk the ceiling exists for: a seed (or --tickets source bodies)
-    // large enough to blow the planner's context. This used to return a
-    // happily unbounded envelope, because the only thing checking the ceiling
-    // was a fixture test that never sees a consumer's input.
-    await assert.rejects(
-      () =>
-        buildPlanContext({
-          mode: 'seed',
-          seedText: OVER_CEILING_SEED,
-          provider: buildProvider(),
-          config: {},
-          settings: {},
-        }),
-      (err) => {
-        assert.match(err.message, /planner-context ceiling/);
-        assert.match(err.message, /"seed" envelope/);
-        // The operator has to know what to trim, so the largest contributing
-        // fields are named rather than just the total.
-        assert.match(err.message, /Largest fields:/);
-        assert.match(err.message, /seed \(\d+ KB\)/);
-        // Story #4977: the remedy follows the single largest field rather
-        // than always naming both legacy remedies — here `seed` dominates,
-        // so only its remedy is named.
-        assert.match(err.message, /Trim the seed/);
-        // Story #4811 retired the codebase snapshot: a remedy naming a knob
-        // the operator can no longer set is worse than no remedy, because it
-        // sends them editing a config the schema now rejects.
-        assert.doesNotMatch(err.message, /codebaseSnapshot/);
-        return true;
-      },
+  it('writes an over-ceiling seed envelope truncated, with the cut named', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: OVER_CEILING_SEED,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    const bytes = Buffer.byteLength(JSON.stringify(env), 'utf-8');
+    assert.ok(
+      bytes <= PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
+      `truncated envelope is ${bytes} bytes — ceiling is ${PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}`,
+    );
+    assert.ok(Array.isArray(env.truncated) && env.truncated.length > 0);
+    const [cut] = env.truncated;
+    // The seed dominates, so the seed is what was cut — and the note says so.
+    assert.equal(cut.field, 'seed');
+    assert.ok(cut.keptBytes < cut.originalBytes);
+    assert.match(cut.note, /cut to a prefix/);
+    assert.ok(env.seed.text.length < OVER_CEILING_SEED.length);
+    assert.match(env.seed.text, /truncated by plan-context/);
+  });
+
+  it('truncates over-ceiling seed-file and tickets envelopes too', async () => {
+    // Every mode returns through the one choke point, so none of them can
+    // emit an unbounded envelope — and none of them refuses.
+    const seedFile = await buildPlanContext({
+      mode: 'seed-file',
+      seedFileContent: OVER_CEILING_SEED,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(seedFile), 'utf-8') <=
+        PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
+    );
+    assert.equal(seedFile.truncated[0].field, 'seed');
+
+    const tickets = await buildPlanContext({
+      mode: 'tickets',
+      ticketIds: [1],
+      provider: buildProvider({ body: OVER_CEILING_SEED }),
+      config: {},
+      settings: {},
+    });
+    assert.ok(
+      Buffer.byteLength(JSON.stringify(tickets), 'utf-8') <=
+        PLAN_CONTEXT_ENVELOPE_BYTE_CEILING,
+    );
+    // In tickets mode the source bodies and the derived seed both carry the
+    // text, so the cap names whichever dominated first — never nothing.
+    assert.ok(tickets.truncated.length >= 1);
+    assert.ok(
+      tickets.truncated.every((t) =>
+        ['seed', 'sourceTickets'].includes(t.field),
+      ),
     );
   });
 
-  it('refuses over-ceiling seed-file and tickets envelopes too', async () => {
-    // Every mode returns through the one choke point, so none of them can
-    // emit an unbounded envelope.
-    await assert.rejects(
-      () =>
-        buildPlanContext({
-          mode: 'seed-file',
-          seedFileContent: OVER_CEILING_SEED,
-          provider: buildProvider(),
-          config: {},
-          settings: {},
-        }),
-      /planner-context ceiling/,
-    );
-    await assert.rejects(
-      () =>
-        buildPlanContext({
-          mode: 'tickets',
-          ticketIds: [1],
-          provider: buildProvider({ body: OVER_CEILING_SEED }),
-          config: {},
-          settings: {},
-        }),
-      (err) => {
-        assert.match(err.message, /planner-context ceiling/);
-        // Story #4977: the remedy follows whichever field actually
-        // dominates — in tickets mode that's `sourceTickets`, not `seed`.
-        assert.match(err.message, /fewer --tickets source/);
-        return true;
-      },
-    );
+  it('leaves an envelope under the ceiling untouched — no truncated field', async () => {
+    const env = await buildPlanContext({
+      mode: 'seed',
+      seedText: ONE_PAGER,
+      provider: buildProvider(),
+      config: {},
+      settings: {},
+    });
+    assert.equal('truncated' in env, false);
   });
 });
 
@@ -936,9 +871,6 @@ describe('plan-context --out envelope capture (Story #4554)', () => {
 // round-trip.
 describe('renderStoriesTemplate — correct-by-construction skeleton (Story #4723)', () => {
   const sink = { write: () => true };
-  const VERIFY_TIER_RE = new RegExp(
-    `\\((?:${VERIFY_TIER_VALUES.join('|')})\\)\\s*$`,
-  );
 
   /** Fixture repo state: exactly these paths exist. */
   const FIXTURE_FILES = new Set(['lib/existing/module.js']);
@@ -952,10 +884,10 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
         [...FIXTURE_FILES].some((f) => abs === path.resolve(FIXTURE_ROOT, f)),
     });
 
-  it('emits verify[] placeholders that already carry a valid (tier) tag', () => {
+  it('emits verify[] placeholders as bare commands — no tier tag (Story #5312)', () => {
     const template = JSON.parse(renderStoriesTemplate());
     for (const entry of template[0].verify) {
-      assert.match(entry, VERIFY_TIER_RE);
+      assert.doesNotMatch(entry, /\((?:unit|contract|e2e|validate)\)\s*$/);
     }
   });
 
@@ -989,12 +921,10 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
     story.body.goal = 'Harden the widget pipeline against stale snapshots.';
     story.body.spec =
       'Contract: lib/existing/module.js keeps its exported signature.';
-    story.body.reason_to_exist =
-      'The widget pipeline mis-resolves stale snapshots.';
     story.acceptance = [
       'The hardened pipeline resolves the snapshot and the pinned test passes',
     ];
-    story.verify = ['npm test (unit)'];
+    story.verify = ['npm test'];
 
     // Persist-shaped gates: the shared validator with a git probe that
     // mirrors the fixture repo state, then the body-shape validator.
@@ -1036,7 +966,7 @@ describe('renderStoriesTemplate — correct-by-construction skeleton (Story #472
       { path: 'src/missing.js', assumption: 'creates' },
     ]);
     for (const entry of template[0].verify) {
-      assert.match(entry, VERIFY_TIER_RE);
+      assert.doesNotMatch(entry, /\((?:unit|contract|e2e|validate)\)\s*$/);
     }
     await rm(dir, { recursive: true, force: true });
   });
@@ -1058,81 +988,6 @@ const PRIOR_STORY_BODY = serialize({
     'Empty input yields an empty file.',
   ],
   verify: ['npm test (unit)'],
-  reason_to_exist: 'Users need a widget export.',
-});
-
-describe('plan-context deliverLightSuggestion (Story #4741 AC-6)', () => {
-  it('suggests the light path for a scope inside the ceilings — advisory, never automatic', () => {
-    const s = buildDeliverLightSuggestion({
-      artifactCount: 1,
-      riskHeuristicHits: [],
-      sensitivePathClasses: [],
-    });
-    assert.equal(s.suggested, true);
-    // The two contract flags: advisory, and NEVER an automatic reroute.
-    assert.equal(s.advisory, true);
-    assert.equal(s.automatic, false);
-    assert.match(s.reasons[0], /no risk signal/);
-    // Story #4760 retired the /deliver-light command; the suggestion must
-    // name a command the operator can actually type.
-    assert.doesNotMatch(s.reasons[0], /\/deliver-light/);
-  });
-
-  it('Story #4856: an artifact count no longer disqualifies a risk-free seed', () => {
-    // The second surviving cardinality ceiling, and the more misleading one:
-    // the "artifacts" were paths scraped from seed prose, not a measured
-    // footprint. Six scraped paths with no risk signal is not a size verdict.
-    const s = buildDeliverLightSuggestion({
-      artifactCount: 6,
-      riskHeuristicHits: [],
-      sensitivePathClasses: [],
-    });
-    assert.equal(s.suggested, true);
-    assert.equal(s.ceilings.maxArtifacts, undefined);
-    assert.doesNotMatch(s.reasons.join(' '), /artifact/i);
-  });
-
-  it('does not suggest when a risk heuristic hits — risk is what a light path must not carry', () => {
-    const s = buildDeliverLightSuggestion({
-      artifactCount: 1,
-      riskHeuristicHits: ['touches auth'],
-      sensitivePathClasses: [],
-    });
-    assert.equal(s.suggested, false);
-    assert.match(s.reasons.join(' '), /risk-heuristic/);
-  });
-
-  it('does not suggest when the predicted footprint touches a sensitive-path class', () => {
-    const s = buildDeliverLightSuggestion({
-      artifactCount: 1,
-      riskHeuristicHits: [],
-      sensitivePathClasses: ['auth'],
-    });
-    assert.equal(s.suggested, false);
-    assert.match(s.reasons.join(' '), /sensitive-path/);
-  });
-
-  it('fails conservative (not suggested) on a missing / malformed signal bag', () => {
-    assert.equal(buildDeliverLightSuggestion(null).suggested, false);
-    assert.equal(buildDeliverLightSuggestion({}).suggested, false);
-    assert.equal(buildDeliverLightSuggestion(undefined).suggested, false);
-  });
-
-  it('rides the seed envelope nested under complexitySignals — no new top-level key (AC-5)', async () => {
-    const env = await buildPlanContext({
-      mode: 'seed',
-      // ONE_PAGER enumerates 2 scope items and no risk/sensitive signal — it
-      // fits the ceilings, so the nested suggestion fires.
-      seedText: ONE_PAGER,
-      provider: buildProvider(),
-      config: {},
-      settings: {},
-    });
-    // AC-5: the top-level key set is byte-stable — the suggestion is nested.
-    assert.deepEqual(Object.keys(env).sort(), SEED_MODE_KEYS);
-    assert.equal(env.complexitySignals.deliverLightSuggestion.suggested, true);
-    assert.equal(env.complexitySignals.deliverLightSuggestion.automatic, false);
-  });
 });
 
 // Story #4765 — the advisory UI-surface offer. Two observables ANDed: the
@@ -1256,8 +1111,9 @@ describe('plan-context uiSurface offer (Story #4765)', () => {
       Object.keys(fired.complexitySignals).sort(),
       Object.keys(unfired.complexitySignals).sort(),
     );
-    assert.deepEqual(fired.complexitySignals.gate, { enabled: true });
-    assert.deepEqual(unfired.complexitySignals.gate, { enabled: true });
+    // Story #5312: no gate echo rides the signals either.
+    assert.equal('gate' in fired.complexitySignals, false);
+    assert.equal('gate' in unfired.complexitySignals, false);
   });
 
   it('rides the --out stdout digest alongside the other advisory signals (AC-6)', async () => {
@@ -1282,9 +1138,10 @@ describe('plan-context uiSurface offer (Story #4765)', () => {
     const digest = JSON.parse(line);
     assert.equal(digest.complexitySignals.uiSurface.detected, true);
     assert.equal(digest.complexitySignals.uiSurface.automatic, false);
-    assert.ok(
-      digest.complexitySignals.deliverLightSuggestion,
-      'the existing advisory signal must still ride the digest beside uiSurface',
+    assert.equal(
+      'deliverLightSuggestion' in digest.complexitySignals,
+      false,
+      'the retired light-path offer no longer rides the digest (Story #5312)',
     );
     assert.ok(
       line.length < 2048,
@@ -1381,9 +1238,8 @@ describe('plan-context amends mode — delta envelope (Story #4741 AC-4)', () =>
       assert.ok(!(heavy in env), `${heavy} must not ride the amends envelope`);
     }
     // But the semantic steps that reach the ticket are preserved (AC-2):
-    // duplicate detection, risk heuristics, and the authoring prompts.
+    // duplicate detection and the authoring prompts.
     assert.ok(Array.isArray(env.duplicates));
-    assert.ok(Array.isArray(env.riskHeuristics));
     assert.equal(typeof env.systemPrompts.story, 'string');
     assert.equal(env.ticketSchema, TICKET_SCHEMA_DESCRIPTOR);
   });

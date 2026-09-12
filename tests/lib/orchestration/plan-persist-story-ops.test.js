@@ -9,7 +9,6 @@ import {
   AGENT_LABELS,
   TYPE_LABELS,
 } from '../../../.agents/scripts/lib/label-constants.js';
-import { LITE_ROUTE_LABEL } from '../../../.agents/scripts/lib/orchestration/complexity-gate.js';
 import {
   assemblePlanStories,
   createStoryIssues,
@@ -20,7 +19,6 @@ import {
   PLAN_RUN_LABEL_PREFIX,
   planRunLabel,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
-import { DEFAULT_SPEC_BODY_TOKEN_BUDGET } from '../../../.agents/scripts/lib/orchestration/spec-spill.js';
 import {
   computeAssembledConflictFindings,
   computeConflictFindings,
@@ -44,7 +42,6 @@ function storyTicket(slug, overrides = {}) {
       changes: [{ path: `src/${slug}.js`, assumption: 'creates' }],
       acceptance: [`${slug} works`],
       verify: ['npm test (unit)'],
-      reason_to_exist: `Deliver ${slug}`,
       ...overrides.bodyFields,
     }),
     ...overrides,
@@ -123,7 +120,6 @@ describe('normalizeStoryTicket', () => {
         changes: [{ path: 'src/a.js', assumption: 'creates' }],
         acceptance: [],
         verify: [],
-        reason_to_exist: 'One reason',
       }),
       acceptance: ['observable works'],
       verify: ['npm test (unit)'],
@@ -143,23 +139,14 @@ describe('foldSpecIntoStoryBody', () => {
     assert.equal(bodyObject.spec, 'short tech spec');
   });
 
-  it('rejects an over-budget spec instead of spilling to docs/', () => {
-    const big = 'x'.repeat((DEFAULT_SPEC_BODY_TOKEN_BUDGET + 50) * 4);
-    assert.throws(
-      () =>
-        foldSpecIntoStoryBody(
-          {
-            goal: 'g',
-            changes: [],
-            acceptance: [],
-            verify: [],
-            references: [],
-          },
-          's1',
-          { sharedSpec: big },
-        ),
-      /never written to docs/,
+  it('keeps a very large spec inline too — there is no token budget (Story #5312)', () => {
+    const big = 'contract prose '.repeat(3000);
+    const { bodyObject } = foldSpecIntoStoryBody(
+      { goal: 'g', changes: [], acceptance: [], verify: [], references: [] },
+      's1',
+      { sharedSpec: big },
     );
+    assert.equal(bodyObject.spec, big.trim());
   });
 });
 
@@ -350,12 +337,13 @@ describe('createStoryIssues', () => {
     );
   });
 
-  it("sends both persist label descriptions within GitHub's length cap", async () => {
-    // Story #5201: the cohort description was 108 characters and the
-    // route::lite one 138, so `gh label create` answered HTTP 422
-    // `description is too long` and the cohort label was never once created.
-    // Asserted through the defs the gateway actually receives, so a future
-    // edit to either literal is caught here rather than at persist time.
+  it("sends the cohort label description within GitHub's length cap", async () => {
+    // Story #5201: the cohort description was 108 characters, so `gh label
+    // create` answered HTTP 422 `description is too long` and the cohort
+    // label was never once created. Asserted through the defs the gateway
+    // actually receives, so a future edit to the literal is caught here
+    // rather than at persist time. The `route::lite` label that used to be
+    // ensured alongside went with Story #5312.
     const defs = [];
     const provider = {
       ensureLabels: async (given) => {
@@ -365,17 +353,9 @@ describe('createStoryIssues', () => {
       createIssue: async () => ({ id: 700 + defs.length }),
     };
     const { stories } = assemblePlanStories([storyTicket('a')]);
-    await createStoryIssues({
-      provider,
-      stories,
-      opts: { routeLabel: LITE_ROUTE_LABEL },
-    });
+    await createStoryIssues({ provider, stories, opts: {} });
 
-    assert.equal(
-      defs.length,
-      2,
-      'both the cohort and route labels are ensured',
-    );
+    assert.equal(defs.length, 1, 'only the cohort label is ensured');
     for (const def of defs) {
       assert.ok(
         def.description.length > 0,
@@ -1059,7 +1039,7 @@ describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', ()
     );
   });
 
-  it('a policy upgrade bites on the assembled artifact too', () => {
+  it('every assembled-pass finding is advisory — there is no policy upgrade (Story #5312)', () => {
     const shared = [
       {
         ...producer,
@@ -1071,13 +1051,10 @@ describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', ()
       },
     ];
     const { stories } = assemblePlanStories(shared);
-    const findings = computeAssembledConflictFindings({
-      stories,
-      config: { planning: { failOnSharedEditors: true } },
-    });
+    const findings = computeAssembledConflictFindings({ stories });
     const sharedEditor = findings.filter((f) => f.kind === 'shared-editor');
     assert.equal(sharedEditor.length, 1);
-    assert.equal(sharedEditor[0].severity, 'hard');
+    assert.equal(sharedEditor[0].severity, 'soft');
   });
 });
 

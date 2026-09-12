@@ -1,4 +1,3 @@
-import { resolveListValue } from '../config/shared.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
 import { collectStoryAssumptionEntries } from './file-assumptions.js';
 import { computeStoryReachability } from './story-reachability.js';
@@ -10,12 +9,11 @@ import { computeStoryReachability } from './story-reachability.js';
  * `resolveStoryBody` (Story #4271).
  *
  * The decomposer emits `body` as the canonical serialized **string**, but
- * the conflict passes (`indexConsumers`, `indexAssumptionEntries`,
- * `computeMissingBddScaffoldFindings`, and the producer path scan in
- * `collectStoryProducerPaths`) historically read `story.body` only when it
- * was already an object — so on the production string shape the
- * `implicit-cross-story-dep`, `fan-out`, registry, and `missing-bdd-scaffold`
- * findings emitted nothing. Parsing the body once at the entry point and
+ * the conflict passes (`indexConsumers`, `computeMissingBddScaffoldFindings`,
+ * and the producer path scan in `collectStoryProducerPaths`) historically
+ * read `story.body` only when it was already an object — so on the
+ * production string shape the `implicit-cross-story-dep` and
+ * `missing-bdd-scaffold` findings emitted nothing. Parsing the body once at the entry point and
  * threading the normalized Story through every pass restores parity.
  *
  * `collectStoryAssumptionEntries` already parses string bodies itself, so a
@@ -88,54 +86,14 @@ function normalizeStoryBody(story) {
  * @typedef {SharedEditorFinding | ImplicitCrossStoryDepFinding} ConflictFinding
  */
 
-const DEFAULT_POLICY = Object.freeze({
-  failOnSharedEditors: false,
-  requireExplicitCrossStoryDeps: false,
-  failOnRegistryConflicts: false,
-  failOnMissingBddScaffold: false,
-  largeFanOutThreshold: 10,
-  registries: null, // null = use DEFAULT_REGISTRY_PATTERNS
-  fanOutCounter: null, // null = no fan-out probe (skip)
-});
-
 /**
- * Default cross-cutting registry / barrel files. Story #2962 — these are
- * files whose primary purpose is to wire siblings together (registries,
- * handler maps, listener barrels). When two or more concurrent Stories
- * either edit the registry directly OR create sibling files that need
- * registration in it, the registry edits collide on every Story-to-Epic
- * close after the first.
- *
- * Patterns support two shapes:
- *   - exact path  — `lib/orchestration/lifecycle/listeners/index.js`
- *   - `**` suffix — `**\/listeners/index.js` (matches any depth)
- *
- * Module-private since `resolveConflictPolicy` became the one production
- * reader; tests reach it through `_internal`.
+ * Every conflict class is advisory (`'soft'`) since Story #5312: the
+ * `planning.failOnSharedEditors` / `requireExplicitCrossStoryDeps` /
+ * `failOnRegistryConflicts` / `failOnLargeFanOut` upgrade knobs are gone,
+ * along with the registry and fan-out findings they gated. A finding is a
+ * line in the plan summary the operator reads, never a refusal.
  */
-const DEFAULT_REGISTRY_PATTERNS = Object.freeze([
-  'lib/orchestration/lifecycle/listeners/index.js',
-  '**/listeners/index.js',
-  '**/handlers/index.js',
-]);
-
-function matchRegistryPattern(path, pattern) {
-  if (pattern.startsWith('**/')) {
-    const tail = pattern.slice(3);
-    return path === tail || path.endsWith(`/${tail}`);
-  }
-  return path === pattern;
-}
-
-function isRegistryPath(path, patterns) {
-  for (const p of patterns) if (matchRegistryPattern(path, p)) return true;
-  return false;
-}
-
-function parentDirOf(path) {
-  const idx = path.lastIndexOf('/');
-  return idx <= 0 ? '' : path.slice(0, idx);
-}
+const SOFT = 'soft';
 
 /**
  * Assumptions that imply a *write* to a path — and therefore make the Story
@@ -322,36 +280,6 @@ function computeImplicitDepFindings(consumers, producers, reach, severity) {
 }
 
 /**
- * Index every object-form `body.changes` entry by `{ path, assumption }`
- * along with its parent Task/Story so the registry-and-fan-out passes can
- * reason about creates/deletes without re-walking the ticket array.
- */
-function indexAssumptionEntries(stories) {
-  const entries = [];
-  for (const story of stories) {
-    const body = story?.body;
-    if (!body || typeof body !== 'object') continue;
-    const changes = Array.isArray(body.changes) ? body.changes : [];
-    for (const change of changes) {
-      if (
-        change === null ||
-        typeof change !== 'object' ||
-        typeof change.path !== 'string' ||
-        change.path.length === 0
-      )
-        continue;
-      entries.push({
-        path: change.path,
-        assumption: change.assumption ?? null,
-        storySlug: storySlugOf(story),
-        taskSlug: story.slug,
-      });
-    }
-  }
-  return entries;
-}
-
-/**
  * Compute `missing-bdd-scaffold` findings (Story #3857).
  *
  * The features-first delivery model requires every `.feature` file a Story
@@ -440,286 +368,16 @@ function computeMissingBddScaffoldFindings(stories, reach, severity) {
 }
 
 /**
- * Compute `cross-cutting-registries` findings (Story #2962).
- *
- * A registry/barrel file (e.g. `lib/orchestration/lifecycle/listeners/index.js`)
- * collides whenever two or more concurrent Stories either
- *
- *   (a) directly edit the registry file, OR
- *   (b) create a new sibling file in the same directory that the registry
- *       would have to wire up.
- *
- * For each known registry pattern (`patterns`), we collect every Story whose
- * Tasks satisfy (a) or (b). When ≥2 such Stories sit in the same wave (no
- * transitive `depends_on` between them), emit a single finding keyed by the
- * registry path.
- *
- * Reached from the module's `_internal` named export. The pass is pure — it
- * performs no filesystem I/O and spawns no process — so its optional final
- * `deps` parameter seams the three collaborating predicates rather than a
- * built-in; each entry defaults to the real implementation
- * (`.agents/rules/test-seams.md` rules 1-3: the defaults live on the function,
- * never on a module-level mutable variable).
- *
- * @param {object} input
- * @param {{
- *   isRegistryPathImpl?: typeof isRegistryPath,
- *   inSameWaveImpl?: typeof inSameWave,
- *   registryRegistryImpl?: typeof registryRegistry,
- * }} [deps]
- */
-function computeRegistryFindings(
-  { stories, reach, patterns, producers, assumptionEntries, severity },
-  {
-    isRegistryPathImpl = isRegistryPath,
-    inSameWaveImpl = inSameWave,
-    registryRegistryImpl = registryRegistry,
-  } = {},
-) {
-  const findings = [];
-  // Build the matching registry path set from producer & creator paths.
-  const registryHits = new Map(); // registryPath -> Map<storySlug, producers[]>
-  function bump(registryPath, entry) {
-    let perStory = registryHits.get(registryPath);
-    if (!perStory) {
-      perStory = new Map();
-      registryHits.set(registryPath, perStory);
-    }
-    const existing = perStory.get(entry.storySlug) ?? [];
-    existing.push(entry);
-    perStory.set(entry.storySlug, existing);
-  }
-  // (a) direct registry edits — object-form `{ path, assumption }` entries
-  // from `indexAssumptionEntries` (and the producer index built from them).
-  for (const [path, entries] of producers.entries()) {
-    if (!isRegistryPathImpl(path, patterns)) continue;
-    for (const e of entries) {
-      bump(path, {
-        storySlug: e.storySlug,
-        taskSlug: e.taskSlug,
-        path,
-        reason: 'edits-registry',
-      });
-    }
-  }
-  for (const e of assumptionEntries) {
-    if (!isRegistryPathImpl(e.path, patterns)) continue;
-    bump(e.path, {
-      storySlug: e.storySlug,
-      taskSlug: e.taskSlug,
-      path: e.path,
-      reason: 'edits-registry',
-    });
-  }
-  // (b) sibling creates that would require registration in a registry.
-  // A registry path's parent dir defines its "registration scope" — any
-  // new file in that scope is a wiring candidate.
-  const scopeByRegistry = new Map();
-  for (const story of stories) {
-    const body = story?.body;
-    if (!body || typeof body !== 'object') continue;
-    for (const change of body.changes ?? []) {
-      if (
-        change === null ||
-        typeof change !== 'object' ||
-        change.assumption !== 'creates' ||
-        typeof change.path !== 'string'
-      )
-        continue;
-      const childParent = parentDirOf(change.path);
-      if (!childParent) continue;
-      for (const reg of registryRegistryImpl(
-        producers,
-        assumptionEntries,
-        patterns,
-        scopeByRegistry,
-      )) {
-        if (reg.parentDir !== childParent) continue;
-        bump(reg.path, {
-          storySlug: storySlugOf(story),
-          taskSlug: story.slug,
-          path: change.path,
-          reason: 'creates-sibling',
-        });
-      }
-    }
-  }
-  for (const [registryPath, perStory] of registryHits.entries()) {
-    const stories = Array.from(perStory.keys());
-    if (stories.length < 2) continue;
-    const cluster = new Set();
-    for (let i = 0; i < stories.length; i += 1) {
-      for (let j = i + 1; j < stories.length; j += 1) {
-        if (inSameWaveImpl(reach, stories[i], stories[j])) {
-          cluster.add(stories[i]);
-          cluster.add(stories[j]);
-        }
-      }
-    }
-    if (cluster.size === 0) continue;
-    const clusterSlugs = Array.from(cluster).sort();
-    const producerList = [];
-    for (const slug of clusterSlugs) {
-      for (const p of perStory.get(slug) ?? []) producerList.push(p);
-    }
-    findings.push({
-      kind: 'cross-cutting-registries',
-      severity,
-      registryPath,
-      storySlugs: clusterSlugs,
-      producers: producerList,
-    });
-  }
-  return findings;
-}
-
-/**
- * Resolve the set of registry paths that should be considered in scope for
- * the sibling-create check. We treat any path that already matches a
- * registry pattern (whether produced by a Task or not — the path exists in
- * the project) as in-scope. To stay path-knowledge-free at plan time, we
- * only consider patterns that are explicit paths (no `**`) or that match a
- * path produced by some Task in the spec.
- */
-function registryRegistry(producers, assumptionEntries, patterns, cache) {
-  if (cache.size > 0) return cache.values();
-  // Explicit (no-glob) patterns: always in scope as their own path.
-  for (const pat of patterns) {
-    if (pat.startsWith('**/')) continue;
-    cache.set(pat, { path: pat, parentDir: parentDirOf(pat) });
-  }
-  // Glob patterns: in scope iff some Task in the spec references a matching
-  // path via changes (edits or creates). Avoids false positives when a
-  // glob pattern doesn't apply to this repo at all.
-  for (const path of producers.keys()) {
-    if (cache.has(path)) continue;
-    if (isRegistryPath(path, patterns)) {
-      cache.set(path, { path, parentDir: parentDirOf(path) });
-    }
-  }
-  for (const e of assumptionEntries) {
-    if (cache.has(e.path)) continue;
-    if (isRegistryPath(e.path, patterns)) {
-      cache.set(e.path, { path: e.path, parentDir: parentDirOf(e.path) });
-    }
-  }
-  return cache.values();
-}
-
-/**
- * Normalize a fan-out probe result into `{ count, files, probe }`.
- *
- * The production probe reports its referencing files and the exact command
- * that found them so an operator can reproduce the figure (Story #4547).
- * A bare number stays valid — injected test counters and any consumer
- * counter written against the Story #2962 contract keep working, they just
- * carry no audit trail.
- */
-function normalizeFanOutProbe(result) {
-  if (typeof result === 'number') {
-    return { count: result, files: [], probe: null };
-  }
-  if (result === null || typeof result !== 'object') {
-    return { count: 0, files: [], probe: null };
-  }
-  const files = Array.isArray(result.files) ? result.files : [];
-  const count = Number.isFinite(result.count) ? result.count : files.length;
-  return { count, files, probe: result.probe ?? null };
-}
-
-/**
- * Index the basenames this spec *creates*, so a deletion that is really one
- * half of a move can be told apart from a genuine wide-coupling removal.
- */
-function indexCreatedBasenames(assumptionEntries) {
-  const byBasename = new Map();
-  for (const entry of assumptionEntries) {
-    if (entry.assumption !== 'creates') continue;
-    const base = entry.path.slice(entry.path.lastIndexOf('/') + 1);
-    if (!byBasename.has(base)) byBasename.set(base, entry.path);
-  }
-  return byBasename;
-}
-
-/**
- * Compute `fan-out-warning` findings (Story #2962, reworked in #4547).
- *
- * For each `body.changes` entry whose `assumption` is `"deletes"`, probe the
- * files at the base branch that genuinely import or require the deleted
- * module. When that count exceeds the configured `largeFanOutThreshold`,
- * emit a finding carrying the referencing files and the probe that produced
- * them.
- *
- * The finding also records whether the deletion is **rename-shaped** — the
- * same spec creates a file with the deleted module's basename elsewhere —
- * because the remedy diverges: a move wants its importers repointed in one
- * Story, not a subsystem-by-subsystem migration split across several.
- *
- * The default severity is always `'soft'` — the persist gate enforces a
- * hard refusal via the `--allow-large-fan-out` operator flag, since the
- * planner cannot reduce call sites by re-prompting. Severity may still be
- * upgraded to `'hard'` via `failOnLargeFanOut` for callers that want the
- * standard `errors[]` path (e.g. CI dry-runs).
- */
-function computeFanOutFindings({
-  assumptionEntries,
-  threshold,
-  counter,
-  severity,
-}) {
-  if (typeof counter !== 'function') return [];
-  if (!Number.isFinite(threshold) || threshold < 0) return [];
-  const findings = [];
-  const cache = new Map();
-  const createdBasenames = indexCreatedBasenames(assumptionEntries);
-  for (const entry of assumptionEntries) {
-    if (entry.assumption !== 'deletes') continue;
-    let probed = cache.get(entry.path);
-    if (probed === undefined) {
-      probed = normalizeFanOutProbe(counter({ path: entry.path }));
-      cache.set(entry.path, probed);
-    }
-    if (probed.count <= threshold) continue;
-    const base = entry.path.slice(entry.path.lastIndexOf('/') + 1);
-    const renameTarget = createdBasenames.get(base);
-    findings.push({
-      kind: 'fan-out-warning',
-      severity,
-      taskSlug: entry.taskSlug,
-      storySlug: entry.storySlug,
-      path: entry.path,
-      callSiteCount: probed.count,
-      callSites: probed.files,
-      probe: probed.probe,
-      renameShaped: renameTarget !== undefined && renameTarget !== entry.path,
-      renameTarget: renameTarget === entry.path ? null : (renameTarget ?? null),
-      threshold,
-    });
-  }
-  return findings;
-}
-
-/**
  * Public entry point. Walks the normalized ticket spec once and returns
- * the structured cross-Story findings array. The caller's `policy` flags
- * decide whether each finding class lands as `'soft'` (advisory, won't
- * trigger re-decompose) or `'hard'` (rendered into `errors[]`).
+ * the structured cross-Story findings array. Every finding is `'soft'`
+ * (Story #5312) — an advisory line for the plan summary, never an
+ * `errors[]` entry.
  *
  * @param {object}    input
  * @param {object[]}  input.stories
- * @param {object}    [input.policy]
- * @param {boolean}   [input.policy.failOnSharedEditors=false]
- * @param {boolean}   [input.policy.requireExplicitCrossStoryDeps=false]
- * @param {boolean}   [input.policy.failOnRegistryConflicts=false]
- * @param {boolean}   [input.policy.failOnMissingBddScaffold=false]
- * @param {boolean}   [input.policy.failOnLargeFanOut=false]
- * @param {number}    [input.policy.largeFanOutThreshold=10]
- * @param {string[]}  [input.policy.registries]  Registry patterns (defaults to DEFAULT_REGISTRY_PATTERNS).
- * @param {(arg: { path: string }) => number} [input.policy.fanOutCounter] Optional probe; when omitted the fan-out pass is skipped.
  * @returns {ConflictFinding[]}
  */
-export function computeConflictFindings({ stories, policy } = {}) {
-  const merged = { ...DEFAULT_POLICY, ...(policy ?? {}) };
+export function computeConflictFindings({ stories } = {}) {
   // Story #4271: normalize every Story's body to its structured object form
   // once, up front, so the canonical serialized **string** shape the
   // decomposer emits is scanned at parity with the pre-serialize object
@@ -728,85 +386,11 @@ export function computeConflictFindings({ stories, policy } = {}) {
   const producers = indexProducers(storyList);
   const consumers = indexConsumers(storyList, producers);
   const reach = computeStoryReachability(storyList);
-  const assumptionEntries = indexAssumptionEntries(storyList);
-  const sharedSeverity = merged.failOnSharedEditors ? 'hard' : 'soft';
-  const implicitSeverity = merged.requireExplicitCrossStoryDeps
-    ? 'hard'
-    : 'soft';
-  const registrySeverity = merged.failOnRegistryConflicts ? 'hard' : 'soft';
-  const fanOutSeverity = merged.failOnLargeFanOut ? 'hard' : 'soft';
-  const bddScaffoldSeverity = merged.failOnMissingBddScaffold ? 'hard' : 'soft';
-  const patterns =
-    Array.isArray(merged.registries) && merged.registries.length > 0
-      ? merged.registries
-      : DEFAULT_REGISTRY_PATTERNS;
   return [
-    ...computeSharedEditorFindings(producers, reach, sharedSeverity),
-    ...computeImplicitDepFindings(
-      consumers,
-      producers,
-      reach,
-      implicitSeverity,
-    ),
-    ...computeRegistryFindings({
-      stories: storyList,
-      reach,
-      patterns,
-      producers,
-      assumptionEntries,
-      severity: registrySeverity,
-    }),
-    ...computeFanOutFindings({
-      assumptionEntries,
-      threshold: merged.largeFanOutThreshold,
-      counter: merged.fanOutCounter,
-      severity: fanOutSeverity,
-    }),
-    ...computeMissingBddScaffoldFindings(storyList, reach, bddScaffoldSeverity),
+    ...computeSharedEditorFindings(producers, reach, SOFT),
+    ...computeImplicitDepFindings(consumers, producers, reach, SOFT),
+    ...computeMissingBddScaffoldFindings(storyList, reach, SOFT),
   ];
-}
-
-/**
- * Resolve the config-derived half of the conflict policy from
- * `config.planning` — the severity flags, the fan-out threshold, and the
- * registry patterns, in one place.
- *
- * Two passes consume `planning.*` and must not disagree: the raw
- * pre-assembly pass (`persist-helpers.validateTickets`, which attaches its
- * production `fanOutCounter` on top of this) and the post-assembly pass
- * (`computeAssembledConflictFindings`, which forces `fanOutCounter: null`).
- * Under Story #5045 each resolved its own copy, and the copies had already
- * drifted — `failOnMissingBddScaffold` reached only the assembled pass,
- * `failOnLargeFanOut` / `largeFanOutThreshold` / `crossCuttingRegistries`
- * only the raw one — so a knob set in config silently applied on one of the
- * two passes. A knob read here reaches both; that is the contract.
- *
- * `fanOutCounter` is deliberately absent: it is probe machinery, not
- * config, and each caller owns its own.
- *
- * @param {object} [config] Resolved config carrying `planning.*`.
- * @returns {object} A `computeConflictFindings` policy (no `fanOutCounter`).
- */
-export function resolveConflictPolicy(config) {
-  const planning = config?.planning;
-  const policy = {
-    failOnSharedEditors: planning?.failOnSharedEditors === true,
-    requireExplicitCrossStoryDeps:
-      planning?.requireExplicitCrossStoryDeps === true,
-    failOnRegistryConflicts: planning?.failOnRegistryConflicts === true,
-    failOnLargeFanOut: planning?.failOnLargeFanOut === true,
-    failOnMissingBddScaffold: planning?.failOnMissingBddScaffold === true,
-  };
-  if (Number.isFinite(planning?.largeFanOutThreshold)) {
-    policy.largeFanOutThreshold = planning.largeFanOutThreshold;
-  }
-  if (planning?.crossCuttingRegistries !== undefined) {
-    policy.registries = resolveListValue(
-      DEFAULT_REGISTRY_PATTERNS,
-      planning.crossCuttingRegistries,
-    );
-  }
-  return policy;
 }
 
 /**
@@ -824,20 +408,10 @@ export function resolveConflictPolicy(config) {
  * unreachable. Running the passes again over the serialized bodies restores
  * them.
  *
- * **The fan-out pass is deliberately not re-run.** It is a `git grep` per
- * deleted path and its inputs (`changes[]` deletes) are identical on both
- * sides, so re-probing would double the git cost for a byte-identical answer;
- * `enforceFanOutGate` already owns that class over the raw payload.
- *
- * @param {object} args
- * @param {Array<{ slug: string, title?: string, body: string, depends_on?: string[] }>} args.stories
- *   Assembled Stories — `body` is the serialized, footer-stamped markdown.
- * @param {object} [args.config] Resolved config; `planning.*` supplies the
- *   policy via {@link resolveConflictPolicy} — the same resolver the raw
- *   pass uses, so a knob cannot apply on only one of the two passes.
+ * @param {{ stories: Array<{ slug: string, title: string, body: string, depends_on?: string[] }> }} args
  * @returns {ConflictFinding[]}
  */
-export function computeAssembledConflictFindings({ stories, config } = {}) {
+export function computeAssembledConflictFindings({ stories } = {}) {
   return computeConflictFindings({
     stories: (Array.isArray(stories) ? stories : []).map((story) => ({
       slug: story.slug,
@@ -845,10 +419,6 @@ export function computeAssembledConflictFindings({ stories, config } = {}) {
       body: story.body,
       depends_on: Array.isArray(story.depends_on) ? story.depends_on : [],
     })),
-    policy: {
-      ...resolveConflictPolicy(config),
-      fanOutCounter: null,
-    },
   });
 }
 
@@ -867,7 +437,7 @@ export function computeAssembledConflictFindings({ stories, config } = {}) {
 export function conflictFindingKey(finding) {
   return [
     finding?.kind ?? '',
-    finding?.path ?? finding?.registryPath ?? '',
+    finding?.path ?? '',
     Array.isArray(finding?.storySlugs)
       ? [...finding.storySlugs].sort().join(',')
       : (finding?.storySlug ?? ''),
@@ -878,85 +448,28 @@ export function conflictFindingKey(finding) {
 }
 
 /**
- * Render the audit trail behind a fan-out finding's number, so an operator
- * can check the figure rather than trust it (Story #4547).
- *
- * Every importer is named — the list is deliberately **not** truncated. A
- * gate that fires at 100 importers is precisely when the operator needs the
- * list, and a `…and 109 more` tail would leave the figure uncheckable in
- * exactly the case the gate exists for. This message is a fail-closed stop,
- * not a log line; its length is the point.
- *
- * The probe is reported as what it is — the *candidate* net, which each hit
- * is then re-resolved against. It will report at least as many lines as the
- * gate counts files, so labelling it as the thing that produced the number
- * would send an operator chasing a discrepancy that is by design.
- *
- * Returns `''` for a bare-number counter, which carries no audit trail.
- */
-export function renderFanOutEvidence(finding) {
-  const files = Array.isArray(finding.callSites) ? finding.callSites : [];
-  const parts = [];
-  if (files.length > 0) {
-    parts.push(`    Importers (${files.length}):`);
-    for (const file of files) parts.push(`      ${file}`);
-  }
-  if (finding.probe) {
-    parts.push(
-      `    Candidate probe (each hit re-resolved against its importer's directory):`,
-      `      ${finding.probe}`,
-    );
-  }
-  return parts.length > 0 ? `\n${parts.join('\n')}` : '';
-}
-
-/**
- * Render the remedy that actually fits the finding. A rename-shaped
- * deletion has nowhere to split to — the importers just need repointing at
- * the path the same plan creates — so telling the operator to split it
- * across Stories leaves the override as the only exit, which is exactly the
- * habit that defeats the gate (Story #4547).
- */
-export function renderFanOutRemedy(finding) {
-  if (finding.renameShaped && finding.renameTarget) {
-    return (
-      `This deletion is rename-shaped: the same plan creates "${finding.renameTarget}" under the same basename. ` +
-      `Repoint the importer(s) at the new path inside this Story — a move has no subsystems to split across — ` +
-      `then rerun --allow-large-fan-out.`
-    );
-  }
-  return (
-    `Split the deletion into a subsystem-by-subsystem migration across multiple Stories, ` +
-    `or rerun --allow-large-fan-out after confirming the deletion is intentional.`
-  );
-}
-
-/**
  * The finding kinds that are genuinely **cross-Story conflicts** — the SSOT
  * for that question (Story #4907).
  *
- * Two readers need it and must not disagree: the validator, which renders
- * these through {@link renderHardConflictError} when policy upgrades them to
- * `errors[]`, and the persist soft-finding surface, which announces a
- * conflict as a conflict and every other soft kind (`spec-word-budget`,
- * `merge-candidate`, `unanchored-constant`, `missing-reason-to-exist`) as the
- * advisory it is. A second copy of this list is how the two drift back apart,
- * so it is defined exactly once and imported.
+ * The persist soft-finding surface announces a conflict as a conflict and
+ * every other soft kind as the advisory it is, and the summary comment
+ * renders only the shared-editor class beside the wave table. A second copy
+ * of this list is how readers drift apart, so it is defined exactly once and
+ * imported.
  */
 export const CONFLICT_KINDS = Object.freeze(
   new Set([
     'shared-editor',
     'implicit-cross-story-dep',
-    'cross-cutting-registries',
-    'fan-out-warning',
     'missing-bdd-scaffold',
   ]),
 );
 
 /**
- * Render a `'hard'`-severity conflict finding as a human-readable error
- * message. Used by the validator when policy flags upgrade a finding to
- * the AC-visible `errors[]` channel.
+ * Render a conflict finding as a human-readable line. Every finding is soft
+ * since Story #5312, so this feeds the dry-run warning list and the plan
+ * summary rather than an `errors[]` channel; the name survives because every
+ * caller imports it.
  */
 export function renderHardConflictError(finding) {
   if (finding.kind === 'shared-editor') {
@@ -966,23 +479,12 @@ export function renderHardConflictError(finding) {
   if (finding.kind === 'implicit-cross-story-dep') {
     return `Implicit cross-Story dependency: Story "${finding.consumer.storySlug}" references "${finding.path}" (produced by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but Story "${finding.consumer.storySlug}" has no depends_on link to Story "${finding.producer.storySlug}". Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story or remove the reference.`;
   }
-  if (finding.kind === 'cross-cutting-registries') {
-    const stories = finding.storySlugs.map((s) => `"${s}"`).join(', ');
-    return `Cross-cutting registry conflict: ${finding.storySlugs.length} concurrent Stories (${stories}) edit or register into "${finding.registryPath}". Add depends_on chains between them so the registry updates serialize, or split the registration into a dedicated late-wave wiring Story.`;
-  }
-  if (finding.kind === 'fan-out-warning') {
-    return (
-      `Large fan-out: Story "${finding.storySlug}" deletes "${finding.path}" ` +
-      `with ${finding.callSiteCount} importer(s) on the base branch (threshold ${finding.threshold}). ` +
-      `${renderFanOutRemedy(finding)}${renderFanOutEvidence(finding)}`
-    );
-  }
   if (finding.kind === 'missing-bdd-scaffold') {
     return `Missing BDD scaffold: Story "${finding.consumer.storySlug}" verifies against "${finding.path}" (created by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but "${finding.consumer.storySlug}" has no depends_on path to "${finding.producer.storySlug}" — the .feature file is scaffolded in the same wave (or later), so verification runs before the file exists. Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story so the scaffold lands in an earlier wave.`;
   }
-  // Findings from other passes (sizing, spec-word-budget) carry their own
-  // message — render it rather than a shape-blind generic line, so the soft
-  // surface (`surfaceSoftConflictFindings`) stays legible for every kind.
+  // Findings from other passes carry their own message — render it rather
+  // than a shape-blind generic line, so the soft surface
+  // (`surfaceSoftConflictFindings`) stays legible for every kind.
   if (typeof finding.message === 'string' && finding.message.length > 0) {
     return finding.message;
   }
@@ -1000,12 +502,4 @@ export const _internal = {
   computeSharedEditorFindings,
   computeImplicitDepFindings,
   computeMissingBddScaffoldFindings,
-  indexAssumptionEntries,
-  computeRegistryFindings,
-  computeFanOutFindings,
-  matchRegistryPattern,
-  isRegistryPath,
-  parentDirOf,
-  DEFAULT_POLICY,
-  DEFAULT_REGISTRY_PATTERNS,
 };

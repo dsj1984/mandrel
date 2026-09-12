@@ -88,7 +88,8 @@ over-ceiling envelope or an over-budget Story count.
 > on planner-context size. Separately, the `ContextEnvelope` SDK this section
 > used to credit with limiting hydrated prompt size had no production caller
 > and was deleted in Story #5005; only its `estimateTokens` helper survived,
-> re-homed in `lib/orchestration/spec-spill.js`.
+> now private to `lib/audit-suite/checklist-threading.js` (Story #5312 deleted
+> `spec-spill.js` with the Spec token budget).
 
 ### Planner-context envelope (`/mandrel-plan`)
 
@@ -120,9 +121,8 @@ over-ceiling envelope or an over-budget Story count.
 
 ### Session-mass capacity (plan-time sizing)
 
-- **`DEFAULT_MODEL_CAPACITY`** (`lib/orchestration/ticket-validator-sizing.js`):
-  absolute authored-token ceilings for plan-time Story sizing (soft 30k /
-  hard 75k). Not operator-configurable via `.agentrc.json`; programmatic
-  override via `opts.modelCapacity` on validateTickets / runPlanPersist only.
+- **Retired (Story #5312).** `DEFAULT_MODEL_CAPACITY` and the plan-time
+  Story sizing ceilings are gone: a Story is as large as the work needs, and
+  nothing at plan time scores its authored mass.
 - **Host runtime**: session billing, quota exhaustion, and operator overrides
   are enforced by your provider (e.g. Claude Code), not by Mandrel scripts.

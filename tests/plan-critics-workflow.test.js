@@ -19,7 +19,6 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   collectRepoPackages,
@@ -56,17 +55,6 @@ function story(slug) {
   return { slug, depends_on: [], body: `## Goal\n${slug}.` };
 }
 
-/** A `## Delivery Slicing` table matching `stories` 1:1 (all independent). */
-function slicingTableFor(stories) {
-  return [
-    '## Delivery Slicing',
-    '',
-    '| Slice | What ships | Independent? |',
-    '| --- | --- | --- |',
-    ...stories.map((s) => `| ${s.slug} | ships ${s.slug} | Yes |`),
-  ].join('\n');
-}
-
 describe('/mandrel-plan critic workflow — retired helper surface stays gone', () => {
   it('uses plan.md as the sole planning workflow source', () => {
     assertDocMentions(
@@ -98,153 +86,23 @@ describe('/mandrel-plan critic workflow — retired helper surface stays gone', 
   });
 });
 
-describe('/mandrel-plan critic workflow — the live pre-persist critic step (#4592)', () => {
-  it('runs the plan-critics.js CLI as a real workflow step', () => {
-    assert.match(planSource, /node \.agents\/scripts\/plan-critics\.js/);
+describe('/mandrel-plan critic workflow — the pre-mortem is operator-invoked, not a spine step (Story #5312)', () => {
+  it('carries no step 2.5 and names plan-critics.js only as an operator-requested run', () => {
+    assert.doesNotMatch(planSource, /### 2\.5/);
+    assert.doesNotMatch(planSource, /node \.agents\/scripts\/plan-critics\.js/);
+    assert.match(planSource, /pre-mortem/);
+    assert.match(planSource, /only when the operator asks/);
   });
 
-  it('sites the critic step between the Author and Persist sections', () => {
-    const authorIdx = planSource.indexOf('### 2. Author');
-    const criticIdx = planSource.indexOf('### 2.5 Critics');
-    const persistIdx = planSource.indexOf('### 3. Persist');
-
-    assert.ok(authorIdx > -1, 'plan.md must carry the author step');
-    assert.ok(criticIdx > -1, 'plan.md must carry the critic step');
-    assert.ok(persistIdx > -1, 'plan.md must carry the persist step');
-    assert.ok(
-      authorIdx < criticIdx && criticIdx < persistIdx,
-      'the critic step must sit between Author and Persist — after persist ' +
-        'there is no re-author loop for a dispatch verdict to route to.',
-    );
-  });
-
-  it('routes a dispatch verdict to a maker-blind fresh-context sub-agent', () => {
-    const critics = section('### 2\\.5 Critics');
-    assert.match(critics, /dispatch/);
-    assert.match(critics, /maker-blind/i);
-    assertDocMentions(
-      critics,
-      /never the authoring transcript/i,
-      'the critic is maker-blind — it never sees the authoring transcript',
-    );
-    // Advisory, not a mechanical gate: the CLI exits 0 on any verdict.
-    assertDocMentions(
-      critics,
-      /exits 0 on \*\*any\*\* verdict/i,
-      'the critic CLI exits 0 on any verdict',
-    );
-  });
-
-  it('names the exit-1 usage/IO case and forbids proceeding to Persist on it', () => {
-    // plan-critics.js is advisory only for a *verdict*; a usage/IO error exits
-    // 1 having run no critic and ledgered no skip. Documenting that as "always
-    // exits 0" (Story #4602) read as "advisory, proceed", so a mistyped
-    // --stories path silently persisted with both critics skipped.
-    const critics = section('### 2\\.5 Critics');
-    assertDocMentions(
-      critics,
-      /exits \*\*1\*\*/i,
-      'a usage/IO error must exit 1',
-    );
-    assertDocMentions(
-      critics,
-      /usage\/IO error/i,
-      'the exit-1 case must be named as a usage/IO error',
-    );
-    assertDocOmits(
-      critics,
-      /always exits 0/i,
-      'the CLI does not ALWAYS exit 0 — a usage/IO error exits 1',
-    );
-    assertDocMentions(
-      critics,
-      /\*\*do not proceed to Persist\*\*/i,
-      'a blocking verdict must stop the run before Persist',
-    );
-  });
-
-  it('names the external-dependency pre-mortem trigger (#4700)', () => {
-    const critics = section('### 2\\.5 Critics');
-    assert.match(critics, /external-dependency/);
-    assert.match(critics, /pre-mortem/i);
-  });
-
-  it('names textHygiene findings as re-author input in the critic step (#4599)', () => {
-    // The workflow wires hygiene findings into the re-author round: the
-    // critic step must name the verdict entry and route its findings.
-    const critics = section('### 2\\.5 Critics');
-    assert.match(critics, /textHygiene/);
-    assert.match(critics, /textHygiene\.findings\[\]/);
-    assertDocMentions(
-      critics,
-      /re-author round/i,
-      'textHygiene findings drive a re-author round',
-    );
-    assert.match(critics, /advisory-only/i);
-  });
-});
-
-describe('story-author prompt — codified text-hygiene conventions (#4599)', () => {
-  const prompt = renderDecomposerSystemPrompt();
-
-  it('mandates the "Current state (verified <date>)" preamble for observed-behavior claims', () => {
-    assertDocMentions(
-      prompt,
-      /Current state \(verified <date>\)/,
-      'the prompt must carry the verified-state template',
-    );
-  });
-
-  it('mandates the intent-then-proxy acceptance shape', () => {
-    assertDocMentions(
-      prompt,
-      /state the intent clause before the proxy check/i,
-      'acceptance criteria lead with intent, not the proxy',
-    );
-  });
-
-  it('mandates one-line Slicing checkpoints with detail in Spec', () => {
-    assertDocMentions(
-      prompt,
-      /Slicing checkpoints are one line each/i,
-      'Slicing rows stay one line each',
-    );
-    assertDocMentions(
-      prompt,
-      /detail lives in `## Spec`/i,
-      'detail belongs in the folded Spec, not the Slicing rows',
-    );
-  });
-
-  it('mandates decisions-not-questions bodies with declarative Key Assumptions', () => {
-    assertDocMentions(
-      prompt,
-      /record decisions, never questions to the operator/i,
-      'assumptions record decisions, not open questions',
-    );
-    assertDocMentions(
-      prompt,
-      /declarative Key Assumption/i,
-      'Key Assumptions are declarative',
-    );
-    // Story #4845: the author prompt triages unknowns by resolver — an
-    // AFK-shaped unknown is researched, never assumed; only a HITL-shaped
-    // unknown may be restated as a Key Assumption.
-    assertDocMentions(
-      prompt,
-      /AFK-shaped unknown.+MUST be resolved by your own research/i,
-      'AFK-shaped unknowns are researched, not assumed',
-    );
-    assertDocMentions(
-      prompt,
-      /only a HITL-shaped unknown.+may be restated/i,
-      'only HITL-shaped unknowns may become Key Assumptions',
-    );
-    assertDocMentions(
-      prompt,
-      /decision-made-by-default/i,
-      'defaulted HITL unknowns are marked decisions-made-by-default',
-    );
+  it('Gate #1 stops for the sharpened intent and HITL unknowns only, with the offers on one advisory line', () => {
+    const interrogate = section('### 1\\. Interrogate');
+    assert.match(interrogate, /\*\*Gate #1\*\*/);
+    assert.match(interrogate, /exactly two things/);
+    assert.match(interrogate, /sharpened plan intent/);
+    assert.match(interrogate, /HITL unknown/);
+    assert.match(interrogate, /\*\*one advisory line\*\*/);
+    assert.doesNotMatch(interrogate, /deliverLightSuggestion/);
+    assert.doesNotMatch(planSource, /lite route/);
   });
 });
 
@@ -340,44 +198,13 @@ describe('plan-critics.js CLI — verdict contract', () => {
     // Pure JSON: no interleaved log lines. A headless caller parses stdout
     // unconditionally, so this must not need stripping.
     const verdict = JSON.parse(res.stdout);
-    assert.equal(typeof verdict.consolidation.dispatch, 'boolean');
     assert.equal(typeof verdict.premortem.dispatch, 'boolean');
-    assert.ok(Array.isArray(verdict.consolidation.reasons));
     assert.ok(Array.isArray(verdict.premortem.reasons));
-    assert.ok(verdict.consolidation.reasons.length > 0);
-    // The advisory text-hygiene entry rides the same verdict JSON (#4599).
-    assert.equal(verdict.textHygiene.critic, 'text-hygiene');
-    assert.ok(Array.isArray(verdict.textHygiene.findings));
-  });
-
-  it('fires consolidation on a draft above the story threshold', () => {
-    const storiesPath = writeFixture('stories-over.json', [
-      story('s1'),
-      story('s2'),
-      story('s3'),
-      story('s4'),
-      story('s5'),
-      story('s6'),
-    ]);
-
-    const verdict = JSON.parse(runCli(['--stories', storiesPath]).stdout);
-
-    assert.equal(verdict.consolidation.dispatch, true);
-    assert.match(verdict.consolidation.reasons.join(' '), /6 stories/);
-  });
-
-  it('skips consolidation on a small draft matching its slicing table', () => {
-    const draft = [story('only-slice')];
-    const storiesPath = writeFixture('stories-match.json', draft);
-    const techSpecPath = writeFixture('techspec.md', slicingTableFor(draft));
-
-    const res = runCli(['--stories', storiesPath, '--tech-spec', techSpecPath]);
-    const verdict = JSON.parse(res.stdout);
-
-    assert.equal(res.status, 0, `stderr=${res.stderr}`);
-    assert.equal(verdict.consolidation.dispatch, false);
-    assert.equal(verdict.premortem.dispatch, false);
-    assert.match(verdict.consolidation.reasons.join(' '), /1:1/);
+    assert.ok(verdict.premortem.reasons.length > 0);
+    // Story #5312: the pre-mortem is the only arm — no consolidation verdict,
+    // no text-hygiene entry (open questions are a persist dry-run warning).
+    assert.equal('consolidation' in verdict, false);
+    assert.equal('textHygiene' in verdict, false);
   });
 
   it('exits non-zero on a missing --stories flag', () => {
@@ -534,15 +361,13 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
     });
   });
 
-  it('records every skipped critic on the ledger under the CLI name', async () => {
+  it('records a skipped pre-mortem on the ledger under the CLI name', async () => {
     const draft = [story('solo')];
     const storiesPath = write('match-stories.json', draft);
-    const techSpecPath = write('match-spec.md', slicingTableFor(draft));
     const appended = [];
 
     const verdict = await evaluateCriticArtifacts({
       storiesPath,
-      techSpecPath,
       config: {},
       append: async (entry) => {
         appended.push(entry);
@@ -550,11 +375,10 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
       },
     });
 
-    assert.equal(verdict.consolidation.dispatch, false);
     assert.equal(verdict.premortem.dispatch, false);
     assert.deepEqual(
       appended.map((e) => e.critic),
-      ['consolidation', 'pre-mortem', 'text-hygiene'],
+      ['pre-mortem'],
     );
     for (const entry of appended) {
       assert.equal(entry.cli, PLAN_CRITICS_CLI);
@@ -563,14 +387,20 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
   });
 
   it('records no skip for a critic that fires', async () => {
-    const storiesPath = write('risky-stories.json', [story('a')]);
+    const storiesPath = write('risky-stories.json', [
+      {
+        slug: 'a',
+        depends_on: [],
+        body: '## Goal\nNeeds the @beestera/assets package.\n',
+      },
+    ]);
     const appended = [];
 
     const verdict = await evaluateCriticArtifacts({
       storiesPath,
-      // A risk-heuristic phrase match is the pre-mortem's other condition;
-      // the absent slicing table fails the consolidation precondition open.
-      config: { planning: { riskHeuristics: ['## Goal'] } },
+      // The external-dependency probe is the pre-mortem's one trigger
+      // (Story #5312): an undeclared scoped package fires it.
+      config: {},
       append: async (entry) => {
         appended.push(entry);
         return true;
@@ -580,32 +410,6 @@ describe('plan-critics.js — artifact loading + skip ledger', () => {
     assert.equal(verdict.premortem.dispatch, true);
     assert.equal(
       appended.some((e) => e.critic === 'pre-mortem'),
-      false,
-    );
-  });
-
-  it('records no text-hygiene skip when the lint has findings', async () => {
-    const storiesPath = write('hygiene-stories.json', [
-      {
-        slug: 'cited',
-        depends_on: [],
-        body: '## Goal\nPer the design note (§4, Q5), the gate is dead.\n',
-      },
-    ]);
-    const appended = [];
-
-    const verdict = await evaluateCriticArtifacts({
-      storiesPath,
-      config: {},
-      append: async (entry) => {
-        appended.push(entry);
-        return true;
-      },
-    });
-
-    assert.ok(verdict.textHygiene.findings.length > 0);
-    assert.equal(
-      appended.some((e) => e.critic === 'text-hygiene'),
       false,
     );
   });

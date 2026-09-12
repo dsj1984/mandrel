@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-12T15:52:16.736Z",
+  "generatedAt": "2026-09-12T16:14:40.445Z",
   "rollup": {
     "*": {
-      "lines": 96.27,
-      "branches": 87.16,
-      "functions": 88.76
+      "lines": 96.28,
+      "branches": 87.19,
+      "functions": 88.36
     }
   },
   "rows": [
@@ -348,8 +348,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/checklist-threading.js",
-      "lines": 96.9,
-      "branches": 94.29,
+      "lines": 97.02,
+      "branches": 91.89,
       "functions": 100
     },
     {
@@ -1267,7 +1267,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 88.24,
+      "branches": 88.57,
       "functions": 100
     },
     {
@@ -1278,8 +1278,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 95.91,
-      "branches": 78.85,
+      "lines": 96.4,
+      "branches": 81.13,
       "functions": 100
     },
     {
@@ -1484,12 +1484,6 @@
       "path": ".agents/scripts/lib/format-generated-json.js",
       "lines": 97.94,
       "branches": 57.14,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/framework-version.js",
-      "lines": 100,
-      "branches": 100,
       "functions": 100
     },
     {
@@ -1812,14 +1806,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "lines": 99.77,
-      "branches": 92.98,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/consolidation-precondition.js",
-      "lines": 99.1,
-      "branches": 87.5,
+      "lines": 99.71,
+      "branches": 93.41,
       "functions": 100
     },
     {
@@ -1896,8 +1884,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "lines": 98.17,
-      "branches": 87.1,
+      "lines": 98.21,
+      "branches": 87.97,
       "functions": 100
     },
     {
@@ -2052,20 +2040,20 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
-      "lines": 97.99,
-      "branches": 79.01,
+      "lines": 97.12,
+      "branches": 75.6,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
       "lines": 100,
-      "branches": 95,
+      "branches": 93.94,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-critics-evaluate.js",
-      "lines": 95.56,
-      "branches": 50,
+      "lines": 100,
+      "branches": 37.5,
       "functions": 100
     },
     {
@@ -2084,6 +2072,12 @@
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
       "lines": 100,
       "branches": 89.74,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
+      "lines": 100,
+      "branches": 91.26,
       "functions": 100
     },
     {
@@ -2111,15 +2105,9 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/fan-out-gate.js",
-      "lines": 100,
-      "branches": 95.65,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
-      "lines": 96.73,
-      "branches": 78.85,
+      "lines": 100,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -2130,14 +2118,20 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.36,
-      "branches": 80.41,
+      "lines": 94.89,
+      "branches": 75,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/soft-findings.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
-      "lines": 95.78,
-      "branches": 84.24,
+      "lines": 96.54,
+      "branches": 86.76,
       "functions": 100
     },
     {
@@ -2179,7 +2173,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-text-hygiene.js",
       "lines": 100,
-      "branches": 84.44,
+      "branches": 82.61,
       "functions": 100
     },
     {
@@ -2189,15 +2183,9 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/planning/decomposer-context.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/planning/memory-pool-advisory.js",
-      "lines": 98.27,
-      "branches": 87.5,
+      "lines": 99.24,
+      "branches": 93.02,
       "functions": 100
     },
     {
@@ -2465,18 +2453,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/spec-budget.js",
-      "lines": 97.75,
-      "branches": 75,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-spill.js",
-      "lines": 100,
-      "branches": 80,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
       "lines": 98.4,
       "branches": 85,
@@ -2556,8 +2532,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "lines": 97.74,
-      "branches": 97.12,
+      "lines": 97.42,
+      "branches": 96.81,
       "functions": 100
     },
     {
@@ -2568,20 +2544,20 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "lines": 99.28,
-      "branches": 88.58,
+      "lines": 99.6,
+      "branches": 86.47,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "lines": 99.1,
-      "branches": 86.36,
-      "functions": 100
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
-      "lines": 98.31,
-      "branches": 87.5,
+      "lines": 99.86,
+      "branches": 88.57,
       "functions": 100
     },
     {
@@ -2618,12 +2594,6 @@
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "lines": 100,
       "branches": 93.48,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
-      "lines": 96.26,
-      "branches": 87.1,
       "functions": 100
     },
     {
@@ -2839,7 +2809,7 @@
     {
       "path": ".agents/scripts/lib/story-body/body-format-lints.js",
       "lines": 100,
-      "branches": 88.89,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -2850,8 +2820,8 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
-      "lines": 99.74,
-      "branches": 95.51,
+      "lines": 99.68,
+      "branches": 96.74,
       "functions": 100
     },
     {
@@ -3174,21 +3144,21 @@
     },
     {
       "path": ".agents/scripts/plan-context.js",
-      "lines": 85.04,
-      "branches": 41.67,
+      "lines": 84.96,
+      "branches": 42.86,
       "functions": 83.33
     },
     {
       "path": ".agents/scripts/plan-critics.js",
-      "lines": 99.38,
-      "branches": 95.65,
+      "lines": 99.33,
+      "branches": 90.91,
       "functions": 100
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "lines": 83.76,
-      "branches": 80.56,
-      "functions": 60
+      "lines": 83.11,
+      "branches": 84.78,
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
@@ -3606,6 +3576,12 @@
     },
     {
       "path": "lib/migrations/steps/2.32.0-retire-lint-baseline-command.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 0
+    },
+    {
+      "path": "lib/migrations/steps/2.57.0-retire-planning-limit-knobs.js",
       "lines": 100,
       "branches": 100,
       "functions": 0

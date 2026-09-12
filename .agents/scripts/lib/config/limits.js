@@ -9,15 +9,13 @@
  *   - `delivery.signals.{rework, retry}` (performance-signal detector
  *     thresholds — `hotspot` retired with Epic #4406; `churn`/`idle` dropped)
  *
- * Framework constants (not operator-tunable via `.agentrc.json`):
- *   - `maxTickets` — decomposer reviewability budget (Story #4163)
- *
- * Dropped entirely: `maxInstructionSteps`, `friction.*`, `executionMaxBuffer`,
+ * Dropped entirely: `maxTickets` (Story #5312 — the reviewability budget
+ * never fired on a real plan and duplicated the default-single split policy),
+ * `maxInstructionSteps`, `friction.*`, `executionMaxBuffer`,
  * `signals.{churn, idle}`, `delivery.preflight`, `delivery.lease.ttlMs`
  * (Story #5006 deleted the lease TTL: with no heartbeat source every foreign
  * claim read live, so the window decided nothing), `delivery.maxTokenBudget`
- * (planning no longer sizes against a token-budget envelope; session-mass
- * ceilings are absolute in `DEFAULT_MODEL_CAPACITY`), and
+ * (planning no longer sizes against a token-budget envelope), and
  * `planning.context.{maxBytes, summaryMode}` (Story #4541 — the `applyBudget`
  * pass they fed lost its last caller in the v2 cutover, and it bounded a field
  * the envelope builders discarded; the live bound on planner-context size is
@@ -44,7 +42,6 @@ export const SIGNALS_DEFAULTS = Object.freeze({
  * Framework defaults for the surviving limits surface.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
-  maxTickets: 80,
   executionTimeoutMs: 600000,
   signals: SIGNALS_DEFAULTS,
 });
@@ -73,13 +70,11 @@ function mergeSignals(userSignals) {
 
 /**
  * Resolve the surviving limits surface against a `.agentrc.json` shape
- * (post-reshape). `maxTickets` is a framework constant (never read from
- * config); pulls `executionTimeoutMs` from `delivery.*`, pulls signals from
+ * (post-reshape): `executionTimeoutMs` from `delivery.*`, signals from
  * `delivery.signals.*`.
  *
  * @param {object|undefined} config
  * @returns {{
- *   maxTickets: number,
  *   executionTimeoutMs: number,
  *   signals: ReturnType<typeof mergeSignals>,
  * }}
@@ -94,7 +89,6 @@ export function resolveLimits(config) {
       ? delivery.execution
       : {};
   return {
-    maxTickets: LIMITS_DEFAULTS.maxTickets,
     executionTimeoutMs:
       execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
     signals: mergeSignals(delivery.signals),

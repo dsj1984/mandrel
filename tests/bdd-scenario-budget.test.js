@@ -28,7 +28,7 @@ describe('capBddScenarios — envelope byte budget', () => {
     assert.deepEqual(result.scenarios, scenarios);
     assert.equal(result.totalScenarios, 3);
     assert.equal(result.includedScenarios, 3);
-    assert.equal(result.truncated, false);
+    assert.equal(result.truncated, null);
   });
 
   it('truncates a large corpus, preserving scan order, and reports what was dropped', () => {
@@ -42,7 +42,12 @@ describe('capBddScenarios — envelope byte budget', () => {
       result.includedScenarios < 500,
       'expected the oversized corpus to be truncated',
     );
-    assert.equal(result.truncated, true);
+    // Story #5312: the note names what was cut, never a bare boolean.
+    assert.equal(
+      result.truncated.droppedScenarios,
+      500 - result.includedScenarios,
+    );
+    assert.match(result.truncated.note, /cut to \d+ of 500 scenarios/);
     assert.deepEqual(
       result.scenarios,
       scenarios.slice(0, result.includedScenarios),
@@ -54,7 +59,8 @@ describe('capBddScenarios — envelope byte budget', () => {
     const scenarios = [makeScenario(1), makeScenario(2), makeScenario(3)];
     const result = capBddScenarios(scenarios, { byteBudget: 1 });
     assert.equal(result.includedScenarios, 0);
-    assert.equal(result.truncated, true);
+    assert.equal(result.truncated.droppedScenarios, 3);
+    assert.match(result.truncated.note, /1-byte envelope budget/);
     assert.deepEqual(result.scenarios, []);
   });
 
@@ -64,7 +70,7 @@ describe('capBddScenarios — envelope byte budget', () => {
       scenarios: [],
       totalScenarios: 0,
       includedScenarios: 0,
-      truncated: false,
+      truncated: null,
     });
   });
 

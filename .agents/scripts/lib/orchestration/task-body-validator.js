@@ -10,9 +10,8 @@
  * object. To make the rules below actually fire on canonical plans, a string
  * body is **parsed** back into its structured form via `parseStoryBody`
  * before the section checks run (Story #3906 — previously the validator
- * `shouldSkipTicket`-skipped every string body, so the verify-tier suffix
- * rule, vague-verb check, and non-empty-goal check never ran on any real
- * decomposition). A still-structured object body (e.g. a caller that passes
+ * `shouldSkipTicket`-skipped every string body, so the vague-verb check and
+ * non-empty-goal check never ran on any real decomposition). A still-structured object body (e.g. a caller that passes
  * the pre-serialize shape directly) is validated as-is.
  *
  * Only `type: 'story'` tickets are validated; Feature/Epic tickets and
@@ -42,43 +41,22 @@
  * array uses the same object shape and is the home for paths the Story
  * reads but does not modify (test fixtures, sibling modules, etc.).
  *
- * `body.verify` entries must either name a testing tier in parentheses
- * drawn from `VERIFY_TIER_VALUES` (e.g. `npm run test (unit)`) or be the
- * literal `manual:<reason>` escape hatch when the Story is genuinely
- * unverifiable in isolation. `verify-tier-repair.js#normalizeVerifyTiers` runs
- * first on the persist path (Story #5005) and **repairs** the entries whose
- * tier `suggestVerifyFix` can infer, so the hard error below is reserved for
- * the entries only the author can resolve.
+ * `body.verify` entries are commands, nothing more: Story #5312 deleted the
+ * `(<tier>)` suffix, the `manual:<reason>` escape and the repair pass that
+ * appended the suffix for the author. The only verify rule left is that the
+ * list is non-empty.
  *
  * The errors are batched and surfaced as a single thrown Error so the
  * planner can see every offending slug in one pass instead of fixing one
  * at a time.
  */
 
-import {
-  suggestPathEntryFix,
-  suggestVerifyFix,
-} from '../story-body/body-format-lints.js';
+import { suggestPathEntryFix } from '../story-body/body-format-lints.js';
 import {
   parse as parseStoryBody,
   StoryBodyParseError,
 } from '../story-body/story-body.js';
 import { FILE_ASSUMPTION_VALUES } from './file-assumption-enum.js';
-
-/**
- * Canonical testing-tier labels that a `verify[]` entry must name (in
- * parentheses) to pass plan-time validation. Mirrors the verify-rules contract
- * in `.agents/scripts/lib/templates/decomposer-prompts.js`.
- *
- * Entries that do not end with `(<tier>)` and are not `manual:<reason>` are
- * rejected by `collectVerifyErrors`.
- */
-export const VERIFY_TIER_VALUES = Object.freeze([
-  'unit',
-  'contract',
-  'e2e',
-  'validate',
-]);
 
 /**
  * Predicate: should the validator skip this ticket entirely? Skip when:
@@ -91,7 +69,7 @@ export const VERIFY_TIER_VALUES = Object.freeze([
  * Story body to a markdown string, so a *string* body is NOT skipped here
  * (Story #3906) — `validateTaskBodyShape` parses it back into structured
  * form via `parseStoryBody` before applying the section rules. This is what
- * makes the verify-tier / vague-verb / non-empty-goal checks actually fire
+ * makes the non-empty-verify / vague-verb / non-empty-goal checks actually fire
  * on real plans. Features (and everything else) use narrative string bodies
  * and are skipped by the `type !== 'story'` guard.
  *
@@ -207,7 +185,6 @@ export function validateTaskBodyShape(ticket) {
   }
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
-  // Tier-suffix validation is always enforced on Story bodies (2-tier world).
   errors.push(...collectVerifyErrors(prefix, body.verify));
   errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
@@ -325,15 +302,6 @@ function collectAcceptanceErrors(prefix, rawAcceptance) {
 }
 
 /**
- * Regex that matches a valid tier suffix at the end of a verify entry:
- * a parenthesised word drawn from `VERIFY_TIER_VALUES` (e.g. `(unit)`).
- * Whitespace before the opening paren is tolerated.
- */
-const VERIFY_TIER_RE = new RegExp(
-  `\\((?:${VERIFY_TIER_VALUES.join('|')})\\)\\s*$`,
-);
-
-/**
  * @param {string} prefix
  * @param {unknown} rawVerify
  * @returns {string[]}
@@ -342,31 +310,10 @@ function collectVerifyErrors(prefix, rawVerify) {
   const verify = Array.isArray(rawVerify) ? rawVerify : [];
   if (verify.length === 0) {
     return [
-      `${prefix}: verify must list at least one entry — author it at the ticket's top level (preferred) or in the body's ## Verify section. Use "manual:<reason>" only when truly unverifiable in isolation.`,
+      `${prefix}: verify must list at least one entry — author it at the ticket's top level (preferred) or in the body's ## Verify section.`,
     ];
   }
-  const errors = [];
-  for (const v of verify) {
-    if (typeof v !== 'string') continue;
-    if (v.startsWith('manual:')) {
-      const reason = v.slice('manual:'.length).trim();
-      if (reason === '') {
-        errors.push(
-          `${prefix}: body.verify "manual:" entry has no reason after the colon.`,
-        );
-      }
-      // manual: entries are exempt from the tier-suffix check.
-      continue;
-    }
-    if (!VERIFY_TIER_RE.test(v)) {
-      const fix = suggestVerifyFix(v);
-      const fixIt = fix === null ? '' : ` Suggested fix: "${fix}".`;
-      errors.push(
-        `${prefix}: body.verify entry must end with a tier in parentheses — one of (${VERIFY_TIER_VALUES.join('|')}). Got: "${v}".${fixIt}`,
-      );
-    }
-  }
-  return errors;
+  return [];
 }
 
 /**

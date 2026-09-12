@@ -4,8 +4,8 @@
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 45,
-      "methodsAboveCeiling": 49,
+      "filesAboveCeiling": 43,
+      "methodsAboveCeiling": 46,
       "maxCyclomatic": 20
     }
   },
@@ -106,11 +106,6 @@
       "maxCyclomatic": 14
     },
     {
-      "file": ".agents/scripts/lib/orchestration/consolidation-precondition.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 15
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 14
@@ -134,11 +129,6 @@
       "file": ".agents/scripts/lib/orchestration/plan-metrics.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 19
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
@@ -187,7 +177,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "methodsAboveCeiling": 2,
+      "methodsAboveCeiling": 1,
       "maxCyclomatic": 19
     },
     {

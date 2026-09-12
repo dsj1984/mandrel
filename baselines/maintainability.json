@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T15:52:16.412Z",
+  "generatedAt": "2026-09-12T16:38:15.861Z",
   "rollup": {
     "*": {
       "min": 76.381,
       "p50": 99.048,
-      "p95": 122.565
+      "p95": 122.36
     }
   },
   "rows": [
@@ -248,7 +248,7 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/checklist-threading.js",
-      "mi": 102.173
+      "mi": 103.345
     },
     {
       "path": ".agents/scripts/lib/audit-suite/dispatch-checklist.js",
@@ -516,7 +516,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-budget.js",
-      "mi": 103.516
+      "mi": 104.461
     },
     {
       "path": ".agents/scripts/lib/bdd-scenario-scanner.js",
@@ -724,7 +724,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
-      "mi": 89.807
+      "mi": 90.83
     },
     {
       "path": ".agents/scripts/lib/config/gates/index.js",
@@ -740,7 +740,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
-      "mi": 110.172
+      "mi": 111.319
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -967,10 +967,6 @@
       "mi": 105.423
     },
     {
-      "path": ".agents/scripts/lib/framework-version.js",
-      "mi": 147.396
-    },
-    {
       "path": ".agents/scripts/lib/fs-walk.js",
       "mi": 102.83
     },
@@ -1184,11 +1180,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/complexity-gate.js",
-      "mi": 101.225
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/consolidation-precondition.js",
-      "mi": 93.294
+      "mi": 102.576
     },
     {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
@@ -1240,7 +1232,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/file-assumptions.js",
-      "mi": 84.221
+      "mi": 84.95
     },
     {
       "path": ".agents/scripts/lib/orchestration/git-cleanup/phases/branches-detect.js",
@@ -1344,15 +1336,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
-      "mi": 91.192
+      "mi": 92.942
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
-      "mi": 98.322
+      "mi": 104.963
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-critics-evaluate.js",
-      "mi": 104.613
+      "mi": 117.05
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-metrics.js",
@@ -1365,6 +1357,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
       "mi": 106.467
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/changes-repair.js",
+      "mi": 84.583
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/cross-plan-links.js",
@@ -1383,12 +1379,8 @@
       "mi": 103.897
     },
     {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/fan-out-gate.js",
-      "mi": 112.235
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
-      "mi": 97.914
+      "mi": 114.032
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/plan-context-source.js",
@@ -1396,7 +1388,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "mi": 94.539
+      "mi": 95.798
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/soft-findings.js",
+      "mi": 115.566
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/story-ops.js",
@@ -1428,19 +1424,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-text-hygiene.js",
-      "mi": 103.304
+      "mi": 109.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning/authoring-context.js",
       "mi": 106.002
     },
     {
-      "path": ".agents/scripts/lib/orchestration/planning/decomposer-context.js",
-      "mi": 126.196
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/planning/memory-pool-advisory.js",
-      "mi": 101.487
+      "mi": 105.823
     },
     {
       "path": ".agents/scripts/lib/orchestration/pr-watch.js",
@@ -1619,14 +1611,6 @@
       "mi": 119.136
     },
     {
-      "path": ".agents/scripts/lib/orchestration/spec-budget.js",
-      "mi": 100.661
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-spill.js",
-      "mi": 111.238
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
       "mi": 95.306
     },
@@ -1680,7 +1664,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/task-body-validator.js",
-      "mi": 96.151
+      "mi": 98.961
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-lease.js",
@@ -1688,11 +1672,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "mi": 86.485
+      "mi": 93.132
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "mi": 99.863
+      "mi": 112.365
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator.js",
@@ -1721,10 +1705,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "mi": 94.268
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
-      "mi": 100.405
     },
     {
       "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",
@@ -1876,7 +1856,7 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
-      "mi": 94.57
+      "mi": 96.124
     },
     {
       "path": ".agents/scripts/lib/temp-retention.js",
@@ -1884,7 +1864,7 @@
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 117.765
+      "mi": 122.36
     },
     {
       "path": ".agents/scripts/lib/templates/spec-author-prompts.js",
@@ -2104,11 +2084,11 @@
     },
     {
       "path": ".agents/scripts/plan-critics.js",
-      "mi": 92.584
+      "mi": 93.754
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "mi": 87.007
+      "mi": 89.432
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
@@ -2409,6 +2389,10 @@
     {
       "path": "lib/migrations/steps/2.32.0-retire-lint-baseline-command.js",
       "mi": 118.106
+    },
+    {
+      "path": "lib/migrations/steps/2.57.0-retire-planning-limit-knobs.js",
+      "mi": 113.131
     }
   ]
 }

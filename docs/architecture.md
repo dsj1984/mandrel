@@ -1085,7 +1085,6 @@ They differ only in:
 The sole runtime pause is `agent::blocked` on the Story. `risk::high` is
 informational/planning metadata only — it ranks work and
 helps reviewers prioritize, but does not pause execution.
-`planning.riskHeuristics` in `.agentrc.json` drives the ranking heuristics.
 
 ### Anti-Thrashing Protocol
 
@@ -1340,14 +1339,13 @@ on the "Dropped entirely" list in `lib/config/limits.js`, and the delivery
 schema is `additionalProperties: false`, so writing either now fails AJV
 validation. The surviving ceilings are **fixed framework constants**:
 
-- **Estimator:** `estimateTokens` (≈4 chars/token) in
-  `lib/orchestration/spec-spill.js`, shared by everything below.
 - **`PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`** (`lib/orchestration/plan-context.js`,
-  256,000 bytes) — the `/mandrel-plan` authoring envelope bound; fails closed.
-- **`DEFAULT_MODEL_CAPACITY`** (`lib/orchestration/ticket-validator-sizing.js`)
-  — plan-time Story sizing over **authored prose only**; never read from
-  `.agentrc.json`. `spec-spill.js` and `checklist-threading.js` use the same
-  estimator for their own payloads.
+  256,000 bytes) — the `/mandrel-plan` authoring envelope bound; an envelope
+  over it is written truncated with a `truncated` note (Story #5312).
+- **Checklist threading budget** (`lib/audit-suite/checklist-threading.js`)
+  — the audit-checklist payload cap, in a private ≈4-chars/token estimate.
+  Plan-time Story sizing (`DEFAULT_MODEL_CAPACITY`) and the Spec token budget
+  were deleted by Story #5312.
 - **Host runtime:** quota and billing hard stops are the operator's editor /
   CLI provider's job, not Mandrel's.
 

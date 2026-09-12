@@ -23,22 +23,23 @@ import {
   hasWebSurface,
   matchesAnyFilePattern,
 } from '../audit-suite/selector.js';
-import { getLimits } from '../config-resolver.js';
 import { findSimilarOpenStories } from '../duplicate-search.js';
 import { Logger } from '../Logger.js';
 import { parse as parseStoryBody } from '../story-body/story-body.js';
+import {
+  renderStoryAuthorCore,
+  renderStorySplitRules,
+} from '../templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
   renderTechSpecSystemPrompt,
 } from '../templates/spec-author-prompts.js';
 import { concurrentMap, FANOUT_CONCURRENCY } from '../util/concurrent-map.js';
 import { buildComplexitySignals } from './complexity-gate.js';
-import { parseDeliverySlicingTable } from './consolidation-precondition.js';
 import { findDependencyCandidates } from './dependency-candidates.js';
 import { buildDocsDigest } from './docs-digest.js';
 import { findOpenEpicCandidates } from './epic-candidates.js';
 import { buildAuthoringContext } from './planning/authoring-context.js';
-import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
 
 /**
  * Envelope byte ceiling (regression guard for the design's named PR2 risk:
@@ -62,61 +63,108 @@ import { buildDecomposerSystemPrompt } from './planning/decomposer-context.js';
  * so the seed remains the only field this ceiling leaves genuinely
  * unbounded. 256 KB (~64K tokens at the ≈4-chars/token estimate) leaves
  * roughly 2× headroom over the fixed-floor measurement above while staying
- * well under the session budget. The test suite asserts serialized
- * envelopes stay under this value — raise it only with a measured
- * justification.
+ * well under the session budget. An envelope over it is truncated with a
+ * `truncated` note rather than refused (Story #5312) — raise the ceiling
+ * only with a measured justification.
  */
 export const PLAN_CONTEXT_ENVELOPE_BYTE_CEILING = 256_000;
 
-/** Fields named in the over-ceiling error, to point at what to trim. */
-const OVERSIZE_REPORT_FIELDS = 3;
+/** Marker appended to a string field the cap had to cut. */
+const TRUNCATION_MARKER =
+  '\n\n[… truncated by plan-context: PLAN_CONTEXT_ENVELOPE_BYTE_CEILING …]';
+
+/** Bounded number of cap rounds — each round cuts the current largest field. */
+const MAX_TRUNCATION_ROUNDS = 8;
 
 /**
- * Per-field remedy for the over-ceiling refusal, keyed by envelope field
- * name. Story #4977 — the refusal used to hardcode "trim the seed, or plan
- * fewer --tickets" regardless of which field actually blew the budget; on a
- * consumer with a mature Gherkin corpus the dominant field was
- * `bddScenarios` (repo-derived, not seed-derived), and "trim the seed" was a
- * dead lever the operator had no way to act on. The remedy now follows the
- * single largest field.
+ * Byte length of a JSON-serialised value.
+ *
+ * @param {unknown} value
+ * @returns {number}
  */
-const OVERSIZE_FIELD_REMEDIES = Object.freeze({
-  seed: 'Trim the seed text — it is carried verbatim by design and is the one field with no elision path.',
-  sourceTickets:
-    'Plan fewer --tickets source issues in one run — each source ticket body is carried verbatim.',
-  epic: 'Plan fewer --tickets source issues in one run, or re-plan with a shorter Epic body.',
-  bddScenarios:
-    "The project's .feature corpus is already capped near BDD_SCENARIOS_BYTE_BUDGET (lib/bdd-scenario-budget.js) — if this still dominates, another field is unusually small; check the full field breakdown.",
-  docsContext:
-    'Trim project.docsContextFiles — docsContext is a digest built from those files.',
-  systemPrompts:
-    'This field is a fixed framework prompt, not operator content — if it dominates, file a framework-gap issue rather than trying to trim it.',
-});
-
-const DEFAULT_OVERSIZE_REMEDY =
-  'Trim the seed, or plan fewer --tickets source issues in one run.';
+function jsonBytes(value) {
+  return Buffer.byteLength(JSON.stringify(value) ?? '', 'utf-8');
+}
 
 /**
- * Fail closed when an assembled envelope exceeds
- * {@link PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}.
+ * Cut a string to fit `excess` fewer bytes, keeping a leading prefix and
+ * appending the truncation marker.
  *
- * Until now the ceiling was enforced *only* by a test assertion over this
- * repo's own fixtures, which bounds nothing at runtime: the value it actually
- * has to hold for is a consumer's seed or `--tickets` source bodies, and no
- * test sees those. That left the documented planner-context cap resting
- * entirely on `planning.context.maxBytes` — which resolved but was wired to
- * nothing (its `applyBudget` pass lost its last caller in the v2 cutover), so
- * in practice no bound existed at all on the path that needed one. That key
- * and its budget module were removed outright in Story #4541; this ceiling is
- * the replacement.
+ * @param {string} text
+ * @param {number} excess
+ * @returns {string}
+ */
+function truncateString(text, excess) {
+  // A second cut of the same field must not stack a second marker.
+  const bare = text.endsWith(TRUNCATION_MARKER)
+    ? text.slice(0, -TRUNCATION_MARKER.length)
+    : text;
+  const keep = Math.max(
+    0,
+    Buffer.byteLength(bare, 'utf-8') - excess - TRUNCATION_MARKER.length,
+  );
+  return `${Buffer.from(bare, 'utf-8').subarray(0, keep).toString('utf-8')}${TRUNCATION_MARKER}`;
+}
+
+/**
+ * Cut one envelope field down by roughly `excess` bytes. Three shapes are
+ * cuttable: a string (cut to a prefix), an array (drop tail entries until it
+ * fits), and an object whose largest string property is cut in place — which
+ * covers `seed.content`, `docsContext.digest` and every list field. Returns
+ * `null` for a shape nothing here can shrink.
  *
- * Failing closed is the right direction here and matches how an over-budget
- * `## Spec` is handled (`spec-spill.js`): an envelope this size does not
- * degrade the planner gracefully, it silently produces garbage Stories from a
- * truncated-by-the-host context. Better to refuse and say what to trim. The
- * bound is deliberately a fixed framework constant rather than an operator
- * knob — a cap the operator can raise past what the model can read is a cap
- * that fails silently again.
+ * @param {unknown} value
+ * @param {number} excess
+ * @returns {{ value: unknown, note: string }|null}
+ */
+function truncateField(value, excess) {
+  if (typeof value === 'string') {
+    return {
+      value: truncateString(value, excess),
+      note: `text cut to a prefix (${excess} bytes over)`,
+    };
+  }
+  if (Array.isArray(value)) {
+    let kept = value.length;
+    let bytes = jsonBytes(value);
+    const target = bytes - excess;
+    while (kept > 0 && bytes > target) {
+      kept -= 1;
+      bytes = jsonBytes(value.slice(0, kept));
+    }
+    return {
+      value: value.slice(0, kept),
+      note: `kept ${kept} of ${value.length} entries`,
+    };
+  }
+  if (value && typeof value === 'object') {
+    const [key] = Object.entries(value)
+      .filter(([, v]) => typeof v === 'string')
+      .map(([k, v]) => [k, Buffer.byteLength(v, 'utf-8')])
+      .sort((a, b) => b[1] - a[1])[0] ?? [null];
+    if (key === null) return null;
+    return {
+      value: { ...value, [key]: truncateString(value[key], excess) },
+      note: `.${key} cut to a prefix (${excess} bytes over)`,
+    };
+  }
+  return null;
+}
+
+/**
+ * Fit an assembled envelope under {@link PLAN_CONTEXT_ENVELOPE_BYTE_CEILING}
+ * by truncating its largest fields, recording every cut on a `truncated`
+ * field so the planner can see what it did not get.
+ *
+ * Until Story #5312 this refused the envelope outright and exited non-zero
+ * naming what to trim. That was the wrong direction for a bound whose only
+ * job is to keep the planner's context readable: an oversize seed or
+ * `--tickets` body is an operator's real input, and refusing to plan from it
+ * cost a re-run for a ceiling the operator had no way to act on (the seed is
+ * carried verbatim by design). A truncated envelope with a note is a plan
+ * that runs on the part that fits and says so; a refusal is no plan at all.
+ * The bound itself stays a fixed framework constant — a cap the operator can
+ * raise past what the model can read fails silently again.
  *
  * Deliberately **not** exported: its only external caller would be a test, and
  * a test-only export is a production-dead one. It is reachable end to end
@@ -124,35 +172,57 @@ const DEFAULT_OVERSIZE_REMEDY =
  *
  * @param {object} envelope
  * @param {{ ceiling?: number }} [opts]
- * @returns {object} `envelope`, unchanged, when it fits.
+ * @returns {object} `envelope` unchanged when it fits; otherwise a truncated
+ *   copy carrying `truncated: Array<{ field, originalBytes, keptBytes, note }>`.
  */
-function assertPlanContextWithinCeiling(envelope, opts = {}) {
+function capPlanContextEnvelope(envelope, opts = {}) {
   const ceiling = opts.ceiling ?? PLAN_CONTEXT_ENVELOPE_BYTE_CEILING;
-  const bytes = Buffer.byteLength(JSON.stringify(envelope) ?? '', 'utf-8');
-  if (bytes <= ceiling) return envelope;
+  if (jsonBytes(envelope) <= ceiling) return envelope;
 
-  const sortedFields = Object.entries(envelope)
-    .map(([field, value]) => [
-      field,
-      Buffer.byteLength(JSON.stringify(value) ?? '', 'utf-8'),
-    ])
-    .sort((a, b) => b[1] - a[1]);
-
-  const largest = sortedFields
-    .slice(0, OVERSIZE_REPORT_FIELDS)
-    .map(([field, size]) => `${field} (${Math.round(size / 1024)} KB)`)
-    .join(', ');
-
-  const topField = sortedFields[0]?.[0];
-  const remedy = OVERSIZE_FIELD_REMEDIES[topField] ?? DEFAULT_OVERSIZE_REMEDY;
-
-  throw new Error(
-    `[plan-context] the assembled "${envelope?.mode}" envelope is ` +
-      `${Math.round(bytes / 1024)} KB, over the ` +
-      `${Math.round(ceiling / 1024)} KB planner-context ceiling. Largest ` +
-      `fields: ${largest}. ${remedy} Raising the ceiling needs a measured ` +
-      'justification — see PLAN_CONTEXT_ENVELOPE_BYTE_CEILING.',
+  const next = { ...envelope };
+  const truncated = [];
+  for (let round = 0; round < MAX_TRUNCATION_ROUNDS; round += 1) {
+    const total = jsonBytes({ ...next, truncated });
+    if (total <= ceiling) break;
+    // JSON escaping of the marker and the note itself cost a few bytes the
+    // raw cut cannot see; over-cut by a small margin so the dominant field
+    // absorbs the whole excess rather than a residual spilling onto the next
+    // largest one (which is the planner's own prompt).
+    const excess = total - ceiling + 128;
+    // The largest field that can be cut — re-cut on a later round rather than
+    // moving on to a smaller field it never had to touch.
+    const candidates = Object.entries(next)
+      .map(([field, value]) => [field, jsonBytes(value)])
+      .sort((a, b) => b[1] - a[1]);
+    let applied = false;
+    for (const [field, bytes] of candidates) {
+      const cut = truncateField(next[field], excess);
+      if (cut === null) continue;
+      next[field] = cut.value;
+      const record = truncated.find((t) => t.field === field);
+      if (record) {
+        record.keptBytes = jsonBytes(cut.value);
+        record.note = cut.note;
+      } else {
+        truncated.push({
+          field,
+          originalBytes: bytes,
+          keptBytes: jsonBytes(cut.value),
+          note: cut.note,
+        });
+      }
+      applied = true;
+      break;
+    }
+    if (!applied) break;
+  }
+  Logger.warn(
+    `[plan-context] the assembled "${envelope?.mode}" envelope was over the ` +
+      `${Math.round(ceiling / 1024)} KB planner-context ceiling — truncated ` +
+      `${truncated.map((t) => `${t.field} (${t.note})`).join(', ')}. ` +
+      "See the envelope's `truncated` field.",
   );
+  return { ...next, truncated };
 }
 
 /**
@@ -236,13 +306,11 @@ function buildTemplateChanges(complexitySignals) {
  * / `verify[]` live at the ticket's top level — the machine contract persist
  * syncs into the body.
  *
- * Correct-by-construction skeleton (Story #4723): the emitted `verify[]`
- * placeholder already ends with a valid `(tier)` tag (swap `(unit)` for
- * `(contract)` / `(e2e)` / `(validate)` where appropriate), and when the
- * envelope's `complexitySignals` predicted a footprint the `changes[]`
- * entries arrive pre-resolved to creates-vs-refactors against the repo
- * snapshot — a faithfully-filled skeleton passes the persist ticket
- * validators without a mechanical round-trip. The persist gates stay
+ * Correct-by-construction skeleton (Story #4723): when the envelope's
+ * `complexitySignals` predicted a footprint the `changes[]` entries arrive
+ * pre-resolved to creates-vs-refactors against the repo snapshot — a
+ * faithfully-filled skeleton passes the persist ticket validators without a
+ * mechanical round-trip. The persist gates stay
  * authoritative (they probe the base branch ref, not the working tree).
  *
  * Pure and deterministic; the output is valid JSON (parseable as-is), with
@@ -265,19 +333,16 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
           'codes, security invariants, and load-bearing constraints with ' +
           'their why. Implementation choices belong to the deliverer unless ' +
           'load-bearing. No per-file behavior paragraphs, no current-state ' +
-          'narration. Aim for ~250 words; an advisory warning fires past 350, ' +
-          'and it never fails the persist. ' +
+          'narration. As long as the work needs. ' +
           'Delete this field when acceptance[] carries the whole contract.',
         changes: buildTemplateChanges(complexitySignals),
         non_goals: [],
-        reason_to_exist:
-          'Fill: the single coherent reason this Story exists (one sentence).',
       },
       acceptance: [
-        'Fill: a testable, observable criterion (a command exits 0, a file exists, a test matches)',
+        'Fill: an outcome a PR reviewer can confirm from the diff and the verify output (three to six items)',
       ],
       verify: [
-        'Fill: exact command or test path — keep the trailing tier tag valid: unit, contract, e2e, or validate (unit)',
+        'Fill: exact command or test path — the mechanical check the acceptance item rests on',
       ],
       depends_on: [],
     },
@@ -314,14 +379,12 @@ const DELTA_VERB_RE =
  * two skill Reads (`core/scope-triage` + the gate fragment's rubric pass)
  * from the headless path; the attended path keeps the skill-based judgment.
  *
- * The heuristics anchor to the same sizing SSOT the skill anchors to —
- * `DELIVERABLE_GRANULARITY_GUIDANCE` / `DEFAULT_MODEL_CAPACITY` in
- * `ticket-validator-sizing.js` (one Story = one coherent capability slice;
- * multiple independent capabilities = an Epic) — and to the skill's
- * change-request delta rubric. Like the skill, the verdict is **advisory**:
- * being wrong in the `epic` direction is cheap (the consolidation critic and
- * the sizing validator catch an over-planned Story later), and `borderline`
- * is a first-class output, not a forced call.
+ * The heuristics anchor to the same granularity SSOT the skill anchors to —
+ * `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js` (one
+ * Story = one coherent capability slice; multiple independent capabilities =
+ * an Epic) — and to the skill's change-request delta rubric. Like the skill,
+ * the verdict is **advisory**: being wrong in the `epic` direction is cheap,
+ * and `borderline` is a first-class output, not a forced call.
  *
  * @param {{ seedText?: string }} args
  * @returns {{ verdict: 'epic'|'story'|'borderline', reasons: string[], advisory: true, appliedBy: 'cli' }}
@@ -380,113 +443,6 @@ export function buildScopeTriageSignal({ seedText = '' } = {}) {
     ],
     advisory,
     appliedBy,
-  };
-}
-
-/**
- * Resolve the planning risk heuristics list from the canonical config
- * block (same resolution the decompose context uses).
- *
- * @param {object} config
- * @returns {string[]}
- */
-function resolveRiskHeuristics(config = {}) {
-  if (Array.isArray(config.planning?.riskHeuristics)) {
-    return config.planning.riskHeuristics;
-  }
-  return [];
-}
-
-/**
- * Ceilings a seed's advisory complexity signals must fit for the plan
- * workflow to **suggest** the light path at Gate #1 (Story #4741 R3 plan-side
- * handshake). Framework constants, not operator knobs — mirroring the
- * conservative intent of `complexity-gate.js`'s `STORY_SHAPE_CEILINGS`
- * (small, mostly-additive, non-sensitive) but read against the *seed-time*
- * signals rather than an authored Story shape.
- *
- * The suggestion is **advisory only and never an automatic reroute**: it
- * surfaces at Gate #1 for the operator to decide, and under `--yes` it is
- * recorded on the envelope while planning proceeds unchanged.
- *
- * These ceilings are deliberately NOT the ones the light path itself applies
- * (Story #4760). A confirmed suggestion routes into
- * `workflows/helpers/deliver-light.md`, whose gate re-judges the *predicted
- * shape* against `STORY_SHAPE_CEILINGS`. Two checks at two different stages:
- * this one screens a seed, that one decides. Collapsing them would make a
- * confirm a bypass.
- *
- * **Risk only, never cardinality (Story #4856).** This carried a
- * `maxArtifacts: 2` ceiling — the second surviving artifact count after Story
- * #4764 retired the axis from the routing gate, and the more misleading of the
- * two, because the artifacts it counted were **paths scraped from seed prose**
- * rather than a measured footprint. Observed on the seed that produced Story
- * #4856: a change spanning four framework modules was suggested as light off
- * two scraped paths, one of which did not exist at the scraped location. A count
- * of guesses is not a size signal, so the screen now keys on risk alone.
- *
- *   - `maxRiskHeuristicHits`   — any risk-heuristic hit disqualifies: risk
- *                                is exactly what a light path should not carry.
- *   - `maxSensitivePathClasses`— any sensitive-path class disqualifies, the
- *                                same taxonomy close applies to a landed diff.
- */
-const DELIVER_LIGHT_SUGGESTION_CEILINGS = Object.freeze({
-  maxRiskHeuristicHits: 0,
-  maxSensitivePathClasses: 0,
-});
-
-/**
- * Derive the advisory light-path suggestion from a seed's complexity signals
- * (Story #4741 AC-6). Pure and total: a malformed / missing signal bag fails
- * conservative (not suggested), never throws.
- *
- * `automatic: false` is part of the contract — the suggestion is surfaced for
- * the operator, never a silent reroute of a non-interactive run.
- *
- * @param {object|null|undefined} complexitySignals
- * @returns {{
- *   suggested: boolean,
- *   automatic: false,
- *   advisory: true,
- *   ceilings: typeof DELIVER_LIGHT_SUGGESTION_CEILINGS,
- *   reasons: string[],
- * }}
- */
-export function buildDeliverLightSuggestion(complexitySignals) {
-  const ceilings = DELIVER_LIGHT_SUGGESTION_CEILINGS;
-  const advisory = /** @type {const} */ (true);
-  const automatic = /** @type {const} */ (false);
-  const s = complexitySignals ?? {};
-  const riskHits = Array.isArray(s.riskHeuristicHits)
-    ? s.riskHeuristicHits.length
-    : Number.POSITIVE_INFINITY;
-  const sensitive = Array.isArray(s.sensitivePathClasses)
-    ? s.sensitivePathClasses.length
-    : Number.POSITIVE_INFINITY;
-
-  const reasons = [];
-  if (riskHits > ceilings.maxRiskHeuristicHits) {
-    reasons.push(`seed hits ${riskHits} risk-heuristic phrase(s)`);
-  }
-  if (sensitive > ceilings.maxSensitivePathClasses) {
-    reasons.push(
-      `predicted footprint touches ${sensitive} sensitive-path class(es)`,
-    );
-  }
-
-  const suggested = reasons.length === 0;
-  return {
-    suggested,
-    automatic,
-    advisory,
-    ceilings,
-    reasons: suggested
-      ? [
-          'seed carries no risk signal (no risk-heuristic hits, no ' +
-            'sensitive-path classes) — the operator may prefer /mandrel-deliver for ' +
-            "this scope; the light path's own gate and diff backstop decide size",
-        ]
-      : reasons,
   };
 }
 
@@ -666,153 +622,32 @@ function buildUiSurfaceSignal({ complexitySignals, config, cwd } = {}) {
  *
  * @param {object} complexitySignals
  * @param {{ config?: object, cwd?: string }} [context]
- * @returns {object} the same signals plus `deliverLightSuggestion` and
- *   `uiSurface`.
+ * @returns {object} the same signals plus `uiSurface`.
  */
 function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
   return {
     ...complexitySignals,
-    deliverLightSuggestion: buildDeliverLightSuggestion(complexitySignals),
     uiSurface: buildUiSurfaceSignal({ complexitySignals, config, cwd }),
   };
 }
 
 /**
- * Count top-level enumerated items (`- `, `* `, `1. `) under the first
- * scope-shaped `## ` heading (Scope / MVP Scope / Proposed Scope / Work
- * Breakdown / Capabilities), up to the next `## ` heading. Returns `null`
- * when no scope-shaped heading exists — the caller treats that as "no
- * sizing signal" and defaults to fan-out.
- *
- * @param {string} body
- * @returns {number|null}
- */
-function countScopeItems(body) {
-  if (typeof body !== 'string' || body.length === 0) return null;
-  const lines = body.split(/\r?\n/);
-  const headingIdx = lines.findIndex((line) =>
-    /^##\s+(?:(?:MVP\s+|Proposed\s+)?Scope(?:\s+\([^)]+\))?|Work\s+Breakdown|Capabilities)\s*$/i.test(
-      line.trim(),
-    ),
-  );
-  if (headingIdx === -1) return null;
-  let count = 0;
-  for (let i = headingIdx + 1; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^##\s+/.test(line)) break;
-    if (/^\s*(?:[-*]|\d+\.)\s+\S/.test(line)) count += 1;
-  }
-  return count;
-}
-
-/**
- * Advisory single-vs-fan-out delivery-shape signal (design § 1 step 1;
- * routing pilot #4475). Derived from the same size/shape heuristics the
- * scope-triage rubric anchors to — the Delivery Slicing table when the Epic
- * body already carries one (slice count + "Independent?" chain shape,
- * via the Phase 8.3 precondition parser), else a scope-enumeration count.
- *
- * **Advisory only, fan-out by default.** This signal changes no routing
- * behaviour in this PR: the deliver-side reader is #4475's scope, and until
- * it lands the recommendation defaults to `fan-out` for every ambiguous
- * case. `single` is recommended only on clear one-pass indicators: a
- * slicing table proposing ≤ 2 slices, a pure dependent chain (zero
- * realized parallelism from the Story tier — the N=2 bench finding), or a
- * scope enumeration of ≤ 2 capabilities.
- *
- * @param {{ body: string }} args
- * @returns {{ recommendation: 'single'|'fan-out', reasons: string[], advisory: true }}
- */
-export function buildDeliveryShapeSignal({ body } = {}) {
-  const advisory = /** @type {const} */ (true);
-  const rows = parseDeliverySlicingTable(body ?? '');
-
-  if (Array.isArray(rows) && rows.length > 0) {
-    if (rows.length <= 2) {
-      return {
-        recommendation: 'single',
-        reasons: [
-          `delivery-slicing table proposes ${rows.length} slice(s) — one-pass-sized`,
-        ],
-        advisory,
-      };
-    }
-    const chain = rows.slice(1).every((r) => r.independent === false);
-    if (chain) {
-      return {
-        recommendation: 'single',
-        reasons: [
-          `delivery-slicing table is a pure dependent chain (${rows.length} slices, every non-first slice "Independent? No") — zero parallelism value from Story fan-out`,
-        ],
-        advisory,
-      };
-    }
-    return {
-      recommendation: 'fan-out',
-      reasons: [
-        `delivery-slicing table proposes ${rows.length} slices with independent parallelism`,
-      ],
-      advisory,
-    };
-  }
-
-  const scopeItems = countScopeItems(body ?? '');
-  if (scopeItems !== null && scopeItems > 0 && scopeItems <= 2) {
-    return {
-      recommendation: 'single',
-      reasons: [
-        `scope enumerates ${scopeItems} capability item(s) — one-pass-sized`,
-      ],
-      advisory,
-    };
-  }
-  if (scopeItems !== null && scopeItems > 2) {
-    return {
-      recommendation: 'fan-out',
-      reasons: [`scope enumerates ${scopeItems} capability items`],
-      advisory,
-    };
-  }
-  return {
-    recommendation: 'fan-out',
-    reasons: [
-      'no delivery-slicing table or scope enumeration to size against — defaulting to fan-out',
-    ],
-    advisory,
-  };
-}
-
-/**
- * Render the three authoring system prompts the collapsed pipeline's
- * single authoring pass consumes. The spec/acceptance prompts render from
+ * Render the authoring system prompts the collapsed pipeline's single
+ * authoring pass consumes. The spec/acceptance prompts render from
  * `lib/templates/spec-author-prompts.js` (the M3/M8 handshake — envelope
- * authoritative from day one); the decompose prompt reuses the existing
- * Story #4162 carrier including the risk-heuristics suffix.
+ * authoritative from day one); the story prompt is the N=1 core from
+ * `lib/templates/decomposer-prompts.js`, with the schedule and partition
+ * rules a planner reads only when the default-single split policy clears
+ * carried separately as `storySplitRules` (Story #5312).
  *
- * @param {{ heuristics?: string[], maxTickets?: number }} args
- * @returns {{ spec: string, acceptance: string, decompose: string }}
+ * @returns {{ spec: string, acceptance: string, story: string, storySplitRules: string }}
  */
-export function buildSystemPrompts({ heuristics = [], maxTickets } = {}) {
-  const decompose = buildDecomposerSystemPrompt(heuristics, {
-    maxTickets,
-  });
+export function buildSystemPrompts() {
   return {
     spec: renderTechSpecSystemPrompt(),
     acceptance: renderAcceptanceSpecSystemPrompt(),
-    // v2 Stage 3: default-single author prompt (decompose text + split policy).
-    story: `${decompose}
-
-#### v2 DEFAULT-SINGLE SPLIT POLICY:
-
-Emit **exactly one Story** in \`stories.json\` unless the pieces have
-near-zero overlap or sit across an architectural seam. Coupled work stays
-one Story — put intra-session checkpoints in \`## Slicing\` and fold the
-Tech Spec into \`## Spec\` (inline only; over-budget Specs mean split or
-tighten — never write under \`docs/\`). Do **not** emit \`deliveryShape\`.
-When N>1, every acceptance criterion must belong to exactly one Story,
-and each Story carries its own \`## Spec\` (no shared techspec.md fold).
-`,
-    decompose,
+    story: renderStoryAuthorCore(),
+    storySplitRules: renderStorySplitRules(),
   };
 }
 
@@ -986,20 +821,12 @@ async function buildSeedFileModeEnvelope({
     );
   }
 
-  const limits = getLimits(config);
-  const heuristics = resolveRiskHeuristics(config);
-
   // Hoisted above the gather (Story #5155): the dependency-candidate lookup
   // intersects against `predictedPaths`, so the signals have to exist before
   // the fan-out starts. `buildComplexitySignals` is synchronous and reads
   // nothing the gather produces, so hoisting it changes cost, not output.
   const complexitySignals = withAdvisorySignals(
-    buildComplexitySignals({
-      seedText: content,
-      config,
-      riskHeuristics: heuristics,
-      cwd,
-    }),
+    buildComplexitySignals({ seedText: content, cwd }),
     { config, cwd },
   );
 
@@ -1025,12 +852,9 @@ async function buildSeedFileModeEnvelope({
   return {
     mode: modeLabel,
     seed: { path: seedFilePath ?? null, content },
-    // Advisory complexity signals only (Story #4722): no route, no routing
-    // authority. The planner authors the trivial-vs-standard verdict; persist
-    // validates a lite claim against the authored Story's shape. The nested
-    // `deliverLightSuggestion` is the advisory plan-side routing handshake
-    // (Story #4741 AC-6) and `uiSurface` the advisory /prototype offer —
-    // neither is ever an automatic reroute.
+    // Advisory complexity signals only: no route, no routing authority. The
+    // nested `uiSurface` is the advisory /prototype offer — never an
+    // automatic reroute.
     complexitySignals,
     duplicates,
     epicCandidates,
@@ -1041,12 +865,7 @@ async function buildSeedFileModeEnvelope({
     memoryPoolAdvisory: authoring.memoryPoolAdvisory,
     priorFeedback: authoring.priorFeedback,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
-    maxTickets: limits.maxTickets,
-    riskHeuristics: heuristics,
-    systemPrompts: buildSystemPrompts({
-      heuristics,
-      maxTickets: limits.maxTickets,
-    }),
+    systemPrompts: buildSystemPrompts(),
     planState: null,
     // N=1 default: author one Story; skip Epic-scale decompose ceremony.
     planProfile: 'story-default',
@@ -1148,17 +967,9 @@ async function buildTicketsModeEnvelope({
     .map((t) => `# ${t.title}\n\n${t.body}`)
     .join('\n\n---\n\n');
 
-  const limits = getLimits(config);
-  const heuristics = resolveRiskHeuristics(config);
-
   // Hoisted for the same reason as seed-file mode (Story #5155).
   const complexitySignals = withAdvisorySignals(
-    buildComplexitySignals({
-      seedText: seed,
-      config,
-      riskHeuristics: heuristics,
-      cwd,
-    }),
+    buildComplexitySignals({ seedText: seed, cwd }),
     { config, cwd },
   );
 
@@ -1196,12 +1007,7 @@ async function buildTicketsModeEnvelope({
     memoryPoolAdvisory: authoring.memoryPoolAdvisory,
     priorFeedback: authoring.priorFeedback,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
-    maxTickets: limits.maxTickets,
-    riskHeuristics: heuristics,
-    systemPrompts: buildSystemPrompts({
-      heuristics,
-      maxTickets: limits.maxTickets,
-    }),
+    systemPrompts: buildSystemPrompts(),
     planState: null,
     planProfile:
       ticketIds.length === 1 ? 'story-default' : 'story-from-tickets',
@@ -1250,8 +1056,8 @@ function extractPriorArtifacts(priorBody) {
  * shape already shipped.
  *
  * The semantic steps that reach the ticket are preserved: the open-Story
- * duplicate search (excluding the amended Story itself), the risk heuristics,
- * and the authoring system prompts all still ride the envelope. What is
+ * duplicate search (excluding the amended Story itself) and the authoring
+ * system prompts still ride the envelope. What is
  * dropped is only the from-scratch repo interrogation the prior artifacts
  * already stand in for — that is the round-trip diet, not an amputation.
  *
@@ -1285,8 +1091,6 @@ async function buildAmendmentModeEnvelope({
   const priorBody = typeof prior.body === 'string' ? prior.body : '';
   const { priorAcceptance, deliveredFiles } = extractPriorArtifacts(priorBody);
 
-  const heuristics = resolveRiskHeuristics(config);
-  const limits = getLimits(config);
   // Story #4952 — this builder's independent-gather set has exactly one
   // member. `provider.getTicket` above is a hard data dependency (the prior
   // body IS the seed), and the mode deliberately carries no authoring-context
@@ -1320,12 +1124,7 @@ async function buildAmendmentModeEnvelope({
     // The prior body is the seed the delta is authored against.
     seed: { text: priorBody, path: null },
     complexitySignals: withAdvisorySignals(
-      buildComplexitySignals({
-        seedText: priorBody,
-        config,
-        riskHeuristics: heuristics,
-        cwd,
-      }),
+      buildComplexitySignals({ seedText: priorBody, cwd }),
       { config, cwd },
     ),
     duplicates,
@@ -1333,12 +1132,7 @@ async function buildAmendmentModeEnvelope({
     // artifacts are the grounding, so there is no docs digest to anchor.
     docsContext: null,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
-    maxTickets: limits.maxTickets,
-    riskHeuristics: heuristics,
-    systemPrompts: buildSystemPrompts({
-      heuristics,
-      maxTickets: limits.maxTickets,
-    }),
+    systemPrompts: buildSystemPrompts(),
     planState: null,
     planProfile: 'story-amendment',
   };
@@ -1349,7 +1143,7 @@ async function buildAmendmentModeEnvelope({
  *
  * Every mode returns through here, which makes this the one place the
  * envelope's total size is decided — and therefore the only honest place to
- * bound it (see {@link assertPlanContextWithinCeiling}).
+ * bound it (see {@link capPlanContextEnvelope}).
  *
  * @param {{
  *   mode: 'seed-file'|'seed'|'tickets'|'amends',
@@ -1377,7 +1171,7 @@ export async function buildPlanContext({
   settings = {},
   cwd,
 }) {
-  return assertPlanContextWithinCeiling(
+  return capPlanContextEnvelope(
     await buildPlanContextEnvelope({
       mode,
       seedFilePath,
@@ -1394,7 +1188,7 @@ export async function buildPlanContext({
 }
 
 /**
- * Mode dispatch for {@link buildPlanContext}. Split out so the ceiling check
+ * Mode dispatch for {@link buildPlanContext}. Split out so the ceiling cap
  * wraps every mode exactly once.
  */
 async function buildPlanContextEnvelope({

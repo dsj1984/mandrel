@@ -56,11 +56,13 @@ node .agents/scripts/plan-context.js --seed "<seed>" \
 and derives source ids from its `sourceTickets[]`; it also writes
 **`stories.template.json`**, step 2's skeleton.
 
-The envelope carries docs context, the story-author prompt, `sourceTickets[]`,
+The envelope carries docs context, the story-author prompt (`systemPrompts.story`,
+plus `systemPrompts.storySplitRules` for an N>1 draft), `sourceTickets[]`,
 `duplicates[]` (open **Stories**, never Epics), `epicCandidates[]` +
 `dependencyCandidates[]` (Gate #3; path collisions), `priorFeedback` and
-advisory `complexitySignals` (**no routing authority**). A trivial scope claims
-the lite route at persist, failing closed to `full`.
+advisory `complexitySignals` (**no routing authority**). An envelope over the
+planner-context ceiling is written truncated with a `truncated` note, never
+refused.
 
 **Triage each unknown by resolver** ([ref](helpers/plan-reference.md)): an
 **AFK** unknown (research settles it) is resolved before authoring, never
@@ -68,16 +70,13 @@ assumed; a **HITL** unknown goes to Gate #1. Under `--yes` do not ask free-form
 operator questions — AFK unknowns are still researched; only HITL unknowns land
 in Key Assumptions, each a decision-made-by-default.
 
-**Gate #1** — STOP to confirm the sharpened plan intent, any
-duplicate-candidate review, and any `intake` row worth graduating
-([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
-
-On a truthy `deliverLightSuggestion.suggested`, offer — advisory, never an
-automatic reroute — to deliver the seed instead; on confirm route **in this
-session** into [`helpers/deliver-light.md`](helpers/deliver-light.md), its gate
-filled from this envelope. A truthy `complexitySignals.uiSurface` names
-[`/prototype`](prototype.md); never invoke it here.
-[Both](helpers/plan-reference.md).
+**Gate #1** — STOP for exactly two things: confirm the sharpened plan intent,
+and settle any HITL unknown the operator owns. Everything else the envelope
+surfaced — `duplicates[]`, open `intake` rows, a truthy
+`memoryPoolAdvisory.recommend`, a truthy `complexitySignals.uiSurface` naming
+[`/prototype`](prototype.md) (never invoke it here) — collapses to
+**one advisory line** under the gate; none of it stops the run or reroutes
+it ([ref](helpers/plan-reference.md)). Under `--yes`, auto-proceed.
 
 ### 2. Author
 
@@ -93,34 +92,19 @@ included. One rescue: a **never-tracked** one normalises to `creates`. Fields:
 [ref](helpers/plan-reference.md).
 
 Artifacts under `temp/plan-<slug>/`: `stories.json` (**length 1 by default**;
-over-budget Specs fail closed — split or tighten, never under `docs/`); optional
+a Spec is as long as the work needs, inline, never under `docs/`); optional
 `techspec.md` (**N===1 only**, folded into `## Spec`) and
 `acceptance-manifest.json` (N>1 — `--plan-acceptance`). Use the envelope
-`systemPrompts.story`; split only under the policy above.
+`systemPrompts.story`; split only under the policy above, and when you do,
+read `systemPrompts.storySplitRules` too — it carries the schedule and
+partition rules the core omits.
 
 **Tickets mode:** every Story authors a top-level `supersedes[]`; persist
 refuses a partial map ([shape](helpers/plan-reference.md)).
 
-### 2.5 Critics
-
-```bash
-node .agents/scripts/plan-critics.js \
-  --stories temp/plan-<slug>/stories.json \
-  [--tech-spec temp/plan-<slug>/techspec.md]
-```
-
-Run **before** persist — the last point a finding folds into a re-author. It
-exits 0 on **any** verdict (verdicts route work, they do not gate) and exits
-**1** only on a usage/IO error — no critic ran: **do not proceed to Persist**,
-fix and re-run.
-
-- **Both `dispatch: false`** — proceed to Persist (each skip is ledgered).
-- **Either `dispatch: true`** — dispatch **one fresh-context, maker-blind
-  sub-agent per firing critic** (hand it only the draft artifacts, never the
-  authoring transcript), fold findings into Gate #2 or a re-author round, re-run
-  this step. Pre-mortem triggers (incl. the external-dependency probe), the
-  advisory-only `textHygiene.findings[]` lints and dispatch shape:
-  [reference](helpers/plan-reference.md).
+The maker-blind **pre-mortem** critic is not a step of this spine: run
+`plan-critics.js` only when the operator asks for it
+([how](helpers/plan-reference.md)).
 
 ### 3. Persist
 
@@ -132,7 +116,11 @@ to review (`--force-review`). Under `--yes`, auto-proceed.
 `--epic-goal`). Never unasked ([ref](helpers/plan-reference.md)).
 
 Run persist `--dry-run` **first** — same command, writes suppressed; every gate
-runs before the first `createIssue` ([list](helpers/plan-reference.md)):
+runs before the first `createIssue`, and the run **lists its warnings**
+(a `creates` / `refactors-existing` the base branch disagrees with, a goal or
+acceptance path absent at base, an open question in a body) and the
+`changes[]` repairs it applied ([list](helpers/plan-reference.md)). Read
+them; they never stop the persist:
 
 ```bash
 node .agents/scripts/plan-persist.js \
@@ -144,8 +132,8 @@ node .agents/scripts/plan-persist.js \
   [--epic <id> | --epic-title "<name>" --epic-goal "<one paragraph>"]
 ```
 
-At lite shape `--chain-on-clean` folds a clean dry-run into the persist; a full
-plan keeps its review trip.
+`--chain-on-clean` folds a clean dry-run into the persist for **any** plan —
+the dry-run's warning list is the review.
 
 Persist creates `type::story` issue(s), a **metadata-only** `plan-run::<id>`
 label, `blocked by #<id>` footers for every `depends_on` edge, and on a Gate #3
@@ -155,8 +143,7 @@ also comments on and closes each source id ([ref](helpers/plan-reference.md)).
 
 ## Constraints
 
-- `/mandrel-plan` starts delivery **only** through a confirmed Gate #1 light
-  route — never off its Stories, which land via
+- `/mandrel-plan` never starts delivery — its Stories land via
   [`/mandrel-deliver`](mandrel-deliver.md).
 - Duplicate search targets open Stories (`type::story`), not Epics; and
   deterministic gates still fail closed under `--yes`.

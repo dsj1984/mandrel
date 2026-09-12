@@ -70,28 +70,9 @@
     }
   },
   "planning": {
-    "riskHeuristics": [
-      "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
-      "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
-      "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
-      "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
-      "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
-    ],
     "memoryPool": {
-      "staleAfterDays": 30,
-      "growthDelta": 25,
       "indexByteCeiling": 24576
     },
-    "failOnSharedEditors": false,
-    "requireExplicitCrossStoryDeps": false,
-    "crossCuttingRegistries": [
-      "lib/orchestration/lifecycle/listeners/index.js",
-      "**/listeners/index.js",
-      "**/handlers/index.js"
-    ],
-    "failOnRegistryConflicts": false,
-    "failOnLargeFanOut": false,
-    "largeFanOutThreshold": 10,
     "navigation": {
       "routeGlobs": [],
       "navRegistry": []

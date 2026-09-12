@@ -1,424 +1,151 @@
 /**
- * plan-critic-conditions.test.js — table-driven condition matrix for the
- * #4474 PR6 conditional-critic dispatch layer:
+ * tests/plan-critic-conditions.test.js — the pre-mortem dispatch decision
+ * (Epic #4474 PR6; narrowed to the external-dependency arm by Story #5312).
  *
- *   - consolidation: precondition AND (>5 stories OR confirmed
- *     divergence) — a fail-open precondition on a small draft skips;
- *   - pre-mortem: ticket count ≥ ½ maxTickets, OR a
- *     planning.riskHeuristics phrase match (case-insensitive). Story #4542
- *     retired the third condition — the authored risk verdict's overall level —
- *     with the verdict itself, so both surviving conditions read the plan's own
- *     observable shape and text;
- *   - the additive `cause` field on the underlying consolidation
- *     precondition ('match' | 'divergence' | 'fail-open').
+ * Story #5312 deleted the consolidation critic and the two pre-mortem triggers
+ * that read deleted constants (`maxTickets` and `planning.riskHeuristics`).
+ * What survives is the external-dependency probe (Story #4700): a
+ * conservative, marker-only scan for artifacts outside the repo the plan
+ * depends on — the one deterministic reason to spend a critic spawn.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { evaluateConsolidationPrecondition } from '../.agents/scripts/lib/orchestration/consolidation-precondition.js';
-import {
-  CONSOLIDATION_STORY_THRESHOLD,
-  evaluateConsolidationDispatch,
-  evaluateExternalDependencyProbe,
-  evaluatePremortemDispatch,
-} from '../.agents/scripts/lib/orchestration/plan-critic-conditions.js';
+import * as conditions from '../.agents/scripts/lib/orchestration/plan-critic-conditions.js';
 
-/** Build a minimal draft story. */
-function story(slug, dependsOn = []) {
-  return { slug, depends_on: dependsOn, body: `## Goal\n${slug}.` };
-}
-
-/** Build a Delivery Slicing table matching `stories` 1:1. */
-function slicingTableFor(stories) {
-  const rows = stories.map(
-    (s) =>
-      `| ${s.slug} | ships ${s.slug} | ${s.depends_on.length > 0 ? 'No' : 'Yes'} |`,
-  );
-  return [
-    '## Delivery Slicing',
-    '',
-    '| Slice | What ships | Independent? |',
-    '| --- | --- | --- |',
-    ...rows,
-  ].join('\n');
-}
-
-function stories(n, { chained = false } = {}) {
-  return Array.from({ length: n }, (_, i) =>
-    story(`s${i + 1}`, chained && i > 0 ? [`s${i}`] : []),
-  );
-}
-
-describe('consolidation precondition — additive cause field', () => {
-  it("reports 'match' on a 1:1 draft", () => {
-    const draft = stories(3);
-    const result = evaluateConsolidationPrecondition({
-      draftStories: draft,
-      epicBody: slicingTableFor(draft),
-    });
-    assert.equal(result.dispatch, false);
-    assert.equal(result.cause, 'match');
-  });
-
-  it("reports 'divergence' on a count mismatch", () => {
-    const result = evaluateConsolidationPrecondition({
-      draftStories: stories(4),
-      epicBody: slicingTableFor(stories(3)),
-    });
-    assert.equal(result.dispatch, true);
-    assert.equal(result.cause, 'divergence');
-  });
-
-  it("reports 'divergence' on a dependency-shape mismatch", () => {
-    const draft = stories(2, { chained: true });
-    const result = evaluateConsolidationPrecondition({
-      draftStories: draft,
-      // Table says every slice is independent; s2 declares depends_on.
-      epicBody: slicingTableFor(stories(2)),
-    });
-    assert.equal(result.dispatch, true);
-    assert.equal(result.cause, 'divergence');
-  });
-
-  it("reports 'fail-open' when the table is missing", () => {
-    const result = evaluateConsolidationPrecondition({
-      draftStories: stories(2),
-      epicBody: '## Context\nNo slicing table here.',
-    });
-    assert.equal(result.dispatch, true);
-    assert.equal(result.cause, 'fail-open');
-  });
-});
-
-describe('consolidation dispatch — condition matrix (PR6)', () => {
-  it('pins the design §6 size threshold at 5 stories', () => {
-    assert.equal(CONSOLIDATION_STORY_THRESHOLD, 5);
-  });
-
-  const smallMatched = stories(3);
-  const largeMatched = stories(7);
-  const noTable = '## Context\nNo slicing table.';
-
-  const matrix = [
-    {
-      name: '1:1 match, small draft → skip (precondition wins)',
-      draft: smallMatched,
-      spec: slicingTableFor(smallMatched),
-      dispatch: false,
-    },
-    {
-      name: '1:1 match, large draft (>5) → still skip (precondition is an AND)',
-      draft: largeMatched,
-      spec: slicingTableFor(largeMatched),
-      dispatch: false,
-    },
-    {
-      name: 'confirmed divergence, small draft → dispatch',
-      draft: stories(4),
-      spec: slicingTableFor(stories(3)),
-      dispatch: true,
-    },
-    {
-      name: 'confirmed divergence, large draft → dispatch',
-      draft: stories(8),
-      spec: slicingTableFor(stories(3)),
-      dispatch: true,
-    },
-    {
-      name: 'fail-open (no table), small draft (≤5) → skip',
-      draft: stories(5),
-      spec: noTable,
-      dispatch: false,
-    },
-    {
-      name: 'fail-open (no table), large draft (>5) → dispatch',
-      draft: stories(6),
-      spec: noTable,
-      dispatch: true,
-    },
-    {
-      name: 'dependency-shape divergence, small draft → dispatch',
-      draft: stories(2, { chained: true }),
-      spec: slicingTableFor(stories(2)),
-      dispatch: true,
-    },
-  ];
-
-  for (const row of matrix) {
-    it(row.name, () => {
-      const decision = evaluateConsolidationDispatch({
-        draftStories: row.draft,
-        specText: row.spec,
-      });
-      assert.equal(decision.critic, 'consolidation');
-      assert.equal(decision.dispatch, row.dispatch);
-      assert.ok(
-        decision.reasons.length > 0,
-        'every decision carries at least one reason (the skip audit trail)',
-      );
-    });
-  }
-});
-
-describe('pre-mortem dispatch — condition matrix (PR6)', () => {
-  const matrix = [
-    {
-      name: 'no condition fires → skip',
-      input: {
-        ticketCount: 3,
-        maxTickets: 80,
-      },
-      dispatch: false,
-    },
-    {
-      // Story #4542: with the verdict gone, a small plan touching an obviously
-      // sensitive surface fires ONLY if a configured heuristic phrase catches
-      // it — the planner can no longer self-assert its way into (or out of) the
-      // critic. This is the regression guard for that intent.
-      name: 'a small plan with no heuristic match → skip, whatever it claims',
-      input: {
-        ticketCount: 1,
-        maxTickets: 80,
-        planText: 'This plan is extremely high risk, honestly.',
-      },
-      dispatch: false,
-    },
-    {
-      name: 'ticket count exactly half maxTickets → dispatch (boundary)',
-      input: {
-        ticketCount: 40,
-        maxTickets: 80,
-      },
-      dispatch: true,
-      reasonMatch: /at least half the reviewability budget/i,
-    },
-    {
-      name: 'odd budget: ceil boundary (5 of 10 fires, 4 of 9 skips)',
-      input: {
-        ticketCount: 4,
-        maxTickets: 9,
-      },
-      dispatch: false,
-    },
-    {
-      name: 'odd budget: 5 of 9 fires',
-      input: {
-        ticketCount: 5,
-        maxTickets: 9,
-      },
-      dispatch: true,
-    },
-    {
-      name: 'one under the half-budget boundary → skip',
-      input: {
-        ticketCount: 39,
-        maxTickets: 80,
-      },
-      dispatch: false,
-    },
-    {
-      name: 'risk-heuristic phrase match (case-insensitive) → dispatch',
-      input: {
-        ticketCount: 2,
-        maxTickets: 80,
-        riskHeuristics: ['Destructive Schema Migration'],
-        planText: 'This plan includes a destructive schema migration step.',
-      },
-      dispatch: true,
-      reasonMatch: /riskHeuristics match/i,
-    },
-    {
-      name: 'heuristic configured but absent from the plan text → skip',
-      input: {
-        ticketCount: 2,
-        maxTickets: 80,
-        riskHeuristics: ['billing'],
-        planText: 'Nothing risky in here.',
-      },
-      dispatch: false,
-    },
-    {
-      name: 'both conditions at once → dispatch with both reasons',
-      input: {
-        ticketCount: 40,
-        maxTickets: 80,
-        riskHeuristics: ['auth'],
-        planText: 'Touches the auth boundary.',
-      },
-      dispatch: true,
-      minReasons: 2,
-    },
-  ];
-
-  for (const row of matrix) {
-    it(row.name, () => {
-      const decision = evaluatePremortemDispatch(row.input);
-      assert.equal(decision.critic, 'pre-mortem');
-      assert.equal(decision.dispatch, row.dispatch);
-      assert.ok(decision.reasons.length > 0, 'reasons are never empty');
-      if (row.reasonMatch) {
-        assert.ok(
-          decision.reasons.some((r) => row.reasonMatch.test(r)),
-          `expected a reason matching ${row.reasonMatch}: ${JSON.stringify(decision.reasons)}`,
-        );
-      }
-      if (row.minReasons) {
-        assert.ok(
-          decision.reasons.length >= row.minReasons,
-          `expected ≥ ${row.minReasons} reasons, got ${decision.reasons.length}`,
-        );
-      }
-    });
-  }
-
-  it('rejects a non-positive maxTickets', () => {
-    assert.throws(
-      () =>
-        evaluatePremortemDispatch({
-          ticketCount: 1,
-          maxTickets: 0,
-        }),
-      TypeError,
-    );
-  });
-});
+const { evaluateExternalDependencyProbe, evaluatePremortemDispatch } =
+  conditions;
 
 describe('pre-mortem external-dependency probe (Story #4700)', () => {
   const ownerRepo = { owner: 'dsj1984', repo: 'mandrel' };
 
   describe('evaluateExternalDependencyProbe — the marker matchers', () => {
     it('flags a scoped package absent from the repo manifests', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'Depends on @beestera/assets and @beestera/icons upstream.',
-        knownPackages: ['mandrel', 'ajv'],
+      const result = evaluateExternalDependencyProbe({
+        planText: 'Build the UI once @beestera/assets ships.',
+        knownPackages: ['mandrel', '@biomejs/biome'],
+        ownerRepo,
       });
-      assert.equal(probe.matched, true);
-      assert.match(probe.reasons.join(' '), /@beestera\/assets/);
-      assert.match(probe.reasons.join(' '), /@beestera\/icons/);
+      assert.equal(result.matched, true);
+      assert.match(result.reasons.join(' '), /@beestera\/assets/);
     });
 
     it('does not flag a scoped package the repo manifests declare', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'Uses @scope/local-pkg from this workspace.',
-        knownPackages: ['@scope/local-pkg'],
+      const result = evaluateExternalDependencyProbe({
+        planText: 'Bump @biomejs/biome to the next minor',
+        knownPackages: ['@biomejs/biome'],
+        ownerRepo,
       });
-      assert.equal(probe.matched, false);
+      assert.equal(result.matched, false);
     });
 
     it('ignores bare handles and the operator-handle placeholder', () => {
-      // No interior slash → not an npm scoped-package spec.
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'Ping @dsj1984 and set operatorHandle to @[USERNAME].',
+      const result = evaluateExternalDependencyProbe({
+        planText: 'Ping @dsj1984 and @[USERNAME] when done.',
         knownPackages: [],
+        ownerRepo,
       });
-      assert.equal(probe.matched, false);
+      assert.equal(result.matched, false);
     });
 
     it('flags a cross-repo github.com reference outside the configured repo', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText:
-          'Pulls fixtures from https://github.com/beestera/swarm-os here.',
+      const result = evaluateExternalDependencyProbe({
+        planText: 'Mirror the fix from https://github.com/other/repo/pull/1.',
+        knownPackages: [],
         ownerRepo,
       });
-      assert.equal(probe.matched, true);
-      assert.match(probe.reasons.join(' '), /beestera\/swarm-os/);
+      assert.equal(result.matched, true);
+      assert.match(result.reasons.join(' '), /other\/repo/);
     });
 
     it('does not flag the configured repo itself', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'See github.com/dsj1984/mandrel for the source.',
+      const result = evaluateExternalDependencyProbe({
+        planText: 'See https://github.com/dsj1984/mandrel/issues/1.',
+        knownPackages: [],
         ownerRepo,
       });
-      assert.equal(probe.matched, false);
+      assert.equal(result.matched, false);
     });
 
     it('stays silent on cross-repo when the owner is unknown', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'See github.com/anyone/anything for the source.',
-        ownerRepo: { owner: null, repo: null },
+      const result = evaluateExternalDependencyProbe({
+        planText: 'See https://github.com/other/repo.',
+        knownPackages: [],
+        ownerRepo: null,
       });
-      assert.equal(probe.matched, false);
+      assert.equal(result.matched, false);
     });
 
     it('flags an endpoint named as a service prerequisite', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText: 'This step requires https://api.stripe.com to be reachable.',
+      const result = evaluateExternalDependencyProbe({
+        planText:
+          'Requires credentials for https://api.example.com before delivery.',
+        knownPackages: [],
+        ownerRepo,
       });
-      assert.equal(probe.matched, true);
-      assert.match(probe.reasons.join(' '), /api\.stripe\.com/);
+      assert.equal(result.matched, true);
+      assert.match(result.reasons.join(' '), /api\.example\.com/);
     });
 
     it('does not flag a casual documentation URL with no prerequisite keyword', () => {
-      const probe = evaluateExternalDependencyProbe({
-        planText:
-          'Background reading: https://nodejs.org/api/test.html is handy.',
+      const result = evaluateExternalDependencyProbe({
+        planText: 'Background reading: https://docs.example.com/guide.',
+        knownPackages: [],
+        ownerRepo,
       });
-      assert.equal(probe.matched, false);
+      assert.equal(result.matched, false);
     });
 
     it('returns matched=false with no reasons on empty plan text', () => {
-      const probe = evaluateExternalDependencyProbe({ planText: '' });
-      assert.equal(probe.matched, false);
-      assert.equal(probe.reasons.length, 0);
+      const result = evaluateExternalDependencyProbe({});
+      assert.deepEqual(result, { matched: false, reasons: [] });
     });
   });
 
-  // AC-1: a scoped package absent from the repo's own manifests dispatches the
-  // pre-mortem with the match surfaced in reasons[].
-  it('AC-1: dispatches the pre-mortem on an external scoped package, match in reasons[]', () => {
-    const decision = evaluatePremortemDispatch({
-      ticketCount: 1,
-      maxTickets: 80,
-      planText: 'The plan installs @beestera/assets before it can build.',
-      knownPackages: ['mandrel', 'ajv', 'minimatch'],
-      ownerRepo,
+  describe('evaluatePremortemDispatch — the one trigger', () => {
+    it('dispatches on an external scoped package, match in reasons[]', () => {
+      const decision = evaluatePremortemDispatch({
+        planText: 'Needs @beestera/assets.',
+        knownPackages: [],
+        ownerRepo,
+      });
+      assert.equal(decision.critic, 'pre-mortem');
+      assert.equal(decision.dispatch, true);
+      assert.match(decision.reasons.join(' '), /@beestera\/assets/);
     });
-    assert.equal(decision.critic, 'pre-mortem');
-    assert.equal(decision.dispatch, true);
-    assert.match(decision.reasons.join(' '), /@beestera\/assets/);
-    assert.match(decision.reasons.join(' '), /external-dependency probe/i);
+
+    it('skips (ledgerable) when no marker fires', () => {
+      const decision = evaluatePremortemDispatch({
+        planText: 'Rename a helper and fix its test.',
+        knownPackages: [],
+        ownerRepo,
+      });
+      assert.equal(decision.dispatch, false);
+      assert.equal(decision.reasons.length, 1);
+      assert.match(decision.reasons[0], /no out-of-repo markers/);
+    });
+
+    it('is total — an empty call skips rather than throwing', () => {
+      assert.equal(evaluatePremortemDispatch({}).dispatch, false);
+    });
   });
 
-  // AC-2: no external-dependency markers and no size/heuristic trigger still
-  // skips, and the skip carries the non-empty audit trail the plan-metrics
-  // ledger records (the module's documented skip-is-ledgered contract).
-  it('AC-2: skips (ledgerable) when no marker and no size/heuristic trigger fires', () => {
+  it('exports no consolidation arm and no size or heuristic trigger (Story #5312)', () => {
+    assert.equal('evaluateConsolidationDispatch' in conditions, false);
+    assert.equal('CONSOLIDATION_STORY_THRESHOLD' in conditions, false);
     const decision = evaluatePremortemDispatch({
-      ticketCount: 1,
-      maxTickets: 80,
-      planText:
-        'A local-only change to lib/orchestration with no outside deps.',
-      knownPackages: ['mandrel'],
+      planText: 'Touches auth and drops a table.',
+      knownPackages: [],
       ownerRepo,
+      maxTickets: 1,
+      ticketCount: 40,
+      riskHeuristics: ['auth', 'drops a table'],
     });
-    assert.equal(decision.dispatch, false);
-    assert.ok(
-      decision.reasons.length > 0,
-      'a skip carries the audit trail the ledger records',
+    assert.equal(
+      decision.dispatch,
+      false,
+      'neither a ticket count nor a heuristic phrase can dispatch the critic',
     );
-    assert.match(decision.reasons.join(' '), /external-dependency probe/i);
-  });
-
-  it('an external marker fires even when size and heuristics do not', () => {
-    const decision = evaluatePremortemDispatch({
-      ticketCount: 2,
-      maxTickets: 80,
-      riskHeuristics: ['billing'],
-      planText: 'Requires https://api.example.com provisioned first.',
-      ownerRepo,
-    });
-    assert.equal(decision.dispatch, true);
-    assert.match(decision.reasons.join(' '), /prerequisite endpoint/i);
-  });
-
-  it('a no-marker plan behaves exactly as before the probe existed', () => {
-    // Same shape as the legacy "no condition fires → skip" row: absent
-    // knownPackages/ownerRepo, no markers → identical skip decision.
-    const decision = evaluatePremortemDispatch({
-      ticketCount: 3,
-      maxTickets: 80,
-    });
-    assert.equal(decision.dispatch, false);
   });
 });

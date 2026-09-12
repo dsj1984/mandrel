@@ -140,10 +140,8 @@ full-ceremony Story. The lite route's `preserves` field is the machine-readable
 record of those non-negotiables; there is no lite-specific gate bypass.
 
 **Ceremony comes from the landed diff; the dispatch mode comes from the
-run.** Persist stamps a lite cohort's Stories with the `route::lite` label as a
-_human-visible hint only_ (and ledgers the authored verdict — recorded reason
-plus per-Story shape evidence — on the `story-plan-state` checkpoint); the
-label is never the control signal. Ceremony is resolved from the **derived
+run.** Persist stamps no route label (Story #5312 retired the plan-side lite
+claim with its `route::lite` hint). Ceremony is resolved from the **derived
 change level** (`deriveChangeLevel` over the computed change set — digest § 3),
 not from a body-shape read: a footprint intersecting a sensitive-path class
 derives `high`, so the Story keeps its fresh acceptance critic. The light path

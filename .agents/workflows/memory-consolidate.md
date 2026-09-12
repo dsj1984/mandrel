@@ -97,17 +97,14 @@ Then write the receipt to `.consolidation-stamp.json` in the pool root:
 ```
 
 `entryCount` is the surviving non-index `*.md` count **after** the rewrite —
-count the directory, never the plan. It is the baseline the next run measures
-growth against, so a wrong number silently mis-arms the nudge.
+count the directory, never the plan. The stamp is the operator's record of
+the pass; nothing in the framework reads it back.
 
-The `/mandrel-plan` Phase 0 advisory re-arms on exactly three conditions: the
-stamp aging past `planning.memoryPool.staleAfterDays` (30),
-`planning.memoryPool.growthDelta` (25) entries written since that count, or
-`MEMORY.md` exceeding `planning.memoryPool.indexByteCeiling` (24576) bytes.
-Pool size alone never triggers it — a pass that keeps every entry still quiets
-the first two arms. A stamp with no `entryCount` leaves growth unmeasured, and
-only the age and index arms can speak until the next pass writes one; a stamp
-dated in the future reads as no stamp at all.
+The `/mandrel-plan` Phase 0 advisory re-arms on exactly one condition:
+`MEMORY.md` exceeding `planning.memoryPool.indexByteCeiling` (24576) bytes —
+the harness cap past which the index it loads is truncated. Pool size and
+stamp age never trigger it (Story #5312 retired those arms): a pass that
+rewrites long index lines short quiets it without pruning an entry.
 
 Write it **only** after Gate #2 — the stamp asserts an operator reviewed the
 pass, so writing it early makes it a lie.
@@ -116,8 +113,7 @@ Close with counts: entries read, corrected, merged, pruned, the new total, and
 **the rewritten `MEMORY.md`'s size in bytes beside that count** — the index is
 truncated at the byte ceiling, so a pass that pruned entries but left the
 index over the cap has not fixed the loss, and the number is the only way the
-operator can see that. Then the forecast the operator would otherwise derive
-by hand: when the advisory next fires, and which arm reaches it first.
+operator can see that.
 
 ## Constraints
 

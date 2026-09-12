@@ -112,20 +112,6 @@ const KEY_MEANINGS = Object.freeze({
     'Allowlist of events that fire a webhook notification.',
 
   // planning.*
-  'planning.riskHeuristics':
-    'Phrases that flag a Story as high-risk for HITL escalation.',
-  'planning.failOnSharedEditors':
-    'Whether shared-editor conflict findings are promoted to hard errors.',
-  'planning.requireExplicitCrossStoryDeps':
-    'Whether implicit cross-Story dependencies are promoted to hard errors.',
-  'planning.failOnRegistryConflicts':
-    'Whether cross-cutting registry conflict findings are promoted to hard errors.',
-  'planning.failOnLargeFanOut':
-    'Whether large fan-out findings are promoted to hard errors.',
-  'planning.largeFanOutThreshold':
-    'Story count above which a plan is flagged as a large fan-out.',
-  'planning.crossCuttingRegistries':
-    'Glob patterns naming cross-cutting registry files the planner conflict-checks.',
   'planning.navigation.routeGlobs':
     'Glob patterns marking paths that add a user-facing route (plan-time reachability gate).',
   'planning.navigation.navRegistry':

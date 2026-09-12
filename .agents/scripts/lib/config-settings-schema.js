@@ -64,22 +64,6 @@ const NULLABLE_NONEMPTY_SAFE_STRING = {
   not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-/** A list-valued config key may be a plain array (replace) or an extender
- * object `{ append, prepend }` that deep-merges with framework defaults. */
-const LIST_OR_EXTENDER_OF_STRINGS = {
-  oneOf: [
-    { type: 'array', items: { type: 'string' } },
-    {
-      type: 'object',
-      properties: {
-        append: { type: 'array', items: { type: 'string' } },
-        prepend: { type: 'array', items: { type: 'string' } },
-      },
-      additionalProperties: false,
-    },
-  ],
-};
-
 /**
  * Backwards-compatible export used by a handful of call sites that historically
  * scanned the schema for string-shaped fields. Post-reshape, the only
@@ -494,148 +478,37 @@ const GITHUB_SCHEMA = {
 // `planning` carries `additionalProperties: false`, so a resurrected key fails
 // loudly; the 2.20.0 retirement migration strips it on upgrade.
 
+// Story #5312 — the planning diet. `riskHeuristics`, `complexityGate`,
+// `memoryPool.{staleAfterDays, growthDelta}`, `failOnSharedEditors`,
+// `requireExplicitCrossStoryDeps`, `failOnRegistryConflicts`,
+// `failOnLargeFanOut`, `largeFanOutThreshold` and `crossCuttingRegistries`
+// were retired together: every one either never fired on real work, duplicated
+// a judgment the authoring model already makes, or guarded a consumer that no
+// longer exists. The block stays `additionalProperties: false`, so a config
+// still carrying one fails loudly; the 2.57.0 retirement migration strips them
+// on upgrade.
+
 const PLANNING_SCHEMA = {
   type: 'object',
   description:
-    'Inputs to `/mandrel-plan`: risk escalation heuristics, ceremony-lite routing, the memory-hygiene advisory thresholds, and the cross-Story conflict-finding severity gates.',
+    'Inputs to `/mandrel-plan`: the memory-hygiene advisory ceiling and the opt-in navigability reachability gate.',
   properties: {
-    riskHeuristics: {
-      ...LIST_OR_EXTENDER_OF_STRINGS,
-      description:
-        'Prose heuristics the planner escalates a Story against. A plain array replaces the framework list; the `{ append, prepend }` extender form deep-merges with it.',
-      default: [
-        'Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).',
-        'Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).',
-        'Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.',
-        'Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).',
-        'Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan.',
-      ],
-    },
-    // Story #4722 (superseding #4683's word-count gate) — shape-derived
-    // ceremony-lite routing. Complexity routes on the objective shape of the
-    // authored work (changes[] count, acceptance count, creates-vs-refactors
-    // mix, sensitive-path classes), never on seed word count: `maxSeedWords`
-    // was removed in the hard cutover and is rejected as an additional
-    // property. The lite path never relaxes a non-negotiable (Story ticket,
-    // PR-to-main, repo gates, security baseline). Defaults live on
-    // DEFAULT_COMPLEXITY_GATE in `lib/orchestration/complexity-gate.js`;
-    // shape ceilings are the framework constants STORY_SHAPE_CEILINGS.
-    complexityGate: {
-      type: 'object',
-      description:
-        'Shape-derived ceremony-lite complexity routing. A lite claim is validated against the authored Story shape at persist and re-derived from the Story body at dispatch; conservative (full on any doubt). Never relaxes the Story-ticket / PR-to-main / repo-gates / security-baseline non-negotiables.',
-      properties: {
-        enabled: {
-          type: 'boolean',
-          description:
-            'Master switch. When false, lite routing is disabled everywhere: persist refuses lite claims and dispatch always takes the sub-agent path. Default true.',
-        },
-        maxArtifacts: {
-          type: 'integer',
-          minimum: 0,
-          description:
-            'Enumerated-artifact threshold reported by the plan-context complexity signals. An input signal for the planner verdict — carries no routing authority. Default 1.',
-        },
-      },
-      additionalProperties: false,
-    },
-    // Story #5182 — the `/mandrel-plan` Phase 0 memory-hygiene advisory's two
-    // arms. The count arm this replaced was an absolute ceiling, which no
-    // consolidation pass could ever bring a pool back under; `growthDelta`
-    // measures entries written since the last pass instead, which a pass
-    // does reset. Both are advisory thresholds — nothing here gates a plan.
+    // The `/mandrel-plan` Phase 0 memory-hygiene advisory's one surviving
+    // arm (Story #5285; the age and growth arms went with Story #5312).
     memoryPool: {
       type: 'object',
       description:
-        'Thresholds for the memory-hygiene advisory `/mandrel-plan` surfaces at Gate #1. Advisory only: it recommends `/memory-consolidate` and never gates, reroutes, or mutates the memory pool.',
+        'Threshold for the memory-hygiene advisory `/mandrel-plan` surfaces at Gate #1. Advisory only: it recommends `/memory-consolidate` and never gates, reroutes, or mutates the memory pool.',
       properties: {
-        staleAfterDays: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            "Recommend a consolidation pass once the pool's stamp is older than this many days. Default 30.",
-          default: 30,
-        },
-        growthDelta: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            'Recommend a consolidation pass once this many entries have been written since the last one. Measured against the entry count the last pass stamped, so a stamp predating that field leaves growth unmeasured and only the age threshold applies. Default 25.',
-          default: 25,
-        },
         indexByteCeiling: {
           type: 'integer',
           minimum: 1,
           description:
-            "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. Independent of the age and growth thresholds: the harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
+            "Recommend a consolidation pass once the pool's `MEMORY.md` index exceeds this many bytes. The harness truncates the index it loads into each session at its own byte cap, so an oversized index is a loss already happening — every entry listed after the cut is invisible — rather than a hygiene forecast. Default 24576, the harness cap itself.",
           default: 24576,
         },
       },
       additionalProperties: false,
-    },
-
-    // Cross-Story conflict-finding severity gates. Off by default so
-    // existing repos keep advisory-only behaviour; flipping either to
-    // `true` upgrades the matching finding class to `'hard'`, which routes
-    // it through the validator's `errors[]` channel and trips the bounded
-    // decompose loop's re-prompt gate.
-    // `planning.modelCapacity` was collapsed to the framework constant
-    // `DEFAULT_MODEL_CAPACITY` in ticket-validator-sizing.js (authored-
-    // tokens-only mass); setting it in a config is rejected as an
-    // additional property.
-    failOnSharedEditors: {
-      type: 'boolean',
-      description:
-        'When true, upgrade shared-editor conflict findings to hard errors (default false — advisory soft findings only).',
-      default: false,
-    },
-    requireExplicitCrossStoryDeps: {
-      type: 'boolean',
-      description:
-        'When true, upgrade implicit cross-Story dependency findings to hard errors (default false — advisory soft findings only).',
-      default: false,
-    },
-    // Cross-cutting registry conflict knobs consumed by
-    // `ticket-validator-conflicts.js` (wired through
-    // `epic-plan-decompose/phases/planning-artifacts.js`).
-    // `crossCuttingRegistries` names the registry paths whose concurrent
-    // edits are flagged; `failOnRegistryConflicts` upgrades that finding to
-    // `'hard'`. `failOnLargeFanOut` / `largeFanOutThreshold` gate the
-    // delete blast-radius finding (call sites of a module a Story marks
-    // `assumption: "deletes"`).
-    crossCuttingRegistries: {
-      ...LIST_OR_EXTENDER_OF_STRINGS,
-      description:
-        'Registry path patterns whose concurrent edits across Stories are flagged as conflicts. Defaults to the framework listener/handler index patterns when omitted.',
-      // Mirrors DEFAULT_REGISTRY_PATTERNS in
-      // `lib/orchestration/ticket-validator-conflicts.js`. Restated rather
-      // than imported: that module pulls in the story-body parser and the
-      // reachability walker, which have no business loading behind a schema
-      // declaration. The rewritten parity suite asserts the two agree.
-      default: [
-        'lib/orchestration/lifecycle/listeners/index.js',
-        '**/listeners/index.js',
-        '**/handlers/index.js',
-      ],
-    },
-    failOnRegistryConflicts: {
-      type: 'boolean',
-      description:
-        'When true, upgrade cross-cutting registry conflict findings to hard errors (default false).',
-      default: false,
-    },
-    failOnLargeFanOut: {
-      type: 'boolean',
-      description:
-        'When true, upgrade fan-out-warning findings (delete blast radius) to hard errors (default false — soft advisory).',
-      default: false,
-    },
-    largeFanOutThreshold: {
-      type: 'integer',
-      minimum: 0,
-      description:
-        'Call-site count above which a Story that deletes a module emits a fan-out-warning. Counts base-branch references to the deleted path basename. Soft by default; does not size or reject Stories. Default 10.',
-      default: 10,
     },
     // Navigability-reachability config consumed by the plan-persist draft
     // reachability gate (Epic #4131 F7; demoted into persist by #4474 PR6).
@@ -681,7 +554,7 @@ const PLANNING_SCHEMA = {
  *   - `project`  — identity, paths, commands, docs context.
  *   - `github`   — provider identity, branch protection, merge methods,
  *                  notifications.
- *   - `planning` — risk heuristics, max tickets, planning-context limits.
+ *   - `planning` — the memory-hygiene advisory ceiling, navigability gate.
  *   - `delivery` — execution timeouts, worktree isolation, deliver-runner
  *                  concurrency, docs-freshness, signals, quality.
  *

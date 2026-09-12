@@ -38,8 +38,6 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 import { getRunners } from '../../.agents/scripts/lib/config/runners.js';
 import { WORKTREE_ISOLATION_DEFAULTS } from '../../.agents/scripts/lib/config/worktree-isolation.js';
 import { AGENTRC_SCHEMA } from '../../.agents/scripts/lib/config-settings-schema.js';
-import { _internal as conflictsInternal } from '../../.agents/scripts/lib/orchestration/ticket-validator-conflicts.js';
-import { DEFAULT_MODEL_CAPACITY } from '../../.agents/scripts/lib/orchestration/ticket-validator-sizing.js';
 import { WATCH_DEFAULTS } from '../../.agents/scripts/pr-watch-with-update.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,11 +54,7 @@ const REFERENCE_PATH = path.resolve(
 const AGENT_READ_ONLY_PREFIXES = Object.freeze([
   'project.docsContextFiles',
   'project.baseBranch',
-  'planning.riskHeuristics',
-  'planning.failOn',
-  'planning.requireExplicitCrossStoryDeps',
   'planning.navigation',
-  'planning.largeFanOutThreshold',
   'github.owner',
   'github.repo',
   'github.projectNumber',
@@ -98,12 +92,6 @@ function isAgentReadOnly(dottedPath) {
  * drift by construction.
  */
 const RESTATED_DEFAULTS = Object.freeze([
-  {
-    path: 'planning.crossCuttingRegistries',
-    reason:
-      'ticket-validator-conflicts.js pulls in the story-body parser and the reachability walker — too heavy to load behind a schema declaration.',
-    expected: () => [...conflictsInternal.DEFAULT_REGISTRY_PATTERNS],
-  },
   {
     path: 'delivery.deliverRunner.concurrencyCap',
     reason:
@@ -196,11 +184,26 @@ describe('agentrc-reference.json — retired keys stay out', () => {
     assert.equal('planningContext' in LIMITS_DEFAULTS, false);
   });
 
-  it('omits planning.modelCapacity (framework constant DEFAULT_MODEL_CAPACITY)', () => {
+  it('omits planning.modelCapacity — and the constant that replaced it is gone too (Story #5312)', () => {
     assert.equal(ref.planning.modelCapacity, undefined);
-    assert.equal(DEFAULT_MODEL_CAPACITY.softSessionTokens, 30000);
-    assert.equal(DEFAULT_MODEL_CAPACITY.hardSessionTokens, 75000);
-    assert.equal(DEFAULT_MODEL_CAPACITY.mergeCandidateMaxSessionTokens, 1500);
+  });
+
+  it('omits the ten planning.* keys Story #5312 retired', () => {
+    for (const key of [
+      'complexityGate',
+      'riskHeuristics',
+      'failOnSharedEditors',
+      'requireExplicitCrossStoryDeps',
+      'failOnRegistryConflicts',
+      'failOnLargeFanOut',
+      'largeFanOutThreshold',
+      'crossCuttingRegistries',
+    ]) {
+      assert.equal(ref.planning[key], undefined, key);
+    }
+    assert.deepEqual(Object.keys(ref.planning.memoryPool), [
+      'indexByteCeiling',
+    ]);
   });
 
   it('omits delivery.lease (retired lease TTL — Story #5006)', () => {

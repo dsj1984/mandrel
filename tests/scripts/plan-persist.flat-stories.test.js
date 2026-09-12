@@ -4,7 +4,13 @@
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, utimesSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
@@ -19,7 +25,6 @@ import {
 } from '../../.agents/scripts/lib/label-constants.js';
 import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
 import {
-  makeDefaultFanOutCounter,
   resolveBaseBranchRef,
   validateTickets,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
@@ -70,7 +75,6 @@ function ticket(slug) {
       ],
       acceptance,
       verify,
-      reason_to_exist: `Ship ${slug}`,
     }),
   };
 }
@@ -93,7 +97,6 @@ function ticketWithGoal(slug, goal) {
       ],
       acceptance,
       verify: ['npm test (validate)'],
-      reason_to_exist: `Ship ${slug}`,
     }),
   };
 }
@@ -204,189 +207,92 @@ describe('base-branch resolution (Story #4541)', () => {
     );
   });
 
+  it('probes origin/<base> when the checkout carries no local base branch', () => {
+    // A CI pull-request checkout is detached with only `origin/main`
+    // fetched. Probing the bare name there reads every path as absent —
+    // which turned each bare-path repair into a `creates` and every
+    // declared path into a stale reference on the first #5312 CI run.
+    const git = (cwd, ...args) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', stdio: 'pipe' });
+    const upstream = makeTempDir('probe-ref-upstream-');
+    git(upstream, 'init', '-q', '-b', 'main');
+    git(upstream, 'config', 'user.email', 'test@example.com');
+    git(upstream, 'config', 'user.name', 'Test');
+    mkdirSync(path.join(upstream, 'src'));
+    writeFileSync(path.join(upstream, 'src', 'tracked.js'), 'x\n');
+    git(upstream, 'add', '.');
+    git(upstream, 'commit', '-q', '-m', 'seed');
+    git(upstream, 'checkout', '-q', '-b', 'story-1');
+    const clone = path.join(makeTempDir('probe-ref-clone-'), 'repo');
+    git(tmpdir(), 'clone', '-q', '--branch', 'story-1', upstream, clone);
+
+    const bareBullet = (slug) => {
+      const t = ticket(slug);
+      t.body = serialize({
+        goal: `Goal of ${slug}.`,
+        changes: [{ path: 'src/tracked.js', assumption: 'refactors-existing' }],
+        acceptance: t.acceptance,
+        verify: t.verify,
+      }).replace('`src/tracked.js` — refactors-existing', 'src/tracked.js');
+      return t;
+    };
+
+    // Only origin/main exists: the tracked file probes clean through it.
+    const viaOrigin = validateTickets(
+      [bareBullet('clone')],
+      {},
+      { cwd: clone },
+    );
+    assert.equal(viaOrigin.probeRef, 'origin/main');
+    assert.deepEqual(viaOrigin.errors, []);
+    assert.deepEqual(viaOrigin.warnings, []);
+    assert.equal(viaOrigin.repairs[0].assumption, 'refactors-existing');
+
+    // A local branch wins when it exists.
+    const viaLocal = validateTickets(
+      [bareBullet('local')],
+      {},
+      { cwd: upstream },
+    );
+    assert.equal(viaLocal.probeRef, 'main');
+    assert.deepEqual(viaLocal.warnings, []);
+
+    // Neither resolves (a shallow checkout, or a misconfigured branch):
+    // the probes are skipped and say so, the bare bullet is taken as the
+    // in-place edit it almost always is, and nothing is reported absent.
+    const skipped = validateTickets(
+      [bareBullet('shallow')],
+      { project: { baseBranch: 'nope' } },
+      { cwd: clone },
+    );
+    assert.equal(skipped.probeRef, null);
+    assert.deepEqual(skipped.errors, []);
+    assert.equal(skipped.repairs[0].assumption, 'refactors-existing');
+    assert.equal(skipped.warnings.length, 1);
+    assert.match(skipped.warnings[0], /nope does not resolve in this checkout/);
+    assert.match(skipped.warnings[0], /origin\/nope/);
+  });
+
   it('threads the configured branch into the probes, not the literal main', () => {
-    // Observable end-to-end: the freshness gate names the ref it probed.
+    // Observable end-to-end: the freshness warning names the ref it probed
+    // (Story #5312 demoted the gate from a throw to a listed warning).
     const undeclared = ticket('probe');
     undeclared.acceptance = [
       'The change is consistent with `.agents/scripts/does-not-exist.js`.',
     ];
-    assert.throws(
-      () =>
-        validateTickets([undeclared], {
-          project: { baseBranch: 'a-branch-that-does-not-exist' },
-        }),
-      /do not exist at a-branch-that-does-not-exist/,
+    const validated = validateTickets([undeclared], {
+      project: { baseBranch: 'a-branch-that-does-not-exist' },
+    });
+    assert.deepEqual(validated.errors, []);
+    // Story #5312: a branch that resolves nowhere skips the probes and names
+    // the configured branch in the one warning it leaves.
+    assert.equal(validated.probeRef, null);
+    assert.ok(
+      validated.warnings.some((w) =>
+        /a-branch-that-does-not-exist does not resolve/.test(w),
+      ),
+      JSON.stringify(validated.warnings),
     );
-  });
-});
-
-describe('fan-out probe — importers, not basename word matches (Story #4547)', () => {
-  // The predecessor counter grepped the deleted file's basename stem as a
-  // bare word across the whole tree. A module named `notification` reported
-  // 59 call sites drawn from prose and unrelated schemas while having zero
-  // real importers — and the gate that fired on that number told the
-  // operator to split a migration that did not exist, leaving the override
-  // as the only exit. These fixtures pin the number to real coupling.
-
-  /**
-   * A `git grep -n -E` that actually greps: the fixture tree is matched
-   * against the probe's own pattern, so the assertions below exercise the
-   * real regex rather than a canned hit list.
-   */
-  function fakeGit(tree) {
-    return {
-      gitSpawn(_cwd, ...args) {
-        const [, , , , pattern, ref] = args;
-        const re = new RegExp(pattern.replaceAll('[[:space:]]', '\\s'));
-        const out = [];
-        for (const [file, content] of Object.entries(tree)) {
-          content.split('\n').forEach((text, idx) => {
-            if (re.test(text)) out.push(`${ref}:${file}:${idx + 1}:${text}`);
-          });
-        }
-        return {
-          status: out.length > 0 ? 0 : 1,
-          stdout: out.join('\n'),
-          stderr: '',
-        };
-      },
-    };
-  }
-
-  function probe(tree, path, { baseBranchRef = 'main' } = {}) {
-    return makeDefaultFanOutCounter({
-      baseBranchRef,
-      cwd: '/repo',
-      git: fakeGit(tree),
-    })({ path });
-  }
-
-  it('reports zero for a generic basename that no code imports', () => {
-    const result = probe(
-      {
-        '.agents/docs/SDLC.md':
-          'The post-merge notification phase fires after the merge lands.',
-        '.agents/schemas/agentrc.schema.json':
-          '  "notification": { "type": "object" },',
-        '.agents/scripts/lib/close.js':
-          "// notification is sent here\nimport { land } from './land.js';",
-      },
-      '.agents/scripts/lib/notification.js',
-    );
-    assert.equal(result.count, 0);
-    assert.deepEqual(result.files, []);
-  });
-
-  it('counts the files that genuinely import the module', () => {
-    const result = probe(
-      {
-        '.agents/scripts/lib/a.js':
-          "import { notify } from './notification.js';",
-        '.agents/scripts/lib/nested/b.js':
-          "import { notify } from '../notification.js';",
-        '.agents/scripts/c.js': "const n = require('./lib/notification');",
-        '.agents/docs/SDLC.md': 'Prose about notification handling.',
-      },
-      '.agents/scripts/lib/notification.js',
-    );
-    assert.equal(result.count, 3);
-    assert.deepEqual(result.files, [
-      '.agents/scripts/c.js',
-      '.agents/scripts/lib/a.js',
-      '.agents/scripts/lib/nested/b.js',
-    ]);
-  });
-
-  it('does not count a same-basename module in another directory', () => {
-    const result = probe(
-      {
-        '.agents/scripts/x.js': "import { n } from './b/notification.js';",
-      },
-      '.agents/scripts/a/notification.js',
-    );
-    assert.equal(result.count, 0);
-  });
-
-  it('probes a stem shorter than three characters instead of reporting zero', () => {
-    // The predecessor bailed out at `stem.length < 3` without probing at
-    // all — silently under-reporting a real deletion as safe.
-    const result = probe(
-      {
-        '.agents/scripts/lib/reader.js': "import { q } from './db.js';",
-        '.agents/scripts/lib/writer.js': "import { q } from './db.js';",
-      },
-      '.agents/scripts/lib/db.js',
-    );
-    assert.equal(result.count, 2);
-    assert.deepEqual(result.files, [
-      '.agents/scripts/lib/reader.js',
-      '.agents/scripts/lib/writer.js',
-    ]);
-  });
-
-  it('resolves an extensionless directory-index specifier', () => {
-    const result = probe(
-      { '.agents/scripts/x.js': "import { f } from './foo';" },
-      '.agents/scripts/foo/index.js',
-    );
-    assert.equal(result.count, 1);
-    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
-  });
-
-  it("excludes the deleted module's own self-references", () => {
-    const result = probe(
-      {
-        '.agents/scripts/lib/notification.js':
-          '// see ./notification.js\nexport const n = 1;',
-      },
-      '.agents/scripts/lib/notification.js',
-    );
-    assert.equal(result.count, 0);
-  });
-
-  it('reports a probe that survives a paste into a shell', () => {
-    // The reported probe is the operator's route to checking the number at
-    // any count, so "looks like a git command" is not the bar — it has to
-    // still be the same argv after the shell has had it. Unquoted, the
-    // ERE's `(`, `|` and `[[:space:]]` are glob metacharacters: zsh fails
-    // the paste with `no matches found` AND exits 0, so the gate's own
-    // audit trail would read as "zero importers".
-    const result = probe(
-      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
-      '.agents/scripts/lib/notification.js',
-    );
-    const argv = execFileSync(
-      'sh',
-      ['-c', `printf '%s\\n' ${result.probe.replace(/^git /, '')}`],
-      { encoding: 'utf-8' },
-    )
-      .split('\n')
-      .filter((l) => l.length > 0);
-
-    assert.deepEqual(argv.slice(0, 4), ['grep', '-n', '-E', '--full-name']);
-    assert.equal(argv.length, 6);
-    // The pattern reaches git as ONE intact argv entry, unmangled.
-    assert.match(argv[4], /^\(from\|require\|import\)\[\[:space:\]\]/);
-    assert.match(argv[4], /notification\\\.js\|notification/);
-    assert.equal(argv[5], 'main');
-  });
-
-  it('reports the probe that produced the number, against the configured ref', () => {
-    // AC: the figure must be checkable, not merely trusted.
-    const result = probe(
-      { '.agents/scripts/x.js': "import { n } from './lib/notification.js';" },
-      '.agents/scripts/lib/notification.js',
-      { baseBranchRef: 'develop' },
-    );
-    assert.match(result.probe, /^git grep -n -E /);
-    assert.match(result.probe, /develop$/);
-    assert.deepEqual(result.files, ['.agents/scripts/x.js']);
-  });
-
-  it('maps an empty grep (exit 1) to zero rather than a failure', () => {
-    const result = probe({}, '.agents/scripts/lib/gone.js');
-    assert.equal(result.count, 0);
-    assert.deepEqual(result.files, []);
   });
 });
 
@@ -813,30 +719,12 @@ describe('runPlanPersist — flat Story ops', () => {
     }
   });
 
-  it('reports degraded file-assumption findings as ambiguous, not clean', async () => {
-    // The posted summary hard-coded `freshness: { stale: 0, ambiguous: 0 }`,
-    // so it read "Spec freshness: clean" even on the one run where the gate
-    // had given up: an unresolvable base ref downgrades its mismatches to
-    // warnings, and the comment then asserted a clean result precisely where
-    // it had the least evidence for one.
-    //
-    // The downgrade is reachable because the two halves resolve the ref
-    // differently: validateTickets reads `config` (→ a ref where the file
-    // exists, so the mismatch is found), while the gate's probe prefers
-    // `settings.baseBranch` (→ unresolvable, so the finding cannot be
-    // trusted).
-    //
-    // validateTickets' half is pinned to `HEAD`, NOT the ambient `main`:
-    // `resolveBaseBranchRef` falls through to the literal `main`, which
-    // resolves in a local clone/worktree but NOT on a CI `actions/checkout`
-    // (a detached HEAD where only `origin/main` exists) — there the
-    // `git cat-file -e main:<path>` probe fails, no mismatch is found, and
-    // the finding never becomes ambiguous. `HEAD` always resolves and the
-    // committed file is present at it, so the mismatch is found in both
-    // environments. The flat `config.baseBranch` key routes ONLY to
-    // validateTickets (`resolveBaseBranchRef`); the gate reads
-    // `config.project.baseBranch ?? settings.baseBranch`, so it still probes
-    // the unresolvable `settings.baseBranch` and the divergence holds.
+  it('reports a footprint probe the base branch disagreed with as stale, not clean (Story #5312)', async () => {
+    // The posted summary used to hard-code `freshness: { stale: 0, ambiguous: 0 }`,
+    // so it read "Spec freshness: clean" even when the gate had something to
+    // say. Since Story #5312 a `creates` on a path that exists at base is a
+    // warning the persist proceeds past — and the summary counts it as stale
+    // rather than asserting a clean result it has the least evidence for.
     const mismatched = ticket('drifted');
     mismatched.body = serialize({
       goal: 'Goal of drifted.',
@@ -850,23 +738,23 @@ describe('runPlanPersist — flat Story ops', () => {
       ],
       acceptance: ['drifted done'],
       verify: ['npm test (validate)'],
-      reason_to_exist: 'Ship drifted',
     });
 
     const provider = fakeProvider();
     const result = await runPlanPersist({
       provider,
       artifacts: { stories: [mismatched] },
+      // `HEAD` always resolves and the committed file is present at it, so
+      // the mismatch is found on a CI `actions/checkout` too.
       config: { baseBranch: 'HEAD' },
-      settings: { baseBranch: 'definitely-not-a-real-branch' },
       opts: { skipCleanup: true },
     });
 
-    assert.deepEqual(
-      result.freshness,
-      { stale: 0, ambiguous: 1 },
-      'an unverifiable finding is ambiguous — it is not confirmed stale, ' +
-        'and it is certainly not clean',
+    assert.deepEqual(result.freshness, { stale: 1, ambiguous: 0 });
+    assert.equal(result.stories.length, 1, 'the persist proceeded');
+    assert.ok(
+      result.warnings.some((w) => /already exists at the base branch/.test(w)),
+      JSON.stringify(result.warnings),
     );
     const summary = provider.comments.find((c) =>
       c.body.includes('Plan Summary'),
@@ -874,8 +762,26 @@ describe('runPlanPersist — flat Story ops', () => {
     const line = summary.body
       .split('\n')
       .find((l) => l.includes('Spec freshness'));
-    assert.match(line, /0 stale \/ 1 ambiguous/);
+    assert.match(line, /1 stale \/ 0 ambiguous/);
     assert.doesNotMatch(line, /clean/);
+  });
+
+  it('reports references as ambiguous, not stale, when no base ref resolves', async () => {
+    // Story #5312: a checkout with no readable base skips the probes, so the
+    // summary must not claim the references were checked and found stale.
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('shallow')] },
+      config: { project: { baseBranch: 'a-branch-that-does-not-exist' } },
+      opts: { skipCleanup: true },
+    });
+
+    assert.deepEqual(result.freshness, { stale: 0, ambiguous: 1 });
+    const summary = provider.comments.find((c) =>
+      c.body.includes('Plan Summary'),
+    );
+    assert.match(summary.body, /0 stale \/ 1 ambiguous/);
   });
 
   it('reports freshness clean when the gate ran and found nothing', async () => {
@@ -892,42 +798,6 @@ describe('runPlanPersist — flat Story ops', () => {
       c.body.includes('Plan Summary'),
     );
     assert.match(summary.body, /Spec freshness: clean/);
-  });
-
-  it('rejects hard model-capacity findings before issue creation', async () => {
-    const provider = fakeProvider();
-    // Authored-tokens-only mass: pad Spec above hardSessionTokens: 100.
-    const oversized = ticket('oversized');
-    const verboseSpec = 'x'.repeat(1200);
-    oversized.body = serialize({
-      goal: 'A cohesive but oversized session.',
-      spec: verboseSpec,
-      changes: [
-        {
-          path: 'tests/scripts/plan-persist.flat-stories.test.js',
-          assumption: 'refactors-existing',
-        },
-      ],
-      acceptance: oversized.acceptance,
-      verify: oversized.verify,
-      reason_to_exist: 'Prove hard capacity is enforced',
-    });
-
-    await assert.rejects(
-      () =>
-        runPlanPersist({
-          provider,
-          artifacts: {
-            stories: [oversized],
-          },
-          opts: {
-            modelCapacity: { hardSessionTokens: 100, softSessionTokens: 50 },
-            skipCleanup: true,
-          },
-        }),
-      /ticket validation failed.*oversized/s,
-    );
-    assert.equal(provider.issues.size, 0);
   });
 
   it('applies exactly one shared plan-run cohort label to N>1 Stories (Story #4692)', async () => {
@@ -981,184 +851,6 @@ describe('runPlanPersist — flat Story ops', () => {
       [result.planRunLabel],
       'only the runtime-derived cohort label is present',
     );
-  });
-});
-
-describe('runPlanPersist — shape-validated lite route (Story #4722)', () => {
-  /**
-   * A ticket whose shape exceeds the lite ceilings. Since Story #4764 the
-   * ceilings are effort/risk rather than counts, so "wide" here means an
-   * explicit multi-capability enumeration — three distinct change kinds
-   * (refactor, delete, create) — not merely several files. Existing paths carry
-   * the assumptions that require them to exist, so the file-assumption gate
-   * still passes.
-   */
-  function wideTicket(slug) {
-    const acceptance = [`${slug} done`];
-    const verify = ['npm test (validate)'];
-    const changes = [
-      {
-        path: 'tests/scripts/plan-persist.flat-stories.test.js',
-        assumption: 'refactors-existing',
-      },
-      {
-        path: '.agents/scripts/lib/orchestration/complexity-gate.js',
-        assumption: 'refactors-existing',
-      },
-      { path: 'README.md', assumption: 'deletes' },
-      { path: 'docs/wide-fixture-note.md', assumption: 'creates' },
-    ];
-    return {
-      slug,
-      type: 'story',
-      title: `Story ${slug}`,
-      acceptance,
-      verify,
-      body: serialize({
-        goal: `Goal of ${slug}.`,
-        changes,
-        acceptance,
-        verify,
-        reason_to_exist: `Ship ${slug}`,
-      }),
-    };
-  }
-
-  /**
-   * Stand-in sensitive-path manifest for the shape backstop — injected so
-   * these tests never read the repo's live `audit-rules.json` (whose
-   * operator-editable globs would otherwise decide the routes asserted
-   * below). Empty: no fixture path is sensitive; the wide claim fails on
-   * the shape ceilings alone.
-   */
-  const NO_SENSITIVE_RULES = { sensitivePaths: {} };
-
-  it('an upheld lite claim persists the route::lite hint and ledgers the verdict (AC-2, AC-3)', async () => {
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      // ticket() is lite-shaped: one refactors-existing change, one
-      // acceptance criterion, no sensitive path.
-      artifacts: { stories: [ticket('solo')] },
-      config: {},
-      opts: {
-        skipCleanup: true,
-        routeDowngradeReason: 'single trivial artifact despite verbose seed',
-        injectedRules: NO_SENSITIVE_RULES,
-      },
-    });
-
-    assert.equal(result.route.route, 'lite');
-    assert.deepEqual(result.route.authored, {
-      route: 'lite',
-      reason: 'single trivial artifact despite verbose seed',
-    });
-    assert.ok(
-      labelsAtCreate[0].includes('route::lite'),
-      'the creating POST carries the route hint',
-    );
-    // Ledgered on plan state: the checkpoint carries the authored verdict,
-    // its recorded reason, and the per-Story shape evidence.
-    const checkpoint = provider.comments
-      .map((c) => c.body)
-      .find((b) => b.includes('story-plan-state'));
-    assert.match(checkpoint, /"route": "lite"/);
-    assert.match(
-      checkpoint,
-      /single trivial artifact despite verbose seed/,
-      'the recorded reason is ledgered on plan state',
-    );
-    assert.match(checkpoint, /"shape"/);
-  });
-
-  it('AC-3: a lite claim over a shape exceeding the ceilings fails closed to full', async () => {
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      artifacts: { stories: [wideTicket('wide')] },
-      config: {},
-      opts: {
-        skipCleanup: true,
-        routeDowngradeReason: 'planner believes this is trivial',
-        injectedRules: NO_SENSITIVE_RULES,
-      },
-    });
-
-    assert.equal(result.route.route, 'full');
-    assert.match(result.route.reasons[0], /refused|fail(ing)? closed/i);
-    assert.ok(
-      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
-      'a refused claim persists no route hint',
-    );
-    // The refusal itself is ledgered — the judgment stays auditable.
-    const checkpoint = provider.comments
-      .map((c) => c.body)
-      .find((b) => b.includes('story-plan-state'));
-    assert.match(checkpoint, /"route": "full"/);
-    assert.match(checkpoint, /planner believes this is trivial/);
-  });
-
-  it('a lite claim is refused when the gate is disabled — persist matches dispatch (Story #4722)', async () => {
-    // The schema documents that `planning.complexityGate.enabled=false`
-    // makes persist refuse lite claims (dispatch already falls back to
-    // sub-agent when disabled). Pin the persist side of that contract: the
-    // claim fails closed to full with the disabled gate as the ledgered
-    // reason, and no route hint is persisted.
-    const labelsAtCreate = [];
-    const provider = fakeProvider({
-      createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-    });
-    const result = await runPlanPersist({
-      provider,
-      artifacts: { stories: [ticket('solo')] },
-      config: { planning: { complexityGate: { enabled: false } } },
-      opts: {
-        skipCleanup: true,
-        routeDowngradeReason: 'planner believes this is trivial',
-      },
-    });
-
-    assert.equal(result.route.route, 'full');
-    assert.match(result.route.reasons[0], /disabled/);
-    assert.deepEqual(result.route.authored, {
-      route: 'lite',
-      reason: 'planner believes this is trivial',
-    });
-    assert.ok(
-      labelsAtCreate[0].every((l) => !l.startsWith('route::')),
-      'a refused claim persists no route hint',
-    );
-  });
-
-  it('absent a recorded reason there is no claim — standard full, nothing ledgered (AC-2)', async () => {
-    for (const routeDowngradeReason of [undefined, null, '', '   ']) {
-      const labelsAtCreate = [];
-      const provider = fakeProvider({
-        createHook: ({ labels }) => labelsAtCreate.push([...labels]),
-      });
-      const result = await runPlanPersist({
-        provider,
-        artifacts: { stories: [ticket('solo')] },
-        config: {},
-        opts: {
-          skipCleanup: true,
-          routeDowngradeReason,
-          injectedRules: NO_SENSITIVE_RULES,
-        },
-      });
-      assert.equal(result.route, null);
-      assert.ok(labelsAtCreate[0].every((l) => !l.startsWith('route::')));
-      const checkpoint = provider.comments
-        .map((c) => c.body)
-        .find((b) => b.includes('story-plan-state'));
-      assert.doesNotMatch(checkpoint, /"route"/);
-    }
   });
 });
 

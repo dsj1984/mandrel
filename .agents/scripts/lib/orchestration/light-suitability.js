@@ -213,10 +213,8 @@ function resolveDiffCeilings(ceilings) {
 }
 
 /**
- * Resolve the model's trivial-vs-standard verdict, held to the same ledgering
- * contract the planner's authored verdict is
- * ({@link module:lib/orchestration/complexity-gate.resolvePlannerRouteVerdict}):
- * a `lite` route counts **only** with a non-empty recorded reason. A lite claim
+ * Resolve the model's trivial-vs-standard verdict, held to a ledgering
+ * contract: a `lite` route counts **only** with a non-empty recorded reason. A lite claim
  * without a recorded reason, or any non-`lite` route, fails closed to `full` —
  * an unaudited "trust me, it's small" never buys the light path.
  *
