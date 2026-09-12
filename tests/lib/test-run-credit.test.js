@@ -17,12 +17,18 @@ import {
 } from '../../.agents/scripts/lib/test-run-credit.js';
 import { hashCommandConfig } from '../../.agents/scripts/lib/validation-evidence.js';
 
+// Resolved so the assertions hold on Windows too, where `path.resolve('/repo')`
+// is `D:\\repo` and the module resolves every cwd it hashes or maps.
+const REPO = path.resolve('/repo');
+const WORKTREE = path.join(REPO, '.worktrees', 'story-4321');
+const GIT_DIR = path.join(REPO, '.git');
+
 /** A git stub answering the three questions the depositor asks. */
 const gitFor = ({
   branch = 'story-4321',
   sha = 'a'.repeat(40),
   tree = 'b'.repeat(40),
-  commonDir = '/repo/.git',
+  commonDir = GIT_DIR,
 } = {}) => {
   const answers = {
     'rev-parse --abbrev-ref HEAD': branch,
@@ -50,18 +56,15 @@ describe('storyIdFromBranch', () => {
 describe('resolveEvidenceRoot', () => {
   test('maps a worktree onto the main checkout via the common git dir', () => {
     assert.equal(
-      resolveEvidenceRoot(
-        '/repo/.worktrees/story-4321',
-        gitFor({ commonDir: '/repo/.git' }),
-      ),
-      '/repo',
+      resolveEvidenceRoot(WORKTREE, gitFor({ commonDir: GIT_DIR })),
+      REPO,
     );
   });
 
   test('resolves a relative common dir against the cwd', () => {
     assert.equal(
-      resolveEvidenceRoot('/repo', gitFor({ commonDir: '.git' })),
-      path.resolve('/repo'),
+      resolveEvidenceRoot(REPO, gitFor({ commonDir: '.git' })),
+      REPO,
     );
   });
 
@@ -77,7 +80,7 @@ describe('resolveEvidenceRoot', () => {
 describe('depositTestRunCredit', () => {
   test('AC-5: a green full run on a Story branch records the test gate close reads', () => {
     const records = [];
-    const cwd = '/repo/.worktrees/story-4321';
+    const cwd = WORKTREE;
     const out = depositTestRunCredit({
       cwd,
       tier: 'full',
@@ -105,7 +108,7 @@ describe('depositTestRunCredit', () => {
       hashCommandConfig({ cmd: 'npm', args: ['test'], cwd }),
     );
     // Keyspace: the MAIN checkout, standalone — where close reads.
-    assert.deepEqual(opts, { cwd: '/repo', standalone: true });
+    assert.deepEqual(opts, { cwd: REPO, standalone: true });
   });
 
   test('deposits nothing for a red run, a partial tier, or a non-Story branch', () => {
@@ -165,7 +168,7 @@ describe('reportTestRunCredit', () => {
   test('logs the outcome by reason and returns the deposit', () => {
     const lines = [];
     const ok = reportTestRunCredit({
-      cwd: '/repo/.worktrees/story-4321',
+      cwd: WORKTREE,
       gitSpawnFn: gitFor(),
       recordPassFn: () => {},
       log: (line) => lines.push(line),
@@ -190,12 +193,12 @@ describe('reportTestRunCredit', () => {
 
 describe('predictsTestEvidenceCredit — the read side close consults', () => {
   test('is true only for a credited record under the same keys the deposit wrote', () => {
-    const cwd = '/repo/.worktrees/story-9';
+    const cwd = path.join(REPO, '.worktrees', 'story-9');
     const seen = [];
     const credited = predictsTestEvidenceCredit({
       storyId: 9,
       cwd,
-      evidenceCwd: '/repo',
+      evidenceCwd: REPO,
       gitSpawnImpl: gitFor(),
       shouldSkipImpl: (input, opts) => {
         seen.push({ input, opts });
@@ -211,7 +214,7 @@ describe('predictsTestEvidenceCredit — the read side close consults', () => {
       seen[0].input.configHash,
       hashCommandConfig({ cmd: 'npm', args: ['test'], cwd }),
     );
-    assert.deepEqual(seen[0].opts, { cwd: '/repo', standalone: true });
+    assert.deepEqual(seen[0].opts, { cwd: REPO, standalone: true });
     assert.match(String(seen[1]), /registering the plain `test` gate/);
   });
 
