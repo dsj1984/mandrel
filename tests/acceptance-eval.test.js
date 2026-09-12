@@ -4,6 +4,8 @@ import { describe, it } from 'node:test';
 import {
   assertCriteriaCoverage,
   collectFullSuiteVerifyCommands,
+  readStoryAcceptanceCount,
+  reconcileExpectedCriteria,
   resolveExpectedCriteria,
   runAcceptanceEval,
   runAcceptanceEvalCli,
@@ -58,6 +60,10 @@ function harness({ verdict = verdictFixture(), envelope, exitCode = 0 } = {}) {
       resolveConfigImpl: () => ({
         delivery: { acceptanceEval: { maxRounds: 2 } },
       }),
+      // Story #5313: the gate reads the acceptance[] count off the Story
+      // body; the harness stands in a host with no readable ticket unless a
+      // test overrides it.
+      readAcceptanceCountImpl: async () => null,
       validateVerdictImpl: (v) => v,
       runAcceptanceEvalImpl: async (args) => {
         seen.push(args);
@@ -337,7 +343,7 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
       (err) => {
         assert.match(
           err.message,
-          /verdict covers 2 criteria but --expected-criteria is 4/,
+          /verdict covers 2 criteria but the Story's acceptance\[\] count is 4/,
         );
         assert.match(err.message, /ONE merged verdict -> ONE gate call/);
         assert.match(err.message, /No round was consumed/);
@@ -352,14 +358,153 @@ describe('--expected-criteria — the merge contract (Story #4951)', () => {
     );
   });
 
-  it('preserves current behaviour exactly when the flag is omitted', async () => {
+  it('skips the assertion (and says so) when neither the body nor the flag is readable', async () => {
+    const warnings = [];
     const h = harness({ verdict: clusterVerdict(2) });
+    h.deps.logger = { info: () => {}, warn: (m) => warnings.push(m) };
     const envelope = await runAcceptanceEvalCli(
       ['--story', '4780', '--verdict', 'cluster-1.json'],
       h.deps,
     );
     assert.equal(envelope.decision, 'proceed');
     assert.equal(h.seen.length, 1);
+    assert.equal(
+      warnings.some((w) => /coverage assertion is skipped/.test(w)),
+      true,
+      'a skipped assertion must be stated, never silent',
+    );
+  });
+});
+
+/**
+ * Story #5313 — the gate reads the Story's `acceptance[]` count itself. The
+ * flag becomes redundant: a shorter verdict is refused before scoring with
+ * NO `--expected-criteria` passed, and an inline-owned verdict is one file
+ * scored in one call.
+ */
+describe('the derived acceptance[] count (Story #5313)', () => {
+  const clusterVerdict = (count) =>
+    verdictFixture({
+      criteria: Array.from({ length: count }, (_, index) => ({
+        index,
+        criterion: `AC-${index + 1}`,
+        verdict: 'met',
+        evidence: 'ok',
+      })),
+    });
+
+  it('readStoryAcceptanceCount parses the count off the ticket body', async () => {
+    const body = [
+      '## Goal',
+      'g',
+      '',
+      '## Acceptance',
+      '- [ ] AC-1: one',
+      '- [ ] AC-2: two',
+      '- [ ] AC-3: three',
+      '',
+      '## Verify',
+      '- npm test (unit)',
+    ].join('\n');
+    const count = await readStoryAcceptanceCount(
+      { storyId: 4780, config: {} },
+      { createProviderFn: () => ({ getTicket: async () => ({ body }) }) },
+    );
+    assert.equal(count, 3);
+  });
+
+  it('readStoryAcceptanceCount is total — every failure reads as null', async () => {
+    for (const createProviderFn of [
+      () => {
+        throw new Error('no provider');
+      },
+      () => ({
+        getTicket: async () => {
+          throw new Error('gh missing');
+        },
+      }),
+      () => ({ getTicket: async () => ({ body: null }) }),
+      () => ({ getTicket: async () => ({ body: '## Goal\nno acceptance' }) }),
+    ]) {
+      assert.equal(
+        await readStoryAcceptanceCount(
+          { storyId: 4780, config: {} },
+          { createProviderFn },
+        ),
+        null,
+      );
+    }
+  });
+
+  it('reconcileExpectedCriteria prefers the derived count and refuses a disagreeing flag', () => {
+    assert.equal(reconcileExpectedCriteria({ derived: 4, flagged: null }), 4);
+    assert.equal(reconcileExpectedCriteria({ derived: 4, flagged: 4 }), 4);
+    assert.equal(reconcileExpectedCriteria({ derived: null, flagged: 4 }), 4);
+    assert.equal(
+      reconcileExpectedCriteria({ derived: null, flagged: null }),
+      null,
+    );
+    assert.throws(
+      () => reconcileExpectedCriteria({ derived: 4, flagged: 2 }),
+      /--expected-criteria 2 disagrees with the Story's acceptance\[\] count \(4\)/,
+    );
+  });
+
+  it('AC-4: rejects a shorter verdict before scoring with NO flag passed', async () => {
+    const h = harness({ verdict: clusterVerdict(2) });
+    h.deps.readAcceptanceCountImpl = async ({ storyId }) => {
+      assert.equal(storyId, 4780);
+      return 4;
+    };
+    await assert.rejects(
+      () =>
+        runAcceptanceEvalCli(
+          ['--story', '4780', '--verdict', 'cluster-1.json'],
+          h.deps,
+        ),
+      /verdict covers 2 criteria but the Story's acceptance\[\] count is 4/,
+    );
+    assert.deepEqual(h.seen, [], 'the scoring path must never be entered');
+  });
+
+  it('AC-4: an inline-owned verdict covering every item is scored in ONE call', async () => {
+    const h = harness({ verdict: clusterVerdict(4) });
+    h.deps.readAcceptanceCountImpl = async () => 4;
+    const envelope = await runAcceptanceEvalCli(
+      ['--story', '4780', '--verdict', 'inline.json'],
+      h.deps,
+    );
+    assert.equal(envelope.decision, 'proceed');
+    assert.equal(h.seen.length, 1, 'one verdict file, one gate call');
+  });
+
+  it('the redundant flag is accepted when it agrees and refused when it does not', async () => {
+    const agree = harness({ verdict: clusterVerdict(4) });
+    agree.deps.readAcceptanceCountImpl = async () => 4;
+    await runAcceptanceEvalCli(
+      ['--story', '4780', '--verdict', 'v.json', '--expected-criteria', '4'],
+      agree.deps,
+    );
+    assert.equal(agree.seen.length, 1);
+
+    const disagree = harness({ verdict: clusterVerdict(4) });
+    disagree.deps.readAcceptanceCountImpl = async () => 4;
+    await assert.rejects(
+      () =>
+        runAcceptanceEvalCli(
+          [
+            '--story',
+            '4780',
+            '--verdict',
+            'v.json',
+            '--expected-criteria',
+            '3',
+          ],
+          disagree.deps,
+        ),
+      /disagrees with the Story's acceptance\[\] count/,
+    );
+    assert.deepEqual(disagree.seen, []);
   });
 });
 
@@ -724,6 +869,8 @@ describe('the gate warns on a misshapen verify[] (#5174)', () => {
         resolveConfigImpl: () => ({
           delivery: { acceptanceEval: { maxRounds: 2 } },
         }),
+        readAcceptanceCountImpl: async () =>
+          verdictWith(['npm test']).criteria.length,
         runAcceptanceEvalImpl: async () => ({
           envelope: { storyId: 5174, decision: 'proceed', unmetCriteria: [] },
           exitCode: 0,

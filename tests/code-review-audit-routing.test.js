@@ -203,14 +203,10 @@ describe('depth and the acceptance critic read the same derived level', () => {
       resolveDepth({ derivedLevel: level, changedFileCount: 1 }),
       'light',
     );
-    // clusterIndex 1 with the default 0.2 rate is off the sampling stride, so
-    // this exercises the un-sampled inline path.
+    // Story #5313: no sampling floor — a low level routes inline at every
+    // cluster index.
     assert.equal(
-      resolveCeremonyForRisk({
-        derivedLevel: level,
-        clusterIndex: 1,
-        freshCriticSampleRate: 0.2,
-      }).mode,
+      resolveCeremonyForRisk({ derivedLevel: level, clusterIndex: 0 }).mode,
       'inline',
     );
   });

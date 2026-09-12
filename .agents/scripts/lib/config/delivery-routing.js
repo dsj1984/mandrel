@@ -1,10 +1,14 @@
 /**
  * `delivery.routing` accessor + framework defaults — Epic #4478 (M7-B), the
- * role-scoped-boot-context flip and the maker-checker sampling floor.
+ * role-scoped-boot-context flip and the ceremony profile.
  *
  * Stage 6 dropped `delivery.routing.singleDelivery` (the v1 epic
- * single-vs-fan-out kill-switch). v2 has one Story delivery path; routing
- * here is only about spawn boot context and critic sampling.
+ * single-vs-fan-out kill-switch). Story #5313 dropped
+ * `delivery.routing.freshCriticSampleRate` (the maker-checker sampling
+ * floor): the standard profile now routes purely off the derived change
+ * level — high or underivable → fresh critic, low → inline self-eval. v2 has
+ * one Story delivery path; routing here is only about spawn boot context and
+ * the ceremony profile.
  *
  * `delivery.routing.roleScopedAgents` is the **kill-switch for the role-scoped
  * boot contexts** (Epic #4478, M7-B). It defaults to `true`: a converted spawn
@@ -17,22 +21,11 @@
  * `.claude/agents/`. Flipping it off never drops a gate: the fallback is the
  * full-closure agent that ran before M7-B.
  *
- * `delivery.routing.freshCriticSampleRate` is the **maker-checker sampling
- * floor** (Epic #4478, M7-B, Part 2). Ceremony routing sends the acceptance
- * clusters of a change set that touches no sensitive path down the
- * contract-identical *inline* critic path, but a fraction of them are still
- * forced through a *fresh-context* critic so a low derived level never degrades
- * to zero independent checking. The rate is clamped into `[0, 1]`; `0` disables
- * the floor (pure level routing), `1` forces every cluster fresh. The default is
- * `0.2`. See `resolveCeremonyForRisk` in
- * `lib/orchestration/ceremony-routing.js`.
- *
  * Framework-defaults pattern mirrors `lib/config/ci.js#getCiDelivery`.
  */
 
 export const DELIVERY_ROUTING_DEFAULTS = Object.freeze({
   roleScopedAgents: true,
-  freshCriticSampleRate: 0.2,
   /** @type {'minimal'|'standard'|'strict'} */
   ceremonyProfile: 'standard',
   /**
@@ -42,23 +35,6 @@ export const DELIVERY_ROUTING_DEFAULTS = Object.freeze({
    */
   closeAndLand: true,
 });
-
-/**
- * Clamp a candidate sample rate into `[0, 1]`. Non-finite / non-number inputs
- * fall back to the framework default so a degraded config never yields a
- * NaN-driven or out-of-range floor.
- *
- * @param {unknown} value
- * @returns {number}
- */
-function clampSampleRate(value) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return DELIVERY_ROUTING_DEFAULTS.freshCriticSampleRate;
-  }
-  if (value < 0) return 0;
-  if (value > 1) return 1;
-  return value;
-}
 
 /**
  * Normalize ceremony profile; unknown values → `standard`.
@@ -82,7 +58,6 @@ function normalizeCeremonyProfile(value) {
  * @param {object | null | undefined} config
  * @returns {{
  *   roleScopedAgents: boolean,
- *   freshCriticSampleRate: number,
  *   ceremonyProfile: 'minimal'|'standard'|'strict',
  *   closeAndLand: boolean,
  * }}
@@ -94,7 +69,6 @@ export function getDeliveryRouting(config) {
       typeof routing.roleScopedAgents === 'boolean'
         ? routing.roleScopedAgents
         : DELIVERY_ROUTING_DEFAULTS.roleScopedAgents,
-    freshCriticSampleRate: clampSampleRate(routing.freshCriticSampleRate),
     ceremonyProfile: normalizeCeremonyProfile(routing.ceremonyProfile),
     closeAndLand:
       typeof routing.closeAndLand === 'boolean'

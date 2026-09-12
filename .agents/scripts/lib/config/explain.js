@@ -154,14 +154,10 @@ const KEY_MEANINGS = Object.freeze({
     'Ordered provider chain the code-review phase consults.',
   'delivery.codeReview.maxFixAttempts':
     'Maximum auto-fix attempts the code-review phase makes.',
-  'delivery.codeReview.maxFixScopeFiles':
-    'Maximum files an auto-fix may touch in one attempt.',
   'delivery.codeReview.autoFixSeverity':
     'Severity threshold for on-branch code-review remediation (medium fixes 🔴/🟠/🟡, high fixes 🔴/🟠 only; default medium).',
   'delivery.routing.roleScopedAgents':
     'Whether delivery spawns boot on role-scoped .claude/agents/<role>.md contexts.',
-  'delivery.routing.freshCriticSampleRate':
-    'Fraction of low-risk acceptance clusters forced through a fresh-context critic (maker-checker floor).',
   'delivery.routing.ceremonyProfile':
     'Acceptance-ceremony depth: minimal (always inline), standard (derived-level routed), or strict (always fresh).',
   'delivery.routing.closeAndLand':
@@ -217,7 +213,6 @@ const PREFIX_MEANINGS = Object.freeze([
     'Tolerance epsilon applied when comparing a quality baseline.',
   ],
   ['delivery.quality', 'Delivery-time quality configuration.'],
-  ['delivery.signals', 'Threshold for a delivery friction/telemetry signal.'],
   ['delivery.mergeWatch', 'Merge-wait poll cadence and wall-clock budget.'],
   [
     'delivery.feedbackLoop',

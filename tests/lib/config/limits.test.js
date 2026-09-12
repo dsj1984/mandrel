@@ -2,106 +2,24 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   getLimits,
-  getSignals,
   LIMITS_DEFAULTS,
   resolveLimits,
-  SIGNALS_DEFAULTS,
 } from '../../../.agents/scripts/lib/config/limits.js';
 
 // ---------------------------------------------------------------------------
-// Post-reshape (Epic #1720 Story #1739) — the signals taxonomy is trimmed
-// to two detectors (rework, retry) and reads from `delivery.signals.*`.
-// `hotspot` was retired with its detector (Epic #4406). Other limits move:
-//   - delivery.execution.timeoutMs
+// Post-reshape (Epic #1720 Story #1739) — the surviving limit is
+// `delivery.execution.timeoutMs`.
 //
-// `planning.context.{maxBytes,summaryMode}` was removed in Story #4541 — the
-// budget pass it fed lost its last caller in the v2 cutover.
-//
-// `maxTickets` is gone entirely (Story #5312 — the reviewability budget never
-// fired on a real plan); `resolveLimits` neither reads nor returns it.
-//
-// `getLimits(config)` accepts the resolved-config wrapper and surfaces the
-// surviving subset; `getSignals(config)` is the shorthand for
-// `getLimits(config).signals`.
+// `planning.context.{maxBytes,summaryMode}` was removed in Story #4541,
+// `maxTickets` in Story #5312, and `delivery.signals.{rework, retry}` with
+// `SIGNALS_DEFAULTS` / `getSignals` in Story #5313 (the delivery diet):
+// `resolveLimits` neither reads nor returns any of them.
 // ---------------------------------------------------------------------------
 
-describe('SIGNALS_DEFAULTS export', () => {
-  it('exports only the two surviving detector blocks', () => {
-    assert.deepEqual(Object.keys(SIGNALS_DEFAULTS).sort(), ['retry', 'rework']);
-  });
-
-  it('matches the Tech Spec threshold values', () => {
-    assert.equal(SIGNALS_DEFAULTS.rework.editsPerFile, 5);
-    assert.equal(SIGNALS_DEFAULTS.retry.repeatCount, 3);
-  });
-
-  it('is the same frozen reference as LIMITS_DEFAULTS.signals (no drift)', () => {
-    assert.equal(SIGNALS_DEFAULTS, LIMITS_DEFAULTS.signals);
-    assert.equal(Object.isFrozen(SIGNALS_DEFAULTS), true);
-    assert.equal(Object.isFrozen(SIGNALS_DEFAULTS.rework), true);
-  });
-});
-
-describe('resolveLimits — signals fallback', () => {
-  it('returns SIGNALS_DEFAULTS values when config is undefined', () => {
-    const merged = resolveLimits(undefined);
-    assert.deepEqual(merged.signals, {
-      rework: { editsPerFile: 5 },
-      retry: { repeatCount: 3 },
-    });
-  });
-
-  it('returns SIGNALS_DEFAULTS values when delivery.signals is absent', () => {
-    const merged = resolveLimits({
-      delivery: {},
-    });
-    assert.equal(merged.signals.rework.editsPerFile, 5);
-    assert.equal(merged.signals.retry.repeatCount, 3);
-  });
-
-  it('treats a non-object signals value as missing (defaults applied)', () => {
-    const fromNull = resolveLimits({ delivery: { signals: null } });
-    assert.equal(fromNull.signals.rework.editsPerFile, 5);
-
-    const fromScalar = resolveLimits({ delivery: { signals: 42 } });
-    assert.equal(fromScalar.signals.retry.repeatCount, 3);
-  });
-});
-
-describe('resolveLimits — per-detector override merge', () => {
-  it('overrides a single detector key without dropping siblings', () => {
-    const merged = resolveLimits({
-      delivery: { signals: { rework: { editsPerFile: 7 } } },
-    });
-    assert.equal(merged.signals.rework.editsPerFile, 7);
-    assert.equal(merged.signals.retry.repeatCount, 3);
-  });
-
-  it('merges overrides for multiple detectors simultaneously', () => {
-    const merged = resolveLimits({
-      delivery: {
-        signals: {
-          rework: { editsPerFile: 9 },
-          retry: { repeatCount: 7 },
-        },
-      },
-    });
-    assert.equal(merged.signals.rework.editsPerFile, 9);
-    assert.equal(merged.signals.retry.repeatCount, 7);
-  });
-
-  it('ignores unknown detector keys (closed taxonomy)', () => {
-    const merged = resolveLimits({
-      delivery: { signals: { bogus: { foo: 1 } } },
-    });
-    assert.equal('bogus' in merged.signals, false);
-    assert.deepEqual(Object.keys(merged.signals).sort(), ['retry', 'rework']);
-  });
-
-  it('returns a fresh signals object on each call (not the frozen default)', () => {
-    const merged = resolveLimits({});
-    assert.notEqual(merged.signals, SIGNALS_DEFAULTS);
-    assert.notEqual(merged.signals.rework, SIGNALS_DEFAULTS.rework);
+describe('LIMITS_DEFAULTS export', () => {
+  it('carries only the execution timeout — the signals block is retired', () => {
+    assert.deepEqual(Object.keys(LIMITS_DEFAULTS), ['executionTimeoutMs']);
+    assert.equal(Object.isFrozen(LIMITS_DEFAULTS), true);
   });
 });
 
@@ -118,29 +36,34 @@ describe('resolveLimits — surviving budget surface', () => {
     const lim = resolveLimits({});
     assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
   });
+
+  it('ignores a leftover delivery.signals block rather than resolving it (Story #5313)', () => {
+    const lim = resolveLimits({
+      delivery: { signals: { rework: { editsPerFile: 7 } } },
+    });
+    assert.equal('signals' in lim, false);
+  });
+
+  it('treats a non-object delivery / execution as absent', () => {
+    assert.equal(
+      resolveLimits({ delivery: 42 }).executionTimeoutMs,
+      LIMITS_DEFAULTS.executionTimeoutMs,
+    );
+    assert.equal(
+      resolveLimits({ delivery: { execution: null } }).executionTimeoutMs,
+      LIMITS_DEFAULTS.executionTimeoutMs,
+    );
+  });
 });
 
-describe('getLimits / getSignals accessors (post-reshape)', () => {
-  it('getLimits reads delivery.signals from the new top-level shape', () => {
-    const limits = getLimits({
-      delivery: { signals: { rework: { editsPerFile: 11 } } },
-    });
-    assert.equal(limits.signals.rework.editsPerFile, 11);
-  });
-
-  it('getSignals returns the same shape as getLimits(config).signals', () => {
-    const config = {
-      delivery: { signals: { retry: { repeatCount: 12 } } },
-    };
-    assert.deepEqual(getSignals(config), getLimits(config).signals);
-    assert.equal(getSignals(config).retry.repeatCount, 12);
-  });
-
-  it('getSignals returns defaults when no config is supplied', () => {
-    assert.deepEqual(getSignals(null), {
-      rework: { editsPerFile: 5 },
-      retry: { repeatCount: 3 },
-    });
-    assert.deepEqual(getSignals(undefined), getSignals(null));
+describe('getLimits accessor (post-reshape)', () => {
+  it('reads the resolved-config wrapper and null/undefined alike', () => {
+    assert.equal(
+      getLimits({ delivery: { execution: { timeoutMs: 99 } } })
+        .executionTimeoutMs,
+      99,
+    );
+    assert.deepEqual(getLimits(null), getLimits(undefined));
+    assert.equal(getLimits(null).executionTimeoutMs, 600000);
   });
 });

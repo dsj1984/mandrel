@@ -231,14 +231,14 @@ describe('quality-bootstrap — preserves operator overrides', () => {
     // Default-equal siblings were NOT seeded; the runtime resolves them
     // at read time.
     assert.equal(
-      cfg.delivery.quality.codingGuardrails.cyclomaticMustFix,
+      cfg.delivery.quality.codingGuardrails.requireSiblingTest,
       undefined,
     );
     assert.equal(cfg.delivery.quality.autoRefresh, undefined);
     // Default-equal writes are reported under skippedKeys.
     assert.ok(
-      result.skippedKeys.some((k) => k.endsWith('cyclomaticMustFix')),
-      'cyclomaticMustFix should be reported as skipped (matches framework default)',
+      result.skippedKeys.some((k) => k.endsWith('requireSiblingTest')),
+      'requireSiblingTest should be reported as skipped (matches framework default)',
     );
     assert.ok(
       result.skippedKeys.some((k) => k.endsWith('autoRefresh.enabled')),

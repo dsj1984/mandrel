@@ -174,49 +174,6 @@ const WORKTREE_ISOLATION_SCHEMA = {
 };
 
 /**
- * `delivery.signals` — detector thresholds for the surviving
- * performance-signal categories. `hotspot` was retired with its detector
- * (Epic #4406); `churn` and `idle` were dropped earlier (low signal-to-noise).
- * Each block is shallow-merged by the resolver.
- */
-const SIGNALS_SCHEMA = {
-  type: 'object',
-  description:
-    'Detector thresholds for the surviving performance-signal categories. Each block is shallow-merged by the resolver.',
-  properties: {
-    rework: {
-      type: 'object',
-      description: 'Rework detector — repeated edits to one file in a run.',
-      properties: {
-        editsPerFile: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            'Edits to a single file within one run that trip the rework signal.',
-          default: LIMITS_DEFAULTS.signals.rework.editsPerFile,
-        },
-      },
-      additionalProperties: false,
-    },
-    retry: {
-      type: 'object',
-      description: 'Retry detector — the same command failing repeatedly.',
-      properties: {
-        repeatCount: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            'Repeats of an identical failing command that trip the retry signal.',
-          default: LIMITS_DEFAULTS.signals.retry.repeatCount,
-        },
-      },
-      additionalProperties: false,
-    },
-  },
-  additionalProperties: false,
-};
-
-/**
  * `delivery.mergeWatch` — knobs consumed by the close-and-land merge wait
  * listener (Story #2896, Epic #2880) and by the close-and-land merge wait
  * (`single-story-close/phases/confirm-merge.js`). `intervalSeconds` is the
@@ -294,19 +251,19 @@ const MERGE_WATCH_SCHEMA = {
  * (`CODE_REVIEW_SCHEMA` imported from the quality schema module).
  */
 
-// Epic #4478 (M7-B) — role-scoped-agent kill-switch + maker-checker floor.
+// Epic #4478 (M7-B) — role-scoped-agent kill-switch.
 // Stage 6 dropped `delivery.routing.singleDelivery` (v1 epic route switch).
 // `delivery.routing.roleScopedAgents` (default true via getDeliveryRouting)
 // flips converted delivery spawns onto their `.claude/agents/<role>.md` boot
 // context; false falls back to `subagent_type: general-purpose` (the instant
 // per-consumer revert + the escape for hosts that ignore `.claude/agents/`).
-// `delivery.routing.freshCriticSampleRate` (default 0.2, clamped [0, 1]) is the
-// maker-checker sampling floor forcing a fraction of low-derived-level
-// acceptance clusters through a fresh critic.
+// Story #5313 retired `delivery.routing.freshCriticSampleRate` (the
+// maker-checker sampling floor): the standard profile now routes purely off
+// the derived change level.
 const ROUTING_SCHEMA = {
   type: 'object',
   description:
-    'v2 delivery-spawn routing: role-scoped boot contexts and maker-checker sampling. The v1 singleDelivery epic-route kill-switch was removed in Stage 6.',
+    'v2 delivery-spawn routing: role-scoped boot contexts and the ceremony profile. The v1 singleDelivery epic-route kill-switch was removed in Stage 6; the freshCriticSampleRate sampling floor was retired in Story #5313.',
   properties: {
     roleScopedAgents: {
       type: 'boolean',
@@ -314,19 +271,11 @@ const ROUTING_SCHEMA = {
         'Epic #4478 (M7-B). Kill-switch for the role-scoped boot contexts. When true (default), a converted delivery spawn (`story-worker`, `acceptance-critic`) boots on its own `.claude/agents/<role>.md` system prompt instead of re-paying the full CLAUDE.md @-import closure. When false, every converted spawn falls back to `subagent_type: general-purpose` — the instant, code-rollback-free per-consumer revert, and the universal escape for hosts that ignore `.claude/agents/`. The fallback is the full-closure agent that ran before M7-B, so flipping it off never drops a gate.',
       default: DELIVERY_ROUTING_DEFAULTS.roleScopedAgents,
     },
-    freshCriticSampleRate: {
-      type: 'number',
-      minimum: 0,
-      maximum: 1,
-      description:
-        'Epic #4478 (M7-B, Part 2). Maker-checker sampling floor. Under the standard profile, a change set touching no sensitive path routes its acceptance clusters down the contract-identical inline critic path, but this fraction of them is still forced through a fresh-context critic so a low derived level never means zero independent checking. Clamped to [0, 1]; 0 disables the floor, 1 forces every cluster fresh. Consumed by resolveCeremonyForRisk (lib/orchestration/ceremony-routing.js).',
-      default: DELIVERY_ROUTING_DEFAULTS.freshCriticSampleRate,
-    },
     ceremonyProfile: {
       type: 'string',
       enum: ['minimal', 'standard', 'strict'],
       description:
-        'Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff, with the maker-checker sampling floor.',
+        'Acceptance-ceremony depth. minimal = always inline critic; strict = always fresh-context critic; standard (default) = routed off the change level derived from the Story diff: high or underivable → fresh, low → inline.',
       default: DELIVERY_ROUTING_DEFAULTS.ceremonyProfile,
     },
     closeAndLand: {
@@ -458,23 +407,22 @@ const REFACTOR_STAGE_SCHEMA = {
  * re-evaluates — capped at `maxRounds` redraft rounds.
  *
  * `maxRounds` is the operator-tunable redraft ceiling (default 2 via
- * `lib/config/acceptance-eval.js`). It is a soft knob inside an
- * **undisableable** hard cap: `lib/config/acceptance-eval.js` clamps any
- * configured value into `[1, ACCEPTANCE_EVAL_MAX_ROUNDS_CEILING]`, so no
- * configuration can switch the loop off (`maxRounds: 0`) or let it spin
- * unbounded. There is intentionally **no** `enabled` flag — the loop is a
- * hard cutover, always on, per `rules/git-conventions.md`.
+ * `lib/config/acceptance-eval.js`). Story #5313 dropped the hard ceiling and
+ * the floor-of-one clamp: `maxRounds: 0` is valid and means one pass scored
+ * once with no redraft round. There is intentionally **no** `enabled` flag —
+ * the scoring pass is a hard cutover, always on, per
+ * `rules/git-conventions.md`.
  */
 const ACCEPTANCE_EVAL_SCHEMA = {
   type: 'object',
   description:
-    'Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the caller-injected change set against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds, then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the loop is a hard cutover (always on).',
+    'Story #3819. Bounded per-Story acceptance self-eval loop. After the implementation commits land and before the Story-implementation phase flips to `closing`, an independent (fresh-context) critic pass scores the caller-injected change set against each inline `acceptance[]` item, redrafts the unmet items, and re-evaluates — capped at `maxRounds` redraft rounds (0 = scored once, no redraft), then escalates to `agent::blocked` when criteria remain unmet. There is no `enabled` flag: the scoring pass is a hard cutover (always on).',
   properties: {
     maxRounds: {
       type: 'integer',
-      minimum: 1,
+      minimum: 0,
       description:
-        'Maximum number of redraft rounds before escalation. Default 2; clamped into [1, hard ceiling] by lib/config/acceptance-eval.js so the cap can never be disabled (maxRounds: 0 clamps up to 1).',
+        'Maximum number of redraft rounds before escalation. Default 2; 0 means the verdict is scored once with no redraft round (Story #5313 dropped the hard ceiling and the floor-of-one clamp).',
       default: ACCEPTANCE_EVAL_DEFAULTS.maxRounds,
     },
   },
@@ -656,14 +604,13 @@ const TEMP_RETENTION_SCHEMA = {
 export const DELIVERY_SCHEMA = {
   type: 'object',
   description:
-    'Everything `/mandrel-deliver` and `single-story-close` consume: execution timeouts, worktree isolation, runner concurrency, docs freshness, signals, quality gates, merge/CI watch, review ceremony, and the feedback loop.',
+    'Everything `/mandrel-deliver` and `single-story-close` consume: execution timeouts, worktree isolation, runner concurrency, docs freshness, quality gates, merge/CI watch, review ceremony, and the feedback loop.',
   properties: {
     execution: EXECUTION_SCHEMA,
     docsFreshness: DOCS_FRESHNESS_SCHEMA,
     tempRetention: TEMP_RETENTION_SCHEMA,
     deliverRunner: DELIVER_RUNNER_SCHEMA,
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
-    signals: SIGNALS_SCHEMA,
     // `quality.gates.crap.incrementalCoverage` (Story #4981) is declared in
     // `config/gates/crap.schema.js` and reaches AJV validation through this
     // property — QUALITY_SCHEMA → GATES_SCHEMA → CRAP_GATE. No separate

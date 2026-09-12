@@ -17,8 +17,8 @@
  *   1. Validate the verdict file against the verdict JSON Schema (a
  *      malformed verdict is a hard error — the loop refuses to guess).
  *   2. Decide `proceed | redraft | block` from the per-criterion verdicts
- *      and the resolved, undisableable round cap
- *      (`delivery.acceptanceEval.maxRounds`, clamped to `[1, ceiling]`).
+ *      and the resolved redraft budget (`delivery.acceptanceEval.maxRounds`;
+ *      `0` means the verdict is scored once with no redraft round).
  *   3. Emit one per-criterion `acceptance-eval` signal into the retro /
  *      feedback substrate so the retro and `/mandrel-plan` Phase 0 feedback
  *      fetch can see which acceptance items needed rework and the round
@@ -46,14 +46,19 @@
  * the caller into ONE verdict — `criteria[]` in acceptance-array order — and
  * scored here exactly once. Invoking the gate per cluster instead would burn
  * one Story-level round per cluster (distinct fingerprints defeat the replay
- * guard) and race the `signals.ndjson` round ledger. `--expected-criteria`
- * makes that contract enforceable: a partial (single-cluster) verdict is
- * rejected before scoring, so the mistake costs no round.
+ * guard) and race the `signals.ndjson` round ledger. The gate reads the
+ * Story's own `acceptance[]` count off its body (Story #5313) and rejects a
+ * verdict whose `criteria[]` length differs **before** scoring, so the
+ * mistake costs no round. `--expected-criteria` is still accepted but is
+ * redundant with the derived count: when both are known they must agree.
+ * An inline-owned verdict is one file scored in one call — the cluster
+ * merge applies only to fresh critics.
  *
  * CLI:
  *   --story <id>              Story ID (required).
  *   --verdict <path>          Path to the round's verdict JSON (required).
- *   --expected-criteria <n>   Reject a verdict not covering exactly n criteria.
+ *   --expected-criteria <n>   Optional; must equal the Story's acceptance[]
+ *                             count when the body is readable.
  *   --no-signal               Suppress the signal emit (tests).
  *
  * Stdout: a single JSON envelope
@@ -93,6 +98,8 @@ import {
   FULL_SUITE_SHAPE_WARNING,
   isFullSuiteCommand,
 } from './lib/orchestration/verify-credit.js';
+import { createProvider } from './lib/provider-factory.js';
+import { parse as parseStoryBody } from './lib/story-body/story-body.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -182,9 +189,57 @@ const MERGE_CONTRACT =
   'one per acceptance item, before scoring.';
 
 /**
+ * Read the Story's `acceptance[]` count off its body (Story #5313), so the
+ * coverage assertion no longer depends on the caller restating a number it
+ * already read. Total: any failure — no provider, an unreadable ticket, an
+ * unparseable body — yields `null`, which routes the caller to the flag (when
+ * passed) and otherwise to a stated, logged skip. It never manufactures a
+ * count.
+ *
+ * @param {{ storyId: number, config: object }} args
+ * @param {{ createProviderFn?: typeof createProvider, parseBodyFn?: typeof parseStoryBody }} [deps]
+ * @returns {Promise<number|null>}
+ */
+export async function readStoryAcceptanceCount(
+  { storyId, config },
+  { createProviderFn = createProvider, parseBodyFn = parseStoryBody } = {},
+) {
+  try {
+    const ticket = await createProviderFn(config).getTicket(storyId);
+    const body = typeof ticket?.body === 'string' ? ticket.body : null;
+    if (body === null) return null;
+    const acceptance = parseBodyFn(body)?.body?.acceptance;
+    return Array.isArray(acceptance) && acceptance.length > 0
+      ? acceptance.length
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reconcile the body-derived count with the optional flag (Story #5313): the
+ * derived count is authoritative; a flag that disagrees with it is a wiring
+ * error worth failing on rather than a value to prefer silently.
+ *
+ * @param {{ derived: number|null, flagged: number|null }} args
+ * @returns {number|null}
+ */
+export function reconcileExpectedCriteria({ derived, flagged }) {
+  if (derived === null) return flagged;
+  if (flagged !== null && flagged !== derived) {
+    throw new Error(
+      `acceptance-eval: --expected-criteria ${flagged} disagrees with the Story's acceptance[] count (${derived}); drop the flag — the gate reads the count itself.`,
+    );
+  }
+  return derived;
+}
+
+/**
  * Resolve the optional `--expected-criteria` flag to a positive integer, or
- * `null` when the flag is absent (which preserves the pre-#4951 behaviour
- * exactly — no coverage assertion is made).
+ * `null` when the flag is absent. Since Story #5313 the gate derives the
+ * count from the Story body; the flag remains accepted for callers that
+ * still pass it and is checked against the derived value.
  *
  * Exported for tests.
  *
@@ -225,7 +280,7 @@ export function assertCriteriaCoverage(verdict, expectedCriteria) {
   const actual = Array.isArray(verdict?.criteria) ? verdict.criteria.length : 0;
   if (actual === expectedCriteria) return;
   throw new Error(
-    `acceptance-eval: verdict covers ${actual} criteria but --expected-criteria is ${expectedCriteria}. ` +
+    `acceptance-eval: verdict covers ${actual} criteria but the Story's acceptance[] count is ${expectedCriteria}. ` +
       `${MERGE_CONTRACT} No round was consumed.`,
   );
 }
@@ -409,6 +464,7 @@ export async function runAcceptanceEval(
  *   resolveConfigImpl?: typeof resolveConfig,
  *   validateVerdictImpl?: typeof validateVerdict,
  *   runAcceptanceEvalImpl?: typeof runAcceptanceEval,
+ *   readAcceptanceCountImpl?: typeof readStoryAcceptanceCount,
  *   logger?: { info: Function, warn?: Function },
  * }} [deps]
  * @returns {Promise<object>} the emitted envelope.
@@ -422,11 +478,12 @@ export async function runAcceptanceEvalCli(
     resolveConfigImpl = resolveConfig,
     validateVerdictImpl = validateVerdict,
     runAcceptanceEvalImpl = runAcceptanceEval,
+    readAcceptanceCountImpl = readStoryAcceptanceCount,
     logger = Logger,
   } = deps;
   const { storyId, verdictPath, expectedCriteria, emitSignal } =
     parseCliArgs(argv);
-  const expected = resolveExpectedCriteria(expectedCriteria);
+  const flagged = resolveExpectedCriteria(expectedCriteria);
 
   if (!storyId) {
     throw new Error(
@@ -461,9 +518,17 @@ export async function runAcceptanceEvalCli(
 
   const verdict = validateVerdictImpl(parsed);
 
-  // Story #4951: a merged verdict must cover every acceptance[] item. This
-  // runs before the round ledger is touched, so a partial cluster verdict is
-  // a free mistake.
+  // Story #4951 / #5313: a merged verdict must cover every acceptance[] item,
+  // and the count comes from the Story body itself. This runs before the
+  // round ledger is touched, so a partial cluster verdict is a free mistake.
+  const config = resolveConfigImpl();
+  const derived = await readAcceptanceCountImpl({ storyId, config });
+  const expected = reconcileExpectedCriteria({ derived, flagged });
+  if (expected === null) {
+    logger.warn?.(
+      '[acceptance-eval] ⚠ the Story acceptance[] count could not be read and no --expected-criteria was passed — the coverage assertion is skipped for this round.',
+    );
+  }
   assertCriteriaCoverage(verdict, expected);
 
   // A verdict whose embedded storyId disagrees with the CLI flag is a
@@ -479,7 +544,6 @@ export async function runAcceptanceEvalCli(
   // caller that injects its own scorer.
   warnOnFullSuiteVerify(verdict, logger);
 
-  const config = resolveConfigImpl();
   const { envelope, exitCode } = await runAcceptanceEvalImpl({
     storyId,
     verdict,
@@ -522,9 +586,9 @@ runAsCli(import.meta.url, main, {
       ['--verdict <path>', 'Path to the authored verdict JSON (required).'],
       [
         '--expected-criteria <n>',
-        'Reject — before scoring, consuming no round — a verdict whose criteria[] ' +
-          "length is not n. Pass the Story's acceptance[] count so a partial " +
-          'cluster verdict cannot be scored as the round.',
+        "Optional and redundant since Story #5313: the gate reads the Story's " +
+          'acceptance[] count itself and rejects a shorter verdict before ' +
+          'scoring. When passed it must agree with that count.',
       ],
       [
         '--no-signal',

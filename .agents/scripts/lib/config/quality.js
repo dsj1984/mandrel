@@ -491,10 +491,15 @@ function resolveCoverageGate(userBlock) {
  * before this value is ever read. `maintainability.tolerance` is the one
  * documented MI-drop control now; see `lib/migrations/index.js` for the
  * consumer-config migration that strips a leftover key on upgrade.
+ *
+ * `cyclomaticMustFix` was retired in Story #5313: the cyclomatic ratchet
+ * (`check-cyclomatic.js`) keeps a fixed ceiling of 12
+ * (`lib/cyclomatic-ceiling.js#CYCLOMATIC_CEILING`), and `cyclomaticFlag` is
+ * the one advisory knob left — `quality-preview.js` reports over-flag
+ * methods without failing on them.
  */
 export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
   cyclomaticFlag: 8,
-  cyclomaticMustFix: 12,
   requireSiblingTest: false,
 });
 
@@ -512,8 +517,6 @@ export function resolveCodingGuardrails(userBlock) {
   );
   return {
     cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
-    cyclomaticMustFix:
-      userBlock.cyclomaticMustFix ?? defaults.cyclomaticMustFix,
     requireSiblingTest:
       typeof userBlock.requireSiblingTest === 'boolean'
         ? userBlock.requireSiblingTest

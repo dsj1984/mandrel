@@ -1,6 +1,7 @@
 /**
  * CLI: ratchet on cyclomatic complexity against
- * `delivery.quality.codingGuardrails.cyclomaticMustFix` (Story #4923).
+ * the fixed cyclomatic ceiling of 12 (Story #4923; the `cyclomaticMustFix`
+ * config key was retired in Story #5313).
  *
  * The must-fix ceiling was documented as blocking (`code-quality-guardrails.md`
  * promises "the close-validation chain refuses the merge") while being read by
@@ -158,7 +159,7 @@ function warnAboutBaseline({ baseline, mustFix, baselinePath, stderr }) {
   }
   if (typeof baseline.ceiling === 'number' && baseline.ceiling !== mustFix) {
     stderr.write(
-      `[cyclomatic] ⚠ baseline was recorded at ceiling c=${baseline.ceiling} but the configured cyclomaticMustFix is c=${mustFix} — re-run with --update\n`,
+      `[cyclomatic] ⚠ baseline was recorded at ceiling c=${baseline.ceiling} but the enforced ceiling is c=${mustFix} — re-run with --update\n`,
     );
   }
 }
@@ -265,7 +266,7 @@ runAsCli(import.meta.url, main, {
     invocation:
       'node .agents/scripts/check-cyclomatic.js [--baseline <path>] [--update] [--json]',
     summary:
-      'Ratchet on cyclomatic complexity: fail when a file gains a function above `delivery.quality.codingGuardrails.cyclomaticMustFix`, or when its worst function gets worse than the recorded baseline.',
+      'Ratchet on cyclomatic complexity: fail when a file gains a function above the fixed ceiling of 12, or when its worst function gets worse than the recorded baseline.',
     flags: [
       [
         '--baseline <path>',

@@ -150,7 +150,7 @@ describe('signal-event.schema.json', () => {
   });
 });
 
-describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () => {
+describe('agentrc delivery.signals — retired (Story #5313)', () => {
   const validate = getAgentrcValidator();
   const REQ = Object.freeze({
     project: {
@@ -163,72 +163,20 @@ describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () =>
     assert.equal(validate({ ...REQ, delivery: {} }), true);
   });
 
-  it('accepts a fully-populated two-detector signals block', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: {
-        signals: {
-          rework: { editsPerFile: 5 },
-          retry: { repeatCount: 3 },
-        },
-      },
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-
-  it('rejects the dropped churn detector', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { churn: { repeatCount: 4 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('rejects the dropped idle detector', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { idle: { gapSeconds: 120 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('rejects the retired hotspot detector', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { hotspot: { p95Multiplier: 1.25 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('accepts a partial signals block (single detector override)', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { rework: { editsPerFile: 7 } } },
-    });
-    assert.equal(ok, true, JSON.stringify(validate.errors));
-  });
-
-  it('rejects a typo under signals.* (additionalProperties: false)', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { rewrk: { editsPerFile: 1 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('rejects a typo inside a detector block', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { rework: { editsPerFil: 5 } } },
-    });
-    assert.equal(ok, false);
-  });
-
-  it('rejects sub-1 editsPerFile (integer minimum 1)', () => {
-    const ok = validate({
-      ...REQ,
-      delivery: { signals: { rework: { editsPerFile: 0 } } },
-    });
-    assert.equal(ok, false);
+  it('rejects any delivery.signals block — the detector thresholds are gone', () => {
+    for (const signals of [
+      { rework: { editsPerFile: 5 }, retry: { repeatCount: 3 } },
+      { rework: { editsPerFile: 7 } },
+      { churn: { repeatCount: 4 } },
+      { idle: { gapSeconds: 120 } },
+      { hotspot: { p95Multiplier: 1.25 } },
+      {},
+    ]) {
+      assert.equal(
+        validate({ ...REQ, delivery: { signals } }),
+        false,
+        JSON.stringify(signals),
+      );
+    }
   });
 });

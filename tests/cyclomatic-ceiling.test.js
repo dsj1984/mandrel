@@ -6,11 +6,11 @@
 // promised "the close-validation chain refuses the merge" over a value with no
 // consumer. `check-cyclomatic.js` is that consumer.
 //
-// The load-bearing assertion here is not "some ceiling is enforced" — it is
-// that the ceiling enforced is the **resolved config value**. A fixture repo
-// sets `cyclomaticMustFix: 3`, and a function scoring c=4 fails the gate; the
-// same function passes untouched at the framework default of 12. A hardcoded
-// literal cannot produce both outcomes.
+// Story #5313 retired the config key: the enforced ceiling is the fixed
+// `CYCLOMATIC_CEILING` (12), so a consumer cannot bound this gate by tuning a
+// number. The assertions below pin that a c=13 function fails the gate, a
+// c=12 one passes, and a leftover `cyclomaticMustFix` in a config tunes
+// nothing.
 
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -20,6 +20,7 @@ import { after, describe, test } from 'node:test';
 import { runCli } from '../.agents/scripts/check-cyclomatic.js';
 import {
   buildCyclomaticEnvelope,
+  CYCLOMATIC_CEILING,
   diffCyclomaticRows,
   renderCyclomaticDiff,
   resolveCyclomaticPolicy,
@@ -45,7 +46,7 @@ function branchySource(name, branches) {
   return `export function ${name}(n) {\n${body}\n  return -1;\n}\n`;
 }
 
-function fixtureRepo({ mustFix, files }) {
+function fixtureRepo({ files }) {
   const root = makeTempDir('cyclomatic-');
   created.push(root);
   mkdirSync(path.join(root, 'src'), { recursive: true });
@@ -59,9 +60,6 @@ function fixtureRepo({ mustFix, files }) {
         github: { owner: 'x', repo: 'y', operatorHandle: '@ci' },
         delivery: {
           quality: {
-            ...(mustFix === undefined
-              ? {}
-              : { codingGuardrails: { cyclomaticMustFix: mustFix } }),
             gates: { maintainability: { targetDirs: ['src'] } },
           },
         },
@@ -92,12 +90,17 @@ function captureRun(root, argv) {
 }
 
 describe('resolveCyclomaticPolicy', () => {
-  test('reads the resolved guardrails, not a literal', () => {
+  test('reads the advisory flag from the guardrails and the fixed ceiling (Story #5313)', () => {
     const policy = resolveCyclomaticPolicy({
       codingGuardrails: { cyclomaticMustFix: 5, cyclomaticFlag: 3 },
       maintainability: { targetDirs: ['src'], ignoreGlobs: ['src/gen/**'] },
     });
-    assert.equal(policy.mustFix, 5);
+    assert.equal(policy.mustFix, CYCLOMATIC_CEILING);
+    assert.equal(
+      policy.mustFix,
+      12,
+      'a leftover cyclomaticMustFix tunes nothing',
+    );
     assert.equal(policy.flag, 3);
     assert.deepEqual(policy.targetDirs, ['src']);
     assert.deepEqual(policy.ignoreGlobs, ['src/gen/**']);
@@ -208,7 +211,6 @@ describe('buildCyclomaticEnvelope', () => {
 describe('scanCyclomatic scores real source through the escomplex kernel', () => {
   test('a c=4 function breaches a ceiling of 3 and clears a ceiling of 12', () => {
     const root = fixtureRepo({
-      mustFix: 3,
       files: { 'branchy.js': branchySource('branchy', 3) },
     });
     const strict = scanCyclomatic({
@@ -289,11 +291,10 @@ describe('renderCyclomaticDiff', () => {
   });
 });
 
-describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
-  test('a function over the configured ceiling fails the gate', async () => {
+describe('check-cyclomatic.js enforces the fixed ceiling of 12', () => {
+  test('a function over the ceiling fails the gate', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     const res = await captureRun(root, []);
     assert.equal(
@@ -305,9 +306,9 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
     assert.match(res.stdout, /gate fail/);
   });
 
-  test('the same function passes when the ceiling is the framework default', async () => {
+  test('a function at the ceiling passes, and a leftover config key cannot lower it', async () => {
     const root = fixtureRepo({
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 11) },
     });
     const res = await captureRun(root, []);
     assert.equal(res.exitCode, 0, res.stdout);
@@ -316,8 +317,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
 
   test('--update records the existing breaches, after which the gate is green', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     mkdirSync(path.join(root, 'baselines'), { recursive: true });
     const updated = await captureRun(root, ['--update']);
@@ -326,7 +326,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
     const written = JSON.parse(
       readFileSync(path.join(root, 'baselines', 'cyclomatic.json'), 'utf8'),
     );
-    assert.equal(written.ceiling, 3);
+    assert.equal(written.ceiling, 12);
     assert.equal(written.rollup['*'].methodsAboveCeiling, 1);
 
     const after = await captureRun(root, []);
@@ -335,8 +335,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
 
   test('a NEW over-ceiling function still fails once the pre-existing ones are baselined', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     mkdirSync(path.join(root, 'baselines'), { recursive: true });
     await captureRun(root, ['--update']);
@@ -345,7 +344,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
     // forgiven, the one this change introduces is not.
     writeFileSync(
       path.join(root, 'src', 'added.js'),
-      branchySource('addedLater', 5),
+      branchySource('addedLater', 14),
     );
     const res = await captureRun(root, []);
     assert.equal(res.exitCode, 1, res.stdout);
@@ -355,8 +354,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
 
   test('a baseline recorded at another ceiling is called out, not trusted silently', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     mkdirSync(path.join(root, 'baselines'), { recursive: true });
     writeFileSync(
@@ -364,7 +362,7 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
       JSON.stringify({
         ceiling: 99,
         rows: [
-          { file: 'src/branchy.js', methodsAboveCeiling: 1, maxCyclomatic: 4 },
+          { file: 'src/branchy.js', methodsAboveCeiling: 1, maxCyclomatic: 13 },
         ],
       }),
     );
@@ -374,23 +372,21 @@ describe('check-cyclomatic.js enforces the resolved cyclomaticMustFix', () => {
 
   test('a missing baseline is announced, then treated as empty', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     const res = await captureRun(root, []);
     assert.match(res.stderr, /baseline not found/);
     assert.equal(res.exitCode, 1);
   });
 
-  test('--json reports the resolved ceiling alongside the verdict', async () => {
+  test('--json reports the fixed ceiling alongside the verdict', async () => {
     const root = fixtureRepo({
-      mustFix: 3,
-      files: { 'branchy.js': branchySource('branchy', 3) },
+      files: { 'branchy.js': branchySource('branchy', 12) },
     });
     const res = await captureRun(root, ['--json']);
     const envelope = JSON.parse(res.stdout);
     assert.equal(envelope.kind, 'cyclomatic-report');
-    assert.equal(envelope.ceiling, 3);
+    assert.equal(envelope.ceiling, 12);
     assert.equal(envelope.exitCode, 1);
     assert.equal(envelope.added.length, 1);
   });

@@ -85,7 +85,6 @@ describe('getRunners', () => {
       const r = getRunners(input);
       assert.deepEqual(r.codeReview, {
         maxFixAttempts: 3,
-        maxFixScopeFiles: 5,
         autoFixSeverity: 'medium',
       });
     }
@@ -93,11 +92,10 @@ describe('getRunners', () => {
 
   it('reads delivery.codeReview overrides from config', () => {
     const r = getRunners({
-      delivery: { codeReview: { maxFixAttempts: 0, maxFixScopeFiles: 2 } },
+      delivery: { codeReview: { maxFixAttempts: 0 } },
     });
     assert.deepEqual(r.codeReview, {
       maxFixAttempts: 0,
-      maxFixScopeFiles: 2,
       autoFixSeverity: 'medium',
     });
   });

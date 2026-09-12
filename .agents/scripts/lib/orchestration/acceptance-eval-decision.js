@@ -43,11 +43,12 @@
  *                  The Story escalates to `agent::blocked`; it never
  *                  silently proceeds to close.
  *
- * ## The undisableable cap
+ * ## The cap
  *
- * `maxRounds` arrives already clamped by `lib/config/acceptance-eval.js`
- * into `[1, ceiling]`, but this reducer defends the invariant a second
- * time: a non-positive or non-integer cap is coerced to 1, so there is no
+ * `maxRounds` arrives normalized by `lib/config/acceptance-eval.js` as a
+ * non-negative integer (Story #5313: `0` means "score once, no redraft").
+ * This reducer maps that onto an effective cap of scored rounds: a cap of
+ * `0`, a negative value or a non-integer is coerced to 1, so there is no
  * input — config or verdict — that yields an unbounded `redraft` chain.
  * When `round >= effectiveCap` and criteria remain unmet, the only
  * possible action is `block`.

@@ -148,7 +148,7 @@ describe('agentrc-reference.json — restated defaults still track their runtime
     });
   }
 
-  it('the restated set is exhaustive for worktreeIsolation and execution/signals', () => {
+  it('the restated set is exhaustive for worktreeIsolation and execution', () => {
     // These blocks import their constants member-wise, so the assertion is
     // cheap insurance that the import actually reached the annotation.
     const ref = getAgentrcDefaults({ bustCache: true });
@@ -169,7 +169,11 @@ describe('agentrc-reference.json — restated defaults still track their runtime
       ref.delivery.execution.timeoutMs,
       LIMITS_DEFAULTS.executionTimeoutMs,
     );
-    assert.deepEqual(ref.delivery.signals, { ...LIMITS_DEFAULTS.signals });
+    assert.equal(
+      ref.delivery.signals,
+      undefined,
+      'delivery.signals was retired in Story #5313',
+    );
   });
 });
 
@@ -221,7 +225,11 @@ describe('agentrc-reference.json — retired keys stay out', () => {
       'delivery.lifecycle',
       'delivery.retro',
       'delivery.failOnConcurrencyHazards',
+      'delivery.signals',
       'delivery.signals.hotspot',
+      'delivery.codeReview.maxFixScopeFiles',
+      'delivery.routing.freshCriticSampleRate',
+      'delivery.quality.codingGuardrails.cyclomaticMustFix',
       'delivery.ci.skipForStoryPushes',
       'delivery.ci.earlyPr',
       'delivery.ci.requireChecks',
