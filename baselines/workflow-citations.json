@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/workflow-citations.schema.json",
-  "generatedAt": "2026-09-12T15:35:37.667Z",
-  "total": 9,
+  "generatedAt": "2026-09-12T15:50:46.697Z",
+  "total": 10,
   "files": [
     {
       "path": ".agents/workflows/helpers/deliver-light.md",
-      "count": 1
+      "count": 2
     },
     {
       "path": ".agents/workflows/helpers/deliver-story-reference.md",

@@ -10,6 +10,7 @@ import {
   deriveFixGuidance,
   finalizeMethodRows,
   finalizeMethodRowsWithBaseline,
+  UNSCORABLE,
 } from '../../.agents/scripts/lib/crap-engine.js';
 import {
   deriveMethodIdentities,
@@ -182,14 +183,40 @@ export function unscored(x) { return x * 2; }
   assert.strictEqual(unscored.crap, null);
 });
 
-test('calculateCrapForSource — invalid syntax returns empty array', () => {
+test('calculateCrapForSource — invalid syntax returns UNSCORABLE, not []', () => {
+  // Story #5311: `[]` here is what made every caller's unscorable-drop path
+  // unreachable — a parse failure arrived looking exactly like a method-free
+  // file and landed in the baseline as a clean zero.
   const rows = calculateCrapForSource('function foo( {', null);
-  assert.deepStrictEqual(rows, []);
+  assert.strictEqual(rows, UNSCORABLE);
+  assert.strictEqual(rows, null);
 });
 
 test('calculateCrapForSource — source with no methods returns empty array', () => {
   const rows = calculateCrapForSource('const x = 1;\nconst y = 2;\n', null);
   assert.deepStrictEqual(rows, []);
+});
+
+test('calculateCrapForSource — unscorable and method-free are distinguishable', () => {
+  const unscorable = calculateCrapForSource('function foo( {', null);
+  const methodFree = calculateCrapForSource('const x = 1;\n', null);
+  assert.notDeepStrictEqual(unscorable, methodFree);
+  assert.strictEqual(unscorable, null);
+  assert.ok(Array.isArray(methodFree) && methodFree.length === 0);
+});
+
+test('calculateCrapForSource — the AST shim is installed by importing the kernel', () => {
+  // The shim used to reach the CRAP scorers only as a side effect of
+  // `maintainability-engine.js` being in the serial path's import graph; the
+  // worker's graph never included it, so this source scored zero rows there
+  // and 1 row serially (Story #5311). `for (… of … /regex/ …)` is one of the
+  // nine traits that re-serialise a sub-AST through the defective generator.
+  const source =
+    'export function f(s) {\n  for (const t of s.split(/[^a-z]+/)) void t;\n}\n';
+  const rows = calculateCrapForSource(source, null);
+  assert.ok(Array.isArray(rows), 'source must be scorable, not UNSCORABLE');
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].method, 'f');
 });
 
 test('calculateCrapForSource — rows carry escomplex lineStart for baseline matching', () => {

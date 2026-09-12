@@ -154,6 +154,7 @@ async function main() {
       scannedFiles,
       skippedFilesNoCoverage,
       skippedMethodsNoCoverage,
+      unscorableFiles,
       resolution,
     } = await scanAndScore({
       targetDirs,
@@ -165,15 +166,24 @@ async function main() {
     });
 
     Logger.info(`[CRAP] Scanned ${scannedFiles} file(s).`);
-    if (skippedFilesNoCoverage > 0) {
-      Logger.info(
-        `[CRAP] Skipped ${skippedFilesNoCoverage} file(s) without coverage entries.`,
-      );
-    }
-    if (skippedMethodsNoCoverage > 0) {
-      Logger.info(
-        `[CRAP] Skipped ${skippedMethodsNoCoverage} method(s) whose per-method coverage was unresolved.`,
-      );
+    // Each drop counter earns a line only when it moved, so a clean scan stays
+    // one line. Story #5311 added `unscorableFiles`: a file the scan could not
+    // read, transpile or parse contributes no rows, so without a line of its
+    // own the run reads as a clean scan of a tree with fewer methods than it
+    // has — which is exactly how the worker path's losses stayed invisible.
+    const dropCounters = [
+      [skippedFilesNoCoverage, 'file(s) skipped without coverage entries.'],
+      [
+        skippedMethodsNoCoverage,
+        'method(s) skipped — per-method coverage unresolved.',
+      ],
+      [
+        unscorableFiles,
+        'file(s) unscorable (read/transpile/parse failure) — no rows contributed.',
+      ],
+    ];
+    for (const [count, what] of dropCounters) {
+      if (count > 0) Logger.info(`[CRAP] ${count} ${what}`);
     }
     if (resolution) {
       Logger.info(

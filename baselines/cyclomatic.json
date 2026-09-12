@@ -1,6 +1,6 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-12T15:35:05.129Z",
+  "generatedAt": "2026-09-12T15:50:36.382Z",
   "ceiling": 12,
   "rollup": {
     "*": {
@@ -113,7 +113,7 @@
     {
       "file": ".agents/scripts/lib/orchestration/file-assumptions.js",
       "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
+      "maxCyclomatic": 13
     },
     {
       "file": ".agents/scripts/lib/orchestration/git-cleanup/phases/render.js",
