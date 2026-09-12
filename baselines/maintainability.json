@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T20:13:34.236Z",
+  "generatedAt": "2026-09-12T20:34:11.717Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.119,
+      "p50": 99.132,
       "p95": 122.902
     }
   },
@@ -1475,6 +1475,10 @@
       "mi": 97.72
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
+      "mi": 100.527
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "mi": 96.376
     },
@@ -1560,7 +1564,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 90.381
+      "mi": 87.426
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",

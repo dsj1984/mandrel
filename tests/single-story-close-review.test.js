@@ -4,8 +4,9 @@
  * Story #2839 (Epic #2815, Pluggable Code Review).
  *
  * The review step runs after `gh pr create` and:
- *   - invokes `runCodeReview` with `{ scope: 'story', baseRef: 'main',
- *     headRef: 'story-<id>', commentTargetId: <prNumber> }`,
+ *   - invokes `runCodeReview` with `{ scope: 'story', baseRef: 'origin/main',
+ *     headRef: 'story-<id>', commentTargetId: <prNumber> }` — the remote-tracking
+ *     ref base-sync merged from, never the bare local branch (Story #5325),
  *   - posts the structured findings comment to the PR (not the Story),
  *   - posts a one-line cross-reference comment back on the Story issue,
  *   - fails the close non-zero when any `critical` Finding is present
@@ -97,6 +98,32 @@ function makeFakeGh(handler) {
   };
 }
 
+/**
+ * A `gitSpawn` stub for the review phase's base-ref resolution (Story #5325).
+ *
+ * `resolveBase: false` models the fail-safe state — a `--skip-sync` close or a
+ * remote-less checkout where `origin/<base>` was never fetched. `diff` maps a
+ * `<base>...<head>` range to the file list `git diff --name-only` would print
+ * for it, so a test can give the stale local ref and the remote ref *different*
+ * change sets and assert which one the review actually scored.
+ */
+function gitSpawnStub({ resolveBase = true, diff = {} } = {}) {
+  return (_cwd, ...args) => {
+    const miss = { status: 1, stdout: '', stderr: '' };
+    if (args[0] === 'rev-parse') {
+      return resolveBase
+        ? { status: 0, stdout: 'deadbeefdeadbeef\n', stderr: '' }
+        : miss;
+    }
+    if (args[0] === 'diff' && args[1] === '--name-only') {
+      const files = diff[args[2]];
+      if (!files) return miss;
+      return { status: 0, stdout: `${files.join('\n')}\n`, stderr: '' };
+    }
+    return miss;
+  };
+}
+
 function fakeProviderRecorder() {
   const postedComments = [];
   const updates = [];
@@ -156,7 +183,15 @@ function gitUtilsMock() {
       // `gitSpawn` in the close import graph. Same rule as the retries above:
       // the static import resolves whether or not the tail runs, so the mock
       // must surface it. status:1 = "ref absent" (the tail's no-op path).
-      gitSpawn: () => ({ status: 1, stdout: '', stderr: '' }),
+      //
+      // Story #5325 — the review phase now resolves `origin/<base>` through
+      // this same export before it will score anything, so the one probe that
+      // must succeed is that `rev-parse`; everything else keeps the
+      // "ref absent" answer the tail expects.
+      gitSpawn: (_cwd, ...args) =>
+        args[0] === 'rev-parse' && `${args.at(-1)}`.startsWith('origin/')
+          ? { status: 0, stdout: 'deadbeefdeadbeef\n', stderr: '' }
+          : { status: 1, stdout: '', stderr: '' },
       createGitInterface: () => ({
         gitSync: () => '',
         gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }),
@@ -222,6 +257,7 @@ describe('runStoryScopeReview (direct)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -232,7 +268,7 @@ describe('runStoryScopeReview (direct)', () => {
     assert.deepEqual(seen.runReview, {
       scope: 'story',
       ticketId: 2839,
-      baseRef: 'main',
+      baseRef: 'origin/main',
       headRef: 'story-2839',
       commentTargetId: 123,
     });
@@ -260,6 +296,7 @@ describe('runStoryScopeReview (direct)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -314,6 +351,7 @@ describe('runStoryScopeReview (direct)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -341,6 +379,7 @@ describe('runStoryScopeReview (direct)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://example.com/not-a-pr',
       prNumber: null,
       provider: recorder.provider,
@@ -364,6 +403,7 @@ describe('runStoryScopeReview (direct)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -380,6 +420,149 @@ describe('runStoryScopeReview (direct)', () => {
     });
     assert.equal(out.crossRefPosted, false);
     assert.equal(recorder.postedComments.length, 0);
+  });
+});
+
+describe('shared base ref (Story #5325)', () => {
+  const STORY_FILE = '.agents/scripts/lib/orchestration/code-review.js';
+  const FOREIGN_FILE = 'docs/someone-elses-landed-change.md';
+
+  /** Records what the review was handed, plus a clean envelope. */
+  function recordingReview(seen) {
+    return async (opts) => {
+      seen.baseRef = opts.baseRef;
+      seen.changedFiles = opts.changedFiles;
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: true,
+        postedCommentId: 9001,
+        commentTargetId: opts.commentTargetId,
+        halted: false,
+        blockerReason: null,
+      };
+    };
+  }
+
+  it('diffs against the remote base ref base-sync merged from, and says so', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    const seen = {};
+    const lensCalls = [];
+    const lines = [];
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      gitSpawnFn: gitSpawnStub({
+        diff: { 'origin/main...story-2839': [STORY_FILE] },
+      }),
+      runCodeReviewFn: recordingReview(seen),
+      runLocalLensReviewFn: async (args) => {
+        lensCalls.push(args);
+        return { depth: 'light', lenses: [], skipped: true };
+      },
+      progress: (_tag, msg) => lines.push(msg),
+    });
+
+    assert.equal(seen.baseRef, 'origin/main');
+    // AC-1: both arms of the review — the provider pillar and the local lens
+    // pass — are measured against the same remote ref.
+    assert.equal(lensCalls[0].baseRef, 'origin/main');
+    // AC-3: the progress line names the ref the diff actually used.
+    assert.ok(
+      lines.some((m) => m.includes('origin/main...story-2839')),
+      'the REVIEW progress line names the resolved base ref',
+    );
+  });
+
+  it('a local base branch behind its remote does not widen the reviewed file set', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    const seen = {};
+    const lensCalls = [];
+    await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      // The defect's exact shape: local `main` is behind `origin/main`, so
+      // diffing the bare branch name drags in a file someone else landed.
+      gitSpawnFn: gitSpawnStub({
+        diff: {
+          'main...story-2839': [FOREIGN_FILE, STORY_FILE],
+          'origin/main...story-2839': [STORY_FILE],
+        },
+      }),
+      runCodeReviewFn: recordingReview(seen),
+      runLocalLensReviewFn: async (args) => {
+        lensCalls.push(args);
+        return { depth: 'light', lenses: [], skipped: true };
+      },
+      progress: () => {},
+    });
+
+    assert.deepEqual(
+      seen.changedFiles,
+      [STORY_FILE],
+      "the review scores the Story's own change set, not the stale local diff",
+    );
+    assert.deepEqual(lensCalls[0].changedFiles, [STORY_FILE]);
+    assert.ok(
+      !seen.changedFiles.includes(FOREIGN_FILE),
+      'a commit this Story never made must not reach the review',
+    );
+  });
+
+  it('records a degradation and raises nothing when the remote base cannot be resolved', async () => {
+    const { runStoryScopeReview } = await import(SUT_URL);
+    const recorder = fakeProviderRecorder();
+    let reviewRan = false;
+    const lines = [];
+    const out = await runStoryScopeReview({
+      cwd: '/repo',
+      storyId: 2839,
+      storyBranch: 'story-2839',
+      baseBranch: 'main',
+      prUrl: 'https://github.com/owner/repo/pull/123',
+      prNumber: 123,
+      provider: recorder.provider,
+      // `--skip-sync`, or a checkout with no origin: nothing fetched the ref.
+      gitSpawnFn: gitSpawnStub({
+        resolveBase: false,
+        diff: { 'main...story-2839': [FOREIGN_FILE, STORY_FILE] },
+      }),
+      runCodeReviewFn: async () => {
+        reviewRan = true;
+        return { halted: false };
+      },
+      progress: (_tag, msg) => lines.push(msg),
+    });
+
+    assert.equal(reviewRan, false, 'nothing is scored against the local ref');
+    assert.equal(out.halted, false);
+    assert.equal(out.severity.critical, 0);
+    assert.equal(out.degraded, true);
+    assert.deepEqual(out.degradations, [
+      {
+        tool: 'story-scope-review',
+        gate: 'base-ref-resolution',
+        surface: 'origin/main',
+        reason: 'remote-base-ref-unresolved',
+      },
+    ]);
+    assert.equal(recorder.postedComments.length, 0);
+    assert.ok(
+      lines.some((m) => m.includes('origin/main')),
+      'the operator is told which ref could not be resolved',
+    );
   });
 });
 
@@ -403,6 +586,7 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -454,6 +638,7 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -496,6 +681,7 @@ describe('findings-yield ledger (Story #4699, AC-3)', () => {
       storyId: 2839,
       storyBranch: 'story-2839',
       baseBranch: 'main',
+      gitSpawnFn: gitSpawnStub(),
       prUrl: 'https://github.com/owner/repo/pull/123',
       prNumber: 123,
       provider: recorder.provider,
@@ -686,7 +872,7 @@ describe('runSingleStoryClose review-halt orchestration', () => {
         injectedRunCodeReview: async (opts) => {
           // Sanity: the closer must invoke with the canonical envelope.
           assert.equal(opts.scope, 'story');
-          assert.equal(opts.baseRef, 'main');
+          assert.equal(opts.baseRef, 'origin/main');
           assert.equal(opts.headRef, 'story-2839');
           assert.equal(opts.commentTargetId, 444);
           return {

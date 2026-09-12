@@ -7,7 +7,7 @@ import {
 import { runCloseValidation } from '../../close-validation/runner.js';
 import { getCiDelivery } from '../../config/ci.js';
 import { resolveConfig } from '../../config-resolver.js';
-import { getStoryBranch, gitSync } from '../../git-utils.js';
+import { getStoryBranch, gitSpawn, gitSync } from '../../git-utils.js';
 import { Logger } from '../../Logger.js';
 import { emitTerminalFriction } from '../../observability/runtime-friction.js';
 import { emitTerseResult } from '../../observability/terse-result.js';
@@ -318,6 +318,11 @@ async function openAndReviewPr({
     prNumber,
     provider,
     runCodeReviewFn: injectedRunCodeReview ?? runCodeReviewDefault,
+    // The runner owns the git seam it hands its phases (same as `gitSync` to
+    // `pushStoryBranch`). The review needs it to resolve `origin/<base>` —
+    // the ref base-sync merged from — before it will score anything
+    // (Story #5325).
+    gitSpawnFn: gitSpawn,
     progress,
   });
   if (reviewOutcome.halted) {

@@ -42,6 +42,7 @@
 import { hasSurvivingCritical } from '../audit-suite/findings.js';
 import { resolveConfig } from '../config-resolver.js';
 import { computeChangeSet } from './change-set.js';
+import { remoteBaseRef } from './review-base-ref.js';
 import { deriveChangeLevel, resolveDepth } from './review-depth.js';
 import {
   collectProviderDegradations,
@@ -70,11 +71,14 @@ import { upsertStructuredComment } from './ticketing.js';
  */
 
 /**
- * Resolve the project base branch fallback used when a caller omits
- * `baseRef`.
+ * Resolve the base ref used when a caller omits `baseRef`. Remote-qualified,
+ * never the bare branch name — a caller that does not name a base must not
+ * silently inherit the local ref's drift (Story #5325). An unfetched remote
+ * then yields an unenumerable diff, which every downstream consumer already
+ * fails safe on, instead of a confidently-wrong wide one.
  */
 function resolveConfigBase(config) {
-  return config?.project?.baseBranch ?? 'main';
+  return remoteBaseRef(config?.project?.baseBranch ?? 'main');
 }
 
 /** Positive-integer override, else the supplied default. */
