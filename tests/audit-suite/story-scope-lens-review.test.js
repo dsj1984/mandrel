@@ -571,14 +571,22 @@ test('standalone close (runStoryScopeReview) reaches the lens pass through the s
     prUrl: 'https://github.com/o/r/pull/7',
     prNumber: 7,
     provider: {},
+    // Story #5325 — the phase will not score anything until it has resolved
+    // `origin/<base>`, so the lens pass is only reachable through a git seam
+    // that answers that probe.
+    gitSpawnFn: (_cwd, ...args) =>
+      args[0] === 'rev-parse'
+        ? { status: 0, stdout: 'deadbeefdeadbeef\n', stderr: '' }
+        : { status: 1, stdout: '', stderr: '' },
     runCodeReviewFn: cleanReviewStub(),
     runLocalLensReviewFn: lensSpy,
     progress: noopProgress,
   });
   assert.equal(out.halted, false);
   assert.equal(lensSpy.calls.length, 1);
-  // Standalone path diffs the Story branch against the base branch (`main`).
-  assert.equal(lensSpy.calls[0].baseRef, 'main');
+  // Standalone path diffs the Story branch against the base ref base-sync
+  // merged from (`origin/main`), never the local branch (Story #5325).
+  assert.equal(lensSpy.calls[0].baseRef, 'origin/main');
   assert.equal(lensSpy.calls[0].headRef, 'story-4409');
   assert.deepEqual(out.localLensReview, lensReview);
 });
