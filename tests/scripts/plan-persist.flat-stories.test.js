@@ -719,6 +719,57 @@ describe('runPlanPersist — flat Story ops', () => {
     }
   });
 
+  it('lists both text-hygiene lints and the handle repair on one warning list', async () => {
+    // Story #5323: the warning list renders each finding kind by its own
+    // label, and the acceptance-handle strip is reported beside the
+    // `changes[]` repairs rather than applied silently.
+    const carried = ticket('carried');
+    carried.body = serialize({
+      goal: 'Goal of carried.',
+      spec: 'The rollout order is TBD.',
+      changes: [{ path: 'src/carried.js', assumption: 'creates' }],
+    });
+    carried.acceptance = [
+      'AC-1: the `staffCan` helper refuses an unowned resource',
+    ];
+    carried.verify = ['npm test'];
+
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [carried] },
+      config: { baseBranch: 'HEAD' },
+      opts: { skipCleanup: true },
+    });
+
+    assert.equal(result.stories.length, 1, 'every finding is advisory');
+    assert.ok(
+      result.warnings.some((w) => /open question in body/.test(w)),
+      JSON.stringify(result.warnings),
+    );
+    assert.ok(
+      result.warnings.some((w) =>
+        /pinned identifier in acceptance\[\]/.test(w),
+      ),
+      JSON.stringify(result.warnings),
+    );
+    assert.ok(
+      result.repairs.some(
+        (r) => r.kind === 'acceptance-handle' && r.to.startsWith('the '),
+      ),
+      JSON.stringify(result.repairs),
+    );
+    // The persisted checkbox carries exactly one renderer handle.
+    const created = [...provider.issues.values()].find((i) =>
+      i.title.includes('carried'),
+    );
+    assert.match(
+      created.body,
+      /- \[ \] AC-1: the `staffCan` helper refuses an unowned resource/,
+    );
+    assert.doesNotMatch(created.body, /AC-1: AC-1:/);
+  });
+
   it('reports a footprint probe the base branch disagreed with as stale, not clean (Story #5312)', async () => {
     // The posted summary used to hard-code `freshness: { stale: 0, ambiguous: 0 }`,
     // so it read "Spec freshness: clean" even when the gate had something to

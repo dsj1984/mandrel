@@ -57,7 +57,8 @@ and derives source ids from its `sourceTickets[]`; it also writes
 **`stories.template.json`**, step 2's skeleton.
 
 The envelope carries docs context, the story-author prompt (`systemPrompts.story`,
-plus `systemPrompts.storySplitRules` for an N>1 draft), `sourceTickets[]`,
+plus `systemPrompts.storySplitRules` for an N>1 draft and
+`systemPrompts.storyTicketsRules` in tickets mode), `sourceTickets[]`,
 `duplicates[]` (open **Stories**, never Epics), `epicCandidates[]` +
 `dependencyCandidates[]` (Gate #3; path collisions), `priorFeedback` and
 advisory `complexitySignals` (**no routing authority**). An envelope over the
@@ -97,7 +98,10 @@ a Spec is as long as the work needs, inline, never under `docs/`); optional
 `acceptance-manifest.json` (N>1 — `--plan-acceptance`). Use the envelope
 `systemPrompts.story`; split only under the policy above, and when you do,
 read `systemPrompts.storySplitRules` too — it carries the schedule and
-partition rules the core omits.
+partition rules the core omits. In **tickets mode** also read
+`systemPrompts.storyTicketsRules`: the source ticket is evidence, not a
+template — re-derive `acceptance[]` rather than carrying its list, handles
+and tier suffixes forward.
 
 **Tickets mode:** every Story authors a top-level `supersedes[]`; persist
 refuses a partial map ([shape](helpers/plan-reference.md)).

@@ -164,7 +164,14 @@ const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 // AC-<n> presentation prefix on acceptance checkboxes (Story #4600). The
 // numbering is a stable 1-based human handle only — parse() strips it so the
 // top-level acceptance[] machine contract round-trips byte-identical.
-const AC_PREFIX_RE = /^AC-\d+:\s+/;
+//
+// The lettered form (`AC-14a:`) is accepted too (Story #5323). Nothing emits
+// one — `serialize()` numbers from the array index — but a Story planned from
+// an existing ticket can copy one out of the source issue's rendered
+// checkboxes, and a body that already carries one must still parse to the
+// handle-free text or the round-trip invariant breaks for it alone. Trailing
+// whitespace is optional so `AC-3:text` normalises as readily as `AC-3: text`.
+const AC_PREFIX_RE = /^AC-\d+[a-z]?:\s*/i;
 
 // Machine-managed marker lines a body authored before Story #5312 may still
 // carry: the `> **Wide:** <reason>` rationale line (Story #4600), the
@@ -560,6 +567,33 @@ function parseTextListSection(lines) {
  * @returns {ParseResult}
  * @throws {StoryBodyParseError} When the body is structurally unrecoverable.
  */
+/**
+ * Strip the presentation `AC-<n>:` handle off one acceptance item.
+ *
+ * The handle belongs to {@link serialize}, which numbers every checkbox from
+ * its position in `acceptance[]`; an authored item that already carries one
+ * would render doubled (`- [ ] AC-1: AC-1: …`) and a lettered handle copied
+ * from a source ticket would survive into the machine contract. Both parse
+ * and the persist-side normalisation resolve the grammar here so the two can
+ * never disagree about what a handle is (Story #5323).
+ *
+ * Stacked handles are peeled in full — a body persisted while the doubling
+ * was live carries two, and leaving the inner one would normalise to
+ * something that still is not the authored text.
+ *
+ * @param {string} item
+ * @returns {{ text: string, stripped: boolean }} The handle-free text, and
+ *   whether anything was removed.
+ */
+export function stripAcceptanceHandle(item) {
+  const original = String(item ?? '');
+  let text = original;
+  while (AC_PREFIX_RE.test(text)) {
+    text = text.replace(AC_PREFIX_RE, '');
+  }
+  return { text, stripped: text !== original };
+}
+
 export function parse(input) {
   if (input === null || input === undefined) {
     throw new StoryBodyParseError('Story body is null or undefined', {
@@ -618,7 +652,7 @@ export function parse(input) {
   // The AC-<n> checkbox prefix is presentation-only (Story #4600): strip it
   // so acceptance[] round-trips byte-identical to the authored array.
   const acceptance = parseTextListSection(sections.get('acceptance') ?? []).map(
-    (a) => a.replace(AC_PREFIX_RE, ''),
+    (a) => stripAcceptanceHandle(a).text,
   );
   const verify = parseTextListSection(sections.get('verify') ?? []);
   const references = parsePathEntrySection(

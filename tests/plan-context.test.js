@@ -48,6 +48,7 @@ import { serialize } from '../.agents/scripts/lib/story-body/story-body.js';
 import {
   renderStoryAuthorCore,
   renderStorySplitRules,
+  ticketsModePromptField,
 } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -365,6 +366,9 @@ describe('plan-context systemPrompts fold', () => {
     assert.equal(env.systemPrompts.story, renderStoryAuthorCore());
     assert.equal(env.systemPrompts.storySplitRules, renderStorySplitRules());
     assert.equal('decompose' in env.systemPrompts, false);
+    // Story #5323: the tickets addendum is mode-conditional — a seed-file
+    // envelope has no source ticket, so it must not carry the field.
+    assert.equal('storyTicketsRules' in env.systemPrompts, false);
     assert.equal('riskHeuristics' in env, false);
     assert.equal('maxTickets' in env, false);
     assert.match(env.systemPrompts.spec, /Engineering Architect/);
@@ -1444,5 +1448,31 @@ describe('plan-context concurrent envelope gathers (Story #4952)', () => {
     const env = await pending;
     assert.ok(env.duplicates.length > 0);
     assert.ok(env.bddRunner !== undefined, 'the authoring fold still landed');
+  });
+});
+
+describe('plan-context systemPrompts — tickets addendum (Story #5323)', () => {
+  it('carries storyTicketsRules only in tickets mode', () => {
+    const ticketsPrompts = buildSystemPrompts({ mode: 'tickets' });
+    assert.equal(
+      ticketsPrompts.storyTicketsRules,
+      ticketsModePromptField('tickets').storyTicketsRules,
+      'tickets mode renders the addendum from its shared carrier',
+    );
+
+    for (const mode of ['seed', 'seed-file', 'amends', undefined]) {
+      assert.equal(
+        'storyTicketsRules' in buildSystemPrompts({ mode }),
+        false,
+        `mode ${String(mode)} must not carry the tickets addendum`,
+      );
+    }
+    // The other three fields are unconditional.
+    for (const mode of ['tickets', 'seed', undefined]) {
+      const prompts = buildSystemPrompts({ mode });
+      for (const field of ['spec', 'acceptance', 'story', 'storySplitRules']) {
+        assert.equal(typeof prompts[field], 'string');
+      }
+    }
   });
 });
