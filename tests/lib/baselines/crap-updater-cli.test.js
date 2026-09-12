@@ -11,6 +11,7 @@
  */
 
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   buildCrapUpdaterScorer,
@@ -138,7 +139,19 @@ describe('resolveCrapUpdaterOptions — precedence', () => {
 describe('resolveCrapUpdaterOptions — the baseline path', () => {
   it('resolves a relative path against the given cwd', () => {
     const o = resolveCrapUpdaterOptions({}, CONFIG, '/repo');
-    assert.equal(o.absBaselinePath, '/repo/baselines/crap.json');
+    // Built with `path`, not spelled as a POSIX literal: on Windows the
+    // separator differs AND `path.resolve` prepends the current drive, so a
+    // hardcoded '/repo/baselines/crap.json' is a platform-only failure.
+    assert.equal(
+      o.absBaselinePath,
+      path.resolve('/repo', 'baselines/crap.json'),
+    );
+    // The assertion that carries the meaning: the GIVEN cwd was used, not
+    // process.cwd().
+    assert.notEqual(
+      o.absBaselinePath,
+      path.resolve(process.cwd(), 'baselines/crap.json'),
+    );
   });
 
   it('leaves an absolute path alone', () => {
@@ -360,7 +373,14 @@ describe('buildCrapUpdaterScorer — rows and reporting', () => {
       logger: recordingLogger(),
     });
     await scorer([], { cwd: '/elsewhere' });
-    assert.equal(asked, '/elsewhere/coverage/coverage-final.json');
+    assert.equal(
+      asked,
+      path.resolve('/elsewhere', 'coverage/coverage-final.json'),
+    );
+    assert.notEqual(
+      asked,
+      path.resolve(process.cwd(), 'coverage/coverage-final.json'),
+    );
   });
 
   it('leaves an absolute coverage path alone', async () => {
