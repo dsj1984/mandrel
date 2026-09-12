@@ -186,6 +186,96 @@ test('scanAndScore — skips files without coverage when requireCoverage=true', 
   }
 });
 
+/**
+ * A source `escomplex.analyzeModule` cannot parse. Story #5311: this file must
+ * reach the host as a DROPPED file on both scoring paths — never as a
+ * successfully-scored file that happens to have no methods.
+ */
+const UNPARSEABLE_SOURCE = 'export function broken( {\n';
+
+/**
+ * Drive `scanAndScore` over one scorable and one unparseable file, on whichever
+ * path `serialThreshold` selects. A threshold above the queue length runs
+ * serially; a threshold of 1 forces the CPU pool.
+ */
+async function scanFixtureWithUnparseableFile(cwd, serialThreshold) {
+  const srcDir = path.join(cwd, 'src');
+  fs.mkdirSync(srcDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(srcDir, 'good.js'),
+    'export function good(x) { return x + 1; }\n',
+  );
+  fs.writeFileSync(path.join(srcDir, 'broken.js'), UNPARSEABLE_SOURCE);
+  return scanAndScore({
+    targetDirs: ['src'],
+    coverage: {
+      [path.join(srcDir, 'good.js')]: coverageEntryFor(1, 1.0),
+      [path.join(srcDir, 'broken.js')]: coverageEntryFor(1, 1.0),
+    },
+    requireCoverage: true,
+    cwd,
+    serialThreshold,
+  });
+}
+
+test('scanAndScore — a parse failure is counted as unscorable, serially (Story #5311, AC-3)', async () => {
+  const cwd = mkTmpCwd();
+  try {
+    const result = await scanFixtureWithUnparseableFile(cwd, 99);
+    assert.strictEqual(result.scannedFiles, 2);
+    // The unparseable file contributes no rows AND moves a counter — the
+    // pairing is the point: rows alone cannot distinguish "unscorable" from
+    // "no methods".
+    assert.strictEqual(result.unscorableFiles, 1);
+    assert.strictEqual(result.skippedFilesNoCoverage, 0);
+    assert.deepStrictEqual(
+      result.rows.map((r) => r.file),
+      ['src/good.js'],
+    );
+  } finally {
+    rmTmp(cwd);
+  }
+});
+
+test('scanAndScore — a parse failure is counted as unscorable via the worker pool too (Story #5311, AC-3)', async () => {
+  const cwd = mkTmpCwd();
+  try {
+    // serialThreshold=1 forces the pool, which is the path a repo above
+    // POOL_SERIAL_THRESHOLD always takes. Before #5311 the worker returned
+    // `rows: []` here and this counter stayed at 0.
+    const result = await scanFixtureWithUnparseableFile(cwd, 1);
+    assert.strictEqual(result.scannedFiles, 2);
+    assert.strictEqual(result.unscorableFiles, 1);
+    assert.strictEqual(result.skippedFilesNoCoverage, 0);
+    assert.deepStrictEqual(
+      result.rows.map((r) => r.file),
+      ['src/good.js'],
+    );
+  } finally {
+    rmTmp(cwd);
+  }
+});
+
+test('scanAndScore — a method-free file is scored, not counted unscorable (Story #5311)', async () => {
+  const cwd = mkTmpCwd();
+  try {
+    const srcDir = path.join(cwd, 'src');
+    fs.mkdirSync(srcDir);
+    fs.writeFileSync(path.join(srcDir, 'empty.js'), 'export const x = 1;\n');
+    const result = await scanAndScore({
+      targetDirs: ['src'],
+      coverage: { [path.join(srcDir, 'empty.js')]: coverageEntryFor(1, 1.0) },
+      requireCoverage: true,
+      cwd,
+    });
+    assert.strictEqual(result.scannedFiles, 1);
+    assert.strictEqual(result.unscorableFiles, 0);
+    assert.strictEqual(result.rows.length, 0);
+  } finally {
+    rmTmp(cwd);
+  }
+});
+
 test('scanAndScore — incremental join resolves an untouched file from its baseline (Story #4981)', async () => {
   const cwd = mkTmpCwd();
   try {

@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T14:31:54.308Z",
+  "generatedAt": "2026-09-12T14:57:16.052Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1964,7 +1964,7 @@
     },
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
-      "mi": 88.469
+      "mi": 95.681
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-report-worker.js",

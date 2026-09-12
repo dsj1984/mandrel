@@ -14,8 +14,34 @@ import {
   crapFormula,
 } from './crap-coordinates.js';
 import { deriveMethodIdentities } from './crap-method-identity.js';
+import { install as installAstCompat } from './escomplex-ast-compat.js';
 
 export { COORDINATE_ORIGINAL, COORDINATE_TRANSPILED, crapFormula };
+
+/**
+ * Sentinel returned by {@link calculateCrapForSource} for a source the kernel
+ * cannot parse. Deliberately **not** `[]`: a caller receiving an empty array
+ * cannot tell an unscorable file from one with no methods, which is how a
+ * parse failure used to reach the baseline as a silent zero (Story #5311).
+ */
+export const UNSCORABLE = null;
+
+// The kernel's code generator predates the Babel AST its own parser emits, so
+// ordinary modern syntax (`?.`, `await` or a regex in a loop head, object
+// spread in a default parameter) aborts `analyzeModule` for the WHOLE file —
+// see `escomplex-ast-compat.js` for the defect and the upstream status.
+//
+// Story #5311: the install belongs here, at the scoring kernel, because this
+// is where both CRAP scorers converge — `calculateCrapForSource` (the worker
+// path) and `crap-utils.js#analyzeOnce` (the serial path, which reaches this
+// module for `methodRowsFromReport`). It used to be reached only as a side
+// effect of `maintainability-engine.js` sitting somewhere in the serial path's
+// import graph, which the worker's graph never included: 362 methods across
+// 21 files scored zero via workers and scored fine serially, and
+// `POOL_SERIAL_THRESHOLD` makes the worker path the only one a real repo
+// takes. Anchoring it at the kernel makes the next worker entrypoint correct
+// by construction rather than by an import nobody would guess is load-bearing.
+installAstCompat();
 
 /**
  * Derive the raw per-method CRAP rows from an escomplex report.
@@ -199,8 +225,12 @@ export { finalizeMethodRowsWithBaseline } from './crap-baseline-join.js';
  *     produce `coverage: null` and `crap: null`. Callers apply their own
  *     `requireCoverage` policy at the scanner level (`finalizeMethodRows`);
  *     this kernel never decides to skip.
- *   - A parse error returns an empty array — the file is unscorable, not
- *     zero-complexity.
+ *   - A parse error returns {@link UNSCORABLE} (`null`) — the file could not
+ *     be scored at all, which is a different fact from "it has no methods"
+ *     (`[]`). Story #5311: returning `[]` for both collapsed them, and every
+ *     caller's drop path for an unscorable file became unreachable — the
+ *     whole parse-failure class landed in the baseline as a clean zero.
+ *     Callers MUST branch on `rows === null` before iterating.
  *
  * @param {string} source JavaScript source text (possibly transpiled).
  * @param {object|null} coverageForFile The inner value from a
@@ -216,7 +246,8 @@ export { finalizeMethodRowsWithBaseline } from './crap-baseline-join.js';
  *   coverage: number|null,
  *   crap: number|null,
  *   coordinateSystem: 'original'|'transpiled',
- * }>}
+ * }>|null} The method rows, or {@link UNSCORABLE} when the source did not
+ *   parse.
  */
 export function calculateCrapForSource(
   source,
@@ -227,7 +258,7 @@ export function calculateCrapForSource(
   try {
     report = escomplex.analyzeModule(source);
   } catch {
-    return [];
+    return UNSCORABLE;
   }
   return methodRowsFromReport(report, coverageForFile, mapLine);
 }
