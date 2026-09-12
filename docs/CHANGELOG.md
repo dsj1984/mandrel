@@ -15,6 +15,19 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.58.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.57.0...mandrel-v2.58.0) (2026-09-12)
+
+
+### Added
+
+* make the close test credit earnable on any test runner, and surface the gap at setup instead of mid-close ([#5324](https://github.com/dsj1984/mandrel/issues/5324)) ([#5329](https://github.com/dsj1984/mandrel/issues/5329)) ([04db145](https://github.com/dsj1984/mandrel/commit/04db145b8f1017121e129897f9207ab51db1c3f8))
+* tickets-mode planning re-derives the Story instead of carrying the source ticket's shape: acceptance handles, tier suffixes, generated-artifact footprints and pinned identifiers ([#5323](https://github.com/dsj1984/mandrel/issues/5323)) ([#5326](https://github.com/dsj1984/mandrel/issues/5326)) ([5563e7a](https://github.com/dsj1984/mandrel/commit/5563e7a264864f78001beb19ce58160a1b483cda))
+
+
+### Fixed
+
+* give base-sync and the Story-scope code review one base ref, so a stale local base branch cannot raise false blockers ([#5325](https://github.com/dsj1984/mandrel/issues/5325)) ([#5328](https://github.com/dsj1984/mandrel/issues/5328)) ([c4032b6](https://github.com/dsj1984/mandrel/commit/c4032b63a63c4cb8cc3f9c9956b6c646e5acd460))
+
 ## [2.57.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.56.0...mandrel-v2.57.0) (2026-09-12)
 
 
