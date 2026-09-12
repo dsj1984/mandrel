@@ -250,10 +250,33 @@ export function mergeEnvelopes(
     },
     cyclomaticFlag: flag,
     // Story #5313: advisories ride the merge but never the exit code.
-    advisories: Array.isArray(crapEnvelope?.cyclomaticAdvisories)
-      ? crapEnvelope.cyclomaticAdvisories
-      : [],
+    advisories: advisoriesOf(crapEnvelope),
   };
+}
+
+/**
+ * The cyclomatic advisories a CRAP envelope carries (Story #5313), or none.
+ *
+ * @param {{ cyclomaticAdvisories?: unknown } | null | undefined} crapEnvelope
+ * @returns {Array<{ file: string, method: string, startLine: number, cyclomatic: number }>}
+ */
+function advisoriesOf(crapEnvelope) {
+  const list = crapEnvelope?.cyclomaticAdvisories;
+  return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Print the advisories block when there is one (Story #5313). Split out of
+ * `emitReport` so that function's branching stays inside its committed
+ * cyclomatic budget.
+ *
+ * @param {Array<object>} advisories
+ * @param {{ write: (s: string) => void }} stdout
+ * @returns {void}
+ */
+function writeAdvisories(advisories, stdout) {
+  const block = renderAdvisories(advisories);
+  if (block) stdout.write(`\n${block}\n`);
 }
 
 /**
@@ -511,8 +534,7 @@ function emitReport({
   stdout.write('\n--- quality:preview ---\n');
   stdout.write(stagedScopeLine({ staged, ref, cwd }));
   stdout.write(`${renderTable(merged)}\n`);
-  const advisories = renderAdvisories(merged.advisories);
-  if (advisories) stdout.write(`\n${advisories}\n`);
+  writeAdvisories(merged.advisories, stdout);
   const diagnostics = renderDiagnostics([miResult, crapResult]);
   if (diagnostics) stdout.write(`\n${diagnostics}\n`);
   if (miExit !== 0 || crapExit !== 0) {

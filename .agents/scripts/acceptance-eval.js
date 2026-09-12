@@ -236,6 +236,32 @@ export function reconcileExpectedCriteria({ derived, flagged }) {
 }
 
 /**
+ * The count the coverage assertion runs against: the body-derived count,
+ * reconciled with the optional flag, with a stated skip when neither is
+ * readable (Story #5313). Split out of `runAcceptanceEvalCli` so the CLI
+ * body's own branching stays inside its committed cyclomatic budget.
+ *
+ * @param {{ storyId: number, config: object, flagged: number|null, readAcceptanceCountImpl: typeof readStoryAcceptanceCount, logger: { warn?: Function } }} args
+ * @returns {Promise<number|null>}
+ */
+async function resolveExpectedCriteriaCount({
+  storyId,
+  config,
+  flagged,
+  readAcceptanceCountImpl,
+  logger,
+}) {
+  const derived = await readAcceptanceCountImpl({ storyId, config });
+  const expected = reconcileExpectedCriteria({ derived, flagged });
+  if (expected === null) {
+    logger.warn?.(
+      '[acceptance-eval] ⚠ the Story acceptance[] count could not be read and no --expected-criteria was passed — the coverage assertion is skipped for this round.',
+    );
+  }
+  return expected;
+}
+
+/**
  * Resolve the optional `--expected-criteria` flag to a positive integer, or
  * `null` when the flag is absent. Since Story #5313 the gate derives the
  * count from the Story body; the flag remains accepted for callers that
@@ -522,13 +548,13 @@ export async function runAcceptanceEvalCli(
   // and the count comes from the Story body itself. This runs before the
   // round ledger is touched, so a partial cluster verdict is a free mistake.
   const config = resolveConfigImpl();
-  const derived = await readAcceptanceCountImpl({ storyId, config });
-  const expected = reconcileExpectedCriteria({ derived, flagged });
-  if (expected === null) {
-    logger.warn?.(
-      '[acceptance-eval] ⚠ the Story acceptance[] count could not be read and no --expected-criteria was passed — the coverage assertion is skipped for this round.',
-    );
-  }
+  const expected = await resolveExpectedCriteriaCount({
+    storyId,
+    config,
+    flagged,
+    readAcceptanceCountImpl,
+    logger,
+  });
   assertCriteriaCoverage(verdict, expected);
 
   // A verdict whose embedded storyId disagrees with the CLI flag is a
