@@ -415,6 +415,10 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          # The persist gates probe the base branch; a shallow checkout has
+          # no origin/main to read, so every path would probe as absent.
+          fetch-depth: 0
 
       - name: Setup Node & Install
         uses: ./.github/actions/setup

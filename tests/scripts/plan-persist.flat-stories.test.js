@@ -26,7 +26,6 @@ import {
 import { appendPlanMetric } from '../../.agents/scripts/lib/orchestration/plan-metrics.js';
 import {
   resolveBaseBranchRef,
-  resolveProbeRef,
   validateTickets,
 } from '../../.agents/scripts/lib/orchestration/plan-persist/persist-helpers.js';
 import {
@@ -227,36 +226,51 @@ describe('base-branch resolution (Story #4541)', () => {
     const clone = path.join(makeTempDir('probe-ref-clone-'), 'repo');
     git(tmpdir(), 'clone', '-q', '--branch', 'story-1', upstream, clone);
 
-    assert.equal(
-      resolveProbeRef({ baseBranch: 'main', cwd: clone }),
-      'origin/main',
-      'no local main, so the tracking ref is the probe target',
-    );
-    assert.equal(
-      resolveProbeRef({ baseBranch: 'main', cwd: upstream }),
-      'main',
-      'a local branch wins when it exists',
-    );
-    assert.equal(
-      resolveProbeRef({ baseBranch: 'nope', cwd: clone }),
-      'nope',
-      'a name that resolves nowhere is left for the probe to report',
-    );
+    const bareBullet = (slug) => {
+      const t = ticket(slug);
+      t.body = serialize({
+        goal: `Goal of ${slug}.`,
+        changes: [{ path: 'src/tracked.js', assumption: 'refactors-existing' }],
+        acceptance: t.acceptance,
+        verify: t.verify,
+      }).replace('`src/tracked.js` — refactors-existing', 'src/tracked.js');
+      return t;
+    };
 
-    // End to end: a bare-path bullet naming a tracked file repairs to
-    // refactors-existing in the clone, and the declared path probes clean.
-    const bare = ticket('clone');
-    bare.body = serialize({
-      goal: 'Goal of clone.',
-      changes: [{ path: 'src/tracked.js', assumption: 'refactors-existing' }],
-      acceptance: bare.acceptance,
-      verify: bare.verify,
-    }).replace('`src/tracked.js` — refactors-existing', 'src/tracked.js');
-    const validated = validateTickets([bare], {}, { cwd: clone });
-    assert.deepEqual(validated.errors, []);
-    assert.deepEqual(validated.warnings, []);
-    assert.equal(validated.repairs.length, 1);
-    assert.equal(validated.repairs[0].assumption, 'refactors-existing');
+    // Only origin/main exists: the tracked file probes clean through it.
+    const viaOrigin = validateTickets(
+      [bareBullet('clone')],
+      {},
+      { cwd: clone },
+    );
+    assert.equal(viaOrigin.probeRef, 'origin/main');
+    assert.deepEqual(viaOrigin.errors, []);
+    assert.deepEqual(viaOrigin.warnings, []);
+    assert.equal(viaOrigin.repairs[0].assumption, 'refactors-existing');
+
+    // A local branch wins when it exists.
+    const viaLocal = validateTickets(
+      [bareBullet('local')],
+      {},
+      { cwd: upstream },
+    );
+    assert.equal(viaLocal.probeRef, 'main');
+    assert.deepEqual(viaLocal.warnings, []);
+
+    // Neither resolves (a shallow checkout, or a misconfigured branch):
+    // the probes are skipped and say so, the bare bullet is taken as the
+    // in-place edit it almost always is, and nothing is reported absent.
+    const skipped = validateTickets(
+      [bareBullet('shallow')],
+      { project: { baseBranch: 'nope' } },
+      { cwd: clone },
+    );
+    assert.equal(skipped.probeRef, null);
+    assert.deepEqual(skipped.errors, []);
+    assert.equal(skipped.repairs[0].assumption, 'refactors-existing');
+    assert.equal(skipped.warnings.length, 1);
+    assert.match(skipped.warnings[0], /nope does not resolve in this checkout/);
+    assert.match(skipped.warnings[0], /origin\/nope/);
   });
 
   it('threads the configured branch into the probes, not the literal main', () => {
@@ -270,9 +284,12 @@ describe('base-branch resolution (Story #4541)', () => {
       project: { baseBranch: 'a-branch-that-does-not-exist' },
     });
     assert.deepEqual(validated.errors, []);
+    // Story #5312: a branch that resolves nowhere skips the probes and names
+    // the configured branch in the one warning it leaves.
+    assert.equal(validated.probeRef, null);
     assert.ok(
       validated.warnings.some((w) =>
-        /does not exist at a-branch-that-does-not-exist/.test(w),
+        /a-branch-that-does-not-exist does not resolve/.test(w),
       ),
       JSON.stringify(validated.warnings),
     );
@@ -747,6 +764,24 @@ describe('runPlanPersist — flat Story ops', () => {
       .find((l) => l.includes('Spec freshness'));
     assert.match(line, /1 stale \/ 0 ambiguous/);
     assert.doesNotMatch(line, /clean/);
+  });
+
+  it('reports references as ambiguous, not stale, when no base ref resolves', async () => {
+    // Story #5312: a checkout with no readable base skips the probes, so the
+    // summary must not claim the references were checked and found stale.
+    const provider = fakeProvider();
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('shallow')] },
+      config: { project: { baseBranch: 'a-branch-that-does-not-exist' } },
+      opts: { skipCleanup: true },
+    });
+
+    assert.deepEqual(result.freshness, { stale: 0, ambiguous: 1 });
+    const summary = provider.comments.find((c) =>
+      c.body.includes('Plan Summary'),
+    );
+    assert.match(summary.body, /0 stale \/ 1 ambiguous/);
   });
 
   it('reports freshness clean when the gate ran and found nothing', async () => {

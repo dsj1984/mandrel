@@ -151,8 +151,23 @@ function enforceTicketValidation(validated) {
   ];
   return {
     warnings,
-    freshness: { stale: (validated.warnings ?? []).length, ambiguous: 0 },
+    freshness: freshnessCounts(validated.probeRef, validated.warnings ?? []),
   };
+}
+
+/**
+ * Freshness counts for the posted plan summary. Every validator warning is
+ * a reference the base branch disagreed with — `stale` when a base ref was
+ * actually read, `ambiguous` when none resolved in this checkout and the
+ * probes were skipped, since nothing was verified either way.
+ *
+ * @param {string|null} probeRef
+ * @param {string[]} warnings
+ * @returns {{ stale: number, ambiguous: number }}
+ */
+function freshnessCounts(probeRef, warnings) {
+  if (probeRef === null) return { stale: 0, ambiguous: warnings.length };
+  return { stale: warnings.length, ambiguous: 0 };
 }
 
 /**

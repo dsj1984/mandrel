@@ -4,9 +4,12 @@
  * Exports:
  *   - `resolveBaseBranchRef(config)` — the one place the persist gates learn
  *     which branch name the operator configured.
- *   - `resolveProbeRef({ baseBranch, cwd })` — the ref that name resolves to
- *     in *this* checkout: the local branch when it exists, else its
- *     `origin/` tracking ref (a PR checkout on CI has no local `main`).
+ *
+ * The ref the probes read is resolved per checkout (`resolveProbeRef`): the
+ * local branch when it exists, else its `origin/` tracking ref (a PR
+ * checkout on CI has no local `main`), else nothing — a shallow checkout
+ * with no base at all skips the probes instead of reading every path as
+ * absent.
  *   - `validateTickets(tickets, config, opts)` — repairs the mechanical
  *     `changes[]` formalities against the base branch, then runs the
  *     cross-link, freshness, and task-body validators in one pass.
@@ -60,24 +63,24 @@ function refResolves(ref, cwd) {
 
 /**
  * Resolve the configured base branch to a ref the footprint probes can read
- * in this checkout.
+ * in this checkout, or `null` when none exists.
  *
  * A developer checkout carries a local `main`; a CI pull-request checkout
  * (`actions/checkout` at the merge ref, detached) carries only
- * `origin/main`. Probing the bare branch name there answers "absent" for
- * every path, which turns each bare-path repair into a `creates` and every
- * declared path into a stale reference. So: the local branch when it
- * resolves, else its `origin/` tracking ref when that does, else the
- * configured name unchanged — a name that resolves nowhere still probes as
- * absent, and the warning names the branch the operator configured.
+ * `origin/main`; a shallow smoke checkout carries neither. Probing the
+ * bare branch name in the last two answers "absent" for every path, which
+ * turns each bare-path repair into a `creates` and every declared path into
+ * a stale reference. So: the local branch when it resolves, else its
+ * `origin/` tracking ref when that does, else `null` — the caller then
+ * skips the probes and says so, rather than reporting the tree as missing.
  *
  * @param {{ baseBranch: string, cwd?: string }} opts
- * @returns {string}
+ * @returns {string|null}
  */
-export function resolveProbeRef({ baseBranch, cwd }) {
+function resolveProbeRef({ baseBranch, cwd }) {
   const repo = cwd ?? process.cwd();
   const candidates = [baseBranch, `origin/${baseBranch}`];
-  return candidates.find((ref) => refResolves(ref, repo)) ?? baseBranch;
+  return candidates.find((ref) => refResolves(ref, repo)) ?? null;
 }
 
 /**
@@ -100,6 +103,53 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
 }
 
 /**
+ * The `existsAtBase` predicate the `changes[]` repair pass probes with. With
+ * no base to read, a bare bullet is taken as the in-place edit it almost
+ * always is.
+ *
+ * @param {{ baseBranchRef: string|null, cwd?: string, gitRunner?: Function }} opts
+ * @returns {(path: string) => boolean}
+ */
+function makeExistsAtBase({ baseBranchRef, cwd, gitRunner }) {
+  if (baseBranchRef === null) return () => true;
+  const runner = gitRunner ?? defaultGitRunner;
+  return (path) => Boolean(runner({ baseBranchRef, path, cwd }));
+}
+
+/**
+ * The one warning a checkout with no readable base leaves on the dry-run.
+ *
+ * @param {string} baseBranch
+ * @param {string|null} baseBranchRef
+ * @returns {string[]}
+ */
+function probeSkipWarnings(baseBranch, baseBranchRef) {
+  if (baseBranchRef !== null) return [];
+  return [
+    `base branch ${baseBranch} does not resolve in this checkout (tried ` +
+      `${baseBranch} and origin/${baseBranch}) — footprint probes skipped; ` +
+      'the plan summary reports its references as ambiguous, not stale.',
+  ];
+}
+
+/**
+ * Attach non-enumerable bookkeeping to the validated array.
+ *
+ * @param {object[]} validated
+ * @param {Record<string, unknown>} extras
+ */
+function defineHidden(validated, extras) {
+  for (const [key, value] of Object.entries(extras)) {
+    Object.defineProperty(validated, key, {
+      value,
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    });
+  }
+}
+
+/**
  * Repair the mechanical `changes[]` formalities, then validate.
  *
  * Repair before judging (Story #5312, the shape Story #5005 set for the
@@ -112,32 +162,28 @@ function defaultGitRunner({ baseBranchRef, path, cwd }) {
  * @param {object[]} tickets Mutated in place.
  * @param {object} config Resolved config.
  * @param {{ cwd?: string, gitRunner?: Function }} [opts]
- * @returns {object[] & { findings: object[], errors: string[], warnings: string[], normalizations: object[], repairs: object[] }}
+ * @returns {object[] & { findings: object[], errors: string[], warnings: string[], normalizations: object[], repairs: object[], probeRef: string|null }}
  */
 export function validateTickets(tickets, config, opts = {}) {
-  const baseBranchRef = resolveProbeRef({
-    baseBranch: resolveBaseBranchRef(config),
-    cwd: opts.cwd,
-  });
-  const gitRunner = opts.gitRunner ?? defaultGitRunner;
+  const baseBranch = resolveBaseBranchRef(config);
+  const baseBranchRef = resolveProbeRef({ baseBranch, cwd: opts.cwd });
   const repairs = repairChangeEntries(tickets, {
-    existsAtBase: (path) =>
-      Boolean(gitRunner({ baseBranchRef, path, cwd: opts.cwd })),
+    existsAtBase: makeExistsAtBase({
+      baseBranchRef,
+      cwd: opts.cwd,
+      gitRunner: opts.gitRunner,
+    }),
   });
   const validated = validateAndNormalizeTickets(tickets, {
-    baseBranchRef,
+    baseBranchRef: baseBranchRef ?? undefined,
     gitRunner: opts.gitRunner,
     // Thread the repo cwd into the AC-freshness / file-assumption git
     // probes (#4474 PR7) — without it they silently ran against
     // process.cwd(), which is only the repo root by coincidence.
     cwd: opts.cwd,
   });
+  validated.warnings.push(...probeSkipWarnings(baseBranch, baseBranchRef));
   validateTaskBodies(validated);
-  Object.defineProperty(validated, 'repairs', {
-    value: repairs,
-    enumerable: false,
-    configurable: true,
-    writable: true,
-  });
+  defineHidden(validated, { repairs, probeRef: baseBranchRef });
   return validated;
 }
