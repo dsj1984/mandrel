@@ -71,10 +71,8 @@ import {
   deriveLightSuitability,
   LIGHT_DIFF_CEILINGS,
   LIGHT_REFUSAL_CLASSES,
-  OVERRIDABLE_SHAPE_CODES,
   resolveLedgeredVerdict,
   resolveLightGateOutcome,
-  resolveOperatorOverride,
 } from '../../../.agents/scripts/lib/orchestration/light-suitability.js';
 import { DEFAULT_DIFF_WIDTH } from '../../../.agents/scripts/lib/orchestration/review-depth.js';
 import {
@@ -83,7 +81,11 @@ import {
   validateTerminalEnvelope,
 } from '../../../.agents/scripts/lib/orchestration/story-deliver-terminal.js';
 import { makeTempDir } from '../../../.agents/scripts/lib/test-temp.js';
-import { assertDocMentions, readDoc } from '../../helpers/doc-assert.js';
+import {
+  assertDocMentions,
+  assertDocOmits,
+  readDoc,
+} from '../../helpers/doc-assert.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -141,7 +143,7 @@ describe('resolveLedgeredVerdict — lite only with a recorded reason (AC-2)', (
 // deriveLightSuitability (AC-2) — shape machinery AND ledgered verdict
 // ---------------------------------------------------------------------------
 
-describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)', () => {
+describe('deriveLightSuitability — ledgered verdict and risk decide; the shape warns (AC-2, Story #5313)', () => {
   test('a clearly-small prompt with a ledgered lite verdict is suitable', () => {
     const s = deriveLightSuitability({
       predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
@@ -155,7 +157,7 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
     assert.equal(s.ledger.route, 'lite');
   });
 
-  test('a clearly-epic predicted footprint is not suitable (shape wins)', () => {
+  test('a clearly-epic predicted footprint proceeds light with a warning naming the axis (Story #5313 AC-6)', () => {
     const s = deriveLightSuitability({
       predictedChanges: [
         { path: 'apps/api/src/a.js', assumption: 'refactors-existing' },
@@ -165,9 +167,24 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
-    assert.equal(s.suitable, false);
-    assert.equal(s.route, 'full');
+    // The honest shape verdict is untouched …
     assert.equal(s.shape.route, 'full');
+    // … but it no longer decides: the prediction is a warning.
+    assert.equal(s.suitable, true);
+    assert.equal(s.route, 'lite');
+    assert.equal(s.warnings.length, 1);
+    assert.match(s.warnings[0], new RegExp(`"${s.shape.code}"`));
+    assert.match(s.warnings[0], /diff backstop bounds the actual change set/);
+  });
+
+  test('a within-ceiling prediction carries no warning', () => {
+    const s = deriveLightSuitability({
+      predictedChanges: [{ path: 'bin/hello.js', assumption: 'creates' }],
+      predictedAcceptance: ['prints hello and exits 0'],
+      verdict: LITE_VERDICT,
+      injectedRules: RULES,
+    });
+    assert.deepEqual(s.warnings, []);
   });
 
   // Story #4764 — the predicted axes are effort and risk, and the gate over
@@ -195,7 +212,10 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
-    assert.equal(rewrite.suitable, false);
+    // Story #5313: a substantial magnitude is a stated warning, not a stop.
+    assert.equal(rewrite.suitable, true);
+    assert.equal(rewrite.shape.route, 'full');
+    assert.match(rewrite.warnings[0], /"magnitude"/);
   });
 
   test('AC-3: marginal small work is no longer rejected on counts alone', () => {
@@ -230,7 +250,7 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
     assert.equal(s.suitable, true);
   });
 
-  test('AC-6: the benchmark epic-scope footprint is not suitable', () => {
+  test('AC-6: the benchmark epic-scope footprint proceeds with a deployable-span warning', () => {
     const s = deriveLightSuitability({
       predictedChanges: [
         { path: 'packages/contract/src/schema.js', assumption: 'creates' },
@@ -240,7 +260,9 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
       verdict: LITE_VERDICT,
       injectedRules: RULES,
     });
-    assert.equal(s.suitable, false);
+    assert.equal(s.suitable, true);
+    assert.equal(s.shape.route, 'full');
+    assert.equal(s.warnings.length, 1);
   });
 
   test('a sensitive-path footprint is not suitable even when small', () => {
@@ -278,32 +300,33 @@ describe('deriveLightSuitability — shape + ledgered verdict must agree (AC-2)'
 // resolveLightGateOutcome (AC-3) — over-scope stops, never lands silently
 // ---------------------------------------------------------------------------
 
-describe('resolveLightGateOutcome — over-scope STOPS and asks (AC-3)', () => {
-  test('a suitable decision proceeds light', () => {
+describe('resolveLightGateOutcome — proceed with warnings, or escalate (Story #5313)', () => {
+  test('a suitable decision proceeds light and carries its warnings', () => {
+    const o = resolveLightGateOutcome({
+      suitability: { suitable: true, warnings: ['predicted shape exceeds x'] },
+    });
+    assert.equal(o.action, 'proceed-light');
+    assert.deepEqual(o.warnings, ['predicted shape exceeds x']);
+    assert.match(o.reasons.join(' '), /predicted-shape warning/);
+  });
+
+  test('a suitable decision with no warning proceeds with an empty warnings[]', () => {
     const o = resolveLightGateOutcome({ suitability: { suitable: true } });
     assert.equal(o.action, 'proceed-light');
+    assert.deepEqual(o.warnings, []);
   });
 
-  test('over-scope attended asks the operator to escalate or proceed', () => {
+  test('an unsuitable decision escalates whether or not the run is attended', () => {
     const o = resolveLightGateOutcome({
-      suitability: { suitable: false, reasons: ['over ceiling'] },
-      yes: false,
-    });
-    assert.equal(o.action, 'ask-operator');
-    assert.deepEqual(o.options, ['escalate-plan', 'proceed-light']);
-  });
-
-  test('over-scope under --yes fails closed to /mandrel-plan (never proceeds light)', () => {
-    const o = resolveLightGateOutcome({
-      suitability: { suitable: false, reasons: ['over ceiling'] },
-      yes: true,
+      suitability: { suitable: false, reasons: ['un-waivable rule'] },
     });
     assert.equal(o.action, 'escalate-plan');
-    assert.notEqual(o.action, 'proceed-light');
+    assert.equal('options' in o, false, 'there is no question to ask');
+    assert.equal('override' in o, false, 'there is no answer to record');
   });
 
-  test('is total: missing suitability defaults to ask-operator (attended)', () => {
-    assert.equal(resolveLightGateOutcome().action, 'ask-operator');
+  test('is total: missing suitability escalates, never throws', () => {
+    assert.equal(resolveLightGateOutcome().action, 'escalate-plan');
   });
 });
 
@@ -562,7 +585,7 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     assert.equal(gate.action, 'proceed-light');
   });
 
-  test('a heavy prompt asks the operator (attended)', () => {
+  test('a sensitive-path prompt escalates — attended or not (Story #5313)', () => {
     const gate = runLightGate({
       prompt: 'rework the whole billing pipeline',
       refactors: ['src/billing/a.js', 'src/billing/b.js', 'src/billing/c.js'],
@@ -571,7 +594,8 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       reason: 'claims small but is not',
       injectedRules: RULES,
     });
-    assert.equal(gate.action, 'ask-operator');
+    assert.equal(gate.action, 'escalate-plan');
+    assert.equal(gate.suitability.unwaivable.code, 'sensitive-path');
   });
 
   test('--amends: a SMALL amendment routes light', () => {
@@ -602,7 +626,7 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
     assert.equal(gate.action, 'proceed-light');
   });
 
-  test('the effort flags reach the gate: open design decisions ask the operator', () => {
+  test('the effort flags reach the gate: open design decisions proceed with a warning', () => {
     const gate = runLightGate({
       prompt: 'make the counter configurable somehow',
       refactors: ['src/counter.js'],
@@ -612,7 +636,9 @@ describe('runLightGate — end-to-end gate over the entry inputs (AC-3, AC-6)', 
       reason: 'one file, but the shape is not decided',
       injectedRules: RULES,
     });
-    assert.equal(gate.action, 'ask-operator');
+    assert.equal(gate.action, 'proceed-light');
+    assert.equal(gate.outcome.warnings.length, 1);
+    assert.match(gate.outcome.warnings[0], /"uncertainty"/);
   });
 
   test('--amends: a HEAVY amendment escalates to /mandrel-plan under --yes', () => {
@@ -875,7 +901,7 @@ describe('escalate-plan emits a terminal envelope and exits non-zero (AC-1)', ()
     const { terminals } = await driveGate({ ...OVER_SCOPE, yes: true });
     const reasons = terminals[0].escalation.reasons.join(' ');
     assert.match(reasons, /maxDeployables/);
-    assert.match(reasons, /--yes on over-scope fails closed to \/mandrel-plan/);
+    assert.match(reasons, /fails closed to \/mandrel-plan/);
   });
 });
 
@@ -944,27 +970,20 @@ describe('an escalated run starts nothing (AC-2)', () => {
   });
 });
 
-describe('the attended over-scope path is UNCHANGED (AC-4)', () => {
-  test('still asks the operator to choose, with no terminal envelope', async () => {
+describe('attended and unattended over-scope both escalate (Story #5313)', () => {
+  test('an attended risk refusal is the same terminal — there is no question to wait for', async () => {
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       ...OVER_SCOPE,
       yes: false,
     });
-
-    // A question, not a terminal — emitting one would end a session that is
-    // supposed to be waiting for the operator's answer.
-    assert.equal(terminals.length, 0);
-    assert.equal(gateEnvelopes.length, 1);
-    assert.equal(gateEnvelopes[0].action, 'ask-operator');
-    assert.deepEqual(gateEnvelopes[0].outcome.options, [
-      'escalate-plan',
-      'proceed-light',
-    ]);
+    assert.equal(terminals.length, 1);
+    assert.equal(terminals[0].status, 'escalated');
+    assert.equal(gateEnvelopes.length, 0);
     assert.equal(code, 2);
     assert.equal(created, 0);
   });
 
-  test('proceed-light is likewise untouched — receipt authored, no terminal', async () => {
+  test('proceed-light is untouched — receipt authored, no terminal, empty warnings', async () => {
     const { code, terminals, gateEnvelopes, created } = await driveGate({
       prompt: 'add a bin/hello.js greeter',
       creates: 'bin/hello.js',
@@ -977,6 +996,32 @@ describe('the attended over-scope path is UNCHANGED (AC-4)', () => {
     assert.equal(created, 1);
     assert.equal(terminals.length, 0);
     assert.equal(gateEnvelopes[0].action, 'proceed-light');
+    assert.deepEqual(gateEnvelopes[0].warnings, []);
+  });
+
+  test('AC-6: a predicted shape past STORY_SHAPE_CEILINGS proceeds light with the axis named', async () => {
+    const { code, terminals, gateEnvelopes, created } = await driveGate({
+      prompt: 'raise the webServer boot timeout',
+      refactors:
+        'apps/web/playwright.config.ts,apps/staff/playwright.config.ts',
+      kinds: 'one-mechanical-edit',
+      magnitude: 'trivial',
+      uncertainty: 'determined',
+      acceptance: '1',
+      route: 'lite',
+      reason: 'one constant, two identical call sites',
+    });
+    assert.equal(code, 0);
+    assert.equal(created, 1);
+    assert.equal(terminals.length, 0);
+    assert.equal(gateEnvelopes[0].action, 'proceed-light');
+    assert.equal(gateEnvelopes[0].warnings.length, 1);
+    assert.match(gateEnvelopes[0].warnings[0], /"deployable-span"/);
+    assert.equal(
+      Object.hasOwn(gateEnvelopes[0], 'override'),
+      false,
+      'the override record went with the gate it answered',
+    );
   });
 });
 
@@ -1132,16 +1177,16 @@ describe('the light path does not project a command (AC-7, Story #4760)', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Story #4815 — the operator's proceed-light answer is representable
+// Story #5313 — the predicted-shape gate is a warning; the answer flag is gone
 // ---------------------------------------------------------------------------
 
 /**
- * A footprint whose ONLY objection is a size prediction (two deployables), with
- * the ledgered lite verdict already in place. This is the consumer shape that
- * motivated the Story: one mechanical constant bump at sites that happen to
- * straddle two apps.
+ * The consumer shape that motivated the retired override: one mechanical
+ * constant bump at sites that straddle two apps, with the ledgered lite
+ * verdict in place. It used to stop at `ask-operator`; now it proceeds with a
+ * `deployable-span` warning.
  */
-const OVERRIDABLE_SCOPE = Object.freeze({
+const SPANNING_SCOPE = Object.freeze({
   predictedChanges: [
     { path: 'apps/web/playwright.config.ts', assumption: 'refactors-existing' },
     {
@@ -1157,447 +1202,102 @@ const OVERRIDABLE_SCOPE = Object.freeze({
   injectedRules: RULES,
 });
 
-/** The operator's answer, in their words. */
-const OPERATOR_REASON = 'approved: one constant, three identical call sites';
-
-/**
- * Suitability for a footprint blocked by `code`, so a refusal can be asserted
- * per objection class without hand-building a whole decision object.
- *
- * @param {object} overrides Fields merged over {@link OVERRIDABLE_SCOPE}.
- * @returns {ReturnType<typeof deriveLightSuitability>}
- */
-const suitabilityFor = (overrides) =>
-  deriveLightSuitability({ ...OVERRIDABLE_SCOPE, ...overrides });
-
-/**
- * The two absolute risk rules — the complement of OVERRIDABLE_SHAPE_CODES.
- * Held as a literal here because the module keeps its own copy private: the
- * contract under test is the observable refusal, not a shared constant.
- */
-const ABSOLUTE_RISK_CODES = ['sensitive-path', 'migration-span'];
-
-describe('OVERRIDABLE_SHAPE_CODES — an allowlist of size predictions (AC-3)', () => {
-  test('is exactly the four ceiling rules, and frozen', () => {
-    assert.deepEqual([...OVERRIDABLE_SHAPE_CODES].sort(), [
-      'change-kinds',
-      'deployable-span',
-      'magnitude',
-      'uncertainty',
-    ]);
-    assert.equal(Object.isFrozen(OVERRIDABLE_SHAPE_CODES), true);
+describe('the predicted shape warns instead of gating (Story #5313 AC-6)', () => {
+  test('a deployable-span prediction proceeds light, warning by axis', () => {
+    const s = deriveLightSuitability(SPANNING_SCOPE);
+    assert.equal(s.suitable, true);
+    assert.equal(s.shape.code, 'deployable-span');
+    assert.equal(s.warnings.length, 1);
+    assert.match(s.warnings[0], /"deployable-span"/);
+    assert.match(s.warnings[0], /maxDeployables/);
   });
 
-  test('omits every risk rule and every unknown-footprint rejection', () => {
-    for (const code of [
-      'migration-span',
-      'sensitive-path',
-      'no-changes',
-      'unreadable-changes',
-      'glob-footprint',
-      'no-acceptance',
-      'classification-unavailable',
-      'unparseable-body',
-    ]) {
-      assert.equal(
-        OVERRIDABLE_SHAPE_CODES.includes(code),
-        false,
-        `${code} must never be waivable by an operator`,
-      );
-    }
-  });
-});
-
-describe('resolveOperatorOverride — the answer applies only when earned (AC-1..AC-5)', () => {
-  test('applies to an overridable ceiling, recording what was waived', () => {
-    const o = resolveOperatorOverride({
-      suitability: suitabilityFor({}),
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(o.applied, true);
-    assert.equal(o.record.overriddenCode, 'deployable-span');
-    assert.equal(o.record.recordedReason, OPERATOR_REASON);
-    assert.match(o.record.overriddenReason, /maxDeployables/);
-  });
-
-  test('an absent, blank, or non-string answer is simply no override', () => {
-    for (const operatorOverride of ['', '   ', undefined, null, 42, {}]) {
-      const o = resolveOperatorOverride({
-        suitability: suitabilityFor({}),
-        operatorOverride,
-      });
-      assert.equal(o.applied, false, JSON.stringify(operatorOverride));
-      assert.equal(o.record, null);
-      assert.equal(
-        o.note,
-        null,
-        'no answer was given, so there is nothing to report',
-      );
-    }
-  });
-
-  test('is inert when the gate raised no objection at all', () => {
-    const suitability = suitabilityFor({
-      predictedChanges: [
-        { path: 'src/one.ts', assumption: 'refactors-existing' },
-      ],
-    });
-    assert.equal(suitability.suitable, true);
-    const o = resolveOperatorOverride({
-      suitability,
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(o.applied, false, 'nothing to pre-authorize');
-    assert.equal(o.record, null);
-    assert.match(o.note, /raised no objection/);
-  });
-
-  test('refuses every non-negotiable objection, naming the code', () => {
-    const cases = [
-      [
-        'sensitive-path',
-        {
-          predictedChanges: [{ path: 'src/auth/x.ts', assumption: 'creates' }],
-        },
-      ],
-      [
-        'migration-span',
-        {
-          predictedChanges: [
-            { path: 'db/migrations/001.sql', assumption: 'creates' },
-            { path: 'src/reader.ts', assumption: 'refactors-existing' },
-          ],
-        },
-      ],
+  test('every unknown-footprint shape is likewise a warning, never a stop', () => {
+    for (const [code, overrides] of [
       ['no-changes', { predictedChanges: [] }],
       [
         'glob-footprint',
         { predictedChanges: [{ path: 'src/**/*.ts', assumption: 'creates' }] },
       ],
       ['no-acceptance', { predictedAcceptance: [] }],
-      [
-        'classification-unavailable',
-        {
-          // A single-deployable footprint, so the ceiling rules all clear and
-          // the unreadable manifest is the only thing left to object.
-          predictedChanges: [
-            { path: 'src/one.ts', assumption: 'refactors-existing' },
-          ],
-          selectSensitivePathClassesFn: () => {
-            throw new Error('unreadable sensitive-path manifest');
-          },
-        },
-      ],
-    ];
-    for (const [code, overrides] of cases) {
-      const suitability = suitabilityFor(overrides);
-      assert.equal(suitability.shape.code, code, `fixture yields ${code}`);
-      const o = resolveOperatorOverride({
-        suitability,
-        operatorOverride: OPERATOR_REASON,
-      });
-      assert.equal(o.applied, false, `${code} must not be overridable`);
-      assert.equal(o.record, null);
-      // The two absolute risk rules are refused by the un-waivable check
-      // (Story #4875), which names the rule and says why no answer helps; the
-      // rest are refused by the allowlist. Both refusals name the code.
-      const expected = ABSOLUTE_RISK_CODES.includes(code)
-        ? new RegExp(`un-waivable "${code}" rule`)
-        : new RegExp(`"${code}" is not an overridable`);
-      assert.match(o.note, expected);
+    ]) {
+      const s = deriveLightSuitability({ ...SPANNING_SCOPE, ...overrides });
+      assert.equal(s.shape.code, code, `fixture yields ${code}`);
+      assert.equal(s.suitable, true, `${code} must warn, not refuse`);
+      assert.match(s.warnings[0], new RegExp(`"${code}"`));
     }
   });
 
-  test('refuses an unrecognized code — the allowlist fails closed', () => {
-    // A rule added to SHAPE_CODES later, before anyone decides it is waivable.
-    const o = resolveOperatorOverride({
-      suitability: {
-        suitable: false,
-        shape: { code: 'some-future-rule', reasons: ['…'] },
-        ledger: { route: 'lite' },
-      },
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(o.applied, false);
-    assert.match(o.note, /"some-future-rule" is not an overridable/);
-  });
-
-  test('refuses under --yes: there is no operator to have answered', () => {
-    const o = resolveOperatorOverride({
-      suitability: suitabilityFor({}),
-      yes: true,
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(o.applied, false);
-    assert.match(o.note, /attended-only/);
-  });
-
-  test('does not rescue the ledgered half of the conjunction', () => {
+  test('the ledgered verdict still stands on its own', () => {
     for (const verdict of [
       { route: 'full', reason: 'not small' },
       { route: 'lite', reason: '' },
       undefined,
     ]) {
-      const o = resolveOperatorOverride({
-        suitability: suitabilityFor({ verdict }),
-        operatorOverride: OPERATOR_REASON,
-      });
-      assert.equal(o.applied, false, JSON.stringify(verdict));
-      assert.match(o.note, /model verdict must still be a ledgered lite/);
+      const s = deriveLightSuitability({ ...SPANNING_SCOPE, verdict });
+      assert.equal(s.suitable, false, JSON.stringify(verdict));
+      assert.equal(
+        resolveLightGateOutcome({ suitability: s }).action,
+        'escalate-plan',
+      );
     }
   });
 
-  test('is total: no arguments yields a refusal, never a throw', () => {
-    assert.equal(resolveOperatorOverride().applied, false);
-    assert.equal(resolveOperatorOverride({}).record, null);
-  });
-});
-
-describe('resolveLightGateOutcome — the override changes the ACTION, not the verdict (AC-1, AC-2)', () => {
-  test('an applied override turns ask-operator into proceed-light', () => {
-    const suitability = suitabilityFor({});
-    const without = resolveLightGateOutcome({ suitability });
-    assert.equal(without.action, 'ask-operator');
-    assert.equal(without.override, undefined);
-
-    const withOverride = resolveLightGateOutcome({
-      suitability,
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(withOverride.action, 'proceed-light');
-    assert.equal(withOverride.override.overriddenCode, 'deployable-span');
-    assert.match(
-      withOverride.reasons.join(' '),
-      /the operator answered proceed-light/,
-    );
-  });
-
-  test('the honest suitability verdict is untouched by the answer', () => {
-    // The override waives what the gate DOES about the objection, never the
-    // objection itself — a downstream reader must still see route: full.
-    const suitability = suitabilityFor({});
-    resolveLightGateOutcome({ suitability, operatorOverride: OPERATOR_REASON });
-    assert.equal(suitability.suitable, false);
-    assert.equal(suitability.route, 'full');
-    assert.equal(suitability.shape.route, 'full');
-  });
-
-  test('--yes still escalates, and says why the override did not apply', () => {
-    const outcome = resolveLightGateOutcome({
-      suitability: suitabilityFor({}),
-      yes: true,
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(outcome.action, 'escalate-plan');
-    assert.equal(outcome.override, undefined);
-    assert.match(outcome.reasons.join(' '), /attended-only/);
-  });
-
-  test('a refused override still asks — and the refusal is reported', () => {
-    const outcome = resolveLightGateOutcome({
-      suitability: suitabilityFor({
-        predictedChanges: [{ path: 'src/auth/x.ts', assumption: 'creates' }],
-      }),
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(outcome.action, 'ask-operator');
-    assert.equal(outcome.override, undefined);
-    assert.match(outcome.reasons.join(' '), /un-waivable "sensitive-path"/);
-  });
-});
-
-describe('buildReceiptStoryTicket — an override is auditable from the ticket (AC-6)', () => {
-  const OVERRIDE_RECORD = {
-    recordedReason: OPERATOR_REASON,
-    overriddenCode: 'deployable-span',
-    overriddenReason: 'footprint spans 2 deployables (apps/web, apps/staff)',
-  };
-
-  test('records the code, the gate reason, and the operator reason', () => {
+  test('the receipt Story carries no override paragraph', () => {
     const ticket = buildReceiptStoryTicket({
       prompt: 'raise the boot timeout',
       changedFiles: ['apps/web/playwright.config.ts'],
-      override: OVERRIDE_RECORD,
     });
-    assert.match(ticket.body.spec, /OPERATOR SCOPE OVERRIDE/);
-    assert.match(ticket.body.spec, /"deployable-span"/);
-    assert.match(ticket.body.spec, /apps\/web, apps\/staff/);
-    assert.match(ticket.body.spec, new RegExp(OPERATOR_REASON));
-    assert.match(ticket.body.spec, /not the diff backstop/);
-  });
-
-  test('an absent or malformed override leaves the receipt byte-identical', () => {
-    const baseline = buildReceiptStoryTicket({
-      prompt: 'raise the boot timeout',
-      changedFiles: ['apps/web/playwright.config.ts'],
-    });
-    for (const override of [
-      null,
-      undefined,
-      {},
-      'nope',
-      { recordedReason: '  ' },
-    ]) {
-      const ticket = buildReceiptStoryTicket({
-        prompt: 'raise the boot timeout',
-        changedFiles: ['apps/web/playwright.config.ts'],
-        override,
-      });
-      assert.deepEqual(ticket, baseline, JSON.stringify(override));
-    }
+    assert.doesNotMatch(ticket.body.spec, /OPERATOR SCOPE OVERRIDE/);
   });
 });
 
-describe('deliver-light.js CLI — the answer has a flag to carry it (AC-1, AC-4, AC-6)', () => {
-  /** The issue's own repro, as CLI values. */
-  const REPRO = Object.freeze({
-    prompt: 'raise the webServer boot timeout',
-    refactors: 'apps/web/playwright.config.ts,apps/staff/playwright.config.ts',
-    kinds: 'one-mechanical-edit',
-    magnitude: 'trivial',
-    uncertainty: 'determined',
-    acceptance: '1',
-    route: 'lite',
-    reason: 'one constant, three identical call sites',
-  });
-
-  test('without the flag the repro still stops at ask-operator', async () => {
-    const { code, gateEnvelopes, created } = await driveGate({ ...REPRO });
-    assert.equal(code, 2);
-    assert.equal(created, 0);
-    assert.equal(gateEnvelopes[0].action, 'ask-operator');
-  });
-
-  test('with the flag it proceeds, and the receipt carries the override', async () => {
-    const { code, gateEnvelopes, created, receiptArgs } = await driveGate({
-      ...REPRO,
-      'operator-proceed-light': OPERATOR_REASON,
-    });
-    assert.equal(code, 0);
-    assert.equal(created, 1);
-    assert.equal(gateEnvelopes[0].action, 'proceed-light');
-    assert.equal(gateEnvelopes[0].override.overriddenCode, 'deployable-span');
-    assert.equal(gateEnvelopes[0].override.recordedReason, OPERATOR_REASON);
-    assert.equal(
-      receiptArgs[0].override.recordedReason,
-      OPERATOR_REASON,
-      'the receipt Story is where the decision becomes auditable',
-    );
-  });
-
-  test('a proceed-light that needed no override carries no override field', async () => {
-    const { gateEnvelopes, receiptArgs } = await driveGate({
-      prompt: 'add a bin/hello.js greeter',
-      creates: 'bin/hello.js',
-      acceptance: '1',
-      route: 'lite',
-      reason: 'single additive file',
-      'operator-proceed-light': OPERATOR_REASON,
-    });
-    assert.equal(gateEnvelopes[0].action, 'proceed-light');
-    assert.equal(
-      Object.hasOwn(gateEnvelopes[0], 'override'),
-      false,
-      'an unearned override must not appear as a recorded decision',
-    );
-    assert.equal(receiptArgs[0].override, null);
-  });
-
-  test('combining it with --yes is a usage error, not a quiet no-op', async () => {
-    await assert.rejects(
-      () => driveGate({ ...REPRO, 'operator-proceed-light': 'x', yes: true }),
-      /attended-only and cannot be combined with --yes/,
-    );
-  });
-
-  test('--help documents the flag, so an operator can find it', () => {
+describe('deliver-light.js CLI — the answer flag is gone (Story #5313)', () => {
+  test('--help no longer documents --operator-proceed-light or ask-operator', () => {
     const result = spawnSync(process.execPath, [DELIVER_LIGHT_SRC, '--help'], {
       encoding: 'utf8',
     });
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /--operator-proceed-light/);
-    assert.match(result.stdout, /[Aa]ttended-only/);
+    assert.doesNotMatch(result.stdout, /--operator-proceed-light/);
+    assert.doesNotMatch(result.stdout, /ask-operator/);
+    assert.match(result.stdout, /WARNING on the envelope/);
   });
 
-  test('end to end: the real CLI refuses the flag under --yes (exit 1)', () => {
-    const cwd = makeTempDir('light-override-');
-    const result = spawnSync(
-      process.execPath,
-      [
-        DELIVER_LIGHT_SRC,
-        '--prompt',
-        REPRO.prompt,
-        '--refactors',
-        REPRO.refactors,
-        '--route',
-        'lite',
-        '--reason',
-        REPRO.reason,
-        '--operator-proceed-light',
-        OPERATOR_REASON,
-        '--yes',
-      ],
-      { cwd, encoding: 'utf8' },
-    );
-    assert.equal(result.status, 1, result.stdout);
-    assert.match(result.stderr, /attended-only/);
-    assert.equal(
-      result.stdout.includes(TERMINAL_BEGIN_MARKER),
-      false,
-      'a usage error is not an escalated terminal',
-    );
+  test('the parser owns no retired flag — a phantom flag under strict: false would be silently ignored', () => {
+    const src = readFileSync(DELIVER_LIGHT_SRC, 'utf8');
+    assert.doesNotMatch(src, /operator-proceed-light/);
+    assert.doesNotMatch(src, /ask-operator/);
   });
 });
 
-describe('the workflow tells the agent how to act on the answer (AC-8)', () => {
+describe('the workflow describes the warning, not a question (Story #5313)', () => {
   const doc = readDoc(
     path.join(REPO_ROOT, '.agents', 'workflows', 'helpers', 'deliver-light.md'),
   );
 
-  test('the ask-operator branch names the executable proceed answer', () => {
+  test('names the warnings[] entry and says the run proceeds', () => {
     assertDocMentions(
       doc,
-      /--operator-proceed-light/,
-      'an option the agent cannot act on is the defect this Story fixes',
+      /`warnings\[\]`/,
+      'the workflow must name the envelope field the shape objection lands in',
     );
-    assertDocMentions(
+    assertDocOmits(
       doc,
-      /wait for the answer,\s*then act on it/,
-      'the branch must say the answer is acted on, not merely awaited',
-    );
-  });
-
-  test('it forbids re-shaping the prediction instead', () => {
-    assertDocMentions(
-      doc,
-      /under-declaring the footprint, which is the one thing the coarse design must\s*not reward/,
-      'without this, the documented workaround is the gaming the gate anticipates',
+      /ask-operator|--operator-proceed-light/,
+      'the retired outcome and its answer flag must not survive in prose',
     );
   });
 
-  test('it keeps sensitivity and risk non-negotiable', () => {
+  test('keeps sensitivity and the diff backstop as the hard edges', () => {
     assertDocMentions(
       doc,
-      /Only a size prediction is waivable/,
-      'the override must read as narrow, not as a general bypass',
+      /Sensitivity is the exception and stays absolute/i,
+      'relaxing the shape gate must not read as relaxing sensitivity',
     );
     assertDocMentions(
       doc,
-      /it is \*\*not overridable\*\*/,
-      '§ Scope by effort must say sensitivity survives the new flag',
-    );
-  });
-
-  test('it states the attended-only rule and what still bounds size', () => {
-    assertDocMentions(
-      doc,
-      /With `--yes` it is a usage error, not a quiet no-op/,
-      'an unattended run has no operator whose answer this could be',
-    );
-    assertDocMentions(
-      doc,
-      /the operator waives a \*guess\*, never the\s*diff backstop/,
-      'the backstop is what licenses waiving the prediction at all',
+      /LIGHT_DIFF_CEILINGS/,
+      'the backstop is what licenses warning on the prediction at all',
     );
   });
 });
@@ -1758,7 +1458,7 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
     assert.equal(next, '/mandrel-plan 4741');
   });
 
-  test('an ask-operator gate hands the refusal to the recorder', async () => {
+  test('an escalating gate hands the refusal to the recorder', async () => {
     const seen = [];
     const code = await runGateMode(
       {
@@ -1771,6 +1471,7 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
       },
       {
         emitFn: () => {},
+        emitTerminalFn: () => {},
         recordRefusalFn: async (args) => {
           seen.push(args);
           return true;
@@ -1779,7 +1480,7 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
     );
     assert.equal(code, 2);
     assert.equal(seen.length, 1);
-    assert.equal(seen[0].gate.action, 'ask-operator');
+    assert.equal(seen[0].gate.action, 'escalate-plan');
     assert.equal(seen[0].amends, '#4321');
   });
 
@@ -1787,9 +1488,9 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
     const seen = [];
     await recordGateRefusal({
       gate: {
-        action: 'ask-operator',
+        action: 'escalate-plan',
         outcome: { reasons: ['too big'] },
-        suitability: { shape: { code: 'deployable-span' } },
+        suitability: { shape: { code: 'sensitive-path' } },
       },
       amends: '#4321',
       recordFrictionFn: async (args) => {
@@ -1800,18 +1501,18 @@ describe('light-path rejections are telemetered (Story #4856)', () => {
     assert.equal(seen.length, 1);
     assert.equal(seen[0].storyId, 4321);
     assert.equal(seen[0].surface, 'suitability-gate');
-    assert.equal(seen[0].details.action, 'ask-operator');
-    assert.equal(seen[0].details.code, 'deployable-span');
+    assert.equal(seen[0].details.action, 'escalate-plan');
+    assert.equal(seen[0].details.code, 'sensitive-path');
   });
 
   test('a bare prompt has no Story context to attribute a signal to', async () => {
-    // Deliberate: the ask-operator path creates no receipt, and the signals
+    // Deliberate: the escalating path creates no receipt, and the signals
     // stream is keyed on a Story id. Attributing it to a fabricated id would be
     // worse than recording nothing.
     const attributions = [];
     for (const amends of [undefined, '#12', '12', 'nonsense', '0']) {
       await recordGateRefusal({
-        gate: { action: 'ask-operator', outcome: { reasons: [] } },
+        gate: { action: 'escalate-plan', outcome: { reasons: [] } },
         amends,
         emitFn: async (args) => {
           attributions.push(args.storyId);
@@ -1878,7 +1579,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
 
   test('a clean footprint reports no un-waivable rule at all', () => {
     const s = deriveLightSuitability({
-      ...OVERRIDABLE_SCOPE,
+      ...SPANNING_SCOPE,
       predictedChanges: [
         { path: 'apps/web/x.ts', assumption: 'refactors-existing' },
       ],
@@ -1888,20 +1589,11 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
     assert.equal(s.suitable, true);
   });
 
-  test('the two absolute risk rules are never also in the waivable allowlist', () => {
-    for (const code of ABSOLUTE_RISK_CODES) {
-      assert.ok(
-        !OVERRIDABLE_SHAPE_CODES.includes(code),
-        `${code} must never be both waivable and un-waivable`,
-      );
-    }
-  });
-
   test('a rejection with no judgeable shape claims no un-waivable rule', () => {
     // `no-changes` never builds an effort shape, so there are no risk facts to
     // read — and inventing one would be worse than reporting nothing.
     const s = deriveLightSuitability({
-      ...OVERRIDABLE_SCOPE,
+      ...SPANNING_SCOPE,
       predictedChanges: [],
     });
     assert.equal(s.shape.shape, null);
@@ -1912,7 +1604,7 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
 
   test('a migration span is reported as un-waivable too', () => {
     const s = deriveLightSuitability({
-      ...OVERRIDABLE_SCOPE,
+      ...SPANNING_SCOPE,
       predictedChanges: [
         { path: 'db/migrations/001.sql', assumption: 'creates' },
         { path: 'src/reader.ts', assumption: 'refactors-existing' },
@@ -1923,36 +1615,24 @@ describe('the prediction gate names the un-waivable class up front (AC-1, AC-2)'
   });
 });
 
-describe('an override cannot waive a footprint that also trips a risk rule (AC-1)', () => {
-  test('the refusal names the un-waivable rule, not the waivable one it recorded', () => {
-    const suitability = deriveLightSuitability(DOUBLE_OBJECTION_SCOPE);
-    const o = resolveOperatorOverride({
-      suitability,
-      operatorOverride: OPERATOR_REASON,
-    });
-    assert.equal(o.applied, false);
-    assert.equal(o.record, null);
-    assert.match(o.note, /un-waivable "sensitive-path"/);
-    assert.match(o.note, /Escalate to \/mandrel-plan/);
-  });
-
-  test('the gate still asks, and the operator learns the answer cannot help', () => {
+describe('a risk rule escalates even when the recorded objection is a size rule (AC-1)', () => {
+  test('the gate escalates and names the un-waivable rule', () => {
     const outcome = resolveLightGateOutcome({
       suitability: deriveLightSuitability(DOUBLE_OBJECTION_SCOPE),
-      operatorOverride: OPERATOR_REASON,
     });
-    assert.equal(outcome.action, 'ask-operator');
-    assert.equal(outcome.override, undefined);
-    assert.match(outcome.reasons.join(' '), /un-waivable "sensitive-path"/);
+    assert.equal(outcome.action, 'escalate-plan');
+    assert.match(
+      outcome.reasons.join(' '),
+      /un-waivable: the predicted footprint intersects sensitive-path/,
+    );
   });
 
-  test('a purely-size objection is still overridable — the rule did not widen', () => {
-    const o = resolveOperatorOverride({
-      suitability: suitabilityFor({}),
-      operatorOverride: OPERATOR_REASON,
+  test('a purely-size objection proceeds — the risk rule did not widen', () => {
+    const outcome = resolveLightGateOutcome({
+      suitability: deriveLightSuitability(SPANNING_SCOPE),
     });
-    assert.equal(o.applied, true);
-    assert.equal(o.record.overriddenCode, 'deployable-span');
+    assert.equal(outcome.action, 'proceed-light');
+    assert.equal(outcome.warnings.length, 1);
   });
 });
 
@@ -2196,7 +1876,7 @@ describe('the light-refusal friction category encodes the refusal class', () => 
   test('the suitability GATE refusal is unchanged — it still emits the bare category', async () => {
     const seen = [];
     await recordGateRefusal({
-      gate: { action: 'ask-operator', outcome: { reasons: ['too broad'] } },
+      gate: { action: 'escalate-plan', outcome: { reasons: ['too broad'] } },
       amends: '#4741',
       emitFn: async (args) => {
         seen.push(args);

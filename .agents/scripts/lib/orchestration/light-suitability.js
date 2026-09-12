@@ -27,13 +27,15 @@
  *      and epic-scope span — never artifact counts (Story #4764), so this gate
  *      is deliberately **coarse**: it rejects clearly-epic work, and invariant
  *      3 below does the real enforcement against ground truth.
- *   2. **Over-scope stops, never silently proceeds ({@link
- *      resolveLightGateOutcome}).** An over-ceiling prompt does **not**
- *      hard-fail — it STOPS and asks the operator to escalate to `/mandrel-plan` or
- *      proceed light. Both answers are executable: `proceed-light` is recorded
- *      through {@link resolveOperatorOverride}, which waives a *size
- *      prediction* only, never a risk rule, and only with a human present.
- *      Under `--yes` (unattended) it fails closed to recommending `/mandrel-plan`.
+ *   2. **The predicted shape is a warning, not a gate ({@link
+ *      resolveLightGateOutcome}, Story #5313).** An over-ceiling prediction
+ *      proceeds light with a `warnings[]` entry naming the exceeded axis — the
+ *      prediction is a guess, and invariant 3 bounds the real change set. Only
+ *      the two things no re-slicing can fix still refuse: an un-ledgered
+ *      verdict and an un-waivable risk rule (a sensitive-path class or a
+ *      migration span), which route `full` through an `escalated` terminal.
+ *      The former `ask-operator` outcome and its `--operator-proceed-light`
+ *      answer are gone with the gate they answered.
  *   3. **Diff-derived backstop ({@link checkLightDiffBackstop}).** After
  *      implementation the **actual** change set is re-checked with
  *      {@link module:lib/orchestration/review-depth.deriveChangeLevel} plus the
@@ -62,31 +64,9 @@ import {
 import { deriveChangeLevel } from './review-depth.js';
 
 /**
- * The shape objections an attended operator may waive (Story #4815) — an
- * **allowlist**, deliberately, so a rule added to
- * {@link module:lib/orchestration/complexity-gate.SHAPE_CODES} later is
- * non-negotiable until someone decides otherwise here. A denylist would make
- * every new rule silently overridable.
- *
- * These four are the *size predictions*: coarse by design (§ Scope by effort),
- * and already bounded for real by {@link checkLightDiffBackstop} against the
- * landed diff. Everything absent is absent on purpose — `migration-span` and
- * `sensitive-path` are **risk**, not size, and the unknown-footprint codes
- * describe a shape that was never judged, so there is no false positive to
- * appeal.
- */
-export const OVERRIDABLE_SHAPE_CODES = Object.freeze([
-  SHAPE_CODES.CHANGE_KINDS,
-  SHAPE_CODES.MAGNITUDE,
-  SHAPE_CODES.UNCERTAINTY,
-  SHAPE_CODES.DEPLOYABLE_SPAN,
-]);
-
-/**
  * Detect the **un-waivable** risk rules a predicted footprint trips —
- * `sensitive-path` and `migration-span`, the complement of
- * {@link OVERRIDABLE_SHAPE_CODES} — **independent of which rule the shape
- * decision happened to record** (Story #4875).
+ * `sensitive-path` and `migration-span` — **independent of which rule the
+ * shape decision happened to record** (Story #4875).
  *
  * No re-slicing, shrinking, or operator answer satisfies one: a footprint
  * intersecting a sensitive-path class routes `full` however small the change,
@@ -129,7 +109,7 @@ function deriveUnwaivableRisk(decision) {
       reason:
         `un-waivable: the predicted footprint intersects sensitive-path ` +
         `class(es) ${classes.join(', ')} — this is risk, not size, so no ` +
-        `re-slicing, shrinking, or operator override satisfies it and the ` +
+        `re-slicing or shrinking satisfies it and the ` +
         `diff backstop would refuse the same footprint after the work is ` +
         `finished; take this to /mandrel-plan now`,
     };
@@ -141,8 +121,8 @@ function deriveUnwaivableRisk(decision) {
       classes: [],
       reason:
         `un-waivable: the predicted footprint pairs a migration with its ` +
-        `consumers — this is risk, not size, so no re-slicing or operator ` +
-        `override satisfies it; take this to /mandrel-plan now`,
+        `consumers — this is risk, not size, so no re-slicing ` +
+        `satisfies it; take this to /mandrel-plan now`,
     };
   }
   return { present: false, code: null, classes: [], reason: null };
@@ -289,9 +269,13 @@ export function resolveLedgeredVerdict({ route, reason } = {}) {
  *   unwaivable: ReturnType<typeof deriveUnwaivableRisk>,
  *   ceilings: typeof STORY_SHAPE_CEILINGS,
  *   reasons: string[],
+ *   warnings: string[],
  * }} `unwaivable` names an absolute risk rule the predicted footprint trips
  *   even when the recorded `shape.code` is a size prediction (Story #4875), so
- *   the operator learns at prediction time that no override can help.
+ *   the operator learns at prediction time that no re-slicing can help.
+ *   `warnings` carries the predicted-shape objection when the shape is past a
+ *   light ceiling (Story #5313): it names the exceeded axis, and it never
+ *   decides `suitable` — the diff backstop bounds the real change set.
  */
 export function deriveLightSuitability({
   predictedChanges,
@@ -314,12 +298,11 @@ export function deriveLightSuitability({
     selectSensitivePathClassesFn,
   });
   const unwaivable = deriveUnwaivableRisk(shape);
-  // A tripped risk rule is decisive on its own: the shape decision may have
-  // recorded an earlier ceiling rule, but a sensitive footprint can never be
-  // lite, so the conjunction must not be able to read `suitable` from a shape
-  // whose recorded code was waived downstream.
-  const suitable =
-    shape.route === 'lite' && ledger.route === 'lite' && !unwaivable.present;
+  // Story #5313: the predicted shape no longer decides. A tripped risk rule is
+  // decisive on its own — a sensitive footprint can never be lite — and the
+  // ledgered verdict must still be lite; everything the shape ceilings say is
+  // carried as a warning for the operator and bounded for real by the backstop.
+  const suitable = ledger.route === 'lite' && !unwaivable.present;
   const reasons = [`shape: ${shape.reasons[0]}`];
   if (unwaivable.present) reasons.push(unwaivable.reason);
   reasons.push(`verdict: ${ledger.note}`);
@@ -331,193 +314,78 @@ export function deriveLightSuitability({
     unwaivable,
     ceilings: STORY_SHAPE_CEILINGS,
     reasons,
+    warnings: shapeWarnings(shape),
   };
 }
 
 /**
- * Adjudicate an operator's recorded `proceed-light` answer to the gate's own
- * question (Story #4815). The gate has always *offered* `proceed-light` as one
- * of two options; before this there was no input that could carry the answer,
- * so the only way past a coarse prediction was to re-shape the declaration
- * until the gate stopped objecting — precisely the under-declaring the coarse
- * design anticipates.
+ * The predicted-shape objection as a warning (Story #5313): one entry naming
+ * the exceeded axis (`shape.code`) and the shape's own reason, or none when
+ * the prediction is within every light ceiling.
  *
- * Applying it takes **all** of:
- *
- *   1. **The gate actually objected.** An override cannot pre-authorize a
- *      scope nothing rejected.
- *   2. **The run is attended.** `--yes` means nobody is at the keyboard, so
- *      there is no operator whose answer this could be (§ Escalation is
- *      terminal). Checked here as well as at the CLI, so the pure core carries
- *      the guarantee rather than the shell.
- *   3. **The objection is a size prediction** — a code in
- *      {@link OVERRIDABLE_SHAPE_CODES}, **and** the footprint trips no
- *      un-waivable risk rule ({@link deriveUnwaivableRisk}, Story #4875).
- *      Sensitivity and migration
- *      span are risk and stay absolute however small the change — including
- *      when an earlier ceiling rule is the one the shape recorded.
- *   4. **The ledgered verdict is already `lite`.** The override substitutes for
- *      the *shape* half of the conjunction only; an unaudited "trust me, it's
- *      small" buys nothing it did not buy before.
- *
- * A refusal is reported, never silent — an operator who typed the flag must
- * learn why it did not take. Pure and total.
- *
- * @param {{
- *   suitability?: object,
- *   yes?: boolean,
- *   operatorOverride?: unknown,
- * }} [args] `operatorOverride` is the operator's recorded reason; blank or
- *   absent means no override was requested.
- * @returns {{
- *   applied: boolean,
- *   record: { recordedReason: string, overriddenCode: string, overriddenReason: string }|null,
- *   note: string|null,
- * }}
+ * @param {ReturnType<typeof deriveStoryShape>} shape
+ * @returns {string[]}
  */
-export function resolveOperatorOverride({
-  suitability,
-  yes = false,
-  operatorOverride,
-} = {}) {
-  const recordedReason =
-    typeof operatorOverride === 'string' ? operatorOverride.trim() : '';
-  const refuse = (note) => ({ applied: false, record: null, note });
-
-  if (recordedReason === '') return refuse(null);
-  if (suitability?.suitable === true) {
-    return refuse(
-      'operator override ignored — the gate raised no objection to override',
-    );
-  }
-  if (yes === true) {
-    return refuse(
-      'operator override refused — it is attended-only, and --yes means nobody is at the keyboard; over-scope still fails closed to /mandrel-plan',
-    );
-  }
-
-  const code = suitability?.shape?.code ?? null;
-  // Checked BEFORE the overridable-code test on purpose (Story #4875): when a
-  // footprint trips both a ceiling rule and a risk rule, the shape records the
-  // ceiling rule, which IS overridable — so testing the recorded code alone
-  // would apply the override and send un-landable work to the backstop.
-  const unwaivable = suitability?.unwaivable;
-  if (unwaivable?.present === true) {
-    return refuse(
-      `operator override refused — the predicted footprint also trips the ` +
-        `un-waivable "${unwaivable.code}" rule${
-          unwaivable.classes.length > 0
-            ? ` (${unwaivable.classes.join(', ')})`
-            : ''
-        }; waiving the size prediction cannot make this land light, and the ` +
-        `diff backstop would refuse the finished work. Escalate to /mandrel-plan.`,
-    );
-  }
-  if (!OVERRIDABLE_SHAPE_CODES.includes(code)) {
-    return refuse(
-      `operator override refused — "${code ?? 'unknown'}" is not an overridable size prediction (overridable: ${OVERRIDABLE_SHAPE_CODES.join(', ')}); risk rules and unknown footprints are non-negotiable`,
-    );
-  }
-  if (suitability?.ledger?.route !== 'lite') {
-    return refuse(
-      'operator override refused — it substitutes for the predicted shape only; the model verdict must still be a ledgered lite with a recorded reason',
-    );
-  }
-
-  return {
-    applied: true,
-    record: {
-      recordedReason,
-      overriddenCode: code,
-      overriddenReason: suitability?.shape?.reasons?.[0] ?? '',
-    },
-    note: `operator override applied — proceeding light despite "${code}"; recorded reason: ${recordedReason}. The diff backstop still bounds the actual change set.`,
-  };
+function shapeWarnings(shape) {
+  if (shape?.route === 'lite') return [];
+  const axis = shape?.code ?? 'unknown';
+  const reason = shape?.reasons?.[0] ?? 'no reason recorded';
+  return [
+    `predicted shape exceeds a light ceiling on "${axis}": ${reason} — ` +
+      'proceeding light; the diff backstop bounds the actual change set',
+  ];
 }
 
 /**
  * Resolve what the light gate does with a suitability decision (Story #4740
- * AC-3). Over-scope never hard-fails: it STOPS and asks the operator to choose,
- * unless the run is unattended (`--yes`), where it fails closed to recommending
- * `/mandrel-plan` rather than silently proceeding light.
+ * AC-3; Story #5313).
  *
- *   - suitable          → `proceed-light`
- *   - over-scope + attended (`yes:false`)  → `ask-operator` (escalate | proceed)
- *   - over-scope + attended + an applied operator override (Story #4815)
- *                                          → `proceed-light`, carrying the
- *                                            decision in `override`
- *   - over-scope + unattended (`yes:true`) → `escalate-plan`
- *
- * The override is adjudicated by {@link resolveOperatorOverride} and cannot
- * reach the unattended branch: `escalate-plan` is resolved first and the
- * override refuses itself under `yes` anyway.
+ *   - suitable        → `proceed-light`, carrying the predicted-shape
+ *                       `warnings[]` (possibly empty) so an over-ceiling
+ *                       prediction is stated, never silent.
+ *   - not suitable    → `escalate-plan` — only an un-ledgered verdict or an
+ *                       un-waivable risk rule gets here, and neither has an
+ *                       answer an operator could give, so there is no
+ *                       attended/unattended split any more.
  *
  * Pure and total.
  *
  * @param {{
- *   suitability?: { suitable?: boolean, reasons?: string[] },
- *   yes?: boolean,
- *   operatorOverride?: unknown,
+ *   suitability?: { suitable?: boolean, reasons?: string[], warnings?: string[] },
  * }} [args]
  * @returns {{
- *   action: 'proceed-light'|'ask-operator'|'escalate-plan',
- *   options?: string[],
- *   override?: object,
+ *   action: 'proceed-light'|'escalate-plan',
+ *   warnings: string[],
  *   reasons: string[],
  * }}
  */
-export function resolveLightGateOutcome({
-  suitability,
-  yes = false,
-  operatorOverride,
-} = {}) {
-  const override = resolveOperatorOverride({
-    suitability,
-    yes,
-    operatorOverride,
-  });
+export function resolveLightGateOutcome({ suitability } = {}) {
   const reasons = Array.isArray(suitability?.reasons)
     ? [...suitability.reasons]
     : [];
-  if (override.note !== null) reasons.push(override.note);
+  const warnings = Array.isArray(suitability?.warnings)
+    ? [...suitability.warnings]
+    : [];
 
   if (suitability?.suitable === true) {
     return {
       action: 'proceed-light',
+      warnings,
       reasons: [
         ...reasons,
-        'predicted shape and ledgered verdict both lite — proceed light',
-      ],
-    };
-  }
-
-  if (yes === true) {
-    return {
-      action: 'escalate-plan',
-      reasons: [
-        ...reasons,
-        '--yes on over-scope fails closed to /mandrel-plan (never silently proceeds light)',
-      ],
-    };
-  }
-
-  if (override.applied) {
-    return {
-      action: 'proceed-light',
-      override: override.record,
-      reasons: [
-        ...reasons,
-        'predicted scope exceeded a light ceiling and the operator answered proceed-light — proceeding on the recorded override',
+        warnings.length > 0
+          ? 'ledgered verdict lite and no un-waivable risk — proceeding light with a predicted-shape warning'
+          : 'predicted shape and ledgered verdict both lite — proceed light',
       ],
     };
   }
 
   return {
-    action: 'ask-operator',
-    options: ['escalate-plan', 'proceed-light'],
+    action: 'escalate-plan',
+    warnings,
     reasons: [
       ...reasons,
-      'predicted scope exceeds the light ceilings — STOP and ask the operator to escalate to /mandrel-plan or proceed light',
+      'the ledgered verdict is not lite or an un-waivable risk rule fired — fails closed to /mandrel-plan (never silently proceeds light)',
     ],
   };
 }
@@ -851,52 +719,21 @@ function toReceiptChanges(changedFiles) {
 }
 
 /**
- * Render an applied operator override as an audit paragraph for the receipt
- * body (Story #4815). An override that leaves no trace on the ticket is an
- * invisible decision: the whole point of routing it through the receipt is
- * that a later reader can see the gate objected, on what grounds, and who
- * decided to proceed anyway.
- *
- * @param {unknown} override The `record` from {@link resolveOperatorOverride}.
- * @returns {string} A leading-space-prefixed sentence, or `''` when absent.
- */
-function renderOverrideNote(override) {
-  if (!override || typeof override !== 'object') return '';
-  const { overriddenCode, overriddenReason, recordedReason } = override;
-  if (typeof recordedReason !== 'string' || recordedReason.trim() === '') {
-    return '';
-  }
-  return (
-    ` OPERATOR SCOPE OVERRIDE: the suitability gate objected on ` +
-    `"${overriddenCode}" (${overriddenReason}) and the operator answered ` +
-    `proceed-light — recorded reason: ${recordedReason.trim()}. The ` +
-    `prediction was waived, not the diff backstop, which still bounds the ` +
-    `landed change set.`
-  );
-}
-
-/**
  * Build the minimal receipt `type::story` ticket for the light path
  * (Story #4740 AC-5) — the input `assemblePlanStories` / `createStoryIssues`
  * consume, so the light path reuses the plan-persist story-creation surface
  * rather than reimplementing issue authoring. The body carries the operator
- * prompt (goal + spec), the diff-derived footprint (`changes[]`), and any
- * operator scope override, so history and `refs #<id>` on the commit survive.
+ * prompt (goal + spec) and the diff-derived footprint (`changes[]`), so
+ * history and `refs #<id>` on the commit survive.
  *
  * @param {{
  *   prompt?: unknown,
  *   changedFiles?: unknown,
  *   amends?: unknown,
- *   override?: unknown,
  * }} [args]
  * @returns {{ slug: string, title: string, body: object, labels: string[] }}
  */
-export function buildReceiptStoryTicket({
-  prompt,
-  changedFiles,
-  amends,
-  override,
-} = {}) {
+export function buildReceiptStoryTicket({ prompt, changedFiles, amends } = {}) {
   const text = typeof prompt === 'string' ? prompt.trim() : '';
   if (text === '') {
     throw new Error(
@@ -906,7 +743,6 @@ export function buildReceiptStoryTicket({
   const amendsId = normalizeAmends(amends);
   const amendNote = amendsId !== null ? ` Amends #${amendsId}.` : '';
   const changes = toReceiptChanges(changedFiles);
-  const overrideNote = renderOverrideNote(override);
 
   return {
     slug: slugifyPrompt(text),
@@ -917,8 +753,7 @@ export function buildReceiptStoryTicket({
       spec:
         `Delivered via /deliver-light as a validated single-session change — ` +
         `the /mandrel-plan session is removed for genuinely small work while every ` +
-        `single-story-close gate runs byte-identical.${amendNote}` +
-        `${overrideNote} ` +
+        `single-story-close gate runs byte-identical.${amendNote} ` +
         `Operator prompt: ${text}`,
       changes,
       acceptance: [
