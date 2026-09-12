@@ -16,7 +16,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { runPreflightPhase } from '../../.agents/scripts/bootstrap.js';
-import { checkProjectScopes } from '../../.agents/scripts/lib/bootstrap/gh-preflight.js';
+import {
+  checkProjectScopes,
+  MIN_GH_VERSION,
+  preflightGh,
+} from '../../.agents/scripts/lib/bootstrap/gh-preflight.js';
 import { runPreflight } from '../../.agents/scripts/lib/bootstrap/preflight.js';
 
 // --- Stub runners -----------------------------------------------------------
@@ -275,5 +279,158 @@ describe('checkProjectScopes', () => {
     assert.equal(res.remedy, undefined);
     assert.match(res.detail, /fine-grained/i);
     assert.match(res.detail, /skipping the classic project-scope assertion/i);
+  });
+});
+
+// --- preflightGh: the gh version + auth gate --------------------------------
+//
+// Story #5316. `runPreflight` above only ever injects a stubbed `preflightGh`,
+// so the real one — and the three module-private helpers behind it — sat at 0%
+// coverage. `resolveGhVersion` alone scored CRAP 42, one of the ten methods
+// Story #5311's honest re-anchor made visible.
+//
+// It needs no refactor and no new export: `preflightGh`'s `runner` seam
+// reaches every branch. Each case drives one distinct "gh is not usable"
+// shape, because each maps to a different remedy an operator has to act on.
+
+/**
+ * A `gh` runner stub. `version` shapes the `gh --version` reply, `auth` the
+ * `gh auth status` reply; either may be a full `{status, stdout, stderr,
+ * error}` record.
+ */
+function ghRunner({ version = {}, auth = {} } = {}) {
+  return (args) => {
+    const reply =
+      args[0] === '--version'
+        ? {
+            status: 0,
+            stdout: 'gh version 2.50.0 (2024-01-01)',
+            stderr: '',
+            ...version,
+          }
+        : { status: 0, stdout: 'Logged in to github.com', stderr: '', ...auth };
+    return reply;
+  };
+}
+
+/** A spawn result carrying the ENOENT shape Node produces for a missing bin. */
+function enoent() {
+  return {
+    status: null,
+    stdout: '',
+    stderr: '',
+    error: Object.assign(new Error('spawn gh ENOENT'), { code: 'ENOENT' }),
+  };
+}
+
+describe('preflightGh — resolving the gh version', () => {
+  it('returns the parsed version when gh is present, current and logged in', async () => {
+    const res = await preflightGh({ runner: ghRunner() });
+    assert.deepEqual(res, { version: '2.50.0' });
+  });
+
+  it('ENOENT on `gh --version` → GhNotInstalledError naming the install page', async () => {
+    await assert.rejects(
+      () => preflightGh({ runner: ghRunner({ version: enoent() }) }),
+      (err) => {
+        assert.equal(err.name, 'GhNotInstalledError');
+        assert.match(err.message, /not found on PATH/);
+        assert.match(err.message, /cli\.github\.com/);
+        return true;
+      },
+    );
+  });
+
+  it('a non-zero `gh --version` is treated as not-installed, and quotes stderr', async () => {
+    // Same remediation as ENOENT: a gh that cannot report its own version is
+    // not installed correctly, whatever the exit code says.
+    await assert.rejects(
+      () =>
+        preflightGh({
+          runner: ghRunner({
+            version: {
+              status: 3,
+              stdout: '',
+              stderr: '  dyld: missing library  ',
+            },
+          }),
+        }),
+      (err) => {
+        assert.equal(err.name, 'GhNotInstalledError');
+        assert.match(err.message, /gh --version failed \(exit 3\)/);
+        assert.match(err.message, /dyld: missing library/);
+        return true;
+      },
+    );
+  });
+
+  it('unparseable `gh --version` output → GhNotInstalledError quoting what it saw', async () => {
+    await assert.rejects(
+      () =>
+        preflightGh({
+          runner: ghRunner({ version: { stdout: 'something else entirely' } }),
+        }),
+      (err) => {
+        assert.equal(err.name, 'GhNotInstalledError');
+        assert.match(err.message, /Could not parse gh version/);
+        assert.match(err.message, /something else entirely/);
+        return true;
+      },
+    );
+  });
+});
+
+describe('preflightGh — the version floor and auth', () => {
+  it('a gh older than the floor → GhVersionError carrying found and required', async () => {
+    await assert.rejects(
+      () =>
+        preflightGh({
+          runner: ghRunner({
+            version: { stdout: 'gh version 2.0.0 (2020-01-01)' },
+          }),
+        }),
+      (err) => {
+        assert.equal(err.name, 'GhVersionError');
+        assert.equal(err.details?.found ?? err.found, '2.0.0');
+        assert.equal(err.details?.required ?? err.required, MIN_GH_VERSION);
+        return true;
+      },
+    );
+  });
+
+  it('accepts a gh exactly at the floor', async () => {
+    const res = await preflightGh({
+      runner: ghRunner({
+        version: { stdout: `gh version ${MIN_GH_VERSION} (2024-01-01)` },
+      }),
+    });
+    assert.equal(res.version, MIN_GH_VERSION);
+  });
+
+  it('a non-zero `gh auth status` → GhAuthError pointing at gh auth login', async () => {
+    await assert.rejects(
+      () =>
+        preflightGh({
+          runner: ghRunner({ auth: { status: 1, stderr: 'not logged in' } }),
+        }),
+      (err) => {
+        assert.equal(err.name, 'GhAuthError');
+        assert.match(err.message, /gh auth login/);
+        return true;
+      },
+    );
+  });
+
+  it('ENOENT on the auth probe → not-installed, not an auth failure', async () => {
+    // Defensive: `gh --version` already passed, so this is a PATH race. The
+    // remedy is "install gh", not "log in".
+    await assert.rejects(
+      () => preflightGh({ runner: ghRunner({ auth: enoent() }) }),
+      (err) => {
+        assert.equal(err.name, 'GhNotInstalledError');
+        assert.match(err.message, /disappeared between version and auth check/);
+        return true;
+      },
+    );
   });
 });

@@ -9,8 +9,8 @@
     "*": {
       "p50": 2,
       "p95": 9,
-      "max": 210,
-      "methodsAbove20": 12
+      "max": 27.003399884259263,
+      "methodsAbove20": 2
     }
   },
   "rows": [
@@ -6334,6 +6334,39 @@
       "crap": 15
     },
     {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "resolveCoverageUpdaterScope",
+      "startLine": 35,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "buildCoverageUpdaterScorer",
+      "startLine": 63,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "<anon buildCoverageUpdaterScorer/(files,opts)#0>",
+      "startLine": 67,
+      "crap": 5,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "<anon buildCoverageUpdaterScorer/(files,opts)#0/(relPath)#0>",
+      "startLine": 96,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "method": "<anon buildCoverageUpdaterScorer/(files,opts)#0/(relPath,s)#0>",
+      "startLine": 97,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
       "method": "resolveCrapPreviewIncremental",
       "startLine": 31,
@@ -6356,6 +6389,44 @@
       "method": "computeCrapPreviewScan",
       "startLine": 69,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "parseCrapUpdaterArgs",
+      "startLine": 48,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "resolveCrapUpdaterOptions",
+      "startLine": 91,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "reportScanSummary",
+      "startLine": 133,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "buildCrapUpdaterScorer",
+      "startLine": 179,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapUpdaterScorer/(files,opts)#0>",
+      "startLine": 183,
+      "crap": 6,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "method": "<anon buildCrapUpdaterScorer/(files,opts)#0/(r)#0>",
+      "startLine": 220,
+      "crap": 2,
+      "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
@@ -8894,51 +8965,51 @@
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "parseGhVersion",
       "startLine": 83,
-      "crap": 6.796875
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "compareSemver",
       "startLine": 97,
-      "crap": 10.078743741465637
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "<anon compareSemver/(n)#0>",
       "startLine": 100,
-      "crap": 5.146108329540283,
+      "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "<anon compareSemver/(n)#1>",
       "startLine": 103,
-      "crap": 5.146108329540283,
+      "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "preflightGh",
       "startLine": 136,
-      "crap": 1.6297376093294462
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "resolveGhVersion",
       "startLine": 152,
-      "crap": 42
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "assertGhVersionFloor",
       "startLine": 182,
-      "crap": 6
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
       "method": "assertGhAuth",
       "startLine": 197,
-      "crap": 12
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/bootstrap/gh-preflight.js",
@@ -28190,6 +28261,18 @@
       "anonymous": true
     },
     {
+      "path": ".agents/scripts/lib/test-isolate/cli-options.js",
+      "method": "defaultOptions",
+      "startLine": 40,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/cli-options.js",
+      "method": "parseIsolateArgv",
+      "startLine": 75,
+      "crap": 7
+    },
+    {
       "path": ".agents/scripts/lib/test-isolate/list-files.js",
       "method": "walkTestFiles",
       "startLine": 13,
@@ -28253,6 +28336,97 @@
       "method": "parseSingleFileTap",
       "startLine": 63,
       "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon (p)#0>",
+      "startLine": 20,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon ()#0>",
+      "startLine": 21,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon (p)#1>",
+      "startLine": 22,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon ()#1>",
+      "startLine": 23,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon (p)#2>",
+      "startLine": 24,
+      "crap": 1,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon (p)#3>",
+      "startLine": 25,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "createProgressLogger",
+      "startLine": 40,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "method": "<anon createProgressLogger/(stage,payload)#0>",
+      "startLine": 41,
+      "crap": 2,
+      "anonymous": true
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "method": "pushFlipperSection",
+      "startLine": 20,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "method": "formatEnvDiff",
+      "startLine": 45,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "method": "pushEnvSection",
+      "startLine": 65,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "method": "renderReport",
+      "startLine": 85,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/run-isolate.js",
+      "method": "emptyReport",
+      "startLine": 26,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/run-isolate.js",
+      "method": "runTestIsolate",
+      "startLine": 54,
+      "crap": 7
     },
     {
       "path": ".agents/scripts/lib/test-isolate/runner.js",
@@ -32800,125 +32974,47 @@
     },
     {
       "path": ".agents/scripts/test-isolate.js",
-      "method": "parseIsolateArgv",
-      "startLine": 41,
-      "crap": 210
-    },
-    {
-      "path": ".agents/scripts/test-isolate.js",
-      "method": "renderReport",
-      "startLine": 75,
-      "crap": 72
-    },
-    {
-      "path": ".agents/scripts/test-isolate.js",
-      "method": "runTestIsolate",
-      "startLine": 140,
-      "crap": 56
-    },
-    {
-      "path": ".agents/scripts/test-isolate.js",
-      "method": "<anon runTestIsolate/(stage,payload)#0>",
-      "startLine": 169,
-      "crap": 72,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/test-isolate.js",
-      "method": "emptyReport",
-      "startLine": 202,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/test-isolate.js",
       "method": "<anon ()#0>",
-      "startLine": 217,
+      "startLine": 47,
       "crap": 6,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
       "method": "loadC8Scope",
-      "startLine": 62,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/update-coverage-baseline.js",
-      "method": "parseFullScopeFlag",
-      "startLine": 66,
+      "startLine": 72,
       "crap": 2
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
       "method": "main",
-      "startLine": 70,
-      "crap": 30
-    },
-    {
-      "path": ".agents/scripts/update-coverage-baseline.js",
-      "method": "<anon main/(files,opts)#0>",
-      "startLine": 86,
-      "crap": 30,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/update-coverage-baseline.js",
-      "method": "<anon main/(files,opts)#0/(relPath)#0>",
-      "startLine": 114,
-      "crap": 6,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/update-coverage-baseline.js",
-      "method": "<anon main/(files,opts)#0/(relPath,score)#0>",
-      "startLine": 115,
-      "crap": 2,
-      "anonymous": true
+      "startLine": 76,
+      "crap": 12
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
       "method": "<anon main/(result)#0>",
-      "startLine": 145,
+      "startLine": 100,
       "crap": 2,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
       "method": "<anon (err)#0>",
-      "startLine": 155,
+      "startLine": 110,
       "crap": 1.125,
       "anonymous": true
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "method": "parseCliArgs",
-      "startLine": 82,
-      "crap": 56
-    },
-    {
-      "path": ".agents/scripts/update-crap-baseline.js",
       "method": "main",
-      "startLine": 104,
-      "crap": 90
-    },
-    {
-      "path": ".agents/scripts/update-crap-baseline.js",
-      "method": "<anon main/(files,opts)#0>",
-      "startLine": 136,
-      "crap": 72,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/update-crap-baseline.js",
-      "method": "<anon main/(files,opts)#0/(r)#0>",
-      "startLine": 200,
-      "crap": 6,
-      "anonymous": true
+      "startLine": 83,
+      "crap": 20
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
       "method": "<anon (err)#0>",
-      "startLine": 234,
+      "startLine": 120,
       "crap": 1.125,
       "anonymous": true
     },
