@@ -237,17 +237,37 @@ the failure class that actually bounces deliveries: close-validation
 discovers them only after the whole close pipeline has run, at several times
 the cost of one full-suite run in the worktree.
 
-**Run it once, last, so close can credit it.** The run belongs **after** the
-self-eval loop's last fix commit; redraft rounds run scoped tests. A green
-`npm test` in the worktree on `story-<id>` deposits the `test` evidence
-record close reads (Story #5313 — `lib/test-run-credit.js`), keyed on HEAD
-and the tree fingerprint and hashed on the exact command close spawns, so
-close reports the gate as credited at unchanged HEAD instead of re-running
-the suite. The credit expires the moment it stops describing the tree: any
-later commit invalidates it and close re-runs the suite for real, so this
-never trades away the gate. The CRAP gate still runs `coverage-capture.js`
-itself when it needs a fresh artifact — the capture stamp is a claim about
-`coverage/coverage-final.json`, which a bare `npm test` does not produce.
+**Run it once, last, through the depositor.** The run belongs **after** the
+self-eval loop's last fix commit; redraft rounds run scoped tests. Run it in
+the worktree on `story-<id>` as
+
+```bash
+node <main-repo>/.agents/scripts/evidence-gate.js \
+  --standalone --scope-id <storyId> --gate test \
+  --worktree <workCwd> -- npm test
+```
+
+The wrapper spawns the project's own `npm test` — whatever that resolves to —
+and records the pass into the Story evidence keyspace, so the credit is
+runner-agnostic by construction: it stamps only what it just ran. The record
+is keyed on HEAD and the tree fingerprint and hashed on the exact command
+close spawns, so close reports the gate as credited at unchanged HEAD instead
+of re-running the suite. The credit expires the moment it stops describing the
+tree: any later commit invalidates it and close re-runs the suite for real, so
+this never trades away the gate. The CRAP gate still runs
+`coverage-capture.js` itself when it needs a fresh artifact — the capture
+stamp is a claim about `coverage/coverage-final.json`, which `npm test` alone
+does not produce.
+
+**A bare `npm test` is a bonus, not the contract.** It deposits the same
+record only where the project's `test` script routes through mandrel's own
+runner (`run-tests.js` → `lib/test-run-credit.js`, Story #5313), which prints
+the outcome. A project whose `npm test` is `vitest run`, `jest` or any other
+runner never reaches that code, so it prints nothing and deposits nothing —
+silence is not a signal, and nothing here asks you to confirm the credit by
+reading for a line that cannot appear. `mandrel doctor`'s `test-credit-path`
+check reports which shape a project is and names the command above as its
+remedy.
 
 **`verify[]` reuses the same credit.** A `verify[]` entry that is itself a
 full-suite command is reported **credited** against that record rather than

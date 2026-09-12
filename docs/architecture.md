@@ -633,11 +633,15 @@ as an input; routing never changes it.
 **Evidence share.** A fresh critic re-runs the Story's `verify[]`
 commands itself as required evidence; its byte-identical `lint` /
 `typecheck` runs go through `evidence-gate.js --standalone` so close can
-short-circuit those two gates at unchanged HEAD. A green bare `npm test`
-in the worktree deposits the `test` credit the same way
-(`lib/test-run-credit.js`, Story #5313). Coverage and CRAP evidence are
-deliberately excluded from the share and re-captured at close when the
-artifact is stale.
+short-circuit those two gates at unchanged HEAD. The `test` credit is
+deposited the same way, by running the suite through that wrapper
+(`--gate test -- npm test`), which is runner-agnostic because it stamps only
+what it just ran. A bare `npm test` deposits it as a bonus only where the
+project's `test` script routes through mandrel's own runner
+(`run-tests.js` → `lib/test-run-credit.js`, Story #5313); `mandrel doctor`'s
+`test-credit-path` check reports which shape a project is. Coverage and
+CRAP evidence are deliberately excluded from the share and re-captured at
+close when the artifact is stale.
 
 ### State machine (Story labels)
 

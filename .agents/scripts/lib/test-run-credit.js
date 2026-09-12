@@ -1,15 +1,23 @@
 /**
- * lib/test-run-credit.js — let a green bare `npm test` earn the credit close
- * reads (Story #5313).
+ * lib/test-run-credit.js — let a green `npm test` **that routes through
+ * mandrel's own runner** earn the credit close reads (Story #5313, scoped by
+ * Story #5324).
  *
- * Until this module the only suite run that deposited credit was the one
- * shaped exactly like the close gate — `coverage-capture.js --cwd <worktree>`
- * or `evidence-gate.js --standalone … -- npm test` — and the digest, the
- * worker boot context and the reference all carried prose explaining which
- * invocation to type. A worker that ran the project's own test runner paid
- * for the suite and then close paid for it again. The runner is the natural
- * depositor: it knows the tree it ran against, whether the run was green,
- * and whether it ran the whole suite.
+ * This is a **bonus, not the contract.** The deposit every project can rely
+ * on is `evidence-gate.js --standalone --scope-id <id> --gate test --worktree
+ * <workCwd> -- npm test`: it spawns whatever `npm test` resolves to and
+ * stamps what it just ran, so it is honest on any runner. What this module
+ * adds is that a repo whose `test` script *is* `run-tests.js` need not type
+ * that wrapper — the runner already knows the tree it ran against, whether
+ * the run was green, and whether it ran the whole suite, so it deposits on
+ * the way out.
+ *
+ * The reach is therefore exactly one call site: `run-tests.js`. A consumer
+ * whose `npm test` is `vitest run` or `jest` never loads this module, so it
+ * deposits nothing **and prints nothing** — silence is not a signal, and no
+ * delivery surface may tell an agent to confirm credit by reading for the
+ * line below. `mandrel doctor`'s `test-credit-path` check reports which of
+ * the two shapes a project is and names the wrapper as the remedy.
  *
  * On a green **full-tier** run inside a `story-<id>` checkout the runner
  * records the `test` gate's evidence in the same keyspace
@@ -143,8 +151,11 @@ export function depositTestRunCredit({
 }
 
 /**
- * Deposit and say so on stderr — the runner's one-line hook. The line is
- * the only surface a worker sees, so it names the outcome by reason.
+ * Deposit and say so on stderr — the runner's one-line hook, printed only
+ * when this runner is the one running. It names the outcome by reason, so a
+ * green run that deposited nothing (wrong branch, partial tier) says so
+ * rather than passing silently; a project on another runner prints no line
+ * at all, which is why absence of this line is never evidence either way.
  *
  * @param {Parameters<typeof depositTestRunCredit>[0] & { log?: (line: string) => void }} args
  * @returns {ReturnType<typeof depositTestRunCredit>}

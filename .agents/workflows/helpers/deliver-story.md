@@ -93,12 +93,15 @@ are reference § Step 2. Hard gates always run in Step 3 — the derived level
 never disables them; do **not** pre-run the chain here — Step 2.5's credited
 suite run is the sole exception.
 
-### Step 2.5 — The one full-suite run, the push, then hand off
+### Step 2.5 — The one credited suite run, the push, then hand off
 
-After the self-eval loop's last fix commit, run `npm test` **once** in the
-worktree (**digest § 5**): a green full run deposits the `test` credit close
-reads, keyed on the tree, so only a *later* commit invalidates it. Red →
-fix, commit, re-run.
+After the self-eval loop's last fix commit, run the suite **once** in the
+worktree through the depositor — `evidence-gate.js … --gate test -- npm test`,
+spelled out in **digest § 5**. It runs whatever `npm test` resolves to and
+stamps the result, so the `test` credit is earned on any runner; the record is
+keyed on the tree, so only a *later* commit invalidates it. A bare `npm test`
+earns it only where the project's test script routes through mandrel's own
+runner. Red → fix, commit, re-run.
 
 Push `story-<storyId>` to `origin`, confirming the remote ref moved. Then
 (sub-agent dispatch only) return the hand-off — Story id, `workCwd`,
