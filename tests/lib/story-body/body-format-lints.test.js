@@ -208,6 +208,15 @@ describe('stripAcceptanceHandle — the AC-<n> handle grammar (Story #5323)', ()
     }
   });
 
+  it('is total — a null or absent item coerces to the empty string', () => {
+    for (const item of [null, undefined]) {
+      assert.deepEqual(stripAcceptanceHandle(item), {
+        text: '',
+        stripped: false,
+      });
+    }
+  });
+
   it('keeps a lettered handle out of the parsed acceptance contract', () => {
     // A body persisted while the doubling was live: parse must still yield
     // the handle-free text, or the round-trip invariant breaks for it alone.

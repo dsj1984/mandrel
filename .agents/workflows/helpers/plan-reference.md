@@ -158,7 +158,7 @@ and ceremony is derived from the landed diff at close.
   quality baselines, generated test indexes, migration journals, lockfiles —
   are omitted: the work regenerates them, the refresh is a close-gate concern,
   and a declared shared artifact path reserves a footprint that needlessly
-  serializes sibling Stories at dispatch (Story #5323).
+  serializes sibling Stories at dispatch.
 - **`changes[]` arrive pre-resolved to creates-vs-refactors.** Every path
   the seed predicted is probed against the repo: an existing path is
   emitted with `assumption: "refactors-existing"`, a missing one with
@@ -180,14 +180,14 @@ kept — passes the persist ticket validators with no round-trip.
 Each `stories.json` entry: `slug` (`^[a-z0-9][a-z0-9-]*$`), `type: "story"`,
 `title`, `body` (`goal`, optional `spec`, `changes[{path, assumption}]` —
 `creates|refactors-existing|deletes`, `non_goals`, `reason_to_exist`),
-top-level `acceptance[]`, `verify[]` (each a **bare command** — Story #5312
-retired the tier suffix), and `depends_on[]` (a sibling slug, or `#<id>` for
-an existing open Story).
+top-level `acceptance[]`, `verify[]` (each a **bare command** — there is no
+tier suffix), and `depends_on[]` (a sibling slug, or `#<id>` for an existing
+open Story).
 
 Author `acceptance[]` **without** the `AC-<n>:` handle: the body renderer
 numbers each checkbox from its array position, so a carried handle renders
 doubled. Persist normalises one off rather than refusing, and names the strip
-on the dry-run's repair list (Story #5323).
+on the dry-run's repair list.
 
 Nothing in that shape inventories the repo for the author. `changes[]` arrives
 pre-resolved against the working tree, and Phase 8's
@@ -271,7 +271,7 @@ edge, or folding the shared edit into one Story) for the operator to weigh.
 
 A `--tickets` envelope carries a third author prompt beside
 `systemPrompts.story` and `systemPrompts.storySplitRules`:
-**`systemPrompts.storyTicketsRules`** (Story #5323). It exists because a
+**`systemPrompts.storyTicketsRules`**. It exists because a
 source ticket arrives already in Story shape — rendered `AC-<n>:` checkboxes,
 a `## Verify` list, a `## Changes` footprint — and an author reading it as a
 template carries that shape forward instead of re-deriving it. The addendum
