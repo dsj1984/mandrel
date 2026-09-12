@@ -19,7 +19,10 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
+import {
+  buildCoverageUpdaterScorer,
+  resolveCoverageUpdaterScope,
+} from './lib/baselines/coverage-updater-cli.js';
 import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
@@ -57,90 +60,42 @@ const USAGE = {
   ],
 };
 
+/** CommonJS `require`, for the `.c8rc.cjs` scope config below. */
 const require = createRequire(import.meta.url);
 
+/**
+ * Load the c8 include/exclude scope. Kept in the CLI rather than the extracted
+ * scorer because it is the one genuinely environment-bound step — a CJS
+ * `require` of a config file resolved against the working tree — and the
+ * scorer takes it as a seam so a test never touches the real `.c8rc.cjs`.
+ */
 function loadC8Scope(cwd) {
   return require(path.resolve(cwd, '.c8rc.cjs'));
 }
 
-function parseFullScopeFlag(argv = []) {
-  return argv.includes('--full-scope');
-}
-
 function main() {
-  const argv = process.argv.slice(2);
-  const diffScopeRef = parseDiffScopeFlag(argv);
-  const fullScope = parseFullScopeFlag(argv);
   const cwd = process.cwd();
+  const { fullScope, diffScopeRef } = resolveCoverageUpdaterScope(
+    process.argv.slice(2),
+  );
   Logger.info('[Coverage] Updating baseline from coverage-final.json...');
 
-  if (fullScope && diffScopeRef !== null) {
-    throw new Error(
-      '[Coverage] --full-scope is incompatible with --diff-scope; pick one',
-    );
-  }
-
-  // Build the per-kind scorer the service will invoke. The scorer receives
-  // `(files, { fullScope })` and returns rows in the `{path, lines,
-  // branches, functions}` shape the writer expects.
-  const scorer = (files, opts) => {
-    const effectiveCwd = opts?.cwd ?? cwd;
-    let raw;
-    try {
-      raw = readCoverageFinal(effectiveCwd);
-    } catch (err) {
-      Logger.error(`[Coverage] ❌ ${err.message}`);
-      return [];
-    }
-
-    const c8Config = loadC8Scope(effectiveCwd);
-    const c8Scope = buildScopePredicate({
-      include: c8Config.include ?? [],
-      exclude: c8Config.exclude ?? [],
-    });
-    const scores = scoreCoverageFinal({
-      raw,
-      cwd: effectiveCwd,
-      scope: c8Scope,
-    });
-
-    // In diff mode, further narrow to the service-resolved in-scope file list.
-    const inScope =
-      !opts?.fullScope && Array.isArray(files) && files.length > 0
-        ? new Set(files)
-        : null;
-
-    const rows = Object.entries(scores)
-      .filter(([relPath]) => inScope === null || inScope.has(relPath))
-      .map(([relPath, score]) => ({
-        path: relPath,
-        lines: score?.lines ?? 0,
-        branches: score?.branches ?? 0,
-        functions: score?.functions ?? 0,
-      }));
-
-    const fileCount = Object.keys(scores).length;
-    Logger.info(
-      `[Coverage] Scored ${fileCount} file(s)${inScope ? ` (${rows.length} in scope)` : ''}.`,
-    );
-    return rows;
-  };
-
   const absBaselinePath = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  const epsilon = getBaselineEpsilon('coverage', null);
   const refreshOpts = {
     kind: 'coverage',
     writePath: absBaselinePath,
-    epsilon,
-    scorer,
+    epsilon: getBaselineEpsilon('coverage', null),
+    scorer: buildCoverageUpdaterScorer(cwd, {
+      readCoverage: readCoverageFinal,
+      loadScope: loadC8Scope,
+      buildScope: buildScopePredicate,
+      score: scoreCoverageFinal,
+    }),
   };
-  if (fullScope) {
-    refreshOpts.fullScope = true;
-  } else if (diffScopeRef) {
-    refreshOpts.baseRef = diffScopeRef;
-  }
-  // No flag → scopeFiles=null + fullScope=false → service derives the diff
-  // via `origin/main..HEAD` (its default baseRef/headRef).
+  // No flag -> scopeFiles=null + fullScope=false -> the service derives the
+  // diff via `origin/main..HEAD` (its default baseRef/headRef).
+  if (fullScope) refreshOpts.fullScope = true;
+  else if (diffScopeRef) refreshOpts.baseRef = diffScopeRef;
 
   return refreshBaseline(refreshOpts).then((result) => {
     Logger.info(
