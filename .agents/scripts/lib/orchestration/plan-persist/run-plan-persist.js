@@ -170,18 +170,28 @@ function freshnessCounts(probeRef, warnings) {
   return { stale: warnings.length, ambiguous: 0 };
 }
 
+/** How each text-hygiene finding kind names itself on the warning list. */
+const TEXT_HYGIENE_LABELS = {
+  'open-question': 'open question in body',
+  'pinned-identifier': 'pinned identifier in acceptance[]',
+};
+
 /**
- * The `open-question` lint over the draft bodies (Story #5312) — an
+ * The advisory text-hygiene lints over the draft (Story #5312, #5323) — an
  * operator-directed question persisted into a Story a non-interactive
- * sub-agent executes. A warning the dry-run lists, never a refusal.
+ * sub-agent executes, and an acceptance item pinning an internal symbol the
+ * advisory `changes[]` may reshape. Warnings the dry-run lists, never
+ * refusals.
  *
  * @param {object[]} rawStories
  * @returns {string[]}
  */
-function collectOpenQuestionWarnings(rawStories) {
+function collectTextHygieneWarnings(rawStories) {
   return evaluateTextHygiene({ draftStories: rawStories }).findings.map(
     (finding) =>
-      `Story "${finding.slug}": open question in body — "${finding.evidence}". ${finding.message}`,
+      `Story "${finding.slug}": ${
+        TEXT_HYGIENE_LABELS[finding.kind] ?? finding.kind
+      } — "${finding.evidence}". ${finding.message}`,
   );
 }
 
@@ -595,7 +605,7 @@ export async function runPlanPersist({
     enforceTicketValidation(validated);
   const warnings = [
     ...validationWarnings,
-    ...collectOpenQuestionWarnings(rawStories),
+    ...collectTextHygieneWarnings(rawStories),
   ];
   logWarnings(warnings);
 

@@ -24,6 +24,7 @@ import {
   renderStoryAuthorCore,
   renderStoryAuthorPrompt,
   renderStorySplitRules,
+  renderStoryTicketsRules,
 } from '../../../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 /** AC-2: the strings the N=1 core must not carry. */
@@ -214,5 +215,42 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
 
   test('deterministic — two renders are byte-identical', () => {
     assert.equal(renderStoriesTemplate(), renderStoriesTemplate());
+  });
+});
+
+describe('tickets-mode addendum (Story #5323)', () => {
+  test('binds the author to re-derive acceptance rather than carry it', () => {
+    const rules = renderStoryTicketsRules();
+    assert.match(rules, /TICKETS-MODE DRAFT/);
+    assert.match(rules, /evidence, not a template/i);
+    // Re-derive, never carry the handles.
+    assert.match(rules, /Re-derive .*acceptance/i);
+    assert.match(rules, /AC-<n>/);
+    // Mechanical checks belong in verify[].
+    assert.match(rules, /mechanical check is a .*verify\[\]. command/i);
+    // The tier suffix is named as something to drop, not to reproduce.
+    assert.match(rules, /drop any trailing tier suffix/i);
+  });
+
+  test('is a separate layer — the N=1 core carries none of it', () => {
+    const core = renderStoryAuthorCore();
+    assert.doesNotMatch(core, /TICKETS-MODE DRAFT/);
+    // And composing by story count never pulls it in: the addendum is
+    // selected by mode, not by N.
+    assert.doesNotMatch(
+      renderStoryAuthorPrompt({ storyCount: 1 }),
+      /TICKETS-MODE DRAFT/,
+    );
+    assert.doesNotMatch(
+      renderStoryAuthorPrompt({ storyCount: 3 }),
+      /TICKETS-MODE DRAFT/,
+    );
+  });
+
+  test('the core tells every author to omit generated artifacts from changes[]', () => {
+    const core = renderStoryAuthorCore();
+    assert.match(core, /omit generated artifacts/i);
+    assert.match(core, /baselines/i);
+    assert.match(core, /serializes sibling Stories at dispatch/i);
   });
 });

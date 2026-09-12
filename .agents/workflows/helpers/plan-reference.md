@@ -154,6 +154,11 @@ and ceremony is derived from the landed diff at close.
 - **`verify[]` entries are commands.** There is no tier suffix and no
   `manual:<reason>` escape (Story #5312): write the exact command or test
   path the deliverer runs and the acceptance critic reads as evidence.
+- **`changes[]` names what the deliverer authors.** Generated artifacts —
+  quality baselines, generated test indexes, migration journals, lockfiles —
+  are omitted: the work regenerates them, the refresh is a close-gate concern,
+  and a declared shared artifact path reserves a footprint that needlessly
+  serializes sibling Stories at dispatch (Story #5323).
 - **`changes[]` arrive pre-resolved to creates-vs-refactors.** Every path
   the seed predicted is probed against the repo: an existing path is
   emitted with `assumption: "refactors-existing"`, a missing one with
@@ -175,8 +180,14 @@ kept — passes the persist ticket validators with no round-trip.
 Each `stories.json` entry: `slug` (`^[a-z0-9][a-z0-9-]*$`), `type: "story"`,
 `title`, `body` (`goal`, optional `spec`, `changes[{path, assumption}]` —
 `creates|refactors-existing|deletes`, `non_goals`, `reason_to_exist`),
-top-level `acceptance[]`, `verify[]` (`… (unit|contract|e2e|validate)`), and
-`depends_on[]` (a sibling slug, or `#<id>` for an existing open Story).
+top-level `acceptance[]`, `verify[]` (each a **bare command** — Story #5312
+retired the tier suffix), and `depends_on[]` (a sibling slug, or `#<id>` for
+an existing open Story).
+
+Author `acceptance[]` **without** the `AC-<n>:` handle: the body renderer
+numbers each checkbox from its array position, so a carried handle renders
+doubled. Persist normalises one off rather than refusing, and names the strip
+on the dry-run's repair list (Story #5323).
 
 Nothing in that shape inventories the repo for the author. `changes[]` arrives
 pre-resolved against the working tree, and Phase 8's
@@ -255,6 +266,21 @@ correct — the delivery scheduler already serializes file-overlapping Stories �
 and a path reference matched by substring can read as a dependency a prose
 mention never meant. A finding names the Stories and the fix (a `depends_on`
 edge, or folding the shared edit into one Story) for the operator to weigh.
+
+## Tickets mode — the source ticket is evidence
+
+A `--tickets` envelope carries a third author prompt beside
+`systemPrompts.story` and `systemPrompts.storySplitRules`:
+**`systemPrompts.storyTicketsRules`** (Story #5323). It exists because a
+source ticket arrives already in Story shape — rendered `AC-<n>:` checkboxes,
+a `## Verify` list, a `## Changes` footprint — and an author reading it as a
+template carries that shape forward instead of re-deriving it. The addendum
+binds the author to re-derive `acceptance[]` from the goal, to express
+mechanical checks (a refreshed baseline, a lint exiting 0, a regenerated
+index) as `verify[]` commands rather than acceptance items, and to take the
+source's verify entries for the commands they name rather than their shape.
+Read it whenever the mode is `tickets`; the other three modes do not carry
+the field.
 
 ## Tickets mode — authoring `supersedes[]`
 
@@ -347,10 +373,13 @@ at base.
 exists at base or a `refactors-existing` on one that does not (including a
 path the base branch deleted or renamed, named with the removing commit), a
 goal or acceptance path absent at base, a `verify[]` command naming an absent
-test file, and an `open-question` in a body (`Flag if…`, `TBD`, a trailing
-`?`). The list also names every `changes[]` **repair** the run applied — a
-plain-string bullet or a trailing parenthetical rewritten into
-`{ path, assumption }` by probing base. The same list rides the result
+test file, an `open-question` in a body (`Flag if…`, `TBD`, a trailing `?`),
+and a `pinned-identifier` in an acceptance item — a backticked bare symbol
+that is not a path, a label, a kebab token, a flag or a command, which the
+advisory `changes[]` is free to reshape out from under the criterion. The
+list also names every **repair** the run applied — a plain-string bullet or a
+trailing parenthetical rewritten into `{ path, assumption }` by probing base,
+and an `AC-<n>:` handle normalised off an acceptance item. The same list rides the result
 envelope as `warnings[]` and `repairs[]`, so a `--chain-on-clean` run loses
 nothing.
 

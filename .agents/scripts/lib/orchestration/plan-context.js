@@ -29,6 +29,7 @@ import { parse as parseStoryBody } from '../story-body/story-body.js';
 import {
   renderStoryAuthorCore,
   renderStorySplitRules,
+  renderStoryTicketsRules,
 } from '../templates/decomposer-prompts.js';
 import {
   renderAcceptanceSpecSystemPrompt,
@@ -640,15 +641,23 @@ function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
  * rules a planner reads only when the default-single split policy clears
  * carried separately as `storySplitRules` (Story #5312).
  *
- * @returns {{ spec: string, acceptance: string, story: string, storySplitRules: string }}
+ * `storyTicketsRules` is the one mode-conditional field (Story #5323): it
+ * only means anything when the seed is an existing ticket, and an envelope
+ * that carries it in every mode teaches the author to look for a source
+ * ticket that a `--seed` run does not have.
+ *
+ * @param {{ mode?: string }} [args]
+ * @returns {{ spec: string, acceptance: string, story: string, storySplitRules: string, storyTicketsRules?: string }}
  */
-export function buildSystemPrompts() {
-  return {
+export function buildSystemPrompts({ mode } = {}) {
+  const prompts = {
     spec: renderTechSpecSystemPrompt(),
     acceptance: renderAcceptanceSpecSystemPrompt(),
     story: renderStoryAuthorCore(),
     storySplitRules: renderStorySplitRules(),
   };
+  if (mode === 'tickets') prompts.storyTicketsRules = renderStoryTicketsRules();
+  return prompts;
 }
 
 /**
@@ -1007,7 +1016,7 @@ async function buildTicketsModeEnvelope({
     memoryPoolAdvisory: authoring.memoryPoolAdvisory,
     priorFeedback: authoring.priorFeedback,
     ticketSchema: TICKET_SCHEMA_DESCRIPTOR,
-    systemPrompts: buildSystemPrompts(),
+    systemPrompts: buildSystemPrompts({ mode: 'tickets' }),
     planState: null,
     planProfile:
       ticketIds.length === 1 ? 'story-default' : 'story-from-tickets',
