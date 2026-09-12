@@ -241,28 +241,55 @@ describe('deliver-digest § 5 — the one full-suite run (#5174, #5313)', () => 
   const worker = () =>
     read(path.join(REPO_ROOT, '.agents', 'agents', 'story-worker.md'));
 
-  it('AC-5: names a bare npm test as the credited run and carries no invocation-shape rules', () => {
-    for (const [label, doc] of [
-      ['the digest', digest()],
-      ['the story-worker context', worker()],
-    ]) {
-      assertDocMentions(doc, /npm test/, `${label} must name the runner`);
-      assertDocOmits(
-        doc,
-        /deposits \*{0,2}no\*{0,2}\*{0,2}ne?\*{0,2} credit|deposits \*\*none\*\*/,
-        `${label} must not say a bare run deposits no credit`,
-      );
-      assertDocOmits(
-        doc,
-        /coverage-capture\.js --cwd|evidence-gate\.js --standalone[^\n]*--gate test/,
-        `${label} must not carry the retired crediting invocations`,
-      );
-      assertDocOmits(
-        doc,
-        /(before|after) the push/,
-        `${label} must carry no push-before-capture ordering rule`,
-      );
-    }
+  // Story #5324 splits what #5313 asserted of both docs at once. The digest is
+  // the surface every consumer reads, so it now names the runner-agnostic
+  // deposit — the wrapper that runs `npm test` and stamps what it just ran,
+  // which is the only shape that earns the credit on vitest or jest. The
+  // story-worker boot context still carries #5313's bare-run shape (it is out
+  // of #5324's footprint and pinned by tests/agents/role-scoped-boot-context),
+  // so its half of the old contract is asserted unchanged.
+  it('AC-5: the digest names the runner-agnostic deposit, not a bare npm test', () => {
+    const doc = digest();
+    assertDocMentions(doc, /npm test/, 'the digest must name the runner');
+    assertDocMentions(
+      doc,
+      /evidence-gate\.js --standalone[^]*?--gate test[^]*?-- npm test/,
+      'the digest must give the deposit that works whatever the test script resolves to',
+    );
+    assertDocMentions(
+      doc,
+      /only[^]{0,80}mandrel's own runner/,
+      'the digest must scope the bare-run deposit to the runner that performs it',
+    );
+    assertDocOmits(
+      doc,
+      /coverage-capture\.js --cwd/,
+      'the digest must not carry the retired capture invocation',
+    );
+    assertDocOmits(
+      doc,
+      /(before|after) the push/,
+      'the digest must carry no push-before-capture ordering rule',
+    );
+  });
+
+  it('AC-5: the story-worker context still carries the #5313 shape', () => {
+    const doc = worker();
+    assertDocMentions(
+      doc,
+      /npm test/,
+      'the worker context must name the runner',
+    );
+    assertDocOmits(
+      doc,
+      /coverage-capture\.js --cwd|evidence-gate\.js --standalone[^\n]*--gate test/,
+      'the worker context must not carry the retired crediting invocations',
+    );
+    assertDocOmits(
+      doc,
+      /(before|after) the push/,
+      'the worker context must carry no push-before-capture ordering rule',
+    );
   });
 
   it('places the run after the last fix commit', () => {
