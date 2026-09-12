@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-11T12:07:41.742Z",
+  "generatedAt": "2026-09-12T15:53:01.736Z",
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 46,
-      "methodsAboveCeiling": 50,
+      "filesAboveCeiling": 45,
+      "methodsAboveCeiling": 49,
       "maxCyclomatic": 20
     }
   },
@@ -229,11 +229,6 @@
       "file": ".agents/scripts/stories-wave-tick.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 15
-    },
-    {
-      "file": ".agents/scripts/test-isolate.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 14
     },
     {
       "file": "lib/cli/uninstall.js",
