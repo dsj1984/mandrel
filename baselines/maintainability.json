@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T17:40:40.931Z",
+  "generatedAt": "2026-09-12T17:40:42.133Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -656,7 +656,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "mi": 97.334
+      "mi": 96.601
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -1548,7 +1548,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 88.169
+      "mi": 87.222
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -2244,7 +2244,7 @@
     },
     {
       "path": ".agents/scripts/run-tests.js",
-      "mi": 96.286
+      "mi": 93.79
     },
     {
       "path": ".agents/scripts/run-verify.js",
