@@ -194,27 +194,30 @@ describe('derived invocation intent (Story #4760)', () => {
   });
 });
 
-describe('the /mandrel-plan ↔ light asymmetry (Story #4760)', () => {
-  it('states the guard rule that explains why the two directions differ', () => {
-    const md = readDoc(LIGHT);
-    // Asserted in halves: the rule sits in a blockquote, and `doc-assert`
-    // normalizes whitespace but not the `>` continuation marker a wrap
-    // introduces mid-sentence.
+describe('the light → /mandrel-plan escalation (Story #4760; one-way since #5312)', () => {
+  it('states the guard rule that breaks the session on escalation', () => {
     assertDocMentions(
-      md,
+      readDoc(LIGHT),
       /The direction whose guard is model judgment must break the session\./,
-      'the asymmetry reads as an inconsistency; without the rule stated, someone ' +
-        'will flatten it into symmetry in one direction or the other',
+      'without the rule stated, someone will let escalation run in-session',
     );
     assertDocMentions(
-      md,
-      /direction whose guard is mechanical need not\./,
-      'the permissive half of the rule is what licenses the in-session /mandrel-plan → light route',
-    );
-    assertDocMentions(
-      md,
-      /Do not "fix" this into symmetry/,
+      readDoc(LIGHT),
+      /Do not "fix" this by letting light → `\/mandrel-plan` run in-session/,
       'the rule needs an explicit do-not-change marker, not just an explanation',
+    );
+  });
+
+  it('no longer names /mandrel-plan Gate #1 as a door (Story #5312)', () => {
+    assertDocOmits(
+      readDoc(LIGHT),
+      /Entered from `\/mandrel-plan` Gate #1/,
+      'the Gate #1 light suggestion is retired',
+    );
+    assertDocOmits(
+      readDoc(PLAN),
+      /deliverLightSuggestion|route \*\*in this session\*\* into/,
+      '/mandrel-plan makes no light offer',
     );
   });
 
@@ -226,20 +229,7 @@ describe('the /mandrel-plan ↔ light asymmetry (Story #4760)', () => {
     );
   });
 
-  it('routes /mandrel-plan → light in-session, and bounces back in-session too', () => {
-    assertDocMentions(
-      readDoc(PLAN),
-      /route \*\*in this session\*\* into/,
-      'Gate #1 must hand off directly rather than printing a command to run elsewhere',
-    );
-    assertDocMentions(
-      readDoc(LIGHT),
-      /return to \[`\.\.\/mandrel-plan\.md`\]\(\.\.\/mandrel-plan\.md\) step 2 \(Author\) in the same\s*session/,
-      'an ask-operator verdict must resume planning without re-paying for the interrogation',
-    );
-  });
-
-  it('names both callers on the shared helper', () => {
+  it('names its one caller on the shared helper', () => {
     const md = readDoc(LIGHT);
     assertDocMentions(
       md,
@@ -248,16 +238,8 @@ describe('the /mandrel-plan ↔ light asymmetry (Story #4760)', () => {
     );
     assertDocMentions(
       md,
-      /reached two ways/,
-      'the two-caller framing is what justifies it being a helper',
-    );
-  });
-
-  it('keeps the two ceiling sets as two distinct gates', () => {
-    assertDocMentions(
-      readDoc(LIGHT),
-      /deliberately two different checks, so the gate still runs after a confirm/,
-      'collapsing the seed-time and shape-time ceilings would make a confirm a bypass',
+      /reached one way/,
+      'the single-caller framing survives the retired Gate #1 door (Story #5312)',
     );
   });
 });

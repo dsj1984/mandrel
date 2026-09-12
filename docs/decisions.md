@@ -60,12 +60,13 @@ the floor-vs-ratchet policy are tooling commitments rather than ADRs and live in
 
 <!-- ADR-INDEX:START -->
 
-**In force (42).** Each governs the surface named beside it.
+**In force (43).** Each governs the surface named beside it.
 A `Status` of `Accepted in part` means some clause of the entry has been
 superseded — open it before citing it.
 
 | Decision | Governs | Surface | Status |
 | --- | --- | --- | --- |
+| [`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs) | The planning diet: no plan-time limit that never fires on real work | `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js` | Accepted |
 | [`20260911-5300`](#adr-20260911-5300-follow-up-ownership-is-three-buckets-and-an-unroutable-bucket-is-an-outcome-not-a-fallback) | Follow-up ownership is three buckets; unroutable is an outcome | `.agents/scripts/lib/github/framework-repo.js` | Accepted |
 | [`20260906-5160a`](#adr-20260906-5160a-why-the-ci-verdict-set-carries-capacity-and-unreproducible-tier) | Why the CI verdict set carries `capacity` and `unreproducible-tier` | `.agents/rules/ci-remediation.md` | Accepted |
 | [`20260906-5160b`](#adr-20260906-5160b-the-baseline-refresh-true-body-trailer-is-the-canonical-refresh-marker) | The `baseline-refresh: true` body trailer is the canonical refresh marker | `.agents/skills/core/gates-and-baselines/reference.md` | Accepted |
@@ -146,6 +147,84 @@ at the release tag named in the entry.
 - [Earlier ADRs (001 / 002 / 003)](#earlier-adrs-001--002--003)
 
 <!-- ADR-INDEX:END -->
+
+## ADR 20260912-5312: The planning diet — a Story is as large and as loosely prescribed as the work needs
+
+**Status:** Accepted
+**Date:** 2026-09-12
+**Deciders:** @dsj1984
+**Surface:** `.agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js`
+**Story:** #5312
+
+### Context
+
+The plan-time limit surface had accreted a numeric backstop for every
+judgment the authoring model already makes: an authored-token capacity
+ceiling with a `wide` declaration to lift it, a Spec word budget and a Spec
+token budget, a `maxTickets` reviewability budget with an override flag, a
+consolidation critic gated on a Delivery Slicing table no Story carries, a
+plan-side lite claim with a persist shape backstop and a `route::lite` hint,
+a verify tier suffix with a repair pass, `reason_to_exist` and `wide` meta
+fields, and four prose lints. Measured against the Stories that actually
+landed, none of the ceilings ever refused accepted work, the soft findings
+fired often enough to be ignored, and the footprint probes refused plans
+whose only defect was a sketch the deliverer was free to revise anyway. The
+net effect was the opposite of the intent: the planner enumerated and proved
+a file footprint and encoded "done" as grep-shaped probes, which is what kept
+Stories small and prescriptive.
+
+### Decision
+
+**Delete every plan-time limit that never fires on real work, duplicates the
+model's judgment, or guards a consumer that no longer exists.** The
+constants, findings, flags, meta fields and lints named in Story #5312's
+Spec are gone in one contract cutover, with the ten `planning.*` keys that
+configured them retired behind a 2.57.0 migration step and a
+`BREAKING CHANGE:` footer.
+
+**The persist gates that remain are hard only where nothing can act
+otherwise**: the body parses, every ticket is a Story, `acceptance[]` and
+`verify[]` are non-empty, `depends_on` resolves acyclically, the acceptance
+and supersede partitions hold, no acceptance item prescribes a forbidden
+commit-subject prefix, and a `deletes` names a path present at base.
+**Everything else is a warning the dry-run lists** — a `creates` or
+`refactors-existing` the base branch disagrees with, a goal, acceptance or
+verify path absent at base, an open question in a body — and the dry-run
+**repairs** the two mechanical `changes[]` formalities (a plain-string bullet,
+a trailing parenthetical) by probing base rather than refusing on them. The
+two envelope byte caps truncate with a `truncated` note instead of exiting
+non-zero.
+
+**The author prompt renders from the draft's Story count.** The N=1 core
+carries the body schema, the contract-level Spec rule and acceptance defined
+as outcomes a PR reviewer can confirm from the diff and the verify output,
+guided to three to six items with `verify[]` carrying the mechanical checks;
+the delivery-schedule simulation and the acceptance partition render only for
+a draft that splits. `/mandrel-plan`'s Gate #1 stops for the sharpened intent
+and HITL unknowns only, the pre-mortem critic runs when the operator asks,
+and `--chain-on-clean` applies to any plan.
+
+**What deliberately survives:** `deriveStoryShape` and
+`resolveStoryDispatchMode` for the deliver side, the `shared-editor` finding
+in the plan summary, the acceptance partition, the subject-prefix validator,
+the cycle and unknown-dependency checks, and every close gate — the diet is
+plan-time only, and nothing about how a Story lands changed.
+
+### Consequences
+
+- The file-assumption row of
+  [`20260610-planning-determinism-dispositions`](#adr-20260610-planning-determinism-dispositions-per-layer-dispositions-for-the-deterministic-planning-proxies)
+  is superseded by this entry: the git probes are kept as a **warning**
+  surface, and the `maxTickets` reviewability budget it kept beside them is
+  deleted. The structural validation that row also kept (hierarchy, cycles,
+  dependency resolution) still governs.
+- A consumer whose `.agentrc.json` carries a retired `planning.*` key fails
+  validation on upgrade until `mandrel update` runs the 2.57.0 step; the
+  `BREAKING CHANGE:` footer names the keys.
+- A Story may now be broad, long-Spec'd and loosely footprinted on purpose.
+  The measurement that replaces the deleted ceilings is the acceptance
+  self-eval at delivery, which scores the landed diff against outcomes rather
+  than the plan against a number.
 
 ## ADR 20260911-5300: Follow-up ownership is three buckets, and an unroutable bucket is an outcome, not a fallback
 
@@ -758,8 +837,10 @@ is now the sole production wiring path).
 ## ADR 20260610-planning-determinism-dispositions: Per-layer dispositions for the deterministic planning proxies
 
 **Status:** Accepted in part — the dispositions stand; the `/epic-plan` rows are
-superseded, and three of the four "simplification deferred" rows were executed
-by deletion (see the superseding notes below).
+superseded, three of the four "simplification deferred" rows were executed
+by deletion, and the file-assumption / `maxTickets` row is superseded by
+[`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs)
+(see the superseding notes below).
 **Date:** 2026-06-10
 **Surface:** `.agents/scripts/lib/orchestration/ticket-validator.js`
 **Scope:** Story #3910 (audit findings — see git history at `409e0529`).
@@ -806,10 +887,17 @@ dispositions so a future reader does not re-litigate each one.
 hallucinations):**
 
 - **Ticket structural validation** (hierarchy, cycles, dependency resolution in
-  `lib/orchestration/ticket-validator*.js`), **file-assumption git probes**, and
-  the **`maxTickets` reviewability budget** (soft, `--allow-over-budget`) — the
+  `lib/orchestration/ticket-validator*.js`), ~~**file-assumption git probes**, and
+  the **`maxTickets` reviewability budget** (soft, `--allow-over-budget`)~~ — the
   highest-value determinism in the pipeline; they catch real authoring
   hallucinations a model cannot self-check.
+
+  > **Superseded by
+  > [`20260912-5312`](#adr-20260912-5312-the-planning-diet--a-story-is-as-large-and-as-loosely-prescribed-as-the-work-needs)
+  > (Story #5312).** The structural validation stands. The file-assumption git
+  > probes are demoted to dry-run **warnings** (only a `deletes` naming an
+  > absent path still refuses), and the `maxTickets` reviewability budget is
+  > deleted with its `--allow-over-budget` flag — it never refused a real plan.
 - **Epic/Story lease + checkout guards**, the **evidence-gate** skip cache, and
   the **PR open/locate** probes — coordination/idempotence primitives with no
   LLM-judgment substitute.

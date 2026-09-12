@@ -212,58 +212,8 @@ describe('planning.* shape', () => {
     assert.equal(validate({ ...REQ, planning: {} }), true);
   });
 
-  it('accepts riskHeuristics as an array', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: { riskHeuristics: ['no destructive ops'] },
-      }),
-      true,
-    );
-  });
-
-  it('accepts riskHeuristics as an extender object', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: { riskHeuristics: { append: ['custom risk'] } },
-      }),
-      true,
-    );
-  });
-
-  it('accepts planning.memoryPool thresholds (Story #5182)', () => {
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: { memoryPool: { staleAfterDays: 45, growthDelta: 10 } },
-      }),
-      true,
-    );
-  });
-
-  it('accepts planning.memoryPool setting only one threshold', () => {
-    // Each leaf carries its own default, so a half-configured block leaves
-    // the other arm on the framework value rather than disabling it.
-    assert.equal(
-      validate({ ...REQ, planning: { memoryPool: { growthDelta: 10 } } }),
-      true,
-    );
-  });
-
-  it('rejects a non-integer or out-of-range memoryPool threshold', () => {
-    expectErrors(
-      { ...REQ, planning: { memoryPool: { growthDelta: 2.5 } } },
-      /must be integer/,
-    );
-    expectErrors(
-      { ...REQ, planning: { memoryPool: { staleAfterDays: 0 } } },
-      /must be >= 1/,
-    );
-  });
-
   it('accepts planning.memoryPool.indexByteCeiling (Story #5285)', () => {
-    // The third arm's knob. The precompiled validator is what every runtime
+    // The one surviving arm's knob. The precompiled validator is what every runtime
     // path actually calls, so accepting it here is the assertion that the
     // key survived the mirror + `validator:gen` regeneration — a schema edit
     // that skips either leaves the key rejected at runtime while
@@ -275,24 +225,30 @@ describe('planning.* shape', () => {
       }),
       true,
     );
-    assert.equal(
-      validate({
-        ...REQ,
-        planning: {
-          memoryPool: {
-            staleAfterDays: 45,
-            growthDelta: 10,
-            indexByteCeiling: 20000,
-          },
-        },
-      }),
-      true,
-      'all three thresholds are independently settable',
-    );
     expectErrors(
       { ...REQ, planning: { memoryPool: { indexByteCeiling: 0 } } },
       /must be >= 1/,
     );
+  });
+
+  it('rejects the ten planning.* keys Story #5312 retired', () => {
+    // The 2.57.0 migration strips each of these on upgrade; the schema block
+    // is strict, so a config still carrying one fails loudly.
+    for (const planning of [
+      { complexityGate: { enabled: true } },
+      { riskHeuristics: ['no destructive ops'] },
+      { riskHeuristics: { append: ['custom risk'] } },
+      { failOnSharedEditors: true },
+      { requireExplicitCrossStoryDeps: true },
+      { failOnRegistryConflicts: true },
+      { failOnLargeFanOut: true },
+      { largeFanOutThreshold: 12 },
+      { crossCuttingRegistries: ['**/listeners/index.js'] },
+      { memoryPool: { staleAfterDays: 45 } },
+      { memoryPool: { growthDelta: 10 } },
+    ]) {
+      expectErrors({ ...REQ, planning }, /additional propert/i);
+    }
   });
 
   it('rejects an unknown memoryPool key (typo guard)', () => {
@@ -324,20 +280,6 @@ describe('planning.* shape', () => {
             hardSessionTokens: 60000,
           },
         },
-      },
-      /additional propert/i,
-    );
-  });
-
-  it('rejects the retired planning.complexityGate.maxSeedWords knob (Story #4722)', () => {
-    // Word-count routing was hard-cutover-removed: the route derives from
-    // the authored Story's shape. `additionalProperties: false` on the
-    // complexityGate block rejects the retired key (the
-    // 2.11.0-retire-max-seed-words migration strips it on consumer upgrade).
-    expectErrors(
-      {
-        ...REQ,
-        planning: { complexityGate: { maxSeedWords: 200 } },
       },
       /additional propert/i,
     );

@@ -202,10 +202,12 @@ describe('validateStoryFileAssumptions — rules table', () => {
       expectError: false,
     },
     {
-      label: 'creates + present → error',
+      // Story #5312: a `creates` on an existing path is advisory — the
+      // deliverer revises the sketch against the real tree.
+      label: 'creates + present → warning',
       assumption: 'creates',
       exists: true,
-      expectError: true,
+      expectWarning: true,
       expected: 'absent',
     },
     {
@@ -232,10 +234,10 @@ describe('validateStoryFileAssumptions — rules table', () => {
       expectError: false,
     },
     {
-      label: 'exists + absent → error',
+      label: 'exists + absent → warning',
       assumption: 'exists',
       exists: false,
-      expectError: true,
+      expectWarning: true,
       expected: 'present',
     },
     {
@@ -245,6 +247,7 @@ describe('validateStoryFileAssumptions — rules table', () => {
       expectError: false,
     },
     {
+      // The one declaration nothing can act on — still refused.
       label: 'deletes + absent → error',
       assumption: 'deletes',
       exists: false,
@@ -272,6 +275,10 @@ describe('validateStoryFileAssumptions — rules table', () => {
       });
       if (tc.expectError) {
         assert.equal(report.errors.length, 1);
+        assert.equal(report.mismatches[0].expected, tc.expected);
+      } else if (tc.expectWarning) {
+        assert.deepEqual(report.errors, []);
+        assert.equal(report.warnings.length, 1);
         assert.equal(report.mismatches[0].expected, tc.expected);
       } else {
         assert.deepEqual(report.errors, []);
@@ -355,9 +362,12 @@ describe('validateStoryFileAssumptions — rules table', () => {
       baseBranchRef: 'main',
       gitRunner: probe,
     });
-    assert.equal(report.errors.length, 2);
-    assert.match(report.errors[0], /"story-a"/);
-    assert.match(report.errors[1], /"story-b"/);
+    // Story #5312: the creates-clobber is a warning; the absent delete is
+    // the refusal.
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /"story-a"/);
+    assert.equal(report.errors.length, 1);
+    assert.match(report.errors[0], /"story-b"/);
   });
 
   it('emits an error for stories with only legacy string bullets', () => {
@@ -497,10 +507,10 @@ describe('validateStoryFileAssumptions — wave-aware predecessor tree (Story #3
     assert.equal(m.expected, 'refactors-existing');
     assert.equal(m.producerSlug, 'producer');
     assert.match(
-      report.errors[0],
+      report.warnings[0],
       /predecessor Story "producer" already creates/,
     );
-    assert.match(report.errors[0], /assumption="refactors-existing" instead/);
+    assert.match(report.warnings[0], /assumption="refactors-existing" instead/);
   });
 
   it('graph shape 2 — dependent `refactors-existing` on a path absent from base but created by a predecessor → clean (no false positive)', () => {
@@ -557,8 +567,8 @@ describe('validateStoryFileAssumptions — wave-aware predecessor tree (Story #3
       'story-a',
       'story-b',
     ]);
-    assert.match(report.errors[0], /concurrent Story/);
-    assert.match(report.errors[0], /shared-editor conflict finding/);
+    assert.match(report.warnings[0], /concurrent Story/);
+    assert.match(report.warnings[0], /shared-editor conflict finding/);
   });
 
   it('graph shape 3 — ordered same-path creates do NOT raise a concurrent-conflict (only the predecessor-create nudge fires)', () => {
@@ -744,7 +754,7 @@ describe('refactors-existing auto-normalization on base-untracked paths (#4496 f
     assert.match(report.warnings[0], /auto-normalized to "creates"/);
   });
 
-  it('references-sourced refactors-existing on an absent path is a genuine mismatch and still fails', () => {
+  it('references-sourced refactors-existing on an absent path is a genuine mismatch, reported as a warning', () => {
     const tickets = [
       makeStory({
         slug: 'reader-story',
@@ -765,9 +775,10 @@ describe('refactors-existing auto-normalization on base-untracked paths (#4496 f
       gitRunner: () => false,
     });
     assert.deepEqual(report.normalizations, []);
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], /body\.references/);
-    assert.match(report.errors[0], /absent at the base branch/);
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /body\.references/);
+    assert.match(report.warnings[0], /absent at the base branch/);
   });
 
   it('base-TRACKED path deleted by a predecessor keeps the genuine mismatch (no normalization)', () => {
@@ -800,8 +811,9 @@ describe('refactors-existing auto-normalization on base-untracked paths (#4496 f
       gitRunner: () => true, // tracked at base; absence comes from the delete
     });
     assert.deepEqual(report.normalizations, []);
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], /"late-refactorer"/);
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /"late-refactorer"/);
   });
 });
 
@@ -830,7 +842,7 @@ describe('validateStoryFileAssumptions — removed-path discrimination (Story #5
       historyRunner,
     });
 
-  it('AC-1: history ending in a delete is a hard error naming path + commit', () => {
+  it('AC-1: history ending in a delete is a warning naming path + commit', () => {
     const report = runGate(() => ({
       hadHistory: true,
       commit: 'deadbeefcafe',
@@ -838,10 +850,11 @@ describe('validateStoryFileAssumptions — removed-path discrimination (Story #5
     }));
 
     assert.deepEqual(report.normalizations, []);
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], /src\/gone\.ts/);
-    assert.match(report.errors[0], /deadbeefcafe/);
-    assert.match(report.errors[0], /stale documentation/);
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /src\/gone\.ts/);
+    assert.match(report.warnings[0], /deadbeefcafe/);
+    assert.match(report.warnings[0], /stale documentation/);
     assert.equal(report.mismatches.length, 1);
     assert.equal(report.mismatches[0].expected, 'present-was-removed');
     assert.equal(report.mismatches[0].removedInCommit, 'deadbeefcafe');
@@ -854,8 +867,8 @@ describe('validateStoryFileAssumptions — removed-path discrimination (Story #5
       renamedTo: 'src/renamed.ts',
     }));
 
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], /renamed to src\/renamed\.ts/);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /renamed to src\/renamed\.ts/);
     assert.equal(report.mismatches[0].renamedTo, 'src/renamed.ts');
   });
 
@@ -902,9 +915,9 @@ describe('validateStoryFileAssumptions — removed-path discrimination (Story #5
   });
 
   it('never probes history for an assumption the rescue does not cover', () => {
-    // A `references`-sourced refactor on an absent path is already a hard
-    // error, so the discrimination must not fire (and must not spend a git
-    // process) on it.
+    // A `references`-sourced refactor on an absent path is already a
+    // reported mismatch, so the discrimination must not fire (and must not
+    // spend a git process) on it.
     let probed = false;
     const report = validateStoryFileAssumptions({
       tickets: [
@@ -930,7 +943,7 @@ describe('validateStoryFileAssumptions — removed-path discrimination (Story #5
     });
 
     assert.equal(probed, false);
-    assert.equal(report.errors.length, 1);
+    assert.equal(report.warnings.length, 1);
     assert.equal(report.mismatches[0].expected, 'present');
   });
 });
@@ -976,7 +989,7 @@ describe('default history probe against a real repository (Story #5265)', () => 
       cwd: repo,
     });
 
-  it('reads a real delete out of history and refuses the declaration', () => {
+  it('reads a real delete out of history and warns on the declaration', () => {
     const repo = makeGitRepo({ prefix: 'fa-history-delete-' });
     writeFileSync(join(repo, 'doomed.js'), 'export const a = 1;\n');
     git(repo, 'add', 'doomed.js');
@@ -988,8 +1001,9 @@ describe('default history probe against a real repository (Story #5265)', () => 
     const report = gateOn(repo, 'doomed.js');
 
     assert.deepEqual(report.normalizations, []);
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], new RegExp(removedIn));
+    assert.deepEqual(report.errors, []);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], new RegExp(removedIn));
     rmSync(repo, { recursive: true, force: true });
   });
 
@@ -1004,8 +1018,8 @@ describe('default history probe against a real repository (Story #5265)', () => 
 
     const report = gateOn(repo, 'before.js');
 
-    assert.equal(report.errors.length, 1);
-    assert.match(report.errors[0], /renamed to after\.js/);
+    assert.equal(report.warnings.length, 1);
+    assert.match(report.warnings[0], /renamed to after\.js/);
     rmSync(repo, { recursive: true, force: true });
   });
 

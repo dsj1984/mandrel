@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ValidationError } from '../../../.agents/scripts/lib/errors/index.js';
 import {
   validateAcFreshness,
   validateAndNormalizeTickets,
@@ -39,7 +38,7 @@ test('validateAcFreshness: passes when every referenced path exists at baseBranc
       ],
     }),
   ];
-  assert.doesNotThrow(() =>
+  assert.deepEqual(
     validateAcFreshness({
       tickets,
       baseBranchRef: 'main',
@@ -48,13 +47,15 @@ test('validateAcFreshness: passes when every referenced path exists at baseBranc
         'tests/lib/orchestration/ticket-validator-freshness.test.js',
       ]),
     }),
+    [],
   );
 });
 
-test('validateAcFreshness: throws when a verify path is absent from main AND not declared in body.changes', () => {
+test('validateAcFreshness: warns when a verify path is absent from main AND not declared in body.changes', () => {
   // The planner claims to verify against an aggregator script, but never
   // declared it in body.changes — so the path is a stale reference, not a
-  // net-new file. The freshness gate must still fail.
+  // net-new file. The freshness gate reports it (Story #5312: as a warning
+  // the dry-run lists, never a refusal).
   const tickets = [
     makeStory('T1', {
       goal: 'Aggregate phase timings.',
@@ -63,25 +64,19 @@ test('validateAcFreshness: throws when a verify path is absent from main AND not
       verify: ['node .agents/scripts/aggregate-phase-timings.js'],
     }),
   ];
-  assert.throws(
-    () =>
-      validateAcFreshness({
-        tickets,
-        baseBranchRef: 'main',
-        gitRunner: fakeGitRunner([
-          // The path declared in `changes` exists; the verify-only path
-          // does not — and is not in `changes`, so it must trip the gate.
-          '.agents/scripts/some-other-tool.js',
-        ]),
-      }),
-    (err) => {
-      assert.ok(err instanceof ValidationError);
-      assert.match(err.message, /T1/);
-      assert.match(err.message, /aggregate-phase-timings\.js/);
-      assert.match(err.message, /main/);
-      return true;
-    },
-  );
+  const warnings = validateAcFreshness({
+    tickets,
+    baseBranchRef: 'main',
+    gitRunner: fakeGitRunner([
+      // The path declared in `changes` exists; the verify-only path
+      // does not — and is not in `changes`, so it must trip the gate.
+      '.agents/scripts/some-other-tool.js',
+    ]),
+  });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /T1/);
+  assert.match(warnings[0], /aggregate-phase-timings\.js/);
+  assert.match(warnings[0], /main/);
 });
 
 test('validateAcFreshness: verify path that IS declared in body.changes and absent from main still passes', () => {
@@ -197,7 +192,7 @@ test('validateAcFreshness: Tasks with no file references pass unchanged', () => 
   );
 });
 
-test('validateAcFreshness: error names every offending Task slug + path', () => {
+test('validateAcFreshness: one warning per offending Story slug + path', () => {
   // Paths must be referenced OUTSIDE `body.changes` to trip the gate —
   // anything declared in `changes` is treated as net-new and skipped.
   const tickets = [
@@ -214,30 +209,24 @@ test('validateAcFreshness: error names every offending Task slug + path', () => 
       verify: [],
     }),
   ];
-  let caught;
-  try {
-    validateAcFreshness({
-      tickets,
-      baseBranchRef: 'origin/main',
-      gitRunner: () => false,
-    });
-  } catch (err) {
-    caught = err;
-  }
-  assert.ok(caught instanceof ValidationError);
-  assert.match(caught.message, /T1/);
-  assert.match(caught.message, /missing-one\.js/);
-  assert.match(caught.message, /T2/);
-  assert.match(caught.message, /dropped\.js/);
-  assert.match(caught.message, /origin\/main/);
-  assert.equal(caught.misses.length, 2);
+  const warnings = validateAcFreshness({
+    tickets,
+    baseBranchRef: 'origin/main',
+    gitRunner: () => false,
+  });
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /T1/);
+  assert.match(warnings[0], /missing-one\.js/);
+  assert.match(warnings[1], /T2/);
+  assert.match(warnings[1], /dropped\.js/);
+  assert.match(warnings.join('\n'), /origin\/main/);
 });
 
-test('validateAcFreshness: error message carries per-path remediation hint pointing at body.changes', () => {
+test('validateAcFreshness: each warning carries a per-path remediation hint pointing at changes[]', () => {
   // Regression for Story #2279. A Task declares a brand-new test file in
   // `verify` but forgets to list it in `body.changes`; the gate trips
-  // and the operator-visible error MUST hint at the actual fix
-  // (declare the path in `body.changes`) rather than just calling the
+  // and the operator-visible warning MUST hint at the actual fix
+  // (declare the path in `changes[]`) rather than just calling the
   // reference stale.
   const tickets = [
     makeStory('T1', {
@@ -253,29 +242,25 @@ test('validateAcFreshness: error message carries per-path remediation hint point
       verify: [],
     }),
   ];
-  let caught;
-  try {
-    validateAcFreshness({
-      tickets,
-      baseBranchRef: 'main',
-      gitRunner: () => false,
-    });
-  } catch (err) {
-    caught = err;
-  }
-  assert.ok(caught instanceof ValidationError);
-  // Per-path hint must name body.changes as the remediation target.
-  assert.match(caught.message, /body\.changes/);
-  // Tests/** paths get the explicit "add test file" verb shape.
+  const warnings = validateAcFreshness({
+    tickets,
+    baseBranchRef: 'main',
+    gitRunner: () => false,
+  });
+  const joined = warnings.join('\n');
+  // Per-path hint must name changes[] as the remediation target, in the
+  // paste-ready object form.
   assert.match(
-    caught.message,
-    /tests\/lib\/orchestration\/new-fresh\.test\.js: add test file/,
+    joined,
+    /\{"path":"tests\/lib\/orchestration\/new-fresh\.test\.js","assumption":"creates"\}/,
   );
+  // Tests/** paths get the explicit "add test file" verb shape.
+  assert.match(joined, /new-fresh\.test\.js[^\n]*add test file/);
   // Non-test paths get the generic "create" verb shape.
-  assert.match(caught.message, /\.agents\/scripts\/missing-helper\.js: create/);
-  // Trailing prose points at both branches (declare vs. correct).
-  assert.match(caught.message, /Either declare the path in body\.changes/);
-  assert.match(caught.message, /correct the reference/);
+  assert.match(joined, /missing-helper\.js[^\n]*\(create\)/);
+  // Each line points at both branches (declare vs. correct).
+  assert.match(joined, /if net-new, declare/);
+  assert.match(joined, /fix the typo or stale reference/);
 });
 
 test('validateAcFreshness: requires baseBranchRef', () => {
@@ -288,7 +273,7 @@ test('validateAcFreshness: requires baseBranchRef', () => {
 test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchRef', () => {
   // The stale-path reference lives in `goal`, not `changes`, so the
   // expected-new short-circuit doesn't apply and the freshness clause
-  // throws when the runner reports the path missing.
+  // reports a warning when the runner reports the path missing.
   const tickets = [
     makeStory(
       'S1',
@@ -307,7 +292,10 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
       {
         goal: 'Touch an existing script to do y.',
         changes: [
-          '.agents/scripts/lib/orchestration/ticket-validator.js: tweak comment',
+          {
+            path: '.agents/scripts/lib/orchestration/ticket-validator.js',
+            assumption: 'refactors-existing',
+          },
         ],
         acceptance: ['a'],
         verify: ['v'],
@@ -317,16 +305,17 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
   ];
   // Without baseBranchRef the validator's freshness clause is a no-op so
   // legacy callers (and existing tests) keep their semantics.
-  assert.doesNotThrow(() => validateAndNormalizeTickets(tickets));
-  // With baseBranchRef + a runner that returns false, the chain throws.
-  assert.throws(
-    () =>
-      validateAndNormalizeTickets(tickets, {
-        baseBranchRef: 'main',
-        gitRunner: () => false,
-      }),
-    ValidationError,
-  );
+  assert.deepEqual(validateAndNormalizeTickets(tickets).warnings, []);
+  // With baseBranchRef + a runner that returns false, the chain attaches the
+  // warning and still returns the tickets (Story #5312: never a throw).
+  const validated = validateAndNormalizeTickets(tickets, {
+    baseBranchRef: 'main',
+    gitRunner: ({ path }) => path.endsWith('ticket-validator.js'),
+  });
+  assert.deepEqual(validated.errors, []);
+  assert.equal(validated.warnings.length, 1);
+  assert.match(validated.warnings[0], /S1/);
+  assert.match(validated.warnings[0], /missing\.js/);
 });
 
 // --- Object-form body.changes (Story #2680 / framework-gap #1) -----------
@@ -368,7 +357,7 @@ test('validateAcFreshness: object-form `{path, assumption: "creates"}` entries s
 test('validateAcFreshness: object-form changes still flag a verify path NOT in changes/references', () => {
   // Confirms the object-form acceptance is path-set membership, not a
   // blanket "trust everything". A task that only declares one object-form
-  // path but cites a different one in verify must still fail closed.
+  // path but cites a different one in verify is still reported.
   const tickets = [
     makeStory('T1', {
       goal: 'Edit a known file.',
@@ -382,21 +371,15 @@ test('validateAcFreshness: object-form changes still flag a verify path NOT in c
       verify: ['node .agents/scripts/missing-aggregator.js'],
     }),
   ];
-  assert.throws(
-    () =>
-      validateAcFreshness({
-        tickets,
-        baseBranchRef: 'main',
-        gitRunner: fakeGitRunner([
-          '.agents/scripts/lib/orchestration/ticket-validator.js',
-        ]),
-      }),
-    (err) => {
-      assert.ok(err instanceof ValidationError);
-      assert.match(err.message, /missing-aggregator\.js/);
-      return true;
-    },
-  );
+  const warnings = validateAcFreshness({
+    tickets,
+    baseBranchRef: 'main',
+    gitRunner: fakeGitRunner([
+      '.agents/scripts/lib/orchestration/ticket-validator.js',
+    ]),
+  });
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /missing-aggregator\.js/);
 });
 
 test('validateAcFreshness: object-form `{path, assumption: "exists"}` in body.references is unioned in', () => {

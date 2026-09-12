@@ -7,8 +7,8 @@
  * Given the author-written planning artifacts (`stories.json`, optional shared
  * Tech Spec), this CLI validates and creates Story issue(s) directly:
  *
- *   ticket validator / DAG / capacity → reachability →
- *   split-policy partition → fold/spill Spec into each Story body →
+ *   changes[] repair → ticket validator / DAG → reachability →
+ *   split-policy partition → fold Spec into each Story body →
  *   createIssue(s) with type::story, resumably by plan fingerprint (NOT
  *   agent::ready) → story-plan-state on every Story;
  *   plan-summary on the primary → flip every Story to agent::ready →
@@ -34,31 +34,23 @@
  *                             ids, for hand-driven runs. Each id must be
  *                             claimed by exactly one Story's `supersedes[]`;
  *                             they are commented on and closed as superseded
- *   --route-downgrade-reason <text>
- *                             Audited planner downgrade (Story #4707): treat
- *                             the envelope's `full` complexity verdict as
- *                             `lite`, recording <text> on every Story's
- *                             story-plan-state checkpoint. Absent this flag
- *                             the deterministic verdict stands; the gate
- *                             itself still fails toward `full`
  *   --no-close-superseded     Keep the source tickets open (no comment, no
  *                             close) — for a genuinely partial supersede
  *   --dry-run                 Assemble + validate without GitHub writes
- *   --chain-on-clean          Plan-diet fast path (Story #4741): run the
- *                             write-free dry-run first, and — only when it
- *                             passes clean AND the plan resolves to the `lite`
- *                             route — chain straight into the real persist in
- *                             the SAME invocation, collapsing the two operator
- *                             round-trips into one. A dry-run failure stops
- *                             before any createIssue; a full-route plan keeps
- *                             its review round-trip (the chain declines, no
- *                             writes). Ignored when `--dry-run` is also set
+ *   --chain-on-clean          Fast path (Story #4741; any plan since Story
+ *                             #5312): run the write-free dry-run first, and
+ *                             when it passes clean chain straight into the
+ *                             real persist in the SAME invocation, collapsing
+ *                             the two operator round-trips into one. A
+ *                             dry-run failure stops before any createIssue.
+ *                             Ignored when `--dry-run` is also set
  *   --force-review            Operator-forced review stop before persist lands
- *   --allow-over-budget / --allow-large-fan-out
  *
- * Run `--dry-run` first. It exercises every gate — validator, DAG, capacity,
- * budget, reachability, split/supersede partition, Spec fold — write-free, so
- * an authoring mistake surfaces before a single issue exists.
+ * Run `--dry-run` first. It exercises every gate — the changes[] repair, the
+ * validator, DAG, reachability, split/supersede partition, Spec fold —
+ * write-free, and lists every warning (a footprint probe that disagrees with
+ * the base branch, an open question in a body) so an authoring mistake
+ * surfaces before a single issue exists.
  *
  * stdout is reserved for the JSON result (Story #2278 discipline, extended to
  * this CLI by Story #4541): `routeAllOutputToStderr()` runs before any
@@ -116,14 +108,11 @@ const CLI_OPTIONS = {
   'plan-context': { type: 'string' },
   'plan-acceptance': { type: 'string' },
   'source-tickets': { type: 'string' },
-  'route-downgrade-reason': { type: 'string' },
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
   'dry-run': { type: 'boolean', default: false },
   'chain-on-clean': { type: 'boolean', default: false },
   'force-review': { type: 'boolean', default: false },
-  'allow-over-budget': { type: 'boolean', default: false },
-  'allow-large-fan-out': { type: 'boolean', default: false },
   'epic-title': { type: 'string' },
   'epic-goal': { type: 'string' },
   epic: { type: 'string' },
@@ -134,9 +123,7 @@ const USAGE =
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
   '[--plan-acceptance <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
-  '[--route-downgrade-reason <text>] ' +
   '[--dry-run] [--chain-on-clean] [--force-review] ' +
-  '[--allow-over-budget] [--allow-large-fan-out] ' +
   '[--epic-title <text> --epic-goal <text> | --epic <id>]';
 
 async function readOptional(filePath, { required }) {
@@ -293,14 +280,11 @@ export function buildPersistOptions(values, paths, planContextEnvelope) {
 
   return {
     forceReview: values['force-review'],
-    allowOverBudget: values['allow-over-budget'],
-    allowLargeFanOut: values['allow-large-fan-out'],
     dryRun: values['dry-run'],
     planDir: paths.planDir,
     skipCleanup: values['dry-run'],
     sourceTicketIds: source.ids,
     sourceTicketOrigin: source.origin,
-    routeDowngradeReason: values['route-downgrade-reason'] ?? null,
     epic: resolveEpicRequest(values),
     adoptEpicId: resolveEpicAdoptionId(values),
     // Default-on: `--no-close-superseded` is the explicit escape and always
@@ -323,12 +307,6 @@ async function runPersistInvocation({
   const paths = resolveInputPaths(values);
   const effectiveDryRun =
     typeof dryRun === 'boolean' ? dryRun : values['dry-run'] === true;
-  const settings = {
-    baseBranch: config.project?.baseBranch,
-    paths: config.project?.paths,
-    planning: config.planning,
-    docsContextFiles: config.project?.docsContextFiles,
-  };
 
   return recordPlanInvocation(
     {
@@ -341,7 +319,6 @@ async function runPersistInvocation({
         provider,
         artifacts,
         config,
-        settings,
         opts: {
           ...buildPersistOptions(values, paths, artifacts.planContextEnvelope),
           dryRun: effectiveDryRun,
@@ -353,23 +330,23 @@ async function runPersistInvocation({
 }
 
 /**
- * Plan-diet fast path (Story #4741 AC-1/AC-3): chain the lite dry-run into the
- * real persist in ONE operator invocation.
+ * Fast path (Story #4741 AC-1/AC-3; widened to any plan by Story #5312):
+ * chain a clean dry-run into the real persist in ONE operator invocation.
  *
  * Two passes over the **same** loaded artifacts:
  *
  *   1. A write-free dry-run. Every gate runs before any `createIssue` can
  *      happen, so a validation failure — which throws or returns reachability
  *      orphans — stops here, before a single issue exists (AC-3).
- *   2. The real write, run **only** when the dry-run passed clean AND resolved
- *      to the `lite` route. Because it replays the identical artifacts, the
- *      persisted output is byte-identical to what the dry-run validated
- *      (AC-1). A full-route plan keeps its review round-trip: the chain
- *      declines and returns the dry-run result, mutating nothing.
+ *   2. The real write, run when the dry-run passed clean. Because it replays
+ *      the identical artifacts, the persisted output is byte-identical to
+ *      what the dry-run validated (AC-1). The lite-route condition that used
+ *      to gate this step went with the plan-side lite claim: a clean dry-run
+ *      is the review the chain exists to fold.
  *
- * Exported for tests — this is where the round-trip collapse and its
- * fail-closed guard live, so a regression here silently re-opens the second
- * operator round-trip (or worse, persists a plan the dry-run never gated).
+ * Exported for tests — this is where the round-trip collapse lives, so a
+ * regression here silently re-opens the second operator round-trip (or
+ * worse, persists a plan the dry-run never gated).
  *
  * @param {{ values: object, config: object, provider: object,
  *   artifacts: object, metricsSince: string }} args
@@ -391,20 +368,6 @@ export async function runPersistChain({
     dryRun: true,
   });
 
-  if (dryResult.route?.route !== 'lite') {
-    dryResult.chain = {
-      attempted: true,
-      persisted: false,
-      reason: 'route-not-lite',
-    };
-    Logger.info(
-      '[plan-persist] --chain-on-clean: dry-run clean but the plan did not ' +
-        'resolve to the lite route — declining the auto-persist; run persist ' +
-        'explicitly after review.',
-    );
-    return dryResult;
-  }
-
   const persistResult = await runPersistInvocation({
     values,
     config,
@@ -416,7 +379,7 @@ export async function runPersistChain({
   persistResult.chain = {
     attempted: true,
     persisted: true,
-    reason: 'lite-dry-run-clean',
+    reason: 'dry-run-clean',
   };
   return persistResult;
 }
@@ -540,10 +503,6 @@ runAsCli(import.meta.url, main, {
       ],
       ['--plan-acceptance <file>', 'Acceptance artifact to attach.'],
       ['--source-tickets <ids>', 'Ticket ids this plan supersedes.'],
-      [
-        '--route-downgrade-reason <text>',
-        'Why the authored route was downgraded.',
-      ],
       ['--dry-run', 'Validate and report; create nothing.'],
       ['--chain-on-clean', 'Persist immediately when the dry run is clean.'],
       ['--no-close-superseded', 'Leave superseded source tickets open.'],
@@ -551,8 +510,6 @@ runAsCli(import.meta.url, main, {
         '--force-review',
         'Require the review gate even when it would be skipped.',
       ],
-      ['--allow-over-budget', 'Permit a Spec over the context budget.'],
-      ['--allow-large-fan-out', 'Permit a Story count above the fan-out gate.'],
       [
         '--epic-title <text>',
         'Group the persisted Stories under a container Epic with this title (needs --epic-goal).',

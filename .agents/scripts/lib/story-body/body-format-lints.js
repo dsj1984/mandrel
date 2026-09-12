@@ -4,7 +4,7 @@
  * inference a failing dry-run surfaces (Story #4684).
  *
  * The problem this closes: deterministic format rules (structured `## Changes`
- * bullet shape, verify-tier suffixes) used to be discovered only as persist
+ * bullet shape, non-empty sections) used to be discovered only as persist
  * dry-run failures — every miss cost a full re-author round-trip at
  * resident-context prices. This module is the single home for two remedies:
  *
@@ -13,11 +13,16 @@
  *      them into the story-author system prompt so the first draft is
  *      lint-clean by construction; a test enumerates the registry against the
  *      rendered prompt (Story #4684 AC-1).
- *   2. `suggestPathEntryFix` / `suggestVerifyFix` — the mechanical rewrites.
- *      `story-body.js` (`parsePathEntry`) and `task-body-validator.js`
- *      (`collectChangesErrors` / `collectVerifyErrors`) call them so a failing
- *      lint emits the corrected form ready to paste rather than a bare reject
- *      (AC-2).
+ *   2. `suggestPathEntryFix` — the mechanical rewrite. `story-body.js`
+ *      (`parsePathEntry`) and `task-body-validator.js`
+ *      (`collectChangesErrors`) call it so a failing lint emits the corrected
+ *      form ready to paste rather than a bare reject (AC-2), and the persist
+ *      dry-run applies the same salvage for real (Story #5312,
+ *      `plan-persist/changes-repair.js`).
+ *
+ * Story #5312 deleted the `verify-tier-suffix` / `verify-manual-reason` lints
+ * with the tier suffix itself: a `verify[]` entry is any command, and the
+ * `manual:<reason>` escape is gone with the rule it escaped.
  *
  * Import hygiene: this module imports only the cycle-free
  * `file-assumption-enum.js` leaf. It must NOT import `story-body.js` or
@@ -26,20 +31,6 @@
  */
 
 import { FILE_ASSUMPTION_VALUES } from '../orchestration/file-assumption-enum.js';
-
-/**
- * Canonical testing-tier vocabulary an inferred verify suffix may name. Kept in
- * sync with `task-body-validator.js`'s `VERIFY_TIER_VALUES` by a test rather
- * than an import (importing that module here would create a cycle).
- *
- * @type {readonly ['unit','contract','e2e','validate']}
- */
-const INFERABLE_VERIFY_TIERS = Object.freeze([
-  'unit',
-  'contract',
-  'e2e',
-  'validate',
-]);
 
 /**
  * The default assumption a mechanical `## Changes` auto-fix proposes. Most
@@ -53,48 +44,6 @@ const DEFAULT_SUGGESTED_ASSUMPTION = 'refactors-existing';
 // `.`-separated segment. Deliberately loose — the suggestion is best-effort, and
 // a false positive only produces an unhelpful (still-valid) fix-it string.
 const PATH_LIKE_RE = /[\w@*-]*[/.][\w@./*-]+/;
-
-/**
- * Infer the testing tier a bare `verify[]` command implies, when it is
- * unambiguous. Returns `null` when no confident inference is possible (the
- * author must then choose the tier themselves — the lint still fires, just
- * without a fix-it).
- *
- * @param {unknown} command
- * @returns {'unit'|'contract'|'e2e'|'validate'|null}
- */
-function inferVerifyTier(command) {
-  if (typeof command !== 'string') return null;
-  const c = command.toLowerCase();
-  if (/\bvalidate\b/.test(c)) return 'validate';
-  if (/playwright|\.spec\.|\be2e\b/.test(c)) return 'e2e';
-  if (/\.test\.|node --test|node:test|\bvitest\b|\bjest\b/.test(c)) {
-    return 'unit';
-  }
-  if (/\bcontract\b/.test(c)) return 'contract';
-  return null;
-}
-
-/**
- * Propose the corrected form of a `verify[]` entry that is missing its tier
- * suffix, when the tier is inferable from the command. Returns `null` when the
- * entry is a `manual:` escape, is empty, or the tier cannot be inferred.
- *
- * @param {unknown} entry
- * @returns {string|null} e.g. `"npm run validate (validate)"`.
- */
-export function suggestVerifyFix(entry) {
-  if (typeof entry !== 'string') return null;
-  const trimmed = entry.trim();
-  if (trimmed === '' || trimmed.startsWith('manual:')) return null;
-  const tier = inferVerifyTier(trimmed);
-  if (tier === null) return null;
-  // Drop any trailing (…) — a wrong/partial tier suffix — before appending the
-  // inferred one, so `npm test (smoke)` becomes `npm test (unit)` not a double.
-  const base = trimmed.replace(/\s*\([^)]*\)\s*$/, '').trim();
-  if (base === '') return null;
-  return `${base} (${tier})`;
-}
 
 /**
  * Propose the canonical `{ path, assumption }` object form for a `## Changes` /
@@ -140,9 +89,8 @@ export function suggestPathEntryFix(raw) {
 /**
  * The enumerated deterministic lints that can reject an authored Story body at
  * persist time. Each carries a concrete example so the story-author prompt can
- * state the requirement example-first (Story #4684 AC-1). The two `autoFixable`
- * lints are the mechanical rewrites whose dry-run failure carries the corrected
- * form (AC-2).
+ * state the requirement example-first (Story #4684 AC-1). The one `autoFixable`
+ * lint is the mechanical rewrite the dry-run applies (Story #5312).
  *
  * @type {ReadonlyArray<BodyFormatLint>}
  */
@@ -180,28 +128,10 @@ export const BODY_FORMAT_LINTS = Object.freeze([
     autoFixable: false,
   },
   {
-    id: 'verify-tier-suffix',
-    summary:
-      'Every `verify[]` entry MUST end with a tier in parentheses — one of ' +
-      `(${INFERABLE_VERIFY_TIERS.join(' | ')}) — or be a \`manual:<reason>\` escape.`,
-    badExample: 'npm test -- src/app.test.js',
-    goodExample: 'npm test -- src/app.test.js (unit)',
-    autoFixable: true,
-  },
-  {
     id: 'verify-non-empty',
-    summary:
-      'A Story MUST list at least one `verify[]` entry (use `manual:<reason>` only when truly unverifiable in isolation).',
+    summary: 'A Story MUST list at least one `verify[]` entry.',
     badExample: '"verify": []',
-    goodExample: '"verify": ["npm run validate (validate)"]',
-    autoFixable: false,
-  },
-  {
-    id: 'verify-manual-reason',
-    summary:
-      'A `manual:` verify entry MUST carry a reason after the colon; a bare `manual:` is rejected.',
-    badExample: 'manual:',
-    goodExample: 'manual: copy-only edit an auditor eyeballs',
+    goodExample: '"verify": ["npm run validate"]',
     autoFixable: false,
   },
   {

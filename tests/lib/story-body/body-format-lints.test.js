@@ -9,20 +9,16 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  VERIFY_TIER_VALUES,
-  validateTaskBodyShape,
-} from '../../../.agents/scripts/lib/orchestration/task-body-validator.js';
+import { validateTaskBodyShape } from '../../../.agents/scripts/lib/orchestration/task-body-validator.js';
 import {
   BODY_FORMAT_LINTS,
   suggestPathEntryFix,
-  suggestVerifyFix,
 } from '../../../.agents/scripts/lib/story-body/body-format-lints.js';
 import {
   parse,
   StoryBodyParseError,
 } from '../../../.agents/scripts/lib/story-body/story-body.js';
-import { renderDecomposerSystemPrompt } from '../../../.agents/scripts/lib/templates/decomposer-prompts.js';
+import { renderStoryAuthorCore } from '../../../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 describe('BODY_FORMAT_LINTS registry', () => {
   it('is non-empty and each entry is fully specified', () => {
@@ -43,49 +39,27 @@ describe('BODY_FORMAT_LINTS registry', () => {
     }
   });
 
-  it('covers the known rejecting lints, including the two auto-fixable ones', () => {
+  it('covers the known rejecting lints, with the one auto-fixable one (Story #5312)', () => {
     const ids = new Set(BODY_FORMAT_LINTS.map((l) => l.id));
     for (const required of [
       'changes-path-entry-shape',
-      'verify-tier-suffix',
       'verify-non-empty',
       'acceptance-non-empty',
     ]) {
       assert.ok(ids.has(required), `registry is missing lint "${required}"`);
     }
+    for (const retired of ['verify-tier-suffix', 'verify-manual-reason']) {
+      assert.ok(!ids.has(retired), `retired lint "${retired}" must be gone`);
+    }
     const autoFixable = BODY_FORMAT_LINTS.filter((l) => l.autoFixable).map(
       (l) => l.id,
     );
-    assert.deepEqual(autoFixable.sort(), [
-      'changes-path-entry-shape',
-      'verify-tier-suffix',
-    ]);
-  });
-
-  it('only ever infers tiers the validator actually accepts', () => {
-    // The tier inference lives in body-format-lints to avoid an import cycle
-    // with the validator, so pin every tier it can emit to the validator
-    // vocabulary through the public suggestVerifyFix surface.
-    const commands = [
-      'npm run validate',
-      'node --test tests/x.test.js',
-      'npx playwright test',
-      'run the contract suite',
-    ];
-    for (const cmd of commands) {
-      const fixed = suggestVerifyFix(cmd);
-      const tier = fixed?.match(/\(([^)]+)\)\s*$/)?.[1];
-      assert.ok(tier, `no tier inferred for "${cmd}"`);
-      assert.ok(
-        VERIFY_TIER_VALUES.includes(tier),
-        `inferred tier "${tier}" is not a valid verify tier`,
-      );
-    }
+    assert.deepEqual(autoFixable, ['changes-path-entry-shape']);
   });
 });
 
 describe('AC-1: every rejecting lint is stated example-first in the author prompt', () => {
-  const prompt = renderDecomposerSystemPrompt();
+  const prompt = renderStoryAuthorCore();
 
   it('names each lint id and renders each good example verbatim', () => {
     for (const lint of BODY_FORMAT_LINTS) {
@@ -107,46 +81,6 @@ describe('AC-1: every rejecting lint is stated example-first in the author promp
         `prompt is missing the checklist bullet for "${lint.id}"`,
       );
     }
-  });
-});
-
-describe('AC-2: suggestVerifyFix infers the tier from the command', () => {
-  it('appends the inferred tier to a bare command', () => {
-    assert.equal(
-      suggestVerifyFix('npm run validate'),
-      'npm run validate (validate)',
-    );
-    assert.equal(
-      suggestVerifyFix('node --test tests/x.test.js'),
-      'node --test tests/x.test.js (unit)',
-    );
-    assert.equal(suggestVerifyFix('npx vitest run'), 'npx vitest run (unit)');
-    assert.equal(
-      suggestVerifyFix('npx playwright test'),
-      'npx playwright test (e2e)',
-    );
-    assert.equal(
-      suggestVerifyFix('run tests/e2e/login.spec.ts'),
-      'run tests/e2e/login.spec.ts (e2e)',
-    );
-  });
-
-  it('returns null when no confident tier inference is possible', () => {
-    assert.equal(suggestVerifyFix('do the thing'), null);
-    assert.equal(suggestVerifyFix(''), null);
-    assert.equal(suggestVerifyFix(42), null);
-  });
-
-  it('replaces a wrong/partial tier suffix rather than doubling it', () => {
-    assert.equal(
-      suggestVerifyFix('npx vitest run (smoke)'),
-      'npx vitest run (unit)',
-    );
-  });
-
-  it('declines manual entries and non-inferable commands', () => {
-    assert.equal(suggestVerifyFix('manual: reviewer eyeballs it'), null);
-    assert.equal(suggestVerifyFix('do the thing'), null);
   });
 });
 
@@ -215,26 +149,6 @@ describe('AC-2: the failing lint output carries the corrected form', () => {
         return true;
       },
     );
-  });
-
-  it('validator rejects a tier-less verify entry WITH a suggested fix', () => {
-    const errors = validateTaskBodyShape({
-      type: 'story',
-      slug: 'demo',
-      title: 'Demo',
-      body: {
-        goal: 'G',
-        changes: [{ path: 'src/app.js', assumption: 'refactors-existing' }],
-        acceptance: ['x'],
-        verify: ['npm run validate'],
-      },
-    });
-    const verifyError = errors.find((e) => e.includes('body.verify entry'));
-    assert.ok(
-      verifyError,
-      `expected a verify error, got: ${errors.join('\n')}`,
-    );
-    assert.match(verifyError, /Suggested fix: "npm run validate \(validate\)"/);
   });
 
   it('validator rejects a string Changes bullet WITH a suggested fix', () => {

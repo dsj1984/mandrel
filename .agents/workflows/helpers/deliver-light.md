@@ -1,6 +1,6 @@
 ---
 description:
-  The unplanned prompt path shared by /mandrel-deliver and /mandrel-plan Gate #1. Judges a
+  The unplanned prompt path /mandrel-deliver takes for a free-text prompt. Judges a
   prompt's predicted footprint, authors a receipt Story, then lands it through
   the same single-story-init / single-story-close engine — every close gate
   unchanged.
@@ -9,9 +9,9 @@ description:
 # Unplanned delivery (the prompt path)
 
 > **A path, not a command.** There is no `/deliver-light` to type. This file is
-> reached two ways — `/mandrel-deliver "<prompt>"` (an operator describing small work)
-> and `/mandrel-plan` Gate #1 (a seed the suggestion says fits the light ceilings, once
-> the operator confirms). Read
+> reached one way — `/mandrel-deliver "<prompt>"` (an operator describing small
+> work); Story #5312 retired the `/mandrel-plan` Gate #1 suggestion that used
+> to be the second door. Read
 > [`deliver-digest.md`](deliver-digest.md) once first — the engine invariants,
 > gates, and terminal-envelope contract below are its.
 
@@ -24,13 +24,11 @@ straight to execution from a prompt, landing through the unchanged close path.
 It never relaxes a close gate, never bypasses the PR to `main`, and never lands
 over-scope work silently.
 
-Two callers, one gate: whichever door you arrived through, the suitability gate
-below is the decision. A `/mandrel-plan` Gate #1 suggestion is a *suggestion* — it is
-read against seed-time signals (`DELIVER_LIGHT_SUGGESTION_CEILINGS`: artifacts,
-risk hits, sensitive-path classes), while the gate here is read against the
-predicted work's *effort and risk* (`STORY_SHAPE_CEILINGS`: change kinds,
-magnitude, uncertainty, deployable span). They are deliberately two different
-checks, so the gate still runs after a confirm.
+One gate, whatever the door: the suitability gate below is the decision, read
+against the predicted work's *effort and risk* (`STORY_SHAPE_CEILINGS`: change
+kinds, magnitude, uncertainty, deployable span). `/mandrel-plan` no longer
+suggests this path at its Gate #1 (Story #5312) — a prompt reaches it through
+`/mandrel-deliver`, and the gate runs there every time.
 
 ## Scope by effort, not by artifact count {#scope-by-effort}
 
@@ -108,16 +106,6 @@ answer).
 
    `--amends '#<id>'` is the canonical light case — shape-checked identically; a
    heavy amendment escalates to `/mandrel-plan` like any other over-scope prompt.
-
-   **Entered from `/mandrel-plan` Gate #1?** Fill `--creates` / `--refactors` /
-   `--acceptance` / `--reason` from the plan-context envelope's codebase
-   snapshot and `complexitySignals` rather than re-deriving them from the seed
-   text — Gate #1 has already done that work, and re-deriving throws away the
-   better signal. An `ask-operator` verdict here means the two ceiling sets
-   disagreed: **return to [`../mandrel-plan.md`](../mandrel-plan.md) step 2 (Author) in the same
-   session**, carrying the interrogation you already paid for. That bounce-back
-   is not an escalation and does not need a fresh session (§ Why the two
-   directions differ).
 
 2. **Init (same engine).** From the main checkout, synchronously, with the
    maximum Bash timeout:
@@ -237,51 +225,31 @@ Nothing is left half-started: an escalated run creates **no receipt Story, no
 every creation call site, and `escalation.created` records all three as `false`
 in a shape the schema pins, so a later run finds nothing to trip over.
 
-## Why the two directions differ {#why-the-two-directions-differ}
+## Why escalation breaks the session {#why-the-two-directions-differ}
 
-Traffic runs both ways between this path and `/mandrel-plan`, and the two directions
-have **deliberately different session rules**. It reads like an inconsistency;
-it is not. The rule:
+Traffic runs one way between this path and `/mandrel-plan` — light →
+`/mandrel-plan` on an over-scope prompt — and that direction has a deliberate
+session rule:
 
-> **The direction whose guard is model judgment must break the session. The
-> direction whose guard is mechanical need not.**
+> **The direction whose guard is model judgment must break the session.**
 
 **Light → `/mandrel-plan` must be a fresh session.** What is being protected is
 *authoring judgment*, and the empirical finding above is that a session already
 framed as small work under-decomposes — one Story against a 3–5 contract where
 a fresh session on the identical seed authored four. The frame is the hazard,
-so only a new session removes it.
+so only a new session removes it. Everything on this path's own side is
+mechanical — `STORY_SHAPE_CEILINGS`, the ledgered verdict, the diff backstop —
+and none of it degrades because the context is large.
 
-**`/mandrel-plan` → light may stay in-session.** Gate #1 fires **before** authoring, so
-there is no authoring to corrupt, and the frame at that point is "plan this
-seed" — the neutral one, not the small one. Everything on the receiving side is
-mechanical: `STORY_SHAPE_CEILINGS`, the ledgered verdict, the diff backstop.
-None of them degrade because the context is large, so nothing is gained by
-paying for a fresh session.
-
-Do not "fix" this into symmetry in either direction. Making `/mandrel-plan` → light
-require a fresh session throws away a paid-for interrogation for no guard.
-Letting light → `/mandrel-plan` run in-session reintroduces the exact failure the
-`escalated` envelope exists to prevent.
-
-## Constraints
-
-- **Land, block, or escalate — never a silent local build.** The close push is
-  the only sanctioned landing; an `escalated` terminal is the only sanctioned
-  ending that delivers nothing, and it ends the session
-  (§ Escalation is terminal).
-- **No parallel engine.** This path invokes `single-story-init.js` and
-  `single-story-close.js`; it never reimplements worktree, branch, PR, or merge
-  mechanics.
-- **State only via `update-ticket-state.js`.** Drive every `agent::*`
-  transition through the script; report state, not process.
+Do not "fix" this by letting light → `/mandrel-plan` run in-session: that
+reintroduces the exact failure the `escalated` envelope exists to prevent.
 
 ## See also
 
 - [`/mandrel-deliver`](../mandrel-deliver.md) — the delivery entry point; routes here on a
   free-text prompt.
-- [`/mandrel-plan`](../mandrel-plan.md) — routes here from Gate #1 on a confirmed suggestion,
-  and owns the work an over-scope prompt escalates to.
+- [`/mandrel-plan`](../mandrel-plan.md) — owns the work an over-scope prompt
+  escalates to.
 - [`deliver-story.md`](deliver-story.md) — the one Story delivery engine every
   path shares.
 - [`deliver-digest.md`](deliver-digest.md) — engine invariants, gates, and the

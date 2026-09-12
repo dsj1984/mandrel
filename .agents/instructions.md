@@ -96,8 +96,7 @@ metadata only — no automatic runtime pause. The single runtime pause
 point is **`agent::blocked`**: on an unresolvable blocker or an unsafe
 destructive action without explicit authorization, transition to
 `agent::blocked`, summarize the blocker, and wait for operator resume
-(`agent::executing` or equivalent); escalate per
-`planning.riskHeuristics` in `.agentrc.json`.
+(`agent::executing` or equivalent).
 
 ### K. Precedence & Conflict Resolution
 
@@ -113,8 +112,8 @@ always wins regardless of tier.
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
 Mandrel does not enforce live LLM spend; your host owns session quota.
-Fixed framework ceilings (the `/mandrel-plan` context envelope, plan-time Story
-sizing) **fail closed** naming what to trim:
+The one fixed framework ceiling (the `/mandrel-plan` context envelope)
+truncates with a note naming what was cut:
 [`docs/execution-reference.md`](docs/execution-reference.md#finops--token-budgeting-economic-guardrails).
 
 ---
@@ -169,8 +168,8 @@ Do NOT manually update issue descriptions or status fields unless prompted.
 ### B. Ticket hierarchy
 
 The Story is the only executable ticket: `acceptance[]` / `verify[]`
-inline plus the folded Tech Spec in `## Spec` (over-budget Specs fail
-closed — split or tighten; never under `docs/`). Optional `depends_on`
+inline plus the folded Tech Spec in `## Spec` (as long as the work
+needs; never under `docs/`). Optional `depends_on`
 edges order rare multi-Story runs, resolved by `/mandrel-deliver` from
 live state; `plan-run::<id>` is filter metadata. Commit subjects
 reference the Story via `(refs #<storyId>)`. There is no `type::task`.
@@ -194,9 +193,9 @@ anything under it.
 
 `/mandrel-plan` sizes each Story as a **capability slice a frontier model
 delivers and self-verifies in one pass** — a broad footprint is normal
-when the change is cohesive (backstop: `DEFAULT_MODEL_CAPACITY` in
-`ticket-validator-sizing.js`); do not re-slice it into per-module
-fragments. On a `⚠️ COMPLEXITY WARNING` or out-of-scope task: **plan
-first** (numbered cohesive sub-steps in a `<!-- DECOMPOSITION -->`
+when the change is cohesive, and no plan-time ceiling scores it; do not
+re-slice it into per-module fragments. On a `⚠️ COMPLEXITY WARNING` or
+out-of-scope task: **plan first** (numbered cohesive sub-steps in a
+`<!-- DECOMPOSITION -->`
 block), **commit incrementally** per sub-step, and **fail fast** — STOP
 and report if any sub-step fails validation.

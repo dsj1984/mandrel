@@ -1,13 +1,13 @@
 /**
  * plan-critics-evaluate.js — shared critic-dispatch evaluation for the
- * collapsed /mandrel-plan flow (#4496 fix 6).
+ * collapsed /mandrel-plan flow (#4496 fix 6; pre-mortem only since Story #5312).
  *
- * One consumer: the `plan-critics.js` CLI, which `/mandrel-plan` runs between its
- * Author and Persist steps. The CLI loads the draft artifacts, calls this
- * module, prints the verdict as JSON, and records every skip on the
- * plan-metrics ledger; the workflow dispatches a fresh-context critic
- * sub-agent on a `dispatch: true` verdict and folds the findings into a
- * re-author round before persist.
+ * One consumer: the `plan-critics.js` CLI, which the operator runs between
+ * Author and Persist when they want the pre-mortem. The CLI loads the draft
+ * artifacts, calls this module, prints the verdict as JSON, and records a
+ * skip on the plan-metrics ledger; the workflow dispatches a fresh-context
+ * critic sub-agent on a `dispatch: true` verdict and folds the findings into
+ * a re-author round before persist.
  *
  * Story #4592 moved that evaluation here from `run-plan-persist.js`, which
  * ran it after authoring was finished and immediately before
@@ -21,26 +21,7 @@
  * @module lib/orchestration/plan-critics-evaluate
  */
 
-import { getLimits } from '../config-resolver.js';
-import {
-  evaluateConsolidationDispatch,
-  evaluatePremortemDispatch,
-} from './plan-critic-conditions.js';
-import { evaluateTextHygiene } from './plan-text-hygiene.js';
-
-/**
- * Resolve the planning risk heuristics list from the canonical config
- * block (same resolution `plan-context.js` and the decompose context use).
- *
- * @param {object} config
- * @returns {string[]}
- */
-function resolveRiskHeuristics(config = {}) {
-  if (Array.isArray(config.planning?.riskHeuristics)) {
-    return config.planning.riskHeuristics;
-  }
-  return [];
-}
+import { evaluatePremortemDispatch } from './plan-critic-conditions.js';
 
 /**
  * Resolve the `{ owner, repo }` the external-dependency probe's cross-repo arm
@@ -57,24 +38,11 @@ function resolveOwnerRepo(config = {}) {
 }
 
 /**
- * Evaluate the consolidation + pre-mortem critic dispatch conditions over
- * the authored planning artifacts (#4474 PR6 conditions, unchanged):
- *
- *   - Consolidation: skipped outright when `tickets` is null/absent (the
- *     single-delivery shape authors no draft tickets); otherwise the
- *     deterministic precondition + size/divergence conditions.
- *   - Pre-mortem: ticket count at least half `maxTickets`, OR any
- *     `planning.riskHeuristics` phrase matching the plan text, OR the
- *     external-dependency probe (Story #4700) matching an out-of-repo marker
- *     — a scoped package absent from `knownPackages`, a cross-repo
- *     `github.com/<owner>/<repo>` reference, or a named external service
- *     prerequisite. Story #4542 retired its authored-risk-level condition with
- *     the verdict itself.
- *   - Text hygiene (Story #4599, advisory-only): deterministic body lints
- *     (dangling-citation / open-question / slicing-mass) over the draft
- *     stories. It has no `dispatch` semantics and spawns nothing — its
- *     `findings[]` are re-author-round input, and the consolidation /
- *     premortem dispatch verdicts are untouched by it.
+ * Evaluate the pre-mortem critic's dispatch condition over the authored
+ * planning artifacts: the external-dependency probe (Story #4700) matching an
+ * out-of-repo marker — a scoped package absent from `knownPackages`, a
+ * cross-repo `github.com/<owner>/<repo>` reference, or a named external
+ * service prerequisite.
  *
  * @param {{
  *   techSpecContent: string,
@@ -88,9 +56,7 @@ function resolveOwnerRepo(config = {}) {
  *   that gathers them; this module stays pure. Empty when unresolved, which
  *   only widens what the probe treats as external.
  * @returns {{
- *   consolidation: { critic: string, dispatch: boolean, reasons: string[] },
  *   premortem: { critic: string, dispatch: boolean, reasons: string[] },
- *   textHygiene: { critic: string, findings: Array<object> },
  * }}
  */
 export function evaluatePlanCritics({
@@ -100,24 +66,7 @@ export function evaluatePlanCritics({
   knownPackages = [],
 }) {
   const ticketList = Array.isArray(tickets) ? tickets : null;
-  const consolidation =
-    ticketList === null
-      ? {
-          critic: 'consolidation',
-          dispatch: false,
-          reasons: [
-            'single-delivery shape — no draft tickets exist to consolidate.',
-          ],
-        }
-      : evaluateConsolidationDispatch({
-          draftStories: ticketList,
-          specText: techSpecContent,
-        });
-
   const premortem = evaluatePremortemDispatch({
-    ticketCount: ticketList?.length ?? 0,
-    maxTickets: getLimits(config).maxTickets,
-    riskHeuristics: resolveRiskHeuristics(config),
     planText: [
       techSpecContent ?? '',
       ticketList ? JSON.stringify(ticketList) : '',
@@ -126,10 +75,5 @@ export function evaluatePlanCritics({
     ownerRepo: resolveOwnerRepo(config),
   });
 
-  const textHygiene = {
-    critic: 'text-hygiene',
-    findings: evaluateTextHygiene({ draftStories: ticketList }).findings,
-  };
-
-  return { consolidation, premortem, textHygiene };
+  return { premortem };
 }

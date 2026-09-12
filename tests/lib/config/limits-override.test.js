@@ -2,11 +2,11 @@
  * limits-override.test.js — regression test for limits override resolution.
  *
  * Story #4163 collapsed the never-overridden `planning.maxTickets` operator
- * knob to a framework constant (`LIMITS_DEFAULTS.maxTickets`). The knob is
- * gone from the AJV schema, so a config that still declares it fails the
- * load-time validation gate; and `getLimits` resolves `maxTickets` from the
- * constant regardless of config. This regression test pins both halves of
- * that contract.
+ * knob to a framework constant, and Story #5312 deleted the constant itself:
+ * the reviewability budget never fired on a real plan. The knob stays gone
+ * from the AJV schema, so a config that still declares it fails the
+ * load-time validation gate; and `getLimits` neither reads nor returns it.
+ * This regression test pins both halves of that contract.
  */
 
 import assert from 'node:assert/strict';
@@ -27,7 +27,7 @@ const REQ_PATHS = Object.freeze({
   tempRoot: 'temp',
 });
 
-describe('limits-override regression — maxTickets is a framework constant (Story #4163)', () => {
+describe('limits-override regression — maxTickets is gone (Story #4163 → #5312)', () => {
   let vol;
 
   beforeEach((t) => {
@@ -40,20 +40,16 @@ describe('limits-override regression — maxTickets is a framework constant (Sto
     vol.mkdirSync(root, { recursive: true });
     vol.writeFileSync(
       path.join(root, '.agentrc.json'),
-      JSON.stringify({
-        project: { paths: REQ_PATHS },
-        planning,
-      }),
+      JSON.stringify({ project: { paths: REQ_PATHS }, planning }),
     );
   }
 
   it('rejects a config that still declares the removed planning.maxTickets knob', () => {
     const root = path.resolve(
       PROJECT_ROOT,
-      '.worktrees/story-4163-fixture-rejects',
+      '.worktrees/story-4163-fixture-rejected',
     );
     writeFixture(root, { maxTickets: 75 });
-
     assert.throws(
       () => resolveConfig({ bustCache: true, cwd: root }),
       /maxTickets|additional propert/i,
@@ -61,21 +57,17 @@ describe('limits-override regression — maxTickets is a framework constant (Sto
     );
   });
 
-  it('getLimits resolves maxTickets to the framework constant regardless of config', () => {
+  it('getLimits returns no maxTickets at all', () => {
     const root = path.resolve(
       PROJECT_ROOT,
       '.worktrees/story-4163-fixture-constant',
     );
-    // A valid (knob-free) config still resolves the constant budget.
-    writeFixture(root, { riskHeuristics: ['no destructive ops'] });
+    // A valid (knob-free) config resolves a limits surface with no budget.
+    writeFixture(root, { navigation: { routeGlobs: ['pages/**'] } });
 
     const resolved = resolveConfig({ bustCache: true, cwd: root });
     const limits = getLimits(resolved);
-    assert.equal(
-      limits.maxTickets,
-      LIMITS_DEFAULTS.maxTickets,
-      `getLimits(resolveConfig()).maxTickets must be the framework constant (${LIMITS_DEFAULTS.maxTickets}); got ${limits.maxTickets}`,
-    );
-    assert.equal(limits.maxTickets, 80);
+    assert.equal('maxTickets' in limits, false);
+    assert.equal('maxTickets' in LIMITS_DEFAULTS, false);
   });
 });

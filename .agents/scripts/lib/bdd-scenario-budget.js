@@ -36,7 +36,9 @@ const BDD_SCENARIOS_BYTE_BUDGET = 24_000;
 /**
  * Truncate a scenario index to a byte budget, deterministically (scan
  * order — file walk order, then in-file order — never re-sorted), and
- * report what was dropped rather than truncating silently.
+ * report what was dropped rather than truncating silently: `truncated` is
+ * `null` when everything fit, else a note naming how many scenarios were
+ * cut (Story #5312).
  *
  * @param {Array<object>} scenarios Full scan output (order preserved).
  * @param {{ byteBudget?: number }} [opts]
@@ -44,7 +46,7 @@ const BDD_SCENARIOS_BYTE_BUDGET = 24_000;
  *   scenarios: Array<object>,
  *   totalScenarios: number,
  *   includedScenarios: number,
- *   truncated: boolean,
+ *   truncated: null | { droppedScenarios: number, note: string },
  * }}
  */
 export function capBddScenarios(scenarios, opts = {}) {
@@ -63,6 +65,22 @@ export function capBddScenarios(scenarios, opts = {}) {
     scenarios: list.slice(0, cut),
     totalScenarios: list.length,
     includedScenarios: cut,
-    truncated: cut < list.length,
+    truncated: describeTruncation(list, cut, byteBudget),
+  };
+}
+
+/**
+ * The `truncated` note: `null` when everything fit, else what was cut.
+ *
+ * @param {Array<object>} list
+ * @param {number} cut
+ * @param {number} byteBudget
+ * @returns {null | { droppedScenarios: number, note: string }}
+ */
+function describeTruncation(list, cut, byteBudget) {
+  if (cut === list.length) return null;
+  return {
+    droppedScenarios: list.length - cut,
+    note: `bddScenarios cut to ${cut} of ${list.length} scenarios to fit the ${byteBudget}-byte envelope budget`,
   };
 }

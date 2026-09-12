@@ -164,23 +164,21 @@ export async function emitPlanContext({
       bytes: Buffer.byteLength(json, 'utf8'),
       sourceTickets: (envelope.sourceTickets ?? []).map((t) => t.id),
       duplicates: (envelope.duplicates ?? []).length,
-      // Advisory only (Story #4722): signals, no route — the planner owns
-      // the trivial-vs-standard verdict and persist validates it by shape.
-      // The nested `deliverLightSuggestion` is the recorded plan-side routing
-      // handshake (Story #4741 AC-6) and `uiSurface` the recorded /prototype
-      // offer — advisory, never an automatic reroute. Both ride the digest
-      // because with `--out` the digest is the only thing the planner reads.
+      // Advisory only: signals, no route. `uiSurface` is the recorded
+      // /prototype offer — advisory, never an automatic reroute. It rides the
+      // digest because with `--out` the digest is the only thing the planner
+      // reads.
       complexitySignals: envelope.complexitySignals
         ? {
             artifactCount: envelope.complexitySignals.artifactCount,
-            riskHeuristicHits: envelope.complexitySignals.riskHeuristicHits,
             sensitivePathClasses:
               envelope.complexitySignals.sensitivePathClasses,
-            deliverLightSuggestion:
-              envelope.complexitySignals.deliverLightSuggestion ?? null,
             uiSurface: envelope.complexitySignals.uiSurface ?? null,
           }
         : null,
+      // Story #5312: an envelope over the planner-context ceiling is written
+      // truncated, and the digest names what was cut.
+      truncated: envelope.truncated ?? null,
       amends: envelope.amends ? { id: envelope.amends.id } : null,
     };
     stdout.write(`${JSON.stringify(digest)}\n`);

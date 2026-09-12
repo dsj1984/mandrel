@@ -1,12 +1,9 @@
 /**
  * tests/lib/orchestration/task-body-validator.test.js
  *
- * Plan-time validation coverage for the Story-body shape (2-tier world) and
- * the verify[] tier-suffix contract introduced by Story #3232:
- *
- *   - verify[] entries must name a testing tier in parentheses drawn from
- *     VERIFY_TIER_VALUES (unit / contract / e2e / validate) OR use the
- *     `manual:<reason>` escape hatch.
+ * Plan-time validation coverage for the Story-body shape (2-tier world).
+ * Story #5312 deleted the verify[] tier-suffix contract (and the
+ * `manual:<reason>` escape with it): a verify entry is any command.
  *   - Story tickets with structured bodies are validated; Feature tickets
  *     and string-bodied Story tickets still pass through.
  *   - assumption enum values in changes[] / references[] are validated for
@@ -22,10 +19,8 @@ import { describe, it } from 'node:test';
 import { normalizeStoryTicket } from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import {
   collectTaskBodyErrors,
-  VERIFY_TIER_VALUES,
   validateTaskBodyShape,
 } from '../../../.agents/scripts/lib/orchestration/task-body-validator.js';
-import { normalizeVerifyTiers } from '../../../.agents/scripts/lib/orchestration/verify-tier-repair.js';
 import { serialize } from '../../../.agents/scripts/lib/story-body/story-body.js';
 
 // ---------------------------------------------------------------------------
@@ -54,19 +49,6 @@ const VALID_STORY_BODY = {
 // ---------------------------------------------------------------------------
 // VERIFY_TIER_VALUES export
 // ---------------------------------------------------------------------------
-
-describe('VERIFY_TIER_VALUES — exported constant', () => {
-  it('exports the canonical tier list', () => {
-    assert.deepEqual(
-      [...VERIFY_TIER_VALUES],
-      ['unit', 'contract', 'e2e', 'validate'],
-    );
-  });
-
-  it('is frozen', () => {
-    assert.ok(Object.isFrozen(VERIFY_TIER_VALUES));
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Story body: shouldSkipTicket routing
@@ -173,182 +155,36 @@ describe('collectTaskBodyErrors — Story body required sections', () => {
 // verify[] tier-suffix validation
 // ---------------------------------------------------------------------------
 
-describe('collectTaskBodyErrors — verify[] tier-suffix (Story bodies)', () => {
-  for (const tier of VERIFY_TIER_VALUES) {
-    it(`accepts a verify entry ending with (${tier})`, () => {
-      const errs = collectTaskBodyErrors([
-        story('s1', {
-          ...VALID_STORY_BODY,
-          verify: [`npm run test (${tier})`],
-        }),
-      ]);
-      assert.deepEqual(errs, []);
-    });
-  }
-
-  it('rejects a verify entry with no tier suffix', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: ['npm run test'] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /must end with a tier in parentheses/);
-  });
-
-  it('includes the offending entry in the error message', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: ['npm run test'] }),
-    ]);
-    assert.match(errs[0], /"npm run test"/);
-  });
-
-  it('rejects a verify entry with an unknown tier (e.g. (smoke))', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: ['npm run test (smoke)'] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /must end with a tier in parentheses/);
-  });
-
-  it('accepts manual:<reason> as the unverifiable escape hatch', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', {
-        ...VALID_STORY_BODY,
-        verify: ['manual: brand-lead approval required'],
-      }),
-    ]);
-    assert.deepEqual(errs, []);
-  });
-
-  it('rejects manual: with no reason after the colon', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: ['manual:'] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /"manual:" entry has no reason/);
-  });
-
-  it('rejects manual: with only whitespace after the colon', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: ['manual:   '] }),
-    ]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /"manual:" entry has no reason/);
-  });
-
-  it('tolerates non-string verify entries without emitting a tier error', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', { ...VALID_STORY_BODY, verify: [42, 'npm run test (unit)'] }),
-    ]);
-    assert.deepEqual(errs, []);
-  });
-
-  it('batches tier errors across multiple invalid entries', () => {
-    const errs = collectTaskBodyErrors([
-      story('s1', {
-        ...VALID_STORY_BODY,
-        verify: ['npm run test', 'npm run lint'],
-      }),
-    ]);
-    assert.equal(errs.length, 2);
-    for (const e of errs) {
-      assert.match(e, /must end with a tier in parentheses/);
-    }
-  });
-});
-
 // ---------------------------------------------------------------------------
 // verify[] tier auto-append (Story #5005)
 // ---------------------------------------------------------------------------
 
-describe('normalizeVerifyTiers — repair before judging', () => {
-  it('auto-appends an inferable tier to a top-level stories.json entry', () => {
-    const ticket = {
-      ...story('s1', { ...VALID_STORY_BODY, verify: [] }),
-      verify: ['npm test -- src/x.test.js'],
-    };
-    normalizeVerifyTiers([ticket]);
-    assert.deepEqual(ticket.verify, ['npm test -- src/x.test.js (unit)']);
-    // …and the plan now validates clean rather than costing a redraft round.
-    assert.deepEqual(collectTaskBodyErrors([ticket]), []);
-  });
-
-  it('infers each tier the suggester recognises', () => {
-    const cases = [
-      ['npm run validate', 'npm run validate (validate)'],
-      ['npx playwright test', 'npx playwright test (e2e)'],
-      ['node --test tests/a.js', 'node --test tests/a.js (unit)'],
-      ['npm run contract-check', 'npm run contract-check (contract)'],
-    ];
-    for (const [raw, expected] of cases) {
-      const ticket = { ...story('s1', VALID_STORY_BODY), verify: [raw] };
-      normalizeVerifyTiers([ticket]);
-      assert.deepEqual(ticket.verify, [expected], `input: ${raw}`);
-    }
-  });
-
-  it('still hard-errors on an entry whose tier cannot be inferred', () => {
-    const ticket = {
-      ...story('s1', { ...VALID_STORY_BODY, verify: [] }),
-      verify: ['./scripts/do-the-thing'],
-    };
-    normalizeVerifyTiers([ticket]);
-    // Untouched — the author owns a call the suggester cannot make.
-    assert.deepEqual(ticket.verify, ['./scripts/do-the-thing']);
-    const errs = collectTaskBodyErrors([ticket]);
-    assert.equal(errs.length, 1);
-    assert.match(errs[0], /must end with a tier in parentheses/);
-  });
-
-  it('leaves compliant tickets byte-identical (no re-serialize)', () => {
-    const body = serialize({
-      ...VALID_STORY_BODY,
-      verify: ['npm run test -- src/x.test.ts (unit)'],
-    });
-    const ticket = {
-      ...story('s1', body),
-      verify: [...VALID_STORY_BODY.verify],
-    };
-    normalizeVerifyTiers([ticket]);
-    assert.equal(ticket.body, body);
-    assert.deepEqual(ticket.verify, VALID_STORY_BODY.verify);
-  });
-
-  it('never rewrites a manual: escape', () => {
-    const ticket = {
-      ...story('s1', VALID_STORY_BODY),
-      verify: ['manual: an auditor eyeballs the copy'],
-    };
-    normalizeVerifyTiers([ticket]);
-    assert.deepEqual(ticket.verify, ['manual: an auditor eyeballs the copy']);
-  });
-
-  it('repairs a serialized body section in lockstep with the top level', () => {
-    // Repairing only the top level would make the two disagree, and
-    // `syncContractFieldFromTopLevel` fails closed on a mismatch — a strictly
-    // worse outcome than the original reject.
-    const raw = 'npm test -- src/x.test.js';
-    const ticket = {
-      ...story('s1', serialize({ ...VALID_STORY_BODY, verify: [raw] })),
-      verify: [raw],
-    };
-    normalizeVerifyTiers([ticket]);
-    assert.ok(ticket.body.includes(`${raw} (unit)`));
-    assert.deepEqual(collectTaskBodyErrors([ticket]), []);
-    const { bodyObject } = normalizeStoryTicket(ticket);
-    assert.deepEqual(bodyObject.verify, [`${raw} (unit)`]);
-  });
-
-  it('is total: non-array input and non-Story tickets are no-ops', () => {
-    assert.doesNotThrow(() => normalizeVerifyTiers(undefined));
-    const feature = { slug: 'f1', type: 'feature', verify: ['npm test'] };
-    normalizeVerifyTiers([feature, null]);
-    assert.deepEqual(feature.verify, ['npm test']);
-  });
-});
-
 // ---------------------------------------------------------------------------
 // assumption enum validation for Story changes[]
 // ---------------------------------------------------------------------------
+
+describe('collectTaskBodyErrors — verify[] entries are commands (Story #5312)', () => {
+  it('accepts a tier-less command, a tagged one, and a former manual: escape alike', () => {
+    for (const entry of [
+      'npm test',
+      'npm run test (unit)',
+      'manual: an auditor eyeballs the copy',
+      'grep -n "x" lib/y.js',
+    ]) {
+      const errs = collectTaskBodyErrors([
+        story('s1', { ...VALID_STORY_BODY, verify: [entry] }),
+      ]);
+      assert.deepEqual(errs, [], entry);
+    }
+  });
+
+  it('tolerates non-string verify entries', () => {
+    const errs = collectTaskBodyErrors([
+      story('s1', { ...VALID_STORY_BODY, verify: [42, 'npm test'] }),
+    ]);
+    assert.deepEqual(errs, []);
+  });
+});
 
 describe('collectTaskBodyErrors — assumption enum (Story changes[])', () => {
   it('accepts all valid assumption values in Story changes[]', () => {

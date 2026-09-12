@@ -1,10 +1,10 @@
 # /mandrel-plan — on-demand reference appendix
 
 > **Applies when:** you are executing [`/mandrel-plan`](../mandrel-plan.md) and hit one of the
-> situations below — input-mode derivation, the Gate #1 light handoff,
-> shape-derived complexity routing, tickets-mode supersede authoring, critic
-> dispatch detail, a failed persist, or source-id resolution. The spine stays
-> resident; this file is read on demand.
+> situations below — input-mode derivation, the Gate #1 advisory line,
+> tickets-mode supersede authoring, the operator-invoked pre-mortem, a
+> failed persist, or source-id resolution. The spine stays resident; this
+> file is read on demand.
 
 ## Deriving the input mode
 
@@ -92,140 +92,58 @@ The marker keeps the operator's undelegated decisions findable after the
 fact: reviewing a `--yes` plan means scanning its decisions-made-by-default,
 not re-deriving which assumptions were really the agent's to make.
 
-## Gate #1 → the memory-pool advisory (`memoryPoolAdvisory`)
+## Gate #1 → the one advisory line
 
-On a truthy `memoryPoolAdvisory.recommend`, name
-[`/memory-consolidate`](../memory-consolidate.md) at Gate #1, quoting its
-`reasons[]`. Purely advisory: a stale pool degrades recall, it does not make
-the plan wrong, so it never blocks and never reroutes.
+Gate #1 stops for exactly two things — the sharpened plan intent and any HITL
+unknown — and everything else the envelope surfaced collapses to **one
+advisory line** beneath it (Story #5312). Nothing on that line stops the run,
+reroutes it, or is invoked by `/mandrel-plan`; each item names something the
+operator may prefer to do instead, and the run proceeds either way. Under
+`--yes` the line is recorded and planning continues — an unattended run has
+nobody to take an offer.
 
-## Gate #1 → graduating a CI-gap intake filing (`intake`)
+The line names, in order, whichever of these the envelope carries:
 
-The envelope's `priorFeedback` arrays carry the open `meta::*` feedback issues.
-A row flagged `intake: true` is a **CI-gap intake filing** — written by
-[`file-ci-gap.js`](../../scripts/file-ci-gap.js) when a delivery reached an
-Option-2 verdict in [`ci-remediation.md`](../../rules/ci-remediation.md) and the
-root cause was outside its scope. It carries evidence (failure signature, run
-link, occurrence history, ownership routing) but **no `## Spec`, no
-`acceptance[]` / `verify[]` and no `agent::*` label**, so `/mandrel-deliver`
-cannot take it: it is intake awaiting graduation, by design. Delivery files it
-and moves on rather than blocking on a planning pass nobody is present for.
+- **`duplicates[]`** — open Stories the seed resembles (never Epics). Name
+  the top one or two by id and title; a plan that duplicates open work is
+  still the operator's call.
+- **Open `intake` rows** (`priorFeedback`) — CI-gap intake filings written by
+  [`file-ci-gap.js`](../../scripts/file-ci-gap.js) when a delivery reached an
+  Option-2 verdict in [`ci-remediation.md`](../../rules/ci-remediation.md).
+  They carry evidence but no `## Spec`, no `acceptance[]` / `verify[]` and no
+  `agent::*` label, so `/mandrel-deliver` cannot take one: graduating it is
+  exactly **tickets mode** (`/mandrel-plan <issue number>`), and a filing
+  that keeps recurring (its `## Occurrences` table is the count) is often the
+  better next Story than the seed in front of you. A `platformGaps[]` row is
+  the same shape with a different owner.
+- **`memoryPoolAdvisory.recommend`** — name
+  [`/memory-consolidate`](../memory-consolidate.md), quoting its
+  `reasons[]`. The one arm left measures the `MEMORY.md` index against the
+  harness's byte cap; a stale pool degrades recall, it does not make the plan
+  wrong.
+- **`complexitySignals.uiSurface`** — name [`/prototype`](../prototype.md)
+  and stop there. The signal carries **no routing authority and adds no
+  gate**: both halves are derived from observables already in the checkout —
+  the `hasWebSurface` applicability predicate the `target: "web"` audit
+  lenses gate on, and whether any predicted path matches a web lens
+  `filePattern` in `audit-rules.json`; a project with no rendered frontend
+  resolves falsey and the offer never fires. `/mandrel-plan` must never invoke
+  it — operator invocation is the entire design, because the value is a human
+  looking at a layout before its UI acceptance criteria are frozen. Under
+  `--yes` the offer is recorded and planning proceeds — no reroute, no
+  prototype written, no gate raised.
 
-Graduating one is exactly **tickets mode**: `/mandrel-plan <issue number>`
-rewrites it into a Story, `supersedes[]` claims it, and persist closes it.
+## `complexitySignals` are advisory
 
-At Gate #1, in **ask** and **seed** mode, name any open intake rows and offer
-that instead of the seed in front of you — a filing that keeps recurring
-(its `## Occurrences` table is the count) is usually the better next Story than
-whatever prompted this run. It is **advisory**: never reroute automatically, and
-skip the offer entirely under `--yes`, where nobody is at the keyboard to take
-it. A `platformGaps[]` row is the same shape with a different owner — the
-Story it graduates into may well be a config or runbook change rather than code.
-
-## Gate #1 → the light path (in-session handoff)
-
-On a confirmed `deliverLightSuggestion`, `/mandrel-plan` routes into
-[`deliver-light.md`](deliver-light.md) **without ending the session**. Two
-things make that safe, and both are worth understanding before changing it:
-
-1. **The handoff carries the envelope, not the seed.** Gate #1 already holds
-   the interrogated `complexitySignals`; fill the light gate's `--creates`
-   / `--refactors` / `--acceptance` / `--reason` from those. Re-deriving from
-   raw seed text throws away the better signal and can disagree with the
-   suggestion that routed you.
-2. **The gate still runs.** The suggestion is read against seed-time ceilings
-   (`DELIVER_LIGHT_SUGGESTION_CEILINGS` — artifacts, risk hits, sensitive-path
-   classes); the light gate is read against the predicted work's effort and risk
-   (`STORY_SHAPE_CEILINGS` — change kinds, magnitude, uncertainty, deployable
-   span). Two different checks on purpose, so a confirm is not a bypass.
-
-**When the light gate answers `ask-operator`**, the two ceiling sets disagreed.
-Resume `/mandrel-plan` at step 2 (Author) **in this same session** — the interrogation
-is still valid and re-paying for it buys nothing. This bounce-back is not an
-escalation.
-
-**Under `--yes` the offer is recorded and planning proceeds** — it is *never*
-auto-downgraded to light. An unattended run has nobody to confirm the reroute,
-and a suggestion is not a confirmation. The same rule governs unknown triage
-unattended: AFK unknowns are still researched, but no free-form operator
-question is asked — each HITL unknown lands in Key Assumptions marked a
-decision-made-by-default, so the record shows what was decided for the operator
-rather than pretending it was decided with them.
-
-Escalation in the *other* direction — an over-scope prompt on the light path —
-is terminal and requires a fresh session. The rule that separates the two, and
-why it must not be flattened into symmetry:
-[`deliver-light.md` § Why the two directions differ](deliver-light.md).
-
-## Gate #1 → the `/prototype` offer (`uiSurface`)
-
-`complexitySignals.uiSurface` is the second advisory Gate #1 offer, and the
-weaker of the two on purpose: it carries **no routing authority and adds no
-gate**. Both halves are derived from observables already in the checkout — the
-`hasWebSurface` applicability predicate the `target: "web"` audit lenses gate
-on, and whether any predicted path matches a web lens `filePattern` registered
-in `audit-rules.json`. There is no configuration key to set: a project with no
-rendered frontend resolves falsey and the offer never fires.
-
-When it does fire, **name [`/prototype`](../prototype.md) and stop there.**
-`/mandrel-plan` must never invoke it — operator invocation is the entire design, because
-the value is a human looking at a layout before its UI acceptance criteria are
-frozen.
-
-**Under `--yes` the offer is recorded and planning proceeds** — no reroute, no
-prototype written, no gate raised. This is exactly how `deliverLightSuggestion`
-behaves unattended, and for the same reason: an unattended run has nobody to
-review an artifact, so recording the offer is the whole of the right behaviour.
-
-## Shape-derived complexity routing (`complexitySignals`)
-
-Complexity routes on the **objective shape of the authored work**, never on
-seed word count — a detailed prompt can describe trivial work, a terse one
-complex work. The pipeline stages the
-decision:
-
-- **Signals, not routing.** The envelope's `complexitySignals` field is
-  advisory only (`routingAuthority: false`): enumerated-artifact count (with
-  the configured `maxArtifacts` threshold beside it as one input),
-  `planning.riskHeuristics` phrases present in the seed, the repo state of
-  predicted paths (existing paths predict refactors; missing predict
-  creates), and the `audit-rules.json` sensitive-path classes the predicted
-  footprint intersects.
-- **You author the verdict.** Judge the signals: a genuinely trivial scope
-  (small additive footprint, no risk hits, no sensitive class) earns a `lite`
-  claim via `plan-persist.js --route-downgrade-reason "<why>"`. The reason is
-  recorded on every created Story's `story-plan-state` checkpoint, making the
-  judgment auditable; without a recorded reason the conservative default
-  (`full`) stands.
-- **Persist backstops the claim deterministically.** After authoring, the
-  work has measurable shape, so persist validates the `lite` claim against
-  each Story's own shape — distinct change kinds, declared magnitude,
-  uncertainty, deployable/migration span, glob-free footprint, and
-  sensitive-path classes, against the framework `STORY_SHAPE_CEILINGS` (effort
-  and risk, never artifact counts) — and **fails closed to
-  `full`** when any Story exceeds them (the refusal is ledgered on the
-  checkpoint too). The lite route is **not** licence to drop a
-  non-negotiable — every decision's `preserves` field enumerates what still
-  holds: the Story ticket, the PR-to-`main` landing, every repo quality gate,
-  and the security baseline. Those gates run in `single-story-close.js`
-  regardless of route.
-
-**The label is a hint; deliver re-derives.** Persist labels a
-lite cohort's Stories with **`route::lite`** as a *human-visible hint only* —
-`/mandrel-deliver` computes the route from each fetched Story body via the same shape
-function at dispatch, so neither a lost label nor an unread marker can
-misroute delivery: a lite-shaped Story derives `lite` even with the label
-absent, and a sensitive-footprint Story routes `full` and keeps its fresh
-critic even with the label present. The derived route sets ceremony, not
-where the engine runs — sub-agent boots are collapsed by a **single-Story
-run**, never by a trivial shape. The `route::*` axis stays runtime-derived: hand-authored
-`route::*` entries in `labels[]` are dropped by persist.
-
-The knobs (`planning.complexityGate.{enabled, maxArtifacts}`) are documented
-in [`.agents/docs/configuration.md`](../../docs/configuration.md) under
-`### planning`; the defaults live on `DEFAULT_COMPLEXITY_GATE` and the shape
-ceilings on `STORY_SHAPE_CEILINGS` in
-[`lib/orchestration/complexity-gate.js`](../../scripts/lib/orchestration/complexity-gate.js).
+The envelope's `complexitySignals` field carries the paths the seed predicts,
+their repo state (existing paths predict refactors; missing predict creates)
+and the `audit-rules.json` sensitive-path classes the footprint intersects —
+`routingAuthority: false`, no `route` field. They ground the authoring
+template's pre-resolved `changes[]` and the `/prototype` offer, nothing else.
+Story #5312 deleted the plan-side lite claim that used to read them
+(`--route-downgrade-reason`, the persist shape backstop, the `route::lite`
+hint): every Story lands through the same engine and the same close gates,
+and ceremony is derived from the landed diff at close.
 
 ## Correct-by-construction authoring template
 
@@ -233,30 +151,24 @@ ceilings on `STORY_SHAPE_CEILINGS` in
 **correct-by-construction** skeleton, built from the same repo probe the
 `complexitySignals` ran:
 
-- **`verify[]` placeholders already end with a valid `(tier)` tag.** Keep
-  every filled entry's trailing tag one of `(unit)` / `(contract)` /
-  `(e2e)` / `(validate)` (or use the `manual:<reason>` escape) — a tierless
-  entry is exactly the mechanical persist round-trip the template exists to
-  prevent.
+- **`verify[]` entries are commands.** There is no tier suffix and no
+  `manual:<reason>` escape (Story #5312): write the exact command or test
+  path the deliverer runs and the acceptance critic reads as evidence.
 - **`changes[]` arrive pre-resolved to creates-vs-refactors.** Every path
   the seed predicted is probed against the repo: an existing path is
   emitted with `assumption: "refactors-existing"`, a missing one with
-  `assumption: "creates"`. Trust the pre-resolved assumption — verify
-  against the repo before overriding one (authoring `creates` for a file
-  that exists at base is a validator rejection). The persist gates stay
-  authoritative: they probe the base branch ref, not the working tree.
-- **Keep `## Spec` near contract-level prose.** **Aim for ~250 words; an
-  advisory warning fires past 350** (`SPEC_SOFT_WORD_BUDGET`). Two numbers,
-  two jobs: ~250 is the authoring target — the nudge toward a contract-level
-  Spec (interfaces, invariants, load-bearing constraints; no per-file
-  behavior narration) — while 350 is the slacker threshold at which persist
-  actually warns, so the warning marks a real outlier instead of ordinary
-  variance. Neither fails the persist. The hard fail-closed ceiling
-  (~1500 tokens, `spec-spill.js`) is unchanged.
+  `assumption: "creates"`. The persist gates stay authoritative — they probe
+  the base branch ref, not the working tree — but a `creates` on a path that
+  exists at base, or a `refactors-existing` on one that does not, is a
+  dry-run **warning**, not a rejection; only a `deletes` naming an absent
+  path is refused. A plain-string bullet or a trailing parenthetical is
+  repaired into the object form by probing base, and the repair is reported.
+- **Keep `## Spec` at contract-level prose** — interfaces, invariants,
+  load-bearing constraints; no per-file behavior narration — and as long as
+  the work needs. There is no word or token budget.
 
 A faithfully-filled skeleton — placeholders replaced, pre-resolved entries
-kept, tags valid — passes the persist ticket validators with no
-round-trip.
+kept — passes the persist ticket validators with no round-trip.
 
 ### Authored entry shape
 
@@ -336,18 +248,13 @@ together, and a path two same-wave Stories both write is exactly where that
 promise breaks. Promise and caveat belong on one durable surface — previously
 the caveat was a stderr warning nobody kept.
 
-Two `planning.*` knobs upgrade a conflict class from advisory to a hard
-refusal. **Both default to `false` and are documented, not recommended:**
-
-| Knob | Upgrades | Why it is off |
-| --- | --- | --- |
-| `planning.failOnSharedEditors` | `shared-editor` → `hard` | Co-editing one file is routine and often correct; the delivery scheduler already serializes file-overlapping Stories. |
-| `planning.requireExplicitCrossStoryDeps` | `implicit-cross-story-dep` → `hard` | Path references are matched by substring, so a legitimate mention in prose can read as a dependency. |
-
-Turn one on for a repo where the class is genuinely fatal; expect a refusal to
-name the Stories and the fix (a `depends_on` edge, or folding the shared edit
-into one Story). The sibling knobs `failOnRegistryConflicts`,
-`failOnMissingBddScaffold` and `failOnLargeFanOut` behave the same way.
+Every conflict class is advisory (Story #5312 retired the
+`planning.failOn*` / `requireExplicitCrossStoryDeps` upgrade knobs with the
+registry and fan-out findings): co-editing one file is routine and often
+correct — the delivery scheduler already serializes file-overlapping Stories —
+and a path reference matched by substring can read as a dependency a prose
+mention never meant. A finding names the Stories and the fix (a `depends_on`
+edge, or folding the shared edit into one Story) for the operator to weigh.
 
 ## Tickets mode — authoring `supersedes[]`
 
@@ -382,67 +289,73 @@ total by default — an authored map is the only thing that can say
 `#11-#14 → #20` while `#15 → #21`, which a blanket "superseded by
 this plan-run" reference could not.
 
-## Critic dispatch detail
+## The pre-mortem critic — operator-invoked
 
-The **pre-mortem** critic fires on any of three deterministic triggers: the
-draft ticket count reaching half the reviewability budget, a
-`planning.riskHeuristics` phrase matching the plan text, or the
-**external-dependency** probe finding an out-of-repo marker — a
-scoped package the plan names that no repo manifest declares, a cross-repo
-`github.com/<owner>/<repo>` reference, or an endpoint named as a service
-prerequisite. That third trigger is what gives the default N=1 plan a cheap
-viability check, since the size trigger is unreachable at one ticket and this
-repo's resolved `riskHeuristics` is empty. The probe is conservative — explicit
-markers only, so a plan naming no such artifact dispatches exactly as before.
+The maker-blind **pre-mortem** critic is not a step of the spine (Story #5312
+retired step 2.5 with the consolidation critic, whose one deterministic input
+was a `## Delivery Slicing` table no Story carries). Run it when the operator
+asks for it, after Author and before Persist — the last point a finding folds
+into a re-author:
+
+```bash
+node .agents/scripts/plan-critics.js \
+  --stories temp/plan-<slug>/stories.json \
+  [--tech-spec temp/plan-<slug>/techspec.md]
+```
+
+It fires on one deterministic trigger: the **external-dependency** probe
+finding an out-of-repo marker — a scoped package the plan names that no repo
+manifest declares, a cross-repo `github.com/<owner>/<repo>` reference, or an
+endpoint named as a service prerequisite. The probe is conservative —
+explicit markers only. It exits 0 on **any** verdict (verdicts route work,
+they do not gate) and exits **1** only on a usage/IO error — no critic ran.
 
 ```jsonc
 {
-  "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": ["…"] },
-  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] },
-  "textHygiene": { "critic": "text-hygiene", "findings": [] }
+  "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": ["…"] }
 }
 ```
 
-The verdict's third entry, `textHygiene`, is advisory-only: it
-carries deterministic body lints (`dangling-citation` / `open-question` /
-`slicing-mass`) with no dispatch semantics — it spawns nothing and never
-gates the run. Fold `textHygiene.findings[]` into the re-author round the
-same way critic findings fold in: fix each named defect in `stories.json`
-(anchor or inline the citation, resolve the question into a declarative
-assumption, thin the Slicing checkpoint) and re-run the critic step. Empty
-`findings` add nothing to the round.
-
-**Dispatch shape.** When `delivery.routing.roleScopedAgents` is enabled (the
-**default**), dispatch each firing critic with `subagent_type: plan-critic` —
-it boots on the role-scoped [`plan-critic`](../../agents/plan-critic.md)
-context (its own system prompt, no `CLAUDE.md` @-closure) that carries the
-maker-blind invariant, the `consolidation` and `pre-mortem` charters, and the
-output shape standalone. When the kill-switch is off
-(`roleScopedAgents: false`) or the host cannot spawn at this depth, fall back
-to a generic sub-agent and hand it the same charter (the `consolidation` /
-`pre-mortem` definitions in [`plan-critic.md`](../../agents/plan-critic.md)).
-**When both critics fire, dispatch them in a single turn.** Consolidation and
-pre-mortem read the same immutable draft, share no write path, and neither
-consumes the other's verdict — the textbook independent fan-out of
-[`parallel-tooling.md`](parallel-tooling.md) Rule 3. Issue both `Agent` calls
-together in one assistant turn rather than awaiting the first verdict before
-spawning the second; serialized critics double the round's wall clock and buy
-nothing, because you fold both verdicts into the same re-author round anyway.
-
-Either way the critic is **maker-blind**: hand it the draft artifacts
-(`stories.json`, and `techspec.md` when present) — never the authoring
-transcript or the reasons the planner believed its own draft is sound. A
-critic that reads the maker's case grades the case, not the draft.
+On `dispatch: true`, dispatch **one fresh-context, maker-blind sub-agent**.
+When `delivery.routing.roleScopedAgents` is enabled (the **default**), use
+`subagent_type: plan-critic` — it boots on the role-scoped
+[`plan-critic`](../../agents/plan-critic.md) context (its own system prompt,
+no `CLAUDE.md` @-closure) that carries the maker-blind invariant, the
+`pre-mortem` charter, and the output shape standalone. When the kill-switch
+is off (`roleScopedAgents: false`) or the host cannot spawn at this depth,
+fall back to a generic sub-agent and hand it the same charter. Either way the
+critic is **maker-blind**: hand it the draft artifacts (`stories.json`, and
+`techspec.md` when present) — never the authoring transcript or the reasons
+the planner believed its own draft is sound. A critic that reads the maker's
+case grades the case, not the draft. Fold surviving findings into Gate #2 or
+a re-author round.
 
 ## What `--dry-run` actually gates
 
 `plan-persist.js --dry-run` is the same command with GitHub writes suppressed,
-and every gate runs before the first `createIssue` would fire — the validator,
-the body parse, the DAG, the capacity and Spec-budget ceilings, the
-reachability check, the split and supersede partitions, and the Tech Spec fold.
-That is the whole point of running it first: a dry run that comes back clean
-has already paid for every deterministic refusal, so the real persist has
-nothing left to discover except network failure.
+and every gate runs before the first `createIssue` would fire. Since
+Story #5312 the gates split two ways, and the dry-run is where the second
+half is read:
+
+**Hard — the run refuses:** a body that does not parse, a ticket that is not
+a Story, an empty `acceptance[]` or `verify[]`, an unknown or cyclic
+`depends_on`, the acceptance partition at N>1, the supersede partition, a
+forbidden commit-subject prefix, and a `deletes` entry naming a path absent
+at base.
+
+**Warnings — listed, then the persist proceeds:** a `creates` on a path that
+exists at base or a `refactors-existing` on one that does not (including a
+path the base branch deleted or renamed, named with the removing commit), a
+goal or acceptance path absent at base, a `verify[]` command naming an absent
+test file, and an `open-question` in a body (`Flag if…`, `TBD`, a trailing
+`?`). The list also names every `changes[]` **repair** the run applied — a
+plain-string bullet or a trailing parenthetical rewritten into
+`{ path, assumption }` by probing base. The same list rides the result
+envelope as `warnings[]` and `repairs[]`, so a `--chain-on-clean` run loses
+nothing.
+
+A dry run that comes back clean has paid for every deterministic refusal, so
+the real persist has nothing left to discover except network failure.
 
 ## The container Epic (Gate #3)
 

@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * plan-critics.js — the /mandrel-plan critic-dispatch verdict CLI (Story #4592).
+ * plan-critics.js — the /mandrel-plan pre-mortem dispatch verdict CLI
+ * (Story #4592; pre-mortem only since Story #5312).
  *
- * `/mandrel-plan` step 2.5 (between Author and Persist) runs this against the draft
- * `stories.json`. It evaluates the consolidation + pre-mortem dispatch
- * conditions and prints the verdict as JSON on stdout so the workflow can
+ * The operator runs this between Author and Persist when they want the
+ * pre-mortem — it is no longer a step of the `/mandrel-plan` spine. It
+ * evaluates the pre-mortem dispatch condition against the draft
+ * `stories.json` and prints the verdict as JSON on stdout so the workflow can
  * act on it — dispatching a fresh-context critic sub-agent and folding its
  * findings into a re-author round **before** the plan is persisted.
  *
@@ -28,20 +30,14 @@
  *
  * CLI:
  *   --stories <file>     Required. The draft Story ticket array (JSON).
- *   --tech-spec <file>   Optional. Shared Tech Spec carrying the
- *                        `## Delivery Slicing` table the consolidation
- *                        precondition reads.
+ *   --tech-spec <file>   Optional. Shared Tech Spec, folded into the plan
+ *                        text the external-dependency probe scans.
  *
  * stdout is reserved for the verdict JSON (Story #2278 discipline):
  *
  *   {
- *     "consolidation": { "critic": "consolidation", "dispatch": false, "reasons": [...] },
- *     "premortem":     { "critic": "pre-mortem",    "dispatch": true,  "reasons": [...] },
- *     "textHygiene":   { "critic": "text-hygiene",  "findings": [...] }
+ *     "premortem": { "critic": "pre-mortem", "dispatch": true, "reasons": [...] }
  *   }
- *
- * `textHygiene` (Story #4599) is advisory-only: deterministic body lints with
- * no dispatch semantics — its findings fold into the re-author round.
  *
  * Human-readable log lines go to stderr, matching the sibling `plan-persist`.
  *
@@ -192,11 +188,11 @@ export async function loadCriticArtifacts({
 }
 
 /**
- * Log each decision and record every skip on the plan-metrics ledger. The
+ * Log the decision and record a skip on the plan-metrics ledger. The
  * ledger write is best-effort by `appendCriticSkip`'s own contract — it can
  * never fail the plan step.
  *
- * @param {{ consolidation: object, premortem: object, textHygiene?: object }} verdict
+ * @param {{ premortem: object }} verdict
  * @param {object} config
  * @param {{ append?: typeof appendCriticSkip }} [deps]
  * @returns {Promise<void>}
@@ -206,48 +202,26 @@ export async function recordCriticSkips(
   config,
   { append = appendCriticSkip } = {},
 ) {
-  for (const decision of [verdict.consolidation, verdict.premortem]) {
-    Logger.info(
-      `[plan-critics] critic ${decision.critic}: ` +
-        `${decision.dispatch ? 'dispatch' : 'skip'} — ` +
-        decision.reasons.join('; '),
+  const decision = verdict.premortem;
+  Logger.info(
+    `[plan-critics] critic ${decision.critic}: ` +
+      `${decision.dispatch ? 'dispatch' : 'skip'} — ` +
+      decision.reasons.join('; '),
+  );
+  if (!decision.dispatch) {
+    await append(
+      {
+        critic: decision.critic,
+        reasons: decision.reasons,
+        cli: PLAN_CRITICS_CLI,
+      },
+      config,
     );
-    if (!decision.dispatch) {
-      await append(
-        {
-          critic: decision.critic,
-          reasons: decision.reasons,
-          cli: PLAN_CRITICS_CLI,
-        },
-        config,
-      );
-    }
-  }
-
-  // Text hygiene (Story #4599) is advisory-only — no dispatch semantics, so
-  // "skip" here means "zero findings". Recording that keeps the lint's
-  // fire/skip accounting on the same ledger as the dispatching critics.
-  const hygiene = verdict.textHygiene;
-  if (hygiene) {
-    const count = hygiene.findings.length;
-    Logger.info(
-      `[plan-critics] critic ${hygiene.critic}: ${count} finding(s) (advisory).`,
-    );
-    if (count === 0) {
-      await append(
-        {
-          critic: hygiene.critic,
-          reasons: ['No text-hygiene findings over the draft stories.'],
-          cli: PLAN_CRITICS_CLI,
-        },
-        config,
-      );
-    }
   }
 }
 
 /**
- * Load the artifacts, evaluate both critics, record the skips, and return the
+ * Load the artifacts, evaluate the pre-mortem, record a skip, and return the
  * verdict. Exported as the CLI's whole body so tests drive it in-process with
  * an explicit config and ledger seam.
  *
@@ -262,7 +236,7 @@ export async function recordCriticSkips(
  *   manifests declare, forwarded to the pre-mortem external-dependency probe
  *   (Story #4700). `main()` resolves them via `collectRepoPackages`; tests may
  *   pass an explicit set or omit it (defaults to `[]`).
- * @returns {Promise<{ consolidation: object, premortem: object, textHygiene: object }>}
+ * @returns {Promise<{ premortem: object }>}
  */
 export async function evaluateCriticArtifacts({
   storiesPath,
@@ -316,7 +290,7 @@ runAsCli(import.meta.url, main, {
     invocation:
       'node .agents/scripts/plan-critics.js --stories <file> [--tech-spec <file>]',
     summary:
-      'Score an authored plan draft with the maker-blind critics and print the verdict JSON on stdout.',
+      'Decide whether the maker-blind pre-mortem critic should run on an authored plan draft and print the verdict JSON on stdout.',
     flags: [
       ['--stories <file>', 'Authored stories.json (required).'],
       ['--tech-spec <file>', 'Optional companion techspec.md.'],

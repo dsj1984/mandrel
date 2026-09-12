@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-11T14:31:54.308Z",
+  "generatedAt": "2026-09-12T15:41:16.539Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.969,
-      "p95": 122.565
+      "p50": 98.92,
+      "p95": 121.809
     }
   },
   "rows": [
@@ -959,10 +959,6 @@
       "mi": 105.423
     },
     {
-      "path": ".agents/scripts/lib/framework-version.js",
-      "mi": 147.396
-    },
-    {
       "path": ".agents/scripts/lib/fs-walk.js",
       "mi": 102.83
     },
@@ -1179,10 +1175,6 @@
       "mi": 101.225
     },
     {
-      "path": ".agents/scripts/lib/orchestration/consolidation-precondition.js",
-      "mi": 93.294
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "mi": 83.564
     },
@@ -1375,10 +1367,6 @@
       "mi": 103.897
     },
     {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/fan-out-gate.js",
-      "mi": 112.235
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "mi": 97.914
     },
@@ -1425,10 +1413,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/planning/authoring-context.js",
       "mi": 106.002
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/planning/decomposer-context.js",
-      "mi": 126.196
     },
     {
       "path": ".agents/scripts/lib/orchestration/planning/memory-pool-advisory.js",
@@ -1611,14 +1595,6 @@
       "mi": 119.136
     },
     {
-      "path": ".agents/scripts/lib/orchestration/spec-budget.js",
-      "mi": 100.661
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-spill.js",
-      "mi": 111.238
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
       "mi": 95.306
     },
@@ -1713,10 +1689,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "mi": 94.268
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
-      "mi": 100.405
     },
     {
       "path": ".agents/scripts/lib/orchestration/worktree-dirty.js",

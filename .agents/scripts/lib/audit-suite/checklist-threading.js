@@ -41,7 +41,6 @@ import path from 'node:path';
 import { AUDIT_LENSES } from '../audit-to-stories/audit-lenses.js';
 import { getPaths, PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import { Logger } from '../Logger.js';
-import { estimateTokens } from '../orchestration/spec-spill.js';
 import {
   changeSetLacksSiblingTest,
   matchesAnyFilePattern,
@@ -49,8 +48,22 @@ import {
 } from './selector.js';
 
 /**
+ * Rough token estimate: ~4 characters per token. Deliberately cheap and
+ * deterministic — this budget is the one surviving ceiling that speaks in
+ * tokens (Story #5312 deleted the plan-time sizing ceilings that shared the
+ * estimator), so the approximation matters far less than the payload and
+ * the cap agreeing on one number.
+ *
+ * @param {string} text
+ * @returns {number}
+ */
+function estimateTokens(text) {
+  return Math.ceil(String(text ?? '').length / 4);
+}
+
+/**
  * Hard cap on the assembled checklist payload, in the ≈4-char/token estimate
- * shared with the rest of the hydrator ({@link estimateTokens}). Generous
+ * above ({@link estimateTokens}). Generous
  * relative to the real checklist sizes (each distilled lens checklist is
  * ~130–190 tokens, and at most the seven local lenses can match), so a normal
  * Story is never truncated — the cap is a safety ceiling against a pathological

@@ -6,7 +6,7 @@
 //
 //   - `buildComplexitySignals`      — advisory plan-time signals with no
 //                                     routing authority (AC-2);
-//   - `resolvePlannerRouteVerdict`  — the planner's authored verdict, lite
+//   - (retired by Story #5312) the planner's authored verdict, lite
 //                                     only with a recorded reason (AC-2);
 //   - `deriveStoryShape`            — the deterministic shape backstop over
 //                                     the authored Story (AC-3, AC-6);
@@ -17,23 +17,13 @@
 
 import assert from 'node:assert/strict';
 import test, { describe } from 'node:test';
-import {
-  AGENT_LABELS,
-  TYPE_LABELS,
-} from '../../../.agents/scripts/lib/label-constants.js';
 import { resolveCeremonyForRisk } from '../../../.agents/scripts/lib/orchestration/ceremony-routing.js';
 import {
   buildComplexitySignals,
   deriveStoryShape,
-  LITE_ROUTE_LABEL,
-  resolvePlannerRouteVerdict,
   resolveStoryDispatchMode,
   SHAPE_CODES,
 } from '../../../.agents/scripts/lib/orchestration/complexity-gate.js';
-import {
-  assemblePlanStories,
-  createStoryIssues,
-} from '../../../.agents/scripts/lib/orchestration/plan-persist/story-ops.js';
 import { deriveChangeLevel } from '../../../.agents/scripts/lib/orchestration/review-depth.js';
 import {
   parse as parseStoryBody,
@@ -62,7 +52,6 @@ function storyBody({ changes, acceptance, spec }) {
     changes,
     acceptance,
     verify: ['npm test (unit)'],
-    reason_to_exist: 'Test fixture.',
   });
 }
 
@@ -77,26 +66,6 @@ describe('buildComplexitySignals — signals, not routing (AC-1, AC-2)', () => {
       assert.equal(signals.routingAuthority, false);
       assert.equal(signals.advisory, true);
     }
-  });
-
-  test('reports the enumerated-artifact count with the configured threshold beside it', () => {
-    const signals = buildComplexitySignals({
-      seedText: 'Overhaul:\n- add login\n- add billing\n- add audit log',
-      config: { planning: { complexityGate: { maxArtifacts: 2 } } },
-    });
-    assert.equal(signals.artifactCount, 3);
-    assert.equal(signals.maxArtifacts, 2);
-  });
-
-  test('reports planning.riskHeuristics phrases present in the seed', () => {
-    const signals = buildComplexitySignals({
-      seedText: 'Touches the payment flow and adds a schema migration.',
-      riskHeuristics: ['payment flow', 'schema migration', 'auth token'],
-    });
-    assert.deepEqual(signals.riskHeuristicHits, [
-      'payment flow',
-      'schema migration',
-    ]);
   });
 
   test('classifies predicted paths against the sensitive-path taxonomy and repo state', () => {
@@ -120,37 +89,23 @@ describe('buildComplexitySignals — signals, not routing (AC-1, AC-2)', () => {
     });
   });
 
+  test('reports the enumerated-artifact count with no threshold beside it (Story #5312)', () => {
+    const signals = buildComplexitySignals({
+      seedText: 'Overhaul:\n- add login\n- add billing\n- add audit log',
+    });
+    assert.equal(signals.artifactCount, 3);
+    assert.equal('maxArtifacts' in signals, false);
+    assert.equal('riskHeuristicHits' in signals, false);
+    assert.equal('gate' in signals, false);
+  });
+
   test('is total: an empty seed yields empty signals, never a throw', () => {
     for (const seedText of ['', undefined, null]) {
       const signals = buildComplexitySignals({ seedText });
       assert.equal(signals.artifactCount, 0);
       assert.deepEqual(signals.predictedPaths, []);
-      assert.deepEqual(signals.riskHeuristicHits, []);
+      assert.deepEqual(signals.sensitivePathClasses, []);
     }
-  });
-});
-
-describe('resolvePlannerRouteVerdict — the authored verdict, ledgerable (AC-2)', () => {
-  test('lite only with a recorded reason, frozen for the checkpoint ledger', () => {
-    const verdict = resolvePlannerRouteVerdict({
-      reason: 'single trivial artifact despite verbose seed prose',
-    });
-    assert.equal(verdict.route, 'lite');
-    assert.deepEqual(verdict.authored, {
-      route: 'lite',
-      reason: 'single trivial artifact despite verbose seed prose',
-    });
-    assert.ok(Object.isFrozen(verdict.authored));
-    assert.equal(verdict.preserves.repoGates, true);
-  });
-
-  test('absent or empty reason: the conservative full default stands', () => {
-    for (const reason of [undefined, null, '', '   ', 42]) {
-      const verdict = resolvePlannerRouteVerdict({ reason });
-      assert.equal(verdict.route, 'full');
-      assert.equal(verdict.authored, null);
-    }
-    assert.equal(resolvePlannerRouteVerdict().route, 'full');
   });
 });
 
@@ -550,26 +505,10 @@ describe('resolveStoryDispatchMode — topology only (Story #5006)', () => {
   test('the label is inert: it is not even an argument any more', () => {
     const withLabel = resolveStoryDispatchMode({
       storyCount: 2,
-      labels: ['type::story', LITE_ROUTE_LABEL],
+      labels: ['type::story', 'route::lite'],
     });
     const without = resolveStoryDispatchMode({ storyCount: 2 });
     assert.deepEqual(withLabel, without);
-  });
-
-  test('the shape kill-switch cannot reach dispatch either', () => {
-    const off = resolveStoryDispatchMode({
-      storyCount: 1,
-      config: { planning: { complexityGate: { enabled: false } } },
-    });
-    assert.equal(
-      off.mode,
-      'inline',
-      'planning.complexityGate governs shape derivation, not run topology',
-    );
-  });
-
-  test('the hint label constant keeps its persisted shape', () => {
-    assert.equal(LITE_ROUTE_LABEL, 'route::lite');
   });
 });
 
@@ -718,7 +657,7 @@ describe('resolveStoryDispatchMode — inline is one session, so one Story (#482
     // size, an `inline` verdict can only come back for a one-Story run. A ready
     // set of N > 1 therefore cannot coexist with a Story owning the session.
     const bodies = [liteBody, fullBody, '', undefined];
-    const labelSets = [[], [LITE_ROUTE_LABEL], ['type::story']];
+    const labelSets = [[], ['route::lite'], ['type::story']];
     const configs = [
       undefined,
       { planning: { complexityGate: { enabled: false } } },
@@ -754,158 +693,6 @@ describe('resolveStoryDispatchMode — inline is one session, so one Story (#482
       'no inline verdict was produced at all — the law would hold vacuously and prove nothing',
     );
   });
-});
-
-// The lite path forks no delivery code: a lite-shaped Story is an ordinary
-// `type::story` ticket that `/mandrel-deliver` picks up and `single-story-close.js`
-// PRs to `main` and gates unchanged. Driving a lite-shaped Story through the
-// SAME persist engine (injected provider) and asserting a real, bypass-free
-// Story ticket comes out is the honest evidence the non-negotiables hold.
-describe('lite-shaped Stories land through the unchanged persist engine', () => {
-  test('a lite-shaped Story yields a type::story ticket with no gate-bypass marker', async () => {
-    const ticket = {
-      slug: 'hello-world',
-      type: 'story',
-      title: 'Add hello-world script',
-      body: serializeStoryBody({
-        goal: 'Print hello and exit 0.',
-        changes: [{ path: 'bin/hello.js', assumption: 'creates' }],
-        acceptance: ['prints hello'],
-        verify: ['node bin/hello.js (validate)'],
-        reason_to_exist: 'Deliver a hello-world script.',
-      }),
-    };
-    const { stories } = assemblePlanStories([ticket]);
-    const derived = deriveStoryShape({
-      changes: stories[0].bodyObject.changes,
-      acceptance: stories[0].acceptance,
-      injectedRules: RULES,
-    });
-    assert.equal(derived.route, 'lite');
-    // Both routes preserve the non-negotiables — no route ever drops one.
-    for (const key of [
-      'storyTicket',
-      'prToMain',
-      'repoGates',
-      'securityBaseline',
-    ]) {
-      assert.equal(derived.preserves[key], true);
-      assert.equal(deriveStoryShape({}).preserves[key], true);
-    }
-    assert.ok(Object.isFrozen(derived.preserves));
-
-    const calls = [];
-    const provider = {
-      createIssue: async (payload) => {
-        calls.push(payload);
-        return {
-          id: 4200 + calls.length,
-          url: `https://example/${calls.length}`,
-        };
-      },
-    };
-    const { created } = await createStoryIssues({ provider, stories });
-
-    assert.equal(created.length, 1);
-    assert.ok(calls[0].labels.includes(TYPE_LABELS.STORY));
-    // No lite-specific / skip label on the created Story, and it is not born
-    // `agent::ready` — the collapsed path cannot shortcut delivery.
-    assert.deepEqual(
-      calls[0].labels.filter((l) => /lite|skip|no-?gate/i.test(l)),
-      [],
-    );
-    assert.ok(!calls[0].labels.includes(AGENT_LABELS.READY));
-  });
-});
-
-// Persist and deliver read the SAME Story through two representations:
-// persist feeds `deriveStoryShape` the assembled objects
-// (`bodyObject.changes` / `acceptance`), deliver feeds
-// `resolveStoryDispatchMode` the serialized body markdown and re-parses it.
-// The docstring's claim that the two read points can never disagree is a
-// contract, not a hope — pin it round-trip: assemble once, derive both ways,
-// assert one route.
-describe('persist ↔ deliver route round-trip — one shape, two read points', () => {
-  const cases = [
-    {
-      name: 'a lite-shaped Story routes lite from both representations',
-      ticket: {
-        slug: 'lite-round-trip',
-        type: 'story',
-        title: 'Add a helper',
-        body: storyBody({
-          changes: [{ path: 'bin/helper.js', assumption: 'creates' }],
-          acceptance: ['helper prints and exits 0'],
-        }),
-      },
-      expectedRoute: 'lite',
-    },
-    {
-      name: 'an epic-scope Story routes full from both representations',
-      ticket: {
-        slug: 'full-round-trip',
-        type: 'story',
-        title: 'Refactor two deployables',
-        body: storyBody({
-          changes: [
-            { path: 'apps/api/src/one.js', assumption: 'refactors-existing' },
-            { path: 'apps/web/src/two.js', assumption: 'refactors-existing' },
-          ],
-          acceptance: ['both deployables keep their contracts'],
-        }),
-      },
-      expectedRoute: 'full',
-    },
-    {
-      name: 'a sensitive-footprint Story routes full from both representations',
-      ticket: {
-        slug: 'sensitive-round-trip',
-        type: 'story',
-        title: 'Add an auth banner',
-        body: storyBody({
-          changes: [{ path: 'src/auth/banner.js', assumption: 'creates' }],
-          acceptance: ['banner shows on the login page'],
-        }),
-      },
-      expectedRoute: 'full',
-    },
-  ];
-
-  for (const { name, ticket, expectedRoute } of cases) {
-    test(name, () => {
-      const { stories } = assemblePlanStories([ticket]);
-
-      // Persist's read point: the assembled objects.
-      const persistSide = deriveStoryShape({
-        changes: stories[0].bodyObject.changes,
-        acceptance: stories[0].acceptance,
-        injectedRules: RULES,
-      });
-      // Deliver's read point: the serialized body markdown, re-parsed — the
-      // path `light-suitability.js` takes when the light route needs a shape.
-      const reparsed = parseStoryBody(stories[0].body).body;
-      const deliverSide = deriveStoryShape({
-        changes: reparsed.changes,
-        acceptance: reparsed.acceptance,
-        injectedRules: RULES,
-      });
-
-      assert.equal(persistSide.route, expectedRoute);
-      assert.equal(
-        deliverSide.route,
-        persistSide.route,
-        'persist and deliver derived different routes from the same Story',
-      );
-      // The ROUTE is what round-trips. The dispatch MODE is not a function of
-      // shape at all (Story #4829, hard-wired by #5006): in a two-Story run
-      // every shape dispatches as a sub-agent, because the router has one
-      // session and two Stories.
-      assert.equal(
-        resolveStoryDispatchMode({ storyCount: 2 }).mode,
-        'subagent',
-      );
-    });
-  }
 });
 
 // ---------------------------------------------------------------------------

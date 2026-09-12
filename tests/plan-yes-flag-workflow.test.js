@@ -106,10 +106,12 @@ describe('/mandrel-plan --yes headless flag — gate #1', () => {
       /confirm the sharpened plan intent/i,
       'gate #1 must confirm the sharpened plan intent',
     );
+    // Story #5312: duplicates are named on the one advisory line under the
+    // gate, never a stop of their own.
     assert.match(
       interrogate,
-      /duplicate-candidate review/i,
-      'gate #1 must include duplicate-candidate review',
+      /`duplicates\[\]`[\s\S]*one advisory line/i,
+      'gate #1 must name duplicates on its advisory line',
     );
   });
 

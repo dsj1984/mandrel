@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-10T20:54:21.290Z",
+  "generatedAt": "2026-09-12T15:35:15.549Z",
   "mode": "production",
   "rows": [
     {
@@ -1270,14 +1270,6 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
-      "symbol": "buildDeliverLightSuggestion"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-context.js",
-      "symbol": "buildDeliveryShapeSignal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "buildScopeTriageSignal"
     },
     {
@@ -1291,10 +1283,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/plan-context.js",
       "symbol": "TICKET_SCHEMA_DESCRIPTOR"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
-      "symbol": "CONSOLIDATION_STORY_THRESHOLD"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-critic-conditions.js",
@@ -1314,7 +1302,7 @@
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
-      "symbol": "makeDefaultFanOutCounter"
+      "symbol": "resolveBaseBranchRef"
     },
     {
       "file": ".agents/scripts/lib/orchestration/plan-persist/plan-context-source.js",
@@ -1693,14 +1681,6 @@
       "symbol": "resolveOperator"
     },
     {
-      "file": ".agents/scripts/lib/orchestration/spec-budget.js",
-      "symbol": "SPEC_SOFT_WORD_BUDGET"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/spec-spill.js",
-      "symbol": "DEFAULT_SPEC_BODY_TOKEN_BUDGET"
-    },
-    {
       "file": ".agents/scripts/lib/orchestration/split-policy-validator.js",
       "symbol": "normalizeAcceptance"
     },
@@ -1775,10 +1755,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
       "symbol": "_internal"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
-      "symbol": "estimateStorySessionMass"
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
@@ -2041,6 +2017,10 @@
       "symbol": "TEMP_RETENTION_DEFAULTS"
     },
     {
+      "file": ".agents/scripts/lib/templates/decomposer-prompts.js",
+      "symbol": "renderStoryAuthorPrompt"
+    },
+    {
       "file": ".agents/scripts/lib/test-env.js",
       "symbol": "_clearTestScratchTempRootCache"
     },
@@ -2091,6 +2071,10 @@
     {
       "file": ".agents/scripts/lib/ticket-body-sections.js",
       "symbol": "ACCEPTANCE_TABLE_HEADING"
+    },
+    {
+      "file": ".agents/scripts/lib/ticket-body-sections.js",
+      "symbol": "DELIVERY_SLICING_RE"
     },
     {
       "file": ".agents/scripts/lib/ticket-body-sections.js",

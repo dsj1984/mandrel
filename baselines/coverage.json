@@ -4,9 +4,9 @@
   "generatedAt": "2026-09-11T14:31:53.752Z",
   "rollup": {
     "*": {
-      "lines": 96.14,
-      "branches": 87.04,
-      "functions": 88.7
+      "lines": 96.1,
+      "branches": 87.01,
+      "functions": 88.57
     }
   },
   "rows": [
@@ -1475,12 +1475,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/framework-version.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/fs-walk.js",
       "lines": 100,
       "branches": 100,
@@ -1805,12 +1799,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/consolidation-precondition.js",
-      "lines": 99.1,
-      "branches": 87.5,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/deliver-recover.js",
       "lines": 99.43,
       "branches": 85.71,
@@ -2099,12 +2087,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/plan-persist/fan-out-gate.js",
-      "lines": 100,
-      "branches": 95.65,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "lines": 96.73,
       "branches": 78.85,
@@ -2174,12 +2156,6 @@
       "path": ".agents/scripts/lib/orchestration/planning/authoring-context.js",
       "lines": 97.73,
       "branches": 77.78,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/planning/decomposer-context.js",
-      "lines": 100,
-      "branches": 100,
       "functions": 100
     },
     {
@@ -2453,18 +2429,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/spec-budget.js",
-      "lines": 97.75,
-      "branches": 75,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/spec-spill.js",
-      "lines": 100,
-      "branches": 80,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
       "lines": 98.4,
       "branches": 85,
@@ -2606,12 +2570,6 @@
       "path": ".agents/scripts/lib/orchestration/verify-credit.js",
       "lines": 100,
       "branches": 93.48,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/verify-tier-repair.js",
-      "lines": 96.26,
-      "branches": 87.1,
       "functions": 100
     },
     {

@@ -165,7 +165,6 @@ describe('memory pool absent — fails soft (Story #4919)', () => {
     assert.equal(result.present, false);
     assert.equal(result.recommend, false);
     assert.equal(result.entryCount, 0);
-    assert.equal(result.lastConsolidatedAt, null);
     assert.ok(
       result.reasons.length > 0,
       'an absent pool must still explain itself',
@@ -181,148 +180,19 @@ describe('memory pool absent — fails soft (Story #4919)', () => {
   });
 });
 
-describe('recommend branches (Story #4919)', () => {
-  it('recommends when the pool has never been consolidated (no stamp)', () => {
-    const result = advisory({ fsImpl: poolWith({ count: 3 }) });
-    assert.equal(result.lastConsolidatedAt, null);
-    assert.equal(result.recommend, true);
-    assert.match(result.reasons.join(' '), /never been consolidated/);
-  });
-
-  it('recommends when the stamp is older than the 30-day threshold', () => {
-    const stamp = stampedAgo(35);
-    const result = advisory({ fsImpl: poolWith({ count: 3, stamp }) });
-    assert.equal(result.recommend, true);
-    assert.equal(
-      result.lastConsolidatedAt,
-      JSON.parse(stamp).lastConsolidatedAt,
-    );
-    assert.match(result.reasons.join(' '), /35 days ago/);
-  });
-
-  it('recommends on 25 entries written since the last pass, fresh stamp and all', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 125, stamp: stampedAgo(1, 100) }),
-    });
-    assert.equal(result.recommend, true);
-    assert.equal(result.entriesSinceConsolidation, 25);
-    assert.match(
-      result.reasons.join(' '),
-      /25 entries written since the last consolidation \(at or over the 25-entry/,
-    );
-  });
-
-  it('stays quiet for a large pool a pass just reviewed — size is not the signal', () => {
-    // The defect Story #5182 fixed: a 163-entry pool that a consolidation
-    // pass had just walked still recommended another one, forever, because
-    // the old arm compared the pool's size to a fixed ceiling.
-    const result = advisory({
-      fsImpl: poolWith({ count: 163, stamp: stampedAgo(1, 163) }),
-    });
-    assert.equal(result.present, true);
-    assert.equal(result.recommend, false);
-    assert.equal(result.entriesSinceConsolidation, 0);
-  });
-
-  it('stays quiet at exactly the thresholds — neither is breached', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 124, stamp: stampedAgo(30, 100) }),
-    });
-    assert.equal(result.present, true);
-    assert.equal(result.recommend, false);
-  });
-
-  it('reports a pruning pass as negative growth rather than clamping it', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 93, stamp: stampedAgo(1, 100) }),
-    });
-    assert.equal(result.recommend, false);
-    assert.equal(result.entriesSinceConsolidation, -7);
-  });
-
-  it('honours caller-supplied thresholds over the defaults', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 5, stamp: stampedAgo(2, 1) }),
-      staleAfterDays: 1,
-      growthDelta: 4,
-    });
-    assert.equal(result.recommend, true);
-    assert.equal(result.reasons.length, 2, 'both thresholds should fire');
-  });
-
-  it('treats a malformed stamp as never-consolidated rather than throwing', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 3, stamp: '{ not json' }),
-    });
-    assert.equal(result.recommend, true);
-    assert.equal(result.lastConsolidatedAt, null);
-  });
-
-  it('does not recommend consolidating an empty pool', () => {
-    const result = advisory({
-      fsImpl: makeFs({ dirs: { [POOL]: ['MEMORY.md'] } }),
-    });
-    assert.equal(result.present, true);
-    assert.equal(result.entryCount, 0);
-    assert.equal(result.recommend, false);
-  });
-});
-
-describe('a stamp with no entry count leaves growth unmeasured (Story #5182)', () => {
-  it('fires neither the growth arm nor the never-consolidated reason', () => {
-    // Every stamp written before #5182 has this shape. An operator DID review
-    // this pool, so reading it as never-consolidated would be a lie — and
-    // scoring growth from a zero baseline would count the whole pool as new.
-    const result = advisory({
-      fsImpl: poolWith({ count: 300, stamp: stampedAgo(1) }),
-    });
-    assert.equal(result.recommend, false);
-    assert.equal(result.entriesSinceConsolidation, null);
-    assert.equal(
-      result.lastConsolidatedAt,
-      JSON.parse(stampedAgo(1)).lastConsolidatedAt,
-    );
-    assert.match(result.reasons.join(' '), /growth is unmeasured/);
-    assert.doesNotMatch(result.reasons.join(' '), /never been consolidated/);
-  });
-
-  it('still lets the age arm fire on such a stamp', () => {
-    const result = advisory({
-      fsImpl: poolWith({ count: 300, stamp: stampedAgo(45) }),
-    });
-    assert.equal(result.recommend, true);
-    assert.equal(result.reasons.length, 1, 'only the age arm may speak');
-    assert.match(result.reasons.join(' '), /45 days ago/);
-  });
-
-  it('treats a malformed entry count as unmeasured, never as zero', () => {
-    const stamp = JSON.stringify({
-      lastConsolidatedAt: new Date(Date.parse(NOW) - DAY_MS).toISOString(),
-      entryCount: 'lots',
-    });
-    const result = advisory({ fsImpl: poolWith({ count: 300, stamp }) });
-    assert.equal(result.recommend, false);
-    assert.equal(result.entriesSinceConsolidation, null);
-  });
-});
-
-describe('index byte arm (Story #5285)', () => {
+describe('index byte arm — the one arm (Story #5285; sole survivor after #5312)', () => {
   /** The size this repository's own index had when the arm was authored. */
   const OVERSIZE = 28_791;
-  /** A fresh stamp with a matching baseline: age and growth both silent. */
+  /** A stamp the retired arms used to read; the advisory ignores it now. */
   const QUIET_STAMP = stampedAgo(1, 5);
 
-  it('recommends on an oversized index even when age and growth are quiet', () => {
+  it('recommends on an oversized index', () => {
     const result = advisory({
       fsImpl: poolWith({ count: 5, stamp: QUIET_STAMP, indexBytes: OVERSIZE }),
     });
     assert.equal(result.recommend, true);
     assert.equal(result.indexBytes, OVERSIZE);
-    assert.equal(
-      result.reasons.length,
-      1,
-      'the byte arm must speak alone — it is independent of the other two',
-    );
+    assert.equal(result.reasons.length, 1, 'the byte arm speaks alone');
     const reason = result.reasons[0];
     assert.match(reason, /28791 bytes/, 'the reason names the measured size');
     assert.match(
@@ -337,12 +207,38 @@ describe('index byte arm (Story #5285)', () => {
     );
   });
 
-  it('stays quiet on an index under the ceiling with a fresh stamp', () => {
+  it('stays quiet on an index under the ceiling, whatever the stamp says', () => {
+    for (const stamp of [
+      QUIET_STAMP,
+      stampedAgo(400),
+      undefined,
+      '{ not json',
+    ]) {
+      const result = advisory({
+        fsImpl: poolWith({ count: 5, stamp, indexBytes: 20_000 }),
+      });
+      assert.equal(result.recommend, false);
+      assert.equal(result.indexBytes, 20_000);
+      assert.match(result.reasons[0], /within the 24576-byte index ceiling/);
+    }
+  });
+
+  it('stays quiet for a large pool that was never consolidated — size and age are not signals (Story #5312)', () => {
     const result = advisory({
-      fsImpl: poolWith({ count: 5, stamp: QUIET_STAMP, indexBytes: 20_000 }),
+      fsImpl: poolWith({ count: 163, indexBytes: 20_000 }),
     });
+    assert.equal(result.present, true);
+    assert.equal(result.entryCount, 163);
     assert.equal(result.recommend, false);
-    assert.equal(result.indexBytes, 20_000);
+  });
+
+  it('does not recommend consolidating an empty pool', () => {
+    const result = advisory({
+      fsImpl: makeFs({ dirs: { [POOL]: ['MEMORY.md'] } }),
+    });
+    assert.equal(result.present, true);
+    assert.equal(result.entryCount, 0);
+    assert.equal(result.recommend, false);
   });
 
   it('honours an injected ceiling, so the config key is not decorative', () => {
@@ -370,48 +266,19 @@ describe('index byte arm (Story #5285)', () => {
     });
     assert.equal(result.indexBytes, null);
     assert.equal(result.recommend, false);
-  });
-});
-
-describe('future-dated stamp (Story #5285)', () => {
-  it('reads a stamp dated after now as unstamped and fires the never-consolidated reason', () => {
-    // Scored as-is this yields a negative age, which silences the age arm for
-    // as long as the clock stays behind the stamp — the one failure an
-    // advisory cannot survive.
-    const stamp = JSON.stringify({
-      lastConsolidatedAt: new Date(Date.parse(NOW) + 5 * DAY_MS).toISOString(),
-      entryCount: 5,
-    });
-    const result = advisory({ fsImpl: poolWith({ count: 5, stamp }) });
-    assert.equal(result.lastConsolidatedAt, null, 'reported as unstamped');
-    assert.equal(
-      result.entriesSinceConsolidation,
-      null,
-      'a stamp that cannot be dated carries no growth baseline either',
-    );
-    assert.equal(result.recommend, true);
-    assert.match(result.reasons.join(' '), /never been consolidated/);
-  });
-
-  it('accepts a stamp written at exactly now — equality is not the future', () => {
-    const stamp = JSON.stringify({ lastConsolidatedAt: NOW, entryCount: 5 });
-    const result = advisory({ fsImpl: poolWith({ count: 5, stamp }) });
-    assert.equal(result.lastConsolidatedAt, NOW);
-    assert.equal(result.recommend, false);
+    assert.match(result.reasons[0], /could not be measured/);
   });
 });
 
 describe('the advisory renders no per-entry verdict (Story #4919)', () => {
-  it('exposes only counts and the stamp, never a staleness judgement', () => {
+  it('exposes only counts and the index size, never a staleness judgement', () => {
     // The retired scanner's defect was semantic: it marked an entry stale when
     // a cited issue was closed, which is exactly what a delivery retrospective
     // cites. Guard the replacement's shape so that verdict cannot creep back.
     const result = advisory({ fsImpl: poolWith({ count: 5 }) });
     assert.deepEqual(Object.keys(result).sort(), [
-      'entriesSinceConsolidation',
       'entryCount',
       'indexBytes',
-      'lastConsolidatedAt',
       'present',
       'reasons',
       'recommend',

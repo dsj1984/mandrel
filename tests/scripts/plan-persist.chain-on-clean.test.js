@@ -1,13 +1,13 @@
 /**
- * tests/scripts/plan-persist.chain-on-clean.test.js — the plan-diet fast path
- * (Story #4741 AC-1/AC-2/AC-3): `runPersistChain` collapses the dry-run +
- * persist operator round-trips into ONE invocation.
+ * tests/scripts/plan-persist.chain-on-clean.test.js — the fast path
+ * (Story #4741 AC-1/AC-2/AC-3; any plan since Story #5312): `runPersistChain`
+ * collapses the dry-run + persist operator round-trips into ONE invocation.
  *
- * The chain runs a write-free dry-run first; only a plan that validates clean
- * AND resolves to the `lite` route earns the second, write pass — from the
- * identical artifacts, so the persisted output is byte-identical to what the
- * dry-run gated. A validation failure stops before any createIssue; a
- * full-route plan keeps its review round-trip (the chain declines).
+ * The chain runs a write-free dry-run first; a plan that validates clean earns
+ * the second, write pass — from the identical artifacts, so the persisted
+ * output is byte-identical to what the dry-run gated. A validation failure
+ * stops before any createIssue. The lite-route condition that used to gate
+ * the chain went with the plan-side lite claim.
  */
 
 import assert from 'node:assert/strict';
@@ -22,12 +22,10 @@ import { makeTempDir } from '../../.agents/scripts/lib/test-temp.js';
 import { runPersistChain } from '../../.agents/scripts/plan-persist.js';
 
 /**
- * A lite-shaped Story: one `refactors-existing` change against a path that
- * exists at `main` (so the file-assumption gate passes), one acceptance
- * criterion, a non-sensitive footprint — every signal the shape backstop needs
- * to uphold a lite claim.
+ * A clean Story: one `refactors-existing` change against a path that exists
+ * at `main`, one acceptance criterion, one verify command.
  */
-function liteTicket(slug = 'solo') {
+function cleanTicket(slug = 'solo') {
   const acceptance = [`${slug} done`];
   const verify = ['npm test (validate)'];
   return {
@@ -46,7 +44,6 @@ function liteTicket(slug = 'solo') {
       ],
       acceptance,
       verify,
-      reason_to_exist: `Ship ${slug}`,
     }),
   };
 }
@@ -123,11 +120,10 @@ function isolatedConfig() {
   return { config: { project: { paths: { tempRoot } } }, tempRoot };
 }
 
-function chainArgs({ story, routeDowngradeReason }) {
+function chainArgs({ story }) {
   return {
     values: {
       stories: 'temp/plan-chain/stories.json',
-      'route-downgrade-reason': routeDowngradeReason,
       'chain-on-clean': true,
     },
     artifacts: {
@@ -140,8 +136,8 @@ function chainArgs({ story, routeDowngradeReason }) {
   };
 }
 
-describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
-  it('AC-3/AC-1: a clean lite dry-run chains straight into the real persist in one invocation', async () => {
+describe('runPersistChain — fast path (Story #4741, any plan since #5312)', () => {
+  it('AC-3/AC-1: a clean dry-run chains straight into the real persist in one invocation', async () => {
     const { config, tempRoot } = isolatedConfig();
     try {
       const provider = fakeProvider();
@@ -149,8 +145,7 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
         config,
         provider,
         ...chainArgs({
-          story: liteTicket('solo'),
-          routeDowngradeReason: 'single trivial artifact',
+          story: cleanTicket('solo'),
         }),
       });
 
@@ -158,18 +153,18 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
       assert.deepEqual(result.chain, {
         attempted: true,
         persisted: true,
-        reason: 'lite-dry-run-clean',
+        reason: 'dry-run-clean',
       });
-      assert.equal(result.route.route, 'lite');
+      assert.equal('route' in result, false, 'no route rides the result');
       assert.equal(result.stories.length, 1);
 
-      // AC-2: every semantic step still ran on the dry-run pass — the shape
-      // backstop upheld the lite claim (route::lite hint) and persist wrote
-      // its bookkeeping (agent::ready + story-plan-state).
+      // AC-2: every semantic step still ran on the dry-run pass and persist
+      // wrote its bookkeeping (agent::ready + story-plan-state). No route
+      // label rides the Story (Story #5312).
       const issue = provider.issues.get(result.primaryStoryId);
       assert.ok(issue.labels.includes(TYPE_LABELS.STORY));
       assert.ok(issue.labels.includes(AGENT_LABELS.READY));
-      assert.ok(issue.labels.includes('route::lite'));
+      assert.ok(issue.labels.every((l) => !l.startsWith('route::')));
       const checkpoint = provider.comments
         .map((c) => c.body)
         .find((b) => b.includes('story-plan-state'));
@@ -189,8 +184,7 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
         config: cfgA,
         provider: chained,
         ...chainArgs({
-          story: liteTicket('solo'),
-          routeDowngradeReason: 'single trivial artifact',
+          story: cleanTicket('solo'),
         }),
       });
 
@@ -200,8 +194,7 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
         config: cfgB,
         provider: plain,
         ...chainArgs({
-          story: liteTicket('solo'),
-          routeDowngradeReason: 'single trivial artifact',
+          story: cleanTicket('solo'),
         }),
       });
 
@@ -229,7 +222,6 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
             provider,
             ...chainArgs({
               story: invalidTicket(),
-              routeDowngradeReason: 'single trivial artifact',
             }),
           }),
         /acceptance \+ verify contract/,
@@ -241,27 +233,22 @@ describe('runPersistChain — plan-diet fast path (Story #4741)', () => {
     }
   });
 
-  it('a full-route plan keeps its review round-trip — the chain declines, writing nothing', async () => {
+  it('chains any clean plan — there is no lite claim to gate on (Story #5312)', async () => {
     const { config, tempRoot } = isolatedConfig();
     try {
       const provider = fakeProvider();
-      // No route-downgrade reason → the plan resolves to the full route, so
-      // the auto-persist is declined even though the dry-run is clean.
       const result = await runPersistChain({
         config,
         provider,
-        ...chainArgs({
-          story: liteTicket('solo'),
-          routeDowngradeReason: undefined,
-        }),
+        ...chainArgs({ story: cleanTicket('solo') }),
       });
 
-      assert.deepEqual(result.chain, {
-        attempted: true,
-        persisted: false,
-        reason: 'route-not-lite',
-      });
-      assert.equal(provider.issues.size, 0);
+      assert.equal(result.chain.persisted, true);
+      assert.equal(result.chain.reason, 'dry-run-clean');
+      assert.equal(provider.issues.size, 1);
+      // The dry-run's warning list rides the persisted result — it is the
+      // review the chain folds.
+      assert.ok(Array.isArray(result.warnings));
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }

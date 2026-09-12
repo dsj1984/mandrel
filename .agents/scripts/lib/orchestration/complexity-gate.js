@@ -1,75 +1,45 @@
 /**
- * lib/orchestration/complexity-gate.js — shape-derived complexity routing
- * (Story #4722, superseding the word-count gate of Stories #4683/#4707).
+ * lib/orchestration/complexity-gate.js — shape-derived Story routing for the
+ * deliver side (Story #4722; plan-side lite claim deleted by Story #5312).
  *
- * ## Route on the work, not the words
+ * Three surfaces survive, all read at delivery time:
  *
- * The original gate routed a planning seed on its **word count**
- * (`maxSeedWords`), which is the wrong proxy in both directions: a detailed
- * prompt can describe trivial work, a terse one complex work. The bench
- * cohort (mandrel-bench 2.10.0) observed both failure modes — a lite verdict
- * fired at plan time and was then lost (a swallowed label write) or ignored
- * (deliver spawned a full story-worker anyway). This module now routes on the
- * **objective shape of the authored work**, staged across the pipeline:
+ *   1. **Seed signals ({@link buildComplexitySignals}).** `/mandrel-plan`'s
+ *      context envelope carries the paths a seed predicts, their repo state
+ *      (existing paths predict refactors; missing ones predict creates) and
+ *      the `audit-rules.json` sensitive-path classes the footprint intersects.
+ *      They ground the authoring template's `changes[]` skeleton and the
+ *      `/prototype` offer; they route nothing.
+ *   2. **Story shape ({@link deriveStoryShape}).** The light path
+ *      (`deliver-light`) reads a predicted footprint's effort and risk —
+ *      distinct change kinds, declared magnitude, uncertainty,
+ *      deployable/migration span, sensitive-path classes — against
+ *      {@link STORY_SHAPE_CEILINGS} to decide whether a prompt may skip the
+ *      Story-authoring ceremony. Artifact cardinality is deliberately not an
+ *      axis (Story #4764).
+ *   3. **Dispatch mode ({@link resolveStoryDispatchMode}).** `/mandrel-deliver`
+ *      answers a different question from the route: may the engine run in the
+ *      router's own session? Only a **single-Story run** may (Story #4736).
  *
- *   1. **Plan time — signals, not routing.** {@link buildComplexitySignals}
- *      emits advisory complexity *signals* (enumerated-artifact count,
- *      risk-heuristic hits, repo state of predicted paths, sensitive-path
- *      classes) carrying **no routing authority**. There is no word ceiling.
- *   2. **Planner judgment, ledgered.** The planner owns the
- *      trivial-vs-standard verdict ({@link resolvePlannerRouteVerdict}) —
- *      `lite` only with a recorded reason, persisted on plan state. This
- *      generalizes the former one-way `applyPlannerDowngrade` seam into the
- *      authored verdict itself; the conservative default without a recorded
- *      reason is `full`.
- *   3. **Deterministic backstop at persist.** After authoring, the work has
- *      measurable shape: {@link deriveStoryShape} reads the Story's own
- *      effort and risk — distinct change kinds, declared magnitude,
- *      uncertainty, deployable/migration span, and sensitive-path classes —
- *      against {@link STORY_SHAPE_CEILINGS}. A `lite` claim whose work exceeds
- *      them **fails closed to `full`** (`run-plan-persist.js`). Artifact
- *      cardinality is deliberately not an axis (Story #4764).
- *   4. **Deliver dispatches on topology alone.** The dispatch *mode*
- *      ({@link resolveStoryDispatchMode}) answers a different question from
- *      the route: may the engine run in the router's own session? Only a
- *      **single-Story run** may (Story #4736) — sub-agent isolation buys
- *      nothing when there is no concurrent sibling to isolate from. Shape
- *      cannot grant that session (Story #4829): a lite body makes work cheap,
- *      it does not conjure a second session for a sibling to run in. Story
- *      #5006 removed the shape derivation that survived there for reporting,
- *      since no consumer read it. The `route::lite` label is a
- *      **human-visible hint only**, never the control signal. Either way every
- *      `single-story-close.js` gate runs unchanged.
+ * Story #5312 deleted the plan-side half: the planner's authored lite claim
+ * (`--route-downgrade-reason`), the persist-time shape backstop that
+ * validated it, the `route::lite` hint label, and the
+ * `planning.complexityGate` knobs. Persist no longer routes; every Story
+ * lands through the same engine and the same close gates, and the shape
+ * ceilings below are read only where a shape is actually decided on.
  *
  * The shape taxonomy is deliberately the one `review-depth.js` already
  * applies to the landed diff at close (`deriveChangeLevel` over the
  * `audit-rules.json` sensitive-path classes): **predicted shape at dispatch,
- * actual diff at close** — one taxonomy, two read points. And sensitivity
- * always wins: a small change whose footprint intersects a sensitive-path
- * class routes `full`, which keeps its fresh acceptance critic
- * (`ceremony-routing.js` routes a high derived level to a fresh spawn).
+ * actual diff at close** — one taxonomy, two read points. Sensitivity always
+ * wins: a small change whose footprint intersects a sensitive-path class
+ * routes `full`, which keeps its fresh acceptance critic.
  *
- * ## What "lite" changes and — critically — what it never changes
- *
- * The lite route collapses the **advisory ceremony** only: the story-worker
- * sub-agent boot and the fresh acceptance-critic spawn. It **never** relaxes
- * a non-negotiable. {@link LITE_PATH_INVARIANTS} is the machine-readable
- * contract that the lite path still produces a Story ticket, still lands via
- * a PR to `main`, still runs every repo quality gate, and still honours
+ * {@link LITE_PATH_INVARIANTS} is the machine-readable contract that the
+ * light path still produces a Story ticket, still lands via a PR to `main`,
+ * still runs every repo quality gate, and still honours
  * `rules/security-baseline.md`. Those gates run in `single-story-close.js`
  * regardless of route; the router cannot and does not switch them off.
- *
- * ## Configuration
- *
- * Operators tune the surface via `planning.complexityGate` in `.agentrc.json`:
- *
- *   - `enabled`      (default `true`) — `false` disables lite routing
- *     everywhere: persist refuses lite claims and dispatch always takes the
- *     sub-agent path.
- *   - `maxArtifacts` (default `1`)    — enumerated-artifact signal threshold;
- *     an **input signal** for the planner, no longer a deterministic router.
- *
- * `maxSeedWords` is **removed** (hard cutover): word count routes nothing.
  *
  * @typedef {'lite'|'full'} ComplexityRoute
  */
@@ -78,27 +48,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { extractChangePaths } from '../story-body/story-body.js';
 import { deriveChangeLevel } from './review-depth.js';
-
-/**
- * Framework defaults for the complexity-routing surface. The SSOT the config
- * schema mirror and the configuration reference both cite. `maxSeedWords` is
- * gone: seed word count carries no routing authority (Story #4722).
- */
-const DEFAULT_COMPLEXITY_GATE = Object.freeze({
-  enabled: true,
-  maxArtifacts: 1,
-});
-
-/**
- * The persisted route marker for a lite-routed Story.
- *
- * **A human-visible hint only (Story #4722)** — never the control signal.
- * Persist applies it so a lite cohort is filterable in the GitHub UI, and
- * `deliver-light` reads the Story's own shape ({@link deriveStoryShape}) when
- * it needs one. Nothing routes on the label: a lost label or an unread marker
- * cannot misroute delivery.
- */
-export const LITE_ROUTE_LABEL = 'route::lite';
 
 /**
  * Effort/risk ceilings a Story's work must fit for the `lite` route
@@ -379,54 +328,6 @@ const LITE_PATH_INVARIANTS = Object.freeze({
 });
 
 /**
- * Coerce a candidate ceiling into a non-negative integer, falling back to the
- * framework default for anything malformed — a stray `-1` or `NaN` must never
- * widen the lite path (fail conservative).
- *
- * @param {unknown} value
- * @param {number} fallback
- * @returns {number}
- */
-function normalizeCeiling(value, fallback) {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
-    return fallback;
-  }
-  return Math.floor(value);
-}
-
-/**
- * Resolve the effective complexity-gate config, shallow-overlaying an
- * operator `planning.complexityGate` block onto
- * {@link DEFAULT_COMPLEXITY_GATE}. Accepts the full resolved config, the bare
- * `planning` bag, or the bare `complexityGate` bag, mirroring the tolerant
- * unwrap the other routing accessors use.
- *
- * Exported for persist (`run-plan-persist.js#resolveEffectiveRoute`), which
- * consults `enabled` to refuse a planner lite claim when the gate is off —
- * the schema's documented contract. It is the only read point: Story #5006
- * removed the second one in {@link resolveStoryDispatchMode}, where the switch
- * gated a shape derivation whose result no consumer read.
- *
- * @param {object | null | undefined} config
- * @returns {{ enabled: boolean, maxArtifacts: number }}
- */
-export function resolveComplexityGate(config) {
-  const raw =
-    config?.planning?.complexityGate ?? config?.complexityGate ?? config ?? {};
-  const bag = raw && typeof raw === 'object' ? raw : {};
-  return {
-    enabled:
-      typeof bag.enabled === 'boolean'
-        ? bag.enabled
-        : DEFAULT_COMPLEXITY_GATE.enabled,
-    maxArtifacts: normalizeCeiling(
-      bag.maxArtifacts,
-      DEFAULT_COMPLEXITY_GATE.maxArtifacts,
-    ),
-  };
-}
-
-/**
  * Count top-level enumerated items (`- `, `* `, `1. `) in a free-form seed —
  * each enumerated line is one predicted artifact.
  *
@@ -464,20 +365,17 @@ function extractPredictedPaths(text) {
 }
 
 /**
- * Build the advisory complexity **signals** for a planning seed
- * (Story #4722 AC-2). Signals, not routing: the result carries
- * `routingAuthority: false` and no `route` field — the planner reads these
- * alongside its own judgment ({@link resolvePlannerRouteVerdict}) and the
- * deterministic shape backstop validates the authored Story at persist.
+ * Build the advisory complexity **signals** for a planning seed. Signals,
+ * not routing: the result carries `routingAuthority: false` and no `route`
+ * field — they ground the authoring template's pre-resolved `changes[]` and
+ * the `/prototype` offer, nothing else (Story #5312 deleted the risk-heuristic
+ * hits and the `planning.complexityGate` echo that used to ride alongside).
  *
- *   - `artifactCount`         — enumerated items in the seed, with the
- *                               configured `maxArtifacts` threshold beside it
- *                               as one input signal.
- *   - `riskHeuristicHits`     — `planning.riskHeuristics` phrases present in
- *                               the seed (same substring matcher the
- *                               pre-mortem critic uses).
- *   - `predictedPaths` / `repoState` — path-like tokens in the seed and
- *                               which of them exist in the repo (existing
+ *   - `artifactCount`         — enumerated items in the seed, a rough width
+ *                               signal for the operator's eye only.
+ *   - `predictedPaths`        — path-like tokens the seed names, in order of
+ *                               first appearance (capped).
+ *   - `repoState`             — which predicted paths exist in the repo (existing
  *                               paths predict refactors; missing predict
  *                               creates).
  *   - `sensitivePathClasses`  — `audit-rules.json` sensitive-path classes the
@@ -489,8 +387,6 @@ function extractPredictedPaths(text) {
  *
  * @param {{
  *   seedText?: string,
- *   config?: object,
- *   riskHeuristics?: string[],
  *   cwd?: string,
  *   pathExistsFn?: (absPath: string) => boolean,
  *   injectedRules?: object,
@@ -498,37 +394,21 @@ function extractPredictedPaths(text) {
  * }} [args]
  * @returns {{
  *   artifactCount: number,
- *   maxArtifacts: number,
- *   riskHeuristicHits: string[],
  *   predictedPaths: string[],
  *   repoState: { existingPaths: string[], missingPaths: string[] },
  *   sensitivePathClasses: string[],
- *   gate: { enabled: boolean },
  *   advisory: true,
  *   routingAuthority: false,
  * }}
  */
 export function buildComplexitySignals({
   seedText = '',
-  config,
-  riskHeuristics = [],
   cwd,
   pathExistsFn = existsSync,
   injectedRules,
   selectSensitivePathClassesFn,
 } = {}) {
-  const gate = resolveComplexityGate(config);
   const text = typeof seedText === 'string' ? seedText : '';
-  const haystack = text.toLowerCase();
-
-  const riskHeuristicHits = (
-    Array.isArray(riskHeuristics) ? riskHeuristics : []
-  ).filter(
-    (phrase) =>
-      typeof phrase === 'string' &&
-      phrase.trim().length > 0 &&
-      haystack.includes(phrase.trim().toLowerCase()),
-  );
 
   const predictedPaths = extractPredictedPaths(text);
   const root = typeof cwd === 'string' && cwd !== '' ? cwd : process.cwd();
@@ -552,57 +432,11 @@ export function buildComplexitySignals({
 
   return {
     artifactCount: countSeedArtifacts(text),
-    maxArtifacts: gate.maxArtifacts,
-    riskHeuristicHits,
     predictedPaths,
     repoState: { existingPaths, missingPaths },
     sensitivePathClasses: classes,
-    gate: { enabled: gate.enabled },
     advisory: /** @type {const} */ (true),
     routingAuthority: /** @type {const} */ (false),
-  };
-}
-
-/**
- * Resolve the planner's authored trivial-vs-standard verdict
- * (Story #4722 AC-2, generalizing the former one-way `applyPlannerDowngrade`
- * seam into the verdict itself).
- *
- * The planner — not a word count — owns the judgment, and the contract keeps
- * it auditable: `lite` **only** with a non-empty recorded reason (carried on
- * `authored` and ledgered on every created Story's `story-plan-state`
- * checkpoint by persist). Absent a recorded reason the conservative default
- * stands: `full`, with `authored: null`. Pure and total.
- *
- * The verdict is a **claim**, not the decision — persist validates it against
- * the authored Story's shape ({@link deriveStoryShape}) and fails closed to
- * `full` when the shape exceeds the ceilings.
- *
- * @param {{ reason?: unknown }} [args]
- * @returns {{
- *   route: ComplexityRoute,
- *   reasons: string[],
- *   authored: Readonly<{ route: 'lite', reason: string }>|null,
- *   preserves: typeof LITE_PATH_INVARIANTS,
- * }}
- */
-export function resolvePlannerRouteVerdict({ reason } = {}) {
-  const recorded = typeof reason === 'string' ? reason.trim() : '';
-  if (recorded === '') {
-    return {
-      route: 'full',
-      reasons: [
-        'no authored lite verdict (no recorded reason) — standard full route',
-      ],
-      authored: null,
-      preserves: LITE_PATH_INVARIANTS,
-    };
-  }
-  return {
-    route: 'lite',
-    reasons: [`planner verdict: lite (recorded reason): ${recorded}`],
-    authored: Object.freeze({ route: 'lite', reason: recorded }),
-    preserves: LITE_PATH_INVARIANTS,
   };
 }
 

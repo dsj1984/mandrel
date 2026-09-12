@@ -825,8 +825,7 @@ correct shape for a gate with no rescoring path of its own.
 ## HITL blocker escalation
 
 `risk::high` is planning/audit metadata only — it never pauses runtime. The
-sole runtime HITL pause point is `agent::blocked`; `planning.riskHeuristics`
-is the rubric for what should escalate. The full model is owned by
+sole runtime HITL pause point is `agent::blocked`. The full model is owned by
 [`.agents/instructions.md`](../instructions.md) § 1.J and
 [`SDLC.md` § HITL model](SDLC.md#hitl-human-in-the-loop-model).
 

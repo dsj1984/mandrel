@@ -13,23 +13,23 @@
  * layer — so the gate scans `type === 'story'` tickets and reads the
  * `{ path, assumption }` entries inlined on each Story body.
  *
- * Rules (one error per mismatched path):
- *   - `creates`            + path **exists**  → error (Story would clobber).
+ * Rules (one finding per mismatched path). Story #5312 demoted every
+ * mismatch but one to a **warning** the dry-run lists and the persist
+ * proceeds past — `changes[]` is an advisory sketch the deliverer revises
+ * against the real tree, so refusing a plan on it cost re-authoring rounds
+ * for a footprint nobody was bound to:
+ *   - `creates`            + path **exists**  → warning (Story may clobber).
  *   - `refactors-existing` (via `changes`) + path **absent and never
  *     tracked** at `baseBranchRef` → auto-normalized to `creates` with a
  *     logged warning (#4496 fix 5): a refactor declaration against a
- *     path with no history is deterministically a create, so rejecting it
- *     only forces a reject→amend→re-persist cycle for a mechanical rewrite.
+ *     path with no history is deterministically a create.
  *   - `refactors-existing` (via `changes`) + path **absent but present in
- *     that ref's history** → hard error naming the removing commit and, when
- *     git detects one, the rename target (Story #5265). The normalization
- *     rescues a mislabel; it must not rescue a plan authored against a file
- *     the tree deleted, which propagates into acceptance criteria nothing
- *     can satisfy. Genuine mismatches keep failing — a `references`-sourced
- *     `refactors-existing` on an absent path is a missing read dependency
- *     and stays an error.
- *   - `exists`             + path **absent** → error (read dependency missing).
- *   - `deletes`            + path **absent** → error (nothing to delete).
+ *     that ref's history** → warning naming the removing commit and, when
+ *     git detects one, the rename target (Story #5265) — a plan authored
+ *     against a file the tree deleted is worth saying out loud.
+ *   - `exists`             + path **absent** → warning (read dependency missing).
+ *   - `deletes`            + path **absent** → **error** (nothing to delete —
+ *     the one declaration a deliverer cannot act on at all).
  *
  * Wave awareness (Story #3960): the base-branch-only rules above produce
  * false signals once an earlier Story in the same epic creates (or deletes)
@@ -386,8 +386,9 @@ function predecessorMutator(index, path, predecessors) {
  * predecessors (Story #3960). Returns an envelope:
  *
  *   {
- *     errors:    string[]   // one entry per mismatch, batched per Story
- *     warnings:  string[]   // legacy/no-assumption deprecation nudges +
+ *     errors:    string[]   // a `deletes` naming an absent path, or a
+ *                           // legacy string-bullet body — the refusals
+ *     warnings:  string[]   // every other mismatch (Story #5312) +
  *                           // auto-normalization notices (#4496 fix 5)
  *     mismatches: object[]  // structured payload for downstream tooling
  *     normalizations: object[] // `refactors-existing`→`creates`
@@ -513,7 +514,7 @@ export function validateStoryFileAssumptions(opts) {
           continue;
         }
         mismatches.push(finding);
-        errors.push(renderMismatch(finding));
+        routeMismatch(finding, { errors, warnings });
         continue;
       }
       // Wave-aware concurrent-create check (Story #3960): two Stories with
@@ -541,12 +542,26 @@ export function validateStoryFileAssumptions(opts) {
             producerSlug: concurrent,
           };
           mismatches.push(conflict);
-          errors.push(renderMismatch(conflict));
+          warnings.push(renderMismatch(conflict));
         }
       }
     }
   }
   return { errors, warnings, mismatches, normalizations };
+}
+
+/**
+ * Route one confirmed mismatch to the channel it belongs on (Story #5312):
+ * a `deletes` on an absent path is the one declaration nothing can act on and
+ * stays an error; every other mismatch is advisory and lands on `warnings`.
+ *
+ * @param {object} finding
+ * @param {{ errors: string[], warnings: string[] }} channels
+ * @returns {void}
+ */
+function routeMismatch(finding, { errors, warnings }) {
+  const channel = finding.assumption === 'deletes' ? errors : warnings;
+  channel.push(renderMismatch(finding));
 }
 
 /**

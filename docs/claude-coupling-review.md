@@ -80,10 +80,10 @@ Everything outside them is prose or a centralized constant.
 
 Two things worth recording because they look coupled and are not:
 
-- **`DEFAULT_MODEL_CAPACITY`** (`ticket-validator-sizing.js`) is a frozen
-  authored-token ceiling bag, not a Claude-model constant. It names no model.
-  Provider-neutral in substance; only the thresholds would merit revisiting
-  per-provider.
+- **`DELIVERABLE_GRANULARITY_GUIDANCE`** (`ticket-validator-sizing.js`) is
+  prose guidance, not a Claude-model constant. It names no model. (The
+  `DEFAULT_MODEL_CAPACITY` ceiling bag that used to sit beside it went with
+  Story #5312.)
 - **[`.agentrc.json`](../.agentrc.json)** is clean — no model names, no
   Claude-specific keys. The `agentrc` schema already speaks in neutral terms
   ("host-LLM", "cross-runtime portability").

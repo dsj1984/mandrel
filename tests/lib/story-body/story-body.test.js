@@ -13,7 +13,6 @@
  *   - parse(): null/undefined input throws
  *   - serialize(): structured object → markdown
  *   - serialize(): includes footer when opts.includeFooter = true
- *   - serialize(): meta comment block for wide / reason_to_exist
  *   - serialize(): omits empty sections
  *   - parse()/serialize(): optional `## Spec` folded Tech Spec text block
  *   - extractChangePaths(): flags glob entries
@@ -86,7 +85,6 @@ const CANONICAL_BODY = {
   ],
   verify: ['npm test -- tests/lib/story-body/story-body.test.js (unit)'],
   references: [],
-  wide: null,
   depends_on: [],
 };
 
@@ -135,11 +133,6 @@ describe('parse() — markdown', () => {
   it('emits no warnings for a clean canonical markdown body', () => {
     const { warnings } = parse(CANONICAL_MARKDOWN);
     assert.deepEqual(warnings, []);
-  });
-
-  it('sets wide to null when not present in markdown', () => {
-    const { body } = parse(CANONICAL_MARKDOWN);
-    assert.equal(body.wide, null);
   });
 
   it('does not bleed a trailing unrecognized heading into the prior section', () => {
@@ -255,7 +248,6 @@ describe('parse() — structured object input', () => {
       acceptance: ['foo test passes'],
       verify: ['npm test (unit)'],
       depends_on: ['story-abc'],
-      wide: { reason: 'mechanical sweep across every consumer site' },
     };
     const { body, warnings } = parse(obj);
     assert.equal(body.goal, 'Wire X to Y.');
@@ -264,9 +256,6 @@ describe('parse() — structured object input', () => {
       { path: 'src/bar.js', assumption: 'refactors-existing' },
     ]);
     assert.ok(!warnings.some((w) => w.startsWith('legacy-path-entry')));
-    assert.deepEqual(body.wide, {
-      reason: 'mechanical sweep across every consumer site',
-    });
     assert.deepEqual(body.depends_on, ['story-abc']);
   });
 
@@ -398,16 +387,6 @@ describe('serialize()', () => {
     assert.ok(out.includes('blocked by #200'));
   });
 
-  it('emits meta comment block for wide', () => {
-    const body = {
-      ...CANONICAL_BODY,
-      wide: { reason: 'broad cutover for one reason' },
-    };
-    const out = serialize(body);
-    assert.ok(out.includes('<!-- meta:'));
-    assert.ok(out.includes('"wide":{"reason":"broad cutover for one reason"}'));
-  });
-
   it('never emits a retired estimated_test_files meta key', () => {
     const body = { ...CANONICAL_BODY, estimated_test_files: 7 };
     const out = serialize(body);
@@ -476,7 +455,6 @@ describe('round-trip: serialize → parse', () => {
       acceptance: ['All tests pass'],
       verify: ['npm test (unit)'],
       references: [{ path: 'docs/arch.md', assumption: 'exists' }],
-      wide: null,
       depends_on: [],
     };
     const md = serialize(body);
@@ -508,8 +486,6 @@ describe('non_goals (advisory negative-scope section)', () => {
         'Making non_goals validator-gating',
         'Migrating existing standalone bodies',
       ],
-      wide: null,
-      reason_to_exist: null,
       depends_on: [],
     };
     const md = serialize(body);
@@ -528,8 +504,6 @@ describe('non_goals (advisory negative-scope section)', () => {
       verify: ['node --test (unit)'],
       references: [],
       non_goals: [],
-      wide: null,
-      reason_to_exist: null,
       depends_on: [],
     };
     const md = serialize(body);
@@ -683,7 +657,6 @@ blocked by #42`;
     assert.deepEqual(body.acceptance, []);
     assert.deepEqual(body.verify, []);
     assert.deepEqual(body.references, []);
-    assert.equal(body.wide, null);
     assert.deepEqual(body.depends_on, ['#42']);
     assert.ok(warnings.some((w) => w.startsWith('unstructured-body:')));
   });
@@ -885,7 +858,7 @@ Use the existing repository.
 
 // ---------------------------------------------------------------------------
 // Story #4600 — human-readable rendering (numbered ACs, humanized bullets,
-// visible wide rationale)
+// retired meta block is skipped, not absorbed)
 // ---------------------------------------------------------------------------
 
 describe('Story #4600 — numbered AC-<n> acceptance handles', () => {
@@ -981,39 +954,35 @@ g
   });
 });
 
-describe('Story #4600 — visible wide rationale line', () => {
-  it('renders one visible `> **Wide:**` line under ## Goal and round-trips wide.reason', () => {
-    const body = {
-      ...CANONICAL_BODY,
-      wide: { reason: 'mechanical sweep across every consumer site' },
-    };
+describe('Story #5312 — the retired meta block and wide line are skipped, never re-emitted', () => {
+  it('parses a body authored with a meta block and a Wide line, dropping both on re-serialize', () => {
+    const legacy = [
+      '## Goal',
+      'Create the shared canonical Story-body parser/serializer.',
+      '',
+      '> **Wide:** mechanical sweep across every consumer site',
+      '',
+      '## Changes',
+      '- `.agents/scripts/lib/story-body/story-body.js` — creates',
+      '',
+      '## Acceptance',
+      '- [ ] AC-1: parse() returns a StoryBody',
+      '',
+      '## Verify',
+      '- npm test',
+      '',
+      '<!-- meta: {"wide":{"reason":"mechanical sweep"},"reason_to_exist":"one reason"} -->',
+    ].join('\n');
+    const { body } = parse(legacy);
+    assert.equal(
+      body.goal,
+      'Create the shared canonical Story-body parser/serializer.',
+    );
+    assert.equal('wide' in body, false);
+    assert.equal('reason_to_exist' in body, false);
+    assert.deepEqual(body.verify, ['npm test']);
     const md = serialize(body);
-    // The visible line sits between the Goal text and the next section,
-    // outside any HTML comment.
-    assert.match(
-      md,
-      /## Goal\nCreate the shared canonical Story-body parser\/serializer\.\n\n> \*\*Wide:\*\* mechanical sweep across every consumer site\n\n## Changes/,
-    );
-    const withoutComments = md.replace(/<!--[\s\S]*?-->/g, '');
-    assert.ok(withoutComments.includes('> **Wide:** mechanical sweep'));
-    // The meta block stays the canonical machine carrier.
-    assert.ok(
-      md.includes(
-        '"wide":{"reason":"mechanical sweep across every consumer site"}',
-      ),
-    );
-    const { body: reparsed } = parse(md);
-    assert.deepEqual(reparsed.wide, body.wide);
-    // The visible line never bleeds into the goal text.
-    assert.equal(reparsed.goal, CANONICAL_BODY.goal);
-    // Byte-identical serialize → parse → serialize round-trip.
-    assert.equal(serialize(reparsed), md);
-  });
-
-  it('renders no wide line when wide is absent', () => {
-    const md = serialize(CANONICAL_BODY);
+    assert.doesNotMatch(md, /<!-- meta/);
     assert.doesNotMatch(md, /\*\*Wide:\*\*/);
-    const { body: reparsed } = parse(md);
-    assert.equal(reparsed.wide, null);
   });
 });

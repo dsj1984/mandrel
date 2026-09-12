@@ -15,10 +15,10 @@ description:
   is a single path that emits **one Story by default**.
 - This skill is an optional **split advisory**: should the author keep one
   Story, or does the seed clear the default-single split policy?
-- Anchor sizing judgment to `DEFAULT_MODEL_CAPACITY` and
-  `DELIVERABLE_GRANULARITY_GUIDANCE` in
+- Anchor sizing judgment to `DELIVERABLE_GRANULARITY_GUIDANCE` in
   [`ticket-validator-sizing.js`](../../../scripts/lib/orchestration/ticket-validator-sizing.js).
-  Do not restate numeric thresholds.
+  There is no numeric threshold to restate — Story #5312 deleted the
+  plan-time capacity ceilings.
 - Lead with **cohesion**: one Story is one coherent change with one reason
   to exist. Coupled work stays one Story and uses `## Slicing` for
   intra-session checkpoints.
