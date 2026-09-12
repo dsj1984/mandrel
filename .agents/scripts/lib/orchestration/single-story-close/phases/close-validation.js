@@ -124,6 +124,8 @@ export async function runCloseValidationPhase({
     baseBranch,
     cwd: worktreePath || cwd,
     log: gateLog.log,
+    storyId, // Story #5313 — a credited bare `npm test` registers `test`.
+    evidenceCwd: cwd,
   });
   let validation;
   try {

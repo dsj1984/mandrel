@@ -14,6 +14,7 @@ import { getQuality } from '../config/quality.js';
 import { filterFilesUnderTargets } from '../coverage-capture.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
 import { KNOWN_KINDS } from '../orchestration/check-baselines/phases/parse-args.js';
+import { predictsTestEvidenceCredit } from '../test-run-credit.js';
 import {
   buildFormatHint,
   FORMAT_CHECK_FALLBACK,
@@ -510,10 +511,26 @@ export function buildDefaultGates({
   presentBaselines,
   log,
   getChangedFilesImpl,
+  storyId,
+  evidenceCwd,
+  gitSpawnImpl,
+  shouldSkipImpl,
 } = {}) {
   const scripts = packageScripts ?? readPackageScripts(cwd);
   const coverageCaptureActive =
     isCrapGateEnabled(config) && hasNpmScript(scripts, 'test:coverage');
+  // Story #5313 — a credited bare `npm test` registers the plain `test` gate
+  // beside the capture so the credit is reported, never re-spent.
+  const testCredited =
+    coverageCaptureActive &&
+    predictsTestEvidenceCredit({
+      storyId,
+      cwd,
+      evidenceCwd,
+      gitSpawnImpl,
+      shouldSkipImpl,
+      log,
+    });
   // Story #5278 — a registered coverage-capture gate that is going to take
   // its own incremental skip is not the test runner for this close, so the
   // plain `test` gate comes back beside it and the capture gate registers as
@@ -563,7 +580,9 @@ export function buildDefaultGates({
     // scoped pair does not shift the close-orchestrator log line, the
     // evidence keyspace, or the parallel-partition membership below.
     { name: 'lint', cmd: lint.cmd, args: lint.args },
-    ...buildTestGateEntry(coverageCaptureActive && !captureSkipPredicted),
+    ...buildTestGateEntry(
+      coverageCaptureActive && !captureSkipPredicted && !testCredited,
+    ),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // doesn't shift when a repo swaps biome for Prettier / dprint via

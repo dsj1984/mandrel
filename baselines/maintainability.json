@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T16:38:15.861Z",
+  "generatedAt": "2026-09-12T17:23:31.736Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.048,
-      "p95": 122.36
+      "p50": 99.069,
+      "p95": 122.902
     }
   },
   "rows": [
@@ -41,6 +41,10 @@
     {
       "path": ".agents/scripts/bootstrap.js",
       "mi": 89.674
+    },
+    {
+      "path": ".agents/scripts/ceremony-derive.js",
+      "mi": 90.24
     },
     {
       "path": ".agents/scripts/check-action-pinning.js",
@@ -140,7 +144,7 @@
     },
     {
       "path": ".agents/scripts/deliver-light.js",
-      "mi": 90.973
+      "mi": 92.181
     },
     {
       "path": ".agents/scripts/deliver-recover.js",
@@ -652,7 +656,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation/gates.js",
-      "mi": 97.334
+      "mi": 96.601
     },
     {
       "path": ".agents/scripts/lib/close-validation/process.js",
@@ -700,7 +704,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/acceptance-eval.js",
-      "mi": 114.063
+      "mi": 125.295
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -720,7 +724,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/delivery-routing.js",
-      "mi": 109.369
+      "mi": 115.408
     },
     {
       "path": ".agents/scripts/lib/config/explain.js",
@@ -740,7 +744,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/limits.js",
-      "mi": 111.319
+      "mi": 123.5
     },
     {
       "path": ".agents/scripts/lib/config/paths.js",
@@ -756,7 +760,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 109.986
+      "mi": 110.668
     },
     {
       "path": ".agents/scripts/lib/config/runtime.js",
@@ -1124,7 +1128,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
-      "mi": 98.296
+      "mi": 107.325
     },
     {
       "path": ".agents/scripts/lib/orchestration/change-set.js",
@@ -1320,7 +1324,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/light-suitability.js",
-      "mi": 90.505
+      "mi": 92.799
     },
     {
       "path": ".agents/scripts/lib/orchestration/merge-block-class.js",
@@ -1544,7 +1548,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/close-validation.js",
-      "mi": 88.169
+      "mi": 87.535
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
@@ -2232,7 +2236,7 @@
     },
     {
       "path": ".agents/scripts/run-tests.js",
-      "mi": 96.286
+      "mi": 93.79
     },
     {
       "path": ".agents/scripts/run-verify.js",
@@ -2389,6 +2393,10 @@
     {
       "path": "lib/migrations/steps/2.32.0-retire-lint-baseline-command.js",
       "mi": 118.106
+    },
+    {
+      "path": "lib/migrations/steps/2.57.0-retire-delivery-limit-knobs.js",
+      "mi": 103.469
     },
     {
       "path": "lib/migrations/steps/2.57.0-retire-planning-limit-knobs.js",

@@ -12,8 +12,10 @@
  * the entry as credited instead of telling the caller to spawn it.
  *
  * It only ever *reads*. Nothing here writes a capture stamp or an evidence
- * record — an entry that is not covered by a fresh stamp is reported
- * `spawn: true` and runs for real, so the credit can never manufacture a pass.
+ * record — an entry that is not covered by a fresh stamp or a credited
+ * `test` evidence record (Story #5313: a green bare `npm test` deposits one)
+ * is reported `spawn: true` and runs for real, so the credit can never
+ * manufacture a pass.
  *
  * @see .agents/scripts/lib/coverage-capture.js (`isCoverageFresh`)
  * @see .agents/scripts/lib/validation-evidence.js (`shouldSkip`)
@@ -23,7 +25,11 @@ import { getQuality, resolveConfig } from '../config-resolver.js';
 import { isCoverageFresh } from '../coverage-capture.js';
 import { gitSpawn } from '../git-utils.js';
 import { hasNpmScript, readPackageScripts } from '../npm-scripts.js';
-import { hashCommandConfig, shouldSkip } from '../validation-evidence.js';
+import {
+  hashCommandConfig,
+  shouldSkip,
+  treeFingerprint,
+} from '../validation-evidence.js';
 
 /**
  * The shape a `verify[]` array is supposed to have, stated once so the
@@ -169,6 +175,7 @@ export function resolveVerifyCredit(
     isCoverageFreshImpl = isCoverageFresh,
     shouldSkipImpl = shouldSkip,
     hashCommandConfigImpl = hashCommandConfig,
+    treeFingerprintImpl = treeFingerprint,
     gitSpawnFn = gitSpawn,
   } = deps;
 
@@ -189,43 +196,81 @@ export function resolveVerifyCredit(
       ? 'capture'
       : 'evidence';
 
+  let stampReason = null;
   if (mode === 'capture') {
     const freshness = isCoverageFreshImpl({
       coveragePath: crap.coveragePath,
       targetDirs: crap.targetDirs,
       cwd: worktree,
     });
-    const fresh = freshness?.fresh === true;
-    return {
-      ...scoped,
-      mode,
-      credited: fresh,
-      spawn: !fresh,
-      reason: fresh ? 'capture-stamp-fresh' : (freshness?.reason ?? 'unknown'),
-    };
+    if (freshness?.fresh === true) {
+      return {
+        ...scoped,
+        mode,
+        credited: true,
+        spawn: false,
+        reason: 'capture-stamp-fresh',
+      };
+    }
+    stampReason = freshness?.reason ?? 'unknown';
   }
 
+  // Story #5313 — a green bare `npm test` deposits the `test` evidence record
+  // close reads, so a stale (or absent) capture stamp is not the last word:
+  // the evidence keyspace is consulted in both modes before spawning. When it
+  // credits nothing either, capture mode reports the stamp's own reason.
+  const verdict = readTestEvidence({
+    storyId,
+    worktree,
+    cwd,
+    gitSpawnFn,
+    shouldSkipImpl,
+    hashCommandConfigImpl,
+    treeFingerprintImpl,
+  });
+  const credited = verdict.skip === true;
+  return {
+    ...scoped,
+    mode,
+    credited,
+    spawn: !credited,
+    reason: credited ? verdict.reason : (stampReason ?? verdict.reason),
+  };
+}
+
+/**
+ * Consult the `test` evidence record for the worktree's HEAD — the record a
+ * green bare `npm test` deposits (Story #5313) and `evidence-gate.js` wrote
+ * before it. Total: an unreadable HEAD is `no-head`, never a credit.
+ *
+ * @param {{ storyId: number|string, worktree: string, cwd: string, gitSpawnFn: Function, shouldSkipImpl: Function, hashCommandConfigImpl: Function, treeFingerprintImpl: Function }} args
+ * @returns {{ skip: boolean, reason: string }}
+ */
+function readTestEvidence({
+  storyId,
+  worktree,
+  cwd,
+  gitSpawnFn,
+  shouldSkipImpl,
+  hashCommandConfigImpl,
+  treeFingerprintImpl,
+}) {
   const headSha = readHeadSha(worktree, gitSpawnFn);
-  if (!headSha) {
-    return { ...scoped, mode, credited: false, spawn: true, reason: 'no-head' };
-  }
-  const [cmd, ...args] = command.split(/\s+/).filter(Boolean);
-  const verdict = shouldSkipImpl(
+  if (!headSha) return { skip: false, reason: 'no-head' };
+  return shouldSkipImpl(
     {
       storyId,
       gateName: 'test',
       currentSha: headSha,
-      configHash: hashCommandConfigImpl({ cmd, args, cwd: worktree }),
+      configHash: hashCommandConfigImpl({
+        cmd: 'npm',
+        args: ['test'],
+        cwd: worktree,
+      }),
+      inputFingerprint: treeFingerprintImpl(worktree, gitSpawnFn),
     },
     { cwd, standalone: true },
   );
-  return {
-    ...scoped,
-    mode,
-    credited: verdict.skip === true,
-    spawn: verdict.skip !== true,
-    reason: verdict.reason,
-  };
 }
 
 /**

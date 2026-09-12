@@ -756,6 +756,24 @@ describe('verify[] credit — the suite is paid for once (#5174)', () => {
     assert.match(verdict.warning, /scoped entries plus the single credited/);
   });
 
+  it('Story #5313: a stale stamp still credits a full-suite entry when a green bare `npm test` deposited the test evidence', () => {
+    const verdict = credited('npm test', {
+      isCoverageFreshImpl: () => ({ fresh: false, reason: 'stale' }),
+      gitSpawnFn: (_cwd, ...args) => ({
+        status: 0,
+        stdout: args.includes('HEAD^{tree}') ? 'b'.repeat(40) : 'a'.repeat(40),
+      }),
+      shouldSkipImpl: (input) => {
+        assert.equal(input.gateName, 'test');
+        assert.equal(input.inputFingerprint, `tree:${'b'.repeat(40)}`);
+        return { skip: true, reason: 'fingerprint-match' };
+      },
+    });
+    assert.equal(verdict.credited, true);
+    assert.equal(verdict.spawn, false);
+    assert.equal(verdict.reason, 'fingerprint-match');
+  });
+
   it('runs the command for real when the stamp is stale — credit never manufactures a pass', () => {
     const verdict = credited('npm test', {
       isCoverageFreshImpl: () => ({ fresh: false, reason: 'stale' }),

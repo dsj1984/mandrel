@@ -166,6 +166,63 @@ describe('buildDefaultGates — the test gate never vanishes (Story #5278)', () 
     assert.ok(!names(off).includes('test'));
   });
 
+  // Story #5313 — a green bare `npm test` deposited the `test` evidence, so
+  // the plain `test` gate is registered beside the capture and the runner's
+  // evidence check reports it as credited instead of silently folding the
+  // suite into coverage-capture.
+  it('AC-5: a credited test evidence record registers the plain `test` gate beside the capture', () => {
+    const gates = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      cwd: '/repo/.worktrees/story-9',
+      baseBranch: 'main',
+      storyId: 9,
+      evidenceCwd: '/repo',
+      getChangedFilesImpl: () => ['.agents/scripts/lib/x.js'],
+      gitSpawnImpl: (_cwd, ...args) => ({
+        status: 0,
+        stdout: args.includes('HEAD^{tree}') ? 'b'.repeat(40) : 'a'.repeat(40),
+      }),
+      shouldSkipImpl: (input, opts) => {
+        assert.equal(input.storyId, 9);
+        assert.equal(input.gateName, 'test');
+        assert.equal(input.currentSha, 'a'.repeat(40));
+        assert.equal(input.inputFingerprint, `tree:${'b'.repeat(40)}`);
+        assert.deepEqual(opts, { cwd: '/repo', standalone: true });
+        return { skip: true, reason: 'evidence-match' };
+      },
+    });
+    assert.ok(names(gates).includes('test'), 'the credited gate is reported');
+    assert.ok(names(gates).includes('coverage-capture'));
+  });
+
+  it('AC-5: an uncredited tree keeps the pre-#5313 shape — no double spend', () => {
+    const gates = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      cwd: '/repo/.worktrees/story-9',
+      baseBranch: 'main',
+      storyId: 9,
+      evidenceCwd: '/repo',
+      getChangedFilesImpl: () => ['.agents/scripts/lib/x.js'],
+      gitSpawnImpl: () => ({ status: 0, stdout: 'a'.repeat(40) }),
+      shouldSkipImpl: () => ({ skip: false, reason: 'no-record' }),
+    });
+    assert.ok(!names(gates).includes('test'));
+    // No storyId at all → never consults evidence, never registers.
+    const noStory = buildDefaultGates({
+      config: CRAP_ON,
+      packageScripts: SCRIPTS,
+      cwd: '/repo',
+      baseBranch: 'main',
+      getChangedFilesImpl: () => ['.agents/scripts/lib/x.js'],
+      shouldSkipImpl: () => {
+        throw new Error('must not consult evidence without a storyId');
+      },
+    });
+    assert.ok(!names(noStory).includes('test'));
+  });
+
   it('never spawns git at module-load time (no cwd → no prediction)', () => {
     let spawned = false;
     const gates = buildDefaultGates({
