@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T17:57:44.114Z",
+  "generatedAt": "2026-09-12T20:34:11.717Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.095,
-      "p95": 122.565
+      "p50": 99.132,
+      "p95": 122.902
     }
   },
   "rows": [
@@ -1339,6 +1339,10 @@
       "mi": 93.266
     },
     {
+      "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
+      "mi": 109.931
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
       "mi": 92.942
     },
@@ -1357,6 +1361,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-navigation.js",
       "mi": 106.793
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js",
+      "mi": 104.331
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/audit-provenance.js",
@@ -1467,6 +1475,10 @@
       "mi": 97.72
     },
     {
+      "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
+      "mi": 100.527
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/review-depth.js",
       "mi": 96.376
     },
@@ -1552,7 +1564,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/code-review.js",
-      "mi": 90.381
+      "mi": 87.426
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
@@ -1872,7 +1884,7 @@
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 122.36
+      "mi": 124.434
     },
     {
       "path": ".agents/scripts/lib/templates/spec-author-prompts.js",

@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-12T17:53:53.393Z",
+  "generatedAt": "2026-09-12T20:34:48.245Z",
   "rollup": {
     "*": {
-      "lines": 96.3,
-      "branches": 87.27,
-      "functions": 88.21
+      "lines": 96.32,
+      "branches": 87.3,
+      "functions": 88.27
     }
   },
   "rows": [
@@ -2045,8 +2045,14 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/orchestration/pinned-identifier-lint.js",
+      "lines": 100,
+      "branches": 85,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-context.js",
-      "lines": 97.12,
+      "lines": 97.14,
       "branches": 75.6,
       "functions": 100
     },
@@ -2072,6 +2078,12 @@
       "path": ".agents/scripts/lib/orchestration/plan-navigation.js",
       "lines": 98.91,
       "branches": 90.91,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js",
+      "lines": 100,
+      "branches": 84,
       "functions": 100
     },
     {
@@ -2113,7 +2125,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/persist-helpers.js",
       "lines": 100,
-      "branches": 90.91,
+      "branches": 96.15,
       "functions": 100
     },
     {
@@ -2124,8 +2136,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 94.89,
-      "branches": 75,
+      "lines": 95.05,
+      "branches": 76,
       "functions": 100
     },
     {
@@ -2234,6 +2246,12 @@
       "path": ".agents/scripts/lib/orchestration/retro-proposals.js",
       "lines": 100,
       "branches": 96.21,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/review-base-ref.js",
+      "lines": 100,
+      "branches": 100,
       "functions": 100
     },
     {
@@ -2832,8 +2850,8 @@
     },
     {
       "path": ".agents/scripts/lib/story-body/story-body.js",
-      "lines": 99.68,
-      "branches": 96.74,
+      "lines": 99.69,
+      "branches": 96.79,
       "functions": 100
     },
     {
