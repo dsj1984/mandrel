@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-11T14:31:53.752Z",
+  "generatedAt": "2026-09-12T15:52:16.736Z",
   "rollup": {
     "*": {
-      "lines": 96.14,
-      "branches": 87.04,
-      "functions": 88.7
+      "lines": 96.27,
+      "branches": 87.16,
+      "functions": 88.76
     }
   },
   "rows": [
@@ -533,6 +533,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
       "lines": 100,
       "branches": 87.5,
@@ -542,6 +548,12 @@
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "lines": 100,
       "branches": 69.23,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "lines": 100,
+      "branches": 93.48,
       "functions": 100
     },
     {
@@ -2867,6 +2879,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/test-isolate/cli-options.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
       "lines": 96.15,
       "branches": 81.25,
@@ -2883,6 +2901,24 @@
       "lines": 100,
       "branches": 95.24,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/run-isolate.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/lib/test-isolate/runner.js",
@@ -3402,13 +3438,13 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "lines": 44.03,
+      "lines": 69.3,
       "branches": 100,
       "functions": 0
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "lines": 39.04,
+      "lines": 71.77,
       "branches": 100,
       "functions": 0
     },

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T14:57:16.052Z",
+  "generatedAt": "2026-09-12T15:52:16.412Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 98.969,
+      "p50": 99.048,
       "p95": 122.565
     }
   },
@@ -371,12 +371,20 @@
       "mi": 94.127
     },
     {
+      "path": ".agents/scripts/lib/baselines/coverage-updater-cli.js",
+      "mi": 105.813
+    },
+    {
       "path": ".agents/scripts/lib/baselines/crap-preview-incremental.js",
       "mi": 113.043
     },
     {
       "path": ".agents/scripts/lib/baselines/crap-preview-scan.js",
       "mi": 94.47
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/crap-updater-cli.js",
+      "mi": 95.298
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
@@ -1887,6 +1895,10 @@
       "mi": 113.742
     },
     {
+      "path": ".agents/scripts/lib/test-isolate/cli-options.js",
+      "mi": 100.79
+    },
+    {
       "path": ".agents/scripts/lib/test-isolate/env-snapshot-loader.js",
       "mi": 90.179
     },
@@ -1897,6 +1909,18 @@
     {
       "path": ".agents/scripts/lib/test-isolate/parse-tap.js",
       "mi": 90.055
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/progress-log.js",
+      "mi": 126.384
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/render-report.js",
+      "mi": 100.581
+    },
+    {
+      "path": ".agents/scripts/lib/test-isolate/run-isolate.js",
+      "mi": 96.619
     },
     {
       "path": ".agents/scripts/lib/test-isolate/runner.js",
@@ -2264,7 +2288,7 @@
     },
     {
       "path": ".agents/scripts/test-isolate.js",
-      "mi": 82.024
+      "mi": 112.896
     },
     {
       "path": ".agents/scripts/test-wrapper.js",
@@ -2272,11 +2296,11 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "mi": 101.529
+      "mi": 105.667
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 85.477
+      "mi": 96.013
     },
     {
       "path": ".agents/scripts/update-dead-exports-baseline.js",
