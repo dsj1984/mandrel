@@ -15,6 +15,29 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.57.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.56.0...mandrel-v2.57.0) (2026-09-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* the .agentrc keys delivery.routing.freshCriticSampleRate, delivery.codeReview.maxFixScopeFiles, delivery.signals and delivery.quality.codingGuardrails.cyclomaticMustFix are removed; a 2.57.0 migration step strips them on upgrade.
+* the .agentrc.json keys planning.complexityGate, planning.riskHeuristics, planning.failOnSharedEditors, planning.requireExplicitCrossStoryDeps, planning.failOnRegistryConflicts, planning.failOnLargeFanOut, planning.largeFanOutThreshold, planning.crossCuttingRegistries, planning.memoryPool.staleAfterDays and planning.memoryPool.growthDelta are removed; the planning block is strict, so a config still carrying one fails validation until the 2.57.0 migration step strips it on `mandrel update`. plan-persist.js no longer accepts --route-downgrade-reason, --allow-over-budget or --allow-large-fan-out, and a verify[] entry is a bare command with no tier suffix.
+
+### Added
+
+* delivery diet: drop the sampling, round-ceiling, fix-scope, signal and cyclomatic knobs, script the ceremony derivation, let a bare test run earn credit, and make the light gate and footprint guard read the diff ([#5313](https://github.com/dsj1984/mandrel/issues/5313)) ([#5319](https://github.com/dsj1984/mandrel/issues/5319)) ([33fa9db](https://github.com/dsj1984/mandrel/commit/33fa9db4d01d8932bd886d380fe32b29db9a7bce))
+* planning diet: delete the sizing, spec, lite-route and verify-tier limits, demote the footprint probes to warnings, and render the author prompt for the one-Story default ([#5312](https://github.com/dsj1984/mandrel/issues/5312)) ([#5318](https://github.com/dsj1984/mandrel/issues/5318)) ([cbcfdac](https://github.com/dsj1984/mandrel/commit/cbcfdacbca2cce9731e12c6cdfdab095d23b3e12))
+
+
+### Fixed
+
+* score the CRAP worker path through the escomplex AST shim, and report an unscorable file as unscorable ([#5311](https://github.com/dsj1984/mandrel/issues/5311)) ([#5314](https://github.com/dsj1984/mandrel/issues/5314)) ([0a8e8c8](https://github.com/dsj1984/mandrel/commit/0a8e8c8cd8afb7af88b3d0d5a49e6359a91f3524))
+
+
+### Changed
+
+* free the CLI entrypoints' logic from `main` so it can be tested, and tighten the CRAP floor back to 2 ([#5316](https://github.com/dsj1984/mandrel/issues/5316)) ([#5317](https://github.com/dsj1984/mandrel/issues/5317)) ([f67cfb3](https://github.com/dsj1984/mandrel/commit/f67cfb3b6e531c38300690e4dcd16a4de7dd18f8))
+
 ## [2.56.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.55.0...mandrel-v2.56.0) (2026-09-11)
 
 
