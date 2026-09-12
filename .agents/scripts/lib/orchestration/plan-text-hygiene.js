@@ -1,6 +1,7 @@
 /**
- * plan-text-hygiene.js — the `open-question` lint over draft Story bodies
- * (Story #4599; narrowed to one lint by Story #5312).
+ * plan-text-hygiene.js — the advisory draft-Story lints: `open-question`
+ * over body prose (Story #4599; narrowed to one lint by Story #5312) and
+ * `pinned-identifier` over `acceptance[]` (Story #5323).
  *
  * A Story is executed by a non-interactive sub-agent, so an operator-directed
  * open question persisted into its body ("Flag if…", "TBD", "confirm with the
@@ -11,6 +12,11 @@
  * Story #5312 deleted the sibling `dangling-citation` and `slicing-mass`
  * lints with the critic gate that surfaced them: both scored prose shape the
  * authoring model already judges, and neither ever changed a persisted body.
+ *
+ * `pinned-identifier` is the one lint that scores the **binding** half of the
+ * ticket; its classifier lives in
+ * [`pinned-identifier-lint.js`](pinned-identifier-lint.js), which shares no
+ * vocabulary with the prose heuristic here.
  *
  * Advisory by contract: findings are deterministic text for the dry-run's
  * warning list. They never gate persist and spawn nothing.
@@ -24,6 +30,7 @@
  */
 
 import { parse } from '../story-body/story-body.js';
+import { findPinnedIdentifiers } from './pinned-identifier-lint.js';
 
 /** Truncation length for the `evidence` excerpt on each finding. */
 const EVIDENCE_MAX_CHARS = 160;
@@ -41,7 +48,7 @@ const OPEN_QUESTION_MARKERS = [
 
 /**
  * @typedef {Object} TextHygieneFinding
- * @property {'open-question'} kind
+ * @property {'open-question'|'pinned-identifier'} kind
  * @property {string} slug - The draft Story's slug ('' when absent).
  * @property {string} evidence - Excerpt of the offending text.
  * @property {string} message - Human-readable, re-author-actionable text.
@@ -123,7 +130,7 @@ function findOpenQuestions(prose, slug) {
 }
 
 /**
- * Evaluate the open-question lint over a draft Story array.
+ * Evaluate the advisory lints over a draft Story array.
  *
  * @param {{ draftStories?: Array<object>|null }} args - The draft
  *   `stories.json` array (raw Story objects with top-level `slug` /
@@ -146,7 +153,10 @@ export function evaluateTextHygiene({ draftStories = null } = {}) {
     }
     const goal = typeof body.goal === 'string' ? body.goal : '';
     const spec = typeof body.spec === 'string' ? body.spec : '';
-    findings.push(...findOpenQuestions([goal, spec].join('\n'), slug));
+    findings.push(
+      ...findOpenQuestions([goal, spec].join('\n'), slug),
+      ...findPinnedIdentifiers(story, body, slug, excerpt),
+    );
   }
   return { findings };
 }

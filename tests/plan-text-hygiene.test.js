@@ -106,3 +106,117 @@ describe('evaluateTextHygiene — input edges', () => {
     assert.deepEqual(result.findings, []);
   });
 });
+
+describe('evaluateTextHygiene — pinned-identifier (Story #5323)', () => {
+  /** A draft Story carrying `acceptance` at the ticket's top level. */
+  function withAcceptance(acceptance, slug = 's1') {
+    return { ...story({ slug }), acceptance };
+  }
+
+  it('flags an acceptance item that pins a bare source identifier', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        withAcceptance([
+          'The `staffCan` helper refuses an unowned resource.',
+          'The `MyCalendarBoard` fixtures render unchanged.',
+          'Calling `resolveBaseBranchRef()` returns the configured branch.',
+        ]),
+      ],
+    });
+
+    assert.deepEqual(kinds(result), [
+      'pinned-identifier',
+      'pinned-identifier',
+      'pinned-identifier',
+    ]);
+    assert.match(result.findings[0].message, /staffCan/);
+    assert.match(result.findings[0].message, /observable behaviour/);
+    assert.equal(result.findings[0].slug, 's1');
+  });
+
+  it('names every pinned identifier in one finding per item', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        withAcceptance([
+          'Both `parseVerifyEntry` and `renderChangeRepair` run.',
+        ]),
+      ],
+    });
+
+    assert.equal(result.findings.length, 1);
+    assert.match(result.findings[0].message, /parseVerifyEntry/);
+    assert.match(result.findings[0].message, /renderChangeRepair/);
+  });
+
+  it('exempts paths, globs, labels, kebab tokens, flags and commands', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        withAcceptance([
+          'A row in `baselines/crap.json` is refreshed.',
+          'Every `tests/**/*.spec.ts` file still matches.',
+          'The `story-body.js` round-trip holds.',
+          'The label `agent::ready` is applied last.',
+          'The `data-testid` `availability-chip-set` is preserved.',
+          'Running `npm run lint` exits 0.',
+          'The `--dry-run` flag suppresses every write.',
+          'The key `delivery.routing.closeAndLand` defaults true.',
+          'The envelope reports `acceptance[]` unchanged.',
+        ]),
+      ],
+    });
+
+    assert.deepEqual(result.findings, []);
+  });
+
+  it('exempts an UPPER_SNAKE token — an env var and a constant are one shape', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        withAcceptance([
+          'The `DATABASE_URL` env var is read at the edge.',
+          'The ceiling `MAX_WRITE_SLOTS` refuses the request.',
+        ]),
+      ],
+    });
+
+    assert.deepEqual(result.findings, []);
+  });
+
+  it('exempts a prose word with no case transition', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        withAcceptance([
+          'The envelope reports `landed` once the PR merges.',
+          'A `pending` status is resumable, never a failure.',
+          'The branch is seeded from `main`.',
+          'A coach certified for `Camps` is offered it once.',
+        ]),
+      ],
+    });
+
+    assert.deepEqual(result.findings, []);
+  });
+
+  it('reads acceptance off a structured body when the top level carries none', () => {
+    const result = evaluateTextHygiene({
+      draftStories: [
+        {
+          slug: 's2',
+          body: {
+            goal: 'Ship the change.',
+            acceptance: ['The `deriveStoryShape` call is unchanged.'],
+          },
+        },
+      ],
+    });
+
+    assert.deepEqual(kinds(result), ['pinned-identifier']);
+    assert.equal(result.findings[0].slug, 's2');
+  });
+
+  it('is silent on a draft with no acceptance at all', () => {
+    assert.deepEqual(
+      evaluateTextHygiene({ draftStories: [story({ slug: 's3' })] }).findings,
+      [],
+    );
+  });
+});

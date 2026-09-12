@@ -10,6 +10,10 @@ import {
   TYPE_LABELS,
 } from '../../../.agents/scripts/lib/label-constants.js';
 import {
+  normalizeAcceptanceHandles,
+  renderRepair,
+} from '../../../.agents/scripts/lib/orchestration/plan-persist/acceptance-handle-repair.js';
+import {
   assemblePlanStories,
   createStoryIssues,
   derivePlanRunId,
@@ -1406,5 +1410,147 @@ describe('external `#<id>` depends_on refs (Story #5155)', () => {
       ['first', 'second'],
       'sibling ordering still applies; the external ref is simply not a node',
     );
+  });
+});
+
+describe('normalizeAcceptanceHandles (Story #5323)', () => {
+  it('strips a carried handle off both surfaces and reports each once', () => {
+    const ticket = {
+      type: 'story',
+      slug: 'carried',
+      acceptance: ['AC-1: first outcome', 'AC-14a: lettered', 'clean outcome'],
+      body: {
+        goal: 'Ship it.',
+        acceptance: [
+          'AC-1: first outcome',
+          'AC-14a: lettered',
+          'clean outcome',
+        ],
+      },
+    };
+
+    const repairs = normalizeAcceptanceHandles([ticket]);
+
+    assert.deepEqual(ticket.acceptance, [
+      'first outcome',
+      'lettered',
+      'clean outcome',
+    ]);
+    assert.deepEqual(ticket.body.acceptance, ticket.acceptance);
+    // One report per distinct item, not one per surface.
+    assert.equal(repairs.length, 2);
+    assert.deepEqual(
+      repairs.map((r) => r.kind),
+      ['acceptance-handle', 'acceptance-handle'],
+    );
+    assert.deepEqual(repairs[0], {
+      kind: 'acceptance-handle',
+      slug: 'carried',
+      from: 'AC-1: first outcome',
+      to: 'first outcome',
+    });
+  });
+
+  it('reports nothing and mutates nothing when no item carries a handle', () => {
+    const ticket = {
+      type: 'story',
+      slug: 'clean',
+      acceptance: ['a confirmable outcome'],
+    };
+    assert.deepEqual(normalizeAcceptanceHandles([ticket]), []);
+    assert.deepEqual(ticket.acceptance, ['a confirmable outcome']);
+  });
+
+  it('is total — non-Story tickets and malformed input are no-ops', () => {
+    assert.deepEqual(normalizeAcceptanceHandles(null), []);
+    assert.deepEqual(normalizeAcceptanceHandles([null, {}, 'x']), []);
+    assert.deepEqual(
+      normalizeAcceptanceHandles([
+        { type: 'epic', slug: 'e', acceptance: ['AC-1: nope'] },
+      ]),
+      [],
+    );
+  });
+
+  it('renders each handle repair on the dry-run list', () => {
+    const [repair] = normalizeAcceptanceHandles([
+      { type: 'story', slug: 'carried', acceptance: ['AC-2: the outcome'] },
+    ]);
+    const line = renderRepair(repair);
+    assert.match(line, /Story "carried"/);
+    assert.match(line, /AC-2: the outcome/);
+    assert.match(line, /normalised to "the outcome"/);
+  });
+
+  it('delegates a changes[] repair to its own renderer', () => {
+    const line = renderRepair({
+      slug: 's',
+      from: 'src/app.js',
+      path: 'src/app.js',
+      assumption: 'creates',
+      reason: 'plain-string',
+    });
+    assert.match(
+      line,
+      /changes\[\] entry "src\/app\.js" \(plain-string bullet\)/,
+    );
+    assert.match(line, /"assumption":"creates"/);
+  });
+
+  it('persists a normalised body carrying exactly one renderer handle', () => {
+    const ticket = {
+      slug: 'carried',
+      type: 'story',
+      title: 'Story carried',
+      body: serialize({
+        goal: 'Goal of carried.',
+        changes: [{ path: 'src/carried.js', assumption: 'creates' }],
+        verify: ['npm test'],
+      }),
+      acceptance: ['AC-1: the first outcome', 'AC-14a: the lettered outcome'],
+      verify: ['npm test'],
+    };
+
+    normalizeAcceptanceHandles([ticket]);
+    const { bodyObject } = normalizeStoryTicket(ticket);
+    const checkboxes = serialize(bodyObject)
+      .split('\n')
+      .filter((line) => line.startsWith('- [ ]'));
+    assert.deepEqual(checkboxes, [
+      '- [ ] AC-1: the first outcome',
+      '- [ ] AC-2: the lettered outcome',
+    ]);
+  });
+
+  it('converges a string body and its top-level array on the same text', () => {
+    // A string body's `## Acceptance` is stripped by parse() with the same
+    // grammar the normalisation uses, so the contract sync — which fails
+    // closed on a disagreement — sees one list however the handles were
+    // distributed across the two surfaces.
+    const ticket = {
+      slug: 'both-surfaces',
+      type: 'story',
+      title: 'Story both-surfaces',
+      body: [
+        '## Goal',
+        'Ship it.',
+        '',
+        '## Changes',
+        '- `src/app.js` — creates',
+        '',
+        '## Acceptance',
+        '- [ ] AC-1: AC-1: the outcome',
+        '',
+        '## Verify',
+        '- npm test',
+        '',
+      ].join('\n'),
+      acceptance: ['AC-1: the outcome'],
+      verify: ['npm test'],
+    };
+
+    normalizeAcceptanceHandles([ticket]);
+    const { bodyObject } = normalizeStoryTicket(ticket);
+    assert.deepEqual(bodyObject.acceptance, ['the outcome']);
   });
 });
