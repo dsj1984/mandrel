@@ -348,6 +348,12 @@ function projectScanRow(relPath, mr) {
  * skipped from the returned rows so the baseline never contains
  * partially-scored entries. Both counters surface for reporting.
  *
+ * A file neither path could score at all — unreadable, untranspilable, or one
+ * the kernel could not parse — is dropped and counted in `unscorableFiles`
+ * (Story #5311). Unscorable is not scored-as-nothing: without this counter a
+ * dropped file is indistinguishable from a file with no methods, which is what
+ * let a whole parse-failure class leave the baseline silently.
+ *
  * When `scopeFiles` is provided (the `--changed-since` code path) files
  * discovered via directory walking are filtered against that set before any
  * I/O or scoring happens — so pre-push / PR-CI runs never pay the
@@ -385,6 +391,7 @@ function projectScanRow(relPath, mr) {
  *   scannedFiles: number,
  *   skippedFilesNoCoverage: number,
  *   skippedMethodsNoCoverage: number,
+ *   unscorableFiles: number,
  * }}
  */
 export async function scanAndScore({
@@ -442,9 +449,16 @@ export async function scanAndScore({
   const rows = [];
   let skippedFilesNoCoverage = 0;
   let skippedMethodsNoCoverage = 0;
+  let unscorableFiles = 0;
   const resolution = newResolutionAccumulator();
   for (const { item, result } of perFile) {
-    if (!result) continue; // unrecoverable per-file failure: drop silently to match pre-pool semantics
+    if (!result) {
+      // Unrecoverable per-file failure (a pool-level error the worker never
+      // answered). Dropped like any other unscorable file, and counted — the
+      // point of the counter is that no drop is silent.
+      unscorableFiles += 1;
+      continue;
+    }
     if (result.skippedFileNoCoverage) {
       skippedFilesNoCoverage += 1;
       continue;
@@ -453,6 +467,7 @@ export async function scanAndScore({
       // read/transpile/parse failure: drop and move on, but if the worker
       // attached an error message (calculateCrapForSource throw) surface it
       // so the run isn't silent on the ops side.
+      unscorableFiles += 1;
       if (result.error) {
         Logger.warn(
           `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
@@ -479,6 +494,7 @@ export async function scanAndScore({
     scannedFiles,
     skippedFilesNoCoverage,
     skippedMethodsNoCoverage,
+    unscorableFiles,
     resolution: summarizeResolution(resolution),
   };
 }

@@ -134,6 +134,21 @@ describe('handleCrapWorkerMessage — failure isolation', () => {
     assert.equal(out.message.result.error, 'parse failed');
   });
 
+  it('calculateCrap returns UNSCORABLE (null) → rows=null, not an empty scored file', () => {
+    // Story #5311: the kernel signals an unparseable source with `null`. This
+    // branch is the whole reason the drop path exists — collapsing it into
+    // `rows: []` reported the file as scored-with-no-methods and took its
+    // baseline rows with it, silently.
+    const out = handleCrapWorkerMessage(
+      { item: okItem },
+      null,
+      stubDeps({ calculateCrap: () => null }),
+    );
+    assert.equal(out.message.ok, true);
+    assert.equal(out.message.result.rows, null);
+    assert.equal(out.message.result.skippedFileNoCoverage, false);
+  });
+
   it('calculateCrap throws non-Error → error stringified', () => {
     const out = handleCrapWorkerMessage(
       { item: okItem },
