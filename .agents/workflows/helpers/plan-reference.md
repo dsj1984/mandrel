@@ -47,10 +47,20 @@ The spine's two escape hatches from N=1 are narrow on purpose:
   sitting unverifiable behind the other.
 
 Everything else is one Story with `## Slicing` checkpoints. When N>1 does
-apply, **every acceptance criterion belongs to exactly one Story** —
-`assertAcceptancePartition` refuses a split whose criteria repeat across
-siblings, because a verbatim-shared criterion is the signature of coupled work
-cut in half rather than genuinely separable work.
+apply, the split has to survive the **same-wave collision refusal**: persist
+runs the dispatcher's own `detectCollision` pairwise over the draft, ahead of
+the first `createIssue`, and refuses any pair of same-wave siblings that both
+declare a path (or one of which declares a covering glob) — naming the pair,
+the paths and the two remedies (merge them, or order them with `depends_on`).
+Such a pair cannot be co-dispatched, so the split buys no parallelism and
+costs a delivery session per Story. It replaced the acceptance partition,
+which refused only byte-identical acceptance text across siblings — a shape
+model output does not produce — so it never fired on the fragmentation it was
+meant to catch. **N=1 can never trip the refusal.**
+
+A draft of more than one Story also stops at **Gate #2** for operator
+approval, `--force-review` or not: a split always earns eyes. `--yes`
+auto-proceeds, as at every other gate.
 
 ## Unknown triage — AFK vs HITL
 
@@ -249,8 +259,9 @@ The conflict passes run **twice**: once over the raw `stories.json` payload
 The second pass is not belt-and-braces. The canonical authoring shape carries
 `acceptance[]` / `verify[]` at the ticket's top level and assembly folds them
 into the body, so the passes that scan `body.acceptance` / `body.verify`
-(`implicit-cross-story-dep`, `missing-bdd-scaffold`) saw two empty arrays on
-the real payload and emitted nothing. Both passes complete before the first
+saw two empty arrays on the real payload and emitted nothing; the two
+substring-match advisories that depended on it are retired, leaving
+`shared-editor` as the one conflict kind. Both passes complete before the first
 `createIssue`, so a refusal still costs no writes.
 
 `shared-editor` findings are rendered into the posted `plan-summary` comment,
@@ -308,7 +319,7 @@ template-only prose.
 ### Supersede-map partition
 
 `plan-persist` refuses a partial supersede map **before** it creates any
-Story (mirroring `assertAcceptancePartition`): every id passed to
+Story, the same fail-closed shape as the collision refusal: every id passed to
 `--tickets` must be claimed by **exactly one** Story, and no Story may
 claim an id that was not a source ticket. With N>1 the mapping is not
 total by default — an authored map is the only thing that can say

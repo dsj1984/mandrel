@@ -266,8 +266,9 @@ configured them retired behind a 2.57.0 migration step and a
 
 **The persist gates that remain are hard only where nothing can act
 otherwise**: the body parses, every ticket is a Story, `acceptance[]` and
-`verify[]` are non-empty, `depends_on` resolves acyclically, the acceptance
-and supersede partitions hold, no acceptance item prescribes a forbidden
+`verify[]` are non-empty, `depends_on` resolves acyclically, the supersede
+partition holds, no same-wave pair collides in an N>1 draft (Story #5332 —
+see the amendment below), no acceptance item prescribes a forbidden
 commit-subject prefix, and a `deletes` names a path present at base.
 **Everything else is a warning the dry-run lists** — a `creates` or
 `refactors-existing` the base branch disagrees with, a goal, acceptance or
@@ -280,17 +281,33 @@ non-zero.
 **The author prompt renders from the draft's Story count.** The N=1 core
 carries the body schema, the contract-level Spec rule and acceptance defined
 as outcomes a PR reviewer can confirm from the diff and the verify output,
-guided to three to six items with `verify[]` carrying the mechanical checks;
-the delivery-schedule simulation and the acceptance partition render only for
-a draft that splits. `/mandrel-plan`'s Gate #1 stops for the sharpened intent
+with `verify[]` carrying the mechanical checks; the delivery-schedule
+simulation renders only for a draft that splits. `/mandrel-plan`'s Gate #1 stops for the sharpened intent
 and HITL unknowns only, the pre-mortem critic runs when the operator asks,
 and `--chain-on-clean` applies to any plan.
 
 **What deliberately survives:** `deriveStoryShape` and
 `resolveStoryDispatchMode` for the deliver side, the `shared-editor` finding
-in the plan summary, the acceptance partition, the subject-prefix validator,
-the cycle and unknown-dependency checks, and every close gate — the diet is
-plan-time only, and nothing about how a Story lands changed.
+in the plan summary, the subject-prefix validator, the cycle and
+unknown-dependency checks, and every close gate — the diet is plan-time only,
+and nothing about how a Story lands changed.
+
+**Amendment (Story #5332) — the acceptance partition is substituted, not
+merely dropped.** This entry's survivor list above kept
+`assertAcceptancePartition` as the deterministic guardrail on the
+default-single policy. It could not hold it: it refused only byte-identical
+acceptance text across siblings, a shape model output does not produce, and
+the measured result was a plan of 18 Stories whose own summary comment
+recorded 39 shared files across 14 same-wave Stories — the plan refuting its
+own parallelism claim after persist, with nothing acting on it. The guardrail
+is now the **dispatcher's own predicate**: `predictWaveSerialisation` runs
+`detectCollision` pairwise ahead of the first `createIssue`, and any
+same-wave colliding pair in an N>1 draft is refused, naming the pair, its
+paths and the remedy. The partition validator, its test and the
+`--plan-acceptance` coverage manifest it fed are deleted; N=1 can never trip
+the replacement. The three-to-six acceptance band this entry recorded above
+is deleted with it — an acceptance count was never a sizing signal, and
+stated as a band it read as one.
 
 ### Consequences
 

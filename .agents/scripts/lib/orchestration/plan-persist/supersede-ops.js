@@ -16,7 +16,7 @@
  * Two halves, deliberately separated by the `createIssue` boundary:
  *
  *   1. **`assertSupersedePartition`** — a plan-time, fail-closed check that
- *      runs *before* any GitHub write. Mirrors `assertAcceptancePartition`:
+ *      runs *before* any GitHub write. Same fail-closed shape as the
  *      every id passed to `--tickets` must be claimed by exactly one Story,
  *      and no Story may claim an id that was not a source ticket. A partial
  *      supersede map is a planning error, not something to paper over at

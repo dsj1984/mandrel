@@ -29,7 +29,6 @@
  *   --plan-context <file>     Optional explicit path to the `plan-context.js`
  *                             envelope. Its `sourceTickets[]` is what makes
  *                             `--tickets` superseding work without a flag
- *   --plan-acceptance <file>  Optional JSON string[] for partition coverage
  *   --source-tickets <ids>    Explicit OVERRIDE of the envelope-derived source
  *                             ids, for hand-driven runs. Each id must be
  *                             claimed by exactly one Story's `supersedes[]`;
@@ -106,7 +105,6 @@ const CLI_OPTIONS = {
   'tech-spec': { type: 'string' },
   'plan-dir': { type: 'string' },
   'plan-context': { type: 'string' },
-  'plan-acceptance': { type: 'string' },
   'source-tickets': { type: 'string' },
   'close-superseded': { type: 'boolean', default: true },
   'no-close-superseded': { type: 'boolean', default: false },
@@ -121,7 +119,6 @@ const CLI_OPTIONS = {
 const USAGE =
   'Usage: plan-persist.js --stories <file> ' +
   '[--tech-spec <file>] [--plan-dir <dir>] [--plan-context <file>] ' +
-  '[--plan-acceptance <file>] ' +
   '[--source-tickets <ids>] [--no-close-superseded] ' +
   '[--dry-run] [--chain-on-clean] [--force-review] ' +
   '[--epic-title <text> --epic-goal <text> | --epic <id>]';
@@ -159,9 +156,6 @@ export function resolveInputPaths(values) {
     techSpecPath: values['tech-spec']
       ? path.resolve(values['tech-spec'])
       : null,
-    planAcceptancePath: values['plan-acceptance']
-      ? path.resolve(values['plan-acceptance'])
-      : null,
     planDir,
     planContextPath: resolvePlanContextPath(values['plan-context'], planDir),
   };
@@ -172,9 +166,6 @@ async function loadArtifacts(paths) {
   const techSpecContent = paths.techSpecPath
     ? await readOptional(paths.techSpecPath, { required: true })
     : null;
-  const planAcceptance = paths.planAcceptancePath
-    ? await readJsonFile(paths.planAcceptancePath, 'plan-acceptance')
-    : null;
   const planContextEnvelope = await loadPlanContextEnvelope(
     paths.planContextPath,
   );
@@ -182,7 +173,6 @@ async function loadArtifacts(paths) {
   return {
     stories,
     techSpecContent,
-    planAcceptance,
     planContextEnvelope,
   };
 }
@@ -501,7 +491,6 @@ runAsCli(import.meta.url, main, {
         '--plan-context <file>',
         'The plan-context envelope this draft was authored against.',
       ],
-      ['--plan-acceptance <file>', 'Acceptance artifact to attach.'],
       ['--source-tickets <ids>', 'Ticket ids this plan supersedes.'],
       ['--dry-run', 'Validate and report; create nothing.'],
       ['--chain-on-clean', 'Persist immediately when the dry run is clean.'],

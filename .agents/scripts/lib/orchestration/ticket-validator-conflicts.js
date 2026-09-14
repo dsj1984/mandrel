@@ -8,13 +8,12 @@ import { computeStoryReachability } from './story-reachability.js';
  * `collectStoryAssumptionEntries` (Story #3302) and the sizing gate's
  * `resolveStoryBody` (Story #4271).
  *
- * The decomposer emits `body` as the canonical serialized **string**, but
- * the conflict passes (`indexConsumers`, `computeMissingBddScaffoldFindings`,
- * and the producer path scan in `collectStoryProducerPaths`) historically
- * read `story.body` only when it was already an object — so on the
- * production string shape the `implicit-cross-story-dep` and
- * `missing-bdd-scaffold` findings emitted nothing. Parsing the body once at the entry point and
- * threading the normalized Story through every pass restores parity.
+ * The decomposer emits `body` as the canonical serialized **string**, but the
+ * conflict passes (the producer path scan in `collectStoryProducerPaths`, and
+ * the two substring-match advisories Story #5332 retired) historically read
+ * `story.body` only when it was already an object — so on the production
+ * string shape they emitted nothing. Parsing the body once at the entry point
+ * and threading the normalized Story through every pass restores parity.
  *
  * `collectStoryAssumptionEntries` already parses string bodies itself, so a
  * normalized object body round-trips through it unchanged. The returned Story
@@ -76,15 +75,19 @@ function normalizeStoryBody(story) {
  * @property {string}          path        Producer path written by ≥2 Stories.
  * @property {string[]}        storySlugs  Story slugs in the conflict cluster.
  *
- * @typedef {object} ImplicitCrossStoryDepFinding
- * @property {'implicit-cross-story-dep'} kind
- * @property {'hard'|'soft'}   severity
- * @property {string}          path        Path consumed without a depends_on link.
- * @property {{ storySlug: string, taskSlug: string }} producer
- * @property {{ storySlug: string, taskSlug: string, sourceField: 'acceptance'|'verify' }} consumer
- *
- * @typedef {SharedEditorFinding | ImplicitCrossStoryDepFinding} ConflictFinding
+ * @typedef {SharedEditorFinding} ConflictFinding
  */
+
+/**
+ * Story #5332 retired the `implicit-cross-story-dep` and
+ * `missing-bdd-scaffold` findings, leaving `shared-editor` as the one
+ * conflict kind. Both matched a producer path as a **substring** of a
+ * consumer's `acceptance[]` / `verify[]` text — the noise-prone shape the
+ * planning-diet ADR (`20260912-5312`) itself calls out — and both had been
+ * unreachable on the real payload for most of their life (see
+ * {@link computeAssembledConflictFindings}). What they nudged for, ordering a
+ * consumer after its producer, the same-wave collision refusal now enforces
+ * on declarations rather than guesses at from prose.
 
 /**
  * Every conflict class is advisory (`'soft'`) since Story #5312: the
@@ -160,46 +163,6 @@ function indexProducers(stories) {
   return producers;
 }
 
-/**
- * Build the consumers index — `Array<{path, storySlug, taskSlug, sourceField}>`.
- *
- * For each Task, scan `body.acceptance` and `body.verify` joined text for
- * literal substring occurrences of any known producer path. Only producer
- * paths are matched (intersect-then-test), so free-text path-like tokens
- * that no one writes never produce false positives.
- *
- * A Story is not its own consumer — entries whose producer is the same
- * Story are skipped to keep the surface focused on cross-Story signal.
- */
-function indexConsumers(stories, producers) {
-  const consumers = [];
-  if (producers.size === 0) return consumers;
-  const producerPaths = Array.from(producers.keys()).sort(
-    (a, b) => b.length - a.length,
-  );
-  for (const story of stories) {
-    const body = story.body;
-    if (!body || typeof body !== 'object') continue;
-    for (const sourceField of ['acceptance', 'verify']) {
-      const items = Array.isArray(body[sourceField]) ? body[sourceField] : [];
-      if (items.length === 0) continue;
-      const joined = items.map((it) => String(it ?? '')).join('\n');
-      for (const path of producerPaths) {
-        if (!joined.includes(path)) continue;
-        const producerEntries = producers.get(path) ?? [];
-        if (producerEntries.some((p) => p.taskSlug === story.slug)) continue;
-        consumers.push({
-          path,
-          storySlug: storySlugOf(story),
-          taskSlug: story.slug,
-          sourceField,
-        });
-      }
-    }
-  }
-  return consumers;
-}
-
 function inSameWave(reach, slugA, slugB) {
   if (slugA === slugB) return false;
   const a = reach.get(slugA);
@@ -241,133 +204,6 @@ function computeSharedEditorFindings(producers, reach, severity) {
 }
 
 /**
- * Emit one `implicit-cross-story-dep` finding per consumer entry whose
- * producer Story is not transitively reachable from the consumer Story.
- *
- * Multiple producers per path are possible — the finding pins the *first*
- * producer in declaration order (sufficient signal; the operator typically
- * fixes the missing `depends_on` by linking to whichever Story they
- * recognize). Consumers already covered by a transitive dependency to
- * *some* producer are silently allowed even if other producers exist.
- */
-function computeImplicitDepFindings(consumers, producers, reach, severity) {
-  const findings = [];
-  for (const consumer of consumers) {
-    const producerEntries = producers.get(consumer.path) ?? [];
-    if (producerEntries.length === 0) continue;
-    const reachable = reach.get(consumer.storySlug) ?? new Set();
-    const alreadyDependsOnSome = producerEntries.some(
-      (p) => p.storySlug === consumer.storySlug || reachable.has(p.storySlug),
-    );
-    if (alreadyDependsOnSome) continue;
-    const producer = producerEntries[0];
-    findings.push({
-      kind: 'implicit-cross-story-dep',
-      severity,
-      path: consumer.path,
-      producer: {
-        storySlug: producer.storySlug,
-        taskSlug: producer.taskSlug,
-      },
-      consumer: {
-        storySlug: consumer.storySlug,
-        taskSlug: consumer.taskSlug,
-        sourceField: consumer.sourceField,
-      },
-    });
-  }
-  return findings;
-}
-
-/**
- * Compute `missing-bdd-scaffold` findings (Story #3857).
- *
- * The features-first delivery model requires every `.feature` file a Story
- * verifies against to already exist when that Story runs. When a Story's
- * `verify[]` references a `.feature` path that another Story declares with
- * `assumption: "creates"`, the consumer is correct only if the producer
- * lands in an *earlier* wave — otherwise the consumer's `verify[]` runs
- * against a file that does not yet exist and verification fails mid-delivery.
- *
- * A finding fires for each consumer/producer pair where:
- *   - the path ends in `.feature`,
- *   - a *different* Story declares that path as `assumption: "creates"`, and
- *   - the consumer Story does not transitively `depends_on` the producer
- *     (i.e. they share a wave, or the producer runs later).
- *
- * The finding is advisory (`'soft'`) — it is a nudge to add a `depends_on`
- * link to the wave-0 scaffold Story (or to the producing Story), not a hard
- * block. The remediation is the same shape as `implicit-cross-story-dep`:
- * order the consumer after the producer so the scaffold lands first.
- *
- * @param {object[]} stories
- * @param {Map<string, Set<string>>} reach  Transitive predecessor sets.
- * @param {'soft'|'hard'} severity
- * @returns {object[]} `missing-bdd-scaffold` findings.
- */
-function computeMissingBddScaffoldFindings(stories, reach, severity) {
-  // Index every `.feature` path declared `creates` to its producing Story.
-  // A path may be created by more than one Story (unusual); pin the first in
-  // declaration order, mirroring the implicit-dep finding's single-producer
-  // shape.
-  const featureCreators = new Map(); // path -> storySlug (first creator)
-  for (const story of stories) {
-    const body = story?.body;
-    if (!body || typeof body !== 'object') continue;
-    const changes = Array.isArray(body.changes) ? body.changes : [];
-    for (const change of changes) {
-      if (
-        change === null ||
-        typeof change !== 'object' ||
-        change.assumption !== 'creates' ||
-        typeof change.path !== 'string' ||
-        !change.path.endsWith('.feature')
-      )
-        continue;
-      if (!featureCreators.has(change.path)) {
-        featureCreators.set(change.path, storySlugOf(story));
-      }
-    }
-  }
-  if (featureCreators.size === 0) return [];
-
-  const creatorPaths = Array.from(featureCreators.keys()).sort(
-    (a, b) => b.length - a.length,
-  );
-  const findings = [];
-  const seen = new Set(); // dedupe `${consumerSlug}::${path}` pairs
-  for (const story of stories) {
-    const body = story?.body;
-    if (!body || typeof body !== 'object') continue;
-    const verifyItems = Array.isArray(body.verify) ? body.verify : [];
-    if (verifyItems.length === 0) continue;
-    const joined = verifyItems.map((it) => String(it ?? '')).join('\n');
-    const consumerSlug = storySlugOf(story);
-    for (const path of creatorPaths) {
-      if (!joined.includes(path)) continue;
-      const producerSlug = featureCreators.get(path);
-      // A Story that creates the file it verifies is fine — no cross-Story gap.
-      if (producerSlug === consumerSlug) continue;
-      // Producer already runs in an earlier wave → consumer is correctly
-      // ordered, scaffold lands first, no finding.
-      const reachable = reach.get(consumerSlug) ?? new Set();
-      if (reachable.has(producerSlug)) continue;
-      const key = `${consumerSlug}::${path}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      findings.push({
-        kind: 'missing-bdd-scaffold',
-        severity,
-        path,
-        producer: { storySlug: producerSlug },
-        consumer: { storySlug: consumerSlug, sourceField: 'verify' },
-      });
-    }
-  }
-  return findings;
-}
-
-/**
  * Public entry point. Walks the normalized ticket spec once and returns
  * the structured cross-Story findings array. Every finding is `'soft'`
  * (Story #5312) — an advisory line for the plan summary, never an
@@ -384,13 +220,8 @@ export function computeConflictFindings({ stories } = {}) {
   // shape across every conflict pass.
   const storyList = (stories ?? []).map(normalizeStoryBody);
   const producers = indexProducers(storyList);
-  const consumers = indexConsumers(storyList, producers);
   const reach = computeStoryReachability(storyList);
-  return [
-    ...computeSharedEditorFindings(producers, reach, SOFT),
-    ...computeImplicitDepFindings(consumers, producers, reach, SOFT),
-    ...computeMissingBddScaffoldFindings(storyList, reach, SOFT),
-  ];
+  return computeSharedEditorFindings(producers, reach, SOFT);
 }
 
 /**
@@ -402,11 +233,11 @@ export function computeConflictFindings({ stories } = {}) {
  * persisted. That is not a cosmetic ordering nit: the canonical authoring shape
  * carries `acceptance[]` / `verify[]` at the ticket's **top level**, and it is
  * assembly's `syncContractFieldFromTopLevel` that folds them into the body.
- * `indexConsumers` scans `body.acceptance` / `body.verify` for producer paths —
- * so on the real payload it scanned two empty arrays, and every
- * `implicit-cross-story-dep` and `missing-bdd-scaffold` finding was silently
- * unreachable. Running the passes again over the serialized bodies restores
- * them.
+ * The two retired advisories scanned `body.acceptance` / `body.verify` for
+ * producer paths, so on the real payload they scanned two empty arrays and
+ * were silently unreachable. Running the passes again over the serialized
+ * bodies is what keeps the surviving `shared-editor` pass honest about what
+ * persist actually writes.
  *
  * @param {{ stories: Array<{ slug: string, title: string, body: string, depends_on?: string[] }> }} args
  * @returns {ConflictFinding[]}
@@ -457,13 +288,7 @@ export function conflictFindingKey(finding) {
  * of this list is how readers drift apart, so it is defined exactly once and
  * imported.
  */
-export const CONFLICT_KINDS = Object.freeze(
-  new Set([
-    'shared-editor',
-    'implicit-cross-story-dep',
-    'missing-bdd-scaffold',
-  ]),
-);
+export const CONFLICT_KINDS = Object.freeze(new Set(['shared-editor']));
 
 /**
  * Render a conflict finding as a human-readable line. Every finding is soft
@@ -475,12 +300,6 @@ export function renderHardConflictError(finding) {
   if (finding.kind === 'shared-editor') {
     const stories = finding.storySlugs.map((s) => `"${s}"`).join(', ');
     return `Shared-editor conflict: "${finding.path}" is written by ${finding.storySlugs.length} concurrent Stories (${stories}). Add depends_on chains between them or split the edits into a dedicated late-wave wiring Story.`;
-  }
-  if (finding.kind === 'implicit-cross-story-dep') {
-    return `Implicit cross-Story dependency: Story "${finding.consumer.storySlug}" references "${finding.path}" (produced by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but Story "${finding.consumer.storySlug}" has no depends_on link to Story "${finding.producer.storySlug}". Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story or remove the reference.`;
-  }
-  if (finding.kind === 'missing-bdd-scaffold') {
-    return `Missing BDD scaffold: Story "${finding.consumer.storySlug}" verifies against "${finding.path}" (created by Story "${finding.producer.storySlug}") via body.${finding.consumer.sourceField}, but "${finding.consumer.storySlug}" has no depends_on path to "${finding.producer.storySlug}" — the .feature file is scaffolded in the same wave (or later), so verification runs before the file exists. Add depends_on: ["${finding.producer.storySlug}"] to the consumer Story so the scaffold lands in an earlier wave.`;
   }
   // Findings from other passes carry their own message — render it rather
   // than a shape-blind generic line, so the soft surface
@@ -496,10 +315,7 @@ export const _internal = {
   collectStoryProducerPaths,
   WRITE_IMPLYING_ASSUMPTIONS,
   indexProducers,
-  indexConsumers,
   computeStoryReachability,
   inSameWave,
   computeSharedEditorFindings,
-  computeImplicitDepFindings,
-  computeMissingBddScaffoldFindings,
 };

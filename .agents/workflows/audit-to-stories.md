@@ -152,15 +152,17 @@ node .agents/scripts/audit-to-stories.js --emit-plan-seed \
 
 The seed renders the canonical one-pager sections — Problem Statement,
 Recommended Direction, Key Assumptions (with links to every source
-report), MVP Scope (the M proposed Stories), Key Files (so `/mandrel-plan`'s
-authoring step has concrete anchors), Grouping, Not Doing.
+report), MVP Scope (**the findings, flat**), Key Files (so `/mandrel-plan`'s
+authoring step has concrete anchors), Not Doing.
 
-**Grouping is the container-Epic directive.** Above 2 proposed Stories the
-seed instructs `/mandrel-plan` to group them under one Epic — a sweep is the
-clearest case for a container, since every Story shares a provenance and an
-operator usually delivers them together. It is a directive in the text, not an
-automatic write: Phase 4 above is where an operator declines it. Below the
-threshold the section says so and asks for nothing.
+**The seed states findings, not a partition.** MVP Scope used
+to render one numbered bullet per group beneath a `## Grouping` container
+directive — a plan the seed had already decided, at the grouping grain, before
+`/mandrel-plan` read a word of it. N now reaches the planner **undecided**: it
+applies its own cohesion judgment, and container grouping is `/mandrel-plan`'s
+Gate #3 call at persist, where N is known. The grouping still drives the
+**standalone-Stories** path (Phase 5b), which needs one issue payload per
+group.
 
 Chain into the existing planning entrypoint:
 
@@ -172,9 +174,10 @@ Chain into the existing planning entrypoint:
 then runs its author → persist path, as documented in its workflow.
 
 **Dedup provenance is carried mechanically — do not hand-copy it.** The seed's
-MVP Scope bullets carry each group's `audit-fingerprints` and
+MVP Scope section carries each group's `audit-fingerprints` and
 `audit-semantic-keys` footers as HTML comments (invisible in the rendered
-one-pager). `plan-persist` harvests them out of the seed on the
+one-pager, and per-group even though the visible list is flat — they are the
+identity the next sweep matches on). `plan-persist` harvests them out of the seed on the
 `plan-context.json` envelope and appends them to **every** Story body it
 persists, via `carryProvenanceFooters`
 ([`lib/findings/route-finding.js`](../scripts/lib/findings/route-finding.js)).

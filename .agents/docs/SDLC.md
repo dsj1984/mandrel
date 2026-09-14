@@ -36,7 +36,7 @@ From zero to shipped:
    handoff via `--emit-plan-seed`), and `/mandrel-plan --tickets 123[,456…]` (analyze
    existing issue(s), preferring an N=1 rewrite). `/mandrel-plan` is a **single path**
    — interrogate → author → persist, bracketed by two HITL gates and a single
-   critic gate — with no Epic/Story router, scope-triage verdict, or
+   critic gate — with no Epic/Story router, split-routing verdict, or
    `deliveryShape`. Duplicate search targets open **Stories**, never Epics. The
    step-by-step lives in [`mandrel-plan.md`](../workflows/mandrel-plan.md).
 
@@ -211,15 +211,14 @@ the SDLC depends on:
   Epic-era Tech Spec / Acceptance Table / clarity-gate / decompose /
   reconciler machinery. `plan-persist.js` runs the deterministic gates
   (ticket validator, split policy, reachability, budget) and — for N>1 —
-  `assertAcceptancePartition` so every acceptance criterion belongs to
-  exactly one Story.
+  the same-wave collision refusal, so a split whose siblings the dispatcher
+  would serialize anyway is rejected before the first `createIssue`.
 - **Handoff.** Persist creates the Story issue(s) at `agent::ready` and
   names the delivery command: `/mandrel-deliver <storyId> [<storyId> ...]`.
 
-Optional split advisory notes come from
-[`core/scope-triage`](../skills/core/scope-triage/SKILL.md); there is no
-`epic|story` routing verdict, scorer, schema field, or label transition
-behind them.
+There is no `epic|story` routing verdict, scorer, schema field, or label
+transition anywhere on the path: sizing is the authoring model's cohesion
+judgment, and the one deterministic split gate is the collision refusal.
 
 Audit findings enter planning through
 [`/audit-to-stories`](../workflows/audit-to-stories.md), which groups and

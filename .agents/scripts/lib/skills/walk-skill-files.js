@@ -41,7 +41,7 @@ export const LOCAL_SKILLS_SEGMENTS = Object.freeze([
 
 /**
  * A skill id is the tier-relative path naming a skill — e.g.
- * `core/scope-triage` or `stack/qa/playwright`. It is the value that
+ * `core/test-first` or `stack/qa/playwright`. It is the value that
  * appears in `skills.index.json` minus the root prefix, and the value a
  * `qa.environments.*.signInSeam.skill` seam carries.
  *

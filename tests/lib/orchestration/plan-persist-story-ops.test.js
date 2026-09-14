@@ -161,19 +161,17 @@ describe('assemblePlanStories', () => {
     assert.match(stories[0].body, /## Goal/);
   });
 
-  it('refuses cross-Story duplicate acceptance', () => {
-    assert.throws(
-      () =>
-        assemblePlanStories([
-          storyTicket('a', {
-            bodyFields: { acceptance: ['shared criterion'] },
-          }),
-          storyTicket('b', {
-            bodyFields: { acceptance: ['shared criterion'] },
-          }),
-        ]),
-      /split-policy/,
-    );
+  // Story #5332: assembly no longer refuses a shared acceptance criterion.
+  // The check only ever caught byte-identical text across siblings — a shape
+  // model output does not produce — and the split gate is now the
+  // dispatcher's own collision predicate, armed in `run-plan-persist.js`
+  // ahead of the first `createIssue`.
+  it('does not refuse a duplicated acceptance criterion across siblings', () => {
+    const { stories } = assemblePlanStories([
+      storyTicket('a', { bodyFields: { acceptance: ['shared criterion'] } }),
+      storyTicket('b', { bodyFields: { acceptance: ['shared criterion'] } }),
+    ]);
+    assert.equal(stories.length, 2);
   });
 
   it('refuses folding one shared techspec into N>1 Stories', () => {
@@ -958,11 +956,12 @@ describe('per-Story provenance attribution (Story #5045, AC-1)', () => {
 });
 
 describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', () => {
-  // The canonical authoring shape carries `acceptance[]` / `verify[]` at the
-  // ticket's TOP LEVEL; assembly folds them into the body. `indexConsumers`
-  // scans `body.acceptance` / `body.verify`, so on the raw payload it scanned
-  // two empty arrays and the implicit-cross-story-dep pass was inert — the
-  // exact defect running the passes post-assembly closes.
+  // `validateTickets` runs over the raw `stories.json` payload; the passes are
+  // re-run over the assembled, footer-stamped bodies — the artifact persist
+  // actually posts — so what validation judged is what landed. Story #5332
+  // retired the two substring-match advisories whose inertness on the raw
+  // payload originally motivated the re-run, leaving `shared-editor` as the
+  // one conflict kind the invariant is pinned on.
   const producer = {
     slug: 'produce-the-fixture',
     type: 'story',
@@ -977,36 +976,34 @@ describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', ()
     type: 'story',
     title: 'Consume the fixture',
     goal: 'Verify the reader against the shared fixture.',
-    changes: [{ path: 'lib/reader.js', assumption: 'refactors-existing' }],
+    // The same declared path, with no `depends_on` edge — the shared-editor
+    // conflict the pass exists to name.
+    changes: [{ path: 'lib/fixture.js', assumption: 'refactors-existing' }],
     acceptance: ['The reader resolves every entry.'],
-    // No depends_on edge — this is the implicit dependency the pass exists
-    // to name, and it is only visible once the body carries `verify[]`.
     verify: ['node --test lib/fixture.js (unit)'],
   };
 
-  it('the raw payload hides the implicit dependency the assembled body reveals', () => {
-    const rawFindings = computeConflictFindings({
-      stories: [producer, consumer],
-    });
+  it('the raw payload hides the conflict the assembled body reveals', () => {
+    // The authoring shape carries `changes` at the ticket's top level and it
+    // is assembly that folds it into the body, so the pre-assembly pass has
+    // no footprint to read — the exact defect the post-assembly re-run closes.
+    const raw = computeConflictFindings({ stories: [producer, consumer] });
     assert.deepEqual(
-      rawFindings.filter((f) => f.kind === 'implicit-cross-story-dep'),
+      raw.filter((f) => f.kind === 'shared-editor'),
       [],
-      'pre-assembly the consumer scan has no body.verify to read',
+      'pre-assembly there is no body.changes to scan',
     );
 
     const { stories } = assemblePlanStories([producer, consumer]);
-    const assembled = computeAssembledConflictFindings({ stories });
-    const implicit = assembled.filter(
-      (f) => f.kind === 'implicit-cross-story-dep',
+    const assembled = computeAssembledConflictFindings({ stories }).filter(
+      (f) => f.kind === 'shared-editor',
     );
-    assert.equal(
-      implicit.length,
-      1,
-      `expected the assembled pass to find the edge, got ${JSON.stringify(assembled)}`,
-    );
-    assert.equal(implicit[0].path, 'lib/fixture.js');
-    assert.equal(implicit[0].producer.storySlug, 'produce-the-fixture');
-    assert.equal(implicit[0].consumer.storySlug, 'consume-the-fixture');
+    assert.equal(assembled.length, 1);
+    assert.equal(assembled[0].path, 'lib/fixture.js');
+    assert.deepEqual([...assembled[0].storySlugs].sort(), [
+      'consume-the-fixture',
+      'produce-the-fixture',
+    ]);
   });
 
   it('scans the footer-stamped bodies, not a re-serialization of the tickets', () => {
@@ -1022,9 +1019,10 @@ describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', ()
         'the assembled body carries its provenance footer',
       );
     }
-    const assembled = computeAssembledConflictFindings({ stories });
     assert.equal(
-      assembled.filter((f) => f.kind === 'implicit-cross-story-dep').length,
+      computeAssembledConflictFindings({ stories }).filter(
+        (f) => f.kind === 'shared-editor',
+      ).length,
       1,
       'the footers must not disturb the conflict passes',
     );
@@ -1037,7 +1035,7 @@ describe('conflict analysis sees the persisted artifact (Story #5045, AC-3)', ()
     ]);
     assert.deepEqual(
       computeAssembledConflictFindings({ stories }).filter(
-        (f) => f.kind === 'implicit-cross-story-dep',
+        (f) => f.kind === 'shared-editor',
       ),
       [],
     );

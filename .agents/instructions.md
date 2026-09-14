@@ -194,8 +194,7 @@ anything under it.
 `/mandrel-plan` sizes each Story as a **capability slice a frontier model
 delivers and self-verifies in one pass** — a broad footprint is normal
 when the change is cohesive, and no plan-time ceiling scores it; do not
-re-slice it into per-module fragments. On a `⚠️ COMPLEXITY WARNING` or
-out-of-scope task: **plan first** (numbered cohesive sub-steps in a
-`<!-- DECOMPOSITION -->`
+re-slice it into per-module fragments. On an out-of-scope task: **plan
+first** (numbered cohesive sub-steps in a `<!-- DECOMPOSITION -->`
 block), **commit incrementally** per sub-step, and **fail fast** — STOP
 and report if any sub-step fails validation.

@@ -4,7 +4,7 @@
   "toleranceBytes": 2048,
   "tiers": {
     "alwaysLoaded": {
-      "totalBytes": 21360,
+      "totalBytes": 21330,
       "files": [
         {
           "path": ".agentrc.json",
@@ -12,7 +12,7 @@
         },
         {
           "path": ".agents/instructions.md",
-          "bytes": 8768
+          "bytes": 8738
         },
         {
           "path": ".agents/rules/git-conventions.md",

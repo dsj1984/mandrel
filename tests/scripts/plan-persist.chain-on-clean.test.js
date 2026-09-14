@@ -129,7 +129,6 @@ function chainArgs({ story }) {
     artifacts: {
       stories: [story],
       techSpecContent: null,
-      planAcceptance: null,
       planContextEnvelope: null,
     },
     metricsSince: new Date().toISOString(),

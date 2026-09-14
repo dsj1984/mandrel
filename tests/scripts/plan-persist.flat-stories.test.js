@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
+  readdirSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -56,6 +57,52 @@ import { TicketGateway } from '../../.agents/scripts/providers/github/tickets.js
  */
 const ABOVE_FANOUT_BOUND = FANOUT_CONCURRENCY + 1;
 
+/**
+ * Committed paths the fixtures declare — one per distinct slug.
+ *
+ * Story #5332 armed the same-wave collision prediction as a hard refusal, so
+ * a draft whose siblings all declare ONE path is now rejected before the
+ * first `createIssue` — which is the policy, and exactly what these fixtures
+ * are not testing. Each slug therefore gets its own path, drawn from the
+ * committed test files beside this one rather than a hand-listed pool: every
+ * entry must exist at `main` (two tests below assert the run reports zero
+ * warnings, and a `refactors-existing` on an absent path warns), and the
+ * enumeration keeps enough of them as the suite grows.
+ */
+const FIXTURE_PATHS = ['tests/scripts', 'tests/lib/orchestration']
+  .flatMap((dir) =>
+    readdirSync(path.join(import.meta.dirname, '..', '..', dir))
+      .filter((name) => name.endsWith('.test.js'))
+      .sort()
+      .map((name) => `${dir}/${name}`),
+  )
+  .sort();
+
+/** slug → its declared path, assigned once and stable for the whole file. */
+const declaredPaths = new Map();
+
+/**
+ * The path a fixture Story declares: distinct per slug, so a multi-Story
+ * draft never collides with itself, and stable across repeated `ticket()`
+ * calls for the same slug (the resume fingerprint is sensitive to the body).
+ *
+ * @param {string} slug
+ * @returns {string}
+ */
+function declaredPathFor(slug) {
+  const existing = declaredPaths.get(slug);
+  if (existing) return existing;
+  const next = FIXTURE_PATHS[declaredPaths.size];
+  if (!next) {
+    throw new Error(
+      `fixture pool exhausted at ${declaredPaths.size} slugs — two fixture ` +
+        'Stories would declare one path and trip the collision gate',
+    );
+  }
+  declaredPaths.set(slug, next);
+  return next;
+}
+
 function ticket(slug) {
   const acceptance = [`${slug} done`];
   const verify = ['npm test (validate)'];
@@ -68,10 +115,7 @@ function ticket(slug) {
     body: serialize({
       goal: `Goal of ${slug}.`,
       changes: [
-        {
-          path: 'tests/scripts/plan-persist.flat-stories.test.js',
-          assumption: 'refactors-existing',
-        },
+        { path: declaredPathFor(slug), assumption: 'refactors-existing' },
       ],
       acceptance,
       verify,
@@ -90,10 +134,7 @@ function ticketWithGoal(slug, goal) {
     body: serialize({
       goal,
       changes: [
-        {
-          path: 'tests/scripts/plan-persist.flat-stories.test.js',
-          assumption: 'refactors-existing',
-        },
+        { path: declaredPathFor(slug), assumption: 'refactors-existing' },
       ],
       acceptance,
       verify: ['npm test (validate)'],

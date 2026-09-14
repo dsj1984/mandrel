@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-12T20:34:48.245Z",
+  "generatedAt": "2026-09-14T12:06:58.197Z",
   "rollup": {
     "*": {
-      "lines": 96.32,
+      "lines": 96.31,
       "branches": 87.3,
-      "functions": 88.27
+      "functions": 88.25
     }
   },
   "rows": [
@@ -505,7 +505,7 @@
     {
       "path": ".agents/scripts/lib/audit-to-stories/seed-from-findings.js",
       "lines": 100,
-      "branches": 95.24,
+      "branches": 93.33,
       "functions": 100
     },
     {
@@ -2136,8 +2136,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/run-plan-persist.js",
-      "lines": 95.05,
-      "branches": 76,
+      "lines": 95.08,
+      "branches": 75.68,
       "functions": 100
     },
     {
@@ -2161,7 +2161,13 @@
     {
       "path": ".agents/scripts/lib/orchestration/plan-persist/supersede-ops.js",
       "lines": 100,
-      "branches": 92.25,
+      "branches": 93.42,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/wave-collision-gate.js",
+      "lines": 100,
+      "branches": 94.44,
       "functions": 100
     },
     {
@@ -2477,12 +2483,6 @@
       "functions": 100
     },
     {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "lines": 98.4,
-      "branches": 85,
-      "functions": 100
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-body-gate.js",
       "lines": 100,
       "branches": 62.5,
@@ -2574,8 +2574,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "lines": 99.6,
-      "branches": 86.47,
+      "lines": 99.38,
+      "branches": 90.91,
       "functions": 100
     },
     {
@@ -2862,12 +2862,6 @@
     },
     {
       "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "lines": 100,
-      "branches": 100,
-      "functions": 100
-    },
-    {
-      "path": ".agents/scripts/lib/templates/spec-author-prompts.js",
       "lines": 100,
       "branches": 100,
       "functions": 100
@@ -3192,8 +3186,8 @@
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "lines": 83.11,
-      "branches": 84.78,
+      "lines": 83.53,
+      "branches": 86.67,
       "functions": 66.67
     },
     {

@@ -14,7 +14,7 @@
  *    `PLAN_CONTEXT_ENVELOPE_BYTE_CEILING`, including with a body at the
  *    planning-context budget cap.
  *  - systemPrompts fold: spec/acceptance render verbatim from
- *    `lib/templates/spec-author-prompts.js`; story includes the v2
+ *    the shared prompt carriers; story includes the v2
  *    default-single policy; decompose matches the existing
  *    `buildDecomposerSystemPrompt` carrier.
  *  - legacy advisory helpers: deliveryShape/scopeTriage helpers remain
@@ -50,10 +50,6 @@ import {
   renderStorySplitRules,
   ticketsModePromptField,
 } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
-import {
-  renderAcceptanceSpecSystemPrompt,
-  renderTechSpecSystemPrompt,
-} from '../.agents/scripts/lib/templates/spec-author-prompts.js';
 import { makeTempDir } from '../.agents/scripts/lib/test-temp.js';
 import {
   emitPlanContext,
@@ -348,7 +344,7 @@ describe('plan-context dup-search fold parity vs library', () => {
 });
 
 describe('plan-context systemPrompts fold', () => {
-  it('renders spec/acceptance/story/storySplitRules from the shared prompt carriers', async () => {
+  it('renders story/storySplitRules from the shared prompt carriers', async () => {
     const env = await buildPlanContext({
       mode: 'seed-file',
       seedFileContent: ONE_PAGER,
@@ -356,13 +352,12 @@ describe('plan-context systemPrompts fold', () => {
       config: {},
       settings: {},
     });
-    assert.equal(env.systemPrompts.spec, renderTechSpecSystemPrompt());
-    assert.equal(
-      env.systemPrompts.acceptance,
-      renderAcceptanceSpecSystemPrompt(),
-    );
-    // Story #5312: the story prompt is the N=1 core; the schedule and
-    // partition rules ride separately for a draft that splits.
+    // Story #5332: the retired spec / acceptance authoring prompts are gone
+    // with the module that rendered them — nothing read either.
+    assert.equal('spec' in env.systemPrompts, false);
+    assert.equal('acceptance' in env.systemPrompts, false);
+    // Story #5312: the story prompt is the N=1 core; the schedule rules and
+    // the collision refusal ride separately for a draft that splits.
     assert.equal(env.systemPrompts.story, renderStoryAuthorCore());
     assert.equal(env.systemPrompts.storySplitRules, renderStorySplitRules());
     assert.equal('decompose' in env.systemPrompts, false);
@@ -371,11 +366,9 @@ describe('plan-context systemPrompts fold', () => {
     assert.equal('storyTicketsRules' in env.systemPrompts, false);
     assert.equal('riskHeuristics' in env, false);
     assert.equal('maxTickets' in env, false);
-    assert.match(env.systemPrompts.spec, /Engineering Architect/);
-    assert.match(env.systemPrompts.acceptance, /Acceptance Engineer/);
     assert.match(env.systemPrompts.story, /Emit exactly one Story by default/);
-    assert.doesNotMatch(env.systemPrompts.story, /ACCEPTANCE PARTITION/);
-    assert.match(env.systemPrompts.storySplitRules, /ACCEPTANCE PARTITION/);
+    assert.doesNotMatch(env.systemPrompts.story, /THE COLLISION REFUSAL/);
+    assert.match(env.systemPrompts.storySplitRules, /THE COLLISION REFUSAL/);
     // The envelope's systemPrompts are exactly what the exported helper
     // renders, and the ticketSchema is the shared frozen descriptor.
     assert.deepEqual(env.systemPrompts, buildSystemPrompts());
@@ -1467,11 +1460,15 @@ describe('plan-context systemPrompts — tickets addendum (Story #5323)', () => 
         `mode ${String(mode)} must not carry the tickets addendum`,
       );
     }
-    // The other three fields are unconditional.
+    // The two surviving fields are unconditional; Story #5332 deleted the
+    // `spec` / `acceptance` pair with the module that rendered them.
     for (const mode of ['tickets', 'seed', undefined]) {
       const prompts = buildSystemPrompts({ mode });
-      for (const field of ['spec', 'acceptance', 'story', 'storySplitRules']) {
+      for (const field of ['story', 'storySplitRules']) {
         assert.equal(typeof prompts[field], 'string');
+      }
+      for (const retired of ['spec', 'acceptance']) {
+        assert.equal(retired in prompts, false);
       }
     }
   });

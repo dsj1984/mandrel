@@ -10,7 +10,7 @@
  *   - `--yes` auto-proceeds gate #1 (interrogate confirmation).
  *   - `--yes` auto-proceeds gate #2 (the --force-review pre-persist review).
  *   - `--yes` does not relax deterministic validation gates.
- *   - the retired `deliveryShape` and scope-triage routing fields do not
+ *   - the retired `deliveryShape` and split-routing fields do not
  *     reappear in the workflow contract.
  */
 
@@ -79,8 +79,8 @@ describe('/mandrel-plan --yes headless flag — single plan.md path', () => {
     );
     assertDocMentions(
       planSource,
-      /no scope-triage `epic\|story` verdict/i,
-      'plan.md must reject scope-triage routing verdicts',
+      /no split-triage `epic\|story` verdict/i,
+      'plan.md must reject split-routing verdicts',
     );
   });
 
@@ -245,18 +245,16 @@ describe('/mandrel-plan --yes headless flag — v2 Stage 3 cutover guards', () =
     for (const deleted of [
       'helpers/plan-epic.md',
       'helpers/plan-story.md',
-      'helpers/scope-triage-gate.md',
+      'helpers/split-triage-gate.md',
       'helpers/plan-epic-reference.md',
     ]) {
       assertDocOmits(planSource, new RegExp(deleted.replace('.', '\\.')));
     }
   });
 
-  it('keeps scope-triage as optional split-advisory notes only', () => {
-    assertDocMentions(
-      planSource,
-      /optional split-advisory notes only \(no routing verdict\)/i,
-      'scope-triage skill link must be advisory-only',
-    );
+  // Story #5332 deleted the `core/scope-triage` skill: it duplicated the
+  // split policy the prompt now states, and no workflow invoked it.
+  it('carries no link to the deleted scope-triage skill', () => {
+    assertDocOmits(planSource, /scope-triage/i);
   });
 });

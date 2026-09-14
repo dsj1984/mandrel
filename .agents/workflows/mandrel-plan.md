@@ -11,7 +11,7 @@ description:
 
 ## Inputs
 
-Single planning path — there is no Epic/Story router, no scope-triage
+Single planning path — there is no Epic/Story router, no split-triage
 `epic|story` verdict (Gate #3's container groups, never routes). **Derive the
 mode from what the operator typed, announce it, act**:
 
@@ -93,12 +93,11 @@ included. One rescue: a **never-tracked** one normalises to `creates`. Fields:
 [ref](helpers/plan-reference.md).
 
 Artifacts under `temp/plan-<slug>/`: `stories.json` (**length 1 by default**;
-a Spec is as long as the work needs, inline, never under `docs/`); optional
-`techspec.md` (**N===1 only**, folded into `## Spec`) and
-`acceptance-manifest.json` (N>1 — `--plan-acceptance`). Use the envelope
+a Spec is as long as the work needs, inline, never under `docs/`) and optional
+`techspec.md` (**N===1 only**, folded into `## Spec`). Use the envelope
 `systemPrompts.story`; split only under the policy above, and when you do,
-read `systemPrompts.storySplitRules` too — it carries the schedule and
-partition rules the core omits. In **tickets mode** also read
+read `systemPrompts.storySplitRules` too — it carries the schedule rules and
+the same-wave collision refusal the core omits. In **tickets mode** also read
 `systemPrompts.storyTicketsRules`: the source ticket is evidence, not a
 template — re-derive `acceptance[]` rather than carrying its list, handles
 and tier suffixes forward.
@@ -112,15 +111,20 @@ The maker-blind **pre-mortem** critic is not a step of this spine: run
 
 ### 3. Persist
 
-**Gate #2** — STOP for approval before persist **only** when the operator asked
-to review (`--force-review`). Under `--yes`, auto-proceed.
+**Gate #2** — STOP for approval before persist when the draft carries **more
+than one Story** (a split always earns operator eyes, `--force-review` or
+not), or when the operator asked to review (`--force-review`).
+Under `--yes`, auto-proceed.
 
 **Gate #3 — adopt, else create.** Offer the top `epicCandidates[]` Epic at
 **any N** (`--epic <id>`); else, at **N>2**, a new container (`--epic-title` /
 `--epic-goal`). Never unasked ([ref](helpers/plan-reference.md)).
 
 Run persist `--dry-run` **first** — same command, writes suppressed; every gate
-runs before the first `createIssue`, and the run **lists its warnings**
+runs before the first `createIssue` — including the **same-wave collision
+refusal**, which rejects an N>1 draft whose siblings declare a common path
+(merge them, or order them with `depends_on`) — and the run **lists its
+warnings**
 (a `creates` / `refactors-existing` the base branch disagrees with, a goal or
 acceptance path absent at base, an open question in a body) and the
 `changes[]` repairs it applied ([list](helpers/plan-reference.md)). Read
@@ -130,7 +134,6 @@ them; they never stop the persist:
 node .agents/scripts/plan-persist.js \
   --stories temp/plan-<slug>/stories.json \
   --plan-dir temp/plan-<slug> \
-  [--plan-acceptance temp/plan-<slug>/acceptance-manifest.json] \
   [--tech-spec temp/plan-<slug>/techspec.md] \
   [--source-tickets 123,456] \
   [--epic <id> | --epic-title "<name>" --epic-goal "<one paragraph>"]
@@ -158,6 +161,4 @@ also comments on and closes each source id ([ref](helpers/plan-reference.md)).
 ## See also
 
 [`/mandrel-deliver`](mandrel-deliver.md), [`/audit-to-stories`](audit-to-stories.md),
-[`helpers/plan-reference.md`](helpers/plan-reference.md) (on-demand detail),
-[`core/scope-triage`](../skills/core/scope-triage/SKILL.md) — optional
-split-advisory notes only (no routing verdict).
+[`helpers/plan-reference.md`](helpers/plan-reference.md) (on-demand detail).

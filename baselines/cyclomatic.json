@@ -1,11 +1,11 @@
 {
   "$schema": "https://mandrel.dev/baselines/cyclomatic.schema.json",
-  "generatedAt": "2026-09-12T17:56:53.961Z",
+  "generatedAt": "2026-09-14T11:59:45.183Z",
   "ceiling": 12,
   "rollup": {
     "*": {
-      "filesAboveCeiling": 42,
-      "methodsAboveCeiling": 45,
+      "filesAboveCeiling": 41,
+      "methodsAboveCeiling": 44,
       "maxCyclomatic": 20
     }
   },
@@ -169,11 +169,6 @@
       "file": ".agents/scripts/lib/orchestration/single-story-close/phases/confirm-merge.js",
       "methodsAboveCeiling": 1,
       "maxCyclomatic": 13
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "methodsAboveCeiling": 1,
-      "maxCyclomatic": 19
     },
     {
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",

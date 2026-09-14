@@ -7,7 +7,7 @@
  *
  *   1. `changes[]` repair + ticket validator + file-assumption + DAG
  *   2. Draft reachability (named soft failure, exit 3)
- *   3. Split-policy partition (`assertAcceptancePartition`) + spec fold
+ *   3. Same-wave collision refusal (`assertNoWaveCollisions`) + spec fold
  *   4. Create Story issues (`type::story` + sanitized authored labels —
  *      deliberately NOT `agent::ready`), resumably via a plan fingerprint
  *   5. Upsert `story-plan-state` on every created Story; upsert `plan-summary`
@@ -81,7 +81,7 @@ import {
   PLAN_SUMMARY_COMMENT_TYPE,
 } from './summary.js';
 import { closeSupersededTickets } from './supersede-ops.js';
-import { predictWaveSerialisation } from './wave-serialisation.js';
+import { assertNoWaveCollisions } from './wave-collision-gate.js';
 
 /** Checkpoint schema version written on each Story's story-plan-state. */
 const PLAN_CHECKPOINT_SCHEMA_VERSION_V2 = 2;
@@ -543,7 +543,6 @@ function logPersistEpilogue({
  *   artifacts: {
  *     stories: Array<object>,
  *     techSpecContent?: string|null,
- *     planAcceptance?: string[]|null,
  *     planContextEnvelope?: object|null,
  *   },
  *   config?: object,
@@ -569,7 +568,6 @@ export async function runPlanPersist({
   const {
     stories: rawStories = null,
     techSpecContent = null,
-    planAcceptance = null,
     planContextEnvelope = null,
   } = artifacts ?? {};
   const {
@@ -623,11 +621,10 @@ export async function runPlanPersist({
     epicId: opts.adoptEpicId ?? null,
   });
 
-  // Split policy + inline Spec fold (Specs stay inline, never under docs/).
+  // Inline Spec fold (Specs stay inline, never under docs/).
   const seedContent = planContextEnvelope?.seed?.content ?? '';
   const { stories: assembled } = assemblePlanStories(rawStories, {
     sharedSpec: techSpecContent,
-    planAcceptance: planAcceptance ?? undefined,
     sourceTicketIds,
     // The seed this plan was authored from: an audit sweep's Single-plan seed
     // carries the `audit-fingerprints` / `audit-semantic-keys` footers, and
@@ -654,6 +651,31 @@ export async function runPlanPersist({
     rawFindings: validated.findings,
   });
 
+  // Story #5332 — the split gate, ahead of the first create. `buildWaveTable`
+  // needs only `{slug, title, depends_on}` and the prediction needs only the
+  // assembled bodies, so both can run before anything is written; they used
+  // to sit *after* creation, which is why the collision table could only ever
+  // be a receipt for a plan already live. The same computed value is handed
+  // to the summary rendering below rather than recomputed, so the refusal and
+  // the receipt can never disagree.
+  const waveTable = buildWaveTable(
+    stories.map((s) => ({
+      slug: s.slug,
+      title: s.title,
+      depends_on: s.depends_on,
+    })),
+  );
+
+  // Story #5265: the table says which Stories share an order; the dispatcher
+  // decides which of those actually run together. Run its own predicate over
+  // the assembled bodies — the exact artifact the tick will read back off
+  // GitHub — so an N>1 draft it would serialize is refused here, and the
+  // summary comment names the serialisation instead of promising parallelism
+  // the next tick refuses. One enumeration feeds both.
+  const waveCollisions = assertNoWaveCollisions(waveTable, stories, {
+    tempRoot: getPaths(config).tempRoot,
+  });
+
   const { created, planRunLabel, planRunLabelApplied } =
     await createStoryIssues({
       provider,
@@ -666,24 +688,6 @@ export async function runPlanPersist({
   recordAuditFilings({ stories, created, tickets: rawStories, dryRun });
 
   const primary = created[0];
-  const waveTable = buildWaveTable(
-    stories.map((s) => ({
-      slug: s.slug,
-      title: s.title,
-      depends_on: s.depends_on,
-    })),
-  );
-
-  // Story #5265: the table says which Stories share an order; the dispatcher
-  // decides which of those actually run together, and it decides on the
-  // evidence-widened footprint. Run its own predicate over the assembled
-  // bodies — the exact artifact the tick will read back off GitHub — so the
-  // comment names the serialisation instead of promising parallelism the
-  // next tick refuses. `tempRoot` is threaded for the same reason the tick
-  // threads it: the scrape must ignore this project's scratch root.
-  const waveCollisions = predictWaveSerialisation(waveTable, stories, {
-    tempRoot: getPaths(config).tempRoot,
-  });
 
   // Story #4541: `readPlanMetrics` is declared `(epicId, config)` but was
   // called with `config` first, so the ledger path resolver received the

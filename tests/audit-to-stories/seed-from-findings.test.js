@@ -44,6 +44,47 @@ test('buildPlanSeedMarkdown emits all canonical one-pager sections', () => {
   }
 });
 
+test('the single-plan seed states findings flat, deciding no partition (Story #5332 AC-7)', () => {
+  const findings = withFingerprints(parseAuditReports(loadAll()));
+  const { groups } = groupFindings(findings);
+  const md = buildPlanSeedMarkdown({
+    groups,
+    findings,
+    sourceReports: loadAll().map((r) => r.sourceReport),
+  });
+
+  // No `## Grouping` directive: container grouping is Gate #3's call at
+  // persist, where N is known.
+  assert.ok(!md.includes('## Grouping'), 'seed must carry no ## Grouping');
+
+  const scope = md.slice(
+    md.indexOf('## MVP Scope'),
+    md.indexOf('## Key Files'),
+  );
+  const visible = scope
+    .split('\n')
+    .filter((line) => line.trim() !== '' && !line.trim().startsWith('<!--'));
+
+  // No ordinal Story numbering anywhere in the visible list.
+  for (const line of visible) {
+    assert.doesNotMatch(
+      line,
+      /^\s*\d+\.\s/,
+      `MVP Scope must carry no numbered Story bullet: ${line}`,
+    );
+  }
+
+  // One visible bullet per finding — the findings themselves, not groups.
+  const bullets = visible.filter((line) => line.startsWith('- **'));
+  assert.equal(bullets.length, findings.length);
+  for (const f of findings) {
+    assert.ok(
+      md.includes(`- **${f.title}**`),
+      `seed must state the finding "${f.title}"`,
+    );
+  }
+});
+
 test('buildPlanSeedMarkdown references concrete files in Key Files', () => {
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);

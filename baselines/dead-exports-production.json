@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-12T17:37:05.740Z",
+  "generatedAt": "2026-09-14T11:59:17.371Z",
   "mode": "production",
   "rows": [
     {
@@ -1663,14 +1663,6 @@
     {
       "file": ".agents/scripts/lib/orchestration/single-story-lease-guard.js",
       "symbol": "resolveOperator"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "symbol": "normalizeAcceptance"
-    },
-    {
-      "file": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "symbol": "validateAcceptancePartition"
     },
     {
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-upward-writeback.js",

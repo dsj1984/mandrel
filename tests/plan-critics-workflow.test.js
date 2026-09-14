@@ -73,7 +73,7 @@ describe('/mandrel-plan critic workflow — retired helper surface stays gone', 
     for (const deleted of [
       'helpers/plan-epic.md',
       'helpers/plan-story.md',
-      'helpers/scope-triage-gate.md',
+      'helpers/split-triage-gate.md',
       'helpers/plan-epic-reference.md',
     ]) {
       assert.doesNotMatch(planSource, new RegExp(deleted.replace('.', '\\.')));
