@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-14T12:07:04.393Z",
+  "generatedAt": "2026-09-14T13:24:49.475Z",
   "rollup": {
     "*": {
       "min": 76.381,
       "p50": 99.154,
-      "p95": 122.565
+      "p95": 122.902
     }
   },
   "rows": [
@@ -192,7 +192,7 @@
     },
     {
       "path": ".agents/scripts/install-matrix-assert.js",
-      "mi": 89.263
+      "mi": 90.439
     },
     {
       "path": ".agents/scripts/lib/audit-advisories.js",
@@ -428,7 +428,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_crap-read.js",
-      "mi": 95.332
+      "mi": 95.98
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/_shared-metric.js",
@@ -925,6 +925,10 @@
     {
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
       "mi": 99.892
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-kernel.js",
+      "mi": 90.632
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
@@ -1783,8 +1787,12 @@
       "mi": 128.368
     },
     {
+      "path": ".agents/scripts/lib/runtime-deps/dep-resolution.js",
+      "mi": 105.955
+    },
+    {
       "path": ".agents/scripts/lib/runtime-deps/ensure-installed.js",
-      "mi": 103.83
+      "mi": 105.763
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/manifest.js",
@@ -1792,11 +1800,11 @@
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/preflight.js",
-      "mi": 119.577
+      "mi": 126.85
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
-      "mi": 99.595
+      "mi": 100.574
     },
     {
       "path": ".agents/scripts/lib/signals/detectors/common.js",

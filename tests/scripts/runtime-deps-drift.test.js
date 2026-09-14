@@ -30,12 +30,17 @@ const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
 
 // The required runtime packages (fail-fast enforced at install time).
 const REQUIRED_NAMED = [
+  '@babel/parser',
   'ajv',
   'ajv-formats',
+  'babel-runtime',
+  'escomplex-plugin-metrics-module',
+  'escomplex-plugin-syntax-babylon',
   'js-yaml',
   'minimatch',
   'picomatch',
-  'typhonjs-escomplex',
+  'typhonjs-ast-walker',
+  'typhonjs-escomplex-commons',
 ];
 
 describe('runtime-deps drift', () => {

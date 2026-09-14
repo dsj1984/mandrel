@@ -4,8 +4,8 @@
  *
  * ## The upstream defect
  *
- * `typhonjs-escomplex` parses with `@typhonjs/babel-parser`, so every AST it
- * analyses is a **Babel** AST. But `typhonjs-escomplex-commons`'
+ * The kernel parses with `@babel/parser`, so every AST it analyses is a
+ * **Babel** AST. But `typhonjs-escomplex-commons`'
  * `utils/ast/astSyntax.js` — the code generator that `ASTGenerator` drives —
  * was written against **ESTree**. The two disagree on node names
  * (`OptionalMemberExpression` vs a `MemberExpression` with `optional: true`)
@@ -62,6 +62,21 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+/**
+ * The package whose resolution anchors every `typhonjs-escomplex-commons` deep
+ * import in this module.
+ *
+ * `escomplex-plugin-syntax-babylon` is the package that actually reads the
+ * `astSyntax` table during a metric traversal, so its copy of `commons` is the
+ * only one worth patching.
+ *
+ * Module-local on purpose. A test proves the binding by resolving from this
+ * package's own root itself — which is the assertion worth making, since our
+ * copy and the plugin's coincide under a hoisting installer and an
+ * "ours === theirs" check would pass vacuously.
+ */
+const ANCHOR_PACKAGE = 'escomplex-plugin-syntax-babylon';
+
 /** Marker set on every function this module installs, for idempotency. */
 const PATCH_MARKER = Symbol.for('mandrel.escomplexAstCompat');
 
@@ -77,25 +92,32 @@ let installResult = null;
  * back to today's behaviour (unscorable files, now reported explicitly by
  * the engine rather than silently scored 0).
  *
- * The patch must land on the *same* `typhonjs-escomplex-commons` instance the
- * kernel loads, so `commons` is resolved **through `typhonjs-escomplex`'s own
- * resolution** rather than from here. Resolving it directly would be a coin
- * flip: under a hoisting installer it usually finds the same copy, but under
- * pnpm's isolated layout — or as soon as anything declares `commons` directly —
- * it can find a *different* physical copy, and the patch then lands on a table
- * nobody reads while `install()` cheerfully reports success. Anchoring makes
- * that failure mode unreachable.
+ * The patch must land on the *same* `astSyntax` table the metric traversal
+ * reads, and that table is resolved by **`escomplex-plugin-syntax-babylon`**,
+ * from its own location — `PluginSyntaxBabylon` requires
+ * `typhonjs-escomplex-commons/dist/utils/ast/ASTGenerator` and `ASTState` binds
+ * the table it finds. So `commons` is anchored through the syntax plugin's
+ * resolution, not through this module's and not through the kernel's.
+ *
+ * Resolving it from here, or from the kernel, would be a coin flip: under a
+ * hoisting installer every copy usually coincides, but under pnpm's isolated
+ * layout — or as soon as anything declares `commons` at a different version —
+ * the plugin can read a *different* physical copy, and the patch then lands on
+ * a table nobody reads while `install()` cheerfully reports success. Anchoring
+ * on the reader makes that unreachable. Note this is why a test asserting
+ * "our copy === the patched copy" proves nothing: under hoisting it passes
+ * vacuously — a test must resolve from the plugin's own root instead.
  *
  * `requireFn` is the test seam: a cross-checkout verification harness passes
- * its own `createRequire` so the anchor starts from that checkout's escomplex.
+ * its own `createRequire` so the anchor starts from that checkout's plugin.
  *
  * @param {NodeJS.Require} [requireFn]
  * @returns {Record<string, Function>|null}
  */
 function resolveSyntaxTable(requireFn = require) {
   try {
-    const fromKernel = createRequire(requireFn.resolve('typhonjs-escomplex'));
-    const mod = fromKernel(
+    const fromReader = createRequire(requireFn.resolve(ANCHOR_PACKAGE));
+    const mod = fromReader(
       'typhonjs-escomplex-commons/dist/utils/ast/astSyntax.js',
     );
     const table = mod?.default ?? mod;
@@ -337,8 +359,8 @@ export function install(options = {}) {
 /**
  * `ASTUtil` is only needed by the `OptionalCallExpression` handler, and only at
  * call time — resolving it lazily keeps `install()` free of a second deep
- * import that could fail at module load. Anchored through the kernel for the
- * same reason as {@link resolveSyntaxTable}.
+ * import that could fail at module load. Anchored through the syntax plugin
+ * for the same reason as {@link resolveSyntaxTable}.
  *
  * `formatSequence` is a pure helper that takes the traveler and state as
  * arguments, so which copy answers is immaterial — but resolving it the same
@@ -347,8 +369,8 @@ export function install(options = {}) {
  * @returns {{ formatSequence: Function }}
  */
 function ASTUtil() {
-  const fromKernel = createRequire(require.resolve('typhonjs-escomplex'));
-  const mod = fromKernel(
+  const fromReader = createRequire(require.resolve(ANCHOR_PACKAGE));
+  const mod = fromReader(
     'typhonjs-escomplex-commons/dist/utils/ast/ASTUtil.js',
   );
   return mod?.default ?? mod;

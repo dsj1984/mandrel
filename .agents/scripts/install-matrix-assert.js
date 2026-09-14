@@ -59,16 +59,61 @@ import path from 'node:path';
  * `.agents/runtime-deps.json` and provided by the consumer's install of
  * `mandrel` (npm hoists them into node_modules), but they MUST NOT
  * appear in the consumer's *declared* package.json dependencies. Kept in sync
- * with `.agents/runtime-deps.json` `dependencies` keys.
+ * with `.agents/runtime-deps.json` `dependencies` keys — the whole set, so
+ * this list documents the closure; {@link SHAREABLE_RUNTIME_DEPS} carries the
+ * policy about which of them a consumer may also declare.
  */
 const FRAMEWORK_RUNTIME_DEPS = [
+  '@babel/parser',
   'ajv',
   'ajv-formats',
+  'babel-runtime',
+  'escomplex-plugin-metrics-module',
+  'escomplex-plugin-syntax-babylon',
   'js-yaml',
   'minimatch',
   'picomatch',
-  'typhonjs-escomplex',
+  'typhonjs-ast-walker',
+  'typhonjs-escomplex-commons',
 ];
+
+/**
+ * Runtime dependencies the framework declares but does **not** claim
+ * exclusively, so a consumer declaring one is not evidence of a mutated
+ * manifest.
+ *
+ * This check exists to catch a consumer's `package.json` being written into
+ * with framework-internal packages. That inference only holds for packages
+ * nobody else would plausibly declare. `@babel/parser` and `babel-runtime`
+ * fail that test completely: a repository with its own Babel pipeline, AST
+ * tooling or legacy transpile output declares them for its own reasons, and
+ * failing `manifest-clean` for that would be a false positive on an ordinary
+ * consumer rather than a caught mutation.
+ *
+ * Kept as an explicit list rather than a heuristic: adding a widely-used
+ * package to the framework's runtime closure should be a deliberate decision
+ * to stop policing it, recorded here.
+ */
+const SHAREABLE_RUNTIME_DEPS = ['@babel/parser', 'babel-runtime'];
+
+/**
+ * Is this framework dependency's presence in a consumer manifest evidence of a
+ * mutated manifest?
+ *
+ * Only for packages the framework claims exclusively. A shareable one is
+ * declared by ordinary repositories for their own reasons.
+ *
+ * @param {string} dep
+ * @param {Record<string, string>} declared Consumer's merged declared deps.
+ * @returns {boolean}
+ */
+function isLeak(dep, declared) {
+  if (!(dep in declared)) return false;
+  return !SHAREABLE_RUNTIME_DEPS.includes(dep);
+}
+
+/** Exported for the manifest-mirror drift assertion. */
+export { FRAMEWORK_RUNTIME_DEPS, SHAREABLE_RUNTIME_DEPS };
 
 /** The verdict marker `mandrel doctor` prints when every check passes. */
 const DOCTOR_READY_MARKER = '✅  Ready';
@@ -157,7 +202,7 @@ export function checkManifestClean({ consumer, packageName, fs = nodeFs }) {
     ...(manifest.peerDependencies ?? {}),
   };
 
-  const leaked = FRAMEWORK_RUNTIME_DEPS.filter((dep) => dep in declared);
+  const leaked = FRAMEWORK_RUNTIME_DEPS.filter((dep) => isLeak(dep, declared));
   if (leaked.length > 0) {
     return {
       ok: false,

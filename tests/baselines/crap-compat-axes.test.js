@@ -80,15 +80,17 @@ describe('CRAP_COMPAT_AXES — per-axis check()', () => {
     assert.equal(axis('missing-baseline').check(VALID_CTX), null);
   });
 
-  it('escomplex-mismatch fires when scorer version drifts', () => {
-    assert.match(
-      axis('escomplex-mismatch').check({
-        ...VALID_CTX,
-        runningEscomplexVersion: '0.9.0',
-      }),
-      /scorer changed from 0\.8\.0 to 0\.9\.0/,
+  it('carries no escomplex-mismatch axis', () => {
+    // The axis was declared `fatal` and could not fire in either direction:
+    // the loaded-envelope pass excluded it as vacuous (the v2 envelope has no
+    // `escomplexVersion`), and the peer pass back-filled the value from the
+    // running scorer before comparing it against the running scorer. It was
+    // removed rather than repaired, so assert it stays gone — a fatal-looking
+    // gate that cannot fail is worse than no gate.
+    assert.equal(
+      CRAP_COMPAT_AXES.find((a) => a.name === 'escomplex-mismatch'),
+      undefined,
     );
-    assert.equal(axis('escomplex-mismatch').check(VALID_CTX), null);
   });
 
   it('kernel-drift fires when kernel version drifts', () => {
@@ -270,14 +272,17 @@ describe('evaluateBaselineCompatibility — reduce semantics', () => {
     assert.match(out.message, /no baseline found/);
   });
 
-  it('short-circuits on escomplex-mismatch (fatal) and ignores warn axes', () => {
+  it('short-circuits on a fatal axis and ignores warn axes', () => {
+    // Previously asserted through `escomplex-mismatch`, which was removed for
+    // being unfireable. The contract under test is the reduce's, not that
+    // axis's: a fatal verdict stops the reduce and discards warn-level output.
     const out = evaluateBaselineCompatibility({
       ...VALID_CTX,
-      runningEscomplexVersion: '0.9.0',
+      baseline: { ...VALID_BASELINE, scoringSemantics: 'method-identity-v1' },
       runningKernelVersion: '9.9.9',
     });
     assert.equal(out.ok, false);
-    assert.equal(out.kind, 'escomplex-mismatch');
+    assert.equal(out.kind, 'scoring-semantics-drift');
     assert.equal(out.exitCode, 1);
     assert.ok(!('warnings' in out));
   });
@@ -580,19 +585,19 @@ describe('read path — one door, complete (#5002)', () => {
     }
   });
 
-  it('re-keys rows onto `file` and back-fills escomplexVersion', () => {
+  it('re-keys rows onto `file` and stamps no escomplexVersion', () => {
     const { dir, baselinePath } = writeEnvelope(VALID_BASELINE);
     try {
       const loaded = loadViaProductionDoor(baselinePath);
       assert.deepEqual(loaded.rows, [
         { crap: 2, file: 'src/a.ts', method: 'run', startLine: 3 },
       ]);
-      // The v2 envelope carries no `escomplexVersion`, and
-      // `escomplex-mismatch` is a FATAL axis — so a read path that left it
-      // undefined would fail every baseline closed on a field that was never
-      // on disk.
-      assert.equal(typeof loaded.escomplexVersion, 'string');
-      assert.ok(loaded.escomplexVersion.length > 0);
+      // The projection used to back-fill `escomplexVersion` from the running
+      // scorer, purely to feed the `escomplex-mismatch` axis — which made that
+      // axis compare a value against itself. With the axis gone the back-fill
+      // has no consumer, so the projection must not invent a field the v2
+      // envelope never carried.
+      assert.equal(loaded.escomplexVersion, undefined);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

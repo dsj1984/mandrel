@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T12:06:58.197Z",
+  "generatedAt": "2026-09-14T13:17:50.944Z",
   "rollup": {
     "*": {
-      "lines": 96.31,
+      "lines": 96.32,
       "branches": 87.3,
-      "functions": 88.25
+      "functions": 88.27
     }
   },
   "rows": [
@@ -1424,6 +1424,12 @@
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
       "lines": 96.39,
       "branches": 72.92,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-kernel.js",
+      "lines": 98.96,
+      "branches": 85.37,
       "functions": 100
     },
     {

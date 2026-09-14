@@ -292,9 +292,12 @@ the script's location to your repo root). The required set is enumerated in
 a single vendored manifest that ships inside the bundle:
 
 - **[`runtime-deps.json`](runtime-deps.json)** — the single source of
-  truth. Its `dependencies` block lists the **required** packages (`ajv`,
-  `ajv-formats`, `js-yaml`, `minimatch`, `picomatch`,
-  `typhonjs-escomplex`); its `optionalDependencies` block lists packages
+  truth. Its `dependencies` block lists the **required** packages — `ajv`,
+  `ajv-formats`, `js-yaml`, `minimatch`, `picomatch`, plus the complexity
+  kernel's closure (`@babel/parser`, `typhonjs-escomplex-commons`,
+  `escomplex-plugin-metrics-module`, `escomplex-plugin-syntax-babylon`,
+  `typhonjs-ast-walker`, and `babel-runtime`, which those packages require
+  without declaring); its `optionalDependencies` block lists packages
   used behind graceful-degradation paths (`typescript` for TS-source
   scoring in the maintainability engine, `chokidar` for `quality:watch`,
   `@commitlint/load` for commit-subject sizing).

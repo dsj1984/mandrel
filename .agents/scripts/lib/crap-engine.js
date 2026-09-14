@@ -1,4 +1,3 @@
-import escomplex from 'typhonjs-escomplex';
 import { coverageForMethodInEntry } from './coverage-utils.js';
 // `finalizeMethodRowsWithBaseline` (Story #4981) lives in
 // crap-baseline-join.js — `resolveRawRow`, the per-row policy it shares with
@@ -15,6 +14,7 @@ import {
 } from './crap-coordinates.js';
 import { deriveMethodIdentities } from './crap-method-identity.js';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
+import { analyzeModule } from './escomplex-kernel.js';
 
 export { COORDINATE_ORIGINAL, COORDINATE_TRANSPILED, crapFormula };
 
@@ -256,7 +256,7 @@ export function calculateCrapForSource(
 ) {
   let report;
   try {
-    report = escomplex.analyzeModule(source);
+    report = analyzeModule(source);
   } catch {
     return UNSCORABLE;
   }

@@ -1,9 +1,11 @@
 /**
- * runtime-deps/preflight — pure helpers for the dependency-presence check.
+ * runtime-deps/preflight — pure helpers for the dependency-presence check's
+ * *messaging* half.
  *
- * These functions hold no side effects so they are unit-testable in
- * isolation: `checkRuntimeDeps` takes an injected `resolve` seam,
- * `detectPackageManager` takes an injected `exists` seam, and
+ * The check itself moved to `dep-resolution.js`, which owns resolving a
+ * declared dependency, judging its major, and explaining a mismatch. What is
+ * left here holds no side effects and stays unit-testable in isolation:
+ * `detectPackageManager` takes an injected `exists` seam and
  * `formatMissingDepsMessage` is a pure string builder. The side-effecting
  * guard that wires them to the real process lives in `ensure-installed.js`.
  *
@@ -13,27 +15,6 @@
 
 import fs from 'node:fs';
 import { detectPackageManager as detectPm } from '../detect-package-manager.js';
-
-/**
- * Resolve each required package via the injected `resolve` seam and collect
- * the ones that fail. `resolve` is typically `require.resolve` bound to the
- * framework module location; it throws `MODULE_NOT_FOUND` when a package is
- * absent from the resolvable `node_modules`.
- *
- * @param {{ required: string[], resolve: (specifier: string) => string }} opts
- * @returns {{ ok: boolean, missing: string[] }}
- */
-export function checkRuntimeDeps({ required, resolve }) {
-  const missing = [];
-  for (const dep of required) {
-    try {
-      resolve(dep);
-    } catch {
-      missing.push(dep);
-    }
-  }
-  return { ok: missing.length === 0, missing };
-}
 
 /**
  * Detect the consumer's package manager from lockfile presence so the

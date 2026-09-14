@@ -86,9 +86,9 @@ time to confirm the install is healthy.
 >
 > Prefer a surgical alternative? Replace `shamefully-hoist` with a scoped
 > `public-hoist-pattern[]=` line per package listed in
-> `.agents/runtime-deps.json` (`ajv`, `ajv-formats`, `js-yaml`, `minimatch`,
-> `picomatch`, `typhonjs-escomplex`). If `mandrel doctor`
-> reports `runtime-deps missing: …`, this is the fix.
+> `.agents/runtime-deps.json` — read the file rather than copying a list from
+> here, since the complexity kernel's closure is several packages. If
+> `mandrel doctor` reports `runtime-deps missing: …`, this is the fix.
 
 `bootstrap.js` is interactive on a TTY and auto-accepts the
 owner/repo/base branch/operator handle it can infer from your local

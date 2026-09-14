@@ -28,12 +28,13 @@
  */
 
 import { createRequire } from 'node:module';
-import { loadRuntimeDepsManifest } from './manifest.js';
+import { resolveDependencyVersion } from '../dependency-version.js';
 import {
   checkRuntimeDeps,
-  detectPackageManager,
-  formatMissingDepsMessage,
-} from './preflight.js';
+  formatMismatchedDepsMessage,
+} from './dep-resolution.js';
+import { loadRuntimeDepsManifest } from './manifest.js';
+import { detectPackageManager, formatMissingDepsMessage } from './preflight.js';
 
 // `require.resolve` bound to this module's location walks `node_modules`
 // upward from `.agents/scripts/lib/runtime-deps/` to the consumer root —
@@ -50,7 +51,8 @@ const frameworkRequire = createRequire(import.meta.url);
  *   cwd?: string,
  *   stderr?: { write: (s: string) => void },
  *   exit?: (code: number) => void,
- *   manifest?: { required: string[] },
+ *   manifest?: { required: string[], dependencies?: Record<string,string> },
+ *   readVersion?: (name: string) => string | null,
  * }} [opts]
  * @returns {{ ok: boolean, missing: string[] }}
  */
@@ -61,6 +63,7 @@ export function ensureRuntimeDepsInstalled(opts = {}) {
     stderr = process.stderr,
     exit = process.exit,
     manifest = safeLoadManifest(),
+    readVersion,
   } = opts;
 
   // A manifest we cannot read is a packaging defect the drift test owns —
@@ -70,15 +73,47 @@ export function ensureRuntimeDepsInstalled(opts = {}) {
   const result = checkRuntimeDeps({
     required: manifest.required,
     resolve: requireResolve,
+    ranges: manifest.dependencies ?? null,
+    readVersion: readVersion ?? defaultReadVersion,
   });
   if (result.ok) return result;
 
-  const packageManager = detectPackageManager(cwd);
-  stderr.write(
-    `${formatMissingDepsMessage(result.missing, { root: cwd, packageManager })}\n`,
-  );
+  stderr.write(`${describeFailure(result, cwd)}\n`);
   exit(1);
   return result;
+}
+
+/**
+ * Remediation text for a failed check.
+ *
+ * Absence is reported first: a package that is not installed cannot have a
+ * version, and installing it is the prerequisite for any version complaint
+ * being actionable.
+ *
+ * @param {{ missing: string[], mismatched: {name: string, required: string, resolved: string}[] }} result
+ * @param {string} cwd
+ * @returns {string}
+ */
+function describeFailure(result, cwd) {
+  if (result.missing.length === 0) {
+    return formatMismatchedDepsMessage(result.mismatched, { root: cwd });
+  }
+  const packageManager = detectPackageManager(cwd);
+  return formatMissingDepsMessage(result.missing, {
+    root: cwd,
+    packageManager,
+  });
+}
+
+/**
+ * Read a resolved package's version through the framework's own resolution,
+ * so the version checked is the one the framework's imports will load.
+ *
+ * @param {string} name
+ * @returns {string | null}
+ */
+function defaultReadVersion(name) {
+  return resolveDependencyVersion(name, frameworkRequire);
 }
 
 /**

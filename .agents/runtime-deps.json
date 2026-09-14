@@ -1,12 +1,17 @@
 {
-  "description": "Single source of truth for the third-party npm packages the .agents/ framework scripts import at runtime. This manifest ships *inside* .agents/ so it travels with the mandrel package into consumer projects. Consumers must provide these packages in the node_modules resolvable from their repository root (the framework scripts free-ride on the consumer's install). The `dependencies` block is fail-fast enforced by the preflight guard (.agents/scripts/lib/runtime-deps/ensure-installed.js); the `optionalDependencies` block lists packages that are imported behind graceful-degradation paths (try/catch or dev-only watch tooling) and are therefore declared but never preflight-blocked. A drift test (tests/scripts/runtime-deps-drift.test.js) asserts every third-party import under .agents/scripts/** is declared here. Version ranges mirror the framework's own root package.json.",
+  "description": "Single source of truth for the third-party npm packages the .agents/ framework scripts import at runtime. This manifest ships *inside* .agents/ so it travels with the mandrel package into consumer projects. Consumers must provide these packages in the node_modules resolvable from their repository root (the framework scripts free-ride on the consumer's install). The `dependencies` block is fail-fast enforced by the preflight guard (.agents/scripts/lib/runtime-deps/ensure-installed.js); the `optionalDependencies` block lists packages that are imported behind graceful-degradation paths (try/catch or dev-only watch tooling) and are therefore declared but never preflight-blocked. A drift test (tests/scripts/runtime-deps-drift.test.js) asserts every third-party import under .agents/scripts/** is declared here. Version ranges mirror the framework's own root package.json. Two entries need their reason recorded. `@babel/parser` is pinned to ^7 because the kernel's fixed plugin list does not parse under 8.x, and the range is documentation rather than enforcement \u2014 `.agents/` resolves from the consumer's own node_modules \u2014 so the kernel asserts the resolved major at load. `babel-runtime` is declared even though no framework script imports it: four of the metric-core packages require it and none of them declares it, so it resolved only by being hoisted from the parse/dispatch plumbing this framework used to depend on. Declaring it makes the closure explicit and preflight-enforced. The import-vs-manifest drift guard only flags imported-but-undeclared, so a declared-but-unimported peer repair like this is legal by design.",
   "dependencies": {
+    "@babel/parser": "^7.29.3",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "babel-runtime": "^6.26.0",
+    "escomplex-plugin-metrics-module": "^0.1.0",
+    "escomplex-plugin-syntax-babylon": "^0.1.0",
     "js-yaml": "^4.3.1",
     "minimatch": "^10.0.0",
     "picomatch": "^4.0.4",
-    "typhonjs-escomplex": "^0.1.0"
+    "typhonjs-ast-walker": "^0.2.1",
+    "typhonjs-escomplex-commons": "^0.1.1"
   },
   "optionalDependencies": {
     "@commitlint/load": "^21.0.0",

@@ -14,7 +14,7 @@
     },
     "escomplexVersion": {
       "type": "string",
-      "description": "typhonjs-escomplex version used for the scan."
+      "description": "Version of the package that computes the metrics (escomplex-plugin-metrics-module) used for the scan."
     },
     "summary": {
       "type": "object",

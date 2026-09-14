@@ -18,7 +18,7 @@
     },
     "escomplexVersion": {
       "type": "string",
-      "description": "Version of the typhonjs-escomplex dependency used to produce this baseline. A mismatch against the installed dependency fails the gate closed (different kernel semantics are not negotiable)."
+      "description": "Version of the package that computes the metrics (escomplex-plugin-metrics-module) used to produce this baseline. Informational: the axis that compared it was removed in Story #5336 — the v2 envelope does not carry the field, so it could not fire. scoringSemantics is the axis that rejects an incompatible scorer."
     },
     "tsTranspilerVersion": {
       "type": "string",

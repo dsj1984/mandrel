@@ -55,8 +55,21 @@
       "enabled": false
     },
     {
-      "description": "typhonjs-escomplex is the complexity kernel for the CRAP/maintainability gates; its resolved version is stamped into committed baselines, so a bump invalidates every baseline. It is pinned at its terminal 0.1.0 (abandonware, but pure-JS and CVE-free) and must only be swapped via a dedicated baseline-recut Epic — never an automated bump. See docs/roadmap.md (Part 1, 'Also parked').",
-      "matchPackageNames": ["typhonjs-escomplex"],
+      "description": "The complexity metric core behind the CRAP/maintainability gates. These packages compute every score, so a bump changes committed baselines and must only happen via a deliberate baseline recut — never an automated bump. All are terminal abandonware (pure-JS, CVE-free); babel-runtime is declared because the metric core requires it without declaring it. See docs/roadmap.md (Part 1, 'Also parked').",
+      "matchPackageNames": [
+        "typhonjs-escomplex-commons",
+        "escomplex-plugin-metrics-module",
+        "escomplex-plugin-syntax-babylon",
+        "escomplex-plugin-syntax-estree",
+        "typhonjs-ast-walker",
+        "babel-runtime"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "@babel/parser is the complexity kernel's parser front-end. The kernel's fixed plugin list does not parse under 8.x — several names became default syntax and the parser throws on them — so a major bump breaks every score. Minor and patch bumps are fine. Adopting 8.x is a deliberate change with a baseline recut attached; see .agents/scripts/lib/escomplex-kernel.js.",
+      "matchPackageNames": ["@babel/parser"],
+      "matchUpdateTypes": ["major"],
       "enabled": false
     },
     {

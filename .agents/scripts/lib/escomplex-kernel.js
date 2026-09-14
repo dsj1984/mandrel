@@ -4,21 +4,26 @@
  *
  * ## Why this file exists
  *
- * `typhonjs-escomplex` was a thin shell around four dependency-free packages
- * that do all the actual work. The shell contributed two things: a parser
- * front-end (`@typhonjs/babel-parser`, a ~100-LOC shim over `@babel/parser`)
- * and a generic plugin bus (`typhonjs-plugin-manager`, used as a hardcoded
- * two-plugin synchronous dispatcher). Both were transpiled with Babel 6, so
- * both dragged in `babel-runtime` → **`core-js@2`** — deprecated,
- * unpatchable, and inherited by every repository that installs mandrel for a
- * kernel none of its own code imports.
+ * `typhonjs-escomplex` was a thin shell around four packages that do all the
+ * actual work. The shell contributed two things: a parser front-end
+ * (`@typhonjs/babel-parser`, a ~100-LOC shim over `@babel/parser`) and a
+ * generic plugin bus (`typhonjs-plugin-manager`, used as a hardcoded
+ * two-plugin synchronous dispatcher). Nine packages of plumbing hang off
+ * those two, and none of it computes anything.
+ *
+ * What this does **not** do is remove `core-js@2`. Four of the retained
+ * metric-core packages `require('babel-runtime/core-js/*')` themselves, so it
+ * is load-bearing for the code that stays; a change that claimed otherwise
+ * would be unshippable. What it buys instead is an honest closure —
+ * `babel-runtime` is required by those packages and declared by none of them,
+ * so today it resolves only because the removed plumbing hoists it. Declaring
+ * it turns an accident into a contract.
  *
  * This module reimplements exactly those two layers over the retained metric
  * core — `typhonjs-escomplex-commons`, `escomplex-plugin-metrics-module`,
- * `escomplex-plugin-syntax-babylon`, `typhonjs-ast-walker`, which declare no
- * dependencies between them and compute every score. Nothing here computes a
- * metric; the scores come from the same packages as before, which is why they
- * do not move.
+ * `escomplex-plugin-syntax-babylon`, `typhonjs-ast-walker` — which compute
+ * every score. Nothing here computes a metric; the scores come from the same
+ * packages as before, which is why they do not move.
  *
  * ## The equivalence contract
  *

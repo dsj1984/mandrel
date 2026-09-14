@@ -22,7 +22,6 @@
 
 import path from 'node:path';
 import { readBaselineAtRef } from '../../baseline-loader.js';
-import { resolveEscomplexVersion } from '../../crap-utils.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import {
   loadFile as loadBaselineFile,
@@ -37,11 +36,6 @@ import {
  * `baselinePath` selects the explicit-path reader variant (the worktree /
  * epic-ref callers always know their own path); without one the reader
  * resolves the configured location for the `crap` kind itself.
- *
- * `escomplexVersion` is back-filled from the running scorer exactly as the
- * deleted projection stamped it — the v2 envelope does not carry the field, and
- * `escomplex-mismatch` is a fatal axis, so omitting it would fail every
- * baseline closed on a value that was never on disk.
  *
  * Returns `null` on any read/parse/schema failure; the preview gate maps that
  * to "no baseline" and fails open, as it always did.
@@ -69,7 +63,6 @@ function readCrapBaselineFromTree({ baselinePath, projectRoot } = {}) {
   }
   return {
     kernelVersion: envelope.kernelVersion,
-    escomplexVersion: resolveEscomplexVersion(),
     scoringSemantics: envelope.scoringSemantics ?? null,
     tsTranspilerVersion:
       typeof envelope.tsTranspilerVersion === 'string'
@@ -135,7 +128,6 @@ export function loadCrapBaseline({
   // No-epicRef path delegates to readFromTree which already applies the
   // shape-check + tsTranspilerVersion back-fill, so a tree read returns either
   // a valid envelope or null. Epic-ref path bypasses that helper — shape-check
-  // + back-fill happens here.
   if (!epicRef) return parsed;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;

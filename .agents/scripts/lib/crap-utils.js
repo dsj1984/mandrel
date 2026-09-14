@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import escomplex from 'typhonjs-escomplex';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import { findCoverageEntry } from './coverage-utils.js';
 import { POOL_SERIAL_THRESHOLD, runOnPool } from './cpu-pool.js';
@@ -11,6 +10,7 @@ import {
   shouldSkipFileForNoCoverage,
 } from './crap-baseline-join.js';
 import { COORDINATE_ORIGINAL, methodRowsFromReport } from './crap-engine.js';
+import { analyzeModule } from './escomplex-kernel.js';
 import { Logger } from './Logger.js';
 import { scanDirectory } from './maintainability-utils.js';
 import {
@@ -36,8 +36,24 @@ export { resolveTsTranspilerVersion };
 const SCHEMA_REF = '.agents/schemas/crap-baseline.schema.json';
 
 /**
- * Resolve the running `typhonjs-escomplex` version by walking up from `cwd`
- * and reading the nearest `node_modules/typhonjs-escomplex/package.json`.
+ * Package whose resolved version is stamped as the scorer identity.
+ *
+ * `escomplex-plugin-metrics-module` computes the metrics. The retired
+ * `typhonjs-escomplex` facade did not, so stamping it described the shell
+ * rather than the scorer.
+ */
+const SCORER_PACKAGE = 'escomplex-plugin-metrics-module';
+
+/**
+ * Resolve the running scorer's version by walking up from `cwd` and reading the
+ * nearest `node_modules/<SCORER_PACKAGE>/package.json`.
+ *
+ * The package read is `escomplex-plugin-metrics-module`, which owns the
+ * Halstead and maintainability math — not the displaced `typhonjs-escomplex`
+ * shell, which contributed a parser and a plugin bus and never a metric. The
+ * stamp is supposed to answer "could this scorer have produced different
+ * numbers", so it has to name the package that computes them.
+ *
  * Returns `'0.0.0'` when the dependency cannot be found — callers treat that
  * sentinel as "unknown environment" and may refuse to persist a baseline.
  *
@@ -51,7 +67,7 @@ export function resolveEscomplexVersion(cwd = process.cwd()) {
     const pkgPath = path.join(
       dir,
       'node_modules',
-      'typhonjs-escomplex',
+      SCORER_PACKAGE,
       'package.json',
     );
     if (fs.existsSync(pkgPath)) {
@@ -266,7 +282,7 @@ export function checkResolutionFloor(resolution, floor) {
 function analyzeOnce(source, coverageForFile, mapLine = null) {
   let report;
   try {
-    report = escomplex.analyzeModule(source);
+    report = analyzeModule(source);
   } catch {
     return { report: null, miScore: 0, crapRows: [], parseError: true };
   }
