@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T13:26:29.157Z",
+  "generatedAt": "2026-09-14T13:52:44.010Z",
   "rollup": {
     "*": {
-      "lines": 96.32,
+      "lines": 96.33,
       "branches": 87.31,
-      "functions": 88.3
+      "functions": 88.32
     }
   },
   "rows": [
@@ -265,7 +265,7 @@
     {
       "path": ".agents/scripts/install-matrix-assert.js",
       "lines": 96.93,
-      "branches": 90.57,
+      "branches": 90.91,
       "functions": 77.78
     },
     {
@@ -1273,7 +1273,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 88.24,
+      "branches": 88.57,
       "functions": 100
     },
     {
@@ -1428,8 +1428,8 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-kernel.js",
-      "lines": 98.96,
-      "branches": 85.37,
+      "lines": 99.33,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -2735,6 +2735,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/runtime-deps/parser-major.js",
+      "lines": 98.18,
+      "branches": 75,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/runtime-deps/preflight.js",
       "lines": 100,
       "branches": 87.5,
@@ -2743,7 +2749,7 @@
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "lines": 100,
-      "branches": 97.22,
+      "branches": 97.44,
       "functions": 100
     },
     {
@@ -3528,9 +3534,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 96.1,
-      "branches": 87.89,
-      "functions": 93.75
+      "lines": 97.21,
+      "branches": 88.15,
+      "functions": 94.74
     },
     {
       "path": "lib/cli/sync-agents.js",
