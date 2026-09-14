@@ -22,7 +22,6 @@ import {
   checkRuntimeDeps,
   formatMismatchedDepsMessage,
   isResolvable,
-  majorMismatch,
 } from '../../.agents/scripts/lib/runtime-deps/dep-resolution.js';
 import { ensureRuntimeDepsInstalled } from '../../.agents/scripts/lib/runtime-deps/ensure-installed.js';
 import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
@@ -133,10 +132,19 @@ describe('checkRuntimeDeps', () => {
   it('stays silent when the range or the resolved version is unreadable', () => {
     // A conservative miss is a no-op; a false positive blocks a working
     // install, so an unparseable range and an unreadable version both pass.
-    assert.equal(majorMismatch('*', '8.0.5'), false);
-    assert.equal(majorMismatch('^7.0.0', null), false);
-    assert.equal(majorMismatch('^7.0.0', '7.29.3'), false);
-    assert.equal(majorMismatch('^7.0.0', '8.0.0'), true);
+    // Driven through checkRuntimeDeps because the comparison is module-local.
+    const probe = (range, resolved) =>
+      checkRuntimeDeps({
+        required: ['p'],
+        resolve: (s) => `/resolved/${s}`,
+        ranges: { p: range },
+        readVersion: () => resolved,
+      }).mismatched.length;
+
+    assert.equal(probe('*', '8.0.5'), 0, 'unparseable range');
+    assert.equal(probe('^7.0.0', null), 0, 'unreadable version');
+    assert.equal(probe('^7.0.0', '7.29.3'), 0, 'in-range');
+    assert.equal(probe('^7.0.0', '8.0.0'), 1, 'out-of-range major');
   });
 
   it('probes the bare specifier before the manifest subpath', () => {

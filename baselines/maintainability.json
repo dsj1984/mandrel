@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-14T13:24:49.475Z",
+  "generatedAt": "2026-09-14T13:51:52.518Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.154,
+      "p50": 99.156,
       "p95": 122.902
     }
   },
@@ -928,7 +928,7 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-kernel.js",
-      "mi": 90.632
+      "mi": 88.947
     },
     {
       "path": ".agents/scripts/lib/feedback-loop/graduator-core.js",
@@ -1797,6 +1797,10 @@
     {
       "path": ".agents/scripts/lib/runtime-deps/manifest.js",
       "mi": 92.207
+    },
+    {
+      "path": ".agents/scripts/lib/runtime-deps/parser-major.js",
+      "mi": 104.946
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/preflight.js",

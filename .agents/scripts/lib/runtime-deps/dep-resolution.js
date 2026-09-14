@@ -38,6 +38,9 @@ function majorOf(spec) {
 /**
  * Does `resolved` sit outside the major `range` names?
  *
+ * Module-local: `checkRuntimeDeps` is the only caller, and exporting it only
+ * for a test would be a production-dead export.
+ *
  * `false` whenever either side is unreadable, so an unparseable range or an
  * unreadable installed version is never reported as a mismatch.
  *
@@ -50,7 +53,7 @@ function majorOf(spec) {
  * @param {string|null|undefined} resolved
  * @returns {boolean}
  */
-export function majorMismatch(range, resolved) {
+function majorMismatch(range, resolved) {
   const want = majorOf(range);
   if (want === null) return false;
   const got = majorOf(resolved);

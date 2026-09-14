@@ -20,14 +20,11 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import { describe, it } from 'node:test';
 import { methodRowsFromReport } from '../../.agents/scripts/lib/crap-engine.js';
-import {
-  analyzeModule,
-  describeParserMajorError,
-  resolveParserMajor,
-  SUPPORTED_PARSER_MAJOR,
-} from '../../.agents/scripts/lib/escomplex-kernel.js';
+import { analyzeModule } from '../../.agents/scripts/lib/escomplex-kernel.js';
+import { describeParserMajorError } from '../../.agents/scripts/lib/runtime-deps/parser-major.js';
 import {
   projectMetrics,
   reportHash,
@@ -69,7 +66,16 @@ function scoreFixture(source) {
 
 describe('escomplex-kernel — corpus preconditions', () => {
   it('replays against the parser major the corpus was captured under', () => {
-    const running = resolveParserMajor();
+    // Resolved here rather than asked of the module under test: the precondition
+    // is about the tree this replay runs in, and a test that takes the subject's
+    // word for its own inputs can be fooled by the subject.
+    const parserManifest = JSON.parse(
+      fs.readFileSync(
+        createRequire(import.meta.url).resolve('@babel/parser/package.json'),
+        'utf-8',
+      ),
+    );
+    const running = Number.parseInt(parserManifest.version, 10);
     assert.equal(
       running,
       provenance.parser.major,
@@ -171,21 +177,27 @@ describe('escomplex-kernel — modern JavaScript still scores', () => {
 });
 
 describe('escomplex-kernel — parser major guard', () => {
-  it('accepts the major it was written against', () => {
-    assert.equal(resolveParserMajor(), SUPPORTED_PARSER_MAJOR);
-    assert.equal(describeParserMajorError(), null);
+  it('accepts the parser major this tree resolves', () => {
+    // The supported major is module-local — the verdict is the public answer,
+    // so a supported tree is asserted as "no problem to report" rather than by
+    // re-stating the number the module owns.
+    assert.equal(
+      describeParserMajorError(),
+      null,
+      'the declared ^7 range must resolve a parser this kernel supports',
+    );
   });
 
   it('names the package, the resolved version and the remedy', () => {
-    const unsupported = SUPPORTED_PARSER_MAJOR + 1;
     const message = describeParserMajorError({
-      major: unsupported,
-      version: `${unsupported}.0.0`,
+      major: 8,
+      version: '8.0.5',
     });
     assert.ok(message, 'an unsupported major must produce a message');
     assert.match(message, /@babel\/parser/);
-    assert.match(message, new RegExp(`resolved ${unsupported}\\.0\\.0`));
-    assert.match(message, new RegExp(`requires ${SUPPORTED_PARSER_MAJOR}\\.x`));
+    assert.match(message, /resolved 8\.0\.5/);
+    assert.match(message, /requires 7\.x/);
+    assert.match(message, /plugin-list/);
     assert.match(message, /runtime-deps\.json/);
   });
 
