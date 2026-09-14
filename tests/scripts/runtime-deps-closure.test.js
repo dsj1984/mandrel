@@ -20,6 +20,7 @@ import {
   SHAREABLE_RUNTIME_DEPS,
 } from '../../.agents/scripts/install-matrix-assert.js';
 import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
+import { registry } from '../../lib/cli/registry.js';
 
 const require = createRequire(import.meta.url);
 
@@ -70,5 +71,24 @@ describe('runtime-deps closure', () => {
     ]) {
       assert.ok(!declared.has(pkg), `${pkg} must not be declared`);
     }
+  });
+
+  it("doctor's runtime-deps check accepts a package resolvable only by its manifest", () => {
+    // The regression this pins: the check probed bare specifiers only, so a
+    // dependency with no `main` and no `exports` read as missing while it sat
+    // installed — and `mandrel update` fails the run when doctor reports a
+    // failure, so every consumer's upgrade would have broken.
+    const check = registry.find((c) => c.name === 'runtime-deps');
+    assert.ok(check, 'doctor must carry a runtime-deps check');
+    const result = check.run({
+      manifestRequired: ['main-less-pkg'],
+      resolve: (specifier) => {
+        if (specifier === 'main-less-pkg') {
+          throw new Error('MODULE_NOT_FOUND');
+        }
+        return `/resolved/${specifier}`;
+      },
+    });
+    assert.equal(result.ok, true, result.detail);
   });
 });

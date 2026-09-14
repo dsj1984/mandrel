@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T13:17:50.944Z",
+  "generatedAt": "2026-09-14T13:26:29.157Z",
   "rollup": {
     "*": {
       "lines": 96.32,
-      "branches": 87.3,
-      "functions": 88.27
+      "branches": 87.31,
+      "functions": 88.3
     }
   },
   "rows": [
@@ -264,9 +264,9 @@
     },
     {
       "path": ".agents/scripts/install-matrix-assert.js",
-      "lines": 96.45,
-      "branches": 90,
-      "functions": 75
+      "lines": 96.93,
+      "branches": 90.57,
+      "functions": 77.78
     },
     {
       "path": ".agents/scripts/lib/audit-advisories.js",
@@ -642,9 +642,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 95.88,
-      "branches": 83.23,
-      "functions": 90.32
+      "lines": 95.94,
+      "branches": 82.93,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -1273,7 +1273,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 88.57,
+      "branches": 88.24,
       "functions": 100
     },
     {
@@ -1284,8 +1284,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 96.4,
-      "branches": 81.13,
+      "lines": 96.49,
+      "branches": 81.73,
       "functions": 100
     },
     {
@@ -1422,8 +1422,8 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
-      "lines": 96.39,
-      "branches": 72.92,
+      "lines": 95.55,
+      "branches": 72,
       "functions": 100
     },
     {
@@ -1633,7 +1633,7 @@
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
       "lines": 94.92,
-      "branches": 72,
+      "branches": 76.92,
       "functions": 100
     },
     {
@@ -2717,9 +2717,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/runtime-deps/dep-resolution.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/runtime-deps/ensure-installed.js",
-      "lines": 98,
-      "branches": 88.89,
+      "lines": 97.04,
+      "branches": 85.71,
       "functions": 100
     },
     {
@@ -2731,13 +2737,13 @@
     {
       "path": ".agents/scripts/lib/runtime-deps/preflight.js",
       "lines": 100,
-      "branches": 90.91,
+      "branches": 87.5,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 97.22,
       "functions": 100
     },
     {
