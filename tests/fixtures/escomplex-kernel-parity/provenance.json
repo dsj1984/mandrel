@@ -1,0 +1,31 @@
+{
+  "corpusVersion": 1,
+  "displacedKernel": {
+    "name": "typhonjs-escomplex",
+    "version": "0.1.0"
+  },
+  "parser": {
+    "name": "@babel/parser",
+    "version": "7.29.3",
+    "major": 7
+  },
+  "astCompatInstall": {
+    "available": true,
+    "applied": [
+      "RegExpLiteral",
+      "Property",
+      "AwaitExpression",
+      "OptionalMemberExpression",
+      "OptionalCallExpression",
+      "Import",
+      "ObjectMethod",
+      "ClassMethod",
+      "ClassProperty",
+      "PropertyDefinition"
+    ]
+  },
+  "capturedAtSha": "e6408e44d3f9a7fcbdf8c9a7df4a1b68fdffd88b",
+  "corpusSha256": "5050a5e934fb4b50f5c07f8c73c42987d515e81987de0add87972ae1f2469d55",
+  "fixtureCount": 53,
+  "throwingFixtureCount": 1
+}
