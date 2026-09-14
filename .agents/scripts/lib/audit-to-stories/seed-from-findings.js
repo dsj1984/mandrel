@@ -9,7 +9,7 @@
  *   - Problem Statement (aggregated severity profile)
  *   - Recommended Direction (rollup of recommendations by dimension)
  *   - Key Assumptions (carries the source-report links forward)
- *   - MVP Scope (the proposed Stories, one bullet per group)
+ *   - MVP Scope (the findings themselves, flat — Story #5332)
  *   - Key Files (explicit file paths so `/mandrel-plan` authoring has concrete
  *     anchors)
  *   - Not Doing (out-of-scope items by convention)
@@ -19,7 +19,6 @@
 
 import { SEVERITIES } from '../findings/severity.js';
 import { auditLabelFooterForFindings } from './audit-label-taxonomy.js';
-import { formatEpicGrouping } from './epic-grouping-directive.js';
 import {
   renderFingerprintFooter,
   renderSemanticKeyFooter,
@@ -93,35 +92,56 @@ function formatRecommendedDirection(findings) {
   return lines.join('\n');
 }
 
-function formatMVPScope(groups) {
+/**
+ * The findings, flat (Story #5332).
+ *
+ * This section used to render one numbered bullet per `groupFindings` group
+ * under a `## Grouping` directive — a partition the seed had already decided
+ * before the planner read a word of it, and at a grain (`groupFindings`'s) the
+ * planner's cohesion judgment never got to review. The measured result was a
+ * sweep of 44 findings arriving as 18 Stories. The seed now states what was
+ * found and lets N reach the planner undecided; container grouping is Gate
+ * #3's call at persist, where N is known.
+ *
+ * @param {object[]} findings
+ * @returns {string}
+ */
+function formatFindingsList(findings) {
+  return findings
+    .map((f) => {
+      const label = DIMENSION_LABEL[f.dimension] ?? f.dimension;
+      const file = f.files?.[0] ? ` (\`${f.files[0]}\`)` : '';
+      const severity = f.severity ? `${f.severity} · ` : '';
+      return `- **${f.title}** — ${severity}${label}${file}`;
+    })
+    .join('\n');
+}
+
+/**
+ * The machine-readable dedup identity, one footer set per group.
+ *
+ * Deliberately **not** folded into one footer over the whole sweep, and
+ * deliberately not attached to a visible bullet. Each group's fingerprint and
+ * location-based semantic-key footers are the identity the next sweep matches
+ * on (Story #4626), and the `audit::*` labels are the reason it ever looks at
+ * the issue at all — an indexed sweep answers exact lookups from the labelled
+ * pool without reaching the provider, so a Story missing the labels is
+ * invisible however good its fingerprints (Story #5307). They are HTML
+ * comments, so they carry no partition to the planner's eye while staying
+ * byte-identical to what the standalone-Stories path emits.
+ *
+ * @param {object[]} groups
+ * @returns {string}
+ */
+function formatDedupFooters(groups) {
   return groups
-    .map((g, idx) => {
-      const dims = g.dimensions.join(' / ');
-      const file = g.files[0] ? ` (\`${g.files[0]}\`)` : '';
-      // Carry each group's fingerprint (and location-based semantic-key)
-      // footer into the seed so a Story authored from it via `/mandrel-plan` inherits
-      // the dedup identity — without this the recommended `/mandrel-plan --seed-file`
-      // path is invisible to the next sweep's dedup (Story #4626). The footers
-      // are HTML comments, so they never render in the visible one-pager but
-      // stay machine-readable for the dedup probe.
+    .map((g) => {
       const findings = Array.isArray(g.findings) ? g.findings : [];
-      const footers = [
+      return [
         renderFingerprintFooter(findings),
         renderSemanticKeyFooter(findings),
-        // ...and the `audit::*` labels the dedup corpus is listed by.
-        //
-        // Without them a Story the chained planning path files is absent from
-        // the pool an indexed sweep matches against, and with an index in play
-        // the exact lookup is answered from that pool without ever reaching
-        // the provider — so the fingerprint footer above cannot rescue it. The
-        // two footers are therefore a pair: one carries the identity, the
-        // other carries the reason the next sweep ever looks at this issue
-        // (Story #5307).
         auditLabelFooterForFindings(findings),
-      ]
-        .map((f) => `   ${f}`)
-        .join('\n');
-      return `${idx + 1}. **${g.title}** — ${dims}${file}\n${footers}`;
+      ].join('\n');
     })
     .join('\n');
 }
@@ -165,10 +185,10 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
   }
   const problem = formatProblemStatement(findings);
   const direction = formatRecommendedDirection(findings);
-  const scope = formatMVPScope(groups);
+  const scope = formatFindingsList(findings);
   const files = formatKeyFiles(groups);
   const assumptions = formatKeyAssumptions(sourceReports);
-  const grouping = formatEpicGrouping(groups);
+  const dedupFooters = formatDedupFooters(groups);
 
   return [
     '# Idea Seed: Audit Remediation',
@@ -187,15 +207,13 @@ export function buildPlanSeedMarkdown({ groups, findings, sourceReports }) {
     '',
     '## MVP Scope',
     '',
-    scope || '_(no proposed stories)_',
+    scope || '_(no findings)_',
+    '',
+    dedupFooters,
     '',
     '## Key Files',
     '',
     files,
-    '',
-    '## Grouping',
-    '',
-    grouping,
     '',
     '## Not Doing',
     '',
