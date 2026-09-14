@@ -4,7 +4,7 @@
  * Under the Story collapse (`docs/roadmap.md` § Stage 3), `/mandrel-plan` persists
  * zero-or-more Story issues directly — no Epic parent, no reconciler tree,
  * no `deliveryShape` mode matrix. Default is **one Story**; N>1 is gated by
- * the Stage-1 split-policy validator (`assertAcceptancePartition`).
+ * the supersede partition check.
  *
  * Each Story body is the single executable document: Tech Spec stays inline
  * under `## Spec`, at whatever length the work needs (Story #5312 deleted
@@ -34,7 +34,6 @@ import {
   concurrentMap,
   FANOUT_CONCURRENCY,
 } from '../../util/concurrent-map.js';
-import { assertAcceptancePartition } from '../split-policy-validator.js';
 import {
   externalDependencyId,
   isExternalDependencyRef,
@@ -514,15 +513,18 @@ function assertSharedSpecAllowed(tickets, sharedSpec) {
 
 /**
  * Assemble markdown bodies for every Story: normalize → fold spec →
- * assertAcceptancePartition → assertSupersedePartition → serialize.
+ * assertSupersedePartition → serialize.
  *
- * Both partition checks run **before** any GitHub write so a mis-authored
- * plan never leaves Stories live against an inconsistent tracker.
+ * The partition check runs **before** any GitHub write so a mis-authored
+ * plan never leaves Stories live against an inconsistent tracker. Story #5332
+ * retired the acceptance partition that used to run beside it: it refused
+ * only byte-identical acceptance text across siblings, and the split gate is
+ * now `assertNoWaveCollisions` in `run-plan-persist.js`, ahead of the first
+ * create.
  *
  * @param {object[]} tickets
  * @param {object} [opts]
  * @param {string|null} [opts.sharedSpec]
- * @param {string[]} [opts.planAcceptance]
  * @param {number[]} [opts.sourceTicketIds] Ids passed to `/mandrel-plan --tickets`.
  * @returns {{ stories: Array<{ slug: string, title: string, body: string, acceptance: string[], depends_on: string[], supersedes: Array<{ id: number, note: string|null }> }> }}
  */
@@ -539,9 +541,6 @@ export function assemblePlanStories(tickets, opts = {}) {
     (ticket) => assembleOnePlanStory(ticket, opts).story,
   );
 
-  assertAcceptancePartition(stories, {
-    planAcceptance: opts.planAcceptance,
-  });
   assertSupersedePartition(stories, opts.sourceTicketIds ?? []);
 
   return { stories };
