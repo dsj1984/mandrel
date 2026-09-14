@@ -265,6 +265,29 @@ describe('ensureRuntimeDepsInstalled', () => {
     assert.equal(written, '');
   });
 
+  it('reports a version mismatch, not an install, when nothing is missing', () => {
+    // The mismatched-only failure path: every package resolves, so re-running
+    // the installer changes nothing and the remedy has to be a pin. Untested
+    // until now, which is what made it a coverage regression.
+    let written = '';
+    let exited = null;
+    ensureRuntimeDepsInstalled({
+      requireResolve: (s) => `/resolved/${s}`,
+      cwd: '/consumer',
+      stderr: { write: (s) => (written += s) },
+      exit: (c) => (exited = c),
+      manifest: {
+        required: ['@babel/parser'],
+        dependencies: { '@babel/parser': '^7.29.3' },
+      },
+      readVersion: () => '8.0.5',
+    });
+    assert.equal(exited, 1);
+    assert.match(written, /version mismatch/);
+    assert.match(written, /need \^7\.29\.3, resolved 8\.0\.5/);
+    assert.doesNotMatch(written, /not installed/);
+  });
+
   it('stays inert (ok, no exit) when the manifest cannot be loaded', () => {
     let exited = null;
     const result = ensureRuntimeDepsInstalled({

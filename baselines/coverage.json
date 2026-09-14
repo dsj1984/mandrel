@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T13:55:29.429Z",
+  "generatedAt": "2026-09-14T14:04:12.739Z",
   "rollup": {
     "*": {
       "lines": 96.33,
-      "branches": 87.33,
+      "branches": 87.34,
       "functions": 88.32
     }
   },
@@ -1273,7 +1273,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 88.24,
+      "branches": 88.57,
       "functions": 100
     },
     {
@@ -2724,8 +2724,8 @@
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/ensure-installed.js",
-      "lines": 97.04,
-      "branches": 85.71,
+      "lines": 98.52,
+      "branches": 92.86,
       "functions": 100
     },
     {
