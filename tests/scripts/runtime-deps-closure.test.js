@@ -13,7 +13,9 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   checkManifestClean,
@@ -60,6 +62,45 @@ describe('runtime-deps closure', () => {
         `${pkg} now declares babel-runtime — the peer repair may be redundant`,
       );
     }
+  });
+
+  it('nothing in the tree imports a displaced package', () => {
+    // Story #5336's first CI red: a test still imported typhonjs-escomplex and
+    // passed locally anyway, because a worktree's module walk-up escapes into
+    // the parent checkout where the removed package still sits installed. CI's
+    // fresh clone has no such parent. Asserting the source text closes that
+    // gap on every host — the tree, not the resolver, is the evidence.
+    const displaced = [
+      'typhonjs-escomplex',
+      '@typhonjs/babel-parser',
+      'typhonjs-plugin-manager',
+      'typhonjs-escomplex-module',
+      'typhonjs-escomplex-project',
+    ];
+    const pattern = new RegExp(
+      `(?:from\\s*|require\\(\\s*)['"](?:${displaced
+        .map((d) => d.replace(/[/.]/g, '\\$&'))
+        .join('|')})['"]`,
+    );
+    const root = path.resolve(import.meta.dirname, '../..');
+    const offenders = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules' || entry.name.startsWith('.git'))
+          continue;
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (
+          /\.(m?js)$/.test(entry.name) &&
+          pattern.test(fs.readFileSync(full, 'utf8'))
+        ) {
+          offenders.push(path.relative(root, full));
+        }
+      }
+    };
+    for (const top of ['tests', 'lib', 'bin', '.agents'])
+      walk(path.join(root, top));
+    assert.deepEqual(offenders, [], 'files importing a displaced package');
   });
 
   it('no longer declares or resolves the displaced plumbing', () => {
