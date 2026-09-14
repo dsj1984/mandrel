@@ -174,6 +174,62 @@ describe('assertNoWaveCollisions — the refusal (Story #5332 AC-4)', () => {
     );
   });
 
+  it('reads a runtime record top-level footprint untouched', () => {
+    // `resolve-stories.js` records already carry `changes` at the top level —
+    // and `files` / `changeset` are the other two shapes `storyFootprint`
+    // accepts. None may be shadowed by the `bodyObject` fallback.
+    const shapes = [
+      { changes: [{ path: SHARED_PATH }] },
+      { files: [SHARED_PATH] },
+      { changeset: [{ path: SHARED_PATH }] },
+    ];
+    for (const shape of shapes) {
+      assert.throws(
+        () =>
+          assertNoWaveCollisions(oneWave('alpha', 'beta'), [
+            { slug: 'alpha', ...shape },
+            { slug: 'beta', ...shape },
+          ]),
+        /same-wave collision/,
+        `the ${Object.keys(shape)[0]} shape must be read as declared`,
+      );
+    }
+  });
+
+  it('tolerates a footprint-free draft and a malformed record', () => {
+    // An empty footprint means "no known overlap" by `detectCollision`'s
+    // contract, so a Story declaring nothing — or a record that is not an
+    // object at all — is never withheld and never crashes the gate.
+    assert.deepEqual(
+      assertNoWaveCollisions(oneWave('alpha', 'beta'), [
+        { slug: 'alpha', title: 'alpha' },
+        { slug: 'beta', title: 'beta', bodyObject: {} },
+      ]),
+      [],
+    );
+    // A non-array `stories` degrades to an empty draft rather than throwing.
+    assert.deepEqual(assertNoWaveCollisions([], 'not-an-array'), []);
+  });
+
+  it('names every colliding pair, not just the first', () => {
+    const collisions = (() => {
+      try {
+        assertNoWaveCollisions(oneWave('a', 'b', 'c'), [
+          assembled('a'),
+          assembled('b'),
+          assembled('c'),
+        ]);
+      } catch (err) {
+        return err.message;
+      }
+      return null;
+    })();
+    assert.match(collisions, /3 same-wave collision/);
+    for (const pair of ['"a" + "b"', '"a" + "c"', '"b" + "c"']) {
+      assert.ok(collisions.includes(pair), `must name ${pair}`);
+    }
+  });
+
   it('never pairs Stories the wave table puts in different waves', () => {
     const table = [
       { wave: 0, stories: [{ slug: 'early', title: 'early' }] },

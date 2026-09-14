@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-12T20:34:11.717Z",
+  "generatedAt": "2026-09-14T12:07:04.393Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.132,
+      "p50": 99.154,
       "p95": 122.565
     }
   },
@@ -1419,6 +1419,10 @@
       "mi": 98.381
     },
     {
+      "path": ".agents/scripts/lib/orchestration/plan-persist/wave-collision-gate.js",
+      "mi": 113.557
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/plan-persist/wave-serialisation.js",
       "mi": 109.865
     },
@@ -1688,7 +1692,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-conflicts.js",
-      "mi": 93.132
+      "mi": 100.432
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
@@ -2104,7 +2108,7 @@
     },
     {
       "path": ".agents/scripts/plan-persist.js",
-      "mi": 89.432
+      "mi": 90.175
     },
     {
       "path": ".agents/scripts/plan-run-epilogue.js",
