@@ -198,6 +198,15 @@ describe('formatMissingDepsMessage', () => {
     assert.match(msg, /not installed/);
     assert.match(msg, /ajv, minimatch/);
     assert.match(msg, /pnpm install/);
+    // The other two arms of installCommand.
+    assert.match(
+      formatMissingDepsMessage(['ajv'], { root: '/c', packageManager: 'yarn' }),
+      /yarn install/,
+    );
+    assert.match(
+      formatMissingDepsMessage(['ajv'], { root: '/c', packageManager: 'npm' }),
+      /npm install/,
+    );
     assert.match(msg, /\/consumer/);
     assert.match(msg, /runtime-deps\.json/);
   });
@@ -237,6 +246,23 @@ describe('ensureRuntimeDepsInstalled', () => {
     assert.equal(exited, 1);
     assert.match(written, /Framework runtime dependencies are not installed/);
     assert.match(written, /ajv/);
+  });
+
+  it('reads the resolved version through its own resolver when none is injected', () => {
+    // Exercises the default readVersion path — the real resolver against the
+    // real tree — which every other case bypasses by injecting one. The tree
+    // is healthy here, so the assertion is that it resolves and stays silent.
+    let written = '';
+    let exited = null;
+    const result = ensureRuntimeDepsInstalled({
+      cwd: process.cwd(),
+      stderr: { write: (s) => (written += s) },
+      exit: (c) => (exited = c),
+    });
+    assert.equal(result.ok, true, written);
+    assert.deepEqual(result.mismatched, []);
+    assert.equal(exited, null);
+    assert.equal(written, '');
   });
 
   it('stays inert (ok, no exit) when the manifest cannot be loaded', () => {
