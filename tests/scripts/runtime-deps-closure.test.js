@@ -16,10 +16,12 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { describe, it } from 'node:test';
 import {
+  checkManifestClean,
   FRAMEWORK_RUNTIME_DEPS,
   SHAREABLE_RUNTIME_DEPS,
 } from '../../.agents/scripts/install-matrix-assert.js';
 import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
+import { extractThirdPartyImports } from '../../.agents/scripts/lib/runtime-deps/scan-imports.js';
 import { registry } from '../../lib/cli/registry.js';
 
 const require = createRequire(import.meta.url);
@@ -71,6 +73,62 @@ describe('runtime-deps closure', () => {
     ]) {
       assert.ok(!declared.has(pkg), `${pkg} must not be declared`);
     }
+  });
+
+  it('passes a consumer that declares a shareable dep, trips on a framework-internal one', () => {
+    // The check exists to catch a consumer manifest being written into with
+    // framework-internal packages. That inference only holds for packages
+    // nobody else would declare: @babel/parser and babel-runtime are declared
+    // by ordinary repositories for their own reasons, so flagging them would
+    // be a false positive on an innocent consumer rather than a caught
+    // mutation.
+    const withManifest = (dependencies) => ({
+      existsSync: () => true,
+      readFileSync: () => JSON.stringify({ name: 'c', dependencies }),
+    });
+
+    for (const shareable of SHAREABLE_RUNTIME_DEPS) {
+      const ok = checkManifestClean({
+        consumer: '/c',
+        packageName: 'mandrel',
+        fs: withManifest({ [shareable]: '^7.0.0' }),
+      });
+      assert.equal(ok.ok, true, `${shareable} must not read as a leak`);
+    }
+
+    const internal = FRAMEWORK_RUNTIME_DEPS.find(
+      (d) => !SHAREABLE_RUNTIME_DEPS.includes(d),
+    );
+    const leaked = checkManifestClean({
+      consumer: '/c',
+      packageName: 'mandrel',
+      fs: withManifest({ [internal]: '*' }),
+    });
+    assert.equal(leaked.ok, false, `${internal} must still read as a leak`);
+    assert.match(leaked.detail, new RegExp(internal.replace('/', '\\/')));
+  });
+
+  it('reports a dependency reached only through an aliased require', () => {
+    // `scan-imports` matched the literal `require`/`import` callees, so a
+    // module reached through a `createRequire` bound to another name was a
+    // runtime dependency the drift guard could not see — which is how
+    // typhonjs-escomplex-commons stayed undeclared while being imported.
+    const aliased = extractThirdPartyImports(
+      [
+        "import { createRequire } from 'node:module';",
+        'const fromReader = createRequire(import.meta.url);',
+        "const table = fromReader('some-pkg/dist/thing.js');",
+      ].join('\n'),
+    );
+    assert.ok(aliased.has('some-pkg'), 'aliased require must be reported');
+
+    // An alias named `require` was already covered, and a call through
+    // something that is not a createRequire binding must stay unreported —
+    // otherwise every function call taking a string literal becomes an import.
+    const notAnAlias = extractThirdPartyImports(
+      "const t = translate('some-pkg/dist/thing.js');",
+    );
+    assert.equal(notAnAlias.has('some-pkg'), false);
   });
 
   it("doctor's runtime-deps check accepts a package resolvable only by its manifest", () => {
