@@ -24598,50 +24598,6 @@
       "crap": 1
     },
     {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "normalizeAcceptance",
-      "startLine": 36,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "storyId",
-      "startLine": 64,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "validateAcceptancePartition",
-      "startLine": 84,
-      "crap": 9
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "<anon validateAcceptancePartition/(story,index)#0>",
-      "startLine": 90,
-      "crap": 4,
-      "anonymous": true
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "formatViolation",
-      "startLine": 158,
-      "crap": 4.25
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "assertAcceptancePartition",
-      "startLine": 180,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/split-policy-validator.js",
-      "method": "<anon assertAcceptancePartition/(v)#0>",
-      "startLine": 185,
-      "crap": 1,
-      "anonymous": true
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-body-gate.js",
       "method": "parseStoryBodyOrThrow",
       "startLine": 32,
@@ -28364,18 +28320,6 @@
       "method": "ticketsModePromptField",
       "startLine": 280,
       "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/templates/spec-author-prompts.js",
-      "method": "renderTechSpecSystemPrompt",
-      "startLine": 14,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/templates/spec-author-prompts.js",
-      "method": "renderAcceptanceSpecSystemPrompt",
-      "startLine": 21,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/test-env.js",

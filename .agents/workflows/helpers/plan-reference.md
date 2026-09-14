@@ -53,10 +53,10 @@ the first `createIssue`, and refuses any pair of same-wave siblings that both
 declare a path (or one of which declares a covering glob) — naming the pair,
 the paths and the two remedies (merge them, or order them with `depends_on`).
 Such a pair cannot be co-dispatched, so the split buys no parallelism and
-costs a delivery session per Story. Story #5332 replaced the acceptance
-partition with it: that check refused only byte-identical acceptance text
-across siblings, a shape model output does not produce, so it never fired on
-the fragmentation it was meant to catch. **N=1 can never trip the refusal.**
+costs a delivery session per Story. It replaced the acceptance partition,
+which refused only byte-identical acceptance text across siblings — a shape
+model output does not produce — so it never fired on the fragmentation it was
+meant to catch. **N=1 can never trip the refusal.**
 
 A draft of more than one Story also stops at **Gate #2** for operator
 approval, `--force-review` or not: a split always earns eyes. `--yes`
@@ -259,8 +259,8 @@ The conflict passes run **twice**: once over the raw `stories.json` payload
 The second pass is not belt-and-braces. The canonical authoring shape carries
 `acceptance[]` / `verify[]` at the ticket's top level and assembly folds them
 into the body, so the passes that scan `body.acceptance` / `body.verify`
-saw two empty arrays on the real payload and emitted nothing — Story #5332
-retired the two substring-match advisories that depended on it, leaving
+saw two empty arrays on the real payload and emitted nothing; the two
+substring-match advisories that depended on it are retired, leaving
 `shared-editor` as the one conflict kind. Both passes complete before the first
 `createIssue`, so a refusal still costs no writes.
 

@@ -155,7 +155,7 @@ Recommended Direction, Key Assumptions (with links to every source
 report), MVP Scope (**the findings, flat**), Key Files (so `/mandrel-plan`'s
 authoring step has concrete anchors), Not Doing.
 
-**The seed states findings, not a partition (Story #5332).** MVP Scope used
+**The seed states findings, not a partition.** MVP Scope used
 to render one numbered bullet per group beneath a `## Grouping` container
 directive — a plan the seed had already decided, at the grouping grain, before
 `/mandrel-plan` read a word of it. N now reaches the planner **undecided**: it
