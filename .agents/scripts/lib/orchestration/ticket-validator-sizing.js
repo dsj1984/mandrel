@@ -1,7 +1,6 @@
 /**
  * Story authoring guidance — the two prose constants the story-author prompt
- * and the `core/scope-triage` skill both cite, stated once so the surfaces
- * cannot drift.
+ * cites, stated once so no second copy can drift.
  *
  * Story #5312 deleted the numeric sizing model that used to live beside
  * them: `DEFAULT_MODEL_CAPACITY` with its soft / hard session-mass ceilings,
@@ -18,12 +17,16 @@
 /**
  * `DELIVERABLE_GRANULARITY_GUIDANCE` is the **single source of truth** for the
  * deliverable-granularity definition of a Story (Story #3777). It is stated
- * ONCE here and consumed by BOTH the story-author prompt template and the
- * authoring SKILL.
+ * ONCE here and consumed by the story-author prompt template.
+ *
+ * Story #5332 re-anchored the definition off "a single reviewer-sized PR":
+ * that anchor read as a size ceiling and fragmented cohesive sweeps, so the
+ * only stated sizing test is now cohesion — one coherent change with one
+ * reason to exist.
  */
 export const DELIVERABLE_GRANULARITY_GUIDANCE = Object.freeze({
   definition:
-    'A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — a shippable slice a reviewer would accept as a single PR, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module.',
+    'A Story is a **capability slice a frontier model delivers and self-verifies in one pass** — one coherent change with one reason to exist, a capability or user-visible surface, **not a single module or file**. Fold module-level slices into the capability they belong to rather than emitting one Story per module. A remediation sweep over one subsystem is one Story; its stages belong in `## Slicing`, not in sibling tickets.',
   singleConsumerRule:
     '**Single-consumer merge rule.** A Story whose only consumer is one sibling Story should be **merged into that sibling** rather than emitted separately — a single-consumer downstream slice is not its own unit of work.',
   envelopeFloor:

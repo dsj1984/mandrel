@@ -4,8 +4,11 @@
 //
 // Story #5312 (AC-2) renders the prompt from the draft's Story count: the N=1
 // core carries the body schema, the contract-level Spec rule and acceptance
-// defined as outcomes a PR reviewer can confirm; the schedule and partition
-// rules render only for a multi-Story draft. The retired directives — the
+// defined as outcomes a PR reviewer can confirm; the schedule rules render
+// only for a multi-Story draft. Story #5332 deleted the three-to-six
+// acceptance band, the reviewer-sized-PR size anchor, the parallelizable-work
+// split bullet and the risk-isolation split criterion, and replaced the
+// acceptance partition with the dispatcher's own collision refusal. The retired directives — the
 // delivery-schedule simulation, hot-file rule, justification letters, the
 // BDD scaffold Story, the scope-overlap note, the reviewability budget, the
 // `Current state (verified <date>)` preamble, the intent-then-proxy rule and
@@ -62,13 +65,33 @@ describe('story-author prompt — the N=1 core (Story #5312 AC-2)', () => {
     assert.doesNotMatch(prompt, /DEFAULT_MODEL_CAPACITY/);
   });
 
-  test('defines acceptance as outcomes a PR reviewer can confirm, guided to three to six items', () => {
+  test('defines acceptance as outcomes a PR reviewer can confirm, with no count band (Story #5332 AC-1)', () => {
     assert.match(
       prompt,
       /outcome a PR reviewer can confirm from the diff and the verify output/,
     );
-    assert.match(prompt, /three to six/);
     assert.match(prompt, /\*\*verify\*\*.*mechanical checks/);
+    // No target, floor or ceiling on the acceptance list, and a long list is
+    // never offered as a reason to split.
+    assert.doesNotMatch(prompt, /three to six/);
+    assert.match(prompt, /no target, floor or ceiling/);
+    assert.match(prompt, /never a reason to split the Story/);
+  });
+
+  test('anchors sizing on cohesion, not a reviewer-sized PR (Story #5332 AC-2)', () => {
+    assert.doesNotMatch(prompt, /single PR/);
+    assert.doesNotMatch(prompt, /probably two Stories/);
+    assert.doesNotMatch(prompt, /parallelizable work/i);
+    assert.match(prompt, /STORY SIZING — COHESION, NOT COUNT/);
+    assert.match(prompt, /A remediation sweep over one subsystem is one Story/);
+  });
+
+  test('states what a Slicing checkpoint is and how it differs from acceptance (AC-3)', () => {
+    assert.match(prompt, /A checkpoint is a \*\*stage of the work\*\*/);
+    assert.match(
+      prompt,
+      /An acceptance item is a \*\*state of the codebase\*\*/,
+    );
   });
 
   test('carries the body schema and the contract-level Spec rule, without per-file paragraphs', () => {
@@ -87,7 +110,7 @@ describe('story-author prompt — the N=1 core (Story #5312 AC-2)', () => {
 
   test('carries no schedule or partition rules', () => {
     assert.doesNotMatch(prompt, /MULTI-STORY DRAFT/);
-    assert.doesNotMatch(prompt, /ACCEPTANCE PARTITION/);
+    assert.doesNotMatch(prompt, /THE COLLISION REFUSAL/);
     assert.doesNotMatch(prompt, /wave schedule/);
   });
 
@@ -105,16 +128,22 @@ describe('story-author prompt — the N=1 core (Story #5312 AC-2)', () => {
 describe('story-author prompt — the N>1 rules (Story #5312 AC-2)', () => {
   const prompt = renderStoryAuthorPrompt({ storyCount: 2 });
 
-  test('a two-Story draft still carries the schedule and partition rules', () => {
+  test('a two-Story draft carries the schedule rules and the collision refusal', () => {
     assert.ok(prompt.startsWith(renderStoryAuthorCore()));
     assert.ok(prompt.endsWith(renderStorySplitRules()));
     assert.match(prompt, /MULTI-STORY DRAFT/);
     assert.match(prompt, /Build the wave schedule/);
     assert.match(prompt, /Every Story must earn its slot/);
     assert.match(prompt, /merges into its consumer/);
-    assert.match(prompt, /ACCEPTANCE PARTITION/);
-    assert.match(prompt, /belongs to \*\*exactly one\*\* Story/);
+    assert.match(prompt, /THE COLLISION REFUSAL/);
+    assert.match(prompt, /before it creates a single issue/);
     assert.match(prompt, /depends_on/);
+  });
+
+  test('the acceptance partition and the risk-isolation criterion are gone (AC-2, AC-5)', () => {
+    assert.doesNotMatch(prompt, /ACCEPTANCE PARTITION/);
+    assert.doesNotMatch(prompt, /belongs to \*\*exactly one\*\* Story/);
+    assert.doesNotMatch(prompt, /risk isolation/i);
   });
 
   test('the split rules still carry none of the retired strings', () => {
@@ -211,6 +240,21 @@ describe('renderStoriesTemplate — ready-to-fill authoring skeleton (AC-5)', ()
       /\((?:unit|contract|e2e|validate)\)\s*$/,
     );
     assert.match(story.acceptance[0], /PR reviewer can confirm/);
+    assert.doesNotMatch(story.acceptance[0], /three to six/);
+    assert.match(story.acceptance[0], /no target and no ceiling/);
+  });
+
+  test('the template carries a filled, multi-checkpoint ## Slicing example (AC-3)', () => {
+    const [story] = JSON.parse(renderStoriesTemplate());
+    const { body } = parseStoryBody(story.body);
+    const checkpoints = body.slicing
+      .split('\n')
+      .filter((line) => /^\d+\.\s+\S/.test(line.trim()));
+    assert.ok(
+      checkpoints.length >= 3,
+      `template ## Slicing must show multiple checkpoints, got ${checkpoints.length}`,
+    );
+    assert.doesNotMatch(body.slicing, /^Fill:/im);
   });
 
   test('deterministic — two renders are byte-identical', () => {

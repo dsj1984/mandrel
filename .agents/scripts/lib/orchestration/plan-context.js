@@ -329,6 +329,17 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
       title: 'Fill: short descriptive title',
       body: {
         goal: 'Fill: one sentence stating why this Story exists.',
+        // A filled, multi-checkpoint example rather than a placeholder
+        // (Story #5332): `## Slicing` is how one cohesive sweep stays one
+        // Story, so the skeleton has to show an author what a checkpoint
+        // list looks like. Each line is a stage of the work — a commit
+        // boundary inside one session — never a restatement of an
+        // acceptance item, which states what is true once the Story lands.
+        slicing:
+          '1. Re-anchor the shared constant and its consumers.\n' +
+          '2. Move the gate ahead of the first write and arm the refusal.\n' +
+          '3. Delete the superseded module, its test and its flag.\n' +
+          '4. Regenerate the affected baselines; run the full gate chain.',
         spec:
           'Optional — contract and invariants only: interfaces, status ' +
           'codes, security invariants, and load-bearing constraints with ' +
@@ -340,7 +351,7 @@ export function renderStoriesTemplate({ complexitySignals = null } = {}) {
         non_goals: [],
       },
       acceptance: [
-        'Fill: an outcome a PR reviewer can confirm from the diff and the verify output (three to six items)',
+        'Fill: an outcome a PR reviewer can confirm from the diff and the verify output — as many as the capability has, no target and no ceiling',
       ],
       verify: [
         'Fill: exact command or test path — the mechanical check the acceptance item rests on',
