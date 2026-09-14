@@ -5,10 +5,11 @@
  * `DEFAULT_MODEL_CAPACITY`, the `wide` declaration, `estimateStorySessionMass`
  * and the `oversized-task` / `soft-session-pressure` / `wide-undeclared` /
  * `merge-candidate` / `unanchored-constant` / `missing-reason-to-exist`
- * findings. What survives is the authoring guidance the prompt and the
- * `core/scope-triage` skill both cite, and the validator no longer scores a
- * Story's size at all: a 3000-word Spec with a broad footprint validates
- * exactly like a one-liner.
+ * findings. What survives is the authoring guidance the story-author prompt
+ * cites, and the validator no longer scores a Story's size at all: a
+ * 3000-word Spec with a broad footprint validates exactly like a one-liner.
+ * Story #5332 re-anchored the granularity definition off "a single
+ * reviewer-sized PR", which read as another ceiling.
  */
 
 import assert from 'node:assert/strict';

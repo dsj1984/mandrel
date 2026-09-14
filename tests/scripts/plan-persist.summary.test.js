@@ -166,13 +166,7 @@ describe('plan summary — findings persist beside the promise (Story #5045)', (
       [],
       // Other conflict kinds have their own remediation and are not a
       // parallelism caveat — only shared-editor belongs beside the table.
-      [
-        {
-          kind: 'implicit-cross-story-dep',
-          severity: 'soft',
-          path: 'lib/x.js',
-        },
-      ],
+      [{ kind: 'some-other-pass', severity: 'soft', path: 'lib/x.js' }],
     ]) {
       const body = buildPlanSummaryCommentBody({ ...BASE, conflictFindings });
       assert.doesNotMatch(body, /Known collisions/);

@@ -18,9 +18,13 @@ import { serialize as serializeStoryBody } from '../../../.agents/scripts/lib/st
  *
  *   (a) two Stories writing the same path in the same wave → shared-editor finding
  *   (b) two Stories writing the same path in serial waves   → no finding
- *   (c) consumer Story references producer's output path    → implicit-cross-story-dep finding
- *   (d) consumer Story has transitive depends_on to producer → no finding
- *   (e) flag upgrade path rejects on finding                → severity 'hard' + errors[] populated
+ *   (c) consumer Story has transitive depends_on to producer → no finding
+ *   (d) flag upgrade path rejects on finding                → severity 'hard' + errors[] populated
+ *
+ * Story #5332 retired the `implicit-cross-story-dep` and
+ * `missing-bdd-scaffold` advisories — both substring-matched a producer path
+ * inside a consumer's `acceptance[]` / `verify[]` prose — leaving
+ * `shared-editor` as the one conflict kind.
  *
  * 2-tier (Epic #3238): each Story is its own implementation unit and
  * carries the `body` (goal / changes / acceptance / verify) that the
@@ -113,86 +117,7 @@ test('does not emit shared-editor finding when depends_on serialises the writers
 });
 
 // ---------------------------------------------------------------------------
-// (c) — implicit-cross-story-dep: consumer references producer's output path
-// ---------------------------------------------------------------------------
-
-test("emits implicit-cross-story-dep when a Story verifies against another Story's declared path", () => {
-  const tickets = [
-    makeStory('s-producer', {
-      changes: [
-        {
-          path: '.agents/schemas/baselines/coverage.schema.json',
-          assumption: 'refactors-existing',
-        },
-      ],
-    }),
-    makeStory('s-consumer', {
-      changes: [{ path: 'src/consumer.js', assumption: 'refactors-existing' }],
-      verify: [
-        'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
-      ],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const implicit = result.findings.filter(
-    (f) => f.kind === 'implicit-cross-story-dep',
-  );
-  assert.equal(implicit.length, 1);
-  assert.equal(
-    implicit[0].path,
-    '.agents/schemas/baselines/coverage.schema.json',
-  );
-  assert.equal(implicit[0].producer.storySlug, 's-producer');
-  assert.equal(implicit[0].consumer.storySlug, 's-consumer');
-  assert.equal(implicit[0].consumer.sourceField, 'verify');
-  assert.equal(implicit[0].severity, 'soft');
-});
-
-// ---------------------------------------------------------------------------
-// (d) — implicit-cross-story-dep suppressed when transitive dep already covers it
-// ---------------------------------------------------------------------------
-
-test('does not emit implicit-cross-story-dep when consumer Story transitively depends on producer', () => {
-  const tickets = [
-    makeStory('s-producer', {
-      changes: [
-        {
-          path: '.agents/schemas/baselines/coverage.schema.json',
-          assumption: 'refactors-existing',
-        },
-      ],
-    }),
-    makeStory(
-      's-intermediate',
-      { changes: [{ path: 'src/mid.js', assumption: 'refactors-existing' }] },
-      { depends_on: ['s-producer'] },
-    ),
-    makeStory(
-      's-consumer',
-      {
-        changes: [
-          { path: 'src/consumer.js', assumption: 'refactors-existing' },
-        ],
-        verify: [
-          'ajv validate -s .agents/schemas/baselines/coverage.schema.json',
-        ],
-      },
-      { depends_on: ['s-intermediate'] },
-    ),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const implicit = result.findings.filter(
-    (f) => f.kind === 'implicit-cross-story-dep',
-  );
-  assert.deepEqual(implicit, []);
-});
-
-// ---------------------------------------------------------------------------
-// (e) — policy flag upgrades severity to 'hard' and populates errors[]
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Hygiene: clean spec produces no conflict findings
+// No overlap, no finding
 // ---------------------------------------------------------------------------
 
 test('emits no conflict findings on a spec with non-overlapping paths', () => {
@@ -205,9 +130,7 @@ test('emits no conflict findings on a spec with non-overlapping paths', () => {
     }),
   ];
   const result = validateAndNormalizeTickets(tickets);
-  const conflict = result.findings.filter(
-    (f) => f.kind === 'shared-editor' || f.kind === 'implicit-cross-story-dep',
-  );
+  const conflict = result.findings.filter((f) => f.kind === 'shared-editor');
   assert.deepEqual(conflict, []);
 });
 
@@ -294,133 +217,18 @@ test('renderHardConflictError: produces a remediation hint per finding kind', ()
   assert.match(shared, /Shared-editor conflict/);
   assert.match(shared, /depends_on/);
 
-  const implicit = renderHardConflictError({
-    kind: 'implicit-cross-story-dep',
-    severity: 'hard',
-    path: '.agents/schemas/baselines/coverage.schema.json',
-    producer: { storySlug: 's-producer', taskSlug: 't-producer' },
-    consumer: {
-      storySlug: 's-consumer',
-      taskSlug: 't-consumer',
-      sourceField: 'verify',
-    },
+  // Story #5332: `shared-editor` is the only kind with a bespoke line. Any
+  // other kind renders its own `message`, so the soft surface stays legible
+  // without this module knowing every pass's shape.
+  const other = renderHardConflictError({
+    kind: 'some-other-pass',
+    message: 'A finding from another pass.',
   });
-  assert.match(implicit, /Implicit cross-Story dependency/);
-  assert.match(implicit, /s-producer/);
-  assert.match(implicit, /s-consumer/);
+  assert.equal(other, 'A finding from another pass.');
+
+  const bare = renderHardConflictError({ kind: 'nameless', path: 'src/x.js' });
+  assert.match(bare, /Conflict finding nameless on path "src\/x\.js"/);
 });
-
-// ---------------------------------------------------------------------------
-// missing-bdd-scaffold (Story #3857)
-// ---------------------------------------------------------------------------
-
-test('emits missing-bdd-scaffold when a Story verifies a .feature created in a same-wave sibling', () => {
-  const tickets = [
-    makeStory('s-scaffold', {
-      changes: [
-        {
-          path: 'tests/features/billing/invoice.feature',
-          assumption: 'creates',
-        },
-      ],
-    }),
-    makeStory('s-impl', {
-      changes: [{ path: 'src/billing.js', assumption: 'creates' }],
-      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
-  assert.equal(bdd.length, 1);
-  assert.equal(bdd[0].path, 'tests/features/billing/invoice.feature');
-  assert.equal(bdd[0].producer.storySlug, 's-scaffold');
-  assert.equal(bdd[0].consumer.storySlug, 's-impl');
-  assert.equal(bdd[0].consumer.sourceField, 'verify');
-  assert.equal(bdd[0].severity, 'soft');
-  assert.deepEqual(result.errors, []);
-});
-
-test('does not emit missing-bdd-scaffold when the consumer depends_on the scaffold Story', () => {
-  const tickets = [
-    makeStory('s-scaffold', {
-      changes: [
-        {
-          path: 'tests/features/billing/invoice.feature',
-          assumption: 'creates',
-        },
-      ],
-    }),
-    makeStory(
-      's-impl',
-      {
-        changes: [{ path: 'src/billing.js', assumption: 'creates' }],
-        verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
-      },
-      { depends_on: ['s-scaffold'] },
-    ),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
-  assert.deepEqual(bdd, []);
-});
-
-test('does not emit missing-bdd-scaffold when the same Story creates and verifies the .feature', () => {
-  const tickets = [
-    makeStory('s-self', {
-      changes: [
-        {
-          path: 'tests/features/billing/invoice.feature',
-          assumption: 'creates',
-        },
-      ],
-      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
-    }),
-    makeStory('s-other', {
-      changes: [{ path: 'src/other.js', assumption: 'creates' }],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
-  assert.deepEqual(bdd, []);
-});
-
-test('does not emit missing-bdd-scaffold for non-.feature paths', () => {
-  const tickets = [
-    makeStory('s-producer', {
-      changes: [{ path: 'src/schema.json', assumption: 'creates' }],
-    }),
-    makeStory('s-consumer', {
-      changes: [{ path: 'src/consumer.js', assumption: 'creates' }],
-      verify: ['ajv validate -s src/schema.json (contract)'],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
-  assert.deepEqual(bdd, []);
-});
-
-test('renderHardConflictError: produces a remediation hint for missing-bdd-scaffold', () => {
-  const msg = renderHardConflictError({
-    kind: 'missing-bdd-scaffold',
-    severity: 'hard',
-    path: 'tests/features/billing/invoice.feature',
-    producer: { storySlug: 's-scaffold' },
-    consumer: { storySlug: 's-impl', sourceField: 'verify' },
-  });
-  assert.match(msg, /Missing BDD scaffold/);
-  assert.match(msg, /s-scaffold/);
-  assert.match(msg, /s-impl/);
-  assert.match(msg, /depends_on/);
-});
-
-// ---------------------------------------------------------------------------
-// Object-form `changes` producer extraction (Story #3957)
-//
-// The decomposer emits object-form entries (`{ path, assumption }`). The
-// conflict detector must extract producer paths from them — not only from the
-// legacy `"<path>: <verb> ..."` string bullets — or the shared-editor and
-// implicit-cross-story-dep findings can never fire under the modern contract.
-// ---------------------------------------------------------------------------
 
 test('emits shared-editor finding for object-form creates on the same path in the same wave', () => {
   const tickets = [
@@ -483,35 +291,6 @@ test('object-form `deletes` counts as a producer for shared-editor findings', ()
   const shared = result.findings.filter((f) => f.kind === 'shared-editor');
   assert.equal(shared.length, 1);
   assert.equal(shared[0].path, 'apps/web/src/legacy/old.tsx');
-});
-
-test('emits implicit-cross-story-dep when a consumer verifies a path created object-form by another Story', () => {
-  const tickets = [
-    makeStory('s-producer', {
-      changes: [
-        { path: 'apps/api/src/queries/feed.queries.ts', assumption: 'creates' },
-      ],
-    }),
-    makeStory('s-consumer', {
-      changes: [
-        {
-          path: 'apps/web/src/components/feed/PostCard.tsx',
-          assumption: 'creates',
-        },
-      ],
-      verify: ['npm test -- apps/api/src/queries/feed.queries.ts (contract)'],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const implicit = result.findings.filter(
-    (f) => f.kind === 'implicit-cross-story-dep',
-  );
-  assert.equal(implicit.length, 1);
-  assert.equal(implicit[0].path, 'apps/api/src/queries/feed.queries.ts');
-  assert.equal(implicit[0].producer.storySlug, 's-producer');
-  assert.equal(implicit[0].consumer.storySlug, 's-consumer');
-  assert.equal(implicit[0].consumer.sourceField, 'verify');
-  assert.equal(implicit[0].severity, 'soft');
 });
 
 test('object-form bodies on the same path surface as shared-editor producers', () => {
@@ -586,14 +365,12 @@ test('collectStoryProducerPaths: object-form writes only, dropping reads', () =>
 // Canonical serialized STRING body — production shape (Story #4271)
 //
 // The decomposer mandates `body` as a serialized markdown string, but the
-// conflict passes (`indexConsumers`, `indexAssumptionEntries`,
-// `computeMissingBddScaffoldFindings`, the sibling-create scan in
-// `computeRegistryFindings`) historically read `story.body` only when it was
-// already an object — so on the production string shape the
-// `implicit-cross-story-dep`, `fan-out`, and `missing-bdd-scaffold` findings
-// emitted nothing. `computeConflictFindings` now normalizes every body up
-// front, so these fixtures exercise the canonical string shape at parity with
-// the object-body cases above.
+// conflict passes (`indexAssumptionEntries`, the sibling-create scan in
+// `computeRegistryFindings`, and the advisories Story #5332 retired)
+// historically read `story.body` only when it was already an object — so on
+// the production string shape they emitted nothing. `computeConflictFindings`
+// now normalizes every body up front, so these fixtures exercise the
+// canonical string shape at parity with the object-body cases above.
 // ---------------------------------------------------------------------------
 
 /**
@@ -645,60 +422,6 @@ test('string body: emits shared-editor when two string-body Stories write the sa
   assert.equal(shared.length, 1);
   assert.equal(shared[0].path, '.github/workflows/quality.yml');
   assert.deepEqual(shared[0].storySlugs, ['s-a', 's-b']);
-});
-
-test("string body: emits implicit-cross-story-dep when a string-body consumer verifies another Story's declared path", () => {
-  const tickets = [
-    makeStringStory('s-producer', {
-      changes: [
-        {
-          path: '.agents/schemas/baselines/coverage.schema.json',
-          assumption: 'creates',
-        },
-      ],
-    }),
-    makeStringStory('s-consumer', {
-      changes: [{ path: 'src/consumer.js', assumption: 'creates' }],
-      verify: [
-        'ajv validate -s .agents/schemas/baselines/coverage.schema.json (contract)',
-      ],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const implicit = result.findings.filter(
-    (f) => f.kind === 'implicit-cross-story-dep',
-  );
-  assert.equal(implicit.length, 1);
-  assert.equal(
-    implicit[0].path,
-    '.agents/schemas/baselines/coverage.schema.json',
-  );
-  assert.equal(implicit[0].producer.storySlug, 's-producer');
-  assert.equal(implicit[0].consumer.storySlug, 's-consumer');
-  assert.equal(implicit[0].consumer.sourceField, 'verify');
-});
-
-test('string body: emits missing-bdd-scaffold when a string-body Story verifies a same-wave .feature creator', () => {
-  const tickets = [
-    makeStringStory('s-scaffold', {
-      changes: [
-        {
-          path: 'tests/features/billing/invoice.feature',
-          assumption: 'creates',
-        },
-      ],
-    }),
-    makeStringStory('s-impl', {
-      changes: [{ path: 'src/billing.js', assumption: 'creates' }],
-      verify: ['npx bddgen tests/features/billing/invoice.feature (e2e)'],
-    }),
-  ];
-  const result = validateAndNormalizeTickets(tickets);
-  const bdd = result.findings.filter((f) => f.kind === 'missing-bdd-scaffold');
-  assert.equal(bdd.length, 1);
-  assert.equal(bdd[0].path, 'tests/features/billing/invoice.feature');
-  assert.equal(bdd[0].producer.storySlug, 's-scaffold');
-  assert.equal(bdd[0].consumer.storySlug, 's-impl');
 });
 
 test('string body: a depends_on chain still serialises string-body writers (no shared-editor)', () => {

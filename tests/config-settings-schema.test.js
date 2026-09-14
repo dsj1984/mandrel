@@ -1266,7 +1266,7 @@ describe('qa.environments.*.signInSeam.skill — id pattern (Story #5285)', () =
 
   it('accepts a well-formed tier-relative id', () => {
     assert.equal(validate(withSkill('stack/qa/acme-sso')), true);
-    assert.equal(validate(withSkill('core/scope-triage')), true);
+    assert.equal(validate(withSkill('core/test-first')), true);
   });
 
   it('rejects a traversal and an uppercase segment', () => {

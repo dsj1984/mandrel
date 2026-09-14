@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-06T12:59:23.069Z",
+  "generatedAt": "2026-09-14T11:57:26.498Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -49,16 +49,6 @@
       "path": ".agents/skills/core/idea-refinement/SKILL.md",
       "description": "Refines ideas iteratively. Refine ideas through structured divergent and convergent thinking. Use \"idea-refine\" or \"ideate\" to trigger.",
       "policyCapsuleBullets": 10,
-      "allowedTools": null,
-      "vendor": null
-    },
-    {
-      "name": "scope-triage",
-      "tier": "core",
-      "category": "core",
-      "path": ".agents/skills/core/scope-triage/SKILL.md",
-      "description": "Optional split-advisory for `/mandrel-plan`. Under v2 there is no epic|story routing verdict — `/mandrel-plan` always authors Stories. Use this skill only when judging whether a draft should stay one Story or legitimately split (near-zero overlap or an architectural seam).",
-      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": null
     },

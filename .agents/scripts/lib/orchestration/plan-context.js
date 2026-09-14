@@ -31,10 +31,6 @@ import {
   renderStorySplitRules,
   ticketsModePromptField,
 } from '../templates/decomposer-prompts.js';
-import {
-  renderAcceptanceSpecSystemPrompt,
-  renderTechSpecSystemPrompt,
-} from '../templates/spec-author-prompts.js';
 import { concurrentMap, FANOUT_CONCURRENCY } from '../util/concurrent-map.js';
 import { buildComplexitySignals } from './complexity-gate.js';
 import { findDependencyCandidates } from './dependency-candidates.js';
@@ -378,25 +374,23 @@ function countEnumeratedItems(text) {
 }
 
 /**
- * Delta-shaped change-request verbs — the `core/scope-triage` skill's
- * change-request rubric routes these to `story` by default when the
- * footprint stays inside Story width.
+ * Delta-shaped change-request verbs — a change request naming one of these
+ * stays a Story by default when the footprint stays inside Story width.
  */
 const DELTA_VERB_RE =
   /\b(fix(?:es)?|tweak(?:s)?|extend(?:s)?|update(?:s)?|adjust(?:s)?|rename(?:s)?|correct(?:s)?|patch(?:es)?|bug|regression|flaky)\b/i;
 
 /**
- * Deterministic, CLI-applied scope-triage verdict over a raw `--seed` text
- * (#4496 fix 6). Embedding the verdict in the `--seed` envelope removes the
- * two skill Reads (`core/scope-triage` + the gate fragment's rubric pass)
- * from the headless path; the attended path keeps the skill-based judgment.
+ * Deterministic, CLI-applied scope signal over a raw `--seed` text
+ * (#4496 fix 6). Embedding it in the `--seed` envelope keeps the headless
+ * path from needing a judgment pass of its own.
  *
- * The heuristics anchor to the same granularity SSOT the skill anchors to —
+ * The heuristics anchor to the granularity SSOT —
  * `DELIVERABLE_GRANULARITY_GUIDANCE` in `ticket-validator-sizing.js` (one
  * Story = one coherent capability slice; multiple independent capabilities =
- * an Epic) — and to the skill's change-request delta rubric. Like the skill,
- * the verdict is **advisory**: being wrong in the `epic` direction is cheap,
- * and `borderline` is a first-class output, not a forced call.
+ * an Epic) — and to the change-request delta rubric above. The verdict is
+ * **advisory**: being wrong in the `epic` direction is cheap, and
+ * `borderline` is a first-class output, not a forced call.
  *
  * @param {{ seedText?: string }} args
  * @returns {{ verdict: 'epic'|'story'|'borderline', reasons: string[], advisory: true, appliedBy: 'cli' }}
@@ -645,12 +639,15 @@ function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
 
 /**
  * Render the authoring system prompts the collapsed pipeline's single
- * authoring pass consumes. The spec/acceptance prompts render from
- * `lib/templates/spec-author-prompts.js` (the M3/M8 handshake — envelope
- * authoritative from day one); the story prompt is the N=1 core from
- * `lib/templates/decomposer-prompts.js`, with the schedule and partition
- * rules a planner reads only when the default-single split policy clears
- * carried separately as `storySplitRules` (Story #5312).
+ * authoring pass consumes: the N=1 core from
+ * `lib/templates/decomposer-prompts.js`, with the schedule rules and the
+ * collision refusal a planner reads only when the default-single split policy
+ * clears carried separately as `storySplitRules` (Story #5312).
+ *
+ * Story #5332 deleted the `spec` / `acceptance` fields with the module that
+ * rendered them: nothing read either, and both contradicted the current
+ * contract — one asserting Spec budgets that no longer exist, the other
+ * demanding the verify tier suffixes tickets mode now strips.
  *
  * `storyTicketsRules` is the one mode-conditional field (Story #5323): it
  * only means anything when the seed is an existing ticket, and an envelope
@@ -658,12 +655,10 @@ function withAdvisorySignals(complexitySignals, { config, cwd } = {}) {
  * ticket that a `--seed` run does not have.
  *
  * @param {{ mode?: string }} [args]
- * @returns {{ spec: string, acceptance: string, story: string, storySplitRules: string, storyTicketsRules?: string }}
+ * @returns {{ story: string, storySplitRules: string, storyTicketsRules?: string }}
  */
 export function buildSystemPrompts({ mode } = {}) {
   return {
-    spec: renderTechSpecSystemPrompt(),
-    acceptance: renderAcceptanceSpecSystemPrompt(),
     story: renderStoryAuthorCore(),
     storySplitRules: renderStorySplitRules(),
     ...ticketsModePromptField(mode),
