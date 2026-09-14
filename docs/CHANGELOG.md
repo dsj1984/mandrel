@@ -15,6 +15,14 @@ All notable changes to this project will be documented in this file.
 -->
 <!-- markdownlint-disable-file MD004 MD012 MD037 -->
 
+## [2.59.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.58.0...mandrel-v2.59.0) (2026-09-14)
+
+
+### Added
+
+* planning stops fragmenting cohesive work: the acceptance band goes, the dispatcher's own collision predicate becomes the split gate, and the audit seed stops pre-cutting the partition ([#5332](https://github.com/dsj1984/mandrel/issues/5332)) ([#5334](https://github.com/dsj1984/mandrel/issues/5334)) ([e6408e4](https://github.com/dsj1984/mandrel/commit/e6408e44d3f9a7fcbdf8c9a7df4a1b68fdffd88b))
+* replace the complexity kernel's parse and dispatch layers and declare the runtime closure it leaves behind, so the framework's dependency guards describe what actually loads ([#5336](https://github.com/dsj1984/mandrel/issues/5336)) ([#5337](https://github.com/dsj1984/mandrel/issues/5337)) ([821c4f5](https://github.com/dsj1984/mandrel/commit/821c4f55fe3fe9b91b83a4ef9fe9ddee5da9db8f))
+
 ## [2.58.0](https://github.com/dsj1984/mandrel/compare/mandrel-v2.57.0...mandrel-v2.58.0) (2026-09-12)
 
 
