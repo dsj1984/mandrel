@@ -53,11 +53,29 @@ export { loadCrapBaseline } from './_crap-read.js';
 const __filename = fileURLToPath(import.meta.url);
 
 /**
- * Resolve the running `typhonjs-escomplex` version by walking up from this
- * module's directory and reading the nearest
- * `node_modules/typhonjs-escomplex/package.json`. Returns `'0.0.0'` when
- * the dependency cannot be found — callers treat that sentinel as
- * "unknown environment" and the writer refuses to persist a baseline.
+ * Package whose resolved version is stamped as the CRAP scorer identity.
+ *
+ * `escomplex-plugin-metrics-module` owns the Halstead and cyclomatic math. The
+ * displaced `typhonjs-escomplex` shell contributed a parser and a plugin bus
+ * and never computed a metric, so stamping it described the shell.
+ */
+const SCORER_PACKAGE = 'escomplex-plugin-metrics-module';
+
+/**
+ * Resolve the running scorer's version by walking up from this module's
+ * directory and reading the nearest `node_modules/<SCORER_PACKAGE>/package.json`.
+ *
+ * The package read is `escomplex-plugin-metrics-module`, which computes the
+ * metrics. It was `typhonjs-escomplex` until Story #5336 replaced that shell's
+ * parse and dispatch layers; reading a package that no longer exists would
+ * yield the sentinel below on every fresh install, and the writer would refuse
+ * to persist a baseline. (Locally it can look fine anyway — the walk-up escapes
+ * a worktree into the parent checkout, whose `node_modules` may still hold the
+ * removed package. CI's fresh clone has no such parent.)
+ *
+ * Returns `'0.0.0'` when the dependency cannot be found — callers treat that
+ * sentinel as "unknown environment" and the writer refuses to persist a
+ * baseline.
  *
  * @returns {string}
  */
@@ -68,7 +86,7 @@ export function kernelVersion() {
     const pkgPath = path.join(
       dir,
       'node_modules',
-      'typhonjs-escomplex',
+      SCORER_PACKAGE,
       'package.json',
     );
     if (fs.existsSync(pkgPath)) {
@@ -695,7 +713,14 @@ export function assessComparisonBasis(compareResult, opts = {}) {
  * transpiler's sourcemap. `startLine` is half the row identity key, so a
  * transpiler change makes the rows incomparable rather than merely stale; see
  * the `ts-transpiler-drift` axis below for the two exemptions that bound it.
- * `escomplexVersion` mismatch has always failed closed.
+ *
+ * There is no `escomplexVersion` axis. One existed, declared `fatal`, and
+ * could not fire in either direction: the v2 envelope does not carry the
+ * field, so the loaded-envelope pass excluded it as vacuous, and the peer pass
+ * back-filled the value from the running scorer before comparing it against
+ * the running scorer. A gate that presents as fatal and cannot fail is worse
+ * than an absent one, so it was removed rather than repaired — `scoringSemantics`
+ * is the axis that actually rejects an incompatible scorer.
  */
 /**
  * The one re-seed recipe every coordinate-invalidating axis ends on. Three
@@ -713,14 +738,6 @@ export const CRAP_COMPAT_AXES = [
   // missing-baseline and kernel-drift checks live in exactly one place;
   // each per-kind table composes them in with its own kind label.
   missingBaselineAxis('CRAP'),
-  {
-    name: 'escomplex-mismatch',
-    severity: 'fatal',
-    check: ({ baseline, runningEscomplexVersion }) =>
-      baseline && baseline.escomplexVersion !== runningEscomplexVersion
-        ? `[CRAP] scorer changed from ${baseline.escomplexVersion} to ${runningEscomplexVersion} — run 'npm run crap:update'`
-        : null,
-  },
   kernelDriftAxis('CRAP'),
   {
     name: 'scoring-semantics-drift',
@@ -874,9 +891,9 @@ export function evaluateBaselineCompatibility(ctx) {
  * predating both questions. The fourth (Story #4969) is about the `method`
  * half — a baseline still carrying ordinal-keyed anonymous rows.
  *
- * `escomplex-mismatch` and `kernel-drift` stay out — the v2 envelope carries
- * no `escomplexVersion`, so that axis would compare `undefined` to `undefined`
- * and pass vacuously, which is worse than not running it.
+ * `kernel-drift` stays out: it is a warn-level axis, and this pass turns a
+ * message into a fail-closed error. (`escomplex-mismatch` was the other
+ * exclusion until it was removed outright — see `CRAP_COMPAT_AXES`.)
  */
 const LOADED_ENVELOPE_AXES = [
   'scoring-semantics-drift',

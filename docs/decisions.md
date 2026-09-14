@@ -1715,6 +1715,49 @@ to `npm run crap:update` / `npm run maintainability:update`. Their
 score numbers don't change. The scoring kernel is unchanged, so future
 ADRs about complexity ranges and tier thresholds remain valid.
 
+> **Amendment (Story #5336, 2026-09-14) — the shell went, the kernel stayed.**
+> Rationale 3 above ("replacing escomplex is a multi-week project") is narrowed,
+> not overturned. `typhonjs-escomplex` was a shell around four packages that do
+> the work: a ~100-LOC parser shim over `@babel/parser` and a generic plugin bus
+> used as a hardcoded two-plugin synchronous dispatcher. Both were Babel-6
+> transpiled, and nine packages of plumbing hung off them. Those two layers are
+> now in-repo (`.agents/scripts/lib/escomplex-kernel.js`); the metric core —
+> `typhonjs-escomplex-commons`, `escomplex-plugin-metrics-module`,
+> `escomplex-plugin-syntax-babylon`, `typhonjs-ast-walker` — is untouched and
+> still computes every score, so the decision to keep the scoring kernel and to
+> strip-then-analyze for TypeScript both stand, as does every ADR about
+> complexity ranges and tier thresholds.
+>
+> **What it did not buy.** The change was proposed to remove the deprecated
+> `core-js@2`. It does not: four metric-core packages `require`
+> `babel-runtime/core-js/*` themselves, so it is load-bearing for the code that
+> stays. A first attempt (#5333) was blocked on exactly that and re-planned.
+> What the change does buy is an honest closure — `babel-runtime` is required by
+> those packages and declared by none of them, so it resolved only because the
+> removed plumbing hoisted it. It is now declared and preflight-enforced.
+> Removing `core-js` requires vendoring the metric core or replacing the metric
+> implementations, both of which stayed out of scope.
+>
+> **Equivalence is pinned, not argued.** The displaced shell becomes
+> uninstallable, so `tests/fixtures/escomplex-kernel-parity/` records its output
+> — captured under it beforehand, provenance-stamped — and the parity test
+> refuses to run when the resolved `@babel/parser` major differs. Scores did not
+> move, so no baseline was recut and no floor re-tuned.
+>
+> **One new uncontrolled input.** `.agents/` materializes into the consumer
+> root, so `@babel/parser` resolves from *their* tree, and 8.x rejects names in
+> the fixed plugin list. A manifest range documents that; it does not enforce
+> it. The kernel therefore asserts the resolved major at load, and preflight
+> gained a major-level range check.
+>
+> Separately, the `escomplexVersion` stamp now names
+> `escomplex-plugin-metrics-module`, which owns the metric math, rather than the
+> shell that never computed one; the value is unchanged (both `0.1.0`). The
+> `escomplex-mismatch` compatibility axis was **removed**: declared `fatal`, it
+> could not fire in either direction — the loaded-envelope pass excluded it as
+> vacuous and the peer pass back-filled the value from the running scorer before
+> comparing it against the running scorer.
+
 ## ADR 20260425-773a: CRAP gate becomes hard-enforcing
 
 **Status:** Accepted

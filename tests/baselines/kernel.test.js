@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -31,15 +31,33 @@ describe('listKinds()', () => {
 });
 
 describe('currentKernelVersion()', () => {
-  it("returns the installed typhonjs-escomplex version for 'crap'", () => {
+  it("returns the installed metric-core version for 'crap'", () => {
+    // The stamp names the package that computes the metrics. It named the
+    // displaced `typhonjs-escomplex` shell until Story #5336; reading a
+    // package that is no longer installed would yield the '0.0.0' sentinel and
+    // the writer would refuse to persist a baseline.
     const pkgPath = path.join(
       REPO_ROOT,
       'node_modules',
-      'typhonjs-escomplex',
+      'escomplex-plugin-metrics-module',
       'package.json',
     );
     const expected = JSON.parse(readFileSync(pkgPath, 'utf8')).version;
     assert.equal(currentKernelVersion('crap'), expected);
+  });
+
+  it('does not resolve the stamp from a displaced package', () => {
+    // Guards the shape of the #5336 defect rather than its symptom: a walk-up
+    // resolver escapes a worktree into the parent checkout, so a stale package
+    // there can make a wrong stamp look correct locally while CI's fresh clone
+    // gets the sentinel.
+    assert.notEqual(currentKernelVersion('crap'), '0.0.0');
+    for (const displaced of ['typhonjs-escomplex', '@typhonjs/babel-parser']) {
+      assert.ok(
+        !existsSync(path.join(REPO_ROOT, 'node_modules', displaced)),
+        `${displaced} is still installed — the closure did not shrink`,
+      );
+    }
   });
 
   it("returns the same version for 'maintainability' (shared escomplex kernel)", () => {

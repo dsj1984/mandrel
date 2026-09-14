@@ -1,6 +1,6 @@
 import fs from 'node:fs';
-import escomplex from 'typhonjs-escomplex';
 import { install as installAstCompat } from './escomplex-ast-compat.js';
+import { analyzeModule } from './escomplex-kernel.js';
 import { transpileIfNeeded } from './transpile.js';
 
 /**
@@ -45,7 +45,7 @@ const UNSCORABLE = 0;
  */
 export function scoreSource(sourceCode) {
   try {
-    const score = escomplex.analyzeModule(sourceCode)?.maintainability;
+    const score = analyzeModule(sourceCode)?.maintainability;
     return Number.isFinite(score)
       ? { score, unscorable: false, reason: null }
       : unscorable(`kernel returned a non-finite index (${String(score)})`);
@@ -141,7 +141,7 @@ export function scoreFile(filePath) {
  */
 export function calculateReport(sourceCode) {
   try {
-    const result = escomplex.analyzeModule(sourceCode);
+    const result = analyzeModule(sourceCode);
     const methods = (result.methods ?? []).map((m) => ({
       name: m.name,
       maintainability:

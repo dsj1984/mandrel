@@ -397,7 +397,7 @@ fails the run.
 
 A sibling per-method gate alongside the maintainability ratchet. CRAP
 scores each JavaScript method via `c² · (1 − cov)³ + c`, combining
-`typhonjs-escomplex` cyclomatic complexity with per-method coverage from
+kernel-derived cyclomatic complexity with per-method coverage from
 the `coverage/coverage-final.json` artifact your test runner already
 produces. No new runtime dependencies. Runs at three sites:
 `close-validation` (story close), `ci.yml` (push + PR), and

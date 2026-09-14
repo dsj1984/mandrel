@@ -66,11 +66,17 @@ dependency trip-wires live in the appendix, not here.
 **Operational dependency trip-wires** (not roadmap work — policy notes kept
 here so Someday stays aspirational):
 
-- **`typhonjs-escomplex`** 🔭 — the complexity kernel behind the
-  CRAP/maintainability gates is pinned at its terminal `0.1.0` (last release
-  2018). Deliberately not swapped: stable, pure JS, no reachable CVE; every
-  baseline stamps its resolved version, so any swap is its own project with
-  a full baseline recut. **Trip-wire:** a CVE against it, or install/parse
+- **The complexity metric core** 🔭 — `typhonjs-escomplex-commons`,
+  `escomplex-plugin-metrics-module`, `escomplex-plugin-syntax-babylon` and
+  `typhonjs-ast-walker` are pinned at their terminal releases (last published
+  2018). Story #5336 replaced the parse and dispatch layers around them, which
+  removed nine packages of plumbing but **not** `core-js@2` — the metric core
+  requires `babel-runtime` itself, which is why that peer is now declared
+  rather than inherited. Removing `core-js` means vendoring the metric core or
+  replacing the metric implementations; both remain unscheduled. Deliberately
+  not swapped: stable, pure JS, no reachable CVE; every baseline stamps the
+  resolved scorer version, so any swap is its own project with a full baseline
+  recut. **Trip-wire:** a CVE against it, or install/parse
   failure under a future Node major. Renovate is pinned off
   (`renovate.json`).
 - **`typescript` peer floor `>=5.0.0`** 🔒 — a permissive floor, not a pin;
@@ -100,5 +106,5 @@ Keep-invariants survive as live policy in
 [`instructions.md`](../.agents/instructions.md) and
 [`security-baseline.md`](../.agents/rules/security-baseline.md); its standing
 question survives as Someday item 6. The Part 3 per-lens cost/precision gate
-survives as Someday item 2. The `typhonjs-escomplex` note Renovate cites as
+survives as Someday item 2. The metric-core note Renovate cites as
 "Part 1, 'Also parked'" is the trip-wire above.

@@ -13,7 +13,8 @@
       "!temp",
       "!dist",
       "!node_modules",
-      "!.agents/scripts/lib/generated"
+      "!.agents/scripts/lib/generated",
+      "!tests/fixtures/escomplex-kernel-parity/corpus.json"
     ]
   },
   "formatter": {

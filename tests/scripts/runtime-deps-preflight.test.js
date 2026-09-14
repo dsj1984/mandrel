@@ -18,10 +18,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import {
+  checkRuntimeDeps,
+  formatMismatchedDepsMessage,
+  isResolvable,
+} from '../../.agents/scripts/lib/runtime-deps/dep-resolution.js';
 import { ensureRuntimeDepsInstalled } from '../../.agents/scripts/lib/runtime-deps/ensure-installed.js';
 import { loadRuntimeDepsManifest } from '../../.agents/scripts/lib/runtime-deps/manifest.js';
 import {
-  checkRuntimeDeps,
   detectPackageManager,
   formatMissingDepsMessage,
 } from '../../.agents/scripts/lib/runtime-deps/preflight.js';
@@ -79,19 +83,92 @@ describe('checkRuntimeDeps', () => {
       required: ['ajv', 'minimatch'],
       resolve: (s) => `/resolved/${s}`,
     });
-    assert.deepEqual(result, { ok: true, missing: [] });
+    assert.deepEqual(result, { ok: true, missing: [], mismatched: [] });
   });
 
   it('collects the packages that fail to resolve', () => {
+    // An absent package resolves by neither its bare name nor its manifest
+    // subpath, which is what a real `require.resolve` does — the presence
+    // probe tries both, so a fake that throws on only one is not "absent".
     const result = checkRuntimeDeps({
       required: ['ajv', 'minimatch', 'js-yaml'],
       resolve: (s) => {
-        if (s === 'minimatch') throw new Error('MODULE_NOT_FOUND');
+        if (s.startsWith('minimatch')) throw new Error('MODULE_NOT_FOUND');
         return `/resolved/${s}`;
       },
     });
     assert.equal(result.ok, false);
     assert.deepEqual(result.missing, ['minimatch']);
+  });
+
+  it('treats a package resolvable only by its manifest subpath as present', () => {
+    // `typhonjs-escomplex-commons` and `babel-runtime` ship no `main` and no
+    // `exports`, so the bare specifier does not resolve at all. Reporting
+    // those as missing would exit the process over an installed package.
+    const result = checkRuntimeDeps({
+      required: ['babel-runtime'],
+      resolve: (s) => {
+        if (s === 'babel-runtime') throw new Error('MODULE_NOT_FOUND');
+        return `/resolved/${s}`;
+      },
+    });
+    assert.deepEqual(result, { ok: true, missing: [], mismatched: [] });
+  });
+
+  it('reports a resolved package whose major is outside the declared range', () => {
+    const result = checkRuntimeDeps({
+      required: ['@babel/parser'],
+      resolve: (s) => `/resolved/${s}`,
+      ranges: { '@babel/parser': '^7.29.3' },
+      readVersion: () => '8.0.5',
+    });
+    assert.equal(result.ok, false);
+    assert.deepEqual(result.missing, []);
+    assert.deepEqual(result.mismatched, [
+      { name: '@babel/parser', required: '^7.29.3', resolved: '8.0.5' },
+    ]);
+  });
+
+  it('stays silent when the range or the resolved version is unreadable', () => {
+    // A conservative miss is a no-op; a false positive blocks a working
+    // install, so an unparseable range and an unreadable version both pass.
+    // Driven through checkRuntimeDeps because the comparison is module-local.
+    const probe = (range, resolved) =>
+      checkRuntimeDeps({
+        required: ['p'],
+        resolve: (s) => `/resolved/${s}`,
+        ranges: { p: range },
+        readVersion: () => resolved,
+      }).mismatched.length;
+
+    assert.equal(probe('*', '8.0.5'), 0, 'unparseable range');
+    assert.equal(probe('^7.0.0', null), 0, 'unreadable version');
+    assert.equal(probe('^7.0.0', '7.29.3'), 0, 'in-range');
+    assert.equal(probe('^7.0.0', '8.0.0'), 1, 'out-of-range major');
+  });
+
+  it('probes the bare specifier before the manifest subpath', () => {
+    const seen = [];
+    isResolvable('some-pkg', (s) => {
+      seen.push(s);
+      throw new Error('MODULE_NOT_FOUND');
+    });
+    assert.deepEqual(seen, ['some-pkg', 'some-pkg/package.json']);
+  });
+});
+
+describe('formatMismatchedDepsMessage', () => {
+  it('names the package, both versions, and why pinning is the remedy', () => {
+    const msg = formatMismatchedDepsMessage(
+      [{ name: '@babel/parser', required: '^7.29.3', resolved: '8.0.5' }],
+      { root: '/consumer' },
+    );
+    assert.match(msg, /version mismatch/);
+    assert.match(msg, /@babel\/parser: need \^7\.29\.3, resolved 8\.0\.5/);
+    assert.match(msg, /\/consumer/);
+    // The remedy is a pin, not an install — the package is already there.
+    assert.match(msg, /Pin a/);
+    assert.doesNotMatch(msg, /npm install/);
   });
 });
 
@@ -121,6 +198,15 @@ describe('formatMissingDepsMessage', () => {
     assert.match(msg, /not installed/);
     assert.match(msg, /ajv, minimatch/);
     assert.match(msg, /pnpm install/);
+    // The other two arms of installCommand.
+    assert.match(
+      formatMissingDepsMessage(['ajv'], { root: '/c', packageManager: 'yarn' }),
+      /yarn install/,
+    );
+    assert.match(
+      formatMissingDepsMessage(['ajv'], { root: '/c', packageManager: 'npm' }),
+      /npm install/,
+    );
     assert.match(msg, /\/consumer/);
     assert.match(msg, /runtime-deps\.json/);
   });
@@ -137,7 +223,7 @@ describe('ensureRuntimeDepsInstalled', () => {
       exit: (c) => (exited = c),
       manifest: { required: ['ajv', 'minimatch'] },
     });
-    assert.deepEqual(result, { ok: true, missing: [] });
+    assert.deepEqual(result, { ok: true, missing: [], mismatched: [] });
     assert.equal(exited, null);
     assert.equal(written, '');
   });
@@ -147,7 +233,9 @@ describe('ensureRuntimeDepsInstalled', () => {
     let written = '';
     ensureRuntimeDepsInstalled({
       requireResolve: (s) => {
-        if (s === 'ajv') throw new Error('MODULE_NOT_FOUND');
+        // Absent by every specifier, bare name and manifest subpath alike —
+        // the presence probe tries both.
+        if (s.startsWith('ajv')) throw new Error('MODULE_NOT_FOUND');
         return `/resolved/${s}`;
       },
       cwd: '/consumer',
@@ -158,6 +246,46 @@ describe('ensureRuntimeDepsInstalled', () => {
     assert.equal(exited, 1);
     assert.match(written, /Framework runtime dependencies are not installed/);
     assert.match(written, /ajv/);
+  });
+
+  it('reads the resolved version through its own resolver when none is injected', () => {
+    // Exercises the default readVersion path — the real resolver against the
+    // real tree — which every other case bypasses by injecting one. The tree
+    // is healthy here, so the assertion is that it resolves and stays silent.
+    let written = '';
+    let exited = null;
+    const result = ensureRuntimeDepsInstalled({
+      cwd: process.cwd(),
+      stderr: { write: (s) => (written += s) },
+      exit: (c) => (exited = c),
+    });
+    assert.equal(result.ok, true, written);
+    assert.deepEqual(result.mismatched, []);
+    assert.equal(exited, null);
+    assert.equal(written, '');
+  });
+
+  it('reports a version mismatch, not an install, when nothing is missing', () => {
+    // The mismatched-only failure path: every package resolves, so re-running
+    // the installer changes nothing and the remedy has to be a pin. Untested
+    // until now, which is what made it a coverage regression.
+    let written = '';
+    let exited = null;
+    ensureRuntimeDepsInstalled({
+      requireResolve: (s) => `/resolved/${s}`,
+      cwd: '/consumer',
+      stderr: { write: (s) => (written += s) },
+      exit: (c) => (exited = c),
+      manifest: {
+        required: ['@babel/parser'],
+        dependencies: { '@babel/parser': '^7.29.3' },
+      },
+      readVersion: () => '8.0.5',
+    });
+    assert.equal(exited, 1);
+    assert.match(written, /version mismatch/);
+    assert.match(written, /need \^7\.29\.3, resolved 8\.0\.5/);
+    assert.doesNotMatch(written, /not installed/);
   });
 
   it('stays inert (ok, no exit) when the manifest cannot be loaded', () => {

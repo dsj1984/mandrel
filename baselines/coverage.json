@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-09-14T12:06:58.197Z",
+  "generatedAt": "2026-09-14T14:04:12.739Z",
   "rollup": {
     "*": {
-      "lines": 96.31,
-      "branches": 87.3,
-      "functions": 88.25
+      "lines": 96.33,
+      "branches": 87.34,
+      "functions": 88.32
     }
   },
   "rows": [
@@ -264,9 +264,9 @@
     },
     {
       "path": ".agents/scripts/install-matrix-assert.js",
-      "lines": 96.45,
-      "branches": 90,
-      "functions": 75
+      "lines": 96.93,
+      "branches": 90.91,
+      "functions": 77.78
     },
     {
       "path": ".agents/scripts/lib/audit-advisories.js",
@@ -642,9 +642,9 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 95.88,
-      "branches": 83.23,
-      "functions": 90.32
+      "lines": 95.94,
+      "branches": 82.93,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/duplication.js",
@@ -1284,8 +1284,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 96.4,
-      "branches": 81.13,
+      "lines": 96.49,
+      "branches": 81.73,
       "functions": 100
     },
     {
@@ -1422,8 +1422,14 @@
     },
     {
       "path": ".agents/scripts/lib/escomplex-ast-compat.js",
-      "lines": 96.39,
-      "branches": 72.92,
+      "lines": 95.55,
+      "branches": 72,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/escomplex-kernel.js",
+      "lines": 99.33,
+      "branches": 92.31,
       "functions": 100
     },
     {
@@ -1627,7 +1633,7 @@
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
       "lines": 94.92,
-      "branches": 72,
+      "branches": 76.92,
       "functions": 100
     },
     {
@@ -2711,9 +2717,15 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/runtime-deps/dep-resolution.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/runtime-deps/ensure-installed.js",
-      "lines": 98,
-      "branches": 88.89,
+      "lines": 98.52,
+      "branches": 92.86,
       "functions": 100
     },
     {
@@ -2723,15 +2735,21 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/runtime-deps/parser-major.js",
+      "lines": 98.18,
+      "branches": 75,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/runtime-deps/preflight.js",
       "lines": 100,
-      "branches": 90.91,
+      "branches": 100,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/runtime-deps/scan-imports.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 97.44,
       "functions": 100
     },
     {
@@ -3516,9 +3534,9 @@
     },
     {
       "path": "lib/cli/registry.js",
-      "lines": 96.1,
-      "branches": 87.89,
-      "functions": 93.75
+      "lines": 97.21,
+      "branches": 88.15,
+      "functions": 94.74
     },
     {
       "path": "lib/cli/sync-agents.js",

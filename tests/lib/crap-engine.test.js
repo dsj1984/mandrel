@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import fs from 'node:fs';
 import { describe, it, test } from 'node:test';
-import escomplex from 'typhonjs-escomplex';
 import {
   COORDINATE_ORIGINAL,
   COORDINATE_TRANSPILED,
@@ -16,6 +15,7 @@ import {
   deriveMethodIdentities,
   isAnonymousMethodLabel,
 } from '../../.agents/scripts/lib/crap-method-identity.js';
+import { analyzeModule } from '../../.agents/scripts/lib/escomplex-kernel.js';
 
 /**
  * Build a coverage-entry fixture that forces coverageForMethodInEntry to
@@ -637,7 +637,7 @@ test('deriveFixGuidance — deterministic across repeated calls', () => {
 
 /** Identities for a source, in escomplex's emission order. */
 function identitiesFor(source) {
-  return deriveMethodIdentities(escomplex.analyzeModule(source).methods);
+  return deriveMethodIdentities(analyzeModule(source).methods);
 }
 
 /** Just the derived anonymous identities, as a Set for order-free compare. */
@@ -710,11 +710,9 @@ describe('deriveMethodIdentities — scope-path identity (Story #4969)', () => {
     // renames the very functions it did not touch. Track one of them — the
     // `(p) => p + 2` arrow — by the label escomplex gives it before and after.
     const labelOfSecondArrow = (src) => {
-      const m = escomplex
-        .analyzeModule(src)
-        .methods.find((x) =>
-          src.split('\n')[x.lineStart - 1].includes('p + 2'),
-        );
+      const m = analyzeModule(src).methods.find((x) =>
+        src.split('\n')[x.lineStart - 1].includes('p + 2'),
+      );
       return m.name;
     };
     assert.equal(labelOfSecondArrow(ANON_FIXTURE), '<anon method-2>');
@@ -777,9 +775,8 @@ export function host(v) {
     // And the complexity really did move, so the assertion above is not
     // vacuous — the comparator has a genuine regression to find.
     const cyclomaticOf = (src) =>
-      escomplex
-        .analyzeModule(src)
-        .methods.find((m) => /^<anon method-\d+>$/.test(m.name)).cyclomatic;
+      analyzeModule(src).methods.find((m) => /^<anon method-\d+>$/.test(m.name))
+        .cyclomatic;
     assert.ok(
       cyclomaticOf(after) > cyclomaticOf(before),
       'fixture must actually get more complex',

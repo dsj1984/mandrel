@@ -71,6 +71,51 @@ const STATIC_FROM =
 const SIDE_EFFECT = /^\s*import\s*['"]([^'"]+)['"]/gm;
 // `require(...)` and dynamic `import(...)` may appear mid-expression.
 const CALL_FORM = /\b(?:require|import)\s*\(\s*['"]([^'"]+)['"]/g;
+// Names bound to a `createRequire(...)` result, e.g.
+// `const fromReader = createRequire(x)`. Such a binding is a require function
+// under a different name, so calls through it are real runtime imports that
+// `CALL_FORM` cannot see — it matches the literal callees `require`/`import`.
+// A module reached only that way would be an undeclared, unpreflighted
+// dependency that this scanner reported as absent.
+const REQUIRE_ALIAS =
+  /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*createRequire\s*\(/g;
+
+/**
+ * Build a matcher for calls through `createRequire`-bound identifiers.
+ *
+ * Returns `null` when the source binds none, so the common case adds no pass.
+ * Aliases named `require` need no entry — `CALL_FORM` already covers them.
+ *
+ * @param {string} cleaned Comment-stripped source.
+ * @returns {RegExp|null}
+ */
+function aliasedRequireMatcher(cleaned) {
+  REQUIRE_ALIAS.lastIndex = 0;
+  const names = new Set();
+  let m = REQUIRE_ALIAS.exec(cleaned);
+  while (m !== null) {
+    if (m[1] !== 'require') names.add(m[1]);
+    m = REQUIRE_ALIAS.exec(cleaned);
+  }
+  if (names.size === 0) return null;
+  const alternation = [...names]
+    .map((n) => n.replace(/[$]/g, '\\$$'))
+    .join('|');
+  return new RegExp(`\\b(?:${alternation})\\s*\\(\\s*['"]([^'"]+)['"]`, 'g');
+}
+
+/**
+ * The specifier patterns to run over one source: the three fixed forms, plus
+ * an alias matcher when the source binds a `createRequire` result.
+ *
+ * @param {string} cleaned Comment-stripped source.
+ * @returns {RegExp[]}
+ */
+function specifierMatchers(cleaned) {
+  const aliased = aliasedRequireMatcher(cleaned);
+  if (!aliased) return [STATIC_FROM, SIDE_EFFECT, CALL_FORM];
+  return [STATIC_FROM, SIDE_EFFECT, CALL_FORM, aliased];
+}
 
 /**
  * Extract the set of third-party top-level package names imported by a
@@ -82,7 +127,7 @@ const CALL_FORM = /\b(?:require|import)\s*\(\s*['"]([^'"]+)['"]/g;
 export function extractThirdPartyImports(source) {
   const found = new Set();
   const cleaned = stripJsComments(source);
-  for (const re of [STATIC_FROM, SIDE_EFFECT, CALL_FORM]) {
+  for (const re of specifierMatchers(cleaned)) {
     re.lastIndex = 0;
     let match = re.exec(cleaned);
     while (match !== null) {

@@ -730,8 +730,14 @@ describe('runtime-deps check', () => {
     const check = findCheck('runtime-deps');
     const result = check.run({
       manifestRequired: ['ajv', 'missing-pkg'],
-      resolve: (dep) => {
-        if (dep === 'missing-pkg') throw new Error('MODULE_NOT_FOUND');
+      resolve: (specifier) => {
+        // Absent by every specifier, bare name and manifest subpath alike.
+        // The probe tries both, because a package with no `main` and no
+        // `exports` does not resolve by name even when installed — so a fake
+        // that rejects only the bare name describes an installed package.
+        if (specifier.startsWith('missing-pkg')) {
+          throw new Error('MODULE_NOT_FOUND');
+        }
         return '/fake/path';
       },
     });

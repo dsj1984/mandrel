@@ -18,6 +18,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 import { describe, it } from 'node:test';
 import { install } from '../../.agents/scripts/lib/escomplex-ast-compat.js';
 import { scoreSource } from '../../.agents/scripts/lib/maintainability-engine.js';
@@ -106,6 +107,51 @@ describe('escomplex-ast-compat', () => {
         'the corresponding branch in escomplex-ast-compat.js and the allowlists ' +
         'that reference it',
     );
+  });
+
+  it('patches the astSyntax copy the syntax plugin itself reads', () => {
+    // The table the metric traversal consults is resolved by
+    // `escomplex-plugin-syntax-babylon`, from its own location:
+    // `PluginSyntaxBabylon` requires `.../ASTGenerator` and `ASTState` binds
+    // whatever `astSyntax` that resolution finds. So the patch has to land on
+    // the plugin's copy, not on ours and not on the kernel's.
+    //
+    // This resolves from the PLUGIN's root deliberately. Asserting
+    // "our copy === the patched copy" would prove nothing: under a hoisting
+    // installer every copy coincides.
+    //
+    // What this test does and does not buy, stated plainly: in a hoisted tree
+    // it cannot fail, because there is only one physical `commons`. Its value
+    // is that it pins the *anchor* — re-point `ANCHOR_PACKAGE` at a package
+    // that is not the table's reader and this assertion is the thing that has
+    // to be reasoned about again. A non-vacuous version needs a tree with two
+    // `commons` copies, which no fixture here builds.
+    const fromPlugin = createRequire(
+      createRequire(import.meta.url).resolve('escomplex-plugin-syntax-babylon'),
+    );
+    const pluginsTable = fromPlugin(
+      'typhonjs-escomplex-commons/dist/utils/ast/astSyntax.js',
+    );
+    const table = pluginsTable?.default ?? pluginsTable;
+
+    const result = install();
+    assert.equal(result.available, true);
+    assert.ok(result.applied.length > 0);
+
+    // Every name `install()` reports patching must carry the marker on the
+    // table the plugin reads — that is what "the patch is bound" means.
+    const marker = Symbol.for('mandrel.escomplexAstCompat');
+    for (const name of result.applied) {
+      assert.equal(
+        typeof table[name],
+        'function',
+        `${name} missing from the plugin's astSyntax table`,
+      );
+      assert.ok(
+        table[name][marker],
+        `${name} is patched on a different copy than the plugin reads`,
+      );
+    }
   });
 
   it('is idempotent', () => {
