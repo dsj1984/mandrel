@@ -229,7 +229,7 @@ graph TB
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `plan-context.js`                | Single authoring-envelope emitter for `/mandrel-plan`: Story brief + docs digest + duplicate search + clarity + rendered system prompts. |
 | `plan-critics.js`                | Single critic-dispatch evaluation point for `/mandrel-plan`, run between Author and Persist: prints the consolidation + pre-mortem verdict as JSON (advisory — exits 0 on any verdict) and ledgers every skip. Exits 1 on a usage/IO error, where no critic ran and no skip was ledgered: do not proceed to Persist. |
-| `plan-persist.js`                | Single GitHub-write surface for `/mandrel-plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, `plan-summary` comment. |
+| `plan-persist.js`                | Single GitHub-write surface for `/mandrel-plan`: section gate, ticket validator + file-assumption + DAG + budget gates, Story creation, terminal `agent::ready` flip, one `story-plan-state` comment per Story (checkpoint + plan summary). |
 | `single-story-init.js`           | Validates a standalone Story, branches from `main`, creates the worktree, flips `agent::executing`. |
 | `stories-wave-tick.js`           | Ready-set planner for multi-Story `/mandrel-deliver` (shared `planReadySet` core; default concurrency 3). |
 | `single-story-close.js`          | Close-validation gate chain, opens PR to `main` with auto-merge armed, rests Story at `agent::closing`. |
@@ -268,7 +268,7 @@ write `errorJournal?.record(...)`; nothing can inject it. Two file-based
 surfaces carry failure auditability instead: the append-only signals stream
 (`lib/observability/signals-writer.js`, written by `diagnose-friction.js`) and
 the per-script logs under `temp/orchestration/`. Live Story progress surfaces
-via lifecycle ledger events and structured comments (`story-init`, `friction`,
+via lifecycle ledger events and structured comments (`story-plan-state`, `friction`,
 `verification-results`, `follow-ups`) posted by the single-story init/close
 path. History:
 [Failure auditability — what `ErrorJournal` was](archive/architecture-2026-08.md#failure-auditability--what-errorjournal-was).

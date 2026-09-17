@@ -157,8 +157,7 @@ call site.
 
 | Type                        | Writer                                                                 | Purpose                                                                  |
 | --------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/mandrel-plan` creates.   |
-| `plan-summary`              | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Risk/routing receipts + `depends_on` order table; primary Story only.    |
+| `story-plan-state`          | `lib/orchestration/plan-persist/run-plan-persist.js`                    | Per-Story persist checkpoint, upserted on every Story `/mandrel-plan` creates, carrying the plan summary (story set, `depends_on` order table, deliver command) below it. |
 | `superseded-by`             | `lib/orchestration/plan-persist/supersede-ops.js`                       | Names the Story claiming a `/mandrel-plan --tickets` source issue, posted immediately before closing it `not_planned`. The marker is what makes a re-run non-double-commenting. |
 | `story-init`                | `single-story-init.js`                                                  | Initial Story metadata snapshot (incl. `dependenciesInstalled`).         |
 | `verification-results`      | `lib/orchestration/code-review.js` (`runCodeReview`)                    | Unified review + lens findings on the Story; critical findings block close. Read by the feedback-loop graduators and the auto-merge integration gate. |

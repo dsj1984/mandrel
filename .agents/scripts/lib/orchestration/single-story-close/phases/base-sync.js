@@ -259,7 +259,7 @@ export async function handleSyncFailure({
  * `git merge origin/<baseBranch>` is actively harmful when `<baseBranch>` is
  * not the base the Story was seeded from: it permanently contaminates the
  * branch and its PR diff with an unrelated base. Close confirms the base
- * against the run's `story-init` receipt before that advice is emitted; when
+ * against the run's init receipt before that advice is emitted; when
  * it could not (receipt absent, unreadable, or unpinned), the operator is
  * told to establish the real base first instead.
  *
@@ -302,9 +302,9 @@ export function buildSyncFailureCommentBody({
       : [
           `⚠️ **No merge advice: \`${baseBranch}\` is unconfirmed.** This close could not`,
           `read the base branch \`${storyBranch}\` was seeded from off the run's`,
-          '`story-init` receipt, so merging that base in could contaminate the branch',
+          'init receipt, so merging that base in could contaminate the branch',
           'and its PR diff with an unrelated base. Establish the real base first —',
-          `check the \`story-init\` comment on this issue and \`project.baseBranch\` in`,
+          `check \`temp/orchestration/story-init-result-${storyId}.log\` and \`project.baseBranch\` in`,
           '`.agentrc.json` / `.agentrc.local.json` — then merge that base and re-run:',
           '',
           '```bash',

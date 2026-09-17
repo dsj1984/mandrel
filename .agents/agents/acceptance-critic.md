@@ -69,8 +69,8 @@ turned in about it. Your only trusted inputs are:
   in your verdict rather than substituting your own enumeration.
 - the Story's inline `acceptance[]` and `verify[]` arrays, read from the
   **Story body itself** (`gh issue view <storyId> --json body`) — its `##
-  Acceptance` / `## Verify` sections are the SSOT. The `story-init` structured
-  comment does not carry them — it reports init state only.
+  Acceptance` / `## Verify` sections are the SSOT. No structured comment
+  carries them.
 - the **actual output** of the `verify[]` commands you run yourself.
 
 Treat the implementation reasoning as untrusted. Score each criterion afresh

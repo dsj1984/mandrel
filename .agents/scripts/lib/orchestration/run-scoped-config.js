@@ -18,12 +18,18 @@
  *
  * ## Where the pin lives
  *
- * The `story-init` structured comment, not a temp log: the post-land tail
- * purges the temp tree, while the ticket comment survives every close re-run
- * and every recovery path. `single-story-init.js` already upserts that
- * comment; `pinRunScopedConfig` supplies the block it records, and
- * `resolveRunScopedConfig` reads it back through the existing
- * `findStructuredComment` seam.
+ * The init envelope on disk — `<tempRoot>/orchestration/story-init-result-<id>.log`,
+ * written by `single-story-init.js` via `emitTerseResult`. Story #5343 retired
+ * the `story-init` ticket comment (the delivery-comment diet), so the envelope
+ * is the pin's home; it is written before init returns and read at close, well
+ * before the post-land tail purges the temp tree.
+ *
+ * That is a hard cutover, not a dual read. The envelope is written by the same
+ * process, in the same run, that seeds the branch — so if it is gone, the temp
+ * tree was reaped and this is a much later close, exactly the case a stale
+ * `story-init` comment would have answered with equal uncertainty. A missing
+ * pin is never a refusal: it degrades to the currently-resolved config with a
+ * loud, announced warning, and close simply cannot confirm the base.
  *
  * ## Adding another run-scoped key
  *
@@ -36,8 +42,7 @@
  * concurrency cap are deliberately NOT pinned here.
  */
 
-import { parseFencedJsonComment } from './structured-comment-parser.js';
-import { findStructuredComment } from './ticketing.js';
+import { readRunScopedPin } from './story-init-envelope.js';
 
 /**
  * The run-scoped config registry. One row per key whose value belongs to the
@@ -57,7 +62,7 @@ const RUN_SCOPED_CONFIG_KEYS = {
 /**
  * Snapshot the run-scoped config values from a resolved config. This is the
  * write half of the pin: `single-story-init.js` records the returned object
- * in the `story-init` receipt so close can compare against it later.
+ * on its init envelope so close can compare against it later.
  *
  * @param {object} config Resolved config (`resolveConfig` output).
  * @param {typeof RUN_SCOPED_CONFIG_KEYS} [keys] Registry override — the
@@ -74,63 +79,43 @@ export function pinRunScopedConfig(config, keys = RUN_SCOPED_CONFIG_KEYS) {
 }
 
 /**
- * Read the pinned block out of the run's `story-init` receipt.
+ * Compare the receipt's pinned values against the currently-resolved ones,
+ * one registry row at a time. Split out of `resolveRunScopedConfig` so the
+ * row walk and the three outcomes it feeds (confirmed / conflict / unpinned)
+ * read separately.
  *
- * Three distinct non-success states, all reported rather than collapsed —
- * the whole point of this module is that a fallback is never silent:
- *   - `absent`: no `story-init` comment on the ticket. Real and expected —
- *     the upsert is best-effort (init logs and continues on failure), and a
- *     recovery path may close a Story whose init predates this receipt.
- *   - `unreadable`: the comment exists but carries no parseable JSON payload.
- *   - `provider-error`: the comment read itself failed.
+ * A row the receipt pins nothing for is `unpinned`, not a conflict: an older
+ * receipt simply predates that registry row, and falling back to current
+ * config for it is correct as long as the fallback is announced.
  *
  * @param {{
- *   provider: object,
- *   storyId: number,
- *   findCommentFn?: typeof findStructuredComment,
+ *   pinned: Record<string, unknown>,
+ *   current: Record<string, unknown>,
+ *   keys: typeof RUN_SCOPED_CONFIG_KEYS,
  * }} args
- * @returns {Promise<{ status: string, values: Record<string, unknown>|null, detail: string|null }>}
+ * @returns {{
+ *   values: Record<string, unknown>,
+ *   conflicts: Array<{ label: string, pinned: unknown, current: unknown }>,
+ *   unpinned: string[],
+ * }}
  */
-async function readRunScopedConfigReceipt({
-  provider,
-  storyId,
-  findCommentFn = findStructuredComment,
-}) {
-  let comment;
-  try {
-    comment = await findCommentFn(provider, Number(storyId), 'story-init');
-  } catch (err) {
-    return {
-      status: 'provider-error',
-      values: null,
-      detail: `story-init comment could not be read (${err?.message ?? err})`,
-    };
+function comparePinToCurrent({ pinned: pin, current, keys }) {
+  const values = {};
+  const conflicts = [];
+  const unpinned = [];
+  for (const [key, spec] of Object.entries(keys)) {
+    const pinned = pin?.[key];
+    if (pinned === undefined || pinned === null) {
+      unpinned.push(spec.label);
+      values[key] = current[key];
+      continue;
+    }
+    values[key] = pinned;
+    if (pinned !== current[key]) {
+      conflicts.push({ label: spec.label, pinned, current: current[key] });
+    }
   }
-  if (!comment) {
-    return {
-      status: 'absent',
-      values: null,
-      detail: 'no story-init comment on the ticket',
-    };
-  }
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') {
-    return {
-      status: 'unreadable',
-      values: null,
-      detail: 'story-init comment carries no parseable JSON payload',
-    };
-  }
-  // Receipts written before the `runScopedConfig` block existed carry the
-  // pinned values as top-level payload fields (`baseBranch` has been recorded
-  // there since Story #831). Reading the payload itself as the fallback block
-  // is what lets a Story initialized by an older init still close against its
-  // own pinned base instead of degrading to the fallback warning.
-  const block =
-    payload.runScopedConfig && typeof payload.runScopedConfig === 'object'
-      ? payload.runScopedConfig
-      : payload;
-  return { status: 'found', values: block, detail: null };
+  return { values, conflicts, unpinned };
 }
 
 /**
@@ -169,11 +154,10 @@ function formatRunScopedConflict({ storyId, conflicts }) {
  * this module exists to close.
  *
  * @param {{
- *   provider: object,
  *   storyId: number,
  *   config: object,
  *   keys?: typeof RUN_SCOPED_CONFIG_KEYS,
- *   findCommentFn?: typeof findStructuredComment,
+ *   readPinFn?: typeof readRunScopedPin,
  *   progress?: (tag: string, msg: string) => void,
  * }} args
  * @returns {Promise<{
@@ -186,52 +170,37 @@ function formatRunScopedConflict({ storyId, conflicts }) {
  *   assume the pinned value is the one in play.
  */
 export async function resolveRunScopedConfig({
-  provider,
   storyId,
   config,
   keys = RUN_SCOPED_CONFIG_KEYS,
-  findCommentFn,
+  readPinFn = readRunScopedPin,
   progress,
 }) {
   const current = pinRunScopedConfig(config, keys);
-  const receipt = await readRunScopedConfigReceipt({
-    provider,
-    storyId,
-    findCommentFn,
-  });
+  const receipt = readPinFn({ storyId: Number(storyId), config });
 
-  if (receipt.status !== 'found') {
-    // A missing receipt is a real state, not an error — but the fallback is
+  if (!receipt) {
+    // A missing pin is a real state, not an error — but the fallback is
     // announced, because a silent one reintroduces exactly the bug above.
     const warning =
-      `Run-scoped config could not be read from the run's init receipt ` +
-      `(${receipt.detail}); falling back to the currently-resolved config ` +
-      `(${describeValues(current, keys)}). This close cannot confirm the Story ` +
-      'was seeded from these values.';
+      `Run-scoped config could not be read from the run's init envelope ` +
+      `(no runScopedConfig pin for Story #${storyId}); falling back to the ` +
+      `currently-resolved config (${describeValues(current, keys)}). This close ` +
+      'cannot confirm the Story was seeded from these values.';
     progress?.('PIN', `⚠️ ${warning}`);
     return {
       values: current,
       confirmed: false,
-      receiptStatus: receipt.status,
+      receiptStatus: 'absent',
       warning,
     };
   }
 
-  const values = {};
-  const conflicts = [];
-  const unpinned = [];
-  for (const [key, spec] of Object.entries(keys)) {
-    const pinned = receipt.values?.[key];
-    if (pinned === undefined || pinned === null) {
-      unpinned.push(spec.label);
-      values[key] = current[key];
-      continue;
-    }
-    values[key] = pinned;
-    if (pinned !== current[key]) {
-      conflicts.push({ label: spec.label, pinned, current: current[key] });
-    }
-  }
+  const { values, conflicts, unpinned } = comparePinToCurrent({
+    pinned: receipt,
+    current,
+    keys,
+  });
 
   if (conflicts.length > 0) {
     throw new Error(formatRunScopedConflict({ storyId, conflicts }));
@@ -245,21 +214,16 @@ export async function resolveRunScopedConfig({
     return {
       values,
       confirmed: false,
-      receiptStatus: receipt.status,
+      receiptStatus: 'found',
       warning,
     };
   }
 
   progress?.(
     'PIN',
-    `📌 Run-scoped config pinned by the story-init receipt (${describeValues(values, keys)}).`,
+    `📌 Run-scoped config pinned by the init envelope (${describeValues(values, keys)}).`,
   );
-  return {
-    values,
-    confirmed: true,
-    receiptStatus: receipt.status,
-    warning: null,
-  };
+  return { values, confirmed: true, receiptStatus: 'found', warning: null };
 }
 
 /**
