@@ -30,6 +30,7 @@ import { runBaseSyncPhase } from './phases/base-sync.js';
 import { runCloseValidationPhase } from './phases/close-validation.js';
 import { parsePrNumber, runStoryScopeReview } from './phases/code-review.js';
 import { runConfirmMergePhase } from './phases/confirm-merge.js';
+import { runGraphqlPreflight } from './phases/graphql-preflight.js';
 import { parseCloseOptions, resolveWaitForMerge } from './phases/options.js';
 import { ensurePullRequestWith } from './phases/pull-request.js';
 import { pushStoryBranch } from './phases/push.js';
@@ -138,6 +139,61 @@ async function alreadyClosedResult(storyId, stateReason = null, config) {
   });
   await emitTerminal({ terminal, result, config });
   return { success: true, result, terminal };
+}
+
+/**
+ * The block class a refused GraphQL preflight reports (Story #5355).
+ *
+ * `api-race-other` is the shared classifier's documented fallback for "a
+ * transient GraphQL/API error, an ambiguous probe result, or a genuinely
+ * novel condition", and a preflight refusal is the third of those. It is
+ * reused rather than joined by a new class on purpose: the class vocabulary
+ * is pinned by `story-deliver-terminal.schema.json`, and this refusal is
+ * required to validate against the shipped schema unchanged. The `reason`
+ * string — not the class — is what names the blocker and its remedy.
+ */
+const PREFLIGHT_BLOCK_CLASS = 'api-race-other';
+
+/**
+ * Terminal for a close the GraphQL preflight refused during `init`.
+ *
+ * Returned rather than thrown: a throw would surface as `failed` at the CLI
+ * boundary, and this is not a crash — it is a classified block detected
+ * before the pipeline spent anything, with the Story already flipped to
+ * `agent::blocked` and a friction comment carrying the remedy. The next
+ * command is the same close, which is exactly right: from a session that can
+ * reach GraphQL it runs to completion from where the Story stands now.
+ *
+ * @param {{ storyId: number, preflight: { verdict: string, reason: string },
+ *   config: object, startedAtMs: number }} args
+ * @returns {Promise<{ success: false, result: object, terminal: object }>}
+ */
+async function preflightBlockedResult({
+  storyId,
+  preflight,
+  config,
+  startedAtMs,
+}) {
+  const result = {
+    storyId,
+    standalone: true,
+    action: 'noop',
+    reason: `graphql-preflight-${preflight.verdict}`,
+  };
+  const terminal = buildTerminalEnvelope({
+    storyId,
+    status: 'blocked',
+    phase: 'init',
+    blocked: {
+      blockClass: PREFLIGHT_BLOCK_CLASS,
+      reason: preflight.reason,
+      frictionCommentId: null,
+    },
+    nextCommand: NEXT_COMMANDS.close(storyId),
+    elapsedSeconds: elapsedSecondsSince(startedAtMs),
+  });
+  await emitTerminal({ terminal, result, config });
+  return { success: false, result, terminal };
 }
 
 /**
@@ -534,6 +590,7 @@ export async function runSingleStoryClose({
   injectedGh,
   injectedGitSpawn,
   injectedReleaseLease,
+  injectedGraphqlProbe,
 } = {}) {
   const options = parseCloseOptions({
     storyIdParam,
@@ -586,6 +643,7 @@ export async function runSingleStoryClose({
       injectedGh,
       injectedGitSpawn,
       injectedReleaseLease,
+      injectedGraphqlProbe,
     });
   } catch (err) {
     if (err && typeof err === 'object') {
@@ -837,6 +895,7 @@ async function runClosePipeline({
   injectedGh,
   injectedGitSpawn,
   injectedReleaseLease,
+  injectedGraphqlProbe,
 }) {
   const startedAtMs = Date.now();
   const config = injectedConfig || resolveConfig({ cwd: options.cwd });
@@ -859,6 +918,39 @@ async function runClosePipeline({
     );
   }
 
+  // Story #4257 — the base-sync conflict and review-critical exits throw
+  // before the clean-close lease release at the tail of this function.
+  // Built here, ahead of the first blocked-prone step, so the preflight
+  // refusal below releases the lease on the same terms those exits do.
+  const leaseArgs = {
+    provider,
+    storyId: options.storyId,
+    config,
+    injectedReleaseLease,
+  };
+
+  // Story #5355 — one cheap GraphQL read, before anything is resolved,
+  // validated, committed or pushed. `gh` routes the whole `gh pr` surface
+  // through GraphQL, so a session that cannot reach it cannot land this
+  // Story however green its gates are; discovering that here costs one API
+  // call instead of the entire close-validation chain plus a push.
+  const preflight = await runGraphqlPreflight({
+    storyId: options.storyId,
+    provider,
+    progress,
+    ghFacade: injectedGh,
+    probe: injectedGraphqlProbe,
+  });
+  if (preflight) {
+    await releaseLease(leaseArgs);
+    return await preflightBlockedResult({
+      storyId: options.storyId,
+      preflight,
+      config,
+      startedAtMs,
+    });
+  }
+
   // Story #4891 — the base branch this run was SEEDED from, read back off the
   // run's init receipt on disk rather than re-resolved from a config file that
   // may have changed during the whole implementation window. Throws (fail
@@ -879,16 +971,8 @@ async function runClosePipeline({
     config,
     storyId: options.storyId,
   });
-  // Story #4257 — the base-sync conflict and review-critical exits throw
-  // before the clean-close lease release at the tail of this function.
-  // Wrap both blocked-prone phases so the lease is released best-effort
-  // before the throw propagates; the original error is preserved.
-  const leaseArgs = {
-    provider,
-    storyId: options.storyId,
-    config,
-    injectedReleaseLease,
-  };
+  // Both blocked-prone phases are wrapped so the lease is released
+  // best-effort before the throw propagates; the original error is preserved.
   const { validationGates } = await releaseLeaseOnBlock(
     () =>
       runPrePushPhases({

@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T16:10:33.214Z",
+  "generatedAt": "2026-09-17T17:03:58.461Z",
   "rollup": {
     "*": {
       "min": 76.381,
-      "p50": 99.173,
+      "p50": 99.169,
       "p95": 122.902
     }
   },
@@ -996,7 +996,7 @@
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
-      "mi": 105.407
+      "mi": 103.851
     },
     {
       "path": ".agents/scripts/lib/git-branch-cleanup.js",
@@ -1585,6 +1585,10 @@
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/conventional-subject.js",
       "mi": 92.982
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/single-story-close/phases/graphql-preflight.js",
+      "mi": 98.072
     },
     {
       "path": ".agents/scripts/lib/orchestration/single-story-close/phases/normalize-pr-title.js",

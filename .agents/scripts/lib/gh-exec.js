@@ -587,4 +587,147 @@ export function createGh(execImpl = exec, defaultExecOpts = {}) {
  */
 export const gh = createGh();
 
+/* ---------------------------------------------------------------------- */
+/* GraphQL reachability preflight (Story #5355)                            */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The `gh pr` subcommands the facade above reaches GitHub's pull-request
+ * surface through. `gh` routes **every one of them** through GitHub's
+ * GraphQL API, so they stand or fall together: where GraphQL answers HTTP
+ * 403 there is no PR operation left to attempt, not a degraded subset.
+ *
+ * Kept beside the `pr` facade it enumerates, and module-private, so the
+ * refusal text below cannot drift from the surface it claims to describe.
+ */
+const GH_PR_SUBCOMMANDS = Object.freeze([
+  'view',
+  'create',
+  'edit',
+  'merge',
+  'update-branch',
+  'list',
+]);
+
+/**
+ * The cheapest authenticated GraphQL read there is — "who am I". It touches
+ * no repository, needs no scope beyond the one `gh` already has, and costs a
+ * single API read, which is the whole budget the preflight is allowed.
+ */
+const GRAPHQL_PROBE_QUERY = 'query{viewer{login}}';
+
+/** Wall-clock ceiling for the probe. A hung probe must never hold a close. */
+const GRAPHQL_PROBE_TIMEOUT_MS = 15_000;
+
+/**
+ * Classify a failed probe into one of the two refusing verdicts, or back to
+ * `available` when the failure says nothing about GraphQL reachability.
+ *
+ * The fall-through is deliberate and it is **fail-open**: a timeout, a DNS
+ * blip or a novel `gh` error is not evidence that this session cannot reach
+ * GraphQL, and blocking a healthy close on an ambiguous probe would trade a
+ * rare late failure for a common early one. Such a probe reports `available`
+ * with `reason: 'probe-inconclusive'`, so the log still shows it happened.
+ *
+ * @param {unknown} err The rejection `gh.api` produced.
+ * @returns {{ verdict: 'available'|'unavailable'|'auth-failed', reason: string }}
+ */
+function classifyGraphqlProbeFailure(err) {
+  const haystack = `${err?.stderr ?? ''}\n${err?.message ?? ''}`.toLowerCase();
+  const authShaped =
+    err instanceof GhAuthError ||
+    err instanceof GhScopeError ||
+    /http 401|bad credentials|requires authentication|not logged into|gh auth login/.test(
+      haystack,
+    );
+  if (authShaped) return { verdict: 'auth-failed', reason: 'auth' };
+  if (/http 403|403 forbidden/.test(haystack))
+    return { verdict: 'unavailable', reason: 'http-403' };
+  return { verdict: 'available', reason: 'probe-inconclusive' };
+}
+
+/**
+ * Probe whether GitHub's GraphQL API is reachable from this session.
+ *
+ * One `gh api graphql` read, three verdicts:
+ *
+ *   - `available`    — GraphQL answered (or the probe failed in a way that
+ *                      says nothing about reachability; see the fail-open
+ *                      note on {@link classifyGraphqlProbeFailure}).
+ *   - `unavailable`  — GraphQL answered HTTP 403. This is the Claude Code
+ *                      web-session shape: the token is fine, the endpoint
+ *                      is simply not reachable from here, so the entire
+ *                      `gh pr` surface is gated.
+ *   - `auth-failed`  — `gh` has no usable token (missing, expired or
+ *                      under-scoped). A different fault with a different
+ *                      remedy, deliberately NOT flattened into the one
+ *                      above: telling an unauthenticated operator to "run
+ *                      this somewhere else" sends them to reproduce it.
+ *
+ * Never throws — a preflight that can fail a close is worse than no
+ * preflight at all.
+ *
+ * @param {{ ghFacade?: { api: Function } }} [opts]
+ *   `ghFacade` is the injection seam; production passes nothing.
+ * @returns {Promise<{ verdict: string, available: boolean, reason: string,
+ *   detail: string|null }>}
+ */
+export async function probeGraphqlAvailability({ ghFacade = gh } = {}) {
+  try {
+    await ghFacade.api({
+      method: 'POST',
+      endpoint: 'graphql',
+      body: { query: GRAPHQL_PROBE_QUERY },
+      execOpts: { timeoutMs: GRAPHQL_PROBE_TIMEOUT_MS },
+    });
+    return {
+      verdict: 'available',
+      available: true,
+      reason: 'ok',
+      detail: null,
+    };
+  } catch (err) {
+    const { verdict, reason } = classifyGraphqlProbeFailure(err);
+    return {
+      verdict,
+      available: verdict === 'available',
+      reason,
+      detail: describeGhFailure(err),
+    };
+  }
+}
+
+/**
+ * Render a refusing probe verdict as the operator-facing blocker.
+ *
+ * The two refusals get two messages because they have two remedies. The
+ * unavailable text names all three things the operator needs — that GraphQL
+ * is unavailable *in this session*, the whole `gh pr` surface that gates, and
+ * that the fix is to run the close from a local session rather than to retry
+ * here.
+ *
+ * @param {{ verdict?: string, detail?: string|null }} probe
+ * @returns {string}
+ */
+export function describeGraphqlPreflight({ verdict, detail } = {}) {
+  const suffix = detail ? ` (gh said: ${detail})` : '';
+  if (verdict === 'auth-failed') {
+    return (
+      'GitHub authentication failed: `gh` has no usable token (missing, expired, or missing a ' +
+      'required scope), so no GitHub call this close makes can succeed. This is NOT the ' +
+      'GraphQL-unavailable condition and moving sessions will not fix it — re-authenticate ' +
+      '(`gh auth login`, or export a valid token) and re-run close where you are.' +
+      suffix
+    );
+  }
+  const subcommands = GH_PR_SUBCOMMANDS.map((s) => `\`gh pr ${s}\``).join(', ');
+  return (
+    'GitHub GraphQL is unavailable in this session (HTTP 403). `gh` routes the entire pull-request ' +
+    `surface through GraphQL — ${subcommands} — so this close can neither open, inspect, nor merge ` +
+    'a pull request, and every later phase would fail the same way. Retrying here will not help: ' +
+    're-run the close from a local session, where GraphQL is reachable.' +
+    suffix
+  );
+}
+
 export default exec;
