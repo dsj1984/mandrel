@@ -42,10 +42,10 @@ you read:
 id, and `^#?\d+\s*[-–—]\s*#?\d+$` an inclusive **range** — pass one on as a
 single unspaced token, never hand-expanded (reference). Either shape
 means ids; anything else means a prompt. A **mixed** invocation (ids *and*
-prose) is a **hard error** — refuse it and ask which was meant. A ticket that
-is neither `type::story` nor `type::epic`, or that carries an `Epic: #N`
-footer, is a hard error too — container Epics link parent→child only, so that
-footer stays refused.
+prose) is **ambiguous, not fatal** — disambiguate it rather than refusing:
+ask which was meant, or, when the reading is obvious, name the one you
+inferred before acting on it. A ticket that is neither `type::story` nor
+`type::epic` is a **hard error**.
 
 ## Saying what you want
 
@@ -70,9 +70,9 @@ to an attended run.
    present the order in step 2, but do **not** thread them into step 3 — the
    tick re-resolves the graph every beat. An Epic id expands to its open child
    Stories first — **announce it**. It hard-errors (exit 1) on an id that is
-   neither a Story nor an Epic, on an `Epic: #N` footer, on an Epic with no
-   open children, or on edges it cannot read — a missing gate would co-dispatch
-   against an unlanded blocker.
+   neither a Story nor an Epic, on an Epic with no open children, or on edges
+   it cannot read — a missing gate would co-dispatch against an unlanded
+   blocker.
 
 2. **Confirm (N>1).** Present the order; wait unless `--yes`.
 

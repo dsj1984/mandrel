@@ -772,9 +772,9 @@ stateless and side-effect-free; these guards make the loop fail safe:
   before the scrape, each structurally incapable of naming an edit
   target: `audit-fingerprints` / `audit-semantic-keys` provenance
   footers, paths under `project.paths.tempRoot`, and markdown-link URL
-  interiors. The strip is surgical — a blanket HTML-comment strip would
-  swallow a `<!-- DECOMPOSITION -->` block, whose paths are genuine
-  intent (`instructions.md` § 7). Before it, the sweep-wide provenance
+  interiors. The strip is surgical rather than a blanket HTML-comment
+  strip, which would also swallow any commented block whose paths are
+  genuine edit intent. Before it, the sweep-wide provenance
   union `plan-persist` stamps made every pair of an audit-derived plan
   collide (10/10 measured; 0/10 after).
 - **Beat-local and cross-beat differ.** Against a peer admitted **this

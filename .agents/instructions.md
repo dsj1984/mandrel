@@ -176,8 +176,7 @@ reference the Story via `(refs #<storyId>)`. There is no `type::task`.
 
 `type::epic` is a container only (goal + child checklist, no `agent::*`,
 never delivered): `/mandrel-plan` offers one above 2 Stories and
-`/mandrel-deliver <epicId>` expands it. Linkage is parent→child only, so
-an `Epic: #N` footer is still refused.
+`/mandrel-deliver <epicId>` expands it. Linkage is parent→child only.
 
 ---
 
@@ -195,6 +194,6 @@ anything under it.
 delivers and self-verifies in one pass** — a broad footprint is normal
 when the change is cohesive, and no plan-time ceiling scores it; do not
 re-slice it into per-module fragments. On an out-of-scope task: **plan
-first** (numbered cohesive sub-steps in a `<!-- DECOMPOSITION -->`
-block), **commit incrementally** per sub-step, and **fail fast** — STOP
-and report if any sub-step fails validation.
+first** in numbered cohesive sub-steps, **commit incrementally** per
+sub-step, and **fail fast** — STOP and report if any sub-step fails
+validation.

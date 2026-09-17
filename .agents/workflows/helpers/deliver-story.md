@@ -23,8 +23,7 @@ single-story-init.js → implement + commits → derived-level ceremony → push
   → CI watch + merge → single-story-confirm-merge.js (agent::done)
 ```
 
-An `Epic: #N` reference marks a v1 ticket — **stop** and re-plan. Engine
-traits and prerequisites: reference § Engine invariants.
+Engine traits and prerequisites: reference § Engine invariants.
 
 ## Who owns which step
 
