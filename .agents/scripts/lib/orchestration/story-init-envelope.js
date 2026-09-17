@@ -32,11 +32,7 @@ import { orchestrationLogDir } from '../config/temp-paths.js';
  * }} args
  * @returns {object|null} the parsed init result, or `null`.
  */
-function readStoryInitEnvelope({
-  storyId,
-  config,
-  readFileFn = readFileSync,
-}) {
+function readStoryInitEnvelope({ storyId, config, readFileFn = readFileSync }) {
   const file = path.join(
     orchestrationLogDir(config),
     `story-init-result-${storyId}.log`,
