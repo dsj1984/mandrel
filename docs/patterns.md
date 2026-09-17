@@ -388,7 +388,7 @@ accumulate as clutter.
 | `verification-results`      | `lib/orchestration/code-review.js`                                     | Unified code-review / lens findings (often on the PR).                  |
 | `notification`              | `single-story-close` code-review phase                                 | Story-issue cross-link to PR-side verification results.                 |
 | `follow-ups`                | `story-follow-ups.js` / confirm-merge + `run-epilogue.js`              | Routed follow-up proposals after land / plan-run rollup.                |
-| `plan-run-audit-roster` / `plan-run-sibling-coherence` | `lib/orchestration/run-epilogue.js`               | Rare N>1 plan-run cross-Story audit + coherence artifacts.              |
+| `plan-run-audit-roster`                               | `lib/orchestration/run-epilogue.js`               | Rare N>1 plan-run cross-Story audit roster artifact.                    |
 
 **When to reach for this pattern:** orchestrator state that must
 survive restarts, be human-readable on the issue, and be

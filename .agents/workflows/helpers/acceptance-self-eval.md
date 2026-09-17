@@ -24,9 +24,8 @@ satisfies *this Story's* acceptance criteria.
 The loop is **always on** (a hard cutover — there is no flag to disable it) and
 **bounded** by `delivery.acceptanceEval.maxRounds` (default 2; `0` means the
 verdict is scored once with no redraft round). It is **distinct from** the
-per-run `sibling-coherence` epilogue
-step (`planRunEpilogue` for N>1): this loop is per-Story, per-criterion,
-mid-delivery, and evaluates the actual work product.
+per-run epilogue (`planRunEpilogue` for N>1): this loop is per-Story,
+per-criterion, mid-delivery, and evaluates the actual work product.
 
 ## Per round
 

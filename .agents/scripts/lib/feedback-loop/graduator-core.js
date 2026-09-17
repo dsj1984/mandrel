@@ -290,8 +290,10 @@ export function runChild({
 
 /**
  * Build an `isAutoFileEnabled(config)` reader bound to a specific
- * `delivery.feedbackLoop.<key>` toggle. The feature is opt-out: the
- * toggle defaults to `true` and only an explicit `false` disables it.
+ * `delivery.feedbackLoop.<key>` toggle. The feature is **opt-in** since Story
+ * #5341: the toggle defaults to `false` and only an explicit `true` enables
+ * it, because the filings the channel produced unattended were dominated by
+ * noise (see `config-settings-schema-delivery.js` for the measured record).
  *
  * @param {string} toggleKey — key under `config.delivery.feedbackLoop`
  *   (e.g. "auditResultsAutoFile", "retroProposals")
@@ -299,9 +301,7 @@ export function runChild({
  */
 export function makeIsAutoFileEnabled(toggleKey) {
   return function isAutoFileEnabled(config) {
-    const value = config?.delivery?.feedbackLoop?.[toggleKey];
-    if (value === false) return false;
-    return true;
+    return config?.delivery?.feedbackLoop?.[toggleKey] === true;
   };
 }
 

@@ -6,8 +6,7 @@
  *      tip vs base (deterministic `selectAudits` — host walks lenses).
  *   2. Rolls up friction follow-ups across every Story in the run and
  *      files/posts them on the primary Story.
- *   3. Checks sibling Spec/acceptance coherence across Story bodies.
- *   4. Reports what the per-Story land tails left the run's container Epics
+ *   3. Reports what the per-Story land tails left the run's container Epics
  *      in — closed, or still open (Story #5139; read-only since #5280).
  *
  * There is no inert planner-only path: `planRunEpilogue` enumerates steps
@@ -27,6 +26,7 @@ import {
   assessRollupOutcome,
   buildFollowUpsCommentBody,
   gatherRunFrictionSignals,
+  publishFollowUpsRollup,
   resolveFollowUpRepos,
   summarizeSignalCategories,
 } from './story-follow-ups.js';
@@ -34,12 +34,17 @@ import { upsertStructuredComment } from './ticketing.js';
 
 /**
  * Canonical epilogue step kinds, in execution order.
- * @type {readonly ['audit-roster', 'follow-up-rollup', 'sibling-coherence', 'epic-close']}
+ *
+ * `sibling-coherence` was removed in Story #5341. It read every Story body a
+ * second time to post a `plan-run-sibling-coherence` comment that nothing —
+ * no script, no workflow step, no gate — ever read back, on the one run shape
+ * (N>1) where the re-read is most expensive.
+ *
+ * @type {readonly ['audit-roster', 'follow-up-rollup', 'epic-close']}
  */
 export const RUN_EPILOGUE_STEP_KINDS = Object.freeze([
   'audit-roster',
   'follow-up-rollup',
-  'sibling-coherence',
   'epic-close',
 ]);
 
@@ -197,11 +202,6 @@ export function planRunEpilogue({ planRunId, stories } = {}) {
     {
       kind: 'follow-up-rollup',
       description: `Friction follow-up roll-up for run ${effectiveRunId}`,
-      stories: ids,
-    },
-    {
-      kind: 'sibling-coherence',
-      description: `Sibling-coherence check across the ${ids.length} Story specs of run ${effectiveRunId}`,
       stories: ids,
     },
     {
@@ -526,48 +526,24 @@ function resolveBaseRef(config) {
   return `origin/${branch}`;
 }
 
-async function executeAuditRoster({
+/**
+ * Render the `plan-run-audit-roster` comment body.
+ *
+ * Split out of `executeAuditRoster` in Story #5341: the executor's job is to
+ * resolve the diff and select the lenses, and a hundred lines of rendering
+ * between those two facts and the result is what hid them.
+ *
+ * @param {object} args
+ * @returns {string}
+ */
+function renderAuditRosterBody({
   planRunId,
   stories,
-  cwd,
-  provider,
-  config,
-  git,
-  selectAuditsFn,
+  diff,
+  lensGrounding,
+  selectedAudits,
 }) {
-  const primaryId = Number(stories[0]);
-  const diff = resolveCombinedDiff({
-    stories,
-    cwd,
-    baseRef: resolveBaseRef(config),
-    git,
-  });
-  // Hand `selectAudits` the change set we just resolved — never a git range for
-  // it to re-derive. This function runs in the main checkout *after* the run's
-  // Stories merged, so every range it could name (`main...HEAD`) is empty by
-  // construction; asking for one is how the roster came to select lenses from
-  // zero files while printing the correct file list beside them (Story #4571).
-  const lensGrounding = diff.resolved ? 'diff' : 'keyword-only';
-  let selectedAudits = [];
-  if (Number.isInteger(primaryId) && primaryId > 0) {
-    const selected = await selectAuditsFn({
-      ticketId: primaryId,
-      gate: 'gate3',
-      provider,
-      changedFiles: diff.resolved ? diff.changedFiles : [],
-    });
-    selectedAudits = Array.isArray(selected?.selectedAudits)
-      ? selected.selectedAudits
-      : Array.isArray(selected)
-        ? selected
-        : [];
-  }
-  if (!diff.resolved) {
-    Logger.warn(
-      `[run-epilogue] plan-run ${planRunId}: combined landed diff unavailable — ${diff.reason}`,
-    );
-  }
-  const body = [
+  return [
     '### plan-run-audit-roster',
     '',
     `Cross-Story audit roster for plan-run \`${planRunId}\`.`,
@@ -613,6 +589,56 @@ async function executeAuditRoster({
     ),
     '```',
   ].join('\n');
+}
+
+async function executeAuditRoster({
+  planRunId,
+  stories,
+  cwd,
+  provider,
+  config,
+  git,
+  selectAuditsFn,
+}) {
+  const primaryId = Number(stories[0]);
+  const diff = resolveCombinedDiff({
+    stories,
+    cwd,
+    baseRef: resolveBaseRef(config),
+    git,
+  });
+  // Hand `selectAudits` the change set we just resolved — never a git range for
+  // it to re-derive. This function runs in the main checkout *after* the run's
+  // Stories merged, so every range it could name (`main...HEAD`) is empty by
+  // construction; asking for one is how the roster came to select lenses from
+  // zero files while printing the correct file list beside them (Story #4571).
+  const lensGrounding = diff.resolved ? 'diff' : 'keyword-only';
+  let selectedAudits = [];
+  if (Number.isInteger(primaryId) && primaryId > 0) {
+    const selected = await selectAuditsFn({
+      ticketId: primaryId,
+      gate: 'gate3',
+      provider,
+      changedFiles: diff.resolved ? diff.changedFiles : [],
+    });
+    selectedAudits = Array.isArray(selected?.selectedAudits)
+      ? selected.selectedAudits
+      : Array.isArray(selected)
+        ? selected
+        : [];
+  }
+  if (!diff.resolved) {
+    Logger.warn(
+      `[run-epilogue] plan-run ${planRunId}: combined landed diff unavailable — ${diff.reason}`,
+    );
+  }
+  const body = renderAuditRosterBody({
+    planRunId,
+    stories,
+    diff,
+    lensGrounding,
+    selectedAudits,
+  });
   if (Number.isInteger(primaryId) && primaryId > 0) {
     await upsertStructuredComment(
       provider,
@@ -644,6 +670,69 @@ async function executeAuditRoster({
   };
 }
 
+/**
+ * Compose the run-scope routed proposals.
+ *
+ * Story #4850 — `runToken` and `anchorStoryIds` are INPUTS. This used to
+ * compose with the primary Story's numeric id standing in for the run and then
+ * rewrite the rendered title/body by regex over a `plan-run \d+` substring,
+ * which meant the composer's own wording could not be changed without silently
+ * breaking the patch. `anchorStoryIds` is what lets the composer tell a corpus
+ * confined to this run from one spanning the whole surviving window, so it
+ * never titles the latter as if it were the former.
+ *
+ * @param {object} args
+ * @returns {object}
+ */
+function composeRunProposals({
+  primaryId,
+  planRunId,
+  stories,
+  signals,
+  config,
+}) {
+  const repos = resolveFollowUpRepos(config);
+  return composeRoutedProposals({
+    anchorId: Number.isInteger(primaryId) ? primaryId : 1,
+    anchorKind: 'run',
+    runToken: String(planRunId ?? ''),
+    anchorStoryIds: stories,
+    frameworkRepo: repos.frameworkRepo,
+    consumerRepo: repos.consumerRepo,
+    signals,
+    unresolvedBlockedEvents: [],
+  });
+}
+
+/**
+ * Hand the run-scope proposals to the graduator (injectable for tests).
+ *
+ * @param {object} args
+ * @returns {Promise<object>}
+ */
+function fileRunProposals({
+  primaryId,
+  proposals,
+  provider,
+  config,
+  cwd,
+  graduateFn,
+}) {
+  const repos = resolveFollowUpRepos(config);
+  return graduateFn({
+    epicId: primaryId,
+    provider,
+    config,
+    currentRepo: repos.currentRepo,
+    // The resolved bucket object, not a re-split of the slug: routing is
+    // decided once in `github/framework-repo.js`.
+    frameworkRepo: repos.repos.framework,
+    platformRepo: repos.repos.platform,
+    routedProposals: proposals,
+    cwd,
+  });
+}
+
 async function executeFollowUpRollup({
   planRunId,
   stories,
@@ -659,36 +748,21 @@ async function executeFollowUpRollup({
     stories,
     config,
   );
-  const repos = resolveFollowUpRepos(config);
   const primaryId = Number(stories[0]);
-  // Story #4850 — `runToken` and `anchorStoryIds` are INPUTS. This used to
-  // compose with the primary Story's numeric id standing in for the run and
-  // then rewrite the rendered title/body by regex over a `plan-run \d+`
-  // substring, which meant the composer's own wording could not be changed
-  // without silently breaking the patch. `anchorStoryIds` is what lets the
-  // composer tell a corpus confined to this run from one spanning the whole
-  // surviving window, so it never titles the latter as if it were the former.
-  const proposals = composeRoutedProposals({
-    anchorId: Number.isInteger(primaryId) ? primaryId : 1,
-    anchorKind: 'run',
-    runToken: String(planRunId ?? ''),
-    anchorStoryIds: stories,
-    frameworkRepo: repos.frameworkRepo,
-    consumerRepo: repos.consumerRepo,
+  const proposals = composeRunProposals({
+    primaryId,
+    planRunId,
+    stories,
     signals,
-    unresolvedBlockedEvents: [],
+    config,
   });
-  const graduated = await graduateFn({
-    epicId: primaryId,
+  const graduated = await fileRunProposals({
+    primaryId,
+    proposals,
     provider,
     config,
-    currentRepo: repos.currentRepo,
-    // The resolved bucket object, not a re-split of the slug: routing is
-    // decided once in `github/framework-repo.js`.
-    frameworkRepo: repos.repos.framework,
-    platformRepo: repos.repos.platform,
-    routedProposals: proposals,
     cwd,
+    graduateFn,
   });
   const categories = summarizeSignalCategories(signals);
   const proposalCount = proposals.framework.length + proposals.consumer.length;
@@ -700,29 +774,98 @@ async function executeFollowUpRollup({
     filingErrors: graduated.errors,
     filingSkipped: graduated.skipped,
   });
-  if (Number.isInteger(primaryId) && primaryId > 0) {
-    const body = buildFollowUpsCommentBody({
-      storyId: primaryId,
-      proposals,
-      graduated,
-      // Story #4578 — the run's Story count is what lets an empty roll-up
-      // render as a flagged claim ("0 signals across N Stories") rather than
-      // as "nothing to follow up".
-      storyCount: stories.length,
-      // Story #4828 — and the corpus is what lets a zero-proposal or
-      // zero-filed roll-up name what it saw instead of rendering as clean.
-      signalCount: signals.length,
-      categories,
-    }).replace(
-      `from Story #${primaryId}`,
-      `from plan-run \`${planRunId}\` (primary Story #${primaryId})`,
-    );
-    await upsertStructuredComment(provider, primaryId, 'follow-ups', body);
-  }
+  await publishRunRollup({
+    primaryId,
+    planRunId,
+    provider,
+    config,
+    proposals,
+    graduated,
+    storyCount: stories.length,
+    signalCount: signals.length,
+    categories,
+    filedCount: graduated.filed?.length ?? 0,
+  });
+  return buildRollupStepResult({
+    signals,
+    storyCount: stories.length,
+    graduated,
+    proposals,
+    proposalCount,
+    categories,
+    outcome,
+    frictionWindow,
+  });
+}
+
+/**
+ * Render the run-scope roll-up and publish it — the one place that decides
+ * where it goes.
+ *
+ * @param {object} args
+ * @returns {Promise<void>}
+ */
+async function publishRunRollup({
+  primaryId,
+  planRunId,
+  provider,
+  config,
+  proposals,
+  graduated,
+  storyCount,
+  signalCount,
+  categories,
+  filedCount,
+}) {
+  if (!Number.isInteger(primaryId) || primaryId <= 0) return;
+  const body = buildFollowUpsCommentBody({
+    storyId: primaryId,
+    proposals,
+    graduated,
+    // Story #4578 — the run's Story count is what lets an empty roll-up
+    // render as a flagged claim ("0 signals across N Stories") rather than
+    // as "nothing to follow up".
+    storyCount,
+    // Story #4828 — and the corpus is what lets a zero-proposal or
+    // zero-filed roll-up name what it saw instead of rendering as clean.
+    signalCount,
+    categories,
+  }).replace(
+    `from Story #${primaryId}`,
+    `from plan-run \`${planRunId}\` (primary Story #${primaryId})`,
+  );
+  await publishFollowUpsRollup({
+    anchorId: primaryId,
+    body,
+    filedCount,
+    provider,
+    config,
+  });
+}
+
+/**
+ * Assemble the `follow-up-rollup` step result. Split out of
+ * `executeFollowUpRollup` in Story #5341: the literal had grown to carry
+ * every suspicion the roll-up can raise, and the reporting shape is what
+ * callers read, not how it was gathered.
+ *
+ * @param {object} args
+ * @returns {object}
+ */
+function buildRollupStepResult({
+  signals,
+  storyCount,
+  graduated,
+  proposals,
+  proposalCount,
+  categories,
+  outcome,
+  frictionWindow,
+}) {
   return {
     kind: 'follow-up-rollup',
     signalCount: signals.length,
-    storyCount: stories.length,
+    storyCount,
     filed: graduated.filed?.length ?? 0,
     // Story #4850 — the recurrence window the gather actually applied, and what
     // it dropped. `signalCount` alone cannot distinguish "the window is bounded
@@ -760,85 +903,8 @@ async function executeFollowUpRollup({
     // Story #4578 — zero signals across a multi-Story run is a claim, not a
     // clean bill of health. Surfaced on the step result so the CLI can warn
     // the operator without re-deriving it from the comment prose.
-    emptyRollupSuspect: signals.length === 0 && stories.length > 1,
+    emptyRollupSuspect: signals.length === 0 && storyCount > 1,
   };
-}
-
-function extractSection(body, heading) {
-  if (typeof body !== 'string') return '';
-  const re = new RegExp(
-    `(?:^|\\n)## ${heading}\\s*\\n([\\s\\S]*?)(?=\\n## |$)`,
-    'i',
-  );
-  const match = body.match(re);
-  return match ? match[1].trim() : '';
-}
-
-async function executeSiblingCoherence({ planRunId, stories, provider }) {
-  const findings = [];
-  const bodies = [];
-  for (const raw of stories) {
-    const sid = Number(raw);
-    if (!Number.isInteger(sid) || sid <= 0) continue;
-    const ticket = await provider.getTicket(sid);
-    bodies.push({
-      id: sid,
-      title: ticket?.title ?? '',
-      acceptance: extractSection(ticket?.body ?? '', 'Acceptance'),
-      spec: extractSection(ticket?.body ?? '', 'Spec'),
-    });
-  }
-  const withAcceptance = bodies.filter((b) => b.acceptance.length > 0);
-  if (withAcceptance.length > 0 && withAcceptance.length < bodies.length) {
-    const missing = bodies
-      .filter((b) => b.acceptance.length === 0)
-      .map((b) => `#${b.id}`);
-    findings.push(
-      `Stories missing ## Acceptance while siblings declare ACs: ${missing.join(', ')}`,
-    );
-  }
-  // Detect identical non-empty Spec blobs (likely copy-paste drift).
-  const specMap = new Map();
-  for (const b of bodies) {
-    if (!b.spec) continue;
-    const key = b.spec.replace(/\s+/g, ' ').slice(0, 400);
-    if (!specMap.has(key)) specMap.set(key, []);
-    specMap.get(key).push(b.id);
-  }
-  for (const ids of specMap.values()) {
-    if (ids.length > 1) {
-      findings.push(
-        `Duplicate ## Spec prose across Stories ${ids.map((id) => `#${id}`).join(', ')} — split or dedupe.`,
-      );
-    }
-  }
-  const primaryId = Number(stories[0]);
-  const body = [
-    '### plan-run-sibling-coherence',
-    '',
-    `Sibling-coherence check for plan-run \`${planRunId}\`.`,
-    '',
-    findings.length === 0
-      ? '_No coherence findings._'
-      : findings.map((f) => `- ${f}`).join('\n'),
-    '',
-    '```json',
-    JSON.stringify(
-      { planRunId, stories: stories.map(Number), findings },
-      null,
-      2,
-    ),
-    '```',
-  ].join('\n');
-  if (Number.isInteger(primaryId) && primaryId > 0) {
-    await upsertStructuredComment(
-      provider,
-      primaryId,
-      'plan-run-sibling-coherence',
-      body,
-    );
-  }
-  return { kind: 'sibling-coherence', findings };
 }
 
 /**
@@ -901,14 +967,6 @@ export async function runPlanRunEpilogue({
             config,
             cwd,
             graduateFn,
-          }),
-        );
-      } else if (step.kind === 'sibling-coherence') {
-        results.push(
-          await executeSiblingCoherence({
-            planRunId: plan.planRunId,
-            stories: plan.stories,
-            provider,
           }),
         );
       } else if (step.kind === 'epic-close') {

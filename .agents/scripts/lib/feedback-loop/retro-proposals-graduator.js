@@ -28,9 +28,9 @@
  * is gone from the whole path, not just from this module. The `meta::<framework-gap|consumer-improvement>` +
  * `friction::<category>` labels are lifted verbatim from the routed item.
  *
- * Behind the `delivery.feedbackLoop.retroProposals` toggle (default ON,
- * per `graduator-core.js#makeIsAutoFileEnabled`). NEVER throws — every
- * failure path is captured in `errors[]`.
+ * Behind the `delivery.feedbackLoop.retroProposals` toggle (default OFF
+ * since Story #5341, per `graduator-core.js#makeIsAutoFileEnabled`). NEVER
+ * throws — every failure path is captured in `errors[]`.
  */
 
 import {
@@ -46,8 +46,8 @@ import {
 } from './graduator-core.js';
 
 /**
- * Resolve the toggle from the resolved agentrc config. Defaults to `true`
- * — the feature is opt-out (mirrors auditResultsAutoFile).
+ * Resolve the toggle from the resolved agentrc config. Defaults to `false`
+ * — the feature is opt-in (mirrors auditResultsAutoFile).
  *
  * @param {object|undefined|null} config
  * @returns {boolean}

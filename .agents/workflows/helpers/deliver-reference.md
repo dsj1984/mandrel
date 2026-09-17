@@ -288,8 +288,6 @@ This executes, in order:
   walk each listed lens against the combined diff.
 - `follow-up-rollup` — friction follow-ups across every Story in the run
   (files issues when auto-file is on; posts `follow-ups`).
-- `sibling-coherence` — Spec/Acceptance coherence check across sibling bodies
-  (`plan-run-sibling-coherence`).
 - `epic-close` — **reports** which of the run's container Epics its land tails
   left closed and which are still open. **Read-only** — it derives nothing:
   every child state change is already a rollup edge, so the container was

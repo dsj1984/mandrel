@@ -657,8 +657,9 @@ When a Story (or plan-run) finalize path runs, non-blocking findings that
 survived merge are auto-graduated into follow-up issues in a single pass over
 the unified `verification-results` structured comment, routed by source
 classification into the framework or consumer repo. The toggle
-(`delivery.feedbackLoop.auditResultsAutoFile`, default `true`), the opt-out
-example, and the idempotency-marker behaviour are documented once in
+(`delivery.feedbackLoop.auditResultsAutoFile`, default `false` since Story
+#5341), the opt-in example, and the idempotency-marker behaviour are
+documented once in
 [`docs/configuration.md` § delivery.feedbackLoop](docs/configuration.md#deliveryfeedbackloop--verification-results-auto-graduation).
 
 ## Worktree dependency strategies

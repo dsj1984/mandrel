@@ -167,7 +167,6 @@ call site.
 | `friction`                  | `lib/orchestration/story-init-remote.js`; `single-story-close/phases/` (`base-sync`, `review-block`, `confirm-merge`, `wrong-tree-guard`) | Blocker observation posted on the Story. Distinct from the on-disk `friction` **signal** (`signals-writer.appendSignal` → `signals.ndjson`), which `diagnose-friction.js` writes and never posts. |
 | `follow-ups`                | `lib/orchestration/run-epilogue.js`; `lib/orchestration/story-follow-ups.js` | Actionable follow-ups distilled from friction signals at Story closeout. |
 | `plan-run-audit-roster`     | `lib/orchestration/run-epilogue.js`                                     | Audit lenses selected for the run, grounded in the landed diff.          |
-| `plan-run-sibling-coherence`| `lib/orchestration/run-epilogue.js`                                     | Cross-Story coherence findings for a multi-Story plan run.               |
 | `model-attribution`         | `lib/orchestration/model-attribution.js`                                | Which model executed the work. Shape SSOT: `.agents/schemas/model-attribution.schema.json` — documented, not AJV-compiled; the runtime gate is the hand-rolled `validateModelAttributionPayload` in the same writer. |
 | `cross-repo-deferred`       | `lib/feedback-loop/graduator-core.js`                                   | Findings routed to another repository and therefore not filed here. Discriminated by a `graduator` attr so independent graduators upsert without clobbering each other. |
 
