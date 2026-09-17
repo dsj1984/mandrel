@@ -95,18 +95,27 @@ describe('runChild', () => {
 });
 
 describe('makeIsAutoFileEnabled', () => {
-  it('binds to the supplied toggle key and defaults to true', () => {
+  // Story #5341 inverted the default: the auto-filers are opt-in, so an
+  // unset toggle reads as OFF. The key-binding half of the contract is what
+  // is unchanged, and it is the half that has actually broken before — a
+  // reader that answered to any sibling key would silently enable a filer
+  // nobody asked for.
+  it('binds to the supplied toggle key and defaults to false', () => {
     const reader = makeIsAutoFileEnabled('myToggle');
-    assert.equal(reader(undefined), true);
-    assert.equal(reader({ delivery: { feedbackLoop: {} } }), true);
+    assert.equal(reader(undefined), false);
+    assert.equal(reader({ delivery: { feedbackLoop: {} } }), false);
+    assert.equal(
+      reader({ delivery: { feedbackLoop: { myToggle: true } } }),
+      true,
+    );
     assert.equal(
       reader({ delivery: { feedbackLoop: { myToggle: false } } }),
       false,
     );
-    // A different key must not disable it.
+    // A different key must not enable it.
     assert.equal(
-      reader({ delivery: { feedbackLoop: { otherToggle: false } } }),
-      true,
+      reader({ delivery: { feedbackLoop: { otherToggle: true } } }),
+      false,
     );
   });
 });

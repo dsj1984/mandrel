@@ -158,18 +158,11 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
     );
   });
 
-  it('names the no-credit outcome as a legitimate result of the run', () => {
-    // Story #5313: the credited run is a bare `npm test`, and the runner
-    // deposits credit only for a green FULL run on the Story branch. A run of
-    // a partial tier, or off the branch, is green and deposits nothing — the
-    // worker must know that outcome exists and is named in the output.
-    const section = creditedRunSection(read(WORKER));
-    assertDocMentions(
-      section,
-      /deposits nothing|no credit deposited|no close test credit/i,
-      'the credited-run section must say a green run can deposit no credit',
-    );
-  });
+  // Story #5341 removed this suite's worker-side no-credit pin. The claim is
+  // not dropped — it moved to its one home, and the digest assertion at the
+  // bottom of this file ('names the legitimate skip in the credited-full-suite
+  // section') is the same assertion at the new address. Keeping both is the
+  // duplication that made #5324 patch one sentence in two files.
 
   it('routes that verdict through the output, never the exit status', () => {
     const section = creditedRunSection(read(WORKER));
