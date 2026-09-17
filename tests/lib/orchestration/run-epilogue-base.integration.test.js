@@ -192,6 +192,9 @@ describe('run-epilogue combined landed diff (real git, Story #4550)', () => {
     const comments = [];
     const result = await runPlanRunEpilogue({
       planRunId: 'fixture-run',
+      // Story #5343 — the roster is opt-in; this suite is about how it
+      // resolves the run's base once the operator has asked for it.
+      auditRoster: true,
       stories: [101, 102],
       provider: stubProvider(comments),
       config: {
@@ -233,6 +236,9 @@ describe('run-epilogue combined landed diff (real git, Story #4550)', () => {
 
     const result = await runPlanRunEpilogue({
       planRunId: 'fixture-run',
+      // Story #5343 — the roster is opt-in; this suite is about how it
+      // resolves the run's base once the operator has asked for it.
+      auditRoster: true,
       stories: [101, 102],
       provider: stubProvider([]),
       config: { project: { baseBranch: 'main' } },
@@ -247,6 +253,9 @@ describe('run-epilogue combined landed diff (real git, Story #4550)', () => {
     const comments = [];
     const result = await runPlanRunEpilogue({
       planRunId: 'fixture-run',
+      // Story #5343 — the roster is opt-in; this suite is about how it
+      // resolves the run's base once the operator has asked for it.
+      auditRoster: true,
       // Story ids that never landed on this base ref.
       stories: [777, 778],
       provider: stubProvider(comments),
