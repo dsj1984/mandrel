@@ -36,8 +36,8 @@ Nor are the architecture ratchets, for the same reason:
 > | `check-arch-cycles.js` | Via the `lint` step — `run-lint.js` has run it since Story #3991. Deliberately **not** repeated in `run-verify.js`; doing so would double-pay the gate. |
 > | `check-dead-exports.js` | Its own `dead-exports` step (Story #4549). |
 > | `check-dead-exports.js --production` | Its own `dead-exports-production` step — added when the production-mode pass (#4582) joined CI's baselines job. |
-> | `check-context-budget.js` | Its own `context-budget` step (Story #4549). |
-> | `check-workflow-citations.js` | Via the `test` step — `tests/check-workflow-citations.test.js` runs the same ratchet against the committed baseline, so a regression fails the suite. Deliberately **not** a separate `run-verify.js` step; doing so would double-pay the gate. |
+> | `check-context-budget.js` | Its own `context-budget` step (Story #4549). Since Story #5340 it fails on the `alwaysLoaded` tier alone; its other tiers, and the role-scoped agent-boot sizes, are printed. |
+> | `check-workflow-citations.js` | Its own `workflow-citations` step (Story #5340). It is a report, not a gate: it prints the per-file provenance count and always exits 0. Before #5340 it was exempted from the mirror because `tests/check-workflow-citations.test.js` re-ran its ratchet through the `test` step. |
 >
 > Before #4549 the latter two sat in a contract hole — omitted from the mirror
 > *and* absent from the CI-only table below — reachable locally only by a direct

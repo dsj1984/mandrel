@@ -18,12 +18,14 @@
  *
  * ## What this guard is allowed to pin (Story #5284)
  *
- * The boot context is 7.9 KB against an 8 KB ceiling, so every worker-side
- * edit is a rewrite under pressure — and this file had grown seven
- * verbatim-phrase assertions against it. That is a guard asserting the
- * *wording* rather than the contract: a rewrite that says the same thing in
- * fewer bytes reds here, which makes the ceiling unmeetable and the guard the
- * thing that gets deleted.
+ * The boot context rides resident in every spawned worker, so every
+ * worker-side edit is a rewrite under budget pressure — and this file had
+ * grown seven verbatim-phrase assertions against it. That is a guard
+ * asserting the *wording* rather than the contract: a rewrite that says the
+ * same thing in fewer bytes reds here, which makes a trim unaffordable and
+ * this guard the thing that gets deleted. (Story #5340 removed the hard 8 KB
+ * ceiling that made the squeeze acute; the cap below stays, because a
+ * wording-pinned guard is a bad guard at any size.)
  *
  * So the durable claims are tested structurally — the section exists, it
  * cites `parallel-tooling.md` Rule 2, it names background dispatch, and it no
@@ -51,9 +53,6 @@ const read = (rel) => readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 const WORKER = '.agents/agents/story-worker.md';
 const RULE2 = '.agents/workflows/helpers/parallel-tooling.md';
 const DIGEST = '.agents/workflows/helpers/deliver-digest.md';
-
-/** The per-agent boot ceiling `check-context-budget.js` enforces. */
-const AGENT_BOOT_CEILING_BYTES = 8192;
 
 /**
  * The worker's credited-run section: from its `## Close gates` heading to the
@@ -95,7 +94,7 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
   it('pins no more verbatim sentences than the cap allows', () => {
     assert.ok(
       EXACT_SENTENCE_PINS.length <= MAX_EXACT_SENTENCE_PINS,
-      `this guard may pin at most ${MAX_EXACT_SENTENCE_PINS} exact sentences of ${WORKER}; pinning more makes the 8 KB boot ceiling unmeetable, because every rewording reds a guard instead of the contract`,
+      `this guard may pin at most ${MAX_EXACT_SENTENCE_PINS} exact sentences of ${WORKER}; pinning more makes the boot context unrewritable, because every rewording reds a guard instead of the contract`,
     );
   });
 
@@ -197,14 +196,6 @@ describe('story-worker carries a reachable long-command dispatch contract', () =
       section,
       /run the full suite yourself/i,
       'the retired instruction: a docs/CI-only Story paid minutes of whole-suite time that a scoped run covers in seconds',
-    );
-  });
-
-  it('keeps the boot context inside its per-agent ceiling', () => {
-    const bytes = Buffer.byteLength(read(WORKER), 'utf8');
-    assert.ok(
-      bytes <= AGENT_BOOT_CEILING_BYTES,
-      `${WORKER} is ${bytes} bytes, over the ${AGENT_BOOT_CEILING_BYTES}-byte per-agent ceiling`,
     );
   });
 });

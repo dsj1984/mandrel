@@ -112,7 +112,7 @@ not a substitute for prefixing paths correctly.
 
 ---
 
-## Engine invariants and the lite route
+## Engine invariants and ceremony
 
 **Prerequisites before Step 0.** A `type::story` issue, a clean
 `gh auth status`, and `project.baseBranch` present both locally and on
@@ -130,18 +130,17 @@ The v2 engine's trait table:
 | Spec / slices | Folded `## Spec` + optional `## Slicing` checkpoints in-session          |
 | Ceremony      | Per-Story, routed off the derived change level via `ceremony-routing.js` |
 
-**Ceremony-lite Stories still land through this engine unchanged.** A
-lite-routed Story collapses only the _advisory_ plan/mandrel-deliver
-ceremony — the fresh-critic / Tech-Spec authoring a one-artifact scope does
-not earn. It does **not** get a cheaper landing: the close-validation gates
-(lint / test / format / coverage / CRAP / maintainability), the PR to `main`,
-and the `rules/security-baseline.md` MUSTs all run exactly as for a
-full-ceremony Story. The lite route's `preserves` field is the machine-readable
-record of those non-negotiables; there is no lite-specific gate bypass.
+**A cheap shape never buys a cheaper landing.** A small Story collapses only
+the _advisory_ ceremony — the fresh-critic / Tech-Spec authoring a
+one-artifact scope does not earn. The close-validation gates (lint / test /
+format / coverage / CRAP / maintainability), the PR to `main`, and the
+`rules/security-baseline.md` MUSTs run exactly as for any other Story. There
+is no gate bypass to opt into, and nothing in the ticket can declare one:
+Story #5312 retired the plan-side lite claim, its `route::lite` hint and the
+machine-readable field that used to enumerate the non-negotiables.
 
 **Ceremony comes from the landed diff; the dispatch mode comes from the
-run.** Persist stamps no route label (Story #5312 retired the plan-side lite
-claim with its `route::lite` hint). Ceremony is resolved from the **derived
+run.** Persist stamps no route label. Ceremony is resolved from the **derived
 change level** (`deriveChangeLevel` over the computed change set — digest § 3),
 not from a body-shape read: a footprint intersecting a sensitive-path class
 derives `high`, so the Story keeps its fresh acceptance critic. The light path
@@ -716,9 +715,10 @@ resolves — that is the mechanism by which you wait. You MUST keep your turn al
 across the wait: watch → (fix + push + re-watch on red) → confirm the merge
 (Step 5) → flip `agent::done` → run the post-merge steps → and only then
 return the terminal JSON status contract. The CI wait NEVER terminates your
-turn; **only** a confirmed-`MERGED` PR (→ `status: "done"`), an
+turn; **only** a confirmed-`MERGED` PR (→ `status: "landed"`), an
 `agent::blocked` transition (→ `status: "blocked"`), or an unrecoverable
-failure (→ `status: "failed"`) does. Ending your turn with prose and an
+failure (→ `status: "failed"`) does — the statuses the shipped
+[terminal schema](../../schemas/story-deliver-terminal.schema.json) accepts. Ending your turn with prose and an
 unconfirmed merge is a contract violation — it is the very bug this workflow
 exists to prevent.
 
