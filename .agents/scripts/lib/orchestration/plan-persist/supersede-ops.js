@@ -15,12 +15,12 @@
  *
  * Two halves, deliberately separated by the `createIssue` boundary:
  *
- *   1. **`assertSupersedePartition`** — a plan-time, fail-closed check that
- *      runs *before* any GitHub write. Same fail-closed shape as the
- *      every id passed to `--tickets` must be claimed by exactly one Story,
- *      and no Story may claim an id that was not a source ticket. A partial
- *      supersede map is a planning error, not something to paper over at
- *      write time.
+ *   1. **`resolveSupersedePartition`** — the plan-time completion pass that
+ *      runs *before* any GitHub write. No id may be claimed by two Stories
+ *      and no Story may claim an id that was not a source ticket — both fail
+ *      closed. A source id nobody claimed is assigned to the primary Story
+ *      with a warning (Story #5342): the plan is replacing it either way, so
+ *      the only open question was bookkeeping.
  *   2. **`closeSupersededTickets`** — the bookkeeping pass that runs *after*
  *      the Stories exist. It **never throws**: a throw here would leave the
  *      run half-done with Stories already live. An already-closed, deleted,
@@ -279,18 +279,12 @@ function describeStoryIds(entries) {
 }
 
 /**
- * Fail closed on a partial supersede map.
+ * Index which Story claims each source id.
  *
- * Runs **before** `createIssue` so a mis-authored map never leaves Stories
- * live against an inconsistent tracker.
- *
- * @param {Array<{ slug: string, supersedes: Array<{ id: number }> }>} stories
- * @param {number[]} sourceTicketIds Ids passed to `/mandrel-plan --tickets`.
+ * @param {Array<{ slug: string, supersedes?: Array<{ id: number }> }>} list
+ * @returns {Map<number, string[]>} id → claiming slugs, in draft order.
  */
-export function assertSupersedePartition(stories, sourceTicketIds = []) {
-  const list = Array.isArray(stories) ? stories : [];
-  const sources = new Set(sourceTicketIds);
-
+function indexSupersedeClaims(list) {
   /** @type {Map<number, string[]>} */
   const claims = new Map();
   for (const story of list) {
@@ -300,9 +294,38 @@ export function assertSupersedePartition(stories, sourceTicketIds = []) {
       claims.set(id, owners);
     }
   }
+  return claims;
+}
+
+/**
+ * Complete the supersede map, refusing only what the plan gets wrong.
+ *
+ * Two halves, split by who can be right (Story #5342):
+ *
+ *   - **Refused.** A Story claiming an id that was never a source ticket, and
+ *     two Stories claiming the same id. Both name an intent the run cannot
+ *     act on — the first would comment on and close an issue nobody asked
+ *     about, the second cannot say which Story replaced it — so they fail
+ *     closed, **before** `createIssue`, and no Story goes live against an
+ *     inconsistent tracker.
+ *   - **Assigned with a warning.** A source id no Story claimed. Every id
+ *     passed to `--tickets` is being replaced by this plan by construction;
+ *     which Story records it is a bookkeeping detail, and the primary Story
+ *     is the answer the operator would have given. Refusing cost a whole
+ *     re-author round to type back a fact the run already knew.
+ *
+ * Mutates the unclaimed ids onto the primary Story's `supersedes[]`.
+ *
+ * @param {Array<{ slug: string, supersedes: Array<{ id: number, note: string|null }> }>} stories
+ * @param {number[]} sourceTicketIds Ids passed to `/mandrel-plan --tickets`.
+ * @returns {string[]} One warning per id assigned by default.
+ */
+export function resolveSupersedePartition(stories, sourceTicketIds = []) {
+  const list = Array.isArray(stories) ? stories : [];
+  const sources = new Set(sourceTicketIds);
+  const claims = indexSupersedeClaims(list);
 
   const errors = [];
-
   for (const [id, owners] of claims) {
     if (owners.length > 1) {
       errors.push(
@@ -317,23 +340,31 @@ export function assertSupersedePartition(stories, sourceTicketIds = []) {
       );
     }
   }
-
-  for (const id of sources) {
-    if (!claims.has(id)) {
-      errors.push(
-        `source ticket #${id} is not claimed by any Story's supersedes[] — ` +
-          'a partial supersede map is a planning error. Claim it, or drop it ' +
-          'from --tickets.',
-      );
-    }
-  }
-
   if (errors.length > 0) {
     throw new Error(
       `[plan-persist] supersede partition failed with ${errors.length} ` +
         `error(s):\n${errors.map((e) => `  - ${e}`).join('\n')}`,
     );
   }
+
+  const primary = list[0];
+  const warnings = [];
+  for (const id of sources) {
+    if (claims.has(id)) continue;
+    if (!primary) {
+      throw new Error(
+        `[plan-persist] source ticket #${id} cannot be superseded — the ` +
+          'draft carries no Story to assign it to.',
+      );
+    }
+    primary.supersedes = [...(primary.supersedes ?? []), { id, note: null }];
+    warnings.push(
+      `source ticket #${id} was claimed by no Story's supersedes[] — ` +
+        `assigned to the primary Story "${primary.slug}". Author the claim ` +
+        'explicitly if another Story is the one that replaces it.',
+    );
+  }
+  return warnings;
 }
 
 /**
@@ -567,7 +598,7 @@ export async function closeSupersededTickets({
       });
     },
     // The per-source-ticket close (Story #4952) fans out across **distinct**
-    // tickets — `assertSupersedePartition` has already failed the run closed
+    // tickets — `resolveSupersedePartition` has already failed the run closed
     // if two Stories claim the same id, so no two units in flight can touch
     // the same issue. Within one unit the probe → comment → close sequence
     // stays strictly ordered: commenting on an issue the probe reported

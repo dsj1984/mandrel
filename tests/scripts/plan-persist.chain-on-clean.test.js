@@ -48,7 +48,7 @@ function cleanTicket(slug = 'solo') {
   };
 }
 
-/** A Story with no acceptance/verify contract — fails the dry-run validator. */
+/** A Story with no acceptance contract — fails the dry-run validator. */
 function invalidTicket() {
   return {
     slug: 'bad',
@@ -223,7 +223,7 @@ describe('runPersistChain — fast path (Story #4741, any plan since #5312)', ()
               story: invalidTicket(),
             }),
           }),
-        /acceptance \+ verify contract/,
+        /lack an inline acceptance contract/,
       );
       // The real persist pass never ran — nothing was created.
       assert.equal(provider.issues.size, 0);

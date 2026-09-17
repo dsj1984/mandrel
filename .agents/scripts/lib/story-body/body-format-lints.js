@@ -22,7 +22,10 @@
  *
  * Story #5312 deleted the `verify-tier-suffix` / `verify-manual-reason` lints
  * with the tier suffix itself: a `verify[]` entry is any command, and the
- * `manual:<reason>` escape is gone with the rule it escaped.
+ * `manual:<reason>` escape is gone with the rule it escaped. Story #5342
+ * deleted `verify-non-empty`: an empty `verify[]` is a dry-run warning, not a
+ * refusal, so it is no longer a rejecting lint — this registry carries only
+ * the rules that still refuse.
  *
  * Import hygiene: this module imports only the cycle-free
  * `file-assumption-enum.js` leaf. It must NOT import `story-body.js` or
@@ -114,10 +117,13 @@ export const BODY_FORMAT_LINTS = Object.freeze([
   {
     id: 'changes-path-entry-shape',
     summary:
-      'Every `## Changes` / `## References` bullet MUST be a `{ path, assumption }` object (assumption ∈ ' +
-      `${FILE_ASSUMPTION_VALUES.join(' | ')}); plain path strings are rejected.`,
-    badExample: '- src/app.js',
-    goodExample: '- {"path": "src/app.js", "assumption": "refactors-existing"}',
+      'Every `## Changes` / `## References` bullet MUST name a path — a bare ' +
+      'path string is the default form and persist derives its assumption by ' +
+      'probing the base branch. Use the `{ path, assumption }` object ' +
+      `(assumption ∈ ${FILE_ASSUMPTION_VALUES.join(' | ')}) only to pin one ` +
+      'yourself; `deletes` always needs it. Prose bullets are rejected.',
+    badExample: '- the routing module and its tests',
+    goodExample: '- src/app.js',
     autoFixable: true,
   },
   {
@@ -125,13 +131,6 @@ export const BODY_FORMAT_LINTS = Object.freeze([
     summary: 'A Story MUST declare at least one `## Changes` bullet.',
     badExample: '## Changes\n\n## Acceptance',
     goodExample: '- {"path": "src/app.js", "assumption": "creates"}',
-    autoFixable: false,
-  },
-  {
-    id: 'verify-non-empty',
-    summary: 'A Story MUST list at least one `verify[]` entry.',
-    badExample: '"verify": []',
-    goodExample: '"verify": ["npm run validate"]',
     autoFixable: false,
   },
   {

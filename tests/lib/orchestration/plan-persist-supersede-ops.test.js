@@ -5,13 +5,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  assertSupersedePartition,
   buildSupersedeCommentBody,
   closeSupersededTickets,
   extractEnvelopeSourceTicketIds,
   normalizeSourceTicketIds,
   normalizeSupersedes,
   resolveSourceTicketIds,
+  resolveSupersedePartition,
   SUPERSEDE_CLOSE_REASON,
 } from '../../../.agents/scripts/lib/orchestration/plan-persist/supersede-ops.js';
 
@@ -116,40 +116,45 @@ describe('normalizeSourceTicketIds', () => {
   });
 });
 
-describe('assertSupersedePartition', () => {
-  it('passes a total 1:1 map', () => {
-    assert.doesNotThrow(() =>
-      assertSupersedePartition(
+describe('resolveSupersedePartition', () => {
+  it('passes a total 1:1 map with no warning', () => {
+    assert.deepEqual(
+      resolveSupersedePartition(
         [story('a', [{ id: 1 }]), story('b', [{ id: 2 }])],
         [1, 2],
       ),
+      [],
     );
   });
 
   it('passes an N<sources fold (4525-4528 → one Story)', () => {
-    assert.doesNotThrow(() =>
-      assertSupersedePartition(
+    assert.deepEqual(
+      resolveSupersedePartition(
         [story('a', [{ id: 4525 }, { id: 4526 }, { id: 4527 }, { id: 4528 }])],
         [4525, 4526, 4527, 4528],
       ),
+      [],
     );
   });
 
   it('passes a no-source / no-claim plan (seed mode)', () => {
-    assert.doesNotThrow(() => assertSupersedePartition([story('a')], []));
+    assert.deepEqual(resolveSupersedePartition([story('a')], []), []);
   });
 
-  it('rejects an unclaimed source ticket', () => {
-    assert.throws(
-      () => assertSupersedePartition([story('a', [{ id: 1 }])], [1, 2]),
-      /#2 is not claimed by any Story/,
-    );
+  it('assigns an unclaimed source ticket to the primary Story with a warning (Story #5342)', () => {
+    const stories = [story('a', [{ id: 1 }]), story('b')];
+    const warnings = resolveSupersedePartition(stories, [1, 2]);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /#2 was claimed by no Story/);
+    assert.match(warnings[0], /assigned to the primary Story "a"/);
+    assert.deepEqual(stories[0].supersedes, [{ id: 1 }, { id: 2, note: null }]);
+    assert.deepEqual(stories[1].supersedes, []);
   });
 
   it('rejects a source claimed by two Stories', () => {
     assert.throws(
       () =>
-        assertSupersedePartition(
+        resolveSupersedePartition(
           [story('a', [{ id: 1 }]), story('b', [{ id: 1 }])],
           [1],
         ),
@@ -160,15 +165,22 @@ describe('assertSupersedePartition', () => {
   it('rejects a claim on a non-source ticket', () => {
     assert.throws(
       () =>
-        assertSupersedePartition([story('a', [{ id: 1 }, { id: 99 }])], [1]),
+        resolveSupersedePartition([story('a', [{ id: 1 }, { id: 99 }])], [1]),
       /#99, which was not passed to --tickets/,
     );
   });
 
   it('rejects any claim when no source tickets were passed', () => {
     assert.throws(
-      () => assertSupersedePartition([story('a', [{ id: 1 }])], []),
+      () => resolveSupersedePartition([story('a', [{ id: 1 }])], []),
       /was not passed to --tickets/,
+    );
+  });
+
+  it('refuses a source id when the draft carries no Story to assign it to', () => {
+    assert.throws(
+      () => resolveSupersedePartition([], [1]),
+      /no Story to assign it to/,
     );
   });
 });
@@ -239,16 +251,17 @@ describe('resolveSourceTicketIds', () => {
     assert.deepEqual(resolveSourceTicketIds(), { ids: [], origin: 'none' });
   });
 
-  it('an envelope-derived set still fail-closes the partition when a Story forgot supersedes[]', () => {
-    // The whole point: deriving the ids turns the old silent no-op into the
-    // existing loud partition error.
+  it('an envelope-derived set still reaches the partition when a Story forgot supersedes[]', () => {
+    // The whole point: deriving the ids turns the old silent no-op into an
+    // audible outcome — now an assignment with a warning rather than a
+    // refusal (Story #5342), but never a source ticket left quietly open.
     const { ids } = resolveSourceTicketIds({
       envelope: ticketsEnvelope([4525]),
     });
-    assert.throws(
-      () => assertSupersedePartition([story('a')], ids),
-      /#4525 is not claimed by any Story/,
-    );
+    const stories = [story('a')];
+    const warnings = resolveSupersedePartition(stories, ids);
+    assert.match(warnings[0], /#4525 was claimed by no Story/);
+    assert.deepEqual(stories[0].supersedes, [{ id: 4525, note: null }]);
   });
 });
 

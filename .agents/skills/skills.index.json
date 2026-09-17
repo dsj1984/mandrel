@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-14T11:57:26.498Z",
+  "generatedAt": "2026-09-17T13:37:08.250Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -87,7 +87,7 @@
       "tier": "stack",
       "category": "qa",
       "path": ".agents/skills/stack/qa/playwright/SKILL.md",
-      "description": "Robust E2E browser testing with Playwright. Use when writing browser-driven tests — leverage auto-waiting (no `waitForTimeout`), prefer user-visible locators (`getByRole`, `getByText`, `getByLabel`) over CSS/XPath, reuse `storageState` for auth, and enable trace-on-first-retry for CI debugging.",
+      "description": "Robust E2E browser testing with Playwright. Use when writing browser-driven tests — leverage auto-waiting (no `waitForTimeout`), prefer user-visible locators (`getByRole`, `getByText`, `getByLabel`) over CSS/XPath, reuse `storageState` for auth, and enable trace-on-first-retry for CI debugging. Also carries the `data-testid` contract a UI change states in its acceptance criteria.",
       "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "playwright"

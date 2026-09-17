@@ -161,6 +161,13 @@ function stripListMarker(line) {
 // issue bodies are never rewritten).
 const HUMANIZED_PATH_ENTRY_RE = /^`([^`]+)`\s+—\s+(\S+)$/;
 
+// Bare path bullet (Story #5342): `src/app.js` or `` `src/app.js` `` with no
+// assumption. The assumption is a fact about the base branch, not a thing the
+// author knows better than a probe does, so the default authored form omits
+// it and persist derives it. A single path-shaped token with no whitespace —
+// prose bullets do not match and are still rejected.
+const BARE_PATH_ENTRY_RE = /^`?([\w@*-]*[/.][\w@./*-]+)`?$/;
+
 // AC-<n> presentation prefix on acceptance checkboxes (Story #4600). The
 // numbering is a stable 1-based human handle only — parse() strips it so the
 // top-level acceptance[] machine contract round-trips byte-identical.
@@ -189,8 +196,10 @@ const META_BLOCK_RE = /<!--\s*meta:[\s\S]*?-->/;
 /**
  * Parse a single `changes` / `references` bullet into a `PathEntry`.
  *
- * Accepted markdown shapes (both parsed indefinitely — live issue bodies
+ * Accepted markdown shapes (all parsed indefinitely — live issue bodies
  * are never rewritten):
+ *   - Bare path (the default authored form since Story #5342):
+ *     `` `src/x.js` `` or `src/x.js`, parsed with `assumption: null`
  *   - Humanized bullet (canonical serialize() output since Story #4600):
  *     `` `src/x.js` — refactors-existing ``
  *   - Legacy inline-JSON object bullet:
@@ -214,9 +223,13 @@ function parsePathEntry(raw, warnings) {
 
   const entry = pathEntryFromHumanized(str) ?? pathEntryFromInlineJson(str);
   if (entry) return entry;
+  // Story #5342: the bare path bullet. `assumption: null` records only what
+  // the author said — persist derives the rest by probing the base branch.
+  const bare = str.match(BARE_PATH_ENTRY_RE);
+  if (bare) return { path: bare[1], assumption: null };
 
   throw new StoryBodyParseError(
-    `changes/references entry must be a { path, assumption } object; plain string bullets are no longer accepted: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
+    `changes/references entry must name a path — a bare path string, or a { path, assumption } object; prose bullets are not accepted: ${str.slice(0, 120)}${pathEntryFixIt(str)}`,
     { field: 'changes', raw: str },
   );
 }
@@ -229,12 +242,12 @@ function parsePathEntry(raw, warnings) {
  * @returns {PathEntry}
  */
 function pathEntryFromObject(raw) {
-  if (
-    typeof raw.path === 'string' &&
-    raw.path.trim().length > 0 &&
-    FILE_ASSUMPTION_VALUES.includes(raw.assumption)
-  ) {
-    return { path: raw.path.trim(), assumption: raw.assumption };
+  const path = typeof raw.path === 'string' ? raw.path.trim() : '';
+  // Story #5342: an object naming only a path is the bare form spelled the
+  // long way — the assumption is derived at persist, not missing.
+  const known = FILE_ASSUMPTION_VALUES.includes(raw.assumption);
+  if (path !== '' && (known || raw.assumption == null)) {
+    return { path, assumption: known ? raw.assumption : null };
   }
   // Malformed object: fail closed.
   throw new StoryBodyParseError(
@@ -270,8 +283,9 @@ function pathEntryFromHumanized(str) {
  * Parse the legacy inline-JSON object bullet:
  * `{ "path": "...", "assumption": "..." }`. Returns `null` when the line is
  * not a JSON object at all (including a JSON parse failure — the caller then
- * rejects the plain-string form); fails closed when it parses to an object
- * without valid PathEntry fields.
+ * tries the bare-path form and finally rejects the bullet); delegates the
+ * field check to {@link pathEntryFromObject}, which is the same judgment on
+ * the same shape and fails closed the same way.
  *
  * @param {string} str
  * @returns {PathEntry|null}
@@ -282,21 +296,12 @@ function pathEntryFromInlineJson(str) {
   try {
     parsed = JSON.parse(str);
   } catch {
-    // JSON parse failed — the caller rejects the plain-string form.
+    // JSON parse failed — the caller falls through to the bare-path form.
     return null;
   }
-  if (typeof parsed !== 'object' || parsed === null) return null;
-  if (
-    typeof parsed.path === 'string' &&
-    FILE_ASSUMPTION_VALUES.includes(parsed.assumption)
-  ) {
-    return { path: parsed.path.trim(), assumption: parsed.assumption };
-  }
-  // Parsed successfully as JSON object but has invalid fields — fail closed.
-  throw new StoryBodyParseError(
-    `changes/references entry is a JSON object but not a valid PathEntry: ${str}`,
-    { field: 'changes', raw: str },
-  );
+  return parsed !== null && typeof parsed === 'object'
+    ? pathEntryFromObject(parsed)
+    : null;
 }
 
 /**
@@ -789,10 +794,14 @@ const STRUCTURED_FIELD_NORMALIZERS = {
  */
 function serializePathEntry(entry) {
   if (typeof entry === 'string') return entry;
-  // Canonical object form (Story #4600): render as a human-readable bullet —
-  // path in backticks, em-dash, assumption. parsePathEntry recognizes this
-  // shape (and the legacy inline-JSON shape) for round-trip fidelity.
-  return `\`${entry.path}\` — ${entry.assumption}`;
+  // Canonical object form (Story #4600): a human-readable bullet — path in
+  // backticks, em-dash, assumption. parsePathEntry recognizes this shape (and
+  // the legacy inline-JSON one) for round-trip fidelity. Story #5342: a bare
+  // entry — a path the author wrote with no assumption — serializes back bare
+  // rather than silently acquiring a derivation they never made; persist
+  // fills it in by probing base before it writes a body.
+  const tail = entry.assumption == null ? '' : ` — ${entry.assumption}`;
+  return `\`${entry.path}\`${tail}`;
 }
 
 /**

@@ -623,18 +623,26 @@ export async function runPlanPersist({
 
   // Inline Spec fold (Specs stay inline, never under docs/).
   const seedContent = planContextEnvelope?.seed?.content ?? '';
-  const { stories: assembled } = assemblePlanStories(rawStories, {
-    sharedSpec: techSpecContent,
-    sourceTicketIds,
-    // The seed this plan was authored from: an audit sweep's Single-plan seed
-    // carries the `audit-fingerprints` / `audit-semantic-keys` footers, and
-    // assembly copies them into the persisted Story bodies so the next sweep
-    // recognises what it already planned (Story #4877). Since Story #5045 this
-    // is the **fallback** — it is carried onto every Story that did not
-    // attribute its own `provenance`, which keeps an un-attributed plan exactly
-    // as recall-safe as it was. Empty for a `--tickets` run, a no-op there.
-    provenanceSource: seedContent,
-  });
+  const { stories: assembled, warnings: supersedeWarnings } =
+    assemblePlanStories(rawStories, {
+      sharedSpec: techSpecContent,
+      sourceTicketIds,
+      // The seed this plan was authored from: an audit sweep's Single-plan seed
+      // carries the `audit-fingerprints` / `audit-semantic-keys` footers, and
+      // assembly copies them into the persisted Story bodies so the next sweep
+      // recognises what it already planned (Story #4877). Since Story #5045 this
+      // is the **fallback** — it is carried onto every Story that did not
+      // attribute its own `provenance`, which keeps an un-attributed plan exactly
+      // as recall-safe as it was. Empty for a `--tickets` run, a no-op there.
+      provenanceSource: seedContent,
+    });
+
+  // Story #5342: the source ids assembly assigned to the primary Story by
+  // default. They ride the same list every other dry-run warning does, so a
+  // default-assigned supersede is visible in the output the operator already
+  // reads rather than only in the tracker afterwards.
+  warnings.push(...supersedeWarnings);
+  logWarnings(supersedeWarnings);
 
   // Stamp the `audit::*` labels the dedup corpus is listed by. Without them a
   // Story this path files is absent from the pool an indexed sweep matches

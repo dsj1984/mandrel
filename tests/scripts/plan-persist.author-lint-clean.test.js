@@ -110,6 +110,80 @@ describe('AC-3: a prompt-authored Story passes dry-run on the first attempt', ()
     );
   });
 
+  it('still refuses a `deletes` naming a path absent at base (Story #5342 control)', async () => {
+    // `deletes` stays explicit and stays checked: a bare path can never mean
+    // a removal, and a removal of something that is not there is a planning
+    // error no probe can repair.
+    const broken = promptAuthoredStory();
+    broken.body = broken.body.replace(
+      '- {"path": "tests/scripts/plan-persist.flat-stories.test.js", "assumption": "refactors-existing"}',
+      '- {"path": "tests/scripts/plan-persist.no-such-file.test.js", "assumption": "deletes"}',
+    );
+
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider: fakeProvider(),
+          artifacts: { stories: [broken] },
+          config: {},
+          opts: { dryRun: true, skipCleanup: true },
+        }),
+      /File assumption mismatch/,
+    );
+  });
+
+  it('persists a Story with an empty verify[], listing it as a warning (Story #5342 AC-4)', async () => {
+    const story = promptAuthoredStory();
+    story.verify = [];
+    story.body = story.body.replace(
+      '- {"path": "tests/scripts/plan-persist.flat-stories.test.js", "assumption": "refactors-existing"}',
+      '- tests/scripts/plan-persist.flat-stories.test.js',
+    );
+
+    const result = await runPlanPersist({
+      provider: fakeProvider(),
+      artifacts: { stories: [story] },
+      config: {},
+      opts: { dryRun: true, skipCleanup: true },
+    });
+    assert.equal(result.stories.length, 1);
+    assert.ok(
+      result.warnings.some((w) => /lists no verify\[\] entry/.test(w)),
+      `the empty verify[] is warned about, not refused: ${result.warnings.join('\n')}`,
+    );
+  });
+
+  it('refuses a Story with an empty acceptance[] (Story #5342 AC-4 control)', async () => {
+    const story = promptAuthoredStory();
+    story.acceptance = [];
+
+    await assert.rejects(
+      () =>
+        runPlanPersist({
+          provider: fakeProvider(),
+          artifacts: { stories: [story] },
+          config: {},
+          opts: { dryRun: true, skipCleanup: true },
+        }),
+      /lack an inline acceptance contract/,
+    );
+  });
+
+  it('persists acceptance quoting a non-conventional subject prefix (Story #5342 AC-5)', async () => {
+    // The subject-prefix validator is gone; the commit-msg hook and
+    // normalize-pr-title.js are where a bad subject is actually caught.
+    const story = promptAuthoredStory();
+    story.acceptance = ["Commit subject begins with 'baseline-refresh:'"];
+
+    const result = await runPlanPersist({
+      provider: fakeProvider(),
+      artifacts: { stories: [story] },
+      config: {},
+      opts: { dryRun: true, skipCleanup: true },
+    });
+    assert.equal(result.stories.length, 1);
+  });
+
   it('still refuses the one Changes shape only the author can resolve (control)', async () => {
     // A bullet with no path-shaped token cannot be salvaged: persist must
     // reject it — proving the dry-run above passes because the format is
@@ -128,7 +202,7 @@ describe('AC-3: a prompt-authored Story passes dry-run on the first attempt', ()
           config: {},
           opts: { dryRun: true, skipCleanup: true },
         }),
-      /plain string bullets are no longer accepted/,
+      /prose bullets are not accepted/,
     );
   });
 });

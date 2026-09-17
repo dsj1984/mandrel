@@ -24,21 +24,22 @@
  *                             scratch (Story #4741). Envelope carries `amends`.
  *
  * Flags:
- *   --out <path>     Write the envelope to <path> (parent dirs created).
- *                    `/mandrel-plan` points this at `<plan-dir>/plan-context.json`,
- *                    which is where `plan-persist.js` auto-discovers the
- *                    `--tickets` source ids from (Story #4554). Without a
- *                    captured envelope persist cannot know a `--tickets` run
- *                    happened, and superseding degrades to the
- *                    `--source-tickets` flag. With --out, stdout carries a
- *                    compact digest naming the artifact instead of the full
- *                    envelope (Story #4708 script-output contract).
- *   --pretty         Pretty-print the JSON envelope (no-op with --out).
+ *   --out <path>     Override where the envelope is written (parent dirs
+ *                    created). **Optional since Story #5342** — with no
+ *                    `--out` the envelope lands at
+ *                    `<tempRoot>/plan-<slug>/plan-context.json`, the plan
+ *                    directory `/mandrel-plan` would have named by hand, and
+ *                    `stories.template.json` lands beside it. That is where
+ *                    `plan-persist.js` auto-discovers the `--tickets` source
+ *                    ids from (Story #4554); without a captured envelope
+ *                    persist cannot know a `--tickets` run happened, and
+ *                    superseding degrades to the `--source-tickets` flag.
+ *   --pretty         Pretty-print the written JSON envelope.
  *
  * stdout is reserved for a single JSON payload (Story #2278 discipline) —
- * the envelope, or the digest when --out captures it:
- * `routeAllOutputToStderr()` runs before any pipeline code so the stream
- * is unconditionally parseable by `JSON.parse`.
+ * the compact digest naming the written artifacts (Story #4708
+ * script-output contract): `routeAllOutputToStderr()` runs before any
+ * pipeline code so the stream is unconditionally parseable by `JSON.parse`.
  *
  * Exit codes:
  *   0 — envelope emitted.
@@ -54,6 +55,8 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import {
+  getPaths,
+  PROJECT_ROOT,
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
@@ -65,6 +68,77 @@ import {
 } from './lib/orchestration/plan-context.js';
 import { recordPlanInvocation } from './lib/orchestration/plan-metrics.js';
 import { createProvider } from './lib/provider-factory.js';
+
+/** Longest slug segment a default plan directory carries. */
+const PLAN_SLUG_MAX_LENGTH = 48;
+
+/**
+ * Reduce free text to the hyphen-case segment a plan directory is named by.
+ *
+ * Deliberately lossy: the slug is a human-readable handle on a temp
+ * directory, not an identity — two runs from the same seed land in the same
+ * directory and the second overwrites the first, which is the idempotent
+ * behaviour the operator already got from typing the same `--out` twice.
+ *
+ * @param {string} raw
+ * @returns {string} A non-empty hyphen-case slug (`plan` when nothing survives).
+ */
+export function slugifyPlanLabel(raw) {
+  const slug = String(raw ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, PLAN_SLUG_MAX_LENGTH)
+    .replace(/-+$/, '');
+  return slug === '' ? 'plan' : slug;
+}
+
+/**
+ * Resolve where the envelope is written when the operator passed no `--out`
+ * (Story #5342).
+ *
+ * `--out` was mandatory in practice and optional in the CLI: persist
+ * auto-discovers the envelope and the `stories.template.json` beside it from
+ * the plan directory, so a run without it silently lost superseding and the
+ * authoring skeleton. The path it always pointed at is derivable — the
+ * configured `tempRoot`, a `plan-<slug>` directory named for what is being
+ * planned — so the CLI derives it rather than asking.
+ *
+ * Exported for tests: this is the join where a missing flag stops costing
+ * the plan its source ids.
+ *
+ * @param {object} args
+ * @param {string} args.mode One of `seed` | `seed-file` | `tickets` | `amends`.
+ * @param {string} [args.seedText]
+ * @param {string} [args.seedFilePath]
+ * @param {number[]} [args.ticketIds]
+ * @param {number} [args.amendsId]
+ * @param {object} [args.config] Resolved config (for `project.paths.tempRoot`).
+ * @param {string} [args.cwd]
+ * @returns {string} Absolute path to the envelope file.
+ */
+export function resolveDefaultOutPath({
+  mode,
+  seedText,
+  seedFilePath,
+  ticketIds,
+  amendsId,
+  config,
+  cwd = PROJECT_ROOT,
+}) {
+  const byMode = {
+    amends: () => `amends-${amendsId}`,
+    tickets: () => `tickets-${(ticketIds ?? []).join('-')}`,
+    'seed-file': () => path.parse(String(seedFilePath ?? '')).name,
+  };
+  const label = (byMode[mode] ?? (() => String(seedText ?? '')))();
+  return path.resolve(
+    cwd,
+    getPaths(config).tempRoot,
+    `plan-${slugifyPlanLabel(label)}`,
+    'plan-context.json',
+  );
+}
 
 /**
  * Parse a comma-/space-separated ticket id list into positive integers.
@@ -109,8 +183,10 @@ export function parseAmendsId(raw) {
 }
 
 /**
- * Build the envelope and write it to `stdout` as a single JSON line
- * (or pretty-printed with --pretty). Exported for tests.
+ * Build the envelope, write it (plus the `stories.template.json` skeleton)
+ * to `outPath` — or to the derived default when none was passed
+ * (Story #5342) — and print the compact digest on stdout. Exported for
+ * tests.
  *
  * @param {object} args
  * @returns {Promise<object>} the emitted envelope.
@@ -145,14 +221,26 @@ export async function emitPlanContext({
   const json = pretty
     ? JSON.stringify(envelope, null, 2)
     : JSON.stringify(envelope);
-  if (outPath) {
+  const resolvedOut =
+    outPath ??
+    resolveDefaultOutPath({
+      mode,
+      seedText,
+      seedFilePath,
+      ticketIds,
+      amendsId,
+      config,
+      cwd: cwd ?? undefined,
+    });
+  {
     // Script-output contract (Story #4708, AC-5): the full envelope is a
     // ~40KB artifact that would ride resident in the transcript for every
-    // later turn. When it is captured to disk anyway, stdout carries a
-    // compact digest naming the artifact instead of the payload itself.
-    await writeEnvelopeFile(outPath, json);
-    await writeStoriesTemplateFile(outPath, envelope);
-    const resolved = path.resolve(outPath);
+    // later turn. It is always captured to disk (Story #5342 derives the
+    // path when `--out` is absent), so stdout carries a compact digest
+    // naming the artifacts instead of the payload itself.
+    await writeEnvelopeFile(resolvedOut, json);
+    await writeStoriesTemplateFile(resolvedOut, envelope);
+    const resolved = path.resolve(resolvedOut);
     const digest = {
       digest: 'plan-context',
       mode: envelope.mode,
@@ -182,8 +270,6 @@ export async function emitPlanContext({
       amends: envelope.amends ? { id: envelope.amends.id } : null,
     };
     stdout.write(`${JSON.stringify(digest)}\n`);
-  } else {
-    stdout.write(`${json}\n`);
   }
   return envelope;
 }
@@ -216,8 +302,8 @@ async function writeEnvelopeFile(outPath, json) {
  * Emit the ready-to-fill Story authoring template next to the captured
  * envelope (Story #4707 — one-shot authoring). The planner copies it to
  * `stories.json` and fills the placeholders; no step of the authoring path
- * requires reading `story-body.js` source. Written whenever `--out` is
- * passed, and throwing on failure for the same reason the envelope write
+ * requires reading `story-body.js` source. Written on every run (Story
+ * #5342), and throwing on failure for the same reason the envelope write
  * does: a silently missing template re-opens the format-discovery loop it
  * exists to close. The envelope's advisory `complexitySignals` are threaded
  * through so the skeleton's `changes[]` arrive pre-resolved to
@@ -346,14 +432,17 @@ runAsCli(import.meta.url, main, {
     invocation:
       'node .agents/scripts/plan-context.js (--seed "<text>" | --seed-file <path> | --tickets <ids> | --amends <id>) [--out <path>] [--pretty]',
     summary:
-      'Build the /mandrel-plan authoring-context envelope on stdout. Exactly one entry form must be supplied.',
+      'Build the /mandrel-plan authoring-context envelope. Writes it (and stories.template.json) under <tempRoot>/plan-<slug>/ and prints the digest on stdout. Exactly one entry form must be supplied.',
     flags: [
       ['--seed "<text>"', 'Inline seed prose.'],
       ['--seed-file <path>', 'Seed document to read.'],
       ['--tickets <ids>', 'Comma-separated existing ticket ids to re-plan.'],
       ['--amends <id>', 'Amend the Spec of an existing Story.'],
-      ['--out <path>', 'Write the envelope to a file instead of stdout.'],
-      ['--pretty', 'Pretty-print the JSON envelope.'],
+      [
+        '--out <path>',
+        'Override the derived <tempRoot>/plan-<slug>/plan-context.json path.',
+      ],
+      ['--pretty', 'Pretty-print the written JSON envelope.'],
     ],
   },
 });

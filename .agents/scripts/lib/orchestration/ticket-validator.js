@@ -3,7 +3,6 @@ import { normalizeOwnedProvenance } from '../findings/provenance-field.js';
 import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
-import { Logger } from '../Logger.js';
 import { validateStoryFileAssumptions } from './file-assumptions.js';
 import { isExternalDependencyRef } from './plan-persist/external-deps.js';
 import {
@@ -39,38 +38,6 @@ function collectPathsFromText(text, paths) {
     paths.add(captured.slice(rootStart));
     match = FRESHNESS_PATH_RE.exec(text);
   }
-}
-
-/**
- * Resolve every acceptance line a Story declares, across both authoring
- * shapes (Story #4541).
- *
- * The canonical shape is a **serialized string body** with the criteria at
- * the ticket's **top level** — the machine contract persist syncs into the
- * body. `validateAcceptanceSubjectPrefix` used to read `body.acceptance` on
- * an object body only, so on every real plan it scanned nothing and the gate
- * silently passed. Union both sources (deduplicated) so the gate fires on
- * whichever surface the author used.
- *
- * @param {object} story
- * @returns {string[]}
- */
-function resolveAcceptanceLines(story) {
-  const lines = new Set();
-  if (Array.isArray(story?.acceptance)) {
-    for (const item of story.acceptance) lines.add(String(item ?? ''));
-  }
-  const body = story?.body;
-  let bodyAcceptance = null;
-  if (typeof body === 'string' && body.trim().length > 0) {
-    bodyAcceptance = parseStoryBodyOrThrow(story).acceptance;
-  } else if (body !== null && typeof body === 'object') {
-    bodyAcceptance = body.acceptance;
-  }
-  if (Array.isArray(bodyAcceptance)) {
-    for (const item of bodyAcceptance) lines.add(String(item ?? ''));
-  }
-  return [...lines];
 }
 
 function collectTaskPathReferences(task) {
@@ -284,117 +251,6 @@ export function validateAcFreshness({
 }
 
 /**
- * Allowed leading Conventional-Commits types. Mirrors the `changelog-sections`
- * keys in `release-please-config.json` and the `type-enum` list in
- * `commitlint.config.js`. When a planner LLM prescribes a commit subject in a
- * Task acceptance item via the "Commit subject begins with '<prefix>:'" form,
- * the captured prefix must reduce to one of these types (optionally followed
- * by a `(scope)` qualifier) — anything else fails commitlint locally and
- * release-please's changelog parser on `main`, so the decompose is rejected
- * before the Story branch is ever cut.
- *
- * Epic #2501 introduced this guard after the legacy `baseline-refresh`
- * leading-token prescription created a wave of commit-msg hook failures
- * across story-deliver sub-agents. See
- * `.agents/skills/core/gates-and-baselines/SKILL.md` for the canonical refresh
- * shape (Conventional-Commits subject + `baseline-refresh: true` body
- * trailer).
- */
-const ALLOWED_COMMIT_TYPES = new Set([
-  'feat',
-  'fix',
-  'chore',
-  'refactor',
-  'perf',
-  'docs',
-  'style',
-  'test',
-  'build',
-  'ci',
-  'revert',
-]);
-
-/**
- * Regex matching the canonical "Commit subject begins with '<prefix>:'"
- * prescription shape the planner emits in `body.acceptance[]` entries.
- * The leading quote is captured loosely (single, double, or backtick) so the
- * three quoting styles the decomposer LLM has historically emitted all
- * match. The captured group is the prefix token *without* the trailing
- * colon — callers normalize by stripping an optional `(scope)` qualifier
- * before comparing against the allowed-types set.
- */
-const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
-
-/**
- * Scan every Story's `body.acceptance[]` for "Commit subject begins with
- * '<prefix>:'" prescriptions and reject the decompose when any captured
- * prefix is not a valid Conventional-Commits type.
- *
- * A captured prefix of the form `chore(baselines)` is accepted — the
- * leading `chore` is in the allowed-types set, and the `(scope)` qualifier
- * is the standard Conventional-Commits scope shape. A captured prefix of
- * the form `baseline-refresh` is rejected because no Conventional-Commits
- * type starts with that token.
- *
- * Only acceptance criteria are scanned; `body.goal` / `body.verify` /
- * `body.changes` are not commit-subject prescriptions by convention and
- * scanning them would surface false positives from prose that happens to
- * quote a forbidden prefix while explaining why it's forbidden.
- *
- * Both authoring shapes are covered (Story #4541): the canonical top-level
- * `acceptance[]` on a serialized string body, and the pre-serialize
- * `body.acceptance[]` object shape. Scanning only the latter made the gate
- * inert on every real plan.
- *
- * @param {object}   opts
- * @param {object[]} opts.tickets - Validated ticket hierarchy.
- * @throws {ValidationError} when one or more Story acceptance items
- *   prescribe a forbidden subject prefix. The error carries
- *   `code: 'forbidden-subject-prefix'` and a `violations[]` payload
- *   listing each `{ slug, prefix, line }` so the decompose loop can
- *   surface the exact offending text to the operator.
- */
-export function validateAcceptanceSubjectPrefix({ tickets }) {
-  const violations = [];
-  const stories = (tickets ?? []).filter((t) => t.type === 'story');
-  for (const story of stories) {
-    for (const line of resolveAcceptanceLines(story)) {
-      // Reset the global regex between iterations.
-      SUBJECT_PREFIX_RE.lastIndex = 0;
-      let match = SUBJECT_PREFIX_RE.exec(line);
-      while (match !== null) {
-        const rawPrefix = match[1];
-        // Strip an optional `(scope)` qualifier — `chore(baselines)` reduces
-        // to `chore` for the allowed-types check.
-        const type = rawPrefix.replace(/\(.*\)$/, '').trim();
-        if (!ALLOWED_COMMIT_TYPES.has(type)) {
-          violations.push({
-            slug: story.slug ?? '<unknown>',
-            prefix: rawPrefix,
-            line,
-          });
-        }
-        match = SUBJECT_PREFIX_RE.exec(line);
-      }
-    }
-  }
-  if (violations.length === 0) return;
-  const allowed = [...ALLOWED_COMMIT_TYPES].join('|');
-  const lines = violations
-    .map(
-      (v) =>
-        `  - "${v.slug}" → forbidden subject prefix "${v.prefix}:" in acceptance item: ${v.line}`,
-    )
-    .join('\n');
-  const err = new ValidationError(
-    `Cross-Validation Failed: ${violations.length} Story acceptance item(s) prescribe a non-Conventional-Commits subject prefix:\n${lines}\n\nAllowed leading types: ${allowed}. Use a Conventional-Commits subject (e.g. "chore(baselines): refresh ...") and a body trailer (e.g. "baseline-refresh: true") for machine-readable markers. See Epic #2501.`,
-    { violations },
-  );
-  err.code = 'forbidden-subject-prefix';
-  throw err;
-}
-
-/**
  * Render one missing-path warning with a remediation hint pointing at the
  * Story's `changes[]`. For `tests/**` paths we suggest the explicit
  * "add the test file" verb; for everything else we emit a generic hint
@@ -482,42 +338,53 @@ function assertAllTicketsAreStories({ tickets, stories }) {
 }
 
 /**
- * Return true when a Story object carries inline acceptance + verify
- * arrays — the inline-contract shape (Epic #3078) where the Story is itself the
- * implementation unit and acceptance / verify live on the Story body
- * rather than in child Task tickets.
+ * Return true when a Story carries a non-empty top-level `acceptance[]` —
+ * the inline-contract shape (Epic #3078) where the Story is itself the
+ * implementation unit and its criteria live on the Story rather than in
+ * child Task tickets.
  *
- * Both arrays must be present, be actual arrays, and contain at least
- * one entry. Either alone is insufficient — a Story with only
- * `acceptance[]` (no `verify[]`) cannot be implemented without a
- * verification handle, and a Story with only `verify[]` (no
- * `acceptance[]`) carries no observable criterion. Requiring both is the
- * inline-contract invariant every Story must satisfy.
+ * Story #5342 narrowed the invariant to `acceptance[]` alone. A Story with
+ * no observable criterion is genuinely unimplementable and nothing
+ * downstream can recover it; an empty `verify[]` only means the deliverer
+ * picks the commands, which the close gate chain runs regardless — so that
+ * half is a warning ({@link collectMissingVerifyWarnings}), not a refusal.
  */
-function hasInlineAcceptanceAndVerify(story) {
+function hasInlineAcceptance(story) {
   if (story === null || typeof story !== 'object') return false;
-  const { acceptance, verify } = story;
-  return (
-    Array.isArray(acceptance) &&
-    acceptance.length > 0 &&
-    Array.isArray(verify) &&
-    verify.length > 0
-  );
+  const { acceptance } = story;
+  return Array.isArray(acceptance) && acceptance.length > 0;
 }
 
 function assertEveryStoryHasInlineContract({ stories }) {
-  // Every Story is its own implementation
-  // unit and MUST carry a non-empty inline contract — top-level
-  // `acceptance[]` AND `verify[]`. A Story missing either is the legacy
-  // 4-tier shape that expected child Tasks; there is no Task tier any
-  // more, so such a Story is unimplementable and the decompose is
-  // rejected outright.
-  const missing = stories.filter((s) => !hasInlineAcceptanceAndVerify(s));
+  const missing = stories.filter((s) => !hasInlineAcceptance(s));
   if (missing.length === 0) return;
   const list = missing.map((s) => `"${s.title}" (${s.slug})`).join(', ');
   throw new Error(
-    `Cross-Validation Failed: ${missing.length} Story/Stories lack an inline acceptance + verify contract: ${list}. Every Story must carry non-empty top-level acceptance[] and verify[].`,
+    `Cross-Validation Failed: ${missing.length} Story/Stories lack an inline acceptance contract: ${list}. Every Story must carry a non-empty top-level acceptance[] — the outcomes a PR reviewer confirms once it lands.`,
   );
+}
+
+/**
+ * One warning per Story with no `verify[]` entry (Story #5342).
+ *
+ * Demoted from the hard refusal above: an absent verify list costs the
+ * acceptance critic its cheapest evidence, which is worth saying on the
+ * dry-run, but it never makes the Story unimplementable — the deliverer
+ * derives the commands and the close gate chain runs either way.
+ *
+ * @param {object[]} stories
+ * @returns {string[]}
+ */
+function collectMissingVerifyWarnings(stories) {
+  return (stories ?? [])
+    .filter((s) => !Array.isArray(s?.verify) || s.verify.length === 0)
+    .map(
+      (s) =>
+        `Story "${s.slug ?? s.title ?? '<unknown>'}" lists no verify[] entry — ` +
+        'the deliverer and the acceptance critic have no mechanical check to ' +
+        'read as evidence. Add the exact command or test path unless the ' +
+        'Story genuinely has none.',
+    );
 }
 
 /**
@@ -619,18 +486,11 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   assertAcyclic(slugAdjacency);
 
   // Story #4541 — refuse an unparseable Story body up front, with a named
-  // error pointing at the offending section + entry. Must precede both the
-  // subject-prefix scan and the freshness gate: each parses the body, and
-  // the freshness gate's net-new whitelist comes from `body.changes`, so a
-  // malformed body used to surface as a stale-path miss naming the paths the
-  // Story had legitimately declared.
+  // error pointing at the offending section + entry. Must precede the
+  // freshness gate: it parses the body, and its net-new whitelist comes from
+  // `body.changes`, so a malformed body used to surface as a stale-path miss
+  // naming the paths the Story had legitimately declared.
   assertStoryBodiesParse({ tickets });
-
-  // Reject any Task acceptance item that prescribes a non-Conventional-Commits
-  // subject prefix (e.g. legacy "Commit subject begins with 'baseline-refresh:'"
-  // from pre-Epic-#2501 planner output). Runs before the freshness gate so
-  // the failure mode is reported up-front rather than after a git probe.
-  validateAcceptanceSubjectPrefix({ tickets });
 
   // Hoist a single memoized (ref, path) → boolean probe shared across both
   // git-probe gates below. Without this, `validateAcFreshness` and
@@ -643,7 +503,7 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     ? makeMemoizedGitRunner(opts.gitRunner ?? defaultGitRunner)
     : null;
 
-  const warnings = [];
+  const warnings = [...collectMissingVerifyWarnings(stories)];
   // Story #5312: a goal / acceptance / verify path absent at base is a
   // warning the dry-run lists, not a refusal. Skipped when the caller omits
   // `baseBranchRef` so unit tests keep their semantics; production
@@ -702,5 +562,6 @@ export const _internal = {
   assertNoUnknownDeps,
   assertAcyclic,
   attachFindingsAndErrors,
-  hasInlineAcceptanceAndVerify,
+  hasInlineAcceptance,
+  collectMissingVerifyWarnings,
 };
