@@ -139,8 +139,8 @@ describe('story-deliver-terminal — the status contract', () => {
 
 describe('story-deliver-terminal — escalated (Story #4746)', () => {
   const ESCALATION_REASONS = [
-    'shape: changes[] declares 7 entries (> maxChanges 2)',
-    '--yes on over-scope fails closed to /mandrel-plan (never silently proceeds light)',
+    'un-waivable: the predicted footprint intersects sensitive-path class(es) billing',
+    'the verdict is un-ledgered or an un-waivable risk rule fired — fails closed to /mandrel-plan (never silently proceeds light)',
   ];
 
   it('is the pre-Story terminal: null storyId, /mandrel-plan next command, exit 2', () => {
@@ -156,6 +156,29 @@ describe('story-deliver-terminal — escalated (Story #4746)', () => {
     assert.match(env.nextCommand, /^\/mandrel-plan "/);
     assert.match(env.nextCommand, /billing pipeline/);
     assert.deepEqual(env.escalation.reasons, ESCALATION_REASONS);
+  });
+
+  it('Story #5344: the loosening changed no part of this shape', () => {
+    // The Story narrowed WHAT escalates (the predicted-shape ceilings are
+    // gone) and loosened WHAT FOLLOWS (/mandrel-plan may run in the escalating
+    // session, seeded with these reasons). Neither is an envelope change, and
+    // this pins that: the same builder call still validates against the
+    // unchanged schema, still names no Story, and still exits 2.
+    const env = buildEscalationTerminal({
+      prompt: 'add billing retries',
+      reasons: ESCALATION_REASONS,
+    });
+    assert.equal(validateTerminalEnvelope(env).valid, true);
+    assert.equal(env.status, 'escalated');
+    assert.equal(env.storyId, null);
+    assert.equal(exitCodeForTerminal(env), 2);
+    assert.deepEqual(env.escalation.reasons, ESCALATION_REASONS);
+    assert.deepEqual(env.escalation.created, {
+      receiptStory: false,
+      storyBranch: false,
+      worktree: false,
+    });
+    assert.match(env.nextCommand, /^\/mandrel-plan "/);
   });
 
   it('records per artifact that nothing was started, and cannot claim otherwise', () => {

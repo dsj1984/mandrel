@@ -16,35 +16,29 @@
  *
  * ## Four invariants keep it proportional, not a planning bypass
  *
- *   1. **Suitability gate ({@link deriveLightSuitability}).** The prompt's
- *      predicted footprint is judged by the **shared shape machinery**
+ *   1. **Risk gate ({@link deriveLightSuitability}).** The prompt's predicted
+ *      footprint is judged for **risk** by the shared machinery
  *      ({@link module:lib/orchestration/complexity-gate.deriveStoryShape} over
- *      {@link module:lib/orchestration/complexity-gate.STORY_SHAPE_CEILINGS})
- *      **and** a ledgered model verdict carrying a recorded reason
- *      ({@link resolveLedgeredVerdict}). Both must agree on `lite`; either
- *      falling short fails closed to `full`. The shape axes are effort and
- *      risk — distinct change kinds, a coarse magnitude bucket, uncertainty,
- *      and epic-scope span — never artifact counts (Story #4764), so this gate
- *      is deliberately **coarse**: it rejects clearly-epic work, and invariant
- *      3 below does the real enforcement against ground truth.
- *   2. **The predicted shape is a warning, not a gate ({@link
- *      resolveLightGateOutcome}, Story #5313).** An over-ceiling prediction
- *      proceeds light with a `warnings[]` entry naming the exceeded axis — the
- *      prediction is a guess, and invariant 3 bounds the real change set. Only
- *      the two things no re-slicing can fix still refuse: an un-ledgered
- *      verdict and an un-waivable risk rule (a sensitive-path class or a
- *      migration span), which route `full` through an `escalated` terminal.
- *      The former `ask-operator` outcome and its `--operator-proceed-light`
- *      answer are gone with the gate they answered.
+ *      the `audit-rules.json` sensitive-path classes and the
+ *      migration-with-consumers span) **and** a ledgered verdict carrying a
+ *      recorded reason ({@link resolveLedgeredVerdict}). A tripped risk rule
+ *      or an unrecorded reason fails closed to `full`.
+ *   2. **Nothing the caller declares about its own size decides (Story
+ *      #5344).** The predicted-shape ceilings — declared change kinds, a
+ *      magnitude bucket, an uncertainty bucket, a deployable span — are gone,
+ *      along with the `warnings[]` Story #5313 had already demoted them to.
+ *      They were self-declared by the agent asking to proceed, and once they
+ *      only warned they decided nothing at all. What is left reads evidence:
+ *      the predicted PATHS at the gate, and the actual diff at invariant 3.
  *   3. **Diff-derived backstop ({@link checkLightDiffBackstop}).** After
  *      implementation the **actual** change set is re-checked with
  *      {@link module:lib/orchestration/review-depth.deriveChangeLevel} plus the
  *      implementation-only magnitude ceilings of {@link LIGHT_DIFF_CEILINGS} —
- *      the diff is the real scope signal — and an over-ceiling diff is blocked
- *      rather than landed silently. Story #4856 moved this from a `maxFiles: 4`
+ *      the diff is the real scope signal, and since Story #5344 it is the ONLY
+ *      size block on the path. Story #4856 moved it from a `maxFiles: 4`
  *      cardinality ceiling to changed lines over implementation files, and made
- *      a block **recycle** its receipt Story through `/mandrel-plan` tickets mode
- *      instead of orphaning it.
+ *      a block **recycle** its receipt Story through `/mandrel-plan` tickets
+ *      mode instead of orphaning it.
  *   4. **Minimal receipt Story ({@link buildReceiptStoryTicket}).** A
  *      `type::story` ticket is authored inline so `refs #`, history, telemetry,
  *      and the `agent::executing -> agent::done` state machine survive.
@@ -56,11 +50,7 @@
  * @module lib/orchestration/light-suitability
  */
 
-import {
-  deriveStoryShape,
-  SHAPE_CODES,
-  STORY_SHAPE_CEILINGS,
-} from './complexity-gate.js';
+import { deriveStoryShape, SHAPE_CODES } from './complexity-gate.js';
 import { deriveChangeLevel } from './review-depth.js';
 
 /**
@@ -71,17 +61,16 @@ import { deriveChangeLevel } from './review-depth.js';
  * No re-slicing, shrinking, or operator answer satisfies one: a footprint
  * intersecting a sensitive-path class routes `full` however small the change,
  * and the diff backstop refuses the same footprint again at the end. But
- * {@link deriveStoryShape} reports only the **first** rule a shape trips and
- * evaluates the ceiling rules first, so a prompt tripping both `change-kinds`
- * and `sensitive-path` is reported as a size objection — which reads as
- * appealable, is waivable by an attended operator, and sends the work all the
- * way to an implementation the backstop then refuses.
+ * {@link deriveStoryShape} reports only the **first** rule a footprint trips,
+ * and it can reject on an unknown footprint (a glob, an absent acceptance
+ * list) before either risk rule is reached — so the recorded `code` is not a
+ * reliable answer to "is this risk or is this something I can fix?".
  *
- * The recovery is that the shape decision attaches the built effort shape to
+ * The recovery is that the shape decision attaches the built risk shape to
  * every footprint it can judge at all, and that shape carries the risk facts
- * (`sensitiveClasses`, `migrationSpan`) whether or not a risk rule fired.
- * Reading them here surfaces the objection first-hit reporting hides — the
- * difference between a wasted session and a redirected one.
+ * (`sensitiveClasses`, `migrationSpan`) whether or not a risk rule was the
+ * recorded one. Reading them here surfaces the objection first-hit reporting
+ * hides — the difference between a wasted session and a redirected one.
  *
  * Pure and total.
  *
@@ -193,14 +182,19 @@ function resolveDiffCeilings(ceilings) {
 }
 
 /**
- * Resolve the model's trivial-vs-standard verdict, held to a ledgering
- * contract: a `lite` route counts **only** with a non-empty recorded reason. A lite claim
- * without a recorded reason, or any non-`lite` route, fails closed to `full` —
- * an unaudited "trust me, it's small" never buys the light path.
+ * Resolve the model's ledgered light verdict: the **recorded reason** is the
+ * whole of it. A prompt arriving with no reason fails closed to `full` — an
+ * unaudited "trust me, it's small" never buys the light path.
+ *
+ * Story #5344 removed the `--route lite|full` half. It was a second
+ * self-declaration on top of the reason, and it carried no information the
+ * reason did not: a caller writing a reason is claiming `lite`, and one that
+ * meant `full` would not be invoking this gate. What survives is the part that
+ * leaves a record a human can read afterwards.
  *
  * Pure and total.
  *
- * @param {{ route?: unknown, reason?: unknown }} [verdict]
+ * @param {{ reason?: unknown }} [verdict]
  * @returns {{
  *   route: 'lite'|'full',
  *   reason: string|null,
@@ -208,56 +202,44 @@ function resolveDiffCeilings(ceilings) {
  *   note: string,
  * }}
  */
-export function resolveLedgeredVerdict({ route, reason } = {}) {
+export function resolveLedgeredVerdict({ reason } = {}) {
   const recordedReason = typeof reason === 'string' ? reason.trim() : '';
-  if (route !== 'lite') {
-    return {
-      route: 'full',
-      reason: recordedReason || null,
-      recorded: recordedReason !== '',
-      note: 'model verdict is not lite — standard /mandrel-plan route',
-    };
-  }
   if (recordedReason === '') {
     return {
       route: 'full',
       reason: null,
       recorded: false,
-      note: 'lite claim without a recorded reason — fails closed to full (the verdict must be ledgered)',
+      note: 'no recorded reason — fails closed to full (the light verdict must be ledgered)',
     };
   }
   return {
     route: 'lite',
     reason: recordedReason,
     recorded: true,
-    note: `model verdict: lite (recorded reason): ${recordedReason}`,
+    note: `light verdict (recorded reason): ${recordedReason}`,
   };
 }
 
 /**
  * Judge whether an operator prompt's predicted footprint is suitable for the
- * light path. The deterministic effort/risk derivation and the ledgered model
- * verdict must **both** agree on `lite`; anything else — clearly-epic work, a
- * sensitive-path footprint, an unledgered verdict — resolves to `full` (the
- * conservative default that routes the operator to `/mandrel-plan`).
+ * light path. Two things can refuse, and both are checks the caller cannot
+ * satisfy by re-describing its own request: an **un-waivable risk rule** read
+ * off the predicted paths (a sensitive-path class, a migration paired with its
+ * consumers) and an **un-ledgered verdict** (no recorded reason). Everything
+ * else proceeds light and is bounded for real by
+ * {@link checkLightDiffBackstop} against the actual diff.
  *
- * The predicted axes are declared by the caller: `predictedKinds` (the distinct
- * kinds of change; absent, each entry's `assumption` is its kind, so N
- * instances of one mechanical edit count once), `predictedMagnitude`
- * (`trivial` | `moderate` | `substantial`), and `predictedUncertainty`
- * (`determined` | `needs-design`). A malformed bucket fails closed; an absent
- * one carries no signal, because a marginal footprint must not be rejected on
- * counts the diff backstop is the right place to enforce.
+ * Story #5344 removed the declared effort axes — `predictedKinds`,
+ * `predictedMagnitude`, `predictedUncertainty` — and the `warnings[]` Story
+ * #5313 had demoted them to. A bucket the caller picks about its own request
+ * is not a measurement, and once it only warned it was not even a gate.
  *
  * Pure and total: never throws, never mutates its inputs.
  *
  * @param {{
  *   predictedChanges?: unknown,
  *   predictedAcceptance?: unknown,
- *   predictedKinds?: unknown,
- *   predictedMagnitude?: unknown,
- *   predictedUncertainty?: unknown,
- *   verdict?: { route?: unknown, reason?: unknown },
+ *   verdict?: { reason?: unknown },
  *   injectedRules?: object,
  *   selectSensitivePathClassesFn?: Function,
  * }} [args]
@@ -267,22 +249,14 @@ export function resolveLedgeredVerdict({ route, reason } = {}) {
  *   shape: ReturnType<typeof deriveStoryShape>,
  *   ledger: ReturnType<typeof resolveLedgeredVerdict>,
  *   unwaivable: ReturnType<typeof deriveUnwaivableRisk>,
- *   ceilings: typeof STORY_SHAPE_CEILINGS,
  *   reasons: string[],
- *   warnings: string[],
  * }} `unwaivable` names an absolute risk rule the predicted footprint trips
- *   even when the recorded `shape.code` is a size prediction (Story #4875), so
+ *   even when the recorded `shape.code` is something else (Story #4875), so
  *   the operator learns at prediction time that no re-slicing can help.
- *   `warnings` carries the predicted-shape objection when the shape is past a
- *   light ceiling (Story #5313): it names the exceeded axis, and it never
- *   decides `suitable` — the diff backstop bounds the real change set.
  */
 export function deriveLightSuitability({
   predictedChanges,
   predictedAcceptance,
-  predictedKinds,
-  predictedMagnitude,
-  predictedUncertainty,
   verdict,
   injectedRules,
   selectSensitivePathClassesFn,
@@ -291,17 +265,10 @@ export function deriveLightSuitability({
   const shape = deriveStoryShape({
     changes: predictedChanges,
     acceptance: predictedAcceptance,
-    kinds: predictedKinds,
-    magnitude: predictedMagnitude,
-    uncertainty: predictedUncertainty,
     injectedRules,
     selectSensitivePathClassesFn,
   });
   const unwaivable = deriveUnwaivableRisk(shape);
-  // Story #5313: the predicted shape no longer decides. A tripped risk rule is
-  // decisive on its own — a sensitive footprint can never be lite — and the
-  // ledgered verdict must still be lite; everything the shape ceilings say is
-  // carried as a warning for the operator and bounded for real by the backstop.
   const suitable = ledger.route === 'lite' && !unwaivable.present;
   const reasons = [`shape: ${shape.reasons[0]}`];
   if (unwaivable.present) reasons.push(unwaivable.reason);
@@ -312,37 +279,15 @@ export function deriveLightSuitability({
     shape,
     ledger,
     unwaivable,
-    ceilings: STORY_SHAPE_CEILINGS,
     reasons,
-    warnings: shapeWarnings(shape),
   };
 }
 
 /**
- * The predicted-shape objection as a warning (Story #5313): one entry naming
- * the exceeded axis (`shape.code`) and the shape's own reason, or none when
- * the prediction is within every light ceiling.
- *
- * @param {ReturnType<typeof deriveStoryShape>} shape
- * @returns {string[]}
- */
-function shapeWarnings(shape) {
-  if (shape?.route === 'lite') return [];
-  const axis = shape?.code ?? 'unknown';
-  const reason = shape?.reasons?.[0] ?? 'no reason recorded';
-  return [
-    `predicted shape exceeds a light ceiling on "${axis}": ${reason} — ` +
-      'proceeding light; the diff backstop bounds the actual change set',
-  ];
-}
-
-/**
  * Resolve what the light gate does with a suitability decision (Story #4740
- * AC-3; Story #5313).
+ * AC-3; Story #5313; Story #5344).
  *
- *   - suitable        → `proceed-light`, carrying the predicted-shape
- *                       `warnings[]` (possibly empty) so an over-ceiling
- *                       prediction is stated, never silent.
+ *   - suitable        → `proceed-light`.
  *   - not suitable    → `escalate-plan` — only an un-ledgered verdict or an
  *                       un-waivable risk rule gets here, and neither has an
  *                       answer an operator could give, so there is no
@@ -351,11 +296,10 @@ function shapeWarnings(shape) {
  * Pure and total.
  *
  * @param {{
- *   suitability?: { suitable?: boolean, reasons?: string[], warnings?: string[] },
+ *   suitability?: { suitable?: boolean, reasons?: string[] },
  * }} [args]
  * @returns {{
  *   action: 'proceed-light'|'escalate-plan',
- *   warnings: string[],
  *   reasons: string[],
  * }}
  */
@@ -363,29 +307,22 @@ export function resolveLightGateOutcome({ suitability } = {}) {
   const reasons = Array.isArray(suitability?.reasons)
     ? [...suitability.reasons]
     : [];
-  const warnings = Array.isArray(suitability?.warnings)
-    ? [...suitability.warnings]
-    : [];
 
   if (suitability?.suitable === true) {
     return {
       action: 'proceed-light',
-      warnings,
       reasons: [
         ...reasons,
-        warnings.length > 0
-          ? 'ledgered verdict lite and no un-waivable risk — proceeding light with a predicted-shape warning'
-          : 'predicted shape and ledgered verdict both lite — proceed light',
+        'ledgered verdict recorded and no un-waivable risk rule fired — proceed light; the diff backstop bounds the actual change set',
       ],
     };
   }
 
   return {
     action: 'escalate-plan',
-    warnings,
     reasons: [
       ...reasons,
-      'the ledgered verdict is not lite or an un-waivable risk rule fired — fails closed to /mandrel-plan (never silently proceeds light)',
+      'the verdict is un-ledgered or an un-waivable risk rule fired — fails closed to /mandrel-plan (never silently proceeds light)',
     ],
   };
 }

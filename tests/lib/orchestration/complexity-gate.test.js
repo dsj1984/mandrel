@@ -116,33 +116,26 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
   test('a genuinely small Story derives lite, with the shape as evidence', () => {
     const derived = deriveStoryShape(TRIVIAL);
     assert.equal(derived.route, 'lite');
-    assert.match(derived.reasons[0], /trivial shape/i);
+    assert.match(derived.reasons[0], /no absolute risk rule fires/i);
     assert.deepEqual(derived.shape, {
       siteCount: 1,
-      changeKinds: ['creates'],
-      kindCount: 1,
-      magnitude: 'moderate',
-      uncertainty: 'determined',
       acceptanceCount: 1,
-      deployables: [],
       migrationSpan: false,
       sensitiveClasses: [],
     });
   });
 
-  test('AC-1: a terse Story with clearly-epic scope derives full — words never route', () => {
-    // Two deployables behind a shared contract, described in three words:
-    // word count would call this trivial.
+  test('AC-1: a terse Story naming a sensitive path derives full — words never route', () => {
+    // Described in one word, and still `full`: the route reads the paths.
     const derived = deriveStoryShape({
       changes: [
-        { path: 'apps/api/src/handler.js', assumption: 'refactors-existing' },
-        { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
+        { path: 'src/auth/handler.js', assumption: 'refactors-existing' },
       ],
       acceptance: ['works'],
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'full');
-    assert.match(derived.reasons[0], /> maxDeployables/);
+    assert.match(derived.reasons[0], /sensitivity wins/i);
   });
 
   test('AC-1: a verbose-but-trivial Story derives lite — prose length is not shape', () => {
@@ -164,7 +157,7 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
     assert.equal(derived.route, 'lite');
   });
 
-  test('more distinct change KINDS than the ceiling fails to full', () => {
+  test('Story #5344: distinct change KINDS no longer route — the ceiling is gone', () => {
     const derived = deriveStoryShape({
       changes: [
         { path: 'src/one.js', assumption: 'refactors-existing' },
@@ -174,8 +167,7 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
       acceptance: ['works'],
       injectedRules: RULES,
     });
-    assert.equal(derived.route, 'full');
-    assert.match(derived.reasons[0], /> maxChangeKinds/);
+    assert.equal(derived.route, 'lite');
   });
 
   test('an unknown footprint is conservative full: empty, missing, glob, or unreadable', () => {
@@ -205,16 +197,11 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
     );
   });
 
-  test('the ceilings are frozen framework constants, carried on every decision', () => {
-    const derived = deriveStoryShape(TRIVIAL);
-    assert.ok(Object.isFrozen(derived.ceilings));
-    assert.deepEqual(derived.ceilings, {
-      maxChangeKinds: 2,
-      maxMagnitude: 'moderate',
-      maxUncertainty: 'determined',
-      maxDeployables: 1,
-    });
-    assert.equal(deriveStoryShape({}).ceilings, derived.ceilings);
+  test('Story #5344: no decision carries predicted-shape ceilings any more', () => {
+    for (const derived of [deriveStoryShape(TRIVIAL), deriveStoryShape({})]) {
+      assert.equal('ceilings' in derived, false);
+    }
+    assert.ok(Object.isFrozen(deriveStoryShape(TRIVIAL).preserves));
   });
 });
 
@@ -227,10 +214,9 @@ describe('deriveStoryShape — the deterministic backstop (AC-1, AC-3)', () => {
 // the work. These describes pin the replacement axes and — as load-bearing as
 // the new rejections — pin that marginal small work is no longer rejected.
 
-describe('effort, not artifact count (Story #4764 AC-1)', () => {
+describe('neither artifact count nor a declared effort bucket routes (Story #5344)', () => {
   test('three instances of ONE mechanical edit across three files is light', () => {
-    // The case counting got backwards: high file count, trivial work. One kind
-    // at three sites, so one kind.
+    // The case counting got backwards: high file count, trivial work.
     const derived = deriveStoryShape({
       changes: [
         { path: 'src/a.js', assumption: 'refactors-existing' },
@@ -238,74 +224,42 @@ describe('effort, not artifact count (Story #4764 AC-1)', () => {
         { path: 'src/c.js', assumption: 'refactors-existing' },
       ],
       acceptance: ['every call site passes the new flag'],
-      kinds: ['add-flag-to-call-site'],
-      magnitude: 'trivial',
       injectedRules: RULES,
     });
     assert.equal(derived.route, 'lite');
-    assert.equal(derived.shape.kindCount, 1);
     assert.equal(derived.shape.siteCount, 3);
   });
 
-  test('an explicit kinds[] declaration is unnecessary — assumptions collapse to kinds', () => {
-    const derived = deriveStoryShape({
-      changes: ['a', 'b', 'c', 'd'].map((p) => ({
-        path: `src/${p}.js`,
-        assumption: 'refactors-existing',
-      })),
-      acceptance: ['works'],
-      injectedRules: RULES,
-    });
-    assert.equal(derived.route, 'lite');
-    assert.deepEqual(derived.shape.changeKinds, ['refactors-existing']);
-  });
-
-  test('a single SUBSTANTIAL rewrite of one file is NOT light — the other direction', () => {
+  test('a single SUBSTANTIAL rewrite of one file is light here — the diff backstop owns size', () => {
     const derived = deriveStoryShape({
       changes: [{ path: 'src/reporting.js', assumption: 'refactors-existing' }],
       acceptance: ['the report renders identically'],
-      magnitude: 'substantial',
       injectedRules: RULES,
     });
-    assert.equal(derived.route, 'full');
-    assert.match(derived.reasons[0], /maxMagnitude/);
+    assert.equal(derived.route, 'lite');
   });
 
-  test('undeclared magnitude carries no signal; a malformed one fails closed', () => {
-    const absent = deriveStoryShape({ ...TRIVIAL, magnitude: undefined });
-    assert.equal(absent.route, 'lite');
-    assert.equal(absent.shape.magnitude, 'moderate');
-
-    // Declared but unrecognized is a claim that cannot be verified as small,
-    // so it takes the worst bucket on the scale rather than the default.
-    for (const magnitude of ['enormous', 42, {}]) {
+  test('the retired effort keys are not inputs — passing them changes nothing', () => {
+    const base = { ...TRIVIAL, injectedRules: RULES };
+    const plain = deriveStoryShape(base);
+    for (const extra of [
+      { kinds: ['a', 'b', 'c', 'd'] },
+      { magnitude: 'substantial' },
+      { magnitude: 'enormous' },
+      { uncertainty: 'needs-design' },
+    ]) {
+      const derived = deriveStoryShape({ ...base, ...extra });
       assert.equal(
-        deriveStoryShape({ ...TRIVIAL, magnitude }).route,
-        'full',
-        `magnitude ${JSON.stringify(magnitude)}`,
+        derived.route,
+        'lite',
+        `${JSON.stringify(extra)} must not route`,
       );
+      assert.deepEqual(derived.shape, plain.shape);
     }
-    // Case and padding are normalized, never rejected.
-    assert.equal(
-      deriveStoryShape({ ...TRIVIAL, magnitude: ' TRIVIAL ' }).route,
-      'lite',
-    );
-  });
-
-  test('open design decisions route full however small the footprint', () => {
-    const derived = deriveStoryShape({
-      ...TRIVIAL,
-      uncertainty: 'needs-design',
-    });
-    assert.equal(derived.route, 'full');
-    assert.match(
-      derived.reasons[0],
-      /design decisions \/mandrel-plan exists to resolve/,
-    );
   });
 });
 
-describe('the prediction gate rejects only clearly-epic work (Story #4764 AC-3)', () => {
+describe('the prediction gate rejects only absolute risk (Story #5344)', () => {
   test('marginal small work is no longer rejected on counts alone', () => {
     // Five files, four acceptance criteria, all refactors: over EVERY retired
     // ceiling (maxChanges 2, maxAcceptance 3, maxNonCreateChanges 1) and yet
@@ -321,21 +275,19 @@ describe('the prediction gate rejects only clearly-epic work (Story #4764 AC-3)'
     assert.equal(derived.route, 'lite');
   });
 
+  test('Story #5344: multiple deployables is no longer a rejection', () => {
+    const derived = deriveStoryShape({
+      changes: [
+        { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
+        { path: 'services/sync/src/job.js', assumption: 'refactors-existing' },
+      ],
+      acceptance: ['both sides agree'],
+      injectedRules: RULES,
+    });
+    assert.equal(derived.route, 'lite');
+  });
+
   const epicShapes = [
-    {
-      name: 'multiple deployables',
-      args: {
-        changes: [
-          { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
-          {
-            path: 'services/sync/src/job.js',
-            assumption: 'refactors-existing',
-          },
-        ],
-        acceptance: ['both sides agree'],
-      },
-      reason: /maxDeployables/,
-    },
     {
       name: 'a migration plus its consumers',
       args: {
@@ -346,19 +298,6 @@ describe('the prediction gate rejects only clearly-epic work (Story #4764 AC-3)'
         acceptance: ['the report reads the new column'],
       },
       reason: /migration with its consumers/,
-    },
-    {
-      name: 'an explicit multi-capability enumeration',
-      args: {
-        changes: [
-          { path: 'src/one.js', assumption: 'creates' },
-          { path: 'src/two.js', assumption: 'refactors-existing' },
-          { path: 'src/three.js', assumption: 'refactors-existing' },
-        ],
-        acceptance: ['all three capabilities work'],
-        kinds: ['new-endpoint', 'schema-widening', 'telemetry-rename'],
-      },
-      reason: /multi-capability enumeration/,
     },
   ];
 
@@ -385,7 +324,6 @@ describe('the benchmark rungs land on the right side (Story #4764 AC-5, AC-6)', 
         'the server listens on the configured port',
         'npm test passes',
       ],
-      magnitude: 'trivial',
       injectedRules: RULES,
     });
     assert.equal(
@@ -395,7 +333,7 @@ describe('the benchmark rungs land on the right side (Story #4764 AC-5, AC-6)', 
     );
   });
 
-  test('AC-6: the epic-scope scenario still escalates — deployables behind a shared contract', () => {
+  test("Story #5344: the epic-scope scenario now proceeds — its size is the backstop's problem", () => {
     const derived = deriveStoryShape({
       changes: [
         { path: 'packages/contract/src/schema.js', assumption: 'creates' },
@@ -408,8 +346,7 @@ describe('the benchmark rungs land on the right side (Story #4764 AC-5, AC-6)', 
       acceptance: ['both deployables validate against the shared contract'],
       injectedRules: RULES,
     });
-    assert.equal(derived.route, 'full');
-    assert.match(derived.reasons[0], /deployables/);
+    assert.equal(derived.route, 'lite');
   });
 });
 
@@ -535,13 +472,6 @@ describe('resolveStoryDispatchMode — topology only (Story #5006)', () => {
  * is why it sits ahead of every shape read including the gate kill-switch.
  */
 describe('resolveStoryDispatchMode — run topology (Story #4736)', () => {
-  const fullBody = storyBody({
-    changes: [
-      { path: 'apps/api/src/handler.js', assumption: 'refactors-existing' },
-      { path: 'apps/web/src/page.js', assumption: 'refactors-existing' },
-    ],
-    acceptance: ['a works', 'b works', 'c works', 'd works'],
-  });
   const sensitiveBody = storyBody({
     changes: [{ path: 'src/billing/banner.js', assumption: 'creates' }],
     acceptance: ['shows the banner'],
@@ -570,19 +500,17 @@ describe('resolveStoryDispatchMode — run topology (Story #4736)', () => {
   });
 
   test('AC-2: inline changes WHERE the engine runs, never the shape of the work', () => {
-    // The shape SSOT is unaffected by the dispatch verdict: a full-shaped and
-    // a sensitive-footprint Story both still derive `full`, and a run that
-    // dispatches them inline does not launder either to lite.
-    for (const body of [fullBody, sensitiveBody]) {
-      const parsed = parseStoryBody(body).body;
-      const derived = deriveStoryShape({
-        changes: parsed.changes,
-        acceptance: parsed.acceptance,
-        injectedRules: RULES,
-      });
-      assert.equal(derived.route, 'full');
-      assert.equal(resolveStoryDispatchMode({ storyCount: 1 }).mode, 'inline');
-    }
+    // The shape SSOT is unaffected by the dispatch verdict: a sensitive
+    // footprint still derives `full`, and a run that dispatches it inline does
+    // not launder it to lite.
+    const parsed = parseStoryBody(sensitiveBody).body;
+    const derived = deriveStoryShape({
+      changes: parsed.changes,
+      acceptance: parsed.acceptance,
+      injectedRules: RULES,
+    });
+    assert.equal(derived.route, 'full');
+    assert.equal(resolveStoryDispatchMode({ storyCount: 1 }).mode, 'inline');
   });
 
   test('an unknown or non-single run size is conservative sub-agent dispatch', () => {
@@ -728,21 +656,6 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
 
   const CASES = [
     [
-      SHAPE_CODES.CHANGE_KINDS,
-      { kinds: ['add-endpoint', 'migrate-schema', 'rewrite-client'] },
-    ],
-    [SHAPE_CODES.MAGNITUDE, { magnitude: 'substantial' }],
-    [SHAPE_CODES.UNCERTAINTY, { uncertainty: 'needs-design' }],
-    [
-      SHAPE_CODES.DEPLOYABLE_SPAN,
-      {
-        changes: [
-          { path: 'apps/web/a.ts', assumption: 'refactors-existing' },
-          { path: 'apps/api/b.ts', assumption: 'refactors-existing' },
-        ],
-      },
-    ],
-    [
       SHAPE_CODES.MIGRATION_SPAN,
       {
         changes: [
@@ -771,6 +684,17 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
     ],
   ];
 
+  test('Story #5344: the four ceiling codes no longer exist', () => {
+    for (const key of [
+      'CHANGE_KINDS',
+      'MAGNITUDE',
+      'UNCERTAINTY',
+      'DEPLOYABLE_SPAN',
+    ]) {
+      assert.equal(key in SHAPE_CODES, false, `${key} must be retired`);
+    }
+  });
+
   for (const [code, overrides] of CASES) {
     test(`routes full with code "${code}"`, () => {
       const derived = deriveStoryShape({ ...LITE_ARGS, ...overrides });
@@ -782,30 +706,25 @@ describe('deriveStoryShape — a stable code names WHICH rule objected', () => {
   test('the code is the branch surface, not the prose', () => {
     // The reason text is written for a human reading a gate envelope and is
     // free to be re-worded; a caller keying off it would break on a copy-edit.
-    // This is why the light path's operator override reads `code` instead.
+    // This is why `deriveUnwaivableRisk` reads `code` instead.
     const derived = deriveStoryShape({
       ...LITE_ARGS,
-      changes: [
-        { path: 'apps/web/a.ts', assumption: 'refactors-existing' },
-        { path: 'apps/api/b.ts', assumption: 'refactors-existing' },
-      ],
+      changes: [{ path: 'src/auth/session.ts', assumption: 'creates' }],
     });
-    assert.equal(derived.code, SHAPE_CODES.DEPLOYABLE_SPAN);
+    assert.equal(derived.code, SHAPE_CODES.SENSITIVE_PATH);
     assert.equal(derived.reasons.length, 1);
-    assert.match(derived.reasons[0], /maxDeployables/);
+    assert.match(derived.reasons[0], /sensitivity wins/i);
   });
 
-  test('adding the code left every pre-existing field intact', () => {
+  test('the decision shape is route, reasons, code, shape and preserves', () => {
     const derived = deriveStoryShape(LITE_ARGS);
     assert.deepEqual(Object.keys(derived).sort(), [
-      'ceilings',
       'code',
       'preserves',
       'reasons',
       'route',
       'shape',
     ]);
-    assert.equal(derived.ceilings.maxDeployables, 1);
     assert.equal(derived.preserves.repoGates, true);
     assert.equal(derived.shape.siteCount, 1);
   });

@@ -139,9 +139,10 @@ export const NEXT_COMMANDS = Object.freeze({
    * The only entry here that is a slash command rather than a script, and
    * deliberately so: the other entries resume a Story that exists, while this
    * one names work that has no Story yet and needs planning before it can have
-   * one. It is quoted for a shell but addressed to a **fresh session** — see
-   * the workflow's escalation section for why running it in the escalating
-   * session is forbidden.
+   * one. It is quoted for a shell. Story #4746 addressed it to a **fresh
+   * session**; Story #5344 permits the escalating session to run it too, seeded
+   * with `escalation.reasons` — see the workflow's escalation section for the
+   * seeding contract and for the observation that motivated the old ban.
    */
   escalateToPlan: (prompt) => `/mandrel-plan "${quoteForPlan(prompt)}"`,
 });
