@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-09-17T14:53:13.924Z",
+  "generatedAt": "2026-09-17T14:58:01.505Z",
   "rollup": {
     "*": {
       "min": 76.381,
@@ -1132,7 +1132,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ceremony-routing.js",
-      "mi": 110.6
+      "mi": 111.764
     },
     {
       "path": ".agents/scripts/lib/orchestration/change-set.js",
