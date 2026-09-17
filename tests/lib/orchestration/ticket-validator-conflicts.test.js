@@ -179,11 +179,12 @@ test('computeConflictFindings: empty inputs return empty findings', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 2-tier guard: a Story missing its inline acceptance + verify contract is
-// rejected before the conflict pass runs (Epic #3238).
+// 2-tier guard: a Story missing its inline acceptance contract is rejected
+// before the conflict pass runs (Epic #3238; narrowed to acceptance-only by
+// Story #5342).
 // ---------------------------------------------------------------------------
 
-test('rejects a Story that lacks an inline acceptance + verify contract', () => {
+test('rejects a Story that lacks an inline acceptance contract', () => {
   const tickets = [
     {
       type: 'story',
@@ -203,7 +204,7 @@ test('rejects a Story that lacks an inline acceptance + verify contract', () => 
   ];
   assert.throws(
     () => validateAndNormalizeTickets(tickets),
-    /lack an inline acceptance \+ verify contract/,
+    /lack an inline acceptance contract/,
   );
 });
 

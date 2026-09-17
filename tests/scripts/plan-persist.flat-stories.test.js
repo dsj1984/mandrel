@@ -1037,22 +1037,22 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
     assert.doesNotMatch(sourceComments(provider, 910), /plan-run/);
   });
 
-  it('fails closed on a partial supersede map before creating any Story', async () => {
+  it('assigns an unclaimed source id to the primary Story and closes it (Story #5342)', async () => {
     const provider = fakeProvider({ sources: [{ id: 920 }, { id: 921 }] });
-    await assert.rejects(
-      () =>
-        runPlanPersist({
-          provider,
-          artifacts: {
-            stories: [supersedingTicket('solo', [920])],
-          },
-          opts: { skipCleanup: true, sourceTicketIds: [920, 921] },
-        }),
-      /supersede partition failed[\s\S]*#921 is not claimed/,
+    const result = await runPlanPersist({
+      provider,
+      artifacts: {
+        stories: [supersedingTicket('solo', [920])],
+      },
+      opts: { skipCleanup: true, sourceTicketIds: [920, 921] },
+    });
+    // Both sources are superseded and closed — the default assignment is a
+    // completion of the map, not a silent drop.
+    assert.deepEqual(result.supersede.closed.sort(), [920, 921]);
+    assert.ok(
+      result.warnings.some((w) => /#921 was claimed by no Story/.test(w)),
+      `the default assignment is reported: ${result.warnings.join('\n')}`,
     );
-    // Nothing was created: only the two pre-seeded sources remain.
-    assert.equal(provider.issues.size, 2);
-    assert.deepEqual(closeUpdates(provider), []);
   });
 
   it('rejects a Story claiming a ticket that was not a source', async () => {
@@ -1219,24 +1219,26 @@ describe('runPlanPersist — superseded source tickets (Story #4535)', () => {
   });
 
   // The vacuous-pass hole itself: an envelope-derived source set turns a
-  // forgotten `supersedes[]` into the loud partition error it always should
-  // have been, instead of an empty-set pass that reported success.
-  it('fail-closes rather than partitioning an empty set when the envelope has sources the Stories do not claim', async () => {
+  // forgotten `supersedes[]` into an audible outcome instead of an empty-set
+  // pass that reported success. Story #5342 made that outcome a default
+  // assignment with a warning rather than a refusal — either way the source
+  // ticket can no longer be left quietly open.
+  it('assigns the envelope source to the primary Story when no Story claims it', async () => {
     const provider = fakeProvider({ sources: [{ id: 4525 }] });
     const { ids } = resolveSourceTicketIds({
       envelope: { mode: 'tickets', sourceTickets: [{ id: 4525 }] },
     });
 
-    await assert.rejects(
-      runPlanPersist({
-        provider,
-        artifacts: { stories: [ticket('solo')] },
-        opts: { skipCleanup: true, sourceTicketIds: ids },
-      }),
-      /#4525 is not claimed by any Story/,
+    const result = await runPlanPersist({
+      provider,
+      artifacts: { stories: [ticket('solo')] },
+      opts: { skipCleanup: true, sourceTicketIds: ids },
+    });
+    assert.ok(
+      result.warnings.some((w) => /#4525 was claimed by no Story/.test(w)),
     );
-    // Fail-closed means fail *before* any GitHub write.
-    assert.deepEqual(closeUpdates(provider), []);
+    assert.deepEqual(result.supersede.closed, [4525]);
+    assert.equal(provider.issues.get(4525).state, 'closed');
   });
 });
 
