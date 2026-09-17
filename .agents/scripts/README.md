@@ -13,7 +13,17 @@ GitHub Actions surfaces first. `check-knip-entries.js` derives that
 caller set mechanically, so a CLI no invoker names is dead, not
 operator-only.
 
-It reads the entry list from whatever configuration knip itself would
+The one script an operator-facing workflow drives **by name, repeatedly**, is
+[`deliver-run.js`](deliver-run.js): one beat of a multi-Story
+`/mandrel-deliver` run — it ticks the ready set from live state, writes each
+ready Story's dispatch prompt under `<tempRoot>/run-<id>/`, keeps the run
+ledger that replaces hand-maintained dispatch bookkeeping, and renders the
+`single-story-close.js` command for every hand-off. Everything else in the
+delivery chain (`resolve-stories.js`, `single-story-init.js`,
+`single-story-close.js`, `stories-wave-tick.js`) is reached through it or
+through a workflow step.
+
+`check-knip-entries.js` reads the entry list from whatever configuration knip itself would
 load — `knip.json`, `knip.jsonc`, `.knip.json(c)`, `knip.ts`, `knip.js`,
 `knip.config.ts`, `knip.config.js`, or `package.json#knip` — evaluating
 TS/JS modules rather than parsing them, and counting entries declared

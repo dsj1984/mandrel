@@ -33,7 +33,7 @@ you read:
 | --- | --- | --- |
 | `/mandrel-deliver` | bare | List the open `agent::ready` Stories and ask which to deliver. Deliver nothing until answered. |
 | `/mandrel-deliver 4712` | ids | One Story via `helpers/deliver-story.md`, **inline in this session** — no `story-worker` spawn. |
-| `/mandrel-deliver 4712 4713 …` | ids | Resolve the set, sequence by the discovered graph via `stories-wave-tick.js`, dispatch sub-agents. |
+| `/mandrel-deliver 4712 4713 …` | ids | Resolve the set, then beat `deliver-run.js` — it sequences by the discovered graph and hands back the spawns and closes. |
 | `/mandrel-deliver 4712 - 4716` | ids | A **range** — every id in the inclusive span. |
 | `/mandrel-deliver 4700` (a `type::epic`) | ids | The Epic's **open** child Stories. Mixes with Story ids. |
 | `/mandrel-deliver add a --json flag to doctor` | prompt | Unplanned work: gate, author a receipt Story, land it — [`helpers/deliver-light.md`](helpers/deliver-light.md). |
@@ -67,8 +67,10 @@ to an attended run.
 1. **Resolve the set.** One command, one Story or many:
    `node .agents/scripts/resolve-stories.js --ids <id,id,...>`. It validates the
    set and shows what will run: read `stories[]`, `dag[]` and `done[]` to
-   present the order in step 2, but do **not** thread them into step 3 — the
-   tick re-resolves the graph every beat. An Epic id expands to its open child
+   present the order in step 2, but do **not** thread them into step 3 — every
+   beat re-resolves the graph. A one-id run comes back `dispatchMode: "inline"`
+   and runs [`helpers/deliver-story.md`](helpers/deliver-story.md) in this
+   session; step 3 is the multi-Story path. An Epic id expands to its open child
    Stories first — **announce it**. It hard-errors (exit 1) on an id that is
    neither a Story nor an Epic, on an Epic with no open children, or on edges
    it cannot read — a missing gate would co-dispatch against an unlanded
@@ -76,32 +78,35 @@ to an attended run.
 
 2. **Confirm (N>1).** Present the order; wait unless `--yes`.
 
-3. **Sequence.** Loop until the tick reports `epilogueDue: true`:
+3. **Run the beat.** One command per beat, repeated until the envelope reports
+   the run `done`:
 
    ```bash
-   node .agents/scripts/stories-wave-tick.js \
-     --stories <id,id,...> --probe-live \
-     --dispatched <every id you have dispatched so far>
+   node .agents/scripts/deliver-run.js \
+     --stories <id,id,...> [--handoff <id>]...
    ```
 
    **Do not add `--concurrency` unless the operator explicitly asked for a
    per-run cap** — an explicit value wins over config, so a literal defeats a
    `.agentrc.local.json` override.
 
-   Each beat re-probes live state to derive done / in-flight itself; you never
-   compute them. `--dispatched` is the one thing you must supply — the
-   append-only list of every id you spawned this run. Cross-run de-confliction
-   via the assignee lease is automatic. Branch on the exit code:
-   - **0** — dispatch each `ready` id (already capped and overlap-free); an
-     empty `ready` with work in flight means "waiting", so keep looping;
-     `epilogueDue: true` means every Story is done — step 4.
+   Each beat re-probes live state and keeps its own accounting: the run ledger
+   under `<tempRoot>/run-<id>/` records every id it hands out, so **nothing is
+   maintained across beats by you**. Cross-run de-confliction via the assignee
+   lease is automatic. Branch on the exit code:
+   - **0** — spawn one `story-worker` per `ready[]` entry, **all in one turn**,
+     each with that entry's `promptPath` file as its prompt; run each `close[]`
+     entry's command foreground and serialized as hand-offs arrive. An empty
+     `ready` with work in flight means "waiting", so beat again;
+     `done: true` means every Story is landed — step 4.
    - **2 / 3 / 4** — `cycleError` / `wedged` / `blocked`: stop the loop and
      route per reference. **4** is the protocol's HITL pause
      ([`instructions.md` § 1.J](../instructions.md)) — surface it and wait for
      the operator; never poll.
 
-4. **Close each hand-off** (§ Closing what the workers hand back), then, with
-   every Story landed, run the **per-run epilogue (N>1)**:
+4. **Land what the workers hand back** (§ Closing what the workers hand back —
+   the beat renders each command), then, with every Story landed, run the
+   **per-run epilogue (N>1)**:
    `node .agents/scripts/plan-run-epilogue.js --stories 101,102`; N=1 has none
    ([reference](helpers/deliver-reference.md)). Every close rolls its container
    Epic up from its children.
@@ -117,7 +122,10 @@ to an attended run.
 **The tail is the orchestrator's, not the worker's.** A dispatched
 `story-worker` stops at a pushed branch and returns a hand-off; **you** run
 [`helpers/deliver-story.md`](helpers/deliver-story.md) Step 3
-(`single-story-close.js`) for it, foreground, and relay its envelope.
+(`single-story-close.js`) for it, foreground, and relay its envelope. Pass the
+id as `--handoff` on the next beat and run the `close[]` command it prints
+verbatim — the beat knows the run topology, so it decides
+`--merge-watch-mode async` for you.
 
 **Serialize the tail.** Implementation runs in parallel; closing does not.
 Close one Story at a time — closes contend on the base branch, the merge queue

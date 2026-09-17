@@ -1,7 +1,7 @@
 {
   "$schema": "https://mandrel.dev/baselines/dead-exports.schema.json",
   "kernelVersion": "6.17.1",
-  "generatedAt": "2026-09-17T15:06:02.452Z",
+  "generatedAt": "2026-09-17T16:03:58.447Z",
   "mode": "production",
   "rows": [
     {
@@ -21,10 +21,6 @@
       "symbol": "readAuditRules"
     },
     {
-      "file": ".agents/scripts/lib/audit-suite/dispatch-checklist.js",
-      "symbol": "buildDispatchChecklist"
-    },
-    {
       "file": ".agents/scripts/lib/audit-suite/findings.js",
       "symbol": "aggregateBaselineDelta"
     },
@@ -35,10 +31,6 @@
     {
       "file": ".agents/scripts/lib/audit-suite/index.js",
       "symbol": "buildChecklistPayload"
-    },
-    {
-      "file": ".agents/scripts/lib/audit-suite/index.js",
-      "symbol": "buildDispatchChecklist"
     },
     {
       "file": ".agents/scripts/lib/audit-suite/index.js",

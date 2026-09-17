@@ -32,8 +32,9 @@ that dispatched the work**, never to a spawned worker.
 
 - **Inline dispatch** (a one-Story run — digest § 1): one session is both
   roles and walks Steps 0→7, no hand-off.
-- **Sub-agent dispatch**: the `story-worker` stops at Step 2.5 with the branch
-  pushed and returns a hand-off; the dispatching `/mandrel-deliver` session runs Step 3
+- **Sub-agent dispatch**: the `story-worker` boots on the `promptPath`
+  `deliver-run.js` wrote for it, stops at Step 2.5 with the branch pushed and
+  returns a hand-off; the dispatching `/mandrel-deliver` session runs Step 3
   **in its own turn** and **serializes the tail — one close at a time across
   the run**, even though implementation ran in parallel (reference § Step 3).
 
