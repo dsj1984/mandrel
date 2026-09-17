@@ -101,12 +101,18 @@ describe('one delivery door (Story #4760)', () => {
     );
   });
 
-  it('keeps escalation terminal — /mandrel-deliver must never rescue an over-scope prompt by planning', () => {
+  it('keeps escalation terminal for the light path — /mandrel-deliver still never plans (Story #5344)', () => {
+    const md = readDoc(DELIVER);
     assertDocMentions(
-      readDoc(DELIVER),
-      /never invoke `\/mandrel-plan` in this session/i,
-      'the in-session-planning guard is the mandrel-bench 2.13.0 finding; it must ' +
-        'survive the fold into one command',
+      md,
+      /`\/mandrel-deliver` never plans/i,
+      'the one delivery door must not grow a planning branch',
+    );
+    assertDocMentions(
+      md,
+      /seeded with `escalation\.reasons`/i,
+      'Story #5344 replaced the in-session ban with a seeding contract; the ' +
+        'constraint must name it rather than a rule that no longer holds',
     );
   });
 });
@@ -204,16 +210,17 @@ describe('derived invocation intent (Story #4760)', () => {
 });
 
 describe('the light → /mandrel-plan escalation (Story #4760; one-way since #5312)', () => {
-  it('states the guard rule that breaks the session on escalation', () => {
+  it('states what escalation ends, and what it does not (Story #5344)', () => {
+    const md = readDoc(LIGHT);
     assertDocMentions(
-      readDoc(LIGHT),
-      /The direction whose guard is model judgment must break the session\./,
-      'without the rule stated, someone will let escalation run in-session',
+      md,
+      /envelope IS this session's terminal output for the light path/i,
+      'the light path still ends at the envelope — only the session ban lifted',
     );
     assertDocMentions(
-      readDoc(LIGHT),
-      /Do not "fix" this by letting light → `\/mandrel-plan` run in-session/,
-      'the rule needs an explicit do-not-change marker, not just an explanation',
+      md,
+      /no receipt Story, no `story-<id>` branch, and no worktree/i,
+      'an escalated run must still be stated to have started nothing',
     );
   });
 
@@ -230,11 +237,27 @@ describe('the light → /mandrel-plan escalation (Story #4760; one-way since #53
     );
   });
 
-  it('keeps light → /mandrel-plan escalation on a fresh session', () => {
+  it('permits the escalating session to continue, seeded, and names what re-decides it (Story #5344)', () => {
+    const md = readDoc(LIGHT);
     assertDocMentions(
-      readDoc(LIGHT),
-      /Invoking `\/mandrel-plan` in this same session is forbidden/,
-      'the empirical under-decomposition finding must survive the move',
+      md,
+      /in this same session/i,
+      'the loosening must be stated where the escalation is described',
+    );
+    assertDocMentions(
+      md,
+      /`escalation\.reasons`/,
+      'continuing in-session is only safe with the seeding contract attached',
+    );
+    assertDocMentions(
+      md,
+      /fresh session is still the safer default/i,
+      'the fresh-session alternative must survive as the recommendation',
+    );
+    assertDocMentions(
+      md,
+      /light-arm cell of mandrel-bench/i,
+      'the empirical finding must keep a named measurement that can re-decide it',
     );
   });
 
